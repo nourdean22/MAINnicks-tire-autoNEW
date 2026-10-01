@@ -460,7 +460,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "How much does it cost to fix an E-Check failure in Cleveland?",
-        answer: "The cost depends entirely on what caused the failure — a loose gas cap and a catalytic converter are very different repairs. That is why Nick's starts with a free readiness check and a written estimate before any work: you see exactly what failed and what fixing it takes before you commit to anything. Payment programs are available, and checking approval does not require a credit history or a hard credit pull."
+        answer: "The cost depends entirely on what caused the failure — a loose gas cap and a catalytic converter are very different repairs. That is why Nick's starts with a free readiness check and a written estimate before any work: you see exactly what failed and what fixing it takes before you commit to anything. Payment programs are available: some do not require established credit, and each provider decides approval."
       },
       {
         question: "How long does it take to fix an emissions problem?",

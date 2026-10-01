@@ -86,7 +86,7 @@ const FAQ_ITEMS = [
   {
     question: "Do you offer payment plans?",
     answer:
-      "Yes — Acima, Snap Finance, Koalafi, and American First Finance. No traditional credit check with any option. Lease-to-own and buy now, pay later available. Apply at the counter or online in minutes.",
+      "Yes — Acima, Snap Finance, Koalafi, and American First Finance. Some don't require established credit, and each provider decides approval. Lease-to-own and installment options are available. Apply at the counter or online.",
   },
   {
     question: "What if I need emergency service?",

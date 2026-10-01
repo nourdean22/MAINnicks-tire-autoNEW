@@ -216,7 +216,7 @@ export default function PayInvoice() {
                         <Shield className="w-3 h-3" /> Acima
                       </a>
                     </div>
-                    <p className="text-[9px] text-muted-foreground mt-1">Apply in seconds. No hard credit check.</p>
+                    <p className="text-[9px] text-muted-foreground mt-1">Some don&apos;t require established credit. Each provider decides approval and terms.</p>
                   </div>
                 </div>
               )}

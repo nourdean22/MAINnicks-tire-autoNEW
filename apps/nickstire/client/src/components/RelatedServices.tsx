@@ -158,7 +158,7 @@ export default function RelatedServices({ current, related, title = "Related Ser
         <div className="mt-6 flex flex-wrap gap-4 text-xs text-foreground/70">
           {/* wave-110 — "financing" is a banned brand word; copy now uses
               "Payment programs." (link target /financing stays — that's the URL slug). */}
-          <Link href="/financing" className="hover:text-primary transition-colors">Payment programs · Apply in 2 minutes · No credit check</Link>
+          <Link href="/financing" className="hover:text-primary transition-colors">Payment programs · 4 providers · Each provider decides approval</Link>
           <span className="text-foreground/20">|</span>
           <Link href="/booking" className="hover:text-primary transition-colors">Schedule your drop-off online</Link>
           <span className="text-foreground/20">|</span>

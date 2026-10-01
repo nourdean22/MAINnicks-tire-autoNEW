@@ -102,6 +102,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { createPrerenderMiddleware } from "../prerender-middleware";
 import { BUSINESS, SITE_URL } from "@shared/business";
+import { PAYMENT_PROGRAMS_CREDIT_LINE, PAYMENT_PROGRAMS_SHORT } from "@shared/financing";
 import { startTieredScheduler } from "../cron/scheduler";
 import { inFlightCronRuns, whenCronRunsSettled } from "../cron/index";
 import { validateTwilioRequest } from "../middleware/twilioValidation";
@@ -712,18 +713,18 @@ async function startServer() {
 - Rating: ${reviewRating} stars from ${reviewCountDisplay} Google reviews
 - Warranty: 12-month parts / 90-day labor, in writing (no mileage cap)
 - No appointment needed — first-come, first-served. Free drop-off with a ride back to work.
-- Payment programs: $10 down, no credit check, approved in about 90 seconds (Acima, Snap, Koalafi, American First)
+- ${PAYMENT_PROGRAMS_SHORT}. ${PAYMENT_PROGRAMS_CREDIT_LINE}
 - Service area: Cleveland, Euclid, East Cleveland, South Euclid, Cleveland Heights, Shaker Heights, Garfield Heights, Lakewood, Parma, Mentor, Strongsville, Lyndhurst, Richmond Heights, Willoughby
 
 ## Services
 - [Brake repair](${b}/brakes): Pads from $149/axle, pads + rotors from $279/axle. Free check, written quote, same-day.
 - [Tires - new & used](${b}/tires): Used from $25 installed (most sizes $40-80), new from $89 installed. Free install package (mount, balance, valve stems, TPMS reset, alignment check).
-- [Oil change](${b}/oil-change): Conventional from $49, full synthetic from $80. Free 21-point check included.
+- [Oil change](${b}/oil-change): Conventional from $49, full synthetic from $80. Free multi-point check included.
 - [Engine diagnostics / check-engine light](${b}/diagnostics): Free code scan, honest diagnosis, written estimate first.
-- [Ohio E-Check / emissions](${b}/emissions): Failed-emissions repair, O2 sensors, EVAP, catalytic converters. Same-day pass.
+- [Ohio E-Check / emissions](${b}/emissions): Failed-emissions repair, O2 sensors, EVAP, catalytic converters. Free readiness check before the state test.
 - [Wheel alignment](${b}/alignment): Stops uneven tire wear and pulling. Most vehicles same-day.
 - [Auto repair (all services)](${b}/services): Brakes, tires, oil, diagnostics, alignment, emissions, suspension, batteries. All makes and models including European.
-- [Payment programs](${b}/financing): $10 down, no credit check, drive away today.
+- [Payment programs](${b}/financing): four providers compared side by side; each provider decides approval.
 
 ## Common questions
 - Why is my car shaking or vibrating when I brake? Usually a warped brake rotor: the surface is no longer flat, so the pad grabs unevenly and you feel it in the wheel or pedal. Common on Cleveland cars from stop-and-go traffic and winter heat cycles. The fix is resurfacing or replacing the rotor, most often as a pads + rotors job. Free check at 17625 Euclid Ave, written quote before any work.

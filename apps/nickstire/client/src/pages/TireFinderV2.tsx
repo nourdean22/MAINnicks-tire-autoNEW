@@ -370,7 +370,7 @@ export default function TireFinderV2() {
             <Link href="/used-tires-cleveland" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">Used Tires from $25</Link>
             <a href="#new-tires" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">New Tires from $89</a>
             <Link href="/tire-prices-cleveland" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">Live Tire Prices</Link>
-            <Link href="/no-credit-check-tires-cleveland" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">No Credit Check Tires</Link>
+            <Link href="/no-credit-check-tires-cleveland" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">Bad Credit? Tire Options</Link>
             <a href="#tire-repair" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">Flat / Tire Repair</a>
             <a href="#open-sundays" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">Open Sundays</a>
           </div>
@@ -397,8 +397,8 @@ export default function TireFinderV2() {
                 </details>
               ))}
             </div>
-            {/* Financing fine print — the FAQ above quotes $10-down / no-credit-check
-                payment-program terms; this keeps the required disclosure on-page. */}
+            {/* Payment-program fine print — the FAQ above names the providers;
+                this keeps the Acima disclosure on-page. */}
             <p className="mt-6 text-[11px] leading-relaxed text-foreground/40">
               {ACIMA_COMPACT_DISCLOSURE}
             </p>

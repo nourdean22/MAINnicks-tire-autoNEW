@@ -1794,7 +1794,7 @@ export default function TireFinder() {
                     Every casing has to clear all four gates below before it's allowed on the rack —
                     the ones that fail get scrapped, not discounted. Same professional installation,
                     same included mount/balance/valve stems/disposal — just a friendlier number on the
-                    receipt. Payment programs on the spot if you need them.
+                    receipt. Payment programs from four providers if you need them.
                   </p>
                   <p className="text-[10px] text-muted-foreground/60 mt-1.5">
                     Select 12-inch sizes from $25 installed; most standard passenger sizes $40–$80 installed.

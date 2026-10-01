@@ -36,7 +36,7 @@ export default function FirestoneAlternative() {
         },
         {
           question: "Does Nick's accept the Firestone credit card?",
-          answer: "No — Firestone's credit card is a Firestone-only program. Nick's offers payment programs through Acima, Snap, Affirm, and partner lenders that work at most service providers. Pre-qualified in 60 seconds with a soft credit pull (no impact to your score), up to $4,000 approved. Same financing convenience, no chain lock-in.",
+          answer: "No — Firestone's credit card is a Firestone-only program. Nick's accepts four third-party payment programs: Acima (lease-to-own), Snap Finance, Koalafi and American First Finance. Each provider decides approval and terms. No chain lock-in.",
         },
         {
           question: "Why do so many Firestone reviews mention surprise charges?",

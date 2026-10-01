@@ -92,8 +92,11 @@ export const BUSINESS = {
     // (a resolveReviewDisplay() fallback, not a per-page bug — see
     // useReviewStats.ts). This is a periodic floor update, not a design
     // change; keep raising it as the live count grows.
-    count: 1710,
-    countDisplay: "1,710+",
+    // 2026-10-01 · 1710 -> 1715: the live endpoint (reviews.google) returned
+    // totalReviews 1715, and the homepage snapshot, which captured the floor,
+    // read 1,710+ while every other page read 1,715+.
+    count: 1715,
+    countDisplay: "1,715+",
     source: "Google",
     url: "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid",
   },
@@ -177,7 +180,9 @@ export const BUSINESS = {
   // ─── FINANCING ─────────────────────────────────────
   financing: {
     providers: ["Acima", "Snap", "Koalafi", "American First Finance"] as readonly string[],
-    display: "No-credit-check financing available",
+    // 2026-10-01 · was "No-credit-check financing available". Koalafi and
+    // American First Finance both say they check credit (shared/financing.ts).
+    display: "Payment programs from four providers; each decides approval",
     downPayment: "$10 down",
   },
 

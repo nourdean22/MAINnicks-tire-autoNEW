@@ -408,7 +408,7 @@ export default function CityPage() {
                   for internal-link authority transfer. Each city page sees
                   ~5-15 impressions/mo. With 18 city pages, that's a real
                   link-equity boost on the keyword-led targets. */}
-              <Link href="/no-credit-check-tires-cleveland" className="text-emerald-400 hover:underline">No-credit-check tires · $10 down</Link>
+              <Link href="/no-credit-check-tires-cleveland" className="text-emerald-400 hover:underline">Bad credit? Tire payment options</Link>
               <span className="text-foreground/20">|</span>
               <Link href="/tires#open-sundays" className="hover:text-primary transition-colors">Sunday tire shop</Link>
               <span className="text-foreground/20">|</span>
@@ -519,7 +519,7 @@ export default function CityPage() {
               <FadeIn delay={0.25}>
                 <Link href="/emissions" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
                   <h3 className="font-bold text-foreground mb-2">E-Check & Emissions Testing</h3>
-                  <p className="text-foreground/60 text-sm leading-relaxed">Need to pass Ohio E-Check for your registration renewal? We handle emissions testing and can fix whatever's causing a failure so you pass the first time.</p>
+                  <p className="text-foreground/60 text-sm leading-relaxed">Need to pass Ohio E-Check for your registration renewal? The state runs the test; we run a free readiness check and fix whatever is causing a failure before you go back.</p>
                 </Link>
               </FadeIn>
               <FadeIn delay={0.3}>

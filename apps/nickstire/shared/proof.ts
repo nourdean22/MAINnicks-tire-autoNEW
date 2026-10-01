@@ -284,7 +284,7 @@ export const PROOF_CONFIG: Record<string, ServiceProofConfig> = {
       ],
     },
     trustTags: [
-      { label: "Ohio E-Check Certified" },
+      { label: "Free E-Check Readiness Check" },
       { label: "Recheck at No Extra Charge" },
       { label: "Waiver Guidance Included" },
       { label: "Honest Pass/Fail Assessment" },
@@ -526,7 +526,7 @@ export const PROOF_CONFIG: Record<string, ServiceProofConfig> = {
     trustTags: [
       { label: "$10 Down to Start" },
       { label: "All Credit Types Welcome" },
-      { label: "Approval in Minutes" },
+      { label: "Payment Programs Available" },
       { label: "No Judgment Policy" },
     ],
     statLine: "Flexible payments for any repair, any budget.",

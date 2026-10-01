@@ -16,6 +16,7 @@
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
 import { useReviewStats } from "@/hooks/useReviewStats";
+import { OHIO_ECHECK } from "@shared/echeck";
 import { Search, AlertTriangle, ShieldCheck } from "lucide-react";
 
 // A FUNCTION, not a module constant: the rating and review count are live
@@ -88,9 +89,9 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
         source: "AAA + EPA repair-cost benchmarks.",
       },
       {
-        value: "30",
-        unit: "days to E-Check fail",
-        consequence: "An unresolved CEL automatically fails Ohio E-Check on your registration cycle. 30 days after expired registration = parking ticket + impound risk + driving-on-expired-registration charge.",
+        value: "Auto-fail",
+        unit: "E-Check with the light on",
+        consequence: `A lit check-engine light fails Ohio E-Check. ${OHIO_ECHECK.registrationRule}`,
       },
     ],
   },

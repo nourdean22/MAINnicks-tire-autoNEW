@@ -55,7 +55,7 @@ export default function AcimaLeaseStrip() {
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             {[
               "No credit history required",
-              "Approval in minutes",
+              "Apply online or in store",
               "90-day early purchase option",
             ].map((line) => (
               <span key={line} className="inline-flex items-center gap-1.5">

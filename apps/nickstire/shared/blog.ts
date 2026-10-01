@@ -323,7 +323,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "What to Do If You Fail E-Check",
-        content: "If your vehicle fails, you have 30 days to make repairs and retest at no additional cost. Do NOT simply clear the codes and try again — the monitors will be incomplete and you will fail for that reason instead. The key is to figure out the actual problem, repair it, then drive the vehicle through the specific drive cycle needed for all monitors to complete. At Nick's Tire & Auto, we specialize in E-Check failures and know the exact drive cycles for every vehicle. We fix the root cause so you pass the first time back."
+        content: "If your vehicle fails, Ohio covers up to three E-Check tests in a 365-day period, and it won't renew the registration until the vehicle passes or qualifies for a repair waiver or extension. Do NOT simply clear the codes and try again — the monitors will be incomplete and you will fail for that reason instead. The key is to figure out the actual problem, repair it, then drive the vehicle through the specific drive cycle needed for all monitors to complete. At Nick's Tire & Auto, we specialize in E-Check failures and know the exact drive cycles for every vehicle. We fix the root cause before you go back for the retest."
       },
       {
         heading: "How Much Does E-Check Repair Cost?",
@@ -389,7 +389,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "Brake Pad Replacement: $150–$300 Per Axle",
-        content: "Replacing brake pads on one axle (front or rear) costs $150 to $300 at most independent shops in Cleveland. This includes the pads themselves, labor, and hardware. Ceramic pads cost more than semi-metallic but produce less dust and noise. Dealerships charge $250 to $450 for the same job. At Nick's Tire & Auto, front brake pad replacement starts at $150 per axle, and we use quality ceramic pads."
+        content: "Replacing brake pads on one axle (front or rear) costs $150 to $300 at most independent shops in Cleveland. This includes the pads themselves, labor, and hardware. Ceramic pads cost more than semi-metallic but produce less dust and noise. Dealerships charge $250 to $450 for the same job. At Nick's Tire & Auto, front brake pad replacement starts at $149 per axle, with ceramic pads."
       },
       {
         heading: "Brake Pads + Rotors: $250–$500 Per Axle",
@@ -581,7 +581,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Payment Programs for Brake Repair",
-        content: "We understand that an unexpected brake repair bill can strain your budget. That is why Nick's Tire & Auto offers flexible payment programs to help you get the repair done now and pay over time. We work with multiple providers to offer plans that fit different credit situations. Some plans offer 0% interest for qualified buyers. The important thing is that you do not delay brake repair because of cost — brakes are your primary safety system, and putting off repairs always makes them more expensive. A $200 pad job today becomes a $600 full brake job next month if you keep driving on worn pads. Visit our payment programs page or ask about options when you bring your vehicle in."
+        content: "We understand that an unexpected brake repair bill can strain your budget. That is why Nick's Tire & Auto offers flexible payment programs to help you get the repair done now and pay over time. We work with multiple providers to offer plans that fit different credit situations. Terms, including any early payoff option, vary by provider and agreement. The important thing is that you do not delay brake repair because of cost — brakes are your primary safety system, and putting off repairs always makes them more expensive. A $200 pad job today becomes a $600 full brake job next month if you keep driving on worn pads. Visit our payment programs page or ask about options when you bring your vehicle in."
       },
       {
         heading: "Schedule Your Free Brake Check",
@@ -1373,7 +1373,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "What to Do If You Fail",
-        content: "If your vehicle fails E-Check, bring the failure report to Nick's Tire & Auto. The report lists which systems failed and the specific trouble codes. We use that as our starting point for diagnosis. We fix the root cause, verify the repair with our scan tool, and make sure all monitors complete before sending you back for retesting. You have 30 days and one free retest after a failure. We handle E-Check repair work every day and know the drive cycles for every vehicle to ensure monitors complete properly."
+        content: "If your vehicle fails E-Check, bring the failure report to Nick's Tire & Auto. The report lists which systems failed and the specific trouble codes. We use that as our starting point for diagnosis. We fix the root cause, verify the repair with our scan tool, and make sure all monitors complete before sending you back for retesting. Ohio covers up to three E-Check tests in a 365-day period, and it won't renew the registration until the vehicle passes or qualifies for a repair waiver or extension. We handle E-Check repair work every day and know the drive cycles for every vehicle to ensure monitors complete properly."
       },
       {
         heading: "E-Check Repair Near Euclid",
@@ -1387,7 +1387,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: "cheap-oil-change-cleveland",
     title: "Cheap Oil Change in Cleveland (Without the Upsell)",
     metaTitle: "Cheap Oil Change Cleveland — Honest Pricing | Nick's Tire & Auto",
-    metaDescription: "Looking for a cheap oil change in Cleveland? Conventional from $35, synthetic from $65. No hidden fees, no pressure upsell. Nick's Tire & Auto honest pricing.",
+    metaDescription: "Looking for a cheap oil change in Cleveland? Conventional from $49, synthetic from $80. No hidden fees, no pressure upsell. Nick's Tire & Auto honest pricing.",
     category: "Cleveland Tips",
     publishDate: "2025-08-01",
     readTime: "4 min read",
@@ -1396,7 +1396,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "Oil Change Prices in Cleveland (2026)",
-        content: "Conventional oil change at quick-lube chains: $30 to $50. At dealerships: $50 to $80. Full synthetic at chains: $60 to $90. At dealerships: $80 to $120. At Nick's Tire & Auto: conventional starts at $35, full synthetic starts at $65. Every oil change includes a new filter, a basic vehicle check (20-point), and a tire pressure check. No appointment needed, and we are usually done in 20 to 30 minutes."
+        content: "Conventional oil change at quick-lube chains: $30 to $50. At dealerships: $50 to $80. Full synthetic at chains: $60 to $90. At dealerships: $80 to $120. At Nick's Tire & Auto: conventional starts at $49, full synthetic starts at $80. Every oil change includes a new filter, a basic vehicle check (20-point), and a tire pressure check. No appointment needed, and we are usually done in 20 to 30 minutes."
       },
       {
         heading: "The Quick-Lube Upsell Problem",
@@ -1447,7 +1447,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Emergency Repairs on a Budget",
-        content: "We know emergency repairs are never planned expenses. That is why we partner with multiple payment-program providers — $10 down, no credit check. Get the repair done today and pay over time. Bad credit, no credit — we have options. Your safety is not something that should wait because of money. Come to Nick's Tire & Auto — Cleveland's East Side emergency repair shop, open every day."
+        content: "We know emergency repairs are never planned expenses. That is why we accept four payment-program providers. Some do not require established credit, and each provider decides approval. Bad credit, no credit, limited credit: ask about the options. Your safety is not something that should wait because of money. Come to Nick's Tire & Auto — Cleveland's East Side emergency repair shop, open every day."
       }
     ],
     relatedServices: ["/tires", "/brakes", "/diagnostics", "/general-repair"],
@@ -1912,7 +1912,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: "auto-repair-payment-programs-bad-credit-cleveland",
     title: "Car Repair Payment Programs for Bad Credit in Cleveland",
     metaTitle: "Auto Repair Payment Programs Bad Credit · $10 Down | Nick's",
-    metaDescription: "Need car repairs but have bad credit? Nick's Tire & Auto offers $10 down payment programs through 4 providers. Get approved today — Cleveland, Euclid, Northeast Ohio.",
+    metaDescription: "Need car repairs but have bad credit? How the 4 payment programs at Nick's Tire & Auto work, which check credit, and what they cost. Cleveland, Euclid.",
     category: "Cost Guide",
     publishDate: "2026-04-14",
     readTime: "5 min read",
@@ -1921,27 +1921,27 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "Why Payment Programs Matter",
-        content: "We see it every week — a Cleveland driver comes in with a serious safety issue, gets the diagnosis, and then has to choose between fixing the car and paying rent. That is not a choice anyone should have to make. Driving on bad brakes, worn tires, or a misfiring engine is dangerous. That is why we partnered with four different payment-program providers to cover every credit situation. Bad credit, no credit, limited credit — there is an option. Your safety should not depend on whether you have $800 in your checking account right now."
+        content: "We see it every week — a Cleveland driver comes in with a serious safety issue, gets the diagnosis, and then has to choose between fixing the car and paying rent. That is not a choice anyone should have to make. Driving on bad brakes, worn tires, or a misfiring engine is dangerous. That is why we accept four different payment-program providers. Bad credit, no credit, limited credit: some of these programs do not require established credit, and each provider decides on its own application. Your safety should not depend on whether you have $800 in your checking account right now."
       },
       {
         heading: "Our Four Payment Program Providers",
-        content: "We work with four providers, each with different approval criteria. Acima is a lease-to-own option that requires no traditional credit check — approval is based on income and banking history, with a 90-day same-as-cash option. Snap Finance works with alternative data using income verification rather than FICO score, with a 100-day same-as-cash option. Koalafi offers the highest approval amounts up to $7,500 for larger repairs. American First Finance rounds out our lineup with alternative-underwriting lease-to-own and a 90-day same-as-cash option. Between these four providers, we get most applicants approved for the repairs they need."
+        content: "We work with four providers, each with its own application and approval criteria. Acima is lease-to-own, not a loan: it says no credit history is required, but it obtains information from consumer reporting agencies. Snap Finance offers lease-to-own and installment products and says applying does not affect your FICO score, though another consumer-report score may be affected. Koalafi offers the highest published maximum, up to $7,500 for qualifying applicants, and says it checks credit through alternative credit bureaus. American First Finance may offer a loan, an installment agreement or a lease, and says credit may be checked. Early purchase or payoff terms differ by provider and agreement. No provider approves everyone, and if one declines you can apply with another."
       },
       {
-        heading: "How It Works — $10 Down, Same-Day Approval",
-        content: "The process is simple. We figure out your vehicle and give you the repair estimate. You apply with one or more providers — applications take 5 minutes on your phone. Most approvals come back in minutes. Once approved, we perform the repair and you make payments according to the plan terms. Most providers require as little as $10 down. Payment terms range from 3 to 24 months depending on the provider and the amount. Interest rates vary — some providers offer promotional 0 percent APR, others have higher rates for higher-risk borrowers. We explain all the terms before you commit."
+        heading: "How It Works",
+        content: "The process is simple. We inspect the vehicle and give you a written repair estimate. You apply with one or more providers, online or at the counter. The provider decides, and its offer shows the amount, the payment schedule and the total cost. If you accept, we perform the repair and you make payments under that agreement. The initial payment varies by provider and agreement; Acima offers a $10 start only in select circumstances. Lease-to-own costs more than the cash price over a full term, and loan rates vary, so compare the total of payments. We walk through the terms with you before you commit."
       },
       {
         heading: "What You Can Cover With a Payment Program",
-        content: "Payment programs cover all repair and maintenance services — brakes, tires, engine repair, transmission work, diagnostics, suspension, electrical, and more. Minimum amounts vary by provider, typically $200 to $500 minimum. Maximum amounts range from $3,000 to $10,000 depending on the provider and your approval. You can also use a payment program for preventive maintenance like timing belt replacements and fluid services — investing in maintenance now prevents expensive emergency repairs later."
+        content: "Payment programs can cover many repair and maintenance purchases, such as brakes, tires, engine repair, transmission work, suspension and electrical, but each provider decides what qualifies. Minimum and maximum amounts vary by provider; published maximums run up to $7,500 for qualifying applicants. You can also use a payment program for preventive maintenance like timing belt replacements and fluid services — investing in maintenance now prevents expensive emergency repairs later."
       },
       {
-        heading: "Get Approved Today",
-        content: "Do not put off safety repairs because of money. Apply at the shop or call ahead and we can walk you through the process over the phone. Most applications take 5 minutes and approval is immediate. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. Nick's Tire and Auto — because safe brakes should not wait until payday."
+        heading: "Apply Before You Wait",
+        content: "Do not put off safety repairs because of money. Apply at the shop or call ahead and we can walk you through the process over the phone; the provider gives its decision on its own application. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. Nick's Tire and Auto — because safe brakes should not wait until payday."
       }
     ],
     relatedServices: ["/brakes", "/tires", "/general-repair", "/diagnostics"],
-    tags: ["car repair payment program bad credit", "auto repair payment plan Cleveland", "$10 down car repair", "no credit check auto repair", "auto repair payment programs Cleveland"]
+    tags: ["car repair payment program bad credit", "auto repair payment plan Cleveland", "$10 down car repair", "bad credit auto repair Cleveland", "auto repair payment programs Cleveland"]
   },
   {
     slug: "is-my-car-worth-repairing",
@@ -2256,7 +2256,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Free Tire Pressure Checks at Nick's",
-        content: "Drive into Nick's Tire and Auto any day of the week and we will check and adjust your tire pressure for free. No appointment, no purchase necessary. We set them to the manufacturer spec for your vehicle. If we spot anything else — uneven wear, a slow leak, a cracked valve stem — we will let you know. We are at 17625 Euclid Ave, Euclid. Call (216) 862-0005 or just pull in. Also check our [tire finder](/tires) if you are due for new rubber, or learn about our [$39 oil change special](/oil-change)."
+        content: "Drive into Nick's Tire and Auto any day of the week and we will check and adjust your tire pressure for free. No appointment, no purchase necessary. We set them to the manufacturer spec for your vehicle. If we spot anything else — uneven wear, a slow leak, a cracked valve stem — we will let you know. We are at 17625 Euclid Ave, Euclid. Call (216) 862-0005 or just pull in. Also check our [tire finder](/tires) if you are due for new rubber, or see our [oil change pricing](/oil-change)."
       }
     ],
     relatedServices: ["/tires"],
@@ -3189,7 +3189,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "Oil Change Schedule — Do Not Follow the Oil Life Monitor Blindly",
-        content: "The Silverado's oil life monitor is calibrated for average conditions. Ohio conditions are not average. Towing, short trips in cold weather, dusty job sites, and constant stop-and-go — all of these are severe service conditions that drain oil life faster. If you tow regularly, haul heavy loads, or mostly drive short trips around Cleveland, change your oil every 5,000 miles or every 6 months regardless of what the monitor says. The 5.3L and 6.2L V8s use a lot of oil between changes — check your level monthly. These engines are known for oil consumption, especially 2014 to 2018 models with AFM (Active Fuel Management). At Nick's, a full synthetic oil change on a Silverado runs $69.99 to $89.99 depending on the engine."
+        content: "The Silverado's oil life monitor is calibrated for average conditions. Ohio conditions are not average. Towing, short trips in cold weather, dusty job sites, and constant stop-and-go — all of these are severe service conditions that drain oil life faster. If you tow regularly, haul heavy loads, or mostly drive short trips around Cleveland, change your oil every 5,000 miles or every 6 months regardless of what the monitor says. The 5.3L and 6.2L V8s use a lot of oil between changes — check your level monthly. These engines are known for oil consumption, especially 2014 to 2018 models with AFM (Active Fuel Management). At Nick's, full synthetic starts at $80 for up to 5 quarts; engines that take more cost more, and we quote it before we start."
       },
       {
         heading: "Transmission Service — The Often-Forgotten Maintenance",
@@ -3310,7 +3310,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Honest Pricing at Nick's — No Reason to Risk It",
-        content: "We keep our labor rates fair specifically so that DIY versus shop is not a difficult decision on real repairs. Oil changes from $39.99. Brake pads from $149.99 per axle. [Diagnostics](/diagnostics) at $49. We do not charge dealership prices, we do not upsell unnecessary work, and we do the job right the first time. Save your DIY energy for wiper blades and air filters. Bring the real repairs to Nick's Tire and Auto at 17625 Euclid Ave, Euclid. Call (216) 862-0005. [Brakes](/brakes), [tires](/tires), [general repair](/general-repair) — open 7 days a week."
+        content: "We keep our labor rates fair specifically so that DIY versus shop is not a difficult decision on real repairs. Oil changes from $49. Brake pads from $149 per axle. [Diagnostics](/diagnostics) at $49. We do not charge dealership prices, we do not upsell unnecessary work, and we do the job right the first time. Save your DIY energy for wiper blades and air filters. Bring the real repairs to Nick's Tire and Auto at 17625 Euclid Ave, Euclid. Call (216) 862-0005. [Brakes](/brakes), [tires](/tires), [general repair](/general-repair) — open 7 days a week."
       }
     ],
     relatedServices: ["/general-repair", "/brakes", "/diagnostics"],
@@ -4031,7 +4031,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Oil change — synthetic vs conventional, the honest math",
-        content: "Synthetic oil costs more per change. Conventional oil costs more in total over the life of the engine because you change it more often. The math: synthetic at 7,500-mile interval × $80/change = $0.0107/mile. Conventional at 3,000-mile interval × $50/change = $0.0167/mile. Synthetic wins by ~36% over a 100,000-mile car. The exception: severe-duty conditions (heavy towing, lots of short trips, extreme cold) push the synthetic interval down toward 5,000 — still cheaper per mile than conventional. The dealer scam: 'manufacturer-recommended' synthetic at 3,000-mile intervals. That's neither what the manufacturer recommends nor what the oil needs. Read your owner's manual — it'll specify the actual interval. For most modern cars, the answer is 5,000-7,500 miles on synthetic. We do honest oil changes at Nick's — synthetic from $79, no upsell on filters that don't need changing yet."
+        content: "Synthetic oil costs more per change. Conventional oil costs more in total over the life of the engine because you change it more often. The math: synthetic at 7,500-mile interval × $80/change = $0.0107/mile. Conventional at 3,000-mile interval × $50/change = $0.0167/mile. Synthetic wins by ~36% over a 100,000-mile car. The exception: severe-duty conditions (heavy towing, lots of short trips, extreme cold) push the synthetic interval down toward 5,000 — still cheaper per mile than conventional. The dealer scam: 'manufacturer-recommended' synthetic at 3,000-mile intervals. That's neither what the manufacturer recommends nor what the oil needs. Read your owner's manual — it'll specify the actual interval. For most modern cars, the answer is 5,000-7,500 miles on synthetic. We do honest oil changes at Nick's — synthetic from $80, no upsell on filters that don't need changing yet."
       },
       {
         heading: "Battery vs alternator — telling them apart",

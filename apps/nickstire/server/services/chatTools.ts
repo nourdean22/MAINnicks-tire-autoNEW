@@ -7,8 +7,12 @@
 import type { Tool } from "../_core/llm";
 
 import { BUSINESS } from "@shared/business";
+import { PAYMENT_PROGRAMS_CREDIT_LINE, PAYMENT_PROGRAMS_SHORT } from "@shared/financing";
 import { OIL_PRICE, BRAKE_PRICE, SERVICE_PRICE } from "@shared/pricing";
 import { createLogger } from "../lib/logger";
+
+/** The one payment-program line the chat tools hand the model (shared/financing.ts). */
+const PAYMENT_PROGRAMS_CHAT_LINE = `${PAYMENT_PROGRAMS_SHORT}. ${PAYMENT_PROGRAMS_CREDIT_LINE}`;
 
 const log = createLogger("services:chatTools");
 // ─── TOOL DEFINITIONS (sent to LLM) ────────────────────
@@ -274,7 +278,7 @@ async function executeGetPriceEstimate(service: string, vehicle?: string): Promi
       estimate: "We'd need to see the vehicle for an accurate quote on this one.",
       freeInspection: true,
       note: "Drop it off or drive in — we'll inspect for free and call you with the exact cost before doing any work.",
-      financing: "No-credit-check financing available (Acima, Snap Finance, Koalafi) starting at $10 down.",
+      financing: PAYMENT_PROGRAMS_CHAT_LINE,
     });
   }
 
@@ -286,7 +290,7 @@ async function executeGetPriceEstimate(service: string, vehicle?: string): Promi
     estimatedLaborHours: match.laborHours,
     note: match.note || undefined,
     disclaimer: "This is a general range — exact price depends on your specific vehicle. We'll give you the exact cost before starting any work.",
-    financing: "No-credit-check financing available starting at $10 down.",
+    financing: PAYMENT_PROGRAMS_CHAT_LINE,
     freeInspection: true,
   });
 }
@@ -403,21 +407,21 @@ async function executeGetCurrentSpecials(): Promise<string> {
     // Always-on offers
     const alwaysOn = [
       { title: "Free Inspection", description: "Drop in anytime — we'll inspect your vehicle for free and give you an honest quote.", discount: "Free" },
-      { title: "No-Credit-Check Financing", description: "Acima, Snap Finance, Koalafi — starting at $10 down.", discount: "As low as $10 down" },
+      { title: "Payment Programs", description: PAYMENT_PROGRAMS_CHAT_LINE, discount: "4 providers" },
       { title: "Free Battery Test", description: "Stop by and we'll test your battery in 5 minutes, no appointment needed.", discount: "Free" },
     ];
 
     return JSON.stringify({
       activeSpecials: specials,
       alwaysAvailable: alwaysOn,
-      note: "We also do price-matching on tires — bring us any quote and we'll beat it.",
+      note: "We match honest competitor pricing on the same tire — bring a written quote.",
     });
   } catch (e) {
     return JSON.stringify({
       activeSpecials: [],
       alwaysAvailable: [
         { title: "Free Inspection", discount: "Free" },
-        { title: "No-Credit-Check Financing", discount: "$10 down" },
+        { title: "Payment Programs", discount: "4 providers" },
       ],
     });
   }
@@ -544,7 +548,7 @@ async function executeCheckFinancing(estimatedTotal: number): Promise<string> {
   // model relayed "you're eligible" to every customer, and claimed
   // "in-house financing" when the real providers are third parties
   // (BUSINESS.financing.providers). The tool now tells the truth: the
-  // PROGRAM exists (no-credit-check, $10 down), payment figures are
+  // PROGRAM exists (four third-party providers), payment figures are
   // illustrative estimates, and eligibility is decided by the provider
   // at application time — never by this chatbot.
   const monthlyPayments = [
@@ -561,8 +565,8 @@ async function executeCheckFinancing(estimatedTotal: number): Promise<string> {
       roughMonthly: `~$${p.payment}/mo (example math only — actual terms set by the provider)`,
     })),
     program: [
-      BUSINESS.financing.display, // "No-credit-check financing available"
-      `${BUSINESS.financing.downPayment} to start`,
+      BUSINESS.financing.display,
+      "Initial payment varies by provider and agreement",
       "Bring valid ID and proof of income",
     ],
     note: "Apply in person — takes about 5 minutes. Drop by anytime!",

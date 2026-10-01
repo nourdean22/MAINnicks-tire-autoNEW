@@ -767,7 +767,7 @@ export function notifyTireOrder(details: {
       `If NO "PAID" email arrives within ~15 minutes, follow up to collect:`,
       `  - Call ${details.customerPhone} and take card payment over the phone, OR`,
       `  - If they want to spread the cost, help them onto a payment program:`,
-      `      Snap Finance (no hard credit check):`,
+      `      Snap Finance (Snap says applying won't affect FICO):`,
       `      https://getsnap.snapfinance.com/lease/en-US/consumer/apply/landing`,
       `      Acima: https://acima.us/1TjEOYtr6C`,
       ``,

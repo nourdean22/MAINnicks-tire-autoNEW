@@ -6,6 +6,7 @@ import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { getTireSizeBySlug, TIRE_SIZE_PAGES, buildTireSizeMetaDescription } from "@shared/tireSizes";
 import { getBuyingGuide } from "@shared/tireSizeContent";
 import { BUSINESS } from "@shared/business";
+import { PAYMENT_PROGRAMS_CREDIT_LINE, PAYMENT_PROGRAMS_SHORT } from "@shared/financing";
 import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
@@ -75,7 +76,7 @@ export default function TireSizePage() {
     },
     {
       q: `Do you have payment programs for ${page.size} tires?`,
-      a: `Yes. Payment programs available — $10 down. No credit check required. Get the tires you need today and pay over time.`,
+      a: `Yes. ${PAYMENT_PROGRAMS_SHORT}. ${PAYMENT_PROGRAMS_CREDIT_LINE}`,
     },
   ];
 

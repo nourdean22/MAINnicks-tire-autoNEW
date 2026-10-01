@@ -427,7 +427,10 @@ const PLAYBOOKS: Partial<Record<SmsIntent, SmsPlaybook>> = {
   financing: {
     goal: "answer",
     knownFacts: () => [
-      "Financing is available through Acima, Snap and Koalafi — no credit check, $10 down, subject to the provider's approval and terms.",
+      // shared/financing.ts: Koalafi and American First Finance both say they
+      // check credit, so "no credit check" was false (smsFactCompiler already
+      // kept it out of compiled facts).
+      "Payment programs are available through Acima, Snap Finance, Koalafi and American First Finance. Some don't require established credit; each provider decides approval and terms.",
       "The shop can help the customer apply and explain options before they agree.",
     ],
     missingInformation: () => [],

@@ -508,7 +508,7 @@ export default function SpecialsPage() {
                     Stack any deal with $10-down financing.
                   </h3>
                   <p className="text-foreground/65 text-sm leading-relaxed mb-4">
-                    The discount applies first, then you finance the remainder. Soft credit pre-qualification takes 60 seconds with no impact on your score — see what you'd qualify for before deciding.
+                    The discount applies first; a payment program can cover the remainder. Each provider runs its own application and decides approval, so you see the offer before deciding.
                   </p>
                   <Link
                     href="/financing"

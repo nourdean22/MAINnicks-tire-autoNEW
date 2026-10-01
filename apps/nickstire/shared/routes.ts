@@ -214,8 +214,11 @@ const SERVICE_PAGES: RouteEntry[] = [
     path: "/no-credit-check-tires-cleveland",
     priority: 0.85,
     changefreq: "monthly",
-    title: "No Credit Check Tires Cleveland · $10 Down, Drive Today | Nick's",
-    description: "No credit check tires in Cleveland. $10 down. 4 lenders (Acima · Snap · Koalafi · American First) approve when banks don't. Drive home on new tires today. (216) 862-0005",
+    // 2026-10-01 · mirrors NoCreditCheckTiresPage. The old pair promised "no
+    // credit check" and "4 lenders approve when banks don't"; Koalafi and
+    // American First Finance both say they check credit.
+    title: "No Credit Check Tires Cleveland? Straight Answers | Nick's",
+    description: "Searching for no credit check tires? Straight answer: all 4 payment providers review applications, but some don't need established credit. Walk in 7 days.",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -1077,8 +1080,11 @@ const UTILITY_PAGES: RouteEntry[] = [
     path: "/financing",
     priority: 0.8,
     changefreq: "weekly",
-    title: "Auto Repair Payment Programs Cleveland & Euclid · Nick's",
-    description: "Cleveland & Euclid auto repair payment programs. $10 down, no hard credit pull, soft check pre-qualification. Easy weekly payments. Call (216) 862-0005.",
+    // 2026-10-01 · aligned with Financing.tsx's own SEOHead. This pair promised
+    // "no hard credit pull" and "soft check pre-qualification"; Koalafi and
+    // American First Finance both say they check credit.
+    title: "Auto Repair Payment Options Cleveland | Nick's Tire & Auto",
+    description: "Compare third-party payment options for tires and auto repair at Nick's Tire & Auto in Cleveland. See product types, published limits, key disclosures, and direct application links.",
     group: "utility",
     sitemap: true,
     prerender: true,

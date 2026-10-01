@@ -147,7 +147,7 @@ export default function LocalBusinessSchema({
       name: area,
     })),
     description:
-      `Cleveland's Euclid Ave new and used tire shop and full-service auto repair. Buy tires online with free install package — mount, balance, valve stems, alignment check. Brake, check-engine, Ohio E-Check, alignment, AC, transmission, electrical, exhaust. ${reviewRating} stars across ${reviewCountDisplay} reviews. Walk-ins 7 days, payment programs on the spot.`,
+      `Cleveland's Euclid Ave new and used tire shop and full-service auto repair. Buy tires online with free install package — mount, balance, valve stems, alignment check. Brake, check-engine, Ohio E-Check, alignment, AC, transmission, electrical, exhaust. ${reviewRating} stars across ${reviewCountDisplay} reviews. Walk-ins 7 days, payment programs from four providers.`,
     knowsAbout: [
       "New tire sales and installation",
       "Used tire sales and installation",
@@ -166,7 +166,7 @@ export default function LocalBusinessSchema({
       "Exhaust system repair",
       "General engine repair",
       "Commercial fleet services",
-      "No credit check auto financing",
+      "Auto repair payment programs",
       "Winter tire installation Cleveland",
       "Pothole damage repair Cleveland",
     ],

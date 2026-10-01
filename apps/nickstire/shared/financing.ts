@@ -7,6 +7,8 @@
  * outcome, or a promotional payoff result. The provider agreement controls.
  *
  * Last truth review: 2026-07-16 against provider-published disclosures.
+ * Re-checked 2026-10-01 against each provider's site (quotes below, at
+ * PAYMENT_PROGRAMS_SHORT); Koalafi's credit line was updated to its own wording.
  */
 
 export interface FinancingProvider {
@@ -108,13 +110,13 @@ export const FINANCING_PROVIDERS: FinancingProvider[] = [
     highlight: "Up to $7,500 for qualifying applicants",
     maxAmount: "Up to $7,500",
     approvalTime: "Provider decision after application",
-    creditCheck: "Looks beyond a credit score; payment history may be reported",
+    creditCheck: "Checks credit through alternative credit bureaus; Koalafi says this does not affect your FICO score",
     termRange: "Varies by product and agreement",
     features: [
       "Published approval amounts up to $7,500 for qualifying applicants",
       "May offer lease-to-own or a lending product depending on eligibility",
       "Early-purchase or payoff options may reduce total cost",
-      "Positive and negative payment history may be reported to credit bureaus",
+      "Koalafi says it reports lease payments to TransUnion",
     ],
     applyUrl: "https://s.koalafi.com/GWPaPM",
     merchantPortalUrl: "https://merchant.koalafi.com/",
@@ -128,7 +130,7 @@ export const FINANCING_PROVIDERS: FinancingProvider[] = [
     ],
     idealFor: "Customers whose repair may require a higher approval amount",
     badge: "Up to $7,500",
-    disclosure: "Up to $7,500 is available only to qualifying applicants. Koalafi may offer lease-to-own or lending products and may report payment history. Approval and terms are not guaranteed.",
+    disclosure: "Up to $7,500 is available only to qualifying applicants. Koalafi checks credit through alternative credit bureaus, may offer lease-to-own or lending products, and reports payment history. Approval and terms are not guaranteed.",
   },
   {
     id: "american-first",
@@ -162,6 +164,40 @@ export const FINANCING_PROVIDERS: FinancingProvider[] = [
     disclosure: "American First Finance may check credit and consumer-report information. Approval and same-day decisions are not guaranteed. Product examples published by the provider can carry very high APRs or total lease costs; the agreement controls.",
   },
 ];
+
+/**
+ * The approved short lines for payment programs, for every surface that is not
+ * the full /financing page: FAQ answers and their JSON-LD, footers, popups,
+ * llms.txt, the website chat prompt.
+ *
+ * WHY (2026-10-01). Those surfaces had each hand-written their own pitch, and
+ * the common one was "$10 down, no credit check, approved in about 90 seconds,
+ * most customers approved $500-$5,000, soft pull only, no FICO ding". It was on
+ * every prerendered page, in FAQPage JSON-LD and in llms.txt. The providers'
+ * own sites, fetched that day, say otherwise:
+ *   - Acima:   "While no credit history is required, Acima obtains information
+ *              from consumer reporting agencies." "Start a Lease for $10" is
+ *              "available ... in select stores only".
+ *   - Snap:    "No credit needed", but Snap "obtains information from consumer
+ *              reporting agencies"; "Won't affect your FICO score to apply."
+ *   - Koalafi: "When you apply, we check your credit using Alternative Credit
+ *              Bureaus." "approval is never guaranteed for every applicant."
+ *   - American First Finance: "'No Credit Needed' means that approval is
+ *              possible without a credit score, but credit may be checked."
+ * So "no credit check" is false for at least two of the four, a single
+ * approval speed or approval rate is not ours to promise, and "established
+ * credit not required" is the strongest line all of them support for some
+ * applicants. The kernel rules claim.* in shared/voice.ts keep the old pitch
+ * from coming back.
+ */
+export const PAYMENT_PROGRAMS_SHORT =
+  "Payment programs through Acima, Snap Finance, Koalafi and American First Finance";
+
+export const PAYMENT_PROGRAMS_CREDIT_LINE =
+  "Some don't require established credit. Each provider decides approval and terms.";
+
+export const PAYMENT_PROGRAMS_FAQ_ANSWER =
+  "We accept four third-party payment programs: Acima (lease-to-own, not a loan or credit), Snap Finance, Koalafi and American First Finance. Some don't require established credit, but every provider reviews your application, and the provider, not Nick's, decides approval, the amount, the initial payment and the total cost. Not every applicant is approved. Compare them side by side at nickstire.org/financing.";
 
 /** Quick-access map by provider ID */
 export const PROVIDER_MAP = Object.fromEntries(

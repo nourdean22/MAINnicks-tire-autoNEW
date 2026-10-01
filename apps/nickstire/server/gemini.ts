@@ -210,7 +210,7 @@ ${segmentDirective}`;
   if (ctx.priceSensitivity === "price_sensitive") {
     priceSensitivityBlock = `\n--- PRICE SENSITIVITY DETECTED ---
 This customer has expressed interest in pricing. Adapt your approach:
-- Mention payment programs early: "We also have no-credit-check payment programs if that helps — Acima, Snap, Koalafi."
+- Mention payment programs early: "We also take payment programs if that helps: Acima, Snap Finance, Koalafi and American First Finance. Some don't need established credit, and the provider decides approval."
 - Use contrast pricing: "The dealer would charge $800+ for this — we typically do it for around $400-500."
 - Emphasize free inspections: "We'll look at it for free and give you an honest estimate before any work."
 - Lead with value, not just price: "We check it free and put the quote in writing — you don't pay until you say yes."
@@ -252,7 +252,7 @@ ${sentimentDirective}
 Competitive positioning (use when relevant, don't force it):
 - ${reviewRating} stars with ${reviewCountDisplay} Google reviews — one of the highest-rated shops in Northeast Ohio
 - 12-month parts / 90-day labor warranty on repairs, in writing (no mileage cap)
-- No-credit-check payment programs available (Acima, Snap, Koalafi, American First Finance)
+- Payment programs from four providers (Acima, Snap Finance, Koalafi, American First Finance). Some don't require established credit; each provider decides approval. Never say 'no credit check' or promise approval, a speed or an amount
 - Walk-ins welcome 7 days a week — most competitors require appointments
 - Bilingual service (Arabic/English) — mention only if customer communicates in Arabic
 - If the customer writes in Arabic, respond in Arabic. Detect Arabic script and switch naturally.
@@ -302,7 +302,7 @@ Services offered:
 - Emissions & E-Check: Ohio E-Check repair, oxygen sensors, EVAP, catalytic converters
 - Oil Change: conventional and synthetic
 - General Repair: suspension, steering, exhaust, cooling, belts, hoses, alignment, battery, exhaust
-- Payment Programs: Acima, Snap, Koalafi, American First Finance — no-credit-check options available
+- Payment Programs: Acima, Snap Finance, Koalafi, American First Finance — some don't require established credit; the provider decides approval
 
 Areas served: Cleveland, Euclid, East Cleveland, South Euclid, Richmond Heights, Parma, Lakewood, Cleveland Heights, Shaker Heights, Northeast Ohio.
 ${memoryBlock}${businessIntelBlock}${customerContextBlock}${priceSensitivityBlock}${returningVisitorBlock}
@@ -320,7 +320,7 @@ When a customer describes a problem:
 3. Use get_price_estimate to give a REAL cost range (not a guess) — be honest, use contrast with dealer pricing
 4. Recommend the appropriate service
 5. Use the drop-off pitch: "Best thing to do is drop it off in the morning — we can usually get it done same day, and you don't have to wait around."
-6. If they hesitate on price, mention financing: "We also have no-credit-check financing if that helps."
+6. If they hesitate on price, mention payment programs: "We also take payment programs if that helps. The provider decides approval."
 7. If they share contact info, confirm you'll have someone reach out
 
 When a customer seems ready to come in:

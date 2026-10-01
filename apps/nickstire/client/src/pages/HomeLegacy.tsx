@@ -26,6 +26,7 @@ import { SEOHead, trackPhoneClick, trackEvent } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight, Disc, Activity, Wrench, Zap, AlertTriangle, Snowflake } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
+import { OHIO_ECHECK } from "@shared/echeck";
 import { GBP_REVIEW_URL } from "@shared/const";
 import TrustStrip from "@/components/TrustStrip";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
@@ -912,7 +913,7 @@ function TriageGrid() {
               Pick your symptom — we'll fix it today.
             </h2>
             <p className="mt-3 text-foreground/50 text-sm sm:text-base max-w-2xl mx-auto">
-              Honest answer before any work. Free check in under an hour. Most fixes done today — first-come, first-served. Payment programs approved on the spot — drive away today, sleep tonight.
+              Honest answer before any work. Free check in under an hour. Most fixes done today — first-come, first-served. Payment programs from four providers if you need them.
             </p>
           </div>
         </FadeIn>
@@ -958,8 +959,8 @@ function TriageGrid() {
             tone="warning"
             icon={<Clock className="w-5 h-5" />}
             symptom="Failed Ohio E-Check?"
-            consequence="30-day deadline. Day 31 = parking tickets, impound risk, criminal charges for expired registration."
-            relief="State-certified emissions repair. Pull up today — we'll get you legal."
+            consequence={OHIO_ECHECK.registrationRule}
+            relief="Free readiness check, then we fix what failed. Pull up today."
             ctaLabel="GET LEGAL"
             ctaHref="/emissions"
           />
@@ -1069,7 +1070,7 @@ function SafetyFactsSection() {
               value: "30",
               unit: "days",
               consequence:
-                "Ohio E-Check deadline. Day 31: parking tickets, impound risk, expired registration. Drive at your own risk.",
+                OHIO_ECHECK.registrationRule,
             },
           ]}
         />
@@ -1095,7 +1096,7 @@ function LossOpportunitySection() {
               Every day your car gets sicker.
             </h2>
             <p className="mt-3 text-foreground/50 text-sm sm:text-base">
-              Don't have the cash today? Payment programs approved on the spot — four providers compete for your business, no hard credit pull, drive away protected. The longer you wait, the louder your car gets.
+              Don't have the cash today? Payment programs from four providers, each with its own application; the provider decides approval. The longer you wait, the louder your car gets.
             </p>
           </div>
         </FadeIn>
@@ -1125,10 +1126,10 @@ function LossOpportunitySection() {
               Can't afford NOT to fix it
             </div>
             <h3 className="font-bold text-2xl text-foreground mb-3">
-              Approved on the spot · four payment programs compete for you
+              Four payment programs · the provider decides approval
             </h3>
             <p className="text-sm text-foreground/60 max-w-xl mx-auto mb-5">
-              Acima · Snap · Koalafi · American First. No hard credit pull. Most customers approved before they finish their coffee. Drive away today, pay over time.
+              Acima · Snap · Koalafi · American First. Some don't require established credit. See each provider's terms before you sign.
             </p>
             <Link
               href="/financing"

@@ -29,7 +29,7 @@ export default function NicksVsFirestone() {
         },
         {
           question: "Is Nick's payment financing as good as Firestone's credit card?",
-          answer: "Different model. Firestone's credit card is Firestone-only — works at their stores, 6-12 months promotional financing typical. Nick's offers Acima, Snap, Affirm, and partner lenders that work at most service providers — pre-qualified in 60 seconds with a soft credit pull, up to $4,000 approved. No chain lock-in. Same financing convenience, different scope.",
+          answer: "Different model. Firestone's credit card is Firestone-only — works at their stores, 6-12 months promotional financing typical. Nick's accepts four third-party payment programs: Acima (lease-to-own), Snap Finance, Koalafi and American First Finance. Each provider decides approval and terms. No chain lock-in, different scope.",
         },
       ]}
     />

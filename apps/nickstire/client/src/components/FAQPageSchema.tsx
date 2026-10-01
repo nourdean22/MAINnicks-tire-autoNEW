@@ -32,6 +32,12 @@
  *   - Don't put advertising in mainEntity
  */
 import React from "react";
+import { BRAKE_PRICE } from "@shared/pricing";
+import {
+  PAYMENT_PROGRAMS_CREDIT_LINE,
+  PAYMENT_PROGRAMS_FAQ_ANSWER,
+  PAYMENT_PROGRAMS_SHORT,
+} from "@shared/financing";
 
 export interface FAQItem {
   q: string;
@@ -87,7 +93,9 @@ export const BRAKE_REPAIR_FAQ: FAQItem[] = [
   },
   {
     q: "How much does brake service cost in Cleveland?",
-    a: "Pads start at $89 per axle installed · pads + rotors start at $189 per axle installed. We give you a written estimate before any wrench moves · you don't pay until you say yes.",
+    // Pad price from shared/pricing.ts. This answer said $89 while /brakes said
+    // $149, and the $189 pads-plus-rotors floor matched no canonical price.
+    a: `Pads start at $${BRAKE_PRICE.padsStarting} per axle installed. Rotors depend on what the free check finds. We give you a written estimate before any wrench moves · you don't pay until you say yes.`,
   },
   {
     q: "What are the signs my brakes need service?",
@@ -177,7 +185,9 @@ export const TIRE_BUYING_FAQ: FAQItem[] = [
   },
   {
     q: "Do you offer financing on tires?",
-    a: "Yes · $10 down, no credit check, approved in about 90 seconds. We work with Acima, Snap, Koalafi, and American First. Most customers approved $500–$5,000 · drive away on new tires today and pay over time. Soft pull only · no FICO ding.",
+    // shared/financing.ts owns this answer. The old one promised "no credit
+    // check", a 90-second approval and a $500-$5,000 approval band, in JSON-LD.
+    a: PAYMENT_PROGRAMS_FAQ_ANSWER,
   },
   {
     q: "Are used tires safe to buy?",
@@ -211,7 +221,7 @@ export const SERVICES_OVERVIEW_FAQ: FAQItem[] = [
   },
   {
     q: "Do you offer financing for repairs?",
-    a: "Yes · $10 down, no credit check, approved in about 90 seconds. We work with Acima, Snap, Koalafi, and American First. Most customers approved $500–$5,000 · soft pull only, no FICO ding. Drive away today, pay over time.",
+    a: PAYMENT_PROGRAMS_FAQ_ANSWER,
   },
   {
     q: "What areas do you serve?",
@@ -223,6 +233,6 @@ export const SERVICES_OVERVIEW_FAQ: FAQItem[] = [
   },
   {
     q: "What payment methods do you accept?",
-    a: "Cash, Visa, Mastercard, Discover, American Express, and debit. Plus the $10-down financing programs (Acima, Snap, Koalafi, American First) if you'd rather pay over time. No-credit-check options approved on the spot.",
+    a: `Cash, Visa, Mastercard, Discover, American Express, and debit. Want to pay over time? ${PAYMENT_PROGRAMS_SHORT}. ${PAYMENT_PROGRAMS_CREDIT_LINE}`,
   },
 ];
