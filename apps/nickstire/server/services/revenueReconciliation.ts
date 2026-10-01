@@ -61,6 +61,7 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
         phoneNumber: vapiCallLogs.phoneNumber,
         leadId: vapiCallLogs.leadId,
         serviceMention: vapiCallLogs.serviceMention,
+        metadata: vapiCallLogs.metadata,
         occurredAt: vapiCallLogs.createdAt,
       }).from(vapiCallLogs).where(and(
         gte(vapiCallLogs.createdAt, input.since),
@@ -117,6 +118,8 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
 
       const call = callById.get(candidate.callId);
       const lead = call?.leadId == null ? null : leadById.get(call.leadId) ?? null;
+      const callMetadata = asRecord(call?.metadata);
+      const behavior = asRecord(callMetadata.behavior);
       if (candidate.resolution === "attributed") verified += 1;
       else if (candidate.resolution === "manual_review") inferred += 1;
       else if (candidate.resolution === "ambiguous") {
@@ -140,7 +143,10 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
           (${randomUUID()}, ${runId}, ${candidate.callId}, ${call?.leadId ?? null},
            ${lead?.bookingId ?? null}, ${candidate.invoiceId}, NULL,
            ${candidate.resolution}, ${candidate.evidenceLevel}, ${matchMethod},
-           ${candidate.confidence}, ${JSON.stringify({ reasons: candidate.reasons })})
+           ${candidate.confidence}, ${JSON.stringify({
+             reasons: candidate.reasons,
+             ...(behavior.hash ? { behavior } : {}),
+           })})
       `);
     }
 
@@ -262,6 +268,7 @@ export async function getRevenueJourney(callId: number) {
   const raw = await db.execute(sql`
     SELECT
       c.id AS callId,
+      JSON_EXTRACT(c.metadata, '$.behavior') AS behavior,
       c.leadId AS leadId,
       l.bookingId AS bookingId,
       l.invoiceId AS invoiceId,
@@ -301,6 +308,7 @@ export async function getRevenueJourney(callId: number) {
     limitations: [
       "Booking confirmation is not treated as vehicle arrival.",
       "Arrival and repair-order stages remain not connected unless a reviewed work-order identifier is present.",
+      "Behavior provenance is provider-delivered when Vapi includes stamped assistant metadata; calls before the next config push can legitimately report behavior metadata unavailable.",
     ],
   };
 }
