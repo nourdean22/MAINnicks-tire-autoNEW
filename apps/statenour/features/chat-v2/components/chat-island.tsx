@@ -6,6 +6,7 @@ import { isNearBottom } from "../lib/scroll-position";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStream } from "../hooks/use-chat-stream";
 import { resolveIslandHeight } from "../lib/island-height";
+import { fetchInspectorRecall } from "../lib/inspector-recall";
 import { ChatComposer } from "./chat-composer";
 import { ChatMediaDock } from "./chat-media-dock";
 import { ChatMediaFocusPanel } from "./chat-media-focus-panel";
@@ -223,32 +224,12 @@ export function ChatIsland() {
     const controller = new AbortController();
     void (async () => {
       try {
-        const response = await fetch(
-          `/api/brain/recall?q=${encodeURIComponent(lastUserText.slice(0, 1000))}&limit=8`,
-          { credentials: "include", signal: controller.signal },
-        );
-        if (!response.ok) return;
-        const report = (await response.json()) as {
-          hits?: Array<{ id?: string; memoryId?: string; content?: string; category?: string; similarity?: number; knnDistance?: number }>;
-          // 2026-09-10 · the route already returns these (it spreads the
-          // whole RecallReport); the client simply was not reading them,
-          // so opening the panel OVERWROTE the provenance the SSE event
-          // had just delivered and an errored recall reverted to looking
-          // like a plain empty result.
-          provenance?: "OK" | "ZERO" | "ERROR" | "UNMEASURED";
-          provenanceReason?: string;
-        };
-        const hits = (report.hits ?? []).map((hit, index) => ({
-          id: hit.id ?? hit.memoryId ?? `hit-${index}`,
-          content: hit.content ?? "",
-          category: hit.category ?? "memory",
-          similarity: typeof hit.similarity === "number"
-            ? hit.similarity
-            : typeof hit.knnDistance === "number"
-              ? Math.max(0, Math.min(1, 1 - hit.knnDistance))
-              : 0,
-        }));
-        setMemoryData(hits, contradictions);
+        // 2026-10-01 · read-only and unwrapped (lib/inspector-recall.ts): the
+        // inline fetch read apiHandler's envelope, so this showed zero
+        // memories and blanked the provenance on every open, and it bumped
+        // lastSeen on what it showed. A failed read now lands in the catch.
+        const report = await fetchInspectorRecall(lastUserText, controller.signal);
+        setMemoryData(report.hits, contradictions);
         setMemoryFetchedAt(new Date());
         setRecallProvenance(report.provenance);
         setRecallProvenanceReason(report.provenanceReason);
