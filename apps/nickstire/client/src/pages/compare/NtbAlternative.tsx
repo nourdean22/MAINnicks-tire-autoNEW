@@ -12,8 +12,8 @@ export default function NtbAlternative() {
       primary={COMPETITORS.ntb}
       slug="ntb-alternative-cleveland"
       seoTitle="NTB Alternative Cleveland · Post-Mavis Acquisition | Nick's"
-      seoDescription="NTB became Mavis in 2021. Same checkout pattern, same closed Sundays. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires $25, quote up front."
-      intro="NTB used to be its own brand. Mavis acquired NTB in 2021 and has been folding NTB stores into the Mavis banner ever since. If your last decent visit at NTB was before 2021, the shop you're remembering doesn't really exist anymore — it's a Mavis with NTB signage. Same checkout-math pattern as everywhere else in the Mavis system. Same Sunday closures. Nick's Tire & Auto on Euclid Ave: still independent, still mechanic-owned, still walk-in 7 days, still hands you the quote in writing before the wrench moves. Used tires from $25 installed when a used tire fits. Free check. Written quote. You don't pay until you say yes."
+      seoDescription="NTB became Mavis in 2021. Same checkout pattern, same closed Sundays. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $25 (select 12-inch; most $40-80), quote up front."
+      intro="NTB used to be its own brand. Mavis acquired NTB in 2021 and has been folding NTB stores into the Mavis banner ever since. If your last decent visit at NTB was before 2021, the shop you're remembering doesn't really exist anymore — it's a Mavis with NTB signage. Same checkout-math pattern as everywhere else in the Mavis system. Same Sunday closures. Nick's Tire & Auto on Euclid Ave: still independent, still mechanic-owned, still walk-in 7 days, still hands you the quote in writing before the wrench moves. Used tires from $25 installed (select 12-inch; most $40-80) when a used tire fits. Free check. Written quote. You don't pay until you say yes."
       extraFaqs={[
         {
           question: "Is NTB still NTB after the Mavis acquisition?",

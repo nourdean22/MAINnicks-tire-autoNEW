@@ -144,7 +144,7 @@ export default function Financing() {
     <PageLayout activeHref="/financing" showChat={true}>
       <SEOHead
         title="Auto Repair Payment Options Cleveland | Nick's Tire & Auto"
-        description="Compare third-party payment options for tires and auto repair at Nick's Tire & Auto in Cleveland. See product types, published limits, key disclosures, and direct application links."
+        description="Compare third-party payment options for tires and auto repair at Nick's Tire & Auto in Cleveland: product types, published limits, disclosures and how to apply."
         canonicalPath="/financing"
       />
       <Breadcrumbs items={[{ label: "Payment Options", href: "/financing" }]} />

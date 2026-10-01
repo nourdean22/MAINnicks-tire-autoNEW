@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { BUSINESS } from "@shared/business";
+import { BRAKE_PRICE } from "@shared/pricing";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -122,12 +123,14 @@ function TableOfContents({ sections }: { sections: { heading: string }[] }) {
  * Map a blog category → the most relevant service slug for CTAs and the
  * cost-of-waiting/anchor copy. Keeps the in-content CTA contextual.
  */
+// Oil and pad prices interpolate the canonical constants: the literals here had
+// drifted to $29.99 (oil is $49) and $129 (pads start at $149).
 const CATEGORY_TO_SERVICE: Record<string, { slug: string; label: string; pitch: string }> = {
-  Brakes: { slug: "brakes", label: "Brake Service", pitch: "Free brake check. Pads from $129/axle. Pictures of worn parts before any replacement." },
-  Tires: { slug: "tires", label: "Tires & Wheels", pitch: "Free mount + balance + valve stems. New + inspected used tires from $25/installed. Walk-ins welcome." },
+  Brakes: { slug: "brakes", label: "Brake Service", pitch: `Free brake check. Pads from $${BRAKE_PRICE.padsStarting}/axle. Pictures of worn parts before any replacement.` },
+  Tires: { slug: "tires", label: "Tires & Wheels", pitch: `Free mount + balance + valve stems. Used tires ${BUSINESS.usedTires.priceDisplay} (${BUSINESS.usedTires.fineprint}; ${BUSINESS.usedTires.typicalBand}). Walk-ins welcome.` },
   Diagnostics: { slug: "diagnostics", label: "Check Engine Light", pitch: "Free OBD-II code scan. $95 deeper check credited to repair if you say yes. We test before we replace." },
-  Maintenance: { slug: "oil-change", label: "Oil Change & Maintenance", pitch: "Full conventional oil change from $29.99. Free 27-point check every visit." },
-  Emissions: { slug: "emissions", label: "Emissions / E-Check", pitch: "Free pre-test before you waste a state appointment. We catch the actual cause, not just the code." },
+  Maintenance: { slug: "oil-change", label: "Oil Change & Maintenance", pitch: `Conventional oil change ${BUSINESS.oilChange.conventionalPrice}. Free multi-point check every visit.` },
+  Emissions: { slug: "emissions", label: "Emissions / E-Check", pitch: "Free readiness check before you go back to the state test. We catch the actual cause, not just the code." },
   Electrical: { slug: "diagnostics", label: "Electrical Check", pitch: "Battery, alternator, starter testing free with any repair. Wiring + parasitic-draw work at $120/hr." },
   Transmission: { slug: "transmission", label: "Transmission Service", pitch: "Fluid + filter from $179. Full check before any major work — we tell you if a rebuild beats a repair." },
 };
@@ -244,7 +247,7 @@ function MidArticleCTA({ category }: { category: string }) {
   const svc = CATEGORY_TO_SERVICE[category] || {
     slug: "general-repair",
     label: "Cleveland's Local Mechanic",
-    pitch: "Free written estimate. 12-month parts / 90-day labor warranty. $10-down financing. Walk-ins welcome 7 days.",
+    pitch: "Free written estimate. 12-month parts / 90-day labor warranty. Payment programs from 4 providers. Walk-ins welcome 7 days.",
   };
   return (
     <FadeIn>
@@ -320,7 +323,7 @@ function UpgradedBottomCTA({ category }: { category: string }) {
           </p>
           <ul className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-y-1.5 gap-x-4 text-[13px] text-foreground/70">
             <li className="flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5 text-primary" /> 12-mo parts / 90-day labor warranty</li>
-            <li className="flex items-center gap-2"><CreditCard className="w-3.5 h-3.5 text-primary" /> $10-down financing available</li>
+            <li className="flex items-center gap-2"><CreditCard className="w-3.5 h-3.5 text-primary" /> Payment programs from 4 providers</li>
             <li className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-primary" /> Most repairs same/next day</li>
             <li className="flex items-center gap-2"><MessageSquare className="w-3.5 h-3.5 text-primary" /> Text updates throughout</li>
           </ul>
@@ -344,7 +347,7 @@ function UpgradedBottomCTA({ category }: { category: string }) {
             href="/financing"
             className="block text-center text-foreground/50 hover:text-primary text-[12px] uppercase tracking-wider font-semibold pt-2 transition-colors"
           >
-            Or check $10-down financing →
+            Or compare payment programs →
           </Link>
         </div>
       </div>

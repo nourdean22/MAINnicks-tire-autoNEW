@@ -29,7 +29,7 @@ export const NicksTirePreset: CampaignInput = {
     bundles: "Oil change + Tire Rotation + Brake Inspection",
     guaranteeOrRefundTerms: "12-month parts / 90-day labor limited warranty on shop-installed repairs (no mileage or road-hazard warranty)",
     financingAvailable: true,
-    paymentMethods: "Cash, card, payment programs (Acima, Snap, Koalafi, American First Finance) — $10 down",
+    paymentMethods: "Cash, card; payment programs (Acima, Snap, Koalafi, American First Finance) — Acima: $10 start in select circumstances",
   },
   audience: {
     whoItIsFor: "Local drivers with vehicles out of factory warranty",

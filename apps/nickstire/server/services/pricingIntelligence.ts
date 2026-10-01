@@ -257,7 +257,7 @@ export async function getObjectionCoaching(
   const coaching: Record<string, { script: string; tip: string }> = {
     price_concern: {
       script:
-        `I understand the concern. Let me walk you through exactly what's on the estimate and what each part does. We also offer financing through ${financingProviders} — no credit check needed.`,
+        `I understand the concern. Let me walk you through exactly what's on the estimate and what each part does. We also accept payment programs through ${financingProviders}; some don't require established credit, and the provider decides approval.`,
       tip: "Explain the estimate line by line, then offer financing. Never discount first.",
     },
     timing: {

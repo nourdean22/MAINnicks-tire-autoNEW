@@ -88,7 +88,7 @@ const CLAIM_RESTRICTIONS: readonly string[] = [
   "Never quote a repair price that is not a fixed published price; repairs are 'free check, written quote, you don't pay until you say yes'.",
   "'Free' only as a real free check (free tire check, free brake check, free quick check). Never 'free inspection package' or 'free repair'.",
   "No same-day / turnaround promises except the used-tire install time the SSOT states; no 'in stock' claims.",
-  "No guaranteed outcomes: never 'guaranteed pass', 'never fail E-Check', 'never crash'.",
+  "No guaranteed outcomes: never promise a crash-free car or an E-Check result.",
   "Reviews: quote the SSOT rating and floor exactly; never '5-star rated', never 'top rated', never '#1'.",
   "Languages are English and Arabic — never advertise Spanish.",
   "Towing is not an SSOT service — never advertise tows.",
@@ -133,7 +133,7 @@ function compileFromValues(warranty: { parts: string; labor: string; usedTires: 
       providers,
       downPayment: b.financing.downPayment,
       display: `Payment programs available (${providers.join(", ")}) — ${b.financing.downPayment}`,
-      adSafeSentence: `Payment programs: ${providers.join(" · ")} · ${b.financing.downPayment}, drive today.`,
+      adSafeSentence: `Payment programs: ${providers.join(" · ")} · ${b.financing.downPayment}; each provider decides approval.`,
     },
     reviews: { rating: b.reviews.rating, countDisplay: b.reviews.countDisplay, source: b.reviews.source },
     pricing: {

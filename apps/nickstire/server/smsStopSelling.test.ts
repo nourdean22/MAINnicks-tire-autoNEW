@@ -194,6 +194,73 @@ describe("review #1099 P2 — an asked-for answer is not a pitch", () => {
     );
   });
 
+  // 2026-10-01: the website now says "payment programs" and "lease-to-own" where
+  // it used to say "financing", so customers text those words back. The guard
+  // and its asked-about exemption only knew the old vocabulary.
+  it("blocks an UNPROMPTED payment-program pitch in the site's own words", () => {
+    const p = plan("I'm on my way");
+    for (const draft of [
+      "Got it. We also accept payment programs if you need them.",
+      "See you soon! Payment programs are available too.",
+      "Got it. We also offer lease-to-own.",
+    ]) {
+      expect(planViolations(p, draft)).toContain("pitch_after_commitment:unprompted_financing");
+    }
+  });
+
+  it("answers a COMMITTED customer who asks in the site's words", () => {
+    for (const body of ["on my way, do you have payment programs?", "omw, is there lease to own?", "on my way, rent-to-own ok?"]) {
+      const p = plan(body);
+      expect(p.stopSelling).toBe(true);
+      expect(planViolations(p, "Payment programs are available — ask at the counter when you get here.")).toEqual([]);
+    }
+  });
+
+  // Independent review, 2026-10-01: widening the guard further than its
+  // exemption blocked the answer for committed customers who ask in everyday
+  // words. Each of these must be answerable.
+  it.each([
+    "on my way, do you have payment options?",
+    "omw - can I do monthly payments?",
+    "on my way, can I pay in installments?",
+    "heading over now, can I split the payment up?",
+    "on my way. afterpay?",
+    "omw, can I pay over time",
+    "on my way, what payment options do you have",
+    "on my way, any way to spread out the cost?",
+  ])("answers a committed customer who asks %j", (body) => {
+    const p = plan(body);
+    expect(p.stopSelling).toBe(true);
+    expect(planViolations(p, "Yes, we accept payment programs. Payment programs are available; each provider decides approval.")).toEqual([]);
+  });
+
+  // Second review, 2026-10-01: a bare "payment" or "monthly" lifted the guard.
+  it.each([
+    "omw, payment will be cash",
+    "on my way, I'll bring the payment",
+    "on my way for my monthly oil change",
+  ])("still blocks an unprompted pitch when a committed customer only mentions %j", (body) => {
+    const p = plan(body);
+    expect(p.stopSelling).toBe(true);
+    expect(planViolations(p, "Got it. We also offer financing if you need it.")).toContain(
+      "pitch_after_commitment:unprompted_financing",
+    );
+  });
+
+  it("answers 'do you take card?' with payment methods, which is not a pitch", () => {
+    const p = plan("on my way, do you take card?");
+    expect(planViolations(p, "Yes! We have payment options: cash, card or debit.")).toEqual([]);
+    // Control: the same words with no payment method after them are still a pitch.
+    expect(planViolations(plan("I'm on my way"), "Got it. We also offer payment options if you need them.")).toContain(
+      "pitch_after_commitment:unprompted_financing",
+    );
+  });
+
+  it("CONTROL: payment logistics a committed customer needs are not a pitch", () => {
+    const p = plan("I'm on my way");
+    expect(planViolations(p, "Got it. We take cash, cards and debit. 17625 Euclid Ave, first come, first served.")).toEqual([]);
+  });
+
   it("keeps the other pitch prohibitions active when financing was asked about", () => {
     const p = plan("omw, do you finance?");
     expect(planViolations(p, "Sure! Also we have 1,700+ reviews.")).toContain(
@@ -213,6 +280,11 @@ describe("router financing rule — the \b bug that hid the whole intent", () =>
     "do you take payment plans?",
     "payment plan",
     "no credit check?",
+    // The site's own words since 2026-10-01.
+    "do you have payment programs?",
+    "lease to own tires?",
+    "rent-to-own",
+    "do you have payment options?",
   ])("routes %j to the financing intent", (body) => {
     const d = routeInboundSms(body, CTX);
     expect([d.primary, ...d.secondary]).toContain("financing");
@@ -221,5 +293,24 @@ describe("router financing rule — the \b bug that hid the whole intent", () =>
   it("does not fire on unrelated words containing the letters", () => {
     const d = routeInboundSms("what are your hours?", CTX);
     expect([d.primary, ...d.secondary]).not.toContain("financing");
+  });
+});
+
+describe("every SMS draft is checked against the Voice Kernel claim rules", () => {
+  // Independent review, 2026-10-01: on the financing path the only "no credit"
+  // pattern is the stop-selling one, lifted when the customer asked, so these
+  // drafts passed with zero violations.
+  it.each([
+    ["do you do financing? no credit check?", "Yes! No credit check needed, $10 down and you're approved in about 90 seconds.", ["claim.no-credit-check", "claim.approval-promise"]],
+    ["can I get tires with no credit check", "We have no-credit-check payment programs. Same as cash for 90 days.", ["claim.no-credit-check", "claim.lease-no-interest"]],
+    ["on my way, do you do payment programs?", "Yes, applying won't hurt your credit score.", ["claim.no-credit-impact"]],
+  ])("holds a draft that makes a banned claim: %j", (body, draft, expected) => {
+    const violations = planViolations(plan(body), draft);
+    for (const id of expected) expect(violations).toContain(id);
+  });
+
+  it("CONTROL: the financing playbook's own facts pass", () => {
+    const p = plan("do you do payment programs?");
+    expect(planViolations(p, p.knownFacts.join(" "))).toEqual([]);
   });
 });

@@ -53,7 +53,7 @@ function buildAllLinks(reviewCountDisplay: string, reviewRating: string): LinkIt
   { href: "/contact", label: "Contact Nick's", desc: "Call, text, or stop by — first-come, first-served" },
   { href: "/booking", label: "Schedule Drop-Off", desc: "Online drop-off — walk-ins also welcome" },
   { href: "/fleet", label: "Fleet Accounts", desc: "Commercial vehicle maintenance" },
-  { href: "/financing", label: "Payment Programs", desc: "No credit check — 4 providers, apply in 2 min" },
+  { href: "/financing", label: "Payment Programs", desc: "4 providers · some don't require established credit" },
   { href: "/rewards", label: "Rewards Program", desc: "Earn points on every service" },
   { href: "/car-care-guide", label: "Car Care Guide", desc: "Seasonal maintenance tips" },
   { href: "/about", label: "About Us", desc: "Cleveland's Euclid Ave shop since 2018" },
@@ -73,7 +73,7 @@ function buildAllLinks(reviewCountDisplay: string, reviewRating: string): LinkIt
   // pages are now eligible to surface anywhere on the site.
   { href: "/tires#tire-repair", label: "Tire Repair Cleveland", desc: "$25 plug or patch, 15-min walk-in 7 days" },
   { href: "/wheel-alignment-cleveland", label: "Wheel Alignment Cleveland", desc: "Same-day · free pull-check · $89 typical" },
-  { href: "/no-credit-check-tires-cleveland", label: "No-Credit-Check Tires", desc: "$10 down · 4 lenders · drive home today" },
+  { href: "/no-credit-check-tires-cleveland", label: "Bad Credit? Tire Payment Options", desc: "Straight answers on credit checks · 4 providers" },
   { href: "/tires#open-sundays", label: "Tire Shop Open Sunday", desc: "9am-4pm every Sunday · walk-in · Chains closed" },
   // Hub pages
   // 2026-08-19 · was "150+ locations" — a ONE-location shop describing its

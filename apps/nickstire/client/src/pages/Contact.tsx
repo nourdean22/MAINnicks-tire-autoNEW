@@ -74,7 +74,7 @@ export default function Contact() {
           address + hours + walk-in all visible. */}
       <SEOHead
         title="Contact Nick's Tire & Auto · Cleveland & Euclid Auto Shop"
-        description="Contact Nick's Tire & Auto in Euclid/Cleveland. Hours: Mon-Sat 8-6, Sun 9-4. First come, first served. Vehicle drop-off welcome. Call (216) 862-0005."
+        description="Contact Nick's Tire & Auto on Euclid Ave in Cleveland. Hours: Mon-Sat 8-6, Sun 9-4. First come, first served. Vehicle drop-off welcome. Call (216) 862-0005."
         canonicalPath="/contact"
       />
       <Breadcrumbs items={[{ label: "Contact", href: "/contact" }]} />

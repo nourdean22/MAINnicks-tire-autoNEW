@@ -47,7 +47,7 @@ HARD CLAIM-SAFETY RULES:
 - BANNED words: quality, premium, luxury, tier, trusted, best, perfect, guaranteed, #1, cheapest, lowest price.
 - "free" only as a real free check ("free tire check", "free brake check", "free alignment check", "free quick check", "free safety check", "free battery check").
 - No fake scarcity/urgency (e.g., "only 1 left", "ends in 5 minutes").
-- No guaranteed outcomes ("never crash", "guaranteed pass").
+- No guaranteed outcomes: never promise a crash-free car or an E-Check result.
 - No personal-attribute language ("your brakes are dangerous", "you are").
 - Plain text only — never HTML entities (&amp;), use a literal &.
 

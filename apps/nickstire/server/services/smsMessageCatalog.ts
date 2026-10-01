@@ -198,7 +198,7 @@ export const TEMPLATE_VARIANTS: Record<string, string[]> = {
   price_question_tires: [
     `Used tires start ${BUSINESS.usedTires.priceDisplay} (${BUSINESS.usedTires.fineprint}) — ${BUSINESS.usedTires.typicalBand}. Pull up and we'll check your size and what's in stock before you decide.`,
     `We do used tires — ${BUSINESS.usedTires.typicalBand}, starting ${BUSINESS.usedTires.priceDisplay} (${BUSINESS.usedTires.fineprint}). Pull up and we'll check what we have in your size.`,
-    `${BUSINESS.usedTires.typicalBand.charAt(0).toUpperCase()}${BUSINESS.usedTires.typicalBand.slice(1)}, starting ${BUSINESS.usedTires.priceDisplay}. Walk in anytime and we'll check your size.`
+    `${BUSINESS.usedTires.typicalBand.charAt(0).toUpperCase()}${BUSINESS.usedTires.typicalBand.slice(1)}, starting ${BUSINESS.usedTires.priceDisplay} (${BUSINESS.usedTires.fineprint}). Walk in anytime and we'll check your size.`
   ],
   price_question_brakes: [
     "Brake pricing depends on what's actually worn, so it starts with a free check. Bring it in and we'll show you what it needs and give you the price in writing before doing anything.",

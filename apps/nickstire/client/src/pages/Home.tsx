@@ -37,6 +37,7 @@ import { SEOHead, trackPhoneClick, trackEvent } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight, Disc, Activity, Wrench, Zap, AlertTriangle, Snowflake, KeyRound, MessageCircle, Droplets, Instagram } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
+import { OHIO_ECHECK } from "@shared/echeck";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
 import ShopStatusWidget from "@/components/ShopStatusWidget";
@@ -323,7 +324,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
                 "0 1px 6px rgba(0,0,0,0.95), 0 0 14px rgba(0,0,0,0.6)",
             }}
           >
-            Cleveland's first-come-first-served <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire shop near Cleveland</Link> on Euclid Ave. Walk in 7 days. Used tires from <span className="text-nick-yellow font-semibold">$25</span> — most sizes $40-80 installed. Written estimate before any wrench moves.
+            Cleveland's first-come-first-served <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire shop near Cleveland</Link> on Euclid Ave. Walk in 7 days. Used tires from <span className="text-nick-yellow font-semibold">$25</span> (select 12-inch) — most sizes $40-80 installed. Written estimate before any wrench moves.
           </p>
 
           <IntentRouter personalization={personalization} />
@@ -340,7 +341,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
               {rating.toFixed(1)} from {totalReviews.toLocaleString()}+ reviews
             </span>
             <span className="text-[#A0A0A0]">&bull; First-come-first-served</span>
-            <span className="text-[#A0A0A0]">&bull; Used tires from $25 &middot; most sizes $40-80</span>
+            <span className="text-[#A0A0A0]">&bull; Used tires from $25 (select 12-inch) &middot; most sizes $40-80</span>
             <span className="text-[#A0A0A0]">&bull; Open 7 days incl. Sunday</span>
           </div>
           <div className="mt-3 motion-safe:animate-[fadeIn_0.5s_ease-out_1.1s_both]">
@@ -519,9 +520,12 @@ function Reviews({ reviewData }: { reviewData: HomeReviewData }) {
   // here and top up from FALLBACK_REVIEWS so the grid always fills.
   // /reviews defaults to 4-5 star reviews but says so next to its count and
   // offers "All ratings" one tap away; admin surfaces still see every rating.
+  // A rating-only Google review has no words to quote. The live feed carried
+  // three of them out of five on 2026-10-01, and the card rendered them as an
+  // empty pair of quotation marks, so the showcase requires text.
   const displayReviews = [
     ...(googleReviews ?? [])
-      .filter(r => r.rating >= 5)
+      .filter(r => r.rating >= 5 && (r.text ?? "").trim().length > 0)
       .map(r => ({ name: r.authorName, stars: r.rating, text: r.text })),
     ...FALLBACK_REVIEWS,
   ].slice(0, 3);
@@ -868,8 +872,8 @@ function TriageGrid() {
             tone="warning"
             icon={<Clock className="w-5 h-5" />}
             symptom="Failed Ohio E-Check?"
-            consequence="You get 30 days to fix and re-test. Driving past the deadline risks tickets and registration holds."
-            relief="State-certified emissions repair. Pull up today — we'll get you legal."
+            consequence={OHIO_ECHECK.registrationRule}
+            relief="Free readiness check, then we fix what failed. Pull up today."
             ctaLabel="GET LEGAL"
             ctaHref="/emissions"
           />
@@ -908,7 +912,7 @@ export default function Home() {
           the site's real approval-gate wording. */}
       <SEOHead
         title="Nick's Tire & Auto Cleveland · Tires & Auto Repair Euclid"
-        description="Used tires from $25 installed (most sizes $40-80), brakes & repairs on Euclid Ave. Open Sunday 9-4, walk in 7 days, written quote first. (216) 862-0005"
+        description="Used tires from $25 installed (select 12-inch; most $40-80), brakes & repairs on Euclid Ave. Open Sunday 9-4, walk in 7 days, written quote first. (216) 862-0005"
         canonicalPath="/"
       />
       <LocalBusinessSchema includeReviews />

@@ -292,9 +292,9 @@ export default function ProblemPage() {
               </FadeIn>
               <FadeIn delay={0.15}>
                 <div className="text-center p-6">
-                  <div className="text-4xl font-bold text-primary mb-2">$10</div>
-                  <div className="text-foreground/60 text-sm">Down Financing</div>
-                  <div className="text-foreground/40 text-xs mt-1"><Link href="/financing" className="text-nick-blue-light hover:underline">Learn more about $10-down auto repair financing</Link></div>
+                  <div className="text-4xl font-bold text-primary mb-2">4</div>
+                  <div className="text-foreground/60 text-sm">Payment Programs</div>
+                  <div className="text-foreground/40 text-xs mt-1"><Link href="/financing" className="text-nick-blue-light hover:underline">Compare auto repair payment programs</Link></div>
                 </div>
               </FadeIn>
               <FadeIn delay={0.2}>

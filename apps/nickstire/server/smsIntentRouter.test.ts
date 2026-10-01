@@ -91,6 +91,36 @@ describe("multi-intent messages are not flattened", () => {
     expect(d.catalogEvent).toBeNull(); // a template cannot answer two questions
   });
 
+  it("a payment question that names a service gets no price template", () => {
+    // 2026-10-01: these routed price_brakes / price_alignment ALONE and were
+    // answered with the price template, with nothing about paying in parts.
+    for (const msg of ["Can I do payments on brakes?", "can I pay over time for an alignment?", "can I make monthly payments on 4 tires"]) {
+      const d = routeInboundSms(msg, noCtx);
+      expect(d.signals, msg).toContain("financing");
+      expect(d.risk, msg).toBe("human_assisted");
+      expect(d.catalogEvent, msg).toBeNull();
+    }
+    // Control: the plain price question still gets its template.
+    expect(routeInboundSms("how much for brakes", noCtx).catalogEvent).toBe("price_question_brakes");
+    // Settling a bill is not a request to pay in parts. The second review
+    // (2026-10-01) found the first draft of this rule routed every one of
+    // these to financing.
+    for (const msg of [
+      "I made a payment yesterday",
+      "can I pay my invoice online",
+      "I made a payment on my account",
+      "do you have my payment on file?",
+      "can you split it between two cards?",
+      "I sent the payment on Zelle",
+      "payment on the invoice went through?",
+      "can I pay later when I pick up the car?",
+    ]) {
+      expect(routeInboundSms(msg, noCtx).signals, msg).not.toContain("financing");
+    }
+    // A price question that mentions how it will be paid keeps its template.
+    expect(routeInboundSms("how much is a tire? payment on cash app ok?", noCtx).catalogEvent).toBe("price_question_tires");
+  });
+
   it("a message that is half price-question, half complaint is a complaint", () => {
     const d = routeInboundSms("how much for brakes? also the last repair made it worse than before", noCtx);
     expect(d.risk).toBe("human_only");

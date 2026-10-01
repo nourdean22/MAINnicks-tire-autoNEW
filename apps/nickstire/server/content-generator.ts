@@ -8,7 +8,7 @@
 
 import { invokeLLM } from "./_core/llm";
 import { getDb } from "./db";
-import { dynamicArticles, notificationMessages, contentGenerationLog } from "../drizzle/schema";
+import { dynamicArticles, notificationMessages, contentGenerationLog, type DynamicArticle } from "../drizzle/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 
 import { createLogger } from "./lib/logger";
@@ -466,10 +466,16 @@ export async function saveGeneratedNotifications(notifications: GeneratedNotific
 export async function getPublishedArticles() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(dynamicArticles)
+  const rows: DynamicArticle[] = await db.select().from(dynamicArticles)
     .where(eq(dynamicArticles.status, "published"))
     .orderBy(desc(dynamicArticles.createdAt))
     .limit(200);
+  // A slug server/_core/redirects.ts 301s is withdrawn, not just moved. The
+  // 301 fires only on a full page load, so while this returned it, /blog and
+  // /site-map linked it and the SPA rendered it in-app, and the prerenderer
+  // kept it (2026-10-01: a DB article with payment-program claims the
+  // providers contradict).
+  return rows.filter((a) => !isRedirectedPath(`/blog/${a.slug}`));
 }
 
 export async function getAllDynamicArticles() {
@@ -498,6 +504,8 @@ export async function getAllDynamicArticles() {
  * behaves exactly like a nonexistent one.
  */
 export async function getDynamicArticleBySlug(slug: string) {
+  // Withdrawn by a redirect (see getPublishedArticles): read as absent.
+  if (isRedirectedPath(`/blog/${slug}`)) return null;
   const db = await getDb();
   if (!db) return null;
   const results = await db.select().from(dynamicArticles)

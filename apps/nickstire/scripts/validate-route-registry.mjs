@@ -7,8 +7,8 @@
  *      shared/routes.ts (unless it's a dynamic :param route).
  *   2. Every entry in shared/routes.ts with prerender:true MUST have
  *      a non-empty title + description.
- *   3. Titles must be <= 60 chars (SEO best practice).
- *   4. Descriptions must be <= 160 chars.
+ *   3. Titles over TITLE_MAX (70) chars are reported as warnings.
+ *   4. Descriptions over DESC_MAX (165) chars are reported as warnings.
  *
  * Why this matters: the prerender pipeline sniffs bot User-Agents and
  * serves pre-rendered HTML. If a new route is added to App.tsx but not
@@ -41,10 +41,36 @@ for (const m of appTsx.matchAll(ROUTE_RE)) {
 }
 
 // ─── Parse routes.ts for registered paths ─────────────
-const routesTs = fs.readFileSync(path.join(ROOT, "shared", "routes.ts"), "utf8");
+// Comments are removed first, outside string literals: a commented-out
+// `title:` used to parse as the live one, and a comment between two fields
+// hid the entry from Rules 2-4 (independent review, 2026-10-01).
+function stripComments(src) {
+  let out = "";
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (c === '"' || c === "'" || c === "`") {
+      out += c;
+      for (i++; i < src.length && src[i] !== c; i++) {
+        if (src[i] === "\\") out += src[i++];
+        out += src[i];
+      }
+      out += src[i] ?? "";
+    } else if (c === "/" && src[i + 1] === "/") {
+      while (i < src.length && src[i] !== "\n") i++;
+      out += "\n";
+    } else if (c === "/" && src[i + 1] === "*") {
+      for (i += 2; i < src.length && !(src[i] === "*" && src[i + 1] === "/"); i++) {
+        if (src[i] === "\n") out += "\n";
+      }
+      i++;
+    } else {
+      out += c;
+    }
+  }
+  return out;
+}
+const routesTs = stripComments(fs.readFileSync(path.join(ROOT, "shared", "routes.ts"), "utf8"));
 const PATH_RE = /path:\s*["']([^"']+)["']/g;
-const TITLE_RE = /title:\s*["']([^"']*)["']/g;
-const DESC_RE = /description:\s*["']([^"']*)["']/g;
 
 const registeredPaths = new Set();
 for (const m of routesTs.matchAll(PATH_RE)) {
@@ -133,10 +159,27 @@ for (const p of NON_REGISTRY_PUBLIC_PATHS) {
 const TITLE_MAX = 70;
 const DESC_MAX = 165;
 
-// Very simple block parser — count nothing fancy, match entry-level fields
-const entryRe = /\{\s*path:\s*["']([^"']+)["'][^}]*?title:\s*["']([^"']*)["'][^}]*?description:\s*["']([^"']*)["'][^}]*?prerender:\s*(true|false)/gs;
+// A string literal in either quote style, escapes included: the same shape
+// scripts/patch-prerender-seo.mjs reads. The pattern this replaces,
+// ["']([^"']*)["'], ended a double-quoted string at its first apostrophe, so
+// any title or description containing "Nick's" was measured only up to "Nick".
+// On 2026-10-01 that reported 0 warnings while 10 prerendered descriptions and
+// 3 titles were over these limits.
+const STR = String.raw`(?:"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*')`;
+const unquote = (literal) => literal.slice(1, -1).replace(/\\(.)/g, "$1");
+
+// Very simple block parser — count nothing fancy, match entry-level fields.
+// Comments are already stripped, so an entry that opens with a dated rationale
+// parses like any other (the old `\{\s*path:` skipped every one of them).
+const entryRe = new RegExp(
+  String.raw`\{\s*path:\s*(${STR})[^}]*?title:\s*(${STR})[^}]*?description:\s*(${STR})[^}]*?prerender:\s*(true|false)`,
+  "gs",
+);
+let seoEntries = 0;
 for (const m of routesTs.matchAll(entryRe)) {
-  const [, p, title, desc, prerender] = m;
+  const [p, title, desc] = [m[1], m[2], m[3]].map(unquote);
+  const prerender = m[4];
+  seoEntries++;
   if (prerender === "true") {
     if (!title.trim()) errors.push(`"${p}" has empty title`);
     if (!desc.trim()) errors.push(`"${p}" has empty description`);
@@ -146,11 +189,18 @@ for (const m of routesTs.matchAll(entryRe)) {
       warnings.push(`"${p}" description is ${desc.length} chars (> ${DESC_MAX})`);
   }
 }
+// Rule 0 again, for Rules 2-4: an entry the block parser cannot read is an
+// entry they never check. Fail closed on any gap, not only a total one: a
+// partial blindness (15 entries, until 2026-10-01) still printed "OK".
+if (registeredPaths.size > 0 && seoEntries < registeredPaths.size) {
+  errors.push(`The SEO block parser read ${seoEntries} of ${registeredPaths.size} registry entries in shared/routes.ts — Rules 2-4 never checked the rest. Each entry needs path, title, description and prerender as plain string literals, in that order.`);
+}
 
 // ─── Report ───────────────────────────────────────────
 console.log("\n─── route registry validation ───");
 console.log(`  App.tsx routes:        ${appRoutes.size}`);
 console.log(`  Registry entries:      ${registeredPaths.size}`);
+console.log(`  SEO entries checked:   ${seoEntries}`);
 console.log(`  Errors:                ${errors.length}`);
 console.log(`  Warnings:              ${warnings.length}`);
 console.log("");

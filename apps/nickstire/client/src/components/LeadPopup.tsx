@@ -214,7 +214,7 @@ export default function LeadPopup() {
                     Describe your vehicle problem and we'll call you with an honest assessment. No obligation.
                   </p>
                   <p className="text-[11px] text-emerald-400/70 mt-1">
-                    Lease-to-own and payment programs on the spot — no credit check.
+                    Lease-to-own and payment programs. Some don't require established credit.
                   </p>
 
                   <form onSubmit={handleSubmit} className="mt-5 space-y-3">

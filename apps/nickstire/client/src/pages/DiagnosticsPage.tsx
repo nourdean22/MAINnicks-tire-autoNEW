@@ -9,6 +9,7 @@ import FocusedServicePage, { type ServicePageConfig } from "@/components/Focused
 import { DIAGNOSTICS_PHOTOS } from "@/components/PhotoRibbon";
 import { useReviewStats } from "@/hooks/useReviewStats";
 import { Disc, AlertTriangle, Clock } from "lucide-react";
+import { OHIO_ECHECK } from "@shared/echeck";
 
 // A FUNCTION, not a module constant: the rating and review count are live
 // (useReviewStats), and a module-scope object is built once at import time —
@@ -106,9 +107,9 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
         consequence: "Top-end of an engine replacement when a flashing CEL (active misfire) is driven on for 1-2 weeks. Misfires dump unburned fuel into the cat — destroys it AND the engine.",
       },
       {
-        value: "30",
-        unit: "days to E-Check failure",
-        consequence: "An unresolved CEL = automatic Ohio E-Check failure once your registration cycle hits. 30 days after that, expired tags = parking ticket + impound risk + possible criminal charge for driving on expired registration.",
+        value: "Auto-fail",
+        unit: "E-Check with the light on",
+        consequence: `A lit check-engine light fails Ohio E-Check. ${OHIO_ECHECK.registrationRule}`,
       },
     ],
   },
@@ -144,8 +145,8 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
         tone: "warning",
         icon: <AlertTriangle className="w-5 h-5" />,
         symptom: "E-Check failed with code P0420?",
-        consequence: "Catalytic converter or O2 sensor — 30 days to remedy or your registration goes invalid.",
-        relief: "State-certified emissions repair, free readiness check first.",
+        consequence: `Catalytic converter or O2 sensor. ${OHIO_ECHECK.registrationRule}`,
+        relief: "Free readiness check first, then a written quote for the repair.",
         ctaLabel: "OHIO E-CHECK",
         ctaHref: "/emissions",
       },

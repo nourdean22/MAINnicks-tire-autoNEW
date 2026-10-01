@@ -86,7 +86,7 @@ const FAQ_ITEMS = [
   {
     question: "Do you offer payment plans?",
     answer:
-      "Yes — Acima, Snap Finance, Koalafi, and American First Finance. No traditional credit check with any option. Lease-to-own and buy now, pay later available. Apply at the counter or online in minutes.",
+      "Yes — Acima, Snap Finance, Koalafi, and American First Finance. Some don't require established credit, and each provider decides approval. Lease-to-own and installment options are available. Apply at the counter or online.",
   },
   {
     question: "What if I need emergency service?",
@@ -456,7 +456,7 @@ export default function CostEstimator() {
                   {/* Acima Lease-to-Own Callout */}
                   <div className="mt-6 bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4 text-center">
                     <p className="text-sm text-emerald-400 font-medium">
-                      This estimate could be yours for $10 down with Acima lease-to-own
+                      Acima lease-to-own can start at $10 in select circumstances
                     </p>
                     <p className="text-[10px] text-foreground/40 mt-1">{ACIMA_COMPACT_DISCLOSURE}</p>
                     <Link href="/financing?utm_source=cost_estimator" className="inline-block mt-2 text-xs text-emerald-400 hover:text-emerald-300 underline">

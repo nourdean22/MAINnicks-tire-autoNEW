@@ -12,7 +12,7 @@ export default function NicksVsFirestone() {
       primary={COMPETITORS.firestone}
       slug="nicks-tire-vs-firestone-cleveland"
       seoTitle="Nick's Tire & Auto vs Firestone Cleveland · Honest Compare"
-      seoDescription="Firestone wants chain pricing and an appointment. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, transparent labor, used tires from $25, written quote up front."
+      seoDescription="Firestone wants chain pricing and an appointment. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, transparent labor, used tires from $25 (select 12-inch; most $40-80), written quote up front."
       intro="Firestone is corporate Bridgestone. Chain-level labor rates. Appointment-required. Lifetime alignment program (the genuine value play). Dealership-style upsell pressure on the recommended-services list. Nick's Tire & Auto on Euclid Ave is the opposite of corporate. Mechanic-owned. Walk in 7 days. Free check. Written quote. You don't pay until you say yes. One stop for tires + brakes + repair. Yellow sign. Real address. Phone answered by an actual person at the shop."
       extraFaqs={[
         {
@@ -28,8 +28,8 @@ export default function NicksVsFirestone() {
           answer: "Yes — Michelin, Goodyear, Bridgestone, Continental, Firestone, Pirelli, Cooper. Standard distributor access through DK Tire B2B and Auto Labor Guide ordering. Same tire selection most regional independents have. The difference isn't the tire — it's the install honesty.",
         },
         {
-          question: "Is Nick's payment financing as good as Firestone's credit card?",
-          answer: "Different model. Firestone's credit card is Firestone-only — works at their stores, 6-12 months promotional financing typical. Nick's offers Acima, Snap, Affirm, and partner lenders that work at most service providers — pre-qualified in 60 seconds with a soft credit pull, up to $4,000 approved. No chain lock-in. Same financing convenience, different scope.",
+          question: "Are Nick's payment programs as good as Firestone's credit card?",
+          answer: "Different model. Firestone's credit card is Firestone-only — works at their stores, 6-12 months promotional financing typical. Nick's accepts four third-party payment programs: Acima (lease-to-own), Snap Finance, Koalafi and American First Finance. Each provider decides approval and terms. No chain lock-in, different scope.",
         },
       ]}
     />

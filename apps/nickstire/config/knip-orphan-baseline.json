@@ -237,11 +237,6 @@
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
-      "file": "apps/nickstire/server/services/financingPreQual.ts",
-      "symbol": null,
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
       "file": "apps/nickstire/server/services/invoiceGenerator.ts",
       "symbol": null,
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
