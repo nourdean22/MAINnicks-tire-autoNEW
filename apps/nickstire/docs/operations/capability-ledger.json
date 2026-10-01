@@ -3064,11 +3064,11 @@
       "capabilityId": "admin-data-freshness-nhtsa-q50",
       "name": "Intelligence HQ's Data freshness card reports how current the stored NHTSA manufacturer-program list is, and the ingest probes last year's open-chunk name before failing",
       "owner": "system",
-      "codeState": "in_progress",
+      "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch nickstire/q50-phase3-freshness-row (draft PR, not merged): server/services/nhtsaWarrantyRead.ts (warrantyIngestFreshness: the ingest's lastSuccessAt, the work-order panel's own 3-day stale rule, and the nhtsa_warranty_ingest flag read from its row so a flag-table failure is unknown, not off); vehicleData.warrantyIngestFreshness; client/src/pages/admin/today/dataFreshness.ts nhtsaWarrantyRow + DataFreshness.tsx fourth row; server/services/nhtsaWarrantyParse.ts previousYearCandidate, probed last by resolveOpenChunk.",
+        "codeCommit": "Q-50 phase 3, merged as #2854 (squash ab0fa59bc, 2026-10-01): server/services/nhtsaWarrantyRead.ts (warrantyIngestFreshness: the ingest's lastSuccessAt, the work-order panel's own 3-day stale rule, and the nhtsa_warranty_ingest flag read from its row so a flag-table failure is unknown, not off); vehicleData.warrantyIngestFreshness; client/src/pages/admin/today/dataFreshness.ts nhtsaWarrantyRow + DataFreshness.tsx fourth row; server/services/nhtsaWarrantyParse.ts previousYearCandidate, probed last by resolveOpenChunk.",
         "tests": [
           "server/services/nhtsaWarrantyPhase3.test.ts: 10 cases incl. never-finished (armed and off), the 3-day boundary both sides, failed state/flag/database reads as ok:false, SELECT-only production SQL with the flag key as a parameter, a missing flag row as off, and the January 2027 probe order 2025-2027, 2025-2029, 2025-2026 with 2026's order and message unchanged.",
           "client/src/__tests__/data-freshness-nhtsa-q50.test.tsx: 9 cases incl. not set up (quiet), armed but never finished (loud), fresh, stale armed and off (loud), a failed read and ok:false as UNMEASURED unknown, and the card counting the row in 'need a look'.",
