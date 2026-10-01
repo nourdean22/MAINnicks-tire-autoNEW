@@ -460,9 +460,16 @@ export default function LaborEstimator() {
               <FadeIn delay={0.2}>
                 <div className="bg-background/40 border border-border/20 rounded-lg p-4 flex items-start gap-3">
                   <Info className="w-4 h-4 text-foreground/40 mt-0.5 shrink-0" />
-                  <p className="text-foreground/50 text-xs leading-relaxed">
-                    {result.disclaimer}
-                  </p>
+                  <div className="space-y-2">
+                    {result.estimateChoice && (
+                      <p className="text-foreground/70 text-xs leading-relaxed font-medium">
+                        {result.estimateChoice}
+                      </p>
+                    )}
+                    <p className="text-foreground/50 text-xs leading-relaxed">
+                      {result.disclaimer}
+                    </p>
+                  </div>
                 </div>
               </FadeIn>
 

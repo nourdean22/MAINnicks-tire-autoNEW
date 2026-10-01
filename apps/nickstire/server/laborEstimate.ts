@@ -8,6 +8,12 @@
 import { invokeLLM } from "./_core/llm";
 import { eq } from "drizzle-orm";
 import { shopSettings } from "../drizzle/schema";
+import {
+  ESTIMATE_CHOICE_NOTICE,
+  ESTIMATE_DISCLAIMER,
+  stripUnfoundedVerdicts,
+  stripVerdictFromTitle,
+} from "./services/estimateWording";
 
 import { createLogger } from "./lib/logger";
 
@@ -78,6 +84,7 @@ ESTIMATION RULES:
 7. Do NOT include tax in the estimate — note that tax is additional
 8. If the repair description is vague, provide estimates for the most common causes
 9. Never guarantee a price — always note that in-person diagnosis may reveal additional needs
+10. Nobody has inspected this vehicle. Never call a repair necessary, required, urgent or critical, and never call the vehicle dangerous or unsafe. Describe what the repair involves and what an inspection would check
 
 LABOR TIME GUIDELINES (industry averages):
 - Oil change: 0.3-0.5 hrs
@@ -130,7 +137,37 @@ export type LaborEstimateResult = {
   timeEstimate: string;
   importantNotes: string[];
   disclaimer: string;
+  /** OAC 109:4-3-13 (B)(2): the right to an estimate, told on first contact. Server-owned. */
+  estimateChoice: string;
 };
+
+/**
+ * Q-46: every estimate leaves through here. Drops model-written necessity,
+ * danger and urgency verdicts (no inspection backs them) and replaces the
+ * model's disclaimer with the server-owned one. Prices are not touched.
+ */
+function finalizeEstimateWording(raw: Omit<LaborEstimateResult, "estimateChoice">): LaborEstimateResult {
+  let dropped = 0;
+  const strip = (t: string) => {
+    const r = stripUnfoundedVerdicts(t ?? "");
+    dropped += r.dropped;
+    return r.text;
+  };
+  const title = stripVerdictFromTitle(raw.repairTitle ?? "");
+  dropped += title.dropped;
+  const summary = strip(raw.summary);
+  const result: LaborEstimateResult = {
+    ...raw,
+    repairTitle: title.text || "Repair Estimate",
+    summary: summary || "This range covers the repair you described. An inspection confirms what your vehicle needs.",
+    lineItems: (raw.lineItems ?? []).map((li) => ({ ...li, notes: strip(li.notes) })),
+    importantNotes: (raw.importantNotes ?? []).map(strip).filter((n) => n !== ""),
+    disclaimer: ESTIMATE_DISCLAIMER,
+    estimateChoice: ESTIMATE_CHOICE_NOTICE,
+  };
+  if (dropped > 0) log.info(`[LaborEstimate] dropped ${dropped} unfounded verdict phrase(s) from model text`);
+  return result;
+}
 
 export async function generateLaborEstimate(input: {
   year: string;
@@ -157,7 +194,7 @@ Respond with a JSON object:
 {
   "repairTitle": "Short title for the repair (e.g. 'Front Brake Pad & Rotor Replacement')",
   "vehicleDisplay": "Formatted vehicle string (e.g. '2018 Honda Civic')",
-  "summary": "2-3 sentence plain-language explanation of what the repair involves and why it's needed",
+  "summary": "2-3 sentence plain-language explanation of what the repair involves",
   "lineItems": [
     {
       "description": "Line item description (e.g. 'Front brake pads')",
@@ -245,15 +282,15 @@ Respond with a JSON object:
 
     const content = response.choices?.[0]?.message?.content;
     if (content && typeof content === "string") {
-      const parsed = JSON.parse(content) as LaborEstimateResult;
-      return parsed;
+      const parsed = JSON.parse(content) as Omit<LaborEstimateResult, "estimateChoice">;
+      return finalizeEstimateWording(parsed);
     }
   } catch (error) {
     log.error("[LaborEstimate] AI estimate failed:", error);
   }
 
   // Fallback
-  return {
+  return finalizeEstimateWording({
     repairTitle: "Repair Estimate",
     vehicleDisplay: `${input.year} ${input.make} ${input.model}`,
     summary: "We need to see your vehicle in person to provide an accurate estimate for this repair. Our technicians use advanced diagnostic equipment to pinpoint the exact issue and give you a fair, transparent price.",
@@ -270,6 +307,6 @@ Respond with a JSON object:
       "This repair requires an in-person diagnostic inspection for an accurate estimate.",
       "Call (216) 862-0005 to schedule your appointment.",
     ],
-    disclaimer: "All estimates are approximate and based on industry-standard labor times. Final pricing may vary based on in-person inspection findings. Tax is additional.",
-  };
+    disclaimer: ESTIMATE_DISCLAIMER,
+  });
 }
