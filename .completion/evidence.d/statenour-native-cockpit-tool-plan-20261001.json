@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "2026-10-01 native Workspace Tool wrapper checkpoint. OpenWebUI 0.11.4 frontend code proves model meta.toolIds is initialized by filtering IDs against the native Workspace Tools store. direct_server:nour-cockpit is therefore dropped before chat, causing outgoing tool_servers=[]. The later request builder correctly supports direct_server IDs, but the ID never survives initialization. Chosen fix: keep the direct OpenAPI server registered separately, and add a first-class native OpenWebUI Workspace Tool wrapper whose methods proxy to the loopback NOUR Cockpit bridge on 127.0.0.1:4101. Attach that native tool ID to the NOUR Cockpit model so OpenWebUI auto-selects it through its existing supported path. Wrapper must preserve existing CockpitRun isolation, approval gating, and mission_task_writes=false. No native wrapper has been installed yet at this checkpoint."
+    }
+  }
+}

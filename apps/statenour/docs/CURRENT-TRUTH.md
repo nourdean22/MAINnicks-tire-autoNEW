@@ -555,3 +555,12 @@ This supersedes the pre-PR status notes immediately above while preserving them 
 - This fully explains the intercepted payload: the model metadata contains `direct_server:nour-cockpit`, while the outgoing chat request has `tool_servers: []`.
 - Preferred fix: **do not fork the minified frontend bundle.** Create a native OpenWebUI Workspace Tool wrapper around the loopback NOUR Cockpit bridge and attach that native tool ID to the NOUR Cockpit model. Native Workspace Tool IDs are already auto-selected by the code path above. Keep the direct OpenAPI server registered as a separately usable integration.
 
+
+## 2026-10-01 — native Workspace Tool wrapper selected as final OpenWebUI fix
+
+- OpenWebUI 0.11.4''s model initialization path filters `meta.toolIds` against **native Workspace Tools**. This is why `direct_server:nour-cockpit` is dropped even though the direct-server request builder itself is correct.
+- Final integration design: keep the direct OpenAPI Cockpit server registered as a separate integration, and create a **native OpenWebUI Workspace Tool** wrapper around the same loopback Cockpit bridge on `127.0.0.1:4101`.
+- The native tool will expose the same simple cockpit actions and remain only a transport wrapper. Execution authority still lives in `nour_cockpit_bridge.py`: isolated worktrees, shell approval policy, no automatic commit/push/deploy, and `mission_task_writes=false` remain unchanged.
+- The NOUR Cockpit model will point `meta.toolIds` at the native tool ID so OpenWebUI''s existing model-load path auto-selects it correctly.
+- No native Workspace Tool has been installed yet at this checkpoint.
+
