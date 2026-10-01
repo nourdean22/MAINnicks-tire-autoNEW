@@ -1659,7 +1659,18 @@ async function runSelfTest() {
         const stored = await loadCredentials(ctx);
         assert(stored.refreshToken === "rt-new-SECRET" && stored.accessToken === "at-new-SECRET", "rotation persisted");
         const onDisk = fs.readFileSync(statePath(ctx, "credentials.dpapi"), "utf8");
-        assert(!onDisk.includes("SECRET"), "credentials must not be stored in plaintext");
+        // Check every decoding saveCredentials could leave recoverable, not just the
+        // raw file: a codec that merely base64-encodes (or wraps JSON) is plaintext.
+        const envelope = JSON.parse(onDisk);
+        assert(typeof envelope.data === "string" && envelope.data.length > 0, "sealed data present");
+        const decoded = Buffer.from(envelope.data, "base64");
+        const decodings = [onDisk, envelope.data, decoded.toString("utf8"), decoded.toString("latin1")];
+        try { decodings.push(JSON.stringify(JSON.parse(decoded.toString("utf8")))); } catch {}
+        for (const text of decodings) {
+          for (const token of ["rt-new-SECRET", "at-new-SECRET", "SECRET"]) {
+            assert(!text.includes(token), "credentials must not be recoverable from disk without the codec");
+          }
+        }
         assert(calls[0].url === TOKEN_URL, "refresh happens before API use");
       } finally {
         if (saved === undefined) delete process.env.OPENAI_API_KEY;

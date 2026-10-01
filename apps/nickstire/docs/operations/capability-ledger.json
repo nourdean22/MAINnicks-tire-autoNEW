@@ -2572,8 +2572,7 @@
         }
       ],
       "deferredScope": [
-        "Q-23 remaining: the lane-health strip, data freshness, and provenance tags on AIHealth and LlmSpend (CustomerIntelligence: admin-customer-intel-provenance-q23).",
-        "masterIntelligence counts a failed engine only when it throws; this engine's swallowed failure (now unavailable:true) is still not counted toward the report's scoreReliable threshold."
+        "Q-23 remaining: the lane-health strip and data freshness (AIHealth and LlmSpend tags: admin-ai-health-llm-provenance-q23)."
       ],
       "lastVerifiedAt": "2026-09-30"
     },
@@ -2581,14 +2580,15 @@
       "capabilityId": "admin-customer-intel-provenance-q23",
       "name": "Admin Customer Intelligence counts read the fields their engines return, show UNMEASURED on a failed read, and make no retention claim from an empty VIP list",
       "owner": "operator",
-      "codeState": "in_progress",
+      "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch nickstire/q23-phase6-customer-intel-provenance (Q-23 phase 6, draft PR, not merged): 'Due For Maintenance' read repeatPrediction.recommendations, a field predictRepeatVisits never returns, so it was 0 on every render; it now reads dueSoon (label 'Due Or Overdue'). predictChurn and predictRepeatVisits mark their catch-path empty lists unavailable:true. client/src/pages/admin/intelligence/customerSignals.ts deriveCustomerSignals maps a null engine result or unavailable:true to UNMEASURED 'unknown', a read count to ESTIMATE, and a list at the engine's cap (25 / 30) to 'N+'. The empty VIP list no longer says 'Retention looks solid': nextBestActions keeps the top 8 of all actions, so higher-urgency items can crowd VIP win-backs out.",
+        "codeCommit": "Q-23 phase 6, merged as #2833 (squash 5163f2dab, 2026-10-01): 'Due For Maintenance' read repeatPrediction.recommendations, a field predictRepeatVisits never returns, so it was 0 on every render; it now reads dueSoon (label 'Due Or Overdue'). predictChurn and predictRepeatVisits mark their catch-path empty lists unavailable:true. client/src/pages/admin/intelligence/customerSignals.ts deriveCustomerSignals maps a null engine result or unavailable:true to UNMEASURED 'unknown', a read count to ESTIMATE, and a list at the engine's cap (25 / 30) to 'N+'. The empty VIP list no longer says 'Retention looks solid': nextBestActions keeps the top 8 of all actions, so higher-urgency items can crowd VIP win-backs out.",
         "tests": [
           "client/src/__tests__/customer-intelligence-provenance.test.tsx: failed engines, failed engine reads, dueSoon read, empty read, cap floor, no retention claim. Red on main 6/6.",
-          "server/services/engines/customerSignalsUnavailable.test.ts: a rejected read returns unavailable:true for both engines; an empty read does not. Red on main 2/4 (the two success-path controls pass on both by design)."
+          "server/services/engines/customerSignalsUnavailable.test.ts: a rejected read returns unavailable:true for both engines; an empty read does not. Red on main 2/4 (the two success-path controls pass on both by design).",
+          "Q-23 phase 7: customer-intelligence-provenance.test.tsx also pins the 'Due Or Overdue' label (dueSoon includes overdue customers); renaming it back to 'Due For Maintenance' turns that case red."
         ],
         "liveRuns": []
       },
@@ -2599,9 +2599,8 @@
         }
       ],
       "deferredScope": [
-        "Q-23 remaining: the lane-health strip, data freshness, and provenance tags on AIHealth and LlmSpend.",
-        "nextBestActions' VIP read goes through safeRowQuery, which returns [] on failure, so a failed VIP read still renders as an empty list (now worded without a retention claim).",
-        "masterIntelligence still scores these engines' swallowed failures as successful reads (scoreReliable does not see unavailable:true)."
+        "Q-23 remaining: the lane-health strip and data freshness (AIHealth and LlmSpend tags: admin-ai-health-llm-provenance-q23).",
+        "nextBestActions' VIP read goes through safeRowQuery, which returns [] on failure, so a failed VIP read still renders as an empty list (now worded without a retention claim)."
       ],
       "lastVerifiedAt": "2026-09-30"
     },
@@ -3060,6 +3059,59 @@
         "safetyMonitor's 'No successful backup' wording is unchanged pending an operator decision."
       ],
       "lastVerifiedAt": "2026-09-30"
+    },
+    {
+      "capabilityId": "admin-ai-health-llm-provenance-q23",
+      "name": "The Business Health Score counts an engine whose read failed as a failed engine, and the AI Health score and AI-usage numbers wear MEASURED / ESTIMATE / UNMEASURED",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Q-23 phase 7, merged as #2836 (squash b1b636962, 2026-10-01): server/services/masterIntelligence.ts settled() maps a fulfilled engine result marked unavailable:true (predictChurn, predictRepeatVisits, analyzeLeadResponseTime catch paths) to null, so it is absent from the score instead of scoring as the best case (a failed churn read scored 'Churn risk +8 · 0 high-risk customers'); it is counted in enginesFailed, named in failures via MASTER_ENGINE_LABELS, and passes the same 1/3 scoreReliable threshold as a rejected engine. AIHealthPanel tags the score ESTIMATE (modeled composite) or UNMEASURED (scoreReliable false). LlmSpendPanel tags calls/failed MEASURED while the writer records and ESTIMATE (lower bound) while it is off or stopped, tokens ESTIMATE under partial usage coverage, an empty window MEASURED only while recording, and an unreadable ledger UNMEASURED.",
+        "tests": [
+          "server/services/masterIntelligenceReadFailed.test.ts: read-failed churn is absent from the score and named in failures; a successful empty churn read still scores +8 (control); 7 rejected + 3 read-failed of 28 trips scoreReliable=false; the section reads null; the first, a middle and the last engine are named by their own label. Red on main 4/5 (the control passes on both by design); shifting the label list turns 2 of 5 red.",
+          "client/src/__tests__/ai-health-llm-provenance.test.tsx: score ESTIMATE / UNMEASURED; LLM calls/failed/tokens MEASURED, tokens ESTIMATE under partial coverage, ESTIMATE while recording off or stopped, empty window MEASURED only while recording, unreadable UNMEASURED. Red on main 8/8."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Not deployed: neither card has been seen on the installed admin PWA, and how often each engine's production read fails (which now lowers enginesFailed-based reliability) is unread from this session."
+        }
+      ],
+      "deferredScope": [
+        "Q-23 remaining: the lane-health strip and data freshness.",
+        "The morning brief's score/churn wording is Q-23 phase 8 (morning-brief-master-provenance-q23)."
+      ],
+      "lastVerifiedAt": "2026-10-01"
+    },
+    {
+      "capabilityId": "morning-brief-master-provenance-q23",
+      "name": "The morning brief prints the Business Health score as an ESTIMATE (UNKNOWN when the report says it averaged over silence), a failed churn read as 'unknown, not zero', and the monthly review count the engine actually returns",
+      "owner": "operator",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch nickstire/q23-phase8-brief-provenance (Q-23 phase 8, draft PR, not merged): server/cron/jobs/morningBriefMaster.ts formatMasterBriefBlock builds the brief's Master Intelligence block. Health: 'BUSINESS HEALTH (ESTIMATE, modeled not measured): N/100', or 'UNKNOWN (F of T engines failed ...)' when summary.scoreReliable is false (it printed the bare score, e.g. 50/100 on an outage). Churn: a null churnRisk (rejected or unavailable:true, mapped by settled()) prints 'unknown, not zero' (it printed 0); a list at predictChurn's cap of 25 prints '25+'. Reviews: reads reviewVelocity.thisMonth as 'Reviews this month' (it read weeklyRate/monthlyRate, which analyzeReviewVelocity never returns, so the brief said 'Reviews/wk: 0' on every run). morningBrief.ts calls it instead of building the block inline. The brief's FORMAT RULES now tell the model to call the score an estimate, give no number when it reads UNKNOWN, and keep any count marked unknown as unknown.",
+        "tests": [
+          "server/__tests__/morningBriefMasterProvenance.test.ts: ESTIMATE label; UNKNOWN with no score when scoreReliable is false; churn unknown-not-zero on a failed read; real count and the 25+ cap floor; monthly reviews and unknown on a failed read; morningBrief.ts routes through the formatter and no longer reads weeklyRate/monthlyRate or prints a bare score, and its FORMAT RULES carry the estimate/unknown rule. Red on main 1/6: the wiring case (the formatter cases need the new module)."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Not deployed: no morning brief has been sent with this block, and the LLM that writes the Telegram brief from it may still paraphrase; that it keeps the ESTIMATE/UNKNOWN wording is unobserved."
+        }
+      ],
+      "deferredScope": [
+        "Q-23 remaining: the lane-health strip and data freshness.",
+        "analyzeReviewVelocity's catch still returns zeros without unavailable:true, so a failed review read prints 'Reviews this month: 0' and scores as data in the health score; marking it would change the score's engine count, left for a separate decision."
+      ],
+      "lastVerifiedAt": "2026-10-01"
     }
   ],
   "axes": {

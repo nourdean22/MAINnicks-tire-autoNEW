@@ -32,7 +32,9 @@ OpenWebUI is a local chat surface over that gateway. It is not the worker orches
 9. Quota exhaustion updates the lane heartbeat immediately; stale/unavailable lanes must not be selected as healthy.
 10. Worker communication is outbound HTTPS to bdnick.info using `RUNNER_SHARED_SECRET`; do not expose a public local-agent port.
 11. Research source truth comes from provider tool-result telemetry. URL-shaped text in a model answer is never promoted into the evidence ledger. Each round records WebSearch/WebFetch receipts, and a report cannot be `complete` unless at least one page was actually fetched.
-12. Research web content is untrusted data. Evidence prompts explicitly forbid treating page content as instructions, and research runs remain read-only even when the machine's separate durable-write gate is enabled.
+12. Research web content is untrusted data. Evidence prompts explicitly forbid treating page content as instructions, and research runs remain read-only even when the machine's separate durable-write gate is enabled. Page-derived memos reach the critic and synthesizer only inside `<research_data>` fences, and the critic's `gap` is reduced to a plain search query (no URLs, IPs, paths or control characters, max 200 chars) before it can steer a WebFetch round. The research CLI runs from a fresh empty temp directory, never the repo checkout; it is removed best-effort afterwards and needs no Python-version-specific keyword. `install-external-worker.ps1` does not pin a Python version (it uses whatever `python.exe` is on PATH); the gateway spawns interactive and research runs with its own hard-coded Python 3.14 path. WebFetch is not restricted from private/metadata addresses: Claude Code `WebFetch(domain:...)` rules match the hostname string only (no CIDR, no resolved-IP check), so a deny list would not stop a public name that resolves to a private address.
+13. The local gateway (`127.0.0.1:11436`) refuses browser-originated calls. Every route, GET included, requires a loopback `Host` (`127.0.0.1`, `localhost` or `[::1]`, any port) and answers 403 otherwise; this is what stops a DNS-rebinding page from reading `/v1/models` or `/health/lanes`. A present non-loopback `Origin` also gets 403, and a `POST /v1/*` without `content-type: application/json` gets 415. Only one research run executes at a time: the worker holds an OS file lock (`%TEMP%\nour-research.lock`, override `NOUR_RESEARCH_LOCK_PATH`) for both `nour-research` and a `nour-auto` it promotes to research, and a second run gets 429 `nour_research_busy`. The OS releases the lock if the run is killed. Callers that send no `Origin` and use a loopback name (OpenWebUI at `127.0.0.1:8080`, the worker, OpenCode/Goose, curl) are unaffected. A client addressing the gateway as `host.docker.internal` (for example OpenWebUI in Docker) would be refused, and the refusal is logged as `reason=host`. There is no bearer token yet.
+14. Lane subprocesses never inherit `RUNNER_SHARED_SECRET`; only the worker process itself uses it.
 
 ## Install / persistence
 
@@ -57,7 +59,7 @@ triggers, and zero `external_worker_agent.py` processes.
 
 ## Verification sequence
 
-1. **Local contract:** `python -m unittest local-agent\test_external_worker_agent.py local-agent\test_external_worker_installer.py`.
+1. **Local contract:** `python -m unittest local-agent\test_external_worker_agent.py local-agent\test_external_worker_installer.py local-agent\test_nour_local_gateway.py` (the gateway test needs `node` and stubs every lane).
 2. **Router oracle:** `pnpm eval:router-oracle` — AUTO/no-consent, paid-only fail-closed, MAX+consent, quota fallback, FREE, privacy boundary.
 3. **Lane probe:** confirm ChatGPT-plan/Codex/Claude/Antigravity/local-Qwen health reflects real auth/quota/policy, not merely binary presence.
 4. **Runner receipt:** start the task and verify a fresh RunnerNode heartbeat + lane metadata from `getExternalWorkerStatus`.
