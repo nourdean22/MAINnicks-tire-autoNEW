@@ -107,9 +107,12 @@ describe("approved anchors must never fire", () => {
   // Exactly the lines the prompt REQUIRES the assistant to say.
   const approved = [
     "Used tires start at sixty dollars installed — mount, balance, valve stems, alignment check.",
-    "Conventional or synthetic-blend oil change is forty-nine dollars with coupon code OIL2999.",
+    "Conventional or synthetic-blend oil change is forty-nine dollars with coupon code NICKSOIL.",
     "Full synthetic is eighty dollars.",
     "Used tires start at $60 installed.",
+    "Oil change, forty nine dollars, mention NICKSOIL when you get here.",
+    // The live assistant keeps saying the old code until scripts/vapi-update-assistant.ts
+    // pushes the prompt; its digits must still never read as a price.
     "Oil change, forty nine dollars, mention OIL2999 when you get here.",
   ];
 

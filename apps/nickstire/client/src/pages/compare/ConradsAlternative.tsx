@@ -32,11 +32,11 @@ export default function ConradsAlternative() {
         },
         {
           question: "How does Nick's tire pricing compare to Conrad's?",
-          answer: "On new tires, similar competitive market rates. The difference is what's NOT on Nick's invoice: no shop fee surprise, no TPMS service line item that should've been in the quote, no disposal fee math gymnastics. On used tires, there's no comparison — Conrad's won't sell you one. Nick's starts at $25 installed (select 12-inch; most $40-80; mount, balance, valve stems, TPMS reset, alignment check, all free). When a used tire solves it, we don't push a $200 new one.",
+          answer: "On new tires, similar competitive market rates. The difference is what's NOT on Nick's invoice: no shop fee surprise, no TPMS service line item that should've been in the quote, no disposal fee math gymnastics. On used tires, there's no comparison — Conrad's won't sell you one. Nick's starts at $25 installed (select 12-inch; most $40-80), with mount, balance, valve stems, TPMS reset and an alignment check included free. When a used tire solves it, we don't push a $200 new one.",
         },
         {
           question: "Is Nick's Tire & Auto closer than Conrad's for East Side drivers?",
-          answer: "Depends on your block — Conrad's has 37 locations spread across Greater Cleveland. Nick's has one location at 17625 Euclid Ave (East Cleveland, between East 174th and Lakeshore Blvd). If you're commuting on Euclid Ave or live anywhere from Glenville to Collinwood to East Cleveland to Cleveland Heights, we're closer than the Conrad's drive most of the time. If you're in Brunswick, Conrad's wins on geography alone.",
+          answer: "Depends on your block — Conrad's has 37 locations spread across Greater Cleveland. Nick's has one location at 17625 Euclid Ave (Cleveland's East Side, between East 174th and Lakeshore Blvd). If you're commuting on Euclid Ave or live anywhere from Glenville to Collinwood to East Cleveland to Cleveland Heights, we're closer than the Conrad's drive most of the time. If you're in Brunswick, Conrad's wins on geography alone.",
         },
         {
           question: "Does Conrad's still sell used tires? What about Nick's?",

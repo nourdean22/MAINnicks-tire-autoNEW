@@ -161,6 +161,9 @@ export interface ServicePageConfig {
   ctaHeadline?: string;
   /** Bottom-of-page CTA sub */
   ctaSub?: string;
+  /** Conditions on the prices this page shows ("depending on vehicle"),
+   *  rendered as fine print at the very bottom of the page. */
+  finePrint?: string;
   /** Hero secondary CTA override. Defaults to SCHEDULE DROP-OFF → #booking.
    *  Sit-and-wait FCFS services (oil changes) have NO drop-off — customers
    *  pull up and wait — so they swap in "CAN I COME NOW?" here. */
@@ -401,7 +404,7 @@ function AeoAnswer({ config }: { config: ServicePageConfig }) {
     // that a $59.99 diagnostic contradicts it; it does not — the diagnostic
     // is itself on the written quote before it is charged. Canon restored;
     // any change to this promise is the owner's, made in shared/voice.ts.
-    `${config.serviceType} at Nick's Tire & Auto, 17625 Euclid Ave in Cleveland/Euclid, OH: ${priceClause}. Walk in 7 days a week — no appointment needed, and you don't pay until you say yes. Call (216) 862-0005.`;
+    `${config.serviceType} at Nick's Tire & Auto, ${BUSINESS.address.full}: ${priceClause}. Walk in 7 days a week — no appointment needed, and you don't pay until you say yes. Call (216) 862-0005.`;
   return <AeoAnswerBlock answer={answer} />;
 }
 
@@ -1038,6 +1041,13 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
           </div>
         </div>
       </section>
+      {config.finePrint && (
+        <section className="py-6 border-t border-border/50" aria-label="Pricing fine print">
+          <div className="container">
+            <p className="text-xs leading-relaxed text-foreground/70">{config.finePrint}</p>
+          </div>
+        </section>
+      )}
     </PageLayout>
   );
 }

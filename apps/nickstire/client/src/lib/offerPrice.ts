@@ -24,7 +24,7 @@ export type OfferPriceFields =
 const amount = (s: string) => s.replace(/,/g, "");
 
 export function offerPriceFields(display: string): OfferPriceFields | null {
-  const range = display.match(/^\s*(?:from\s+)?\$\s*(\d[\d,]*)(?:\.\d+)?\s*[–—-]\s*\$?\s*(\d[\d,]*)/i);
+  const range = display.match(/^\s*(?:from\s+)?\$\s*(\d[\d,]*(?:\.\d{1,2})?)\s*[–—-]\s*\$?\s*(\d[\d,]*(?:\.\d{1,2})?)/i);
   if (range && amount(range[1]) !== amount(range[2])) {
     return {
       priceSpecification: {
@@ -35,6 +35,6 @@ export function offerPriceFields(display: string): OfferPriceFields | null {
       },
     };
   }
-  const first = display.match(/\$\s*(\d[\d,]*)/);
+  const first = display.match(/\$\s*(\d[\d,]*(?:\.\d{1,2})?)/);
   return first ? { price: amount(first[1]) } : null;
 }

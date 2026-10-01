@@ -15,6 +15,11 @@ describe("offerPriceFields", () => {
     expect(offerPriceFields("From $160")).toEqual({ price: "160" });
     expect(offerPriceFields("$1,200")).toEqual({ price: "1200" });
     expect(offerPriceFields("From $25 installed (select 12-inch; most $40-80)")).toEqual({ price: "25" });
+    // Cents survive: /brakes prices pads + rotors "From $149.99*".
+    expect(offerPriceFields("From $149.99*")).toEqual({ price: "149.99" });
+    expect(offerPriceFields("$149.99–$299.99")).toEqual({
+      priceSpecification: { "@type": "PriceSpecification", minPrice: "149.99", maxPrice: "299.99", priceCurrency: "USD" },
+    });
   });
 
   it("yields no Offer for a display without a dollar amount", () => {

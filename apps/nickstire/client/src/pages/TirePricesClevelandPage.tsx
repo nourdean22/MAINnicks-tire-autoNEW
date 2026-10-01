@@ -52,7 +52,7 @@ const CONFIG: ServicePageConfig = {
     },
     {
       q: "How current is the pricing on this page?",
-      a: "The per-size table comes from our distributor price feed and refreshes daily; the update date is printed next to the table. Floors ($25 used on select 12-inch rims, most sizes $40-80; $89 new) are our standing published prices. Availability moves fast on popular sizes, so confirm by phone before driving over.",
+      a: "The per-size table comes from our distributor price feed and refreshes daily; the update date is printed next to the table. Starting prices ($25 used on select 12-inch rims, most sizes $40-80; $89 new) are our standing published prices. Availability moves fast on popular sizes, so confirm by phone before driving over.",
     },
     {
       q: "What's the cheapest safe way to get rolling today?",

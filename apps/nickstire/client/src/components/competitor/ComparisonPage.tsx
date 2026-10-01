@@ -441,7 +441,7 @@ function buildDefaultFaqs(format: ComparisonFormat, primary: CompetitorProfile, 
     });
     base.push({
       question: `Is Nick's Tire & Auto really cheaper than ${primary.shortName}?`,
-      answer: `Used tires? Yes — from $25 installed (mount, balance, valve stems, TPMS reset, alignment check, all free). ${primary.shortName} won't even sell you a used tire. New tires? Competitive market-rate, but here's the difference: we hand you the estimate in writing before we touch a wrench. No surprise shop fees, no "we found other things wrong," no "while we have it on the lift" speech. The metal doesn't lie. Neither do we.`,
+      answer: `Used tires? Yes — from $25 installed on select 12-inch rims, most sizes $40-80, with mount, balance, valve stems, TPMS reset and an alignment check included. ${primary.shortName} won't even sell you a used tire. New tires? Competitive market-rate, but here's the difference: we hand you the estimate in writing before we touch a wrench. No surprise shop fees, no "we found other things wrong," no "while we have it on the lift" speech. The metal doesn't lie. Neither do we.`,
     });
   }
 

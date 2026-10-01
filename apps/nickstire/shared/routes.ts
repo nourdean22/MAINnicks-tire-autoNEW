@@ -107,7 +107,7 @@ const CORE_PAGES: RouteEntry[] = [
     // /contact SERP snippet carries the same promise as /services and the
     // VAPI prompt. Title stays as the SERP answer (high zero-click intent).
     title: "Contact Nick's Tire & Auto · Cleveland & Euclid Auto Shop",
-    description: "Contact Nick's Tire & Auto in Euclid/Cleveland. Hours: Mon-Sat 8-6, Sun 9-4. First come, first served. Vehicle drop-off welcome. Call (216) 862-0005.",
+    description: "Contact Nick's Tire & Auto on Euclid Ave in Cleveland. Hours: Mon-Sat 8-6, Sun 9-4. First come, first served. Vehicle drop-off welcome. Call (216) 862-0005.",
     group: "core",
     sitemap: true,
     prerender: true,
@@ -368,7 +368,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     // the literal search phrase. Rewrite includes "service station"
     // since that's how the high-volume query frames the intent.
     title: "Oil Change Service Station Cleveland · $49 · Walk-In Today | Nick's", // keep in sync with OIL_PRICE
-    description: "Cleveland oil change $49 with code OIL2999 (full synthetic from $80). New filter + free multi-point check. In and out in 15 min. Walk-ins 7 days. (216) 862-0005",
+    description: "Cleveland oil change $49 with code NICKSOIL (full synthetic from $80). New filter + free multi-point check. In and out in 15 min. Walk-ins 7 days. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -1003,7 +1003,7 @@ const NEIGHBORHOOD_PAGES: RouteEntry[] = [
   { path: "/hough-cleveland", priority: 0.7, changefreq: "monthly", title: "Auto Repair Hough Cleveland — Nick's Tire & Auto", description: "Honest auto repair serving Hough, Cleveland. Tires, brakes, check-engine light, oil changes, emissions. Walk-ins welcome 7 days.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/lee-miles", priority: 0.7, changefreq: "monthly", title: "Auto Repair Lee-Miles Cleveland — Nick's Tire & Auto", description: "Honest auto repair serving Lee-Miles, Cleveland. Tires, brakes, check-engine light, oil changes, emissions. Walk-ins welcome 7 days.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/union-miles", priority: 0.7, changefreq: "monthly", title: "Auto Repair Union-Miles Cleveland — Nick's Tire & Auto", description: "Honest auto repair serving Union-Miles, Cleveland. Tires, brakes, check-engine light, oil changes, emissions. Walk-ins welcome 7 days.", group: "neighborhood", sitemap: true, prerender: true },
-  { path: "/st-clair-superior", priority: 0.7, changefreq: "monthly", title: "Auto Repair Near St. Clair-Superior — Nick's Tire & Auto", description: "Honest auto repair for St. Clair-Superior fleet vans, work trucks, and daily drivers. Tires from $25 installed, brakes, flat repair. Walk-ins welcome 7 days.", group: "neighborhood", sitemap: true, prerender: true },
+  { path: "/st-clair-superior", priority: 0.7, changefreq: "monthly", title: "Auto Repair Near St. Clair-Superior — Nick's Tire & Auto", description: "Auto repair for St. Clair-Superior fleet vans, work trucks and daily drivers. Used tires from $25 (select 12-inch; most $40-80), brakes. Walk-ins 7 days.", group: "neighborhood", sitemap: true, prerender: true },
 ];
 
 // ─── SEO SERVICE PAGES (long-tail keywords) ──────────────
@@ -1387,7 +1387,7 @@ const COMPARISON_PAGES: RouteEntry[] = [
   { path: "/mavis-tire-alternative-cleveland", priority: 0.85, changefreq: "monthly", title: "Mavis Tire Alternative Cleveland · No Surprise Fees | Nick's", description: "Mavis tire price low, final invoice high? Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $25 (select 12-inch; most $40-80), estimate up front.", group: "comparison", sitemap: true, prerender: true },
   { path: "/discount-tire-alternative-cleveland", priority: 0.8, changefreq: "monthly", title: "Discount Tire Alternative Cleveland · One-Stop Shop | Nick's", description: "Discount Tire is tires only — they can't do brakes, oil, or alignment. Nick's Tire & Auto: tires + brakes + repair under one roof, open 7 days, walk-in any time.", group: "comparison", sitemap: true, prerender: true },
   { path: "/firestone-alternative-cleveland", priority: 0.8, changefreq: "monthly", title: "Firestone Alternative Cleveland · No Chain Pricing | Nick's", description: "Firestone wants $200/hr labor, an appointment, and a Firestone credit card. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, transparent pricing, real address.", group: "comparison", sitemap: true, prerender: true },
-  { path: "/monro-mr-tire-alternative-cleveland", priority: 0.75, changefreq: "monthly", title: "Monro / Mr. Tire Alternative Cleveland · One Standard | Nick's", description: "Monro and Mr. Tire OE-specvaries wildly store-to-store. Nick's Tire & Auto on Euclid Ave: one shop, one crew, one standard. Walk-in 7 days, written estimate up front.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/monro-mr-tire-alternative-cleveland", priority: 0.75, changefreq: "monthly", title: "Monro / Mr. Tire Alternative Cleveland · One Standard | Nick's", description: "Monro and Mr. Tire service varies store to store. Nick's Tire & Auto on Euclid Ave: one shop, one crew, one standard. Walk-in 7 days, written estimate up front.", group: "comparison", sitemap: true, prerender: true },
   { path: "/big-o-tires-alternative-cleveland", priority: 0.7, changefreq: "monthly", title: "Big O Alternative Cleveland · Closer, Honest, Open Sundays | Nick's", description: "Big O has few Cleveland locations. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $25 (select 12-inch; most $40-80), written estimate first.", group: "comparison", sitemap: true, prerender: true },
   { path: "/ntb-alternative-cleveland", priority: 0.7, changefreq: "monthly", title: "NTB Alternative Cleveland · After the Mavis Acquisition | Nick's", description: "NTB became Mavis in 2021: same checkout, closed Sundays. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $25 (select 12-inch; most $40-80).", group: "comparison", sitemap: true, prerender: true },
   // Format 3: You vs Competitor — direct head-to-head

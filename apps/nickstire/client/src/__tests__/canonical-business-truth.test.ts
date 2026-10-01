@@ -34,7 +34,8 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { BUSINESS } from "@shared/business";
-import { BRAKE_PRICE, OIL_PRICE } from "@shared/pricing";
+import { BRAKE_PRICE, OIL_COUPON, OIL_PRICE } from "@shared/pricing";
+import { OHIO_ECHECK } from "@shared/echeck";
 import { findVoiceViolations, KILL_RULES } from "@shared/voice";
 
 const ROOT = join(__dirname, "..", "..", "..");
@@ -480,6 +481,13 @@ const PAD_PRICE_CLAIM =
 const OIL_PRICE_CLAIM =
   /\b(?:oil changes?|conventional|synthetic)\b[^.\n$]{0,30}?\b(?:from|start(?:s|ing)? at)\s+(?:just |only )?\$(\d{2,3})(?:\.\d{2})?/gi;
 const STALE_OIL_SPECIAL = /\$(?:29\.99|39)\s+oil change/gi;
+// Pads + rotors as the shop's own price: "pads and rotors ... runs $250",
+// "Pads + Rotors: $250-$500". The operator set one starting price on
+// 2026-10-01 (BRAKE_PRICE.padsAndRotorsStarting) in place of $250 and $279.
+const PADS_ROTORS_PRICE_CLAIM =
+  /\b(?:pads?\s*(?:\+|&|and|plus)\s*rotors?|rotors?\s*(?:\+|&|and)\s*pads?)\b(?!\s+resurfac)[^.\n$]{0,40}?(?:\b(?:start(?:s|ing)? at|from|runs?|costs?|for)\s+|:\s*)(?:just |only )?\$(\d{2,4}(?:\.\d{2})?)/gi;
+// No brake special is running; "$89 brake special" outlived the offer.
+const STALE_BRAKE_SPECIAL = /\$\d+\s+brake special/gi;
 const NOT_THE_SHOPS_PRICE =
   /\b(?:dealers?|dealerships?|chains?|valvoline|jiffy|midas|firestone|mavis|conrad'?s|monro|pep boys|typical(?:ly)?|average|independent shops|elsewhere|market)\b/i;
 
@@ -509,6 +517,35 @@ describe("prices the shop states as its own match shared/pricing.ts", () => {
     );
     const stale = COPY_LINES.filter((l) => l.text.match(STALE_OIL_SPECIAL)).map((l) => `${l.file}:${l.line}`);
     expect([...wrong, ...stale]).toEqual([]);
+  });
+
+  it("every 'pads + rotors from $N' is BRAKE_PRICE.padsAndRotorsStarting, and no stale brake special survives", () => {
+    const wrong = COPY_LINES.flatMap((l) =>
+      shopPrices(l.text, PADS_ROTORS_PRICE_CLAIM)
+        .filter((p) => p !== BRAKE_PRICE.padsAndRotorsStarting)
+        .map((p) => `${l.file}:${l.line} says $${p}`),
+    );
+    const stale = COPY_LINES.filter((l) => l.text.match(STALE_BRAKE_SPECIAL)).map((l) => `${l.file}:${l.line}`);
+    expect([...wrong, ...stale]).toEqual([]);
+  });
+
+  it("the pads + rotors matcher sees the shop's own figure and skips the market's", () => {
+    expect(shopPrices("Parts and labor for pads and rotors on one axle runs $250 to $500.", PADS_ROTORS_PRICE_CLAIM)).toEqual([250]);
+    expect(shopPrices("Brake Pads + Rotors: $250-$500 Per Axle", PADS_ROTORS_PRICE_CLAIM)).toEqual([250]);
+    expect(shopPrices("Pads + rotors start at $149.99 per axle.", PADS_ROTORS_PRICE_CLAIM)).toEqual([149.99]);
+    expect(shopPrices("Brake pads and rotors per axle: dealership $450 to $700", PADS_ROTORS_PRICE_CLAIM)).toEqual([]);
+    expect(shopPrices("At Nick's, we replace rotors and pads together for $250 to $450 per axle.", PADS_ROTORS_PRICE_CLAIM)).toEqual([250]);
+    expect(shopPrices("If the rotors are salvageable, pads and rotor resurfacing runs $200 to $350.", PADS_ROTORS_PRICE_CLAIM)).toEqual([]);
+    expect("our $89 brake special covers pad replacement".match(STALE_BRAKE_SPECIAL)).toHaveLength(1);
+  });
+
+  it("the oil coupon in copy is OIL_COUPON.code, and the /oil-change description quotes it", () => {
+    // 2026-10-01: OIL2999 ended 2026-09-30 while nine lines, the phone agent's
+    // script among them, still told customers to use it.
+    const stale = CLAIM_LINES.filter((l) => /\bOIL2999\b/.test(l.text)).map((l) => `${l.file}:${l.line}`);
+    expect(stale).toEqual([]);
+    const oilRoute = COPY_LINES.find((l) => l.file === "shared/routes.ts" && l.text.includes("Cleveland oil change $"));
+    expect(oilRoute?.text).toContain(`with code ${OIL_COUPON.code}`);
   });
 
   it("the matchers see the shop's drifted prices", () => {
@@ -606,12 +643,16 @@ const CLAIM_LINES = [...COPY_LINES, ...CLAIM_EXTRA_LINES];
 
 const decodeCopy = (t: string) =>
   t
+    // JSX string children: Prettier wraps inline elements with {" "}, which
+    // hid "Approved{" "}<strong>on the spot</strong>" from both passes.
+    .replace(/\{\s*(["'`])([^"'`{}\n]*)\1\s*\}/g, "$2")
     .replace(/\\(["'])/g, "$1")
     .replace(/\\n/g, " ")
     .replace(/&apos;|&#39;|&#x27;|&#8217;|&rsquo;|&lsquo;|[\u2018\u2019]/g, "'")
     .replace(/&quot;|&ldquo;|&rdquo;|[\u201c\u201d]/g, '"')
     .replace(/&nbsp;|\u00a0/g, " ")
-    .replace(/&amp;/g, "&");
+    .replace(/&amp;/g, "&")
+    .replace(/[ \t]{2,}/g, " ");
 const stripTags = (t: string) => t.replace(/<[^<>\n]{1,200}>/g, "");
 const VARIANTS: Array<(t: string) => string> = [decodeCopy, (t) => stripTags(decodeCopy(t))];
 
@@ -646,7 +687,7 @@ function claimFindings(lines: Array<{ file: string; line: number; text: string }
       const starts: number[] = [];
       for (const l of list) {
         starts.push(joined.length);
-        joined += norm(l.text.trim()) + " ";
+        joined += norm(l.text.trim()).trimEnd() + " ";
       }
       for (const h of rawClaimHits(file, joined)) {
         let i = 0;
@@ -745,10 +786,25 @@ describe("no unsupported claim reaches a customer surface", () => {
     ["claim.echeck-pass-guarantee", "Failed E-Check?\nWe'll get you passing."],
     ["claim.echeck-pass-guarantee", "we do the state test"],
     ["claim.echeck-pass-guarantee", "We'll run your E-Check while you wait."],
-    ["claim.echeck-pass-guarantee", "we'll get you legal"],
+    // The live Home.tsx wording: the E-Check context sits one sentence back.
+    ["claim.echeck-pass-guarantee", "State-certified emissions repair. Pull up today — we'll get you legal."],
+    ["claim.echeck-pass-guarantee", "E-Check failed? We'll get you street-legal fast."],
     ["claim.echeck-certified", "Ohio E-Check Emissions Testing & Repair. Certified station."],
     ["claim.echeck-certified", "Ohio E-Check Certified"],
     ["claim.echeck-certified", "State-certified emissions repair, free readiness check first."],
+    // Second review, 2026-10-01: phrasings the rules missed, the redirected DB
+    // article's own "2-minute approval" among them.
+    ["claim.approval-promise", "2-minute approval, no paperwork."],
+    ["claim.approval-promise", "90-second approval"],
+    ["claim.approval-promise", "60-second pre-qualification"],
+    ["claim.approval-promise", "a 60 second approval decision"],
+    ["claim.approval-promise", "Decision in under a minute."],
+    ["claim.approval-promise", "Snap pre-qualifies you in 60 seconds."],
+    ["claim.approval-promise", "Acima approval takes about 2 minutes."],
+    ["claim.no-credit-check", "We don't run a credit check."],
+    ["claim.no-credit-check", "We don't do hard credit checks."],
+    ["claim.echeck-certified", "Certified station. Walk-ins welcome."],
+    ["claim.echeck-deadline", "You have 30 days to fix it before your registration is suspended."],
   ])("%s flags: %s", (id, text) => {
     expect(scanOne(text)).toContain(id);
   });
@@ -759,6 +815,15 @@ describe("no unsupported claim reaches a customer surface", () => {
     expect(scanOne(String.raw`'won\'t hurt your credit'`)).toContain("claim.no-credit-impact");
     expect(scanOne("Approved <strong>on the spot</strong>.")).toContain("claim.approval-promise");
     expect(scanOne("Snap\u2019s line: applying won\u2019t affect your credit score")).toContain("claim.no-credit-impact");
+  });
+
+  it("JSX string children do not hide a claim (Prettier's {\" \"} wrap)", () => {
+    expect(scanOne('<p>No credit{" "}check required</p>')).toContain("claim.no-credit-check");
+    const wrapped = [
+      { file: "client/src/data/X.tsx", line: 10, text: '            Approved{" "}' },
+      { file: "client/src/data/X.tsx", line: 11, text: "            <strong>on the spot</strong>. Bring ID." },
+    ];
+    expect(claimFindings(wrapped).some((f) => f.includes("claim.approval-promise"))).toBe(true);
   });
 
   it("the joined pass catches a claim no single line holds", () => {
@@ -782,6 +847,21 @@ describe("no unsupported claim reaches a customer surface", () => {
 
   it("MUST NOT FLAG: honest copy, addresses, attributed provider lines, the searcher's question, and admin", () => {
     for (const ok of [
+      // Second review, 2026-10-01: ordinary shop SMS the claim rules held once
+      // planViolations started reading them.
+      "We'll text you the estimate for approval in about 30 minutes.",
+      "Once approved, the brake job takes about 90 minutes.",
+      "Approved! Takes about 40 min, we'll text when it's done.",
+      "Bald tires? We'll get you street-legal today with a used set.",
+      "we'll get your car legal for $40-80 a tire",
+      "We handle the E-Check repairs, the state runs the test.",
+      "We'll do the E-Check repair once you bring the paperwork.",
+      "A soft pull to one side under braking means the calipers need a look.",
+      "If you're pre-approved with Snap, bring the approval email.",
+      "Reply YES to approve up to $350.",
+      "We don't do credit or layaway in-house.",
+      "We're an ASE-certified facility.",
+      "You have 30 days to return the tire if it doesn't fix the vibration.",
       "We have no interest in selling you parts you don't need.",
       "We have zero interest in upselling you.",
       "Most customers approve the estimate the same day.",
@@ -819,7 +899,7 @@ describe("no unsupported claim reaches a customer surface", () => {
 /* -- facts the claim rules cannot express ---------------------------------- */
 
 /**
- * Same corpus, three facts that need numbers or names rather than phrases.
+ * Same corpus, facts that need numbers or names rather than phrases.
  *
  * USED-TIRE FLOOR. "$25" is real only on 12-inch rims (BUSINESS.usedTires), and
  * AGENTS.md requires the price to travel with that fine print. On 2026-10-01
@@ -827,12 +907,16 @@ describe("no unsupported claim reaches a customer surface", () => {
  * the FAQ on thirty R16-R20 size pages, where it is never true.
  *
  * ADDRESS CITY. 58 lines said "17625 Euclid Ave, Euclid"; the postal city, the
- * Google listing and BUSINESS.address all say Cleveland.
+ * Google listing and BUSINESS.address all say Cleveland, and the Census
+ * geocoder places the address inside Cleveland city (2026-10-01).
  *
  * E-CHECK NUMBERS. The E-Check guide quoted a $19.50 fee, a 60-day free retest
  * and a $300 waiver; a blog post quoted $27.50. Ohio's numbers live in
  * shared/echeck.ts: three free tests in 365 days, then $18; a waiver needs more
  * than $450 since 2026-01-01.
+ *
+ * E-CHECK SCOPE, WARRANTY TERM and NEW-AT-THE-USED-FLOOR are described where
+ * their matchers are defined.
  */
 const FACT_SKIP = new Set([
   "shared/voice.ts",
@@ -840,16 +924,34 @@ const FACT_SKIP = new Set([
   // an admin-only decision record that quotes the site's price on purpose
   "client/src/lib/opsRegistry.ts",
 ]);
+// Facts read what a visitor or a crawler gets: the text between tags AND the
+// human-text attributes. Until 2026-10-01 the fact pass dropped whole tags, so
+// index.html's twitter:description ("Used tires from $25, most sizes $40-80")
+// was never read.
+const TEXT_ATTR = /\b(?:content|alt|title|aria-label|placeholder|label|description)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+const tagText = (t: string) =>
+  t.replace(/<[^<>\n]{1,200}>/g, (tag) => {
+    const words = [...tag.matchAll(TEXT_ATTR)].map((m) => m[1] ?? m[2]).join(" ");
+    return words ? ` ${words} ` : "";
+  });
 const factFiles = new Map<string, Array<{ line: number; text: string }>>();
 for (const l of CLAIM_LINES) {
   if (FACT_SKIP.has(l.file) || l.file.includes("/admin/")) continue;
   const list = factFiles.get(l.file) ?? [];
-  list.push({ line: l.line, text: stripTags(decodeCopy(l.text)) });
+  list.push({ line: l.line, text: tagText(decodeCopy(l.text)) });
   factFiles.set(l.file, list);
 }
 
-const RIM_FINEPRINT = /12[- ]?inch|12["\u201d]|12-in\b|fineprint/i;
-const TYPICAL_BAND = /\$40\s*[-\u2013]\s*\$?80|typicalBand|explanation/i;
+const RIM_FINEPRINT = /12[- ]?inch|12["\u201d]|12-in\b|\.fineprint\b/i;
+// The code references count (usedTires.typicalBand / .explanation render the
+// band); the bare word "explanation" in prose does not.
+const TYPICAL_BAND = /\$40\s*[-\u2013]\s*\$?80|\.typicalBand\b|\.explanation\b/i;
+// A $25 that belongs to a service, not a tire.
+const NOT_A_TIRE_PRICE = /\b(?:rotations?|repairs?|patch(?:es)?|plugs?|balanc\w*|mount\w*|stems?|sensors?|valves?|disposal|swaps?|gift|cards?)\b/i;
+// Anything a $25 could be the price of. An item with none of these ("Nick's
+// starts at") has no subject of its own.
+const PRODUCT_WORD =
+  /\b(?:tires?|wheels?|rims?|repairs?|rotations?|patch(?:es)?|plugs?|balanc\w*|mount\w*|stems?|sensors?|valves?|disposal|swaps?|gift|cards?|oil|brakes?|alignments?|services?|checks?|inspections?|diagnos\w*|labor|fees?|install\w*|filters?|blades?|wipers?|batter(?:y|ies)|bulbs?|parts?)\b/i;
 function usedFloorWithoutFineprint(file: string, list: Array<{ line: number; text: string }>): string[] {
   const out: string[] = [];
   let joined = "";
@@ -869,11 +971,29 @@ function usedFloorWithoutFineprint(file: string, list: Array<{ line: number; tex
     // The price belongs to the list item it closes: in "New and used tires,
     // flat repair from $25" that is flat repair. A bare lead-in ("used tires,
     // from $25") prices the item before it.
-    const items = clause.split(/[,;(\u2014]/);
+    // "?" does not end the thought: "Used tires? Yes — from $25".
+    const sentence = clause.split(/[.!](?:\s|$)/).pop() ?? "";
+    const items = sentence.split(/[,;(\u2014]/);
     let item = items.pop() ?? "";
-    while (items.length && /^\s*(?:(?:from|starting|starts?|at|just|only|as low as)\s*)*$/i.test(item)) item = items.pop() ?? "";
-    const usedItem = /\bused\b[^.!?]*$/i.test(clause) && /\b(?:used|tires?)\b/i.test(item);
-    if (!usedItem && !/^\$25\s+(?:installed\s+)?used\b/i.test(after)) continue;
+    while (items.length && /^\s*(?:(?:from|starting|starts?|at|just|only|as low as|yes)\b[\s?]*)*$/i.test(item)) item = items.pop() ?? "";
+    // The shop's own name says "Tire": "you both get $25 off" is a referral
+    // credit and "a flat repair costs $15 to $25" a repair price.
+    item = item.replace(/Nick['\u2019]s Tire (?:&|and) Auto/gi, " ");
+    if (/^\$25\s+(?:off|back|credit|gift|discount|rebate)\b/i.test(after)) continue;
+    if (/^\$25(?:\s*(?:to|-|\u2013)\s*\$\d+)?\s+(?:per|a|for each)\s+(?:rotations?|patch(?:es)?|plugs?|repairs?|balanc\w*)\b/i.test(after)) continue;
+    // $25 is real only for used tires, so "Tires from $25" needs the fine
+    // print too; "tire rotation ... $25" does not. An item naming no product of
+    // its own prices the sentence's subject: in "On used tires, Mavis doesn't
+    // sell them at all — Nick's starts at $25" that is the used floor (second
+    // review, 2026-10-01).
+    const wide = joined.slice(Math.max(0, at - 240), at).replace(/\$\{[^}]*\}/g, "X").split(/[.!](?:\s|$)/).pop() ?? "";
+    // The top of a range ("Flat repair", range: "$15–$25") is never a floor.
+    const productless = !PRODUCT_WORD.test(item) && !/\$\d[\d,]*(?:\.\d+)?\s*(?:[-\u2013\u2014]|to)\s*$/i.test(before);
+    const usedItem =
+      /\bused\b/i.test(item) ||
+      (/\btires?\b/i.test(item) && !NOT_A_TIRE_PRICE.test(item)) ||
+      (productless && /\bused tires?\b/i.test(wide));
+    if (!usedItem && !/^\$25\s+(?:installed\s+)?(?:(?:for|per)\s+(?:a\s+)?)?used\b/i.test(after)) continue;
     const near = before.slice(-80) + after;
     if (RIM_FINEPRINT.test(near) && TYPICAL_BAND.test(near)) continue;
     let i = 0;
@@ -902,14 +1022,18 @@ function tenDollarWithoutDisclosure(file: string, list: Array<{ line: number; te
     starts.push(joined.length);
     joined += l.text.trim() + " ";
   }
-  for (const m of joined.matchAll(/\$10(?![\d,.KkMm]|\/| to \$)/g)) {
+  // "$10." and "$10," end a clause; "$10.00" is $10. "$10,000", "$10.50", "$10K"
+  // and "$10/tire" are other amounts.
+  for (const m of joined.matchAll(/\$10(?:\.00)?(?!\d|[.,]\d|[KkMm]\b|\/| to \$)/g)) {
     const at = m.index ?? 0;
     // Only the payment hook: "$10 down", "$10 initial payment", "$10-down
     // financing". "$10 to $30 for a gas cap" and "a $10 air filter" are parts.
     const context = joined.slice(Math.max(0, at - 40), at + 60);
-    if (!/down|initial payment|lease|financ|payment program|acima|\bstart/i.test(context)) continue;
+    if (!/down|initial payment|lease|financ|payment program|acima|\bstart|no credit|credit needed/i.test(context)) continue;
     const near = joined.slice(Math.max(0, at - 160), at + 400);
-    const namesAcima = /acima/i.test(joined.slice(Math.max(0, at - 160), at + 160));
+    // Named as a word a reader sees: ACIMA_COMPACT_DISCLOSURE and
+    // acima.disclosure are code that renders the disclosure, not the name.
+    const namesAcima = /\bacima\b(?![._])/i.test(joined.slice(Math.max(0, at - 160), at + 160));
     const disclosed = /select circumstances|ACIMA_COMPACT_DISCLOSURE|acima\.disclosure/i.test(near);
     if (namesAcima && disclosed) continue;
     let i = 0;
@@ -919,11 +1043,60 @@ function tenDollarWithoutDisclosure(file: string, list: Array<{ line: number; te
   return out;
 }
 
-const ADDRESS_CITY =
-  /17625 Euclid Ave(?:nue)?(?:,\s*([A-Z][a-z]+)\b|\s+([A-Z][a-z]+)(?=,?\s+(?:OH|Ohio)\b))/g;
-const cityOf = (m: RegExpMatchArray) => m[1] ?? m[2];
+// The city the address names: ", City", " City OH", and (second review,
+// 2026-10-01) " in City", " (City" and pairs like "Cleveland/Euclid", which
+// name two cities. "East Cleveland" is its own city, so a two-word name is
+// read whole; a trailing "Ohio" is the state.
+const CITY_NAME = String.raw`([A-Z][a-z]+(?:[ /][A-Z][a-z]+)?)`;
+const ADDRESS_CITY = new RegExp(
+  String.raw`17625 Euclid Ave(?:nue)?\.?(?:,\s*${CITY_NAME}|\s+${CITY_NAME}(?=,?\s+(?:OH|Ohio)\b)|\s+in\s+${CITY_NAME}|\s+\(${CITY_NAME})`,
+  "g",
+);
+const cityOf = (m: RegExpMatchArray) => (m[1] ?? m[2] ?? m[3] ?? m[4] ?? "").replace(/ Ohio$/, "");
 const STALE_ECHECK_NUMBERS =
   /\$(?:19\.50|27\.50)\b|\$300\b(?<!(?:was|from|it was) \$300\b)[^.\n]{0,80}\bwaiver|\bwaiver\b[^.\n]{0,80}(?<!was |from |it was )\$300\b/gi;
+
+// Schema.org properties only: the line has to be JSON-LD ("@type",
+// PropertyValue, amenityFeature). A server list of backlink directories named
+// "RepairPal Certified listing" is not structured data.
+const JSONLD_CLAIM_NAME =
+  /^(?=.*(?:@type|PropertyValue|additionalProperty|amenityFeature)).*["']?name["']?\s*:\s*["'][^"'\n]*?(?:credit[\s-]?check|(?<!ASE[\s-])certified)[^"'\n]*["']/i;
+
+/**
+ * E-CHECK SCOPE. Six surfaces said new vehicles were exempt for two or four
+ * years, that diesels were exempt, that 1996-and-newer vehicles test, or that
+ * the test reads the tailpipe. HB 54 made the exemption six years (seven for
+ * non-plug-in hybrids) on 2025-06-30, diesels are tested, and the tailpipe
+ * probe ended in January 2020 (OHIO_ECHECK.scope in shared/echeck.ts). Read
+ * only on lines about E-Check, so "diesel" and "tailpipe" elsewhere are free.
+ */
+const ECHECK_LINE = /\be-?check\b|\bemissions? (?:test|testing|inspection)\b/i;
+const STALE_ECHECK_SCOPE = new RegExp(
+  [
+    String.raw`\b(?:first|less than|under|younger than)\s+(?:two|three|four|five|[2-5])\s+(?:model\s+|registration\s+)?years?\b[^.\n]{0,60}\bexempt`,
+    String.raw`\bexempt\w*\b[^.\n]{0,60}\b(?:first|less than|under|younger than)\s+(?:two|three|four|five|[2-5])\s+(?:model\s+|registration\s+)?years?\b`,
+    String.raw`\bdiesel\b[^.\n]{0,160}\bexempt`,
+    String.raw`\bexempt\w*\b[^.\n]{0,160}\bdiesel\b`,
+    String.raw`\b1996 (?:and|or) newer\b`,
+    String.raw`\b(?:measures?|probes?|samples?)\b[^.\n]{0,40}\btailpipe\b`,
+    String.raw`\btailpipe (?:emissions )?(?:probe|test)\b(?![^.\n]{0,80}\bended\b)`,
+  ].join("|"),
+  "gi",
+);
+
+/**
+ * WARRANTY TERM. The invoice carries 12-month parts / 90-day labor and no
+ * mileage term (shared/business.ts, owner-supplied 2026-07-21). The site was
+ * corrected that week; the ad package went on writing "12-month / 12,000-mile"
+ * into ad drafts until 2026-10-01. A tire maker's tread-life mileage is a
+ * different warranty and stays free.
+ */
+const STALE_WARRANTY_TERM =
+  /\b12[- ]?(?:months?|mo)\b[^.\n]{0,20}\b12,?000[- ]miles?\b|\b12,?000[- ]miles?\b[^.\n]{0,40}\b(?:whichever|warrant)/gi;
+
+// "New and used tires from $25" prices new tires at the used floor; new start
+// at BUSINESS.newTires. Two neighborhood pages said it until 2026-10-01.
+const NEW_AT_USED_FLOOR = /\bnew (?:and|&|\+|or|\/) used tires?,? (?:installed )?(?:from|start(?:ing)? at|as low as) \$25\b/gi;
 
 function factFindings(check: (file: string, list: Array<{ line: number; text: string }>) => string[]): string[] {
   return [...factFiles].flatMap(([file, list]) => check(file, list));
@@ -950,6 +1123,26 @@ describe("facts the claim rules cannot express", () => {
     expect(at("New and used tires, flat repair from $25, brakes and alignment.")).toEqual([]);
     expect(at("Used tires, from $25 installed.")).toHaveLength(1);
     expect(at("New and used tires (used from $25 installed).")).toHaveLength(1);
+    // Second review, 2026-10-01: a question mark, a plain "tires", and "$25 for used".
+    expect(at("Used tires? Yes — from $25 installed (mount, balance, valve stems, all free).")).toHaveLength(1);
+    expect(at("St. Clair-Superior drivers. Tires from $25 installed, brakes, flat repair.")).toHaveLength(1);
+    expect(at("Prices start at $25 for used tires.")).toHaveLength(1);
+    expect(at("Tire rotation: often included with oil change or $25 standalone.")).toEqual([]);
+    expect(at("Refer a friend to Nick's Tire & Auto and you both get $25 off your next service.")).toEqual([]);
+    expect(at("A flat repair at Nick's Tire & Auto costs $15 to $25.")).toEqual([]);
+    expect(at("Free with tire purchase at our shop, or $25 to $40 per rotation elsewhere.")).toEqual([]);
+    expect(at("Used tires from $25 on 12-inch rims. We give a full explanation before any work.")).toHaveLength(1);
+    // An item with no product of its own takes the sentence's subject.
+    expect(at("On used tires, Mavis doesn't sell them at all — Nick's starts at $25 installed.")).toHaveLength(1);
+    expect(at("On used tires, Mavis doesn't sell them at all — Nick's starts at $25 installed on select 12-inch rims (most sizes $40-80).")).toEqual([]);
+    expect(at("We sell used tires. A patch starts at $25.")).toEqual([]);
+    expect(at("Ask about used tires. Our wiper blades start at $25.")).toEqual([]);
+    expect(at('{ label: "Used tires (each)", range: "$40–$80" }, { label: "Flat repair", range: "$15–$25" },')).toEqual([]);
+    // Attribute text is copy too: index.html's twitter:description.
+    const meta = '<meta name="twitter:description" content="Used tires from $25, most sizes $40-80 installed. Walk in 7 days." />';
+    expect(at(stripTags(meta))).toEqual([]);
+    expect(at(tagText(meta))).toHaveLength(1);
+    expect(tagText('<Link href="/financing" className="text-emerald-400">')).toBe("");
   });
 
   it("no sentence states the used-tire band twice", () => {
@@ -975,6 +1168,13 @@ describe("facts the claim rules cannot express", () => {
     expect(at("Stack any deal with $10-down financing.")).toHaveLength(1);
     expect(at("$10 down via Snap/Acima/Koalafi")).toHaveLength(1);
     expect(at("Acima lease-to-own can start at $10 in select circumstances.")).toEqual([]);
+    // Second review, 2026-10-01: clause-final forms, cents, and a constant
+    // name that is not the provider's name on the page.
+    expect(at("Lease-to-own with Snap: start for $10.")).toHaveLength(1);
+    expect(at("Drive away on new tires for $10, no credit needed.")).toHaveLength(1);
+    expect(at("Payment programs from $10.00 down.")).toHaveLength(1);
+    expect(at("Payment options available — lease-to-own from $10 down {ACIMA_COMPACT_DISCLOSURE}")).toHaveLength(1);
+    expect(at("A $10.50 wiper blade.")).toEqual([]);
     expect(at("Tire balancing +$10/tire if needed.")).toEqual([]);
     expect(at("Sensor replacement is $100 to $250.")).toEqual([]);
     expect(at("Clean the mass airflow sensor: $10 for a can of MAF cleaner.")).toEqual([]);
@@ -999,6 +1199,12 @@ describe("facts the claim rules cannot express", () => {
     expect(cities("17625 Euclid Ave Cleveland OH")).toEqual(["Cleveland"]);
     expect(cities("17625 Euclid Ave. Pull up any day.")).toEqual([]);
     expect(cities("17625 Euclid Ave, Euclid. Walk in.")).toEqual(["Euclid"]);
+    expect(cities("We are at 17625 Euclid Ave in Euclid serving drivers")).toEqual(["Euclid"]);
+    expect(cities("17625 Euclid Ave (East Cleveland, between East 174th")).toEqual(["East Cleveland"]);
+    expect(cities("17625 Euclid Ave, Cleveland/Cleveland OH.")).toEqual(["Cleveland/Cleveland"]);
+    expect(cities("17625 Euclid Ave in Cleveland/Euclid, OH")).toEqual(["Cleveland/Euclid"]);
+    expect(cities("17625 Euclid Ave, Cleveland Ohio 44112")).toEqual(["Cleveland"]);
+    expect(cities("17625 Euclid Avenue in the heart of Cleveland's East Side")).toEqual([]);
   });
 
   it("no E-Check fee or waiver figure contradicts shared/echeck.ts", () => {
@@ -1016,12 +1222,76 @@ describe("facts the claim rules cannot express", () => {
     expect(hits("Since January 1, 2026, a repair waiver requires more than $450 in emissions repairs (it was $300).")).toEqual([]);
   });
 
+  it("no E-Check line states a test scope Ohio has since changed", () => {
+    const stale = factFindings((file, list) =>
+      list
+        .filter((l) => ECHECK_LINE.test(l.text))
+        .flatMap((l) => [...l.text.matchAll(STALE_ECHECK_SCOPE)].map((m) => `${file}:${l.line} "${m[0].slice(0, 80)}"`)),
+    );
+    expect(stale).toEqual([]);
+  });
+
+  it("the E-Check scope matcher sees each stale rule and spares the current one", () => {
+    const hits = (t: string) => [...t.matchAll(STALE_ECHECK_SCOPE)].length;
+    // the six pre-HB 54 surfaces, verbatim
+    expect(hits("Vehicles less than four model years old are exempt — so a 2022 model year vehicle would be exempt through 2026.")).toBeGreaterThan(0);
+    expect(hits("Diesel vehicles, motorcycles, and vehicles registered as farm or historical are exempt.")).toBeGreaterThan(0);
+    expect(hits("New vehicles are exempt for the first two registration years.")).toBeGreaterThan(0);
+    expect(hits("Exemptions include: vehicles less than 4 years old (model year), vehicles over 25 years old, diesel vehicles, electric and hybrid vehicles")).toBeGreaterThan(0);
+    expect(hits("Vehicles model year 1996 and newer that are registered in these counties must pass the E-Check every two years.")).toBeGreaterThan(0);
+    expect(hits("The test measures your vehicle's tailpipe emissions and checks the onboard diagnostic (OBD-II) system")).toBeGreaterThan(0);
+    expect(hits("For older vehicles from 1981 to 1995, the test involves a tailpipe emissions probe that measures hydrocarbons")).toBeGreaterThan(0);
+    expect(hits(OHIO_ECHECK.scope.display)).toBe(0);
+    expect(hits("The tailpipe probe test that older vehicles once took ended in January 2020.")).toBe(0);
+    expect(hits("Ohio's tailpipe test ended in January 2020.")).toBe(0);
+    // the line gate: exhaust copy is not E-Check copy
+    expect(ECHECK_LINE.test("Blue smoke from the tailpipe means oil is burning.")).toBe(false);
+    expect(ECHECK_LINE.test("Ohio E-Check emissions testing is required in seven counties.")).toBe(true);
+  });
+
+  it("no line repeats the mileage warranty the invoice never carried", () => {
+    const stale = factFindings((file, list) =>
+      list.flatMap((l) => [...l.text.matchAll(STALE_WARRANTY_TERM)].map((m) => `${file}:${l.line} "${m[0]}"`)),
+    );
+    expect(stale).toEqual([]);
+  });
+
+  it("the warranty matcher sees the 12,000-mile term and spares mileage that is not a warranty", () => {
+    const hits = (t: string) => [...t.matchAll(STALE_WARRANTY_TERM)].length;
+    expect(hits("riskReversalWording: \"12-month / 12,000-mile warranty on most repairs.\"")).toBe(1);
+    expect(hits("12 months / 12,000 miles, whichever comes first")).toBe(1);
+    expect(hits("12-month parts / 90-day labor warranty on repairs, in writing")).toBe(0);
+    expect(hits("On a 12,000-mile/yr commute that's roughly $250 extra in fuel")).toBe(0);
+    expect(hits("Industry-leading tread-life warranties (60,000-90,000 miles on most all-season models)")).toBe(0);
+  });
+
+  it("no line prices new tires at the used-tire floor", () => {
+    const wrong = factFindings((file, list) =>
+      list.flatMap((l) => [...l.text.matchAll(NEW_AT_USED_FLOOR)].map((m) => `${file}:${l.line} "${m[0]}"`)),
+    );
+    expect(wrong).toEqual([]);
+  });
+
+  it("the new-at-the-used-floor matcher reads the list, not the word", () => {
+    const hits = (t: string) => [...t.matchAll(NEW_AT_USED_FLOOR)].length;
+    expect(hits("New and used tires from $25 installed (select 12-inch; most $40-80), free mount")).toBe(1);
+    expect(hits("New and used tires, used from $25 installed (select 12-inch; most $40-80), free mount")).toBe(0);
+    expect(hits("New & used tires starting at $25")).toBe(1);
+  });
+
   it("no JSON-LD property asserts a credit or certification claim", () => {
     const props = factFindings((file, list) =>
-      list
-        .filter((l) => /name:\s*["'](?:\w*[Cc]redit[Cc]heck\w*|\w*[Cc]ertified\w*)["']/.test(l.text))
-        .map((l) => `${file}:${l.line} ${l.text.trim()}`),
+      list.filter((l) => JSONLD_CLAIM_NAME.test(l.text)).map((l) => `${file}:${l.line} ${l.text.trim()}`),
     );
     expect(props).toEqual([]);
+  });
+
+  it("the JSON-LD name matcher sees both key styles and spares a trade credential", () => {
+    expect(JSONLD_CLAIM_NAME.test('{ "@type": "PropertyValue", name: "noCreditCheckFinancing", value: "true" }')).toBe(true);
+    expect(JSONLD_CLAIM_NAME.test('{"@type":"PropertyValue","name":"No Credit Check Financing","value":"true"}')).toBe(true);
+    expect(JSONLD_CLAIM_NAME.test('{ "@type": "PropertyValue", name: "certifiedECheckStation", value: "true" }')).toBe(true);
+    expect(JSONLD_CLAIM_NAME.test('{ name: "RepairPal Certified listing", type: "directory" }')).toBe(false);
+    expect(JSONLD_CLAIM_NAME.test('name: "ASE-Certified Technicians"')).toBe(false);
+    expect(JSONLD_CLAIM_NAME.test('name: "Payment Programs"')).toBe(false);
   });
 });

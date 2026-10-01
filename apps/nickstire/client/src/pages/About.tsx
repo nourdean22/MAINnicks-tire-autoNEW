@@ -68,7 +68,7 @@ export default function About() {
               About <span className="text-primary">Nick's</span>
             </h1>
             <p className="mt-4 text-lg text-foreground/60 max-w-lg font-light">
-              Serving East Cleveland since 2018. An independent shop built on one idea: show you the problem before we fix it.
+              Serving Cleveland's East Side since 2018. An independent shop built on one idea: show you the problem before we fix it.
             </p>
           </FadeIn>
         </div>
@@ -323,7 +323,7 @@ export default function About() {
               { title: "Honest Answers", text: "OBD-II scanners and live data on every car. We test before we replace — so you never pay for parts you don't need." },
               { title: "Fair Pricing", text: "The price we quote is the price you pay. Every line item explained. We tell you the cost before we touch anything." },
               { title: "Full-Service Shop", text: "Tires, brakes, check-engine light, emissions, oil changes, suspension, steering, exhaust — one shop for everything." },
-              { title: "Since 2018", text: `${new Date().getFullYear() - 2018} years of serving East Cleveland with zero corporate pressure. We answer to our customers, not shareholders.` },
+              { title: "Since 2018", text: `${new Date().getFullYear() - 2018} years of serving Cleveland's East Side with zero corporate pressure. We answer to our customers, not shareholders.` },
             ].map((item, i) => (
               <FadeIn key={item.title} delay={i * 0.1}>
                 <div className="p-8 border border-border rounded-2xl h-full">
@@ -452,13 +452,13 @@ export default function About() {
         </div>
       </section>
 
-      {/* Rooted in East Cleveland */}
+      {/* Rooted on Cleveland's East Side */}
       <section className="py-16 bg-white/5">
         <div className="max-w-5xl mx-auto px-6 text-center">
           <FadeIn>
-            <h2 className="text-2xl font-bold text-foreground mb-4">Rooted in East Cleveland</h2>
+            <h2 className="text-2xl font-bold text-foreground mb-4">Rooted on Cleveland's East Side</h2>
             <p className="text-foreground/70 max-w-2xl mx-auto mb-8">
-              We're located at 17625 Euclid Ave — right in the heart of East Cleveland. We serve drivers from Euclid, East Cleveland, Cleveland Heights, South Euclid, Lyndhurst, Willoughby, and across the East Side. If you're a local, this is your shop.
+              We're located at 17625 Euclid Ave, on Cleveland's East Side. We serve drivers from Euclid, East Cleveland, Cleveland Heights, South Euclid, Lyndhurst, Willoughby, and across the East Side. If you're a local, this is your shop.
             </p>
             <div className="flex flex-wrap gap-3 justify-center">
               {["Cleveland", "Euclid", "East Cleveland", "Cleveland Heights", "South Euclid", "Lyndhurst", "Willoughby", "Wickliffe"].map(area => (

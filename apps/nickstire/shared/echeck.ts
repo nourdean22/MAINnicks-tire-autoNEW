@@ -67,12 +67,32 @@ export const OHIO_ECHECK = {
   /** OAC 3745-26-12(B)(5): repair and hardship extensions of up to six months. */
   extensionMonths: 6,
 
+  /**
+   * Which vehicles test, per Ohio EPA's E-Check page read 2026-10-01. HB 54
+   * (effective 2025-06-30) extended the new-vehicle exemption from four years
+   * to six for gas and diesel vehicles and to seven for non-plug-in hybrids.
+   * Testing is every two years by model-year parity. Exempt: vehicles more than
+   * 25 years old by model year, electric and plug-in hybrid vehicles,
+   * motorcycles, and vehicles over 10,000 lbs GVWR. Diesels and non-plug-in
+   * hybrids ARE tested. The tailpipe probe ended in January 2020, so every test
+   * is an OBD-II scan. Ohio EPA's exemptions page still read "first four model
+   * years" that day; the statute and the E-Check page win.
+   */
+  scope: {
+    newVehicleExemptYears: 6,
+    hybridExemptYears: 7,
+    exemptOlderThanYears: 25,
+    display:
+      "Gas and diesel vehicles need an E-Check every two years once they are six years old (non-plug-in hybrids at seven). Vehicles more than 25 years old, electric and plug-in hybrid vehicles, motorcycles, and vehicles over 10,000 lbs are exempt.",
+  },
+
   sources: [
     "https://codes.ohio.gov/ohio-administrative-code/rule-3745-26-12",
     "https://codes.ohio.gov/ohio-administrative-code/rule-3745-26-01",
     "https://codes.ohio.gov/ohio-administrative-code/rule-3745-26-15",
     "https://codes.ohio.gov/ohio-revised-code/section-4503.10",
     "https://epa.ohio.gov/divisions-and-offices/air-pollution-control/e-check",
+    "https://epa.ohio.gov/divisions-and-offices/air-pollution-control/e-check/waivers-extensions-and-exemptions",
     "https://www.ohioecheck.info/pages/failed-vehicles",
     "https://www.ohioecheck.info/pages/waivers",
   ] as const,

@@ -717,7 +717,7 @@ async function startServer() {
 - Service area: Cleveland, Euclid, East Cleveland, South Euclid, Cleveland Heights, Shaker Heights, Garfield Heights, Lakewood, Parma, Mentor, Strongsville, Lyndhurst, Richmond Heights, Willoughby
 
 ## Services
-- [Brake repair](${b}/brakes): Pads from $149/axle. Rotors and other parts after a free check, with a written quote first.
+- [Brake repair](${b}/brakes): Pads from $149/axle; pads + rotors from $149.99/axle, depending on vehicle. Free check and a written quote first.
 - [Tires - new & used](${b}/tires): Used from $25 installed (select 12-inch; most sizes $40-80), new from $89 installed. Free install package (mount, balance, valve stems, TPMS reset, alignment check).
 - [Oil change](${b}/oil-change): Conventional from $49, full synthetic from $80. Free multi-point check included.
 - [Engine diagnostics / check-engine light](${b}/diagnostics): Free code scan, honest diagnosis, written estimate first.

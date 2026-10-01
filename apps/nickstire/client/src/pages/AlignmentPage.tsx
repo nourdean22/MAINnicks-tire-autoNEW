@@ -128,7 +128,7 @@ function AlignmentHero() {
           <div className="flex items-center gap-2 stagger-in bg-emerald-500/5 border border-emerald-500/20 rounded-md px-4 py-2">
             <CreditCard className="w-4 h-4 text-emerald-400 shrink-0" />
             <span className="text-foreground/80 text-[12px]">
-              Payment options available — <Link href="/financing?utm_source=alignment" className="text-emerald-400 hover:text-emerald-300">lease-to-own from $10 down</Link>
+              Payment programs available — <Link href="/financing?utm_source=alignment" className="text-emerald-400 hover:text-emerald-300">Acima lease-to-own can start at $10 in select circumstances</Link>
             </span>
           </div>
           <p className="text-[10px] text-foreground/50 mt-1 ml-6">{ACIMA_COMPACT_DISCLOSURE}</p>

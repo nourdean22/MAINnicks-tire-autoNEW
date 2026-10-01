@@ -228,7 +228,7 @@ export const FINANCING_FAQ = [
   },
   {
     q: "Will applying affect my credit?",
-    a: "It depends on the provider and product. Snap says applying does not affect your FICO score, although another consumer-report score may be affected. Koalafi checks credit through alternative credit bureaus and reports payments to TransUnion; Koalafi says this does not affect your FICO score. American First Finance says credit may be checked. Review each provider's application disclosure before submitting.",
+    a: "It depends on the provider and product. Snap says applying does not affect your FICO score, although another consumer-report score may be affected. Koalafi reports payments to TransUnion. It checks credit through alternative credit bureaus; Koalafi says this does not affect your FICO score. American First Finance says credit may be checked. Review each provider's application disclosure before submitting.",
   },
   {
     q: "How much could I be approved for?",

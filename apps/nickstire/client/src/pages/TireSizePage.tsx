@@ -189,7 +189,7 @@ export default function TireSizePage() {
                   only price info was buried in the FAQ ~4 sections below the
                   fold; competitors who show pricing in the hero get the click. */}
               <span className="inline-flex items-center px-3 py-1.5 bg-emerald-500/10 text-emerald-400 text-sm font-semibold rounded-sm">
-                Used most sizes $40-80 · New $89+ · Free install
+                Used $40-80 typical · New $89+ · Free install
               </span>
               {page.commonVehicles.map(v => (
                 <span key={v} className="inline-flex items-center px-3 py-1.5 bg-foreground/5 text-foreground/70 text-sm rounded-sm">
@@ -248,7 +248,7 @@ export default function TireSizePage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-foreground mb-1">New & Used Options</h3>
-                  <p className="text-sm text-foreground/60">Budget-friendly used tires from $25 (select 12-inch; most $40-80). Major brands available. Every tire inspected.</p>
+                  <p className="text-sm text-foreground/60">Budget-friendly used tires; most sizes run $40-80 installed. Major brands available. Every tire inspected.</p>
                 </div>
               </div>
             </div>

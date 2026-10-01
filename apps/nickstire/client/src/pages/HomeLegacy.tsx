@@ -1182,7 +1182,7 @@ export default function HomeLegacy() {
           phone CTA survives + "$25 used tires" hooks earlier. */}
       <SEOHead
         title="Nick's Tire & Auto Cleveland · Tires & Auto Repair Euclid"
-        description="Nick's Tire & Auto on Euclid Ave. Tires from $25, brake repair, auto service. Walk in 7 days. Free check, written quote, pay only when satisfied. (216) 862-0005"
+        description="Nick's Tire & Auto on Euclid Ave. Used tires from $25 (select 12-inch; most $40-80), brake repair, auto service. Walk in 7 days. Free check, written quote, pay only when satisfied. (216) 862-0005"
         canonicalPath="/"
       />
       <LocalBusinessSchema includeReviews />

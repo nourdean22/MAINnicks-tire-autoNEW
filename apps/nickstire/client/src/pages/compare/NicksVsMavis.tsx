@@ -13,7 +13,7 @@ export default function NicksVsMavis() {
       slug="nicks-tire-vs-mavis-cleveland"
       seoTitle="Nick's Tire & Auto vs Mavis Cleveland · Honest Compare"
       seoDescription="Mavis advertised tire price low? Total ticket high? Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $25 (select 12-inch; most $40-80), the estimate in writing before the wrench moves."
-      intro="Mavis advertises tire-only prices that look amazing. The advertised price is real. The total receipt rarely is. That's the Mavis pattern — low headline number, then mount + balance + valve stems + TPMS service + disposal pile up at checkout. Nick's Tire & Auto on Euclid Ave runs the opposite math: $25 (select 12-inch; most $40-80) used tire installed includes everything, in writing, before the wrench moves. Free check. Written quote. You don't pay until you say yes. One yellow sign on Euclid Ave. One real address. One actual person on the phone."
+      intro="Mavis advertises tire-only prices that look amazing. The advertised price is real. The total receipt rarely is. That's the Mavis pattern — low headline number, then mount + balance + valve stems + TPMS service + disposal pile up at checkout. Nick's Tire & Auto on Euclid Ave runs the opposite math: a used tire installed, from $25 on select 12-inch rims (most sizes $40-80), includes everything, in writing, before the wrench moves. Free check. Written quote. You don't pay until you say yes. One yellow sign on Euclid Ave. One real address. One actual person on the phone."
       extraFaqs={[
         {
           question: "Why does Mavis seem so much cheaper than Nick's at first glance?",

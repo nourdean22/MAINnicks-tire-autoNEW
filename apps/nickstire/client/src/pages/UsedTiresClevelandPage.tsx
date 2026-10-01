@@ -30,7 +30,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
   // sharper "no time bombs" — operator 4 (anti-pattern of selling
   // tires nobody inspected the DOT date on).
   title: "Used Tires Cleveland · 4-Point Check · From $25 Installed | Nick's",
-  description: `Cleveland used tires that don't insult your intelligence. Every tire passes a 4-point check — tread, sidewall, DOT date, plug history — before it earns a spot on your car. Walk-ins 7 days. ${reviewRating}★ ${reviewCountDisplay} reviews.`,
+  description: `Cleveland used tires from $25 (select 12-inch; most sizes $40-80 installed). Every tire passes a 4-point check — tread, sidewall, DOT date, plug history — before it earns a spot on your car. Walk-ins 7 days. ${reviewRating}★ ${reviewCountDisplay} reviews.`,
   eyebrow: "USED TIRES — CLEVELAND'S BEST-KEPT SECRET",
   h1: "USED TIRES CLEVELAND.\n4-POINT CHECK. NO TIME BOMBS.",
   sub: "Need a tire today, not a payment plan? We carry checked used tires in most popular sizes — fully installed, free mount, free balance. Every tire passes a 4-point check before it earns a spot on your car: tread depth measured (not eyeballed), sidewall walked for cracks, DOT date verified (no time bombs), plug history reviewed. Call your size before you drive over — we'll tell you what's on the rack and what we'd put on our own family's car.",

@@ -13,6 +13,8 @@ import {
   CreditCard, Copy, Check, TrendingUp,
 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
+import { OIL_COUPON, OIL_PRICE } from "@shared/pricing";
+import { isSpecialActive } from "@/lib/offerExpiry";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import FadeIn from "@/components/FadeIn";
@@ -56,19 +58,19 @@ const SPECIALS: Special[] = [
     id: 1,
     icon: <Droplets className="w-6 h-6" />,
     service: "Oil Change",
-    headline: "Oil Change — $49 with Coupon",
+    headline: `Oil Change — $${OIL_PRICE.conventional} with Coupon`,
     description:
-      "Conventional or synthetic-blend oil change with new filter. Includes a free multi-point check that catches small problems before they become big bills. Mention code OIL2999.",
-    salePrice: "$49",
+      `Conventional or synthetic-blend oil change with new filter. Includes a free multi-point check that catches small problems before they become big bills. Mention code ${OIL_COUPON.code}.`,
+    salePrice: `$${OIL_PRICE.conventional}`,
     originalPrice: "",
     discountLabel: "COUPON DEAL",
-    validThrough: "September 30, 2026",
-    terms: "Conventional or synthetic-blend oil. Up to 5 quarts. Full synthetic $80. Most vehicles. Mention code OIL2999 at checkout.",
+    validThrough: OIL_COUPON.validThroughDisplay,
+    terms: `Conventional or synthetic-blend oil. Up to 5 quarts. Full synthetic $${OIL_PRICE.fullSynthetic}. Most vehicles. Mention code ${OIL_COUPON.code} at checkout.`,
     limited: false,
     reasonWhy: "We treat oil changes as the front door of the relationship. Fair entry point, real check, no upsell pressure.",
     anchors: { dealer: "$79", chain: "$59–$69", nicks: "$49" },
     serviceSlug: "oil-change",
-    code: "OIL2999",
+    code: OIL_COUPON.code,
     isFeatured: true,
   },
   {
@@ -408,10 +410,7 @@ export default function SpecialsPage() {
   const specials = useMemo(() => {
     // Filter out expired hardcoded specials.
     const now = new Date();
-    const activeHardcoded = SPECIALS.filter((s) => {
-      const expires = new Date(s.validThrough);
-      return isNaN(expires.getTime()) || expires >= now;
-    });
+    const activeHardcoded = SPECIALS.filter((s) => isSpecialActive(s.validThrough, now));
 
     // Conversion-overhaul note: previously, when the DB had ≥3 active rows,
     // we replaced the hardcoded list entirely. That suppressed the rich

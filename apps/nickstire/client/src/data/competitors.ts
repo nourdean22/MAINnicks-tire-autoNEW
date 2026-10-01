@@ -531,7 +531,7 @@ export function buildNicksTire(reviewRatingDisplay: string): CompetitorProfile {
       "Some customers wish we had a second location closer to the West Side",
     ],
     pricingNotes:
-      "Used tires from $25 installed (select 12-inch; most $40-80; mount, balance, valve stems, TPMS reset, alignment check — all free). New tires at competitive market rates. Labor disclosed in writing before the wrench moves. Open 7 days.",
+      "Used tires from $25 installed (select 12-inch; most $40-80), with mount, balance, valve stems, TPMS reset and an alignment check included free. New tires at competitive market rates. Labor disclosed in writing before the wrench moves. Open 7 days.",
     usedTireFloor: 25,
   };
 }

@@ -6,6 +6,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { mapDbCouponToSpecial } from "@/pages/SpecialsPage";
+import { isSpecialActive } from "@/lib/offerExpiry";
 import type { RouterOutputs } from "@/lib/trpc";
 
 type DbCoupon = NonNullable<RouterOutputs["coupons"]["active"]>[number];
@@ -125,5 +126,23 @@ describe("mapDbCouponToSpecial — Surfacing active coupons", () => {
       isFeatured: 0,
     }, 0);
     expect(specialRegular.isFeatured).toBe(false);
+  });
+});
+
+describe("isSpecialActive — a special runs through the end of its last day", () => {
+  it("is still active late on the last valid day", () => {
+    // Local-time constructors, the same clock new Date("December 31, 2026") uses.
+    expect(isSpecialActive("December 31, 2026", new Date(2026, 11, 31, 18, 0))).toBe(true);
+  });
+
+  it("ends after the last valid day", () => {
+    expect(isSpecialActive("December 31, 2026", new Date(2027, 0, 1, 0, 0, 1))).toBe(false);
+    // The pre-fix comparison against midnight at the START of the day hid this.
+    expect(new Date("September 30, 2026") >= new Date(2026, 8, 30, 9, 0)).toBe(false);
+    expect(isSpecialActive("September 30, 2026", new Date(2026, 8, 30, 9, 0))).toBe(true);
+  });
+
+  it("never expires a phrase that is not a date", () => {
+    expect(isSpecialActive("While supplies last", new Date(2030, 0, 1))).toBe(true);
   });
 });

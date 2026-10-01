@@ -79,7 +79,7 @@ ANGLE FOR THIS AD: ${AD_ANGLES[angle](reviews)}${topic ? `\nOPERATOR STEER: weav
 HARD CLAIM-SAFETY RULES:
 - BANNED words: quality, premium, luxury, tier, trusted, best, perfect, #1, guaranteed, cheapest. No superlatives, no fake guarantees, no fearmongering.
 - "free" only as a real free check ("free tire check", "free brake check").
-- Prices must be accurate; prefer "from $89 installed" (clean). "$10" is Acima's start, offered only in select circumstances (shared/financing.ts) — use it only beside the Acima lease disclosure. If you use "$25", pair it with "most sizes $40-80".
+- Prices must be accurate; prefer "from $89 installed" (clean). "$10" is Acima's start, offered only in select circumstances (shared/financing.ts) — use it only beside the Acima lease disclosure. If you use "$25", pair it with "select 12-inch rims" and "most sizes $40-80".
 - Plain text only — never HTML entities (&amp;), use a literal &.
 
 You write ONLY: the hook card, the value card (with exactly 3 short benefit ticks), the offer/free-check card, and the IG caption. (The proof + CTA cards are added automatically from real shop data — do not write them.)

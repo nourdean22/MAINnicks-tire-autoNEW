@@ -38,7 +38,7 @@ const FEATURED_SERVICES: LinkItem[] = [
   { label: "Synthetic Oil Change", href: "/synthetic-oil-change", note: "From $80" }, // keep in sync with OIL_PRICE
   { label: "Wheel Alignment", href: "/alignment" },
   { label: "Check Engine Light", href: "/diagnostics", note: "Free code scan" },
-  { label: "Tires (New & Used)", href: "/tires", note: "From $25 (select 12-inch; most $40-80)" },
+  { label: "Tires (New & Used)", href: "/tires", note: "Used from $25 (select 12-inch; most $40-80), new from $89" },
   { label: "Auto Repair (All Makes)", href: "/auto-repair-near-me" },
   { label: "Tire Shop Near Me", href: "/tire-shop-near-me" },
   { label: "Oil Change", href: "/oil-change", note: "From $49" }, // keep in sync with OIL_PRICE

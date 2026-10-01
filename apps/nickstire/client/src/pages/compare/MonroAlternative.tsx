@@ -25,7 +25,7 @@ export default function MonroAlternative() {
         },
         {
           question: "Does Nick's offer the same services as Monro / Mr. Tire?",
-          answer: "Tires, brakes, oil change, alignment, exhaust, suspension, mechanical repair — yes, all of it. Plus used tires from $25 (select 12-inch; most $40-80; Monro doesn't sell them). Plus Sunday hours (Monro is closed). Plus written estimate before any wrench moves (Monro reviews suggest otherwise). Same service list, different way of running the shop.",
+          answer: "Tires, brakes, oil change, alignment, exhaust, suspension, mechanical repair — yes, all of it. Plus used tires from $25 (select 12-inch; most $40-80), which Monro doesn't sell. Plus Sunday hours (Monro is closed). Plus written estimate before any wrench moves (Monro reviews suggest otherwise). Same service list, different way of running the shop.",
         },
         {
           question: "Why does Nick's not offer email-blast coupons like Monro?",

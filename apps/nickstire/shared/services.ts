@@ -5,6 +5,12 @@
  * Problem → Explanation → Diagnostic Authority → Solution → Local Trust → CTA structure.
  */
 
+import { OIL_COUPON, OIL_PRICE, oilCouponActive } from "./pricing";
+import { OHIO_ECHECK } from "./echeck";
+
+/** " with coupon code NICKSOIL" while the coupon runs (shared/pricing.ts), then "". */
+const OIL_COUPON_CLAUSE = oilCouponActive() ? ` with coupon code ${OIL_COUPON.code}` : "";
+
 export interface ServiceData {
   slug: string;
   num: string;
@@ -422,7 +428,7 @@ export const SERVICES: ServiceData[] = [
     problems: [
       {
         question: "Failed Ohio E-Check?",
-        answer: "Ohio E-Check failures are usually caused by a check engine light, incomplete readiness monitors, or high tailpipe emissions. Many shops just clear the code and send you back — which does not work because the monitors need time to reset. We diagnose the actual cause, repair it, and ensure all emissions monitors complete before you return for re-testing.",
+        answer: "Ohio E-Check failures are usually caused by a check engine light, incomplete readiness monitors, or stored emissions trouble codes. Many shops just clear the code and send you back — which does not work because the monitors need time to reset. We diagnose the actual cause, repair it, and ensure all emissions monitors complete before you return for re-testing.",
       },
       {
         question: "Check engine light causing E-Check failure?",
@@ -468,7 +474,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "What Ohio counties require E-Check testing?",
-        answer: "Ohio E-Check emissions testing is required in seven Northeast Ohio counties: Cuyahoga, Geauga, Lake, Lorain, Medina, Portage, and Summit. Vehicles model year 1996 and newer that are registered in these counties must pass the E-Check every two years. The test is an OBD-II scan that checks for emissions-related trouble codes and monitor readiness."
+        answer: `Ohio E-Check emissions testing is required in seven Northeast Ohio counties: Cuyahoga, Geauga, Lake, Lorain, Medina, Portage, and Summit. ${OHIO_ECHECK.scope.display} The test is an OBD-II scan that checks for emissions-related trouble codes and monitor readiness.`
       }
     ],
     includedItems: [
@@ -488,7 +494,7 @@ export const SERVICES: ServiceData[] = [
     duration: "Free check now / 1-2 days (repair)",
     startingPrice: "FREE E-Check check",
     priceRange: "",
-    whyChooseUs: "The state runs the official E-Check — we run a free readiness check that tells you if you'll pass before you go, and we fix it if you won't. We specialize in Ohio E-Check failures and know the exact drive cycles to get your monitors to complete fast. We fix the root cause -- not just clear codes. Walk-ins 7 days, same-day diagnosis, and a 12-month parts / 90-day labor warranty on repairs.",
+    whyChooseUs: "The state runs the official E-Check — we run a free readiness check that shows whether your car is ready to test, and we repair what isn't ready. We specialize in Ohio E-Check failures and know the exact drive cycles to get your monitors to complete fast. We fix the root cause -- not just clear codes. Walk-ins 7 days, same-day diagnosis, and a 12-month parts / 90-day labor warranty on repairs.",
     commonSymptoms: [
       "Failed Ohio E-Check inspection",
       "Check engine light before emissions test",
@@ -512,7 +518,7 @@ export const SERVICES: ServiceData[] = [
     metaTitle: "Oil Change Cleveland · From $49 · Same-Day Walk-In | Nick's",
     metaDescription: "Cleveland oil change from $49 (full synthetic from $80) — new filter + free multi-point check, in and out before your coffee's cold. Walk-ins 7 days. (216) 862-0005",
     heroHeadline: "OIL CHANGE\nCLEVELAND OH",
-    heroSubline: "Looking for an oil change in Cleveland? Conventional or synthetic-blend just $49 with coupon code OIL2999. Full synthetic from $80. New filter, free multi-point inspection. First-come, first-served — no appointment, no drop-off. Pull up, have a seat, and you're out before your coffee's cold.",
+    heroSubline: `Looking for an oil change in Cleveland? Conventional or synthetic-blend just $${OIL_PRICE.conventional}${OIL_COUPON_CLAUSE}. Full synthetic from $${OIL_PRICE.fullSynthetic}. New filter, free multi-point inspection. First-come, first-served — no appointment, no drop-off. Pull up, have a seat, and you're out before your coffee's cold.`,
     heroCTA: "GET YOUR OIL CHANGED",
     turnaround: "Most oil changes done in 15 minutes. No appointment needed. We're the fastest in the city — check our reviews.",
     pricingNote: "Free multi-point inspection with every oil change · Correct oil weight per manufacturer spec",
@@ -566,7 +572,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "How much does an oil change cost in Cleveland?",
-        answer: "At Nick's Tire & Auto, a conventional or synthetic-blend oil change is $49 with coupon code OIL2999, and full synthetic starts at $80, plus tax. Every oil change includes a new filter and a free multi-point check. Mention the code when you arrive. Call (216) 862-0005."
+        answer: `At Nick's Tire & Auto, a conventional or synthetic-blend oil change is $${OIL_PRICE.conventional}${OIL_COUPON_CLAUSE}, and full synthetic starts at $${OIL_PRICE.fullSynthetic}, plus tax. Every oil change includes a new filter and a free multi-point check.${OIL_COUPON_CLAUSE ? " Mention the code when you arrive." : ""} Call (216) 862-0005.`
       },
       {
         question: "What is the difference between synthetic and conventional oil?",
@@ -578,7 +584,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I get an oil change near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 offers oil changes: $49 conventional/blend with coupon code OIL2999, $80 full synthetic, plus tax. Every oil change includes a free multi-point check. Walk-ins welcome 7 days a week, most done in 15 minutes. Call (216) 862-0005."
+        answer: `Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 offers oil changes: $${OIL_PRICE.conventional} conventional/blend${OIL_COUPON_CLAUSE}, $${OIL_PRICE.fullSynthetic} full synthetic, plus tax. Every oil change includes a free multi-point check. Walk-ins welcome 7 days a week, most done in 15 minutes. Call (216) 862-0005.`
       }
     ],
     includedItems: [
@@ -590,7 +596,7 @@ export const SERVICES: ServiceData[] = [
       "Oil life monitor reset",
     ],
     pricingTiers: [
-      { label: "Conventional / synthetic blend (coupon OIL2999)", range: "$49" },
+      { label: `Conventional / synthetic blend${oilCouponActive() ? ` (coupon ${OIL_COUPON.code})` : ""}`, range: `$${OIL_PRICE.conventional}` },
       { label: "Full synthetic", range: "From $80" },
     ],
     duration: "15-30 min",

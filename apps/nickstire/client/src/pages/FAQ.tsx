@@ -166,7 +166,7 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: "Pricing & Warranty",
     question: "Can I use Acima again after paying off my first lease?",
-    answer: "Yes — returning customers often qualify for increased spending power. Individual results vary. Contact us or visit the financing page to apply."
+    answer: "Yes. You can apply with Acima again; Acima decides approval and the amount each time. Compare all four payment programs at nickstire.org/financing."
   },
 ];
 

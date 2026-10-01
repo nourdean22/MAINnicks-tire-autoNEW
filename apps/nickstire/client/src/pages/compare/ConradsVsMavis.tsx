@@ -29,7 +29,7 @@ export default function ConradsVsMavis() {
         },
         {
           question: "Why would I pick Nick's over Conrad's or Mavis?",
-          answer: "Three reasons. One: open Sunday — both Conrad's and Mavis close Sunday, Nick's is open 9am–4pm. Two: walk-in policy — Nick's is first-come-first-served, no appointment, both chains are appointment-preferred. Three: written quote before any wrench moves — you see the cost before we touch the car. Plus used tires from $25 (select 12-inch; most $40-80; chains don't sell them).",
+          answer: "Three reasons. One: open Sunday — both Conrad's and Mavis close Sunday, Nick's is open 9am–4pm. Two: walk-in policy — Nick's is first-come-first-served, no appointment, both chains are appointment-preferred. Three: written quote before any wrench moves — you see the cost before we touch the car. Plus used tires from $25 (select 12-inch; most $40-80), which the chains don't sell.",
         },
         {
           question: "Is Nick's a chain?",

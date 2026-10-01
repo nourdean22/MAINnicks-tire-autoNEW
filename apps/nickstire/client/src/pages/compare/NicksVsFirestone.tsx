@@ -28,7 +28,7 @@ export default function NicksVsFirestone() {
           answer: "Yes — Michelin, Goodyear, Bridgestone, Continental, Firestone, Pirelli, Cooper. Standard distributor access through DK Tire B2B and Auto Labor Guide ordering. Same tire selection most regional independents have. The difference isn't the tire — it's the install honesty.",
         },
         {
-          question: "Is Nick's payment financing as good as Firestone's credit card?",
+          question: "Are Nick's payment programs as good as Firestone's credit card?",
           answer: "Different model. Firestone's credit card is Firestone-only — works at their stores, 6-12 months promotional financing typical. Nick's accepts four third-party payment programs: Acima (lease-to-own), Snap Finance, Koalafi and American First Finance. Each provider decides approval and terms. No chain lock-in, different scope.",
         },
       ]}

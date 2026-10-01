@@ -34,7 +34,7 @@ const CONFIG: ServicePageConfig = {
   description: "Searching for no credit check tires? Straight answer: all 4 payment providers review applications, but some don't need established credit. Walk in 7 days.",
   eyebrow: "TIRE PAYMENT OPTIONS · CLEVELAND",
   h1: "SEARCHING FOR NO CREDIT CHECK TIRES?\nHERE'S THE STRAIGHT ANSWER.",
-  sub: `Every payment provider we work with reviews your application, Koalafi says it checks credit, and American First Finance says credit may be checked. What some of them don't need is established credit. The provider decides approval and terms, and you see the total cost before you sign. Used tires ${USED.priceDisplay} (${USED.fineprint}; ${USED.typicalBand}). New ${BUSINESS.newTires.priceDisplay}.`,
+  sub: `Every payment provider we work with reviews your application. Koalafi says it checks credit, and American First Finance says credit may be checked. What some of them don't need is established credit. The provider decides approval and terms, and you see the total cost before you sign. Used tires ${USED.priceDisplay} (${USED.fineprint}; ${USED.typicalBand}). New ${BUSINESS.newTires.priceDisplay}.`,
   startingPrice: "4 payment providers · each decides approval",
   pricingTitle: "WHAT A SET OF TIRES COSTS AT NICK'S",
   pricingSub: "Out-the-door pricing: mount, balance, valve stems, TPMS reset and alignment check included. A payment program can spread the cost; its agreement shows the total before you sign.",

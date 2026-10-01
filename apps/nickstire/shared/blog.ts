@@ -308,11 +308,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "What Is Ohio E-Check?",
-        content: "Ohio E-Check is a vehicle emissions testing program required in seven Ohio counties: Cuyahoga, Geauga, Lake, Lorain, Medina, Portage, and Summit. If your vehicle is registered in one of these counties, it must pass an E-Check inspection every two years as part of the registration renewal process. The test measures your vehicle's tailpipe emissions and checks the onboard diagnostic (OBD-II) system for emissions-related problems."
+        content: "Ohio E-Check is a vehicle emissions testing program required in seven Ohio counties: Cuyahoga, Geauga, Lake, Lorain, Medina, Portage, and Summit. If your vehicle is registered in one of these counties, it must pass an E-Check inspection every two years as part of the registration renewal process. The test is a computer scan of the onboard diagnostic (OBD-II) system for emissions-related problems; Ohio's tailpipe test ended in January 2020."
       },
       {
         heading: "Which Vehicles Need E-Check?",
-        content: "Most gasoline-powered vehicles registered in the seven E-Check counties need testing. Exemptions include: vehicles less than 4 years old (model year), vehicles over 25 years old, diesel vehicles, electric and hybrid vehicles, motorcycles, and vehicles with fewer than 7,500 miles since the last test. If you recently moved to an E-Check county, your vehicle will need testing at your next registration renewal."
+        content: `Most vehicles registered in the seven E-Check counties need testing. ${OHIO_ECHECK.scope.display} If you recently moved to an E-Check county, your vehicle will need testing at your next registration renewal.`
       },
       {
         heading: "What Does the E-Check Test?",
@@ -393,8 +393,8 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "Replacing brake pads on one axle (front or rear) costs $150 to $300 at most independent shops in Cleveland. This includes the pads themselves, labor, and hardware. Ceramic pads cost more than semi-metallic but produce less dust and noise. Dealerships charge $250 to $450 for the same job. At Nick's Tire & Auto, front brake pad replacement starts at $149 per axle, with ceramic pads."
       },
       {
-        heading: "Brake Pads + Rotors: $250–$500 Per Axle",
-        content: "If your rotors are scored, warped, or below minimum thickness, they need to be replaced along with the pads. This is the most common brake job we perform. Parts and labor for pads and rotors on one axle runs $250 to $500. The price depends on the vehicle — a Honda Civic is on the lower end, a Ford F-150 is on the higher end because the parts are larger and more expensive."
+        heading: "Brake Pads + Rotors: From $149.99 Per Axle",
+        content: "If your rotors are scored, warped, or below minimum thickness, they need to be replaced along with the pads. This is the most common brake job we perform. Parts and labor for pads and rotors on one axle starts at $149.99. The price depends on the vehicle — a Honda Civic is on the lower end, a Ford F-150 is on the higher end because the parts are larger and more expensive."
       },
       {
         heading: "Caliper Replacement: $300–$800 Per Caliper",
@@ -565,8 +565,8 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "If your brake pads are worn but the rotors are still in good shape, a pad-only replacement is the cheapest fix that exists. This involves removing the wheels, removing the old pads, cleaning the caliper slides, and installing new brake pads. The price range of $149 to $249 per axle covers most passenger cars and small SUVs. Larger trucks and European vehicles can run $50 to $100 more because the parts cost more. At Nick's Tire & Auto, we always measure rotor thickness and check for scoring before recommending pad-only service. If the rotors are too thin or damaged, installing new pads on bad rotors wastes your money because the new pads will wear unevenly and you will be back in the shop sooner than expected. We would rather do the job right the first time."
       },
       {
-        heading: "Brake Pads and Rotors: $249 to $449",
-        content: "This is the most common brake repair we perform at our Cleveland shop. When brake pads wear down, they often damage the rotors — the metal discs the pads clamp against to stop your vehicle. Replacing pads and rotors together ensures even braking, eliminates pulsation and vibration, and gives you the longest-lasting repair. The $249 to $449 per axle range covers most vehicles. This service includes new premium brake pads, new or resurfaced rotors, cleaning and lubricating caliper slides, inspecting brake lines and hardware, and a test drive to verify everything works correctly. Some shops advertise low pad prices but then tell you the rotors need replacing after they have already taken your wheels off. At Nick's, we inspect everything before we quote a price, so there are no checkout math."
+        heading: "Brake Pads and Rotors: From $149.99",
+        content: "This is the most common brake repair we perform at our Cleveland shop. When brake pads wear down, they often damage the rotors — the metal discs the pads clamp against to stop your vehicle. Replacing pads and rotors together ensures even braking, eliminates pulsation and vibration, and gives you the longest-lasting repair. Prices start at $149.99 per axle and depend on the vehicle. This service includes new premium brake pads, new or resurfaced rotors, cleaning and lubricating caliper slides, inspecting brake lines and hardware, and a test drive to verify everything works correctly. Some shops advertise low pad prices but then tell you the rotors need replacing after they have already taken your wheels off. At Nick's, we inspect everything before we quote a price, so there are no checkout math."
       },
       {
         heading: "Full Brake Job: $449 to $699",
@@ -1261,7 +1261,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "The Fix: New Rotors and Pads",
-        content: "Resurfacing (machining the rotor flat again) used to be the go-to fix, but modern rotors are made thinner to save weight and often cannot be safely resurfaced. At Nick's Tire & Auto, we replace rotors and pads together for $250 to $450 per axle on most vehicles. Since the steering wheel shake comes from front rotors, most customers only need the front axle done. We use quality rotors that resist warping better than budget parts."
+        content: "Resurfacing (machining the rotor flat again) used to be the go-to fix, but modern rotors are made thinner to save weight and often cannot be safely resurfaced. At Nick's Tire & Auto, we replace rotors and pads together starting at $149.99 per axle, depending on vehicle. Since the steering wheel shake comes from front rotors, most customers only need the front axle done. We use quality rotors that resist warping better than budget parts."
       },
       {
         heading: "Is It Dangerous?",
@@ -2327,7 +2327,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get the Right Tires at the Right Price",
-        content: "Stop by Nick's Tire and Auto and tell us your vehicle, your driving habits, and your budget. We will give you an honest recommendation — not the most expensive tire on the rack, but the right tire for your situation. We carry new and used tires in most common sizes and can special order anything within a day or two. Used tires from $25 (select 12-inch; most $40-80), new budget tires competitively priced, all mounted and balanced on site. We are at 17625 Euclid Ave, Cleveland, open 7 days a week. Call (216) 862-0005 or browse our [tire finder](/tires). Need [brakes](/brakes) while you are here? We do that too — $89 brake specials."
+        content: "Stop by Nick's Tire and Auto and tell us your vehicle, your driving habits, and your budget. We will give you an honest recommendation — not the most expensive tire on the rack, but the right tire for your situation. We carry new and used tires in most common sizes and can special order anything within a day or two. Used tires from $25 (select 12-inch; most $40-80), new budget tires competitively priced, all mounted and balanced on site. We are at 17625 Euclid Ave, Cleveland, open 7 days a week. Call (216) 862-0005 or browse our [tire finder](/tires). Need [brakes](/brakes) while you are here? We do that too — pads from $149 per axle, after a free brake check."
       }
     ],
     relatedServices: ["/tires"],
@@ -2463,11 +2463,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Cost Comparison at Nick's",
-        content: "At Nick's Tire and Auto, our $89 brake special covers pad replacement and rotor inspection using quality pads appropriate for your vehicle. For most passenger cars and light SUVs, we use ceramic pads unless the vehicle manufacturer specifies semi-metallic. For trucks and heavier applications, we use semi-metallic. Premium ceramic pad upgrades — brands like Akebono or Power Stop — are available for customers who want the best possible noise and dust performance. Those run a bit more but are worth it for drivers who really care about a quiet, clean brake setup. We will always tell you what we recommend and why before we do the work."
+        content: "At Nick's Tire and Auto, pad replacement starts at $149 per axle and includes a rotor inspection, using quality pads appropriate for your vehicle. For most passenger cars and light SUVs, we use ceramic pads unless the vehicle manufacturer specifies semi-metallic. For trucks and heavier applications, we use semi-metallic. Premium ceramic pad upgrades — brands like Akebono or Power Stop — are available for customers who want the best possible noise and dust performance. Those run a bit more but are worth it for drivers who really care about a quiet, clean brake setup. We will always tell you what we recommend and why before we do the work."
       },
       {
         heading: "Get Your Brakes Done Right",
-        content: "Whether you need ceramic or semi-metallic, the quality of the installation matters as much as the pad material. Proper brake jobs include cleaning and lubricating slide pins, checking and resurfacing or replacing rotors if needed, inspecting brake hardware, and testing the system after installation. A budget brake pad slapped on dirty hardware with glazed rotors is going to squeal and underperform regardless of the material. At Nick's, we do brake jobs right. $89 brake special, honest service, no upselling. Call (216) 862-0005 or stop by 17625 Euclid Ave, Cleveland. Learn more about our [brake repair service](/brakes) or check our [tire deals](/tires)."
+        content: "Whether you need ceramic or semi-metallic, the quality of the installation matters as much as the pad material. Proper brake jobs include cleaning and lubricating slide pins, checking and resurfacing or replacing rotors if needed, inspecting brake hardware, and testing the system after installation. A budget brake pad slapped on dirty hardware with glazed rotors is going to squeal and underperform regardless of the material. At Nick's, we do brake jobs right. Pads from $149 per axle, honest service, no upselling. Call (216) 862-0005 or stop by 17625 Euclid Ave, Cleveland. Learn more about our [brake repair service](/brakes) or check our [tire deals](/tires)."
       }
     ],
     relatedServices: ["/brakes"],
@@ -2502,7 +2502,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Honest Rotor Assessment at Nick's",
-        content: "We measure every rotor with a micrometer during brake service. If your rotors are above minimum thickness and can be resurfaced to a flat, smooth surface, we will tell you and save you the cost of new rotors. If they are at or near minimum, or too deeply scored to machine, we will recommend replacement and explain why. No guessing, no unnecessary parts. Our $89 brake special includes pads, rotor inspection, and all the honest information you need to make the right call. If rotors need replacing, we price them fairly and install them as part of the brake job. Call (216) 862-0005 or come to 17625 Euclid Ave, Cleveland for a [brake check](/brakes)."
+        content: "We measure every rotor with a micrometer during brake service. If your rotors are above minimum thickness and can be resurfaced to a flat, smooth surface, we will tell you and save you the cost of new rotors. If they are at or near minimum, or too deeply scored to machine, we will recommend replacement and explain why. No guessing, no unnecessary parts. Our pad replacement, from $149 per axle, includes pads, a rotor inspection, and all the honest information you need to make the right call. If rotors need replacing, we price them fairly and install them as part of the brake job. Call (216) 862-0005 or come to 17625 Euclid Ave, Cleveland for a [brake check](/brakes)."
       }
     ],
     relatedServices: ["/brakes"],
@@ -2642,7 +2642,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Still Squeaking? Come Back In",
-        content: "If you had brakes done at Nick's and they are squeaking after the break-in period, come back. We stand behind our work. We will pull the wheels, inspect the pads and rotors, check hardware and lubrication, and make it right. No charge for correcting our work. If you had brakes done somewhere else and they squeak, bring it to us for an honest assessment. Our $89 brake special gets you quality pads, proper installation, and brakes that actually work quietly. We are at 17625 Euclid Ave, Cleveland, open 7 days. Call (216) 862-0005. Check out our full [brake repair service](/brakes) or browse our [tire deals](/tires) while you are here."
+        content: "If you had brakes done at Nick's and they are squeaking after the break-in period, come back. We stand behind our work. We will pull the wheels, inspect the pads and rotors, check hardware and lubrication, and make it right. No charge for correcting our work. If you had brakes done somewhere else and they squeak, bring it to us for an honest assessment. Pad replacement from $149 per axle gets you quality pads, proper installation, and brakes that actually work quietly. We are at 17625 Euclid Ave, Cleveland, open 7 days. Call (216) 862-0005. Check out our full [brake repair service](/brakes) or browse our [tire deals](/tires) while you are here."
       }
     ],
     relatedServices: ["/brakes"],
@@ -2879,7 +2879,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "How Much Does Flat Tire Repair Cost in Cleveland?",
-        content: "A standard plug-patch repair at Nick's is $15 to $25 depending on the tire size and type. If the tire cannot be repaired, a quality used replacement starts at $40 to $60 mounted and balanced. A new tire ranges from $80 to $200+ depending on size and brand. Compare that to what some roadside assistance companies charge — $75 to $150 just to show up and put on your spare, and you still need the tire fixed afterward. Driving straight to us is almost always the cheaper and faster option. We are at 17625 Euclid Ave in Euclid — right off E 185th Street, easy access from I-90."
+        content: "A standard plug-patch repair at Nick's is $15 to $25 depending on the tire size and type. If the tire cannot be repaired, a quality used replacement starts at $40 to $60 mounted and balanced. A new tire ranges from $80 to $200+ depending on size and brand. Compare that to what some roadside assistance companies charge — $75 to $150 just to show up and put on your spare, and you still need the tire fixed afterward. Driving straight to us is almost always the cheaper and faster option. We are at 17625 Euclid Ave in Cleveland — right off E 185th Street, easy access from I-90."
       },
       {
         heading: "Common Causes of Flat Tires in Cleveland",
@@ -2992,7 +2992,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "While You Are at the Shop",
-        content: "A lockout is annoying but it is also a reminder that your car needs attention. If you are already dealing with car trouble — a lockout, a dead battery, a breakdown — it is a good time to catch up on maintenance you have been putting off. Nick's Tire and Auto at 17625 Euclid Ave in Euclid handles [diagnostics](/diagnostics), [brakes](/brakes), [tires](/tires), and [full mechanical repair](/general-repair). Open 7 days a week, no appointment needed. Call (216) 862-0005."
+        content: "A lockout is annoying but it is also a reminder that your car needs attention. If you are already dealing with car trouble — a lockout, a dead battery, a breakdown — it is a good time to catch up on maintenance you have been putting off. Nick's Tire and Auto at 17625 Euclid Ave in Cleveland handles [diagnostics](/diagnostics), [brakes](/brakes), [tires](/tires), and [full mechanical repair](/general-repair). Open 7 days a week, no appointment needed. Call (216) 862-0005."
       }
     ],
     relatedServices: ["/general-repair", "/diagnostics"],
@@ -3159,7 +3159,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Brake Wear — All Generations",
-        content: "Honda Civics are lighter cars, which is great for fuel economy but it means the brakes are smaller and work harder, especially in stop-and-go Cleveland traffic. Front brake pads typically last 30,000 to 50,000 miles depending on driving habits. Rear pads last longer — usually 50,000 to 70,000 miles. The rotors on 2006 and newer Civics are thin from the factory and often need replacing with the pads rather than resurfacing. A full front brake job on a Civic — pads and rotors — runs $250 to $350 at Nick's. We use quality ceramic pads that last longer and produce less dust."
+        content: "Honda Civics are lighter cars, which is great for fuel economy but it means the brakes are smaller and work harder, especially in stop-and-go Cleveland traffic. Front brake pads typically last 30,000 to 50,000 miles depending on driving habits. Rear pads last longer — usually 50,000 to 70,000 miles. The rotors on 2006 and newer Civics are thin from the factory and often need replacing with the pads rather than resurfacing. At Nick's, front pads and rotors start at $149.99 per axle, depending on vehicle, and the Civic's exact price comes in a written quote after a free brake check. We use quality ceramic pads that last longer and produce less dust."
       },
       {
         heading: "Oil Dilution — 2016 to 2021 1.5T Models",
@@ -3202,7 +3202,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Brakes and Tires — Truck-Specific Considerations",
-        content: "Silverados are heavy — 4,500 to 5,500 pounds — so they eat brakes faster than cars, especially if you tow. Front brake pads typically last 40,000 to 60,000 miles. Rear pads last 50,000 to 70,000 miles. A full front brake job on a Silverado — pads and rotors — runs $350 to $500 at Nick's. For tires, most Silverados take 265/70R17 or 275/60R20 depending on the trim. A set of four quality all-terrain tires runs $600 to $1,000 installed. If you are running larger aftermarket wheels, expect to pay more. We carry all common Silverado tire sizes in stock."
+        content: "Silverados are heavy — 4,500 to 5,500 pounds — so they eat brakes faster than cars, especially if you tow. Front brake pads typically last 40,000 to 60,000 miles. Rear pads last 50,000 to 70,000 miles. At Nick's, pads and rotors start at $149.99 per axle, depending on vehicle. A Silverado's larger brakes cost more, and its exact price comes in a written quote after a free brake check. For tires, most Silverados take 265/70R17 or 275/60R20 depending on the trim. A set of four quality all-terrain tires runs $600 to $1,000 installed. If you are running larger aftermarket wheels, expect to pay more. We carry all common Silverado tire sizes in stock."
       },
       {
         heading: "Keep Your Silverado on the Road at Nick's",
@@ -3237,7 +3237,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Camry Brake Repair Cost at Nick's",
-        content: "A front brake pad and rotor replacement on a Camry costs $300 to $400 at Nick's. Rear pads and rotors run $280 to $380. We use ceramic brake pads that are quieter, produce less dust, and last longer than the semi-metallic pads Toyota uses from the factory. If only the pads need replacing and the rotors are in good shape, front pads alone cost $149.99 to $200. Compare that to the Toyota dealership, which typically charges $450 to $600 for the same front brake job. Same parts quality, lower overhead, no dealership markup."
+        content: "At Nick's, brake pads and rotors start at $149.99 per axle, depending on vehicle, and the Camry's exact price comes in a written quote after a free brake check. We use ceramic brake pads that are quieter, produce less dust, and last longer than the semi-metallic pads Toyota uses from the factory. If only the pads need replacing and the rotors are in good shape, front pads alone cost $149.99 to $200. Compare that to the Toyota dealership, which typically charges $450 to $600 for the same front brake job. Same parts quality, lower overhead, no dealership markup."
       },
       {
         heading: "Bring Your Camry to Nick's",
@@ -3346,7 +3346,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "How We Do Business at Nick's",
-        content: "We built our reputation on being the shop people trust. We show you the parts we are replacing. We explain what is wrong in plain English. We tell you what is urgent and what can wait. We give you the price before we start the work. We never pressure you into decisions. We back our work with a warranty. We have been at 17625 Euclid Ave in Euclid serving Cleveland, Euclid, East Cleveland, and the entire east side. Check our Google reviews — the word honest comes up more than any other word. Call (216) 862-0005 or walk in. [Diagnostics](/diagnostics), [brakes](/brakes), [tires](/tires), [general repair](/general-repair) — open 7 days a week."
+        content: "We built our reputation on being the shop people trust. We show you the parts we are replacing. We explain what is wrong in plain English. We tell you what is urgent and what can wait. We give you the price before we start the work. We never pressure you into decisions. We back our work with a warranty. We have been at 17625 Euclid Ave serving Cleveland, Euclid, East Cleveland, and the entire east side. Check our Google reviews — the word honest comes up more than any other word. Call (216) 862-0005 or walk in. [Diagnostics](/diagnostics), [brakes](/brakes), [tires](/tires), [general repair](/general-repair) — open 7 days a week."
       }
     ],
     relatedServices: ["/diagnostics", "/brakes", "/general-repair"],
@@ -3435,7 +3435,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "The Price Difference Is Real — 30 to 50 Percent Less",
-        content: "Here is what the same repairs cost at a Cleveland area dealership versus Nick's Tire and Auto. Brake pads and rotors, front — dealership $500 to $700, Nick's $250 to $400. Oil change, full synthetic — dealership $80 to $120, Nick's $80. Diagnostic fee — dealership $150 to $180, Nick's $49. Alternator replacement — dealership $600 to $900, Nick's $350 to $550. Tire mount and balance, four tires — dealership $100 to $160, Nick's $60 to $80. The parts are the same quality. The difference is overhead. Dealerships have massive buildings, large staffs, expensive equipment leases, and corporate profit margins. Independent shops have lower overhead and pass the savings to you."
+        content: "Here is what the same repairs cost at a Cleveland area dealership versus Nick's Tire and Auto. Brake pads and rotors, front — dealership $500 to $700, Nick's from $149.99 per axle, depending on vehicle. Oil change, full synthetic — dealership $80 to $120, Nick's $80. Diagnostic fee — dealership $150 to $180, Nick's $49. Alternator replacement — dealership $600 to $900, Nick's $350 to $550. Tire mount and balance, four tires — dealership $100 to $160, Nick's $60 to $80. The parts are the same quality. The difference is overhead. Dealerships have massive buildings, large staffs, expensive equipment leases, and corporate profit margins. Independent shops have lower overhead and pass the savings to you."
       },
       {
         heading: "Your Warranty Is Not Voided by Going Independent",
@@ -3540,7 +3540,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "How It Started",
-        content: "Nick's Tire and Auto opened its doors at 17625 Euclid Ave in Euclid, Ohio in 2018. The idea was simple — Cleveland needed an honest, fair-priced auto repair shop that treated customers like people, not transactions. Too many shops in the area were overcharging, upselling, and making car repair feel like a battle. We wanted to build the shop we would want to take our own cars to. Fair prices, transparent service, no games. The first year was tires and basic services. Word got around. Customers kept coming back and bringing their friends and family. Within a couple years, we expanded into full mechanical repair — brakes, diagnostics, engine work, suspension, and everything in between."
+        content: "Nick's Tire and Auto opened its doors at 17625 Euclid Ave in Cleveland, Ohio in 2018. The idea was simple — Cleveland needed an honest, fair-priced auto repair shop that treated customers like people, not transactions. Too many shops in the area were overcharging, upselling, and making car repair feel like a battle. We wanted to build the shop we would want to take our own cars to. Fair prices, transparent service, no games. The first year was tires and basic services. Word got around. Customers kept coming back and bringing their friends and family. Within a couple years, we expanded into full mechanical repair — brakes, diagnostics, engine work, suspension, and everything in between."
       },
       {
         heading: "What We Stand For",
@@ -3960,7 +3960,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "The used-tire math the chains don't show you",
-        content: "Most tire chains don't sell used tires. Corporate policy. The reasons are real — liability, warranty consistency, brand standards. We respect that. But the math the chains don't show you: a used tire from $25 installed (select 12-inch; most $40-80) × 4 = $240 out the door. A comparable new tire at $200 each + $80 install fees = $880. Same car. Same driving. $640 difference. Used tires are not always the right call — bald is bald, age cracking is age cracking, and a used tire on a high-speed-rated sports car probably isn't a fit. But for the Toyota Camry that does 12 miles a day on Euclid Ave, a used tire with 7/32\" of tread will outlast the $200 new one's relevance to the car's resale value. We sell used tires from $25 installed (select 12-inch; most $40-80) at Nick's, and every used tire passes a 4-point inspection (tread depth, sidewall integrity, bead seat, age date) stricter than the Ohio driver's test. If a used tire is wrong for your car, we tell you and put new ones on instead."
+        content: "Most tire chains don't sell used tires. Corporate policy. The reasons are real — liability, warranty consistency, brand standards. We respect that. But the math the chains don't show you: a typical used tire at $60 installed (most sizes $40-80; select 12-inch from $25) × 4 = $240 out the door. A comparable new tire at $200 each + $80 install fees = $880. Same car. Same driving. $640 difference. Used tires are not always the right call — bald is bald, age cracking is age cracking, and a used tire on a high-speed-rated sports car probably isn't a fit. But for the Toyota Camry that does 12 miles a day on Euclid Ave, a used tire with 7/32\" of tread will outlast the $200 new one's relevance to the car's resale value. We sell used tires from $25 installed (select 12-inch; most $40-80) at Nick's, and every used tire passes a 4-point inspection (tread depth, sidewall integrity, bead seat, age date) stricter than the Ohio driver's test. If a used tire is wrong for your car, we tell you and put new ones on instead."
       },
       {
         heading: "Winter, all-season, all-weather — the Ohio reality",
@@ -3996,7 +3996,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Pull up to Nick's",
-        content: "Nick's Tire & Auto is at 17625 Euclid Ave, Cleveland, OH 44112. Open Mon-Sat 8am-6pm and Sunday 9am-4pm. The chains close. We don't. First-come-first-served — no appointment system, walk in any day we're awake. Used tires from $25 installed (select 12-inch; most $40-80; mount, balance, valve stems, TPMS reset, alignment check, all free). New tires at competitive market rate, with the labor disclosed in writing before the wrench moves. Drop the car off and we'll Uber you back to work; call when it's ready. The yellow sign on Euclid Ave you've probably driven past. (216) 862-0005."
+        content: "Nick's Tire & Auto is at 17625 Euclid Ave, Cleveland, OH 44112. Open Mon-Sat 8am-6pm and Sunday 9am-4pm. The chains close. We don't. First-come-first-served — no appointment system, walk in any day we're awake. Used tires from $25 installed (select 12-inch; most $40-80), with mount, balance, valve stems, TPMS reset and an alignment check included free. New tires at competitive market rate, with the labor disclosed in writing before the wrench moves. Drop the car off and we'll Uber you back to work; call when it's ready. The yellow sign on Euclid Ave you've probably driven past. (216) 862-0005."
       }
     ],
     relatedServices: ["/tires", "/used-tires-cleveland", "/alignment", "/best-tire-shops-cleveland"],
