@@ -86,14 +86,13 @@ describe("voice · flashing vs solid check-engine light", () => {
 /**
  * The second half of the same gap.
  *
- * SMS's `price_brakes` playbook asks "Is it squeaking, grinding or shaking?" and
- * states the reason plainly: "Squeaking is often still just the pads; grinding
- * can mean the rotor is involved."
+ * SMS's `price_brakes` playbook asks "Is it squeaking, grinding or shaking?"
+ * because the symptom changes what gets inspected first. Neither channel should
+ * turn that symptom into a remote part diagnosis before the vehicle is checked.
  *
- * Voice answered EVERY brake call with the grind line — "metal-on-metal soon —
- * that gets expensive fast" — including callers who described a squeak. That is
- * overstated urgency on a symptom the shop's own SMS copy says is usually the
- * cheap case, and manufactured urgency is explicitly out of bounds.
+ * Voice previously answered every brake call with the grind line, then evolved
+ * to a squeak line that implied "probably pads." Both are too diagnosis-shaped:
+ * urgency may differ, but the worn part is established by inspection.
  *
  * Between them, "solid or flashing" and "squeak / grind / shake" are SMS's
  * ENTIRE discriminating-question set. Voice had neither.
@@ -138,10 +137,11 @@ describe("voice · squeak vs grind vs shake", () => {
     return end === -1 ? rest : rest.slice(0, end);
   };
 
-  it("does NOT give the metal-on-metal line to a squeak", () => {
+  it("does NOT give the metal-on-metal line or a pads diagnosis to a squeak", () => {
     const squeak = branch("SQUEAK");
     expect(squeak).not.toMatch(/metal-on-metal/i);
-    expect(squeak).toMatch(/just the pads/i);
+    expect(squeak).not.toMatch(/just the pads/i);
+    expect(squeak).toMatch(/worth catching early|more expensive when they wait/i);
   });
 
   it("keeps metal-on-metal for the symptom that earns it", () => {
