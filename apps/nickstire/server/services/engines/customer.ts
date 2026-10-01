@@ -18,6 +18,12 @@ import { RawRow, extractRows, extractOne, db, categorizeService } from "./shared
 export async function predictRepeatVisits(): Promise<{
   dueSoon: Array<{ name: string; phone: string; predictedDate: string; avgGapDays: number; confidence: number }>;
   overdueCount: number;
+  /**
+   * Q-23 phase 6 · true only when the read failed. The empty list beside it is
+   * then a placeholder, not "nobody is due": Customer Intelligence reads this to
+   * show UNMEASURED instead of "0 Due For Maintenance".
+   */
+  unavailable?: true;
 }> {
   try {
     const rows = await (await db()).execute(sql`
@@ -62,7 +68,7 @@ export async function predictRepeatVisits(): Promise<{
     dueSoon.sort((a, b) => a.predictedDate.localeCompare(b.predictedDate));
     return { dueSoon: dueSoon.slice(0, 30), overdueCount };
   } catch {
-    return { dueSoon: [], overdueCount: 0 };
+    return { dueSoon: [], overdueCount: 0, unavailable: true };
   }
 }
 

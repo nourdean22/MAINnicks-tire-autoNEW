@@ -2552,15 +2552,16 @@
       "capabilityId": "admin-lead-sla-provenance-q23",
       "name": "Admin Lead SLA Monitor shows UNMEASURED on a failed read and no average on an empty window, never an emerald 'Avg: 0m'",
       "owner": "operator",
-      "codeState": "in_progress",
+      "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch nickstire/q23-phase5-lead-sla-provenance (Q-23 phase 5, draft PR, not merged): server/services/engines/marketing.ts analyzeLeadResponseTime marks its catch-path zeros unavailable:true (a successful read never carries it; scoring in masterIntelligence is unchanged). client/src/pages/admin/intelligence/leadSla.ts deriveLeadSla maps a null engine result or unavailable:true to UNMEASURED 'Avg: unknown', an empty 90-day window (bucket counts sum to 0) to MEASURED 'Avg: none', and a real average to MEASURED 'Avg: Nm'; an empty bucket reads 'no leads to convert', not '0% conversion rate'. LeadSLAMonitor.tsx renders it with a ProvenanceTag. Also: TodaysMoneyRisks' LOW-to-MEDIUM raise while a slice is unread is now moneyRisks.displayedRiskSeverity.",
+        "codeCommit": "Q-23 phase 5, merged as #2829 (squash 10cab1fdb, 2026-09-30): server/services/engines/marketing.ts analyzeLeadResponseTime marks its catch-path zeros unavailable:true (a successful read never carries it; scoring in masterIntelligence is unchanged). client/src/pages/admin/intelligence/leadSla.ts deriveLeadSla maps a null engine result or unavailable:true to UNMEASURED 'Avg: unknown', an empty 90-day window (bucket counts sum to 0) to MEASURED 'Avg: none', and a real average to MEASURED 'Avg: Nm'; an empty bucket reads 'no leads to convert', not '0% conversion rate'. LeadSLAMonitor.tsx renders it with a ProvenanceTag. Also: TodaysMoneyRisks' LOW-to-MEDIUM raise while a slice is unread is now moneyRisks.displayedRiskSeverity.",
         "tests": [
           "client/src/__tests__/lead-sla-monitor-provenance.test.tsx: failed engine, failed read, empty window, real average, empty bucket. Red on main 5/5.",
           "server/services/engines/leadResponseUnavailable.test.ts: a rejected execute returns unavailable:true; an empty window and a populated read do not; bucket counts sum to the rows read. Red on main 1/3 (the two success-path controls pass on both by design).",
-          "client/src/__tests__/money-risks-severity-unread.test.tsx: the unit case is red on main (no export); the two unread-badge render cases go red when the raise is removed (the #2827 M9 survivor)."
+          "client/src/__tests__/money-risks-severity-unread.test.tsx: the unit case is red on main (no export); the two unread-badge render cases go red when the raise is removed (the #2827 M9 survivor).",
+          "Q-23 phase 6: lead-sla-monitor-provenance.test.tsx also pins that Impact Analysis is hidden while the read is unknown; removing that guard turns 2 of 5 cases red (the #2829 L8 survivor)."
         ],
         "liveRuns": []
       },
@@ -2571,8 +2572,36 @@
         }
       ],
       "deferredScope": [
-        "Q-23 remaining: the lane-health strip, data freshness, and provenance tags on AIHealth, LlmSpend and CustomerIntelligence.",
+        "Q-23 remaining: the lane-health strip, data freshness, and provenance tags on AIHealth and LlmSpend (CustomerIntelligence: admin-customer-intel-provenance-q23).",
         "masterIntelligence counts a failed engine only when it throws; this engine's swallowed failure (now unavailable:true) is still not counted toward the report's scoreReliable threshold."
+      ],
+      "lastVerifiedAt": "2026-09-30"
+    },
+    {
+      "capabilityId": "admin-customer-intel-provenance-q23",
+      "name": "Admin Customer Intelligence counts read the fields their engines return, show UNMEASURED on a failed read, and make no retention claim from an empty VIP list",
+      "owner": "operator",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch nickstire/q23-phase6-customer-intel-provenance (Q-23 phase 6, draft PR, not merged): 'Due For Maintenance' read repeatPrediction.recommendations, a field predictRepeatVisits never returns, so it was 0 on every render; it now reads dueSoon (label 'Due Or Overdue'). predictChurn and predictRepeatVisits mark their catch-path empty lists unavailable:true. client/src/pages/admin/intelligence/customerSignals.ts deriveCustomerSignals maps a null engine result or unavailable:true to UNMEASURED 'unknown', a read count to ESTIMATE, and a list at the engine's cap (25 / 30) to 'N+'. The empty VIP list no longer says 'Retention looks solid': nextBestActions keeps the top 8 of all actions, so higher-urgency items can crowd VIP win-backs out.",
+        "tests": [
+          "client/src/__tests__/customer-intelligence-provenance.test.tsx: failed engines, failed engine reads, dueSoon read, empty read, cap floor, no retention claim. Red on main 6/6.",
+          "server/services/engines/customerSignalsUnavailable.test.ts: a rejected read returns unavailable:true for both engines; an empty read does not. Red on main 2/4 (the two success-path controls pass on both by design)."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Not deployed: the card has not been seen on the installed admin PWA, and how often either production engine read fails is unread from this session."
+        }
+      ],
+      "deferredScope": [
+        "Q-23 remaining: the lane-health strip, data freshness, and provenance tags on AIHealth and LlmSpend.",
+        "nextBestActions' VIP read goes through safeRowQuery, which returns [] on failure, so a failed VIP read still renders as an empty list (now worded without a retention claim).",
+        "masterIntelligence still scores these engines' swallowed failures as successful reads (scoreReliable does not see unavailable:true)."
       ],
       "lastVerifiedAt": "2026-09-30"
     },
@@ -2998,6 +3027,37 @@
         "Phase 2: the daily NHTSA manufacturer-communications file (static.nhtsa.gov/odi/ffdd/tsbs/) to flag WPE warranty extensions needs a stored, scheduled ingest; not in this change.",
         "No per-VIN open-recall status (NHTSA has no public per-VIN API); the panel links to nhtsa.gov for the VIN check.",
         "Nothing is sent to the customer; the panel is advisor information only."
+      ],
+      "lastVerifiedAt": "2026-09-30"
+    },
+    {
+      "capabilityId": "nickstire-daily-digest-q29",
+      "name": "Daily digest (cron db-backup): counts-only nickstire -> StateNour, no customer rows",
+      "owner": "system",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "PR #2816 (branch nickstire/q29-daily-digest-counts-only): server/services/dbBackup.ts reads count(*) only and posts { kind, date, timestamp, counts, recent24h }; StateNour /api/sync/backup whitelists the count keys on POST and GET via lib/nickstire/daily-digest.ts.",
+        "tests": [
+          "server/services/dbBackup.test.ts: canary contact details in the 24h window never reach the POST body or Telegram; body keys are exactly the digest keys; an archive 401 still fails the run. Red on main 3/4 before the fix.",
+          "apps/statenour/tests/api/sync-backup-digest.test.ts: a legacy row-carrying body is stored and served counts-only; non-numeric counts become null; sync auth runs before any write. Red on main's route 4/6."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "daily_backup audit_events rows written before this change still hold lead/booking/invoice rows in payload; redacting or deleting them is an operator-only production write on Neon."
+        },
+        {
+          "severity": "P3",
+          "description": "Not deployed: the first post-deploy daily_backup row must be read back (GET /api/sync/backup) to show no row arrays before promotion."
+        }
+      ],
+      "deferredScope": [
+        "This is not a restorable backup; the restore path is TiDB Cloud native backups (estate architecture §5.4, §15 item 1).",
+        "safetyMonitor's 'No successful backup' wording is unchanged pending an operator decision."
       ],
       "lastVerifiedAt": "2026-09-30"
     }

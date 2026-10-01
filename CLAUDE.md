@@ -17,11 +17,11 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
 
 ## Claude-specific
 
-- **Skills** (`.claude/skills/`, 26 repo-specific — invoke by exact name). `nour-command` is the
+- **Skills** (`.claude/skills/`, 35 repo-specific — invoke by exact name). `nour-command` is the
   cross-cutting router; each `SKILL.md` carries
   its own full trigger and rationale; this is only the index for picking one.
-  - Before commit/push → **statenour-verify** · **nickstire-verify**; writing the report →
-    **answer-first**.
+  - Before commit/push → **statenour-verify** · **nickstire-verify**; writing any report → **answer-first**;
+    recurring business/platform reports → `docs/reporting/REPORT-SKILL-SUITE.md` + the narrow reporting skill.
   - Schema/DDL → **statenour-migration** (Prisma) · **nickstire-tidb-ddl** (Drizzle/TiDB).
   - Any script that touches a DB from a worktree or local shell → **prod-db-guard**.
   - Authoring or editing a deny-list, guard regex, policy file or hook → **guard-red-team**.

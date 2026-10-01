@@ -10,6 +10,7 @@ import { withActivityLedger } from "../services/activityLedger";
 import { generateLaborEstimate, type LaborEstimateResult } from "../laborEstimate";
 import { generateEstimate } from "../services/aiEstimateGenerator";
 import { BUSINESS } from "@shared/business";
+import { ESTIMATE_CHOICE_NOTICE } from "../services/estimateWording";
 
 import { createLogger } from "../lib/logger";
 
@@ -113,7 +114,7 @@ export const estimatesRouter = router({
         })
       ).catch((e) => { log.warn("[routers/estimates] fire-and-forget failed:", e); });
 
-      return { ...result, _source: "static" as const };
+      return { ...result, estimateChoice: ESTIMATE_CHOICE_NOTICE, _source: "static" as const };
     }),
 
   /**

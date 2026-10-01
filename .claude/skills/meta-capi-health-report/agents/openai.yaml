@@ -1,0 +1,3 @@
+interface:
+  display_name: "Meta CAPI Health Report"
+  short_description: "Audit Meta Conversions API signal quality, coverage, deduplication, and diagnostics."

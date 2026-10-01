@@ -1,0 +1,3 @@
+interface:
+  display_name: "Funnel Attribution Report"
+  short_description: "Reconcile marketing, calls, bookings, CRM, and revenue to expose tracking and funnel leaks."
