@@ -188,7 +188,7 @@ function repForGoal(
   }
   return {
     cta: "Open goal",
-    href: `/stats#goal-${cited.id}`,
+    href: `/stats?tab=goals#goal-${cited.id}`,
     text: `Land one rep on '${cited.title}'.`,
   };
 }
@@ -245,7 +245,7 @@ export function selectLevelUpDirective(
     reason = `Based on ${when} body log (${parts.join(", ")}) — recover the base before a heavy rep.`;
     rep = {
       cta: "Log recovery",
-      href: "/stats#body",
+      href: "/stats?tab=body",
       text: "Low-friction rep: a walk, mobility work, or an early night — log it in Body.",
     };
   }
@@ -320,7 +320,7 @@ export function selectLevelUpDirective(
       reason = "Based on the XP log — no Body stat gained XP in 7 days.";
       rep = {
         cta: "Open Body",
-        href: "/stats#body",
+        href: "/stats?tab=body",
         text: "Train, stretch, or log a session — any Body rep breaks the zero.",
       };
     }
@@ -335,7 +335,7 @@ export function selectLevelUpDirective(
       reason = `Because Learning is already moving (+${s.rising7dXp} XP this week) — compound it.`;
       rep = {
         cta: "Open learning",
-        href: "/stats#learning",
+        href: "/stats?tab=learning",
         text: "Run one loop session below.",
       };
     }

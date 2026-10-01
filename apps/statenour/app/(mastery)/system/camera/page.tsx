@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc/client";
-import { PageHeader } from "@/components/layout/ui";
+import { StandardPage } from "@/components/layout/standard-page";
 import { Panel } from "@/components/panel";
 import { MetricCard } from "@/components/metric-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
@@ -175,12 +175,14 @@ export default function CameraArrivalsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6 text-white">
-      <PageHeader
-        eyebrow="NICK'S TIRE & AUTO"
-        title="Arrival Intelligence"
-        description="Real-time vehicle detection and automated license plate recognition fleet cockpit."
-        actions={
+    <StandardPage
+      eyebrow="Nick's Tire & Auto"
+      title="Arrival Intelligence"
+      description="Real-time vehicle detection and automated license plate recognition fleet cockpit."
+      width="2xl"
+      rhythm="loose"
+      className="px-3 py-4 text-white sm:px-4 sm:py-6"
+      actions={
           <div className="flex items-center gap-2">
             <FreshnessChip
               // 2026-09-10 · render time is not evidence freshness. See
@@ -201,7 +203,7 @@ export default function CameraArrivalsPage() {
             </button>
           </div>
         }
-      />
+    >
 
       {readFailed && (
         <div
@@ -495,6 +497,6 @@ export default function CameraArrivalsPage() {
           </Panel>
         </div>
       </div>
-    </div>
+    </StandardPage>
   );
 }

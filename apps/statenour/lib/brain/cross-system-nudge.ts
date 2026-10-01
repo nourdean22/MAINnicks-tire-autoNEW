@@ -315,7 +315,7 @@ async function computeNudgesUncached(): Promise<Nudge[]> {
       severity: "medium",
       source: "correlation",
       text: row.content,
-      link: "/brain/continuity",
+      link: "/brain?tab=continuity",
     });
   }
 
@@ -328,14 +328,14 @@ async function computeNudgesUncached(): Promise<Nudge[]> {
         severity: "high",
         source: "decision_drift",
         text: `Decision-quality dropped ${Math.abs(Math.round(deltaPct))}% vs prior 3w · regrade + reflect`,
-        link: "/system/decision-drift",
+        link: "/journal",
       });
     } else if (deltaPct < -5) {
       nudges.push({
         severity: "low",
         source: "decision_drift",
         text: `Decision-quality softening (${Math.round(deltaPct)}% vs prior) · watch`,
-        link: "/system/decision-drift",
+        link: "/journal",
       });
     }
   }
@@ -367,7 +367,7 @@ async function computeNudgesUncached(): Promise<Nudge[]> {
       severity: "high",
       source: "blind_spot",
       text: meta?.suggestedAction ? `BLIND SPOT · ${meta.domain}: ${meta.suggestedAction}` : row.content,
-      link: "/system/blind-spots",
+      link: "/brain?tab=discover",
     });
   }
 

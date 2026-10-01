@@ -108,11 +108,9 @@ function InspectorHostInner() {
 
   // Only Transition updates animate. The URL-backed OPEN and CLOSE travel
   // through the router (a transition), so the dock slides in and out and the
-  // sheet gets the exit it never had (its entrance stays the CSS keyframe,
-  // hence `enter="none"` there). The store-backed PEEK is a synchronous
-  // update and stays instant by design — Space while arrowing must not wait
-  // on an animation. `update="none"`: arrowing between rows swaps the
-  // panel's content without a cross-fade.
+  // sheet gets the exit it never had. PEEK remains a synchronous store update
+  // and stays instant by design. `update="none"` keeps row-to-row swaps from
+  // cross-fading while preserving the proven browser ViewTransition exit path.
   return (
     <>
       <ViewTransition

@@ -43,13 +43,18 @@ export function MegaConfirmDialog({
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  // N.4 · focus management · save current focus on open · restore on close
+  // N.4 · focus management · save current focus on open · restore on close.
+  // Manual modal exception: lock background scroll for parity with the
+  // Base UI Dialog runtime used by the rest of StateNour.
   useEffect(() => {
     if (!open) return;
     previousFocusRef.current = document.activeElement as HTMLElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     // Focus the confirm button on mount
     confirmRef.current?.focus();
     return () => {
+      document.body.style.overflow = previousOverflow;
       previousFocusRef.current?.focus?.();
     };
   }, [open]);
@@ -118,7 +123,7 @@ export function MegaConfirmDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="text-xs font-mono uppercase tracking-[0.14em] px-4 min-h-[40px] rounded border border-white/15 text-[var(--text-secondary)] hover:bg-white/5"
+            className="text-xs font-mono uppercase tracking-[0.14em] px-4 min-h-[44px] rounded border border-white/15 text-[var(--text-secondary)] hover:bg-white/5"
           >
             {cancelLabel}
           </button>
@@ -126,7 +131,7 @@ export function MegaConfirmDialog({
             type="button"
             ref={confirmRef}
             onClick={onConfirm}
-            className="text-xs font-mono uppercase tracking-[0.14em] px-4 min-h-[40px] rounded bg-[var(--gold)] text-black font-medium hover:bg-[var(--gold)]/90"
+            className="text-xs font-mono uppercase tracking-[0.14em] px-4 min-h-[44px] rounded bg-[var(--gold)] text-black font-medium hover:bg-[var(--gold)]/90"
           >
             {confirmLabel}
           </button>

@@ -27,6 +27,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Sparkles, X, Plus } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 interface OmniCaptureModalProps {
   /** Handler called with the operator-typed string when they press Enter.
@@ -74,19 +75,12 @@ export function OmniCaptureModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [enableHotkey]);
 
-  // Esc closes when modal is open · also focus the input on open.
+  // Focus the capture field when the dialog opens. Base UI Dialog owns
+  // Escape, outside dismissal, focus containment/restoration, and scroll lock.
   useEffect(() => {
     if (!open) return;
-    inputRef.current?.focus();
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setOpen(false);
-        setText("");
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    const frame = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
   }, [open]);
 
   const submit = useCallback(async () => {
@@ -124,30 +118,24 @@ export function OmniCaptureModal({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="omni capture"
-      // Backdrop · click-outside closes · prevents body scroll behind
-      // by not adding overflow-hidden to body (keeps simple · iOS PWA
-      // already has its own scroll lock pattern via the page state).
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm px-4 pt-[20vh] sm:pt-[18vh]"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          setOpen(false);
-          setText("");
-        }
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setText("");
       }}
     >
-      <div
-        className="w-full max-w-xl rounded-2xl border border-[var(--gold)]/40 bg-[var(--bg-base)] shadow-2xl shadow-[var(--gold)]/10 overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
+      <DialogContent
+        unstyled
+        showCloseButton={false}
+        overlayClassName="z-50 bg-black/60 backdrop-blur-sm"
+        className="fixed left-1/2 top-[20vh] z-[51] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-2xl border border-[var(--gold)]/40 bg-[var(--bg-base)] shadow-2xl shadow-[var(--gold)]/10 outline-none sm:top-[18vh]"
       >
         <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-4 py-2.5">
           <Sparkles size={13} className="text-[var(--gold)]" strokeWidth={1.75} />
-          <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/80">
+          <DialogTitle className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/80">
             omni capture
-          </span>
+          </DialogTitle>
           <span className="ml-auto hidden lg:inline text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
             ⌘K · esc to close
           </span>
@@ -158,7 +146,7 @@ export function OmniCaptureModal({
               setText("");
             }}
             aria-label="close"
-            className="ml-2 inline-flex h-9 w-9 lg:h-6 lg:w-6 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]/[0.15] active:scale-90 transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+            className="ml-2 inline-flex h-11 w-11 lg:h-8 lg:w-8 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]/[0.15] active:scale-90 transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
           >
             <X size={14} strokeWidth={2} />
           </button>
@@ -190,13 +178,13 @@ export function OmniCaptureModal({
             <button
               type="submit"
               disabled={!text.trim() || submitting}
-              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-md border border-[var(--gold)]/50 bg-[var(--gold)]/10 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.05em] text-[var(--gold)] hover:bg-[var(--gold)]/15 disabled:opacity-40 disabled:hover:bg-[var(--gold)]/10 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-[var(--gold)]/50 bg-[var(--gold)]/10 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.05em] text-[var(--gold)] hover:bg-[var(--gold)]/15 disabled:opacity-40 disabled:hover:bg-[var(--gold)]/10 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
             >
               {submitting ? "capturing…" : "capture"}
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

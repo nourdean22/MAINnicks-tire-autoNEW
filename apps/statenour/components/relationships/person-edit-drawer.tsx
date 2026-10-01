@@ -21,11 +21,12 @@
  *   · Add person flow (when opened with no personId, becomes a create form)
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   PERSON_ROLES,
   PERSON_ROLE_OPTIONS,
@@ -54,15 +55,111 @@ interface PersonEditDrawerProps {
   onSaved?: (personId: string) => void;
 }
 
+type FullPersonHydration = {
+  birthday?: string | null;
+  anniversary?: string | null;
+  cadenceDays?: number | null;
+  leverageNotes?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  source?: string | null;
+};
+
+const PERSON_DIALOG_CLASS =
+  "fixed inset-x-0 bottom-0 z-[51] max-h-[90dvh] overflow-y-auto rounded-t-2xl border-t border-[var(--gold)]/30 bg-[var(--bg-base)] pb-[env(safe-area-inset-bottom,0px)] outline-none shadow-[0_-20px_60px_rgba(0,0,0,0.5),0_0_40px_rgba(253,185,19,0.1)] lg:inset-x-auto lg:bottom-auto lg:left-1/2 lg:top-1/2 lg:w-full lg:max-w-lg lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-2xl lg:border";
+
 export function PersonEditDrawer(props: PersonEditDrawerProps) {
   if (!props.open) return null;
-  // wave-AB.b-audit · the parent passes a key=`${personId ?? "new"}` on
-  // this component so React remounts the inner state-bearing body when
-  // the operator switches target (or hops between create + edit). This
-  // sidesteps the react-hooks/set-state-in-effect rule · we don't need
-  // a sync-state effect because the form fields are seeded by the
-  // useState initializers on each fresh mount.
-  return <PersonEditDrawerBody {...props} />;
+
+  // Create mode has no existing profile to hydrate. Edit mode gates the
+  // stateful form on the full profile read so hidden fields (birthday,
+  // anniversary, cadence, phone/email) cannot open blank and then be
+  // accidentally overwritten with null on Save.
+  if (!props.personId) {
+    return <PersonEditDrawerBody {...props} source={null} />;
+  }
+  return <PersonEditProfileGate {...props} personId={props.personId} />;
+}
+
+function PersonEditProfileGate(props: PersonEditDrawerProps & { personId: string }) {
+  const fetched = trpc.task.personProfile.useQuery({ personId: props.personId });
+  const p = fetched.data?.person as FullPersonHydration | undefined;
+
+  if (fetched.isLoading) {
+    return (
+      <Dialog open onOpenChange={(nextOpen) => { if (!nextOpen) props.onClose(); }}>
+        <DialogContent
+          unstyled
+          showCloseButton={false}
+          overlayClassName="z-50 bg-black/50 backdrop-blur-sm"
+          className={PERSON_DIALOG_CLASS}
+        >
+          <div className="flex min-h-40 items-center justify-center gap-2 px-4 text-sm text-[var(--text-secondary)]">
+            <Loader2 size={16} className="animate-spin text-[var(--gold)]" />
+            Loading full profile…
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (fetched.isError || !p) {
+    return (
+      <Dialog open onOpenChange={(nextOpen) => { if (!nextOpen) props.onClose(); }}>
+        <DialogContent
+          unstyled
+          showCloseButton={false}
+          overlayClassName="z-50 bg-black/50 backdrop-blur-sm"
+          className={PERSON_DIALOG_CLASS}
+        >
+          <div className="space-y-3 p-4">
+            <DialogTitle className="text-sm font-bold text-[var(--text-primary)]">
+              Full profile unavailable
+            </DialogTitle>
+            <p className="text-xs leading-5 text-[var(--text-secondary)]">
+              Editing is paused so missing birthday, anniversary, cadence, phone, or email values cannot be overwritten by a partial snapshot.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={props.onClose}
+                className="min-h-11 px-3 text-xs text-[var(--text-secondary)]"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => void fetched.refetch()}
+                className="min-h-11 rounded-md border border-[var(--gold)]/40 bg-[var(--gold)]/10 px-3 text-xs font-medium text-[var(--gold)]"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  const mergedInitial = props.initial
+    ? {
+        ...props.initial,
+        birthday: p.birthday ?? props.initial.birthday,
+        anniversary: p.anniversary ?? props.initial.anniversary,
+        cadenceDays: p.cadenceDays ?? props.initial.cadenceDays,
+        leverageNotes: p.leverageNotes ?? props.initial.leverageNotes,
+        phone: p.phone ?? props.initial.phone,
+        email: p.email ?? props.initial.email,
+      }
+    : props.initial;
+
+  return (
+    <PersonEditDrawerBody
+      {...props}
+      initial={mergedInitial}
+      source={p.source ?? null}
+    />
+  );
 }
 
 function PersonEditDrawerBody({
@@ -70,7 +167,8 @@ function PersonEditDrawerBody({
   personId,
   initial,
   onSaved,
-}: PersonEditDrawerProps) {
+  source,
+}: PersonEditDrawerProps & { source?: string | null }) {
   const isCreate = personId === null;
   const [name, setName] = useState(() => initial?.name ?? "");
   const [role, setRole] = useState(() => initial?.role ?? "acquaintance");
@@ -96,63 +194,10 @@ function PersonEditDrawerBody({
   const updateMutation = trpc.task.updatePerson.useMutation();
   const softDeleteMutation = trpc.task.softDeletePerson.useMutation();
 
-  // Wave BA · 2026-05-28 · operator-reported data-loss bug: "i entered
-  // my wifes b day and our anniv 2 or 3 times clicked saved and it
-  // never saved". Root cause: /api/people doesn't return birthday /
-  // anniversary / cadenceDays · the page builds `initial` with these
-  // forced to null. Operator opens drawer, types value, clicks save,
-  // server DOES persist · but next open shows empty again because the
-  // page's `initial` is still null. They think it failed and re-type.
-  //
-  // Fix: in edit mode, fetch the FULL PersonProfile via the existing
-  // personProfile query and hydrate the form fields ONCE on arrival.
-  // Hydrate ref prevents overwriting values the operator is typing in
-  // the rare race where they start typing before the fetch lands.
-  const fetched = trpc.task.personProfile.useQuery(
-    { personId: personId ?? "" },
-    { enabled: !!personId },
-  );
-  const hydratedRef = useRef(false);
-  useEffect(() => {
-    if (hydratedRef.current) return;
-    const p = fetched.data?.person as
-      | {
-          birthday?: string | null;
-          anniversary?: string | null;
-          cadenceDays?: number | null;
-          leverageNotes?: string | null;
-          phone?: string | null;
-          email?: string | null;
-          source?: string | null;
-        }
-      | undefined;
-    if (!p) return;
-    hydratedRef.current = true;
-    if (p.birthday) setBirthday(p.birthday);
-    if (p.anniversary) setAnniversary(p.anniversary);
-    if (p.cadenceDays != null) setCadenceDays(String(p.cadenceDays));
-    // Also hydrate leverageNotes · the /api/people row may truncate or
-    // miss it depending on the cached snapshot.
-    if (p.leverageNotes) setLeverageNotes(p.leverageNotes);
-    if (p.phone) setPhone(p.phone);
-    if (p.email) setEmail(p.email);
-  }, [fetched.data]);
-
   const submitting =
     createMutation.isPending ||
     updateMutation.isPending ||
     softDeleteMutation.isPending;
-
-  // Esc close · wave-AB.b-audit · the body only mounts when open=true
-  // (the outer PersonEditDrawer wrapper short-circuits null on open=false)
-  // so no `open` dep is needed · effect runs once per mount.
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && !submitting) onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, submitting]);
 
   const handleSave = useCallback(async () => {
     const trimmedName = name.trim();
@@ -248,29 +293,26 @@ function PersonEditDrawerBody({
   }, [personId, confirmingDelete, initial, softDeleteMutation, onSaved, onClose]);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end lg:items-center justify-center bg-black/50 backdrop-blur-sm"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label={isCreate ? "add person" : "edit person"}
+    <Dialog
+      open
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && !submitting) onClose();
+      }}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className={cn(
-          "w-full lg:max-w-lg bg-[var(--bg-base)] border-t lg:border border-[var(--gold)]/30 rounded-t-2xl lg:rounded-2xl",
-          "shadow-[0_-20px_60px_rgba(0,0,0,0.5),0_0_40px_rgba(253,185,19,0.1)]",
-          "max-h-[90vh] overflow-y-auto pb-[env(safe-area-inset-bottom,0px)]",
-        )}
+      <DialogContent
+        unstyled
+        showCloseButton={false}
+        overlayClassName="z-50 bg-black/50 backdrop-blur-sm"
+        className={PERSON_DIALOG_CLASS}
       >
         <header className="sticky top-0 z-10 bg-[var(--bg-base)] flex items-center gap-2 border-b border-[var(--border-default)] px-4 py-3">
           <div className="flex-1 min-w-0">
             <p className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/80">
               {isCreate ? "add person" : "edit person"}
             </p>
-            <h2 className="text-[14px] font-bold text-[var(--text-primary)] truncate mt-0.5">
+            <DialogTitle className="mt-0.5 truncate text-[14px] font-bold text-[var(--text-primary)]">
               {isCreate ? "new profile" : initial?.name ?? "edit"}
-            </h2>
+            </DialogTitle>
           </div>
           <button
             type="button"
@@ -378,9 +420,9 @@ function PersonEditDrawerBody({
           </Field>
         </div>
 
-        {!isCreate && (fetched.data?.person as { source?: string | null } | undefined)?.source && (
+        {!isCreate && source && (
           <p className="px-4 text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
-            origin · {String((fetched.data as { person: { source: string } }).person.source)}
+            origin · {source}
           </p>
         )}
 
@@ -419,7 +461,7 @@ function PersonEditDrawerBody({
             onClick={handleSave}
             disabled={submitting || !name.trim()}
             className={cn(
-              "inline-flex items-center gap-2 rounded-md border border-[var(--gold)]/50 bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/15 px-3 py-2 text-[12px] font-medium",
+              "inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--gold)]/50 bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/15 px-3 py-2 text-[12px] font-medium",
               "disabled:opacity-50 transition-colors",
             )}
           >
@@ -427,8 +469,8 @@ function PersonEditDrawerBody({
             {isCreate ? "create" : "save"}
           </button>
         </footer>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

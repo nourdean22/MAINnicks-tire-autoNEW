@@ -270,7 +270,7 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
               onClick={() => handleSeed(s.seedPrompt, { kind: s.kind, id: s.id })}
               aria-label={`${s.label} · tap to ${s.actionHint ?? "ask"}`}
               title={s.seedPrompt}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[32px] focus:outline-none"
+              className="inline-flex min-h-11 items-center gap-1.5 px-3 py-1.5 focus:outline-none sm:min-h-8"
             >
               <Icon
                 size={11}
@@ -299,7 +299,7 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
               }}
               aria-label={`Dismiss · ${s.label}`}
               title="Dismiss · captured as supervised signal"
-              className="inline-flex items-center justify-center px-1.5 py-1.5 min-h-[32px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] focus:outline-none"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center px-1.5 py-1.5 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] focus:outline-none sm:min-h-8 sm:min-w-8"
             >
               <X size={10} className="shrink-0" />
             </button>
@@ -315,7 +315,7 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
           className={cn(
             "inline-flex items-center gap-1 rounded-full border border-[var(--border-default)]/60",
             "bg-transparent hover:border-[var(--gold)]/30 hover:bg-[var(--gold)]/[0.04]",
-            "px-2 py-1 min-h-[32px] transition-colors shrink-0",
+            "min-h-11 px-2 py-1 transition-colors shrink-0 sm:min-h-8",
             "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]",
           )}
         >

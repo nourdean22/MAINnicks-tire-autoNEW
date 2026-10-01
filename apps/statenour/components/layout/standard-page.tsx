@@ -34,7 +34,7 @@
  * signal the page is doing too much · split or consolidate per the
  * elon 5-step (question · delete · simplify · accelerate · automate).
  */
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { PageHeader } from "@/components/layout/ui";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
@@ -59,23 +59,30 @@ function autoDetectParent(pathname: string | null): { href: string; label: strin
   return null;
 }
 
-const WIDTH_CLASS: Record<"md" | "lg" | "xl" | "2xl" | "3xl", string> = {
+const WIDTH_CLASS: Record<"sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "workspace", string> = {
+  sm: "max-w-2xl",   // 672px · fixture galleries / narrow diagnostic reads
   md: "max-w-3xl",   // 768px · telemetry / single-column reads (default)
   lg: "max-w-4xl",   // 896px · slim canvas (e.g. /system/power)
   xl: "max-w-5xl",   // 1024px · tabbed surfaces (e.g. /system/coverage)
   "2xl": "max-w-6xl", // 1152px · data-dense crons / tools / costs
   "3xl": "max-w-7xl", // 1280px · widest tables (/content/history, /system/costs)
+  workspace: "max-w-5xl xl:max-w-[1400px]", // execution deck · narrow until XL, then 1400px
 };
 
-const RHYTHM_CLASS: Record<"compact" | "comfortable" | "loose", string> = {
+const RHYTHM_CLASS: Record<"compact" | "comfortable" | "loose" | "workspace", string> = {
   compact: "space-y-3",      // default · tight rhythm
   comfortable: "space-y-4",  // wider pages with denser sections
   loose: "space-y-5",        // breathing room for 5-6 panel dashboards
+  workspace: "space-y-8",    // execution / operator workspaces
+};
+
+type DataAttributes = {
+  [key: `data-${string}`]: string | number | boolean | undefined;
 };
 
 interface StandardPageProps {
   /** Tiny breadcrumb-style label above the title. e.g. "System / observability". */
-  eyebrow: string;
+  eyebrow: ReactNode;
   /** Display-typography title. Goes through Barlow Condensed via PageHeader's h1. */
   title: string;
   /** One-line description. ReactNode (v-truth) so adopters can carry
@@ -107,7 +114,7 @@ interface StandardPageProps {
    * Page body. Aim for max ~5 top-level sections per the operator-
    * grade DFII rhythm. More than that = the page is doing too much.
    */
-  children: ReactNode;
+  children?: ReactNode;
   /** Outer className for size overrides · rare. */
   className?: string;
   /**
@@ -126,6 +133,10 @@ interface StandardPageProps {
    * is the canonical loading-state slot reserved in the header notes.
    */
   loading?: boolean;
+  /** Hide page chrome for focused modes while preserving the canonical body shell. */
+  showHeader?: boolean;
+  /** Root attributes/events for deliberate workspace behavior (pull-refresh, data flags). */
+  rootProps?: Omit<HTMLAttributes<HTMLDivElement>, "className" | "children"> & DataAttributes;
 }
 
 export function StandardPage({
@@ -140,6 +151,8 @@ export function StandardPage({
   className,
   parent,
   loading = false,
+  showHeader = true,
+  rootProps,
 }: StandardPageProps) {
   const pathname = usePathname();
   // Resolve the effective parent · explicit override > auto-detect.
@@ -149,25 +162,27 @@ export function StandardPage({
     parent === undefined ? autoDetectParent(pathname) : parent;
   return (
     <div
+      {...rootProps}
       className={cn(
         "page-fade-in",
         RHYTHM_CLASS[rhythm],
         WIDTH_CLASS[width],
-        // Wider widths auto-center · "md" preserves the v10.0.303
-        // left-aligned-within-.feed behavior used by tire-stock-requests
-        // / lens-stats / vapi-calls.
+        // Narrow fixture pages and wider data pages auto-center; "md"
+        // preserves the v10.0.303 left-aligned-within-.feed behavior.
         width !== "md" && "mx-auto",
         className,
       )}
     >
-      <PageHeader
-        eyebrow={eyebrow}
-        title={title}
-        description={description ?? ""}
-        actions={actions}
-        parentHref={effectiveParent?.href}
-        parentLabel={effectiveParent?.label}
-      />
+      {showHeader ? (
+        <PageHeader
+          eyebrow={eyebrow}
+          title={title}
+          description={description ?? ""}
+          actions={actions}
+          parentHref={effectiveParent?.href}
+          parentLabel={effectiveParent?.label}
+        />
+      ) : null}
       {loading ? (
         <PageSkeleton />
       ) : (

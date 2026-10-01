@@ -85,38 +85,31 @@ export function QualityBar({ payload, onRegen }: Props) {
 
   return (
     <div className={cn("mt-1.5 rounded-md border px-2 py-1", toneClass)}>
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center gap-1.5 text-left"
-        title="Tap to toggle diagnostic detail"
-      >
-        <Icon size={10} />
-        <span className="text-[9px] font-mono uppercase tracking-wider">
-          {label}
-          {overall < 100 ? ` · critic ${overall}` : ""}
-        </span>
+      <div className="flex items-stretch gap-1">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          className="flex min-h-11 flex-1 items-center gap-1.5 text-left sm:min-h-8"
+          title="Tap to toggle diagnostic detail"
+        >
+          <Icon size={10} />
+          <span className="text-[9px] font-mono uppercase tracking-wider">
+            {label}
+            {overall < 100 ? ` · critic ${overall}` : ""}
+          </span>
+        </button>
         {onRegen && shouldRegen && !receiptIssue && (
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation();
-              onRegen();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                e.stopPropagation();
-                onRegen();
-              }
-            }}
-            className="ml-auto inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider border border-current/30 rounded px-1.5 py-0.5 hover:bg-current/10 cursor-pointer"
+          <button
+            type="button"
+            onClick={onRegen}
+            className="inline-flex min-h-11 items-center gap-1 rounded border border-current/30 px-2 text-[9px] font-bold uppercase tracking-wider hover:bg-current/10 sm:min-h-8"
           >
             <RotateCcw size={9} />
             regen
-          </span>
+          </button>
         )}
-      </button>
+      </div>
 
       {expanded && (
         <div className="mt-1 text-[9px] font-mono leading-[1.4] opacity-80 space-y-0.5">

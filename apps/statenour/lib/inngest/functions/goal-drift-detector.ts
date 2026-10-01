@@ -136,7 +136,7 @@ async function persistFlags(flagged: DriftFlag[]): Promise<void> {
         priority: f.verdict.priority,
         title: titleFor(f),
         body: bodyFor(f),
-        deepLink: `/stats#goal-${encodeURIComponent(f.goalId)}`,
+        deepLink: `/stats?tab=goals#goal-${encodeURIComponent(f.goalId)}`,
         surfaces: ["goals"],
         extra: {
           goalTitle: f.goalTitle,

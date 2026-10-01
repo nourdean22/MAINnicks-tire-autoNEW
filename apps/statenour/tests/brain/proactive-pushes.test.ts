@@ -258,7 +258,7 @@ describe("Proactive Pushes Dry-Run Logic", () => {
       expect(src.summary).toContain("7.5h sleep");
       expect(src.summary).toContain("energy 8/10");
       expect(src.confidence).toBe("high");
-      expect(src.href).toBe("/stats#body");
+      expect(src.href).toBe("/stats?tab=body");
       expect(src.id).toBe("42");
       expect(src.summary.length).toBeLessThan(150);
     });

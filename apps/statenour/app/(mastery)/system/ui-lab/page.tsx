@@ -18,7 +18,7 @@
  */
 
 import { useState } from "react";
-import { PageHeader } from "@/components/layout/ui";
+import { StandardPage } from "@/components/layout/standard-page";
 import { Panel } from "@/components/panel";
 import { InspectorFrame, type InspectorMode } from "@/components/inspector/inspector-frame";
 import { InspectorNotice } from "@/components/inspector/inspector-notice";
@@ -120,12 +120,14 @@ export default function UiLabPage() {
   const { openInspector } = useInspector();
 
   return (
-    <div className="px-4 pb-[var(--bottom-chrome-h)] max-w-2xl mx-auto space-y-4">
-      <PageHeader
-        eyebrow="SYSTEM"
-        title="UI Lab"
-        description="The object grammar's primitives against fixtures — real components, frozen clock, nothing mocked"
-      />
+    <StandardPage
+      eyebrow="System"
+      title="UI Lab"
+      description="The object grammar's primitives against fixtures — real components, frozen clock, nothing mocked."
+      width="sm"
+      rhythm="comfortable"
+      className="px-4 pb-[var(--bottom-chrome-h)]"
+    >
 
       <Panel>
         <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-fg-secondary/70">
@@ -279,6 +281,6 @@ export default function UiLabPage() {
           <FixtureMemoryBody />
         </InspectorFrame>
       )}
-    </div>
+    </StandardPage>
   );
 }

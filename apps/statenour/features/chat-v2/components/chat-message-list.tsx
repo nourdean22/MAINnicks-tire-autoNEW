@@ -267,7 +267,7 @@ function ToolReceiptSummary({ message, traceId }: { message: UIMessage; traceId?
       {traceId && (
         <Link
           href={`/system/cockpit-observability?search=${encodeURIComponent(traceId)}`}
-          className="ml-auto inline-flex min-h-8 items-center gap-1 rounded-md px-2 font-medium text-gold hover:bg-gold/10"
+          className="ml-auto inline-flex min-h-11 items-center gap-1 rounded-md px-2 font-medium text-gold hover:bg-gold/10 sm:min-h-8"
         >
           View trace <ExternalLink size={11} />
         </Link>
@@ -287,7 +287,7 @@ function InterruptedTurnCard({ message, onRetry }: { message: UIMessage; onRetry
           <span className="text-[13px] font-semibold">Response interrupted</span>
         </div>
         <p className="mt-1 text-[11px] text-red-300/60">{partialText ? "The reply was cut off." : "This turn failed before any reply."}</p>
-        {onRetry && <button onClick={onRetry} className="mt-3 rounded-lg bg-red-500/15 px-5 py-2 text-[12px] font-semibold text-red-300">Retry</button>}
+        {onRetry && <button onClick={onRetry} className="mt-3 min-h-11 rounded-lg bg-red-500/15 px-5 py-2 text-[12px] font-semibold text-red-300">Retry</button>}
       </div>
     </div>
   );
@@ -307,8 +307,8 @@ export function ChatMessageList({
   isLoading,
   isLoadingConvo,
   error,
-  liveContextBlocksRef,
-  lastTraceIdRef,
+  liveContextBlocks,
+  lastTraceId,
   onRetry,
   onCommand,
   tts,
@@ -317,8 +317,8 @@ export function ChatMessageList({
   isLoading: boolean;
   isLoadingConvo?: boolean;
   error: Error | undefined;
-  liveContextBlocksRef?: React.RefObject<any>;
-  lastTraceIdRef?: React.RefObject<string | null>;
+  liveContextBlocks?: Parameters<typeof extractContextBlocks>[1];
+  lastTraceId?: string | null;
   onRetry?: () => void;
   onCommand?: (prompt: string) => void;
   tts?: TtsApi;
@@ -434,13 +434,13 @@ export function ChatMessageList({
           <div className="mb-3 flex items-center gap-2 text-gold">
             <CheckCircle2 size={15} />
             <h3 className="text-[12px] font-bold uppercase tracking-wider">Independent chat diagnostic</h3>
-            <button onClick={() => setDiagnosticReport(null)} className="ml-auto text-[11px] text-fg-tertiary hover:text-fg">Dismiss</button>
+            <button onClick={() => setDiagnosticReport(null)} className="ml-auto min-h-11 px-2 text-[11px] text-fg-tertiary hover:text-fg sm:min-h-8">Dismiss</button>
           </div>
           <NickMessage text={diagnosticReport} streaming={false} messageId="chat-diagnostic" />
         </section>
       )}
 
-      {hasHidden && <button onClick={showOlder} className="mx-auto rounded-full border border-edge bg-raised px-4 py-1.5 text-xs text-fg-secondary">Show {hiddenCount} older messages</button>}
+      {hasHidden && <button onClick={showOlder} className="mx-auto min-h-11 rounded-full border border-edge bg-raised px-4 py-1.5 text-xs text-fg-secondary sm:min-h-8">Show {hiddenCount} older messages</button>}
 
       {renderedMessages.map((message, messageIndex) => {
         if (isErroredAssistantTurn(message)) return <InterruptedTurnCard key={message.id} message={message} onRetry={onRetry} />;
@@ -466,7 +466,7 @@ export function ChatMessageList({
                     // The composer shows a visible editing banner w/ cancel.
                     return <UserMessageBubble key={`${message.id}-${index}`} text={part.text} onClick={() => { setDraft(part.text); setEditingMessageId(message.id); }} onLongPress={() => setActionSheetMsg({ id: message.id, role: "user", text: part.text })} />;
                   }
-                  const contextBlocks = extractContextBlocks(message, liveContextBlocksRef?.current || null);
+                  const contextBlocks = extractContextBlocks(message, liveContextBlocks ?? null);
                   const quality = extractQuality(message);
                   const citations = extractCitations(message);
                   const reasoningSteps = ((message.parts as any[]) || []).filter((item) => item?.type === "data-reasoningStep").map((item) => item.data);
@@ -483,8 +483,8 @@ export function ChatMessageList({
                             "4:12" would flicker a control that then moves. */}
                         {!(isLoading && isLatestAssistant) && <MediaTimestampBar text={part.text} />}
                       </AssistantMessageShell>
-                      {isTruncatedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300"><AlertTriangle size={12} /> Response cut off — regenerate</button>}
-                      {isRefusedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300"><AlertTriangle size={12} /> Model refused — retry may route differently</button>}
+                      {isTruncatedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-md border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300 sm:min-h-8"><AlertTriangle size={12} /> Response cut off — regenerate</button>}
+                      {isRefusedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-md border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300 sm:min-h-8"><AlertTriangle size={12} /> Model refused — retry may route differently</button>}
                     </div>
                   );
                 }
@@ -523,7 +523,7 @@ export function ChatMessageList({
                 }
                 return null;
               })}
-              {message.role === "assistant" && <ToolReceiptSummary message={message} traceId={isLatestAssistant ? lastTraceIdRef?.current : null} />}
+              {message.role === "assistant" && <ToolReceiptSummary message={message} traceId={isLatestAssistant ? lastTraceId ?? null : null} />}
               {message.role === "assistant" && <TypedToolCards message={message} />}
               {/* 2026-08-28 · always-visible actions. Suppressed on the
                   assistant turn that is still streaming: Copy would

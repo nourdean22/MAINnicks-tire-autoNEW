@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Panel } from "@/components/panel";
-import { PageHeader } from "@/components/layout/ui";
+import { StandardPage } from "@/components/layout/standard-page";
 import { toast } from "sonner";
 
 interface PushSourceItem {
@@ -110,7 +110,8 @@ export default function ProactivePreviewPage() {
   }, [slot, mockTime]);
 
   useEffect(() => {
-    void fetchPreviews();
+    const t = setTimeout(() => void fetchPreviews(), 0);
+    return () => clearTimeout(t);
   }, [fetchPreviews]);
 
   const toggleCheck = (id: string) => {
@@ -125,15 +126,14 @@ export default function ProactivePreviewPage() {
   const activePreviews = data?.previews ?? [];
 
   return (
-    <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
-      <div className="mx-auto max-w-5xl space-y-6 px-3 py-4 sm:px-4 sm:py-6">
-        <PageHeader
-          parentHref="/system"
-          parentLabel="system"
-          eyebrow="SYSTEM OS · COMMAND DECK"
-          title="Proactive Push Previews"
-          description="Inspect candidate proactive alerts, anticipated prompt slot previews, dedup status, and risk telemetry."
-          actions={
+    <StandardPage
+      eyebrow="System OS · Command Deck"
+      title="Proactive Push Previews"
+      description="Inspect candidate proactive alerts, anticipated prompt slot previews, dedup status, and risk telemetry."
+      width="xl"
+      rhythm="loose"
+      className="min-h-[100dvh] bg-[var(--bg-base)] px-3 py-4 text-white sm:px-4 sm:py-6"
+      actions={
             <div className="flex items-center gap-2">
               <button
                 onClick={() => void fetchPreviews()}
@@ -144,7 +144,7 @@ export default function ProactivePreviewPage() {
               </button>
             </div>
           }
-        />
+    >
 
         {/* Status Strip */}
         <Panel className="flex flex-col gap-4 border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02] p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -450,7 +450,6 @@ export default function ProactivePreviewPage() {
             </ul>
           </Panel>
         </div>
-      </div>
-    </main>
+    </StandardPage>
   );
 }

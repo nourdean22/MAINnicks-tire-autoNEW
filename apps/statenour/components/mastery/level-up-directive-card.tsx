@@ -128,7 +128,7 @@ export function LevelUpDirectiveCard() {
 
   const { stat } = directive;
   const showGoalAnchor =
-    directive.goal && directive.rep.href !== `/stats#goal-${directive.goal.id}`;
+    directive.goal && directive.rep.href !== `/stats?tab=goals#goal-${directive.goal.id}`;
 
   return (
     <section
@@ -194,7 +194,7 @@ export function LevelUpDirectiveCard() {
         </span>
         {showGoalAnchor ? (
           <a
-            href={`/stats#goal-${directive.goal!.id}`}
+            href={`/stats?tab=goals#goal-${directive.goal!.id}`}
             className="shrink-0 max-w-[160px] truncate text-[10px] text-white/45 underline decoration-white/15 underline-offset-2 hover:text-white/75"
             title={directive.goal!.title}
           >

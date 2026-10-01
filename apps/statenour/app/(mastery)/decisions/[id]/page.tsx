@@ -22,13 +22,13 @@
  */
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 // misc-pages slice (2026-05-22) · the detail read + grade-save moved
 // off authedFetch onto trpc.operator.decisionDetail / gradeDecision.
 import { trpc } from "@/lib/trpc/client";
 import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
 import { Panel } from "@/components/panel";
-import { PageHeader } from "@/components/layout/ui";
+import { StandardPage } from "@/components/layout/standard-page";
 import { TrendCounter } from "@/components/ui/trend-counter";
 import { DecisionSpread } from "@/components/ui/decision-spread";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/comparison-matrix";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ChevronLeft, AlertCircle, BookOpen } from "lucide-react";
+import { AlertCircle, BookOpen } from "lucide-react";
 
 interface Decision {
   id: number;
@@ -106,7 +106,6 @@ function gradeTone(grade: string | null): "emerald" | "gold" | "amber" | "rose" 
 
 export default function DecisionDetailPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const id = params?.id;
   const numericId = Number(id);
   const idValid = Number.isInteger(numericId) && numericId > 0;
@@ -131,15 +130,6 @@ export default function DecisionDetailPage() {
   const fetchedAt = detailQuery.dataUpdatedAt
     ? new Date(detailQuery.dataUpdatedAt).toISOString()
     : null;
-
-  // Seed the edit form whenever fresh decision data lands (the legacy
-  // load() seeded these inside its .then()).
-  useEffect(() => {
-    if (!data) return;
-    setEditOutcome(data.decision.actualOutcome ?? "");
-    setEditGrade(data.decision.grade ?? "");
-    setEditReviewDate(data.decision.reviewDate ?? "");
-  }, [data]);
 
   // v10.0.529.89 · Wave 33 · split-pane refresh · when Nick grades or
   // reviews this decision via chat (reviewDecisionReplay tool fires
@@ -179,25 +169,38 @@ export default function DecisionDetailPage() {
 
   if (loading && !data) {
     return (
-      <div className="mx-auto max-w-5xl px-3 py-6">
-        <p className="text-[11px] text-[var(--text-tertiary)]">loading decision…</p>
-      </div>
+      <StandardPage
+        eyebrow="Journal · Decision"
+        title="Decision"
+        description="Loading decision evidence and outcome history."
+        width="xl"
+        className="px-3 py-6 sm:px-4"
+        parent={{ href: "/journal", label: "journal" }}
+        loading
+      />
     );
   }
 
   if (error && !data) {
     return (
-      <div className="mx-auto max-w-5xl px-3 py-6">
+      <StandardPage
+        eyebrow="Journal · Decision"
+        title="Decision"
+        description="Decision evidence and outcome history."
+        width="xl"
+        className="px-3 py-6 sm:px-4"
+        parent={{ href: "/journal", label: "journal" }}
+      >
         <Panel className="border-rose-500/30 bg-rose-500/[0.04]">
           <div className="flex items-start gap-3 p-3">
-            <AlertCircle size={14} className="text-rose-300/80 mt-0.5" />
+            <AlertCircle size={14} className="mt-0.5 text-rose-300/80" />
             <div>
               <p className="text-[12px] font-bold text-rose-300">load failed</p>
-              <p className="text-[10px] text-rose-300/70 mt-0.5 font-mono">{error}</p>
+              <p className="mt-0.5 font-mono text-[10px] text-rose-300/70">{error}</p>
             </div>
           </div>
         </Panel>
-      </div>
+      </StandardPage>
     );
   }
 
@@ -205,6 +208,12 @@ export default function DecisionDetailPage() {
 
   const { decision: d, lineage, timeline } = data;
   const tone = gradeTone(d.grade);
+  // Use the query's fetch timestamp as the deterministic "now" for this
+  // render. Falling back to the persisted row timestamp keeps SSR/render
+  // pure instead of calling Date.now() while React is rendering.
+  const referenceNowMs = fetchedAt
+    ? new Date(fetchedAt).getTime()
+    : new Date(d.updatedAt).getTime();
 
   // Avg sibling grade — surface the domain trend so the operator
   // sees "this domain has been at C+ on average; this F is an outlier."
@@ -234,11 +243,11 @@ export default function DecisionDetailPage() {
     ...lineage.siblings.map((s) => {
       const ageDays = Math.max(
         0,
-        Math.round((Date.now() - new Date(s.date).getTime()) / 86_400_000),
+        Math.round((referenceNowMs - new Date(s.date).getTime()) / 86_400_000),
       );
       const reviewDueDays = s.reviewDate
         ? Math.round(
-            (new Date(s.reviewDate).getTime() - Date.now()) / 86_400_000,
+            (new Date(s.reviewDate).getTime() - referenceNowMs) / 86_400_000,
           )
         : null;
       return {
@@ -292,43 +301,37 @@ export default function DecisionDetailPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5 px-3 py-4 sm:px-4 sm:py-6">
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => router.push("/system/decision-drift")}
-          className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--gold)] transition-colors"
-        >
-          <ChevronLeft size={11} /> decision-drift
-        </button>
-      </div>
-
-      <PageHeader
-        eyebrow={
-          <span className="inline-flex items-center gap-2">
-            <span>decision · {d.date}</span>
-            {d.domain && (
-              <span className="font-mono tracking-[0.18em] opacity-80">
-                {d.domain.slice(0, 4).toUpperCase()}
-              </span>
-            )}
-            {d.stakes && (
-              <span className="rounded border border-[var(--gold)]/30 bg-[var(--gold)]/[0.05] px-1.5 py-0.5 text-[8px] uppercase tracking-wider text-[var(--gold)]/90 normal-case">
-                {d.stakes} stakes
-              </span>
-            )}
-          </span>
-        }
-        title={d.title}
-        description={
-          timeline.isReviewed
-            ? `reviewed · grade ${d.grade ?? "—"} · logged ${timeline.ageDays}d ago`
-            : timeline.isOverdue
-              ? `overdue review · ${Math.abs(timeline.reviewDueDays!)}d past due`
-              : timeline.reviewDueDays !== null
-                ? `review in ${timeline.reviewDueDays}d`
-                : `unreviewed · logged ${timeline.ageDays}d ago`
-        }
-        actions={
+    <StandardPage
+      eyebrow={
+        <span className="inline-flex items-center gap-2">
+          <span>Journal · decision · {d.date}</span>
+          {d.domain && (
+            <span className="font-mono tracking-[0.18em] opacity-80">
+              {d.domain.slice(0, 4).toUpperCase()}
+            </span>
+          )}
+          {d.stakes && (
+            <span className="rounded border border-[var(--gold)]/30 bg-[var(--gold)]/[0.05] px-1.5 py-0.5 text-[8px] uppercase tracking-wider text-[var(--gold)]/90 normal-case">
+              {d.stakes} stakes
+            </span>
+          )}
+        </span>
+      }
+      title={d.title}
+      description={
+        timeline.isReviewed
+          ? `reviewed · grade ${d.grade ?? "—"} · logged ${timeline.ageDays}d ago`
+          : timeline.isOverdue
+            ? `overdue review · ${Math.abs(timeline.reviewDueDays!)}d past due`
+            : timeline.reviewDueDays !== null
+              ? `review in ${timeline.reviewDueDays}d`
+              : `unreviewed · logged ${timeline.ageDays}d ago`
+      }
+      width="xl"
+      rhythm="loose"
+      className="px-3 py-4 sm:px-4 sm:py-6"
+      parent={{ href: "/journal", label: "journal" }}
+      actions={
           <div className="flex items-center gap-2">
             <FreshnessChip
               lastFetchedAt={fetchedAt}
@@ -336,7 +339,16 @@ export default function DecisionDetailPage() {
               onReload={() => void detailQuery.refetch()}
             />
             <button
-              onClick={() => setEditing((v) => !v)}
+              onClick={() => {
+                if (editing) {
+                  setEditing(false);
+                  return;
+                }
+                setEditOutcome(d.actualOutcome ?? "");
+                setEditGrade(d.grade ?? "");
+                setEditReviewDate(d.reviewDate ?? "");
+                setEditing(true);
+              }}
               className={cn(
                 "rounded-lg border px-3 py-1.5 text-[11px] font-medium transition",
                 editing
@@ -348,7 +360,7 @@ export default function DecisionDetailPage() {
             </button>
           </div>
         }
-      />
+    >
 
       {/* ── Timeline TrendCounter row ───────────────────────────── */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -627,6 +639,6 @@ export default function DecisionDetailPage() {
           )}
         </div>
       </Panel>
-    </div>
+    </StandardPage>
   );
 }

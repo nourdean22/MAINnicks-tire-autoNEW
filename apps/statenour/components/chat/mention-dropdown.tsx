@@ -32,7 +32,7 @@ export function MentionDropdown({
           <button
             key={m.key}
             onClick={() => onPick(m)}
-            className="w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-[var(--gold-ghost)] transition-colors"
+            className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-[var(--gold-ghost)]"
           >
             <span className="text-base">{m.icon}</span>
             <div className="flex-1 min-w-0">
