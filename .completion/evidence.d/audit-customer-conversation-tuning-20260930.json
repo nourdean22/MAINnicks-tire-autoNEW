@@ -2,6 +2,9 @@
   "evidence": {
     "capability-ledger-updated": {
       "ref": "apps/nickstire/docs/operations/capability-ledger.json: customer-conversation-tuning-20261001 records PR #2839 SMS/voice customer-corpus tuning, focused tests, and the truthful unit_verified pre-production state."
+    },
+    "cron-fail-closed": {
+      "ref": "apps/nickstire/server/vapi.customer-corpus-tuning.test.ts pins prompt-evolution-weekly's explicit 30-minute timeout budget; existing server/__tests__/cronNoSwallowedFailure.test.ts + server/cron/jobs/cronRethrow2026.test.ts remain the fail-closed contract. This diff changes only the per-job budget, not timeout failure propagation or lock-hold behavior."
     }
   }
 }
