@@ -5,6 +5,11 @@ const path = require("path");
 
 const HOST = "127.0.0.1";
 const PORT = 11436;
+// Browser-origin guard (audit fix for #2828). Any page Nour visits can send a
+// no-preflight POST to 127.0.0.1; a present, non-loopback Origin is refused. A
+// request with no Origin (OpenWebUI server-side, the worker, curl) is allowed.
+const LOOPBACK_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/i;
+const MAX_RESEARCH_IN_FLIGHT = 1;
 const BACKEND_HOST = "127.0.0.1";
 const BACKEND_PORT = 11435;
 const MAX_BODY = 20 * 1024 * 1024;
@@ -73,6 +78,7 @@ let kernelCache = { mtimeMs: -1, text: "" };
 let queueTail = Promise.resolve();
 let queueDepth = 0;
 let backendStartPromise = null;
+let researchInFlight = 0;
 
 function log(message) {
   const line = new Date().toISOString() + " " + message + "\n";
@@ -251,6 +257,17 @@ function enqueue(task) {
   const run = queueTail.then(task, task);
   queueTail = run.catch(() => {}).finally(() => { queueDepth--; });
   return run;
+}
+function originAllowed(origin) {
+  if (origin === undefined) return true;
+  return LOOPBACK_ORIGIN.test(String(origin));
+}
+function isJsonContentType(contentType) {
+  return String(contentType || "").split(";")[0].trim().toLowerCase() === "application/json";
+}
+function sendJsonError(res, status, message, type) {
+  res.writeHead(status, { "content-type": "application/json" });
+  res.end(JSON.stringify({ error: { message, type } }));
 }
 function copyHeaders(src, dest) {
   for (const [k, v] of Object.entries(src)) {
@@ -543,7 +560,7 @@ async function serveUnifiedChat(req, res, body) {
   log(`unified start model=${requestedModel} promptChars=${prompt.length} routingChars=${routingPrompt.length} priorRoutingChars=${priorUserPrompt.length}`);
   try {
     await unloadLocalQwenForHeavyPrompt(prompt, routingPrompt);
-    const result = await runInteractiveAdapter({
+    const result = await gatewayDeps.runInteractiveAdapter({
       model: requestedModel,
       prompt,
       routingPrompt,
@@ -646,7 +663,17 @@ async function proxyDirect(req, res, body) {
     res.end(JSON.stringify({ error: String(err.message || err) }));
   }
 }
+const gatewayDeps = { runInteractiveAdapter };
 const server = http.createServer((req, res) => {
+  if (!originAllowed(req.headers.origin)) {
+    log(`blocked path=${req.url} reason=cross-origin origin=${String(req.headers.origin).slice(0, 120)}`);
+    return sendJsonError(res, 403, "Cross-origin requests are not allowed.", "nour_origin_forbidden");
+  }
+  if (req.method === "POST" && /^\/v1\//.test(req.url) && !isJsonContentType(req.headers["content-type"])) {
+    log(`blocked path=${req.url} reason=content-type value=${String(req.headers["content-type"] || "").slice(0, 80)}`);
+    return sendJsonError(res, 415, "POST /v1/* requires content-type application/json.", "nour_unsupported_media_type");
+  }
+
   if (req.method === "GET" && /^\/v1\/models(?:\?|$)/.test(req.url)) {
     mergedModels()
       .then(models => {
@@ -718,9 +745,17 @@ const server = http.createServer((req, res) => {
             res.end(JSON.stringify({ error: { message: "Nour intelligence kernel unavailable; refusing ungoverned chat inference.", type: "nour_kernel_unavailable" } }));
             return;
           }
+          const isResearch = String(parsed.model) === "nour-research";
+          if (isResearch && researchInFlight >= MAX_RESEARCH_IN_FLIGHT) {
+            log("blocked model=nour-research reason=research-busy");
+            return sendJsonError(res, 429, "A nour-research run is already in progress; retry when it finishes.", "nour_research_busy");
+          }
+          if (isResearch) researchInFlight++;
           serveUnifiedChat(req, res, body).catch(err => {
             if (!res.headersSent) res.writeHead(500, { "content-type": "application/json" });
             if (!res.writableEnded) res.end(JSON.stringify({ error: String(err && err.message ? err.message : err) }));
+          }).finally(() => {
+            if (isResearch) researchInFlight--;
           });
           return;
         }
@@ -745,6 +780,13 @@ server.on("clientError", (err, socket) => {
   try { socket.end("HTTP/1.1 400 Bad Request\r\n\r\n"); } catch {}
 });
 
-server.listen(PORT, HOST, () => {
-  log(`Nour AI Gateway listening on http://${HOST}:${PORT}`);
-});
+// The launcher lives on Nour's machine (not in this repo) and may wrap the script
+// (pm2 fork mode requires it), so listening stays the default; only the test
+// harness opts out with NOUR_GATEWAY_NO_LISTEN=1.
+if (process.env.NOUR_GATEWAY_NO_LISTEN !== "1") {
+  server.listen(PORT, HOST, () => {
+    log(`Nour AI Gateway listening on http://${HOST}:${PORT}`);
+  });
+}
+
+module.exports = { server, gatewayDeps, originAllowed, isJsonContentType };

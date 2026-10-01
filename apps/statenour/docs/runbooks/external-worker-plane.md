@@ -32,7 +32,9 @@ OpenWebUI is a local chat surface over that gateway. It is not the worker orches
 9. Quota exhaustion updates the lane heartbeat immediately; stale/unavailable lanes must not be selected as healthy.
 10. Worker communication is outbound HTTPS to bdnick.info using `RUNNER_SHARED_SECRET`; do not expose a public local-agent port.
 11. Research source truth comes from provider tool-result telemetry. URL-shaped text in a model answer is never promoted into the evidence ledger. Each round records WebSearch/WebFetch receipts, and a report cannot be `complete` unless at least one page was actually fetched.
-12. Research web content is untrusted data. Evidence prompts explicitly forbid treating page content as instructions, and research runs remain read-only even when the machine's separate durable-write gate is enabled.
+12. Research web content is untrusted data. Evidence prompts explicitly forbid treating page content as instructions, and research runs remain read-only even when the machine's separate durable-write gate is enabled. Page-derived memos reach the critic and synthesizer only inside `<research_data>` fences, and the critic's `gap` is reduced to a plain search query (no URLs, IPs, paths or control characters, max 200 chars) before it can steer a WebFetch round. The research CLI runs from a fresh empty temp directory, never the repo checkout. That temp directory uses `TemporaryDirectory(ignore_cleanup_errors=True)`, so the worker needs Python 3.10 or later (the installer pins 3.12).
+13. The local gateway (`127.0.0.1:11436`) refuses browser-originated calls: a present non-loopback `Origin` gets 403 (this blocks DNS-rebinding POSTs; a rebinding page can still read same-origin GETs such as `/v1/models` and `/health/lanes` until a `Host` allowlist lands), a `POST /v1/*` without `content-type: application/json` gets 415, and a second concurrent `nour-research` run gets 429. Server-side callers that send no `Origin` (OpenWebUI, the worker) are unaffected. There is no bearer token or `Host` allowlist yet.
+14. Lane subprocesses never inherit `RUNNER_SHARED_SECRET`; only the worker process itself uses it.
 
 ## Install / persistence
 
@@ -57,7 +59,7 @@ triggers, and zero `external_worker_agent.py` processes.
 
 ## Verification sequence
 
-1. **Local contract:** `python -m unittest local-agent\test_external_worker_agent.py local-agent\test_external_worker_installer.py`.
+1. **Local contract:** `python -m unittest local-agent\test_external_worker_agent.py local-agent\test_external_worker_installer.py local-agent\test_nour_local_gateway.py` (the gateway test needs `node` and stubs every lane).
 2. **Router oracle:** `pnpm eval:router-oracle` — AUTO/no-consent, paid-only fail-closed, MAX+consent, quota fallback, FREE, privacy boundary.
 3. **Lane probe:** confirm ChatGPT-plan/Codex/Claude/Antigravity/local-Qwen health reflects real auth/quota/policy, not merely binary presence.
 4. **Runner receipt:** start the task and verify a fresh RunnerNode heartbeat + lane metadata from `getExternalWorkerStatus`.
