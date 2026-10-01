@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { gatewayState } from "@/lib/gatewayState";
 import { deriveCronIssues } from "./cron-issues";
 
 export interface OpenIssue {
@@ -47,7 +48,12 @@ export function useSettingsStatus() {
     isFlagsError && "feature flags",
     isFunnelError && "traffic funnel",
     isAlgError && "auto-labor",
-    isSmsGwError && "SMS gateway health",
+    // Q-23 phase 10 · the vendor API not answering (readable:false) is this
+    // same check failing to run, not the phone being offline.
+    // Q-23 phase 12 · so is our own query failing. gatewayState keeps the
+    // cached read for display, but a failed refetch still means the check did
+    // not run this time, the same test as the 7 checks around it.
+    (isSmsGwError || gatewayState(smsGwHealth) === "unknown") && "SMS gateway health",
     isSmsStatusError && "SMS status",
     isVapiError && "voice (VAPI) status",
     isCronError && "cron health",
@@ -59,13 +65,17 @@ export function useSettingsStatus() {
 
     // RULE 1 · F25e gateway offline → alert
     const shopGwConfigured = smsStatus?.shopGateway?.configured ?? false;
-    const shopGwOnline = smsGwHealth?.online ?? false;
-    if (shopGwConfigured && !shopGwOnline) {
+    // Only a phone the vendor API reported as stale is offline. A failed read
+    // is listed in failedChecks above; alerting on it blamed the device.
+    const gwState = gatewayState(smsGwHealth);
+    if (shopGwConfigured && (gwState === "offline" || gwState === "not_configured")) {
       issues.push({
         key: "f25e-offline",
         severity: "alert",
         title: "F25e shop SMS gateway offline",
-        detail: "Customer-facing SMS via 216-862-0005 will fail until the gateway comes back. Sends fall through to Twilio (if Twilio is up).",
+        // server/sms.ts queues every text while a configured gateway is
+        // offline and never falls back to Twilio on that path.
+        detail: "Customer texts from 216-862-0005 wait in the queue until the gateway checks back in (after-hours auto-replies are dropped instead). None go out meanwhile.",
         whyText: "The F25e device on Verizon hasn't checked in to the Capevace cloud relay in the last 30 minutes. Check battery + Wi-Fi/LTE + that the SMS Gateway app is open and Cloud Server toggle is ON.",
         actionHref: "/admin?tab=outreach&outreachTab=sms",
         actionLabel: "Open SMS",
@@ -131,6 +141,8 @@ export function useSettingsStatus() {
     funnel,
     algStatus,
     smsGwHealth,
+    /** Q-23 phase 10 · online / offline / unknown / not_configured / checking. */
+    smsGwState: gatewayState(smsGwHealth, isSmsGwError),
     smsStatus,
     vapiStatus,
     cronHealth,

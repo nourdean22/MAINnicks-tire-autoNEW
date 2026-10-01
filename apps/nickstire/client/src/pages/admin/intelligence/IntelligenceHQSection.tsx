@@ -3,6 +3,8 @@ import { Brain, ShieldAlert, Target, Zap, Activity } from "lucide-react";
 import { TopMoneyMoves } from "../today/TopMoneyMoves";
 import { TodaysMoneyRisks } from "../today/TodaysMoneyRisks";
 import { TodaysRealNumbers } from "../today/TodaysRealNumbers";
+import { DataFreshness } from "../today/DataFreshness";
+import { LaneHealthStrip } from "../today/LaneHealthStrip";
 import { NextBestActions } from "../today/NextBestActions";
 import { AIHealthPanel } from "./AIHealthPanel";
 import { LlmSpendPanel } from "./LlmSpendPanel";
@@ -162,6 +164,12 @@ export default function IntelligenceHQSection() {
                   carry rows. The Money At Risk card below it reads `leads`
                   (2 rows in all of production) and stale callbacks. */}
               <TodaysRealNumbers />
+
+              {/* DATA FRESHNESS — Q-23 phase 9: how old the inputs above are. */}
+              <DataFreshness />
+
+              {/* CUSTOMER LANES — Q-23 phase 11: is each lane reaching customers. */}
+              <LaneHealthStrip />
 
               {/* MONEY RISKS */}
               <div className="stat-card !p-5 !border-red-500/20 bg-red-500/5">

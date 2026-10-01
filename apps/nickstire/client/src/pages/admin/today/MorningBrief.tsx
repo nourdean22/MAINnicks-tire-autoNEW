@@ -27,6 +27,7 @@
  */
 import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { gatewayState } from "@/lib/gatewayState";
 import { Phone, AlertTriangle, CheckCircle2 } from "lucide-react";
 
 
@@ -49,11 +50,12 @@ function greeting(): string {
 export function MorningBrief({ priorityQueueLength, urgentLeads }: MorningBriefProps) {
   // Existing queries that already render elsewhere · cheap to reuse
   const { data: dashStats } = trpc.adminDashboard.stats.useQuery(undefined, { staleTime: 60_000 });
-  const { data: smsGw } = trpc.sms.gatewayHealth.useQuery(undefined, { staleTime: 60_000 });
+  const { data: smsGw, isError: smsGwError } = trpc.sms.gatewayHealth.useQuery(undefined, { staleTime: 60_000 });
   const { data: callsData } = trpc.vapi.recentCalls.useQuery({ limit: 30 }, { staleTime: 120_000 });
 
   const lines = useMemo<{ icon: React.ReactNode; text: string; tone: "good" | "warn" | "info" }[]>(() => {
     const out: { icon: React.ReactNode; text: string; tone: "good" | "warn" | "info" }[] = [];
+    const gw = gatewayState(smsGw, smsGwError);
 
     // Line 1 · THIS WEEK'S CLOSE
     // adminDashboard.stats doesn't expose yesterday-specific numbers ·
@@ -76,17 +78,26 @@ export function MorningBrief({ priorityQueueLength, urgentLeads }: MorningBriefP
       if (booked > 0) parts.push(`${booked} booked`);
       if (lost > 0) parts.push(`${lost} lost`);
       if (escalated > 0) parts.push(`${escalated} escalated`);
-      // Three states, never two: `smsGw` UNDEFINED (query failed or still
-      // loading) used to print "F25e live" — fabricated gateway liveness in
-      // the one sentence the operator reads first every morning.
-      const gwState = smsGw?.online === false ? "F25e OFFLINE" : smsGw?.online === true ? "F25e live" : "F25e status unknown";
-      parts.push(gwState);
+      // Never two states: `smsGw` UNDEFINED (query failed or still loading)
+      // used to print "F25e live", fabricated gateway liveness in the one
+      // sentence the operator reads first every morning. And a vendor API
+      // failure (readable:false) is unknown, not the phone going OFFLINE.
+      // `online === true` stays explicit: server/adminTruth.test.ts pins it.
+      parts.push(gw === "online" && smsGw?.online === true ? "F25e live" : gw === "offline" ? "F25e OFFLINE" : gw === "not_configured" ? "F25e not configured" : "F25e status unknown");
       out.push({
         icon: <Phone className="w-3.5 h-3.5 text-blue-400" />,
         text: `Last 24h: ${parts.join(" · ")}`,
-        tone: smsGw?.online === false ? "warn" : "good",
+        tone: gw === "online" ? "good" : gw === "checking" ? "info" : "warn",
       });
-    } else if (smsGw?.online === false) {
+    } else if (gw === "unknown") {
+      // Quiet night + unreadable gateway: say so rather than read all-clear,
+      // and do not call the phone OFFLINE when nobody could ask it.
+      out.push({
+        icon: <Phone className="w-3.5 h-3.5 text-blue-400" />,
+        text: "Last 24h: no AI calls · F25e gateway status unknown — the status read failed",
+        tone: "warn",
+      });
+    } else if (gw === "offline" || gw === "not_configured") {
       // Quiet night + gateway down: the OFFLINE warning used to be gated
       // behind "there were calls", so the one morning the SMS gateway died
       // silently the brief read all-clear. Surface it on its own line —
@@ -117,7 +128,7 @@ export function MorningBrief({ priorityQueueLength, urgentLeads }: MorningBriefP
     }
 
     return out;
-  }, [dashStats, smsGw, callsData, priorityQueueLength, urgentLeads]);
+  }, [dashStats, smsGw, smsGwError, callsData, priorityQueueLength, urgentLeads]);
 
   return (
     <div className="bg-card border border-border/40 p-4 space-y-2.5">

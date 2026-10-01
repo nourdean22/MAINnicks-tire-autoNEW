@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "migration-evidence": {
+      "deferred": "Q-50 phase 2a: drizzle/0138_nhtsa_mfr_warranty.sql is additive and idempotent (two CREATE TABLE IF NOT EXISTS, no ALTER/DROP/DML), journaled at idx 151 right after 0137, and its column set is pinned against drizzle/schema.ts by server/nhtsaWarrantyMigration.test.ts (6 tests). This PR does NOT apply production DDL: applying 0138 is an operator-controlled production action after merge, through the scoped runner per prod-db-guard, verified by the read-only information_schema query in the file header. Until it is applied, a flag-ON ingest run skips with 'migration 0138_nhtsa_mfr_warranty not applied' and writes nothing."
+    },
+    "cron-fail-closed": {
+      "ref": "server/services/nhtsaWarrantyIngest.test.ts (23 tests): the nhtsa-warranty-ingest job does nothing while flag nhtsa_warranty_ingest is OFF (no download), skips naming the migration when 0138 is missing, and THROWS (scheduler records failed, never a quiet success) when no open-chunk name answers, on a CRC-32 or size mismatch, on >1% malformed rows, and on a zero-row chunk; each failing run writes no rows and keeps the old chunk reference. 16 of 16 mutants killed (e.g. removing the CRC check, the malformed ceiling, or the zero-row guard each turns a test red). The job contacts no customer and is placed last in the daily tier."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability state is promoted. Phase 2a adds a default-OFF ingest of NHTSA's public manufacturer-communications file into two new public-data tables; nothing reads or displays the rows until phase 2b ships the work-order panel block. Promotion needs operator receipts this PR cannot produce: migration 0138 applied, the event-loop measurement re-run on Railway (scripts/measure-nhtsa-ingest.ts; container max 37.1 ms against the 250 ms gate), the flag armed, and the first cron_log receipt read."
+    }
+  }
+}

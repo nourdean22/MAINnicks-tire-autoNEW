@@ -40,6 +40,21 @@ const base: OwnerPanelInput = {
   actionAttempts: [],
   spend: { costCents: 500, calls: 10, unpricedCalls: 0 },
   tasksDone: 0,
+  valueAttribution: {
+    measurementState: "UNMEASURED",
+    matchedRefs: 0,
+    matchedMeasuredCostCents: 0,
+    matchedMeasuredRecoveredRevenueCents: 0,
+    measuredRecoveredOutcomes: 0,
+    costPerRecoveredOutcomeCents: null,
+    recoveredRevenuePerSendCostDollar: null,
+    estimatedSendCostCents: 0,
+    estimatedRecoveredRevenueCents: 0,
+    reasons: [
+      "no measured SMS/voice cost observations",
+      "no measured holdout-adjusted recovered revenue observations",
+    ],
+  },
 };
 
 beforeEach(() => {

@@ -18,6 +18,20 @@ vi.mock("@/lib/trpc", () => ({
     vehicleData: {
       recalls: { useQuery: (_i: unknown, o: { enabled: boolean }) => { h.enabled.push(o.enabled); return h.recalls; } },
       complaints: { useQuery: (_i: unknown, o: { enabled: boolean }) => { h.enabled.push(o.enabled); return h.complaints; } },
+      // Q-50 phase 2b added a third query; a fresh, empty program list keeps these cases about recalls and complaints.
+      warrantyExtensions: {
+        useQuery: (_i: unknown, o: { enabled: boolean }) => {
+          h.enabled.push(o.enabled);
+          return {
+            data: {
+              ok: true, source: "NHTSA", year: "2018", make: "HONDA", model: "Accord", aliased: false,
+              freshness: { lastSuccessAt: "2026-10-01T13:40:00.000Z", stale: false },
+              matchCount: 0, matches: [], truncated: false, disclaimer: "Confirm with a dealer.",
+            },
+            isLoading: false, isError: false, error: null, refetch: () => {},
+          };
+        },
+      },
     },
   },
 }));

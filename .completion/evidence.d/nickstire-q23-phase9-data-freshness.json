@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Q-23 phase 9 (2026-10-01, branch nickstire/q23-phase9-data-freshness). What the operator sees: (1) Admin > Intelligence HQ, Battlefield tab, right column: a new 'Data freshness' card directly under 'Today, for real', with three rows. ShopDriver connection (e.g. 'Fresh - 12m old', or 'Auth failing - 3 failed probes since the last success', 'Stale', 'never connected'), Invoice mirror ('current', 'through yesterday', 'N days behind', 'no invoices synced'), and SMS gateway ('online - seen 12m ago', 'offline - seen 3h ago', 'not configured'). Each row carries a MEASURED tag; any row whose read failed says 'unknown' with an UNMEASURED tag and a one-line reason, and the header counts the rows that need a look. While loading, rows say 'checking...' with no tag. (2) The gateway pill on Outreach Hub, SMS and Tire Orders now says 'Gateway status unknown' (grey dot) when the gateway service could not be asked or the status query failed; before, it said 'Gateway offline'. A phone that stopped checking in still reads 'Gateway offline'. Proof is a jsdom render, not a live admin session: client/src/__tests__/data-freshness-q23.test.tsx (27 cases; the 2 GatewayPill unknown cases red on main) and server/gatewayHealthReadable.test.ts (6 cases, fetch stubbed, red on main 6/6). Not yet seen by the operator on the installed PWA."
+    }
+  }
+}

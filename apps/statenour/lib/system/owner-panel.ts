@@ -139,6 +139,18 @@ export interface SpendLite {
   /** Calls whose cost_cents is NULL — the spend is a floor while this is > 0. */
   unpricedCalls: number;
 }
+export interface ValueAttributionLite {
+  measurementState: "MEASURED" | "ESTIMATE" | "UNMEASURED";
+  matchedRefs: number;
+  matchedMeasuredCostCents: number;
+  matchedMeasuredRecoveredRevenueCents: number;
+  measuredRecoveredOutcomes: number;
+  costPerRecoveredOutcomeCents: number | null;
+  recoveredRevenuePerSendCostDollar: number | null;
+  estimatedSendCostCents: number;
+  estimatedRecoveredRevenueCents: number;
+  reasons: string[];
+}
 export interface OutboxHealthLite {
   pending: number;
   processing: number;
@@ -180,6 +192,8 @@ export interface OwnerPanelInput {
   actionAttempts: ActionAttemptLite[] | null;
   spend: SpendLite | null;
   tasksDone: number | null;
+  /** Explicit source-backed cost/value attribution. null means the read itself failed. */
+  valueAttribution: ValueAttributionLite | null;
 }
 
 const clip = (s: string | null | undefined, n = 140): string | null => {
@@ -507,7 +521,8 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
 
   if (input.spend === null) unreadable.push("AI spend");
   if (input.tasksDone === null) unreadable.push("completed tasks");
-  const cost = costTiles(input.spend, input.tasksDone);
+  if (input.valueAttribution === null) unreadable.push("value attribution");
+  const cost = costTiles(input.spend, input.tasksDone, input.valueAttribution);
 
   const n = exceptions.length;
   const d = decisions.length;
@@ -536,7 +551,11 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
   };
 }
 
-export function costTiles(spend: SpendLite | null, tasksDone: number | null): CostTile[] {
+export function costTiles(
+  spend: SpendLite | null,
+  tasksDone: number | null,
+  valueAttribution: ValueAttributionLite | null,
+): CostTile[] {
   const w = `${COST_WINDOW_DAYS}d`;
   const tiles: CostTile[] = [];
 
@@ -590,12 +609,58 @@ export function costTiles(spend: SpendLite | null, tasksDone: number | null): Co
     provenance: "UNMEASURED",
     note: "lanes record spend (ai_generations.feature) but no outcome; spend per lane is on /system/ai-cost",
   });
-  tiles.push({
-    key: "recovered_revenue",
-    label: "SMS + voice cost vs recovered revenue",
-    value: null,
-    provenance: "UNMEASURED",
-    note: "needs the per-lane holdouts (Q-21) and nickstire's send costs, neither of which reaches statenour yet",
-  });
+  let recoveredRevenue: CostTile;
+  if (valueAttribution === null) {
+    recoveredRevenue = {
+      key: "recovered_revenue",
+      label: "SMS + voice cost vs recovered revenue",
+      value: null,
+      provenance: "UNMEASURED",
+      note: "the value-attribution read failed",
+    };
+  } else if (
+    valueAttribution.measurementState === "MEASURED" &&
+    valueAttribution.matchedRefs > 0
+  ) {
+    const perOutcome =
+      valueAttribution.costPerRecoveredOutcomeCents === null
+        ? "outcome count unmeasured"
+        : `${dollars(valueAttribution.costPerRecoveredOutcomeCents)}/recovered outcome`;
+    const ratio =
+      valueAttribution.recoveredRevenuePerSendCostDollar === null
+        ? "ratio unmeasured"
+        : `${valueAttribution.recoveredRevenuePerSendCostDollar.toFixed(1)}× recovered revenue / send-cost dollar`;
+    recoveredRevenue = {
+      key: "recovered_revenue",
+      label: "SMS + voice cost vs recovered revenue",
+      value: `${dollars(valueAttribution.matchedMeasuredCostCents)} → ${dollars(valueAttribution.matchedMeasuredRecoveredRevenueCents)}`,
+      provenance: "MEASURED",
+      note: `${valueAttribution.matchedRefs} matched attribution ref${valueAttribution.matchedRefs === 1 ? "" : "s"} · ${perOutcome} · ${ratio}`,
+    };
+  } else if (valueAttribution.measurementState === "ESTIMATE") {
+    recoveredRevenue = {
+      key: "recovered_revenue",
+      label: "SMS + voice cost vs recovered revenue",
+      value:
+        valueAttribution.estimatedSendCostCents > 0 ||
+        valueAttribution.estimatedRecoveredRevenueCents > 0
+          ? `~${dollars(valueAttribution.estimatedSendCostCents)} → ~${dollars(valueAttribution.estimatedRecoveredRevenueCents)}`
+          : null,
+      provenance: "ESTIMATE",
+      note:
+        "estimate observations exist, but no measured holdout-adjusted cost/revenue join exists; no ROI is claimed",
+    };
+  } else {
+    recoveredRevenue = {
+      key: "recovered_revenue",
+      label: "SMS + voice cost vs recovered revenue",
+      value: null,
+      provenance: "UNMEASURED",
+      note:
+        valueAttribution.reasons.join("; ") ||
+        "no measured matched cost/revenue observation exists",
+    };
+  }
+  tiles.push(recoveredRevenue);
   return tiles;
 }

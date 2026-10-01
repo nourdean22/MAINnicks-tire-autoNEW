@@ -1,4 +1,4 @@
-import { int, tinyint, bigint, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, boolean, json, index, uniqueIndex, primaryKey, decimal, date, datetime, float } from "drizzle-orm/mysql-core";
+import { int, tinyint, bigint, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, boolean, json, index, uniqueIndex, primaryKey, decimal, date, datetime, float, smallint } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
 
 /**
@@ -5184,3 +5184,49 @@ export const bridgeOutbox = mysqlTable("bridge_outbox", {
 ]);
 
 export type BridgeOutboxRow = typeof bridgeOutbox.$inferSelect;
+
+/**
+ * NHTSA manufacturer warranty extensions — ADR-0021 §5, migration 0138 (hand-applied).
+ * Written only by the flag-gated nhtsa-warranty-ingest job (services/nhtsaWarrantyIngest.ts) with
+ * natural-key upserts; public facts about vehicle models, no PII, no FK. Read by phase 2b's panel.
+ * `matchSignal` is the ADR's `signal` (SIGNAL is a reserved word in MySQL/TiDB).
+ */
+export const nhtsaMfrWarrantyComms = mysqlTable("nhtsa_mfr_warranty_comms", {
+  nhtsaId: bigint("nhtsa_id", { mode: "number" }).primaryKey(),
+  documentId: varchar("document_id", { length: 128 }).notNull(),
+  mfrCampaignId: varchar("mfr_campaign_id", { length: 128 }),
+  /** Field 7 as published, e.g. "Warranty Program/Extension" or "Service Campaign" */
+  communicationType: varchar("communication_type", { length: 64 }).notNull(),
+  /** nhtsa_type | summary_text | both */
+  matchSignal: varchar("match_signal", { length: 32 }).notNull(),
+  /** Label of the summary-text rule that fired; null for nhtsa_type only */
+  matchedPhrase: varchar("matched_phrase", { length: 64 }),
+  mfrDate: date("mfr_date", { mode: "string" }),
+  addedDate: date("added_date", { mode: "string" }),
+  components: varchar("components", { length: 512 }),
+  summary: text("summary").notNull(),
+  /** e.g. "2025-2026" */
+  sourceChunk: varchar("source_chunk", { length: 32 }).notNull(),
+  /** The pass that last saw this communication; older than its chunk's latest pass = dropped by NHTSA */
+  lastSeenAt: timestamp("last_seen_at", { fsp: 3 }).notNull(),
+}, (table) => [
+  index("idx_nhtsa_comms_last_seen").on(table.lastSeenAt),
+]);
+
+export type NhtsaMfrWarrantyComm = typeof nhtsaMfrWarrantyComms.$inferSelect;
+
+export const nhtsaMfrWarrantyProducts = mysqlTable("nhtsa_mfr_warranty_products", {
+  nhtsaId: bigint("nhtsa_id", { mode: "number" }).notNull(),
+  /** Uppercase, hyphens removed, spaces collapsed (ADR-0021 §8 step 1); aliases are read-side */
+  makeNorm: varchar("make_norm", { length: 128 }).notNull(),
+  modelNorm: varchar("model_norm", { length: 256 }).notNull(),
+  /** 9999 = not stated by the manufacturer */
+  modelYear: smallint("model_year").notNull(),
+  makeRaw: varchar("make_raw", { length: 128 }).notNull(),
+  modelRaw: varchar("model_raw", { length: 256 }).notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.nhtsaId, table.makeNorm, table.modelNorm, table.modelYear] }),
+  index("idx_nhtsa_products_ymm").on(table.makeNorm, table.modelYear, table.modelNorm),
+]);
+
+export type NhtsaMfrWarrantyProduct = typeof nhtsaMfrWarrantyProducts.$inferSelect;

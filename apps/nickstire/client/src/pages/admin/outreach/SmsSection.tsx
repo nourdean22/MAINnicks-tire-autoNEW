@@ -15,8 +15,10 @@
  *   · day-divider in thread, bubble message rows
  *   · single composer with cmd-enter send
  *
- * Backend untouched — server/routers/smsConversations.ts already routes
- * outbound through the F25e shop gateway with Twilio fallback (wave-105).
+ * Backend untouched — server/routers/smsConversations.ts routes outbound
+ * through the F25e shop gateway. server/sms.ts queues every send while a
+ * configured gateway is offline; there is no Twilio fallback on that path
+ * (Q-23 phase 13).
  */
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
@@ -1128,7 +1130,7 @@ export default function SmsSection() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <PageHeader
           title="Messages"
-          subtitle="Two-way SMS with customers · routes through the shop F25e gateway with Twilio fallback"
+          subtitle="Two-way SMS with customers · sent from the shop F25e gateway · texts queue while it's offline"
           icon={<MessageSquare className="w-5 h-5" />}
         />
         <GatewayPill />
