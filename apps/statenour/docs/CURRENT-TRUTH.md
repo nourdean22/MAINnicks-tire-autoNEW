@@ -540,3 +540,11 @@ This supersedes the pre-PR status notes immediately above while preserving them 
 - Therefore the natural-language OpenWebUI → Cockpit execution path is **NOT YET VERIFIED**. Do not regress the already-proven lower layers: direct live gateway function calling, OpenCode execution, Cockpit bridge/worktree isolation, approval gating, one-button startup, and the NOUR-Cockpit-specific Controls optimizer all remain separately verified.
 - Next step is payload-level diagnosis: capture the actual OpenWebUI chat request to determine whether model `meta.toolIds=["direct_server:nour-cockpit"]` is being materialized into the per-chat direct-tool-server/tool schema or whether the tool was present and the routed model declined to call it.
 
+
+## 2026-10-01 — OpenWebUI direct-tool selection payload root cause pinned
+
+- Intercepted the real `/api/chat/completions` request from the disposable headless UI. **`model_item.info.meta.toolIds` correctly contains `["direct_server:nour-cockpit"]`, but the actual request sends `tool_servers: []`.** This is the definitive last-mile failure.
+- Switching from NOUR Cockpit to another model and back does not materialize the server; the request still sends `tool_servers: []` while `modelToolIds` remains correct.
+- Backend middleware confirms `tool_servers` expects fully materialized direct-server objects with OpenAPI specs, not synthetic IDs. Do not inject `direct_server:nour-cockpit` as a string into that field.
+- The live **Integrations** menu currently shows top-level **Tools 1**, Web Search, and Code Interpreter. The next diagnostic step is opening **Tools 1** to capture the exact canonical direct-server selection shape OpenWebUI itself emits when selected manually.
+
