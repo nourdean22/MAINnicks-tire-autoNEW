@@ -3256,6 +3256,32 @@
         "Lanes sent from routers rather than the scheduler (operator campaigns campaign:N, the statenour bulk_campaign:N bridge) and the voice lanes (voice-recovery, missed-call-recovery, confirmation calls) are not on the strip."
       ],
       "lastVerifiedAt": "2026-10-01"
+    },
+    {
+      "capabilityId": "instagram-capi-growth-wave-20261001",
+      "name": "Instagram Studio bounds and Meta CAPI attribution preserve truthful lead, callback, and booking conversion context",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "PR #2835 branch nickstire/monthly-growth-20260930: deterministic Instagram model-output normalization plus Meta CAPI attribution/context fixes across lead, callback, and booking paths.",
+        "tests": [
+          "server/instagramStudio.normalize.test.ts exercises overlong model output through generateInstagramStudioDraft and verifies bounded caption/headline/CTA/art direction/slide copy.",
+          "server/meta-capi.test.ts verifies event normalization and attribution/context behavior for the updated CAPI path."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Not yet production-verified; this entry is intentionally unit_verified until the merged deployment is observed."
+        }
+      ],
+      "deferredScope": [
+        "Production conversion delivery/read-back remains a post-merge operational verification."
+      ],
+      "lastVerifiedAt": "2026-10-01"
     }
   ],
   "axes": {

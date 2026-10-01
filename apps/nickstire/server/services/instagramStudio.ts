@@ -137,11 +137,12 @@ function normalizeHashtag(value: string): string {
 /**
  * Normalize a model-produced Instagram draft into the publish/render contract.
  *
- * This is deliberately pure and exported for regression tests. The LLM is
- * allowed to overshoot upper bounds; the application is responsible for
- * enforcing them deterministically before the strict schema gate.
+ * This is deliberately pure. The LLM is allowed to overshoot upper bounds;
+ * the application enforces them deterministically before the strict schema gate.
+ * Keep this module-private so tests exercise the real generation boundary instead
+ * of creating a test-only public API.
  */
-export function normalizeGeneratedInstagramDraft(value: unknown): z.infer<typeof generatedDraftSchema> {
+function normalizeGeneratedInstagramDraft(value: unknown): z.infer<typeof generatedDraftSchema> {
   const parsed = generatedDraftLooseSchema.parse(value);
   return generatedDraftSchema.parse({
     topic: compact(parsed.topic, 180),
