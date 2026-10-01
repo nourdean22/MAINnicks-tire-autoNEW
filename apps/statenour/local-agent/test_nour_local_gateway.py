@@ -88,10 +88,18 @@ class LocalGatewayGuardTests(unittest.TestCase):
         (home / "AI" / "config").mkdir(parents=True)
         (home / "AI" / "logs").mkdir(parents=True)
         (home / "AI" / "config" / "NOUR-RUNTIME-KERNEL.md").write_text("test kernel", encoding="utf-8")
+        os_environ = __import__("os").environ
         env = {
-            "PATH": __import__("os").environ.get("PATH", ""),
+            "PATH": os_environ.get("PATH", ""),
             "USERPROFILE": str(home),
             "HOME": str(home),
+            # Windows Node needs the OS/runtime roots to initialize crypto.
+            # Keep only platform plumbing; app/provider secrets stay excluded.
+            **{
+                key: os_environ[key]
+                for key in ("SystemRoot", "WINDIR", "COMSPEC", "TEMP", "TMP")
+                if os_environ.get(key)
+            },
             "NOUR_GATEWAY_NO_LISTEN": "1",
             "GATEWAY_PATH": str(GATEWAY),
         }
