@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Panel } from "@/components/panel";
-import { PageHeader } from "@/components/layout/ui";
+import { StandardPage } from "@/components/layout/standard-page";
 import { trpc } from "@/lib/trpc/client";
 import { rawFetch } from "@/lib/utils/api-fetch";
 
@@ -171,12 +171,14 @@ export default function FleetPage() {
   }, [load]);
 
   return (
-    <div className="px-4 pb-[var(--bottom-chrome-h)] max-w-2xl mx-auto space-y-4">
-      <PageHeader
-        eyebrow="SYSTEM"
-        title="Fleet Truth"
-        description="Capability artifacts across both apps — produced, not just invoked"
-      />
+    <StandardPage
+      eyebrow="System"
+      title="Fleet Truth"
+      description="Capability artifacts across both apps — produced, not just invoked."
+      width="sm"
+      rhythm="comfortable"
+      className="px-4 pb-[var(--bottom-chrome-h)]"
+    >
 
       {loading && (
         <Panel>
@@ -294,6 +296,6 @@ export default function FleetPage() {
           </Panel>
         </>
       )}
-    </div>
+    </StandardPage>
   );
 }

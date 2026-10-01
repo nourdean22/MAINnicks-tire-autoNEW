@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 
-import { PageHeader } from "@/components/layout/ui";
+import { StandardPage } from "@/components/layout/standard-page";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { NickSidePane } from "@/components/mastery/nick-side-pane";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
@@ -37,15 +37,15 @@ function JournalPageInner() {
   const [threadRefresh, setThreadRefresh] = useState(0);
 
   return (
-    <div className="min-h-screen text-zinc-100 space-y-5" data-no-deep-nudge>
-      {/* 2026-09-16 · Visible Transformation: the house display header
-          (eyebrow · title · one line) replaces the icon-and-label strip. */}
-      <PageHeader
-        eyebrow="Mastery · journal"
-        title="Journal"
-        description="Thinking, reasoning, insights, decisions, reflections."
-      />
-
+    <StandardPage
+      eyebrow="Mastery · Journal"
+      title="Journal"
+      description="Thinking, reasoning, insights, decisions, reflections."
+      width="3xl"
+      rhythm="loose"
+      className="min-h-screen text-zinc-100"
+      rootProps={{ "data-no-deep-nudge": "" }}
+    >
       <MissionBreadcrumb />
       <CoachEventBanner surface="journal" />
 
@@ -83,6 +83,6 @@ function JournalPageInner() {
         </div>
 
       </div>
-    </div>
+    </StandardPage>
   );
 }

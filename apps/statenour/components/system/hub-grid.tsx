@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils/cn";
 import {
   AlertCircle,
   AlertTriangle,
+  Archive,
   Bot,
   Brain,
   Camera,
@@ -106,8 +107,9 @@ interface HubCard {
 // deploy group (deployment-truth/repos/schema-history/migrations/
 // coverage → hub/calibration), agent-traces/brain-bus/tools/skills
 // (→ hub), the whole quality group (prompt/judge-eval/quality/
-// ghost-nour/coverage → hub/calibration), Stale Data + Devices (→
-// hub). "Brain Categories" repointed /brain/categories (404) → /brain.
+// ghost-nour/coverage → hub/calibration), Devices (→ hub). Stale Data
+// is now a real in-page System section, so its live card is restored below.
+// "Brain Categories" repointed /brain/categories (404) → /brain.
 // Hardcoded "114 tools"/"1,423 skills" count chips went with their
 // (now-dead) cards.
 // Exported for tests/components/hub-grid-chips.test.ts — the chips are the
@@ -265,6 +267,22 @@ export const CARDS: HubCard[] = [
       return {
         label: `${d.brain.totalMemories.toLocaleString()} rows`,
         severity: "info",
+      };
+    },
+  },
+  {
+    href: "/system#stale-data",
+    title: "Stale Data",
+    icon: Archive,
+    group: "data",
+    description: "Looks-live-but-old rows · exact category policy + targeted cleanup",
+    chip: (d) => {
+      if (!d) return { label: "—", severity: "unknown" };
+      if (d.stale.measured === false) return UNMEASURED_CHIP;
+      if (d.stale.totalRows === 0) return { label: "clean", severity: "healthy" };
+      return {
+        label: `${d.stale.totalRows} stale`,
+        severity: d.stale.totalRows > 50 ? "critical" : "warning",
       };
     },
   },

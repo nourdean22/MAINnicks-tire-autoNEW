@@ -27,9 +27,10 @@
  *   • Save as decision (assistant messages only)
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Copy, Pin, PinOff, Pencil, Trash2, BookOpen, ClipboardCheck, X, Brain, ListChecks, ThumbsUp, ThumbsDown, GitFork, Volume2, VolumeX } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 export interface MessageActionSheetProps {
   open: boolean;
@@ -133,21 +134,11 @@ export function MessageActionSheet({
   const [dragY, setDragY] = useState(0);
   const dragStartRef = useRef<number | null>(null);
 
-  // Escape closes
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  // Drag state self-cleans: handleTouchEnd always resets dragY to 0
+  // Base UI Dialog owns Escape, outside dismissal, focus containment /
+  // restoration and background scroll lock. Drag state self-cleans:
+  // handleTouchEnd always resets dragY to 0
   // when the user lets go without committing a close. No effect-based
   // sync needed — and avoiding it sidesteps the cascading-render lint.
-
-  if (!open) return null;
 
   const fireAndClose = (fn?: () => void) => () => {
     fn?.();
@@ -183,20 +174,22 @@ export function MessageActionSheet({
   };
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        className="fixed inset-0 z-120 bg-black/65 backdrop-blur-[2px] animate-fade-in"
-      />
-      {/* Sheet */}
-      <div
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
+    >
+      <DialogContent
         ref={sheetRef}
+        unstyled
+        showCloseButton={false}
+        overlayClassName="z-120 bg-black/65 backdrop-blur-[2px] animate-fade-in"
         className={cn(
           "fixed bottom-0 left-0 right-0 z-121",
           "bg-(--bg-void) border-t border-(--border-default)",
           "rounded-t-2xl shadow-[0_-20px_60px_rgba(0,0,0,0.7)]",
-          "max-h-[78vh] overflow-y-auto",
+          "max-h-[78dvh] overflow-y-auto outline-none",
         )}
         style={{
           paddingBottom: "env(safe-area-inset-bottom, 16px)",
@@ -207,6 +200,7 @@ export function MessageActionSheet({
           animation: dragY === 0 ? "slideUpSheet 0.28s ease-out" : undefined,
         }}
       >
+        <DialogTitle className="sr-only">Message actions</DialogTitle>
         {/* Drag handle — also the grab gesture surface */}
         <div
           className="flex justify-center pt-2.5 pb-1.5 cursor-grab active:cursor-grabbing"
@@ -375,7 +369,7 @@ export function MessageActionSheet({
         >
           <X size={12} /> Close
         </button>
-      </div>
-    </>
+      </DialogContent>
+    </Dialog>
   );
 }

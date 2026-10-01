@@ -370,7 +370,7 @@ export async function pushLeadAlert(leadName: string, service: string, urgency: 
     title: urgency >= 4 ? "🔴 URGENT LEAD" : "📱 New Lead",
     body: `${leadName} — ${service}`,
     level: urgency >= 4 ? "critical" : "high",
-    url: "/admin",
+    url: "/admin?tab=leads",
     tag: "lead",
     // Revenue exception: two leads in ten minutes are two separate pages.
     // Flood control exists for machine loops, not customers.
@@ -437,7 +437,7 @@ export async function pushPipelineAging(critical: number, value: number): Promis
     title: "💰 Pipeline Aging",
     body: `${critical} critical items — $${Math.round(value).toLocaleString()} at risk`,
     level: critical >= 3 ? "critical" : "high",
-    url: "/admin",
+    url: "/admin?tab=revenue",
     tag: "pipeline",
   });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { toast } from "sonner";
 import { useChatTransport } from "@/hooks/chat/use-chat-transport";
@@ -13,6 +13,7 @@ import {
   type PageContextPayload,
 } from "@/components/chat/page-context-bridge";
 import type { ChatRuntimeController } from "../types/chat-runtime-controller";
+import type { ContextBlocks } from "@/components/chat/context-block-badges";
 import { looksLikeImageGenerationRequest } from "@/lib/ai/chat/handlers/patterns";
 
 const PAGE_ANCHOR_KEYS = [
@@ -42,8 +43,10 @@ export function useChatStream(): ChatRuntimeController {
   const actionPermission = useChatUiStore((s) => s.actionPermission);
 
   const bodyRef = useRef<Record<string, unknown>>({ conversationId: activeConversationId });
-  const liveContextBlocksRef = useRef<any>(null);
+  const liveContextBlocksRef = useRef<ContextBlocks | null>(null);
   const lastTraceIdRef = useRef<string | null>(null);
+  const [liveContextBlocks, setLiveContextBlocks] = useState<ContextBlocks | null>(null);
+  const [lastTraceId, setLastTraceId] = useState<string | null>(null);
   const lastPersonaHeaderRef = useRef(null);
 
   useEffect(() => {
@@ -108,8 +111,10 @@ export function useChatStream(): ChatRuntimeController {
     apiPath: "/api/ai/chat",
     transportBodyRef: bodyRef,
     liveContextBlocksRef,
+    onLiveContextBlocks: setLiveContextBlocks,
     lastPersonaHeaderRef,
     lastTraceIdRef,
+    onTraceId: setLastTraceId,
     setDeeperContext: () => {},
     onConversationId: useCallback(
       (id: string) => setActiveConversationId(id),
@@ -358,7 +363,7 @@ export function useChatStream(): ChatRuntimeController {
     stop: chat.stop,
     regenerate: safeRegenerate,
     setMessages: chat.setMessages,
-    liveContextBlocksRef,
-    lastTraceIdRef,
+    liveContextBlocks,
+    lastTraceId,
   };
 }

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { RefreshCw, LayoutList, CheckCircle2, XCircle, Layers } from "lucide-react";
-import { PageHeader } from "@/components/layout/ui";
+import { StandardPage } from "@/components/layout/standard-page";
 import { OpportunityCard, Opportunity } from "@/components/intelligence/OpportunityCard";
 
 type TabStatus = "pending" | "accepted" | "declined" | "all";
@@ -31,7 +31,8 @@ export default function DecisionLedgerPage() {
   };
 
   useEffect(() => {
-    fetchOpportunities(activeTab);
+    const t = setTimeout(() => void fetchOpportunities(activeTab), 0);
+    return () => clearTimeout(t);
   }, [activeTab]);
 
   const handleStatusChange = (id: string, newStatus: string) => {
@@ -71,18 +72,25 @@ export default function DecisionLedgerPage() {
   ];
 
   return (
-    <div className="max-w-5xl mx-auto px-4 pb-20">
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
-        <PageHeader eyebrow="INTELLIGENCE" title="Decision Ledger" description="Evaluate, score, and audit operational recommendations." />
+    <StandardPage
+      eyebrow="Intelligence"
+      title="Decision Ledger"
+      description="Evaluate, score, and audit operational recommendations."
+      width="xl"
+      rhythm="comfortable"
+      className="px-4 pb-20"
+      parent={{ href: "/system", label: "system" }}
+      actions={
         <button
           onClick={() => fetchOpportunities(activeTab)}
           disabled={loading}
-          className="self-start flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-950 text-xs font-mono text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 font-mono text-xs text-slate-400 transition-colors hover:text-slate-200 disabled:opacity-50"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
           REFRESH
         </button>
-      </div>
+      }
+    >
 
       {/* Tabs */}
       <div className="flex border-b border-slate-800 mb-6 overflow-x-auto scrollbar-none gap-2">
@@ -134,6 +142,6 @@ export default function DecisionLedgerPage() {
           ))}
         </div>
       )}
-    </div>
+    </StandardPage>
   );
 }
