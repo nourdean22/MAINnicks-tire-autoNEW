@@ -142,18 +142,21 @@ describe("UI v2 cascade defects found by the 2026-10-01 hostile review stay fixe
 });
 
 describe("Tailwind source scanning", () => {
-  it("no scanned file carries a wildcard arbitrary value (Tailwind mints it and the stylesheet fails to parse)", () => {
-    // 2026-10-01: PLAN.md wrote a radius class with a literal asterisk inside `var(--…)` in prose; Tailwind v4
-    // auto-source reads Markdown (and this test file),
-    // emitted `border-radius: var(--radius-*)`, and every page 500'd in the e2e run on fceb606b.
+  it("every bracketed var() class in a scanned file names a real custom property (anything else gets minted and breaks the stylesheet)", () => {
+    // 2026-10-01: prose in PLAN.md spelled a radius class with an asterisk, then an ellipsis, inside the var()
+    // brackets. Tailwind v4 auto-source reads Markdown and this test file, minted both as utilities, and the
+    // generated stylesheet failed to parse (Delim('*'), then Ident("…")) — every page 500'd in two e2e runs.
     const { execSync } = require("node:child_process") as typeof import("node:child_process");
     const files = execSync("git ls-files -- '*.md' '*.mdx' '*.tsx' '*.ts' '*.json'", { cwd: ROOT, encoding: "utf8" })
       .split("\n").filter(Boolean);
+    // valid: -[var(--name)] or -[var(--name,fallback)]; everything else inside the brackets is a defect
+    const bad = /-\[var\((?!--[A-Za-z0-9_-]+(?:,[^)\]]*)?\)\])/;
     const offenders: string[] = [];
     for (const f of files) {
       const src = readFileSync(join(ROOT, f), "utf8");
-      if (/\[var\(--[\w-]*\*/.test(src)) offenders.push(f);
+      const m = src.match(bad);
+      if (m) offenders.push(`${f}: ${src.slice(m.index!, m.index! + 40)}`);
     }
-    expect(offenders, "wildcard arbitrary value reachable by the Tailwind scanner").toEqual([]);
+    expect(offenders, "bracketed var() class reachable by the Tailwind scanner with a bad argument").toEqual([]);
   });
 });

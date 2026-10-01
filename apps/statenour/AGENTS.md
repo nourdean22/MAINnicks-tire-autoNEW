@@ -80,7 +80,7 @@ script inside this app is active — do not resurrect one.
   `@deprecated`, kept only for the structured API in `components/stats/*` — never import it in new code.
 - **Style through the theme bridge** (`bg-elevated`, `bg-raised`, `text-fg-secondary`,
   `border-glass`, `text-gold`) declared in `app/styles/tokens.css` `@theme inline`. Raw
-  `bg-[var(--…)]` is legacy read-path only. **A token that does not exist emits zero CSS and fails
+  `bg-[var(--token)]` is legacy read-path only. **A token that does not exist emits zero CSS and fails
   silently** — verify the rendered value, not the class name.
 - **`app/globals.css` is an import manifest only.** Real CSS lives in
   `app/styles/{tokens,base,effects}.css`; import order is cascade order. Append within the right
