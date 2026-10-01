@@ -967,7 +967,7 @@ function stableBehaviorJson(value: unknown): string {
       .sort(([a], [b]) => a.localeCompare(b));
     return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableBehaviorJson(v)}`).join(",")}}`;
   }
-  return JSON.stringify(value);
+  return JSON.stringify(value) ?? "null";
 }
 
 /**
