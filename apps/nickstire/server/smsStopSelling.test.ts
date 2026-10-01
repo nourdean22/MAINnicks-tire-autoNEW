@@ -194,6 +194,33 @@ describe("review #1099 P2 — an asked-for answer is not a pitch", () => {
     );
   });
 
+  // 2026-10-01: the website now says "payment programs" and "lease-to-own" where
+  // it used to say "financing", so customers text those words back. The guard
+  // and its asked-about exemption only knew the old vocabulary.
+  it("blocks an UNPROMPTED payment-program pitch in the site's own words", () => {
+    const p = plan("I'm on my way");
+    for (const draft of [
+      "Got it. We also accept payment programs if you need them.",
+      "See you soon! Payment programs are available too.",
+      "Got it. We also offer lease-to-own.",
+    ]) {
+      expect(planViolations(p, draft)).toContain("pitch_after_commitment:unprompted_financing");
+    }
+  });
+
+  it("answers a COMMITTED customer who asks in the site's words", () => {
+    for (const body of ["on my way, do you have payment programs?", "omw, is there lease to own?", "on my way, rent-to-own ok?"]) {
+      const p = plan(body);
+      expect(p.stopSelling).toBe(true);
+      expect(planViolations(p, "Payment programs are available — ask at the counter when you get here.")).toEqual([]);
+    }
+  });
+
+  it("CONTROL: payment logistics a committed customer needs are not a pitch", () => {
+    const p = plan("I'm on my way");
+    expect(planViolations(p, "Got it. We take cash, cards and debit. 17625 Euclid Ave, first come, first served.")).toEqual([]);
+  });
+
   it("keeps the other pitch prohibitions active when financing was asked about", () => {
     const p = plan("omw, do you finance?");
     expect(planViolations(p, "Sure! Also we have 1,700+ reviews.")).toContain(
@@ -213,6 +240,10 @@ describe("router financing rule — the \b bug that hid the whole intent", () =>
     "do you take payment plans?",
     "payment plan",
     "no credit check?",
+    // The site's own words since 2026-10-01.
+    "do you have payment programs?",
+    "lease to own tires?",
+    "rent-to-own",
   ])("routes %j to the financing intent", (body) => {
     const d = routeInboundSms(body, CTX);
     expect([d.primary, ...d.secondary]).toContain("financing");

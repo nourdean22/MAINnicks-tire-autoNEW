@@ -117,7 +117,7 @@ const LOCATION_GIVEN_RE =
  * rule because this only needs to decide whether ANSWERING is allowed, not what
  * the reply is about — a false positive here costs nothing.
  */
-const FINANCING_ASK_RE = /\b(financ\w*|payment plans?|make payments|pay(ing)? (it )?off|snap|acima|koalafi|no credit|bad credit|credit check|layaway)\b/i;
+const FINANCING_ASK_RE = /\b(financ\w*|payment (plans?|programs?)|(lease|rent)[- ]to[- ]own|make payments|pay(ing)? (it )?off|snap|acima|koalafi|no credit|bad credit|credit check|layaway)\b/i;
 
 // ─── Shared prohibited-claim library (affirmative-claim shaped so honest
 //     "we'll check what's in stock" copy never trips them) ──────────────
@@ -196,7 +196,9 @@ const CLAIM_PITCH_SERVICE_LIST: ProhibitedClaim = {
 };
 const CLAIM_PITCH_FINANCING: ProhibitedClaim = {
   label: "pitch_after_commitment:unprompted_financing",
-  re: /\b(we (also )?(offer|have) financing|financing (is )?available|payment plans? available|no credit (check )?needed)\b/i,
+  // "payment programs" and "lease-to-own" are the site's words since 2026-10-01
+  // (shared/financing.ts), so the drafter now says them too.
+  re: /\b(we (also )?(offer|have|accept|take) (financing|payment (plans?|programs?)|(lease|rent)[- ]to[- ]own)|(financing|payment (plans?|programs?)|(lease|rent)[- ]to[- ]own) (is |are )?available|no credit (check )?needed)\b/i,
 };
 const CLAIM_PITCH_BENEFITS: ProhibitedClaim = {
   label: "pitch_after_commitment:benefit_restatement",

@@ -387,7 +387,9 @@ const RULES: Rule[] = [
     // mid-word. Only the exact singular "payment plan" ever fired, so the most
     // common phrasing of the question — "do you offer financing?" — fell through
     // to `general` and never reached the financing playbook.
-    test: (b) => /\b(financ\w*|payment plans?|snap|acima|koalafi|no credit|credit check)\b/i.test(b),
+    // "payment programs" and "lease-to-own" are the site's own words since
+    // 2026-10-01, so customers text them back.
+    test: (b) => /\b(financ\w*|payment (plans?|programs?)|(lease|rent)[- ]to[- ]own|snap|acima|koalafi|no credit|credit check)\b/i.test(b),
   },
   {
     intent: "human_requested",
