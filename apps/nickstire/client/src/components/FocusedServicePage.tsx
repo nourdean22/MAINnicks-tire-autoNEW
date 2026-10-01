@@ -62,6 +62,7 @@ import LossAversionStat from "./conversion/LossAversionStat";
 import ServiceTriageCard from "./conversion/ServiceTriageCard";
 import TextMeQuote from "./conversion/TextMeQuote";
 import TrustBlock from "./TrustBlock";
+import { offerPriceFields } from "@/lib/offerPrice";
 
 // Default hero swapped from CloudFront stock → real shop storefront (May 2026).
 // This propagates the real photo to every service page using FocusedServicePage
@@ -826,11 +827,14 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
             // without the qualifier.
             "itemListElement": config.tiers
               .map((t) => {
-                const numericPrice = t.price.replace(/[^0-9.]/g, "").split(".")[0];
-                if (!numericPrice) return null;
+                // Dollar amounts only: stripping every non-digit published the
+                // /warranties tier "12-Mo Parts / 90-Day Labor" as a $1290 Offer
+                // (lib/offerPrice.ts).
+                const priceFields = offerPriceFields(t.price);
+                if (!priceFields) return null;
                 return {
                   "@type": "Offer",
-                  "price": numericPrice,
+                  ...priceFields,
                   "priceCurrency": "USD",
                   "itemOffered": { "@type": "Service", "name": `${t.name} ${config.serviceType}`, "serviceType": config.serviceType },
                 };
