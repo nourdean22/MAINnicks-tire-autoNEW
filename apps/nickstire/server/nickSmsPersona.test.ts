@@ -18,8 +18,8 @@ describe("NICK_SMS_SYSTEM_PROMPT", () => {
   });
 
   it("keeps the website discovery floor out of SMS quoting", () => {
-    expect(BUSINESS.usedTires.startingPrice).toContain("$25");
-    expect(NICK_SMS_SYSTEM_PROMPT).not.toContain(BUSINESS.usedTires.startingPrice);
+    expect(BUSINESS.usedTires.priceDisplay).toContain("$25");
+    expect(NICK_SMS_SYSTEM_PROMPT).not.toContain(BUSINESS.usedTires.priceDisplay);
   });
 
   it("keeps the core price-safety guardrail", () => {
