@@ -643,7 +643,10 @@ export const instagramAdminRouter = router({
             watch: sql<number>`sum(case when ${igMetricSnapshots.avgWatchTimeMs} is not null then 1 else 0 end)`,
             skip: sql<number>`sum(case when ${igMetricSnapshots.skipRate} is not null then 1 else 0 end)`,
           })
-          .from(igMetricSnapshots);
+          .from(igMetricSnapshots)
+          // IG history only — the FB insights lane shares this table under a
+          // `fb:` postId prefix (instagram-data.ts) and is not IG snapshot history.
+          .where(sql`${igMetricSnapshots.postId} NOT LIKE 'fb:%'`);
         const row = (r as Array<{ n: unknown; earliest: unknown; watch: unknown; skip: unknown }>)[0];
         const n = Number(row?.n);
         if (Number.isFinite(n)) {
@@ -2599,6 +2602,27 @@ Keep it under 200 characters.`;
       }
       return { success: true, revokedApprovals };
     }),
+
+  // §K.4 real-shop media flywheel — "Capture opportunity" for the Today tab:
+  // subjects the upcoming slate needs a real photo of and the pool cannot
+  // supply. Read-only. A pool-read failure throws (dbAdminProcedure + the
+  // service), so the card renders unknown rather than a clean empty list.
+  getCaptureOpportunities: dbAdminProcedure.query(async () => {
+    const { getDbTyped } = await import("../db");
+    const database = await getDbTyped();
+    if (!database) throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Database unavailable — capture opportunities are unknown, not empty." });
+    const { captureOpportunities } = await import("../services/instagramAdminStrategy");
+    return captureOpportunities(database);
+  }),
+
+  /** Creative Assistant (Wave C, README §M) — "what should we make today?"
+   *  Five cards max, each with the exact signal lines it was ranked on; a
+   *  failed source renders as `inputs.<source> = "error: …"` and its cards
+   *  are omitted, never scored on a zero. Deterministic, no LLM. */
+  getCreativeAssistant: adminProcedure.query(async () => {
+    const { buildCreativeAssistant } = await import("../services/creativeAssistant");
+    return buildCreativeAssistant();
+  }),
 });
 
 export async function validateFinalMedia(mp4Url: string, expectedDuration: number): Promise<{ valid: boolean; error?: string; mediaHash?: string }> {

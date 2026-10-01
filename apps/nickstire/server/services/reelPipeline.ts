@@ -783,7 +783,10 @@ export async function enqueueReelJob(
     // provider is intentionally omitted: it is resolved inside the reservation
     // block above and is not in scope here, and guessing it would put a WRONG
     // provider on the experiment record — the exact defect fixed in #1257.
-    await assignEpisodeToActiveExperiment(jobId, { contentOrigin: "ai_generated" });
+    // briefId is the key generation resolves its arm on (dailyReelPost
+    // hookArmForEpisode, reelBriefGen durationLaneForEpisode) — recording
+    // under any other key records an arm that was never generated.
+    await assignEpisodeToActiveExperiment(jobId, { contentOrigin: "ai_generated", briefId: brief.id });
   }
 
   return { jobId };
@@ -1473,7 +1476,9 @@ export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
     if (process.env.RENDERED_QA_ENABLED === "true") {
       try {
         const { runRenderedQaOnJob } = await import("./renderedQa");
-        await runRenderedQaOnJob(job.id);
+        // $0 pixel pre-flags always; ≤1 specialist vision lens only behind
+        // RENDERED_QA_SPECIALIST (default OFF — the second call is spend).
+        await runRenderedQaOnJob(job.id, { pixelStats: true, specialist: process.env.RENDERED_QA_SPECIALIST === "true" });
       } catch (e) {
         log.warn("rendered QA hook failed (job remains assembled)", { jobId: job.id, e: e instanceof Error ? e.message : String(e) });
       }

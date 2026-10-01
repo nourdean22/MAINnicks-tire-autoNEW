@@ -441,6 +441,15 @@ export async function postToFacebook(params: {
   message: string;
   link?: string;
   imageUrl?: string;
+  /**
+   * Hosted .mp4 for a Facebook Reel / video post. Until 2026-10-01 nothing
+   * passed video to this function at all: `publishToSocial` sent the IG reel's
+   * caption with `imageUrl ?? imageUrls[0]` (undefined for a reel), so every
+   * cross-posted reel landed on the Page as a TEXT status (README §G "FB Reel:
+   * video actually passed"). When set and no image is given, the publish goes
+   * through `postFacebookVideo`.
+   */
+  videoUrl?: string;
 }): Promise<{ success: boolean; postId?: string; error?: string }> {
   await ensurePageTokenLoaded();
   const token = getPageToken();
@@ -448,6 +457,10 @@ export async function postToFacebook(params: {
 
   if (!token || !pageId) {
     return { success: false, error: "Facebook posting not configured (need META_PAGE_ACCESS_TOKEN + META_PAGE_ID)" };
+  }
+
+  if (params.videoUrl && !params.imageUrl) {
+    return postFacebookVideo({ videoUrl: params.videoUrl, description: params.message });
   }
 
   try {
@@ -502,6 +515,200 @@ export async function postToFacebook(params: {
     const errMsg = err instanceof Error ? err.message : String(err);
     log.error("Facebook post error:", { error: errMsg });
     return { success: false, error: errMsg };
+  }
+}
+
+// ─── Facebook Page Video / Reel ───────────────────────
+
+/**
+ * Publish a hosted video to the Page as a REEL (default) or a plain feed video.
+ *
+ * Reel path, per Meta "Reels Publishing API"
+ * (https://developers.facebook.com/docs/video-api/guides/reels-publishing,
+ * read 2026-10-01; examples on v25.0 — the version this module pins):
+ *   1. POST graph.facebook.com/{API_VERSION}/{page-id}/video_reels
+ *      {upload_phase:"start"} → {video_id, upload_url}
+ *   2. POST rupload.facebook.com/video-upload/{API_VERSION}/{video_id} with
+ *      headers Authorization:"OAuth <token>", file_url:<hosted mp4>  (hosted-file
+ *      variant: no body, no offset/file_size) → {success:true}
+ *   3. POST graph.facebook.com/{API_VERSION}/{page-id}/video_reels
+ *      {upload_phase:"finish", video_id, video_state:"PUBLISHED", description}
+ *      → {success:true, post_id?}
+ * Not implemented on purpose: the classic feed-video POST /{page-id}/videos
+ * ({file_url, description}; Graph API Reference "Page Videos"). Every video
+ * this lane produces is a 9:16 reel, so a second branch would be unreachable.
+ *
+ * UNVERIFIED AGAINST A LIVE PAGE from this session (no Page token here): the
+ * request shapes come from the doc text above; the response field names used
+ * (`video_id`, `upload_url`, `success`, `post_id`, `id`) are the documented
+ * ones. Step 3 returning `success` without `post_id` is handled: the video_id
+ * is returned as the post id so insights can still be pulled on `/{video_id}`.
+ *
+ * Module-private on purpose: the ONE door to a Page video is `postToFacebook`
+ * (videoUrl), reached through `publishToSocial` and its kill switches.
+ */
+async function postFacebookVideo(params: {
+  videoUrl: string;
+  description: string;
+  title?: string;
+}): Promise<{ success: boolean; postId?: string; error?: string; ambiguous?: boolean }> {
+  await ensurePageTokenLoaded();
+  const token = getPageToken();
+  const pageId = await getPageId();
+  if (!token || !pageId) {
+    return { success: false, error: "Facebook posting not configured (need META_PAGE_ACCESS_TOKEN + META_PAGE_ID)" };
+  }
+  const authHeaders = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+
+  try {
+    // Step 1 — start an upload session.
+    const startRes = await fetch(`${GRAPH_URL}/${pageId}/video_reels`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ upload_phase: "start" }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const start = await startRes.json().catch(() => null);
+    if (!startRes.ok || !start?.video_id) {
+      const errMsg = start?.error?.message || `reel start failed: HTTP ${startRes.status}`;
+      log.error("Facebook reel start failed:", { error: errMsg });
+      return { success: false, error: errMsg };
+    }
+    const videoId = String(start.video_id);
+    const uploadUrl: string = typeof start.upload_url === "string" && start.upload_url
+      ? start.upload_url
+      : `https://rupload.facebook.com/video-upload/${API_VERSION}/${videoId}`;
+
+    // Step 2 — hosted-file upload: the URL goes in a HEADER, not the body.
+    const upRes = await fetch(uploadUrl, {
+      method: "POST",
+      headers: { Authorization: `OAuth ${token}`, file_url: params.videoUrl },
+      signal: AbortSignal.timeout(60000),
+    });
+    const up = await upRes.json().catch(() => null);
+    if (!upRes.ok || up?.success === false) {
+      const errMsg = up?.error?.message || up?.debug_info?.message || `reel upload failed: HTTP ${upRes.status}`;
+      log.error("Facebook reel upload failed:", { error: errMsg, videoId });
+      return { success: false, error: errMsg };
+    }
+
+    // Step 3 — publish. This is the irreversible step: a timeout here is NOT
+    // proof of failure (same rule as IG media_publish) — report ambiguous.
+    let finRes: Response;
+    try {
+      finRes = await fetch(`${GRAPH_URL}/${pageId}/video_reels`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          upload_phase: "finish",
+          video_id: videoId,
+          video_state: "PUBLISHED",
+          description: params.description,
+          ...(params.title ? { title: params.title } : {}),
+        }),
+        signal: AbortSignal.timeout(30000),
+      });
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      log.error("Facebook reel finish ambiguous (no answer):", { error: errMsg, videoId });
+      return { success: false, error: errMsg, ambiguous: true, postId: videoId };
+    }
+    const fin = await finRes.json().catch(() => null);
+    if (!finRes.ok || fin?.success === false) {
+      const errMsg = fin?.error?.message || `reel finish failed: HTTP ${finRes.status}`;
+      log.error("Facebook reel finish failed:", { error: errMsg, videoId });
+      return { success: false, error: errMsg };
+    }
+    const postId = String(fin?.post_id ?? fin?.id ?? videoId);
+    log.info(`Facebook reel published: ${postId}`, { videoId });
+    return { success: true, postId };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    log.error("Facebook video post error:", { error: errMsg });
+    return { success: false, error: errMsg };
+  }
+}
+
+// ─── Facebook Page Post insights ───────────────────────
+
+export interface FacebookPostInsights {
+  /** post_impressions_unique (reach). Deprecated above v25 — rung 3 drops it. */
+  reach?: number;
+  impressions?: number;
+  /** post_clicks — all clicks on the post. */
+  clicks?: number;
+  /** Sum of post_reactions_by_type_total (like+love+wow+haha+sorry+anger). */
+  reactions?: number;
+  /** post_video_views — video/reel only; absent on a photo or status. */
+  videoViews?: number;
+}
+
+/** Pure mapper for `/{post-id}/insights` rows. Exported for the test. */
+export function parseFacebookInsights(data: unknown): FacebookPostInsights {
+  const out: FacebookPostInsights = {};
+  const rows = (data as { data?: unknown[] } | null)?.data;
+  for (const raw of Array.isArray(rows) ? rows : []) {
+    const m = raw as Record<string, unknown>;
+    const name = typeof m.name === "string" ? m.name : "";
+    const values = Array.isArray(m.values) ? (m.values as Array<{ value?: unknown }>) : [];
+    const value = values[0]?.value;
+    if (name === "post_reactions_by_type_total" && value && typeof value === "object") {
+      const sum = Object.values(value as Record<string, unknown>).reduce<number>((acc, v) => acc + (typeof v === "number" ? v : 0), 0);
+      out.reactions = sum;
+      continue;
+    }
+    if (typeof value !== "number") continue;
+    if (name === "post_impressions_unique") out.reach = value;
+    else if (name === "post_impressions") out.impressions = value;
+    else if (name === "post_clicks") out.clicks = value;
+    else if (name === "post_video_views") out.videoViews = value;
+  }
+  return out;
+}
+
+/**
+ * Page-post insights with the same widest-first ladder as `getMediaInsights`:
+ * a metric the post type does not support fails the WHOLE call, so each rung
+ * drops the tier above rather than losing everything.
+ *
+ * Metric names per Graph API Reference v26.0 "Insights" (Page post metrics),
+ * read 2026-10-01: post_impressions, post_impressions_unique (deprecated ABOVE
+ * v25 — this module pins v25.0, rung 3 is the v26+ survivor), post_clicks,
+ * post_reactions_by_type_total, post_video_views. Meta also announced that "a
+ * number of Page Insights metrics will be deprecated for all API versions by
+ * June 15, 2026" — when a rung starts failing, the next narrower one carries.
+ */
+export async function fetchFacebookPostInsights(postId: string): Promise<
+  ({ ok: true; rung: number } & FacebookPostInsights) | { ok: false; error: string }
+> {
+  await ensurePageTokenLoaded();
+  const token = getPageToken();
+  if (!token) return { ok: false, error: "Facebook not configured (need META_PAGE_ACCESS_TOKEN)" };
+  const fetchMetrics = async (metrics: string) => {
+    const url = `${GRAPH_URL}/${encodeURIComponent(postId)}/insights?metric=${metrics}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
+    const data = await res.json().catch(() => null);
+    return { res, data };
+  };
+  try {
+    const ladder = [
+      "post_impressions_unique,post_impressions,post_clicks,post_reactions_by_type_total,post_video_views",
+      "post_impressions_unique,post_impressions,post_clicks,post_reactions_by_type_total",
+      "post_impressions,post_clicks,post_reactions_by_type_total",
+      "post_impressions,post_clicks",
+    ];
+    let last: { res: Response; data: unknown } | null = null;
+    for (let i = 0; i < ladder.length; i++) {
+      last = await fetchMetrics(ladder[i]!);
+      if (last.res.ok) return { ok: true, rung: i + 1, ...parseFacebookInsights(last.data) };
+    }
+    const errMsg = (last?.data as { error?: { message?: string } } | null)?.error?.message || `HTTP ${last?.res.status}`;
+    log.error("Facebook post insights fetch failed:", { error: errMsg, postId });
+    return { ok: false, error: errMsg };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    log.error("Facebook post insights error:", { error: errMsg, postId });
+    return { ok: false, error: errMsg };
   }
 }
 

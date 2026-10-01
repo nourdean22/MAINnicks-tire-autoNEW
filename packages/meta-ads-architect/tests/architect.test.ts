@@ -189,3 +189,45 @@ describe("Export, UTMs, and Creative Briefs", () => {
     expect(briefs[0].topic).toBe(plan.campaignArchitecture.namingConventions.campaign);
   });
 });
+
+describe("Business facts never live in package source (2026-10-01 drift fix)", () => {
+  it("system prompt embeds the compiled facts block verbatim when supplied", async () => {
+    const { buildCreativeSystemPrompt } = await import("../src/generator/prompts.js");
+    const input = {
+      ...NicksTirePreset,
+      businessFacts: { factsBlock: "- Warranty: SENTINEL-WARRANTY", source: "test", compiledAt: "2026-10-01T00:00:00Z" },
+    };
+    const prompt = buildCreativeSystemPrompt(input);
+    expect(prompt).toContain("SENTINEL-WARRANTY");
+    expect(prompt).not.toMatch(/12,?000/);
+  });
+
+  it("without a compiled block, the only warranty wording is the input's own", async () => {
+    const { buildCreativeSystemPrompt } = await import("../src/generator/prompts.js");
+    const input = { ...NicksTirePreset, priceStack: { ...NicksTirePreset.priceStack, guaranteeOrRefundTerms: "SENTINEL-TERMS" } };
+    const prompt = buildCreativeSystemPrompt(input);
+    expect(prompt).toContain("SENTINEL-TERMS");
+    expect(prompt).not.toMatch(/12,?000/);
+    expect(prompt).not.toMatch(/\bfinancing\b/i);
+  });
+
+  it("deterministic fallback copy carries the input's guarantee, not a literal", async () => {
+    const input = { ...NicksTirePreset, priceStack: { ...NicksTirePreset.priceStack, guaranteeOrRefundTerms: "SENTINEL-TERMS" } };
+    const plan = await generateCampaignPlan(input);
+    expect(plan.landingPageSystem.riskReversalWording).toBe("SENTINEL-TERMS");
+    const flat = JSON.stringify(plan);
+    expect(flat).not.toMatch(/12,?000/);
+    expect(flat).not.toMatch(/5-star rated|Top Rated|No Credit Check Financing/);
+  });
+});
+
+describe("organic evidence reaches the creative prompt as discovery evidence only", () => {
+  it("embeds the block and the derive-don't-copy instruction when supplied; absent otherwise", async () => {
+    const { buildCreativeSystemPrompt } = await import("../src/generator/prompts.js");
+    const withEv = buildCreativeSystemPrompt({ ...NicksTirePreset, organicEvidence: { block: "ORGANIC EVIDENCE: SENTINEL-ORGANIC", windowDays: 90, measured: 12 } });
+    expect(withEv).toContain("SENTINEL-ORGANIC");
+    expect(withEv).toMatch(/organic reach is not ad conversion/);
+    const without = buildCreativeSystemPrompt(NicksTirePreset);
+    expect(without).not.toMatch(/ORGANIC EVIDENCE/);
+  });
+});

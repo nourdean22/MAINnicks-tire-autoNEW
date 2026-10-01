@@ -28,6 +28,7 @@
  * fourth when a real post wants it.
  */
 import { fitFontSize } from "./instagramStudio";
+import { VISUAL_GRAMMARS, familyGrammar, type VisualGrammar } from "../../shared/visualLanguage";
 
 /** Instagram feed favours 4:5 — it occupies more of the screen than 1:1. */
 export const FEED_W = 1080;
@@ -62,6 +63,14 @@ export interface VisualFamily {
   /** Where the type block sits. Different families read differently. */
   anchor: "top" | "center" | "bottom";
   ctaStyle: "solid" | "outline" | "underline";
+  /**
+   * The Creative Visual Language grammar this family is an alias of
+   * (shared/visualLanguage.ts, README §J). Mapping only for now: the CSS
+   * below is still this file's own and the render is byte-identical to the
+   * pre-mapping output (pinned in visualLanguageParity.test.ts). Moving the
+   * colours onto `grammar.tokens` is the documented next step.
+   */
+  grammar: VisualGrammar;
 }
 
 /**
@@ -84,6 +93,7 @@ export const VISUAL_FAMILIES: Record<string, VisualFamily> = {
     accent: "#FDB913",
     anchor: "bottom",
     ctaStyle: "solid",
+    grammar: VISUAL_GRAMMARS[familyGrammar.mechanic_evidence],
   },
 
   seasonal_offer: {
@@ -98,6 +108,7 @@ export const VISUAL_FAMILIES: Record<string, VisualFamily> = {
     accent: "#FDB913",
     anchor: "center",
     ctaStyle: "solid",
+    grammar: VISUAL_GRAMMARS[familyGrammar.seasonal_offer],
   },
 
   road_hazard: {
@@ -121,6 +132,7 @@ export const VISUAL_FAMILIES: Record<string, VisualFamily> = {
     accent: "#FDB913",
     anchor: "center",
     ctaStyle: "solid",
+    grammar: VISUAL_GRAMMARS[familyGrammar.road_hazard],
   },
 };
 

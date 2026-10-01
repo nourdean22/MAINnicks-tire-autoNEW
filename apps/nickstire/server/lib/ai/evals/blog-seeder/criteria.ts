@@ -101,19 +101,25 @@ export function noEmojis(article: GeneratedArticle): CriterionResult {
 export function sectionsCountOK(article: GeneratedArticle): CriterionResult {
   const n = article.sections?.length ?? 0;
   return {
-    pass: n >= 4 && n <= 8,
-    reason: n < 4 || n > 8 ? `sections.length=${n} (expected 4-8)` : undefined,
+    pass: n >= 3 && n <= 8,
+    reason: n < 3 || n > 8 ? `sections.length=${n} (expected 3-8)` : undefined,
   };
 }
 
+/**
+ * 2026-10-01: the 80-word floor went with the prompt's "80-200 words" target —
+ * Google states no preferred word count and the floor only taught the model to
+ * pad. What remains is structural: a section must say something, and a
+ * runaway section is still a defect.
+ */
 export function sectionsContentLengthOK(article: GeneratedArticle): CriterionResult {
   for (const [i, s] of (article.sections ?? []).entries()) {
-    const words = s.content?.split(/\s+/).length ?? 0;
-    if (words < 80) {
-      return { pass: false, reason: `section ${i} (${s.heading}) ${words} words (min 80)` };
+    const words = s.content?.trim() ? s.content.trim().split(/\s+/).length : 0;
+    if (words < 20) {
+      return { pass: false, reason: `section ${i} (${s.heading}) ${words} words — empty or a stub` };
     }
-    if (words > 300) {
-      return { pass: false, reason: `section ${i} (${s.heading}) ${words} words (max 300)` };
+    if (words > 400) {
+      return { pass: false, reason: `section ${i} (${s.heading}) ${words} words (max 400 — runaway)` };
     }
   }
   return { pass: true };

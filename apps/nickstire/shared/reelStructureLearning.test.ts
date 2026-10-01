@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   rankPatternsByDistribution,
+  scoreForObjective,
   selectLearnedPattern,
 } from "./reelStructureLearning";
+import { scorePost } from "./reelPerformancePrior";
 import type { RotatablePattern } from "./reelStructureRotation";
 
 const p = (id: string, timesUsed = 0): RotatablePattern => ({
@@ -111,5 +113,56 @@ describe("selectLearnedPattern", () => {
       { excludeHookTypes: ["a"] },
     );
     expect(decision.pattern?.id).toBe("b");
+  });
+});
+
+describe("scoreForObjective (Pattern Lab 2.0)", () => {
+  // Two structures, same metrics in both runs. "keeper" saves hard and gets
+  // skipped; "hooker" holds viewers and gets sent on but is rarely saved.
+  const keeper = { patternId: "keeper", themes: [], reach: 1000, saved: 80, shares: 10, skipRate: 0.8, avgWatchTimeMs: 3000, comments: 2 };
+  const hooker = { patternId: "hooker", themes: [], reach: 1000, saved: 5, shares: 60, skipRate: 0.3, avgWatchTimeMs: 12000, comments: 40 };
+  const corpus = [keeper, keeper, keeper, hooker, hooker, hooker];
+
+  it("ranks the same metrics differently under two objectives", () => {
+    const reference = rankPatternsByDistribution(corpus, "reference").map((r) => r.patternId);
+    const discovery = rankPatternsByDistribution(corpus, "discovery").map((r) => r.patternId);
+    expect(reference).toEqual(["keeper", "hooker"]);
+    expect(discovery).toEqual(["hooker", "keeper"]);
+    const conversation = rankPatternsByDistribution(corpus, "conversation").map((r) => r.patternId);
+    expect(conversation).toEqual(["hooker", "keeper"]);
+  });
+
+  it("blended is the default and is byte-identical to the pre-objective score", () => {
+    const explicit = rankPatternsByDistribution(corpus, "blended");
+    const implicit = rankPatternsByDistribution(corpus);
+    expect(explicit).toEqual(implicit);
+    for (const row of corpus) {
+      expect(scoreForObjective(row, "blended")).toEqual(scorePost(row));
+    }
+  });
+
+  it("conversion is UNKNOWN (null, empty ranking) when no profile/site actions were reported", () => {
+    expect(scoreForObjective(keeper, "conversion")).toBeNull();
+    expect(rankPatternsByDistribution(corpus, "conversion")).toEqual([]);
+    const withActions = { ...hooker, profileVisits: 30 };
+    expect(scoreForObjective(withActions, "conversion")).toEqual({ score: 0.6, basis: ["profile_visits"] });
+  });
+
+  it("discovery uses watch ratio only when the reel's own length is known, and never fabricates a term", () => {
+    const noLength = scoreForObjective(hooker, "discovery");
+    expect(noLength?.basis).toEqual(["retention", "shares"]);
+    const withLength = scoreForObjective({ ...hooker, durationSeconds: 24 }, "discovery");
+    expect(withLength?.basis).toEqual(["retention", "watch_ratio", "shares"]);
+    expect(withLength!.score).toBeCloseTo((0.7 * 0.4 + 0.5 * 0.2 + 0.6 * 0.4) / 1.0, 6);
+    expect(scoreForObjective({ patternId: "x", themes: [], reach: null, saved: null, shares: null, skipRate: null }, "discovery")).toBeNull();
+  });
+
+  it("floors and exploration cadence are untouched by an objective", () => {
+    // Same proven-cohort fixture as above, scored under "reference": the 1-in-4
+    // exploration turn still fires and the 3-post / 12-post floors still hold.
+    const evidence = rankPatternsByDistribution([...rows("a", 6, 0.08), ...rows("b", 6, 0.01)], "reference");
+    expect(selectLearnedPattern([p("a", 8), p("b", 4)], evidence).mode).toBe("learned_explore");
+    const thin = rankPatternsByDistribution([...rows("a", 3, 0.08), ...rows("b", 3, 0.01)], "reference");
+    expect(selectLearnedPattern([p("a", 4), p("b", 1)], thin).mode).toBe("rotation");
   });
 });

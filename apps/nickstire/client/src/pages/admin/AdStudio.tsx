@@ -152,7 +152,7 @@ function CampaignArchitectView() {
       appointmentRequired: false
     },
     priceStack: {
-      corePrice: "From $25 used / $89 new",
+      corePrice: "Used tires from $25 installed (12-inch, most sizes $40-80) / new from $89 installed",
       guaranteeOrRefundTerms: "12-month parts / 90-day labor warranty",
       financingAvailable: true
     },

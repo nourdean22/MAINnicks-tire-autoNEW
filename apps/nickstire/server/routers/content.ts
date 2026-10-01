@@ -30,6 +30,7 @@ import { createLogger } from "../lib/logger";
 import type { ReelBrief } from "../../client/src/lib/facelessReelStudio";
 import { dispatch } from "../services/eventBus";
 import { queueStateForReelStatus } from "@shared/reelQueue";
+import { EXPERIMENT_PRESET_IDS, buildExperimentPreset } from "@shared/contentExperiments";
 
 const log = createLogger("routers:content");
 
@@ -637,24 +638,25 @@ export const contentAdminRouter = router({
    *  end-to-end: hook_style direct-vs-baseline, decided on shares_per_reach
    *  at the 72h horizon. Idempotent — re-starting re-asserts the same arms. */
   startContentExperiment: dbAdminProcedure
-    .input(z.object({ preset: z.literal("hook_style_v1") }))
+    .input(z.object({ preset: z.enum(EXPERIMENT_PRESET_IDS) }))
     .mutation(async ({ input }) => {
-      void input;
-      const def = {
-        experimentId: "hook-style-direct-v1",
-        primaryVariable: "hook_style" as const,
-        objective: "discovery" as const,
-        primaryMetric: "shares_per_reach",
-        arms: [
-          { armId: "hook-control", variantValue: "baseline", hookStyle: "baseline" },
-          { armId: "hook-direct", variantValue: "direct", hookStyle: "direct" },
-        ],
-        startedAt: new Date().toISOString(),
-      };
+      // Wave B: every §R preset is startable from here. The definitions live in
+      // shared/contentExperiments.ts (buildExperimentPreset) so this router and
+      // the generator read ONE table. `wiring` is returned so the caller can see
+      // whether the arm actually changes generation (hook_style_v1, duration_v1)
+      // or is only recorded + resolved (the rest).
+      const def = buildExperimentPreset(input.preset);
       const { startExperiment } = await import("../services/contentExperimentStore");
       const ok = await startExperiment(def);
       if (!ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "experiment registry unavailable (no DB)" });
-      return { started: def.experimentId, arms: def.arms.map((a) => a.armId), primaryMetric: def.primaryMetric };
+      return {
+        started: def.experimentId,
+        preset: def.preset,
+        arms: def.arms.map((a) => a.armId),
+        primaryMetric: def.primaryMetric,
+        metricNote: def.metricNote,
+        wiring: def.wiring,
+      };
     }),
 
   /** Shadow-judge disagreement readout (2026-08-06) — the reader the shadow
