@@ -18,6 +18,7 @@
  *   invariants, made executable.
  */
 import { BUSINESS } from "@shared/business";
+import { findVoiceViolations } from "@shared/voice";
 import type { SmsIntent, SmsIntentDecision } from "./smsIntentRouter";
 // The website's do-not-drive authority. The router already consults it to DECIDE
 // safety_urgent; the planner now consults it to say the RIGHT thing.
@@ -117,7 +118,9 @@ const LOCATION_GIVEN_RE =
  * rule because this only needs to decide whether ANSWERING is allowed, not what
  * the reply is about — a false positive here costs nothing.
  */
-const FINANCING_ASK_RE = /\b(financ\w*|payment (plans?|programs?)|(lease|rent)[- ]to[- ]own|make payments|pay(ing)? (it )?off|snap|acima|koalafi|no credit|bad credit|credit check|layaway)\b/i;
+// Customers ask in everyday words too: "payment options", "monthly", "installments",
+// "split the bill", "pay over time", a provider name or a pay-later brand.
+const FINANCING_ASK_RE = /\b(financ\w*|payments?|payment (plans?|programs?|options?)|(lease|rent)[- ]to[- ]own|installments?|monthly|pay(ing)? (it )?(off|over time|later|monthly|weekly)|split (it|the (payment|bill|cost))( up)?|spread (it |the (cost|bill|payments?) )?out|snap|acima|koalafi|afterpay|klarna|affirm|no credit|bad credit|credit check|lay ?away)\b/i;
 
 // ─── Shared prohibited-claim library (affirmative-claim shaped so honest
 //     "we'll check what's in stock" copy never trips them) ──────────────
@@ -198,7 +201,7 @@ const CLAIM_PITCH_FINANCING: ProhibitedClaim = {
   label: "pitch_after_commitment:unprompted_financing",
   // "payment programs" and "lease-to-own" are the site's words since 2026-10-01
   // (shared/financing.ts), so the drafter now says them too.
-  re: /\b(we (also )?(offer|have|accept|take) (financing|payment (plans?|programs?)|(lease|rent)[- ]to[- ]own)|(financing|payment (plans?|programs?)|(lease|rent)[- ]to[- ]own) (is |are )?available|no credit (check )?needed)\b/i,
+  re: /\b(we (also )?(offer|have|accept|take) (financing|payment (plans?|programs?|options?)|(lease|rent)[- ]to[- ]own)|(financing|payment (plans?|programs?|options?)|(lease|rent)[- ]to[- ]own) (is |are )?available|no credit (check )?needed)\b/i,
 };
 const CLAIM_PITCH_BENEFITS: ProhibitedClaim = {
   label: "pitch_after_commitment:benefit_restatement",
@@ -741,7 +744,18 @@ export function renderPlanPrompt(plan: SmsReplyPlan): string {
   return `\n\n[REPLY PLAN — follow exactly. ${lines.join(" ")}]`;
 }
 
-/** Post-draft enforcement: which of the plan's prohibitions the draft violates. */
+/**
+ * Post-draft enforcement: which of the plan's prohibitions the draft violates,
+ * plus the Voice Kernel's claim rules (shared/voice.ts), which apply to every
+ * SMS draft whatever the plan. Until 2026-10-01 nothing in the SMS lane read
+ * them: a draft saying "No credit check needed, approved in about 90 seconds"
+ * passed with zero violations on the financing path, because the only "no
+ * credit" pattern here is the stop-selling one, lifted when the customer asked.
+ */
 export function planViolations(plan: SmsReplyPlan, draft: string): string[] {
-  return plan.prohibited.filter((p) => p.re.test(draft)).map((p) => p.label);
+  const labels = plan.prohibited.filter((p) => p.re.test(draft)).map((p) => p.label);
+  for (const v of findVoiceViolations(draft, { surface: "sms" })) {
+    if (v.ruleId.startsWith("claim.") && !labels.includes(v.ruleId)) labels.push(v.ruleId);
+  }
+  return labels;
 }

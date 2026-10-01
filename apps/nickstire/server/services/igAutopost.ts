@@ -574,7 +574,10 @@ function angleForArchetype(a: IgArchetype): string {
 // (drafts containing family-owned / state-of-the-art now fail voice; captions
 // stating the correct "from $25 installed" stop failing price-compliance), so
 // the version is bumped to keep that shift attributable in igAutopostLog.
-export const PROMPT_VERSION = "2026-07-27";
+// 2026-10-01 — the kernel gained seven claim.* rules (credit checks, approval
+// promises, credit impact, "no interest", E-Check deadlines, pass guarantees,
+// certification). Both prompts render them, so the version moves again.
+export const PROMPT_VERSION = "2026-10-01";
 
 function buildGenSystemPrompt(): string {
   return [

@@ -136,7 +136,7 @@ export const CHAT_TOOLS: Tool[] = [
     type: "function",
     function: {
       name: "check_financing",
-      description: "Pre-screen financing eligibility. Use when customer asks about payment plans, financing, 'can I pay monthly', or affordability.",
+      description: "Explain the shop's payment programs (Acima lease-to-own, Snap Finance, Koalafi, American First Finance). Use when the customer asks about payment programs, payment plans, financing, lease-to-own, 'can I pay monthly', or affordability. The provider decides approval: never say the customer is approved or pre-qualified.",
       parameters: {
         type: "object",
         properties: {
@@ -551,24 +551,20 @@ async function executeCheckFinancing(estimatedTotal: number): Promise<string> {
   // PROGRAM exists (four third-party providers), payment figures are
   // illustrative estimates, and eligibility is decided by the provider
   // at application time — never by this chatbot.
-  const monthlyPayments = [
-    { months: 6, payment: Math.round(estimatedTotal / 6) },
-    { months: 12, payment: Math.round(estimatedTotal / 12) },
-  ];
-
+  // 2026-10-01: the "illustrative" 6- and 12-month figures were the estimate
+  // divided by the months, which is zero-cost math. Lease-to-own costs more
+  // than the cash price, so the model was handed a monthly number well below
+  // anything a provider would quote. The provider shows the real schedule.
   return JSON.stringify({
     programAvailable: true,
-    approvalDecidedBy: `the financing provider at application time (${BUSINESS.financing.providers.join(", ")}) — this chat cannot pre-approve or guarantee approval`,
+    approvalDecidedBy: `the payment-program provider at application time (${BUSINESS.financing.providers.join(", ")}) — this chat cannot pre-approve or guarantee approval`,
     estimatedTotal: `$${estimatedTotal.toFixed(0)}`,
-    illustrativePlans: monthlyPayments.map(p => ({
-      term: `${p.months} months`,
-      roughMonthly: `~$${p.payment}/mo (example math only — actual terms set by the provider)`,
-    })),
+    costNote: "Each provider shows the payment schedule and the total cost before you sign. Lease-to-own usually costs more than the cash price; early-purchase options can lower it.",
     program: [
       BUSINESS.financing.display,
       "Initial payment varies by provider and agreement",
       "Bring valid ID and proof of income",
     ],
-    note: "Apply in person — takes about 5 minutes. Drop by anytime!",
+    note: "Apply online through each provider's link at nickstire.org/financing, or in person at the shop.",
   });
 }

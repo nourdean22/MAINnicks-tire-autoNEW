@@ -42,5 +42,8 @@ describe("check_financing never fabricates approval", () => {
     expect(r.approvalDecidedBy).toContain(BUSINESS.financing.providers[0]);
     expect(r.approvalDecidedBy.toLowerCase()).toContain("cannot pre-approve");
     expect(JSON.stringify(r).toLowerCase()).not.toContain("in-house");
+    // 2026-10-01: total / months is zero-cost math; lease-to-own costs more.
+    expect(JSON.stringify(r)).not.toMatch(/\/mo\b|illustrativePlans/);
+    expect(r.costNote).toMatch(/total cost/i);
   });
 });

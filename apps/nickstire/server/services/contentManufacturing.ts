@@ -14,6 +14,7 @@ import {
   reelJobs
 } from "../../drizzle/schema";
 import { invokeLLM } from "../_core/llm";
+import { findVoiceViolations } from "@shared/voice";
 import { createLogger } from "../lib/logger";
 // evaluateWeatherTriggers, never checkWeatherTriggers: drafting content must
 // not fire operator alerts or customer weather SMS (the cron handler does).
@@ -315,6 +316,16 @@ export function validateClaimSafety(draft: SocialDraft): { safe: boolean; errors
   for (const term of hardDiagnostics) {
     if (combinedText.includes(term)) {
       errors.push(`Violated Rule 2: Hard diagnostic/guarantee term found "${term}". Use soft terms instead.`);
+    }
+  }
+
+  // 2a. Unsupported claims: the Voice Kernel claim rules (shared/voice.ts), the
+  // same list the copy linter, the IG prompts, Ad Studio and the SMS planner
+  // read. Until 2026-10-01 this validator gated social drafts and Meta-ads
+  // payloads with no credit, approval or E-Check terms at all.
+  for (const v of findVoiceViolations(`${draft.hookText} ${draft.bodyText} ${draft.caption}`, { surface: "social" })) {
+    if (v.ruleId.startsWith("claim.")) {
+      errors.push(`Violated Rule 2a: unsupported claim "${v.match}" (${v.ruleId}). ${v.fix}`);
     }
   }
 

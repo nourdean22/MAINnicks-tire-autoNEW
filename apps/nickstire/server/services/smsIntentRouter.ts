@@ -387,9 +387,16 @@ const RULES: Rule[] = [
     // mid-word. Only the exact singular "payment plan" ever fired, so the most
     // common phrasing of the question — "do you offer financing?" — fell through
     // to `general` and never reached the financing playbook.
-    // "payment programs" and "lease-to-own" are the site's own words since
-    // 2026-10-01, so customers text them back.
-    test: (b) => /\b(financ\w*|payment (plans?|programs?)|(lease|rent)[- ]to[- ]own|snap|acima|koalafi|no credit|credit check)\b/i.test(b),
+    // "payment programs", "payment options" and "lease-to-own" are the site's
+    // own words since 2026-10-01, so customers text them back.
+    // Paying in parts is asked the everyday way too ("can I do payments on
+    // brakes?", "pay over time"). Without these, that question matched only
+    // price_brakes and got the brake-price template, with nothing about paying
+    // in parts. Settling a bill ("I made a payment", "pay my invoice") is not
+    // matched: each phrase here asks to pay later or in pieces.
+    test: (b) =>
+      /\b(financ\w*|payment (plans?|programs?|options?)|(lease|rent)[- ]to[- ]own|snap|acima|koalafi|no credit|credit check)\b/i.test(b) ||
+      /\b((do|make|doing|making|set up) (monthly |weekly )?payments|monthly payments?|payments? on (my |the |a |an |\d )?\w+|pay(ing)? (it |this |that )?(off over time|over time|later|monthly|weekly|in (installments|parts|pieces))|installments?|split (it|the (payment|bill|cost))( up)?|spread (it |the (cost|bill|payments?) )?out|lay ?away)\b/i.test(b),
   },
   {
     intent: "human_requested",

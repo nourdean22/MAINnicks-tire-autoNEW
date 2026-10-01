@@ -216,6 +216,24 @@ describe("review #1099 P2 — an asked-for answer is not a pitch", () => {
     }
   });
 
+  // Independent review, 2026-10-01: widening the guard further than its
+  // exemption blocked the answer for committed customers who ask in everyday
+  // words. Each of these must be answerable.
+  it.each([
+    "on my way, do you have payment options?",
+    "omw - can I do monthly payments?",
+    "on my way, can I pay in installments?",
+    "heading over now, can I split the payment up?",
+    "on my way. afterpay?",
+    "omw, can I pay over time",
+    "on my way, what payment options do you have",
+    "on my way, any way to spread out the cost?",
+  ])("answers a committed customer who asks %j", (body) => {
+    const p = plan(body);
+    expect(p.stopSelling).toBe(true);
+    expect(planViolations(p, "Yes, we accept payment programs. Payment programs are available; each provider decides approval.")).toEqual([]);
+  });
+
   it("CONTROL: payment logistics a committed customer needs are not a pitch", () => {
     const p = plan("I'm on my way");
     expect(planViolations(p, "Got it. We take cash, cards and debit. 17625 Euclid Ave, first come, first served.")).toEqual([]);
@@ -244,6 +262,7 @@ describe("router financing rule — the \b bug that hid the whole intent", () =>
     "do you have payment programs?",
     "lease to own tires?",
     "rent-to-own",
+    "do you have payment options?",
   ])("routes %j to the financing intent", (body) => {
     const d = routeInboundSms(body, CTX);
     expect([d.primary, ...d.secondary]).toContain("financing");
@@ -252,5 +271,24 @@ describe("router financing rule — the \b bug that hid the whole intent", () =>
   it("does not fire on unrelated words containing the letters", () => {
     const d = routeInboundSms("what are your hours?", CTX);
     expect([d.primary, ...d.secondary]).not.toContain("financing");
+  });
+});
+
+describe("every SMS draft is checked against the Voice Kernel claim rules", () => {
+  // Independent review, 2026-10-01: on the financing path the only "no credit"
+  // pattern is the stop-selling one, lifted when the customer asked, so these
+  // drafts passed with zero violations.
+  it.each([
+    ["do you do financing? no credit check?", "Yes! No credit check needed, $10 down and you're approved in about 90 seconds.", ["claim.no-credit-check", "claim.approval-promise"]],
+    ["can I get tires with no credit check", "We have no-credit-check payment programs. Same as cash for 90 days.", ["claim.no-credit-check", "claim.lease-no-interest"]],
+    ["on my way, do you do payment programs?", "Yes, applying won't hurt your credit score.", ["claim.no-credit-impact"]],
+  ])("holds a draft that makes a banned claim: %j", (body, draft, expected) => {
+    const violations = planViolations(plan(body), draft);
+    for (const id of expected) expect(violations).toContain(id);
+  });
+
+  it("CONTROL: the financing playbook's own facts pass", () => {
+    const p = plan("do you do payment programs?");
+    expect(planViolations(p, p.knownFacts.join(" "))).toEqual([]);
   });
 });
