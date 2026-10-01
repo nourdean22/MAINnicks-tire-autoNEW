@@ -568,6 +568,11 @@ export async function runNhtsaWarrantyIngest(deps: IngestDeps = {}): Promise<Ing
     receipts.push({ range, status: "parsed", rowsRead: parsed.rowsRead, rowsMalformed: parsed.rowsMalformed, comms: comms.length, products: products.length });
   }
 
+  // Each January NHTSA renames the open chunk ("2025-2026" becomes "2025-2027"). Rows it still lists were
+  // re-upserted above under the new name, so a name outside this year's plan holds only rows NHTSA dropped:
+  // its pass goes, and the read (which takes its current passes from state.chunks) stops showing them.
+  const planned = new Set([...closed, open]);
+  for (const name of Object.keys(state.chunks)) if (!planned.has(name)) delete state.chunks[name];
   state.lastSuccessAt = clock().toISOString();
   await store.writeState(state);
   return { status: "completed", fullPass, chunks: receipts, rowsRead, rowsMalformed, commsKept, bySignal, productsUpserted };
