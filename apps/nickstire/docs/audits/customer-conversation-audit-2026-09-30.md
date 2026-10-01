@@ -134,3 +134,58 @@ This section records the deeper read after the first corpus pass. It separates l
 6. Make experiment promotion depend on business outcomes plus safety/claim invariants, not conversational score alone.
 7. Continue the mechanic-truth + persuasion-truth audit across VAPI and SMS.
 
+## Forensic implementation checkpoint — 2026-10-01 continued
+
+### Changes now built on PR #2839 branch
+
+1. **Weekly prompt-evolution runtime budget**
+   - Production evidence showed the latest scheduled `prompt-evolution-weekly` run timed out under the scheduler's 4-minute default.
+   - The job now has an explicit 30-minute wall-clock budget, still bounded well below its 24-hour tier cadence.
+   - This changes the allowed runtime only; the existing fail-closed timeout/lock semantics remain unchanged.
+
+2. **Neutral-first doctrine is now shared with the optimizer**
+   - Removed the optimizer hard constraint `keep the tire-first default`.
+   - Candidate generation must preserve strong tire handling while identifying the caller's actual need before specializing.
+
+3. **Persuasion truth hardened**
+   - Removed the universal competitor claim `any other shop charges to even look`.
+   - The intended boundary remains: confidently sell Nick's own verified process, operating truths, and offers; do not assert universal competitor behavior or a remote mechanical diagnosis.
+
+4. **Vapi lifecycle telemetry corrected**
+   - `status-update` no longer means `call started` by definition.
+   - Only `status=in-progress` stamps the greeted/start state.
+   - `speech-update` is explicitly acknowledged as normal Vapi telemetry instead of logged as an unknown event.
+   - This is based on current Vapi server-event semantics, where status values include scheduled/queued/ringing/in-progress/forwarding/ended and only in-progress means the call started.
+
+5. **Exact served-behavior fingerprint added**
+   - The final inbound assistant configuration is fingerprinted AFTER learned lessons and dashboard-managed transfer settings are merged.
+   - Authentication secret rotation is excluded from the hash input so it cannot masquerade as customer-behavior drift.
+   - The fingerprint is stamped into Vapi assistant metadata.
+   - End-of-call processing persists provider-delivered behavior metadata to `vapi_call_logs.metadata.behavior` when present.
+   - Calls served before the next Push Latest Config are marked `assistant_metadata_unavailable`; they are never backfilled with a current-code hash.
+
+6. **Behavior provenance carried into revenue reconciliation**
+   - Reconciliation now reads the call behavior receipt and carries it into candidate `evidence_json`.
+   - The call→money readout exposes the behavior envelope as well.
+   - No prompt text, customer PII, or transfer phone is copied into this evidence.
+
+7. **Existing expected-arrival bridge reused**
+   - Voice `bookSlot` already writes `expected_arrivals.source='voice'` with `sourceRef=vapiCallId`.
+   - Revenue reconciliation now preserves that linkage in evidence:
+     - `observed_intent` while the arrival is only expected;
+     - `reconciled_observed` when the expected-arrival row later claims a unique reconciled invoice.
+   - This evidence does NOT automatically upgrade an attribution verdict to causal/verified. It remains a stronger receipt for later promotion logic.
+
+8. **Offline prompt acceptance no longer masquerades as a production winner**
+   - Weekly prompt evolution remains propose-only.
+   - Stored result now carries:
+     - `promotionStage: offline_candidate` when it passes train+holdout;
+     - `businessOutcomeEvidence: not_measured_candidate_has_not_served`.
+   - Telegram copy now says `OFFLINE CANDIDATE` and explicitly says arrival/revenue impact is unmeasured.
+
+### Explicitly unresolved / not guessed
+
+- **Used-tire channel pricing authority:** repository history contains conflicting operator/code truth about website $25 floor/band vs $60 high-intent quote channels, while current SMS code and current AGENTS guidance disagree. No autonomous change made.
+- **Marketing consent enforcement:** current shadow behavior is documented as an explicit prior operator decision, not treated as an accidental defect in this pass. No enforcement-mode change made.
+- **Production serving:** none of these branch changes are live until PR #2839 is reviewed/merged/deployed and the inbound Vapi assistant receives a successful Push Latest Config + provider read-back.
+
