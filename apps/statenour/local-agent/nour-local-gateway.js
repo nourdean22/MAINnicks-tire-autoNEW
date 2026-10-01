@@ -404,16 +404,46 @@ function messagesToPrompt(messages) {
     .join("\n\n");
 }
 
+function compactToolSchema(schema, depth = 0) {
+  if (!schema || typeof schema !== "object" || Array.isArray(schema) || depth > 6) return {};
+  const out = {};
+  if (typeof schema.type === "string") out.type = schema.type;
+  if (Array.isArray(schema.enum) && schema.enum.length <= 32) out.enum = schema.enum;
+  if (Array.isArray(schema.required) && schema.required.length) out.required = schema.required.map(String);
+  if (schema.items && typeof schema.items === "object") {
+    out.items = compactToolSchema(schema.items, depth + 1);
+  }
+  if (schema.properties && typeof schema.properties === "object" && !Array.isArray(schema.properties)) {
+    out.properties = {};
+    for (const [key, value] of Object.entries(schema.properties)) {
+      out.properties[key] = compactToolSchema(value, depth + 1);
+    }
+  }
+  for (const unionKey of ["anyOf", "oneOf", "allOf"]) {
+    if (Array.isArray(schema[unionKey])) {
+      out[unionKey] = schema[unionKey].slice(0, 12).map(item => compactToolSchema(item, depth + 1));
+    }
+  }
+  if (typeof schema.additionalProperties === "boolean") {
+    out.additionalProperties = schema.additionalProperties;
+  } else if (schema.additionalProperties && typeof schema.additionalProperties === "object") {
+    out.additionalProperties = compactToolSchema(schema.additionalProperties, depth + 1);
+  }
+  return out;
+}
+
 function normalizeToolDefinitions(tools) {
   if (!Array.isArray(tools)) return [];
   return tools
     .filter(tool => tool && tool.type === "function" && tool.function && tool.function.name)
     .map(tool => ({
       name: String(tool.function.name),
-      description: String(tool.function.description || ""),
-      parameters: tool.function.parameters && typeof tool.function.parameters === "object"
-        ? tool.function.parameters
-        : { type: "object", properties: {} },
+      description: String(tool.function.description || "").replace(/\s+/g, " ").trim().slice(0, 180),
+      parameters: compactToolSchema(
+        tool.function.parameters && typeof tool.function.parameters === "object"
+          ? tool.function.parameters
+          : { type: "object", properties: {} }
+      ),
     }));
 }
 
