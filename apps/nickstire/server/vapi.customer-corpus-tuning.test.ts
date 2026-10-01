@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ASSISTANT_SYSTEM_PROMPT } from "./services/vapi";
+import { ASSISTANT_SYSTEM_PROMPT, buildAssistantConfig, computeVapiBehaviorHash } from "./services/vapi";
 
 describe("VAPI corpus-grounded conversation rules", () => {
   it("starts neutral instead of assuming a used-tire caller", () => {
@@ -52,5 +52,24 @@ describe("VAPI corpus-grounded conversation rules", () => {
     expect(src).toContain('status === "in-progress"');
     expect(src).not.toContain('case "status-update":\n      case "call-start"');
     expect(src).toContain('case "speech-update"');
+  });
+  it("fingerprints the actual Vapi behavior without treating secret rotation as behavior drift", () => {
+    const a = buildAssistantConfig("https://nickstire.example/webhook") as any;
+    const b = buildAssistantConfig("https://nickstire.example/webhook") as any;
+    a.server.secret = "secret-a";
+    b.server.secret = "secret-b";
+    expect(computeVapiBehaviorHash(a)).toBe(computeVapiBehaviorHash(b));
+
+    const changed = buildAssistantConfig("https://nickstire.example/webhook") as any;
+    changed.model.messages[0].content += "\nA genuinely different customer-facing instruction.";
+    expect(computeVapiBehaviorHash(changed)).not.toBe(computeVapiBehaviorHash(a));
+  });
+
+  it("persists provider-delivered behavior metadata instead of reconstructing a current-code version later", () => {
+    const src = readFileSync(new URL("./routes/webhooks/vapi.ts", import.meta.url), "utf8");
+    expect(src).toContain("$.behavior");
+    expect(src).toContain("vapi_assistant_metadata");
+    expect(src).toContain("assistant_metadata_unavailable");
+    expect(src).toContain("meta.nickBehaviorHash");
   });
 });
