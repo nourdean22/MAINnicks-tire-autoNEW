@@ -47,7 +47,12 @@ export async function processPromptEvolutionWeekly(now: Date = new Date()): Prom
 
   await setKv(
     "prompt_evolution_latest",
-    JSON.stringify({ ranAt: now.toISOString(), ...result }),
+    JSON.stringify({
+      ranAt: now.toISOString(),
+      promotionStage: result.outcome === "accepted" ? "offline_candidate" : "none",
+      businessOutcomeEvidence: "not_measured_candidate_has_not_served",
+      ...result,
+    }),
     "Prompt evolution — latest weekly result (propose-only)",
   );
 
@@ -56,7 +61,7 @@ export async function processPromptEvolutionWeekly(now: Date = new Date()): Prom
     `Seeds: ${result.usableSeeds} real failed calls (train ${result.trainCount} / holdout ${result.holdoutCount})`,
     `Baseline: train ${result.baselineTrain} · holdout ${result.baselineHoldout}`,
     result.outcome === "accepted"
-      ? `ACCEPTED on strict holdout improvement (${result.accepted?.holdout}): ${result.accepted?.rationale.slice(0, 200)}\nFull candidate prompt saved to shop settings key prompt_evolution_latest. Applying it stays your call: edit + Push Config.`
+      ? `OFFLINE CANDIDATE passed strict holdout improvement (${result.accepted?.holdout}): ${result.accepted?.rationale.slice(0, 200)}\nThis is NOT a production/business winner: the candidate has not served customers, so arrival/revenue impact is unmeasured. Full candidate prompt saved to shop settings key prompt_evolution_latest. Applying it stays your call: edit + Push Config.`
       : `No proposal shipped — outcome: ${result.outcome}. The gate held; negative feedback recorded in the result.`,
   ].join("\n");
   const { sendTelegram } = await import("../../services/telegram");
