@@ -72,4 +72,14 @@ describe("VAPI corpus-grounded conversation rules", () => {
     expect(src).toContain("assistant_metadata_unavailable");
     expect(src).toContain("meta.nickBehaviorHash");
   });
+  it("carries behavior and call-linked arrival evidence into revenue reconciliation without upgrading the verdict", () => {
+    const src = readFileSync(new URL("./services/revenueReconciliation.ts", import.meta.url), "utf8");
+    expect(src).toContain("metadata: vapiCallLogs.metadata");
+    expect(src).toContain("vapiCallId: vapiCallLogs.vapiCallId");
+    expect(src).toContain('eq(expectedArrivals.source, "voice")');
+    expect(src).toContain('link: "sourceRef=vapiCallId"');
+    expect(src).toContain('"reconciled_observed"');
+    expect(src).toContain("...(behavior.hash ? { behavior } : {})");
+    expect(src).toContain("...(arrivalEvidence ? { arrival: arrivalEvidence } : {})");
+  });
 });
