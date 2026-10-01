@@ -4,8 +4,8 @@
  * Its sibling TodaysMoneyRisks reads `leads` (2 rows in all of production) and
  * `callback_requests` (nothing newer than 2026-05-31). This card reads the
  * three things the shop genuinely generates: declined work worth reclaiming,
- * calls, and invoiced revenue. `controlCenter.todayPulse` documents what was
- * measured and excluded, and why.
+ * calls, and invoiced revenue; plus the promises the shop owes (Q-23 phase 3).
+ * `controlCenter.todayPulse` documents what was measured and excluded, and why.
  *
  * HONESTY · when the query fails the card renders NOTHING. An unreadable pulse
  * must never draw as a quiet day — that is the exact confusion this whole arc
@@ -14,9 +14,10 @@
  * currency it does not have.
  */
 import { trpc } from "@/lib/trpc";
-import { AlertTriangle, PhoneCall, Receipt, TrendingUp } from "lucide-react";
+import { AlertTriangle, HandHeart, PhoneCall, Receipt, TrendingUp } from "lucide-react";
 import { formatCents } from "../shared/format";
-import { mirrorFreshness, abandonRate } from "./todayPulse";
+import { ProvenanceTag } from "../shared/ProvenanceTag";
+import { mirrorFreshness, mirrorLagDays, abandonRate, promiseDebtView, todayPulseProvenance } from "./todayPulse";
 
 export function TodaysRealNumbers() {
   const { data, isLoading } = trpc.controlCenter.todayPulse.useQuery(undefined, {
@@ -27,8 +28,13 @@ export function TodaysRealNumbers() {
   if (isLoading || !data?.available) return null;
 
   const { declinedWork, calls, revenue } = data;
-  const freshness = mirrorFreshness(revenue.throughDate, new Date());
+  const now = new Date();
+  const freshness = mirrorFreshness(revenue.throughDate, now);
+  const neverSynced = mirrorLagDays(revenue.throughDate, now) === null;
   const abandoned = abandonRate(calls);
+  // Q-23: every number says whether it was counted or estimated.
+  const prov = todayPulseProvenance(freshness.stale, neverSynced);
+  const owed = promiseDebtView(data.obligations);
 
   return (
     <div className="bg-card border border-border/30">
@@ -46,7 +52,7 @@ export function TodaysRealNumbers() {
             <Receipt className="w-4 h-4 mt-0.5 text-amber-400 shrink-0" />
             <div className="min-w-0">
               <div className="text-lg font-semibold tabular-nums text-amber-400">
-                {formatCents(declinedWork.openCents)}
+                {formatCents(declinedWork.openCents)} <ProvenanceTag provenance={prov.declinedWork} />
               </div>
               <div className="text-xs text-foreground/60 mt-0.5">
                 {declinedWork.openCount} estimates never became jobs
@@ -61,16 +67,17 @@ export function TodaysRealNumbers() {
           <PhoneCall className="w-4 h-4 mt-0.5 text-emerald-400 shrink-0" />
           <div className="min-w-0">
             <div className="text-lg font-semibold tabular-nums">
-              {calls.last24h} <span className="text-sm font-normal text-foreground/60">calls · 24h</span>
+              {calls.last24h} <span className="text-sm font-normal text-foreground/60">calls · 24h</span>{" "}
+              <ProvenanceTag provenance={prov.calls} />
             </div>
             <div className="text-xs text-foreground/60 mt-0.5">
               {/* "reached a booking or quote tool", NOT "became leads". The
                   underlying column is set on tool contact, and 449 calls carry
                   it while the leads table holds 2 rows. See todayPulse's SQL. */}
-              {calls.reachedTool24h} reached a booking or quote tool
+              {calls.reachedTool24h} reached a booking or quote tool <ProvenanceTag provenance={prov.reachedTool} />
               {/* Only rendered when there were calls to measure — see abandonRate. */}
               {abandoned !== null && calls.abandoned24h > 0 && (
-                <> · {calls.abandoned24h} hung up under 20s ({abandoned}%)</>
+                <> · {calls.abandoned24h} hung up under 20s ({abandoned}%) <ProvenanceTag provenance={prov.abandoned} /></>
               )}
             </div>
           </div>
@@ -81,7 +88,7 @@ export function TodaysRealNumbers() {
           <TrendingUp className="w-4 h-4 mt-0.5 text-primary shrink-0" />
           <div className="min-w-0">
             <div className="text-lg font-semibold tabular-nums text-primary">
-              {formatCents(revenue.revenue7dCents)}
+              {formatCents(revenue.revenue7dCents)} <ProvenanceTag provenance={prov.revenue} />
             </div>
             <div className="text-xs text-foreground/60 mt-0.5">
               {revenue.invoices7d} paid invoices · 7 days ·{" "}
@@ -89,6 +96,19 @@ export function TodaysRealNumbers() {
             </div>
           </div>
         </div>
+
+        {/* Q-23 phase 3 · obligation debt. A zero is stated; an unread ledger says so. */}
+        {owed && (
+          <div className="px-4 py-3.5 flex items-start gap-3" data-tile="promises-owed">
+            <HandHeart className={`w-4 h-4 mt-0.5 shrink-0 ${owed.loud ? "text-amber-400" : "text-foreground/60"}`} />
+            <div className="min-w-0">
+              <div className={`text-sm font-semibold tabular-nums ${owed.loud ? "text-amber-400" : ""}`}>
+                {owed.headline} <ProvenanceTag provenance={owed.provenance} />
+              </div>
+              {owed.detail && <div className="text-xs text-foreground/60 mt-0.5">{owed.detail}</div>}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Loud only when the lag is genuinely abnormal — a one-day lag is normal
@@ -97,7 +117,9 @@ export function TodaysRealNumbers() {
         <div className="px-4 py-2.5 border-t border-border/30 bg-amber-500/10 flex items-center gap-2">
           <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
           <span className="text-[11px] text-amber-200/90">
-            Invoice sync is {freshness.label} — revenue above is understated until the mirror catches up.
+            {neverSynced
+              ? "No invoices have synced yet, so revenue above is not measured."
+              : `Invoice sync is ${freshness.label} — revenue above is understated until the mirror catches up.`}
           </span>
         </div>
       )}

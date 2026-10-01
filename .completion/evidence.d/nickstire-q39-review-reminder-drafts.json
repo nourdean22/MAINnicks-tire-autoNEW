@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "Q-39 (branch nickstire/q39-review-reminder-drafts): new tier job review-reminder-drafts -> server/cron/jobs/reviewReminderDrafts.ts has no catch; draftReviewReminders throws on an unreadable database ('unknown, not empty') and on an unreadable opt-out list, so both runners file a failed run, never a quiet empty one. Receipts: server/services/reviewReminder.test.ts 18/18 green incl. 'an unreadable database throws rather than reporting an empty queue' and 'an unreadable opt-out list is unknown ... throws, drafts nothing'; full nickstire suite 819 files passed / 10,157 tests passed (1 failure = lintGateFailClosed RANGE test, shallow clone lacks commit fdf7a193c; unrelated to this diff)."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability state changes in this diff (2026-09-30, branch nickstire/q39-review-reminder-drafts). It adds a DRAFT-ONLY review-reminder lane (services/reviewReminder.ts + tier job review-reminder-drafts) behind two flags that default OFF (contact_holdouts_enabled + the new review_reminder_drafts); with the flags off the job returns before any read, so production behaviour is unchanged. Nothing sends automatically: rows are status drafted / requiresHumanApproval true in the existing Human Review Queue. No ledger capability names review reminders, and nothing was promoted or demoted; the lane is proven by test only (18 tests, 7 mutants each killed), never exercised in production. A ledger entry belongs with the PR that arms it and has a first readout."
+    }
+  }
+}

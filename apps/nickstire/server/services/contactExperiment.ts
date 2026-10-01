@@ -98,6 +98,11 @@ export function contactLaneForVariant(
   if (variantKey === "review_request") {
     return lane("review_request", variantKey, "contact_holdout_review_requests");
   }
+  if (variantKey === "review_reminder") {
+    // Q-39: the reminder is itself the experiment, so its lane flag is the one
+    // that arms the drafts (services/reviewReminder.ts).
+    return lane("review_reminder", variantKey, "review_reminder_drafts");
+  }
   if (/^campaign:\d+$/i.test(variantKey)) {
     // Each campaign is its own experiment. Comparing unrelated offers/copy in
     // one control pool would confound the result.

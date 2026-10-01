@@ -4,7 +4,7 @@ Every background job in `server/cron/scheduler.ts` (tiered scheduler) and the
 HTTP-triggerable registry in `server/cron/index.ts`. **This file is generated** from
 those two sources — `server/cron/cronInventoryParity.test.ts` fails when they drift.
 
-**Last regenerated: 2026-09-27 by `scripts/gen-cron-inventory.mts`.**
+**Last regenerated: 2026-09-30 by `scripts/gen-cron-inventory.mts`.**
 
 > The code is the source of truth. To add or change a job, edit the scheduler and
 > re-run the generator in the same commit; write the job's purpose in the last column.
@@ -16,12 +16,12 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | Tier | Interval | Jobs (scheduled / staged) |
 |---|---|---|
 | heartbeat | every 5m | 4 / 2 |
-| pulse | every 15m | 23 / 0 |
-| hourly | every 2h | 35 / 1 |
+| pulse | every 15m | 24 / 0 |
+| hourly | every 2h | 36 / 1 |
 | daily | every 1d | 52 / 0 |
 | briefings | every 12h | 6 / 0 |
 
-**Total: 123 tiered jobs (120 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
+**Total: 125 tiered jobs (122 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
 
 ## heartbeat (every 5m)
 
@@ -48,6 +48,7 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `gateway-order-status-poll` | yes | no | yes | — |
 | `higgsfield-session-keepalive` | no | no | yes | — |
 | `ig-autopost` | no | no | yes | — |
+| `obligation-mirror` | yes | no | yes | — |
 | `orchestration-status-reconcile` | no | no | yes | — |
 | `overdue-reply-alert` | yes | no | yes | — |
 | `proposal-orphan-sweep` | no | no | yes | — |
@@ -91,6 +92,7 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `pull-from-statenour-brain` | no | no | yes | — |
 | `referral-loop-closer` | yes | yes | yes | — |
 | `reminder-queue` | yes | no | yes | — |
+| `review-reminder-drafts` | yes | no | yes | Q-39: draft (never send) one day-13 review reminder per unclicked request, with a 15% no-contact control; off until flagged |
 | `review-requests` | yes | no | yes | Send review request SMS to recently-completed bookings |
 | `safety-check` | no | no | yes | — |
 | `service-affinity-compute` | no | no | yes | — |

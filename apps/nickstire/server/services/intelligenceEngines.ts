@@ -1295,6 +1295,12 @@ interface ChurnCustomer {
 export async function predictChurn(): Promise<{
   highRisk: ChurnCustomer[];
   mediumRisk: ChurnCustomer[];
+  /**
+   * Q-23 phase 6 · true only when the customer read failed. The empty lists
+   * beside it are then placeholders, not "nobody is at risk": Customer
+   * Intelligence reads this to show UNMEASURED instead of "0 High Churn Risk".
+   */
+  unavailable?: true;
 }> {
   try {
   // Pull all customers with at least 1 visit
@@ -1470,6 +1476,6 @@ export async function predictChurn(): Promise<{
   };
   } catch (e) {
     log.error("[intelligence:churn] predictChurn failed:", e);
-    return { highRisk: [], mediumRisk: [] };
+    return { highRisk: [], mediumRisk: [], unavailable: true };
   }
 }

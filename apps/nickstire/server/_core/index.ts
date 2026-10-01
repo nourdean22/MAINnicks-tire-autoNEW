@@ -80,6 +80,7 @@ import { registerBurnoutRadarRoute } from "../routes/burnout-radar";
 import { registerSimulatorRoute } from "../routes/simulator";
 import { registerNourChiefStrategistRoute } from "../routes/nour-chief-strategist";
 import { registerNourOsQueryRoute } from "../routes/nour-os-query";
+import { registerNourOsIgControlRoute } from "../routes/nour-os-ig-control";
 import { registerCameraVisitsRoute, registerCameraHeartbeatRoute } from "../routes/cameraVisitsRoutes";
 import { registerConversationEpisodeRoute } from "../routes/conversationRoutes";
 import { registerSecurityTxt } from "./securityTxt";
@@ -524,6 +525,7 @@ async function startServer() {
   registerSimulatorRoute(app);
   registerNourChiefStrategistRoute(app);
   registerNourOsQueryRoute(app);
+  registerNourOsIgControlRoute(app);
   registerCameraVisitsRoute(app);
   registerConversationEpisodeRoute(app);
   registerCameraHeartbeatRoute(app);

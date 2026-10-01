@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Q-23 phase 4 (2026-09-30, branch nickstire/q23-phase4-money-risks-provenance). What the operator sees: on Admin > Intelligence HQ, the 'Money At Risk' card now tags each number: stale leads and waiting callbacks read MEASURED, and the quoted-dollars line (now worded 'quoted, at risk') reads MEASURED as the contract's 'Potential pipeline value'. When the admin bundle reports the leads or callbacks read as failed, the card no longer hides it: it adds 'Stale leads could not be read · unknown, not zero' (or the callbacks equivalent) tagged UNMEASURED, the item count reads 'at least N', and if both reads failed the card still appears with 'Money at risk: could not be read in full.' instead of disappearing like a clean day. With everything read and nothing at risk it still renders nothing. Proof is a jsdom render with a mocked bundle, not a live admin session: client/src/__tests__/todays-money-risks-provenance.test.tsx 5/5; against main's source 3 of 5 fail (the two no-change controls pass on both by design). Not yet seen by the operator on the installed PWA."
+    }
+  }
+}

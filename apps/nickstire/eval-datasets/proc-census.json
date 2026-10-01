@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-29T22:24:33.573Z",
-  "count": 758,
+  "generatedAt": "2026-09-30T18:04:45.553Z",
+  "count": 760,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -357,6 +357,7 @@
     "mutation.workOrders.updateFields",
     "mutation.workOrders.updatePartStatus",
     "query.activity.recent",
+    "query.adStudio.potholeAudiences",
     "query.adminDashboard.capiStatus",
     "query.adminDashboard.customerValueReferenceRanking",
     "query.adminDashboard.dbCleanupScan",
@@ -731,6 +732,7 @@
     "query.vapi.status",
     "query.vapi.todayCalls",
     "query.vapi.todayMetrics",
+    "query.vehicleData.complaints",
     "query.vehicleData.decodeVin",
     "query.vehicleData.recalls",
     "query.voiceAgent.capacityCheck",

@@ -38,6 +38,7 @@ export const FLAG_DEFINITIONS = [
   { key: "contact_holdout_winback", description: "15% deterministic no-contact control for winback SMS. Requires contact_holdouts_enabled." },
   { key: "contact_holdout_weather", description: "15% deterministic no-contact control per weather-trigger SMS lane. Requires contact_holdouts_enabled." },
   { key: "contact_holdout_review_requests", description: "15% deterministic no-contact control for review-request SMS. Random only; never sentiment-selected. Requires contact_holdouts_enabled." },
+  { key: "review_reminder_drafts", description: "Q-39 experiment: one review reminder ~day 13 to customers who got a review request and never clicked. DRAFTS ONLY (Human Review Queue); 15% no-contact control. Requires contact_holdouts_enabled." },
   { key: "contact_holdout_campaigns", description: "15% deterministic no-contact control independently within each explicit SMS campaign. Requires contact_holdouts_enabled." },
   { key: "service_affinity_v2_compute", description: "Service Affinity v2 prediction cron · writes per-customer predictions to service_affinity_predictions w/ 50/50 A/B arm split (treatment eligible for SMS · control hold-out for closed-loop measurement). Disabled until migration 0061 applied + operator verifies v2 quality." },
   { key: "auto_revenue_correction", description: "Auto-trigger winback when revenue behind pace" },
@@ -156,6 +157,10 @@ export const FLAG_DEFINITIONS = [
   // ADR-0019 phase 1 (Q-12). Internal bookkeeping only: sends nothing, and the
   // legacy StateNour senders run exactly as before whether it is ON or OFF.
   { key: "bridge_outbox_shadow", description: "Record every bus event bound for StateNour as a status='shadow' row in bridge_outbox (migration 0137), keyed per ADR-0019. Never drained; used to prove the outbox is complete before cutover. OFF = nothing written." },
+  // ADR-0020 phase 1 (Q-22). Shadow bookkeeping only: sends nothing, changes no
+  // source row, and promiseLedger keeps these rows out of the sweep, the panel
+  // and the kept-rate until phase 2/3.
+  { key: "obligation_mirror_enabled", description: "Mirror open callback requests, owed texts and emergency requests into customer_promises (one row each, keyed per ADR-0020) every 15 min, and close each row when its source reaches an outcome. Shadow only: no alert, inbox item or panel change. OFF = nothing read or written." },
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];

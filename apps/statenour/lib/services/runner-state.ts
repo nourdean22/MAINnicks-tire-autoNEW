@@ -1203,7 +1203,9 @@ export async function heartbeatRunner(input: {
       status: toState(input.status),
       version: input.version || undefined,
       lastHeartbeatAt: new Date(),
-      metadata: asJsonValue(input.metadata || {})
+      ...(input.metadata === undefined
+        ? {}
+        : { metadata: asJsonValue(input.metadata) })
     },
     create: {
       nodeKey: input.nodeKey,

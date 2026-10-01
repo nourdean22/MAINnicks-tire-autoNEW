@@ -19,14 +19,26 @@ class ExternalWorkerInstallerTests(unittest.TestCase):
 
     def test_task_is_outbound_worker_for_current_interactive_user(self):
         self.assertIn("StateNour-ExternalWorker-NattyNour", SOURCE)
-        self.assertIn("New-ScheduledTaskTrigger -AtLogOn", SOURCE)
+        self.assertNotIn("New-ScheduledTaskTrigger -AtLogOn", SOURCE)
+        self.assertIn("manual-only", SOURCE)
+        self.assertIn("-AllowStartIfOnBatteries", SOURCE)
+        self.assertIn("-DontStopIfGoingOnBatteries", SOURCE)
         self.assertIn("-LogonType Interactive", SOURCE)
         self.assertIn("-RunLevel Limited", SOURCE)
         self.assertIn("-RestartCount 10", SOURCE)
 
     def test_runtime_is_copied_out_of_repo_worktree(self):
         self.assertIn('Copy-Item -LiteralPath $SourceAgent -Destination $RuntimeAgent -Force', SOURCE)
+        self.assertIn(
+            'Copy-Item -LiteralPath $SourceChatGptBridge -Destination $RuntimeChatGptBridge -Force',
+            SOURCE,
+        )
+        self.assertIn('chatgpt-plan-bridge.mjs', SOURCE)
+        self.assertIn('chatgptPlanBridgeSha256', SOURCE)
         self.assertIn("$env:LOCALAPPDATA\\StateNour\\external-worker", SOURCE)
+        self.assertIn("NATTYNOUR-RUNTIME-WRITES-DO-NOT-CLEAN", SOURCE)
+        self.assertIn("$WorkspaceRoot", SOURCE)
+        self.assertNotIn("$env:USERPROFILE\\NOURCITY", SOURCE)
 
     def test_launcher_scrubs_metered_api_key_envs(self):
         for key in (

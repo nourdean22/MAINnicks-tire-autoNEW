@@ -2,6 +2,8 @@ import React from "react";
 import { trpc } from "@/lib/trpc";
 import { Users, PhoneCall, MessageSquare, AlertTriangle, RefreshCw } from "lucide-react";
 import { LoadingState } from "../shared";
+import { ProvenanceTag } from "../shared/ProvenanceTag";
+import { deriveCustomerSignals, type CustomerSignalCount } from "./customerSignals";
 
 export function CustomerIntelligence() {
   const { data: nbaData, isLoading: nbaLoading, isError: nbaError } = trpc.intelligence.nextBestActions.useQuery(undefined, {
@@ -38,13 +40,11 @@ export function CustomerIntelligence() {
   // Filter for VIP winbacks
   const vips = nbaData?.actions.filter(a => a.type === "vip_winback") || [];
 
-  // Get churn risk summary
-  const churnObj = report?.customers?.churnRisk as any;
-  const highRiskCount = churnObj?.highRisk?.length || 0;
-  
-  // Get repeat predictions summary
-  const repeatObj = report?.customers?.repeatPrediction as any;
-  const recommendedCount = repeatObj?.recommendations?.length || 0;
+  // Q-23 phase 6 · "Due For Maintenance" read a field its engine never
+  // returns, so it was always 0; a failed churn engine also painted 0. Each
+  // tile now shows "unknown" (UNMEASURED) or its count (ESTIMATE). See
+  // ./customerSignals.
+  const { churnHighRisk, dueSoon } = deriveCustomerSignals(report?.customers);
 
   return (
     <div className="bg-card border border-border/40 p-5 space-y-5 rounded-xl shadow-sm">
@@ -59,7 +59,7 @@ export function CustomerIntelligence() {
             <AlertTriangle className="w-4 h-4 text-red-400" />
           </div>
           <div>
-            <div className="text-xl font-black text-foreground leading-none">{highRiskCount}</div>
+            <SignalValue signal={churnHighRisk} name="churn" />
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mt-1">High Churn Risk</div>
           </div>
         </div>
@@ -68,8 +68,8 @@ export function CustomerIntelligence() {
             <RefreshCw className="w-4 h-4 text-emerald-400" />
           </div>
           <div>
-            <div className="text-xl font-black text-foreground leading-none">{recommendedCount}</div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mt-1">Due For Maintenance</div>
+            <SignalValue signal={dueSoon} name="due" />
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mt-1">Due Or Overdue</div>
           </div>
         </div>
       </div>
@@ -78,7 +78,7 @@ export function CustomerIntelligence() {
         <h3 className="text-[11px] font-bold tracking-[0.15em] uppercase text-foreground/50 mb-1">VIPs Going Cold</h3>
         {vips.length === 0 ? (
           <div className="text-xs text-muted-foreground py-2 italic bg-foreground/[0.02] px-3 rounded-md border border-border/20">
-            No VIPs currently detected as going cold. Retention looks solid.
+            No VIP win-back made the top 8 actions right now. Higher-urgency leads, invoices and callbacks can fill the list, so this is not a retention verdict.
           </div>
         ) : (
           vips.map((vip, i) => (
@@ -102,6 +102,21 @@ export function CustomerIntelligence() {
           ))
         )}
       </div>
+    </div>
+  );
+}
+
+/** A tile number: "unknown" in grey when unread, never a confident 0. */
+function SignalValue({ signal, name }: { signal: CustomerSignalCount; name: string }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <div
+        data-signal={name}
+        className={`text-xl font-black leading-none ${signal.read ? "text-foreground" : "text-foreground/40 italic"}`}
+      >
+        {signal.display}
+      </div>
+      <ProvenanceTag provenance={signal.provenance} />
     </div>
   );
 }

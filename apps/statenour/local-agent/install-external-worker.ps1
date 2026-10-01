@@ -1,6 +1,7 @@
 param(
   [string]$BaseUrl = "https://bdnick.info",
   [string]$RuntimeRoot = "$env:LOCALAPPDATA\StateNour\external-worker",
+  [string]$WorkspaceRoot = "$env:USERPROFILE\Documents\Codex\NATTYNOUR-RUNTIME-WRITES-DO-NOT-CLEAN",
   [switch]$EnableWrites,
   [switch]$Start
 )
@@ -8,6 +9,7 @@ param(
 $ErrorActionPreference = "Stop"
 $TaskName = "StateNour-ExternalWorker-NattyNour"
 $SourceAgent = Join-Path $PSScriptRoot "external_worker_agent.py"
+$SourceChatGptBridge = Join-Path $PSScriptRoot "chatgpt-plan-bridge.mjs"
 
 function Write-Step([string]$Message) {
   Write-Host "[external-worker] $Message"
@@ -15,6 +17,9 @@ function Write-Step([string]$Message) {
 
 if (-not (Test-Path -LiteralPath $SourceAgent)) {
   throw "Missing external worker source: $SourceAgent"
+}
+if (-not (Test-Path -LiteralPath $SourceChatGptBridge)) {
+  throw "Missing ChatGPT-plan bridge source: $SourceChatGptBridge"
 }
 
 $python = (Get-Command python.exe -ErrorAction Stop).Source
@@ -25,10 +30,12 @@ if ($LASTEXITCODE -ne 0) {
 
 New-Item -ItemType Directory -Force -Path $RuntimeRoot | Out-Null
 $RuntimeAgent = Join-Path $RuntimeRoot "external_worker_agent.py"
+$RuntimeChatGptBridge = Join-Path $RuntimeRoot "chatgpt-plan-bridge.mjs"
 $SecretPath = Join-Path $RuntimeRoot "runner-secret.dpapi"
 $LauncherPath = Join-Path $RuntimeRoot "run-external-worker.ps1"
 
 Copy-Item -LiteralPath $SourceAgent -Destination $RuntimeAgent -Force
+Copy-Item -LiteralPath $SourceChatGptBridge -Destination $RuntimeChatGptBridge -Force
 
 $plain = [Environment]::GetEnvironmentVariable("RUNNER_SHARED_SECRET")
 if ([string]::IsNullOrWhiteSpace($plain)) {
@@ -41,9 +48,9 @@ $plain = $null
 Remove-Item Env:RUNNER_SHARED_SECRET -ErrorAction SilentlyContinue
 
 $workspaceMap = @{
-  repo = "$env:USERPROFILE\NOURCITY"
-  statenour = "$env:USERPROFILE\NOURCITY\apps\statenour"
-  nickstire = "$env:USERPROFILE\NOURCITY\apps\nickstire"
+  repo = $WorkspaceRoot
+  statenour = (Join-Path $WorkspaceRoot "apps\statenour")
+  nickstire = (Join-Path $WorkspaceRoot "apps\nickstire")
 } | ConvertTo-Json -Compress
 $writes = if ($EnableWrites) { "1" } else { "0" }
 
@@ -81,24 +88,27 @@ Set-Content -LiteralPath $LauncherPath -Value $launcher -Encoding UTF8
 
 $taskArgs = '-NoProfile -ExecutionPolicy Bypass -File "' + $LauncherPath + '"'
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $taskArgs
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RestartCount 10 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Seconds 0)
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -RestartCount 10 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Seconds 0)
 
-Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "StateNour outbound-only external subscription/local worker. API-key envs scrubbed; writes double-gated." -Force | Out-Null
+# Manual-only by design: no time/logon trigger. The desktop toggle is the start/stop control.
+Register-ScheduledTask -TaskName $TaskName -Action $action -Principal $principal -Settings $settings -Description "StateNour manual-only outbound external subscription/local worker. API-key envs scrubbed; writes double-gated." -Force | Out-Null
 
 if ($Start) {
   Start-ScheduledTask -TaskName $TaskName
 }
 
 $agentHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $RuntimeAgent).Hash.ToLowerInvariant()
+$chatGptBridgeHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $RuntimeChatGptBridge).Hash.ToLowerInvariant()
 Write-Step "installed"
 [pscustomobject]@{
   taskName = $TaskName
   runtimeRoot = $RuntimeRoot
+  workspaceRoot = $WorkspaceRoot
   baseUrl = $BaseUrl
   writesEnabled = [bool]$EnableWrites
   started = [bool]$Start
   agentSha256 = $agentHash
+  chatgptPlanBridgeSha256 = $chatGptBridgeHash
   secretStorage = "Windows DPAPI current-user"
 } | ConvertTo-Json -Depth 3

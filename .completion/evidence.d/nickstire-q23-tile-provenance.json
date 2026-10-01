@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Q-23 phase 1 (2026-09-30, branch nickstire/q23-tile-provenance). What the operator sees: on Admin > Today, the 'Today, for real' card now puts a small tag beside each number. The declined-work dollar total reads ESTIMATE (amber), because it is the sum of estimates nobody accepted (METRICS-CONTRACT 'Estimated recovery opportunity', modeled). Calls in 24h and the reached-a-tool count read MEASURED. The under-20s hang-ups read ESTIMATE (duration heuristic, contract 'Abandoned calls', inferred). The 7-day paid-invoice revenue reads MEASURED, and turns ESTIMATE when the invoice mirror is more than 3 days behind (the card already says revenue is understated then). Nothing else on the card changes; a failed todayPulse read still renders nothing. Proof is a jsdom render, not a live admin session: client/src/__tests__/todays-real-numbers-provenance.test.tsx 5/5 green, 4 of them red against main's card; mutant labelling declined work MEASURED killed (2 failed). pnpm run verify exit 0 (814 test files, 10,094 tests passed, build ok). Not yet seen by the operator on the installed PWA."
+    }
+  }
+}

@@ -49,11 +49,11 @@ export async function checkApprovalGate(
     throw new Error(`Action denied: ${decision.reason}`);
   }
 
-  if (
-    decision.decision === "require_approval" ||
-    decision.decision === "require_owner" ||
-    decision.decision === "require_screenshot_approval"
-  ) {
+  // Q-20 (2026-09-30) · fail closed: anything but "allow" is gated here.
+  // require_memory_review used to fall through to { approved: true }, so a
+  // memory write the policy sent to review ran with none. This path has no
+  // memory-inbox integration (guardian.ts does), so it raises an approval.
+  if (decision.decision !== "allow") {
     const now = new Date();
 
     // Same-request lookup: the caller names the request it is following up.

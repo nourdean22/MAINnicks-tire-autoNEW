@@ -1,0 +1,3 @@
+interface:
+  display_name: "Production Health Report"
+  short_description: "Audit live apps, deploys, jobs, databases, CI, errors, and built-vs-working reality."

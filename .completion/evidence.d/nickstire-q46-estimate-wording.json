@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "deferred": "operator-pending (Q-46 wording): on /estimate (LaborEstimator.tsx) after a quote, the grey note under the price now shows the estimate-choice line (written / oral / no estimate; no work starts until you approve) above a server-owned disclaimer, and model text calling the repair necessary, urgent or the car dangerous or unsafe no longer appears. Covered offline by server/laborEstimateWording.test.ts (4 tests, red 4/4 on origin/main 762d8a5); the rendered page and the wording itself are for the operator to review."
+    },
+    "capability-ledger-updated": {
+      "ref": "Q-46 (wording): the only services/ change is the new pure helper server/services/estimateWording.ts, used by server/laborEstimate.ts (public /estimate quote) and routers/estimates.ts. No capability-ledger.json row covers the public online estimator (grep for laborEstimate, estimates.ts, LaborEstimator: 0 rows), so no state or evidence field changes; the behaviour is pinned by server/laborEstimateWording.test.ts (red 4/4 on origin/main 762d8a5) and server/services/estimateWording.test.ts."
+    }
+  }
+}

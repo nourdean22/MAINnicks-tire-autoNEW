@@ -105,4 +105,25 @@ export const adStudioRouter = router({
       log.info("ad scheduled", { scheduledAt: input.scheduledAt });
       return { ok: true as const, scheduledAt: input.scheduledAt };
     }),
+
+  /**
+   * Q-53 · Cleveland 311 pothole requests by ward -> DRAFT audiences + copy.
+   * Read-only: nothing is posted, spent or targeted. A failed 311 read is an
+   * error, never an empty map (lib/cleveland311Potholes.ts contract).
+   */
+  potholeAudiences: adminProcedure
+    .input(z.object({ days: z.number().int().min(7).max(90).default(30) }).optional())
+    .query(async ({ input }) => {
+      const { getPotholeAudienceReport } = await import("../lib/cleveland311Potholes");
+      try {
+        return await getPotholeAudienceReport(input?.days ?? 30);
+      } catch (err) {
+        log.warn("cleveland 311 read failed", { error: err instanceof Error ? err.message : String(err) });
+        throw new TRPCError({
+          code: "SERVICE_UNAVAILABLE",
+          message: "Cleveland 311 data could not be read right now. Nothing is shown rather than a false zero.",
+          cause: err,
+        });
+      }
+    }),
 });
