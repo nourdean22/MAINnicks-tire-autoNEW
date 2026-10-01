@@ -2,6 +2,13 @@
 
 **Aesthetic stance:** Dark Industrial Command Center · void black · gold accents · glass depth · information density.
 
+> **2026-10-01 · UI v2 (Precision Material Cockpit).** The current grammar is specified in
+> [`docs/design/ui-v2/`](design/ui-v2/README.md) — `SYSTEM.md` (tokens, type, radius, elevation,
+> motion, the gold-as-signal rule, material only on control chrome), `SURFACES.md` (chat / home /
+> core dispositions) and `PLAN.md` (what shipped, test matrix, before/after receipts). Where this
+> file and that set disagree, `ui-v2/SYSTEM.md` wins; `tests/repo/ui-v2-grammar.test.ts` pins it.
+> The previous grammar is reachable on any deployment via `?ui=v1` (cookie `statenour_ui`).
+
 **Three of these are gate-checked** by `scripts/check-anti-slop.sh`, which runs
 inside `pnpm verify:hard`:
 

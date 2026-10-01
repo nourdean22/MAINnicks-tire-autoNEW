@@ -61,7 +61,7 @@ export function QualityBar({ payload, onRegen }: Props) {
       ? "border-red-500/30 bg-red-500/5 text-red-300"
       : tone === "amber"
         ? "border-amber-500/30 bg-amber-500/5 text-amber-300"
-        : "border-[var(--gold)]/20 bg-[var(--gold)]/5 text-[var(--gold)]";
+        : "border-edge-subtle bg-transparent text-fg-tertiary";
 
   const Icon =
     receiptIssue || shouldRegen
@@ -84,7 +84,7 @@ export function QualityBar({ payload, onRegen }: Props) {
   const receiptOffenders = payload.receipt?.offenders ?? [];
 
   return (
-    <div className={cn("mt-1.5 rounded-md border px-2 py-1", toneClass)}>
+    <div className={cn("mt-2 rounded-control border px-2 py-0.5", toneClass)}>
       <div className="flex items-stretch gap-1">
         <button
           type="button"
@@ -93,8 +93,8 @@ export function QualityBar({ payload, onRegen }: Props) {
           className="flex min-h-11 flex-1 items-center gap-1.5 text-left sm:min-h-8"
           title="Tap to toggle diagnostic detail"
         >
-          <Icon size={10} />
-          <span className="text-[9px] font-mono uppercase tracking-wider">
+          <Icon size={11} />
+          <span className="text-[11px] font-mono">
             {label}
             {overall < 100 ? ` · critic ${overall}` : ""}
           </span>
@@ -103,7 +103,7 @@ export function QualityBar({ payload, onRegen }: Props) {
           <button
             type="button"
             onClick={onRegen}
-            className="inline-flex min-h-11 items-center gap-1 rounded border border-current/30 px-2 text-[9px] font-bold uppercase tracking-wider hover:bg-current/10 sm:min-h-8"
+            className="inline-flex min-h-11 items-center gap-1 rounded-micro border border-current/30 px-2 text-[11px] font-mono font-medium hover:bg-current/10 sm:min-h-8"
           >
             <RotateCcw size={9} />
             regen
@@ -112,7 +112,7 @@ export function QualityBar({ payload, onRegen }: Props) {
       </div>
 
       {expanded && (
-        <div className="mt-1 text-[9px] font-mono leading-[1.4] opacity-80 space-y-0.5">
+        <div className="mt-1 text-[11px] font-mono leading-[1.45] opacity-80 space-y-0.5">
           {diagnosticLine && <div>{diagnosticLine}</div>}
           {diagnosticLine && <div>{CRITIC_HEURISTIC_NOTE}</div>}
           {critic.contentMode && (

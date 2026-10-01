@@ -2,153 +2,229 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * NOUR OS — Dark Industrial Command Center
- * Void black. Gold accents. Glass depth. Information density.
- * Typography: Barlow Condensed (display) + Inter/Geist (body)
+ * NOUR OS — UI v2 · Precision Material Cockpit (2026-10-01)
+ * Warm near-black work plane. Translucent material on CONTROL chrome only.
+ * Gold is a signal (selected · active · primary action · focus · milestone), never ambient.
+ * Typography: Geist Sans leads; Geist Mono for runtime state; Barlow Condensed for ONE
+ * verdict per page and big metrics.
+ *
+ * Rationale + rules: docs/design/ui-v2/SYSTEM.md. Values here win when the doc disagrees.
+ *
+ * Every legacy name below is kept as an alias of a semantic role, so the 6,339 existing colour
+ * utility call sites (2026-09 count, see the severity block) re-tint with zero component edits (same mechanism as the severity block at
+ * the bottom of this file). New code reads the semantic role.
  */
 
 :root {
-  /* ═══ BACKGROUNDS — layered depth, never pure black ═══ */
-  --bg-void: #050505;
-  --bg-base: #0A0A0A;
-  --bg-raised: #111111;
-  --bg-elevated: #1A1A1A;
-  --bg-surface: #222222;
+  /* ═══ SEMANTIC SURFACES — six warm steps, never pure black ═══ */
+  --canvas: #090907;
+  --workspace: #0D0D0A;
+  --surface: #121210;
+  --surface-raised: #171714;
+  --surface-interactive: #1C1B17;
+  --surface-hover: #22201B;
+  --overlay: #101010;
+  --surface-selected: color-mix(in oklab, var(--accent) 8%, var(--surface));
 
-  /* ═══ Legacy aliases ═══ */
+  /* ═══ Legacy background aliases (read-path for 122+ files) ═══ */
+  --bg-void: var(--canvas);
+  --bg-base: var(--workspace);
+  --bg-raised: var(--surface);
+  --bg-elevated: var(--surface-raised);
+  --bg-surface: var(--surface-interactive);
   --nour-bg: var(--bg-void);
   --nour-surface: var(--bg-raised);
-  --nour-border: #1F1F1F;
 
-  /* ═══ TEXT — never pure white ═══ */
-  --text-primary: #F0F0F0;
-  --text-secondary: #A3A3A3;
-  /* v10.0.526 · a11y A1 fix · was #666 (3.03-3.55:1 on dark backgrounds
-     · fails WCAG AA for normal text · affected 208 DOM elements per the
-     v525 mobile audit). Re-aliased to #909090 (~5.0:1 on --bg-elevated
-     · passes AA). Editorial-minimalist aesthetic preserved · only the
-     contrast lifts. */
-  --text-tertiary: #909090;
-  --text-inverse: #0A0A0A;
+  /* ═══ TEXT — warm, never pure white. Contrast measured 2026-10-01 (SYSTEM.md §2):
+     primary 17.4:1 on canvas · secondary 9.1 · muted 5.7 on canvas / 4.6 on hover (AA everywhere). */
+  --text-primary: #F2EFE8;
+  --text-secondary: #B5AFA2;
+  --text-tertiary: #8E887C;
+  --text-inverse: #0A0A08;
   --nour-text: var(--text-primary);
-  /* v10.0.452 · a11y · was `var(--text-tertiary)` (#666 on #111 = 3.28:1
-     · fails WCAG AA for normal text). The alias name promises "secondary"
-     but delivered "tertiary" — re-aliased to --text-secondary (#A3A3A3
-     on #111 ≈ 6.4:1 · passes WCAG AA). Affects all 13 usages across the
-     4 consumer files (globals.css · auth/sign-in · knowledge · error).
-     Audit provenance: motion+a11y audit Finding L3 (LOW · contrast). */
   --nour-text-secondary: var(--text-secondary);
 
-  /* ═══ ACCENT — Nick's Gold ═══ */
-  --gold: #FDB913;
-  --gold-dim: #D49A0E;
-  --gold-glow: rgba(253, 185, 19, 0.15);
-  --gold-ghost: rgba(253, 185, 19, 0.08);
+  /* ═══ ACCENT — Nick's Gold. Rare on purpose. ═══ */
+  --accent: #FDB913;
+  --accent-hover: #FFC53D;
+  --accent-pressed: #D49A0E;
+  --accent-soft: rgba(253, 185, 19, 0.08);
+  --accent-medium: rgba(253, 185, 19, 0.16);
+  --gold: var(--accent);
+  --gold-dim: var(--accent-pressed);
+  --gold-glow: var(--accent-medium);
+  --gold-ghost: var(--accent-soft);
   --nour-gold: var(--gold);
 
-  /* v10.0.294 · brand-anchor shadows · richer depth on cards + buttons.
-     soft = ambient resting glow · strong = active / hover · deep =
-     cinematic layered drop for hero panels. */
-  --shadow-gold-soft: 0 4px 20px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(253, 185, 19, 0.04);
-  --shadow-gold-strong: 0 0 30px rgba(253, 185, 19, 0.08), 0 12px 40px rgba(0, 0, 0, 0.5);
-  --shadow-deep: 0 20px 60px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
+  /* ═══ EDGES — three strengths. A border is for interactive or floating objects. ═══ */
+  --edge-subtle: rgba(255, 255, 255, 0.055);
+  --edge-default: rgba(255, 255, 255, 0.085);
+  --edge-strong: rgba(255, 255, 255, 0.14);
+  --border-default: var(--edge-default);
+  --border-hover: var(--edge-strong);
+  --border-active: var(--accent);
+  --nour-border: var(--edge-default);
 
-  /* ═══ STATUS ═══ */
+  /* ═══ ELEVATION — L0 flat · L1 raised context · L2 floating control. No gold in any shadow. ═══ */
+  --shadow-l1: 0 1px 0 rgba(255, 255, 255, 0.03), 0 10px 28px rgba(0, 0, 0, 0.22);
+  --shadow-l2: 0 24px 80px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.05);
+  --shadow-gold-soft: var(--shadow-l1);
+  --shadow-gold-strong: var(--shadow-l1);
+  --shadow-deep: var(--shadow-l2);
+
+  /* ═══ RADIUS — object kinds, not instinct ═══ */
+  --radius-micro: 4px;
+  --radius-control: 7px;
+  --radius-surface: 10px;
+  --radius-float: 14px;
+  --radius-overlay: 18px;
+
+  /* ═══ MOTION — four semantics (enter/exit · selection · completion · state), compositor-only ═══ */
+  --motion-micro: 120ms;
+  --motion-state: 180ms;
+  --motion-panel: 240ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* ═══ FOCUS — two rings so it survives on void, raised, glass and a gold fill ═══ */
+  --focus-ring: 0 0 0 2px var(--canvas), 0 0 0 4px var(--accent);
+
+  /* ═══ STATUS — equal-lightness tiers live in the @theme block at the bottom; these are the
+     legacy single values. Gold is NOT a health status. ═══ */
   --status-green: #22C55E;
   --status-yellow: #F59E0B;
   --status-red: #EF4444;
   --status-blue: #3B82F6;
-  /* 2026-09-08 (program §5.2 / D19) · --status-ai and its --status-purple
-     alias are RETIRED. AI attribution is a mono "NICK ·" mark, not a hue;
-     status uses the severity tiers above. tests/repo/no-violet-ai-accent.test.ts
-     fails if either token, or the violet AI surfaces it fed, comes back. */
   --nour-success: var(--status-green);
   --nour-danger: var(--status-red);
-  /* v10.0.529.54 · canonical --danger token so inline
-     `var(--danger,#dc2626)` fallbacks across components resolve here
-     instead of hardcoding a hex that doesn't match --status-red. */
   --danger: var(--status-red);
 
-  /* ═══ BORDERS ═══ */
-  --border-default: #1F1F1F;
-  --border-hover: #333333;
-  --border-active: var(--gold);
-
-  /* ═══ LAYOUT — bottom chrome (BottomTabBar + ticker) ═══
-     Owned by components/layout/bottom-tab-bar.tsx. Page content pads
-     with pb-[var(--bottom-chrome-h)] instead of hand-tuned pb-24/pb-20
-     magic numbers (which regressed 3x — see git history of
-     (mastery)/layout.tsx). Includes the iOS safe-area inset the old
-     fixed value ignored. */
+  /* ═══ LAYOUT — bottom chrome (BottomTabBar + ticker). Owned by components/layout/bottom-tab-bar.tsx;
+     measured at runtime, this is the SSR fallback. Includes the iOS safe-area inset. ═══ */
   --bottom-chrome-h: calc(6rem + env(safe-area-inset-bottom, 0px));
 
-  /* ═══ GLASS ═══ */
-  --glass-bg: rgba(17, 17, 17, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.06);
-  --glass-blur: 12px;
+  /* ═══ MATERIAL — control chrome only (spine, tab bar, composer, palette, popovers, inspector dock) ═══ */
+  --control-glass: rgba(16, 16, 13, 0.78);
+  --glass-bg: var(--control-glass);
+  --glass-border: var(--edge-subtle);
+  --glass-blur: 18px;
 
   /* ═══ TYPOGRAPHY ═══ */
   --font-display: var(--font-barlow), 'Barlow Condensed', var(--font-geist-sans), sans-serif;
-  /* v10.0.529.54 · removed 'Inter' fallback · Inter is the AI-design
-     fingerprint operator's anti-slop UI gate explicitly bans.
-     Geist is loaded as a variable font via next/font/google · falls
-     to system sans-serif on the rare event Geist fails. */
+  /* No Inter fallback — Inter is the AI-design fingerprint the anti-slop gate bans. */
   --font-body: var(--font-geist-sans), sans-serif;
 
-  /* shadcn tokens — gold accent */
-  --background: oklch(0.05 0 0);
-  --foreground: oklch(0.94 0 0);
+  /* shadcn tokens — mapped onto the semantic roles so Base UI / shadcn primitives share the plane */
+  --background: var(--canvas);
+  --foreground: var(--text-primary);
+  --card: var(--surface);
+  --card-foreground: var(--text-primary);
+  --popover: var(--overlay);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--accent);
+  --primary-foreground: var(--text-inverse);
+  --secondary: var(--surface-raised);
+  --secondary-foreground: var(--text-secondary);
+  --muted: var(--surface-raised);
+  --muted-foreground: var(--text-tertiary);
+  --accent-foreground: var(--text-primary);
+  --destructive: oklch(0.5 0.22 25);
+  --border: var(--edge-default);
+  --input: var(--surface-interactive);
+  --ring: var(--accent);
+  --chart-1: var(--accent);
+  --chart-2: var(--accent-pressed);
+  --chart-3: var(--text-tertiary);
+  --chart-4: oklch(0.3 0 0);
+  --chart-5: oklch(0.2 0 0);
+  --radius: 0.5rem;
+  --sidebar: var(--canvas);
+  --sidebar-foreground: var(--text-secondary);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: var(--text-inverse);
+  --sidebar-accent: var(--surface);
+  --sidebar-accent-foreground: var(--text-secondary);
+  --sidebar-border: var(--edge-subtle);
+  --sidebar-ring: var(--accent);
+}
+
+/* ── UI v1 comparison lane ────────────────────────────────────────────
+   `?ui=v1` sets a cookie; app/layout.tsx writes data-ui="v1" on <html>. The old grammar's
+   values come back for side-by-side screenshots and rollback diagnosis. Migration
+   infrastructure, not a second design system: delete this block once v2 is accepted. */
+:root[data-ui="v1"] {
+  --canvas: #050505;
+  --workspace: #0A0A0A;
+  --surface: #111111;
+  --surface-raised: #1A1A1A;
+  --surface-interactive: #222222;
+  --surface-hover: #262626;
+  --overlay: #0A0A0A;
+  --text-primary: #F0F0F0;
+  --text-secondary: #A3A3A3;
+  --text-tertiary: #909090;
+  --edge-subtle: rgba(255, 255, 255, 0.06);
+  --edge-default: #1F1F1F;
+  --edge-strong: #333333;
+  --control-glass: rgba(17, 17, 17, 0.7);
+  --glass-blur: 12px;
+  --shadow-gold-soft: 0 4px 20px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(253, 185, 19, 0.04);
+  --shadow-gold-strong: 0 0 30px rgba(253, 185, 19, 0.08), 0 12px 40px rgba(0, 0, 0, 0.5);
+  --shadow-deep: 0 20px 60px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
+  /* shadcn bridge, pre-v2 values (4016737b). --accent is NOT restored: v2 components read it
+     as the gold signal and would render black under the lane. */
   --card: oklch(0.07 0 0);
   --card-foreground: oklch(0.94 0 0);
   --popover: oklch(0.07 0 0);
   --popover-foreground: oklch(0.94 0 0);
-  --primary: oklch(0.78 0.16 85);
-  --primary-foreground: oklch(0.1 0 0);
   --secondary: oklch(0.1 0 0);
   --secondary-foreground: oklch(0.7 0 0);
   --muted: oklch(0.1 0 0);
   --muted-foreground: oklch(0.45 0 0);
-  --accent: oklch(0.1 0 0);
-  --accent-foreground: oklch(0.7 0 0);
-  --destructive: oklch(0.5 0.22 25);
   --border: oklch(0.14 0 0);
   --input: oklch(0.12 0 0);
   --ring: oklch(0.78 0.16 85);
-  --chart-1: oklch(0.78 0.16 85);
-  --chart-2: oklch(0.65 0.12 85);
-  --chart-3: oklch(0.45 0 0);
-  --chart-4: oklch(0.3 0 0);
-  --chart-5: oklch(0.2 0 0);
-  --radius: 0.5rem;
-  --sidebar: oklch(0.04 0 0);
-  --sidebar-foreground: oklch(0.7 0 0);
-  --sidebar-primary: oklch(0.78 0.16 85);
-  --sidebar-primary-foreground: oklch(0.1 0 0);
-  --sidebar-accent: oklch(0.08 0 0);
-  --sidebar-accent-foreground: oklch(0.7 0 0);
-  --sidebar-border: oklch(0.12 0 0);
-  --sidebar-ring: oklch(0.78 0.16 85);
+  --gold-glow: rgba(253, 185, 19, 0.15);
 }
 
-/* ── Tailwind theme bridge (2026-07-07 consistency wave) ─────────────
-   Maps the NOUR OS custom properties into Tailwind v4 color tokens so
-   components write `bg-elevated` / `text-fg-secondary` / `border-glass`
-   instead of `bg-[var(--bg-elevated)]` arbitrary values.
-   WRITE-PATH RULE: new code uses these utilities; raw var() arbitrary
-   values are legacy read-path only. */
+/* ── Tailwind theme bridge ─────────────────────────────────────────────
+   Maps the custom properties into Tailwind v4 tokens so components write `bg-surface` /
+   `text-fg-secondary` / `border-edge` instead of arbitrary values. A colour utility only exists
+   if its token is declared here (an unregistered token emits ZERO css — #972, 2026-07-20).
+   WRITE-PATH RULE: new code uses these utilities; raw var() arbitrary values are legacy read-path. */
 @theme inline {
-  /* 2026-09-07 · FONT bridge. Tailwind v4 defines the `font-sans` and
-   * `font-mono` utilities from --font-sans / --font-mono in @theme, and
-   * neither was declared here — so the 200+ files of `font-mono` labels
-   * rendered in the browser's ui-monospace stack (Consolas on Windows, SF
-   * Mono on iOS) while next/font still preloaded Geist Mono on every cold
-   * load: the live Home page reported `GeistMono: unloaded` in
-   * document.fonts with the woff2 already downloaded. Same defect class as
-   * the colour bridge below — an unregistered token emits Tailwind's
-   * default, silently. Pinned by __tests__/theme-font-utilities.test.ts. */
+  /* FONT bridge (2026-09-07): without these, `font-sans`/`font-mono` fall to the browser stack
+     while next/font preloads Geist for nothing. Pinned by __tests__/theme-font-utilities.test.ts. */
   --font-sans: var(--font-body);
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
+  /* semantic roles (v2) */
+  --color-canvas: var(--canvas);
+  --color-workspace: var(--workspace);
+  /* The content-card role (--surface, #121210). `bg-surface` is NOT this: it is the legacy alias of
+     --surface-interactive (6,339 call sites), so cards and receipts use `bg-content`. */
+  --color-content: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-interactive: var(--surface-interactive);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-selected: var(--surface-selected);
+  --color-overlay: var(--overlay);
+  --color-edge-subtle: var(--edge-subtle);
+  --color-edge-default: var(--edge-default);
+  --color-edge-strong: var(--edge-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-medium: var(--accent-medium);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-pressed: var(--accent-pressed);
+  --radius-micro: var(--radius-micro);
+  --radius-control: var(--radius-control);
+  --radius-surface: var(--radius-surface);
+  --radius-float: var(--radius-float);
+  --radius-overlay: var(--radius-overlay);
+  --shadow-l1: var(--shadow-l1);
+  --shadow-l2: var(--shadow-l2);
+
+  /* legacy names (read-path) */
   --color-void: var(--bg-void);
   --color-base-layer: var(--bg-base);
   --color-raised: var(--bg-raised);
@@ -163,35 +239,7 @@
   --color-edge: var(--border-default);
   --color-edge-hover: var(--border-hover);
 
-  /* 2026-07-20 · shadcn token bridge — these were MISSING and it broke real UI.
-   *
-   * The full shadcn palette above (--primary, --border, --muted-foreground, …)
-   * was authored deliberately in :root but never registered here. In Tailwind
-   * v4 a colour utility only exists if its token is declared in @theme, so
-   * `bg-primary`, `border-border`, `text-muted-foreground` and friends emitted
-   * ZERO css across the app.
-   *
-   * How it surfaced: the weekly-recurrence weekday picker in
-   * components/missions/task-edit-sheet.tsx styled its selected state with
-   * `border-primary bg-primary/15 text-primary`. All three were no-ops, so the
-   * selected day rendered identical to an unselected one and the operator
-   * reported the buttons as dead — a weekly task could not be configured at
-   * all (#972).
-   *
-   * Measured usage of bare (non-arbitrary) utilities before bridging:
-   *   muted-foreground 13 files · primary 12 · foreground 11 · border 8 ·
-   *   muted 6 · destructive 6 · input 5 · background 4 · popover-foreground 4 ·
-   *   ring 3 · primary-foreground 2 · secondary 2 · secondary-foreground 2 ·
-   *   card / card-foreground / accent / accent-foreground / popover 1 each
-   *
-   * VISIBLE CHANGE: components/ui/button.tsx variant=default is
-   * `bg-primary text-primary-foreground` alongside an arbitrary-value gold
-   * glow that always compiled. Until now those buttons rendered with the glow
-   * and NO fill, which read as intentional in the dark glass theme. They will
-   * now render as designed: gold fill (--primary is #FDB913 in oklch, the same
-   * brand gold) with near-black label (--primary-foreground). That pairing is
-   * what the token author specified; it simply never reached the screen.
-   */
+  /* shadcn bridge (2026-07-20) — see git history for the #972 incident that made this mandatory */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -278,7 +326,8 @@
   --color-sky-400:     oklch(0.66 0.126 232.661);  /* #259ED2 · 6.52/6.22/5.73 · ΔE(gold) 0.3304 */
 }
 
-/* Contrast columns above = WCAG 2.x against --bg-base #0A0A0A /
- * --bg-raised #111111 / --bg-elevated #1A1A1A. Every -300 value clears
- * AA 4.5:1 by ≥1.4×; every -400 dot clears the 3:1 non-text threshold
- * by ≥1.7×. */
+/* Contrast columns above = WCAG 2.x against the v1 bases --bg-base #0A0A0A /
+ * --bg-raised #111111 / --bg-elevated #1A1A1A (measured 2026-09). The v2 bases
+ * (#0D0D0A / #121210 / #171714) sit within ±2% luminance of those, so every
+ * -300 value still clears AA 4.5:1 by ≥1.4× and every -400 dot clears the 3:1
+ * non-text threshold by ≥1.7×. */

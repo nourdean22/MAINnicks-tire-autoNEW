@@ -237,7 +237,7 @@ export function NickCommandLine() {
           aria-label="Nick's response"
         >
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-gold/40 bg-gold/10 text-gold">
+            <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-edge-default bg-content text-fg-secondary">
               {isLoading ? <Loader2 size={12} className="motion-safe:animate-spin" /> : <Brain size={12} />}
             </div>
             <div className="min-w-0 flex-1 space-y-3 text-sm">
@@ -294,7 +294,7 @@ export function NickCommandLine() {
                   setInput(q);
                   taRef.current?.focus();
                 }}
-                className="inline-flex min-h-[44px] items-center rounded-full border border-edge px-3 text-left text-[12px] text-fg-tertiary transition-colors duration-150 hover:border-gold/30 hover:text-gold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+                className="inline-flex min-h-[44px] items-center rounded-full border border-edge px-3 text-left text-[12px] text-fg-tertiary transition-colors duration-150 hover:border-edge-strong hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
               >
                 {q}
               </button>
@@ -327,7 +327,7 @@ export function NickCommandLine() {
             className="min-h-[44px] flex-1 resize-none bg-transparent px-0 py-3 text-[17px] leading-snug text-fg placeholder:text-fg-tertiary focus:outline-none sm:text-[18px]"
           />
           <div className="flex shrink-0 items-center gap-2 pb-1">
-            <span className="hidden select-none font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary sm:inline">
+            <span className="hidden select-none font-mono text-[11px] text-fg-tertiary sm:inline">
               / to focus
             </span>
             <button
@@ -355,7 +355,7 @@ export function NickCommandLine() {
         <button
           type="button"
           onClick={fireBrief}
-          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-gold/30 bg-gold/10 px-4 font-mono text-[11px] uppercase tracking-[0.14em] text-gold transition-colors duration-150 hover:bg-gold/20 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-surface px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
         >
           <Brain size={11} />
           Morning brief

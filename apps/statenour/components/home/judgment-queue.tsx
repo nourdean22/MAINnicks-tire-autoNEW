@@ -134,9 +134,9 @@ export function JudgmentQueue({
 
   return (
     <section aria-label="needs judgment" className="mt-12">
-      <div className="flex items-end justify-between border-b border-edge pb-3">
+      <div className="flex items-end justify-between border-b border-edge-subtle pb-3">
         <h2 className="vt-eyebrow text-fg-secondary">Needs your judgment</h2>
-        <span className="font-display text-3xl font-bold leading-none tabular-nums text-rose-300">
+        <span className="font-mono text-[20px] font-semibold leading-none tabular-nums text-rose-300">
           {judgment.totalCount}
         </span>
       </div>

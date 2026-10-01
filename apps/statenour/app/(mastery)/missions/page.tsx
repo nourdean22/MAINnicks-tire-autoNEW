@@ -250,7 +250,7 @@ function MissionsPageInner() {
               <p className="mt-4 text-lg text-fg-secondary">The queue is clear. Close the day when you&apos;re ready.</p>
               <button
                 onClick={() => setExecutionModeActive(false)}
-                className="mt-6 inline-flex min-h-[44px] items-center rounded-md border border-edge px-4 font-mono text-[12px] uppercase tracking-[0.14em] text-fg-secondary transition-colors hover:border-edge-hover hover:text-fg"
+                className="mt-6 inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
               >
                 Back to the deck
               </button>
@@ -276,7 +276,7 @@ function MissionsPageInner() {
             {deckQuery.isLoading ? (
               <ShimmerSkeleton className="h-40 rounded-2xl" />
             ) : deckQuery.isError ? (
-              <p className="border-l-2 border-rose-500/60 py-1 pl-4 font-mono text-[12px] uppercase tracking-[0.14em] text-rose-300/80">
+              <p className="border-l-2 border-rose-500/60 py-1 pl-4 text-[13px] text-rose-300/90">
                 Deck unreadable — the read failed. State unknown, not empty.
               </p>
             ) : (
@@ -312,7 +312,7 @@ function MissionsPageInner() {
                 <h2 id="capture-heading" className="vt-eyebrow text-fg-secondary">
                   capture
                 </h2>
-                <span className="hidden font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary sm:block">
+                <span className="hidden font-mono text-[11px] text-fg-tertiary sm:block">
                   lands in decide · nothing is scheduled for today
                 </span>
               </div>
@@ -328,9 +328,9 @@ function MissionsPageInner() {
                   openMissionEdit(null, undefined);
                   telemetry.event("createMissionOpen", { source: "button" });
                 }}
-                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-gold/40 px-4 font-mono text-[12px] uppercase tracking-[0.14em] text-gold transition-colors hover:bg-gold/10"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
               >
-                + new mission
+                + New mission
               </button>
               <button
                 type="button"
@@ -338,19 +338,19 @@ function MissionsPageInner() {
                   setExecutionModeActive(true);
                   telemetry.event("executionModeOpen", { source: "button" });
                 }}
-                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-edge px-4 font-mono text-[12px] uppercase tracking-[0.14em] text-fg-secondary transition-colors hover:border-edge-hover hover:text-fg"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
               >
-                ⚡ Focus
+                Focus
               </button>
               <button
                 type="button"
                 onClick={() => filters.setShowFilters((v) => !v)}
                 className={cn(
-                  "inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-4 font-mono text-[12px] uppercase tracking-[0.14em] transition-colors",
-                  filters.showFilters ? "border-gold/50 bg-gold/10 text-gold" : "border-edge text-fg-secondary hover:border-edge-hover hover:text-fg"
+                  "inline-flex min-h-[44px] items-center gap-1.5 rounded-control border px-4 text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
+                  filters.showFilters ? "border-edge-strong bg-surface-interactive text-fg" : "border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg"
                 )}
               >
-                {filters.showFilters ? "✕ Close Filters" : "⚙️ Filters"}
+                {filters.showFilters ? "Close filters" : "Filters"}
               </button>
             </div>
 
@@ -400,7 +400,7 @@ function MissionsPageInner() {
                 <h2 id="mission-board-heading" className="vt-eyebrow text-fg-secondary">
                   Active missions
                 </h2>
-                <span className="font-mono text-[12px] uppercase tracking-[0.14em] tabular-nums text-fg-tertiary">
+                <span className="font-mono text-[11px] tabular-nums text-fg-tertiary">
                   {boardMissions.length} active · {openBoardCount} open
                   {deck ? ` · ${deck.missionSlotsOpen} slot${deck.missionSlotsOpen === 1 ? "" : "s"} open` : ""}
                 </span>
@@ -409,13 +409,13 @@ function MissionsPageInner() {
                   read used to fall through to <EmptyMissions /> — a dead
                   fetch rendered as a cleared board. */}
               {boardReadState === "unreadable" ? (
-                <p className="border-l-2 border-rose-500/60 py-1 pl-4 font-mono text-[12px] uppercase tracking-[0.14em] text-rose-300/80">
+                <p className="border-l-2 border-rose-500/60 py-1 pl-4 text-[13px] text-rose-300/90">
                   Board unreadable — reads failed. State unknown, not empty.
                 </p>
               ) : (
                 <>
                   {boardReadState === "stale" && (
-                    <p className="border-l-2 border-amber-400/60 py-1 pl-4 font-mono text-[12px] uppercase tracking-[0.14em] text-amber-200/90">
+                    <p className="border-l-2 border-amber-400/60 py-1 pl-4 text-[13px] text-amber-200/90">
                       Showing the last confirmed board — the latest refresh failed.
                     </p>
                   )}
@@ -456,7 +456,7 @@ function MissionsPageInner() {
             )}
 
             {deck && deck.unmeasured.length > 0 && (
-              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+              <p className="font-mono text-[11px] text-fg-tertiary">
                 unmeasured this pass: {deck.unmeasured.join(" · ")}
               </p>
             )}

@@ -26,7 +26,7 @@ export default function ChatPage() {
   // 3x44px at 1460px). Reserving it here, not padding the header, because the
   // island's own border-b and backdrop-blur must stop at the rail too.
   return (
-    <div className="fixed inset-0 overflow-hidden bg-zinc-950 pt-[env(safe-area-inset-top,0px)] pb-[var(--bottom-chrome-h)] xl:left-[var(--spine-w,0px)]">
+    <div className="fixed inset-0 overflow-hidden bg-canvas pt-[env(safe-area-inset-top,0px)] pb-[var(--bottom-chrome-h)] xl:left-[var(--spine-w,0px)]">
       <ChatIsland />
     </div>
   );
