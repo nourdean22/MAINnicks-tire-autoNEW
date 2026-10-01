@@ -9,6 +9,15 @@ describe("offerPriceFields", () => {
     expect(offerPriceFields("$800-$1,500")).toEqual({
       priceSpecification: { "@type": "PriceSpecification", minPrice: "800", maxPrice: "1500", priceCurrency: "USD" },
     });
+    // shared/services.ts tiers that GenericServicePage hands to FocusedServicePage.
+    // The committed prerendered/transmission/index.html (2026-10-01, before this
+    // fix) publishes them as Offers priced "200600" and "15003500".
+    expect(offerPriceFields("$200–$600")).toEqual({
+      priceSpecification: { "@type": "PriceSpecification", minPrice: "200", maxPrice: "600", priceCurrency: "USD" },
+    });
+    expect(offerPriceFields("$1,500–$3,500")).toEqual({
+      priceSpecification: { "@type": "PriceSpecification", minPrice: "1500", maxPrice: "3500", priceCurrency: "USD" },
+    });
   });
 
   it("reads a single starting price, and only the first amount", () => {
