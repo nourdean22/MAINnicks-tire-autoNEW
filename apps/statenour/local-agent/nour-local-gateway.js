@@ -355,15 +355,21 @@ function messagesToPrompt(messages) {
     .join("\n\n");
 }
 
-function latestUserRoutingText(messages) {
-  if (!Array.isArray(messages)) return "";
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if (message && typeof message === "object" && String(message.role || "").toLowerCase() === "user") {
-      return messageContentText(message.content).trim();
-    }
-  }
-  return "";
+function userRoutingContext(messages) {
+  if (!Array.isArray(messages)) return { latest: "", prior: "" };
+  const turns = messages
+    .filter(
+      message =>
+        message &&
+        typeof message === "object" &&
+        String(message.role || "").toLowerCase() === "user"
+    )
+    .map(message => messageContentText(message.content).trim())
+    .filter(Boolean);
+  return {
+    latest: turns.at(-1) || "",
+    prior: (turns.at(-2) || "").slice(-80000),
+  };
 }
 
 function scrubbedInteractiveEnv() {
@@ -514,9 +520,12 @@ async function serveUnifiedChat(req, res, body) {
   const started = Date.now();
   let payload;
   let routingPrompt = "";
+  let priorUserPrompt = "";
   try {
     const original = JSON.parse(Buffer.isBuffer(body) ? body.toString("utf8") : String(body || "{}"));
-    routingPrompt = latestUserRoutingText(original.messages);
+    const routing = userRoutingContext(original.messages);
+    routingPrompt = routing.latest;
+    priorUserPrompt = routing.prior;
     const prepared = injectIntelligence(req.url, body);
     payload = JSON.parse(Buffer.isBuffer(prepared) ? prepared.toString("utf8") : String(prepared || "{}"));
   } catch (err) {
@@ -531,13 +540,14 @@ async function serveUnifiedChat(req, res, body) {
     res.end(JSON.stringify({ error: { message: "No chat messages supplied", type: "invalid_request_error" } }));
     return;
   }
-  log(`unified start model=${requestedModel} promptChars=${prompt.length} routingChars=${routingPrompt.length}`);
+  log(`unified start model=${requestedModel} promptChars=${prompt.length} routingChars=${routingPrompt.length} priorRoutingChars=${priorUserPrompt.length}`);
   try {
     await unloadLocalQwenForHeavyPrompt(prompt, routingPrompt);
     const result = await runInteractiveAdapter({
       model: requestedModel,
       prompt,
       routingPrompt,
+      priorUserPrompt,
       workspaceKey: "repo",
     });
     const output = String(result && result.result && result.result.output || "");
