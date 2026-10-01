@@ -82,4 +82,11 @@ describe("VAPI corpus-grounded conversation rules", () => {
     expect(src).toContain("...(behavior.hash ? { behavior } : {})");
     expect(src).toContain("...(arrivalEvidence ? { arrival: arrivalEvidence } : {})");
   });
+  it("labels weekly prompt evolution as offline evidence, not a proven business winner", () => {
+    const src = readFileSync(new URL("./cron/jobs/promptEvolutionWeekly.ts", import.meta.url), "utf8");
+    expect(src).toContain('promotionStage: result.outcome === "accepted" ? "offline_candidate" : "none"');
+    expect(src).toContain('businessOutcomeEvidence: "not_measured_candidate_has_not_served"');
+    expect(src).toContain("OFFLINE CANDIDATE passed strict holdout improvement");
+    expect(src).toContain("arrival/revenue impact is unmeasured");
+  });
 });
