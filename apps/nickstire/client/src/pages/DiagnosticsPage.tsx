@@ -10,6 +10,7 @@ import { DIAGNOSTICS_PHOTOS } from "@/components/PhotoRibbon";
 import { useReviewStats } from "@/hooks/useReviewStats";
 import { Disc, AlertTriangle, Clock } from "lucide-react";
 import { OHIO_ECHECK } from "@shared/echeck";
+import { DIAGNOSTIC_PRICE } from "@shared/pricing";
 
 // A FUNCTION, not a module constant: the rating and review count are live
 // (useReviewStats), and a module-scope object is built once at import time —
@@ -47,7 +48,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
   pricingSub: "Starts free. Deeper checks get a written quote first, credited back to your invoice if we do the repair.",
   tiers: [
     { name: "Code Scan", price: "FREE", sub: "OBD-II pull + code lookup · plain-English explanation", use: "You want to know what triggered the light" },
-    { name: "Full Diagnostic", price: "From $89", sub: "live data + component testing · credited toward repair", use: "Tough intermittent problem requiring live data + component testing", featured: true },
+    { name: "Full Diagnostic", price: `$${DIAGNOSTIC_PRICE.fee}`, sub: `live data + component testing · ${DIAGNOSTIC_PRICE.waiver}`, use: "Tough intermittent problem requiring live data + component testing", featured: true },
     { name: "Electrical / Wiring", price: "From $149", sub: "complex harness, CAN bus, parasitic draw · credited if fixed", use: "Harness damage, CAN bus faults, parasitic battery drain" },
   ],
   includedTitle: "WHAT'S INCLUDED",

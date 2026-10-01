@@ -5,7 +5,7 @@
  * Problem → Explanation → Diagnostic Authority → Solution → Local Trust → CTA structure.
  */
 
-import { OIL_COUPON, OIL_PRICE, oilCouponActive } from "./pricing";
+import { DIAGNOSTIC_PRICE, OIL_COUPON, OIL_PRICE, oilCouponActive } from "./pricing";
 import { OHIO_ECHECK } from "./echeck";
 
 /** " with coupon code NICKSOIL" while the coupon runs (shared/pricing.ts), then "". */
@@ -382,11 +382,11 @@ export const SERVICES: ServiceData[] = [
     ],
     pricingTiers: [
       { label: "Basic code read", range: "FREE" },
-      { label: "Full diagnostic evaluation", range: "$49" },
+      { label: "Full diagnostic evaluation", range: `$${DIAGNOSTIC_PRICE.fee}` },
       { label: "Diagnostic fee credited toward repair", range: "Yes" },
     ],
     duration: "30-60 min",
-    startingPrice: "$49 (waived if you do the repair with us)",
+    startingPrice: `$${DIAGNOSTIC_PRICE.fee} (${DIAGNOSTIC_PRICE.waiver})`,
     priceRange: "",
     whyChooseUs: "We test before we replace -- no parts guessing. Our advanced OBD-II scanners and live data analysis pinpoint the exact failed component so you only pay for what you need. Diagnostic fee is credited toward your repair, and everything is backed by our 12-month warranty.",
     commonSymptoms: [

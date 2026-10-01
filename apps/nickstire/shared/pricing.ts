@@ -59,6 +59,16 @@ export const BRAKE_PRICE = {
   caliperAndRotorReplacementEstimate: 950,
 } as const;
 
+/**
+ * The full diagnostic fee. Operator decision 2026-10-01 (#2868): ONE fee, $49,
+ * waived if the customer does the repair with us. The OBD-II code scan stays
+ * free and is not this fee. Surfaces that quote the fee read it from here.
+ */
+export const DIAGNOSTIC_PRICE = {
+  fee: 49,
+  waiver: "waived if you do the repair with us",
+} as const;
+
 export const SERVICE_PRICE = {
   tirePatch: 35,
   eCheckFixStarting: 189,

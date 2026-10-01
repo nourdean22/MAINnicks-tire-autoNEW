@@ -802,7 +802,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Used Tire Prices at Nick's",
-        content: "Used tires at Nick's Tire & Auto start at $25 on select 12-inch rims, and most sizes run $40-80 each, depending on size, brand, and remaining tread. That includes professional mounting, computer balancing, new valve stem, and TPMS sensor reset. Compare that to new tire prices of $80 to $250 each plus installation, and the savings are obvious. Payment programs from four providers are also available if you need a full set and money is tight; each decides approval."
+        content: "Used tires at Nick's Tire & Auto start at $25 on select 12-inch rims, and most sizes run $40-80 each, depending on size, brand, and remaining tread. That includes professional mounting, computer balancing, new valve stem, and TPMS sensor reset. Compare that to new tire prices of $89 to $250 each plus installation, and the savings are obvious. Payment programs from four providers are also available if you need a full set and money is tight; each decides approval."
       },
       {
         heading: "Find Us on the East Side",
@@ -2078,7 +2078,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "What Each Repair Typically Costs",
-        content: "Check engine light diagnosis: $80 to $150 for the scan and diagnosis, plus the cost of whatever repair is needed — could be a $20 gas cap or a $1,500 catalytic converter. Oil pressure repair: $100 for a sensor to $2,000+ for an oil pump. Overheating repair: $100 for a thermostat to $1,500 for a head gasket. Brake warning: $100 for fluid top-off to $600 for a caliper or master cylinder. ABS repair: $150 for a sensor to $800 for a module. Battery/alternator: $150 for a battery to $700 for an alternator. The diagnosis tells you which end of the range you are at."
+        content: "Check engine light diagnosis: $49 at Nick's, waived if you do the repair with us, plus the cost of whatever repair is needed — could be a $20 gas cap or a $1,500 catalytic converter. Oil pressure repair: $100 for a sensor to $2,000+ for an oil pump. Overheating repair: $100 for a thermostat to $1,500 for a head gasket. Brake warning: $100 for fluid top-off to $600 for a caliper or master cylinder. ABS repair: $150 for a sensor to $800 for a module. Battery/alternator: $150 for a battery to $700 for an alternator. The diagnosis tells you which end of the range you are at."
       },
       {
         heading: "Do Not Ignore Dashboard Lights",
@@ -2879,7 +2879,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "How Much Does Flat Tire Repair Cost in Cleveland?",
-        content: "A standard plug-patch repair at Nick's is $15 to $25 depending on the tire size and type. If the tire cannot be repaired, a quality used replacement starts at $40 to $60 mounted and balanced. A new tire ranges from $80 to $200+ depending on size and brand. Compare that to what some roadside assistance companies charge — $75 to $150 just to show up and put on your spare, and you still need the tire fixed afterward. Driving straight to us is almost always the cheaper and faster option. We are at 17625 Euclid Ave in Cleveland — right off E 185th Street, easy access from I-90."
+        content: "A standard plug-patch repair at Nick's is $15 to $25 depending on the tire size and type. If the tire cannot be repaired, a quality used replacement starts at $40 to $60 mounted and balanced. A new tire ranges from $89 to $200+ depending on size and brand. Compare that to what some roadside assistance companies charge — $75 to $150 just to show up and put on your spare, and you still need the tire fixed afterward. Driving straight to us is almost always the cheaper and faster option. We are at 17625 Euclid Ave in Cleveland — right off E 185th Street, easy access from I-90."
       },
       {
         heading: "Common Causes of Flat Tires in Cleveland",
