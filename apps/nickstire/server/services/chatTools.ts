@@ -548,9 +548,9 @@ async function executeCheckFinancing(estimatedTotal: number): Promise<string> {
   // model relayed "you're eligible" to every customer, and claimed
   // "in-house financing" when the real providers are third parties
   // (BUSINESS.financing.providers). The tool now tells the truth: the
-  // PROGRAM exists (four third-party providers), payment figures are
-  // illustrative estimates, and eligibility is decided by the provider
-  // at application time — never by this chatbot.
+  // PROGRAM exists (four third-party providers), payment figures come only
+  // from the provider, and eligibility is decided by the provider at
+  // application time — never by this chatbot.
   // 2026-10-01: the "illustrative" 6- and 12-month figures were the estimate
   // divided by the months, which is zero-cost math. Lease-to-own costs more
   // than the cash price, so the model was handed a monthly number well below
