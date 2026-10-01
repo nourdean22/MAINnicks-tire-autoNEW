@@ -444,6 +444,8 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string, custom
 // SIP-transient on the webhook (see extractEndedReason).
 type VapiWebhookMessage = {
   type: string;
+  /** Vapi status-update/speech-update lifecycle status. */
+  status?: string;
   call?: {
     id?: string;
     startedAt?: string;
@@ -1128,12 +1130,10 @@ router.post("/vapi", async (req: Request, res: Response) => {
         return;
       }
 
-      case "status-update":
       case "call-start": {
-        log.info("Vapi call started", { callId: event.call?.id });
-        // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
-        // Record `greeted` on call start. Fire-and-forget · the existing
-        // ack path stays untouched.
+        // Legacy/explicit call-start event. Current Vapi server-message defaults
+        // use status-update and mark the true start as status=in-progress.
+        log.info("Vapi call started", { callId: event.call?.id, source: "call-start" });
         const callId = event.call?.id;
         const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
         if (callId) {
@@ -1146,7 +1146,39 @@ router.post("/vapi", async (req: Request, res: Response) => {
             })
           ).catch(() => { /* intentionally swallowed */ });
         }
-        // Acknowledge — no work needed for V1
+        res.json({ ack: true });
+        return;
+      }
+
+      case "status-update": {
+        // Vapi emits scheduled/queued/ringing/in-progress/forwarding/ended.
+        // Only in-progress means the conversation actually started. The old
+        // combined branch stamped every status as "greeted", producing several
+        // fake starts for one call in production.
+        const status = event.status ?? "unknown";
+        log.info("Vapi status update", { callId: event.call?.id, status });
+        if (status === "in-progress") {
+          const callId = event.call?.id;
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          if (callId) {
+            import("../../services/voice-call-state").then(({ recordCallState }) =>
+              recordCallState({
+                callId,
+                assistantId,
+                state: "greeted",
+                metadata: { eventType: event.type, status },
+              })
+            ).catch(() => { /* intentionally swallowed */ });
+          }
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "speech-update": {
+        // Normal Vapi lifecycle telemetry (started/stopped speaking). We do not
+        // persist it yet; explicitly acknowledge it so production logs do not
+        // mislabel supported provider traffic as an unknown event.
         res.json({ ack: true });
         return;
       }
