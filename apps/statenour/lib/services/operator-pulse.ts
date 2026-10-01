@@ -175,7 +175,7 @@ function composeForGoals(i: ComposerInput): Pick<OperatorPulseSnapshot, "pulse" 
       : `${inDomain.length} active goal${inDomain.length === 1 ? "" : "s"} could move it`;
     pulse = {
       text: `Right now · ${trailing.domain} is trailing · ${trailing.score.toFixed(1)}/10 ${deltaStr} · ${guidance}`,
-      href: `/stats#axis-${encodeURIComponent(trailing.domain)}`,
+      href: `/stats?tab=mastery#axis-${encodeURIComponent(trailing.domain)}`,
       tone: trailing.score < 4 ? "amber" : "neutral",
     };
   }
@@ -205,7 +205,7 @@ function composeForGoals(i: ComposerInput): Pick<OperatorPulseSnapshot, "pulse" 
   const drift: PulseLine | null = dormant[0]
     ? {
         text: `Drift · "${dormant[0].title.slice(0, 44)}${dormant[0].title.length > 44 ? "…" : ""}" · ${dormant[0].daysSinceActivity}d quiet`,
-        href: `/stats#goal-${dormant[0].id}`,
+        href: `/stats?tab=goals#goal-${dormant[0].id}`,
         tone: "amber",
       }
     : null;
@@ -252,7 +252,7 @@ function composeForScoreboard(i: ComposerInput): Pick<OperatorPulseSnapshot, "pu
   const drift: PulseLine | null = trailing && trailing.score < 5
     ? {
         text: `Drift · ${trailing.domain} axis at ${trailing.score.toFixed(1)}/10 · ${trailing.delta7d < 0 ? `↓${Math.abs(trailing.delta7d).toFixed(1)}` : "flat"}`,
-        href: `/stats#axis-${encodeURIComponent(trailing.domain)}`,
+        href: `/stats?tab=mastery#axis-${encodeURIComponent(trailing.domain)}`,
         tone: "amber",
       }
     : null;
@@ -306,7 +306,7 @@ function composeForHome(i: ComposerInput): Pick<OperatorPulseSnapshot, "pulse" |
   } else if (trailing && trailing.score < 5) {
     drift = {
       text: `Trailing axis · ${trailing.domain} ${trailing.score.toFixed(1)}/10`,
-      href: `/stats#axis-${encodeURIComponent(trailing.domain)}`,
+      href: `/stats?tab=mastery#axis-${encodeURIComponent(trailing.domain)}`,
       tone: "amber",
     };
   }

@@ -47,10 +47,14 @@ export function BreakPromiseModal({
 
   // Capture the previously-focused element so we can restore it when
   // the modal closes · and move focus into the textarea on mount.
+  // Manual modal exception: lock background scroll just like Base UI Dialog.
   useEffect(() => {
     previouslyFocused.current = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     textareaRef.current?.focus();
     return () => {
+      document.body.style.overflow = previousOverflow;
       // Restore focus to wherever it came from. If that element is
       // gone (e.g. the row was deleted), this is a no-op.
       previouslyFocused.current?.focus?.();
@@ -120,7 +124,7 @@ export function BreakPromiseModal({
             type="button"
             onClick={onCancel}
             aria-label="Cancel and close dialog"
-            className="text-zinc-600 hover:text-zinc-300 -mr-1 -mt-0.5 p-1"
+            className="-mr-1 -mt-1 inline-flex h-11 w-11 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-zinc-900 hover:text-zinc-300"
           >
             <X size={11} aria-hidden />
           </button>
@@ -140,7 +144,7 @@ export function BreakPromiseModal({
             onChange={(e) => onReasonChange(e.target.value)}
             placeholder="One sentence is enough. Nick will learn from this."
             rows={3}
-            className="w-full px-2 py-1.5 rounded bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-200 placeholder:text-zinc-700 resize-none focus:border-red-500/30 outline-none"
+            className="w-full rounded border border-zinc-800 bg-zinc-900 px-2 py-2 text-[16px] text-zinc-200 placeholder:text-zinc-700 resize-none outline-none focus:border-red-500/30 sm:text-[11px]"
           />
           <p className="text-[8px] text-zinc-700 mt-1 italic">
             Saved to the broken-promise log. Pattern-tagged so Nick can flag similar commitments later.
@@ -150,14 +154,14 @@ export function BreakPromiseModal({
           <button
             type="button"
             onClick={onCancel}
-            className="text-[10px] text-zinc-500 hover:text-zinc-300 px-3 py-1.5"
+            className="min-h-11 px-3 py-1.5 text-[10px] text-zinc-500 hover:text-zinc-300"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={() => void onConfirm()}
-            className="text-[10px] font-bold uppercase tracking-wider text-red-300 hover:text-red-200 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded px-3 py-1.5"
+            className="min-h-11 rounded border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-red-300 hover:bg-red-500/20 hover:text-red-200"
           >
             Mark broken
           </button>

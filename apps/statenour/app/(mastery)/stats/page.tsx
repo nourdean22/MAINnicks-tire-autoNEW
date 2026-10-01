@@ -15,7 +15,7 @@
  * /life DELETED (it was a pure 5-link hub), and the /learn active-learning
  * LOOP moved here. The Build-Your-Own-X tutorial CATALOG stays at /learn
  * (force-static dev reference library — operator call). Redirects:
- * /body → /stats#body · /life → /stats.
+ * /body → /stats?tab=body · /life → /stats.
  *
  * Per operator (2026-05-30): "business shit belongs on nicks tire admin."
  * Shop/revenue intelligence lives at nickstire.org/admin — this page is
@@ -35,7 +35,7 @@
  */
 
 import { Suspense } from "react";
-import { resolveStatsTab } from "@/lib/stats/resolve-tab";
+import { STATS_TABS, resolveStatsTab } from "@/lib/stats/resolve-tab";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { StandardPage } from "@/components/layout/standard-page";
@@ -121,14 +121,6 @@ function StatsBodyFallback() {
   );
 }
 
-const TABS = [
-  { id: "mastery", label: "Mastery" },
-  { id: "goals", label: "Goals" },
-  { id: "body", label: "Body" },
-  { id: "learning", label: "Learning" },
-  { id: "calibration", label: "Calibration" },
-];
-
 function StatsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -138,7 +130,7 @@ function StatsContent() {
   // Next forwards as /stats?tab=money, or a typo) falls back to the first tab
   // instead of rendering an empty body (#2069 review). Pure helper so the
   // retired-routes gate can pin it.
-  const activeTab = resolveStatsTab(searchParams.get("tab"), TABS);
+  const activeTab = resolveStatsTab(searchParams.get("tab"));
 
   const handleTabChange = (tabId: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -157,7 +149,7 @@ function StatsContent() {
         aria-label="Stats sections"
         className="sticky top-0 z-20 -mx-4 flex gap-x-6 overflow-x-auto border-b border-edge bg-void px-4 sm:mx-0 sm:px-0"
       >
-        {TABS.map((tab) => {
+        {STATS_TABS.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
             <button

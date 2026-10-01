@@ -31,7 +31,7 @@
 import { Suspense, useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { Panel } from "@/components/panel";
-import { PageHeader } from "@/components/layout/ui";
+import { StandardPage } from "@/components/layout/standard-page";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { cn } from "@/lib/utils/cn";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
@@ -41,6 +41,8 @@ import { trpc } from "@/lib/trpc/client";
 
 type Level = "error" | "warn" | "info" | "success" | "metric";
 type Source = "errors" | "crons" | "metrics" | "actions" | "requests";
+
+const LEVEL_RANK: Record<string, number> = { error: 0, warn: 1, info: 2, debug: 3 };
 
 interface LogEntry {
   id: string;
@@ -185,7 +187,6 @@ function LogsPageInner() {
     return undefined;
   }, [feed]);
 
-  const LEVEL_RANK: Record<string, number> = { error: 0, warn: 1, info: 2, debug: 3 };
   const sortedEntries = useMemo(() => {
     if (!feed) return [] as LogEntry[];
     const out = [...feed.entries];
@@ -208,7 +209,7 @@ function LogsPageInner() {
         break;
     }
     return out;
-  }, [feed, sortKey, LEVEL_RANK]);
+  }, [feed, sortKey]);
 
   const toggleSource = (s: Source) => {
     setSourceFilter((prev) => {
@@ -238,16 +239,18 @@ function LogsPageInner() {
   }, [feed]);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 px-3 py-4 sm:px-4 sm:py-6">
-      <PageHeader parentHref="/system" parentLabel="system"
-        eyebrow="NOUR OS · System"
-        title="logs"
-        description={
-          feed
-            ? `${summary.total} entries in last ${win} · ${summary.err} errors · ${summary.warn} warnings${newSince > 0 ? ` · ${newSince} new` : ""}`
-            : "loading…"
-        }
-        actions={
+    <StandardPage
+      eyebrow="NOUR OS · System"
+      title="Logs"
+      description={
+        feed
+          ? `${summary.total} entries in last ${win} · ${summary.err} errors · ${summary.warn} warnings${newSince > 0 ? ` · ${newSince} new` : ""}`
+          : "loading…"
+      }
+      width="2xl"
+      rhythm="comfortable"
+      className="px-3 py-4 sm:px-4 sm:py-6"
+      actions={
           <div className="flex items-center gap-2">
             {/* v10.0.306 · view-mode toggle · replaces stale /events
                 cross-link (deleted v10.0.304) and absorbs the deleted
@@ -303,7 +306,7 @@ function LogsPageInner() {
             </button>
           </div>
         }
-      />
+    >
 
       {/* v10.0.306 · GROUPED view · render the absorbed /errors deck
           and short-circuit (skip the stream filters/feed below). */}
@@ -440,6 +443,6 @@ function LogsPageInner() {
 
       </>
       )}
-    </div>
+    </StandardPage>
   );
 }

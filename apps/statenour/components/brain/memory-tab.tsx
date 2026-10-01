@@ -57,7 +57,9 @@ import { InsightRibbon } from "@/components/brain/insight-ribbon";
 import { BrainInsightsPanel } from "@/components/brain/brain-insights-panel";
 import { SelfCritiqueCard } from "@/components/brain/self-critique-card";
 import { RecallInboxPanel } from "@/components/brain/recall-inbox-panel";
+import { RecallPreviewPanel } from "@/components/brain/recall-preview-panel";
 import { PatternCard } from "@/components/brain/pattern-card";
+import { AntiPatternsPanel } from "@/components/brain/anti-patterns-panel";
 import { useIdleWarmup } from "@/hooks/use-idle-warmup";
 import { onDataChanged } from "@/lib/events/data-change";
 import { NickSuggestions } from "@/components/chat/nick-suggestions";
@@ -176,6 +178,7 @@ export function MemoryTab() {
           <div className="space-y-6">
             <NudgePanel />
             <PinnedContextPanel />
+            <RecallPreviewPanel />
           </div>
         </section>
 
@@ -198,6 +201,7 @@ export function MemoryTab() {
               <ContradictionResolutionPanel focusKey={focusContradictionKey} />
             </div>
             <DecisionReplayCard />
+            <AntiPatternsPanel />
             <div id="preferences" className="scroll-mt-24">
               <PreferencesCard />
             </div>

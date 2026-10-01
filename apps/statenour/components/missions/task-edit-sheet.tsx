@@ -20,12 +20,13 @@
  * Wave AB.b PersonEditDrawer.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Loader2, Trash2, X, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import type { Project, Task } from "@/components/actions/shared";
 
 // wave-AB.c-audit · enum values mirror the Prisma TaskStatus + the
@@ -107,14 +108,6 @@ function TaskEditSheetBody({
     updateMutation.isPending ||
     deleteMutation.isPending ||
     leaveMissionMutation.isPending;
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && !submitting) onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, submitting]);
 
   const handleSave = useCallback(async () => {
     const trimmed = title.trim();
@@ -271,19 +264,19 @@ function TaskEditSheetBody({
   }, [task.id, task.title, decomposeMutation, utils, onSaved, onClose]);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end lg:items-center justify-center bg-black/50 backdrop-blur-sm"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label="edit task"
+    <Dialog
+      open
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && !submitting) onClose();
+      }}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
+      <DialogContent
+        unstyled
+        showCloseButton={false}
+        overlayClassName="z-50 bg-black/50 backdrop-blur-sm"
         className={cn(
-          "w-full lg:max-w-lg bg-[var(--bg-base)] border-t lg:border border-[var(--gold)]/30 rounded-t-2xl lg:rounded-2xl",
+          "fixed inset-x-0 bottom-0 z-[51] max-h-[90dvh] overflow-y-auto rounded-t-2xl border-t border-[var(--gold)]/30 bg-[var(--bg-base)] pb-[env(safe-area-inset-bottom,0px)] outline-none lg:inset-x-auto lg:bottom-auto lg:left-1/2 lg:top-1/2 lg:w-full lg:max-w-lg lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-2xl lg:border",
           "shadow-[0_-20px_60px_rgba(0,0,0,0.5),0_0_40px_rgba(253,185,19,0.1)]",
-          "max-h-[90vh] overflow-y-auto pb-[env(safe-area-inset-bottom,0px)]",
         )}
       >
         <header className="sticky top-0 z-10 bg-[var(--bg-base)] flex items-center gap-2 border-b border-[var(--border-default)] px-4 py-3">
@@ -291,16 +284,16 @@ function TaskEditSheetBody({
             <p className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/80">
               edit task
             </p>
-            <h2 className="text-[14px] font-bold text-[var(--text-primary)] truncate mt-0.5">
+            <DialogTitle className="mt-0.5 truncate text-[14px] font-bold text-[var(--text-primary)]">
               {task.title}
-            </h2>
+            </DialogTitle>
           </div>
           <button
             type="button"
             onClick={onClose}
             disabled={submitting}
             aria-label="close"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]/15"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]/15"
           >
             <X size={14} strokeWidth={2} />
           </button>
@@ -496,7 +489,7 @@ function TaskEditSheetBody({
             type="button"
             onClick={handleDelete}
             disabled={submitting}
-            className="inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-rose-300/80 hover:text-rose-300 disabled:opacity-50"
+            className="inline-flex min-h-11 items-center gap-1.5 px-2 text-[11px] font-mono uppercase tracking-[0.15em] text-rose-300/80 hover:text-rose-300 disabled:opacity-50"
           >
             <Trash2 size={11} strokeWidth={1.75} />
             delete
@@ -506,7 +499,7 @@ function TaskEditSheetBody({
               type="button"
               onClick={handleDecompose}
               disabled={submitting || decomposeMutation.isPending}
-              className="inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)]/80 hover:text-[var(--gold)] disabled:opacity-50 ml-2"
+              className="ml-2 inline-flex min-h-11 items-center gap-1.5 px-2 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)]/80 hover:text-[var(--gold)] disabled:opacity-50"
             >
               <Sparkles size={11} strokeWidth={1.75} />
               decompose
@@ -516,7 +509,7 @@ function TaskEditSheetBody({
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="ml-auto text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] disabled:opacity-50"
+            className="ml-auto min-h-11 px-2 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] disabled:opacity-50"
           >
             cancel
           </button>
@@ -525,7 +518,7 @@ function TaskEditSheetBody({
             onClick={handleSave}
             disabled={submitting || !title.trim()}
             className={cn(
-              "inline-flex items-center gap-2 rounded-md border border-[var(--gold)]/50 bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/15 px-3 py-2 text-[12px] font-medium",
+              "inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--gold)]/50 bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/15 px-3 py-2 text-[12px] font-medium",
               "disabled:opacity-50 transition-colors",
             )}
           >
@@ -533,10 +526,10 @@ function TaskEditSheetBody({
             save
           </button>
         </footer>
-      </div>
-      {/* iOS-PWA-safe confirm mount · renders null when idle. */}
-      {confirmDialog}
-    </div>
+        {/* iOS-PWA-safe confirm mount · renders null when idle. */}
+        {confirmDialog}
+      </DialogContent>
+    </Dialog>
   );
 }
 

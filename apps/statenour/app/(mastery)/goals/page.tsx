@@ -15,5 +15,5 @@ import { redirect } from "next/navigation";
 export default function GoalsRedirect() {
   // Land on the Goals section of /stats (id="goals") rather than the top
   // of the character sheet, so a "Goals" mental model arrives at goals.
-  redirect("/stats#goals");
+  redirect("/stats?tab=goals");
 }

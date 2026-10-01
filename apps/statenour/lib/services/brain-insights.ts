@@ -96,7 +96,7 @@ export async function buildBrainInsights(): Promise<BrainInsightsReport> {
       metric: apRecent,
       deltaPct: delta ?? undefined,
       severity: sprint ? "highlight" : "info",
-      link: "/system/anti-patterns",
+      link: "/brain?tab=memory#anti-patterns",
     });
   }
 
@@ -263,7 +263,7 @@ export async function buildBrainInsights(): Promise<BrainInsightsReport> {
       supporting: "structural pattern · same domain repeating",
       metric: Number(r.n),
       severity: Number(r.n) >= 4 ? "warn" : "info",
-      link: `/system/anti-patterns`,
+      link: `/brain?tab=memory#anti-patterns`,
     });
   }
 
@@ -324,7 +324,7 @@ export async function buildBrainInsights(): Promise<BrainInsightsReport> {
         priorAvg !== 0 ? Math.round((delta / priorAvg) * 100) : undefined,
       severity:
         sharp && delta > 0 ? "highlight" : sharp && delta < 0 ? "warn" : "info",
-      link: "/system/decision-drift",
+      link: "/journal",
     });
   }
 

@@ -5,9 +5,9 @@
  *
  * 2026-06-18 · IA reorg Phase 4. Replaces the FloatingHome orb as primary
  * nav. 5 fixed slots: the 4 daily content tabs (BOTTOM_TABS, read from the
- * single NAV source) + a "More" slot that opens the MoreSheet. Fixed to the
- * bottom edge with iOS safe-area padding and 44px+ touch targets. The
- * ambient BottomPulseTicker rides as a thin strip directly above the tab row
+ * single NAV source) + a "More" slot that opens the MoreSheet. Below XL it is
+ * the primary nav; at XL the DesktopSpine takes over and this nav row hides.
+ * The ambient BottomPulseTicker stays visible as a thin signal strip
  * so the whole bottom chrome is one stacked unit (no z-index overlap with
  * the old separately-fixed ticker).
  */
@@ -96,7 +96,7 @@ export function BottomTabBar() {
       <BottomPulseTicker />
       <nav
         aria-label="Primary"
-        className="flex items-stretch border-t border-edge bg-[var(--bg-void)]/95 backdrop-blur-xl"
+        className="flex items-stretch border-t border-edge bg-[var(--bg-void)]/95 backdrop-blur-xl xl:hidden"
       >
         {BOTTOM_TABS.map((tab) => {
           const Icon = tab.icon;

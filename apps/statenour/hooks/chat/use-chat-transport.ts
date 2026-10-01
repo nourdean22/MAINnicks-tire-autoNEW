@@ -24,8 +24,9 @@
  *
  * Safety: NEVER call setState inside the fetch wrapper that React
  * subscribes to in a way that could re-trigger the transport memo.
- * We only call setDeeperContext + setLastRunMode here because their
- * changes don't propagate back into the transport deps.
+ * We only call render-facing setters/callbacks here because their changes
+ * don't propagate back into the transport deps. Refs remain the transport's
+ * stable mutation channel; state mirrors exist only so React rerenders metadata UI.
  */
 
 import { useMemo, useCallback, type RefObject, type Dispatch, type SetStateAction } from "react";
@@ -63,6 +64,8 @@ export interface UseChatTransportOpts<TBody extends object = Record<string, unkn
   transportBodyRef: RefObject<TBody>;
   /** Writable ref for live context-blocks (read by streaming message shells). */
   liveContextBlocksRef: RefObject<ContextBlocks | null>;
+  /** Optional render-facing mirror. Does not participate in transport identity. */
+  onLiveContextBlocks?: (blocks: ContextBlocks | null) => void;
   /** Writable ref for last X-Persona header (read by a persona-sync effect elsewhere). */
   lastPersonaHeaderRef: RefObject<Personality | null>;
   /**
@@ -73,6 +76,8 @@ export interface UseChatTransportOpts<TBody extends object = Record<string, unkn
    * /system/agent-traces?search=<traceId>.
    */
   lastTraceIdRef?: RefObject<string | null>;
+  /** Optional render-facing mirror for the latest trace id. */
+  onTraceId?: (id: string) => void;
   /** Setter for Deeper Context state. */
   setDeeperContext: Dispatch<SetStateAction<DeeperContextState>>;
   /**
@@ -131,8 +136,10 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
     apiPath,
     transportBodyRef,
     liveContextBlocksRef,
+    onLiveContextBlocks,
     lastPersonaHeaderRef,
     lastTraceIdRef,
+    onTraceId,
     setDeeperContext,
     setLastRunMode,
     onConversationId,
@@ -143,10 +150,12 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
   const getBody = useCallback(() => transportBodyRef.current, [transportBodyRef]);
   const setLiveContextBlocks = useCallback((blocks: ContextBlocks | null) => {
     liveContextBlocksRef.current = blocks;
-  }, [liveContextBlocksRef]);
+    onLiveContextBlocks?.(blocks);
+  }, [liveContextBlocksRef, onLiveContextBlocks]);
   const setLastTraceId = useCallback((id: string) => {
     if (lastTraceIdRef) lastTraceIdRef.current = id;
-  }, [lastTraceIdRef]);
+    onTraceId?.(id);
+  }, [lastTraceIdRef, onTraceId]);
   const setLastPersonaHeader = useCallback((persona: "master" | "builder" | "friend") => {
     lastPersonaHeaderRef.current = persona;
   }, [lastPersonaHeaderRef]);

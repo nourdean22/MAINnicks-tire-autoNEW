@@ -15,6 +15,7 @@
  */
 
 import { X } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc/client";
 import { bdiLabel, bdiTone, type BdiType } from "@/lib/brain/bdi";
 // 2026-08-19 · recall hits rendered confidence as "NN% conf" beside a real
@@ -79,27 +80,26 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
   const loading = provenanceQ.isFetching;
   const error = provenanceQ.error ? provenanceQ.error.message : null;
 
-  if (!open) return null;
-
   return (
-    <div
-      className="fixed inset-0 z-[180] bg-[var(--bg-void)]/90 backdrop-blur-md flex items-stretch justify-center"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="reasoning-trace-title"
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
     >
-      <div
-        className="bg-[var(--bg-base)] border border-[var(--border-default)] rounded-lg max-w-2xl w-full mx-4 my-8 max-h-[calc(100dvh-4rem)] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
+      <DialogContent
+        unstyled
+        showCloseButton={false}
+        overlayClassName="z-[180] bg-[var(--bg-void)]/90 backdrop-blur-md"
+        className="fixed inset-y-8 left-1/2 z-[181] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 overflow-y-auto rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] outline-none"
       >
         {/* Header */}
         <header className="sticky top-0 bg-[var(--bg-base)] flex items-start justify-between p-5 border-b border-[var(--border-default)]">
           <div>
             <p className="text-eyebrow">Reasoning trace</p>
-            <h2 id="reasoning-trace-title" className="page-title text-xl mt-1">
+            <DialogTitle className="page-title mt-1 text-xl">
               Why Nick said that
-            </h2>
+            </DialogTitle>
             {data && (
               <p className="text-[11px] font-mono text-[var(--text-tertiary)] mt-2 uppercase tracking-wider">
                 {data.recall.bdiChain || "no memories matched"} · scanned {data.recall.scanned} · {data.recall.durationMs}ms
@@ -308,7 +308,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
             </>
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
