@@ -1721,6 +1721,10 @@ export function preserveLiveTransferDestinations(
 
 export async function updateAssistant(assistantId: string, serverUrl?: string): Promise<{
   success: boolean;
+  /** PATCH accepted and provider GET read-back returned the same behavior hash. */
+  verified?: boolean;
+  behaviorHash?: string;
+  warning?: string;
   error?: string;
 }> {
   try {
@@ -1788,8 +1792,35 @@ export async function updateAssistant(assistantId: string, serverUrl?: string): 
       log.error("Vapi assistant update failed", { status: res.status, body: text.slice(0, 500) });
       return { success: false, error: `${res.status}: ${text.slice(0, 200)}` };
     }
-    log.info("Updated Vapi assistant", { id: assistantId, behaviorHash });
-    return { success: true };
+    // Provider read-back. A 200 PATCH proves Vapi accepted the request, not that
+    // our control plane can still observe the exact serving identity. GET is a
+    // separate receipt; keep success=true when PATCH applied, but never call it
+    // verified unless the provider returns the same metadata hash.
+    let verified = false;
+    let warning: string | undefined;
+    try {
+      const readbackRes = await vapiFetch(`/assistant/${assistantId}`);
+      if (!readbackRes.ok) {
+        warning = `Vapi accepted the update, but read-back returned HTTP ${readbackRes.status}; serving hash is unverified.`;
+      } else {
+        const readback = (await readbackRes.json()) as { metadata?: Record<string, string> };
+        const observedHash = readback.metadata?.nickBehaviorHash ?? null;
+        if (observedHash === behaviorHash) {
+          verified = true;
+        } else {
+          warning = `Vapi accepted the update, but read-back behavior hash did not match the pushed hash.`;
+        }
+      }
+    } catch (readbackErr) {
+      warning = `Vapi accepted the update, but read-back failed (${readbackErr instanceof Error ? readbackErr.message : String(readbackErr)}); serving hash is unverified.`;
+    }
+
+    if (verified) {
+      log.info("Updated Vapi assistant · provider read-back verified", { id: assistantId, behaviorHash });
+    } else {
+      log.warn("Updated Vapi assistant · provider read-back unverified", { id: assistantId, behaviorHash, warning });
+    }
+    return { success: true, verified, behaviorHash, ...(warning ? { warning } : {}) };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Update failed" };
   }
