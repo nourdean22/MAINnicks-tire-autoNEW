@@ -221,13 +221,19 @@ missed (`goldFlash`, `unload-pulse`, `revenue-pulse`, `float`, `nick-cursor-shim
 `breath`, the `[data-anchor]` cascade with no emitter, `.command-input` with no consumer, the `.no-scrollbar`
 duplicate of shadcn's utility, the ≤640px form-control duplicate) → removed. Native `<select>` palette → warm.
 Firefox gets the thin scrollbar via `scrollbar-color`. The PWA `themeColor` / `background_color` match `--canvas`.
-Raw `rounded-[var(--radius-*)]` / `shadow-[var(--shadow-l*)]` (56 sites) → the registered `rounded-*` / `shadow-l*`
+Raw arbitrary-value radius and shadow classes (`rounded-[var(…)]` / `shadow-[var(…)]`, 56 sites) → the registered
+`rounded-micro|control|surface|float|overlay` / `shadow-l1|l2`
 utilities the token file asks for. The v1 lane now also restores the shadcn bridge values, body letter-spacing,
 eyebrow tracking and the 72px spine (§4 says what it still does not restore).
 
 Going beyond the review: the type floor and tracking cap now apply at every width under the v2 lane (§3 of
 SYSTEM.md) — 1,526 sub-11px labels and 162 over-tracked eyebrows across journal, brain, people, stats and system
 fixed by five CSS lines, reversible with `?ui=v1`.
+
+**Tailwind scans the docs.** The first version of this very section spelled the retired classes with a literal
+wildcard inside the brackets; Tailwind v4's automatic source detection reads every non-ignored file (Markdown
+included), minted that as a utility, emitted `var(--radius-*)`, and the e2e run on `fceb606b` 500'd every page with
+`Parsing CSS source code failed`. A grammar-test canary now refuses any wildcard arbitrary value in a scanned file.
 
 Measured after the second pass (`wc -l`): `effects.css` 1939 → 947, `base.css` 351 → 366, `tokens.css` 284 → 333;
 the three together 2574 → 1646 (928 fewer lines). Gates on this tree: `tsc --noEmit` exit 0 · eslint 0 errors ·

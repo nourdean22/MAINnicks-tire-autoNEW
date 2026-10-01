@@ -140,3 +140,20 @@ describe("UI v2 cascade defects found by the 2026-10-01 hostile review stay fixe
     expect(baseV2).toMatch(/\[class\*="tracking-\[0\.18em\]"\][\s\S]{0,120}letter-spacing: 0\.12em/);
   });
 });
+
+describe("Tailwind source scanning", () => {
+  it("no scanned file carries a wildcard arbitrary value (Tailwind mints it and the stylesheet fails to parse)", () => {
+    // 2026-10-01: PLAN.md wrote a radius class with a literal asterisk inside `var(--…)` in prose; Tailwind v4
+    // auto-source reads Markdown (and this test file),
+    // emitted `border-radius: var(--radius-*)`, and every page 500'd in the e2e run on fceb606b.
+    const { execSync } = require("node:child_process") as typeof import("node:child_process");
+    const files = execSync("git ls-files -- '*.md' '*.mdx' '*.tsx' '*.ts' '*.json'", { cwd: ROOT, encoding: "utf8" })
+      .split("\n").filter(Boolean);
+    const offenders: string[] = [];
+    for (const f of files) {
+      const src = readFileSync(join(ROOT, f), "utf8");
+      if (/\[var\(--[\w-]*\*/.test(src)) offenders.push(f);
+    }
+    expect(offenders, "wildcard arbitrary value reachable by the Tailwind scanner").toEqual([]);
+  });
+});
