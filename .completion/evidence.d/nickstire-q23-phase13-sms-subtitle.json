@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Q-23 phase 13 (2026-10-01, branch nickstire/q23-phase13-sms-subtitle). What the operator sees: Admin > Outreach > Messages, the page header subtitle reads 'Two-way SMS with customers · sent from the shop F25e gateway · texts queue while it's offline' instead of '... routes through the shop F25e gateway with Twilio fallback'. Nothing else on the page changes; the subtitle is static copy. Why: server/sms.ts names the F25e the sole sender (Twilio intentionally not set up) and queues every send while a configured gateway is unreachable. Proof is a jsdom render, not a live admin session: client/src/__tests__/sms-section-no-twilio-q23.test.tsx mounts the real SmsSection with every tRPC procedure idle; red on main (no 'queue', has 'Twilio'), green with the change. Not yet seen by the operator on the installed PWA."
+    },
+    "capability-ledger-updated": {
+      "ref": "Q-23 phase 13: docs/operations/capability-ledger.json flips three entries whose PRs have merged from codeState in_progress to merged and rewrites each codeCommit prefix from the draft-branch wording to the merged PR and squash: admin-gateway-one-rule-q23 (#2844, squash 811a3cdca), admin-lane-health-q23 (#2846, squash 69d9519f, merged while this branch was open and brought in by a merge of main) and nickstire-daily-digest-q29 (#2816, squash 908df6c9). admin-gateway-one-rule-q23's SmsSection-subtitle deferred item now points at this phase. No new capability entry, so this phase leaves no in_progress entry behind. REALITY-LEDGER.md re-rendered by scripts/render-reality-ledger.mjs; scripts/check-capability-ledger.mjs: valid, 104 capabilities."
+    }
+  }
+}
