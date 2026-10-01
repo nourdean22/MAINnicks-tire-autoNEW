@@ -688,7 +688,9407 @@ async function processCallEndReport(
             SET metadata = JSON_SET(
               COALESCE(metadata, JSON_OBJECT()),
               '$.behavior',
-              CAST(${JSON.stringify(behavior)} AS JSON)
+              JSON_EXTRACT(${JSON.stringify(behavior)}, '
+            )
+            WHERE vapiCallId = ${String(callId)}
+          `);
+        } catch (behaviorErr) {
+          log.warn("[vapi webhook] behavior fingerprint persist failed (analytics only)", {
+            errorType: behaviorErr instanceof Error ? behaviorErr.name : typeof behaviorErr,
+            errorId: "VAPI_METADATA_BEHAVIOR_PERSIST_FAILED",
+          });
+        }
+
+        // ─── Persist CUSTOMER-only speech (2026-07-26 demand audit) ─────────
+        // The full transcript has been in hand here since wave-fix-2026-05-25,
+        // used for a keyword scan and then dropped. Meanwhile `transcriptUrl`
+        // is populated on 0 of 2,095 rows — VAPI never sets it — so nothing
+        // durable held what callers actually said, and every demand signal was
+        // assistant-contaminated: `serviceMention` is binary (tire|brake) and
+        // `aiSummary` is written by a tire-first assistant. The ~60% used-tire
+        // figure the whole prompt is built around could not be checked.
+        //
+        // Stores the CUSTOMER's turns only — never assistant speech, never the
+        // full transcript — capped and truncated. JSON_SET merges into whatever
+        // `metadata` already holds (intents, agenticAudit), so write order with
+        // the later enrichment updates does not matter. Uses the existing JSON
+        // column deliberately: no migration means no hand-applied DDL to forget
+        // (ROS-059). Fail-open — a demand-analytics write must never affect the
+        // webhook's 200.
+        try {
+          const { buildCustomerSpeechRecord, extractCustomerTurnsFromMessages, CUSTOMER_SPEECH_VERSION } =
+            await import("../../services/customerTurns");
+          // Prefer VAPI's role-tagged `artifact.messages` — authoritative at the
+          // source, so no speaker-prefix guessing and no formatting change can
+          // misattribute assistant speech as customer demand. The flat
+          // transcript is the fallback for calls that lack the array.
+          const artifactMsgs = (event as { artifact?: { messages?: unknown } }).artifact?.messages;
+          let speech: ReturnType<typeof buildCustomerSpeechRecord> = null;
+          if (Array.isArray(artifactMsgs) && artifactMsgs.length) {
+            const parsed = extractCustomerTurnsFromMessages(artifactMsgs);
+            if (parsed.turns.length || parsed.unparsed) {
+              speech = {
+                v: CUSTOMER_SPEECH_VERSION,
+                turns: parsed.turns,
+                turnCount: parsed.totalCustomerTurns,
+                first: parsed.firstSubstantive,
+                unparsed: parsed.unparsed,
+              };
+            }
+          } else {
+            speech = buildCustomerSpeechRecord(transcript);
+          }
+          if (speech) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.customerSpeech', JSON_EXTRACT(${JSON.stringify(speech)}, ')
+              WHERE vapiCallId = ${String(callId)}
+            `);
+          }
+        } catch (speechErr) {
+          // Never log the raw DB error here: Drizzle includes bound SQL params
+          // in its message, and those params contain customer speech/phone text.
+          log.warn("[vapi webhook] customer-speech persist failed (analytics only)", {
+            errorType: speechErr instanceof Error ? speechErr.name : typeof speechErr,
+            errorId: "VAPI_METADATA_CUSTOMER_SPEECH_PERSIST_FAILED",
+          });
+        }
+
+        // TRANSFER ARTIFACT · the only signal that can prove a human ANSWERED.
+        //
+        // Every transfer metric in this app has been built on
+        // `endedReason === "assistant-forwarded-call"`, which VAPI's own docs
+        // say confirms the transfer was INITIATED, not completed — their
+        // troubleshooting page sends you to the provider's call log for the
+        // outcome. So a call that rang an empty counter and dropped to
+        // voicemail has scored identically to one Nick answered on the second
+        // ring, and no connect-rate built on it could ever emit a failure for
+        // the one case it exists to detect.
+        //
+        // `artifact.transfers[]` carries a real per-attempt status. VAPI
+        // describes blind-transfer outcome detection as enabled PER
+        // ORGANISATION, so whether this account receives it is an empirical
+        // question — which is exactly why `artifactPresent` is persisted
+        // separately from the verdict. That flag is the live answer, read from
+        // production rather than assumed from documentation.
+        //
+        // Separate try on purpose, same as customerSpeech above: one analytics
+        // write failing must not take the other down, and neither may affect
+        // the webhook's 200.
+        try {
+          const { readTransferArtifact, transferArtifactWorthPersisting, sawTransferUpdate } = await import("../../lib/transferArtifact");
+          const read = readTransferArtifact((event as { artifact?: unknown }).artifact);
+          // The live `transfer-update` witness (recorded below in the router).
+          // It catches the attempt the ended reason hides: a caller who hangs
+          // up while the shop line rings ends "customer-ended-call".
+          const { getCallStateHistory } = await import("../../services/voice-call-state");
+          const transferUpdateSeen = sawTransferUpdate(await getCallStateHistory(String(callId)));
+          // Write only when there is something to say: a per-attempt record, or
+          // an ended reason proving a transfer was ATTEMPTED. A call that never
+          // tried to hand off gets no verdict at all — the old test here was
+          // `artifactPresent || transfers.length`, and artifactPresent is true
+          // whenever Vapi sends a transfers ARRAY — which it does, empty, on
+          // calls that never transferred — which is how 20 of 31 calls came to
+          // carry "unknown" for a transfer that never happened.
+          if (transferArtifactWorthPersisting(read, cleanEndedReason, transferUpdateSeen)) {
+            const { sql } = await import("drizzle-orm");
+            const stored = { ...read, transferUpdateSeen };
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.transferArtifact', JSON_EXTRACT(${JSON.stringify(stored)}, ')
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            log.info("[vapi webhook] transfer artifact persisted", {
+              callId: String(callId),
+              verdict: read.verdict,
+              artifactPresent: read.artifactPresent,
+              transferUpdateSeen,
+              statuses: read.transfers.map((t) => t.status),
+            });
+            if (read.unrecognisedStatuses.length) {
+              // A status VAPI added that this app does not model. Loud, because
+              // silently bucketing it as unknown would hide a real drift.
+              log.warn("[vapi webhook] unmodelled transfer status from VAPI", {
+                statuses: read.unrecognisedStatuses,
+              });
+            }
+          }
+        } catch (transferErr) {
+          // The raw driver message can embed the transfer destination in bound
+          // params; never create a second phone-number surface in Railway logs.
+          log.warn("[vapi webhook] transfer-artifact persist failed (analytics only)", {
+            errorType: transferErr instanceof Error ? transferErr.name : typeof transferErr,
+            errorId: "VAPI_METADATA_TRANSFER_ARTIFACT_PERSIST_FAILED",
+          });
+        }
+
+        // VOICE CLAIM GUARD · the assistant side of the same artifact.
+        //
+        // SMS drafts are gated before send by `planViolations`; voice had no
+        // equivalent, so the prompt's truth rules (no repair quotes, no live
+        // stock, no capacity or wait promises) were enforced by prose alone.
+        // Vapi streams to TTS with no pre-speech hook, so this cannot block —
+        // it DETECTS, which is what makes drift visible and what makes the
+        // prompt-compression work measurable.
+        //
+        // Separate try from customerSpeech on purpose: one analytics write
+        // failing must not take the other down, and neither may affect the 200.
+        try {
+          const { buildVoiceClaimRecord } = await import("../../services/voiceClaimGuard");
+          const claims = buildVoiceClaimRecord({
+            transcript,
+            messages: (event as { artifact?: { messages?: unknown } }).artifact?.messages,
+          });
+          if (claims) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.voiceClaims', JSON_EXTRACT(${JSON.stringify(claims)}, ')
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (claims.violations.length) {
+              // Labels only — never the utterance. The transcript stays in the
+              // column it arrived in; logs must not become a second PII surface.
+              log.warn("[vapi webhook] voice claim violation", {
+                callId: String(callId),
+                violations: claims.violations,
+              });
+            }
+          }
+        } catch (claimErr) {
+          // Claim records derive from assistant utterances and may still carry
+          // conversation text in SQL params. Log the class, not the driver body.
+          log.warn("[vapi webhook] voice-claim persist failed (analytics only)", {
+            errorType: claimErr instanceof Error ? claimErr.name : typeof claimErr,
+            errorId: "VAPI_METADATA_VOICE_CLAIM_PERSIST_FAILED",
+          });
+        }
+
+        // wave-144 · forwarded-call safety net. A during-hours
+        // transferCall hands the caller to the shop line; if nobody
+        // picks up (tech mid-bay), that hot caller is lost with NO
+        // follow-up surface — forwards only showed up as a Voice-page
+        // chart bar. On the first end-of-call insert only, drop a row
+        // into the front-desk callback queue so every forwarded caller
+        // is accounted for. This is an INTERNAL queue entry, not an
+        // outbound customer message — worst case is a row the operator
+        // clears in one tap; the win is no forwarded caller falls
+        // through. endedReason "assistant-forwarded-call" → /forward/i.
+        // 2026-05-31 · forwarded-call follow-up flipped from an internal
+        // callback to-do (it flooded the Today queue with "Call back Voice
+        // caller" rows) to a self-serve SMS back to the caller. The caller
+        // re-engages on their terms; the operator's callback queue stays clean.
+        // 2026-07-20 · vapiCallId is REQUIRED for real idempotency. The
+        // orchestrator only builds a stable key (`..._call_<id>`) when
+        // event.vapiCallId is present (smsOrchestrator.ts) — omit it and the
+        // key falls through to a Date.now()+Math.random() value that is unique
+        // by construction, so the idempotency check can never match and is a
+        // silent no-op. Dedupe then rests entirely on the 24h phone cooldown.
+        // Passing the id restores the guard the call site always implied.
+        // 2026-07-20 · operator off-switch. Read the pause flag BEFORE deciding;
+        // a flag-read failure resolves to `false` (= not paused), so a DB blip
+        // keeps today's behaviour rather than silently muting the path.
+        let followupPaused = false;
+        try {
+          const { isEnabled } = await import("../../services/featureFlags");
+          followupPaused = await isEnabled("vapi_forward_followup_paused");
+        } catch (flagErr) {
+          log.warn("[vapi webhook] pause-flag read failed — treating as NOT paused", {
+            error: flagErr instanceof Error ? flagErr.message : String(flagErr),
+          });
+        }
+
+        // Narrow the number ONCE and pass the same value to both the decision
+        // and the send. Reaching back for `customer!.number` after the predicate
+        // returned true would re-assert a fact the compiler can't follow across
+        // the call boundary — a non-null assertion there would silence the
+        // checker rather than satisfy it.
+        const followupPhone = customer?.number?.trim() ?? "";
+
+        if (shouldSendForwardedFollowup({
+          firstLog,
+          endedReason: cleanEndedReason,
+          customerNumber: followupPhone,
+          paused: followupPaused,
+        })) {
+          const { orchestrateSms } = await import("../../services/smsOrchestrator");
+          await orchestrateSms({
+            type: "vapi_forwarded_call_followup",
+            phone: followupPhone,
+            vapiCallId: event.call?.id,
+          }).catch((err: unknown) => {
+            log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        } else if (followupPaused && isForwardedEndedReason(cleanEndedReason)) {
+          log.info("[vapi webhook] forwarded-call SMS suppressed — vapi_forward_followup_paused is ON");
+        }
+      }
+    }
+  } catch (persistErr) {
+    log.warn("[vapi webhook] call-end persist failed (non-blocking)", {
+      error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+    });
+  }
+  // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+  // Record `ended` on call-end with reason metadata so the active-
+  // calls view can drop this call out of the in-flight list.
+  const endCallId = event.call?.id;
+  const endAssistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+  if (endCallId) {
+    import("../../services/voice-call-state").then(({ recordCallState }) =>
+      recordCallState({
+        callId: endCallId,
+        assistantId: endAssistantId,
+        state: "ended",
+        metadata: { reason: cleanEndedReason, eventType: event.type },
+      })
+    ).catch(() => { /* intentionally swallowed */ });
+  }
+
+  // wave-181.87 · dispatch outbound call.ended to confirmation_calls
+  // OR alg_estimates voice_recovery_call_id by callId lookup. Same
+  // pattern as the dropped AgentPhone webhook (wave-181.85) · this
+  // handler now serves BOTH inbound flows (above) AND outbound
+  // confirmation + recovery flows via the wave-181.87 VAPI
+  // placeOutboundCall path.
+  if (endCallId) {
+    try {
+      const { getDb } = await import("../../db");
+      const { confirmationCalls, algEstimates } = await import("../../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        // wave-fix-2026-05-25 (audit #106) · same artifact-first
+        // fallback as the service-mention path · without this,
+        // confirmation-call evaluation runs on empty transcript
+        // and undercounts every converted call by ~10 eval-score
+        // points.
+        const transcriptText = ((event as { artifact?: { transcript?: string }; transcript?: string }).artifact?.transcript ?? (event as { transcript?: string }).transcript ?? "")
+          + " " + ((event as { summary?: string; analysis?: { summary?: string } }).summary
+            ?? (event as { analysis?: { summary?: string } }).analysis?.summary
+            ?? "");
+        const lower = transcriptText.toLowerCase();
+        const snippet = transcriptText.slice(0, 500);
+
+        // Classification · same regex pattern as the dropped
+        // agentphone classifyTranscript helper.
+        let confirmStatus: "confirmed" | "rescheduled" | "no_answer" = "no_answer";
+        let rescheduleRequest: string | null = null;
+        if (transcriptText.trim().length > 0) {
+          if (/\b(reschedule|move it|change the time|different day|can we do|push it|next week|earlier|later in the day|cancel)\b/i.test(lower)) {
+            confirmStatus = "rescheduled";
+            const sentences = lower.split(/[.!?]/);
+            const rs = sentences.find((s) => /\b(reschedule|move|change|different day|push|earlier|later)\b/i.test(s));
+            rescheduleRequest = (rs || "").trim().slice(0, 200) || null;
+          } else if (/\b(yes|yeah|yep|confirm|still on|see you|i.?ll be there|sounds good|works for me|all set)\b/i.test(lower)) {
+            confirmStatus = "confirmed";
+          } else {
+            // forensic-audit MEDIUM · was "ambiguous content → confirmed",
+            // so a voicemail/no-answer call where only the AI spoke was
+            // recorded as a confirmed appointment and the operator never
+            // followed up. Default to no_answer — a false follow-up is far
+            // cheaper than a missed no-show.
+            confirmStatus = "no_answer";
+          }
+        } else {
+          confirmStatus = "no_answer";
+        }
+
+        // Try 1 · confirmation_calls
+        const [confRow] = await db
+          .select()
+          .from(confirmationCalls)
+          .where(eq(confirmationCalls.agentphoneCallId, endCallId))
+          .limit(1);
+
+        if (confRow) {
+          await db
+            .update(confirmationCalls)
+            .set({
+              status: confirmStatus,
+              transcriptSnippet: snippet,
+              rescheduleRequest,
+              completedAt: new Date(),
+            })
+            .where(eq(confirmationCalls.id, confRow.id));
+          log.info(`[vapi outbound] confirmation_calls #${confRow.id} → ${confirmStatus}`, {
+            callId: String(endCallId).slice(0, 16),
+          });
+        } else {
+          // Try 2 · alg_estimates voice_recovery
+          const [estRow] = await db
+            .select({ id: algEstimates.id })
+            .from(algEstimates)
+            .where(eq(algEstimates.voiceRecoveryCallId, endCallId))
+            .limit(1);
+          if (estRow) {
+            // Map confirmation classification → recovery enum
+            const recoveryOutcome: "interested" | "not_interested" | "no_answer" =
+              confirmStatus === "no_answer" ? "no_answer" :
+              // For recovery · check for explicit not-interested signals
+              /\b(not interested|no thanks|already|fixed it|sold the car|don't need|not now)\b/i.test(lower) ? "not_interested" :
+              "interested";
+            await db
+              .update(algEstimates)
+              .set({ voiceRecoveryOutcome: recoveryOutcome })
+              .where(eq(algEstimates.id, estRow.id));
+            log.info(`[vapi outbound] alg_estimates #${estRow.id} voice_recovery → ${recoveryOutcome}`, {
+              callId: String(endCallId).slice(0, 16),
+            });
+          }
+          // No match in either table · inbound call · already handled above
+        }
+      }
+    } catch (dispatchErr) {
+      log.warn("[vapi outbound] dispatch failed (non-blocking)", {
+        error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+      });
+    }
+  }
+
+  // ─── Trust ladder (Phase 6): actionable call → DRAFT proposals ──────────
+  // Flag-gated (vapi_action_proposals, OFF by default — also the 0111
+  // deploy-order guard). Creates DRAFTS in the approval queue only; nothing
+  // executes without a human tap. Deliberately LAST and try/caught: the
+  // call-log write, claim guard and outbound dispatch above must be complete
+  // and unaffected whether this succeeds, fails, or is disabled.
+  try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    if (await isEnabled("vapi_action_proposals")) {
+      const callId = event.call?.id;
+      if (callId) {
+        const { maybeProposeCallActions } = await import("../../services/vapiActionExtraction");
+        const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
+        const transcript =
+          (event as { artifact?: { transcript?: string } }).artifact?.transcript ??
+          (event as { transcript?: string })?.transcript ??
+          "";
+        const summary =
+          (event as { summary?: string; analysis?: { summary?: string } })?.summary ??
+          (event as { analysis?: { summary?: string } })?.analysis?.summary ??
+          null;
+        await maybeProposeCallActions({
+          callId,
+          transcript: typeof transcript === "string" ? transcript : "",
+          summary,
+          customerName: customer?.name ?? null,
+          customerPhone: customer?.number ?? null,
+          durationSeconds: extractCallDurationSec(event),
+          endedReason: cleanEndedReason,
+          // Direction gate: our own outbound confirmation / recovery calls must
+          // not produce drafts for work that already exists.
+          callType: (event.call as { type?: string })?.type ?? null,
+        });
+      }
+    }
+  } catch (proposalErr) {
+    log.warn("[vapi proposals] extraction pass failed (non-blocking)", {
+      error: proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
+    });
+  }
+}
+
+// ─── Main webhook endpoint ─────────────────────────────
+
+router.post("/vapi", async (req: Request, res: Response) => {
+  if (!verifyVapiSignature(req)) {
+    log.warn("Invalid Vapi signature");
+    res.status(401).json({ error: "Invalid signature" });
+    return;
+  }
+
+  const body = req.body as { message: VapiWebhookMessage };
+
+  const event = body?.message;
+  if (!event?.type) {
+    res.status(400).json({ error: "Missing message.type" });
+    return;
+  }
+
+  try {
+    switch (event.type) {
+      case "function-call":
+      case "tool-calls": {
+        // wave-181.4 · capture LLM→tool→ack round-trip latency so the
+        // /api/admin/voice-latency observability tile can surface it.
+        // Anchored at handler entry; the actual write happens AFTER
+        // results assemble so a telemetry bug can't break the response.
+        const webhookReceivedAt = Date.now();
+        // Multiple tool calls arrive in one webhook. Run in parallel.
+        // wave-116 — was Promise.all; a single rejection caused the
+        // webhook to 500, prompting VAPI to retry the WHOLE batch and
+        // potentially double-execute already-succeeded tools (e.g.
+        // scheduleDropoff fired twice). allSettled isolates per-call
+        // outcomes so the webhook always 200s with a per-tool result.
+        const calls = event.toolCalls || [];
+        const dialled = (event.call as { customer?: { number?: string } } | undefined)?.customer?.number;
+        const callType = (event.call as { type?: string } | undefined)?.type;
+        const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id, dialled, callType)));
+        const results = settled.map((s, i) => {
+          if (s.status === "fulfilled") return s.value;
+          const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
+          log.error("Tool call rejected", {
+            toolCallId: calls[i]?.id,
+            functionName: calls[i]?.function?.name,
+            error: err,
+          });
+          return {
+            toolCallId: calls[i]?.id,
+            result: JSON.stringify({ error: "Tool execution failed", details: err }),
+          };
+        });
+        res.json({ results });
+
+        // Fire-and-forget latency capture · service swallows all errors
+        // so a missing migration or transient DB issue never breaks the
+        // webhook response above.
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-latency").then(({ captureVoiceLatency }) =>
+            captureVoiceLatency({
+              callId,
+              assistantId: assistantId ?? "unknown",
+              stage: "llm_first_token",
+              latencyMs: Date.now() - webhookReceivedAt,
+              metadata: { source: "vapi-webhook", toolCalls: calls.length },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+
+          // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+          // Classify each tool call into a state transition (read tool =
+          // intent_captured · write tool = tool_called · confirmation
+          // tool = confirmed). Append-only · multiple events per call
+          // are correct (the trail tells you the agent re-engaged after
+          // a tool call). Fire-and-forget · NEVER blocks webhook.
+          Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/tireDemand"),
+          ]).then(([{ classifyToolToState, recordCallState }, { toolCallStateMetadata }]) => {
+            for (const c of calls) {
+              const state = classifyToolToState(c.function?.name ?? "");
+              if (state) {
+                void recordCallState({
+                  callId,
+                  assistantId,
+                  state,
+                  // A tireInquiry also records what the caller asked for (size,
+                  // new/used; never name or phone) for Today's "Asked by phone".
+                  metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
+                });
+              }
+            }
+          }).catch(() => { /* intentionally swallowed */ });
+        }
+        return;
+      }
+
+      case "call-start": {
+        // Legacy/explicit call-start event. Current Vapi server-message defaults
+        // use status-update and mark the true start as status=in-progress.
+        log.info("Vapi call started", { callId: event.call?.id, source: "call-start" });
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-call-state").then(({ recordCallState }) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "greeted",
+              metadata: { eventType: event.type },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "status-update": {
+        // Vapi emits scheduled/queued/ringing/in-progress/forwarding/ended.
+        // Only in-progress means the conversation actually started. The old
+        // combined branch stamped every status as "greeted", producing several
+        // fake starts for one call in production.
+        const status = event.status ?? "unknown";
+        log.info("Vapi status update", { callId: event.call?.id, status });
+        if (status === "in-progress") {
+          const callId = event.call?.id;
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          if (callId) {
+            import("../../services/voice-call-state").then(({ recordCallState }) =>
+              recordCallState({
+                callId,
+                assistantId,
+                state: "greeted",
+                metadata: { eventType: event.type, status },
+              })
+            ).catch(() => { /* intentionally swallowed */ });
+          }
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "speech-update": {
+        // Normal Vapi lifecycle telemetry (started/stopped speaking). We do not
+        // persist it yet; explicitly acknowledge it so production logs do not
+        // mislabel supported provider traffic as an unknown event.
+        res.json({ ack: true });
+        return;
+      }
+
+      // Vapi fires this when the assistant STARTS a transfer. It carries no
+      // outcome (that arrives in the end-of-call artifact, when Vapi sends
+      // one); it is the proof an attempt happened. Until 2026-09-23 it was
+      // subscribed but fell to the default branch, so an attempt whose call
+      // then ended some other way left no trace. Ack first, record detached;
+      // the destination's kind only, never its number.
+      case "transfer-update": {
+        res.json({ ack: true });
+        const callId = event.call?.id;
+        if (callId) {
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          void Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/transferArtifact"),
+          ]).then(([{ recordCallState }, { transferUpdateMetadata }]) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "transfer_attempted",
+              metadata: transferUpdateMetadata(event),
+            }),
+          ).catch(() => { /* intentionally swallowed: telemetry never breaks a live call */ });
+        }
+        return;
+      }
+
+      case "end-of-call-report":
+      case "call-end": {
+        // wave-137 · read the CLEAN reason from message-level (see
+        // extractEndedReason). call.endedReason is null/SIP-transient on the
+        // webhook. Computed once, reused for the row insert + state metadata.
+        const cleanEndedReason = extractEndedReason(event);
+        log.info("Vapi call ended", {
+          callId: event.call?.id,
+          reason: cleanEndedReason,
+        });
+        // Q-45: do-not-call is the one compliance write that MUST be durable
+        // before acknowledgement. If it fails, return non-2xx so Vapi can
+        // retry the webhook. All noncritical post-call work stays detached.
+        try {
+          await persistTranscriptDoNotCallBeforeAck(event);
+        } catch (dncErr) {
+          log.error("[vapi webhook] do-not-call persistence failed before ack", {
+            callId: event.call?.id,
+            error: dncErr instanceof Error ? dncErr.message : String(dncErr),
+            errorId: "VAPI_DNC_PREACK_FAILED",
+          });
+          res.status(503).json({ error: "Do-not-call persistence failed; retry webhook" });
+          return;
+        }
+
+        res.json({ ack: true });
+        // F5 · tracked so a SIGTERM drain waits for it (the 200 is already sent).
+        void trackDetached("vapi:end-of-call", processCallEndReport(event, cleanEndedReason)).catch((err) => {
+          log.warn("[vapi webhook] detached post-call processing failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+        return;
+      }
+
+      case "transcript":
+        // Real-time transcript updates — log in dev, ignore in prod
+        if (process.env.NODE_ENV !== "production") {
+          log.info("Vapi transcript chunk", { len: event.transcript?.length });
+        }
+        res.json({ ack: true });
+        return;
+
+      // wave-181.63 · Phase 6 · cross-call memory hydration.
+      // wave-181.x · Tier S · BDI upgrade (declined-recovery opener).
+      // VAPI fires `assistant-request` BEFORE the call connects. The
+      // response shape is `{ assistantOverrides?: {...} }` which VAPI
+      // merges with the assistant's configured fields for THIS call
+      // only (no PATCH to the global assistant). The BDI composer
+      // (vapi-bdi.ts) looks up the caller AND any unconverted estimate
+      // and opens the call with the recovery hook when one is on file.
+      // Unknown callers fall through to the default first message ·
+      // backward compatible with the wave-181.63 personalization path.
+      case "assistant-request": {
+        const customer = (event.call as { customer?: { number?: string } } | undefined)?.customer;
+        const phone = customer?.number?.trim();
+        if (!phone) {
+          // No phone in the request · can't personalize · fall through
+          // to default assistant.
+          res.json({});
+          return;
+        }
+        try {
+          const { buildBdiFirstMessage } = await import(
+            "../../services/vapi-bdi"
+          );
+          const result = await buildBdiFirstMessage(phone);
+          log.info("assistant-request bdi", {
+            phoneSuffix: phone.replace(/\D/g, "").slice(-4),
+            matched: result.matched,
+            kind: result.kind,
+            reason: result.reason,
+          });
+          if (result.firstMessage) {
+            res.json({
+              assistantOverrides: { firstMessage: result.firstMessage },
+            });
+            return;
+          }
+        } catch (err) {
+          log.warn("assistant-request bdi threw", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Default · use assistant's configured first message.
+        res.json({});
+        return;
+      }
+
+      default:
+        log.info("Vapi unknown event type", { type: event.type });
+        res.json({ ack: true });
+        return;
+    }
+  } catch (err) {
+    log.error("Vapi webhook handler threw", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
+
+export { router as vapiWebhookRouter };
+)
+            )
+            WHERE vapiCallId = ${String(callId)}
+          `);
+        } catch (behaviorErr) {
+          log.warn("[vapi webhook] behavior fingerprint persist failed (analytics only)", {
+            error: behaviorErr instanceof Error ? behaviorErr.message : String(behaviorErr),
+          });
+        }
+
+        // ─── Persist CUSTOMER-only speech (2026-07-26 demand audit) ─────────
+        // The full transcript has been in hand here since wave-fix-2026-05-25,
+        // used for a keyword scan and then dropped. Meanwhile `transcriptUrl`
+        // is populated on 0 of 2,095 rows — VAPI never sets it — so nothing
+        // durable held what callers actually said, and every demand signal was
+        // assistant-contaminated: `serviceMention` is binary (tire|brake) and
+        // `aiSummary` is written by a tire-first assistant. The ~60% used-tire
+        // figure the whole prompt is built around could not be checked.
+        //
+        // Stores the CUSTOMER's turns only — never assistant speech, never the
+        // full transcript — capped and truncated. JSON_SET merges into whatever
+        // `metadata` already holds (intents, agenticAudit), so write order with
+        // the later enrichment updates does not matter. Uses the existing JSON
+        // column deliberately: no migration means no hand-applied DDL to forget
+        // (ROS-059). Fail-open — a demand-analytics write must never affect the
+        // webhook's 200.
+        try {
+          const { buildCustomerSpeechRecord, extractCustomerTurnsFromMessages, CUSTOMER_SPEECH_VERSION } =
+            await import("../../services/customerTurns");
+          // Prefer VAPI's role-tagged `artifact.messages` — authoritative at the
+          // source, so no speaker-prefix guessing and no formatting change can
+          // misattribute assistant speech as customer demand. The flat
+          // transcript is the fallback for calls that lack the array.
+          const artifactMsgs = (event as { artifact?: { messages?: unknown } }).artifact?.messages;
+          let speech: ReturnType<typeof buildCustomerSpeechRecord> = null;
+          if (Array.isArray(artifactMsgs) && artifactMsgs.length) {
+            const parsed = extractCustomerTurnsFromMessages(artifactMsgs);
+            if (parsed.turns.length || parsed.unparsed) {
+              speech = {
+                v: CUSTOMER_SPEECH_VERSION,
+                turns: parsed.turns,
+                turnCount: parsed.totalCustomerTurns,
+                first: parsed.firstSubstantive,
+                unparsed: parsed.unparsed,
+              };
+            }
+          } else {
+            speech = buildCustomerSpeechRecord(transcript);
+          }
+          if (speech) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.customerSpeech', CAST(${JSON.stringify(speech)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+          }
+        } catch (speechErr) {
+          log.warn("[vapi webhook] customer-speech persist failed (analytics only)", {
+            error: speechErr instanceof Error ? speechErr.message : String(speechErr),
+          });
+        }
+
+        // TRANSFER ARTIFACT · the only signal that can prove a human ANSWERED.
+        //
+        // Every transfer metric in this app has been built on
+        // `endedReason === "assistant-forwarded-call"`, which VAPI's own docs
+        // say confirms the transfer was INITIATED, not completed — their
+        // troubleshooting page sends you to the provider's call log for the
+        // outcome. So a call that rang an empty counter and dropped to
+        // voicemail has scored identically to one Nick answered on the second
+        // ring, and no connect-rate built on it could ever emit a failure for
+        // the one case it exists to detect.
+        //
+        // `artifact.transfers[]` carries a real per-attempt status. VAPI
+        // describes blind-transfer outcome detection as enabled PER
+        // ORGANISATION, so whether this account receives it is an empirical
+        // question — which is exactly why `artifactPresent` is persisted
+        // separately from the verdict. That flag is the live answer, read from
+        // production rather than assumed from documentation.
+        //
+        // Separate try on purpose, same as customerSpeech above: one analytics
+        // write failing must not take the other down, and neither may affect
+        // the webhook's 200.
+        try {
+          const { readTransferArtifact, transferArtifactWorthPersisting, sawTransferUpdate } = await import("../../lib/transferArtifact");
+          const read = readTransferArtifact((event as { artifact?: unknown }).artifact);
+          // The live `transfer-update` witness (recorded below in the router).
+          // It catches the attempt the ended reason hides: a caller who hangs
+          // up while the shop line rings ends "customer-ended-call".
+          const { getCallStateHistory } = await import("../../services/voice-call-state");
+          const transferUpdateSeen = sawTransferUpdate(await getCallStateHistory(String(callId)));
+          // Write only when there is something to say: a per-attempt record, or
+          // an ended reason proving a transfer was ATTEMPTED. A call that never
+          // tried to hand off gets no verdict at all — the old test here was
+          // `artifactPresent || transfers.length`, and artifactPresent is true
+          // whenever Vapi sends a transfers ARRAY — which it does, empty, on
+          // calls that never transferred — which is how 20 of 31 calls came to
+          // carry "unknown" for a transfer that never happened.
+          if (transferArtifactWorthPersisting(read, cleanEndedReason, transferUpdateSeen)) {
+            const { sql } = await import("drizzle-orm");
+            const stored = { ...read, transferUpdateSeen };
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.transferArtifact', CAST(${JSON.stringify(stored)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (read.unrecognisedStatuses.length) {
+              // A status VAPI added that this app does not model. Loud, because
+              // silently bucketing it as unknown would hide a real drift.
+              log.warn("[vapi webhook] unmodelled transfer status from VAPI", {
+                statuses: read.unrecognisedStatuses,
+              });
+            }
+          }
+        } catch (transferErr) {
+          log.warn("[vapi webhook] transfer-artifact persist failed (analytics only)", {
+            error: transferErr instanceof Error ? transferErr.message : String(transferErr),
+          });
+        }
+
+        // VOICE CLAIM GUARD · the assistant side of the same artifact.
+        //
+        // SMS drafts are gated before send by `planViolations`; voice had no
+        // equivalent, so the prompt's truth rules (no repair quotes, no live
+        // stock, no capacity or wait promises) were enforced by prose alone.
+        // Vapi streams to TTS with no pre-speech hook, so this cannot block —
+        // it DETECTS, which is what makes drift visible and what makes the
+        // prompt-compression work measurable.
+        //
+        // Separate try from customerSpeech on purpose: one analytics write
+        // failing must not take the other down, and neither may affect the 200.
+        try {
+          const { buildVoiceClaimRecord } = await import("../../services/voiceClaimGuard");
+          const claims = buildVoiceClaimRecord({
+            transcript,
+            messages: (event as { artifact?: { messages?: unknown } }).artifact?.messages,
+          });
+          if (claims) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.voiceClaims', CAST(${JSON.stringify(claims)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (claims.violations.length) {
+              // Labels only — never the utterance. The transcript stays in the
+              // column it arrived in; logs must not become a second PII surface.
+              log.warn("[vapi webhook] voice claim violation", {
+                callId: String(callId),
+                violations: claims.violations,
+              });
+            }
+          }
+        } catch (claimErr) {
+          log.warn("[vapi webhook] voice-claim persist failed (analytics only)", {
+            error: claimErr instanceof Error ? claimErr.message : String(claimErr),
+          });
+        }
+
+        // wave-144 · forwarded-call safety net. A during-hours
+        // transferCall hands the caller to the shop line; if nobody
+        // picks up (tech mid-bay), that hot caller is lost with NO
+        // follow-up surface — forwards only showed up as a Voice-page
+        // chart bar. On the first end-of-call insert only, drop a row
+        // into the front-desk callback queue so every forwarded caller
+        // is accounted for. This is an INTERNAL queue entry, not an
+        // outbound customer message — worst case is a row the operator
+        // clears in one tap; the win is no forwarded caller falls
+        // through. endedReason "assistant-forwarded-call" → /forward/i.
+        // 2026-05-31 · forwarded-call follow-up flipped from an internal
+        // callback to-do (it flooded the Today queue with "Call back Voice
+        // caller" rows) to a self-serve SMS back to the caller. The caller
+        // re-engages on their terms; the operator's callback queue stays clean.
+        // 2026-07-20 · vapiCallId is REQUIRED for real idempotency. The
+        // orchestrator only builds a stable key (`..._call_<id>`) when
+        // event.vapiCallId is present (smsOrchestrator.ts) — omit it and the
+        // key falls through to a Date.now()+Math.random() value that is unique
+        // by construction, so the idempotency check can never match and is a
+        // silent no-op. Dedupe then rests entirely on the 24h phone cooldown.
+        // Passing the id restores the guard the call site always implied.
+        // 2026-07-20 · operator off-switch. Read the pause flag BEFORE deciding;
+        // a flag-read failure resolves to `false` (= not paused), so a DB blip
+        // keeps today's behaviour rather than silently muting the path.
+        let followupPaused = false;
+        try {
+          const { isEnabled } = await import("../../services/featureFlags");
+          followupPaused = await isEnabled("vapi_forward_followup_paused");
+        } catch (flagErr) {
+          log.warn("[vapi webhook] pause-flag read failed — treating as NOT paused", {
+            error: flagErr instanceof Error ? flagErr.message : String(flagErr),
+          });
+        }
+
+        // Narrow the number ONCE and pass the same value to both the decision
+        // and the send. Reaching back for `customer!.number` after the predicate
+        // returned true would re-assert a fact the compiler can't follow across
+        // the call boundary — a non-null assertion there would silence the
+        // checker rather than satisfy it.
+        const followupPhone = customer?.number?.trim() ?? "";
+
+        if (shouldSendForwardedFollowup({
+          firstLog,
+          endedReason: cleanEndedReason,
+          customerNumber: followupPhone,
+          paused: followupPaused,
+        })) {
+          const { orchestrateSms } = await import("../../services/smsOrchestrator");
+          await orchestrateSms({
+            type: "vapi_forwarded_call_followup",
+            phone: followupPhone,
+            vapiCallId: event.call?.id,
+          }).catch((err: unknown) => {
+            log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        } else if (followupPaused && isForwardedEndedReason(cleanEndedReason)) {
+          log.info("[vapi webhook] forwarded-call SMS suppressed — vapi_forward_followup_paused is ON");
+        }
+      }
+    }
+  } catch (persistErr) {
+    log.warn("[vapi webhook] call-end persist failed (non-blocking)", {
+      error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+    });
+  }
+  // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+  // Record `ended` on call-end with reason metadata so the active-
+  // calls view can drop this call out of the in-flight list.
+  const endCallId = event.call?.id;
+  const endAssistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+  if (endCallId) {
+    import("../../services/voice-call-state").then(({ recordCallState }) =>
+      recordCallState({
+        callId: endCallId,
+        assistantId: endAssistantId,
+        state: "ended",
+        metadata: { reason: cleanEndedReason, eventType: event.type },
+      })
+    ).catch(() => { /* intentionally swallowed */ });
+  }
+
+  // wave-181.87 · dispatch outbound call.ended to confirmation_calls
+  // OR alg_estimates voice_recovery_call_id by callId lookup. Same
+  // pattern as the dropped AgentPhone webhook (wave-181.85) · this
+  // handler now serves BOTH inbound flows (above) AND outbound
+  // confirmation + recovery flows via the wave-181.87 VAPI
+  // placeOutboundCall path.
+  if (endCallId) {
+    try {
+      const { getDb } = await import("../../db");
+      const { confirmationCalls, algEstimates } = await import("../../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        // wave-fix-2026-05-25 (audit #106) · same artifact-first
+        // fallback as the service-mention path · without this,
+        // confirmation-call evaluation runs on empty transcript
+        // and undercounts every converted call by ~10 eval-score
+        // points.
+        const transcriptText = ((event as { artifact?: { transcript?: string }; transcript?: string }).artifact?.transcript ?? (event as { transcript?: string }).transcript ?? "")
+          + " " + ((event as { summary?: string; analysis?: { summary?: string } }).summary
+            ?? (event as { analysis?: { summary?: string } }).analysis?.summary
+            ?? "");
+        const lower = transcriptText.toLowerCase();
+        const snippet = transcriptText.slice(0, 500);
+
+        // Classification · same regex pattern as the dropped
+        // agentphone classifyTranscript helper.
+        let confirmStatus: "confirmed" | "rescheduled" | "no_answer" = "no_answer";
+        let rescheduleRequest: string | null = null;
+        if (transcriptText.trim().length > 0) {
+          if (/\b(reschedule|move it|change the time|different day|can we do|push it|next week|earlier|later in the day|cancel)\b/i.test(lower)) {
+            confirmStatus = "rescheduled";
+            const sentences = lower.split(/[.!?]/);
+            const rs = sentences.find((s) => /\b(reschedule|move|change|different day|push|earlier|later)\b/i.test(s));
+            rescheduleRequest = (rs || "").trim().slice(0, 200) || null;
+          } else if (/\b(yes|yeah|yep|confirm|still on|see you|i.?ll be there|sounds good|works for me|all set)\b/i.test(lower)) {
+            confirmStatus = "confirmed";
+          } else {
+            // forensic-audit MEDIUM · was "ambiguous content → confirmed",
+            // so a voicemail/no-answer call where only the AI spoke was
+            // recorded as a confirmed appointment and the operator never
+            // followed up. Default to no_answer — a false follow-up is far
+            // cheaper than a missed no-show.
+            confirmStatus = "no_answer";
+          }
+        } else {
+          confirmStatus = "no_answer";
+        }
+
+        // Try 1 · confirmation_calls
+        const [confRow] = await db
+          .select()
+          .from(confirmationCalls)
+          .where(eq(confirmationCalls.agentphoneCallId, endCallId))
+          .limit(1);
+
+        if (confRow) {
+          await db
+            .update(confirmationCalls)
+            .set({
+              status: confirmStatus,
+              transcriptSnippet: snippet,
+              rescheduleRequest,
+              completedAt: new Date(),
+            })
+            .where(eq(confirmationCalls.id, confRow.id));
+          log.info(`[vapi outbound] confirmation_calls #${confRow.id} → ${confirmStatus}`, {
+            callId: String(endCallId).slice(0, 16),
+          });
+        } else {
+          // Try 2 · alg_estimates voice_recovery
+          const [estRow] = await db
+            .select({ id: algEstimates.id })
+            .from(algEstimates)
+            .where(eq(algEstimates.voiceRecoveryCallId, endCallId))
+            .limit(1);
+          if (estRow) {
+            // Map confirmation classification → recovery enum
+            const recoveryOutcome: "interested" | "not_interested" | "no_answer" =
+              confirmStatus === "no_answer" ? "no_answer" :
+              // For recovery · check for explicit not-interested signals
+              /\b(not interested|no thanks|already|fixed it|sold the car|don't need|not now)\b/i.test(lower) ? "not_interested" :
+              "interested";
+            await db
+              .update(algEstimates)
+              .set({ voiceRecoveryOutcome: recoveryOutcome })
+              .where(eq(algEstimates.id, estRow.id));
+            log.info(`[vapi outbound] alg_estimates #${estRow.id} voice_recovery → ${recoveryOutcome}`, {
+              callId: String(endCallId).slice(0, 16),
+            });
+          }
+          // No match in either table · inbound call · already handled above
+        }
+      }
+    } catch (dispatchErr) {
+      log.warn("[vapi outbound] dispatch failed (non-blocking)", {
+        error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+      });
+    }
+  }
+
+  // ─── Trust ladder (Phase 6): actionable call → DRAFT proposals ──────────
+  // Flag-gated (vapi_action_proposals, OFF by default — also the 0111
+  // deploy-order guard). Creates DRAFTS in the approval queue only; nothing
+  // executes without a human tap. Deliberately LAST and try/caught: the
+  // call-log write, claim guard and outbound dispatch above must be complete
+  // and unaffected whether this succeeds, fails, or is disabled.
+  try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    if (await isEnabled("vapi_action_proposals")) {
+      const callId = event.call?.id;
+      if (callId) {
+        const { maybeProposeCallActions } = await import("../../services/vapiActionExtraction");
+        const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
+        const transcript =
+          (event as { artifact?: { transcript?: string } }).artifact?.transcript ??
+          (event as { transcript?: string })?.transcript ??
+          "";
+        const summary =
+          (event as { summary?: string; analysis?: { summary?: string } })?.summary ??
+          (event as { analysis?: { summary?: string } })?.analysis?.summary ??
+          null;
+        await maybeProposeCallActions({
+          callId,
+          transcript: typeof transcript === "string" ? transcript : "",
+          summary,
+          customerName: customer?.name ?? null,
+          customerPhone: customer?.number ?? null,
+          durationSeconds: extractCallDurationSec(event),
+          endedReason: cleanEndedReason,
+          // Direction gate: our own outbound confirmation / recovery calls must
+          // not produce drafts for work that already exists.
+          callType: (event.call as { type?: string })?.type ?? null,
+        });
+      }
+    }
+  } catch (proposalErr) {
+    log.warn("[vapi proposals] extraction pass failed (non-blocking)", {
+      error: proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
+    });
+  }
+}
+
+// ─── Main webhook endpoint ─────────────────────────────
+
+router.post("/vapi", async (req: Request, res: Response) => {
+  if (!verifyVapiSignature(req)) {
+    log.warn("Invalid Vapi signature");
+    res.status(401).json({ error: "Invalid signature" });
+    return;
+  }
+
+  const body = req.body as { message: VapiWebhookMessage };
+
+  const event = body?.message;
+  if (!event?.type) {
+    res.status(400).json({ error: "Missing message.type" });
+    return;
+  }
+
+  try {
+    switch (event.type) {
+      case "function-call":
+      case "tool-calls": {
+        // wave-181.4 · capture LLM→tool→ack round-trip latency so the
+        // /api/admin/voice-latency observability tile can surface it.
+        // Anchored at handler entry; the actual write happens AFTER
+        // results assemble so a telemetry bug can't break the response.
+        const webhookReceivedAt = Date.now();
+        // Multiple tool calls arrive in one webhook. Run in parallel.
+        // wave-116 — was Promise.all; a single rejection caused the
+        // webhook to 500, prompting VAPI to retry the WHOLE batch and
+        // potentially double-execute already-succeeded tools (e.g.
+        // scheduleDropoff fired twice). allSettled isolates per-call
+        // outcomes so the webhook always 200s with a per-tool result.
+        const calls = event.toolCalls || [];
+        const dialled = (event.call as { customer?: { number?: string } } | undefined)?.customer?.number;
+        const callType = (event.call as { type?: string } | undefined)?.type;
+        const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id, dialled, callType)));
+        const results = settled.map((s, i) => {
+          if (s.status === "fulfilled") return s.value;
+          const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
+          log.error("Tool call rejected", {
+            toolCallId: calls[i]?.id,
+            functionName: calls[i]?.function?.name,
+            error: err,
+          });
+          return {
+            toolCallId: calls[i]?.id,
+            result: JSON.stringify({ error: "Tool execution failed", details: err }),
+          };
+        });
+        res.json({ results });
+
+        // Fire-and-forget latency capture · service swallows all errors
+        // so a missing migration or transient DB issue never breaks the
+        // webhook response above.
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-latency").then(({ captureVoiceLatency }) =>
+            captureVoiceLatency({
+              callId,
+              assistantId: assistantId ?? "unknown",
+              stage: "llm_first_token",
+              latencyMs: Date.now() - webhookReceivedAt,
+              metadata: { source: "vapi-webhook", toolCalls: calls.length },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+
+          // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+          // Classify each tool call into a state transition (read tool =
+          // intent_captured · write tool = tool_called · confirmation
+          // tool = confirmed). Append-only · multiple events per call
+          // are correct (the trail tells you the agent re-engaged after
+          // a tool call). Fire-and-forget · NEVER blocks webhook.
+          Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/tireDemand"),
+          ]).then(([{ classifyToolToState, recordCallState }, { toolCallStateMetadata }]) => {
+            for (const c of calls) {
+              const state = classifyToolToState(c.function?.name ?? "");
+              if (state) {
+                void recordCallState({
+                  callId,
+                  assistantId,
+                  state,
+                  // A tireInquiry also records what the caller asked for (size,
+                  // new/used; never name or phone) for Today's "Asked by phone".
+                  metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
+                });
+              }
+            }
+          }).catch(() => { /* intentionally swallowed */ });
+        }
+        return;
+      }
+
+      case "call-start": {
+        // Legacy/explicit call-start event. Current Vapi server-message defaults
+        // use status-update and mark the true start as status=in-progress.
+        log.info("Vapi call started", { callId: event.call?.id, source: "call-start" });
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-call-state").then(({ recordCallState }) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "greeted",
+              metadata: { eventType: event.type },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "status-update": {
+        // Vapi emits scheduled/queued/ringing/in-progress/forwarding/ended.
+        // Only in-progress means the conversation actually started. The old
+        // combined branch stamped every status as "greeted", producing several
+        // fake starts for one call in production.
+        const status = event.status ?? "unknown";
+        log.info("Vapi status update", { callId: event.call?.id, status });
+        if (status === "in-progress") {
+          const callId = event.call?.id;
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          if (callId) {
+            import("../../services/voice-call-state").then(({ recordCallState }) =>
+              recordCallState({
+                callId,
+                assistantId,
+                state: "greeted",
+                metadata: { eventType: event.type, status },
+              })
+            ).catch(() => { /* intentionally swallowed */ });
+          }
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "speech-update": {
+        // Normal Vapi lifecycle telemetry (started/stopped speaking). We do not
+        // persist it yet; explicitly acknowledge it so production logs do not
+        // mislabel supported provider traffic as an unknown event.
+        res.json({ ack: true });
+        return;
+      }
+
+      // Vapi fires this when the assistant STARTS a transfer. It carries no
+      // outcome (that arrives in the end-of-call artifact, when Vapi sends
+      // one); it is the proof an attempt happened. Until 2026-09-23 it was
+      // subscribed but fell to the default branch, so an attempt whose call
+      // then ended some other way left no trace. Ack first, record detached;
+      // the destination's kind only, never its number.
+      case "transfer-update": {
+        res.json({ ack: true });
+        const callId = event.call?.id;
+        if (callId) {
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          void Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/transferArtifact"),
+          ]).then(([{ recordCallState }, { transferUpdateMetadata }]) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "transfer_attempted",
+              metadata: transferUpdateMetadata(event),
+            }),
+          ).catch(() => { /* intentionally swallowed: telemetry never breaks a live call */ });
+        }
+        return;
+      }
+
+      case "end-of-call-report":
+      case "call-end": {
+        // wave-137 · read the CLEAN reason from message-level (see
+        // extractEndedReason). call.endedReason is null/SIP-transient on the
+        // webhook. Computed once, reused for the row insert + state metadata.
+        const cleanEndedReason = extractEndedReason(event);
+        log.info("Vapi call ended", {
+          callId: event.call?.id,
+          reason: cleanEndedReason,
+        });
+        // Q-45: do-not-call is the one compliance write that MUST be durable
+        // before acknowledgement. If it fails, return non-2xx so Vapi can
+        // retry the webhook. All noncritical post-call work stays detached.
+        try {
+          await persistTranscriptDoNotCallBeforeAck(event);
+        } catch (dncErr) {
+          log.error("[vapi webhook] do-not-call persistence failed before ack", {
+            callId: event.call?.id,
+            error: dncErr instanceof Error ? dncErr.message : String(dncErr),
+            errorId: "VAPI_DNC_PREACK_FAILED",
+          });
+          res.status(503).json({ error: "Do-not-call persistence failed; retry webhook" });
+          return;
+        }
+
+        res.json({ ack: true });
+        // F5 · tracked so a SIGTERM drain waits for it (the 200 is already sent).
+        void trackDetached("vapi:end-of-call", processCallEndReport(event, cleanEndedReason)).catch((err) => {
+          log.warn("[vapi webhook] detached post-call processing failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+        return;
+      }
+
+      case "transcript":
+        // Real-time transcript updates — log in dev, ignore in prod
+        if (process.env.NODE_ENV !== "production") {
+          log.info("Vapi transcript chunk", { len: event.transcript?.length });
+        }
+        res.json({ ack: true });
+        return;
+
+      // wave-181.63 · Phase 6 · cross-call memory hydration.
+      // wave-181.x · Tier S · BDI upgrade (declined-recovery opener).
+      // VAPI fires `assistant-request` BEFORE the call connects. The
+      // response shape is `{ assistantOverrides?: {...} }` which VAPI
+      // merges with the assistant's configured fields for THIS call
+      // only (no PATCH to the global assistant). The BDI composer
+      // (vapi-bdi.ts) looks up the caller AND any unconverted estimate
+      // and opens the call with the recovery hook when one is on file.
+      // Unknown callers fall through to the default first message ·
+      // backward compatible with the wave-181.63 personalization path.
+      case "assistant-request": {
+        const customer = (event.call as { customer?: { number?: string } } | undefined)?.customer;
+        const phone = customer?.number?.trim();
+        if (!phone) {
+          // No phone in the request · can't personalize · fall through
+          // to default assistant.
+          res.json({});
+          return;
+        }
+        try {
+          const { buildBdiFirstMessage } = await import(
+            "../../services/vapi-bdi"
+          );
+          const result = await buildBdiFirstMessage(phone);
+          log.info("assistant-request bdi", {
+            phoneSuffix: phone.replace(/\D/g, "").slice(-4),
+            matched: result.matched,
+            kind: result.kind,
+            reason: result.reason,
+          });
+          if (result.firstMessage) {
+            res.json({
+              assistantOverrides: { firstMessage: result.firstMessage },
+            });
+            return;
+          }
+        } catch (err) {
+          log.warn("assistant-request bdi threw", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Default · use assistant's configured first message.
+        res.json({});
+        return;
+      }
+
+      default:
+        log.info("Vapi unknown event type", { type: event.type });
+        res.json({ ack: true });
+        return;
+    }
+  } catch (err) {
+    log.error("Vapi webhook handler threw", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
+
+export { router as vapiWebhookRouter };
+))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+          }
+        } catch (speechErr) {
+          log.warn("[vapi webhook] customer-speech persist failed (analytics only)", {
+            error: speechErr instanceof Error ? speechErr.message : String(speechErr),
+          });
+        }
+
+        // TRANSFER ARTIFACT · the only signal that can prove a human ANSWERED.
+        //
+        // Every transfer metric in this app has been built on
+        // `endedReason === "assistant-forwarded-call"`, which VAPI's own docs
+        // say confirms the transfer was INITIATED, not completed — their
+        // troubleshooting page sends you to the provider's call log for the
+        // outcome. So a call that rang an empty counter and dropped to
+        // voicemail has scored identically to one Nick answered on the second
+        // ring, and no connect-rate built on it could ever emit a failure for
+        // the one case it exists to detect.
+        //
+        // `artifact.transfers[]` carries a real per-attempt status. VAPI
+        // describes blind-transfer outcome detection as enabled PER
+        // ORGANISATION, so whether this account receives it is an empirical
+        // question — which is exactly why `artifactPresent` is persisted
+        // separately from the verdict. That flag is the live answer, read from
+        // production rather than assumed from documentation.
+        //
+        // Separate try on purpose, same as customerSpeech above: one analytics
+        // write failing must not take the other down, and neither may affect
+        // the webhook's 200.
+        try {
+          const { readTransferArtifact, transferArtifactWorthPersisting, sawTransferUpdate } = await import("../../lib/transferArtifact");
+          const read = readTransferArtifact((event as { artifact?: unknown }).artifact);
+          // The live `transfer-update` witness (recorded below in the router).
+          // It catches the attempt the ended reason hides: a caller who hangs
+          // up while the shop line rings ends "customer-ended-call".
+          const { getCallStateHistory } = await import("../../services/voice-call-state");
+          const transferUpdateSeen = sawTransferUpdate(await getCallStateHistory(String(callId)));
+          // Write only when there is something to say: a per-attempt record, or
+          // an ended reason proving a transfer was ATTEMPTED. A call that never
+          // tried to hand off gets no verdict at all — the old test here was
+          // `artifactPresent || transfers.length`, and artifactPresent is true
+          // whenever Vapi sends a transfers ARRAY — which it does, empty, on
+          // calls that never transferred — which is how 20 of 31 calls came to
+          // carry "unknown" for a transfer that never happened.
+          if (transferArtifactWorthPersisting(read, cleanEndedReason, transferUpdateSeen)) {
+            const { sql } = await import("drizzle-orm");
+            const stored = { ...read, transferUpdateSeen };
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.transferArtifact', CAST(${JSON.stringify(stored)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (read.unrecognisedStatuses.length) {
+              // A status VAPI added that this app does not model. Loud, because
+              // silently bucketing it as unknown would hide a real drift.
+              log.warn("[vapi webhook] unmodelled transfer status from VAPI", {
+                statuses: read.unrecognisedStatuses,
+              });
+            }
+          }
+        } catch (transferErr) {
+          log.warn("[vapi webhook] transfer-artifact persist failed (analytics only)", {
+            error: transferErr instanceof Error ? transferErr.message : String(transferErr),
+          });
+        }
+
+        // VOICE CLAIM GUARD · the assistant side of the same artifact.
+        //
+        // SMS drafts are gated before send by `planViolations`; voice had no
+        // equivalent, so the prompt's truth rules (no repair quotes, no live
+        // stock, no capacity or wait promises) were enforced by prose alone.
+        // Vapi streams to TTS with no pre-speech hook, so this cannot block —
+        // it DETECTS, which is what makes drift visible and what makes the
+        // prompt-compression work measurable.
+        //
+        // Separate try from customerSpeech on purpose: one analytics write
+        // failing must not take the other down, and neither may affect the 200.
+        try {
+          const { buildVoiceClaimRecord } = await import("../../services/voiceClaimGuard");
+          const claims = buildVoiceClaimRecord({
+            transcript,
+            messages: (event as { artifact?: { messages?: unknown } }).artifact?.messages,
+          });
+          if (claims) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.voiceClaims', CAST(${JSON.stringify(claims)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (claims.violations.length) {
+              // Labels only — never the utterance. The transcript stays in the
+              // column it arrived in; logs must not become a second PII surface.
+              log.warn("[vapi webhook] voice claim violation", {
+                callId: String(callId),
+                violations: claims.violations,
+              });
+            }
+          }
+        } catch (claimErr) {
+          log.warn("[vapi webhook] voice-claim persist failed (analytics only)", {
+            error: claimErr instanceof Error ? claimErr.message : String(claimErr),
+          });
+        }
+
+        // wave-144 · forwarded-call safety net. A during-hours
+        // transferCall hands the caller to the shop line; if nobody
+        // picks up (tech mid-bay), that hot caller is lost with NO
+        // follow-up surface — forwards only showed up as a Voice-page
+        // chart bar. On the first end-of-call insert only, drop a row
+        // into the front-desk callback queue so every forwarded caller
+        // is accounted for. This is an INTERNAL queue entry, not an
+        // outbound customer message — worst case is a row the operator
+        // clears in one tap; the win is no forwarded caller falls
+        // through. endedReason "assistant-forwarded-call" → /forward/i.
+        // 2026-05-31 · forwarded-call follow-up flipped from an internal
+        // callback to-do (it flooded the Today queue with "Call back Voice
+        // caller" rows) to a self-serve SMS back to the caller. The caller
+        // re-engages on their terms; the operator's callback queue stays clean.
+        // 2026-07-20 · vapiCallId is REQUIRED for real idempotency. The
+        // orchestrator only builds a stable key (`..._call_<id>`) when
+        // event.vapiCallId is present (smsOrchestrator.ts) — omit it and the
+        // key falls through to a Date.now()+Math.random() value that is unique
+        // by construction, so the idempotency check can never match and is a
+        // silent no-op. Dedupe then rests entirely on the 24h phone cooldown.
+        // Passing the id restores the guard the call site always implied.
+        // 2026-07-20 · operator off-switch. Read the pause flag BEFORE deciding;
+        // a flag-read failure resolves to `false` (= not paused), so a DB blip
+        // keeps today's behaviour rather than silently muting the path.
+        let followupPaused = false;
+        try {
+          const { isEnabled } = await import("../../services/featureFlags");
+          followupPaused = await isEnabled("vapi_forward_followup_paused");
+        } catch (flagErr) {
+          log.warn("[vapi webhook] pause-flag read failed — treating as NOT paused", {
+            error: flagErr instanceof Error ? flagErr.message : String(flagErr),
+          });
+        }
+
+        // Narrow the number ONCE and pass the same value to both the decision
+        // and the send. Reaching back for `customer!.number` after the predicate
+        // returned true would re-assert a fact the compiler can't follow across
+        // the call boundary — a non-null assertion there would silence the
+        // checker rather than satisfy it.
+        const followupPhone = customer?.number?.trim() ?? "";
+
+        if (shouldSendForwardedFollowup({
+          firstLog,
+          endedReason: cleanEndedReason,
+          customerNumber: followupPhone,
+          paused: followupPaused,
+        })) {
+          const { orchestrateSms } = await import("../../services/smsOrchestrator");
+          await orchestrateSms({
+            type: "vapi_forwarded_call_followup",
+            phone: followupPhone,
+            vapiCallId: event.call?.id,
+          }).catch((err: unknown) => {
+            log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        } else if (followupPaused && isForwardedEndedReason(cleanEndedReason)) {
+          log.info("[vapi webhook] forwarded-call SMS suppressed — vapi_forward_followup_paused is ON");
+        }
+      }
+    }
+  } catch (persistErr) {
+    log.warn("[vapi webhook] call-end persist failed (non-blocking)", {
+      error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+    });
+  }
+  // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+  // Record `ended` on call-end with reason metadata so the active-
+  // calls view can drop this call out of the in-flight list.
+  const endCallId = event.call?.id;
+  const endAssistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+  if (endCallId) {
+    import("../../services/voice-call-state").then(({ recordCallState }) =>
+      recordCallState({
+        callId: endCallId,
+        assistantId: endAssistantId,
+        state: "ended",
+        metadata: { reason: cleanEndedReason, eventType: event.type },
+      })
+    ).catch(() => { /* intentionally swallowed */ });
+  }
+
+  // wave-181.87 · dispatch outbound call.ended to confirmation_calls
+  // OR alg_estimates voice_recovery_call_id by callId lookup. Same
+  // pattern as the dropped AgentPhone webhook (wave-181.85) · this
+  // handler now serves BOTH inbound flows (above) AND outbound
+  // confirmation + recovery flows via the wave-181.87 VAPI
+  // placeOutboundCall path.
+  if (endCallId) {
+    try {
+      const { getDb } = await import("../../db");
+      const { confirmationCalls, algEstimates } = await import("../../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        // wave-fix-2026-05-25 (audit #106) · same artifact-first
+        // fallback as the service-mention path · without this,
+        // confirmation-call evaluation runs on empty transcript
+        // and undercounts every converted call by ~10 eval-score
+        // points.
+        const transcriptText = ((event as { artifact?: { transcript?: string }; transcript?: string }).artifact?.transcript ?? (event as { transcript?: string }).transcript ?? "")
+          + " " + ((event as { summary?: string; analysis?: { summary?: string } }).summary
+            ?? (event as { analysis?: { summary?: string } }).analysis?.summary
+            ?? "");
+        const lower = transcriptText.toLowerCase();
+        const snippet = transcriptText.slice(0, 500);
+
+        // Classification · same regex pattern as the dropped
+        // agentphone classifyTranscript helper.
+        let confirmStatus: "confirmed" | "rescheduled" | "no_answer" = "no_answer";
+        let rescheduleRequest: string | null = null;
+        if (transcriptText.trim().length > 0) {
+          if (/\b(reschedule|move it|change the time|different day|can we do|push it|next week|earlier|later in the day|cancel)\b/i.test(lower)) {
+            confirmStatus = "rescheduled";
+            const sentences = lower.split(/[.!?]/);
+            const rs = sentences.find((s) => /\b(reschedule|move|change|different day|push|earlier|later)\b/i.test(s));
+            rescheduleRequest = (rs || "").trim().slice(0, 200) || null;
+          } else if (/\b(yes|yeah|yep|confirm|still on|see you|i.?ll be there|sounds good|works for me|all set)\b/i.test(lower)) {
+            confirmStatus = "confirmed";
+          } else {
+            // forensic-audit MEDIUM · was "ambiguous content → confirmed",
+            // so a voicemail/no-answer call where only the AI spoke was
+            // recorded as a confirmed appointment and the operator never
+            // followed up. Default to no_answer — a false follow-up is far
+            // cheaper than a missed no-show.
+            confirmStatus = "no_answer";
+          }
+        } else {
+          confirmStatus = "no_answer";
+        }
+
+        // Try 1 · confirmation_calls
+        const [confRow] = await db
+          .select()
+          .from(confirmationCalls)
+          .where(eq(confirmationCalls.agentphoneCallId, endCallId))
+          .limit(1);
+
+        if (confRow) {
+          await db
+            .update(confirmationCalls)
+            .set({
+              status: confirmStatus,
+              transcriptSnippet: snippet,
+              rescheduleRequest,
+              completedAt: new Date(),
+            })
+            .where(eq(confirmationCalls.id, confRow.id));
+          log.info(`[vapi outbound] confirmation_calls #${confRow.id} → ${confirmStatus}`, {
+            callId: String(endCallId).slice(0, 16),
+          });
+        } else {
+          // Try 2 · alg_estimates voice_recovery
+          const [estRow] = await db
+            .select({ id: algEstimates.id })
+            .from(algEstimates)
+            .where(eq(algEstimates.voiceRecoveryCallId, endCallId))
+            .limit(1);
+          if (estRow) {
+            // Map confirmation classification → recovery enum
+            const recoveryOutcome: "interested" | "not_interested" | "no_answer" =
+              confirmStatus === "no_answer" ? "no_answer" :
+              // For recovery · check for explicit not-interested signals
+              /\b(not interested|no thanks|already|fixed it|sold the car|don't need|not now)\b/i.test(lower) ? "not_interested" :
+              "interested";
+            await db
+              .update(algEstimates)
+              .set({ voiceRecoveryOutcome: recoveryOutcome })
+              .where(eq(algEstimates.id, estRow.id));
+            log.info(`[vapi outbound] alg_estimates #${estRow.id} voice_recovery → ${recoveryOutcome}`, {
+              callId: String(endCallId).slice(0, 16),
+            });
+          }
+          // No match in either table · inbound call · already handled above
+        }
+      }
+    } catch (dispatchErr) {
+      log.warn("[vapi outbound] dispatch failed (non-blocking)", {
+        error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+      });
+    }
+  }
+
+  // ─── Trust ladder (Phase 6): actionable call → DRAFT proposals ──────────
+  // Flag-gated (vapi_action_proposals, OFF by default — also the 0111
+  // deploy-order guard). Creates DRAFTS in the approval queue only; nothing
+  // executes without a human tap. Deliberately LAST and try/caught: the
+  // call-log write, claim guard and outbound dispatch above must be complete
+  // and unaffected whether this succeeds, fails, or is disabled.
+  try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    if (await isEnabled("vapi_action_proposals")) {
+      const callId = event.call?.id;
+      if (callId) {
+        const { maybeProposeCallActions } = await import("../../services/vapiActionExtraction");
+        const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
+        const transcript =
+          (event as { artifact?: { transcript?: string } }).artifact?.transcript ??
+          (event as { transcript?: string })?.transcript ??
+          "";
+        const summary =
+          (event as { summary?: string; analysis?: { summary?: string } })?.summary ??
+          (event as { analysis?: { summary?: string } })?.analysis?.summary ??
+          null;
+        await maybeProposeCallActions({
+          callId,
+          transcript: typeof transcript === "string" ? transcript : "",
+          summary,
+          customerName: customer?.name ?? null,
+          customerPhone: customer?.number ?? null,
+          durationSeconds: extractCallDurationSec(event),
+          endedReason: cleanEndedReason,
+          // Direction gate: our own outbound confirmation / recovery calls must
+          // not produce drafts for work that already exists.
+          callType: (event.call as { type?: string })?.type ?? null,
+        });
+      }
+    }
+  } catch (proposalErr) {
+    log.warn("[vapi proposals] extraction pass failed (non-blocking)", {
+      error: proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
+    });
+  }
+}
+
+// ─── Main webhook endpoint ─────────────────────────────
+
+router.post("/vapi", async (req: Request, res: Response) => {
+  if (!verifyVapiSignature(req)) {
+    log.warn("Invalid Vapi signature");
+    res.status(401).json({ error: "Invalid signature" });
+    return;
+  }
+
+  const body = req.body as { message: VapiWebhookMessage };
+
+  const event = body?.message;
+  if (!event?.type) {
+    res.status(400).json({ error: "Missing message.type" });
+    return;
+  }
+
+  try {
+    switch (event.type) {
+      case "function-call":
+      case "tool-calls": {
+        // wave-181.4 · capture LLM→tool→ack round-trip latency so the
+        // /api/admin/voice-latency observability tile can surface it.
+        // Anchored at handler entry; the actual write happens AFTER
+        // results assemble so a telemetry bug can't break the response.
+        const webhookReceivedAt = Date.now();
+        // Multiple tool calls arrive in one webhook. Run in parallel.
+        // wave-116 — was Promise.all; a single rejection caused the
+        // webhook to 500, prompting VAPI to retry the WHOLE batch and
+        // potentially double-execute already-succeeded tools (e.g.
+        // scheduleDropoff fired twice). allSettled isolates per-call
+        // outcomes so the webhook always 200s with a per-tool result.
+        const calls = event.toolCalls || [];
+        const dialled = (event.call as { customer?: { number?: string } } | undefined)?.customer?.number;
+        const callType = (event.call as { type?: string } | undefined)?.type;
+        const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id, dialled, callType)));
+        const results = settled.map((s, i) => {
+          if (s.status === "fulfilled") return s.value;
+          const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
+          log.error("Tool call rejected", {
+            toolCallId: calls[i]?.id,
+            functionName: calls[i]?.function?.name,
+            error: err,
+          });
+          return {
+            toolCallId: calls[i]?.id,
+            result: JSON.stringify({ error: "Tool execution failed", details: err }),
+          };
+        });
+        res.json({ results });
+
+        // Fire-and-forget latency capture · service swallows all errors
+        // so a missing migration or transient DB issue never breaks the
+        // webhook response above.
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-latency").then(({ captureVoiceLatency }) =>
+            captureVoiceLatency({
+              callId,
+              assistantId: assistantId ?? "unknown",
+              stage: "llm_first_token",
+              latencyMs: Date.now() - webhookReceivedAt,
+              metadata: { source: "vapi-webhook", toolCalls: calls.length },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+
+          // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+          // Classify each tool call into a state transition (read tool =
+          // intent_captured · write tool = tool_called · confirmation
+          // tool = confirmed). Append-only · multiple events per call
+          // are correct (the trail tells you the agent re-engaged after
+          // a tool call). Fire-and-forget · NEVER blocks webhook.
+          Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/tireDemand"),
+          ]).then(([{ classifyToolToState, recordCallState }, { toolCallStateMetadata }]) => {
+            for (const c of calls) {
+              const state = classifyToolToState(c.function?.name ?? "");
+              if (state) {
+                void recordCallState({
+                  callId,
+                  assistantId,
+                  state,
+                  // A tireInquiry also records what the caller asked for (size,
+                  // new/used; never name or phone) for Today's "Asked by phone".
+                  metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
+                });
+              }
+            }
+          }).catch(() => { /* intentionally swallowed */ });
+        }
+        return;
+      }
+
+      case "call-start": {
+        // Legacy/explicit call-start event. Current Vapi server-message defaults
+        // use status-update and mark the true start as status=in-progress.
+        log.info("Vapi call started", { callId: event.call?.id, source: "call-start" });
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-call-state").then(({ recordCallState }) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "greeted",
+              metadata: { eventType: event.type },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "status-update": {
+        // Vapi emits scheduled/queued/ringing/in-progress/forwarding/ended.
+        // Only in-progress means the conversation actually started. The old
+        // combined branch stamped every status as "greeted", producing several
+        // fake starts for one call in production.
+        const status = event.status ?? "unknown";
+        log.info("Vapi status update", { callId: event.call?.id, status });
+        if (status === "in-progress") {
+          const callId = event.call?.id;
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          if (callId) {
+            import("../../services/voice-call-state").then(({ recordCallState }) =>
+              recordCallState({
+                callId,
+                assistantId,
+                state: "greeted",
+                metadata: { eventType: event.type, status },
+              })
+            ).catch(() => { /* intentionally swallowed */ });
+          }
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "speech-update": {
+        // Normal Vapi lifecycle telemetry (started/stopped speaking). We do not
+        // persist it yet; explicitly acknowledge it so production logs do not
+        // mislabel supported provider traffic as an unknown event.
+        res.json({ ack: true });
+        return;
+      }
+
+      // Vapi fires this when the assistant STARTS a transfer. It carries no
+      // outcome (that arrives in the end-of-call artifact, when Vapi sends
+      // one); it is the proof an attempt happened. Until 2026-09-23 it was
+      // subscribed but fell to the default branch, so an attempt whose call
+      // then ended some other way left no trace. Ack first, record detached;
+      // the destination's kind only, never its number.
+      case "transfer-update": {
+        res.json({ ack: true });
+        const callId = event.call?.id;
+        if (callId) {
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          void Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/transferArtifact"),
+          ]).then(([{ recordCallState }, { transferUpdateMetadata }]) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "transfer_attempted",
+              metadata: transferUpdateMetadata(event),
+            }),
+          ).catch(() => { /* intentionally swallowed: telemetry never breaks a live call */ });
+        }
+        return;
+      }
+
+      case "end-of-call-report":
+      case "call-end": {
+        // wave-137 · read the CLEAN reason from message-level (see
+        // extractEndedReason). call.endedReason is null/SIP-transient on the
+        // webhook. Computed once, reused for the row insert + state metadata.
+        const cleanEndedReason = extractEndedReason(event);
+        log.info("Vapi call ended", {
+          callId: event.call?.id,
+          reason: cleanEndedReason,
+        });
+        // Q-45: do-not-call is the one compliance write that MUST be durable
+        // before acknowledgement. If it fails, return non-2xx so Vapi can
+        // retry the webhook. All noncritical post-call work stays detached.
+        try {
+          await persistTranscriptDoNotCallBeforeAck(event);
+        } catch (dncErr) {
+          log.error("[vapi webhook] do-not-call persistence failed before ack", {
+            callId: event.call?.id,
+            error: dncErr instanceof Error ? dncErr.message : String(dncErr),
+            errorId: "VAPI_DNC_PREACK_FAILED",
+          });
+          res.status(503).json({ error: "Do-not-call persistence failed; retry webhook" });
+          return;
+        }
+
+        res.json({ ack: true });
+        // F5 · tracked so a SIGTERM drain waits for it (the 200 is already sent).
+        void trackDetached("vapi:end-of-call", processCallEndReport(event, cleanEndedReason)).catch((err) => {
+          log.warn("[vapi webhook] detached post-call processing failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+        return;
+      }
+
+      case "transcript":
+        // Real-time transcript updates — log in dev, ignore in prod
+        if (process.env.NODE_ENV !== "production") {
+          log.info("Vapi transcript chunk", { len: event.transcript?.length });
+        }
+        res.json({ ack: true });
+        return;
+
+      // wave-181.63 · Phase 6 · cross-call memory hydration.
+      // wave-181.x · Tier S · BDI upgrade (declined-recovery opener).
+      // VAPI fires `assistant-request` BEFORE the call connects. The
+      // response shape is `{ assistantOverrides?: {...} }` which VAPI
+      // merges with the assistant's configured fields for THIS call
+      // only (no PATCH to the global assistant). The BDI composer
+      // (vapi-bdi.ts) looks up the caller AND any unconverted estimate
+      // and opens the call with the recovery hook when one is on file.
+      // Unknown callers fall through to the default first message ·
+      // backward compatible with the wave-181.63 personalization path.
+      case "assistant-request": {
+        const customer = (event.call as { customer?: { number?: string } } | undefined)?.customer;
+        const phone = customer?.number?.trim();
+        if (!phone) {
+          // No phone in the request · can't personalize · fall through
+          // to default assistant.
+          res.json({});
+          return;
+        }
+        try {
+          const { buildBdiFirstMessage } = await import(
+            "../../services/vapi-bdi"
+          );
+          const result = await buildBdiFirstMessage(phone);
+          log.info("assistant-request bdi", {
+            phoneSuffix: phone.replace(/\D/g, "").slice(-4),
+            matched: result.matched,
+            kind: result.kind,
+            reason: result.reason,
+          });
+          if (result.firstMessage) {
+            res.json({
+              assistantOverrides: { firstMessage: result.firstMessage },
+            });
+            return;
+          }
+        } catch (err) {
+          log.warn("assistant-request bdi threw", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Default · use assistant's configured first message.
+        res.json({});
+        return;
+      }
+
+      default:
+        log.info("Vapi unknown event type", { type: event.type });
+        res.json({ ack: true });
+        return;
+    }
+  } catch (err) {
+    log.error("Vapi webhook handler threw", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
+
+export { router as vapiWebhookRouter };
+)
+            )
+            WHERE vapiCallId = ${String(callId)}
+          `);
+        } catch (behaviorErr) {
+          log.warn("[vapi webhook] behavior fingerprint persist failed (analytics only)", {
+            error: behaviorErr instanceof Error ? behaviorErr.message : String(behaviorErr),
+          });
+        }
+
+        // ─── Persist CUSTOMER-only speech (2026-07-26 demand audit) ─────────
+        // The full transcript has been in hand here since wave-fix-2026-05-25,
+        // used for a keyword scan and then dropped. Meanwhile `transcriptUrl`
+        // is populated on 0 of 2,095 rows — VAPI never sets it — so nothing
+        // durable held what callers actually said, and every demand signal was
+        // assistant-contaminated: `serviceMention` is binary (tire|brake) and
+        // `aiSummary` is written by a tire-first assistant. The ~60% used-tire
+        // figure the whole prompt is built around could not be checked.
+        //
+        // Stores the CUSTOMER's turns only — never assistant speech, never the
+        // full transcript — capped and truncated. JSON_SET merges into whatever
+        // `metadata` already holds (intents, agenticAudit), so write order with
+        // the later enrichment updates does not matter. Uses the existing JSON
+        // column deliberately: no migration means no hand-applied DDL to forget
+        // (ROS-059). Fail-open — a demand-analytics write must never affect the
+        // webhook's 200.
+        try {
+          const { buildCustomerSpeechRecord, extractCustomerTurnsFromMessages, CUSTOMER_SPEECH_VERSION } =
+            await import("../../services/customerTurns");
+          // Prefer VAPI's role-tagged `artifact.messages` — authoritative at the
+          // source, so no speaker-prefix guessing and no formatting change can
+          // misattribute assistant speech as customer demand. The flat
+          // transcript is the fallback for calls that lack the array.
+          const artifactMsgs = (event as { artifact?: { messages?: unknown } }).artifact?.messages;
+          let speech: ReturnType<typeof buildCustomerSpeechRecord> = null;
+          if (Array.isArray(artifactMsgs) && artifactMsgs.length) {
+            const parsed = extractCustomerTurnsFromMessages(artifactMsgs);
+            if (parsed.turns.length || parsed.unparsed) {
+              speech = {
+                v: CUSTOMER_SPEECH_VERSION,
+                turns: parsed.turns,
+                turnCount: parsed.totalCustomerTurns,
+                first: parsed.firstSubstantive,
+                unparsed: parsed.unparsed,
+              };
+            }
+          } else {
+            speech = buildCustomerSpeechRecord(transcript);
+          }
+          if (speech) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.customerSpeech', CAST(${JSON.stringify(speech)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+          }
+        } catch (speechErr) {
+          log.warn("[vapi webhook] customer-speech persist failed (analytics only)", {
+            error: speechErr instanceof Error ? speechErr.message : String(speechErr),
+          });
+        }
+
+        // TRANSFER ARTIFACT · the only signal that can prove a human ANSWERED.
+        //
+        // Every transfer metric in this app has been built on
+        // `endedReason === "assistant-forwarded-call"`, which VAPI's own docs
+        // say confirms the transfer was INITIATED, not completed — their
+        // troubleshooting page sends you to the provider's call log for the
+        // outcome. So a call that rang an empty counter and dropped to
+        // voicemail has scored identically to one Nick answered on the second
+        // ring, and no connect-rate built on it could ever emit a failure for
+        // the one case it exists to detect.
+        //
+        // `artifact.transfers[]` carries a real per-attempt status. VAPI
+        // describes blind-transfer outcome detection as enabled PER
+        // ORGANISATION, so whether this account receives it is an empirical
+        // question — which is exactly why `artifactPresent` is persisted
+        // separately from the verdict. That flag is the live answer, read from
+        // production rather than assumed from documentation.
+        //
+        // Separate try on purpose, same as customerSpeech above: one analytics
+        // write failing must not take the other down, and neither may affect
+        // the webhook's 200.
+        try {
+          const { readTransferArtifact, transferArtifactWorthPersisting, sawTransferUpdate } = await import("../../lib/transferArtifact");
+          const read = readTransferArtifact((event as { artifact?: unknown }).artifact);
+          // The live `transfer-update` witness (recorded below in the router).
+          // It catches the attempt the ended reason hides: a caller who hangs
+          // up while the shop line rings ends "customer-ended-call".
+          const { getCallStateHistory } = await import("../../services/voice-call-state");
+          const transferUpdateSeen = sawTransferUpdate(await getCallStateHistory(String(callId)));
+          // Write only when there is something to say: a per-attempt record, or
+          // an ended reason proving a transfer was ATTEMPTED. A call that never
+          // tried to hand off gets no verdict at all — the old test here was
+          // `artifactPresent || transfers.length`, and artifactPresent is true
+          // whenever Vapi sends a transfers ARRAY — which it does, empty, on
+          // calls that never transferred — which is how 20 of 31 calls came to
+          // carry "unknown" for a transfer that never happened.
+          if (transferArtifactWorthPersisting(read, cleanEndedReason, transferUpdateSeen)) {
+            const { sql } = await import("drizzle-orm");
+            const stored = { ...read, transferUpdateSeen };
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.transferArtifact', CAST(${JSON.stringify(stored)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (read.unrecognisedStatuses.length) {
+              // A status VAPI added that this app does not model. Loud, because
+              // silently bucketing it as unknown would hide a real drift.
+              log.warn("[vapi webhook] unmodelled transfer status from VAPI", {
+                statuses: read.unrecognisedStatuses,
+              });
+            }
+          }
+        } catch (transferErr) {
+          log.warn("[vapi webhook] transfer-artifact persist failed (analytics only)", {
+            error: transferErr instanceof Error ? transferErr.message : String(transferErr),
+          });
+        }
+
+        // VOICE CLAIM GUARD · the assistant side of the same artifact.
+        //
+        // SMS drafts are gated before send by `planViolations`; voice had no
+        // equivalent, so the prompt's truth rules (no repair quotes, no live
+        // stock, no capacity or wait promises) were enforced by prose alone.
+        // Vapi streams to TTS with no pre-speech hook, so this cannot block —
+        // it DETECTS, which is what makes drift visible and what makes the
+        // prompt-compression work measurable.
+        //
+        // Separate try from customerSpeech on purpose: one analytics write
+        // failing must not take the other down, and neither may affect the 200.
+        try {
+          const { buildVoiceClaimRecord } = await import("../../services/voiceClaimGuard");
+          const claims = buildVoiceClaimRecord({
+            transcript,
+            messages: (event as { artifact?: { messages?: unknown } }).artifact?.messages,
+          });
+          if (claims) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.voiceClaims', CAST(${JSON.stringify(claims)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (claims.violations.length) {
+              // Labels only — never the utterance. The transcript stays in the
+              // column it arrived in; logs must not become a second PII surface.
+              log.warn("[vapi webhook] voice claim violation", {
+                callId: String(callId),
+                violations: claims.violations,
+              });
+            }
+          }
+        } catch (claimErr) {
+          log.warn("[vapi webhook] voice-claim persist failed (analytics only)", {
+            error: claimErr instanceof Error ? claimErr.message : String(claimErr),
+          });
+        }
+
+        // wave-144 · forwarded-call safety net. A during-hours
+        // transferCall hands the caller to the shop line; if nobody
+        // picks up (tech mid-bay), that hot caller is lost with NO
+        // follow-up surface — forwards only showed up as a Voice-page
+        // chart bar. On the first end-of-call insert only, drop a row
+        // into the front-desk callback queue so every forwarded caller
+        // is accounted for. This is an INTERNAL queue entry, not an
+        // outbound customer message — worst case is a row the operator
+        // clears in one tap; the win is no forwarded caller falls
+        // through. endedReason "assistant-forwarded-call" → /forward/i.
+        // 2026-05-31 · forwarded-call follow-up flipped from an internal
+        // callback to-do (it flooded the Today queue with "Call back Voice
+        // caller" rows) to a self-serve SMS back to the caller. The caller
+        // re-engages on their terms; the operator's callback queue stays clean.
+        // 2026-07-20 · vapiCallId is REQUIRED for real idempotency. The
+        // orchestrator only builds a stable key (`..._call_<id>`) when
+        // event.vapiCallId is present (smsOrchestrator.ts) — omit it and the
+        // key falls through to a Date.now()+Math.random() value that is unique
+        // by construction, so the idempotency check can never match and is a
+        // silent no-op. Dedupe then rests entirely on the 24h phone cooldown.
+        // Passing the id restores the guard the call site always implied.
+        // 2026-07-20 · operator off-switch. Read the pause flag BEFORE deciding;
+        // a flag-read failure resolves to `false` (= not paused), so a DB blip
+        // keeps today's behaviour rather than silently muting the path.
+        let followupPaused = false;
+        try {
+          const { isEnabled } = await import("../../services/featureFlags");
+          followupPaused = await isEnabled("vapi_forward_followup_paused");
+        } catch (flagErr) {
+          log.warn("[vapi webhook] pause-flag read failed — treating as NOT paused", {
+            error: flagErr instanceof Error ? flagErr.message : String(flagErr),
+          });
+        }
+
+        // Narrow the number ONCE and pass the same value to both the decision
+        // and the send. Reaching back for `customer!.number` after the predicate
+        // returned true would re-assert a fact the compiler can't follow across
+        // the call boundary — a non-null assertion there would silence the
+        // checker rather than satisfy it.
+        const followupPhone = customer?.number?.trim() ?? "";
+
+        if (shouldSendForwardedFollowup({
+          firstLog,
+          endedReason: cleanEndedReason,
+          customerNumber: followupPhone,
+          paused: followupPaused,
+        })) {
+          const { orchestrateSms } = await import("../../services/smsOrchestrator");
+          await orchestrateSms({
+            type: "vapi_forwarded_call_followup",
+            phone: followupPhone,
+            vapiCallId: event.call?.id,
+          }).catch((err: unknown) => {
+            log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        } else if (followupPaused && isForwardedEndedReason(cleanEndedReason)) {
+          log.info("[vapi webhook] forwarded-call SMS suppressed — vapi_forward_followup_paused is ON");
+        }
+      }
+    }
+  } catch (persistErr) {
+    log.warn("[vapi webhook] call-end persist failed (non-blocking)", {
+      error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+    });
+  }
+  // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+  // Record `ended` on call-end with reason metadata so the active-
+  // calls view can drop this call out of the in-flight list.
+  const endCallId = event.call?.id;
+  const endAssistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+  if (endCallId) {
+    import("../../services/voice-call-state").then(({ recordCallState }) =>
+      recordCallState({
+        callId: endCallId,
+        assistantId: endAssistantId,
+        state: "ended",
+        metadata: { reason: cleanEndedReason, eventType: event.type },
+      })
+    ).catch(() => { /* intentionally swallowed */ });
+  }
+
+  // wave-181.87 · dispatch outbound call.ended to confirmation_calls
+  // OR alg_estimates voice_recovery_call_id by callId lookup. Same
+  // pattern as the dropped AgentPhone webhook (wave-181.85) · this
+  // handler now serves BOTH inbound flows (above) AND outbound
+  // confirmation + recovery flows via the wave-181.87 VAPI
+  // placeOutboundCall path.
+  if (endCallId) {
+    try {
+      const { getDb } = await import("../../db");
+      const { confirmationCalls, algEstimates } = await import("../../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        // wave-fix-2026-05-25 (audit #106) · same artifact-first
+        // fallback as the service-mention path · without this,
+        // confirmation-call evaluation runs on empty transcript
+        // and undercounts every converted call by ~10 eval-score
+        // points.
+        const transcriptText = ((event as { artifact?: { transcript?: string }; transcript?: string }).artifact?.transcript ?? (event as { transcript?: string }).transcript ?? "")
+          + " " + ((event as { summary?: string; analysis?: { summary?: string } }).summary
+            ?? (event as { analysis?: { summary?: string } }).analysis?.summary
+            ?? "");
+        const lower = transcriptText.toLowerCase();
+        const snippet = transcriptText.slice(0, 500);
+
+        // Classification · same regex pattern as the dropped
+        // agentphone classifyTranscript helper.
+        let confirmStatus: "confirmed" | "rescheduled" | "no_answer" = "no_answer";
+        let rescheduleRequest: string | null = null;
+        if (transcriptText.trim().length > 0) {
+          if (/\b(reschedule|move it|change the time|different day|can we do|push it|next week|earlier|later in the day|cancel)\b/i.test(lower)) {
+            confirmStatus = "rescheduled";
+            const sentences = lower.split(/[.!?]/);
+            const rs = sentences.find((s) => /\b(reschedule|move|change|different day|push|earlier|later)\b/i.test(s));
+            rescheduleRequest = (rs || "").trim().slice(0, 200) || null;
+          } else if (/\b(yes|yeah|yep|confirm|still on|see you|i.?ll be there|sounds good|works for me|all set)\b/i.test(lower)) {
+            confirmStatus = "confirmed";
+          } else {
+            // forensic-audit MEDIUM · was "ambiguous content → confirmed",
+            // so a voicemail/no-answer call where only the AI spoke was
+            // recorded as a confirmed appointment and the operator never
+            // followed up. Default to no_answer — a false follow-up is far
+            // cheaper than a missed no-show.
+            confirmStatus = "no_answer";
+          }
+        } else {
+          confirmStatus = "no_answer";
+        }
+
+        // Try 1 · confirmation_calls
+        const [confRow] = await db
+          .select()
+          .from(confirmationCalls)
+          .where(eq(confirmationCalls.agentphoneCallId, endCallId))
+          .limit(1);
+
+        if (confRow) {
+          await db
+            .update(confirmationCalls)
+            .set({
+              status: confirmStatus,
+              transcriptSnippet: snippet,
+              rescheduleRequest,
+              completedAt: new Date(),
+            })
+            .where(eq(confirmationCalls.id, confRow.id));
+          log.info(`[vapi outbound] confirmation_calls #${confRow.id} → ${confirmStatus}`, {
+            callId: String(endCallId).slice(0, 16),
+          });
+        } else {
+          // Try 2 · alg_estimates voice_recovery
+          const [estRow] = await db
+            .select({ id: algEstimates.id })
+            .from(algEstimates)
+            .where(eq(algEstimates.voiceRecoveryCallId, endCallId))
+            .limit(1);
+          if (estRow) {
+            // Map confirmation classification → recovery enum
+            const recoveryOutcome: "interested" | "not_interested" | "no_answer" =
+              confirmStatus === "no_answer" ? "no_answer" :
+              // For recovery · check for explicit not-interested signals
+              /\b(not interested|no thanks|already|fixed it|sold the car|don't need|not now)\b/i.test(lower) ? "not_interested" :
+              "interested";
+            await db
+              .update(algEstimates)
+              .set({ voiceRecoveryOutcome: recoveryOutcome })
+              .where(eq(algEstimates.id, estRow.id));
+            log.info(`[vapi outbound] alg_estimates #${estRow.id} voice_recovery → ${recoveryOutcome}`, {
+              callId: String(endCallId).slice(0, 16),
+            });
+          }
+          // No match in either table · inbound call · already handled above
+        }
+      }
+    } catch (dispatchErr) {
+      log.warn("[vapi outbound] dispatch failed (non-blocking)", {
+        error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+      });
+    }
+  }
+
+  // ─── Trust ladder (Phase 6): actionable call → DRAFT proposals ──────────
+  // Flag-gated (vapi_action_proposals, OFF by default — also the 0111
+  // deploy-order guard). Creates DRAFTS in the approval queue only; nothing
+  // executes without a human tap. Deliberately LAST and try/caught: the
+  // call-log write, claim guard and outbound dispatch above must be complete
+  // and unaffected whether this succeeds, fails, or is disabled.
+  try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    if (await isEnabled("vapi_action_proposals")) {
+      const callId = event.call?.id;
+      if (callId) {
+        const { maybeProposeCallActions } = await import("../../services/vapiActionExtraction");
+        const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
+        const transcript =
+          (event as { artifact?: { transcript?: string } }).artifact?.transcript ??
+          (event as { transcript?: string })?.transcript ??
+          "";
+        const summary =
+          (event as { summary?: string; analysis?: { summary?: string } })?.summary ??
+          (event as { analysis?: { summary?: string } })?.analysis?.summary ??
+          null;
+        await maybeProposeCallActions({
+          callId,
+          transcript: typeof transcript === "string" ? transcript : "",
+          summary,
+          customerName: customer?.name ?? null,
+          customerPhone: customer?.number ?? null,
+          durationSeconds: extractCallDurationSec(event),
+          endedReason: cleanEndedReason,
+          // Direction gate: our own outbound confirmation / recovery calls must
+          // not produce drafts for work that already exists.
+          callType: (event.call as { type?: string })?.type ?? null,
+        });
+      }
+    }
+  } catch (proposalErr) {
+    log.warn("[vapi proposals] extraction pass failed (non-blocking)", {
+      error: proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
+    });
+  }
+}
+
+// ─── Main webhook endpoint ─────────────────────────────
+
+router.post("/vapi", async (req: Request, res: Response) => {
+  if (!verifyVapiSignature(req)) {
+    log.warn("Invalid Vapi signature");
+    res.status(401).json({ error: "Invalid signature" });
+    return;
+  }
+
+  const body = req.body as { message: VapiWebhookMessage };
+
+  const event = body?.message;
+  if (!event?.type) {
+    res.status(400).json({ error: "Missing message.type" });
+    return;
+  }
+
+  try {
+    switch (event.type) {
+      case "function-call":
+      case "tool-calls": {
+        // wave-181.4 · capture LLM→tool→ack round-trip latency so the
+        // /api/admin/voice-latency observability tile can surface it.
+        // Anchored at handler entry; the actual write happens AFTER
+        // results assemble so a telemetry bug can't break the response.
+        const webhookReceivedAt = Date.now();
+        // Multiple tool calls arrive in one webhook. Run in parallel.
+        // wave-116 — was Promise.all; a single rejection caused the
+        // webhook to 500, prompting VAPI to retry the WHOLE batch and
+        // potentially double-execute already-succeeded tools (e.g.
+        // scheduleDropoff fired twice). allSettled isolates per-call
+        // outcomes so the webhook always 200s with a per-tool result.
+        const calls = event.toolCalls || [];
+        const dialled = (event.call as { customer?: { number?: string } } | undefined)?.customer?.number;
+        const callType = (event.call as { type?: string } | undefined)?.type;
+        const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id, dialled, callType)));
+        const results = settled.map((s, i) => {
+          if (s.status === "fulfilled") return s.value;
+          const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
+          log.error("Tool call rejected", {
+            toolCallId: calls[i]?.id,
+            functionName: calls[i]?.function?.name,
+            error: err,
+          });
+          return {
+            toolCallId: calls[i]?.id,
+            result: JSON.stringify({ error: "Tool execution failed", details: err }),
+          };
+        });
+        res.json({ results });
+
+        // Fire-and-forget latency capture · service swallows all errors
+        // so a missing migration or transient DB issue never breaks the
+        // webhook response above.
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-latency").then(({ captureVoiceLatency }) =>
+            captureVoiceLatency({
+              callId,
+              assistantId: assistantId ?? "unknown",
+              stage: "llm_first_token",
+              latencyMs: Date.now() - webhookReceivedAt,
+              metadata: { source: "vapi-webhook", toolCalls: calls.length },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+
+          // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+          // Classify each tool call into a state transition (read tool =
+          // intent_captured · write tool = tool_called · confirmation
+          // tool = confirmed). Append-only · multiple events per call
+          // are correct (the trail tells you the agent re-engaged after
+          // a tool call). Fire-and-forget · NEVER blocks webhook.
+          Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/tireDemand"),
+          ]).then(([{ classifyToolToState, recordCallState }, { toolCallStateMetadata }]) => {
+            for (const c of calls) {
+              const state = classifyToolToState(c.function?.name ?? "");
+              if (state) {
+                void recordCallState({
+                  callId,
+                  assistantId,
+                  state,
+                  // A tireInquiry also records what the caller asked for (size,
+                  // new/used; never name or phone) for Today's "Asked by phone".
+                  metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
+                });
+              }
+            }
+          }).catch(() => { /* intentionally swallowed */ });
+        }
+        return;
+      }
+
+      case "call-start": {
+        // Legacy/explicit call-start event. Current Vapi server-message defaults
+        // use status-update and mark the true start as status=in-progress.
+        log.info("Vapi call started", { callId: event.call?.id, source: "call-start" });
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-call-state").then(({ recordCallState }) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "greeted",
+              metadata: { eventType: event.type },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "status-update": {
+        // Vapi emits scheduled/queued/ringing/in-progress/forwarding/ended.
+        // Only in-progress means the conversation actually started. The old
+        // combined branch stamped every status as "greeted", producing several
+        // fake starts for one call in production.
+        const status = event.status ?? "unknown";
+        log.info("Vapi status update", { callId: event.call?.id, status });
+        if (status === "in-progress") {
+          const callId = event.call?.id;
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          if (callId) {
+            import("../../services/voice-call-state").then(({ recordCallState }) =>
+              recordCallState({
+                callId,
+                assistantId,
+                state: "greeted",
+                metadata: { eventType: event.type, status },
+              })
+            ).catch(() => { /* intentionally swallowed */ });
+          }
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "speech-update": {
+        // Normal Vapi lifecycle telemetry (started/stopped speaking). We do not
+        // persist it yet; explicitly acknowledge it so production logs do not
+        // mislabel supported provider traffic as an unknown event.
+        res.json({ ack: true });
+        return;
+      }
+
+      // Vapi fires this when the assistant STARTS a transfer. It carries no
+      // outcome (that arrives in the end-of-call artifact, when Vapi sends
+      // one); it is the proof an attempt happened. Until 2026-09-23 it was
+      // subscribed but fell to the default branch, so an attempt whose call
+      // then ended some other way left no trace. Ack first, record detached;
+      // the destination's kind only, never its number.
+      case "transfer-update": {
+        res.json({ ack: true });
+        const callId = event.call?.id;
+        if (callId) {
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          void Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/transferArtifact"),
+          ]).then(([{ recordCallState }, { transferUpdateMetadata }]) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "transfer_attempted",
+              metadata: transferUpdateMetadata(event),
+            }),
+          ).catch(() => { /* intentionally swallowed: telemetry never breaks a live call */ });
+        }
+        return;
+      }
+
+      case "end-of-call-report":
+      case "call-end": {
+        // wave-137 · read the CLEAN reason from message-level (see
+        // extractEndedReason). call.endedReason is null/SIP-transient on the
+        // webhook. Computed once, reused for the row insert + state metadata.
+        const cleanEndedReason = extractEndedReason(event);
+        log.info("Vapi call ended", {
+          callId: event.call?.id,
+          reason: cleanEndedReason,
+        });
+        // Q-45: do-not-call is the one compliance write that MUST be durable
+        // before acknowledgement. If it fails, return non-2xx so Vapi can
+        // retry the webhook. All noncritical post-call work stays detached.
+        try {
+          await persistTranscriptDoNotCallBeforeAck(event);
+        } catch (dncErr) {
+          log.error("[vapi webhook] do-not-call persistence failed before ack", {
+            callId: event.call?.id,
+            error: dncErr instanceof Error ? dncErr.message : String(dncErr),
+            errorId: "VAPI_DNC_PREACK_FAILED",
+          });
+          res.status(503).json({ error: "Do-not-call persistence failed; retry webhook" });
+          return;
+        }
+
+        res.json({ ack: true });
+        // F5 · tracked so a SIGTERM drain waits for it (the 200 is already sent).
+        void trackDetached("vapi:end-of-call", processCallEndReport(event, cleanEndedReason)).catch((err) => {
+          log.warn("[vapi webhook] detached post-call processing failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+        return;
+      }
+
+      case "transcript":
+        // Real-time transcript updates — log in dev, ignore in prod
+        if (process.env.NODE_ENV !== "production") {
+          log.info("Vapi transcript chunk", { len: event.transcript?.length });
+        }
+        res.json({ ack: true });
+        return;
+
+      // wave-181.63 · Phase 6 · cross-call memory hydration.
+      // wave-181.x · Tier S · BDI upgrade (declined-recovery opener).
+      // VAPI fires `assistant-request` BEFORE the call connects. The
+      // response shape is `{ assistantOverrides?: {...} }` which VAPI
+      // merges with the assistant's configured fields for THIS call
+      // only (no PATCH to the global assistant). The BDI composer
+      // (vapi-bdi.ts) looks up the caller AND any unconverted estimate
+      // and opens the call with the recovery hook when one is on file.
+      // Unknown callers fall through to the default first message ·
+      // backward compatible with the wave-181.63 personalization path.
+      case "assistant-request": {
+        const customer = (event.call as { customer?: { number?: string } } | undefined)?.customer;
+        const phone = customer?.number?.trim();
+        if (!phone) {
+          // No phone in the request · can't personalize · fall through
+          // to default assistant.
+          res.json({});
+          return;
+        }
+        try {
+          const { buildBdiFirstMessage } = await import(
+            "../../services/vapi-bdi"
+          );
+          const result = await buildBdiFirstMessage(phone);
+          log.info("assistant-request bdi", {
+            phoneSuffix: phone.replace(/\D/g, "").slice(-4),
+            matched: result.matched,
+            kind: result.kind,
+            reason: result.reason,
+          });
+          if (result.firstMessage) {
+            res.json({
+              assistantOverrides: { firstMessage: result.firstMessage },
+            });
+            return;
+          }
+        } catch (err) {
+          log.warn("assistant-request bdi threw", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Default · use assistant's configured first message.
+        res.json({});
+        return;
+      }
+
+      default:
+        log.info("Vapi unknown event type", { type: event.type });
+        res.json({ ack: true });
+        return;
+    }
+  } catch (err) {
+    log.error("Vapi webhook handler threw", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
+
+export { router as vapiWebhookRouter };
+))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (read.unrecognisedStatuses.length) {
+              // A status VAPI added that this app does not model. Loud, because
+              // silently bucketing it as unknown would hide a real drift.
+              log.warn("[vapi webhook] unmodelled transfer status from VAPI", {
+                statuses: read.unrecognisedStatuses,
+              });
+            }
+          }
+        } catch (transferErr) {
+          log.warn("[vapi webhook] transfer-artifact persist failed (analytics only)", {
+            error: transferErr instanceof Error ? transferErr.message : String(transferErr),
+          });
+        }
+
+        // VOICE CLAIM GUARD · the assistant side of the same artifact.
+        //
+        // SMS drafts are gated before send by `planViolations`; voice had no
+        // equivalent, so the prompt's truth rules (no repair quotes, no live
+        // stock, no capacity or wait promises) were enforced by prose alone.
+        // Vapi streams to TTS with no pre-speech hook, so this cannot block —
+        // it DETECTS, which is what makes drift visible and what makes the
+        // prompt-compression work measurable.
+        //
+        // Separate try from customerSpeech on purpose: one analytics write
+        // failing must not take the other down, and neither may affect the 200.
+        try {
+          const { buildVoiceClaimRecord } = await import("../../services/voiceClaimGuard");
+          const claims = buildVoiceClaimRecord({
+            transcript,
+            messages: (event as { artifact?: { messages?: unknown } }).artifact?.messages,
+          });
+          if (claims) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.voiceClaims', CAST(${JSON.stringify(claims)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (claims.violations.length) {
+              // Labels only — never the utterance. The transcript stays in the
+              // column it arrived in; logs must not become a second PII surface.
+              log.warn("[vapi webhook] voice claim violation", {
+                callId: String(callId),
+                violations: claims.violations,
+              });
+            }
+          }
+        } catch (claimErr) {
+          log.warn("[vapi webhook] voice-claim persist failed (analytics only)", {
+            error: claimErr instanceof Error ? claimErr.message : String(claimErr),
+          });
+        }
+
+        // wave-144 · forwarded-call safety net. A during-hours
+        // transferCall hands the caller to the shop line; if nobody
+        // picks up (tech mid-bay), that hot caller is lost with NO
+        // follow-up surface — forwards only showed up as a Voice-page
+        // chart bar. On the first end-of-call insert only, drop a row
+        // into the front-desk callback queue so every forwarded caller
+        // is accounted for. This is an INTERNAL queue entry, not an
+        // outbound customer message — worst case is a row the operator
+        // clears in one tap; the win is no forwarded caller falls
+        // through. endedReason "assistant-forwarded-call" → /forward/i.
+        // 2026-05-31 · forwarded-call follow-up flipped from an internal
+        // callback to-do (it flooded the Today queue with "Call back Voice
+        // caller" rows) to a self-serve SMS back to the caller. The caller
+        // re-engages on their terms; the operator's callback queue stays clean.
+        // 2026-07-20 · vapiCallId is REQUIRED for real idempotency. The
+        // orchestrator only builds a stable key (`..._call_<id>`) when
+        // event.vapiCallId is present (smsOrchestrator.ts) — omit it and the
+        // key falls through to a Date.now()+Math.random() value that is unique
+        // by construction, so the idempotency check can never match and is a
+        // silent no-op. Dedupe then rests entirely on the 24h phone cooldown.
+        // Passing the id restores the guard the call site always implied.
+        // 2026-07-20 · operator off-switch. Read the pause flag BEFORE deciding;
+        // a flag-read failure resolves to `false` (= not paused), so a DB blip
+        // keeps today's behaviour rather than silently muting the path.
+        let followupPaused = false;
+        try {
+          const { isEnabled } = await import("../../services/featureFlags");
+          followupPaused = await isEnabled("vapi_forward_followup_paused");
+        } catch (flagErr) {
+          log.warn("[vapi webhook] pause-flag read failed — treating as NOT paused", {
+            error: flagErr instanceof Error ? flagErr.message : String(flagErr),
+          });
+        }
+
+        // Narrow the number ONCE and pass the same value to both the decision
+        // and the send. Reaching back for `customer!.number` after the predicate
+        // returned true would re-assert a fact the compiler can't follow across
+        // the call boundary — a non-null assertion there would silence the
+        // checker rather than satisfy it.
+        const followupPhone = customer?.number?.trim() ?? "";
+
+        if (shouldSendForwardedFollowup({
+          firstLog,
+          endedReason: cleanEndedReason,
+          customerNumber: followupPhone,
+          paused: followupPaused,
+        })) {
+          const { orchestrateSms } = await import("../../services/smsOrchestrator");
+          await orchestrateSms({
+            type: "vapi_forwarded_call_followup",
+            phone: followupPhone,
+            vapiCallId: event.call?.id,
+          }).catch((err: unknown) => {
+            log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        } else if (followupPaused && isForwardedEndedReason(cleanEndedReason)) {
+          log.info("[vapi webhook] forwarded-call SMS suppressed — vapi_forward_followup_paused is ON");
+        }
+      }
+    }
+  } catch (persistErr) {
+    log.warn("[vapi webhook] call-end persist failed (non-blocking)", {
+      error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+    });
+  }
+  // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+  // Record `ended` on call-end with reason metadata so the active-
+  // calls view can drop this call out of the in-flight list.
+  const endCallId = event.call?.id;
+  const endAssistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+  if (endCallId) {
+    import("../../services/voice-call-state").then(({ recordCallState }) =>
+      recordCallState({
+        callId: endCallId,
+        assistantId: endAssistantId,
+        state: "ended",
+        metadata: { reason: cleanEndedReason, eventType: event.type },
+      })
+    ).catch(() => { /* intentionally swallowed */ });
+  }
+
+  // wave-181.87 · dispatch outbound call.ended to confirmation_calls
+  // OR alg_estimates voice_recovery_call_id by callId lookup. Same
+  // pattern as the dropped AgentPhone webhook (wave-181.85) · this
+  // handler now serves BOTH inbound flows (above) AND outbound
+  // confirmation + recovery flows via the wave-181.87 VAPI
+  // placeOutboundCall path.
+  if (endCallId) {
+    try {
+      const { getDb } = await import("../../db");
+      const { confirmationCalls, algEstimates } = await import("../../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        // wave-fix-2026-05-25 (audit #106) · same artifact-first
+        // fallback as the service-mention path · without this,
+        // confirmation-call evaluation runs on empty transcript
+        // and undercounts every converted call by ~10 eval-score
+        // points.
+        const transcriptText = ((event as { artifact?: { transcript?: string }; transcript?: string }).artifact?.transcript ?? (event as { transcript?: string }).transcript ?? "")
+          + " " + ((event as { summary?: string; analysis?: { summary?: string } }).summary
+            ?? (event as { analysis?: { summary?: string } }).analysis?.summary
+            ?? "");
+        const lower = transcriptText.toLowerCase();
+        const snippet = transcriptText.slice(0, 500);
+
+        // Classification · same regex pattern as the dropped
+        // agentphone classifyTranscript helper.
+        let confirmStatus: "confirmed" | "rescheduled" | "no_answer" = "no_answer";
+        let rescheduleRequest: string | null = null;
+        if (transcriptText.trim().length > 0) {
+          if (/\b(reschedule|move it|change the time|different day|can we do|push it|next week|earlier|later in the day|cancel)\b/i.test(lower)) {
+            confirmStatus = "rescheduled";
+            const sentences = lower.split(/[.!?]/);
+            const rs = sentences.find((s) => /\b(reschedule|move|change|different day|push|earlier|later)\b/i.test(s));
+            rescheduleRequest = (rs || "").trim().slice(0, 200) || null;
+          } else if (/\b(yes|yeah|yep|confirm|still on|see you|i.?ll be there|sounds good|works for me|all set)\b/i.test(lower)) {
+            confirmStatus = "confirmed";
+          } else {
+            // forensic-audit MEDIUM · was "ambiguous content → confirmed",
+            // so a voicemail/no-answer call where only the AI spoke was
+            // recorded as a confirmed appointment and the operator never
+            // followed up. Default to no_answer — a false follow-up is far
+            // cheaper than a missed no-show.
+            confirmStatus = "no_answer";
+          }
+        } else {
+          confirmStatus = "no_answer";
+        }
+
+        // Try 1 · confirmation_calls
+        const [confRow] = await db
+          .select()
+          .from(confirmationCalls)
+          .where(eq(confirmationCalls.agentphoneCallId, endCallId))
+          .limit(1);
+
+        if (confRow) {
+          await db
+            .update(confirmationCalls)
+            .set({
+              status: confirmStatus,
+              transcriptSnippet: snippet,
+              rescheduleRequest,
+              completedAt: new Date(),
+            })
+            .where(eq(confirmationCalls.id, confRow.id));
+          log.info(`[vapi outbound] confirmation_calls #${confRow.id} → ${confirmStatus}`, {
+            callId: String(endCallId).slice(0, 16),
+          });
+        } else {
+          // Try 2 · alg_estimates voice_recovery
+          const [estRow] = await db
+            .select({ id: algEstimates.id })
+            .from(algEstimates)
+            .where(eq(algEstimates.voiceRecoveryCallId, endCallId))
+            .limit(1);
+          if (estRow) {
+            // Map confirmation classification → recovery enum
+            const recoveryOutcome: "interested" | "not_interested" | "no_answer" =
+              confirmStatus === "no_answer" ? "no_answer" :
+              // For recovery · check for explicit not-interested signals
+              /\b(not interested|no thanks|already|fixed it|sold the car|don't need|not now)\b/i.test(lower) ? "not_interested" :
+              "interested";
+            await db
+              .update(algEstimates)
+              .set({ voiceRecoveryOutcome: recoveryOutcome })
+              .where(eq(algEstimates.id, estRow.id));
+            log.info(`[vapi outbound] alg_estimates #${estRow.id} voice_recovery → ${recoveryOutcome}`, {
+              callId: String(endCallId).slice(0, 16),
+            });
+          }
+          // No match in either table · inbound call · already handled above
+        }
+      }
+    } catch (dispatchErr) {
+      log.warn("[vapi outbound] dispatch failed (non-blocking)", {
+        error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+      });
+    }
+  }
+
+  // ─── Trust ladder (Phase 6): actionable call → DRAFT proposals ──────────
+  // Flag-gated (vapi_action_proposals, OFF by default — also the 0111
+  // deploy-order guard). Creates DRAFTS in the approval queue only; nothing
+  // executes without a human tap. Deliberately LAST and try/caught: the
+  // call-log write, claim guard and outbound dispatch above must be complete
+  // and unaffected whether this succeeds, fails, or is disabled.
+  try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    if (await isEnabled("vapi_action_proposals")) {
+      const callId = event.call?.id;
+      if (callId) {
+        const { maybeProposeCallActions } = await import("../../services/vapiActionExtraction");
+        const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
+        const transcript =
+          (event as { artifact?: { transcript?: string } }).artifact?.transcript ??
+          (event as { transcript?: string })?.transcript ??
+          "";
+        const summary =
+          (event as { summary?: string; analysis?: { summary?: string } })?.summary ??
+          (event as { analysis?: { summary?: string } })?.analysis?.summary ??
+          null;
+        await maybeProposeCallActions({
+          callId,
+          transcript: typeof transcript === "string" ? transcript : "",
+          summary,
+          customerName: customer?.name ?? null,
+          customerPhone: customer?.number ?? null,
+          durationSeconds: extractCallDurationSec(event),
+          endedReason: cleanEndedReason,
+          // Direction gate: our own outbound confirmation / recovery calls must
+          // not produce drafts for work that already exists.
+          callType: (event.call as { type?: string })?.type ?? null,
+        });
+      }
+    }
+  } catch (proposalErr) {
+    log.warn("[vapi proposals] extraction pass failed (non-blocking)", {
+      error: proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
+    });
+  }
+}
+
+// ─── Main webhook endpoint ─────────────────────────────
+
+router.post("/vapi", async (req: Request, res: Response) => {
+  if (!verifyVapiSignature(req)) {
+    log.warn("Invalid Vapi signature");
+    res.status(401).json({ error: "Invalid signature" });
+    return;
+  }
+
+  const body = req.body as { message: VapiWebhookMessage };
+
+  const event = body?.message;
+  if (!event?.type) {
+    res.status(400).json({ error: "Missing message.type" });
+    return;
+  }
+
+  try {
+    switch (event.type) {
+      case "function-call":
+      case "tool-calls": {
+        // wave-181.4 · capture LLM→tool→ack round-trip latency so the
+        // /api/admin/voice-latency observability tile can surface it.
+        // Anchored at handler entry; the actual write happens AFTER
+        // results assemble so a telemetry bug can't break the response.
+        const webhookReceivedAt = Date.now();
+        // Multiple tool calls arrive in one webhook. Run in parallel.
+        // wave-116 — was Promise.all; a single rejection caused the
+        // webhook to 500, prompting VAPI to retry the WHOLE batch and
+        // potentially double-execute already-succeeded tools (e.g.
+        // scheduleDropoff fired twice). allSettled isolates per-call
+        // outcomes so the webhook always 200s with a per-tool result.
+        const calls = event.toolCalls || [];
+        const dialled = (event.call as { customer?: { number?: string } } | undefined)?.customer?.number;
+        const callType = (event.call as { type?: string } | undefined)?.type;
+        const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id, dialled, callType)));
+        const results = settled.map((s, i) => {
+          if (s.status === "fulfilled") return s.value;
+          const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
+          log.error("Tool call rejected", {
+            toolCallId: calls[i]?.id,
+            functionName: calls[i]?.function?.name,
+            error: err,
+          });
+          return {
+            toolCallId: calls[i]?.id,
+            result: JSON.stringify({ error: "Tool execution failed", details: err }),
+          };
+        });
+        res.json({ results });
+
+        // Fire-and-forget latency capture · service swallows all errors
+        // so a missing migration or transient DB issue never breaks the
+        // webhook response above.
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-latency").then(({ captureVoiceLatency }) =>
+            captureVoiceLatency({
+              callId,
+              assistantId: assistantId ?? "unknown",
+              stage: "llm_first_token",
+              latencyMs: Date.now() - webhookReceivedAt,
+              metadata: { source: "vapi-webhook", toolCalls: calls.length },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+
+          // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+          // Classify each tool call into a state transition (read tool =
+          // intent_captured · write tool = tool_called · confirmation
+          // tool = confirmed). Append-only · multiple events per call
+          // are correct (the trail tells you the agent re-engaged after
+          // a tool call). Fire-and-forget · NEVER blocks webhook.
+          Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/tireDemand"),
+          ]).then(([{ classifyToolToState, recordCallState }, { toolCallStateMetadata }]) => {
+            for (const c of calls) {
+              const state = classifyToolToState(c.function?.name ?? "");
+              if (state) {
+                void recordCallState({
+                  callId,
+                  assistantId,
+                  state,
+                  // A tireInquiry also records what the caller asked for (size,
+                  // new/used; never name or phone) for Today's "Asked by phone".
+                  metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
+                });
+              }
+            }
+          }).catch(() => { /* intentionally swallowed */ });
+        }
+        return;
+      }
+
+      case "call-start": {
+        // Legacy/explicit call-start event. Current Vapi server-message defaults
+        // use status-update and mark the true start as status=in-progress.
+        log.info("Vapi call started", { callId: event.call?.id, source: "call-start" });
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-call-state").then(({ recordCallState }) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "greeted",
+              metadata: { eventType: event.type },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "status-update": {
+        // Vapi emits scheduled/queued/ringing/in-progress/forwarding/ended.
+        // Only in-progress means the conversation actually started. The old
+        // combined branch stamped every status as "greeted", producing several
+        // fake starts for one call in production.
+        const status = event.status ?? "unknown";
+        log.info("Vapi status update", { callId: event.call?.id, status });
+        if (status === "in-progress") {
+          const callId = event.call?.id;
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          if (callId) {
+            import("../../services/voice-call-state").then(({ recordCallState }) =>
+              recordCallState({
+                callId,
+                assistantId,
+                state: "greeted",
+                metadata: { eventType: event.type, status },
+              })
+            ).catch(() => { /* intentionally swallowed */ });
+          }
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "speech-update": {
+        // Normal Vapi lifecycle telemetry (started/stopped speaking). We do not
+        // persist it yet; explicitly acknowledge it so production logs do not
+        // mislabel supported provider traffic as an unknown event.
+        res.json({ ack: true });
+        return;
+      }
+
+      // Vapi fires this when the assistant STARTS a transfer. It carries no
+      // outcome (that arrives in the end-of-call artifact, when Vapi sends
+      // one); it is the proof an attempt happened. Until 2026-09-23 it was
+      // subscribed but fell to the default branch, so an attempt whose call
+      // then ended some other way left no trace. Ack first, record detached;
+      // the destination's kind only, never its number.
+      case "transfer-update": {
+        res.json({ ack: true });
+        const callId = event.call?.id;
+        if (callId) {
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          void Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/transferArtifact"),
+          ]).then(([{ recordCallState }, { transferUpdateMetadata }]) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "transfer_attempted",
+              metadata: transferUpdateMetadata(event),
+            }),
+          ).catch(() => { /* intentionally swallowed: telemetry never breaks a live call */ });
+        }
+        return;
+      }
+
+      case "end-of-call-report":
+      case "call-end": {
+        // wave-137 · read the CLEAN reason from message-level (see
+        // extractEndedReason). call.endedReason is null/SIP-transient on the
+        // webhook. Computed once, reused for the row insert + state metadata.
+        const cleanEndedReason = extractEndedReason(event);
+        log.info("Vapi call ended", {
+          callId: event.call?.id,
+          reason: cleanEndedReason,
+        });
+        // Q-45: do-not-call is the one compliance write that MUST be durable
+        // before acknowledgement. If it fails, return non-2xx so Vapi can
+        // retry the webhook. All noncritical post-call work stays detached.
+        try {
+          await persistTranscriptDoNotCallBeforeAck(event);
+        } catch (dncErr) {
+          log.error("[vapi webhook] do-not-call persistence failed before ack", {
+            callId: event.call?.id,
+            error: dncErr instanceof Error ? dncErr.message : String(dncErr),
+            errorId: "VAPI_DNC_PREACK_FAILED",
+          });
+          res.status(503).json({ error: "Do-not-call persistence failed; retry webhook" });
+          return;
+        }
+
+        res.json({ ack: true });
+        // F5 · tracked so a SIGTERM drain waits for it (the 200 is already sent).
+        void trackDetached("vapi:end-of-call", processCallEndReport(event, cleanEndedReason)).catch((err) => {
+          log.warn("[vapi webhook] detached post-call processing failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+        return;
+      }
+
+      case "transcript":
+        // Real-time transcript updates — log in dev, ignore in prod
+        if (process.env.NODE_ENV !== "production") {
+          log.info("Vapi transcript chunk", { len: event.transcript?.length });
+        }
+        res.json({ ack: true });
+        return;
+
+      // wave-181.63 · Phase 6 · cross-call memory hydration.
+      // wave-181.x · Tier S · BDI upgrade (declined-recovery opener).
+      // VAPI fires `assistant-request` BEFORE the call connects. The
+      // response shape is `{ assistantOverrides?: {...} }` which VAPI
+      // merges with the assistant's configured fields for THIS call
+      // only (no PATCH to the global assistant). The BDI composer
+      // (vapi-bdi.ts) looks up the caller AND any unconverted estimate
+      // and opens the call with the recovery hook when one is on file.
+      // Unknown callers fall through to the default first message ·
+      // backward compatible with the wave-181.63 personalization path.
+      case "assistant-request": {
+        const customer = (event.call as { customer?: { number?: string } } | undefined)?.customer;
+        const phone = customer?.number?.trim();
+        if (!phone) {
+          // No phone in the request · can't personalize · fall through
+          // to default assistant.
+          res.json({});
+          return;
+        }
+        try {
+          const { buildBdiFirstMessage } = await import(
+            "../../services/vapi-bdi"
+          );
+          const result = await buildBdiFirstMessage(phone);
+          log.info("assistant-request bdi", {
+            phoneSuffix: phone.replace(/\D/g, "").slice(-4),
+            matched: result.matched,
+            kind: result.kind,
+            reason: result.reason,
+          });
+          if (result.firstMessage) {
+            res.json({
+              assistantOverrides: { firstMessage: result.firstMessage },
+            });
+            return;
+          }
+        } catch (err) {
+          log.warn("assistant-request bdi threw", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Default · use assistant's configured first message.
+        res.json({});
+        return;
+      }
+
+      default:
+        log.info("Vapi unknown event type", { type: event.type });
+        res.json({ ack: true });
+        return;
+    }
+  } catch (err) {
+    log.error("Vapi webhook handler threw", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
+
+export { router as vapiWebhookRouter };
+)
+            )
+            WHERE vapiCallId = ${String(callId)}
+          `);
+        } catch (behaviorErr) {
+          log.warn("[vapi webhook] behavior fingerprint persist failed (analytics only)", {
+            error: behaviorErr instanceof Error ? behaviorErr.message : String(behaviorErr),
+          });
+        }
+
+        // ─── Persist CUSTOMER-only speech (2026-07-26 demand audit) ─────────
+        // The full transcript has been in hand here since wave-fix-2026-05-25,
+        // used for a keyword scan and then dropped. Meanwhile `transcriptUrl`
+        // is populated on 0 of 2,095 rows — VAPI never sets it — so nothing
+        // durable held what callers actually said, and every demand signal was
+        // assistant-contaminated: `serviceMention` is binary (tire|brake) and
+        // `aiSummary` is written by a tire-first assistant. The ~60% used-tire
+        // figure the whole prompt is built around could not be checked.
+        //
+        // Stores the CUSTOMER's turns only — never assistant speech, never the
+        // full transcript — capped and truncated. JSON_SET merges into whatever
+        // `metadata` already holds (intents, agenticAudit), so write order with
+        // the later enrichment updates does not matter. Uses the existing JSON
+        // column deliberately: no migration means no hand-applied DDL to forget
+        // (ROS-059). Fail-open — a demand-analytics write must never affect the
+        // webhook's 200.
+        try {
+          const { buildCustomerSpeechRecord, extractCustomerTurnsFromMessages, CUSTOMER_SPEECH_VERSION } =
+            await import("../../services/customerTurns");
+          // Prefer VAPI's role-tagged `artifact.messages` — authoritative at the
+          // source, so no speaker-prefix guessing and no formatting change can
+          // misattribute assistant speech as customer demand. The flat
+          // transcript is the fallback for calls that lack the array.
+          const artifactMsgs = (event as { artifact?: { messages?: unknown } }).artifact?.messages;
+          let speech: ReturnType<typeof buildCustomerSpeechRecord> = null;
+          if (Array.isArray(artifactMsgs) && artifactMsgs.length) {
+            const parsed = extractCustomerTurnsFromMessages(artifactMsgs);
+            if (parsed.turns.length || parsed.unparsed) {
+              speech = {
+                v: CUSTOMER_SPEECH_VERSION,
+                turns: parsed.turns,
+                turnCount: parsed.totalCustomerTurns,
+                first: parsed.firstSubstantive,
+                unparsed: parsed.unparsed,
+              };
+            }
+          } else {
+            speech = buildCustomerSpeechRecord(transcript);
+          }
+          if (speech) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.customerSpeech', CAST(${JSON.stringify(speech)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+          }
+        } catch (speechErr) {
+          log.warn("[vapi webhook] customer-speech persist failed (analytics only)", {
+            error: speechErr instanceof Error ? speechErr.message : String(speechErr),
+          });
+        }
+
+        // TRANSFER ARTIFACT · the only signal that can prove a human ANSWERED.
+        //
+        // Every transfer metric in this app has been built on
+        // `endedReason === "assistant-forwarded-call"`, which VAPI's own docs
+        // say confirms the transfer was INITIATED, not completed — their
+        // troubleshooting page sends you to the provider's call log for the
+        // outcome. So a call that rang an empty counter and dropped to
+        // voicemail has scored identically to one Nick answered on the second
+        // ring, and no connect-rate built on it could ever emit a failure for
+        // the one case it exists to detect.
+        //
+        // `artifact.transfers[]` carries a real per-attempt status. VAPI
+        // describes blind-transfer outcome detection as enabled PER
+        // ORGANISATION, so whether this account receives it is an empirical
+        // question — which is exactly why `artifactPresent` is persisted
+        // separately from the verdict. That flag is the live answer, read from
+        // production rather than assumed from documentation.
+        //
+        // Separate try on purpose, same as customerSpeech above: one analytics
+        // write failing must not take the other down, and neither may affect
+        // the webhook's 200.
+        try {
+          const { readTransferArtifact, transferArtifactWorthPersisting, sawTransferUpdate } = await import("../../lib/transferArtifact");
+          const read = readTransferArtifact((event as { artifact?: unknown }).artifact);
+          // The live `transfer-update` witness (recorded below in the router).
+          // It catches the attempt the ended reason hides: a caller who hangs
+          // up while the shop line rings ends "customer-ended-call".
+          const { getCallStateHistory } = await import("../../services/voice-call-state");
+          const transferUpdateSeen = sawTransferUpdate(await getCallStateHistory(String(callId)));
+          // Write only when there is something to say: a per-attempt record, or
+          // an ended reason proving a transfer was ATTEMPTED. A call that never
+          // tried to hand off gets no verdict at all — the old test here was
+          // `artifactPresent || transfers.length`, and artifactPresent is true
+          // whenever Vapi sends a transfers ARRAY — which it does, empty, on
+          // calls that never transferred — which is how 20 of 31 calls came to
+          // carry "unknown" for a transfer that never happened.
+          if (transferArtifactWorthPersisting(read, cleanEndedReason, transferUpdateSeen)) {
+            const { sql } = await import("drizzle-orm");
+            const stored = { ...read, transferUpdateSeen };
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.transferArtifact', CAST(${JSON.stringify(stored)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (read.unrecognisedStatuses.length) {
+              // A status VAPI added that this app does not model. Loud, because
+              // silently bucketing it as unknown would hide a real drift.
+              log.warn("[vapi webhook] unmodelled transfer status from VAPI", {
+                statuses: read.unrecognisedStatuses,
+              });
+            }
+          }
+        } catch (transferErr) {
+          log.warn("[vapi webhook] transfer-artifact persist failed (analytics only)", {
+            error: transferErr instanceof Error ? transferErr.message : String(transferErr),
+          });
+        }
+
+        // VOICE CLAIM GUARD · the assistant side of the same artifact.
+        //
+        // SMS drafts are gated before send by `planViolations`; voice had no
+        // equivalent, so the prompt's truth rules (no repair quotes, no live
+        // stock, no capacity or wait promises) were enforced by prose alone.
+        // Vapi streams to TTS with no pre-speech hook, so this cannot block —
+        // it DETECTS, which is what makes drift visible and what makes the
+        // prompt-compression work measurable.
+        //
+        // Separate try from customerSpeech on purpose: one analytics write
+        // failing must not take the other down, and neither may affect the 200.
+        try {
+          const { buildVoiceClaimRecord } = await import("../../services/voiceClaimGuard");
+          const claims = buildVoiceClaimRecord({
+            transcript,
+            messages: (event as { artifact?: { messages?: unknown } }).artifact?.messages,
+          });
+          if (claims) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.voiceClaims', CAST(${JSON.stringify(claims)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (claims.violations.length) {
+              // Labels only — never the utterance. The transcript stays in the
+              // column it arrived in; logs must not become a second PII surface.
+              log.warn("[vapi webhook] voice claim violation", {
+                callId: String(callId),
+                violations: claims.violations,
+              });
+            }
+          }
+        } catch (claimErr) {
+          log.warn("[vapi webhook] voice-claim persist failed (analytics only)", {
+            error: claimErr instanceof Error ? claimErr.message : String(claimErr),
+          });
+        }
+
+        // wave-144 · forwarded-call safety net. A during-hours
+        // transferCall hands the caller to the shop line; if nobody
+        // picks up (tech mid-bay), that hot caller is lost with NO
+        // follow-up surface — forwards only showed up as a Voice-page
+        // chart bar. On the first end-of-call insert only, drop a row
+        // into the front-desk callback queue so every forwarded caller
+        // is accounted for. This is an INTERNAL queue entry, not an
+        // outbound customer message — worst case is a row the operator
+        // clears in one tap; the win is no forwarded caller falls
+        // through. endedReason "assistant-forwarded-call" → /forward/i.
+        // 2026-05-31 · forwarded-call follow-up flipped from an internal
+        // callback to-do (it flooded the Today queue with "Call back Voice
+        // caller" rows) to a self-serve SMS back to the caller. The caller
+        // re-engages on their terms; the operator's callback queue stays clean.
+        // 2026-07-20 · vapiCallId is REQUIRED for real idempotency. The
+        // orchestrator only builds a stable key (`..._call_<id>`) when
+        // event.vapiCallId is present (smsOrchestrator.ts) — omit it and the
+        // key falls through to a Date.now()+Math.random() value that is unique
+        // by construction, so the idempotency check can never match and is a
+        // silent no-op. Dedupe then rests entirely on the 24h phone cooldown.
+        // Passing the id restores the guard the call site always implied.
+        // 2026-07-20 · operator off-switch. Read the pause flag BEFORE deciding;
+        // a flag-read failure resolves to `false` (= not paused), so a DB blip
+        // keeps today's behaviour rather than silently muting the path.
+        let followupPaused = false;
+        try {
+          const { isEnabled } = await import("../../services/featureFlags");
+          followupPaused = await isEnabled("vapi_forward_followup_paused");
+        } catch (flagErr) {
+          log.warn("[vapi webhook] pause-flag read failed — treating as NOT paused", {
+            error: flagErr instanceof Error ? flagErr.message : String(flagErr),
+          });
+        }
+
+        // Narrow the number ONCE and pass the same value to both the decision
+        // and the send. Reaching back for `customer!.number` after the predicate
+        // returned true would re-assert a fact the compiler can't follow across
+        // the call boundary — a non-null assertion there would silence the
+        // checker rather than satisfy it.
+        const followupPhone = customer?.number?.trim() ?? "";
+
+        if (shouldSendForwardedFollowup({
+          firstLog,
+          endedReason: cleanEndedReason,
+          customerNumber: followupPhone,
+          paused: followupPaused,
+        })) {
+          const { orchestrateSms } = await import("../../services/smsOrchestrator");
+          await orchestrateSms({
+            type: "vapi_forwarded_call_followup",
+            phone: followupPhone,
+            vapiCallId: event.call?.id,
+          }).catch((err: unknown) => {
+            log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        } else if (followupPaused && isForwardedEndedReason(cleanEndedReason)) {
+          log.info("[vapi webhook] forwarded-call SMS suppressed — vapi_forward_followup_paused is ON");
+        }
+      }
+    }
+  } catch (persistErr) {
+    log.warn("[vapi webhook] call-end persist failed (non-blocking)", {
+      error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+    });
+  }
+  // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+  // Record `ended` on call-end with reason metadata so the active-
+  // calls view can drop this call out of the in-flight list.
+  const endCallId = event.call?.id;
+  const endAssistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+  if (endCallId) {
+    import("../../services/voice-call-state").then(({ recordCallState }) =>
+      recordCallState({
+        callId: endCallId,
+        assistantId: endAssistantId,
+        state: "ended",
+        metadata: { reason: cleanEndedReason, eventType: event.type },
+      })
+    ).catch(() => { /* intentionally swallowed */ });
+  }
+
+  // wave-181.87 · dispatch outbound call.ended to confirmation_calls
+  // OR alg_estimates voice_recovery_call_id by callId lookup. Same
+  // pattern as the dropped AgentPhone webhook (wave-181.85) · this
+  // handler now serves BOTH inbound flows (above) AND outbound
+  // confirmation + recovery flows via the wave-181.87 VAPI
+  // placeOutboundCall path.
+  if (endCallId) {
+    try {
+      const { getDb } = await import("../../db");
+      const { confirmationCalls, algEstimates } = await import("../../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        // wave-fix-2026-05-25 (audit #106) · same artifact-first
+        // fallback as the service-mention path · without this,
+        // confirmation-call evaluation runs on empty transcript
+        // and undercounts every converted call by ~10 eval-score
+        // points.
+        const transcriptText = ((event as { artifact?: { transcript?: string }; transcript?: string }).artifact?.transcript ?? (event as { transcript?: string }).transcript ?? "")
+          + " " + ((event as { summary?: string; analysis?: { summary?: string } }).summary
+            ?? (event as { analysis?: { summary?: string } }).analysis?.summary
+            ?? "");
+        const lower = transcriptText.toLowerCase();
+        const snippet = transcriptText.slice(0, 500);
+
+        // Classification · same regex pattern as the dropped
+        // agentphone classifyTranscript helper.
+        let confirmStatus: "confirmed" | "rescheduled" | "no_answer" = "no_answer";
+        let rescheduleRequest: string | null = null;
+        if (transcriptText.trim().length > 0) {
+          if (/\b(reschedule|move it|change the time|different day|can we do|push it|next week|earlier|later in the day|cancel)\b/i.test(lower)) {
+            confirmStatus = "rescheduled";
+            const sentences = lower.split(/[.!?]/);
+            const rs = sentences.find((s) => /\b(reschedule|move|change|different day|push|earlier|later)\b/i.test(s));
+            rescheduleRequest = (rs || "").trim().slice(0, 200) || null;
+          } else if (/\b(yes|yeah|yep|confirm|still on|see you|i.?ll be there|sounds good|works for me|all set)\b/i.test(lower)) {
+            confirmStatus = "confirmed";
+          } else {
+            // forensic-audit MEDIUM · was "ambiguous content → confirmed",
+            // so a voicemail/no-answer call where only the AI spoke was
+            // recorded as a confirmed appointment and the operator never
+            // followed up. Default to no_answer — a false follow-up is far
+            // cheaper than a missed no-show.
+            confirmStatus = "no_answer";
+          }
+        } else {
+          confirmStatus = "no_answer";
+        }
+
+        // Try 1 · confirmation_calls
+        const [confRow] = await db
+          .select()
+          .from(confirmationCalls)
+          .where(eq(confirmationCalls.agentphoneCallId, endCallId))
+          .limit(1);
+
+        if (confRow) {
+          await db
+            .update(confirmationCalls)
+            .set({
+              status: confirmStatus,
+              transcriptSnippet: snippet,
+              rescheduleRequest,
+              completedAt: new Date(),
+            })
+            .where(eq(confirmationCalls.id, confRow.id));
+          log.info(`[vapi outbound] confirmation_calls #${confRow.id} → ${confirmStatus}`, {
+            callId: String(endCallId).slice(0, 16),
+          });
+        } else {
+          // Try 2 · alg_estimates voice_recovery
+          const [estRow] = await db
+            .select({ id: algEstimates.id })
+            .from(algEstimates)
+            .where(eq(algEstimates.voiceRecoveryCallId, endCallId))
+            .limit(1);
+          if (estRow) {
+            // Map confirmation classification → recovery enum
+            const recoveryOutcome: "interested" | "not_interested" | "no_answer" =
+              confirmStatus === "no_answer" ? "no_answer" :
+              // For recovery · check for explicit not-interested signals
+              /\b(not interested|no thanks|already|fixed it|sold the car|don't need|not now)\b/i.test(lower) ? "not_interested" :
+              "interested";
+            await db
+              .update(algEstimates)
+              .set({ voiceRecoveryOutcome: recoveryOutcome })
+              .where(eq(algEstimates.id, estRow.id));
+            log.info(`[vapi outbound] alg_estimates #${estRow.id} voice_recovery → ${recoveryOutcome}`, {
+              callId: String(endCallId).slice(0, 16),
+            });
+          }
+          // No match in either table · inbound call · already handled above
+        }
+      }
+    } catch (dispatchErr) {
+      log.warn("[vapi outbound] dispatch failed (non-blocking)", {
+        error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+      });
+    }
+  }
+
+  // ─── Trust ladder (Phase 6): actionable call → DRAFT proposals ──────────
+  // Flag-gated (vapi_action_proposals, OFF by default — also the 0111
+  // deploy-order guard). Creates DRAFTS in the approval queue only; nothing
+  // executes without a human tap. Deliberately LAST and try/caught: the
+  // call-log write, claim guard and outbound dispatch above must be complete
+  // and unaffected whether this succeeds, fails, or is disabled.
+  try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    if (await isEnabled("vapi_action_proposals")) {
+      const callId = event.call?.id;
+      if (callId) {
+        const { maybeProposeCallActions } = await import("../../services/vapiActionExtraction");
+        const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
+        const transcript =
+          (event as { artifact?: { transcript?: string } }).artifact?.transcript ??
+          (event as { transcript?: string })?.transcript ??
+          "";
+        const summary =
+          (event as { summary?: string; analysis?: { summary?: string } })?.summary ??
+          (event as { analysis?: { summary?: string } })?.analysis?.summary ??
+          null;
+        await maybeProposeCallActions({
+          callId,
+          transcript: typeof transcript === "string" ? transcript : "",
+          summary,
+          customerName: customer?.name ?? null,
+          customerPhone: customer?.number ?? null,
+          durationSeconds: extractCallDurationSec(event),
+          endedReason: cleanEndedReason,
+          // Direction gate: our own outbound confirmation / recovery calls must
+          // not produce drafts for work that already exists.
+          callType: (event.call as { type?: string })?.type ?? null,
+        });
+      }
+    }
+  } catch (proposalErr) {
+    log.warn("[vapi proposals] extraction pass failed (non-blocking)", {
+      error: proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
+    });
+  }
+}
+
+// ─── Main webhook endpoint ─────────────────────────────
+
+router.post("/vapi", async (req: Request, res: Response) => {
+  if (!verifyVapiSignature(req)) {
+    log.warn("Invalid Vapi signature");
+    res.status(401).json({ error: "Invalid signature" });
+    return;
+  }
+
+  const body = req.body as { message: VapiWebhookMessage };
+
+  const event = body?.message;
+  if (!event?.type) {
+    res.status(400).json({ error: "Missing message.type" });
+    return;
+  }
+
+  try {
+    switch (event.type) {
+      case "function-call":
+      case "tool-calls": {
+        // wave-181.4 · capture LLM→tool→ack round-trip latency so the
+        // /api/admin/voice-latency observability tile can surface it.
+        // Anchored at handler entry; the actual write happens AFTER
+        // results assemble so a telemetry bug can't break the response.
+        const webhookReceivedAt = Date.now();
+        // Multiple tool calls arrive in one webhook. Run in parallel.
+        // wave-116 — was Promise.all; a single rejection caused the
+        // webhook to 500, prompting VAPI to retry the WHOLE batch and
+        // potentially double-execute already-succeeded tools (e.g.
+        // scheduleDropoff fired twice). allSettled isolates per-call
+        // outcomes so the webhook always 200s with a per-tool result.
+        const calls = event.toolCalls || [];
+        const dialled = (event.call as { customer?: { number?: string } } | undefined)?.customer?.number;
+        const callType = (event.call as { type?: string } | undefined)?.type;
+        const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id, dialled, callType)));
+        const results = settled.map((s, i) => {
+          if (s.status === "fulfilled") return s.value;
+          const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
+          log.error("Tool call rejected", {
+            toolCallId: calls[i]?.id,
+            functionName: calls[i]?.function?.name,
+            error: err,
+          });
+          return {
+            toolCallId: calls[i]?.id,
+            result: JSON.stringify({ error: "Tool execution failed", details: err }),
+          };
+        });
+        res.json({ results });
+
+        // Fire-and-forget latency capture · service swallows all errors
+        // so a missing migration or transient DB issue never breaks the
+        // webhook response above.
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-latency").then(({ captureVoiceLatency }) =>
+            captureVoiceLatency({
+              callId,
+              assistantId: assistantId ?? "unknown",
+              stage: "llm_first_token",
+              latencyMs: Date.now() - webhookReceivedAt,
+              metadata: { source: "vapi-webhook", toolCalls: calls.length },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+
+          // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+          // Classify each tool call into a state transition (read tool =
+          // intent_captured · write tool = tool_called · confirmation
+          // tool = confirmed). Append-only · multiple events per call
+          // are correct (the trail tells you the agent re-engaged after
+          // a tool call). Fire-and-forget · NEVER blocks webhook.
+          Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/tireDemand"),
+          ]).then(([{ classifyToolToState, recordCallState }, { toolCallStateMetadata }]) => {
+            for (const c of calls) {
+              const state = classifyToolToState(c.function?.name ?? "");
+              if (state) {
+                void recordCallState({
+                  callId,
+                  assistantId,
+                  state,
+                  // A tireInquiry also records what the caller asked for (size,
+                  // new/used; never name or phone) for Today's "Asked by phone".
+                  metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
+                });
+              }
+            }
+          }).catch(() => { /* intentionally swallowed */ });
+        }
+        return;
+      }
+
+      case "call-start": {
+        // Legacy/explicit call-start event. Current Vapi server-message defaults
+        // use status-update and mark the true start as status=in-progress.
+        log.info("Vapi call started", { callId: event.call?.id, source: "call-start" });
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-call-state").then(({ recordCallState }) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "greeted",
+              metadata: { eventType: event.type },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "status-update": {
+        // Vapi emits scheduled/queued/ringing/in-progress/forwarding/ended.
+        // Only in-progress means the conversation actually started. The old
+        // combined branch stamped every status as "greeted", producing several
+        // fake starts for one call in production.
+        const status = event.status ?? "unknown";
+        log.info("Vapi status update", { callId: event.call?.id, status });
+        if (status === "in-progress") {
+          const callId = event.call?.id;
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          if (callId) {
+            import("../../services/voice-call-state").then(({ recordCallState }) =>
+              recordCallState({
+                callId,
+                assistantId,
+                state: "greeted",
+                metadata: { eventType: event.type, status },
+              })
+            ).catch(() => { /* intentionally swallowed */ });
+          }
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "speech-update": {
+        // Normal Vapi lifecycle telemetry (started/stopped speaking). We do not
+        // persist it yet; explicitly acknowledge it so production logs do not
+        // mislabel supported provider traffic as an unknown event.
+        res.json({ ack: true });
+        return;
+      }
+
+      // Vapi fires this when the assistant STARTS a transfer. It carries no
+      // outcome (that arrives in the end-of-call artifact, when Vapi sends
+      // one); it is the proof an attempt happened. Until 2026-09-23 it was
+      // subscribed but fell to the default branch, so an attempt whose call
+      // then ended some other way left no trace. Ack first, record detached;
+      // the destination's kind only, never its number.
+      case "transfer-update": {
+        res.json({ ack: true });
+        const callId = event.call?.id;
+        if (callId) {
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          void Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/transferArtifact"),
+          ]).then(([{ recordCallState }, { transferUpdateMetadata }]) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "transfer_attempted",
+              metadata: transferUpdateMetadata(event),
+            }),
+          ).catch(() => { /* intentionally swallowed: telemetry never breaks a live call */ });
+        }
+        return;
+      }
+
+      case "end-of-call-report":
+      case "call-end": {
+        // wave-137 · read the CLEAN reason from message-level (see
+        // extractEndedReason). call.endedReason is null/SIP-transient on the
+        // webhook. Computed once, reused for the row insert + state metadata.
+        const cleanEndedReason = extractEndedReason(event);
+        log.info("Vapi call ended", {
+          callId: event.call?.id,
+          reason: cleanEndedReason,
+        });
+        // Q-45: do-not-call is the one compliance write that MUST be durable
+        // before acknowledgement. If it fails, return non-2xx so Vapi can
+        // retry the webhook. All noncritical post-call work stays detached.
+        try {
+          await persistTranscriptDoNotCallBeforeAck(event);
+        } catch (dncErr) {
+          log.error("[vapi webhook] do-not-call persistence failed before ack", {
+            callId: event.call?.id,
+            error: dncErr instanceof Error ? dncErr.message : String(dncErr),
+            errorId: "VAPI_DNC_PREACK_FAILED",
+          });
+          res.status(503).json({ error: "Do-not-call persistence failed; retry webhook" });
+          return;
+        }
+
+        res.json({ ack: true });
+        // F5 · tracked so a SIGTERM drain waits for it (the 200 is already sent).
+        void trackDetached("vapi:end-of-call", processCallEndReport(event, cleanEndedReason)).catch((err) => {
+          log.warn("[vapi webhook] detached post-call processing failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+        return;
+      }
+
+      case "transcript":
+        // Real-time transcript updates — log in dev, ignore in prod
+        if (process.env.NODE_ENV !== "production") {
+          log.info("Vapi transcript chunk", { len: event.transcript?.length });
+        }
+        res.json({ ack: true });
+        return;
+
+      // wave-181.63 · Phase 6 · cross-call memory hydration.
+      // wave-181.x · Tier S · BDI upgrade (declined-recovery opener).
+      // VAPI fires `assistant-request` BEFORE the call connects. The
+      // response shape is `{ assistantOverrides?: {...} }` which VAPI
+      // merges with the assistant's configured fields for THIS call
+      // only (no PATCH to the global assistant). The BDI composer
+      // (vapi-bdi.ts) looks up the caller AND any unconverted estimate
+      // and opens the call with the recovery hook when one is on file.
+      // Unknown callers fall through to the default first message ·
+      // backward compatible with the wave-181.63 personalization path.
+      case "assistant-request": {
+        const customer = (event.call as { customer?: { number?: string } } | undefined)?.customer;
+        const phone = customer?.number?.trim();
+        if (!phone) {
+          // No phone in the request · can't personalize · fall through
+          // to default assistant.
+          res.json({});
+          return;
+        }
+        try {
+          const { buildBdiFirstMessage } = await import(
+            "../../services/vapi-bdi"
+          );
+          const result = await buildBdiFirstMessage(phone);
+          log.info("assistant-request bdi", {
+            phoneSuffix: phone.replace(/\D/g, "").slice(-4),
+            matched: result.matched,
+            kind: result.kind,
+            reason: result.reason,
+          });
+          if (result.firstMessage) {
+            res.json({
+              assistantOverrides: { firstMessage: result.firstMessage },
+            });
+            return;
+          }
+        } catch (err) {
+          log.warn("assistant-request bdi threw", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Default · use assistant's configured first message.
+        res.json({});
+        return;
+      }
+
+      default:
+        log.info("Vapi unknown event type", { type: event.type });
+        res.json({ ack: true });
+        return;
+    }
+  } catch (err) {
+    log.error("Vapi webhook handler threw", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
+
+export { router as vapiWebhookRouter };
+))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+          }
+        } catch (speechErr) {
+          log.warn("[vapi webhook] customer-speech persist failed (analytics only)", {
+            error: speechErr instanceof Error ? speechErr.message : String(speechErr),
+          });
+        }
+
+        // TRANSFER ARTIFACT · the only signal that can prove a human ANSWERED.
+        //
+        // Every transfer metric in this app has been built on
+        // `endedReason === "assistant-forwarded-call"`, which VAPI's own docs
+        // say confirms the transfer was INITIATED, not completed — their
+        // troubleshooting page sends you to the provider's call log for the
+        // outcome. So a call that rang an empty counter and dropped to
+        // voicemail has scored identically to one Nick answered on the second
+        // ring, and no connect-rate built on it could ever emit a failure for
+        // the one case it exists to detect.
+        //
+        // `artifact.transfers[]` carries a real per-attempt status. VAPI
+        // describes blind-transfer outcome detection as enabled PER
+        // ORGANISATION, so whether this account receives it is an empirical
+        // question — which is exactly why `artifactPresent` is persisted
+        // separately from the verdict. That flag is the live answer, read from
+        // production rather than assumed from documentation.
+        //
+        // Separate try on purpose, same as customerSpeech above: one analytics
+        // write failing must not take the other down, and neither may affect
+        // the webhook's 200.
+        try {
+          const { readTransferArtifact, transferArtifactWorthPersisting, sawTransferUpdate } = await import("../../lib/transferArtifact");
+          const read = readTransferArtifact((event as { artifact?: unknown }).artifact);
+          // The live `transfer-update` witness (recorded below in the router).
+          // It catches the attempt the ended reason hides: a caller who hangs
+          // up while the shop line rings ends "customer-ended-call".
+          const { getCallStateHistory } = await import("../../services/voice-call-state");
+          const transferUpdateSeen = sawTransferUpdate(await getCallStateHistory(String(callId)));
+          // Write only when there is something to say: a per-attempt record, or
+          // an ended reason proving a transfer was ATTEMPTED. A call that never
+          // tried to hand off gets no verdict at all — the old test here was
+          // `artifactPresent || transfers.length`, and artifactPresent is true
+          // whenever Vapi sends a transfers ARRAY — which it does, empty, on
+          // calls that never transferred — which is how 20 of 31 calls came to
+          // carry "unknown" for a transfer that never happened.
+          if (transferArtifactWorthPersisting(read, cleanEndedReason, transferUpdateSeen)) {
+            const { sql } = await import("drizzle-orm");
+            const stored = { ...read, transferUpdateSeen };
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.transferArtifact', CAST(${JSON.stringify(stored)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (read.unrecognisedStatuses.length) {
+              // A status VAPI added that this app does not model. Loud, because
+              // silently bucketing it as unknown would hide a real drift.
+              log.warn("[vapi webhook] unmodelled transfer status from VAPI", {
+                statuses: read.unrecognisedStatuses,
+              });
+            }
+          }
+        } catch (transferErr) {
+          log.warn("[vapi webhook] transfer-artifact persist failed (analytics only)", {
+            error: transferErr instanceof Error ? transferErr.message : String(transferErr),
+          });
+        }
+
+        // VOICE CLAIM GUARD · the assistant side of the same artifact.
+        //
+        // SMS drafts are gated before send by `planViolations`; voice had no
+        // equivalent, so the prompt's truth rules (no repair quotes, no live
+        // stock, no capacity or wait promises) were enforced by prose alone.
+        // Vapi streams to TTS with no pre-speech hook, so this cannot block —
+        // it DETECTS, which is what makes drift visible and what makes the
+        // prompt-compression work measurable.
+        //
+        // Separate try from customerSpeech on purpose: one analytics write
+        // failing must not take the other down, and neither may affect the 200.
+        try {
+          const { buildVoiceClaimRecord } = await import("../../services/voiceClaimGuard");
+          const claims = buildVoiceClaimRecord({
+            transcript,
+            messages: (event as { artifact?: { messages?: unknown } }).artifact?.messages,
+          });
+          if (claims) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.voiceClaims', CAST(${JSON.stringify(claims)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (claims.violations.length) {
+              // Labels only — never the utterance. The transcript stays in the
+              // column it arrived in; logs must not become a second PII surface.
+              log.warn("[vapi webhook] voice claim violation", {
+                callId: String(callId),
+                violations: claims.violations,
+              });
+            }
+          }
+        } catch (claimErr) {
+          log.warn("[vapi webhook] voice-claim persist failed (analytics only)", {
+            error: claimErr instanceof Error ? claimErr.message : String(claimErr),
+          });
+        }
+
+        // wave-144 · forwarded-call safety net. A during-hours
+        // transferCall hands the caller to the shop line; if nobody
+        // picks up (tech mid-bay), that hot caller is lost with NO
+        // follow-up surface — forwards only showed up as a Voice-page
+        // chart bar. On the first end-of-call insert only, drop a row
+        // into the front-desk callback queue so every forwarded caller
+        // is accounted for. This is an INTERNAL queue entry, not an
+        // outbound customer message — worst case is a row the operator
+        // clears in one tap; the win is no forwarded caller falls
+        // through. endedReason "assistant-forwarded-call" → /forward/i.
+        // 2026-05-31 · forwarded-call follow-up flipped from an internal
+        // callback to-do (it flooded the Today queue with "Call back Voice
+        // caller" rows) to a self-serve SMS back to the caller. The caller
+        // re-engages on their terms; the operator's callback queue stays clean.
+        // 2026-07-20 · vapiCallId is REQUIRED for real idempotency. The
+        // orchestrator only builds a stable key (`..._call_<id>`) when
+        // event.vapiCallId is present (smsOrchestrator.ts) — omit it and the
+        // key falls through to a Date.now()+Math.random() value that is unique
+        // by construction, so the idempotency check can never match and is a
+        // silent no-op. Dedupe then rests entirely on the 24h phone cooldown.
+        // Passing the id restores the guard the call site always implied.
+        // 2026-07-20 · operator off-switch. Read the pause flag BEFORE deciding;
+        // a flag-read failure resolves to `false` (= not paused), so a DB blip
+        // keeps today's behaviour rather than silently muting the path.
+        let followupPaused = false;
+        try {
+          const { isEnabled } = await import("../../services/featureFlags");
+          followupPaused = await isEnabled("vapi_forward_followup_paused");
+        } catch (flagErr) {
+          log.warn("[vapi webhook] pause-flag read failed — treating as NOT paused", {
+            error: flagErr instanceof Error ? flagErr.message : String(flagErr),
+          });
+        }
+
+        // Narrow the number ONCE and pass the same value to both the decision
+        // and the send. Reaching back for `customer!.number` after the predicate
+        // returned true would re-assert a fact the compiler can't follow across
+        // the call boundary — a non-null assertion there would silence the
+        // checker rather than satisfy it.
+        const followupPhone = customer?.number?.trim() ?? "";
+
+        if (shouldSendForwardedFollowup({
+          firstLog,
+          endedReason: cleanEndedReason,
+          customerNumber: followupPhone,
+          paused: followupPaused,
+        })) {
+          const { orchestrateSms } = await import("../../services/smsOrchestrator");
+          await orchestrateSms({
+            type: "vapi_forwarded_call_followup",
+            phone: followupPhone,
+            vapiCallId: event.call?.id,
+          }).catch((err: unknown) => {
+            log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        } else if (followupPaused && isForwardedEndedReason(cleanEndedReason)) {
+          log.info("[vapi webhook] forwarded-call SMS suppressed — vapi_forward_followup_paused is ON");
+        }
+      }
+    }
+  } catch (persistErr) {
+    log.warn("[vapi webhook] call-end persist failed (non-blocking)", {
+      error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+    });
+  }
+  // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+  // Record `ended` on call-end with reason metadata so the active-
+  // calls view can drop this call out of the in-flight list.
+  const endCallId = event.call?.id;
+  const endAssistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+  if (endCallId) {
+    import("../../services/voice-call-state").then(({ recordCallState }) =>
+      recordCallState({
+        callId: endCallId,
+        assistantId: endAssistantId,
+        state: "ended",
+        metadata: { reason: cleanEndedReason, eventType: event.type },
+      })
+    ).catch(() => { /* intentionally swallowed */ });
+  }
+
+  // wave-181.87 · dispatch outbound call.ended to confirmation_calls
+  // OR alg_estimates voice_recovery_call_id by callId lookup. Same
+  // pattern as the dropped AgentPhone webhook (wave-181.85) · this
+  // handler now serves BOTH inbound flows (above) AND outbound
+  // confirmation + recovery flows via the wave-181.87 VAPI
+  // placeOutboundCall path.
+  if (endCallId) {
+    try {
+      const { getDb } = await import("../../db");
+      const { confirmationCalls, algEstimates } = await import("../../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        // wave-fix-2026-05-25 (audit #106) · same artifact-first
+        // fallback as the service-mention path · without this,
+        // confirmation-call evaluation runs on empty transcript
+        // and undercounts every converted call by ~10 eval-score
+        // points.
+        const transcriptText = ((event as { artifact?: { transcript?: string }; transcript?: string }).artifact?.transcript ?? (event as { transcript?: string }).transcript ?? "")
+          + " " + ((event as { summary?: string; analysis?: { summary?: string } }).summary
+            ?? (event as { analysis?: { summary?: string } }).analysis?.summary
+            ?? "");
+        const lower = transcriptText.toLowerCase();
+        const snippet = transcriptText.slice(0, 500);
+
+        // Classification · same regex pattern as the dropped
+        // agentphone classifyTranscript helper.
+        let confirmStatus: "confirmed" | "rescheduled" | "no_answer" = "no_answer";
+        let rescheduleRequest: string | null = null;
+        if (transcriptText.trim().length > 0) {
+          if (/\b(reschedule|move it|change the time|different day|can we do|push it|next week|earlier|later in the day|cancel)\b/i.test(lower)) {
+            confirmStatus = "rescheduled";
+            const sentences = lower.split(/[.!?]/);
+            const rs = sentences.find((s) => /\b(reschedule|move|change|different day|push|earlier|later)\b/i.test(s));
+            rescheduleRequest = (rs || "").trim().slice(0, 200) || null;
+          } else if (/\b(yes|yeah|yep|confirm|still on|see you|i.?ll be there|sounds good|works for me|all set)\b/i.test(lower)) {
+            confirmStatus = "confirmed";
+          } else {
+            // forensic-audit MEDIUM · was "ambiguous content → confirmed",
+            // so a voicemail/no-answer call where only the AI spoke was
+            // recorded as a confirmed appointment and the operator never
+            // followed up. Default to no_answer — a false follow-up is far
+            // cheaper than a missed no-show.
+            confirmStatus = "no_answer";
+          }
+        } else {
+          confirmStatus = "no_answer";
+        }
+
+        // Try 1 · confirmation_calls
+        const [confRow] = await db
+          .select()
+          .from(confirmationCalls)
+          .where(eq(confirmationCalls.agentphoneCallId, endCallId))
+          .limit(1);
+
+        if (confRow) {
+          await db
+            .update(confirmationCalls)
+            .set({
+              status: confirmStatus,
+              transcriptSnippet: snippet,
+              rescheduleRequest,
+              completedAt: new Date(),
+            })
+            .where(eq(confirmationCalls.id, confRow.id));
+          log.info(`[vapi outbound] confirmation_calls #${confRow.id} → ${confirmStatus}`, {
+            callId: String(endCallId).slice(0, 16),
+          });
+        } else {
+          // Try 2 · alg_estimates voice_recovery
+          const [estRow] = await db
+            .select({ id: algEstimates.id })
+            .from(algEstimates)
+            .where(eq(algEstimates.voiceRecoveryCallId, endCallId))
+            .limit(1);
+          if (estRow) {
+            // Map confirmation classification → recovery enum
+            const recoveryOutcome: "interested" | "not_interested" | "no_answer" =
+              confirmStatus === "no_answer" ? "no_answer" :
+              // For recovery · check for explicit not-interested signals
+              /\b(not interested|no thanks|already|fixed it|sold the car|don't need|not now)\b/i.test(lower) ? "not_interested" :
+              "interested";
+            await db
+              .update(algEstimates)
+              .set({ voiceRecoveryOutcome: recoveryOutcome })
+              .where(eq(algEstimates.id, estRow.id));
+            log.info(`[vapi outbound] alg_estimates #${estRow.id} voice_recovery → ${recoveryOutcome}`, {
+              callId: String(endCallId).slice(0, 16),
+            });
+          }
+          // No match in either table · inbound call · already handled above
+        }
+      }
+    } catch (dispatchErr) {
+      log.warn("[vapi outbound] dispatch failed (non-blocking)", {
+        error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+      });
+    }
+  }
+
+  // ─── Trust ladder (Phase 6): actionable call → DRAFT proposals ──────────
+  // Flag-gated (vapi_action_proposals, OFF by default — also the 0111
+  // deploy-order guard). Creates DRAFTS in the approval queue only; nothing
+  // executes without a human tap. Deliberately LAST and try/caught: the
+  // call-log write, claim guard and outbound dispatch above must be complete
+  // and unaffected whether this succeeds, fails, or is disabled.
+  try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    if (await isEnabled("vapi_action_proposals")) {
+      const callId = event.call?.id;
+      if (callId) {
+        const { maybeProposeCallActions } = await import("../../services/vapiActionExtraction");
+        const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
+        const transcript =
+          (event as { artifact?: { transcript?: string } }).artifact?.transcript ??
+          (event as { transcript?: string })?.transcript ??
+          "";
+        const summary =
+          (event as { summary?: string; analysis?: { summary?: string } })?.summary ??
+          (event as { analysis?: { summary?: string } })?.analysis?.summary ??
+          null;
+        await maybeProposeCallActions({
+          callId,
+          transcript: typeof transcript === "string" ? transcript : "",
+          summary,
+          customerName: customer?.name ?? null,
+          customerPhone: customer?.number ?? null,
+          durationSeconds: extractCallDurationSec(event),
+          endedReason: cleanEndedReason,
+          // Direction gate: our own outbound confirmation / recovery calls must
+          // not produce drafts for work that already exists.
+          callType: (event.call as { type?: string })?.type ?? null,
+        });
+      }
+    }
+  } catch (proposalErr) {
+    log.warn("[vapi proposals] extraction pass failed (non-blocking)", {
+      error: proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
+    });
+  }
+}
+
+// ─── Main webhook endpoint ─────────────────────────────
+
+router.post("/vapi", async (req: Request, res: Response) => {
+  if (!verifyVapiSignature(req)) {
+    log.warn("Invalid Vapi signature");
+    res.status(401).json({ error: "Invalid signature" });
+    return;
+  }
+
+  const body = req.body as { message: VapiWebhookMessage };
+
+  const event = body?.message;
+  if (!event?.type) {
+    res.status(400).json({ error: "Missing message.type" });
+    return;
+  }
+
+  try {
+    switch (event.type) {
+      case "function-call":
+      case "tool-calls": {
+        // wave-181.4 · capture LLM→tool→ack round-trip latency so the
+        // /api/admin/voice-latency observability tile can surface it.
+        // Anchored at handler entry; the actual write happens AFTER
+        // results assemble so a telemetry bug can't break the response.
+        const webhookReceivedAt = Date.now();
+        // Multiple tool calls arrive in one webhook. Run in parallel.
+        // wave-116 — was Promise.all; a single rejection caused the
+        // webhook to 500, prompting VAPI to retry the WHOLE batch and
+        // potentially double-execute already-succeeded tools (e.g.
+        // scheduleDropoff fired twice). allSettled isolates per-call
+        // outcomes so the webhook always 200s with a per-tool result.
+        const calls = event.toolCalls || [];
+        const dialled = (event.call as { customer?: { number?: string } } | undefined)?.customer?.number;
+        const callType = (event.call as { type?: string } | undefined)?.type;
+        const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id, dialled, callType)));
+        const results = settled.map((s, i) => {
+          if (s.status === "fulfilled") return s.value;
+          const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
+          log.error("Tool call rejected", {
+            toolCallId: calls[i]?.id,
+            functionName: calls[i]?.function?.name,
+            error: err,
+          });
+          return {
+            toolCallId: calls[i]?.id,
+            result: JSON.stringify({ error: "Tool execution failed", details: err }),
+          };
+        });
+        res.json({ results });
+
+        // Fire-and-forget latency capture · service swallows all errors
+        // so a missing migration or transient DB issue never breaks the
+        // webhook response above.
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-latency").then(({ captureVoiceLatency }) =>
+            captureVoiceLatency({
+              callId,
+              assistantId: assistantId ?? "unknown",
+              stage: "llm_first_token",
+              latencyMs: Date.now() - webhookReceivedAt,
+              metadata: { source: "vapi-webhook", toolCalls: calls.length },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+
+          // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+          // Classify each tool call into a state transition (read tool =
+          // intent_captured · write tool = tool_called · confirmation
+          // tool = confirmed). Append-only · multiple events per call
+          // are correct (the trail tells you the agent re-engaged after
+          // a tool call). Fire-and-forget · NEVER blocks webhook.
+          Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/tireDemand"),
+          ]).then(([{ classifyToolToState, recordCallState }, { toolCallStateMetadata }]) => {
+            for (const c of calls) {
+              const state = classifyToolToState(c.function?.name ?? "");
+              if (state) {
+                void recordCallState({
+                  callId,
+                  assistantId,
+                  state,
+                  // A tireInquiry also records what the caller asked for (size,
+                  // new/used; never name or phone) for Today's "Asked by phone".
+                  metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
+                });
+              }
+            }
+          }).catch(() => { /* intentionally swallowed */ });
+        }
+        return;
+      }
+
+      case "call-start": {
+        // Legacy/explicit call-start event. Current Vapi server-message defaults
+        // use status-update and mark the true start as status=in-progress.
+        log.info("Vapi call started", { callId: event.call?.id, source: "call-start" });
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-call-state").then(({ recordCallState }) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "greeted",
+              metadata: { eventType: event.type },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "status-update": {
+        // Vapi emits scheduled/queued/ringing/in-progress/forwarding/ended.
+        // Only in-progress means the conversation actually started. The old
+        // combined branch stamped every status as "greeted", producing several
+        // fake starts for one call in production.
+        const status = event.status ?? "unknown";
+        log.info("Vapi status update", { callId: event.call?.id, status });
+        if (status === "in-progress") {
+          const callId = event.call?.id;
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          if (callId) {
+            import("../../services/voice-call-state").then(({ recordCallState }) =>
+              recordCallState({
+                callId,
+                assistantId,
+                state: "greeted",
+                metadata: { eventType: event.type, status },
+              })
+            ).catch(() => { /* intentionally swallowed */ });
+          }
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "speech-update": {
+        // Normal Vapi lifecycle telemetry (started/stopped speaking). We do not
+        // persist it yet; explicitly acknowledge it so production logs do not
+        // mislabel supported provider traffic as an unknown event.
+        res.json({ ack: true });
+        return;
+      }
+
+      // Vapi fires this when the assistant STARTS a transfer. It carries no
+      // outcome (that arrives in the end-of-call artifact, when Vapi sends
+      // one); it is the proof an attempt happened. Until 2026-09-23 it was
+      // subscribed but fell to the default branch, so an attempt whose call
+      // then ended some other way left no trace. Ack first, record detached;
+      // the destination's kind only, never its number.
+      case "transfer-update": {
+        res.json({ ack: true });
+        const callId = event.call?.id;
+        if (callId) {
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          void Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/transferArtifact"),
+          ]).then(([{ recordCallState }, { transferUpdateMetadata }]) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "transfer_attempted",
+              metadata: transferUpdateMetadata(event),
+            }),
+          ).catch(() => { /* intentionally swallowed: telemetry never breaks a live call */ });
+        }
+        return;
+      }
+
+      case "end-of-call-report":
+      case "call-end": {
+        // wave-137 · read the CLEAN reason from message-level (see
+        // extractEndedReason). call.endedReason is null/SIP-transient on the
+        // webhook. Computed once, reused for the row insert + state metadata.
+        const cleanEndedReason = extractEndedReason(event);
+        log.info("Vapi call ended", {
+          callId: event.call?.id,
+          reason: cleanEndedReason,
+        });
+        // Q-45: do-not-call is the one compliance write that MUST be durable
+        // before acknowledgement. If it fails, return non-2xx so Vapi can
+        // retry the webhook. All noncritical post-call work stays detached.
+        try {
+          await persistTranscriptDoNotCallBeforeAck(event);
+        } catch (dncErr) {
+          log.error("[vapi webhook] do-not-call persistence failed before ack", {
+            callId: event.call?.id,
+            error: dncErr instanceof Error ? dncErr.message : String(dncErr),
+            errorId: "VAPI_DNC_PREACK_FAILED",
+          });
+          res.status(503).json({ error: "Do-not-call persistence failed; retry webhook" });
+          return;
+        }
+
+        res.json({ ack: true });
+        // F5 · tracked so a SIGTERM drain waits for it (the 200 is already sent).
+        void trackDetached("vapi:end-of-call", processCallEndReport(event, cleanEndedReason)).catch((err) => {
+          log.warn("[vapi webhook] detached post-call processing failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+        return;
+      }
+
+      case "transcript":
+        // Real-time transcript updates — log in dev, ignore in prod
+        if (process.env.NODE_ENV !== "production") {
+          log.info("Vapi transcript chunk", { len: event.transcript?.length });
+        }
+        res.json({ ack: true });
+        return;
+
+      // wave-181.63 · Phase 6 · cross-call memory hydration.
+      // wave-181.x · Tier S · BDI upgrade (declined-recovery opener).
+      // VAPI fires `assistant-request` BEFORE the call connects. The
+      // response shape is `{ assistantOverrides?: {...} }` which VAPI
+      // merges with the assistant's configured fields for THIS call
+      // only (no PATCH to the global assistant). The BDI composer
+      // (vapi-bdi.ts) looks up the caller AND any unconverted estimate
+      // and opens the call with the recovery hook when one is on file.
+      // Unknown callers fall through to the default first message ·
+      // backward compatible with the wave-181.63 personalization path.
+      case "assistant-request": {
+        const customer = (event.call as { customer?: { number?: string } } | undefined)?.customer;
+        const phone = customer?.number?.trim();
+        if (!phone) {
+          // No phone in the request · can't personalize · fall through
+          // to default assistant.
+          res.json({});
+          return;
+        }
+        try {
+          const { buildBdiFirstMessage } = await import(
+            "../../services/vapi-bdi"
+          );
+          const result = await buildBdiFirstMessage(phone);
+          log.info("assistant-request bdi", {
+            phoneSuffix: phone.replace(/\D/g, "").slice(-4),
+            matched: result.matched,
+            kind: result.kind,
+            reason: result.reason,
+          });
+          if (result.firstMessage) {
+            res.json({
+              assistantOverrides: { firstMessage: result.firstMessage },
+            });
+            return;
+          }
+        } catch (err) {
+          log.warn("assistant-request bdi threw", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Default · use assistant's configured first message.
+        res.json({});
+        return;
+      }
+
+      default:
+        log.info("Vapi unknown event type", { type: event.type });
+        res.json({ ack: true });
+        return;
+    }
+  } catch (err) {
+    log.error("Vapi webhook handler threw", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
+
+export { router as vapiWebhookRouter };
+)
+            )
+            WHERE vapiCallId = ${String(callId)}
+          `);
+        } catch (behaviorErr) {
+          log.warn("[vapi webhook] behavior fingerprint persist failed (analytics only)", {
+            error: behaviorErr instanceof Error ? behaviorErr.message : String(behaviorErr),
+          });
+        }
+
+        // ─── Persist CUSTOMER-only speech (2026-07-26 demand audit) ─────────
+        // The full transcript has been in hand here since wave-fix-2026-05-25,
+        // used for a keyword scan and then dropped. Meanwhile `transcriptUrl`
+        // is populated on 0 of 2,095 rows — VAPI never sets it — so nothing
+        // durable held what callers actually said, and every demand signal was
+        // assistant-contaminated: `serviceMention` is binary (tire|brake) and
+        // `aiSummary` is written by a tire-first assistant. The ~60% used-tire
+        // figure the whole prompt is built around could not be checked.
+        //
+        // Stores the CUSTOMER's turns only — never assistant speech, never the
+        // full transcript — capped and truncated. JSON_SET merges into whatever
+        // `metadata` already holds (intents, agenticAudit), so write order with
+        // the later enrichment updates does not matter. Uses the existing JSON
+        // column deliberately: no migration means no hand-applied DDL to forget
+        // (ROS-059). Fail-open — a demand-analytics write must never affect the
+        // webhook's 200.
+        try {
+          const { buildCustomerSpeechRecord, extractCustomerTurnsFromMessages, CUSTOMER_SPEECH_VERSION } =
+            await import("../../services/customerTurns");
+          // Prefer VAPI's role-tagged `artifact.messages` — authoritative at the
+          // source, so no speaker-prefix guessing and no formatting change can
+          // misattribute assistant speech as customer demand. The flat
+          // transcript is the fallback for calls that lack the array.
+          const artifactMsgs = (event as { artifact?: { messages?: unknown } }).artifact?.messages;
+          let speech: ReturnType<typeof buildCustomerSpeechRecord> = null;
+          if (Array.isArray(artifactMsgs) && artifactMsgs.length) {
+            const parsed = extractCustomerTurnsFromMessages(artifactMsgs);
+            if (parsed.turns.length || parsed.unparsed) {
+              speech = {
+                v: CUSTOMER_SPEECH_VERSION,
+                turns: parsed.turns,
+                turnCount: parsed.totalCustomerTurns,
+                first: parsed.firstSubstantive,
+                unparsed: parsed.unparsed,
+              };
+            }
+          } else {
+            speech = buildCustomerSpeechRecord(transcript);
+          }
+          if (speech) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.customerSpeech', CAST(${JSON.stringify(speech)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+          }
+        } catch (speechErr) {
+          log.warn("[vapi webhook] customer-speech persist failed (analytics only)", {
+            error: speechErr instanceof Error ? speechErr.message : String(speechErr),
+          });
+        }
+
+        // TRANSFER ARTIFACT · the only signal that can prove a human ANSWERED.
+        //
+        // Every transfer metric in this app has been built on
+        // `endedReason === "assistant-forwarded-call"`, which VAPI's own docs
+        // say confirms the transfer was INITIATED, not completed — their
+        // troubleshooting page sends you to the provider's call log for the
+        // outcome. So a call that rang an empty counter and dropped to
+        // voicemail has scored identically to one Nick answered on the second
+        // ring, and no connect-rate built on it could ever emit a failure for
+        // the one case it exists to detect.
+        //
+        // `artifact.transfers[]` carries a real per-attempt status. VAPI
+        // describes blind-transfer outcome detection as enabled PER
+        // ORGANISATION, so whether this account receives it is an empirical
+        // question — which is exactly why `artifactPresent` is persisted
+        // separately from the verdict. That flag is the live answer, read from
+        // production rather than assumed from documentation.
+        //
+        // Separate try on purpose, same as customerSpeech above: one analytics
+        // write failing must not take the other down, and neither may affect
+        // the webhook's 200.
+        try {
+          const { readTransferArtifact, transferArtifactWorthPersisting, sawTransferUpdate } = await import("../../lib/transferArtifact");
+          const read = readTransferArtifact((event as { artifact?: unknown }).artifact);
+          // The live `transfer-update` witness (recorded below in the router).
+          // It catches the attempt the ended reason hides: a caller who hangs
+          // up while the shop line rings ends "customer-ended-call".
+          const { getCallStateHistory } = await import("../../services/voice-call-state");
+          const transferUpdateSeen = sawTransferUpdate(await getCallStateHistory(String(callId)));
+          // Write only when there is something to say: a per-attempt record, or
+          // an ended reason proving a transfer was ATTEMPTED. A call that never
+          // tried to hand off gets no verdict at all — the old test here was
+          // `artifactPresent || transfers.length`, and artifactPresent is true
+          // whenever Vapi sends a transfers ARRAY — which it does, empty, on
+          // calls that never transferred — which is how 20 of 31 calls came to
+          // carry "unknown" for a transfer that never happened.
+          if (transferArtifactWorthPersisting(read, cleanEndedReason, transferUpdateSeen)) {
+            const { sql } = await import("drizzle-orm");
+            const stored = { ...read, transferUpdateSeen };
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.transferArtifact', CAST(${JSON.stringify(stored)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (read.unrecognisedStatuses.length) {
+              // A status VAPI added that this app does not model. Loud, because
+              // silently bucketing it as unknown would hide a real drift.
+              log.warn("[vapi webhook] unmodelled transfer status from VAPI", {
+                statuses: read.unrecognisedStatuses,
+              });
+            }
+          }
+        } catch (transferErr) {
+          log.warn("[vapi webhook] transfer-artifact persist failed (analytics only)", {
+            error: transferErr instanceof Error ? transferErr.message : String(transferErr),
+          });
+        }
+
+        // VOICE CLAIM GUARD · the assistant side of the same artifact.
+        //
+        // SMS drafts are gated before send by `planViolations`; voice had no
+        // equivalent, so the prompt's truth rules (no repair quotes, no live
+        // stock, no capacity or wait promises) were enforced by prose alone.
+        // Vapi streams to TTS with no pre-speech hook, so this cannot block —
+        // it DETECTS, which is what makes drift visible and what makes the
+        // prompt-compression work measurable.
+        //
+        // Separate try from customerSpeech on purpose: one analytics write
+        // failing must not take the other down, and neither may affect the 200.
+        try {
+          const { buildVoiceClaimRecord } = await import("../../services/voiceClaimGuard");
+          const claims = buildVoiceClaimRecord({
+            transcript,
+            messages: (event as { artifact?: { messages?: unknown } }).artifact?.messages,
+          });
+          if (claims) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.voiceClaims', CAST(${JSON.stringify(claims)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (claims.violations.length) {
+              // Labels only — never the utterance. The transcript stays in the
+              // column it arrived in; logs must not become a second PII surface.
+              log.warn("[vapi webhook] voice claim violation", {
+                callId: String(callId),
+                violations: claims.violations,
+              });
+            }
+          }
+        } catch (claimErr) {
+          log.warn("[vapi webhook] voice-claim persist failed (analytics only)", {
+            error: claimErr instanceof Error ? claimErr.message : String(claimErr),
+          });
+        }
+
+        // wave-144 · forwarded-call safety net. A during-hours
+        // transferCall hands the caller to the shop line; if nobody
+        // picks up (tech mid-bay), that hot caller is lost with NO
+        // follow-up surface — forwards only showed up as a Voice-page
+        // chart bar. On the first end-of-call insert only, drop a row
+        // into the front-desk callback queue so every forwarded caller
+        // is accounted for. This is an INTERNAL queue entry, not an
+        // outbound customer message — worst case is a row the operator
+        // clears in one tap; the win is no forwarded caller falls
+        // through. endedReason "assistant-forwarded-call" → /forward/i.
+        // 2026-05-31 · forwarded-call follow-up flipped from an internal
+        // callback to-do (it flooded the Today queue with "Call back Voice
+        // caller" rows) to a self-serve SMS back to the caller. The caller
+        // re-engages on their terms; the operator's callback queue stays clean.
+        // 2026-07-20 · vapiCallId is REQUIRED for real idempotency. The
+        // orchestrator only builds a stable key (`..._call_<id>`) when
+        // event.vapiCallId is present (smsOrchestrator.ts) — omit it and the
+        // key falls through to a Date.now()+Math.random() value that is unique
+        // by construction, so the idempotency check can never match and is a
+        // silent no-op. Dedupe then rests entirely on the 24h phone cooldown.
+        // Passing the id restores the guard the call site always implied.
+        // 2026-07-20 · operator off-switch. Read the pause flag BEFORE deciding;
+        // a flag-read failure resolves to `false` (= not paused), so a DB blip
+        // keeps today's behaviour rather than silently muting the path.
+        let followupPaused = false;
+        try {
+          const { isEnabled } = await import("../../services/featureFlags");
+          followupPaused = await isEnabled("vapi_forward_followup_paused");
+        } catch (flagErr) {
+          log.warn("[vapi webhook] pause-flag read failed — treating as NOT paused", {
+            error: flagErr instanceof Error ? flagErr.message : String(flagErr),
+          });
+        }
+
+        // Narrow the number ONCE and pass the same value to both the decision
+        // and the send. Reaching back for `customer!.number` after the predicate
+        // returned true would re-assert a fact the compiler can't follow across
+        // the call boundary — a non-null assertion there would silence the
+        // checker rather than satisfy it.
+        const followupPhone = customer?.number?.trim() ?? "";
+
+        if (shouldSendForwardedFollowup({
+          firstLog,
+          endedReason: cleanEndedReason,
+          customerNumber: followupPhone,
+          paused: followupPaused,
+        })) {
+          const { orchestrateSms } = await import("../../services/smsOrchestrator");
+          await orchestrateSms({
+            type: "vapi_forwarded_call_followup",
+            phone: followupPhone,
+            vapiCallId: event.call?.id,
+          }).catch((err: unknown) => {
+            log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        } else if (followupPaused && isForwardedEndedReason(cleanEndedReason)) {
+          log.info("[vapi webhook] forwarded-call SMS suppressed — vapi_forward_followup_paused is ON");
+        }
+      }
+    }
+  } catch (persistErr) {
+    log.warn("[vapi webhook] call-end persist failed (non-blocking)", {
+      error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+    });
+  }
+  // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+  // Record `ended` on call-end with reason metadata so the active-
+  // calls view can drop this call out of the in-flight list.
+  const endCallId = event.call?.id;
+  const endAssistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+  if (endCallId) {
+    import("../../services/voice-call-state").then(({ recordCallState }) =>
+      recordCallState({
+        callId: endCallId,
+        assistantId: endAssistantId,
+        state: "ended",
+        metadata: { reason: cleanEndedReason, eventType: event.type },
+      })
+    ).catch(() => { /* intentionally swallowed */ });
+  }
+
+  // wave-181.87 · dispatch outbound call.ended to confirmation_calls
+  // OR alg_estimates voice_recovery_call_id by callId lookup. Same
+  // pattern as the dropped AgentPhone webhook (wave-181.85) · this
+  // handler now serves BOTH inbound flows (above) AND outbound
+  // confirmation + recovery flows via the wave-181.87 VAPI
+  // placeOutboundCall path.
+  if (endCallId) {
+    try {
+      const { getDb } = await import("../../db");
+      const { confirmationCalls, algEstimates } = await import("../../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        // wave-fix-2026-05-25 (audit #106) · same artifact-first
+        // fallback as the service-mention path · without this,
+        // confirmation-call evaluation runs on empty transcript
+        // and undercounts every converted call by ~10 eval-score
+        // points.
+        const transcriptText = ((event as { artifact?: { transcript?: string }; transcript?: string }).artifact?.transcript ?? (event as { transcript?: string }).transcript ?? "")
+          + " " + ((event as { summary?: string; analysis?: { summary?: string } }).summary
+            ?? (event as { analysis?: { summary?: string } }).analysis?.summary
+            ?? "");
+        const lower = transcriptText.toLowerCase();
+        const snippet = transcriptText.slice(0, 500);
+
+        // Classification · same regex pattern as the dropped
+        // agentphone classifyTranscript helper.
+        let confirmStatus: "confirmed" | "rescheduled" | "no_answer" = "no_answer";
+        let rescheduleRequest: string | null = null;
+        if (transcriptText.trim().length > 0) {
+          if (/\b(reschedule|move it|change the time|different day|can we do|push it|next week|earlier|later in the day|cancel)\b/i.test(lower)) {
+            confirmStatus = "rescheduled";
+            const sentences = lower.split(/[.!?]/);
+            const rs = sentences.find((s) => /\b(reschedule|move|change|different day|push|earlier|later)\b/i.test(s));
+            rescheduleRequest = (rs || "").trim().slice(0, 200) || null;
+          } else if (/\b(yes|yeah|yep|confirm|still on|see you|i.?ll be there|sounds good|works for me|all set)\b/i.test(lower)) {
+            confirmStatus = "confirmed";
+          } else {
+            // forensic-audit MEDIUM · was "ambiguous content → confirmed",
+            // so a voicemail/no-answer call where only the AI spoke was
+            // recorded as a confirmed appointment and the operator never
+            // followed up. Default to no_answer — a false follow-up is far
+            // cheaper than a missed no-show.
+            confirmStatus = "no_answer";
+          }
+        } else {
+          confirmStatus = "no_answer";
+        }
+
+        // Try 1 · confirmation_calls
+        const [confRow] = await db
+          .select()
+          .from(confirmationCalls)
+          .where(eq(confirmationCalls.agentphoneCallId, endCallId))
+          .limit(1);
+
+        if (confRow) {
+          await db
+            .update(confirmationCalls)
+            .set({
+              status: confirmStatus,
+              transcriptSnippet: snippet,
+              rescheduleRequest,
+              completedAt: new Date(),
+            })
+            .where(eq(confirmationCalls.id, confRow.id));
+          log.info(`[vapi outbound] confirmation_calls #${confRow.id} → ${confirmStatus}`, {
+            callId: String(endCallId).slice(0, 16),
+          });
+        } else {
+          // Try 2 · alg_estimates voice_recovery
+          const [estRow] = await db
+            .select({ id: algEstimates.id })
+            .from(algEstimates)
+            .where(eq(algEstimates.voiceRecoveryCallId, endCallId))
+            .limit(1);
+          if (estRow) {
+            // Map confirmation classification → recovery enum
+            const recoveryOutcome: "interested" | "not_interested" | "no_answer" =
+              confirmStatus === "no_answer" ? "no_answer" :
+              // For recovery · check for explicit not-interested signals
+              /\b(not interested|no thanks|already|fixed it|sold the car|don't need|not now)\b/i.test(lower) ? "not_interested" :
+              "interested";
+            await db
+              .update(algEstimates)
+              .set({ voiceRecoveryOutcome: recoveryOutcome })
+              .where(eq(algEstimates.id, estRow.id));
+            log.info(`[vapi outbound] alg_estimates #${estRow.id} voice_recovery → ${recoveryOutcome}`, {
+              callId: String(endCallId).slice(0, 16),
+            });
+          }
+          // No match in either table · inbound call · already handled above
+        }
+      }
+    } catch (dispatchErr) {
+      log.warn("[vapi outbound] dispatch failed (non-blocking)", {
+        error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+      });
+    }
+  }
+
+  // ─── Trust ladder (Phase 6): actionable call → DRAFT proposals ──────────
+  // Flag-gated (vapi_action_proposals, OFF by default — also the 0111
+  // deploy-order guard). Creates DRAFTS in the approval queue only; nothing
+  // executes without a human tap. Deliberately LAST and try/caught: the
+  // call-log write, claim guard and outbound dispatch above must be complete
+  // and unaffected whether this succeeds, fails, or is disabled.
+  try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    if (await isEnabled("vapi_action_proposals")) {
+      const callId = event.call?.id;
+      if (callId) {
+        const { maybeProposeCallActions } = await import("../../services/vapiActionExtraction");
+        const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
+        const transcript =
+          (event as { artifact?: { transcript?: string } }).artifact?.transcript ??
+          (event as { transcript?: string })?.transcript ??
+          "";
+        const summary =
+          (event as { summary?: string; analysis?: { summary?: string } })?.summary ??
+          (event as { analysis?: { summary?: string } })?.analysis?.summary ??
+          null;
+        await maybeProposeCallActions({
+          callId,
+          transcript: typeof transcript === "string" ? transcript : "",
+          summary,
+          customerName: customer?.name ?? null,
+          customerPhone: customer?.number ?? null,
+          durationSeconds: extractCallDurationSec(event),
+          endedReason: cleanEndedReason,
+          // Direction gate: our own outbound confirmation / recovery calls must
+          // not produce drafts for work that already exists.
+          callType: (event.call as { type?: string })?.type ?? null,
+        });
+      }
+    }
+  } catch (proposalErr) {
+    log.warn("[vapi proposals] extraction pass failed (non-blocking)", {
+      error: proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
+    });
+  }
+}
+
+// ─── Main webhook endpoint ─────────────────────────────
+
+router.post("/vapi", async (req: Request, res: Response) => {
+  if (!verifyVapiSignature(req)) {
+    log.warn("Invalid Vapi signature");
+    res.status(401).json({ error: "Invalid signature" });
+    return;
+  }
+
+  const body = req.body as { message: VapiWebhookMessage };
+
+  const event = body?.message;
+  if (!event?.type) {
+    res.status(400).json({ error: "Missing message.type" });
+    return;
+  }
+
+  try {
+    switch (event.type) {
+      case "function-call":
+      case "tool-calls": {
+        // wave-181.4 · capture LLM→tool→ack round-trip latency so the
+        // /api/admin/voice-latency observability tile can surface it.
+        // Anchored at handler entry; the actual write happens AFTER
+        // results assemble so a telemetry bug can't break the response.
+        const webhookReceivedAt = Date.now();
+        // Multiple tool calls arrive in one webhook. Run in parallel.
+        // wave-116 — was Promise.all; a single rejection caused the
+        // webhook to 500, prompting VAPI to retry the WHOLE batch and
+        // potentially double-execute already-succeeded tools (e.g.
+        // scheduleDropoff fired twice). allSettled isolates per-call
+        // outcomes so the webhook always 200s with a per-tool result.
+        const calls = event.toolCalls || [];
+        const dialled = (event.call as { customer?: { number?: string } } | undefined)?.customer?.number;
+        const callType = (event.call as { type?: string } | undefined)?.type;
+        const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id, dialled, callType)));
+        const results = settled.map((s, i) => {
+          if (s.status === "fulfilled") return s.value;
+          const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
+          log.error("Tool call rejected", {
+            toolCallId: calls[i]?.id,
+            functionName: calls[i]?.function?.name,
+            error: err,
+          });
+          return {
+            toolCallId: calls[i]?.id,
+            result: JSON.stringify({ error: "Tool execution failed", details: err }),
+          };
+        });
+        res.json({ results });
+
+        // Fire-and-forget latency capture · service swallows all errors
+        // so a missing migration or transient DB issue never breaks the
+        // webhook response above.
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-latency").then(({ captureVoiceLatency }) =>
+            captureVoiceLatency({
+              callId,
+              assistantId: assistantId ?? "unknown",
+              stage: "llm_first_token",
+              latencyMs: Date.now() - webhookReceivedAt,
+              metadata: { source: "vapi-webhook", toolCalls: calls.length },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+
+          // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+          // Classify each tool call into a state transition (read tool =
+          // intent_captured · write tool = tool_called · confirmation
+          // tool = confirmed). Append-only · multiple events per call
+          // are correct (the trail tells you the agent re-engaged after
+          // a tool call). Fire-and-forget · NEVER blocks webhook.
+          Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/tireDemand"),
+          ]).then(([{ classifyToolToState, recordCallState }, { toolCallStateMetadata }]) => {
+            for (const c of calls) {
+              const state = classifyToolToState(c.function?.name ?? "");
+              if (state) {
+                void recordCallState({
+                  callId,
+                  assistantId,
+                  state,
+                  // A tireInquiry also records what the caller asked for (size,
+                  // new/used; never name or phone) for Today's "Asked by phone".
+                  metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
+                });
+              }
+            }
+          }).catch(() => { /* intentionally swallowed */ });
+        }
+        return;
+      }
+
+      case "call-start": {
+        // Legacy/explicit call-start event. Current Vapi server-message defaults
+        // use status-update and mark the true start as status=in-progress.
+        log.info("Vapi call started", { callId: event.call?.id, source: "call-start" });
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-call-state").then(({ recordCallState }) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "greeted",
+              metadata: { eventType: event.type },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "status-update": {
+        // Vapi emits scheduled/queued/ringing/in-progress/forwarding/ended.
+        // Only in-progress means the conversation actually started. The old
+        // combined branch stamped every status as "greeted", producing several
+        // fake starts for one call in production.
+        const status = event.status ?? "unknown";
+        log.info("Vapi status update", { callId: event.call?.id, status });
+        if (status === "in-progress") {
+          const callId = event.call?.id;
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          if (callId) {
+            import("../../services/voice-call-state").then(({ recordCallState }) =>
+              recordCallState({
+                callId,
+                assistantId,
+                state: "greeted",
+                metadata: { eventType: event.type, status },
+              })
+            ).catch(() => { /* intentionally swallowed */ });
+          }
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "speech-update": {
+        // Normal Vapi lifecycle telemetry (started/stopped speaking). We do not
+        // persist it yet; explicitly acknowledge it so production logs do not
+        // mislabel supported provider traffic as an unknown event.
+        res.json({ ack: true });
+        return;
+      }
+
+      // Vapi fires this when the assistant STARTS a transfer. It carries no
+      // outcome (that arrives in the end-of-call artifact, when Vapi sends
+      // one); it is the proof an attempt happened. Until 2026-09-23 it was
+      // subscribed but fell to the default branch, so an attempt whose call
+      // then ended some other way left no trace. Ack first, record detached;
+      // the destination's kind only, never its number.
+      case "transfer-update": {
+        res.json({ ack: true });
+        const callId = event.call?.id;
+        if (callId) {
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          void Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/transferArtifact"),
+          ]).then(([{ recordCallState }, { transferUpdateMetadata }]) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "transfer_attempted",
+              metadata: transferUpdateMetadata(event),
+            }),
+          ).catch(() => { /* intentionally swallowed: telemetry never breaks a live call */ });
+        }
+        return;
+      }
+
+      case "end-of-call-report":
+      case "call-end": {
+        // wave-137 · read the CLEAN reason from message-level (see
+        // extractEndedReason). call.endedReason is null/SIP-transient on the
+        // webhook. Computed once, reused for the row insert + state metadata.
+        const cleanEndedReason = extractEndedReason(event);
+        log.info("Vapi call ended", {
+          callId: event.call?.id,
+          reason: cleanEndedReason,
+        });
+        // Q-45: do-not-call is the one compliance write that MUST be durable
+        // before acknowledgement. If it fails, return non-2xx so Vapi can
+        // retry the webhook. All noncritical post-call work stays detached.
+        try {
+          await persistTranscriptDoNotCallBeforeAck(event);
+        } catch (dncErr) {
+          log.error("[vapi webhook] do-not-call persistence failed before ack", {
+            callId: event.call?.id,
+            error: dncErr instanceof Error ? dncErr.message : String(dncErr),
+            errorId: "VAPI_DNC_PREACK_FAILED",
+          });
+          res.status(503).json({ error: "Do-not-call persistence failed; retry webhook" });
+          return;
+        }
+
+        res.json({ ack: true });
+        // F5 · tracked so a SIGTERM drain waits for it (the 200 is already sent).
+        void trackDetached("vapi:end-of-call", processCallEndReport(event, cleanEndedReason)).catch((err) => {
+          log.warn("[vapi webhook] detached post-call processing failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+        return;
+      }
+
+      case "transcript":
+        // Real-time transcript updates — log in dev, ignore in prod
+        if (process.env.NODE_ENV !== "production") {
+          log.info("Vapi transcript chunk", { len: event.transcript?.length });
+        }
+        res.json({ ack: true });
+        return;
+
+      // wave-181.63 · Phase 6 · cross-call memory hydration.
+      // wave-181.x · Tier S · BDI upgrade (declined-recovery opener).
+      // VAPI fires `assistant-request` BEFORE the call connects. The
+      // response shape is `{ assistantOverrides?: {...} }` which VAPI
+      // merges with the assistant's configured fields for THIS call
+      // only (no PATCH to the global assistant). The BDI composer
+      // (vapi-bdi.ts) looks up the caller AND any unconverted estimate
+      // and opens the call with the recovery hook when one is on file.
+      // Unknown callers fall through to the default first message ·
+      // backward compatible with the wave-181.63 personalization path.
+      case "assistant-request": {
+        const customer = (event.call as { customer?: { number?: string } } | undefined)?.customer;
+        const phone = customer?.number?.trim();
+        if (!phone) {
+          // No phone in the request · can't personalize · fall through
+          // to default assistant.
+          res.json({});
+          return;
+        }
+        try {
+          const { buildBdiFirstMessage } = await import(
+            "../../services/vapi-bdi"
+          );
+          const result = await buildBdiFirstMessage(phone);
+          log.info("assistant-request bdi", {
+            phoneSuffix: phone.replace(/\D/g, "").slice(-4),
+            matched: result.matched,
+            kind: result.kind,
+            reason: result.reason,
+          });
+          if (result.firstMessage) {
+            res.json({
+              assistantOverrides: { firstMessage: result.firstMessage },
+            });
+            return;
+          }
+        } catch (err) {
+          log.warn("assistant-request bdi threw", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Default · use assistant's configured first message.
+        res.json({});
+        return;
+      }
+
+      default:
+        log.info("Vapi unknown event type", { type: event.type });
+        res.json({ ack: true });
+        return;
+    }
+  } catch (err) {
+    log.error("Vapi webhook handler threw", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
+
+export { router as vapiWebhookRouter };
+))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (claims.violations.length) {
+              // Labels only — never the utterance. The transcript stays in the
+              // column it arrived in; logs must not become a second PII surface.
+              log.warn("[vapi webhook] voice claim violation", {
+                callId: String(callId),
+                violations: claims.violations,
+              });
+            }
+          }
+        } catch (claimErr) {
+          log.warn("[vapi webhook] voice-claim persist failed (analytics only)", {
+            error: claimErr instanceof Error ? claimErr.message : String(claimErr),
+          });
+        }
+
+        // wave-144 · forwarded-call safety net. A during-hours
+        // transferCall hands the caller to the shop line; if nobody
+        // picks up (tech mid-bay), that hot caller is lost with NO
+        // follow-up surface — forwards only showed up as a Voice-page
+        // chart bar. On the first end-of-call insert only, drop a row
+        // into the front-desk callback queue so every forwarded caller
+        // is accounted for. This is an INTERNAL queue entry, not an
+        // outbound customer message — worst case is a row the operator
+        // clears in one tap; the win is no forwarded caller falls
+        // through. endedReason "assistant-forwarded-call" → /forward/i.
+        // 2026-05-31 · forwarded-call follow-up flipped from an internal
+        // callback to-do (it flooded the Today queue with "Call back Voice
+        // caller" rows) to a self-serve SMS back to the caller. The caller
+        // re-engages on their terms; the operator's callback queue stays clean.
+        // 2026-07-20 · vapiCallId is REQUIRED for real idempotency. The
+        // orchestrator only builds a stable key (`..._call_<id>`) when
+        // event.vapiCallId is present (smsOrchestrator.ts) — omit it and the
+        // key falls through to a Date.now()+Math.random() value that is unique
+        // by construction, so the idempotency check can never match and is a
+        // silent no-op. Dedupe then rests entirely on the 24h phone cooldown.
+        // Passing the id restores the guard the call site always implied.
+        // 2026-07-20 · operator off-switch. Read the pause flag BEFORE deciding;
+        // a flag-read failure resolves to `false` (= not paused), so a DB blip
+        // keeps today's behaviour rather than silently muting the path.
+        let followupPaused = false;
+        try {
+          const { isEnabled } = await import("../../services/featureFlags");
+          followupPaused = await isEnabled("vapi_forward_followup_paused");
+        } catch (flagErr) {
+          log.warn("[vapi webhook] pause-flag read failed — treating as NOT paused", {
+            error: flagErr instanceof Error ? flagErr.message : String(flagErr),
+          });
+        }
+
+        // Narrow the number ONCE and pass the same value to both the decision
+        // and the send. Reaching back for `customer!.number` after the predicate
+        // returned true would re-assert a fact the compiler can't follow across
+        // the call boundary — a non-null assertion there would silence the
+        // checker rather than satisfy it.
+        const followupPhone = customer?.number?.trim() ?? "";
+
+        if (shouldSendForwardedFollowup({
+          firstLog,
+          endedReason: cleanEndedReason,
+          customerNumber: followupPhone,
+          paused: followupPaused,
+        })) {
+          const { orchestrateSms } = await import("../../services/smsOrchestrator");
+          await orchestrateSms({
+            type: "vapi_forwarded_call_followup",
+            phone: followupPhone,
+            vapiCallId: event.call?.id,
+          }).catch((err: unknown) => {
+            log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        } else if (followupPaused && isForwardedEndedReason(cleanEndedReason)) {
+          log.info("[vapi webhook] forwarded-call SMS suppressed — vapi_forward_followup_paused is ON");
+        }
+      }
+    }
+  } catch (persistErr) {
+    log.warn("[vapi webhook] call-end persist failed (non-blocking)", {
+      error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+    });
+  }
+  // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+  // Record `ended` on call-end with reason metadata so the active-
+  // calls view can drop this call out of the in-flight list.
+  const endCallId = event.call?.id;
+  const endAssistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+  if (endCallId) {
+    import("../../services/voice-call-state").then(({ recordCallState }) =>
+      recordCallState({
+        callId: endCallId,
+        assistantId: endAssistantId,
+        state: "ended",
+        metadata: { reason: cleanEndedReason, eventType: event.type },
+      })
+    ).catch(() => { /* intentionally swallowed */ });
+  }
+
+  // wave-181.87 · dispatch outbound call.ended to confirmation_calls
+  // OR alg_estimates voice_recovery_call_id by callId lookup. Same
+  // pattern as the dropped AgentPhone webhook (wave-181.85) · this
+  // handler now serves BOTH inbound flows (above) AND outbound
+  // confirmation + recovery flows via the wave-181.87 VAPI
+  // placeOutboundCall path.
+  if (endCallId) {
+    try {
+      const { getDb } = await import("../../db");
+      const { confirmationCalls, algEstimates } = await import("../../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        // wave-fix-2026-05-25 (audit #106) · same artifact-first
+        // fallback as the service-mention path · without this,
+        // confirmation-call evaluation runs on empty transcript
+        // and undercounts every converted call by ~10 eval-score
+        // points.
+        const transcriptText = ((event as { artifact?: { transcript?: string }; transcript?: string }).artifact?.transcript ?? (event as { transcript?: string }).transcript ?? "")
+          + " " + ((event as { summary?: string; analysis?: { summary?: string } }).summary
+            ?? (event as { analysis?: { summary?: string } }).analysis?.summary
+            ?? "");
+        const lower = transcriptText.toLowerCase();
+        const snippet = transcriptText.slice(0, 500);
+
+        // Classification · same regex pattern as the dropped
+        // agentphone classifyTranscript helper.
+        let confirmStatus: "confirmed" | "rescheduled" | "no_answer" = "no_answer";
+        let rescheduleRequest: string | null = null;
+        if (transcriptText.trim().length > 0) {
+          if (/\b(reschedule|move it|change the time|different day|can we do|push it|next week|earlier|later in the day|cancel)\b/i.test(lower)) {
+            confirmStatus = "rescheduled";
+            const sentences = lower.split(/[.!?]/);
+            const rs = sentences.find((s) => /\b(reschedule|move|change|different day|push|earlier|later)\b/i.test(s));
+            rescheduleRequest = (rs || "").trim().slice(0, 200) || null;
+          } else if (/\b(yes|yeah|yep|confirm|still on|see you|i.?ll be there|sounds good|works for me|all set)\b/i.test(lower)) {
+            confirmStatus = "confirmed";
+          } else {
+            // forensic-audit MEDIUM · was "ambiguous content → confirmed",
+            // so a voicemail/no-answer call where only the AI spoke was
+            // recorded as a confirmed appointment and the operator never
+            // followed up. Default to no_answer — a false follow-up is far
+            // cheaper than a missed no-show.
+            confirmStatus = "no_answer";
+          }
+        } else {
+          confirmStatus = "no_answer";
+        }
+
+        // Try 1 · confirmation_calls
+        const [confRow] = await db
+          .select()
+          .from(confirmationCalls)
+          .where(eq(confirmationCalls.agentphoneCallId, endCallId))
+          .limit(1);
+
+        if (confRow) {
+          await db
+            .update(confirmationCalls)
+            .set({
+              status: confirmStatus,
+              transcriptSnippet: snippet,
+              rescheduleRequest,
+              completedAt: new Date(),
+            })
+            .where(eq(confirmationCalls.id, confRow.id));
+          log.info(`[vapi outbound] confirmation_calls #${confRow.id} → ${confirmStatus}`, {
+            callId: String(endCallId).slice(0, 16),
+          });
+        } else {
+          // Try 2 · alg_estimates voice_recovery
+          const [estRow] = await db
+            .select({ id: algEstimates.id })
+            .from(algEstimates)
+            .where(eq(algEstimates.voiceRecoveryCallId, endCallId))
+            .limit(1);
+          if (estRow) {
+            // Map confirmation classification → recovery enum
+            const recoveryOutcome: "interested" | "not_interested" | "no_answer" =
+              confirmStatus === "no_answer" ? "no_answer" :
+              // For recovery · check for explicit not-interested signals
+              /\b(not interested|no thanks|already|fixed it|sold the car|don't need|not now)\b/i.test(lower) ? "not_interested" :
+              "interested";
+            await db
+              .update(algEstimates)
+              .set({ voiceRecoveryOutcome: recoveryOutcome })
+              .where(eq(algEstimates.id, estRow.id));
+            log.info(`[vapi outbound] alg_estimates #${estRow.id} voice_recovery → ${recoveryOutcome}`, {
+              callId: String(endCallId).slice(0, 16),
+            });
+          }
+          // No match in either table · inbound call · already handled above
+        }
+      }
+    } catch (dispatchErr) {
+      log.warn("[vapi outbound] dispatch failed (non-blocking)", {
+        error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+      });
+    }
+  }
+
+  // ─── Trust ladder (Phase 6): actionable call → DRAFT proposals ──────────
+  // Flag-gated (vapi_action_proposals, OFF by default — also the 0111
+  // deploy-order guard). Creates DRAFTS in the approval queue only; nothing
+  // executes without a human tap. Deliberately LAST and try/caught: the
+  // call-log write, claim guard and outbound dispatch above must be complete
+  // and unaffected whether this succeeds, fails, or is disabled.
+  try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    if (await isEnabled("vapi_action_proposals")) {
+      const callId = event.call?.id;
+      if (callId) {
+        const { maybeProposeCallActions } = await import("../../services/vapiActionExtraction");
+        const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
+        const transcript =
+          (event as { artifact?: { transcript?: string } }).artifact?.transcript ??
+          (event as { transcript?: string })?.transcript ??
+          "";
+        const summary =
+          (event as { summary?: string; analysis?: { summary?: string } })?.summary ??
+          (event as { analysis?: { summary?: string } })?.analysis?.summary ??
+          null;
+        await maybeProposeCallActions({
+          callId,
+          transcript: typeof transcript === "string" ? transcript : "",
+          summary,
+          customerName: customer?.name ?? null,
+          customerPhone: customer?.number ?? null,
+          durationSeconds: extractCallDurationSec(event),
+          endedReason: cleanEndedReason,
+          // Direction gate: our own outbound confirmation / recovery calls must
+          // not produce drafts for work that already exists.
+          callType: (event.call as { type?: string })?.type ?? null,
+        });
+      }
+    }
+  } catch (proposalErr) {
+    log.warn("[vapi proposals] extraction pass failed (non-blocking)", {
+      error: proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
+    });
+  }
+}
+
+// ─── Main webhook endpoint ─────────────────────────────
+
+router.post("/vapi", async (req: Request, res: Response) => {
+  if (!verifyVapiSignature(req)) {
+    log.warn("Invalid Vapi signature");
+    res.status(401).json({ error: "Invalid signature" });
+    return;
+  }
+
+  const body = req.body as { message: VapiWebhookMessage };
+
+  const event = body?.message;
+  if (!event?.type) {
+    res.status(400).json({ error: "Missing message.type" });
+    return;
+  }
+
+  try {
+    switch (event.type) {
+      case "function-call":
+      case "tool-calls": {
+        // wave-181.4 · capture LLM→tool→ack round-trip latency so the
+        // /api/admin/voice-latency observability tile can surface it.
+        // Anchored at handler entry; the actual write happens AFTER
+        // results assemble so a telemetry bug can't break the response.
+        const webhookReceivedAt = Date.now();
+        // Multiple tool calls arrive in one webhook. Run in parallel.
+        // wave-116 — was Promise.all; a single rejection caused the
+        // webhook to 500, prompting VAPI to retry the WHOLE batch and
+        // potentially double-execute already-succeeded tools (e.g.
+        // scheduleDropoff fired twice). allSettled isolates per-call
+        // outcomes so the webhook always 200s with a per-tool result.
+        const calls = event.toolCalls || [];
+        const dialled = (event.call as { customer?: { number?: string } } | undefined)?.customer?.number;
+        const callType = (event.call as { type?: string } | undefined)?.type;
+        const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id, dialled, callType)));
+        const results = settled.map((s, i) => {
+          if (s.status === "fulfilled") return s.value;
+          const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
+          log.error("Tool call rejected", {
+            toolCallId: calls[i]?.id,
+            functionName: calls[i]?.function?.name,
+            error: err,
+          });
+          return {
+            toolCallId: calls[i]?.id,
+            result: JSON.stringify({ error: "Tool execution failed", details: err }),
+          };
+        });
+        res.json({ results });
+
+        // Fire-and-forget latency capture · service swallows all errors
+        // so a missing migration or transient DB issue never breaks the
+        // webhook response above.
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-latency").then(({ captureVoiceLatency }) =>
+            captureVoiceLatency({
+              callId,
+              assistantId: assistantId ?? "unknown",
+              stage: "llm_first_token",
+              latencyMs: Date.now() - webhookReceivedAt,
+              metadata: { source: "vapi-webhook", toolCalls: calls.length },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+
+          // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+          // Classify each tool call into a state transition (read tool =
+          // intent_captured · write tool = tool_called · confirmation
+          // tool = confirmed). Append-only · multiple events per call
+          // are correct (the trail tells you the agent re-engaged after
+          // a tool call). Fire-and-forget · NEVER blocks webhook.
+          Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/tireDemand"),
+          ]).then(([{ classifyToolToState, recordCallState }, { toolCallStateMetadata }]) => {
+            for (const c of calls) {
+              const state = classifyToolToState(c.function?.name ?? "");
+              if (state) {
+                void recordCallState({
+                  callId,
+                  assistantId,
+                  state,
+                  // A tireInquiry also records what the caller asked for (size,
+                  // new/used; never name or phone) for Today's "Asked by phone".
+                  metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
+                });
+              }
+            }
+          }).catch(() => { /* intentionally swallowed */ });
+        }
+        return;
+      }
+
+      case "call-start": {
+        // Legacy/explicit call-start event. Current Vapi server-message defaults
+        // use status-update and mark the true start as status=in-progress.
+        log.info("Vapi call started", { callId: event.call?.id, source: "call-start" });
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-call-state").then(({ recordCallState }) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "greeted",
+              metadata: { eventType: event.type },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "status-update": {
+        // Vapi emits scheduled/queued/ringing/in-progress/forwarding/ended.
+        // Only in-progress means the conversation actually started. The old
+        // combined branch stamped every status as "greeted", producing several
+        // fake starts for one call in production.
+        const status = event.status ?? "unknown";
+        log.info("Vapi status update", { callId: event.call?.id, status });
+        if (status === "in-progress") {
+          const callId = event.call?.id;
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          if (callId) {
+            import("../../services/voice-call-state").then(({ recordCallState }) =>
+              recordCallState({
+                callId,
+                assistantId,
+                state: "greeted",
+                metadata: { eventType: event.type, status },
+              })
+            ).catch(() => { /* intentionally swallowed */ });
+          }
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "speech-update": {
+        // Normal Vapi lifecycle telemetry (started/stopped speaking). We do not
+        // persist it yet; explicitly acknowledge it so production logs do not
+        // mislabel supported provider traffic as an unknown event.
+        res.json({ ack: true });
+        return;
+      }
+
+      // Vapi fires this when the assistant STARTS a transfer. It carries no
+      // outcome (that arrives in the end-of-call artifact, when Vapi sends
+      // one); it is the proof an attempt happened. Until 2026-09-23 it was
+      // subscribed but fell to the default branch, so an attempt whose call
+      // then ended some other way left no trace. Ack first, record detached;
+      // the destination's kind only, never its number.
+      case "transfer-update": {
+        res.json({ ack: true });
+        const callId = event.call?.id;
+        if (callId) {
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          void Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/transferArtifact"),
+          ]).then(([{ recordCallState }, { transferUpdateMetadata }]) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "transfer_attempted",
+              metadata: transferUpdateMetadata(event),
+            }),
+          ).catch(() => { /* intentionally swallowed: telemetry never breaks a live call */ });
+        }
+        return;
+      }
+
+      case "end-of-call-report":
+      case "call-end": {
+        // wave-137 · read the CLEAN reason from message-level (see
+        // extractEndedReason). call.endedReason is null/SIP-transient on the
+        // webhook. Computed once, reused for the row insert + state metadata.
+        const cleanEndedReason = extractEndedReason(event);
+        log.info("Vapi call ended", {
+          callId: event.call?.id,
+          reason: cleanEndedReason,
+        });
+        // Q-45: do-not-call is the one compliance write that MUST be durable
+        // before acknowledgement. If it fails, return non-2xx so Vapi can
+        // retry the webhook. All noncritical post-call work stays detached.
+        try {
+          await persistTranscriptDoNotCallBeforeAck(event);
+        } catch (dncErr) {
+          log.error("[vapi webhook] do-not-call persistence failed before ack", {
+            callId: event.call?.id,
+            error: dncErr instanceof Error ? dncErr.message : String(dncErr),
+            errorId: "VAPI_DNC_PREACK_FAILED",
+          });
+          res.status(503).json({ error: "Do-not-call persistence failed; retry webhook" });
+          return;
+        }
+
+        res.json({ ack: true });
+        // F5 · tracked so a SIGTERM drain waits for it (the 200 is already sent).
+        void trackDetached("vapi:end-of-call", processCallEndReport(event, cleanEndedReason)).catch((err) => {
+          log.warn("[vapi webhook] detached post-call processing failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+        return;
+      }
+
+      case "transcript":
+        // Real-time transcript updates — log in dev, ignore in prod
+        if (process.env.NODE_ENV !== "production") {
+          log.info("Vapi transcript chunk", { len: event.transcript?.length });
+        }
+        res.json({ ack: true });
+        return;
+
+      // wave-181.63 · Phase 6 · cross-call memory hydration.
+      // wave-181.x · Tier S · BDI upgrade (declined-recovery opener).
+      // VAPI fires `assistant-request` BEFORE the call connects. The
+      // response shape is `{ assistantOverrides?: {...} }` which VAPI
+      // merges with the assistant's configured fields for THIS call
+      // only (no PATCH to the global assistant). The BDI composer
+      // (vapi-bdi.ts) looks up the caller AND any unconverted estimate
+      // and opens the call with the recovery hook when one is on file.
+      // Unknown callers fall through to the default first message ·
+      // backward compatible with the wave-181.63 personalization path.
+      case "assistant-request": {
+        const customer = (event.call as { customer?: { number?: string } } | undefined)?.customer;
+        const phone = customer?.number?.trim();
+        if (!phone) {
+          // No phone in the request · can't personalize · fall through
+          // to default assistant.
+          res.json({});
+          return;
+        }
+        try {
+          const { buildBdiFirstMessage } = await import(
+            "../../services/vapi-bdi"
+          );
+          const result = await buildBdiFirstMessage(phone);
+          log.info("assistant-request bdi", {
+            phoneSuffix: phone.replace(/\D/g, "").slice(-4),
+            matched: result.matched,
+            kind: result.kind,
+            reason: result.reason,
+          });
+          if (result.firstMessage) {
+            res.json({
+              assistantOverrides: { firstMessage: result.firstMessage },
+            });
+            return;
+          }
+        } catch (err) {
+          log.warn("assistant-request bdi threw", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Default · use assistant's configured first message.
+        res.json({});
+        return;
+      }
+
+      default:
+        log.info("Vapi unknown event type", { type: event.type });
+        res.json({ ack: true });
+        return;
+    }
+  } catch (err) {
+    log.error("Vapi webhook handler threw", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
+
+export { router as vapiWebhookRouter };
+)
+            )
+            WHERE vapiCallId = ${String(callId)}
+          `);
+        } catch (behaviorErr) {
+          log.warn("[vapi webhook] behavior fingerprint persist failed (analytics only)", {
+            error: behaviorErr instanceof Error ? behaviorErr.message : String(behaviorErr),
+          });
+        }
+
+        // ─── Persist CUSTOMER-only speech (2026-07-26 demand audit) ─────────
+        // The full transcript has been in hand here since wave-fix-2026-05-25,
+        // used for a keyword scan and then dropped. Meanwhile `transcriptUrl`
+        // is populated on 0 of 2,095 rows — VAPI never sets it — so nothing
+        // durable held what callers actually said, and every demand signal was
+        // assistant-contaminated: `serviceMention` is binary (tire|brake) and
+        // `aiSummary` is written by a tire-first assistant. The ~60% used-tire
+        // figure the whole prompt is built around could not be checked.
+        //
+        // Stores the CUSTOMER's turns only — never assistant speech, never the
+        // full transcript — capped and truncated. JSON_SET merges into whatever
+        // `metadata` already holds (intents, agenticAudit), so write order with
+        // the later enrichment updates does not matter. Uses the existing JSON
+        // column deliberately: no migration means no hand-applied DDL to forget
+        // (ROS-059). Fail-open — a demand-analytics write must never affect the
+        // webhook's 200.
+        try {
+          const { buildCustomerSpeechRecord, extractCustomerTurnsFromMessages, CUSTOMER_SPEECH_VERSION } =
+            await import("../../services/customerTurns");
+          // Prefer VAPI's role-tagged `artifact.messages` — authoritative at the
+          // source, so no speaker-prefix guessing and no formatting change can
+          // misattribute assistant speech as customer demand. The flat
+          // transcript is the fallback for calls that lack the array.
+          const artifactMsgs = (event as { artifact?: { messages?: unknown } }).artifact?.messages;
+          let speech: ReturnType<typeof buildCustomerSpeechRecord> = null;
+          if (Array.isArray(artifactMsgs) && artifactMsgs.length) {
+            const parsed = extractCustomerTurnsFromMessages(artifactMsgs);
+            if (parsed.turns.length || parsed.unparsed) {
+              speech = {
+                v: CUSTOMER_SPEECH_VERSION,
+                turns: parsed.turns,
+                turnCount: parsed.totalCustomerTurns,
+                first: parsed.firstSubstantive,
+                unparsed: parsed.unparsed,
+              };
+            }
+          } else {
+            speech = buildCustomerSpeechRecord(transcript);
+          }
+          if (speech) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.customerSpeech', CAST(${JSON.stringify(speech)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+          }
+        } catch (speechErr) {
+          log.warn("[vapi webhook] customer-speech persist failed (analytics only)", {
+            error: speechErr instanceof Error ? speechErr.message : String(speechErr),
+          });
+        }
+
+        // TRANSFER ARTIFACT · the only signal that can prove a human ANSWERED.
+        //
+        // Every transfer metric in this app has been built on
+        // `endedReason === "assistant-forwarded-call"`, which VAPI's own docs
+        // say confirms the transfer was INITIATED, not completed — their
+        // troubleshooting page sends you to the provider's call log for the
+        // outcome. So a call that rang an empty counter and dropped to
+        // voicemail has scored identically to one Nick answered on the second
+        // ring, and no connect-rate built on it could ever emit a failure for
+        // the one case it exists to detect.
+        //
+        // `artifact.transfers[]` carries a real per-attempt status. VAPI
+        // describes blind-transfer outcome detection as enabled PER
+        // ORGANISATION, so whether this account receives it is an empirical
+        // question — which is exactly why `artifactPresent` is persisted
+        // separately from the verdict. That flag is the live answer, read from
+        // production rather than assumed from documentation.
+        //
+        // Separate try on purpose, same as customerSpeech above: one analytics
+        // write failing must not take the other down, and neither may affect
+        // the webhook's 200.
+        try {
+          const { readTransferArtifact, transferArtifactWorthPersisting, sawTransferUpdate } = await import("../../lib/transferArtifact");
+          const read = readTransferArtifact((event as { artifact?: unknown }).artifact);
+          // The live `transfer-update` witness (recorded below in the router).
+          // It catches the attempt the ended reason hides: a caller who hangs
+          // up while the shop line rings ends "customer-ended-call".
+          const { getCallStateHistory } = await import("../../services/voice-call-state");
+          const transferUpdateSeen = sawTransferUpdate(await getCallStateHistory(String(callId)));
+          // Write only when there is something to say: a per-attempt record, or
+          // an ended reason proving a transfer was ATTEMPTED. A call that never
+          // tried to hand off gets no verdict at all — the old test here was
+          // `artifactPresent || transfers.length`, and artifactPresent is true
+          // whenever Vapi sends a transfers ARRAY — which it does, empty, on
+          // calls that never transferred — which is how 20 of 31 calls came to
+          // carry "unknown" for a transfer that never happened.
+          if (transferArtifactWorthPersisting(read, cleanEndedReason, transferUpdateSeen)) {
+            const { sql } = await import("drizzle-orm");
+            const stored = { ...read, transferUpdateSeen };
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.transferArtifact', CAST(${JSON.stringify(stored)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (read.unrecognisedStatuses.length) {
+              // A status VAPI added that this app does not model. Loud, because
+              // silently bucketing it as unknown would hide a real drift.
+              log.warn("[vapi webhook] unmodelled transfer status from VAPI", {
+                statuses: read.unrecognisedStatuses,
+              });
+            }
+          }
+        } catch (transferErr) {
+          log.warn("[vapi webhook] transfer-artifact persist failed (analytics only)", {
+            error: transferErr instanceof Error ? transferErr.message : String(transferErr),
+          });
+        }
+
+        // VOICE CLAIM GUARD · the assistant side of the same artifact.
+        //
+        // SMS drafts are gated before send by `planViolations`; voice had no
+        // equivalent, so the prompt's truth rules (no repair quotes, no live
+        // stock, no capacity or wait promises) were enforced by prose alone.
+        // Vapi streams to TTS with no pre-speech hook, so this cannot block —
+        // it DETECTS, which is what makes drift visible and what makes the
+        // prompt-compression work measurable.
+        //
+        // Separate try from customerSpeech on purpose: one analytics write
+        // failing must not take the other down, and neither may affect the 200.
+        try {
+          const { buildVoiceClaimRecord } = await import("../../services/voiceClaimGuard");
+          const claims = buildVoiceClaimRecord({
+            transcript,
+            messages: (event as { artifact?: { messages?: unknown } }).artifact?.messages,
+          });
+          if (claims) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.voiceClaims', CAST(${JSON.stringify(claims)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (claims.violations.length) {
+              // Labels only — never the utterance. The transcript stays in the
+              // column it arrived in; logs must not become a second PII surface.
+              log.warn("[vapi webhook] voice claim violation", {
+                callId: String(callId),
+                violations: claims.violations,
+              });
+            }
+          }
+        } catch (claimErr) {
+          log.warn("[vapi webhook] voice-claim persist failed (analytics only)", {
+            error: claimErr instanceof Error ? claimErr.message : String(claimErr),
+          });
+        }
+
+        // wave-144 · forwarded-call safety net. A during-hours
+        // transferCall hands the caller to the shop line; if nobody
+        // picks up (tech mid-bay), that hot caller is lost with NO
+        // follow-up surface — forwards only showed up as a Voice-page
+        // chart bar. On the first end-of-call insert only, drop a row
+        // into the front-desk callback queue so every forwarded caller
+        // is accounted for. This is an INTERNAL queue entry, not an
+        // outbound customer message — worst case is a row the operator
+        // clears in one tap; the win is no forwarded caller falls
+        // through. endedReason "assistant-forwarded-call" → /forward/i.
+        // 2026-05-31 · forwarded-call follow-up flipped from an internal
+        // callback to-do (it flooded the Today queue with "Call back Voice
+        // caller" rows) to a self-serve SMS back to the caller. The caller
+        // re-engages on their terms; the operator's callback queue stays clean.
+        // 2026-07-20 · vapiCallId is REQUIRED for real idempotency. The
+        // orchestrator only builds a stable key (`..._call_<id>`) when
+        // event.vapiCallId is present (smsOrchestrator.ts) — omit it and the
+        // key falls through to a Date.now()+Math.random() value that is unique
+        // by construction, so the idempotency check can never match and is a
+        // silent no-op. Dedupe then rests entirely on the 24h phone cooldown.
+        // Passing the id restores the guard the call site always implied.
+        // 2026-07-20 · operator off-switch. Read the pause flag BEFORE deciding;
+        // a flag-read failure resolves to `false` (= not paused), so a DB blip
+        // keeps today's behaviour rather than silently muting the path.
+        let followupPaused = false;
+        try {
+          const { isEnabled } = await import("../../services/featureFlags");
+          followupPaused = await isEnabled("vapi_forward_followup_paused");
+        } catch (flagErr) {
+          log.warn("[vapi webhook] pause-flag read failed — treating as NOT paused", {
+            error: flagErr instanceof Error ? flagErr.message : String(flagErr),
+          });
+        }
+
+        // Narrow the number ONCE and pass the same value to both the decision
+        // and the send. Reaching back for `customer!.number` after the predicate
+        // returned true would re-assert a fact the compiler can't follow across
+        // the call boundary — a non-null assertion there would silence the
+        // checker rather than satisfy it.
+        const followupPhone = customer?.number?.trim() ?? "";
+
+        if (shouldSendForwardedFollowup({
+          firstLog,
+          endedReason: cleanEndedReason,
+          customerNumber: followupPhone,
+          paused: followupPaused,
+        })) {
+          const { orchestrateSms } = await import("../../services/smsOrchestrator");
+          await orchestrateSms({
+            type: "vapi_forwarded_call_followup",
+            phone: followupPhone,
+            vapiCallId: event.call?.id,
+          }).catch((err: unknown) => {
+            log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        } else if (followupPaused && isForwardedEndedReason(cleanEndedReason)) {
+          log.info("[vapi webhook] forwarded-call SMS suppressed — vapi_forward_followup_paused is ON");
+        }
+      }
+    }
+  } catch (persistErr) {
+    log.warn("[vapi webhook] call-end persist failed (non-blocking)", {
+      error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+    });
+  }
+  // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+  // Record `ended` on call-end with reason metadata so the active-
+  // calls view can drop this call out of the in-flight list.
+  const endCallId = event.call?.id;
+  const endAssistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+  if (endCallId) {
+    import("../../services/voice-call-state").then(({ recordCallState }) =>
+      recordCallState({
+        callId: endCallId,
+        assistantId: endAssistantId,
+        state: "ended",
+        metadata: { reason: cleanEndedReason, eventType: event.type },
+      })
+    ).catch(() => { /* intentionally swallowed */ });
+  }
+
+  // wave-181.87 · dispatch outbound call.ended to confirmation_calls
+  // OR alg_estimates voice_recovery_call_id by callId lookup. Same
+  // pattern as the dropped AgentPhone webhook (wave-181.85) · this
+  // handler now serves BOTH inbound flows (above) AND outbound
+  // confirmation + recovery flows via the wave-181.87 VAPI
+  // placeOutboundCall path.
+  if (endCallId) {
+    try {
+      const { getDb } = await import("../../db");
+      const { confirmationCalls, algEstimates } = await import("../../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        // wave-fix-2026-05-25 (audit #106) · same artifact-first
+        // fallback as the service-mention path · without this,
+        // confirmation-call evaluation runs on empty transcript
+        // and undercounts every converted call by ~10 eval-score
+        // points.
+        const transcriptText = ((event as { artifact?: { transcript?: string }; transcript?: string }).artifact?.transcript ?? (event as { transcript?: string }).transcript ?? "")
+          + " " + ((event as { summary?: string; analysis?: { summary?: string } }).summary
+            ?? (event as { analysis?: { summary?: string } }).analysis?.summary
+            ?? "");
+        const lower = transcriptText.toLowerCase();
+        const snippet = transcriptText.slice(0, 500);
+
+        // Classification · same regex pattern as the dropped
+        // agentphone classifyTranscript helper.
+        let confirmStatus: "confirmed" | "rescheduled" | "no_answer" = "no_answer";
+        let rescheduleRequest: string | null = null;
+        if (transcriptText.trim().length > 0) {
+          if (/\b(reschedule|move it|change the time|different day|can we do|push it|next week|earlier|later in the day|cancel)\b/i.test(lower)) {
+            confirmStatus = "rescheduled";
+            const sentences = lower.split(/[.!?]/);
+            const rs = sentences.find((s) => /\b(reschedule|move|change|different day|push|earlier|later)\b/i.test(s));
+            rescheduleRequest = (rs || "").trim().slice(0, 200) || null;
+          } else if (/\b(yes|yeah|yep|confirm|still on|see you|i.?ll be there|sounds good|works for me|all set)\b/i.test(lower)) {
+            confirmStatus = "confirmed";
+          } else {
+            // forensic-audit MEDIUM · was "ambiguous content → confirmed",
+            // so a voicemail/no-answer call where only the AI spoke was
+            // recorded as a confirmed appointment and the operator never
+            // followed up. Default to no_answer — a false follow-up is far
+            // cheaper than a missed no-show.
+            confirmStatus = "no_answer";
+          }
+        } else {
+          confirmStatus = "no_answer";
+        }
+
+        // Try 1 · confirmation_calls
+        const [confRow] = await db
+          .select()
+          .from(confirmationCalls)
+          .where(eq(confirmationCalls.agentphoneCallId, endCallId))
+          .limit(1);
+
+        if (confRow) {
+          await db
+            .update(confirmationCalls)
+            .set({
+              status: confirmStatus,
+              transcriptSnippet: snippet,
+              rescheduleRequest,
+              completedAt: new Date(),
+            })
+            .where(eq(confirmationCalls.id, confRow.id));
+          log.info(`[vapi outbound] confirmation_calls #${confRow.id} → ${confirmStatus}`, {
+            callId: String(endCallId).slice(0, 16),
+          });
+        } else {
+          // Try 2 · alg_estimates voice_recovery
+          const [estRow] = await db
+            .select({ id: algEstimates.id })
+            .from(algEstimates)
+            .where(eq(algEstimates.voiceRecoveryCallId, endCallId))
+            .limit(1);
+          if (estRow) {
+            // Map confirmation classification → recovery enum
+            const recoveryOutcome: "interested" | "not_interested" | "no_answer" =
+              confirmStatus === "no_answer" ? "no_answer" :
+              // For recovery · check for explicit not-interested signals
+              /\b(not interested|no thanks|already|fixed it|sold the car|don't need|not now)\b/i.test(lower) ? "not_interested" :
+              "interested";
+            await db
+              .update(algEstimates)
+              .set({ voiceRecoveryOutcome: recoveryOutcome })
+              .where(eq(algEstimates.id, estRow.id));
+            log.info(`[vapi outbound] alg_estimates #${estRow.id} voice_recovery → ${recoveryOutcome}`, {
+              callId: String(endCallId).slice(0, 16),
+            });
+          }
+          // No match in either table · inbound call · already handled above
+        }
+      }
+    } catch (dispatchErr) {
+      log.warn("[vapi outbound] dispatch failed (non-blocking)", {
+        error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+      });
+    }
+  }
+
+  // ─── Trust ladder (Phase 6): actionable call → DRAFT proposals ──────────
+  // Flag-gated (vapi_action_proposals, OFF by default — also the 0111
+  // deploy-order guard). Creates DRAFTS in the approval queue only; nothing
+  // executes without a human tap. Deliberately LAST and try/caught: the
+  // call-log write, claim guard and outbound dispatch above must be complete
+  // and unaffected whether this succeeds, fails, or is disabled.
+  try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    if (await isEnabled("vapi_action_proposals")) {
+      const callId = event.call?.id;
+      if (callId) {
+        const { maybeProposeCallActions } = await import("../../services/vapiActionExtraction");
+        const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
+        const transcript =
+          (event as { artifact?: { transcript?: string } }).artifact?.transcript ??
+          (event as { transcript?: string })?.transcript ??
+          "";
+        const summary =
+          (event as { summary?: string; analysis?: { summary?: string } })?.summary ??
+          (event as { analysis?: { summary?: string } })?.analysis?.summary ??
+          null;
+        await maybeProposeCallActions({
+          callId,
+          transcript: typeof transcript === "string" ? transcript : "",
+          summary,
+          customerName: customer?.name ?? null,
+          customerPhone: customer?.number ?? null,
+          durationSeconds: extractCallDurationSec(event),
+          endedReason: cleanEndedReason,
+          // Direction gate: our own outbound confirmation / recovery calls must
+          // not produce drafts for work that already exists.
+          callType: (event.call as { type?: string })?.type ?? null,
+        });
+      }
+    }
+  } catch (proposalErr) {
+    log.warn("[vapi proposals] extraction pass failed (non-blocking)", {
+      error: proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
+    });
+  }
+}
+
+// ─── Main webhook endpoint ─────────────────────────────
+
+router.post("/vapi", async (req: Request, res: Response) => {
+  if (!verifyVapiSignature(req)) {
+    log.warn("Invalid Vapi signature");
+    res.status(401).json({ error: "Invalid signature" });
+    return;
+  }
+
+  const body = req.body as { message: VapiWebhookMessage };
+
+  const event = body?.message;
+  if (!event?.type) {
+    res.status(400).json({ error: "Missing message.type" });
+    return;
+  }
+
+  try {
+    switch (event.type) {
+      case "function-call":
+      case "tool-calls": {
+        // wave-181.4 · capture LLM→tool→ack round-trip latency so the
+        // /api/admin/voice-latency observability tile can surface it.
+        // Anchored at handler entry; the actual write happens AFTER
+        // results assemble so a telemetry bug can't break the response.
+        const webhookReceivedAt = Date.now();
+        // Multiple tool calls arrive in one webhook. Run in parallel.
+        // wave-116 — was Promise.all; a single rejection caused the
+        // webhook to 500, prompting VAPI to retry the WHOLE batch and
+        // potentially double-execute already-succeeded tools (e.g.
+        // scheduleDropoff fired twice). allSettled isolates per-call
+        // outcomes so the webhook always 200s with a per-tool result.
+        const calls = event.toolCalls || [];
+        const dialled = (event.call as { customer?: { number?: string } } | undefined)?.customer?.number;
+        const callType = (event.call as { type?: string } | undefined)?.type;
+        const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id, dialled, callType)));
+        const results = settled.map((s, i) => {
+          if (s.status === "fulfilled") return s.value;
+          const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
+          log.error("Tool call rejected", {
+            toolCallId: calls[i]?.id,
+            functionName: calls[i]?.function?.name,
+            error: err,
+          });
+          return {
+            toolCallId: calls[i]?.id,
+            result: JSON.stringify({ error: "Tool execution failed", details: err }),
+          };
+        });
+        res.json({ results });
+
+        // Fire-and-forget latency capture · service swallows all errors
+        // so a missing migration or transient DB issue never breaks the
+        // webhook response above.
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-latency").then(({ captureVoiceLatency }) =>
+            captureVoiceLatency({
+              callId,
+              assistantId: assistantId ?? "unknown",
+              stage: "llm_first_token",
+              latencyMs: Date.now() - webhookReceivedAt,
+              metadata: { source: "vapi-webhook", toolCalls: calls.length },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+
+          // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+          // Classify each tool call into a state transition (read tool =
+          // intent_captured · write tool = tool_called · confirmation
+          // tool = confirmed). Append-only · multiple events per call
+          // are correct (the trail tells you the agent re-engaged after
+          // a tool call). Fire-and-forget · NEVER blocks webhook.
+          Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/tireDemand"),
+          ]).then(([{ classifyToolToState, recordCallState }, { toolCallStateMetadata }]) => {
+            for (const c of calls) {
+              const state = classifyToolToState(c.function?.name ?? "");
+              if (state) {
+                void recordCallState({
+                  callId,
+                  assistantId,
+                  state,
+                  // A tireInquiry also records what the caller asked for (size,
+                  // new/used; never name or phone) for Today's "Asked by phone".
+                  metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
+                });
+              }
+            }
+          }).catch(() => { /* intentionally swallowed */ });
+        }
+        return;
+      }
+
+      case "call-start": {
+        // Legacy/explicit call-start event. Current Vapi server-message defaults
+        // use status-update and mark the true start as status=in-progress.
+        log.info("Vapi call started", { callId: event.call?.id, source: "call-start" });
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-call-state").then(({ recordCallState }) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "greeted",
+              metadata: { eventType: event.type },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "status-update": {
+        // Vapi emits scheduled/queued/ringing/in-progress/forwarding/ended.
+        // Only in-progress means the conversation actually started. The old
+        // combined branch stamped every status as "greeted", producing several
+        // fake starts for one call in production.
+        const status = event.status ?? "unknown";
+        log.info("Vapi status update", { callId: event.call?.id, status });
+        if (status === "in-progress") {
+          const callId = event.call?.id;
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          if (callId) {
+            import("../../services/voice-call-state").then(({ recordCallState }) =>
+              recordCallState({
+                callId,
+                assistantId,
+                state: "greeted",
+                metadata: { eventType: event.type, status },
+              })
+            ).catch(() => { /* intentionally swallowed */ });
+          }
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "speech-update": {
+        // Normal Vapi lifecycle telemetry (started/stopped speaking). We do not
+        // persist it yet; explicitly acknowledge it so production logs do not
+        // mislabel supported provider traffic as an unknown event.
+        res.json({ ack: true });
+        return;
+      }
+
+      // Vapi fires this when the assistant STARTS a transfer. It carries no
+      // outcome (that arrives in the end-of-call artifact, when Vapi sends
+      // one); it is the proof an attempt happened. Until 2026-09-23 it was
+      // subscribed but fell to the default branch, so an attempt whose call
+      // then ended some other way left no trace. Ack first, record detached;
+      // the destination's kind only, never its number.
+      case "transfer-update": {
+        res.json({ ack: true });
+        const callId = event.call?.id;
+        if (callId) {
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          void Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/transferArtifact"),
+          ]).then(([{ recordCallState }, { transferUpdateMetadata }]) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "transfer_attempted",
+              metadata: transferUpdateMetadata(event),
+            }),
+          ).catch(() => { /* intentionally swallowed: telemetry never breaks a live call */ });
+        }
+        return;
+      }
+
+      case "end-of-call-report":
+      case "call-end": {
+        // wave-137 · read the CLEAN reason from message-level (see
+        // extractEndedReason). call.endedReason is null/SIP-transient on the
+        // webhook. Computed once, reused for the row insert + state metadata.
+        const cleanEndedReason = extractEndedReason(event);
+        log.info("Vapi call ended", {
+          callId: event.call?.id,
+          reason: cleanEndedReason,
+        });
+        // Q-45: do-not-call is the one compliance write that MUST be durable
+        // before acknowledgement. If it fails, return non-2xx so Vapi can
+        // retry the webhook. All noncritical post-call work stays detached.
+        try {
+          await persistTranscriptDoNotCallBeforeAck(event);
+        } catch (dncErr) {
+          log.error("[vapi webhook] do-not-call persistence failed before ack", {
+            callId: event.call?.id,
+            error: dncErr instanceof Error ? dncErr.message : String(dncErr),
+            errorId: "VAPI_DNC_PREACK_FAILED",
+          });
+          res.status(503).json({ error: "Do-not-call persistence failed; retry webhook" });
+          return;
+        }
+
+        res.json({ ack: true });
+        // F5 · tracked so a SIGTERM drain waits for it (the 200 is already sent).
+        void trackDetached("vapi:end-of-call", processCallEndReport(event, cleanEndedReason)).catch((err) => {
+          log.warn("[vapi webhook] detached post-call processing failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+        return;
+      }
+
+      case "transcript":
+        // Real-time transcript updates — log in dev, ignore in prod
+        if (process.env.NODE_ENV !== "production") {
+          log.info("Vapi transcript chunk", { len: event.transcript?.length });
+        }
+        res.json({ ack: true });
+        return;
+
+      // wave-181.63 · Phase 6 · cross-call memory hydration.
+      // wave-181.x · Tier S · BDI upgrade (declined-recovery opener).
+      // VAPI fires `assistant-request` BEFORE the call connects. The
+      // response shape is `{ assistantOverrides?: {...} }` which VAPI
+      // merges with the assistant's configured fields for THIS call
+      // only (no PATCH to the global assistant). The BDI composer
+      // (vapi-bdi.ts) looks up the caller AND any unconverted estimate
+      // and opens the call with the recovery hook when one is on file.
+      // Unknown callers fall through to the default first message ·
+      // backward compatible with the wave-181.63 personalization path.
+      case "assistant-request": {
+        const customer = (event.call as { customer?: { number?: string } } | undefined)?.customer;
+        const phone = customer?.number?.trim();
+        if (!phone) {
+          // No phone in the request · can't personalize · fall through
+          // to default assistant.
+          res.json({});
+          return;
+        }
+        try {
+          const { buildBdiFirstMessage } = await import(
+            "../../services/vapi-bdi"
+          );
+          const result = await buildBdiFirstMessage(phone);
+          log.info("assistant-request bdi", {
+            phoneSuffix: phone.replace(/\D/g, "").slice(-4),
+            matched: result.matched,
+            kind: result.kind,
+            reason: result.reason,
+          });
+          if (result.firstMessage) {
+            res.json({
+              assistantOverrides: { firstMessage: result.firstMessage },
+            });
+            return;
+          }
+        } catch (err) {
+          log.warn("assistant-request bdi threw", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Default · use assistant's configured first message.
+        res.json({});
+        return;
+      }
+
+      default:
+        log.info("Vapi unknown event type", { type: event.type });
+        res.json({ ack: true });
+        return;
+    }
+  } catch (err) {
+    log.error("Vapi webhook handler threw", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
+
+export { router as vapiWebhookRouter };
+))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+          }
+        } catch (speechErr) {
+          log.warn("[vapi webhook] customer-speech persist failed (analytics only)", {
+            error: speechErr instanceof Error ? speechErr.message : String(speechErr),
+          });
+        }
+
+        // TRANSFER ARTIFACT · the only signal that can prove a human ANSWERED.
+        //
+        // Every transfer metric in this app has been built on
+        // `endedReason === "assistant-forwarded-call"`, which VAPI's own docs
+        // say confirms the transfer was INITIATED, not completed — their
+        // troubleshooting page sends you to the provider's call log for the
+        // outcome. So a call that rang an empty counter and dropped to
+        // voicemail has scored identically to one Nick answered on the second
+        // ring, and no connect-rate built on it could ever emit a failure for
+        // the one case it exists to detect.
+        //
+        // `artifact.transfers[]` carries a real per-attempt status. VAPI
+        // describes blind-transfer outcome detection as enabled PER
+        // ORGANISATION, so whether this account receives it is an empirical
+        // question — which is exactly why `artifactPresent` is persisted
+        // separately from the verdict. That flag is the live answer, read from
+        // production rather than assumed from documentation.
+        //
+        // Separate try on purpose, same as customerSpeech above: one analytics
+        // write failing must not take the other down, and neither may affect
+        // the webhook's 200.
+        try {
+          const { readTransferArtifact, transferArtifactWorthPersisting, sawTransferUpdate } = await import("../../lib/transferArtifact");
+          const read = readTransferArtifact((event as { artifact?: unknown }).artifact);
+          // The live `transfer-update` witness (recorded below in the router).
+          // It catches the attempt the ended reason hides: a caller who hangs
+          // up while the shop line rings ends "customer-ended-call".
+          const { getCallStateHistory } = await import("../../services/voice-call-state");
+          const transferUpdateSeen = sawTransferUpdate(await getCallStateHistory(String(callId)));
+          // Write only when there is something to say: a per-attempt record, or
+          // an ended reason proving a transfer was ATTEMPTED. A call that never
+          // tried to hand off gets no verdict at all — the old test here was
+          // `artifactPresent || transfers.length`, and artifactPresent is true
+          // whenever Vapi sends a transfers ARRAY — which it does, empty, on
+          // calls that never transferred — which is how 20 of 31 calls came to
+          // carry "unknown" for a transfer that never happened.
+          if (transferArtifactWorthPersisting(read, cleanEndedReason, transferUpdateSeen)) {
+            const { sql } = await import("drizzle-orm");
+            const stored = { ...read, transferUpdateSeen };
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.transferArtifact', CAST(${JSON.stringify(stored)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (read.unrecognisedStatuses.length) {
+              // A status VAPI added that this app does not model. Loud, because
+              // silently bucketing it as unknown would hide a real drift.
+              log.warn("[vapi webhook] unmodelled transfer status from VAPI", {
+                statuses: read.unrecognisedStatuses,
+              });
+            }
+          }
+        } catch (transferErr) {
+          log.warn("[vapi webhook] transfer-artifact persist failed (analytics only)", {
+            error: transferErr instanceof Error ? transferErr.message : String(transferErr),
+          });
+        }
+
+        // VOICE CLAIM GUARD · the assistant side of the same artifact.
+        //
+        // SMS drafts are gated before send by `planViolations`; voice had no
+        // equivalent, so the prompt's truth rules (no repair quotes, no live
+        // stock, no capacity or wait promises) were enforced by prose alone.
+        // Vapi streams to TTS with no pre-speech hook, so this cannot block —
+        // it DETECTS, which is what makes drift visible and what makes the
+        // prompt-compression work measurable.
+        //
+        // Separate try from customerSpeech on purpose: one analytics write
+        // failing must not take the other down, and neither may affect the 200.
+        try {
+          const { buildVoiceClaimRecord } = await import("../../services/voiceClaimGuard");
+          const claims = buildVoiceClaimRecord({
+            transcript,
+            messages: (event as { artifact?: { messages?: unknown } }).artifact?.messages,
+          });
+          if (claims) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.voiceClaims', CAST(${JSON.stringify(claims)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (claims.violations.length) {
+              // Labels only — never the utterance. The transcript stays in the
+              // column it arrived in; logs must not become a second PII surface.
+              log.warn("[vapi webhook] voice claim violation", {
+                callId: String(callId),
+                violations: claims.violations,
+              });
+            }
+          }
+        } catch (claimErr) {
+          log.warn("[vapi webhook] voice-claim persist failed (analytics only)", {
+            error: claimErr instanceof Error ? claimErr.message : String(claimErr),
+          });
+        }
+
+        // wave-144 · forwarded-call safety net. A during-hours
+        // transferCall hands the caller to the shop line; if nobody
+        // picks up (tech mid-bay), that hot caller is lost with NO
+        // follow-up surface — forwards only showed up as a Voice-page
+        // chart bar. On the first end-of-call insert only, drop a row
+        // into the front-desk callback queue so every forwarded caller
+        // is accounted for. This is an INTERNAL queue entry, not an
+        // outbound customer message — worst case is a row the operator
+        // clears in one tap; the win is no forwarded caller falls
+        // through. endedReason "assistant-forwarded-call" → /forward/i.
+        // 2026-05-31 · forwarded-call follow-up flipped from an internal
+        // callback to-do (it flooded the Today queue with "Call back Voice
+        // caller" rows) to a self-serve SMS back to the caller. The caller
+        // re-engages on their terms; the operator's callback queue stays clean.
+        // 2026-07-20 · vapiCallId is REQUIRED for real idempotency. The
+        // orchestrator only builds a stable key (`..._call_<id>`) when
+        // event.vapiCallId is present (smsOrchestrator.ts) — omit it and the
+        // key falls through to a Date.now()+Math.random() value that is unique
+        // by construction, so the idempotency check can never match and is a
+        // silent no-op. Dedupe then rests entirely on the 24h phone cooldown.
+        // Passing the id restores the guard the call site always implied.
+        // 2026-07-20 · operator off-switch. Read the pause flag BEFORE deciding;
+        // a flag-read failure resolves to `false` (= not paused), so a DB blip
+        // keeps today's behaviour rather than silently muting the path.
+        let followupPaused = false;
+        try {
+          const { isEnabled } = await import("../../services/featureFlags");
+          followupPaused = await isEnabled("vapi_forward_followup_paused");
+        } catch (flagErr) {
+          log.warn("[vapi webhook] pause-flag read failed — treating as NOT paused", {
+            error: flagErr instanceof Error ? flagErr.message : String(flagErr),
+          });
+        }
+
+        // Narrow the number ONCE and pass the same value to both the decision
+        // and the send. Reaching back for `customer!.number` after the predicate
+        // returned true would re-assert a fact the compiler can't follow across
+        // the call boundary — a non-null assertion there would silence the
+        // checker rather than satisfy it.
+        const followupPhone = customer?.number?.trim() ?? "";
+
+        if (shouldSendForwardedFollowup({
+          firstLog,
+          endedReason: cleanEndedReason,
+          customerNumber: followupPhone,
+          paused: followupPaused,
+        })) {
+          const { orchestrateSms } = await import("../../services/smsOrchestrator");
+          await orchestrateSms({
+            type: "vapi_forwarded_call_followup",
+            phone: followupPhone,
+            vapiCallId: event.call?.id,
+          }).catch((err: unknown) => {
+            log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        } else if (followupPaused && isForwardedEndedReason(cleanEndedReason)) {
+          log.info("[vapi webhook] forwarded-call SMS suppressed — vapi_forward_followup_paused is ON");
+        }
+      }
+    }
+  } catch (persistErr) {
+    log.warn("[vapi webhook] call-end persist failed (non-blocking)", {
+      error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+    });
+  }
+  // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+  // Record `ended` on call-end with reason metadata so the active-
+  // calls view can drop this call out of the in-flight list.
+  const endCallId = event.call?.id;
+  const endAssistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+  if (endCallId) {
+    import("../../services/voice-call-state").then(({ recordCallState }) =>
+      recordCallState({
+        callId: endCallId,
+        assistantId: endAssistantId,
+        state: "ended",
+        metadata: { reason: cleanEndedReason, eventType: event.type },
+      })
+    ).catch(() => { /* intentionally swallowed */ });
+  }
+
+  // wave-181.87 · dispatch outbound call.ended to confirmation_calls
+  // OR alg_estimates voice_recovery_call_id by callId lookup. Same
+  // pattern as the dropped AgentPhone webhook (wave-181.85) · this
+  // handler now serves BOTH inbound flows (above) AND outbound
+  // confirmation + recovery flows via the wave-181.87 VAPI
+  // placeOutboundCall path.
+  if (endCallId) {
+    try {
+      const { getDb } = await import("../../db");
+      const { confirmationCalls, algEstimates } = await import("../../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        // wave-fix-2026-05-25 (audit #106) · same artifact-first
+        // fallback as the service-mention path · without this,
+        // confirmation-call evaluation runs on empty transcript
+        // and undercounts every converted call by ~10 eval-score
+        // points.
+        const transcriptText = ((event as { artifact?: { transcript?: string }; transcript?: string }).artifact?.transcript ?? (event as { transcript?: string }).transcript ?? "")
+          + " " + ((event as { summary?: string; analysis?: { summary?: string } }).summary
+            ?? (event as { analysis?: { summary?: string } }).analysis?.summary
+            ?? "");
+        const lower = transcriptText.toLowerCase();
+        const snippet = transcriptText.slice(0, 500);
+
+        // Classification · same regex pattern as the dropped
+        // agentphone classifyTranscript helper.
+        let confirmStatus: "confirmed" | "rescheduled" | "no_answer" = "no_answer";
+        let rescheduleRequest: string | null = null;
+        if (transcriptText.trim().length > 0) {
+          if (/\b(reschedule|move it|change the time|different day|can we do|push it|next week|earlier|later in the day|cancel)\b/i.test(lower)) {
+            confirmStatus = "rescheduled";
+            const sentences = lower.split(/[.!?]/);
+            const rs = sentences.find((s) => /\b(reschedule|move|change|different day|push|earlier|later)\b/i.test(s));
+            rescheduleRequest = (rs || "").trim().slice(0, 200) || null;
+          } else if (/\b(yes|yeah|yep|confirm|still on|see you|i.?ll be there|sounds good|works for me|all set)\b/i.test(lower)) {
+            confirmStatus = "confirmed";
+          } else {
+            // forensic-audit MEDIUM · was "ambiguous content → confirmed",
+            // so a voicemail/no-answer call where only the AI spoke was
+            // recorded as a confirmed appointment and the operator never
+            // followed up. Default to no_answer — a false follow-up is far
+            // cheaper than a missed no-show.
+            confirmStatus = "no_answer";
+          }
+        } else {
+          confirmStatus = "no_answer";
+        }
+
+        // Try 1 · confirmation_calls
+        const [confRow] = await db
+          .select()
+          .from(confirmationCalls)
+          .where(eq(confirmationCalls.agentphoneCallId, endCallId))
+          .limit(1);
+
+        if (confRow) {
+          await db
+            .update(confirmationCalls)
+            .set({
+              status: confirmStatus,
+              transcriptSnippet: snippet,
+              rescheduleRequest,
+              completedAt: new Date(),
+            })
+            .where(eq(confirmationCalls.id, confRow.id));
+          log.info(`[vapi outbound] confirmation_calls #${confRow.id} → ${confirmStatus}`, {
+            callId: String(endCallId).slice(0, 16),
+          });
+        } else {
+          // Try 2 · alg_estimates voice_recovery
+          const [estRow] = await db
+            .select({ id: algEstimates.id })
+            .from(algEstimates)
+            .where(eq(algEstimates.voiceRecoveryCallId, endCallId))
+            .limit(1);
+          if (estRow) {
+            // Map confirmation classification → recovery enum
+            const recoveryOutcome: "interested" | "not_interested" | "no_answer" =
+              confirmStatus === "no_answer" ? "no_answer" :
+              // For recovery · check for explicit not-interested signals
+              /\b(not interested|no thanks|already|fixed it|sold the car|don't need|not now)\b/i.test(lower) ? "not_interested" :
+              "interested";
+            await db
+              .update(algEstimates)
+              .set({ voiceRecoveryOutcome: recoveryOutcome })
+              .where(eq(algEstimates.id, estRow.id));
+            log.info(`[vapi outbound] alg_estimates #${estRow.id} voice_recovery → ${recoveryOutcome}`, {
+              callId: String(endCallId).slice(0, 16),
+            });
+          }
+          // No match in either table · inbound call · already handled above
+        }
+      }
+    } catch (dispatchErr) {
+      log.warn("[vapi outbound] dispatch failed (non-blocking)", {
+        error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+      });
+    }
+  }
+
+  // ─── Trust ladder (Phase 6): actionable call → DRAFT proposals ──────────
+  // Flag-gated (vapi_action_proposals, OFF by default — also the 0111
+  // deploy-order guard). Creates DRAFTS in the approval queue only; nothing
+  // executes without a human tap. Deliberately LAST and try/caught: the
+  // call-log write, claim guard and outbound dispatch above must be complete
+  // and unaffected whether this succeeds, fails, or is disabled.
+  try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    if (await isEnabled("vapi_action_proposals")) {
+      const callId = event.call?.id;
+      if (callId) {
+        const { maybeProposeCallActions } = await import("../../services/vapiActionExtraction");
+        const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
+        const transcript =
+          (event as { artifact?: { transcript?: string } }).artifact?.transcript ??
+          (event as { transcript?: string })?.transcript ??
+          "";
+        const summary =
+          (event as { summary?: string; analysis?: { summary?: string } })?.summary ??
+          (event as { analysis?: { summary?: string } })?.analysis?.summary ??
+          null;
+        await maybeProposeCallActions({
+          callId,
+          transcript: typeof transcript === "string" ? transcript : "",
+          summary,
+          customerName: customer?.name ?? null,
+          customerPhone: customer?.number ?? null,
+          durationSeconds: extractCallDurationSec(event),
+          endedReason: cleanEndedReason,
+          // Direction gate: our own outbound confirmation / recovery calls must
+          // not produce drafts for work that already exists.
+          callType: (event.call as { type?: string })?.type ?? null,
+        });
+      }
+    }
+  } catch (proposalErr) {
+    log.warn("[vapi proposals] extraction pass failed (non-blocking)", {
+      error: proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
+    });
+  }
+}
+
+// ─── Main webhook endpoint ─────────────────────────────
+
+router.post("/vapi", async (req: Request, res: Response) => {
+  if (!verifyVapiSignature(req)) {
+    log.warn("Invalid Vapi signature");
+    res.status(401).json({ error: "Invalid signature" });
+    return;
+  }
+
+  const body = req.body as { message: VapiWebhookMessage };
+
+  const event = body?.message;
+  if (!event?.type) {
+    res.status(400).json({ error: "Missing message.type" });
+    return;
+  }
+
+  try {
+    switch (event.type) {
+      case "function-call":
+      case "tool-calls": {
+        // wave-181.4 · capture LLM→tool→ack round-trip latency so the
+        // /api/admin/voice-latency observability tile can surface it.
+        // Anchored at handler entry; the actual write happens AFTER
+        // results assemble so a telemetry bug can't break the response.
+        const webhookReceivedAt = Date.now();
+        // Multiple tool calls arrive in one webhook. Run in parallel.
+        // wave-116 — was Promise.all; a single rejection caused the
+        // webhook to 500, prompting VAPI to retry the WHOLE batch and
+        // potentially double-execute already-succeeded tools (e.g.
+        // scheduleDropoff fired twice). allSettled isolates per-call
+        // outcomes so the webhook always 200s with a per-tool result.
+        const calls = event.toolCalls || [];
+        const dialled = (event.call as { customer?: { number?: string } } | undefined)?.customer?.number;
+        const callType = (event.call as { type?: string } | undefined)?.type;
+        const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id, dialled, callType)));
+        const results = settled.map((s, i) => {
+          if (s.status === "fulfilled") return s.value;
+          const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
+          log.error("Tool call rejected", {
+            toolCallId: calls[i]?.id,
+            functionName: calls[i]?.function?.name,
+            error: err,
+          });
+          return {
+            toolCallId: calls[i]?.id,
+            result: JSON.stringify({ error: "Tool execution failed", details: err }),
+          };
+        });
+        res.json({ results });
+
+        // Fire-and-forget latency capture · service swallows all errors
+        // so a missing migration or transient DB issue never breaks the
+        // webhook response above.
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-latency").then(({ captureVoiceLatency }) =>
+            captureVoiceLatency({
+              callId,
+              assistantId: assistantId ?? "unknown",
+              stage: "llm_first_token",
+              latencyMs: Date.now() - webhookReceivedAt,
+              metadata: { source: "vapi-webhook", toolCalls: calls.length },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+
+          // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+          // Classify each tool call into a state transition (read tool =
+          // intent_captured · write tool = tool_called · confirmation
+          // tool = confirmed). Append-only · multiple events per call
+          // are correct (the trail tells you the agent re-engaged after
+          // a tool call). Fire-and-forget · NEVER blocks webhook.
+          Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/tireDemand"),
+          ]).then(([{ classifyToolToState, recordCallState }, { toolCallStateMetadata }]) => {
+            for (const c of calls) {
+              const state = classifyToolToState(c.function?.name ?? "");
+              if (state) {
+                void recordCallState({
+                  callId,
+                  assistantId,
+                  state,
+                  // A tireInquiry also records what the caller asked for (size,
+                  // new/used; never name or phone) for Today's "Asked by phone".
+                  metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
+                });
+              }
+            }
+          }).catch(() => { /* intentionally swallowed */ });
+        }
+        return;
+      }
+
+      case "call-start": {
+        // Legacy/explicit call-start event. Current Vapi server-message defaults
+        // use status-update and mark the true start as status=in-progress.
+        log.info("Vapi call started", { callId: event.call?.id, source: "call-start" });
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-call-state").then(({ recordCallState }) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "greeted",
+              metadata: { eventType: event.type },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "status-update": {
+        // Vapi emits scheduled/queued/ringing/in-progress/forwarding/ended.
+        // Only in-progress means the conversation actually started. The old
+        // combined branch stamped every status as "greeted", producing several
+        // fake starts for one call in production.
+        const status = event.status ?? "unknown";
+        log.info("Vapi status update", { callId: event.call?.id, status });
+        if (status === "in-progress") {
+          const callId = event.call?.id;
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          if (callId) {
+            import("../../services/voice-call-state").then(({ recordCallState }) =>
+              recordCallState({
+                callId,
+                assistantId,
+                state: "greeted",
+                metadata: { eventType: event.type, status },
+              })
+            ).catch(() => { /* intentionally swallowed */ });
+          }
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "speech-update": {
+        // Normal Vapi lifecycle telemetry (started/stopped speaking). We do not
+        // persist it yet; explicitly acknowledge it so production logs do not
+        // mislabel supported provider traffic as an unknown event.
+        res.json({ ack: true });
+        return;
+      }
+
+      // Vapi fires this when the assistant STARTS a transfer. It carries no
+      // outcome (that arrives in the end-of-call artifact, when Vapi sends
+      // one); it is the proof an attempt happened. Until 2026-09-23 it was
+      // subscribed but fell to the default branch, so an attempt whose call
+      // then ended some other way left no trace. Ack first, record detached;
+      // the destination's kind only, never its number.
+      case "transfer-update": {
+        res.json({ ack: true });
+        const callId = event.call?.id;
+        if (callId) {
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          void Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/transferArtifact"),
+          ]).then(([{ recordCallState }, { transferUpdateMetadata }]) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "transfer_attempted",
+              metadata: transferUpdateMetadata(event),
+            }),
+          ).catch(() => { /* intentionally swallowed: telemetry never breaks a live call */ });
+        }
+        return;
+      }
+
+      case "end-of-call-report":
+      case "call-end": {
+        // wave-137 · read the CLEAN reason from message-level (see
+        // extractEndedReason). call.endedReason is null/SIP-transient on the
+        // webhook. Computed once, reused for the row insert + state metadata.
+        const cleanEndedReason = extractEndedReason(event);
+        log.info("Vapi call ended", {
+          callId: event.call?.id,
+          reason: cleanEndedReason,
+        });
+        // Q-45: do-not-call is the one compliance write that MUST be durable
+        // before acknowledgement. If it fails, return non-2xx so Vapi can
+        // retry the webhook. All noncritical post-call work stays detached.
+        try {
+          await persistTranscriptDoNotCallBeforeAck(event);
+        } catch (dncErr) {
+          log.error("[vapi webhook] do-not-call persistence failed before ack", {
+            callId: event.call?.id,
+            error: dncErr instanceof Error ? dncErr.message : String(dncErr),
+            errorId: "VAPI_DNC_PREACK_FAILED",
+          });
+          res.status(503).json({ error: "Do-not-call persistence failed; retry webhook" });
+          return;
+        }
+
+        res.json({ ack: true });
+        // F5 · tracked so a SIGTERM drain waits for it (the 200 is already sent).
+        void trackDetached("vapi:end-of-call", processCallEndReport(event, cleanEndedReason)).catch((err) => {
+          log.warn("[vapi webhook] detached post-call processing failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+        return;
+      }
+
+      case "transcript":
+        // Real-time transcript updates — log in dev, ignore in prod
+        if (process.env.NODE_ENV !== "production") {
+          log.info("Vapi transcript chunk", { len: event.transcript?.length });
+        }
+        res.json({ ack: true });
+        return;
+
+      // wave-181.63 · Phase 6 · cross-call memory hydration.
+      // wave-181.x · Tier S · BDI upgrade (declined-recovery opener).
+      // VAPI fires `assistant-request` BEFORE the call connects. The
+      // response shape is `{ assistantOverrides?: {...} }` which VAPI
+      // merges with the assistant's configured fields for THIS call
+      // only (no PATCH to the global assistant). The BDI composer
+      // (vapi-bdi.ts) looks up the caller AND any unconverted estimate
+      // and opens the call with the recovery hook when one is on file.
+      // Unknown callers fall through to the default first message ·
+      // backward compatible with the wave-181.63 personalization path.
+      case "assistant-request": {
+        const customer = (event.call as { customer?: { number?: string } } | undefined)?.customer;
+        const phone = customer?.number?.trim();
+        if (!phone) {
+          // No phone in the request · can't personalize · fall through
+          // to default assistant.
+          res.json({});
+          return;
+        }
+        try {
+          const { buildBdiFirstMessage } = await import(
+            "../../services/vapi-bdi"
+          );
+          const result = await buildBdiFirstMessage(phone);
+          log.info("assistant-request bdi", {
+            phoneSuffix: phone.replace(/\D/g, "").slice(-4),
+            matched: result.matched,
+            kind: result.kind,
+            reason: result.reason,
+          });
+          if (result.firstMessage) {
+            res.json({
+              assistantOverrides: { firstMessage: result.firstMessage },
+            });
+            return;
+          }
+        } catch (err) {
+          log.warn("assistant-request bdi threw", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Default · use assistant's configured first message.
+        res.json({});
+        return;
+      }
+
+      default:
+        log.info("Vapi unknown event type", { type: event.type });
+        res.json({ ack: true });
+        return;
+    }
+  } catch (err) {
+    log.error("Vapi webhook handler threw", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
+
+export { router as vapiWebhookRouter };
+)
+            )
+            WHERE vapiCallId = ${String(callId)}
+          `);
+        } catch (behaviorErr) {
+          log.warn("[vapi webhook] behavior fingerprint persist failed (analytics only)", {
+            error: behaviorErr instanceof Error ? behaviorErr.message : String(behaviorErr),
+          });
+        }
+
+        // ─── Persist CUSTOMER-only speech (2026-07-26 demand audit) ─────────
+        // The full transcript has been in hand here since wave-fix-2026-05-25,
+        // used for a keyword scan and then dropped. Meanwhile `transcriptUrl`
+        // is populated on 0 of 2,095 rows — VAPI never sets it — so nothing
+        // durable held what callers actually said, and every demand signal was
+        // assistant-contaminated: `serviceMention` is binary (tire|brake) and
+        // `aiSummary` is written by a tire-first assistant. The ~60% used-tire
+        // figure the whole prompt is built around could not be checked.
+        //
+        // Stores the CUSTOMER's turns only — never assistant speech, never the
+        // full transcript — capped and truncated. JSON_SET merges into whatever
+        // `metadata` already holds (intents, agenticAudit), so write order with
+        // the later enrichment updates does not matter. Uses the existing JSON
+        // column deliberately: no migration means no hand-applied DDL to forget
+        // (ROS-059). Fail-open — a demand-analytics write must never affect the
+        // webhook's 200.
+        try {
+          const { buildCustomerSpeechRecord, extractCustomerTurnsFromMessages, CUSTOMER_SPEECH_VERSION } =
+            await import("../../services/customerTurns");
+          // Prefer VAPI's role-tagged `artifact.messages` — authoritative at the
+          // source, so no speaker-prefix guessing and no formatting change can
+          // misattribute assistant speech as customer demand. The flat
+          // transcript is the fallback for calls that lack the array.
+          const artifactMsgs = (event as { artifact?: { messages?: unknown } }).artifact?.messages;
+          let speech: ReturnType<typeof buildCustomerSpeechRecord> = null;
+          if (Array.isArray(artifactMsgs) && artifactMsgs.length) {
+            const parsed = extractCustomerTurnsFromMessages(artifactMsgs);
+            if (parsed.turns.length || parsed.unparsed) {
+              speech = {
+                v: CUSTOMER_SPEECH_VERSION,
+                turns: parsed.turns,
+                turnCount: parsed.totalCustomerTurns,
+                first: parsed.firstSubstantive,
+                unparsed: parsed.unparsed,
+              };
+            }
+          } else {
+            speech = buildCustomerSpeechRecord(transcript);
+          }
+          if (speech) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.customerSpeech', CAST(${JSON.stringify(speech)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+          }
+        } catch (speechErr) {
+          log.warn("[vapi webhook] customer-speech persist failed (analytics only)", {
+            error: speechErr instanceof Error ? speechErr.message : String(speechErr),
+          });
+        }
+
+        // TRANSFER ARTIFACT · the only signal that can prove a human ANSWERED.
+        //
+        // Every transfer metric in this app has been built on
+        // `endedReason === "assistant-forwarded-call"`, which VAPI's own docs
+        // say confirms the transfer was INITIATED, not completed — their
+        // troubleshooting page sends you to the provider's call log for the
+        // outcome. So a call that rang an empty counter and dropped to
+        // voicemail has scored identically to one Nick answered on the second
+        // ring, and no connect-rate built on it could ever emit a failure for
+        // the one case it exists to detect.
+        //
+        // `artifact.transfers[]` carries a real per-attempt status. VAPI
+        // describes blind-transfer outcome detection as enabled PER
+        // ORGANISATION, so whether this account receives it is an empirical
+        // question — which is exactly why `artifactPresent` is persisted
+        // separately from the verdict. That flag is the live answer, read from
+        // production rather than assumed from documentation.
+        //
+        // Separate try on purpose, same as customerSpeech above: one analytics
+        // write failing must not take the other down, and neither may affect
+        // the webhook's 200.
+        try {
+          const { readTransferArtifact, transferArtifactWorthPersisting, sawTransferUpdate } = await import("../../lib/transferArtifact");
+          const read = readTransferArtifact((event as { artifact?: unknown }).artifact);
+          // The live `transfer-update` witness (recorded below in the router).
+          // It catches the attempt the ended reason hides: a caller who hangs
+          // up while the shop line rings ends "customer-ended-call".
+          const { getCallStateHistory } = await import("../../services/voice-call-state");
+          const transferUpdateSeen = sawTransferUpdate(await getCallStateHistory(String(callId)));
+          // Write only when there is something to say: a per-attempt record, or
+          // an ended reason proving a transfer was ATTEMPTED. A call that never
+          // tried to hand off gets no verdict at all — the old test here was
+          // `artifactPresent || transfers.length`, and artifactPresent is true
+          // whenever Vapi sends a transfers ARRAY — which it does, empty, on
+          // calls that never transferred — which is how 20 of 31 calls came to
+          // carry "unknown" for a transfer that never happened.
+          if (transferArtifactWorthPersisting(read, cleanEndedReason, transferUpdateSeen)) {
+            const { sql } = await import("drizzle-orm");
+            const stored = { ...read, transferUpdateSeen };
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.transferArtifact', CAST(${JSON.stringify(stored)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (read.unrecognisedStatuses.length) {
+              // A status VAPI added that this app does not model. Loud, because
+              // silently bucketing it as unknown would hide a real drift.
+              log.warn("[vapi webhook] unmodelled transfer status from VAPI", {
+                statuses: read.unrecognisedStatuses,
+              });
+            }
+          }
+        } catch (transferErr) {
+          log.warn("[vapi webhook] transfer-artifact persist failed (analytics only)", {
+            error: transferErr instanceof Error ? transferErr.message : String(transferErr),
+          });
+        }
+
+        // VOICE CLAIM GUARD · the assistant side of the same artifact.
+        //
+        // SMS drafts are gated before send by `planViolations`; voice had no
+        // equivalent, so the prompt's truth rules (no repair quotes, no live
+        // stock, no capacity or wait promises) were enforced by prose alone.
+        // Vapi streams to TTS with no pre-speech hook, so this cannot block —
+        // it DETECTS, which is what makes drift visible and what makes the
+        // prompt-compression work measurable.
+        //
+        // Separate try from customerSpeech on purpose: one analytics write
+        // failing must not take the other down, and neither may affect the 200.
+        try {
+          const { buildVoiceClaimRecord } = await import("../../services/voiceClaimGuard");
+          const claims = buildVoiceClaimRecord({
+            transcript,
+            messages: (event as { artifact?: { messages?: unknown } }).artifact?.messages,
+          });
+          if (claims) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.voiceClaims', CAST(${JSON.stringify(claims)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (claims.violations.length) {
+              // Labels only — never the utterance. The transcript stays in the
+              // column it arrived in; logs must not become a second PII surface.
+              log.warn("[vapi webhook] voice claim violation", {
+                callId: String(callId),
+                violations: claims.violations,
+              });
+            }
+          }
+        } catch (claimErr) {
+          log.warn("[vapi webhook] voice-claim persist failed (analytics only)", {
+            error: claimErr instanceof Error ? claimErr.message : String(claimErr),
+          });
+        }
+
+        // wave-144 · forwarded-call safety net. A during-hours
+        // transferCall hands the caller to the shop line; if nobody
+        // picks up (tech mid-bay), that hot caller is lost with NO
+        // follow-up surface — forwards only showed up as a Voice-page
+        // chart bar. On the first end-of-call insert only, drop a row
+        // into the front-desk callback queue so every forwarded caller
+        // is accounted for. This is an INTERNAL queue entry, not an
+        // outbound customer message — worst case is a row the operator
+        // clears in one tap; the win is no forwarded caller falls
+        // through. endedReason "assistant-forwarded-call" → /forward/i.
+        // 2026-05-31 · forwarded-call follow-up flipped from an internal
+        // callback to-do (it flooded the Today queue with "Call back Voice
+        // caller" rows) to a self-serve SMS back to the caller. The caller
+        // re-engages on their terms; the operator's callback queue stays clean.
+        // 2026-07-20 · vapiCallId is REQUIRED for real idempotency. The
+        // orchestrator only builds a stable key (`..._call_<id>`) when
+        // event.vapiCallId is present (smsOrchestrator.ts) — omit it and the
+        // key falls through to a Date.now()+Math.random() value that is unique
+        // by construction, so the idempotency check can never match and is a
+        // silent no-op. Dedupe then rests entirely on the 24h phone cooldown.
+        // Passing the id restores the guard the call site always implied.
+        // 2026-07-20 · operator off-switch. Read the pause flag BEFORE deciding;
+        // a flag-read failure resolves to `false` (= not paused), so a DB blip
+        // keeps today's behaviour rather than silently muting the path.
+        let followupPaused = false;
+        try {
+          const { isEnabled } = await import("../../services/featureFlags");
+          followupPaused = await isEnabled("vapi_forward_followup_paused");
+        } catch (flagErr) {
+          log.warn("[vapi webhook] pause-flag read failed — treating as NOT paused", {
+            error: flagErr instanceof Error ? flagErr.message : String(flagErr),
+          });
+        }
+
+        // Narrow the number ONCE and pass the same value to both the decision
+        // and the send. Reaching back for `customer!.number` after the predicate
+        // returned true would re-assert a fact the compiler can't follow across
+        // the call boundary — a non-null assertion there would silence the
+        // checker rather than satisfy it.
+        const followupPhone = customer?.number?.trim() ?? "";
+
+        if (shouldSendForwardedFollowup({
+          firstLog,
+          endedReason: cleanEndedReason,
+          customerNumber: followupPhone,
+          paused: followupPaused,
+        })) {
+          const { orchestrateSms } = await import("../../services/smsOrchestrator");
+          await orchestrateSms({
+            type: "vapi_forwarded_call_followup",
+            phone: followupPhone,
+            vapiCallId: event.call?.id,
+          }).catch((err: unknown) => {
+            log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        } else if (followupPaused && isForwardedEndedReason(cleanEndedReason)) {
+          log.info("[vapi webhook] forwarded-call SMS suppressed — vapi_forward_followup_paused is ON");
+        }
+      }
+    }
+  } catch (persistErr) {
+    log.warn("[vapi webhook] call-end persist failed (non-blocking)", {
+      error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+    });
+  }
+  // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+  // Record `ended` on call-end with reason metadata so the active-
+  // calls view can drop this call out of the in-flight list.
+  const endCallId = event.call?.id;
+  const endAssistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+  if (endCallId) {
+    import("../../services/voice-call-state").then(({ recordCallState }) =>
+      recordCallState({
+        callId: endCallId,
+        assistantId: endAssistantId,
+        state: "ended",
+        metadata: { reason: cleanEndedReason, eventType: event.type },
+      })
+    ).catch(() => { /* intentionally swallowed */ });
+  }
+
+  // wave-181.87 · dispatch outbound call.ended to confirmation_calls
+  // OR alg_estimates voice_recovery_call_id by callId lookup. Same
+  // pattern as the dropped AgentPhone webhook (wave-181.85) · this
+  // handler now serves BOTH inbound flows (above) AND outbound
+  // confirmation + recovery flows via the wave-181.87 VAPI
+  // placeOutboundCall path.
+  if (endCallId) {
+    try {
+      const { getDb } = await import("../../db");
+      const { confirmationCalls, algEstimates } = await import("../../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        // wave-fix-2026-05-25 (audit #106) · same artifact-first
+        // fallback as the service-mention path · without this,
+        // confirmation-call evaluation runs on empty transcript
+        // and undercounts every converted call by ~10 eval-score
+        // points.
+        const transcriptText = ((event as { artifact?: { transcript?: string }; transcript?: string }).artifact?.transcript ?? (event as { transcript?: string }).transcript ?? "")
+          + " " + ((event as { summary?: string; analysis?: { summary?: string } }).summary
+            ?? (event as { analysis?: { summary?: string } }).analysis?.summary
+            ?? "");
+        const lower = transcriptText.toLowerCase();
+        const snippet = transcriptText.slice(0, 500);
+
+        // Classification · same regex pattern as the dropped
+        // agentphone classifyTranscript helper.
+        let confirmStatus: "confirmed" | "rescheduled" | "no_answer" = "no_answer";
+        let rescheduleRequest: string | null = null;
+        if (transcriptText.trim().length > 0) {
+          if (/\b(reschedule|move it|change the time|different day|can we do|push it|next week|earlier|later in the day|cancel)\b/i.test(lower)) {
+            confirmStatus = "rescheduled";
+            const sentences = lower.split(/[.!?]/);
+            const rs = sentences.find((s) => /\b(reschedule|move|change|different day|push|earlier|later)\b/i.test(s));
+            rescheduleRequest = (rs || "").trim().slice(0, 200) || null;
+          } else if (/\b(yes|yeah|yep|confirm|still on|see you|i.?ll be there|sounds good|works for me|all set)\b/i.test(lower)) {
+            confirmStatus = "confirmed";
+          } else {
+            // forensic-audit MEDIUM · was "ambiguous content → confirmed",
+            // so a voicemail/no-answer call where only the AI spoke was
+            // recorded as a confirmed appointment and the operator never
+            // followed up. Default to no_answer — a false follow-up is far
+            // cheaper than a missed no-show.
+            confirmStatus = "no_answer";
+          }
+        } else {
+          confirmStatus = "no_answer";
+        }
+
+        // Try 1 · confirmation_calls
+        const [confRow] = await db
+          .select()
+          .from(confirmationCalls)
+          .where(eq(confirmationCalls.agentphoneCallId, endCallId))
+          .limit(1);
+
+        if (confRow) {
+          await db
+            .update(confirmationCalls)
+            .set({
+              status: confirmStatus,
+              transcriptSnippet: snippet,
+              rescheduleRequest,
+              completedAt: new Date(),
+            })
+            .where(eq(confirmationCalls.id, confRow.id));
+          log.info(`[vapi outbound] confirmation_calls #${confRow.id} → ${confirmStatus}`, {
+            callId: String(endCallId).slice(0, 16),
+          });
+        } else {
+          // Try 2 · alg_estimates voice_recovery
+          const [estRow] = await db
+            .select({ id: algEstimates.id })
+            .from(algEstimates)
+            .where(eq(algEstimates.voiceRecoveryCallId, endCallId))
+            .limit(1);
+          if (estRow) {
+            // Map confirmation classification → recovery enum
+            const recoveryOutcome: "interested" | "not_interested" | "no_answer" =
+              confirmStatus === "no_answer" ? "no_answer" :
+              // For recovery · check for explicit not-interested signals
+              /\b(not interested|no thanks|already|fixed it|sold the car|don't need|not now)\b/i.test(lower) ? "not_interested" :
+              "interested";
+            await db
+              .update(algEstimates)
+              .set({ voiceRecoveryOutcome: recoveryOutcome })
+              .where(eq(algEstimates.id, estRow.id));
+            log.info(`[vapi outbound] alg_estimates #${estRow.id} voice_recovery → ${recoveryOutcome}`, {
+              callId: String(endCallId).slice(0, 16),
+            });
+          }
+          // No match in either table · inbound call · already handled above
+        }
+      }
+    } catch (dispatchErr) {
+      log.warn("[vapi outbound] dispatch failed (non-blocking)", {
+        error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+      });
+    }
+  }
+
+  // ─── Trust ladder (Phase 6): actionable call → DRAFT proposals ──────────
+  // Flag-gated (vapi_action_proposals, OFF by default — also the 0111
+  // deploy-order guard). Creates DRAFTS in the approval queue only; nothing
+  // executes without a human tap. Deliberately LAST and try/caught: the
+  // call-log write, claim guard and outbound dispatch above must be complete
+  // and unaffected whether this succeeds, fails, or is disabled.
+  try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    if (await isEnabled("vapi_action_proposals")) {
+      const callId = event.call?.id;
+      if (callId) {
+        const { maybeProposeCallActions } = await import("../../services/vapiActionExtraction");
+        const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
+        const transcript =
+          (event as { artifact?: { transcript?: string } }).artifact?.transcript ??
+          (event as { transcript?: string })?.transcript ??
+          "";
+        const summary =
+          (event as { summary?: string; analysis?: { summary?: string } })?.summary ??
+          (event as { analysis?: { summary?: string } })?.analysis?.summary ??
+          null;
+        await maybeProposeCallActions({
+          callId,
+          transcript: typeof transcript === "string" ? transcript : "",
+          summary,
+          customerName: customer?.name ?? null,
+          customerPhone: customer?.number ?? null,
+          durationSeconds: extractCallDurationSec(event),
+          endedReason: cleanEndedReason,
+          // Direction gate: our own outbound confirmation / recovery calls must
+          // not produce drafts for work that already exists.
+          callType: (event.call as { type?: string })?.type ?? null,
+        });
+      }
+    }
+  } catch (proposalErr) {
+    log.warn("[vapi proposals] extraction pass failed (non-blocking)", {
+      error: proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
+    });
+  }
+}
+
+// ─── Main webhook endpoint ─────────────────────────────
+
+router.post("/vapi", async (req: Request, res: Response) => {
+  if (!verifyVapiSignature(req)) {
+    log.warn("Invalid Vapi signature");
+    res.status(401).json({ error: "Invalid signature" });
+    return;
+  }
+
+  const body = req.body as { message: VapiWebhookMessage };
+
+  const event = body?.message;
+  if (!event?.type) {
+    res.status(400).json({ error: "Missing message.type" });
+    return;
+  }
+
+  try {
+    switch (event.type) {
+      case "function-call":
+      case "tool-calls": {
+        // wave-181.4 · capture LLM→tool→ack round-trip latency so the
+        // /api/admin/voice-latency observability tile can surface it.
+        // Anchored at handler entry; the actual write happens AFTER
+        // results assemble so a telemetry bug can't break the response.
+        const webhookReceivedAt = Date.now();
+        // Multiple tool calls arrive in one webhook. Run in parallel.
+        // wave-116 — was Promise.all; a single rejection caused the
+        // webhook to 500, prompting VAPI to retry the WHOLE batch and
+        // potentially double-execute already-succeeded tools (e.g.
+        // scheduleDropoff fired twice). allSettled isolates per-call
+        // outcomes so the webhook always 200s with a per-tool result.
+        const calls = event.toolCalls || [];
+        const dialled = (event.call as { customer?: { number?: string } } | undefined)?.customer?.number;
+        const callType = (event.call as { type?: string } | undefined)?.type;
+        const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id, dialled, callType)));
+        const results = settled.map((s, i) => {
+          if (s.status === "fulfilled") return s.value;
+          const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
+          log.error("Tool call rejected", {
+            toolCallId: calls[i]?.id,
+            functionName: calls[i]?.function?.name,
+            error: err,
+          });
+          return {
+            toolCallId: calls[i]?.id,
+            result: JSON.stringify({ error: "Tool execution failed", details: err }),
+          };
+        });
+        res.json({ results });
+
+        // Fire-and-forget latency capture · service swallows all errors
+        // so a missing migration or transient DB issue never breaks the
+        // webhook response above.
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-latency").then(({ captureVoiceLatency }) =>
+            captureVoiceLatency({
+              callId,
+              assistantId: assistantId ?? "unknown",
+              stage: "llm_first_token",
+              latencyMs: Date.now() - webhookReceivedAt,
+              metadata: { source: "vapi-webhook", toolCalls: calls.length },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+
+          // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+          // Classify each tool call into a state transition (read tool =
+          // intent_captured · write tool = tool_called · confirmation
+          // tool = confirmed). Append-only · multiple events per call
+          // are correct (the trail tells you the agent re-engaged after
+          // a tool call). Fire-and-forget · NEVER blocks webhook.
+          Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/tireDemand"),
+          ]).then(([{ classifyToolToState, recordCallState }, { toolCallStateMetadata }]) => {
+            for (const c of calls) {
+              const state = classifyToolToState(c.function?.name ?? "");
+              if (state) {
+                void recordCallState({
+                  callId,
+                  assistantId,
+                  state,
+                  // A tireInquiry also records what the caller asked for (size,
+                  // new/used; never name or phone) for Today's "Asked by phone".
+                  metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
+                });
+              }
+            }
+          }).catch(() => { /* intentionally swallowed */ });
+        }
+        return;
+      }
+
+      case "call-start": {
+        // Legacy/explicit call-start event. Current Vapi server-message defaults
+        // use status-update and mark the true start as status=in-progress.
+        log.info("Vapi call started", { callId: event.call?.id, source: "call-start" });
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-call-state").then(({ recordCallState }) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "greeted",
+              metadata: { eventType: event.type },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "status-update": {
+        // Vapi emits scheduled/queued/ringing/in-progress/forwarding/ended.
+        // Only in-progress means the conversation actually started. The old
+        // combined branch stamped every status as "greeted", producing several
+        // fake starts for one call in production.
+        const status = event.status ?? "unknown";
+        log.info("Vapi status update", { callId: event.call?.id, status });
+        if (status === "in-progress") {
+          const callId = event.call?.id;
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          if (callId) {
+            import("../../services/voice-call-state").then(({ recordCallState }) =>
+              recordCallState({
+                callId,
+                assistantId,
+                state: "greeted",
+                metadata: { eventType: event.type, status },
+              })
+            ).catch(() => { /* intentionally swallowed */ });
+          }
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "speech-update": {
+        // Normal Vapi lifecycle telemetry (started/stopped speaking). We do not
+        // persist it yet; explicitly acknowledge it so production logs do not
+        // mislabel supported provider traffic as an unknown event.
+        res.json({ ack: true });
+        return;
+      }
+
+      // Vapi fires this when the assistant STARTS a transfer. It carries no
+      // outcome (that arrives in the end-of-call artifact, when Vapi sends
+      // one); it is the proof an attempt happened. Until 2026-09-23 it was
+      // subscribed but fell to the default branch, so an attempt whose call
+      // then ended some other way left no trace. Ack first, record detached;
+      // the destination's kind only, never its number.
+      case "transfer-update": {
+        res.json({ ack: true });
+        const callId = event.call?.id;
+        if (callId) {
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          void Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/transferArtifact"),
+          ]).then(([{ recordCallState }, { transferUpdateMetadata }]) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "transfer_attempted",
+              metadata: transferUpdateMetadata(event),
+            }),
+          ).catch(() => { /* intentionally swallowed: telemetry never breaks a live call */ });
+        }
+        return;
+      }
+
+      case "end-of-call-report":
+      case "call-end": {
+        // wave-137 · read the CLEAN reason from message-level (see
+        // extractEndedReason). call.endedReason is null/SIP-transient on the
+        // webhook. Computed once, reused for the row insert + state metadata.
+        const cleanEndedReason = extractEndedReason(event);
+        log.info("Vapi call ended", {
+          callId: event.call?.id,
+          reason: cleanEndedReason,
+        });
+        // Q-45: do-not-call is the one compliance write that MUST be durable
+        // before acknowledgement. If it fails, return non-2xx so Vapi can
+        // retry the webhook. All noncritical post-call work stays detached.
+        try {
+          await persistTranscriptDoNotCallBeforeAck(event);
+        } catch (dncErr) {
+          log.error("[vapi webhook] do-not-call persistence failed before ack", {
+            callId: event.call?.id,
+            error: dncErr instanceof Error ? dncErr.message : String(dncErr),
+            errorId: "VAPI_DNC_PREACK_FAILED",
+          });
+          res.status(503).json({ error: "Do-not-call persistence failed; retry webhook" });
+          return;
+        }
+
+        res.json({ ack: true });
+        // F5 · tracked so a SIGTERM drain waits for it (the 200 is already sent).
+        void trackDetached("vapi:end-of-call", processCallEndReport(event, cleanEndedReason)).catch((err) => {
+          log.warn("[vapi webhook] detached post-call processing failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+        return;
+      }
+
+      case "transcript":
+        // Real-time transcript updates — log in dev, ignore in prod
+        if (process.env.NODE_ENV !== "production") {
+          log.info("Vapi transcript chunk", { len: event.transcript?.length });
+        }
+        res.json({ ack: true });
+        return;
+
+      // wave-181.63 · Phase 6 · cross-call memory hydration.
+      // wave-181.x · Tier S · BDI upgrade (declined-recovery opener).
+      // VAPI fires `assistant-request` BEFORE the call connects. The
+      // response shape is `{ assistantOverrides?: {...} }` which VAPI
+      // merges with the assistant's configured fields for THIS call
+      // only (no PATCH to the global assistant). The BDI composer
+      // (vapi-bdi.ts) looks up the caller AND any unconverted estimate
+      // and opens the call with the recovery hook when one is on file.
+      // Unknown callers fall through to the default first message ·
+      // backward compatible with the wave-181.63 personalization path.
+      case "assistant-request": {
+        const customer = (event.call as { customer?: { number?: string } } | undefined)?.customer;
+        const phone = customer?.number?.trim();
+        if (!phone) {
+          // No phone in the request · can't personalize · fall through
+          // to default assistant.
+          res.json({});
+          return;
+        }
+        try {
+          const { buildBdiFirstMessage } = await import(
+            "../../services/vapi-bdi"
+          );
+          const result = await buildBdiFirstMessage(phone);
+          log.info("assistant-request bdi", {
+            phoneSuffix: phone.replace(/\D/g, "").slice(-4),
+            matched: result.matched,
+            kind: result.kind,
+            reason: result.reason,
+          });
+          if (result.firstMessage) {
+            res.json({
+              assistantOverrides: { firstMessage: result.firstMessage },
+            });
+            return;
+          }
+        } catch (err) {
+          log.warn("assistant-request bdi threw", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Default · use assistant's configured first message.
+        res.json({});
+        return;
+      }
+
+      default:
+        log.info("Vapi unknown event type", { type: event.type });
+        res.json({ ack: true });
+        return;
+    }
+  } catch (err) {
+    log.error("Vapi webhook handler threw", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
+
+export { router as vapiWebhookRouter };
+))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (read.unrecognisedStatuses.length) {
+              // A status VAPI added that this app does not model. Loud, because
+              // silently bucketing it as unknown would hide a real drift.
+              log.warn("[vapi webhook] unmodelled transfer status from VAPI", {
+                statuses: read.unrecognisedStatuses,
+              });
+            }
+          }
+        } catch (transferErr) {
+          log.warn("[vapi webhook] transfer-artifact persist failed (analytics only)", {
+            error: transferErr instanceof Error ? transferErr.message : String(transferErr),
+          });
+        }
+
+        // VOICE CLAIM GUARD · the assistant side of the same artifact.
+        //
+        // SMS drafts are gated before send by `planViolations`; voice had no
+        // equivalent, so the prompt's truth rules (no repair quotes, no live
+        // stock, no capacity or wait promises) were enforced by prose alone.
+        // Vapi streams to TTS with no pre-speech hook, so this cannot block —
+        // it DETECTS, which is what makes drift visible and what makes the
+        // prompt-compression work measurable.
+        //
+        // Separate try from customerSpeech on purpose: one analytics write
+        // failing must not take the other down, and neither may affect the 200.
+        try {
+          const { buildVoiceClaimRecord } = await import("../../services/voiceClaimGuard");
+          const claims = buildVoiceClaimRecord({
+            transcript,
+            messages: (event as { artifact?: { messages?: unknown } }).artifact?.messages,
+          });
+          if (claims) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.voiceClaims', CAST(${JSON.stringify(claims)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (claims.violations.length) {
+              // Labels only — never the utterance. The transcript stays in the
+              // column it arrived in; logs must not become a second PII surface.
+              log.warn("[vapi webhook] voice claim violation", {
+                callId: String(callId),
+                violations: claims.violations,
+              });
+            }
+          }
+        } catch (claimErr) {
+          log.warn("[vapi webhook] voice-claim persist failed (analytics only)", {
+            error: claimErr instanceof Error ? claimErr.message : String(claimErr),
+          });
+        }
+
+        // wave-144 · forwarded-call safety net. A during-hours
+        // transferCall hands the caller to the shop line; if nobody
+        // picks up (tech mid-bay), that hot caller is lost with NO
+        // follow-up surface — forwards only showed up as a Voice-page
+        // chart bar. On the first end-of-call insert only, drop a row
+        // into the front-desk callback queue so every forwarded caller
+        // is accounted for. This is an INTERNAL queue entry, not an
+        // outbound customer message — worst case is a row the operator
+        // clears in one tap; the win is no forwarded caller falls
+        // through. endedReason "assistant-forwarded-call" → /forward/i.
+        // 2026-05-31 · forwarded-call follow-up flipped from an internal
+        // callback to-do (it flooded the Today queue with "Call back Voice
+        // caller" rows) to a self-serve SMS back to the caller. The caller
+        // re-engages on their terms; the operator's callback queue stays clean.
+        // 2026-07-20 · vapiCallId is REQUIRED for real idempotency. The
+        // orchestrator only builds a stable key (`..._call_<id>`) when
+        // event.vapiCallId is present (smsOrchestrator.ts) — omit it and the
+        // key falls through to a Date.now()+Math.random() value that is unique
+        // by construction, so the idempotency check can never match and is a
+        // silent no-op. Dedupe then rests entirely on the 24h phone cooldown.
+        // Passing the id restores the guard the call site always implied.
+        // 2026-07-20 · operator off-switch. Read the pause flag BEFORE deciding;
+        // a flag-read failure resolves to `false` (= not paused), so a DB blip
+        // keeps today's behaviour rather than silently muting the path.
+        let followupPaused = false;
+        try {
+          const { isEnabled } = await import("../../services/featureFlags");
+          followupPaused = await isEnabled("vapi_forward_followup_paused");
+        } catch (flagErr) {
+          log.warn("[vapi webhook] pause-flag read failed — treating as NOT paused", {
+            error: flagErr instanceof Error ? flagErr.message : String(flagErr),
+          });
+        }
+
+        // Narrow the number ONCE and pass the same value to both the decision
+        // and the send. Reaching back for `customer!.number` after the predicate
+        // returned true would re-assert a fact the compiler can't follow across
+        // the call boundary — a non-null assertion there would silence the
+        // checker rather than satisfy it.
+        const followupPhone = customer?.number?.trim() ?? "";
+
+        if (shouldSendForwardedFollowup({
+          firstLog,
+          endedReason: cleanEndedReason,
+          customerNumber: followupPhone,
+          paused: followupPaused,
+        })) {
+          const { orchestrateSms } = await import("../../services/smsOrchestrator");
+          await orchestrateSms({
+            type: "vapi_forwarded_call_followup",
+            phone: followupPhone,
+            vapiCallId: event.call?.id,
+          }).catch((err: unknown) => {
+            log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        } else if (followupPaused && isForwardedEndedReason(cleanEndedReason)) {
+          log.info("[vapi webhook] forwarded-call SMS suppressed — vapi_forward_followup_paused is ON");
+        }
+      }
+    }
+  } catch (persistErr) {
+    log.warn("[vapi webhook] call-end persist failed (non-blocking)", {
+      error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+    });
+  }
+  // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+  // Record `ended` on call-end with reason metadata so the active-
+  // calls view can drop this call out of the in-flight list.
+  const endCallId = event.call?.id;
+  const endAssistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+  if (endCallId) {
+    import("../../services/voice-call-state").then(({ recordCallState }) =>
+      recordCallState({
+        callId: endCallId,
+        assistantId: endAssistantId,
+        state: "ended",
+        metadata: { reason: cleanEndedReason, eventType: event.type },
+      })
+    ).catch(() => { /* intentionally swallowed */ });
+  }
+
+  // wave-181.87 · dispatch outbound call.ended to confirmation_calls
+  // OR alg_estimates voice_recovery_call_id by callId lookup. Same
+  // pattern as the dropped AgentPhone webhook (wave-181.85) · this
+  // handler now serves BOTH inbound flows (above) AND outbound
+  // confirmation + recovery flows via the wave-181.87 VAPI
+  // placeOutboundCall path.
+  if (endCallId) {
+    try {
+      const { getDb } = await import("../../db");
+      const { confirmationCalls, algEstimates } = await import("../../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        // wave-fix-2026-05-25 (audit #106) · same artifact-first
+        // fallback as the service-mention path · without this,
+        // confirmation-call evaluation runs on empty transcript
+        // and undercounts every converted call by ~10 eval-score
+        // points.
+        const transcriptText = ((event as { artifact?: { transcript?: string }; transcript?: string }).artifact?.transcript ?? (event as { transcript?: string }).transcript ?? "")
+          + " " + ((event as { summary?: string; analysis?: { summary?: string } }).summary
+            ?? (event as { analysis?: { summary?: string } }).analysis?.summary
+            ?? "");
+        const lower = transcriptText.toLowerCase();
+        const snippet = transcriptText.slice(0, 500);
+
+        // Classification · same regex pattern as the dropped
+        // agentphone classifyTranscript helper.
+        let confirmStatus: "confirmed" | "rescheduled" | "no_answer" = "no_answer";
+        let rescheduleRequest: string | null = null;
+        if (transcriptText.trim().length > 0) {
+          if (/\b(reschedule|move it|change the time|different day|can we do|push it|next week|earlier|later in the day|cancel)\b/i.test(lower)) {
+            confirmStatus = "rescheduled";
+            const sentences = lower.split(/[.!?]/);
+            const rs = sentences.find((s) => /\b(reschedule|move|change|different day|push|earlier|later)\b/i.test(s));
+            rescheduleRequest = (rs || "").trim().slice(0, 200) || null;
+          } else if (/\b(yes|yeah|yep|confirm|still on|see you|i.?ll be there|sounds good|works for me|all set)\b/i.test(lower)) {
+            confirmStatus = "confirmed";
+          } else {
+            // forensic-audit MEDIUM · was "ambiguous content → confirmed",
+            // so a voicemail/no-answer call where only the AI spoke was
+            // recorded as a confirmed appointment and the operator never
+            // followed up. Default to no_answer — a false follow-up is far
+            // cheaper than a missed no-show.
+            confirmStatus = "no_answer";
+          }
+        } else {
+          confirmStatus = "no_answer";
+        }
+
+        // Try 1 · confirmation_calls
+        const [confRow] = await db
+          .select()
+          .from(confirmationCalls)
+          .where(eq(confirmationCalls.agentphoneCallId, endCallId))
+          .limit(1);
+
+        if (confRow) {
+          await db
+            .update(confirmationCalls)
+            .set({
+              status: confirmStatus,
+              transcriptSnippet: snippet,
+              rescheduleRequest,
+              completedAt: new Date(),
+            })
+            .where(eq(confirmationCalls.id, confRow.id));
+          log.info(`[vapi outbound] confirmation_calls #${confRow.id} → ${confirmStatus}`, {
+            callId: String(endCallId).slice(0, 16),
+          });
+        } else {
+          // Try 2 · alg_estimates voice_recovery
+          const [estRow] = await db
+            .select({ id: algEstimates.id })
+            .from(algEstimates)
+            .where(eq(algEstimates.voiceRecoveryCallId, endCallId))
+            .limit(1);
+          if (estRow) {
+            // Map confirmation classification → recovery enum
+            const recoveryOutcome: "interested" | "not_interested" | "no_answer" =
+              confirmStatus === "no_answer" ? "no_answer" :
+              // For recovery · check for explicit not-interested signals
+              /\b(not interested|no thanks|already|fixed it|sold the car|don't need|not now)\b/i.test(lower) ? "not_interested" :
+              "interested";
+            await db
+              .update(algEstimates)
+              .set({ voiceRecoveryOutcome: recoveryOutcome })
+              .where(eq(algEstimates.id, estRow.id));
+            log.info(`[vapi outbound] alg_estimates #${estRow.id} voice_recovery → ${recoveryOutcome}`, {
+              callId: String(endCallId).slice(0, 16),
+            });
+          }
+          // No match in either table · inbound call · already handled above
+        }
+      }
+    } catch (dispatchErr) {
+      log.warn("[vapi outbound] dispatch failed (non-blocking)", {
+        error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+      });
+    }
+  }
+
+  // ─── Trust ladder (Phase 6): actionable call → DRAFT proposals ──────────
+  // Flag-gated (vapi_action_proposals, OFF by default — also the 0111
+  // deploy-order guard). Creates DRAFTS in the approval queue only; nothing
+  // executes without a human tap. Deliberately LAST and try/caught: the
+  // call-log write, claim guard and outbound dispatch above must be complete
+  // and unaffected whether this succeeds, fails, or is disabled.
+  try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    if (await isEnabled("vapi_action_proposals")) {
+      const callId = event.call?.id;
+      if (callId) {
+        const { maybeProposeCallActions } = await import("../../services/vapiActionExtraction");
+        const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
+        const transcript =
+          (event as { artifact?: { transcript?: string } }).artifact?.transcript ??
+          (event as { transcript?: string })?.transcript ??
+          "";
+        const summary =
+          (event as { summary?: string; analysis?: { summary?: string } })?.summary ??
+          (event as { analysis?: { summary?: string } })?.analysis?.summary ??
+          null;
+        await maybeProposeCallActions({
+          callId,
+          transcript: typeof transcript === "string" ? transcript : "",
+          summary,
+          customerName: customer?.name ?? null,
+          customerPhone: customer?.number ?? null,
+          durationSeconds: extractCallDurationSec(event),
+          endedReason: cleanEndedReason,
+          // Direction gate: our own outbound confirmation / recovery calls must
+          // not produce drafts for work that already exists.
+          callType: (event.call as { type?: string })?.type ?? null,
+        });
+      }
+    }
+  } catch (proposalErr) {
+    log.warn("[vapi proposals] extraction pass failed (non-blocking)", {
+      error: proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
+    });
+  }
+}
+
+// ─── Main webhook endpoint ─────────────────────────────
+
+router.post("/vapi", async (req: Request, res: Response) => {
+  if (!verifyVapiSignature(req)) {
+    log.warn("Invalid Vapi signature");
+    res.status(401).json({ error: "Invalid signature" });
+    return;
+  }
+
+  const body = req.body as { message: VapiWebhookMessage };
+
+  const event = body?.message;
+  if (!event?.type) {
+    res.status(400).json({ error: "Missing message.type" });
+    return;
+  }
+
+  try {
+    switch (event.type) {
+      case "function-call":
+      case "tool-calls": {
+        // wave-181.4 · capture LLM→tool→ack round-trip latency so the
+        // /api/admin/voice-latency observability tile can surface it.
+        // Anchored at handler entry; the actual write happens AFTER
+        // results assemble so a telemetry bug can't break the response.
+        const webhookReceivedAt = Date.now();
+        // Multiple tool calls arrive in one webhook. Run in parallel.
+        // wave-116 — was Promise.all; a single rejection caused the
+        // webhook to 500, prompting VAPI to retry the WHOLE batch and
+        // potentially double-execute already-succeeded tools (e.g.
+        // scheduleDropoff fired twice). allSettled isolates per-call
+        // outcomes so the webhook always 200s with a per-tool result.
+        const calls = event.toolCalls || [];
+        const dialled = (event.call as { customer?: { number?: string } } | undefined)?.customer?.number;
+        const callType = (event.call as { type?: string } | undefined)?.type;
+        const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id, dialled, callType)));
+        const results = settled.map((s, i) => {
+          if (s.status === "fulfilled") return s.value;
+          const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
+          log.error("Tool call rejected", {
+            toolCallId: calls[i]?.id,
+            functionName: calls[i]?.function?.name,
+            error: err,
+          });
+          return {
+            toolCallId: calls[i]?.id,
+            result: JSON.stringify({ error: "Tool execution failed", details: err }),
+          };
+        });
+        res.json({ results });
+
+        // Fire-and-forget latency capture · service swallows all errors
+        // so a missing migration or transient DB issue never breaks the
+        // webhook response above.
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-latency").then(({ captureVoiceLatency }) =>
+            captureVoiceLatency({
+              callId,
+              assistantId: assistantId ?? "unknown",
+              stage: "llm_first_token",
+              latencyMs: Date.now() - webhookReceivedAt,
+              metadata: { source: "vapi-webhook", toolCalls: calls.length },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+
+          // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+          // Classify each tool call into a state transition (read tool =
+          // intent_captured · write tool = tool_called · confirmation
+          // tool = confirmed). Append-only · multiple events per call
+          // are correct (the trail tells you the agent re-engaged after
+          // a tool call). Fire-and-forget · NEVER blocks webhook.
+          Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/tireDemand"),
+          ]).then(([{ classifyToolToState, recordCallState }, { toolCallStateMetadata }]) => {
+            for (const c of calls) {
+              const state = classifyToolToState(c.function?.name ?? "");
+              if (state) {
+                void recordCallState({
+                  callId,
+                  assistantId,
+                  state,
+                  // A tireInquiry also records what the caller asked for (size,
+                  // new/used; never name or phone) for Today's "Asked by phone".
+                  metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
+                });
+              }
+            }
+          }).catch(() => { /* intentionally swallowed */ });
+        }
+        return;
+      }
+
+      case "call-start": {
+        // Legacy/explicit call-start event. Current Vapi server-message defaults
+        // use status-update and mark the true start as status=in-progress.
+        log.info("Vapi call started", { callId: event.call?.id, source: "call-start" });
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-call-state").then(({ recordCallState }) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "greeted",
+              metadata: { eventType: event.type },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "status-update": {
+        // Vapi emits scheduled/queued/ringing/in-progress/forwarding/ended.
+        // Only in-progress means the conversation actually started. The old
+        // combined branch stamped every status as "greeted", producing several
+        // fake starts for one call in production.
+        const status = event.status ?? "unknown";
+        log.info("Vapi status update", { callId: event.call?.id, status });
+        if (status === "in-progress") {
+          const callId = event.call?.id;
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          if (callId) {
+            import("../../services/voice-call-state").then(({ recordCallState }) =>
+              recordCallState({
+                callId,
+                assistantId,
+                state: "greeted",
+                metadata: { eventType: event.type, status },
+              })
+            ).catch(() => { /* intentionally swallowed */ });
+          }
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "speech-update": {
+        // Normal Vapi lifecycle telemetry (started/stopped speaking). We do not
+        // persist it yet; explicitly acknowledge it so production logs do not
+        // mislabel supported provider traffic as an unknown event.
+        res.json({ ack: true });
+        return;
+      }
+
+      // Vapi fires this when the assistant STARTS a transfer. It carries no
+      // outcome (that arrives in the end-of-call artifact, when Vapi sends
+      // one); it is the proof an attempt happened. Until 2026-09-23 it was
+      // subscribed but fell to the default branch, so an attempt whose call
+      // then ended some other way left no trace. Ack first, record detached;
+      // the destination's kind only, never its number.
+      case "transfer-update": {
+        res.json({ ack: true });
+        const callId = event.call?.id;
+        if (callId) {
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          void Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/transferArtifact"),
+          ]).then(([{ recordCallState }, { transferUpdateMetadata }]) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "transfer_attempted",
+              metadata: transferUpdateMetadata(event),
+            }),
+          ).catch(() => { /* intentionally swallowed: telemetry never breaks a live call */ });
+        }
+        return;
+      }
+
+      case "end-of-call-report":
+      case "call-end": {
+        // wave-137 · read the CLEAN reason from message-level (see
+        // extractEndedReason). call.endedReason is null/SIP-transient on the
+        // webhook. Computed once, reused for the row insert + state metadata.
+        const cleanEndedReason = extractEndedReason(event);
+        log.info("Vapi call ended", {
+          callId: event.call?.id,
+          reason: cleanEndedReason,
+        });
+        // Q-45: do-not-call is the one compliance write that MUST be durable
+        // before acknowledgement. If it fails, return non-2xx so Vapi can
+        // retry the webhook. All noncritical post-call work stays detached.
+        try {
+          await persistTranscriptDoNotCallBeforeAck(event);
+        } catch (dncErr) {
+          log.error("[vapi webhook] do-not-call persistence failed before ack", {
+            callId: event.call?.id,
+            error: dncErr instanceof Error ? dncErr.message : String(dncErr),
+            errorId: "VAPI_DNC_PREACK_FAILED",
+          });
+          res.status(503).json({ error: "Do-not-call persistence failed; retry webhook" });
+          return;
+        }
+
+        res.json({ ack: true });
+        // F5 · tracked so a SIGTERM drain waits for it (the 200 is already sent).
+        void trackDetached("vapi:end-of-call", processCallEndReport(event, cleanEndedReason)).catch((err) => {
+          log.warn("[vapi webhook] detached post-call processing failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+        return;
+      }
+
+      case "transcript":
+        // Real-time transcript updates — log in dev, ignore in prod
+        if (process.env.NODE_ENV !== "production") {
+          log.info("Vapi transcript chunk", { len: event.transcript?.length });
+        }
+        res.json({ ack: true });
+        return;
+
+      // wave-181.63 · Phase 6 · cross-call memory hydration.
+      // wave-181.x · Tier S · BDI upgrade (declined-recovery opener).
+      // VAPI fires `assistant-request` BEFORE the call connects. The
+      // response shape is `{ assistantOverrides?: {...} }` which VAPI
+      // merges with the assistant's configured fields for THIS call
+      // only (no PATCH to the global assistant). The BDI composer
+      // (vapi-bdi.ts) looks up the caller AND any unconverted estimate
+      // and opens the call with the recovery hook when one is on file.
+      // Unknown callers fall through to the default first message ·
+      // backward compatible with the wave-181.63 personalization path.
+      case "assistant-request": {
+        const customer = (event.call as { customer?: { number?: string } } | undefined)?.customer;
+        const phone = customer?.number?.trim();
+        if (!phone) {
+          // No phone in the request · can't personalize · fall through
+          // to default assistant.
+          res.json({});
+          return;
+        }
+        try {
+          const { buildBdiFirstMessage } = await import(
+            "../../services/vapi-bdi"
+          );
+          const result = await buildBdiFirstMessage(phone);
+          log.info("assistant-request bdi", {
+            phoneSuffix: phone.replace(/\D/g, "").slice(-4),
+            matched: result.matched,
+            kind: result.kind,
+            reason: result.reason,
+          });
+          if (result.firstMessage) {
+            res.json({
+              assistantOverrides: { firstMessage: result.firstMessage },
+            });
+            return;
+          }
+        } catch (err) {
+          log.warn("assistant-request bdi threw", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Default · use assistant's configured first message.
+        res.json({});
+        return;
+      }
+
+      default:
+        log.info("Vapi unknown event type", { type: event.type });
+        res.json({ ack: true });
+        return;
+    }
+  } catch (err) {
+    log.error("Vapi webhook handler threw", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
+
+export { router as vapiWebhookRouter };
+)
+            )
+            WHERE vapiCallId = ${String(callId)}
+          `);
+        } catch (behaviorErr) {
+          log.warn("[vapi webhook] behavior fingerprint persist failed (analytics only)", {
+            error: behaviorErr instanceof Error ? behaviorErr.message : String(behaviorErr),
+          });
+        }
+
+        // ─── Persist CUSTOMER-only speech (2026-07-26 demand audit) ─────────
+        // The full transcript has been in hand here since wave-fix-2026-05-25,
+        // used for a keyword scan and then dropped. Meanwhile `transcriptUrl`
+        // is populated on 0 of 2,095 rows — VAPI never sets it — so nothing
+        // durable held what callers actually said, and every demand signal was
+        // assistant-contaminated: `serviceMention` is binary (tire|brake) and
+        // `aiSummary` is written by a tire-first assistant. The ~60% used-tire
+        // figure the whole prompt is built around could not be checked.
+        //
+        // Stores the CUSTOMER's turns only — never assistant speech, never the
+        // full transcript — capped and truncated. JSON_SET merges into whatever
+        // `metadata` already holds (intents, agenticAudit), so write order with
+        // the later enrichment updates does not matter. Uses the existing JSON
+        // column deliberately: no migration means no hand-applied DDL to forget
+        // (ROS-059). Fail-open — a demand-analytics write must never affect the
+        // webhook's 200.
+        try {
+          const { buildCustomerSpeechRecord, extractCustomerTurnsFromMessages, CUSTOMER_SPEECH_VERSION } =
+            await import("../../services/customerTurns");
+          // Prefer VAPI's role-tagged `artifact.messages` — authoritative at the
+          // source, so no speaker-prefix guessing and no formatting change can
+          // misattribute assistant speech as customer demand. The flat
+          // transcript is the fallback for calls that lack the array.
+          const artifactMsgs = (event as { artifact?: { messages?: unknown } }).artifact?.messages;
+          let speech: ReturnType<typeof buildCustomerSpeechRecord> = null;
+          if (Array.isArray(artifactMsgs) && artifactMsgs.length) {
+            const parsed = extractCustomerTurnsFromMessages(artifactMsgs);
+            if (parsed.turns.length || parsed.unparsed) {
+              speech = {
+                v: CUSTOMER_SPEECH_VERSION,
+                turns: parsed.turns,
+                turnCount: parsed.totalCustomerTurns,
+                first: parsed.firstSubstantive,
+                unparsed: parsed.unparsed,
+              };
+            }
+          } else {
+            speech = buildCustomerSpeechRecord(transcript);
+          }
+          if (speech) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.customerSpeech', CAST(${JSON.stringify(speech)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+          }
+        } catch (speechErr) {
+          log.warn("[vapi webhook] customer-speech persist failed (analytics only)", {
+            error: speechErr instanceof Error ? speechErr.message : String(speechErr),
+          });
+        }
+
+        // TRANSFER ARTIFACT · the only signal that can prove a human ANSWERED.
+        //
+        // Every transfer metric in this app has been built on
+        // `endedReason === "assistant-forwarded-call"`, which VAPI's own docs
+        // say confirms the transfer was INITIATED, not completed — their
+        // troubleshooting page sends you to the provider's call log for the
+        // outcome. So a call that rang an empty counter and dropped to
+        // voicemail has scored identically to one Nick answered on the second
+        // ring, and no connect-rate built on it could ever emit a failure for
+        // the one case it exists to detect.
+        //
+        // `artifact.transfers[]` carries a real per-attempt status. VAPI
+        // describes blind-transfer outcome detection as enabled PER
+        // ORGANISATION, so whether this account receives it is an empirical
+        // question — which is exactly why `artifactPresent` is persisted
+        // separately from the verdict. That flag is the live answer, read from
+        // production rather than assumed from documentation.
+        //
+        // Separate try on purpose, same as customerSpeech above: one analytics
+        // write failing must not take the other down, and neither may affect
+        // the webhook's 200.
+        try {
+          const { readTransferArtifact, transferArtifactWorthPersisting, sawTransferUpdate } = await import("../../lib/transferArtifact");
+          const read = readTransferArtifact((event as { artifact?: unknown }).artifact);
+          // The live `transfer-update` witness (recorded below in the router).
+          // It catches the attempt the ended reason hides: a caller who hangs
+          // up while the shop line rings ends "customer-ended-call".
+          const { getCallStateHistory } = await import("../../services/voice-call-state");
+          const transferUpdateSeen = sawTransferUpdate(await getCallStateHistory(String(callId)));
+          // Write only when there is something to say: a per-attempt record, or
+          // an ended reason proving a transfer was ATTEMPTED. A call that never
+          // tried to hand off gets no verdict at all — the old test here was
+          // `artifactPresent || transfers.length`, and artifactPresent is true
+          // whenever Vapi sends a transfers ARRAY — which it does, empty, on
+          // calls that never transferred — which is how 20 of 31 calls came to
+          // carry "unknown" for a transfer that never happened.
+          if (transferArtifactWorthPersisting(read, cleanEndedReason, transferUpdateSeen)) {
+            const { sql } = await import("drizzle-orm");
+            const stored = { ...read, transferUpdateSeen };
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.transferArtifact', CAST(${JSON.stringify(stored)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (read.unrecognisedStatuses.length) {
+              // A status VAPI added that this app does not model. Loud, because
+              // silently bucketing it as unknown would hide a real drift.
+              log.warn("[vapi webhook] unmodelled transfer status from VAPI", {
+                statuses: read.unrecognisedStatuses,
+              });
+            }
+          }
+        } catch (transferErr) {
+          log.warn("[vapi webhook] transfer-artifact persist failed (analytics only)", {
+            error: transferErr instanceof Error ? transferErr.message : String(transferErr),
+          });
+        }
+
+        // VOICE CLAIM GUARD · the assistant side of the same artifact.
+        //
+        // SMS drafts are gated before send by `planViolations`; voice had no
+        // equivalent, so the prompt's truth rules (no repair quotes, no live
+        // stock, no capacity or wait promises) were enforced by prose alone.
+        // Vapi streams to TTS with no pre-speech hook, so this cannot block —
+        // it DETECTS, which is what makes drift visible and what makes the
+        // prompt-compression work measurable.
+        //
+        // Separate try from customerSpeech on purpose: one analytics write
+        // failing must not take the other down, and neither may affect the 200.
+        try {
+          const { buildVoiceClaimRecord } = await import("../../services/voiceClaimGuard");
+          const claims = buildVoiceClaimRecord({
+            transcript,
+            messages: (event as { artifact?: { messages?: unknown } }).artifact?.messages,
+          });
+          if (claims) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.voiceClaims', CAST(${JSON.stringify(claims)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (claims.violations.length) {
+              // Labels only — never the utterance. The transcript stays in the
+              // column it arrived in; logs must not become a second PII surface.
+              log.warn("[vapi webhook] voice claim violation", {
+                callId: String(callId),
+                violations: claims.violations,
+              });
+            }
+          }
+        } catch (claimErr) {
+          log.warn("[vapi webhook] voice-claim persist failed (analytics only)", {
+            error: claimErr instanceof Error ? claimErr.message : String(claimErr),
+          });
+        }
+
+        // wave-144 · forwarded-call safety net. A during-hours
+        // transferCall hands the caller to the shop line; if nobody
+        // picks up (tech mid-bay), that hot caller is lost with NO
+        // follow-up surface — forwards only showed up as a Voice-page
+        // chart bar. On the first end-of-call insert only, drop a row
+        // into the front-desk callback queue so every forwarded caller
+        // is accounted for. This is an INTERNAL queue entry, not an
+        // outbound customer message — worst case is a row the operator
+        // clears in one tap; the win is no forwarded caller falls
+        // through. endedReason "assistant-forwarded-call" → /forward/i.
+        // 2026-05-31 · forwarded-call follow-up flipped from an internal
+        // callback to-do (it flooded the Today queue with "Call back Voice
+        // caller" rows) to a self-serve SMS back to the caller. The caller
+        // re-engages on their terms; the operator's callback queue stays clean.
+        // 2026-07-20 · vapiCallId is REQUIRED for real idempotency. The
+        // orchestrator only builds a stable key (`..._call_<id>`) when
+        // event.vapiCallId is present (smsOrchestrator.ts) — omit it and the
+        // key falls through to a Date.now()+Math.random() value that is unique
+        // by construction, so the idempotency check can never match and is a
+        // silent no-op. Dedupe then rests entirely on the 24h phone cooldown.
+        // Passing the id restores the guard the call site always implied.
+        // 2026-07-20 · operator off-switch. Read the pause flag BEFORE deciding;
+        // a flag-read failure resolves to `false` (= not paused), so a DB blip
+        // keeps today's behaviour rather than silently muting the path.
+        let followupPaused = false;
+        try {
+          const { isEnabled } = await import("../../services/featureFlags");
+          followupPaused = await isEnabled("vapi_forward_followup_paused");
+        } catch (flagErr) {
+          log.warn("[vapi webhook] pause-flag read failed — treating as NOT paused", {
+            error: flagErr instanceof Error ? flagErr.message : String(flagErr),
+          });
+        }
+
+        // Narrow the number ONCE and pass the same value to both the decision
+        // and the send. Reaching back for `customer!.number` after the predicate
+        // returned true would re-assert a fact the compiler can't follow across
+        // the call boundary — a non-null assertion there would silence the
+        // checker rather than satisfy it.
+        const followupPhone = customer?.number?.trim() ?? "";
+
+        if (shouldSendForwardedFollowup({
+          firstLog,
+          endedReason: cleanEndedReason,
+          customerNumber: followupPhone,
+          paused: followupPaused,
+        })) {
+          const { orchestrateSms } = await import("../../services/smsOrchestrator");
+          await orchestrateSms({
+            type: "vapi_forwarded_call_followup",
+            phone: followupPhone,
+            vapiCallId: event.call?.id,
+          }).catch((err: unknown) => {
+            log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        } else if (followupPaused && isForwardedEndedReason(cleanEndedReason)) {
+          log.info("[vapi webhook] forwarded-call SMS suppressed — vapi_forward_followup_paused is ON");
+        }
+      }
+    }
+  } catch (persistErr) {
+    log.warn("[vapi webhook] call-end persist failed (non-blocking)", {
+      error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+    });
+  }
+  // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+  // Record `ended` on call-end with reason metadata so the active-
+  // calls view can drop this call out of the in-flight list.
+  const endCallId = event.call?.id;
+  const endAssistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+  if (endCallId) {
+    import("../../services/voice-call-state").then(({ recordCallState }) =>
+      recordCallState({
+        callId: endCallId,
+        assistantId: endAssistantId,
+        state: "ended",
+        metadata: { reason: cleanEndedReason, eventType: event.type },
+      })
+    ).catch(() => { /* intentionally swallowed */ });
+  }
+
+  // wave-181.87 · dispatch outbound call.ended to confirmation_calls
+  // OR alg_estimates voice_recovery_call_id by callId lookup. Same
+  // pattern as the dropped AgentPhone webhook (wave-181.85) · this
+  // handler now serves BOTH inbound flows (above) AND outbound
+  // confirmation + recovery flows via the wave-181.87 VAPI
+  // placeOutboundCall path.
+  if (endCallId) {
+    try {
+      const { getDb } = await import("../../db");
+      const { confirmationCalls, algEstimates } = await import("../../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        // wave-fix-2026-05-25 (audit #106) · same artifact-first
+        // fallback as the service-mention path · without this,
+        // confirmation-call evaluation runs on empty transcript
+        // and undercounts every converted call by ~10 eval-score
+        // points.
+        const transcriptText = ((event as { artifact?: { transcript?: string }; transcript?: string }).artifact?.transcript ?? (event as { transcript?: string }).transcript ?? "")
+          + " " + ((event as { summary?: string; analysis?: { summary?: string } }).summary
+            ?? (event as { analysis?: { summary?: string } }).analysis?.summary
+            ?? "");
+        const lower = transcriptText.toLowerCase();
+        const snippet = transcriptText.slice(0, 500);
+
+        // Classification · same regex pattern as the dropped
+        // agentphone classifyTranscript helper.
+        let confirmStatus: "confirmed" | "rescheduled" | "no_answer" = "no_answer";
+        let rescheduleRequest: string | null = null;
+        if (transcriptText.trim().length > 0) {
+          if (/\b(reschedule|move it|change the time|different day|can we do|push it|next week|earlier|later in the day|cancel)\b/i.test(lower)) {
+            confirmStatus = "rescheduled";
+            const sentences = lower.split(/[.!?]/);
+            const rs = sentences.find((s) => /\b(reschedule|move|change|different day|push|earlier|later)\b/i.test(s));
+            rescheduleRequest = (rs || "").trim().slice(0, 200) || null;
+          } else if (/\b(yes|yeah|yep|confirm|still on|see you|i.?ll be there|sounds good|works for me|all set)\b/i.test(lower)) {
+            confirmStatus = "confirmed";
+          } else {
+            // forensic-audit MEDIUM · was "ambiguous content → confirmed",
+            // so a voicemail/no-answer call where only the AI spoke was
+            // recorded as a confirmed appointment and the operator never
+            // followed up. Default to no_answer — a false follow-up is far
+            // cheaper than a missed no-show.
+            confirmStatus = "no_answer";
+          }
+        } else {
+          confirmStatus = "no_answer";
+        }
+
+        // Try 1 · confirmation_calls
+        const [confRow] = await db
+          .select()
+          .from(confirmationCalls)
+          .where(eq(confirmationCalls.agentphoneCallId, endCallId))
+          .limit(1);
+
+        if (confRow) {
+          await db
+            .update(confirmationCalls)
+            .set({
+              status: confirmStatus,
+              transcriptSnippet: snippet,
+              rescheduleRequest,
+              completedAt: new Date(),
+            })
+            .where(eq(confirmationCalls.id, confRow.id));
+          log.info(`[vapi outbound] confirmation_calls #${confRow.id} → ${confirmStatus}`, {
+            callId: String(endCallId).slice(0, 16),
+          });
+        } else {
+          // Try 2 · alg_estimates voice_recovery
+          const [estRow] = await db
+            .select({ id: algEstimates.id })
+            .from(algEstimates)
+            .where(eq(algEstimates.voiceRecoveryCallId, endCallId))
+            .limit(1);
+          if (estRow) {
+            // Map confirmation classification → recovery enum
+            const recoveryOutcome: "interested" | "not_interested" | "no_answer" =
+              confirmStatus === "no_answer" ? "no_answer" :
+              // For recovery · check for explicit not-interested signals
+              /\b(not interested|no thanks|already|fixed it|sold the car|don't need|not now)\b/i.test(lower) ? "not_interested" :
+              "interested";
+            await db
+              .update(algEstimates)
+              .set({ voiceRecoveryOutcome: recoveryOutcome })
+              .where(eq(algEstimates.id, estRow.id));
+            log.info(`[vapi outbound] alg_estimates #${estRow.id} voice_recovery → ${recoveryOutcome}`, {
+              callId: String(endCallId).slice(0, 16),
+            });
+          }
+          // No match in either table · inbound call · already handled above
+        }
+      }
+    } catch (dispatchErr) {
+      log.warn("[vapi outbound] dispatch failed (non-blocking)", {
+        error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+      });
+    }
+  }
+
+  // ─── Trust ladder (Phase 6): actionable call → DRAFT proposals ──────────
+  // Flag-gated (vapi_action_proposals, OFF by default — also the 0111
+  // deploy-order guard). Creates DRAFTS in the approval queue only; nothing
+  // executes without a human tap. Deliberately LAST and try/caught: the
+  // call-log write, claim guard and outbound dispatch above must be complete
+  // and unaffected whether this succeeds, fails, or is disabled.
+  try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    if (await isEnabled("vapi_action_proposals")) {
+      const callId = event.call?.id;
+      if (callId) {
+        const { maybeProposeCallActions } = await import("../../services/vapiActionExtraction");
+        const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
+        const transcript =
+          (event as { artifact?: { transcript?: string } }).artifact?.transcript ??
+          (event as { transcript?: string })?.transcript ??
+          "";
+        const summary =
+          (event as { summary?: string; analysis?: { summary?: string } })?.summary ??
+          (event as { analysis?: { summary?: string } })?.analysis?.summary ??
+          null;
+        await maybeProposeCallActions({
+          callId,
+          transcript: typeof transcript === "string" ? transcript : "",
+          summary,
+          customerName: customer?.name ?? null,
+          customerPhone: customer?.number ?? null,
+          durationSeconds: extractCallDurationSec(event),
+          endedReason: cleanEndedReason,
+          // Direction gate: our own outbound confirmation / recovery calls must
+          // not produce drafts for work that already exists.
+          callType: (event.call as { type?: string })?.type ?? null,
+        });
+      }
+    }
+  } catch (proposalErr) {
+    log.warn("[vapi proposals] extraction pass failed (non-blocking)", {
+      error: proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
+    });
+  }
+}
+
+// ─── Main webhook endpoint ─────────────────────────────
+
+router.post("/vapi", async (req: Request, res: Response) => {
+  if (!verifyVapiSignature(req)) {
+    log.warn("Invalid Vapi signature");
+    res.status(401).json({ error: "Invalid signature" });
+    return;
+  }
+
+  const body = req.body as { message: VapiWebhookMessage };
+
+  const event = body?.message;
+  if (!event?.type) {
+    res.status(400).json({ error: "Missing message.type" });
+    return;
+  }
+
+  try {
+    switch (event.type) {
+      case "function-call":
+      case "tool-calls": {
+        // wave-181.4 · capture LLM→tool→ack round-trip latency so the
+        // /api/admin/voice-latency observability tile can surface it.
+        // Anchored at handler entry; the actual write happens AFTER
+        // results assemble so a telemetry bug can't break the response.
+        const webhookReceivedAt = Date.now();
+        // Multiple tool calls arrive in one webhook. Run in parallel.
+        // wave-116 — was Promise.all; a single rejection caused the
+        // webhook to 500, prompting VAPI to retry the WHOLE batch and
+        // potentially double-execute already-succeeded tools (e.g.
+        // scheduleDropoff fired twice). allSettled isolates per-call
+        // outcomes so the webhook always 200s with a per-tool result.
+        const calls = event.toolCalls || [];
+        const dialled = (event.call as { customer?: { number?: string } } | undefined)?.customer?.number;
+        const callType = (event.call as { type?: string } | undefined)?.type;
+        const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id, dialled, callType)));
+        const results = settled.map((s, i) => {
+          if (s.status === "fulfilled") return s.value;
+          const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
+          log.error("Tool call rejected", {
+            toolCallId: calls[i]?.id,
+            functionName: calls[i]?.function?.name,
+            error: err,
+          });
+          return {
+            toolCallId: calls[i]?.id,
+            result: JSON.stringify({ error: "Tool execution failed", details: err }),
+          };
+        });
+        res.json({ results });
+
+        // Fire-and-forget latency capture · service swallows all errors
+        // so a missing migration or transient DB issue never breaks the
+        // webhook response above.
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-latency").then(({ captureVoiceLatency }) =>
+            captureVoiceLatency({
+              callId,
+              assistantId: assistantId ?? "unknown",
+              stage: "llm_first_token",
+              latencyMs: Date.now() - webhookReceivedAt,
+              metadata: { source: "vapi-webhook", toolCalls: calls.length },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+
+          // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+          // Classify each tool call into a state transition (read tool =
+          // intent_captured · write tool = tool_called · confirmation
+          // tool = confirmed). Append-only · multiple events per call
+          // are correct (the trail tells you the agent re-engaged after
+          // a tool call). Fire-and-forget · NEVER blocks webhook.
+          Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/tireDemand"),
+          ]).then(([{ classifyToolToState, recordCallState }, { toolCallStateMetadata }]) => {
+            for (const c of calls) {
+              const state = classifyToolToState(c.function?.name ?? "");
+              if (state) {
+                void recordCallState({
+                  callId,
+                  assistantId,
+                  state,
+                  // A tireInquiry also records what the caller asked for (size,
+                  // new/used; never name or phone) for Today's "Asked by phone".
+                  metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
+                });
+              }
+            }
+          }).catch(() => { /* intentionally swallowed */ });
+        }
+        return;
+      }
+
+      case "call-start": {
+        // Legacy/explicit call-start event. Current Vapi server-message defaults
+        // use status-update and mark the true start as status=in-progress.
+        log.info("Vapi call started", { callId: event.call?.id, source: "call-start" });
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-call-state").then(({ recordCallState }) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "greeted",
+              metadata: { eventType: event.type },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "status-update": {
+        // Vapi emits scheduled/queued/ringing/in-progress/forwarding/ended.
+        // Only in-progress means the conversation actually started. The old
+        // combined branch stamped every status as "greeted", producing several
+        // fake starts for one call in production.
+        const status = event.status ?? "unknown";
+        log.info("Vapi status update", { callId: event.call?.id, status });
+        if (status === "in-progress") {
+          const callId = event.call?.id;
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          if (callId) {
+            import("../../services/voice-call-state").then(({ recordCallState }) =>
+              recordCallState({
+                callId,
+                assistantId,
+                state: "greeted",
+                metadata: { eventType: event.type, status },
+              })
+            ).catch(() => { /* intentionally swallowed */ });
+          }
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "speech-update": {
+        // Normal Vapi lifecycle telemetry (started/stopped speaking). We do not
+        // persist it yet; explicitly acknowledge it so production logs do not
+        // mislabel supported provider traffic as an unknown event.
+        res.json({ ack: true });
+        return;
+      }
+
+      // Vapi fires this when the assistant STARTS a transfer. It carries no
+      // outcome (that arrives in the end-of-call artifact, when Vapi sends
+      // one); it is the proof an attempt happened. Until 2026-09-23 it was
+      // subscribed but fell to the default branch, so an attempt whose call
+      // then ended some other way left no trace. Ack first, record detached;
+      // the destination's kind only, never its number.
+      case "transfer-update": {
+        res.json({ ack: true });
+        const callId = event.call?.id;
+        if (callId) {
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          void Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/transferArtifact"),
+          ]).then(([{ recordCallState }, { transferUpdateMetadata }]) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "transfer_attempted",
+              metadata: transferUpdateMetadata(event),
+            }),
+          ).catch(() => { /* intentionally swallowed: telemetry never breaks a live call */ });
+        }
+        return;
+      }
+
+      case "end-of-call-report":
+      case "call-end": {
+        // wave-137 · read the CLEAN reason from message-level (see
+        // extractEndedReason). call.endedReason is null/SIP-transient on the
+        // webhook. Computed once, reused for the row insert + state metadata.
+        const cleanEndedReason = extractEndedReason(event);
+        log.info("Vapi call ended", {
+          callId: event.call?.id,
+          reason: cleanEndedReason,
+        });
+        // Q-45: do-not-call is the one compliance write that MUST be durable
+        // before acknowledgement. If it fails, return non-2xx so Vapi can
+        // retry the webhook. All noncritical post-call work stays detached.
+        try {
+          await persistTranscriptDoNotCallBeforeAck(event);
+        } catch (dncErr) {
+          log.error("[vapi webhook] do-not-call persistence failed before ack", {
+            callId: event.call?.id,
+            error: dncErr instanceof Error ? dncErr.message : String(dncErr),
+            errorId: "VAPI_DNC_PREACK_FAILED",
+          });
+          res.status(503).json({ error: "Do-not-call persistence failed; retry webhook" });
+          return;
+        }
+
+        res.json({ ack: true });
+        // F5 · tracked so a SIGTERM drain waits for it (the 200 is already sent).
+        void trackDetached("vapi:end-of-call", processCallEndReport(event, cleanEndedReason)).catch((err) => {
+          log.warn("[vapi webhook] detached post-call processing failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+        return;
+      }
+
+      case "transcript":
+        // Real-time transcript updates — log in dev, ignore in prod
+        if (process.env.NODE_ENV !== "production") {
+          log.info("Vapi transcript chunk", { len: event.transcript?.length });
+        }
+        res.json({ ack: true });
+        return;
+
+      // wave-181.63 · Phase 6 · cross-call memory hydration.
+      // wave-181.x · Tier S · BDI upgrade (declined-recovery opener).
+      // VAPI fires `assistant-request` BEFORE the call connects. The
+      // response shape is `{ assistantOverrides?: {...} }` which VAPI
+      // merges with the assistant's configured fields for THIS call
+      // only (no PATCH to the global assistant). The BDI composer
+      // (vapi-bdi.ts) looks up the caller AND any unconverted estimate
+      // and opens the call with the recovery hook when one is on file.
+      // Unknown callers fall through to the default first message ·
+      // backward compatible with the wave-181.63 personalization path.
+      case "assistant-request": {
+        const customer = (event.call as { customer?: { number?: string } } | undefined)?.customer;
+        const phone = customer?.number?.trim();
+        if (!phone) {
+          // No phone in the request · can't personalize · fall through
+          // to default assistant.
+          res.json({});
+          return;
+        }
+        try {
+          const { buildBdiFirstMessage } = await import(
+            "../../services/vapi-bdi"
+          );
+          const result = await buildBdiFirstMessage(phone);
+          log.info("assistant-request bdi", {
+            phoneSuffix: phone.replace(/\D/g, "").slice(-4),
+            matched: result.matched,
+            kind: result.kind,
+            reason: result.reason,
+          });
+          if (result.firstMessage) {
+            res.json({
+              assistantOverrides: { firstMessage: result.firstMessage },
+            });
+            return;
+          }
+        } catch (err) {
+          log.warn("assistant-request bdi threw", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Default · use assistant's configured first message.
+        res.json({});
+        return;
+      }
+
+      default:
+        log.info("Vapi unknown event type", { type: event.type });
+        res.json({ ack: true });
+        return;
+    }
+  } catch (err) {
+    log.error("Vapi webhook handler threw", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
+
+export { router as vapiWebhookRouter };
+))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+          }
+        } catch (speechErr) {
+          log.warn("[vapi webhook] customer-speech persist failed (analytics only)", {
+            error: speechErr instanceof Error ? speechErr.message : String(speechErr),
+          });
+        }
+
+        // TRANSFER ARTIFACT · the only signal that can prove a human ANSWERED.
+        //
+        // Every transfer metric in this app has been built on
+        // `endedReason === "assistant-forwarded-call"`, which VAPI's own docs
+        // say confirms the transfer was INITIATED, not completed — their
+        // troubleshooting page sends you to the provider's call log for the
+        // outcome. So a call that rang an empty counter and dropped to
+        // voicemail has scored identically to one Nick answered on the second
+        // ring, and no connect-rate built on it could ever emit a failure for
+        // the one case it exists to detect.
+        //
+        // `artifact.transfers[]` carries a real per-attempt status. VAPI
+        // describes blind-transfer outcome detection as enabled PER
+        // ORGANISATION, so whether this account receives it is an empirical
+        // question — which is exactly why `artifactPresent` is persisted
+        // separately from the verdict. That flag is the live answer, read from
+        // production rather than assumed from documentation.
+        //
+        // Separate try on purpose, same as customerSpeech above: one analytics
+        // write failing must not take the other down, and neither may affect
+        // the webhook's 200.
+        try {
+          const { readTransferArtifact, transferArtifactWorthPersisting, sawTransferUpdate } = await import("../../lib/transferArtifact");
+          const read = readTransferArtifact((event as { artifact?: unknown }).artifact);
+          // The live `transfer-update` witness (recorded below in the router).
+          // It catches the attempt the ended reason hides: a caller who hangs
+          // up while the shop line rings ends "customer-ended-call".
+          const { getCallStateHistory } = await import("../../services/voice-call-state");
+          const transferUpdateSeen = sawTransferUpdate(await getCallStateHistory(String(callId)));
+          // Write only when there is something to say: a per-attempt record, or
+          // an ended reason proving a transfer was ATTEMPTED. A call that never
+          // tried to hand off gets no verdict at all — the old test here was
+          // `artifactPresent || transfers.length`, and artifactPresent is true
+          // whenever Vapi sends a transfers ARRAY — which it does, empty, on
+          // calls that never transferred — which is how 20 of 31 calls came to
+          // carry "unknown" for a transfer that never happened.
+          if (transferArtifactWorthPersisting(read, cleanEndedReason, transferUpdateSeen)) {
+            const { sql } = await import("drizzle-orm");
+            const stored = { ...read, transferUpdateSeen };
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.transferArtifact', CAST(${JSON.stringify(stored)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (read.unrecognisedStatuses.length) {
+              // A status VAPI added that this app does not model. Loud, because
+              // silently bucketing it as unknown would hide a real drift.
+              log.warn("[vapi webhook] unmodelled transfer status from VAPI", {
+                statuses: read.unrecognisedStatuses,
+              });
+            }
+          }
+        } catch (transferErr) {
+          log.warn("[vapi webhook] transfer-artifact persist failed (analytics only)", {
+            error: transferErr instanceof Error ? transferErr.message : String(transferErr),
+          });
+        }
+
+        // VOICE CLAIM GUARD · the assistant side of the same artifact.
+        //
+        // SMS drafts are gated before send by `planViolations`; voice had no
+        // equivalent, so the prompt's truth rules (no repair quotes, no live
+        // stock, no capacity or wait promises) were enforced by prose alone.
+        // Vapi streams to TTS with no pre-speech hook, so this cannot block —
+        // it DETECTS, which is what makes drift visible and what makes the
+        // prompt-compression work measurable.
+        //
+        // Separate try from customerSpeech on purpose: one analytics write
+        // failing must not take the other down, and neither may affect the 200.
+        try {
+          const { buildVoiceClaimRecord } = await import("../../services/voiceClaimGuard");
+          const claims = buildVoiceClaimRecord({
+            transcript,
+            messages: (event as { artifact?: { messages?: unknown } }).artifact?.messages,
+          });
+          if (claims) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.voiceClaims', CAST(${JSON.stringify(claims)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (claims.violations.length) {
+              // Labels only — never the utterance. The transcript stays in the
+              // column it arrived in; logs must not become a second PII surface.
+              log.warn("[vapi webhook] voice claim violation", {
+                callId: String(callId),
+                violations: claims.violations,
+              });
+            }
+          }
+        } catch (claimErr) {
+          log.warn("[vapi webhook] voice-claim persist failed (analytics only)", {
+            error: claimErr instanceof Error ? claimErr.message : String(claimErr),
+          });
+        }
+
+        // wave-144 · forwarded-call safety net. A during-hours
+        // transferCall hands the caller to the shop line; if nobody
+        // picks up (tech mid-bay), that hot caller is lost with NO
+        // follow-up surface — forwards only showed up as a Voice-page
+        // chart bar. On the first end-of-call insert only, drop a row
+        // into the front-desk callback queue so every forwarded caller
+        // is accounted for. This is an INTERNAL queue entry, not an
+        // outbound customer message — worst case is a row the operator
+        // clears in one tap; the win is no forwarded caller falls
+        // through. endedReason "assistant-forwarded-call" → /forward/i.
+        // 2026-05-31 · forwarded-call follow-up flipped from an internal
+        // callback to-do (it flooded the Today queue with "Call back Voice
+        // caller" rows) to a self-serve SMS back to the caller. The caller
+        // re-engages on their terms; the operator's callback queue stays clean.
+        // 2026-07-20 · vapiCallId is REQUIRED for real idempotency. The
+        // orchestrator only builds a stable key (`..._call_<id>`) when
+        // event.vapiCallId is present (smsOrchestrator.ts) — omit it and the
+        // key falls through to a Date.now()+Math.random() value that is unique
+        // by construction, so the idempotency check can never match and is a
+        // silent no-op. Dedupe then rests entirely on the 24h phone cooldown.
+        // Passing the id restores the guard the call site always implied.
+        // 2026-07-20 · operator off-switch. Read the pause flag BEFORE deciding;
+        // a flag-read failure resolves to `false` (= not paused), so a DB blip
+        // keeps today's behaviour rather than silently muting the path.
+        let followupPaused = false;
+        try {
+          const { isEnabled } = await import("../../services/featureFlags");
+          followupPaused = await isEnabled("vapi_forward_followup_paused");
+        } catch (flagErr) {
+          log.warn("[vapi webhook] pause-flag read failed — treating as NOT paused", {
+            error: flagErr instanceof Error ? flagErr.message : String(flagErr),
+          });
+        }
+
+        // Narrow the number ONCE and pass the same value to both the decision
+        // and the send. Reaching back for `customer!.number` after the predicate
+        // returned true would re-assert a fact the compiler can't follow across
+        // the call boundary — a non-null assertion there would silence the
+        // checker rather than satisfy it.
+        const followupPhone = customer?.number?.trim() ?? "";
+
+        if (shouldSendForwardedFollowup({
+          firstLog,
+          endedReason: cleanEndedReason,
+          customerNumber: followupPhone,
+          paused: followupPaused,
+        })) {
+          const { orchestrateSms } = await import("../../services/smsOrchestrator");
+          await orchestrateSms({
+            type: "vapi_forwarded_call_followup",
+            phone: followupPhone,
+            vapiCallId: event.call?.id,
+          }).catch((err: unknown) => {
+            log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        } else if (followupPaused && isForwardedEndedReason(cleanEndedReason)) {
+          log.info("[vapi webhook] forwarded-call SMS suppressed — vapi_forward_followup_paused is ON");
+        }
+      }
+    }
+  } catch (persistErr) {
+    log.warn("[vapi webhook] call-end persist failed (non-blocking)", {
+      error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+    });
+  }
+  // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+  // Record `ended` on call-end with reason metadata so the active-
+  // calls view can drop this call out of the in-flight list.
+  const endCallId = event.call?.id;
+  const endAssistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+  if (endCallId) {
+    import("../../services/voice-call-state").then(({ recordCallState }) =>
+      recordCallState({
+        callId: endCallId,
+        assistantId: endAssistantId,
+        state: "ended",
+        metadata: { reason: cleanEndedReason, eventType: event.type },
+      })
+    ).catch(() => { /* intentionally swallowed */ });
+  }
+
+  // wave-181.87 · dispatch outbound call.ended to confirmation_calls
+  // OR alg_estimates voice_recovery_call_id by callId lookup. Same
+  // pattern as the dropped AgentPhone webhook (wave-181.85) · this
+  // handler now serves BOTH inbound flows (above) AND outbound
+  // confirmation + recovery flows via the wave-181.87 VAPI
+  // placeOutboundCall path.
+  if (endCallId) {
+    try {
+      const { getDb } = await import("../../db");
+      const { confirmationCalls, algEstimates } = await import("../../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        // wave-fix-2026-05-25 (audit #106) · same artifact-first
+        // fallback as the service-mention path · without this,
+        // confirmation-call evaluation runs on empty transcript
+        // and undercounts every converted call by ~10 eval-score
+        // points.
+        const transcriptText = ((event as { artifact?: { transcript?: string }; transcript?: string }).artifact?.transcript ?? (event as { transcript?: string }).transcript ?? "")
+          + " " + ((event as { summary?: string; analysis?: { summary?: string } }).summary
+            ?? (event as { analysis?: { summary?: string } }).analysis?.summary
+            ?? "");
+        const lower = transcriptText.toLowerCase();
+        const snippet = transcriptText.slice(0, 500);
+
+        // Classification · same regex pattern as the dropped
+        // agentphone classifyTranscript helper.
+        let confirmStatus: "confirmed" | "rescheduled" | "no_answer" = "no_answer";
+        let rescheduleRequest: string | null = null;
+        if (transcriptText.trim().length > 0) {
+          if (/\b(reschedule|move it|change the time|different day|can we do|push it|next week|earlier|later in the day|cancel)\b/i.test(lower)) {
+            confirmStatus = "rescheduled";
+            const sentences = lower.split(/[.!?]/);
+            const rs = sentences.find((s) => /\b(reschedule|move|change|different day|push|earlier|later)\b/i.test(s));
+            rescheduleRequest = (rs || "").trim().slice(0, 200) || null;
+          } else if (/\b(yes|yeah|yep|confirm|still on|see you|i.?ll be there|sounds good|works for me|all set)\b/i.test(lower)) {
+            confirmStatus = "confirmed";
+          } else {
+            // forensic-audit MEDIUM · was "ambiguous content → confirmed",
+            // so a voicemail/no-answer call where only the AI spoke was
+            // recorded as a confirmed appointment and the operator never
+            // followed up. Default to no_answer — a false follow-up is far
+            // cheaper than a missed no-show.
+            confirmStatus = "no_answer";
+          }
+        } else {
+          confirmStatus = "no_answer";
+        }
+
+        // Try 1 · confirmation_calls
+        const [confRow] = await db
+          .select()
+          .from(confirmationCalls)
+          .where(eq(confirmationCalls.agentphoneCallId, endCallId))
+          .limit(1);
+
+        if (confRow) {
+          await db
+            .update(confirmationCalls)
+            .set({
+              status: confirmStatus,
+              transcriptSnippet: snippet,
+              rescheduleRequest,
+              completedAt: new Date(),
+            })
+            .where(eq(confirmationCalls.id, confRow.id));
+          log.info(`[vapi outbound] confirmation_calls #${confRow.id} → ${confirmStatus}`, {
+            callId: String(endCallId).slice(0, 16),
+          });
+        } else {
+          // Try 2 · alg_estimates voice_recovery
+          const [estRow] = await db
+            .select({ id: algEstimates.id })
+            .from(algEstimates)
+            .where(eq(algEstimates.voiceRecoveryCallId, endCallId))
+            .limit(1);
+          if (estRow) {
+            // Map confirmation classification → recovery enum
+            const recoveryOutcome: "interested" | "not_interested" | "no_answer" =
+              confirmStatus === "no_answer" ? "no_answer" :
+              // For recovery · check for explicit not-interested signals
+              /\b(not interested|no thanks|already|fixed it|sold the car|don't need|not now)\b/i.test(lower) ? "not_interested" :
+              "interested";
+            await db
+              .update(algEstimates)
+              .set({ voiceRecoveryOutcome: recoveryOutcome })
+              .where(eq(algEstimates.id, estRow.id));
+            log.info(`[vapi outbound] alg_estimates #${estRow.id} voice_recovery → ${recoveryOutcome}`, {
+              callId: String(endCallId).slice(0, 16),
+            });
+          }
+          // No match in either table · inbound call · already handled above
+        }
+      }
+    } catch (dispatchErr) {
+      log.warn("[vapi outbound] dispatch failed (non-blocking)", {
+        error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+      });
+    }
+  }
+
+  // ─── Trust ladder (Phase 6): actionable call → DRAFT proposals ──────────
+  // Flag-gated (vapi_action_proposals, OFF by default — also the 0111
+  // deploy-order guard). Creates DRAFTS in the approval queue only; nothing
+  // executes without a human tap. Deliberately LAST and try/caught: the
+  // call-log write, claim guard and outbound dispatch above must be complete
+  // and unaffected whether this succeeds, fails, or is disabled.
+  try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    if (await isEnabled("vapi_action_proposals")) {
+      const callId = event.call?.id;
+      if (callId) {
+        const { maybeProposeCallActions } = await import("../../services/vapiActionExtraction");
+        const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
+        const transcript =
+          (event as { artifact?: { transcript?: string } }).artifact?.transcript ??
+          (event as { transcript?: string })?.transcript ??
+          "";
+        const summary =
+          (event as { summary?: string; analysis?: { summary?: string } })?.summary ??
+          (event as { analysis?: { summary?: string } })?.analysis?.summary ??
+          null;
+        await maybeProposeCallActions({
+          callId,
+          transcript: typeof transcript === "string" ? transcript : "",
+          summary,
+          customerName: customer?.name ?? null,
+          customerPhone: customer?.number ?? null,
+          durationSeconds: extractCallDurationSec(event),
+          endedReason: cleanEndedReason,
+          // Direction gate: our own outbound confirmation / recovery calls must
+          // not produce drafts for work that already exists.
+          callType: (event.call as { type?: string })?.type ?? null,
+        });
+      }
+    }
+  } catch (proposalErr) {
+    log.warn("[vapi proposals] extraction pass failed (non-blocking)", {
+      error: proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
+    });
+  }
+}
+
+// ─── Main webhook endpoint ─────────────────────────────
+
+router.post("/vapi", async (req: Request, res: Response) => {
+  if (!verifyVapiSignature(req)) {
+    log.warn("Invalid Vapi signature");
+    res.status(401).json({ error: "Invalid signature" });
+    return;
+  }
+
+  const body = req.body as { message: VapiWebhookMessage };
+
+  const event = body?.message;
+  if (!event?.type) {
+    res.status(400).json({ error: "Missing message.type" });
+    return;
+  }
+
+  try {
+    switch (event.type) {
+      case "function-call":
+      case "tool-calls": {
+        // wave-181.4 · capture LLM→tool→ack round-trip latency so the
+        // /api/admin/voice-latency observability tile can surface it.
+        // Anchored at handler entry; the actual write happens AFTER
+        // results assemble so a telemetry bug can't break the response.
+        const webhookReceivedAt = Date.now();
+        // Multiple tool calls arrive in one webhook. Run in parallel.
+        // wave-116 — was Promise.all; a single rejection caused the
+        // webhook to 500, prompting VAPI to retry the WHOLE batch and
+        // potentially double-execute already-succeeded tools (e.g.
+        // scheduleDropoff fired twice). allSettled isolates per-call
+        // outcomes so the webhook always 200s with a per-tool result.
+        const calls = event.toolCalls || [];
+        const dialled = (event.call as { customer?: { number?: string } } | undefined)?.customer?.number;
+        const callType = (event.call as { type?: string } | undefined)?.type;
+        const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id, dialled, callType)));
+        const results = settled.map((s, i) => {
+          if (s.status === "fulfilled") return s.value;
+          const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
+          log.error("Tool call rejected", {
+            toolCallId: calls[i]?.id,
+            functionName: calls[i]?.function?.name,
+            error: err,
+          });
+          return {
+            toolCallId: calls[i]?.id,
+            result: JSON.stringify({ error: "Tool execution failed", details: err }),
+          };
+        });
+        res.json({ results });
+
+        // Fire-and-forget latency capture · service swallows all errors
+        // so a missing migration or transient DB issue never breaks the
+        // webhook response above.
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-latency").then(({ captureVoiceLatency }) =>
+            captureVoiceLatency({
+              callId,
+              assistantId: assistantId ?? "unknown",
+              stage: "llm_first_token",
+              latencyMs: Date.now() - webhookReceivedAt,
+              metadata: { source: "vapi-webhook", toolCalls: calls.length },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+
+          // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+          // Classify each tool call into a state transition (read tool =
+          // intent_captured · write tool = tool_called · confirmation
+          // tool = confirmed). Append-only · multiple events per call
+          // are correct (the trail tells you the agent re-engaged after
+          // a tool call). Fire-and-forget · NEVER blocks webhook.
+          Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/tireDemand"),
+          ]).then(([{ classifyToolToState, recordCallState }, { toolCallStateMetadata }]) => {
+            for (const c of calls) {
+              const state = classifyToolToState(c.function?.name ?? "");
+              if (state) {
+                void recordCallState({
+                  callId,
+                  assistantId,
+                  state,
+                  // A tireInquiry also records what the caller asked for (size,
+                  // new/used; never name or phone) for Today's "Asked by phone".
+                  metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
+                });
+              }
+            }
+          }).catch(() => { /* intentionally swallowed */ });
+        }
+        return;
+      }
+
+      case "call-start": {
+        // Legacy/explicit call-start event. Current Vapi server-message defaults
+        // use status-update and mark the true start as status=in-progress.
+        log.info("Vapi call started", { callId: event.call?.id, source: "call-start" });
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-call-state").then(({ recordCallState }) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "greeted",
+              metadata: { eventType: event.type },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "status-update": {
+        // Vapi emits scheduled/queued/ringing/in-progress/forwarding/ended.
+        // Only in-progress means the conversation actually started. The old
+        // combined branch stamped every status as "greeted", producing several
+        // fake starts for one call in production.
+        const status = event.status ?? "unknown";
+        log.info("Vapi status update", { callId: event.call?.id, status });
+        if (status === "in-progress") {
+          const callId = event.call?.id;
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          if (callId) {
+            import("../../services/voice-call-state").then(({ recordCallState }) =>
+              recordCallState({
+                callId,
+                assistantId,
+                state: "greeted",
+                metadata: { eventType: event.type, status },
+              })
+            ).catch(() => { /* intentionally swallowed */ });
+          }
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "speech-update": {
+        // Normal Vapi lifecycle telemetry (started/stopped speaking). We do not
+        // persist it yet; explicitly acknowledge it so production logs do not
+        // mislabel supported provider traffic as an unknown event.
+        res.json({ ack: true });
+        return;
+      }
+
+      // Vapi fires this when the assistant STARTS a transfer. It carries no
+      // outcome (that arrives in the end-of-call artifact, when Vapi sends
+      // one); it is the proof an attempt happened. Until 2026-09-23 it was
+      // subscribed but fell to the default branch, so an attempt whose call
+      // then ended some other way left no trace. Ack first, record detached;
+      // the destination's kind only, never its number.
+      case "transfer-update": {
+        res.json({ ack: true });
+        const callId = event.call?.id;
+        if (callId) {
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          void Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/transferArtifact"),
+          ]).then(([{ recordCallState }, { transferUpdateMetadata }]) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "transfer_attempted",
+              metadata: transferUpdateMetadata(event),
+            }),
+          ).catch(() => { /* intentionally swallowed: telemetry never breaks a live call */ });
+        }
+        return;
+      }
+
+      case "end-of-call-report":
+      case "call-end": {
+        // wave-137 · read the CLEAN reason from message-level (see
+        // extractEndedReason). call.endedReason is null/SIP-transient on the
+        // webhook. Computed once, reused for the row insert + state metadata.
+        const cleanEndedReason = extractEndedReason(event);
+        log.info("Vapi call ended", {
+          callId: event.call?.id,
+          reason: cleanEndedReason,
+        });
+        // Q-45: do-not-call is the one compliance write that MUST be durable
+        // before acknowledgement. If it fails, return non-2xx so Vapi can
+        // retry the webhook. All noncritical post-call work stays detached.
+        try {
+          await persistTranscriptDoNotCallBeforeAck(event);
+        } catch (dncErr) {
+          log.error("[vapi webhook] do-not-call persistence failed before ack", {
+            callId: event.call?.id,
+            error: dncErr instanceof Error ? dncErr.message : String(dncErr),
+            errorId: "VAPI_DNC_PREACK_FAILED",
+          });
+          res.status(503).json({ error: "Do-not-call persistence failed; retry webhook" });
+          return;
+        }
+
+        res.json({ ack: true });
+        // F5 · tracked so a SIGTERM drain waits for it (the 200 is already sent).
+        void trackDetached("vapi:end-of-call", processCallEndReport(event, cleanEndedReason)).catch((err) => {
+          log.warn("[vapi webhook] detached post-call processing failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+        return;
+      }
+
+      case "transcript":
+        // Real-time transcript updates — log in dev, ignore in prod
+        if (process.env.NODE_ENV !== "production") {
+          log.info("Vapi transcript chunk", { len: event.transcript?.length });
+        }
+        res.json({ ack: true });
+        return;
+
+      // wave-181.63 · Phase 6 · cross-call memory hydration.
+      // wave-181.x · Tier S · BDI upgrade (declined-recovery opener).
+      // VAPI fires `assistant-request` BEFORE the call connects. The
+      // response shape is `{ assistantOverrides?: {...} }` which VAPI
+      // merges with the assistant's configured fields for THIS call
+      // only (no PATCH to the global assistant). The BDI composer
+      // (vapi-bdi.ts) looks up the caller AND any unconverted estimate
+      // and opens the call with the recovery hook when one is on file.
+      // Unknown callers fall through to the default first message ·
+      // backward compatible with the wave-181.63 personalization path.
+      case "assistant-request": {
+        const customer = (event.call as { customer?: { number?: string } } | undefined)?.customer;
+        const phone = customer?.number?.trim();
+        if (!phone) {
+          // No phone in the request · can't personalize · fall through
+          // to default assistant.
+          res.json({});
+          return;
+        }
+        try {
+          const { buildBdiFirstMessage } = await import(
+            "../../services/vapi-bdi"
+          );
+          const result = await buildBdiFirstMessage(phone);
+          log.info("assistant-request bdi", {
+            phoneSuffix: phone.replace(/\D/g, "").slice(-4),
+            matched: result.matched,
+            kind: result.kind,
+            reason: result.reason,
+          });
+          if (result.firstMessage) {
+            res.json({
+              assistantOverrides: { firstMessage: result.firstMessage },
+            });
+            return;
+          }
+        } catch (err) {
+          log.warn("assistant-request bdi threw", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Default · use assistant's configured first message.
+        res.json({});
+        return;
+      }
+
+      default:
+        log.info("Vapi unknown event type", { type: event.type });
+        res.json({ ack: true });
+        return;
+    }
+  } catch (err) {
+    log.error("Vapi webhook handler threw", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
+
+export { router as vapiWebhookRouter };
+)
             )
             WHERE vapiCallId = ${String(callId)}
           `);
