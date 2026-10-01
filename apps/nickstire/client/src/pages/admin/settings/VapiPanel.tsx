@@ -229,7 +229,7 @@ export default function VapiPanel() {
             </div>
           ))}
           <p className="text-[10px] text-foreground/40 italic mt-1">
-            Push Latest Config = re-deploys the optimal Vapi assistant settings (Deepgram nova-2-phonecall, GPT-4o, ElevenLabs Adam turbo, smart endpointing, voicemail detection, structured-data analysis, tire-first prompt).
+            Push Latest Config = re-deploys the optimal Vapi assistant settings (Deepgram nova-2-phonecall, GPT-4o, ElevenLabs Adam turbo, smart endpointing, voicemail detection, structured-data analysis, neutral-first intent prompt with strong tire handling).
           </p>
         </div>
       )}
