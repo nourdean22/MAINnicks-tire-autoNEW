@@ -67,3 +67,69 @@ Categories below overlap and are keyword-derived, so they are directional—not 
 - No raw transcript/customer data committed.
 - No NickGPT fine-tune/retrain attempted.
 - Broader urgency-library mechanic claims should receive a separate mechanic-truth audit before further edits.
+
+## Forensic continuation checkpoint — 2026-10-01
+
+This section records the deeper read after the first corpus pass. It separates live evidence from code-only findings and does not treat a mechanism as healthy merely because it exists.
+
+### LIVE + VERIFIED / observed in production
+
+1. **The weekly VAPI prompt-evolution loop failed on its latest observed scheduled run.**
+   - Railway production logs show `prompt-evolution-weekly` failed with `timeout` on 2026-09-28 and then held its cron lock under `CRON_TIMEOUT_LOCK_HELD`.
+   - The scheduler default is 4 minutes. This job does not declare a custom `timeoutMs`.
+   - The job can perform baseline train + holdout ghost replays, candidate generation, candidate train scoring, and holdout scoring; individual optimizer calls allow up to 120 seconds. The latest run therefore cannot be classified healthy from wiring alone.
+   - State: **BROKEN on latest observed run** until a subsequent successful production receipt proves recovery.
+
+2. **Marketing-SMS consent enforcement is still shadow-only while traffic continues to hit the refusal condition.**
+   - Production logs from 2026-09-28 through 2026-10-01 repeatedly show: `consent gate SHADOW — this marketing send would be refused once armed`, `messageClass=customer_marketing`, `why=no recorded opt-in`.
+   - These are not ordinary inbound-response/transactional messages; the application itself classifies them as marketing.
+   - State: **LIVE BUT UNVERIFIED / COMPLIANCE HOLD**. Do not optimize marketing-send volume from this traffic until consent authority is explicit and enforcement mode is deliberately resolved.
+
+3. **Warm-transfer friction remains visible in live calls.**
+   - In the 2026-10-01 production window sampled from 12:07Z through 15:32Z, 19 unique call-end events were observed:
+     - 8 customer-ended-call
+     - 6 assistant-forwarded-call
+     - 4 customer-ended-call-before-warm-transfer
+     - 1 silence-timed-out
+   - This is a point-in-time operational sample, not a population estimate. It is enough to keep transfer abandonment as an active optimization lane.
+
+4. **The call-state start signal is noisy by construction.**
+   - The VAPI webhook handles both `status-update` and `call-start` in the same branch, logs both as `Vapi call started`, and appends a `greeted` state for either.
+   - The 2026-10-01 live window showed repeated `Vapi call started` log entries for the same call IDs before one final end event.
+   - State: **LIVE + VERIFIED telemetry duplication**. This does not by itself prove customer harm, but any metric that counts `greeted` state rows instead of unique calls is unsafe until deduped.
+
+### BUILT / code findings that need production proof
+
+5. **Transfer outcome persistence had a confirmed analytics failure and the risky statement still exists.**
+   - Railway logs on 2026-09-27 show connected transfer artifacts failing to persist with the TiDB JSON update path.
+   - Current `main` still writes `metadata.transferArtifact` via `JSON_SET(... CAST(... AS JSON))` in the same webhook area.
+   - No recurrence was found in the sampled current-deployment logs, but no successful transfer-artifact persistence receipt was captured either.
+   - State: **LIVE BUT UNVERIFIED after a historical failure**, not fixed-by-assumption.
+
+6. **The optimizer is gated, but its objective is still mostly conversational rather than business-outcome causal.**
+   - Prompt evolution trains on call failures and grades ghost-replayed replies for resolution / claim defects.
+   - Revenue reconciliation exists separately and can classify direct call→lead→invoice as verified while weaker phone/time/service matches remain inferred/manual review.
+   - The optimizer does not currently require measured arrival, paid invoice, repeat visit, or revenue lift before proposing a prompt change.
+   - State: **BUILT + WIRED quality loop; missing outcome-learning closure**.
+
+7. **Pricing authority is internally contradictory and must be resolved before more autonomous tuning.**
+   - A June operator decision documented a two-tier strategy: website/SEO can use the $25 installed loss-leader floor with qualifiers, while high-intent quoting channels use $60.
+   - A July SMS-persona change explicitly treated the $60 SMS floor as drift and moved SMS to the BUSINESS-driven $25 floor/band.
+   - Current `AGENTS.md` again says quoting channels use $60.
+   - VAPI currently speaks $60; SMS code reads BUSINESS-driven pricing.
+   - State: **CONFLICTING AUTHORITY**. No optimizer should infer the winner from corpus performance. Create one versioned channel-pricing policy and generate VAPI/SMS tests from it.
+
+8. **Persuasion truth needs a doctrine, not phrase-by-phrase cleanup.**
+   - #2839 removes several unsupported or diagnosis-shaped phrases, but the VAPI prompt still contains universal competitor language such as `any other shop charges to even look, we don't`.
+   - State: **PARTIALLY FIXED**. Add a reusable claim rule: never assert universal competitor behavior, unverifiable superiority, or remote mechanical diagnosis; persuade with Nick's own verifiable process and offers.
+
+### Next dependency-ordered work
+
+1. Repair and receipt the weekly prompt-evolution runtime budget before treating self-improvement as operational.
+2. Resolve the marketing-consent shadow/enforcement decision separately from customer-service SMS.
+3. Make transfer truth durable and prove one live attempted → connected / failed artifact round-trip.
+4. Version and reconcile channel pricing authority.
+5. Join prompt/response version → call → expected arrival/work order → paid invoice where evidence is direct; keep inferred joins out of autonomous promotion.
+6. Make experiment promotion depend on business outcomes plus safety/claim invariants, not conversational score alone.
+7. Continue the mechanic-truth + persuasion-truth audit across VAPI and SMS.
+
