@@ -1,0 +1,58 @@
+/* NOUR Cockpit — compact Chat Controls. Presentation only; no model values are changed. */
+#controls-container.nour-cockpit-controls .nour-cockpit-summary {
+  margin: 0.2rem 0 0.45rem;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, currentColor 4%, transparent);
+}
+
+#controls-container.nour-cockpit-controls .nour-cockpit-summary-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: inherit;
+}
+
+#controls-container.nour-cockpit-controls .nour-cockpit-summary-copy {
+  margin-top: 0.25rem;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  opacity: 0.72;
+}
+
+#controls-container.nour-cockpit-controls .nour-cockpit-summary-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.55rem;
+}
+
+#controls-container.nour-cockpit-controls .nour-cockpit-summary-pills > span {
+  padding: 0.18rem 0.42rem;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  line-height: 1.2;
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  opacity: 0.82;
+}
+
+#controls-container.nour-cockpit-controls .nour-cockpit-raw-toggle {
+  width: 100%;
+  margin-top: 0.55rem;
+  padding: 0.38rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.68rem;
+  text-align: center;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  transition: background 120ms ease, opacity 120ms ease;
+}
+
+#controls-container.nour-cockpit-controls .nour-cockpit-raw-toggle:hover {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+#controls-container.nour-cockpit-controls
+  .nour-cockpit-advanced:not(.nour-show-raw)
+  .nour-cockpit-raw-row {
+  display: none !important;
+}

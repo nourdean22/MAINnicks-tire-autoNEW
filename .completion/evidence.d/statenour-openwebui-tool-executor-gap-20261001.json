@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "2026-10-01 direct-fix E2E canary reached actual tool invocation but failed before Cockpit execution. Browser receipt window.__NOUR_COCKPIT_LAST_INJECTION__ confirms model=nour-cockpit, server=nour-cockpit, and six injected specs: start/check/continue/approve/cancel/recent. The model attempted start_cockpit_run and check_cockpit_run; both tool results were exactly {error: Tool Server Not Found}. No new CockpitRun JSON was created and the unique marker UI_E2E_CANARY_20261001_DIRECTFIX_1 was absent from run state. Therefore model routing + tool schema injection are now proven; remaining defect is OpenWebUI's direct-tool execution server lookup/resolution. Next step: locate the literal 'Tool Server Not Found' emitter and reconcile its expected server identifier with the injected server object's id/idx/store registration."
+    }
+  }
+}
