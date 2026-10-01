@@ -2,6 +2,10 @@
 
 
 
+## 2026-10-01 - UI v2 Precision Material Cockpit is the live frontend grammar (#2871 merged, deploy-verified)
+
+bdnick.info renders the v2 grammar since `18bf9ebc` (Railway statenour-web `754fae93` SUCCESS): warm near-black surface steps, Geist sentence-case headings, one gold signal per surface, translucent material only on the desktop rail and the composer, Activity Summary + Tool Receipt in chat, no particle canvas. Spec and receipts: `docs/design/ui-v2/`. `?ui=v1` (cookie `statenour_ui`) restores the previous colour/type system for comparison, not the component rewrites; `STATENOUR_UI=v1` flips the default. Utility trap recorded in SYSTEM.md: `bg-surface` is the legacy alias of `--surface-interactive`; the content-card role is `bg-content`. Journal / brain / people / stats / system / palette / ticker still carry the old component grammar on the new tokens (PR 2 pending). `tests/repo/ui-v2-grammar.test.ts` pins the grammar and refuses bracketed var() class spellings in scanned docs (Tailwind v4 auto-source reads Markdown; two CI reds on 2026-10-01 came from prose).
+
 ## 2026-10-01 - NOUR Gateway OpenAI tool-call transport (branch + isolated-live proof; 11436 cutover pending)
 
 - **What changed:** the logical NOUR models now advertise OpenAI-compatible `tools` / `tool_choice` support. When a client supplies tools, the gateway serializes the tool schemas + prior tool results into a strict reasoning envelope, validates the selected tool name against the caller's allowlist, and returns standard `message.tool_calls` / streaming `delta.tool_calls`.
