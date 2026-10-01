@@ -551,6 +551,10 @@ function padToTargetDim(arr: number[]): number[] {
  * @param query — the user's message or any text to search against
  * @param opts.limit — how many memories to return (default 8)
  * @param opts.embedding — pre-computed embedding (skips AI call)
+ * @param opts.sideEffects — default true. `false` skips BOTH writes below
+ *   (the lastSeen bump and the brain.recall.avg_distance metric) so an
+ *   owner preview cannot change what real chat recall ranks: the scorer
+ *   gives +0.2 to memories seen in the last 14 days.
  */
 export async function recallMemoriesForQuery(
   query: string,
@@ -559,6 +563,8 @@ export async function recallMemoriesForQuery(
     embedding?: number[];
     /** 2026-09-15 · identifiers the query planner extracted (BDN-310, #2196, a symbol). Feeds the exact lane. */
     exactTerms?: string[];
+    /** 2026-10-01 · false = read-only inspection (the /brain recall preview). */
+    sideEffects?: boolean;
   } = {},
 ): Promise<RecallReport> {
   const t0 = Date.now();
@@ -792,8 +798,12 @@ export async function recallMemoriesForQuery(
   const scannedCount =
     rows.length + durableRows.filter((d) => !mainIds.has(d.memory_id)).length;
 
+  // 2026-10-01 · a preview is an inspection, not a recall: no write below
+  // may run for it. Default stays true for every chat/provenance caller.
+  const writes = opts.sideEffects !== false;
+
   // 4. Bump lastSeen on returned memories so they stay "fresh"
-  if (scored.length > 0) {
+  if (writes && scored.length > 0) {
     void prisma.brainMemory
       .updateMany({
         where: { id: { in: scored.map((s) => s.memoryId) } },
@@ -819,7 +829,7 @@ export async function recallMemoriesForQuery(
           ).toFixed(4),
         );
 
-  if (scored.length > 0) {
+  if (writes && scored.length > 0) {
     void prisma.systemMetric
       .create({
         data: {

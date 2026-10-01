@@ -53,6 +53,18 @@ export const GET = apiHandler(
     // `lte 23:59:59` also silently dropped the final second of each day.
     const dayEnd = endOfDayET(anchor);
 
+    // 2026-10-01 · EMPTY vs ERROR. Each read below still fails soft (one dead
+    // table must not blank the whole day), but it now records WHICH read
+    // failed. Before this, a failed read was indistinguishable from a quiet
+    // day: the panel printed "0 tasks done · identity snapshot absent" for a
+    // day that had activity. The panel renders these keys as unknown.
+    const degradedReads: string[] = [];
+    const soft = <T,>(label: string, fallback: T) => (err: unknown): T => {
+      degradedReads.push(label);
+      logError("api.time-travel", err, { stage: "read", read: label }, "warn");
+      return fallback;
+    };
+
     const [
       memories,
       memoriesByCategory,
@@ -71,7 +83,7 @@ export const GET = apiHandler(
           createdAt: { gte: dayStart, lt: dayEnd },
           deletedAt: null,
         },
-      }).catch(() => 0),
+      }).catch(soft("memoriesCreated", 0)),
       prisma.brainMemory
         .groupBy({
           by: ["category"],
@@ -83,7 +95,7 @@ export const GET = apiHandler(
           orderBy: { _count: { id: "desc" } },
           take: 10,
         })
-        .catch(() => []),
+        .catch(soft("memoriesByCategory", [] as never[])),
       prisma.chatConversation
         .findMany({
           where: {
@@ -96,7 +108,7 @@ export const GET = apiHandler(
           orderBy: { lastActiveAt: "desc" },
           take: 5,
         })
-        .catch(() => []),
+        .catch(soft("chatsActive", [] as never[])),
       prisma.task
         .count({
           where: {
@@ -104,7 +116,7 @@ export const GET = apiHandler(
             deletedAt: null,
           },
         })
-        .catch(() => 0),
+        .catch(soft("tasksCreated", 0)),
       prisma.task
         .count({
           where: {
@@ -113,7 +125,7 @@ export const GET = apiHandler(
             deletedAt: null,
           },
         })
-        .catch(() => 0),
+        .catch(soft("tasksCompleted", 0)),
       prisma.brainDump
         .findMany({
           where: {
@@ -123,7 +135,7 @@ export const GET = apiHandler(
           select: { id: true, summary: true, rawThoughts: true },
           take: 5,
         })
-        .catch(() => []),
+        .catch(soft("brainDumpsWritten", [] as never[])),
       prisma.reflection
         .findMany({
           where: {
@@ -133,7 +145,7 @@ export const GET = apiHandler(
           select: { id: true, category: true, insight: true },
           take: 5,
         })
-        .catch(() => []),
+        .catch(soft("reflectionsLogged", [] as never[])),
       prisma.brainMemory
         .findFirst({
           where: {
@@ -143,7 +155,7 @@ export const GET = apiHandler(
           },
           select: { content: true, metadata: true },
         })
-        .catch(() => null),
+        .catch(soft("identitySnapshot", null)),
       prisma.brainMemory
         .findFirst({
           where: {
@@ -153,7 +165,7 @@ export const GET = apiHandler(
           },
           select: { content: true },
         })
-        .catch(() => null),
+        .catch(soft("healthDigest", null)),
       prisma.masteryDecision
         .findMany({
           where: {
@@ -163,7 +175,7 @@ export const GET = apiHandler(
           select: { id: true, title: true, predictedOutcome: true, reviewDate: true },
           take: 5,
         })
-        .catch(() => []),
+        .catch(soft("decisionsLogged", [] as never[])),
       prisma.brainMemory
         .findMany({
           where: {
@@ -189,7 +201,7 @@ export const GET = apiHandler(
           select: { content: true, key: true },
           take: 5,
         })
-        .catch(() => []),
+        .catch(soft("emotionalStates", [] as never[])),
     ]);
 
     let healthOverall: string | null = null;
@@ -203,12 +215,15 @@ export const GET = apiHandler(
         healthOverall = d.overall ?? null;
         healthWarnings = d.counts?.warning ?? null;
       } catch (e) {
+        // An unparseable digest is unknown health, not "unmeasured".
+        degradedReads.push("healthDigest");
         logError("api.time-travel", e, { stage: "health-snapshot" }, "warn");
       }
     }
 
     return {
       date,
+      degradedReads,
       summary: {
         memoriesCreated: memories,
         tasksCreated,
