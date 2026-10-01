@@ -163,18 +163,18 @@ export default function UiLabPage() {
         <p className="section-label mb-3">Surfaces and edges — six warm steps, three edge strengths, one notch</p>
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
           {(["canvas", "workspace", "surface", "surface-raised", "surface-interactive", "surface-hover"] as const).map((name) => (
-            <div key={name} className="rounded-[var(--radius-surface)] border border-edge-subtle p-3" style={{ background: `var(--${name})` }}>
+            <div key={name} className="rounded-surface border border-edge-subtle p-3" style={{ background: `var(--${name})` }}>
               <p className="font-mono text-[10px] text-fg-tertiary">{name}</p>
             </div>
           ))}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-4">
-          <span className="rounded-[var(--radius-control)] border border-edge-subtle px-3 py-1.5 text-[12px] text-fg-secondary">edge-subtle</span>
-          <span className="rounded-[var(--radius-control)] border border-edge-default px-3 py-1.5 text-[12px] text-fg-secondary">edge-default</span>
-          <span className="rounded-[var(--radius-control)] border border-edge-strong px-3 py-1.5 text-[12px] text-fg-secondary">edge-strong</span>
+          <span className="rounded-control border border-edge-subtle px-3 py-1.5 text-[12px] text-fg-secondary">edge-subtle</span>
+          <span className="rounded-control border border-edge-default px-3 py-1.5 text-[12px] text-fg-secondary">edge-default</span>
+          <span className="rounded-control border border-edge-strong px-3 py-1.5 text-[12px] text-fg-secondary">edge-strong</span>
           <span className="inline-flex items-center gap-2 text-[12px] text-fg-secondary"><span className="notch" aria-hidden /> the signal notch</span>
-          <button type="button" className="min-h-[44px] rounded-[var(--radius-control)] bg-accent px-4 text-[14px] font-semibold text-[var(--text-inverse)] hover:bg-accent-hover">Primary action</button>
-          <button type="button" className="min-h-[44px] rounded-[var(--radius-control)] border border-edge-default px-4 text-[14px] text-fg-secondary hover:border-edge-strong hover:text-fg">Secondary</button>
+          <button type="button" className="min-h-[44px] rounded-control bg-accent px-4 text-[14px] font-semibold text-[var(--text-inverse)] hover:bg-accent-hover">Primary action</button>
+          <button type="button" className="min-h-[44px] rounded-control border border-edge-default px-4 text-[14px] text-fg-secondary hover:border-edge-strong hover:text-fg">Secondary</button>
         </div>
       </Panel>
 

@@ -83,7 +83,7 @@ function UndoChip({
       onClick={onClick}
       disabled={state !== "ready"}
       className={cn(
-        "shrink-0 inline-flex min-h-[44px] items-center gap-1 rounded-[var(--radius-control)] px-2 -my-1.5 font-mono text-[11px] transition-colors",
+        "shrink-0 inline-flex min-h-[44px] items-center gap-1 rounded-control px-2 -my-1.5 font-mono text-[11px] transition-colors",
         state === "ready" && "text-amber-300/90 hover:bg-amber-500/10 hover:text-amber-200",
         state === "pending" && "text-amber-300/40",
         state === "failed" && "text-rose-400/70",
@@ -128,7 +128,7 @@ export function ToolResultCard({ toolName, state, output }: ToolResultCardProps)
   return (
     <div
       className={cn(
-        "relative mb-1 mt-2 rounded-[var(--radius-surface)] border bg-surface px-3 py-2.5 transition-colors duration-[var(--motion-state)]",
+        "relative mb-1 mt-2 rounded-surface border bg-content px-3 py-2.5 transition-colors duration-[var(--motion-state)]",
         isError ? "border-rose-500/30" : "border-edge-subtle",
         isRunning && "chat-tool-shimmer",
       )}
@@ -168,7 +168,7 @@ export function ToolResultCard({ toolName, state, output }: ToolResultCardProps)
           return (
             <Link
               href={link.href}
-              className="shrink-0 -my-1.5 inline-flex min-h-[44px] items-center gap-1 rounded-[var(--radius-control)] px-2 text-[12px] font-medium text-fg-secondary transition-colors hover:text-fg"
+              className="shrink-0 -my-1.5 inline-flex min-h-[44px] items-center gap-1 rounded-control px-2 text-[12px] font-medium text-fg-secondary transition-colors hover:text-fg"
             >
               {link.label}
               <ChevronRight size={12} aria-hidden />
@@ -188,13 +188,13 @@ export function ToolResultCard({ toolName, state, output }: ToolResultCardProps)
               setExpanded((v) => !v);
             }}
             aria-expanded={expanded}
-            className="mt-1 inline-flex min-h-[44px] items-center rounded-[var(--radius-micro)] font-mono text-[11px] text-fg-tertiary transition-colors hover:text-fg-secondary sm:min-h-6"
+            className="mt-1 inline-flex min-h-[44px] items-center rounded-micro font-mono text-[11px] text-fg-tertiary transition-colors hover:text-fg-secondary sm:min-h-6"
             title={expanded ? "Hide developer detail" : "Show the raw tool output"}
           >
             {expanded ? "Hide developer detail" : "Developer detail"}
           </button>
           {expanded && (
-            <pre className="mt-1 max-h-[280px] overflow-y-auto overflow-x-auto whitespace-pre-wrap break-words rounded-[var(--radius-micro)] bg-canvas p-2 font-mono text-[11px] leading-[1.45] text-fg-secondary">
+            <pre className="mt-1 max-h-[280px] overflow-y-auto overflow-x-auto whitespace-pre-wrap break-words rounded-micro bg-canvas p-2 font-mono text-[11px] leading-[1.45] text-fg-secondary">
               {rawJson.slice(0, 8000)}
               {rawJson.length > 8000 && `\n\n…(${rawJson.length - 8000} chars truncated)`}
             </pre>

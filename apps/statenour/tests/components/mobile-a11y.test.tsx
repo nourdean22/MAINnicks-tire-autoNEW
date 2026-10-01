@@ -382,7 +382,7 @@ describe("chat-island header controls clear the touch floor", () => {
   it("declares a 44px floor on all three header controls", () => {
     // UI v2 (2026-10-01): the three controls are fixed 44px squares (h-11 w-11),
     // not min-h/min-w pills — same floor, different literal.
-    const matches = src.match(/flex h-11 w-11 items-center justify-center rounded-\[var\(--radius-control\)\]/g) ?? [];
+    const matches = src.match(/flex h-11 w-11 items-center justify-center rounded-control/g) ?? [];
     expect(matches.length).toBe(3);
   });
 

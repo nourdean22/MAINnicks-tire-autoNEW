@@ -39,8 +39,8 @@ Styles (`app/styles/`)
   `.vt-eyebrow` (the one caps role, mono 11px); `.vt-verdict` (Barlow, the one display role);
   `.ui-material`; `.notch`; `.glass-card` solid; `:focus-visible` ring; spine width 3.75rem at
   ≥1280; phone type floor block unchanged; `[data-neural-bg]` hidden outside the v1 lane.
-- `effects.css` — 109 dead rule blocks and 31 dead keyframes removed (1939 → 1110 lines); white
-  scrollbar; `.panel` flat; `.page-fade-in` off; `sparkline-draw` and `slideUpSheet` keyframes kept
+- `effects.css` — 79 dead class selectors and 36 dead keyframes removed across two passes
+  (1939 → 947 lines, `wc -l`); white scrollbar; `.panel` flat; `.page-fade-in` off; `sparkline-draw` and `slideUpSheet` keyframes kept
   because two components reference them by NAME in inline style strings; the 40px gold glow on
   `.neural-glass-active` removed (its 1px gold edge stays — active is a signal).
 
@@ -87,18 +87,25 @@ Lane + flags + lab
   summary (working + done) and tool receipts (running / complete / failed) as live fixtures.
 
 Tests + docs
-- `tests/repo/ui-v2-grammar.test.ts` (new, 7 tests) — pins the grammar; positive control: every
-  assertion fails on `c8e3287c`.
+- `tests/repo/ui-v2-grammar.test.ts` (new, 7 tests) — pins the grammar; positive control run
+  against the `c8e3287c` files: 6 of 7 blocks fail there. The keyframe block passes on both
+  grammars by design (a prune-regression guard, not a grammar detector).
 - `tests/components/mobile-a11y.test.tsx` — header touch-floor regex retargeted to the new 44px
   literal (same floor, different class string).
 - `docs/design/ui-v2/{README,SYSTEM,SURFACES,PLAN}.md`, `docs/DESIGN.md` pointer, `shots/`.
 
 ## 4 · Honest scope of the `?ui=v1` lane
 
-The lane restores the OLD TOKENS AND TYPOGRAPHY (colours, surfaces, uppercase display headings,
-gold shadows, particle canvas). It does NOT restore the component rewrites: the icon-led spine,
-the activity summary, the tool receipt, the sentence-case buttons and the chat empty state render
-the same under `v1`. So `?ui=v1` is a side-by-side for the *visual system*, not a full rollback.
+The lane restores the OLD TOKENS AND TYPOGRAPHY: the five surface steps, three text levels, three edges,
+glass, the three shadows, the shadcn bridge values (card / popover / muted / secondary / border / input /
+ring / gold-glow — widened in the second pass), the display fonts and uppercase headings, the two size
+scales, body letter-spacing, the eyebrow tracking and the 72px spine. It also re-enables the particle
+canvas and keeps the old 9/10px density.
+
+It does NOT restore: `--accent` (v2 components read it as the gold signal and would render black), anything
+in `effects.css` (the pruned classes, the white scrollbar, the solid `.neural-glass`), or the component
+rewrites (icon-led spine, activity summary, tool receipt, sentence-case buttons, chat empty state), which
+render the same under `v1`. So `?ui=v1` is a side-by-side for the *colour and type system*, not a rollback.
 Full rollback is `git revert` of this PR, which touches no schema, no API and no data.
 
 ## 5 · Test matrix and receipts (this checkout, 2026-10-01)
@@ -107,12 +114,12 @@ Full rollback is `git revert` of this PR, which touches no schema, no API and no
 |---|---|---|
 | Typecheck | `pnpm typecheck` | `tsc --noEmit` exit 0 · 1m27s |
 | Lint | `pnpm lint` | exit 0 (pre-existing `any` warnings only, 0 errors) |
-| Targeted vitest | 21 files that pin stylesheets, shell literals, chat a11y, home hydration, missions grouping, the new grammar test | `Test Files 21 passed (21) · Tests 138 passed (138)` · exit 0 |
+| Targeted vitest | 22 files that pin stylesheets, shell literals, chat a11y, home hydration, missions grouping, the grammar test and the lane resolver | `Test Files 22 passed (22) · Tests 146 passed (146)` · exit 0 (second pass) |
 | Anti-slop | `pnpm check:anti-slop` | exit 0 · no Inter / Roboto / Arial / purple gradient |
 | Stale docs | `STALE_DOCS_STRICT=1 pnpm check:stale-docs` | 221 files · 0 critical · 0 warn |
-| Contrast (measured on tokens) | primary 17.4:1 · secondary 9.1:1 · tertiary 4.6:1 on `--surface` | AA on every step |
+| Contrast (computed from the v2 tokens, WCAG 2.x) | primary 14.2–17.4:1 · secondary 7.5–9.1:1 · tertiary 4.6–5.7:1 across all seven surface steps (lowest on `--surface-hover`) · inverse text on accent 11.4:1 | AA on every step, AAA for primary and secondary |
 | e2e (`chat-geometry-invariant`, `desktop-density`, `floating-collision`, `target-size`) | CI | NOT run locally — the hermetic runner needs Postgres this container lacks |
-| `next build` | pre-push `build:affected` + CI | runs at push; see PR checks |
+| `next build` | run locally (second pass) + CI | exit 0, full route table, `BUILD_ID` written |
 
 Rules the gates enforce that this diff had to respect: severity `@theme` verbatim, `state-aura-*`
 rules present, phone type floor regex, navigation-shell literals, composer placeholder and
@@ -177,8 +184,8 @@ Left on purpose / known debts
 ## 9 · Performance budget (brief §budgets)
 
 Not measured in production. What changed in the direction of the budget: no particle canvas rAF
-loop outside the v1 lane (was 60 particles × O(n²) connection pass per frame on desktop), 829 fewer
-lines of CSS, no page-level fade, no layout change to the message list geometry (CLS unaffected).
+loop outside the v1 lane (was 60 particles × O(n²) connection pass per frame on desktop), 795 fewer
+lines across the three stylesheets (2574 → 1779, `wc -l`), no page-level fade, no layout change to the message list geometry (CLS unaffected).
 LCP / INP / CLS get measured on the Railway deploy after merge; they are a REMAINING item.
 
 ## 10 · Next highest-leverage move
@@ -189,3 +196,52 @@ LCP / INP / CLS get measured on the Railway deploy after merge; they are a REMAI
    and button casing plus removing gold-outline secondaries).
 3. PR 3: delete the `[data-ui="v1"]` blocks, the cookie read and `UiVersionSwitch` once v2 is
    accepted; then the legacy token rename sweep.
+
+## 11 · Second pass (2026-10-01) — hostile review of the first push, and what it changed
+
+Three independent read-only reviewers were run over `49592699` (stylesheets + utilities · component behaviour
+and a11y · docs-versus-code). The stylesheet reviewer compiled the committed `tokens.css` with the repo's
+Tailwind 4.3 and found seven P1 defects the screenshots had not made obvious to me. All fixed on the branch:
+
+| # | Defect in `49592699` | Fix |
+|---|---|---|
+| 1 | `border-edge-default` had no `--color-edge-default` in `@theme` → zero CSS at 20 call sites; the border painted in the text colour | registered; grammar test pins every utility the v2 components use |
+| 2 | `h1/h2/h3` defaults were unlayered, so `text-[26px]` / `font-mono text-[13px]` on headings never applied (the chat "NICK" rendered 28px Geist Sans) | defaults moved into `@layer base`; test asserts it |
+| 3 | `effects.css` kept the v10.0.526 `:focus-visible { outline: gold !important; box-shadow: gold-glow !important }`, so the v2 focus ring never rendered | deleted; the `box-shadow` ring survives `outline-none` without `!important` |
+| 4 | the v2 focus rule set `border-radius`, snapping pills to 7px on Tab | line removed |
+| 5 | unlayered `button, a, input` transitions reset every `transition-colors duration-[…]` utility | moved into `@layer base` |
+| 6 | `bg-surface` is the legacy alias of `--surface-interactive`, so cards and user bubbles were the same colour | `bg-content` registered for the `--surface` role; receipt, diagnostic, error and tool-output cards use it |
+| 7 | the prune dropped `.animate-fade-in-scale` with six live consumers | restored; pinned by the grammar test |
+
+Also from that review: `.neural-glass` (GlassCard, 43 importers) and `.neural-glass-modal` (Dialog) still carried
+the gradient, gold edge, gold top line and gold hover glow that SYSTEM.md §11 claimed were gone → now solid
+surface / overlay steps. Ambient gold left behind (skeleton shimmer, `[data-card]` hover, `.glow-on-hover`, the
+chart drop-shadow glow, the CRT scan-line overlay on `<body>`) → neutral or removed. Dead CSS the first prune
+missed (`goldFlash`, `unload-pulse`, `revenue-pulse`, `float`, `nick-cursor-shimmer`, `page-fade-in`, the shadowed
+`breath`, the `[data-anchor]` cascade with no emitter, `.command-input` with no consumer, the `.no-scrollbar`
+duplicate of shadcn's utility, the ≤640px form-control duplicate) → removed. Native `<select>` palette → warm.
+Firefox gets the thin scrollbar via `scrollbar-color`. The PWA `themeColor` / `background_color` match `--canvas`.
+Raw `rounded-[var(--radius-*)]` / `shadow-[var(--shadow-l*)]` (56 sites) → the registered `rounded-*` / `shadow-l*`
+utilities the token file asks for. The v1 lane now also restores the shadcn bridge values, body letter-spacing,
+eyebrow tracking and the 72px spine (§4 says what it still does not restore).
+
+Going beyond the review: the type floor and tracking cap now apply at every width under the v2 lane (§3 of
+SYSTEM.md) — 1,526 sub-11px labels and 162 over-tracked eyebrows across journal, brain, people, stats and system
+fixed by five CSS lines, reversible with `?ui=v1`.
+
+Measured after the second pass (`wc -l`): `effects.css` 1939 → 947, `base.css` 351 → 366, `tokens.css` 284 → 333;
+the three together 2574 → 1646 (928 fewer lines). Gates on this tree: `tsc --noEmit` exit 0 · eslint 0 errors ·
+22 targeted test files, 146 tests, exit 0 · anti-slop 0 · stale-docs strict 222 files 0 critical · `next build`
+exit 0 with the full route table (run locally, 2026-10-01).
+
+**The comparison lane never worked in the first push.** `curl -H 'Cookie: statenour_ui=v1' /missions` returned
+`data-ui="v2"`. Cause: `app/layout.tsx` imported `UI_VERSION_COOKIE` from the `"use client"` switch component,
+so on the server it received a client *reference*, not the string, and `cookies().get()` silently missed. The
+constant and the resolution logic now live in `lib/ui-version.ts` (plain module), `tests/lib/ui-version.test.ts`
+pins both, and the same curl now returns `data-ui="v1"`. The CI e2e suite was green throughout because nothing
+exercised the lane — a reminder that "CI green" is not "feature works".
+
+Second-pass receipts in `shots/`: `after2-*` (v2 after the cascade repairs: the chat wordmark is 13px mono and
+the empty-state title 26px, the composer edge is the hairline, receipts sit on `--surface`), `pre-sliceA-*` →
+`post-sliceA-*` (brain / system / stats at 1440 before and after the desktop type floor), and `post-sliceA-journal`
+/ `post-sliceA-people` (surfaces that still carry the old component grammar on the new tokens).

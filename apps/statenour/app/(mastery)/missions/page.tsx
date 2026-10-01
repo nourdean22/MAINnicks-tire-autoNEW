@@ -250,7 +250,7 @@ function MissionsPageInner() {
               <p className="mt-4 text-lg text-fg-secondary">The queue is clear. Close the day when you&apos;re ready.</p>
               <button
                 onClick={() => setExecutionModeActive(false)}
-                className="mt-6 inline-flex min-h-[44px] items-center gap-1.5 rounded-[var(--radius-control)] border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
+                className="mt-6 inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
               >
                 Back to the deck
               </button>
@@ -328,7 +328,7 @@ function MissionsPageInner() {
                   openMissionEdit(null, undefined);
                   telemetry.event("createMissionOpen", { source: "button" });
                 }}
-                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-[var(--radius-control)] border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
               >
                 + New mission
               </button>
@@ -338,7 +338,7 @@ function MissionsPageInner() {
                   setExecutionModeActive(true);
                   telemetry.event("executionModeOpen", { source: "button" });
                 }}
-                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-[var(--radius-control)] border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
               >
                 Focus
               </button>
@@ -346,7 +346,7 @@ function MissionsPageInner() {
                 type="button"
                 onClick={() => filters.setShowFilters((v) => !v)}
                 className={cn(
-                  "inline-flex min-h-[44px] items-center gap-1.5 rounded-[var(--radius-control)] border px-4 text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
+                  "inline-flex min-h-[44px] items-center gap-1.5 rounded-control border px-4 text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
                   filters.showFilters ? "border-edge-strong bg-surface-interactive text-fg" : "border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg"
                 )}
               >

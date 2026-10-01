@@ -80,7 +80,7 @@ export function BriefLead({
           <Link
             href={lead.cta.href}
             className={cn(
-              "group inline-flex min-h-[48px] items-center gap-2 rounded-[var(--radius-control)] bg-accent px-5 text-[15px] font-semibold text-[var(--text-inverse)] transition-colors duration-[var(--motion-state)] hover:bg-accent-hover",
+              "group inline-flex min-h-[48px] items-center gap-2 rounded-control bg-accent px-5 text-[15px] font-semibold text-[var(--text-inverse)] transition-colors duration-[var(--motion-state)] hover:bg-accent-hover",
               FOCUS,
             )}
           >
@@ -97,7 +97,7 @@ export function BriefLead({
             type="button"
             onClick={() => openInspector({ kind: "task", id: lead.taskId! })}
             className={cn(
-              "inline-flex min-h-[44px] items-center gap-1.5 rounded-[var(--radius-control)] border border-edge-default px-4 text-[13px] text-fg-secondary transition-colors duration-150 hover:border-edge-strong hover:text-fg",
+              "inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] text-fg-secondary transition-colors duration-150 hover:border-edge-strong hover:text-fg",
               FOCUS,
             )}
             data-brief-inspect={lead.taskId}

@@ -98,7 +98,7 @@ export function BriefStateLine({
         <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-1">
           <Link
             href="/system"
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-[var(--radius-control)] font-mono text-[12px] text-fg-tertiary transition-colors duration-150 hover:text-fg"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-control font-mono text-[12px] text-fg-tertiary transition-colors duration-150 hover:text-fg"
             title={health?.detail || undefined}
           >
             <span aria-hidden className={cn("inline-block h-2 w-2 rounded-full", DOT[dotState])} />

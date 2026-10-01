@@ -267,7 +267,7 @@ function ToolReceiptSummary({ message, traceId }: { message: UIMessage; traceId?
       {traceId && (
         <Link
           href={`/system/cockpit-observability?search=${encodeURIComponent(traceId)}`}
-          className="ml-auto inline-flex min-h-11 items-center gap-1 rounded-[var(--radius-control)] px-2 text-fg-secondary transition-colors hover:text-fg sm:min-h-8"
+          className="ml-auto inline-flex min-h-11 items-center gap-1 rounded-control px-2 text-fg-secondary transition-colors hover:text-fg sm:min-h-8"
         >
           View trace <ExternalLink size={11} />
         </Link>
@@ -280,7 +280,7 @@ function InterruptedTurnCard({ message, onRetry }: { message: UIMessage; onRetry
   const partialText = textOf(message);
   return (
     <div className="flex justify-start">
-      <div className="max-w-[85%] rounded-[var(--radius-surface)] border border-rose-500/30 bg-surface px-4 py-3">
+      <div className="max-w-[85%] rounded-surface border border-rose-500/30 bg-content px-4 py-3">
         {partialText && <div className="mb-3 whitespace-pre-wrap text-[15px] leading-relaxed text-fg">{partialText}</div>}
         <div className="flex items-center gap-2 text-red-400">
           <AlertTriangle size={15} />
@@ -401,7 +401,7 @@ export function ChatMessageList({
               <button
                 type="button"
                 onClick={() => onCommand?.(command.prompt)}
-                className="group flex min-h-[56px] w-full items-center gap-3 rounded-[var(--radius-control)] px-1 py-2 text-left transition-colors duration-[var(--motion-state)] hover:bg-surface"
+                className="group flex min-h-[56px] w-full items-center gap-3 rounded-control px-1 py-2 text-left transition-colors duration-[var(--motion-state)] hover:bg-surface"
               >
                 <span className="notch h-4 shrink-0 opacity-0 transition-opacity duration-[var(--motion-state)] group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />
                 <span className="min-w-0 flex-1">
@@ -430,7 +430,7 @@ export function ChatMessageList({
       className="mx-auto flex w-full max-w-3xl flex-col gap-7 px-4 py-5 pb-12 sm:px-6"
     >
       {diagnosticReport && (
-        <section className="rounded-[var(--radius-surface)] border border-edge-subtle bg-surface p-4">
+        <section className="rounded-surface border border-edge-subtle bg-content p-4">
           <div className="mb-3 flex items-center gap-2 text-fg-secondary">
             <CheckCircle2 size={15} />
             <h3 className="font-mono text-[11px] uppercase tracking-[0.12em]">Independent chat diagnostic</h3>
@@ -462,7 +462,7 @@ export function ChatMessageList({
             <div
               className={
                 message.role === "user"
-                  ? "max-w-[80%] rounded-[var(--radius-surface)] bg-surface-interactive px-4 py-3 text-[15px] leading-relaxed text-fg"
+                  ? "max-w-[80%] rounded-surface bg-surface-interactive px-4 py-3 text-[15px] leading-relaxed text-fg"
                   : "w-full min-w-0 text-[16px] leading-[1.6] text-fg"
               }
             >
@@ -529,7 +529,7 @@ export function ChatMessageList({
                   // "verified complete" was the same overclaim as the receipt
                   // chip: `output-available` only means the call returned.
                   return (
-                    <div key={`${message.id}-${index}`} className="mt-2 rounded-[var(--radius-surface)] border border-edge-subtle bg-surface px-3 py-2 font-mono text-[12px] text-fg-secondary">
+                    <div key={`${message.id}-${index}`} className="mt-2 rounded-surface border border-edge-subtle bg-content px-3 py-2 font-mono text-[12px] text-fg-secondary">
                       {toolName}: {(part as any).state === "output-available" ? (isEmptyToolOutput((part as any).output) ? "returned no results" : "returned data") : (part as any).state === "output-error" ? "failed" : "running"}
                       {repeatBadge}
                     </div>
@@ -587,7 +587,7 @@ export function ChatMessageList({
 
       {pending.map((item) => (
         <div key={item.tempId} className="flex justify-end opacity-75">
-          <div className="max-w-[80%] rounded-[var(--radius-surface)] bg-surface-interactive px-4 py-3 text-[15px] text-fg">
+          <div className="max-w-[80%] rounded-surface bg-surface-interactive px-4 py-3 text-[15px] text-fg">
             <p className="whitespace-pre-wrap">{item.text}</p>
             <p className="mt-1 font-mono text-[11px] text-fg-tertiary">{item.status === "resolving-context" ? "Resolving live context…" : "Sending…"}</p>
           </div>
@@ -605,7 +605,7 @@ export function ChatMessageList({
           looked exactly like a network blip. The server authors a safe
           category string (never raw provider text); render it. */}
       {error && (
-        <div className="mx-auto rounded-[var(--radius-surface)] border border-rose-500/30 bg-surface p-4 text-center text-sm text-rose-300">
+        <div className="mx-auto rounded-surface border border-rose-500/30 bg-content p-4 text-center text-sm text-rose-300">
           {error.message?.trim() || "Stream failed."}
           {onRetry && (
             <button onClick={onRetry} className="ml-2 underline">

@@ -9,7 +9,8 @@ import { ServiceWorkerRegister } from "@/components/hud/sw-register";
 import { ClientErrorTelemetry } from "@/components/ui/client-error-telemetry";
 import { Toaster } from "sonner";
 import { cookies } from "next/headers";
-import { UiVersionSwitch, UI_VERSION_COOKIE } from "@/components/ui/ui-version-switch";
+import { UiVersionSwitch } from "@/components/ui/ui-version-switch";
+import { UI_VERSION_COOKIE, resolveUiVersion } from "@/lib/ui-version";
 import "./globals.css";
 
 const barlowCondensed = Barlow_Condensed({
@@ -72,7 +73,7 @@ export const viewport: Viewport = {
   // iOS PWAs (browsers override the cap; home-screen installs honor it),
   // which fails WCAG 1.4.4 — and this app leans on 9-11px text.
   viewportFit: "cover",
-  themeColor: "#050505",
+  themeColor: "#090907",
 };
 
 export default async function RootLayout({
@@ -83,8 +84,7 @@ export default async function RootLayout({
   // UI v2 (2026-10-01): the cookie (set by `?ui=v1|v2`, components/ui/ui-version-switch.tsx)
   // or STATENOUR_UI=v1 keeps the previous grammar reachable for side-by-side comparison.
   // tokens.css / base.css key the old values off `:root[data-ui="v1"]`.
-  const uiCookie = (await cookies()).get(UI_VERSION_COOKIE)?.value;
-  const ui = uiCookie === "v1" || (uiCookie !== "v2" && process.env.STATENOUR_UI === "v1") ? "v1" : "v2";
+  const ui = resolveUiVersion((await cookies()).get(UI_VERSION_COOKIE)?.value, process.env.STATENOUR_UI);
   return (
     <html lang="en" data-ui={ui} className={`dark ${GeistSans.variable} ${GeistMono.variable} ${barlowCondensed.variable} ${instrumentSerif.variable}`}>
       {/* v10.0.529.54 · removed `font-sans` (Tailwind's default stack)

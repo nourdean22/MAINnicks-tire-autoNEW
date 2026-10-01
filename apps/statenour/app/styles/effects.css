@@ -7,15 +7,7 @@
   50% { opacity: 0.5; }
 }
 
-/* ═══════════════════════════════════════════════════════
-   GOLD FLASH — daily score checkbox animation
-   ═══════════════════════════════════════════════════════ */
-/* v10.0.469 · goldFlash · single-shot fade-in / fade-out · split */
-@keyframes goldFlash {
-  0%   { opacity: 0; }
-  50%  { opacity: 1; }
-  100% { opacity: 0; }
-}/* Content feed — edge-to-edge on all viewports.
+/* Content feed — edge-to-edge on all viewports.
    Used by every page under app/(mastery)/ (HQ, War Room, Admin, etc.).
    No max-width cap so pages extend to the viewport edges; padding scales
    with screen size for breathing room. Individual pages can wrap their
@@ -51,25 +43,9 @@
 /* Text selection — gold tint */
 ::selection { background: var(--accent-medium); color: var(--text-primary); }
 
-/* Focus rings — gold glow
- *
- * v10.0.526 · a11y A9 fix (CRITICAL · WCAG 2.4.7) · the v525 audit
- * found this rule was being silently defeated by Tailwind's
- * `outline-none` utility across 20 source files (which sets
- * `outline: 2px solid transparent` with utility-level specificity).
- *
- * Fix: !important on outline + box-shadow so `outline-none` can't
- * suppress the focus indicator. Operator is a keyboard user
- * (Cmd+Shift+J / Cmd+F / Cmd+K) — tabbing was returning zero
- * visible state pre-fix. Now every focusable element shows the
- * gold-glow ring on keyboard nav regardless of any utility-level
- * `outline-none`. The `outline-offset: 2px` stays non-important
- * so per-component overrides can adjust spacing if needed. */
-:focus-visible {
-  outline: 1.5px solid var(--gold) !important;
-  outline-offset: 2px;
-  box-shadow: 0 0 0 3px var(--gold-glow) !important;
-}
+/* Focus ring: base.css `:where(...):focus-visible { box-shadow: var(--focus-ring) }`. It survives
+   Tailwind's `outline-none` (which only touches `outline`) without !important, so the v10.0.526
+   !important gold outline+glow that used to live here — and silently overrode the v2 ring — is gone. */
 
 /* ═══════════════════════════════════════════════════════
    v10.0.529.110 · Wave AH.b · 2026-05-28 · NATIVE SELECT FIX
@@ -86,25 +62,25 @@
    contrast on Chrome/Safari/Firefox · macOS/iOS/Win/Android.
    ═══════════════════════════════════════════════════════ */
 select {
-  /* dropdown background when opened · matches --bg-elevated */
-  background-color: #1A1A1A;
-  color: #F0F0F0;
+  /* dropdown background when opened · matches --surface-raised */
+  background-color: #171714;
+  color: #F2EFE8;
 }
 select option {
-  background-color: #1A1A1A; /* matches --bg-elevated */
-  color: #F0F0F0;             /* matches --text-primary */
+  background-color: #171714; /* matches --surface-raised */
+  color: #F2EFE8;             /* matches --text-primary */
   padding: 8px 12px;          /* breathing room on touch */
 }
 select option:checked,
 select option:hover {
   background-color: #FDB913;  /* gold accent on hover/active */
-  color: #0A0A0A;             /* inverse for contrast */
+  color: #0A0A08;             /* --text-inverse */
 }
 /* Firefox honors this; some Chromes ignore but the base rule above
    is the actual fix. Keeping this as the polish. */
 select optgroup {
-  background-color: #111111;
-  color: #909090;
+  background-color: #121210;
+  color: #8E887C;
   font-weight: 600;
 }
 
@@ -128,22 +104,18 @@ select optgroup {
    per-component edits. Affects approximately 60+ form fields
    spanning 27 components.
    ═══════════════════════════════════════════════════════ */
-@media (max-width: 640px) {
-  input,
-  textarea,
-  select {
-    font-size: 16px !important;
-  }
-}
+/* (The ≤640px 16px !important form-control block that lived here duplicated base.css's ≤767px
+   iOS auto-zoom floor, which is unlayered and already beats every utility.) */
 
 /* ═══════════════════════════════════════════════════════
    MICRO-INTERACTIONS — POWER FEEL
    ═══════════════════════════════════════════════════════ */
-button, a, input, [role="button"] {
-  transition: background-color 100ms ease, color 100ms ease, border-color 100ms ease, opacity 100ms ease;
-}
-button, [role="button"] {
-  transition: transform 0.08s ease, opacity 0.15s ease;
+/* @layer base so a component's own `transition-colors duration-[var(--motion-state)]` wins; unlayered,
+   the second rule reset every button's transition to transform/opacity and colours snapped. */
+@layer base {
+  button, a, input, [role="button"] {
+    transition: background-color var(--motion-micro) var(--ease-standard), color var(--motion-micro) var(--ease-standard), border-color var(--motion-micro) var(--ease-standard), opacity var(--motion-micro) var(--ease-standard), transform 80ms ease;
+  }
 }
 button:active, [role="button"]:active {
   transform: scale(0.97);
@@ -155,8 +127,7 @@ button:active, [role="button"]:active {
   transition: border-color 100ms ease, box-shadow 150ms ease;
 }
 [data-card]:hover, .nour-card:hover {
-  border-color: rgba(253, 185, 19, 0.3);
-  box-shadow: 0 0 12px rgba(253, 185, 19, 0.05);
+  border-color: var(--edge-default);
 }/* Breathing pulse for alerts */
 @keyframes breathe {
   0%, 100% { opacity: 0.7; }
@@ -183,11 +154,11 @@ button:active, [role="button"]:active {
   position: relative;
   background: linear-gradient(
     90deg,
-    rgba(253, 185, 19, 0.04) 0%,
-    rgba(253, 185, 19, 0.08) 35%,
-    rgba(253, 185, 19, 0.14) 50%,
-    rgba(253, 185, 19, 0.08) 65%,
-    rgba(253, 185, 19, 0.04) 100%
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0.05) 35%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.05) 65%,
+    rgba(255, 255, 255, 0.03) 100%
   );
   background-size: 200% 100%;
   border-radius: 6px;
@@ -204,11 +175,6 @@ button:active, [role="button"]:active {
  * spread on the box-shadow simulated an outward expanding ring;
  * conversion uses opacity fade on a fixed-spread pseudo · the
  * "expanding" feel is approximated, not exact. */
-@keyframes unload-pulse {
-  0%  { opacity: 1; }
-  70% { opacity: 0; }
-  100%{ opacity: 0; }
-}/* Captured item slide-in */
 /* v11.1 E1 · alive-layer — fade-in-scale keyframe + utility.
  * Tuned to 220ms with cubic ease-out (was "0.5s ease-out" too slow
  * for an interactive UI). Used by: ErrorCard, brain-dump modal,
@@ -222,16 +188,13 @@ button:active, [role="button"]:active {
 @keyframes fade-in-scale {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
-}/* v11.1 E2 · breathing — subtle 2.8s pulse for "live" surfaces.
- * Only applies on pointer: fine / prefers-motion. Prevents motion
- * sickness on touchscreens + respects accessibility. */
-@keyframes breath {
-  0%, 100% { opacity: 0.85; }
-  50%      { opacity: 1; }
 }
-.animate-breath {
-  animation: breath 2.8s ease-in-out infinite;
-}
+/* Six live consumers (brain-dump modal, error-card, dialog, brain-node-detail-panel, page-nick,
+   next-action-whisperer). The 2026-10-01 prune dropped this rule while keeping the keyframe —
+   restored; the grammar test now pins it. */
+.animate-fade-in-scale { animation: fade-in-scale 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+/* `.animate-breath` is defined ONCE, further down (task-doing-breath); the opacity `breath`
+   keyframe + duplicate class that lived here were shadowed by it and never ran. */
 /* v10.0.453 · prefers-reduced-motion · WCAG 2.3.3 compliance.
    Was scoped to 2 keyframes (animate-breath + animate-fade-in-scale)
    while 57 other keyframes ran unimpeded under reduced-motion preference.
@@ -324,13 +287,6 @@ button:active, [role="button"]:active {
 /* ═══════════════════════════════════════════════════════
    NOUR OS ANIMATIONS
    ═══════════════════════════════════════════════════════ */
-/* Chart data point glow */
-.recharts-dot, .recharts-active-dot {
-  filter: drop-shadow(0 0 6px rgba(253, 185, 19, 0.4));
-}
-.recharts-line .recharts-curve {
-  filter: drop-shadow(0 0 3px rgba(253, 185, 19, 0.2));
-}
 
 /* Habit toggle bounce */
 /* v10.0.467 · Drift alert breathing pulse · box-shadow → opacity-on-pseudo
@@ -428,7 +384,7 @@ button:active, [role="button"]:active {
   transition: box-shadow 0.3s;
 }
 .glow-on-hover:hover {
-  box-shadow: 0 0 20px rgba(253, 185, 19, 0.08);
+  box-shadow: var(--shadow-l1);
 }
 
 .stagger-in > * {
@@ -483,52 +439,24 @@ button:active, [role="button"]:active {
 .nick-prose--streaming code {
   overscroll-behavior-x: contain;
 }
-/* v10.0.502 · ADR-0010 closure · nick-cursor-shimmer converted to
-   opacity-only + glow on ::after pseudo. Was the last animated-
-   box-shadow keyframe outstanding. The element gets a constant
-   gold glow halo from the pseudo · keyframe drives opacity
-   breathing on the parent · pseudo's opacity syncs via shared
-   keyframe rhythm. Compositor-only · zero paint thrash. Safe
-   for the streaming typing-cursor pattern where the element is
-   a thin inline-block bar. */
-@keyframes nick-cursor-shimmer {
-  0%   { opacity: 0.35; }
-  40%  { opacity: 1; }
-  70%  { opacity: 0.7; }
-  100% { opacity: 0.35; }
-}
-/* Scan-line overlay — subtle CRT effect */
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9998;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 1px,
-    rgba(0, 0, 0, 0.015) 1px,
-    rgba(0, 0, 0, 0.015) 2px
-  );
-}
+/* (nick-cursor-shimmer keyframe: no consumer. The CRT scan-line overlay pseudo-element on <body> is
+   removed too — a fixed z-index 9998 full-viewport layer repainting over every surface for a 1.5% stripe.) */
 
 /* ═══════════════════════════════════════════════════════
    NEURAL GLASSMORPHISM — God-Mode Visual System
    Multi-layered glass with reactive neon accents
    ═══════════════════════════════════════════════════════ */
 
-/* Neural glass card — upgraded glass with neon edge glow */
+/* The canonical card (GlassCard · 43 importers). UI v2: a SOLID content surface with a hairline —
+   no gradient, no gold edge, no gold top line, no glow. State colours it (-active / -critical). */
 .neural-glass {
-  background: linear-gradient(135deg, rgba(17, 17, 17, 0.8), rgba(10, 10, 10, 0.6));
-  /* Section 5.3 (2026-09-08): no backdrop-filter on in-page cards -- it is a compositing cost on
-     iOS for no visible gain over the void. Overlays (.neural-glass-modal, sheets) keep theirs. */
-  border: 1px solid rgba(253, 185, 19, 0.08);
-  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--edge-subtle);
+  border-radius: var(--radius-surface);
   padding: 1.25rem;
   position: relative;
   overflow: hidden;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: border-color var(--motion-state) var(--ease-standard);
 }
 
 /* Wave BF · 2026-05-29 · modal-safe glass variant.
@@ -544,66 +472,25 @@ body::after {
    than the card because a modal floats over arbitrary content and must
    obscure it for readability. dialog.tsx swaps neural-glass →
    neural-glass-modal and the !important band-aid is deleted. */
+/* Dialog surface: a solid overlay step with the L2 shadow (SYSTEM.md §11 — material is for control
+   chrome; a modal is content you read). */
 .neural-glass-modal {
-  background: linear-gradient(135deg, rgba(17, 17, 17, 0.93), rgba(10, 10, 10, 0.88));
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  backdrop-filter: blur(20px) saturate(1.5);
+  background: var(--overlay);
+  border: 1px solid var(--edge-default);
+  box-shadow: var(--shadow-l2);
 }
-.neural-glass-modal::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(253, 185, 19, 0.45), transparent);
-  opacity: 0.6;
-  pointer-events: none;
-}
-/* v10.0.294 · gold-edge anchor · always-visible signature top-edge on
-   every neural-glass card. Was opacity 0 (only on hover) which left
-   cards looking flat at rest. Now resting at 0.45 opacity — clear
-   brand signature without overwhelming data. Hover boosts to full. */
-.neural-glass::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(253, 185, 19, 0.45), transparent);
-  opacity: 0.6;
-  transition: opacity 0.3s;
-}
-.neural-glass {
-  box-shadow: var(--shadow-gold-soft);
-}
-.neural-glass:hover {
-  border-color: rgba(253, 185, 19, 0.15);
-  box-shadow: var(--shadow-gold-strong);
-}
-.neural-glass:hover::before { opacity: 1; }
+.neural-glass:hover { border-color: var(--edge-default); }
+.neural-glass:focus-within { border-color: var(--edge-strong); }
 
-/* v10.0.296 · focus-within brightens the whole card when the operator
-   has clicked into an input or button inside it. Tactile premium
-   feel · the card visibly responds to attention. */
-.neural-glass:focus-within {
-  border-color: rgba(253, 185, 19, 0.18);
-}
-.neural-glass:focus-within::before { opacity: 1; }
-
-/* Neural glass with active neon border */
+/* Active card: the one sanctioned gold edge (selection), 1px, no glow. */
 .neural-glass-active {
   border-color: rgba(253, 185, 19, 0.25);
 }
-.neural-glass-active::before { opacity: 1; }
 
 /* Critical neural alert — red neon edge */
 .neural-glass-critical {
   border-color: rgba(239, 68, 68, 0.3);
   box-shadow: 0 0 30px rgba(239, 68, 68, 0.08), inset 0 0 20px rgba(239, 68, 68, 0.02);
-}
-.neural-glass-critical::before {
-  background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.4), transparent);
-  opacity: 1;
 }
 
 /* Neural pulse — breathing neon glow */
@@ -632,24 +519,13 @@ body::after {
    same vocabulary instead of ad-hoc text-[8px] / text-[9px] etc.
    ═══════════════════════════════════════════════════════ */
 .text-eyebrow {
-  font-family: var(--font-display);
-  font-size: 0.625rem; /* 10px */
-  font-weight: 600;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.6875rem; /* 11px — same role as .eyebrow / .vt-eyebrow in base.css */
+  font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-tertiary);
 }/* ═══════════════════════════════════════════════════════
-   v10.0.294 · PAGE FADE-IN · cinematic layout-mount intro
-   Apply to top-level page containers via className="page-fade-in".
-   200ms · subtle · OS-feel without performance cost.
-   ═══════════════════════════════════════════════════════ */
-@keyframes page-fade-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.page-fade-in { animation: none; }
-
-/* ═══════════════════════════════════════════════════════
    v10.0.460 · BRAND-ANCHOR CASCADE · explicit opt-in via data-anchor
    ═══════════════════════════════════════════════════════
    v10.0.297 · ORIGINAL · the cascade matched any rounded-lg div with
@@ -677,27 +553,9 @@ body::after {
    Status-colored borders (amber/rose/emerald/...) and buttons/links
    continue to be excluded · they already carry their own signal
    and shouldn't be decorated as cards. */
-:is(section, div).rounded-lg[data-anchor]:not(button):not(a) {
-  position: relative;
-  box-shadow: var(--shadow-gold-soft);
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
-}
-:is(section, div).rounded-lg[data-anchor]:not(button):not(a)::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(253, 185, 19, 0.4), transparent);
-  opacity: 0.55;
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-}
-:is(section, div).rounded-lg[data-anchor]:not(button):not(a):hover {
-  box-shadow: var(--shadow-gold-strong);
-}
-:is(section, div).rounded-lg[data-anchor]:not(button):not(a):hover::before {
-  opacity: 1;
-}/* Neural data stream — scrolling data effect */
+/* The [data-anchor] cascade is gone: no element in app/ components/ features/ emits data-anchor at
+   2026-10-01 (Panel and GlassCard never did), and the gold top-line it painted is retired anyway. */
+/* Neural data stream — scrolling data effect */
 /* Glitch effect — for critical alerts */
 /* ═══════════════════════════════════════════════════════
    v5.0 — DYNAMIC POWER ANIMATIONS
@@ -740,41 +598,11 @@ body::after {
 
 /* Particle burst on habit completion */
 /* Revenue pulse — green flash when revenue is good */
-/* v10.0.469 · revenue-pulse · 0-alpha → MAX-alpha tween · split */
-@keyframes revenue-pulse {
-  0%, 100% { opacity: 0; }
-  50%      { opacity: 1; }
-}/* Progress ring — for circular metrics */
+/* Progress ring — for circular metrics */
 .progress-ring circle {
   transition: stroke-dashoffset 0.5s ease;
   transform: rotate(-90deg);
   transform-origin: 50% 50%;
-}
-
-/* Ambient particle float — for background decoration */
-@keyframes float {
-  0%, 100% { transform: translateY(0) translateX(0); }
-  25% { transform: translateY(-10px) translateX(5px); }
-  50% { transform: translateY(-5px) translateX(-5px); }
-  75% { transform: translateY(-15px) translateX(3px); }
-}/* Command input — terminal style */
-.command-input {
-  font-family: var(--font-geist-mono), monospace;
-  background: rgba(10, 10, 10, 0.8);
-  border: 1px solid rgba(253, 185, 19, 0.1);
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  color: var(--gold);
-  caret-color: var(--gold);
-  outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-.command-input:focus {
-  border-color: rgba(253, 185, 19, 0.3);
-  box-shadow: 0 0 20px rgba(253, 185, 19, 0.05), inset 0 0 10px rgba(253, 185, 19, 0.02);
-}
-.command-input::placeholder {
-  color: rgba(253, 185, 19, 0.2);
 }
 
 /* Processing animation — for AI thinking state */
@@ -1052,8 +880,7 @@ body::after {
    `slideUpSoft` + `fadeIn` are entrance animations for chat overlays
    (history search, action sheets, paste-to-confirm prompts).
    ────────────────────────────────────────────────────────────────── */
-.no-scrollbar::-webkit-scrollbar { display: none; }
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+/* `.no-scrollbar` is shadcn's `@utility no-scrollbar` (globals.css imports shadcn/tailwind.css). */
 
 @keyframes slideUpSoft {
   from { opacity: 0; transform: translateY(20px); }

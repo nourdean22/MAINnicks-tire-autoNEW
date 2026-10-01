@@ -224,7 +224,7 @@ export function NickSidePane({
           // panel's footer, where the entity actions live.
           "fixed bottom-[calc(var(--bottom-chrome-h,6rem)+0.5rem)] right-[calc(var(--inspector-lane,0px)_+_1rem)] z-[56] hidden md:inline-flex h-11 min-w-[44px] items-center gap-1.5 rounded-full px-3.5",
           "ui-material border border-edge-default",
-          "text-fg-secondary shadow-[var(--shadow-l1)]",
+          "text-fg-secondary shadow-l1",
           "hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40",
           // Mobile-tightening #2 · active:scale tap feedback (replaces
           // absent haptic on iOS Safari PWAs · operator sees the FAB

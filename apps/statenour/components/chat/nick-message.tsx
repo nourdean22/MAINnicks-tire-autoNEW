@@ -262,7 +262,7 @@ export function NickMessage({
                 );
               }
               return (
-                <code className="bg-[var(--surface-raised)] rounded-[var(--radius-micro)] px-1.5 py-0.5 text-[13px] font-mono text-[var(--text-primary)]">
+                <code className="bg-[var(--surface-raised)] rounded-micro px-1.5 py-0.5 text-[13px] font-mono text-[var(--text-primary)]">
                   {children}
                 </code>
               );
@@ -312,7 +312,7 @@ export function NickMessage({
                 );
               }
               return (
-                <pre className="bg-[var(--canvas)] border border-[var(--edge-subtle)] rounded-[var(--radius-surface)] p-3 my-3 overflow-x-auto">
+                <pre className="bg-[var(--canvas)] border border-[var(--edge-subtle)] rounded-surface p-3 my-3 overflow-x-auto">
                   {children}
                 </pre>
               );

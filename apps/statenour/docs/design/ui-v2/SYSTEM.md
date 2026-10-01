@@ -18,8 +18,14 @@ rationale and the rules. When they disagree, the stylesheet wins and this file i
 
 ## 2 · Colour — semantic roles
 
-Legacy names stay as aliases (every one of the 6,000+ utility call sites re-tints without an edit, the same
+Legacy names stay as aliases (every one of the 6,339 utility call sites re-tints without an edit, the same
 mechanism as the 2026-08-09 severity-tier block). New code uses the semantic role.
+
+**Utility trap (found by the 2026-10-01 hostile review):** the Tailwind utility `bg-surface` is the LEGACY alias
+of `--surface-interactive` (#1C1B17), not of the `--surface` role. The content-card role is reached with
+`bg-content` (registered as `--color-content: var(--surface)`); `border-edge-default` is registered too. A
+utility whose token is not in `@theme inline` emits zero CSS and fails silently — `tests/repo/ui-v2-grammar.test.ts`
+now pins every utility the v2 components use.
 
 | Role | Token | Value | Legacy alias it feeds |
 |---|---|---|---|
@@ -66,8 +72,11 @@ selected state — the one place ambient gold survives).
 | Metadata (`font-mono`) | Geist Mono | 12px / 1.35 | 400–500 | — |
 | Micro metadata | Geist Mono | 11px | 500 | — |
 
-Phone floor: `text-[9px]`/`text-[10px]` are lifted to 11/12px below `md` (existing gate, unchanged).
-No element default is uppercase any more; uppercase is opt-in via the eyebrow and verdict roles.
+Type floor: `text-[9px]`/`text-[10px]` are lifted to 11/12px below `md` (the existing phone gate, unchanged)
+and, under the v2 lane, to 11px at every width; `tracking-[0.16em|0.18em|0.2em]` settles at 0.12em. Both are
+class-substring rules in `base.css` (1,526 + 162 call sites fixed by five lines; `?ui=v1` keeps the old density).
+No element default is uppercase any more; uppercase is opt-in via the eyebrow and verdict roles. The `h1/h2/h3`
+defaults live in `@layer base` so a size utility on a heading wins — unlayered, they silently beat every utility.
 
 ## 4 · Radius
 
@@ -103,13 +112,18 @@ No element default is uppercase any more; uppercase is opt-in via the eyebrow an
 | `--ease-exit` | `cubic-bezier(.4,0,1,1)` | exits |
 
 Compositor-only (transform, opacity). The universal `page-fade-in` on `StandardPage` is removed; `.page-enter`
-on the layout stays as the single route entrance. `pulse-live` animates only while a state is *working*.
+on the layout stays as the single route entrance. The element-level `button, a, input` transition in
+`effects.css` sits in `@layer base`, so a component's own `transition-* duration-[var(--motion-state)]`
+utilities apply (unlayered, the old rule reset every button to transform/opacity and colours snapped). `pulse-live` animates only while a state is *working*.
 `prefers-reduced-motion`: durations 0, the view-transition keyframes already pinned in `effects.css`.
 
 ## 7 · Focus
 
 `--focus-ring: 0 0 0 2px var(--canvas), 0 0 0 4px var(--accent)` applied through `:focus-visible` on every
-interactive element by `base.css`. Two rings so it survives on void, raised, glass and on a gold fill.
+interactive element by `base.css`. Two rings so it survives on void, raised, glass and on a gold fill. It is a
+`box-shadow`, so Tailwind's `outline-none` cannot suppress it and no `!important` is needed; the ring follows the
+element's own radius. The v10.0.526 `!important` gold outline + glow in `effects.css`, which silently overrode this
+ring in the first pass, is deleted.
 
 ## 8 · Icons
 
@@ -146,7 +160,11 @@ Home selective. A user-facing density preference is deferred until the default h
 ```
 
 Nothing that is read gets `backdrop-filter`. `.glass-card` is kept as a name for its 47 adopters but renders as
-a solid `--surface` card with an `--edge-subtle` border; `.neural-glass` likewise.
+a solid `--surface` card with an `--edge-subtle` border. `.neural-glass` (GlassCard, 43 importers) is the same
+solid card since the second pass: no gradient, no gold edge, no gold top line, no gold hover glow; `-active`
+keeps its 1px gold edge and `-critical` its red one. `.neural-glass-modal` (Dialog) is a solid `--overlay` step
+with the L2 shadow. The skeleton shimmer, `[data-card]` hover and `.glow-on-hover` are neutral; the CRT scan-line
+overlay and the chart drop-shadow glow are gone.
 
 ## 12 · The motif — the signal notch
 

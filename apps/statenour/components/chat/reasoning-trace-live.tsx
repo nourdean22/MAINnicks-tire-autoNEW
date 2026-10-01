@@ -66,7 +66,7 @@ export function ReasoningTraceLive({ steps }: { steps: ReasoningStep[] }) {
         type="button"
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={showList}
-        className="group inline-flex min-h-11 max-w-full items-center gap-2 rounded-[var(--radius-control)] px-1 text-left font-mono text-[11.5px] text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg-secondary sm:min-h-8"
+        className="group inline-flex min-h-11 max-w-full items-center gap-2 rounded-control px-1 text-left font-mono text-[11.5px] text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg-secondary sm:min-h-8"
       >
         {isDone ? (
           <span aria-hidden className="text-emerald-300">✓</span>
@@ -104,7 +104,7 @@ export function ReasoningTraceLive({ steps }: { steps: ReasoningStep[] }) {
                 </span>
                 <span className="shrink-0 font-mono text-[11px] tabular-nums text-fg-tertiary">{seconds(step.elapsedMs)}</span>
                 {devDetail && step.detail !== undefined && step.detail !== null && (
-                  <pre className="basis-full overflow-x-auto whitespace-pre-wrap break-words rounded-[var(--radius-micro)] bg-surface px-2 py-1 font-mono text-[11px] leading-[1.45] text-fg-tertiary">
+                  <pre className="basis-full overflow-x-auto whitespace-pre-wrap break-words rounded-micro bg-content px-2 py-1 font-mono text-[11px] leading-[1.45] text-fg-tertiary">
                     {typeof step.detail === "object" ? JSON.stringify(step.detail, null, 2) : String(step.detail)}
                   </pre>
                 )}
@@ -117,7 +117,7 @@ export function ReasoningTraceLive({ steps }: { steps: ReasoningStep[] }) {
                 type="button"
                 onClick={() => setDevDetail((v) => !v)}
                 aria-pressed={devDetail}
-                className="min-h-11 rounded-[var(--radius-micro)] font-mono text-[11px] text-fg-tertiary hover:text-fg-secondary sm:min-h-6"
+                className="min-h-11 rounded-micro font-mono text-[11px] text-fg-tertiary hover:text-fg-secondary sm:min-h-6"
               >
                 {devDetail ? "Hide developer detail" : "Developer detail"}
               </button>

@@ -10,8 +10,8 @@
  *
  * Rationale + rules: docs/design/ui-v2/SYSTEM.md. Values here win when the doc disagrees.
  *
- * Every legacy name below is kept as an alias of a semantic role, so the ~6,300 existing colour
- * utility call sites re-tint with zero component edits (same mechanism as the severity block at
+ * Every legacy name below is kept as an alias of a semantic role, so the 6,339 existing colour
+ * utility call sites (2026-09 count, see the severity block) re-tint with zero component edits (same mechanism as the severity block at
  * the bottom of this file). New code reads the semantic role.
  */
 
@@ -171,6 +171,20 @@
   --shadow-gold-soft: 0 4px 20px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(253, 185, 19, 0.04);
   --shadow-gold-strong: 0 0 30px rgba(253, 185, 19, 0.08), 0 12px 40px rgba(0, 0, 0, 0.5);
   --shadow-deep: 0 20px 60px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
+  /* shadcn bridge, pre-v2 values (4016737b). --accent is NOT restored: v2 components read it
+     as the gold signal and would render black under the lane. */
+  --card: oklch(0.07 0 0);
+  --card-foreground: oklch(0.94 0 0);
+  --popover: oklch(0.07 0 0);
+  --popover-foreground: oklch(0.94 0 0);
+  --secondary: oklch(0.1 0 0);
+  --secondary-foreground: oklch(0.7 0 0);
+  --muted: oklch(0.1 0 0);
+  --muted-foreground: oklch(0.45 0 0);
+  --border: oklch(0.14 0 0);
+  --input: oklch(0.12 0 0);
+  --ring: oklch(0.78 0.16 85);
+  --gold-glow: rgba(253, 185, 19, 0.15);
 }
 
 /* ── Tailwind theme bridge ─────────────────────────────────────────────
@@ -187,12 +201,16 @@
   /* semantic roles (v2) */
   --color-canvas: var(--canvas);
   --color-workspace: var(--workspace);
+  /* The content-card role (--surface, #121210). `bg-surface` is NOT this: it is the legacy alias of
+     --surface-interactive (6,339 call sites), so cards and receipts use `bg-content`. */
+  --color-content: var(--surface);
   --color-surface-raised: var(--surface-raised);
   --color-surface-interactive: var(--surface-interactive);
   --color-surface-hover: var(--surface-hover);
   --color-surface-selected: var(--surface-selected);
   --color-overlay: var(--overlay);
   --color-edge-subtle: var(--edge-subtle);
+  --color-edge-default: var(--edge-default);
   --color-edge-strong: var(--edge-strong);
   --color-accent-soft: var(--accent-soft);
   --color-accent-medium: var(--accent-medium);
@@ -308,7 +326,8 @@
   --color-sky-400:     oklch(0.66 0.126 232.661);  /* #259ED2 · 6.52/6.22/5.73 · ΔE(gold) 0.3304 */
 }
 
-/* Contrast columns above = WCAG 2.x against --bg-base #0A0A0A /
- * --bg-raised #111111 / --bg-elevated #1A1A1A. Every -300 value clears
- * AA 4.5:1 by ≥1.4×; every -400 dot clears the 3:1 non-text threshold
- * by ≥1.7×. */
+/* Contrast columns above = WCAG 2.x against the v1 bases --bg-base #0A0A0A /
+ * --bg-raised #111111 / --bg-elevated #1A1A1A (measured 2026-09). The v2 bases
+ * (#0D0D0A / #121210 / #171714) sit within ±2% luminance of those, so every
+ * -300 value still clears AA 4.5:1 by ≥1.4× and every -400 dot clears the 3:1
+ * non-text threshold by ≥1.7×. */

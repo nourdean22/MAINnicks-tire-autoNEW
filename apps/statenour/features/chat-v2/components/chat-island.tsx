@@ -292,13 +292,13 @@ export function ChatIsland() {
           </p>
         </div>
         <div className="flex items-center gap-0.5">
-          <button onClick={() => setMemoryInspectorOpen(!memoryInspectorOpen)} aria-label="Context and memory" aria-pressed={memoryInspectorOpen} className={`flex h-11 w-11 items-center justify-center rounded-[var(--radius-control)] transition-colors duration-[var(--motion-state)] ${memoryInspectorOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
+          <button onClick={() => setMemoryInspectorOpen(!memoryInspectorOpen)} aria-label="Context and memory" aria-pressed={memoryInspectorOpen} className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${memoryInspectorOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
             <Brain size={16} /><span className="sr-only">Context</span>
           </button>
-          <button onClick={() => setHistoryDrawerOpen(!historyDrawerOpen)} aria-label="Conversation history" aria-pressed={historyDrawerOpen} className={`flex h-11 w-11 items-center justify-center rounded-[var(--radius-control)] transition-colors duration-[var(--motion-state)] ${historyDrawerOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
+          <button onClick={() => setHistoryDrawerOpen(!historyDrawerOpen)} aria-label="Conversation history" aria-pressed={historyDrawerOpen} className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${historyDrawerOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
             <History size={16} /><span className="sr-only">History</span>
           </button>
-          <button onClick={toggleVoiceDock} aria-label={isVoiceDocked ? "Close voice" : "Open voice"} aria-pressed={isVoiceDocked} className={`flex h-11 w-11 items-center justify-center rounded-[var(--radius-control)] transition-colors duration-[var(--motion-state)] ${isVoiceDocked ? "bg-rose-500/15 text-rose-300" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
+          <button onClick={toggleVoiceDock} aria-label={isVoiceDocked ? "Close voice" : "Open voice"} aria-pressed={isVoiceDocked} className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${isVoiceDocked ? "bg-rose-500/15 text-rose-300" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
             {isVoiceDocked ? <MicOff size={16} /> : <Mic size={16} />}<span className="sr-only">Voice</span>
           </button>
         </div>
@@ -339,7 +339,7 @@ export function ChatIsland() {
           <button
             onClick={scrollToBottom}
             aria-label="Scroll to latest message"
-            className="ui-material absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex h-12 w-12 items-center justify-center rounded-full border border-edge-default text-fg-secondary shadow-[var(--shadow-l1)] transition-colors hover:text-fg active:scale-95"
+            className="ui-material absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex h-12 w-12 items-center justify-center rounded-full border border-edge-default text-fg-secondary shadow-l1 transition-colors hover:text-fg active:scale-95"
           >
             <ArrowDown size={18} />
           </button>
@@ -371,7 +371,7 @@ export function ChatIsland() {
       <MemoryInspectorSidebar open={memoryInspectorOpen} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} fetchedAt={memoryFetchedAt} reply={replyQuality} recallProvenance={recallProvenance} recallProvenanceReason={recallProvenanceReason} />
 
       {historyDrawerOpen && (
-        <div className="absolute inset-y-0 left-0 z-50 w-full border-r border-edge-default bg-overlay shadow-[var(--shadow-l1)] sm:w-80" style={{ paddingLeft: "env(safe-area-inset-left, 0px)" }}>
+        <div className="absolute inset-y-0 left-0 z-50 w-full border-r border-edge-default bg-overlay shadow-l1 sm:w-80" style={{ paddingLeft: "env(safe-area-inset-left, 0px)" }}>
           <OperatorConversationDrawer
             convos={conversations.convos}
             activeId={conversations.activeId}

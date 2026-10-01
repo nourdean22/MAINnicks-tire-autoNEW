@@ -82,7 +82,7 @@ export function MoreSheet() {
         unstyled
         showCloseButton={false}
         overlayClassName="z-[70] bg-black/60 backdrop-blur-sm"
-        className="fixed inset-x-0 bottom-0 z-[71] max-h-[86dvh] overflow-y-auto overscroll-contain rounded-t-[var(--radius-overlay)] border-t border-edge-default bg-overlay pb-[env(safe-area-inset-bottom,12px)] outline-none shadow-[var(--shadow-l2)] data-open:animate-fadeSlideUp data-closed:animate-fadeSlideDown"
+        className="fixed inset-x-0 bottom-0 z-[71] max-h-[86dvh] overflow-y-auto overscroll-contain rounded-t-overlay border-t border-edge-default bg-overlay pb-[env(safe-area-inset-bottom,12px)] outline-none shadow-l2 data-open:animate-fadeSlideUp data-closed:animate-fadeSlideDown"
       >
         <DialogTitle className="sr-only">More navigation</DialogTitle>
         {/* Sticky header: grab handle + Search */}

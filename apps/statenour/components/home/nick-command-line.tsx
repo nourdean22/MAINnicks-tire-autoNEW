@@ -237,7 +237,7 @@ export function NickCommandLine() {
           aria-label="Nick's response"
         >
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-edge-default bg-surface text-fg-secondary">
+            <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-edge-default bg-content text-fg-secondary">
               {isLoading ? <Loader2 size={12} className="motion-safe:animate-spin" /> : <Brain size={12} />}
             </div>
             <div className="min-w-0 flex-1 space-y-3 text-sm">
@@ -355,7 +355,7 @@ export function NickCommandLine() {
         <button
           type="button"
           onClick={fireBrief}
-          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-[var(--radius-control)] border border-edge-default bg-surface px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-surface px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
         >
           <Brain size={11} />
           Morning brief

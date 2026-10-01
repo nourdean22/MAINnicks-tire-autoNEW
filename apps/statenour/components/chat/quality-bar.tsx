@@ -84,7 +84,7 @@ export function QualityBar({ payload, onRegen }: Props) {
   const receiptOffenders = payload.receipt?.offenders ?? [];
 
   return (
-    <div className={cn("mt-2 rounded-[var(--radius-control)] border px-2 py-0.5", toneClass)}>
+    <div className={cn("mt-2 rounded-control border px-2 py-0.5", toneClass)}>
       <div className="flex items-stretch gap-1">
         <button
           type="button"
@@ -103,7 +103,7 @@ export function QualityBar({ payload, onRegen }: Props) {
           <button
             type="button"
             onClick={onRegen}
-            className="inline-flex min-h-11 items-center gap-1 rounded-[var(--radius-micro)] border border-current/30 px-2 text-[11px] font-mono font-medium hover:bg-current/10 sm:min-h-8"
+            className="inline-flex min-h-11 items-center gap-1 rounded-micro border border-current/30 px-2 text-[11px] font-mono font-medium hover:bg-current/10 sm:min-h-8"
           >
             <RotateCcw size={9} />
             regen

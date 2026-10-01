@@ -45,7 +45,7 @@ function isActiveHref(pathname: string, href: string): boolean {
 
 /** One rail control: a 44px square, radius-control, state through colour + the notch only. */
 const RAIL_ITEM =
-  "group relative flex h-11 w-11 items-center justify-center rounded-[var(--radius-control)] transition-colors duration-[var(--motion-state)] ease-[var(--ease-standard)]";
+  "group relative flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ease-[var(--ease-standard)]";
 const RAIL_IDLE = "text-fg-tertiary hover:bg-surface hover:text-fg-secondary";
 const RAIL_ACTIVE = "bg-surface-interactive text-fg";
 

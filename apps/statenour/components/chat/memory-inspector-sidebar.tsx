@@ -66,7 +66,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
     : "not yet fetched — open state, not evidence";
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 w-80 md:w-96 bg-overlay border-l border-edge-default shadow-[var(--shadow-l1)] flex flex-col animate-fadeSlideLeft">
+    <div className="fixed inset-y-0 right-0 z-50 w-80 md:w-96 bg-overlay border-l border-edge-default shadow-l1 flex flex-col animate-fadeSlideLeft">
       <div className="flex justify-between items-center p-4 border-b border-edge-subtle">
         <div className="flex items-center space-x-2">
           <Brain className="w-4 h-4 text-gold" />

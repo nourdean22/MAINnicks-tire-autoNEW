@@ -14,8 +14,7 @@
  */
 
 import { useEffect } from "react";
-
-export const UI_VERSION_COOKIE = "statenour_ui";
+import { UI_VERSION_COOKIE } from "@/lib/ui-version";
 
 export function UiVersionSwitch() {
   useEffect(() => {
