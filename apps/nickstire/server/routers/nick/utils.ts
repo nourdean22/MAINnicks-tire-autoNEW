@@ -538,10 +538,10 @@ Return a JSON object with:
 
 Pricing guidelines:
 - Labor rate: $85/hour
-- Oil change: $40-70 (conventional/synthetic)
-- Brake pads per axle: $89-150 (parts) + 1-2 hours labor
+- Oil change: $49 conventional/blend, $80 full synthetic
+- Brakes per axle: pads from $149, pads + rotors from $149.99, depending on vehicle
 - Tire mount/balance: $20-30 per tire
-- Diagnostics: $50-100
+- Diagnostics: $49, waived if the customer does the repair with us
 - E-Check repair: $100-800 depending on issue
 - Always give a RANGE, never a single price
 - Include disclaimer: "Final price may vary after in-person inspection"`;
