@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "deferred": "Q-50 phase 3 (PR #2854). WHAT THE OPERATOR SEES: Admin -> Intelligence HQ -> the Data freshness card gains a fourth row, 'NHTSA program list'. While flag nhtsa_warranty_ingest is OFF and no run has finished (the shipped default) it reads 'not set up' with the note that the job is switched off and work orders show manufacturer programs as unavailable; it is quiet (not counted in 'N need a look'). After the operator arms the flag it reads 'no finished run' (amber, counted) until the first nhtsa-warranty-ingest run finishes, then 'fresh · <age> old'; over 3 days without a finished run it reads 'stale · <age> old' (amber); a failed read reads 'unknown' with the UNMEASURED tag. Nothing on the work-order drawer changes. A live walkthrough is deferred: no production ingest has run and this session holds no admin login; every state above is rendered by client/src/__tests__/data-freshness-nhtsa-q50.test.tsx (9 cases, 5 of 5 mutants caught)."
+    },
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json: new entry admin-data-freshness-nhtsa-q50 (codeState in_progress, operationalState unit_verified, exposure disabled; P2 blocker: reads 'not set up' until 0138 is applied and the flag armed; deferredScope: the panel's Retry on never_ingested/not_installed is asserted by an existing test the shift loop may not rewrite). REALITY-LEDGER.md re-rendered by scripts/render-reality-ledger.mjs; scripts/check-capability-ledger.mjs: valid, 106 capabilities."
+    }
+  }
+}
