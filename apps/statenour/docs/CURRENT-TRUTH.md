@@ -548,3 +548,11 @@ This supersedes the pre-PR status notes immediately above while preserving them 
 - Backend middleware confirms `tool_servers` expects fully materialized direct-server objects with OpenAPI specs, not synthetic IDs. Do not inject `direct_server:nour-cockpit` as a string into that field.
 - The live **Integrations** menu currently shows top-level **Tools 1**, Web Search, and Code Interpreter. The next diagnostic step is opening **Tools 1** to capture the exact canonical direct-server selection shape OpenWebUI itself emits when selected manually.
 
+
+## 2026-10-01 — exact OpenWebUI 0.11.4 direct-server default-selection bug found
+
+- Installed frontend code in `DUmjoMyK.js` proves the bug: model initialization reads `rs.info.meta.toolIds` but filters those IDs against the **native Workspace Tools store**. `direct_server:nour-cockpit` is held in the separate direct-server/tool-server store, so it is discarded before chat.
+- The later request builder is otherwise correct: it splits selected tool IDs into ordinary `tool_ids` and `direct_server:*` IDs, then materializes matching direct servers into `tool_servers`. Our direct ID simply never survives the earlier initialization filter.
+- This fully explains the intercepted payload: the model metadata contains `direct_server:nour-cockpit`, while the outgoing chat request has `tool_servers: []`.
+- Preferred fix: **do not fork the minified frontend bundle.** Create a native OpenWebUI Workspace Tool wrapper around the loopback NOUR Cockpit bridge and attach that native tool ID to the NOUR Cockpit model. Native Workspace Tool IDs are already auto-selected by the code path above. Keep the direct OpenAPI server registered as a separately usable integration.
+
