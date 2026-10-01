@@ -20,7 +20,7 @@ import express from "express";
 import { timingSafeEqual } from "node:crypto";
 import { trackDetached } from "../../_core/gracefulShutdown";
 import { createLogger } from "../../lib/logger";
-import { isDuplicateKeyError } from "../../lib/dbErrors";
+import { isDuplicateKeyError, logSafeErrorMessage } from "../../lib/dbErrors";
 import { toolCallLogFields } from "../../lib/vapiToolCallLog";
 import { customerUtterances, DO_NOT_CALL_TOOL_NAME, isSpokenOptOut, spokenOptOutScope, type SpokenOptOutScope } from "../../services/outboundCallCompliance";
 
@@ -421,13 +421,13 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string, custom
   } catch (err) {
     log.error("Tool call dispatch failed", {
       tool: call.function.name,
-      err: err instanceof Error ? err.message : String(err),
+      err: logSafeErrorMessage(err),
     });
     return {
       toolCallId: call.id,
       result: JSON.stringify({
         error: "Tool execution failed",
-        details: err instanceof Error ? err.message : String(err),
+        details: logSafeErrorMessage(err),
       }),
     };
   }
@@ -608,7 +608,7 @@ async function processCallEndReport(
             trailCallbackId = fkFrom(md?.callbackId) ?? trailCallbackId;
           }
         } catch (stateErr) {
-          log.warn("[vapi webhook] convertedToLead trail read failed (default 0; eval reconciles)", { error: stateErr instanceof Error ? stateErr.message : String(stateErr) });
+          log.warn("[vapi webhook] convertedToLead trail read failed (default 0; eval reconciles)", { error: logSafeErrorMessage(stateErr) });
         }
         let firstLog = true;
         await d.insert(vapiCallLogs).values({
@@ -627,7 +627,7 @@ async function processCallEndReport(
         }).catch((err: unknown) => {
           // Tolerate dup-key on retry — webhooks can fire twice
           firstLog = false;
-          const msg = err instanceof Error ? err.message : String(err);
+          const msg = logSafeErrorMessage(err);
           if (!isDuplicateKeyError(err)) {
             log.warn("vapi_call_logs insert failed", { error: msg });
           }
@@ -659,7 +659,7 @@ async function processCallEndReport(
             `);
           } catch (backfillErr) {
             log.warn("[vapi webhook] id backfill on duplicate delivery failed", {
-              error: backfillErr instanceof Error ? backfillErr.message : String(backfillErr),
+              error: logSafeErrorMessage(backfillErr),
             });
           }
         }
@@ -895,7 +895,7 @@ async function processCallEndReport(
           followupPaused = await isEnabled("vapi_forward_followup_paused");
         } catch (flagErr) {
           log.warn("[vapi webhook] pause-flag read failed — treating as NOT paused", {
-            error: flagErr instanceof Error ? flagErr.message : String(flagErr),
+            error: logSafeErrorMessage(flagErr),
           });
         }
 
@@ -919,7 +919,7 @@ async function processCallEndReport(
             vapiCallId: event.call?.id,
           }).catch((err: unknown) => {
             log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
-              error: err instanceof Error ? err.message : String(err),
+              error: logSafeErrorMessage(err),
             });
           });
         } else if (followupPaused && isForwardedEndedReason(cleanEndedReason)) {
@@ -929,7 +929,7 @@ async function processCallEndReport(
     }
   } catch (persistErr) {
     log.warn("[vapi webhook] call-end persist failed (non-blocking)", {
-      error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+      error: logSafeErrorMessage(persistErr),
     });
   }
   // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
@@ -1044,7 +1044,7 @@ async function processCallEndReport(
       }
     } catch (dispatchErr) {
       log.warn("[vapi outbound] dispatch failed (non-blocking)", {
-        error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+        error: logSafeErrorMessage(dispatchErr),
       });
     }
   }
@@ -1086,7 +1086,7 @@ async function processCallEndReport(
     }
   } catch (proposalErr) {
     log.warn("[vapi proposals] extraction pass failed (non-blocking)", {
-      error: proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
+      error: logSafeErrorMessage(proposalErr),
     });
   }
 }
@@ -1129,7 +1129,7 @@ router.post("/vapi", async (req: Request, res: Response) => {
         const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id, dialled, callType)));
         const results = settled.map((s, i) => {
           if (s.status === "fulfilled") return s.value;
-          const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
+          const err = logSafeErrorMessage(s.reason);
           log.error("Tool call rejected", {
             toolCallId: calls[i]?.id,
             functionName: calls[i]?.function?.name,
@@ -1283,7 +1283,7 @@ router.post("/vapi", async (req: Request, res: Response) => {
         } catch (dncErr) {
           log.error("[vapi webhook] do-not-call persistence failed before ack", {
             callId: event.call?.id,
-            error: dncErr instanceof Error ? dncErr.message : String(dncErr),
+            error: logSafeErrorMessage(dncErr),
             errorId: "VAPI_DNC_PREACK_FAILED",
           });
           res.status(503).json({ error: "Do-not-call persistence failed; retry webhook" });
@@ -1294,7 +1294,7 @@ router.post("/vapi", async (req: Request, res: Response) => {
         // F5 · tracked so a SIGTERM drain waits for it (the 200 is already sent).
         void trackDetached("vapi:end-of-call", processCallEndReport(event, cleanEndedReason)).catch((err) => {
           log.warn("[vapi webhook] detached post-call processing failed", {
-            error: err instanceof Error ? err.message : String(err),
+            error: logSafeErrorMessage(err),
           });
         });
         return;
@@ -1346,7 +1346,7 @@ router.post("/vapi", async (req: Request, res: Response) => {
           }
         } catch (err) {
           log.warn("assistant-request bdi threw", {
-            err: err instanceof Error ? err.message : String(err),
+            err: logSafeErrorMessage(err),
           });
         }
         // Default · use assistant's configured first message.
@@ -1361,7 +1361,7 @@ router.post("/vapi", async (req: Request, res: Response) => {
     }
   } catch (err) {
     log.error("Vapi webhook handler threw", {
-      err: err instanceof Error ? err.message : String(err),
+      err: logSafeErrorMessage(err),
     });
     res.status(500).json({ error: "Webhook processing failed" });
   }
