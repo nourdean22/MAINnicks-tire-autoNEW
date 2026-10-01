@@ -80,10 +80,11 @@ This section records the deeper read after the first corpus pass. It separates l
    - The job can perform baseline train + holdout ghost replays, candidate generation, candidate train scoring, and holdout scoring; individual optimizer calls allow up to 120 seconds. The latest run therefore cannot be classified healthy from wiring alone.
    - State: **BROKEN on latest observed run** until a subsequent successful production receipt proves recovery.
 
-2. **Marketing-SMS consent enforcement is still shadow-only while traffic continues to hit the refusal condition.**
+2. **Marketing-SMS consent enforcement is intentionally shadow-only, and production traffic continues to hit the refusal condition.**
    - Production logs from 2026-09-28 through 2026-10-01 repeatedly show: `consent gate SHADOW — this marketing send would be refused once armed`, `messageClass=customer_marketing`, `why=no recorded opt-in`.
-   - These are not ordinary inbound-response/transactional messages; the application itself classifies them as marketing.
-   - State: **LIVE BUT UNVERIFIED / COMPLIANCE HOLD**. Do not optimize marketing-send volume from this traffic until consent authority is explicit and enforcement mode is deliberately resolved.
+   - Repo authority check found an explicit 2026-08-09 operator decision in `NOUR-ACTION-REQUIRED.md` to keep this gate in shadow rather than silently block the existing marketing lanes. This is therefore not an accidental forgotten toggle.
+   - Current FCC materials continue to treat advertising/telemarketing robotext consent as compliance-sensitive; the exact rule applicable to a Nick's send depends on the sending technology and facts. Do not silently arm OR remove the gate from this audit branch.
+   - State: **LIVE + INTENTIONALLY SHADOWED / COUNSEL-REVIEWABLE**. Keep customer-service replies and transactional traffic analytically separate from marketing traffic, and do not use shadow-miss marketing traffic as clean evidence for autonomous promotion.
 
 3. **Warm-transfer friction remains visible in live calls.**
    - In the 2026-10-01 production window sampled from 12:07Z through 15:32Z, 19 unique call-end events were observed:
@@ -126,7 +127,7 @@ This section records the deeper read after the first corpus pass. It separates l
 ### Next dependency-ordered work
 
 1. Repair and receipt the weekly prompt-evolution runtime budget before treating self-improvement as operational.
-2. Resolve the marketing-consent shadow/enforcement decision separately from customer-service SMS.
+2. Preserve the recorded marketing-consent shadow decision unless the operator deliberately changes it after current compliance review; separately classify customer-service/transactional vs marketing learning traffic.
 3. Make transfer truth durable and prove one live attempted → connected / failed artifact round-trip.
 4. Version and reconcile channel pricing authority.
 5. Join prompt/response version → call → expected arrival/work order → paid invoice where evidence is direct; keep inferred joins out of autonomous promotion.
