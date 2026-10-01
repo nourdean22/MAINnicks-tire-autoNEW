@@ -34,7 +34,7 @@ actually sees. Ranked:
 
 ## A2. What this branch shipped beyond Wave A (2026-10-01, same PR, batched)
 
-Verified on the combined tree: `pnpm run check` 0 errors · lint/lint:source/brand-voice/pii/curdate/validate:routes exit 0 · knip orphan gate 0 NEW · prerender:check + semantic OK · targeted vitest 38 files / 350 tests + 21 (review fixes) green; CI full suite on the merged head 10,768 passed. **Merged 2026-10-01 as PR #2865 → `54a36662`**; Railway deployment `015c1e73` (status at doc time: DEPLOYING (image built 17:47Z, container rollout started 17:48:27Z; SUCCESS + server:ready receipt pending, recorded here when observed)). Everything below is BUILT+WIRED and, once that deployment is SUCCESS, LIVE+UNPROVEN until the §V receipts appear.
+Verified on the combined tree: `pnpm run check` 0 errors · lint/lint:source/brand-voice/pii/curdate/validate:routes exit 0 · knip orphan gate 0 NEW · prerender:check + semantic OK · targeted vitest 38 files / 350 tests + 21 (review fixes) green; CI full suite on the merged head 10,768 passed. **Merged 2026-10-01 as PR #2865 → `54a36662`**; Railway deployment `015c1e73` (status at doc time: **SUCCESS** at 17:48:57Z — container logged `[server:ready]` 17:48:52Z, `Schema guard: all critical tables present` (6 checked), `Tiered scheduler started: 5 tiers, 126 jobs`; `/api/health` at 17:50:31Z reported `status: healthy`, `deploy.commit 54a366629ba89867dcd5dbc916e37bee88f8e645`, `deploymentId 015c1e73…`, database up (6 ms), AI gateway up, self-healing score 100). Everything below is BUILT+WIRED and, once that deployment is SUCCESS, LIVE+UNPROVEN until the §V receipts appear.
 
 | Slice | Entry point | State |
 |---|---|---|
