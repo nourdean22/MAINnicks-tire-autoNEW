@@ -23,6 +23,8 @@
 import { useState } from "react";
 import { Cpu, AlertTriangle, HelpCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { provenanceOf } from "@shared/tileProvenance";
+import { ProvenanceTag } from "../shared/ProvenanceTag";
 
 const WINDOWS = [1, 7, 30] as const;
 type Window = (typeof WINDOWS)[number];
@@ -80,6 +82,7 @@ export function LlmSpendPanel() {
         {header}
         <div className="flex items-start gap-2 text-amber-400" role="status">
           <HelpCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          <ProvenanceTag provenance={provenanceOf("observed", "unavailable")} />
           <p className="text-sm">
             Ledger unreadable — this is UNKNOWN, not zero. Model calls may well be running; this panel
             could not read them.{isError && error?.message ? ` (${error.message})` : ""}
@@ -90,6 +93,13 @@ export function LlmSpendPanel() {
   }
 
   const { lanes, totals, recording, lanesTruncated } = data;
+
+  /**
+   * Q-23 · rows in `llm_calls` are stored records, so a count read while the
+   * writer is on is MEASURED. With the writer off or stopped, calls made in the
+   * window may be missing: the count is a lower bound, an ESTIMATE.
+   */
+  const countProvenance = provenanceOf("observed", recording === "on" ? "ok" : "partial");
 
   /**
    * The writer's state, shown above whatever history exists rather than
@@ -126,6 +136,7 @@ export function LlmSpendPanel() {
         {header}
         {recordingNotice}
         <p className="text-sm text-muted-foreground">
+          <ProvenanceTag provenance={provenanceOf("observed", recording === "on" ? "ok" : "unavailable")} />{" "}
           {recording === "on"
             ? `No model calls recorded in the last ${windowDays} day${windowDays === 1 ? "" : "s"}. The ledger is live, so this one is a real zero.`
             : `No rows in the last ${windowDays} day${windowDays === 1 ? "" : "s"}. With recording stopped, that is not evidence about how much AI ran.`}
@@ -140,6 +151,8 @@ export function LlmSpendPanel() {
   // failure again: the column exists, the values stopped, the UI kept
   // rendering a confident number.
   const tokenCoverage = totals.calls > 0 ? (totals.callsWithTokens / totals.calls) * 100 : 0;
+  // A token total over partial usage coverage is a floor, so it is an ESTIMATE.
+  const tokenProvenance = tokenCoverage < 99.5 ? provenanceOf("observed", "partial") : countProvenance;
   const visible = expanded ? lanes : lanes.slice(0, LANES_SHOWN);
 
   return (
@@ -151,18 +164,21 @@ export function LlmSpendPanel() {
         <div>
           <div className="text-xl font-black tabular-nums">{num(totals.calls)}</div>
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">calls</div>
+          <div data-provenance-for="calls"><ProvenanceTag provenance={countProvenance} /></div>
         </div>
         <div>
           <div className={`text-xl font-black tabular-nums ${totals.failed > 0 ? "text-red-400" : ""}`}>
             {failRate.toFixed(1)}%
           </div>
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">failed</div>
+          <div data-provenance-for="failed"><ProvenanceTag provenance={countProvenance} /></div>
         </div>
         <div>
           <div className="text-xl font-black tabular-nums">
             {num(totals.promptTokens + totals.completionTokens)}
           </div>
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">tokens</div>
+          <div data-provenance-for="tokens"><ProvenanceTag provenance={tokenProvenance} /></div>
         </div>
       </div>
 

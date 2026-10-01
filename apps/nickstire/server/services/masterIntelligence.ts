@@ -15,8 +15,21 @@ const log = createLogger("master-intelligence");
 
 // ── Helpers ──────────────────────────────────────────────
 
+/**
+ * Q-23 phase 7 · an engine can fail without rejecting. predictChurn,
+ * predictRepeatVisits and analyzeLeadResponseTime catch their own read error
+ * and resolve to an empty shape marked `unavailable: true`. Read as data, that
+ * empty shape scored as the best case ("0 high-risk customers": +8). It is a
+ * failed engine: absent from the score and counted in `failures`.
+ */
+function readFailed<T>(result: PromiseSettledResult<T>): boolean {
+  if (result.status !== "fulfilled") return false;
+  const value = result.value as unknown;
+  return typeof value === "object" && value !== null && (value as { unavailable?: unknown }).unavailable === true;
+}
+
 function settled<T>(result: PromiseSettledResult<T>): T | null {
-  return result.status === "fulfilled" ? result.value : null;
+  return result.status === "fulfilled" && !readFailed(result) ? result.value : null;
 }
 
 function clamp(n: number, min: number, max: number): number {
@@ -100,6 +113,21 @@ export interface ScoreComponent {
   /** Whether the engine had data; helps the UI distinguish "0 because neutral" from "skipped". */
   hasData: boolean;
 }
+
+/**
+ * One label per engine, in the order generateMasterIntelligenceReport runs
+ * them. Used to name a read-failed engine, which has no error message of its own.
+ */
+const MASTER_ENGINE_LABELS = [
+  "revenue forecast", "churn prediction", "revenue anomalies", "cash flow forecast",
+  "profit margins", "ticket trend", "customer risk scores", "customer value trend",
+  "repeat visit prediction", "new customer velocity", "revenue concentration",
+  "tech efficiency", "turnaround time", "bay utilization", "capacity forecast",
+  "parts cost ratio", "channel ROI", "review velocity", "SMS engagement",
+  "lead response time", "content performance", "competitor gap", "chat funnel",
+  "review sentiment", "seasonal demand", "market share", "referral network",
+  "portfolio LTV",
+] as const;
 
 // ── Main Function ────────────────────────────────────────
 
@@ -544,10 +572,22 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
   opportunityCandidates.sort((a, b) => b.priority - a.priority);
   riskCandidates.sort((a, b) => b.priority - a.priority);
 
-  const failures = results.filter(r => r.status === "rejected");
+  const failures: string[] = [];
+  const failureLog: string[] = [];
+  results.forEach((r, i) => {
+    if (r.status === "rejected") {
+      const reason = (r as PromiseRejectedResult).reason;
+      failures.push(reason?.message || "Unknown error");
+      failureLog.push(reason?.message || String(reason));
+    } else if (readFailed(r)) {
+      const line = `${MASTER_ENGINE_LABELS[i] ?? `engine ${i}`}: its read failed (it returned an empty result marked unavailable)`;
+      failures.push(line);
+      failureLog.push(line);
+    }
+  });
   if (failures.length > 0) {
     log.warn(`Master report: ${failures.length}/${results.length} engines failed`, {
-      errors: failures.map(f => (f as PromiseRejectedResult).reason?.message || String((f as PromiseRejectedResult).reason)).slice(0, 5),
+      errors: failureLog.slice(0, 5),
     });
   }
 
@@ -609,7 +649,7 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
       enginesFailed: failures.length,
       enginesTotal: results.length,
       scoreBreakdown,
-      failures: failures.map(f => (f as PromiseRejectedResult).reason?.message || "Unknown error"),
+      failures,
     },
   };
 }
