@@ -135,7 +135,10 @@ const APPROVED_ANCHORS: RegExp[] = [
   /\b(?:forty[\s-]?nine|49|\$49)\s*(?:dollars?|bucks)?\b/gi,
   // Full synthetic: eighty dollars.
   /\b(?:eighty|80|\$80)\s*(?:dollars?|bucks)?\b/gi,
-  // The coupon CODE is not a price; strip it so its digits never read as money.
+  // A coupon CODE is not a price; strip it so its digits never read as money.
+  // The code is NICKSOIL since 2026-10-01 (shared/pricing.ts OIL_COUPON), which
+  // has no digits; OIL2999 stays here because the live assistant says it until
+  // its prompt is pushed again.
   /\bOIL\s?2999\b/gi,
 ];
 

@@ -26,10 +26,13 @@ import { buildBrandBibleFragment } from "../../shared/brandBible";
 import { assessEvidence, evidenceDirective, type EvidenceFact } from "../../shared/evidenceSufficiency";
 import { PUBLIC_SOURCE_REGISTRY } from "./evidenceResolver";
 import { buildFranchiseFragment, type FranchiseId } from "../../shared/contentFranchises";
+import { BUSINESS } from "@shared/business";
+import { DURATION_LANES, type DurationLaneId } from "@shared/contentExperiments";
 import {
   CAMPAIGN_KEYWORDS,
   FACT_BUCKETS,
   INSTAGRAM_HASHTAG_CAP,
+  REEL_OUTPUT_RULES,
   REEL_ARCHETYPES,
   MOTION_LENSES,
   OBJECT_CHARACTERS,
@@ -97,6 +100,21 @@ export interface GenerateReelBriefInput {
    * test one-sided, is not a trade worth making.
    */
   hookStyle?: "direct";
+  /**
+   * Experiment arm for the TOTAL LENGTH (duration_v1 preset, Wave B). Same
+   * contract as hookStyle: decided before generation, deterministic on the
+   * episode key. When absent the generator resolves it itself from the running
+   * length_band experiment (see resolveDurationTarget) — undefined when none is
+   * running, which leaves the prompt exactly as it was.
+   */
+  durationLane?: DurationLaneId;
+  /**
+   * Stable per-episode key for arm resolution when the caller does not pass
+   * the arm. Defaults to the daily cron's brief id for today (`autopost-<ET
+   * date>`, dailyReelPost.ts) so the hook arm the cron resolves and the
+   * duration lane resolved here agree on the same episode.
+   */
+  episodeKey?: string;
   /** Which show this episode belongs to. When set, the franchise contract
    *  (hook shape, reveal shape, allowed metaphors, CTA set, and its NEVER list)
    *  leads the creative section of the prompt — that is what makes the page
@@ -834,9 +852,85 @@ export function applyCriticPreservingTruth(
   return { effective: { ...criticParsed }, preserved, rejectedCritic: false };
 }
 
+/** What a duration lane means for THIS pipeline's storyboard, after the
+ *  format contract has had its say. */
+export interface DurationTarget {
+  lane: DurationLaneId;
+  /** Storyboard end-second bounds the brief must land in. */
+  minSeconds: number;
+  maxSeconds: number;
+  /** True when the lane was pulled down to REEL_OUTPUT_RULES.maxSeconds —
+   *  the brief is then NOT a measurement of the lane it was assigned to. */
+  capped: boolean;
+  /** What assembly can actually put on screen: maxBeats x maxClipSeconds.
+   *  A declared length above this renders as the cap plus the SAVE freeze. */
+  renderCapSeconds: number;
+}
+
+/**
+ * Clamp a lane to the storyboard contract. PURE so the arithmetic is testable:
+ * the 45-60 s lane sits entirely above the 35 s acceptance ceiling and the
+ * 24 s render cap, and silently targeting 60 s would have every brief in that
+ * arm rejected by validateReelLengthTarget — three attempts per day burned on
+ * a shape the pipeline cannot accept. Capping keeps the arm generating and
+ * marks the result as capped so nobody reads it as a 45-60 s finding.
+ */
+export function clampDurationLane(lane: DurationLaneId): DurationTarget {
+  const spec = DURATION_LANES[lane];
+  const renderCapSeconds = REEL_OUTPUT_RULES.maxBeats * REEL_OUTPUT_RULES.maxClipSeconds;
+  let minSeconds = Math.max(spec.minSeconds, REEL_OUTPUT_RULES.minSeconds);
+  let maxSeconds = Math.min(spec.maxSeconds, REEL_OUTPUT_RULES.maxSeconds);
+  let capped = maxSeconds < spec.maxSeconds || minSeconds > spec.minSeconds;
+  if (minSeconds > maxSeconds) {
+    // The whole lane is above the ceiling: target the top of what is accepted.
+    minSeconds = Math.max(REEL_OUTPUT_RULES.minSeconds, REEL_OUTPUT_RULES.maxSeconds - 5);
+    maxSeconds = REEL_OUTPUT_RULES.maxSeconds;
+    capped = true;
+  }
+  return { lane, minSeconds, maxSeconds, capped, renderCapSeconds };
+}
+
+/** The prompt block for a resolved lane. PURE; appended after the hook arm. */
+export function buildDurationLaneFragment(t: DurationTarget): string {
+  return (
+    `\n\nTOTAL LENGTH — EXPERIMENT ARM "${t.lane}": the storyboard MUST end between ${t.minSeconds}s and ${t.maxSeconds}s ` +
+    `(last beat's endSecond in that range, beats still contiguous from 0s). Fill the length with more INSPECTION and REVEAL beats, ` +
+    `never with a slower opening — the first two seconds keep every rule above. Budget the voiceover to the video, not the declared length.` +
+    (t.capped
+      ? ` This lane was capped to the ${REEL_OUTPUT_RULES.maxSeconds}s storyboard ceiling; treat ${t.maxSeconds}s as the hard maximum.`
+      : "")
+  );
+}
+
+/** Today's autonomous episode key — the daily cron's brief id (`autopost-<ET date>`). */
+function defaultEpisodeKey(now = new Date()): string {
+  return `autopost-${now.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone })}`;
+}
+
+/**
+ * The lane for this generation: the caller's explicit arm wins; otherwise the
+ * running length_band experiment is consulted on the episode key. A failed
+ * read is control (logged inside the store), never a thrown generation.
+ */
+async function resolveDurationTarget(input: GenerateReelBriefInput): Promise<DurationTarget | null> {
+  let lane = input.durationLane;
+  if (!lane) {
+    const { durationLaneForEpisode } = await import("./contentExperimentStore");
+    lane = await durationLaneForEpisode(input.episodeKey ?? defaultEpisodeKey());
+  }
+  if (!lane) return null;
+  const target = clampDurationLane(lane);
+  if (target.capped) {
+    log.warn("duration lane capped by REEL_OUTPUT_RULES — this brief is not a measurement of its assigned lane", {
+      lane, minSeconds: target.minSeconds, maxSeconds: target.maxSeconds, ceiling: REEL_OUTPUT_RULES.maxSeconds, renderCapSeconds: target.renderCapSeconds,
+    });
+  }
+  return target;
+}
+
 export async function generateReelBriefAI(
   input: GenerateReelBriefInput,
-): Promise<{ brief: ReelBrief; rawModel: string }> {
+): Promise<{ brief: ReelBrief; rawModel: string; durationLane?: DurationLaneId }> {
   // Resolve source provenance from DB
   const resolved = await resolveSourceProvenance(
     input.sourceType || "manual",
@@ -956,6 +1050,17 @@ ${buildFranchiseFragment(input.franchiseId)}`;
       "\"let's talk about\", a place-name preamble (\"In Cleveland, ...\"), and any trailing ellipsis. " +
       "Open with the symptom, the defect, or a direct question about it — e.g. \"Grinding means metal on metal\" or " +
       "\"What is hiding under your car?\". A viewer who leaves in three seconds never reaches the caption, so the first words carry the whole reel.";
+  }
+
+  // EXPERIMENT ARM — total length (duration_v1). The base prompt only bounds
+  // the storyboard at REEL_OUTPUT_RULES.minSeconds..maxSeconds (15-35 s); the
+  // "~20 s" every reel lands on is emergent — 5 beats x 4 s clips — not a
+  // target anything declares. This block is the first thing that DOES declare
+  // one, and only when a length_band experiment is running.
+  const durationTarget = await resolveDurationTarget(input);
+  if (durationTarget) {
+    systemPrompt += buildDurationLaneFragment(durationTarget);
+    log.info("reel brief: duration experiment lane", durationTarget);
   }
 
   // PATTERN LAB — captured STRUCTURE, appended late so it shapes execution
@@ -1232,5 +1337,5 @@ If any aspect is not perfect, rewrite the fields directly. OUTPUT ONLY the corre
   brief.promptPack = pPack;
   brief.higgsfieldPromptPack = pPack;
 
-  return { brief, rawModel: content };
+  return { brief, rawModel: content, ...(durationTarget ? { durationLane: durationTarget.lane } : {}) };
 }

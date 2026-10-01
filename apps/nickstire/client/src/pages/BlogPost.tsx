@@ -16,6 +16,7 @@ import PageLayout from "@/components/PageLayout";
 import { useRef, useEffect, useMemo, useState } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { getArticleBySlug, BLOG_ARTICLES, type BlogArticle } from "@shared/blog";
+import { rankRelatedArticles, validateServiceChips, serviceChipLabel } from "@shared/linkGraph";
 import { trpc } from "@/lib/trpc";
 import { deriveBlogSlug } from "@/lib/blogSlug";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
@@ -26,6 +27,7 @@ import {
 } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { BUSINESS } from "@shared/business";
+import { BRAKE_PRICE } from "@shared/pricing";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -121,12 +123,14 @@ function TableOfContents({ sections }: { sections: { heading: string }[] }) {
  * Map a blog category → the most relevant service slug for CTAs and the
  * cost-of-waiting/anchor copy. Keeps the in-content CTA contextual.
  */
+// Oil and pad prices interpolate the canonical constants: the literals here had
+// drifted to $29.99 (oil is $49) and $129 (pads start at $149).
 const CATEGORY_TO_SERVICE: Record<string, { slug: string; label: string; pitch: string }> = {
-  Brakes: { slug: "brakes", label: "Brake Service", pitch: "Free brake check. Pads from $129/axle. Pictures of worn parts before any replacement." },
-  Tires: { slug: "tires", label: "Tires & Wheels", pitch: "Free mount + balance + valve stems. New + inspected used tires from $25/installed. Walk-ins welcome." },
-  Diagnostics: { slug: "diagnostics", label: "Check Engine Light", pitch: "Free OBD-II code scan. $95 deeper check credited to repair if you say yes. We test before we replace." },
-  Maintenance: { slug: "oil-change", label: "Oil Change & Maintenance", pitch: "Full conventional oil change from $29.99. Free 27-point check every visit." },
-  Emissions: { slug: "emissions", label: "Emissions / E-Check", pitch: "Free pre-test before you waste a state appointment. We catch the actual cause, not just the code." },
+  Brakes: { slug: "brakes", label: "Brake Service", pitch: `Free brake check. Pads from $${BRAKE_PRICE.padsStarting}/axle. Pictures of worn parts before any replacement.` },
+  Tires: { slug: "tires", label: "Tires & Wheels", pitch: `Free mount + balance + valve stems. Used tires ${BUSINESS.usedTires.priceDisplay} (${BUSINESS.usedTires.fineprint}; ${BUSINESS.usedTires.typicalBand}). Walk-ins welcome.` },
+  Diagnostics: { slug: "diagnostics", label: "Check Engine Light", pitch: "Free OBD-II code scan. $49 full diagnostic, waived if you do the repair with us. We test before we replace." },
+  Maintenance: { slug: "oil-change", label: "Oil Change & Maintenance", pitch: `Conventional oil change ${BUSINESS.oilChange.conventionalPrice}. Free multi-point check every visit.` },
+  Emissions: { slug: "emissions", label: "Emissions / E-Check", pitch: "Free readiness check before you go back to the state test. We catch the actual cause, not just the code." },
   Electrical: { slug: "diagnostics", label: "Electrical Check", pitch: "Battery, alternator, starter testing free with any repair. Wiring + parasitic-draw work at $120/hr." },
   Transmission: { slug: "transmission", label: "Transmission Service", pitch: "Fluid + filter from $179. Full check before any major work — we tell you if a rebuild beats a repair." },
 };
@@ -243,7 +247,7 @@ function MidArticleCTA({ category }: { category: string }) {
   const svc = CATEGORY_TO_SERVICE[category] || {
     slug: "general-repair",
     label: "Cleveland's Local Mechanic",
-    pitch: "Free written estimate. 12-month parts / 90-day labor warranty. $10-down financing. Walk-ins welcome 7 days.",
+    pitch: "Free written estimate. 12-month parts / 90-day labor warranty. Payment programs from 4 providers. Walk-ins welcome 7 days.",
   };
   return (
     <FadeIn>
@@ -319,7 +323,7 @@ function UpgradedBottomCTA({ category }: { category: string }) {
           </p>
           <ul className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-y-1.5 gap-x-4 text-[13px] text-foreground/70">
             <li className="flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5 text-primary" /> 12-mo parts / 90-day labor warranty</li>
-            <li className="flex items-center gap-2"><CreditCard className="w-3.5 h-3.5 text-primary" /> $10-down financing available</li>
+            <li className="flex items-center gap-2"><CreditCard className="w-3.5 h-3.5 text-primary" /> Payment programs from 4 providers</li>
             <li className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-primary" /> Most repairs same/next day</li>
             <li className="flex items-center gap-2"><MessageSquare className="w-3.5 h-3.5 text-primary" /> Text updates throughout</li>
           </ul>
@@ -343,7 +347,7 @@ function UpgradedBottomCTA({ category }: { category: string }) {
             href="/financing"
             className="block text-center text-foreground/50 hover:text-primary text-[12px] uppercase tracking-wider font-semibold pt-2 transition-colors"
           >
-            Or check $10-down financing →
+            Or compare payment programs →
           </Link>
         </div>
       </div>
@@ -516,12 +520,22 @@ export default function BlogPost() {
     );
   }
 
-  // Related articles — pull from static registry. Keeps cross-linking predictable
-  // and ensures the reader is nudged toward hand-tuned content.
-  const related = BLOG_ARTICLES.filter(a => a.slug !== article.slug && a.category === article.category).slice(0, 2);
-  const moreRelated = related.length < 2
-    ? [...related, ...BLOG_ARTICLES.filter(a => a.slug !== article.slug && a.category !== article.category).slice(0, 2 - related.length)]
-    : related;
+  // Related articles — scored by topic (Jaccard on title+tags+headings, plus a
+  // same-category and shared-service bonus — shared/linkGraph), not by array
+  // position: the old pick was "first 2 same-category entries", so every one
+  // of the 20 "Tires" articles pointed at the same two. STATIC POOL ONLY: this
+  // page only queries `content.articleBySlug` (one article, on a static miss);
+  // it has no published-article list, and adding a list query to every blog
+  // view is a payload decision for a later PR, not a side effect of this one.
+  const moreRelated = rankRelatedArticles(
+    { ...article, headings: article.sections.map(s => s.heading) },
+    BLOG_ARTICLES,
+    2,
+  );
+  // Service chips: an article's own `relatedServices` is author-typed and was
+  // rendered unvalidated — validate against the route registry (registered +
+  // sitemap:true) and fall back to the tag→service prior when none survive.
+  const serviceChips = validateServiceChips(article.relatedServices, article.tags);
 
   // JSON-LD Article schema — tells Google this is a news/blog article with proper
   // metadata (author, publisher, dates). Big factor in rich-result eligibility.
@@ -723,24 +737,21 @@ export default function BlogPost() {
                 </FadeIn>
               )}
 
-              {/* Related Service Links */}
-              {article.relatedServices.length > 0 && (
+              {/* Related Service Links — validated through the route registry (see
+                  serviceChips above); label is the curated service name from
+                  @shared/internalLinks, not a de-hyphenated slug. */}
+              {serviceChips.length > 0 && (
                 <FadeIn>
                   <div className="mt-8 bg-card border border-primary/20 p-6">
                     <h3 className="font-bold text-lg text-foreground tracking-[-0.01em] mb-3">RELATED SERVICES</h3>
                     <div className="flex flex-wrap gap-3">
-                      {article.relatedServices.map(svc => (
+                      {serviceChips.map(svc => (
                         <Link
                           key={svc}
                           href={svc}
                           className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary px-4 py-2 font-bold text-xs tracking-wide hover:bg-primary/20 transition-colors"
                         >
-                          {/* Strip leading slash + replace ALL hyphens with spaces.
-                              Was `.replace("-", " ")` which only replaced the FIRST
-                              hyphen — `/synthetic-oil-change` rendered as
-                              "synthetic oil-change", `/pre-purchase-inspection` as
-                              "pre purchase-inspection". */}
-                          {svc.replace(/^\//, "").replace(/-/g, " ")}
+                          {serviceChipLabel(svc)}
                           <ArrowRight className="w-3 h-3" />
                         </Link>
                       ))}

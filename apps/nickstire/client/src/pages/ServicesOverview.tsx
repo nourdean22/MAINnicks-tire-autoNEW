@@ -71,7 +71,7 @@ const QUICK_PATHS = [
   {
     href: "/financing",
     title: "PAYMENT OPTIONS",
-    detail: BUSINESS.financing.downPayment,
+    detail: "4 providers",
   },
 ] as const;
 

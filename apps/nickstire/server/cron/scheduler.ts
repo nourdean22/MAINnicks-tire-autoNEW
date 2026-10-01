@@ -2273,6 +2273,13 @@ function buildTiers(): void {
       {
         name: "prompt-evolution-weekly",
         requiresEnv: "OLLAMA_API_KEY",
+        // Production 2026-09-28: this job hit the scheduler's 4-minute default
+        // and was marked failed while its Promise continued in the background.
+        // A full cycle serially ghost-replays train + holdout, generates bounded
+        // challengers, then scores the winner on holdout. Give that measured
+        // workload its own budget; the daily tier interval is 24h, so 30m stays
+        // comfortably below the tier cadence while still bounding a hung lane.
+        timeoutMs: 30 * 60 * 1000,
         handler: async () => {
           const { processPromptEvolutionWeekly } = await import("./jobs/promptEvolutionWeekly");
           return processPromptEvolutionWeekly();

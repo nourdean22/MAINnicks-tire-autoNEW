@@ -124,14 +124,14 @@ function generateDeterministicSections(input: CampaignInput): Partial<CampaignOu
     ],
     valueStack: `Core: ${priceStack.corePrice}. Includes: ${offer.whatsIncluded}. Guarantee: ${priceStack.guaranteeOrRefundTerms}.`,
     objectionsAndRebuttals: [
-      { objection: "It's too expensive", rebuttal: "We offer no-credit-check financing and clear ROI." },
+      { objection: "It's too expensive", rebuttal: "Payment programs are available, and the written quote comes before any work." },
       { objection: "It takes too long", rebuttal: `Delivered in ${offer.timeToConsumeOrFulfill}.` },
       { objection: "I don't trust you", rebuttal: "We provide written quotes before any work begins." },
       { objection: "Will it work for me?", rebuttal: `Yes, designed specifically for ${audience.whoItIsFor}.` },
       { objection: "What if it breaks?", rebuttal: `Covered by: ${priceStack.guaranteeOrRefundTerms}.` },
       { objection: "I can do it myself", rebuttal: "Save time and avoid costly mistakes by letting professionals handle it." },
       { objection: "I need it right now", rebuttal: "We offer rapid turnaround and drop-off advantages." },
-      { objection: "I had a bad experience elsewhere", rebuttal: "We earn your trust first with free initial inspections." },
+      { objection: "I had a bad experience elsewhere", rebuttal: "We earn your trust first with a free quick check and a written quote." },
     ],
     whoShouldNotBuy: [
       "People looking for the absolute cheapest, lowest quality option.",
@@ -244,30 +244,32 @@ function generateDeterministicSections(input: CampaignInput): Partial<CampaignOu
   };
 }
 
-function generateDeterministicCreative(): Partial<CampaignOutput> {
+function generateDeterministicCreative(input: CampaignInput): Partial<CampaignOutput> {
+  const guarantee = input.priceStack.guaranteeOrRefundTerms;
+  const freeCheck = "free quick check";
   // Deterministic fallback for creative sections if no LLM is provided
   const customerPsychologyMap = {
     microAvatars: [
       { name: "The Busy Professional", description: "Values time over money. Wants drop-off convenience." },
       { name: "The Safety-Conscious Parent", description: "Wants reliability and peace of mind for their family." },
-      { name: "The Budget-Minded Driver", description: "Wants honest pricing and financing options." }
+      { name: "The Budget-Minded Driver", description: "Wants honest pricing and payment programs." }
     ],
     messagingMap: {
-      cold: "Focus on pain points and the free inspection.",
+      cold: `Focus on pain points and the ${freeCheck}.`,
       warm: "Focus on reviews, trust, and specific mechanisms.",
-      hot: "Focus on the offer, financing, and immediate booking."
+      hot: "Focus on the offer, payment programs, and walking in today."
     },
-    whatToSay: ["Free inspection", "Written quote before work", "Financing available"],
+    whatToSay: [`A real ${freeCheck}`, "Written quote before work", "Payment programs available"],
     whatToAvoid: ["Guaranteed fixes", "Overnight results", "Fear-mongering"]
   };
 
   const adCopyFactory = Array.from({ length: 5 }).map((_, i) => ({
     bundleName: `Bundle ${i + 1}`,
-    shortPrimaryTexts: ["Need auto repair? We offer free inspections.", "Don't ignore that noise. Get a free check today."],
-    longPrimaryText: "Is your car making a strange noise? Don't wait until it breaks down. At Nick's Tire & Auto, we offer free initial inspections and written quotes before any work begins. Drop it off in the morning and we can usually have it done the same day. Plus, we offer no-credit-check financing. Click below to learn more.",
-    headlines: ["Free Auto Inspection", "Same Day Service", "No Credit Check Financing", "Top Rated Auto Shop", "Honest Auto Repair", "Drop Off Service", "Expert Mechanics"],
-    descriptions: ["Get a free written quote.", "Serving Cleveland for years.", "5-star rated service.", "Walk-ins welcome."],
-    ctaButtonRecommendations: ["Learn More", "Book Now", "Get Quote"]
+    shortPrimaryTexts: [`Hear a noise? Start with a ${freeCheck}.`, "Written quote before any wrench moves."],
+    longPrimaryText: `Is your car making a strange noise? Don't guess. At Nick's Tire & Auto you get a ${freeCheck} and a written quote before any work begins — you don't pay until you say yes. Walk in, no appointment. Payment programs available. ${guarantee}`,
+    headlines: [`Free Quick Check`, "Written Quote First", "Payment Programs Available", "Walk In, No Appointment", "Honest Auto Repair", "Drop-Offs Welcome", "ASE-Certified Techs"],
+    descriptions: ["Get a free written quote.", "Cleveland's walk-in tire & auto shop.", "You don't pay until you say yes.", "Walk-ins welcome 7 days."],
+    ctaButtonRecommendations: ["Learn More", "Call Now", "Get Quote"]
   }));
 
   const creativeTestingLab = {
@@ -277,7 +279,7 @@ function generateDeterministicCreative(): Partial<CampaignOutput> {
       hooks: ["Hear that noise?", "Check engine light on?", "Need tires fast?"],
       proofType: "Customer Review",
       visualDirection: "Mechanic inspecting a vehicle.",
-      ctaFraming: "Tap here to book your free inspection.",
+      ctaFraming: `Tap here for your ${freeCheck}.`,
       textSafeAreaGuidance: "Keep text in the middle 60% of the screen."
     })),
     creativeProductionChecklist: ["Record b-roll", "Get customer testimonials", "Format 9:16 and 4:5"],
@@ -298,13 +300,13 @@ function generateDeterministicCreative(): Partial<CampaignOutput> {
       hookFirst2Seconds: "Visual of a dashboard warning light turning on.",
       sceneBeats: ["Warning light", "Mechanic smiling", "Car driving smoothly"],
       onScreenTextPlan: "Don't ignore this light -> We fix it fast -> Drive safe",
-      endFrameCta: "Book your free check today"
+      endFrameCta: "Walk in for a free quick check"
     })),
     ugcScriptOutlines: Array.from({ length: 4 }).map(() => ({
       openingLine: "I thought my car repair was going to cost thousands...",
       storyArc: "Had a problem, was worried about cost, found Nick's, got a free quote, it was affordable.",
       proofMoment: "Show the written quote and the fixed car.",
-      cta: "If you need a mechanic you can trust, go to Nick's.",
+      cta: "If you need a mechanic who shows you the quote first, go to Nick's.",
       filmingNotes: "Film in your car, natural lighting, energetic tone."
     }))
   };
@@ -317,7 +319,7 @@ function generateDeterministicCreative(): Partial<CampaignOutput> {
       question: `FAQ Question ${i + 1}?`,
       answer: "We provide transparent, honest service."
     })),
-    riskReversalWording: "12-month / 12,000-mile warranty on most repairs."
+    riskReversalWording: guarantee
   };
 
   return {
@@ -332,7 +334,7 @@ function generateDeterministicCreative(): Partial<CampaignOutput> {
 export async function generateCampaignPlan(input: CampaignInput, llmProvider?: LlmProvider): Promise<CampaignOutput> {
   const deterministicBase = generateDeterministicSections(input);
   
-  let creativeSections = generateDeterministicCreative();
+  let creativeSections = generateDeterministicCreative(input);
   let metadataPreset = "deterministic-no-llm-provider";
 
   if (llmProvider) {
@@ -400,7 +402,7 @@ export async function generateCampaignPlan(input: CampaignInput, llmProvider?: L
     console.error("Falling back completely to deterministic due to schema failure.");
     const fallbackPlan: any = {
       ...deterministicBase,
-      ...generateDeterministicCreative(),
+      ...generateDeterministicCreative(input),
       exportMetadata: {
         generatedAt: new Date().toISOString(),
         version: "1.0.0",

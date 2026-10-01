@@ -150,7 +150,7 @@ export function buildSequenceMessage(params: BuildParams): string {
       case "3d":
         return `Hey ${firstName} — Nick's Tire & Auto here. That quote we wrote up is still on file. If cost is the holdup, we can show you payment options before you decide. Free re-check first, you don't pay until you say yes. Reply STOP to opt out.`;
       case "7d":
-        return `Hey ${firstName}, just following up on the quote from Nick's. If cost was the holdup, we can go over payment options with you. Pre-qualifying takes about a minute, no obligation. Free re-check anytime. (216) 862-0005. Reply STOP to opt out.`;
+        return `Hey ${firstName}, just following up on the quote from Nick's. If cost was the holdup, we can go over payment options with you. Each provider shows its terms before you sign, and there's no obligation. Free re-check anytime. (216) 862-0005. Reply STOP to opt out.`;
       case "14d":
         return `Nick's here. If you're still thinking about that work, we can look at payment options to help spread the cost. Free re-check first, written quote, you don't pay until you say yes. Reply STOP to opt out.`;
       case "30d":

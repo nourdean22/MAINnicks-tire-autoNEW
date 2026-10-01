@@ -130,7 +130,10 @@ function PillButton({
 // ─── REVIEW CARD ──────────────────────────────────────
 function ReviewCard({ review }: { review: { authorName: string; rating: number; text: string; relativeTime: string } }) {
   const [expanded, setExpanded] = useState(false);
-  const isLong = review.text.length > 200;
+  const isLong = (review.text ?? "").length > 200;
+  // Google lets a customer leave stars without writing anything. Those cards
+  // used to render an empty paragraph; say what they are instead.
+  const isRatingOnly = (review.text ?? "").trim().length === 0;
 
   return (
     <div className="bg-card/80 border border-border/30 rounded-lg p-6 break-inside-avoid mb-4">
@@ -154,9 +157,15 @@ function ReviewCard({ review }: { review: { authorName: string; rating: number; 
 
       {/* Review Text with keyword highlighting */}
       <div className="relative">
-        <p className={`text-foreground/70 leading-relaxed text-sm ${!expanded && isLong ? "line-clamp-4" : ""}`}>
-          {highlightKeywords(review.text)}
-        </p>
+        {isRatingOnly ? (
+          <p className="text-foreground/50 text-sm italic">
+            Left a {review.rating}-star rating without a written review.
+          </p>
+        ) : (
+          <p className={`text-foreground/70 leading-relaxed text-sm ${!expanded && isLong ? "line-clamp-4" : ""}`}>
+            {highlightKeywords(review.text)}
+          </p>
+        )}
         {isLong && (
           <button
             onClick={() => setExpanded(!expanded)}
@@ -306,7 +315,8 @@ export default function ReviewsPage() {
       "@type": "Review",
       author: { "@type": "Person", name: r.authorName },
       reviewRating: { "@type": "Rating", ratingValue: r.rating, bestRating: 5 },
-      reviewBody: r.text,
+      // A rating-only review has no body; omit the field rather than emit "".
+      ...((r.text ?? "").trim() ? { reviewBody: r.text } : {}),
     })),
   };
 

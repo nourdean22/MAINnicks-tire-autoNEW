@@ -1,188 +1,143 @@
 /**
- * NoCreditCheckTiresPage — targeted SEO landing for "no credit check
- * tires Cleveland" and the surrounding low-credit-tire query bracket.
+ * NoCreditCheckTiresPage — SEO landing for the "no credit check tires
+ * Cleveland" search, answered honestly.
  *
- * wave-181.5 · competitor-analyzer found this is a chain-free SERP
- * (Mavis/Conrad's/Firestone all require credit pulls; the SERP is
- * owned by a blog farm + one local "Tire And Auto" shop). Nick's $10
- * down + 4 sub-prime lenders (Acima · Snap · Koalafi · American First)
- * is the only honest answer in the Cleveland market — this page captures
- * that intent without competing for "financing" (which /financing owns).
+ * wave-181.5 built this page to capture a chain-free SERP. It did that by
+ * promising what the providers do not: "no credit check", "doesn't pull
+ * credit", "soft pre-qualification on all four", "decision in 60 seconds",
+ * "90-day same-as-cash", "most customers approve up to $5,000", plus an
+ * unsourced competitor down-payment table and accident-cost stats.
  *
- * Strategy:
- *   - Hero anchors $10 down + no FICO pull
- *   - Pricing tiers tied to financing buckets (used cheap / new mid /
- *     full set with brake bundle) so the reader sees actual numbers
- *   - Anchor table: chain down payment ($200+) vs Nick's ($10)
- *   - FAQ schema specifically about credit, soft pre-qual, repayment
- *   - Loss stats: cost of waiting (cascade)
- *   - Cross-sell to /financing for the full lender breakdown
- *
- * Internal links: every chain comparison page should link here as
- * the "if cash is tight" funnel — see /mavis-tire-alternative-cleveland.
+ * 2026-10-01 rewrite. Koalafi's own site says "we check your credit", and
+ * American First Finance says "credit may be checked", so the old headline
+ * was false for half the providers. The page keeps the URL and the search
+ * phrase (as a question it answers) and now says what is true: some programs
+ * don't need established credit, every provider reviews the application and
+ * decides approval, and the agreement shows the total cost. Provider facts
+ * come from shared/financing.ts, prices from BUSINESS, and the claim.* rules
+ * in shared/voice.ts block the old promises from coming back.
  */
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
+import { BUSINESS } from "@shared/business";
+import { FINANCING_PROVIDERS, PAYMENT_PROGRAMS_SHORT } from "@shared/financing";
 import { Disc, DollarSign, ShieldCheck } from "lucide-react";
+
+const USED = BUSINESS.usedTires;
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/no-credit-check-tires-cleveland",
   heroImage: "/photos/shopfront-clear-vertical-sign-bays.webp",
-  title: "No Credit Check Tires Cleveland · $10 Down · 4 Lenders | Nick's",
-  description: "Cleveland tire shop that doesn't pull credit. $10 down, soft pre-qualification, 4 lenders. Used tires from $25 installed, new from quote. Walk in 7 days. (216) 862-0005",
-  eyebrow: "NO CREDIT CHECK TIRES CLEVELAND",
-  h1: "NO CREDIT CHECK TIRES.\n$10 DOWN · WALK IN ANY DAY.",
-  sub: "Cleveland tire shop that doesn't pull credit. Soft pre-qualification — no FICO ding, no hard inquiry on your report. Four lenders compete for your business (Acima, Snap, Koalafi, American First) so when one says no, the next says yes. $10 starts most approvals. You pick used tires from $25 or new from $89, sign on the tablet, walk out on new tires the same visit when capacity allows. The chains want $200 down and a credit card. Nick's wants $10 and your phone number.",
-  startingPrice: "$10 down · 4 lenders · no hard credit pull",
-  pricingTitle: "WHAT $10 DOWN GETS YOU AT NICK'S",
-  pricingSub: "Real out-the-door pricing — mount, balance, valve stems, TPMS reset, and alignment check included. Financing splits the rest into manageable bites.",
+  // Title and description mirror shared/routes.ts so the prerendered head and
+  // the live SPA agree. The search phrase stays, as a question this page answers.
+  title: "No Credit Check Tires Cleveland? Straight Answers | Nick's",
+  description: "Searching for no credit check tires? Straight answer: all 4 payment providers review applications, but some don't need established credit. Walk in 7 days.",
+  eyebrow: "TIRE PAYMENT OPTIONS · CLEVELAND",
+  h1: "SEARCHING FOR NO CREDIT CHECK TIRES?\nHERE'S THE STRAIGHT ANSWER.",
+  sub: `Every payment provider we work with reviews your application. Koalafi says it checks credit, and American First Finance says credit may be checked. What some of them don't need is established credit. The provider decides approval and terms, and you see the total cost before you sign. Used tires ${USED.priceDisplay} (${USED.fineprint}; ${USED.typicalBand}). New ${BUSINESS.newTires.priceDisplay}.`,
+  startingPrice: "4 payment providers · each decides approval",
+  pricingTitle: "WHAT A SET OF TIRES COSTS AT NICK'S",
+  pricingSub: "Out-the-door pricing: mount, balance, valve stems, TPMS reset and alignment check included. A payment program can spread the cost; its agreement shows the total before you sign.",
   tiers: [
     {
       name: "Used Set of 4",
+      // FocusedServicePage turns tier.price into Offer JSON-LD by stripping
+      // non-digits, so a range here would publish "160320". One floor only.
       price: "From $160",
-      sub: "$25/tire installed · $10 down on financing",
-      use: "DOT-dated tires with measured tread depth — the honest used tire that gets you legal and through Cleveland winter for cheap.",
+      sub: `${USED.typicalBand}; from $25 on ${USED.fineprint}`,
+      use: "DOT-dated tires with measured tread depth. The honest used tire that gets you legal and through a Cleveland winter.",
     },
     {
       name: "New Set of 4",
       price: "From $356",
-      sub: "$89/tire installed · $10 down on financing",
-      use: "Fresh treadwear, full warranty, road-hazard coverage available. The set that lasts 4 Cleveland seasons without ever skipping a hill.",
+      sub: `${BUSINESS.newTires.priceDisplay} per tire`,
+      use: "Fresh tread. Tell us your budget and we'll show you what fits it.",
       featured: true,
     },
     {
-      name: "Tires + Brakes Bundle",
-      price: "Estimate free",
-      sub: "Financed together · single payment plan",
-      use: "Walking in for tires but the brakes also screamed at you on the way over? One financing application covers both — most customers approve up to $5,000.",
+      name: "Tires + Brakes",
+      price: "Free estimate",
+      sub: "One written estimate for both",
+      use: "Brakes squealing on the way over? We check them free and put both jobs on one written estimate before any work, so you apply for the right amount.",
     },
   ],
-  includedTitle: "WHY $10 BEATS $200 DOWN AT THE CHAINS",
-  includedSub: "Every chain runs a different math problem. Nick's runs one number — $10 starts the cars.",
+  includedTitle: "HOW THE FOUR PAYMENT PROGRAMS WORK",
+  includedSub: "Four independent providers. Each runs its own application and sets its own terms.",
+  // Straight from shared/financing.ts, so this list cannot drift from /financing.
   included: [
-    "Soft pre-qualification — no hard credit inquiry, no FICO ding",
-    "4 separate lenders (Acima · Snap · Koalafi · American First) — if one declines, the next reviews",
-    "Approval based on bank account history, not credit score",
-    "Decision in 60 seconds from your phone — no paperwork",
-    "$10 minimum down vs. $200+ at Firestone, Mavis, Conrad's",
-    "90-day same-as-cash on Acima (pay off in 90d = no interest)",
-    "Up to $7,500 financing cap on Koalafi for major work",
-    "Early-buyout discounts at any time, on every lender",
+    ...FINANCING_PROVIDERS.map((p) => `${p.name} (${p.typeLabel}): ${p.creditCheck}`),
+    "Initial payment varies by provider and agreement. Acima's $10 start is offered only in select circumstances",
+    "Early purchase or payoff options can lower the total cost; the agreement controls",
+    "You see the payment schedule and total cost before you sign",
+    "We inspect the car and write the estimate first, so you apply for the right amount",
   ],
   faqs: [
     {
-      q: "Do you actually approve customers with bad credit or no credit?",
-      a: "Yes — every day. Our 4 lenders look at different data: Acima approves on bank-account history (not FICO). Snap uses its own model. Koalafi adds another lens. American First handles the longer terms. When one says no, the next reviews. The honest line: roughly the majority of applicants qualify for at least one of the four, but exact rates vary by income, history, and amount. We never quote a fake approval percentage — call us with your numbers and we'll tell you what's realistic.",
+      q: "Can I get tires with no credit check?",
+      a: "Yes, if you pay cash or card. With a payment program, every provider reviews your application: Acima uses consumer-report data, Snap says applying won't affect your FICO score but may affect another consumer-report score, Koalafi says it checks credit through alternative credit bureaus, and American First Finance may check credit. What some of them don't need is an established credit history. Apply, see what the provider offers, and decide.",
     },
     {
       q: "Will applying hurt my credit score?",
-      a: "No. All four lenders run a soft pre-qualification first — that's a credit check that doesn't show on your report and doesn't drop your score. Only AFTER you're approved and sign do they finalize, and even then several of our lenders don't report to the major bureaus. If credit anxiety is what's stopping you from getting tires, this is the path. Call 216-862-0005 and ask for soft pre-qual.",
+      a: "It depends on the provider. Snap says applying won't affect your FICO score, though another consumer-report score may be affected. Koalafi says its check runs through alternative bureaus and doesn't touch your FICO score, though it may change your score at those bureaus, and that it reports lease payments to TransUnion. American First Finance may run soft and hard credit checks. Read each provider's disclosure before you submit.",
     },
     {
-      q: "What's the catch with $10 down?",
-      a: "Honest answer: financed pricing includes finance charges, so the total over the term is more than the cash price. Acima offers a 90-day same-as-cash window — pay it off in 90 days and you pay nothing beyond the original tire price. After 90 days, fees apply. The $10 isn't a gimmick — it's a real down payment that starts the contract. Read the agreement on the tablet before you sign. We'll walk through every line.",
+      q: "What's the catch?",
+      a: "A payment program costs more than paying cash if you run the full term. Early purchase or payoff options can lower the total; the deadline and the savings vary by provider and agreement. The agreement shows the payment schedule and the total cost before you sign. Read it, and ask us anything.",
     },
     {
-      q: "Can I finance used tires?",
-      a: "Yes. Most chain financing won't cover used tires (or even sell them). Nick's used tires from $25 installed CAN be financed through our 4 lenders — the same $10 minimum down applies. A used set of 4 ($160) is small enough that most customers pay it off inside the 90-day same-as-cash window with no interest.",
+      q: "Can I use a payment program on used tires?",
+      a: `Ask at the counter: each provider decides which purchases qualify. Used tires are ${USED.priceDisplay} (${USED.fineprint}; ${USED.typicalBand}), so many customers pay for a used set outright.`,
     },
     {
       q: "How is this different from your /financing page?",
-      a: "Same lenders, different lens. /financing covers the full lender comparison — best for customers shopping the program itself. This page is for customers searching specifically for 'no credit check tires' — the answer is yes, here's how. Both pages link to the same pre-qualification form.",
+      a: "Same four providers. /financing compares them side by side with each one's disclosure. This page answers the 'no credit check tires' search directly.",
     },
     {
-      q: "What if I'm declined by all 4 lenders?",
-      a: "It happens. When it does, we tell you straight, then walk through the options: a smaller used set ($160 cash gets you on the road today), a payment plan held on a debit card, or come back when your bank balance shows stronger activity (Acima looks at the last 90 days). We don't lecture and we don't ghost. The crew is here Monday-Saturday 8-6 and Sunday 9-4 — come in and let's figure it out.",
+      q: "What if no provider approves me?",
+      a: `It happens. We'll tell you straight and walk through what's left: a smaller or used set you can pay for today, or replacing the most urgent tire first. We're here ${BUSINESS.hours.display}.`,
     },
     {
-      q: "How long does the financing approval take?",
-      a: "60 seconds. Pre-qualification is instant on your phone — you scan a QR code or text NICK to a number, fill in 4 fields, and see the offers. The actual install takes 60-90 minutes. Most customers are in and out in under 2 hours including the financing paperwork.",
+      q: "How fast is the decision?",
+      a: "That's the provider's call, not ours. Snap says a decision may be available in seconds; other providers can take longer, and some applications need more review.",
     },
     {
-      q: "Why don't Firestone, Mavis, or Conrad's offer this?",
-      a: "They do offer financing — but only through a single credit card (Firestone CFNA, Mavis card, Conrad's via Affirm). Single-lender means a single approval pool — if you don't fit their model, you don't drive home. Nick's runs 4 lenders so the approval pool is 4× bigger. Plus chain financing typically requires a higher down payment ($149 minimum at Firestone CFNA), where Nick's runs $10.",
+      q: "Do I need an appointment?",
+      a: `No. First come, first served, 7 days a week. Walk in or drop off at ${BUSINESS.address.full}.`,
     },
   ],
   bookingService: "tires",
-  serviceType: "Tire Financing · No Credit Check",
-  ctaHeadline: "GET PRE-QUALIFIED · $10 DOWN, NO HARD CREDIT PULL",
-  ctaSub: "Soft pre-qual in 60 seconds. No FICO ding. Call (216) 862-0005 or walk in to 17625 Euclid Ave — we'll run the application on the tablet and you'll have an answer before the coffee cools.",
-
-  anchorTable: {
-    serviceName: "Tire financing down payment, Cleveland market",
-    rows: [
-      { label: "Firestone CFNA card (hard credit pull)", price: "$149 min" },
-      { label: "Conrad's via Affirm (soft pull, single lender)", price: "Up to $50 down" },
-      { label: "Mavis card (hard credit pull)", price: "~$100+ down" },
-      { label: "Nick's Tire & Auto — 4 lenders, soft pull", price: "$10 down", ours: true },
-    ],
-    source: "Source: live competitor pages + lender T&Cs as of May 2026. Down-payment ranges typical for $400 tire set, vary by amount financed and credit profile.",
-  },
-
-  fearStats: {
-    heading: "What waiting on tires actually costs in Cleveland.",
-    stats: [
-      {
-        value: "47%",
-        consequence: "Increase in stopping distance on bald tires (≤2/32\" tread) on wet Cleveland pavement. The difference between stopping at the crosswalk and stopping in it.",
-        source: "NHTSA tire-wear stopping-distance research.",
-      },
-      {
-        value: "$3,200",
-        consequence: "Average cost of a single rear-end accident in Ohio when bald tires were the contributing factor. The $80 new tire turns into a $3,200 repair bill plus an insurance premium hike.",
-      },
-      {
-        value: "11%",
-        consequence: "MPG loss on improperly inflated or worn tires. On a 12,000-mile/yr commute that's $200+ in extra gas per year — more than a financed set of tires costs in finance charges.",
-      },
-    ],
-  },
-
-  lossStats: [
-    {
-      amount: 1.50,
-      unit: "per gallon",
-      label: "in MPG you're losing to bald tires",
-      reason: "Worn tires + low pressure cost the average Cleveland commuter ~11% on fuel economy. Every week you wait costs the difference at the pump.",
-    },
-    {
-      amount: 80,
-      unit: "per tire",
-      label: "you'd pay financed instead of cash",
-      reason: "$80 new tire = ~$10 down + ~$15/week × 8 weeks on most plans. Half the cost of skipping a single Browns game. No FICO ding to find out if you qualify.",
-      ctaHref: "tel:+12168620005",
-      ctaLabel: "Call · 60s pre-qual",
-    },
-  ],
+  serviceType: "Tire Sales & Installation",
+  ctaHeadline: "APPLY WITH THE PROVIDER · SEE YOUR TERMS FIRST",
+  ctaSub: `${PAYMENT_PROGRAMS_SHORT}. Apply online or at the counter. Call ${BUSINESS.phone.display} or walk in to ${BUSINESS.address.full}.`,
 
   crossSell: {
-    heading: "Want the full lender breakdown? Got brakes too?",
+    heading: "Want the full provider comparison? Got brakes too?",
     items: [
       {
         tone: "info",
-        symptom: "I want the full financing comparison — all 4 lenders.",
-        consequence: "Choosing the wrong lender means paying more in finance charges or hitting a payment cap when you needed bigger.",
-        relief: "Our /financing page ranks the 4 lenders by tier (TRY FIRST · BACKUP · BIGGEST AMOUNT) with an honest payment calculator.",
-        ctaLabel: "See the lender hierarchy",
+        symptom: "I want to compare all four providers.",
+        consequence: "The products differ: lease-to-own, installment and loan options cost different amounts over the term.",
+        relief: "Our /financing page lays out each provider's product type, published maximum and disclosure side by side.",
+        ctaLabel: "Compare the providers",
         ctaHref: "/financing",
         icon: <DollarSign className="w-5 h-5" />,
       },
       {
         tone: "warning",
         symptom: "Brakes also squealing on the way over?",
-        consequence: "One financing application can bundle tires + brakes into a single payment plan — most customers approve up to $5,000 with no extra paperwork.",
-        relief: "Nick's runs the free brake inspection while we mount tires. Same lift, same crew, same payment plan.",
-        ctaLabel: "Brake inspection — free",
+        consequence: "Applying once for the full job beats a second application later.",
+        relief: "We run the free brake check while we're looking at your tires, then write one estimate for both.",
+        ctaLabel: "Brake check — free",
         ctaHref: "/brakes",
         icon: <Disc className="w-5 h-5" />,
       },
       {
         tone: "info",
         symptom: "I'm not sure what credit I have or whether I'll qualify.",
-        consequence: "Most people overestimate the damage of past credit issues — and the chains' single-lender models make it worse.",
-        relief: "Pre-qual is soft — no FICO ding, no hard inquiry. Run it on your phone before you even drive over.",
-        ctaLabel: "Call · soft pre-qual in 60s",
-        ctaHref: "tel:+12168620005",
+        consequence: "Nobody can tell you that before you apply, including us.",
+        relief: "Each provider's disclosure says how it checks credit. Read it, apply with the one that fits, and see the offer before you sign anything.",
+        ctaLabel: "Call the shop",
+        ctaHref: BUSINESS.phone.href,
         icon: <ShieldCheck className="w-5 h-5" />,
       },
     ],

@@ -10,6 +10,7 @@
 import { Disc, Wrench, Activity } from "lucide-react";
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
 import { useReviewStats } from "@/hooks/useReviewStats";
+import { PAYMENT_PROGRAMS_FAQ_ANSWER } from "@shared/financing";
 
 // A FUNCTION, not a module constant: the rating and review count are live
 // (useReviewStats), and a module-scope object is built once at import time —
@@ -59,7 +60,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
     { q: "Do you have my tire size in stock?", a: "We stock 12+ common sizes in both new and used (225/65R17, 245/60R18, 265/65R17, etc.). For special sizes, performance, or winter tires, we can usually have them same-day from local warehouses or next-day from national distributors. Call (216) 862-0005 with your size and we'll confirm." },
     { q: "Can you fix a flat tire instead of replacing it?", a: "If the puncture is in the tread area (not sidewall) and under 1/4\" wide, yes — we patch-plug from the inside. Flat repair is one of our cheapest line items; we'll quote it on inspection. If the puncture is in the sidewall or the tire was driven flat, it needs replacement — we'll show you exactly why and give you options." },
     { q: "Do you do alignment and rotation?", a: "Yes — both. Rotation is free if you bought the tires here within the last 12 months. Alignment (front-end or four-wheel) gets a written estimate based on your vehicle. We check alignment free on every tire install — you'll know if you need one before you pay." },
-    { q: "Do you finance tires?", a: "Yes — we offer $10 down financing through Snap Finance, Acima, and Koalafi. Pre-approval takes 2 minutes, no hard credit pull. Most customers can roll a 4-tire install into a manageable monthly payment. Ask at the counter or apply on our financing page." },
+    { q: "Do you finance tires?", a: PAYMENT_PROGRAMS_FAQ_ANSWER },
   ],
   bookingService: "tires",
   serviceType: "Tire Installation",

@@ -198,7 +198,7 @@ export default function PayInvoice() {
 
                   {/* Financing option */}
                   <div className="mt-4 pt-3 border-t border-border/20 text-center">
-                    <p className="text-[11px] text-muted-foreground mb-2">Need financing?</p>
+                    <p className="text-[11px] text-muted-foreground mb-2">Want to pay over time?</p>
                     <div className="flex gap-2 justify-center">
                       <a
                         href="https://getsnap.snapfinance.com/lease/en-US/consumer/apply?ep=store-locator&merchantId=490295617&externalMerchantId=77661"
@@ -216,7 +216,7 @@ export default function PayInvoice() {
                         <Shield className="w-3 h-3" /> Acima
                       </a>
                     </div>
-                    <p className="text-[9px] text-muted-foreground mt-1">Apply in seconds. No hard credit check.</p>
+                    <p className="text-[9px] text-muted-foreground mt-1">Some don&apos;t require established credit. Each provider decides approval and terms.</p>
                   </div>
                 </div>
               )}

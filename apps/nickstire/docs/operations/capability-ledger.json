@@ -3308,6 +3308,37 @@
         "Production conversion delivery/read-back remains a post-merge operational verification."
       ],
       "lastVerifiedAt": "2026-10-01"
+    },
+    {
+      "capabilityId": "customer-conversation-tuning-20261001",
+      "name": "Customer-corpus-informed SMS and voice guidance preserves safety, truthful pricing boundaries, thread continuity, and useful discriminating questions",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "PR #2839 branch audit/customer-conversation-tuning-20260930: 90-day customer-corpus tuning across SMS persona, reply planner, Vapi guidance, and safety handling.",
+        "tests": [
+          "server/vapi.customer-corpus-tuning.test.ts and server/vapi.cel-flashing.test.ts pin voice-receptionist behavior from the observed customer corpus.",
+          "server/nickSmsPersona.test.ts, server/smsSafetyGuidance.test.ts, and server/smsStopSelling.test.ts pin thread continuity, one-question behavior, safety-first handling, truthful pricing, and non-diagnostic brake guidance."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Read-only VAPI inspection on 2026-09-30 showed the live receptionist still carried the stale tire-first, comparative, and brake wording. The repo prompt change is not a live VAPI change until an operator pushes the latest config and the provider prompt is read back."
+        },
+        {
+          "severity": "P3",
+          "description": "NickGPT Ollama URL/model were absent in the production environment during the 2026-09-30 audit; recent NickGPT drafts used fallback-openai, so local-model-specific behavior is not verified."
+        }
+      ],
+      "deferredScope": [
+        "Operator VAPI config push, provider prompt hash/read-back, and a sample-call verification.",
+        "Post-merge SMS sample review and outcome measurement; the committed audit contains aggregates only, not raw customer PII or full transcripts."
+      ],
+      "lastVerifiedAt": "2026-10-01"
     }
   ],
   "axes": {

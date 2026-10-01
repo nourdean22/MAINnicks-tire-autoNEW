@@ -5,6 +5,12 @@
  * Problem → Explanation → Diagnostic Authority → Solution → Local Trust → CTA structure.
  */
 
+import { OIL_COUPON, OIL_PRICE, oilCouponActive } from "./pricing";
+import { OHIO_ECHECK } from "./echeck";
+
+/** " with coupon code NICKSOIL" while the coupon runs (shared/pricing.ts), then "". */
+const OIL_COUPON_CLAUSE = oilCouponActive() ? ` with coupon code ${OIL_COUPON.code}` : "";
+
 export interface ServiceData {
   slug: string;
   num: string;
@@ -87,10 +93,10 @@ export const SERVICES: ServiceData[] = [
     metaTitle: "Tire Shop Cleveland · Walk-In 7 Days · From $40 | Nick's",
     metaDescription: "New & used tires in Cleveland & Euclid. Free installation package included in estimate. Walk in 7 days, payment programs available. Call (216) 862-0005.",
     heroHeadline: "Tires from $40.\nOr whatever your budget says.",
-    heroSubline: "Pull up, stay in your car — we come out to you. Used tires from $25, new tires from all major brands. In and out in under 20 minutes for tire repairs. Rain or shine, like a pit stop. Cleveland's top-rated tire shop.",
+    heroSubline: "Pull up, stay in your car — we come out to you. Used tires from $25 (select 12-inch; most $40-80), new tires from all major brands. In and out in under 20 minutes for tire repairs. Rain or shine, like a pit stop. Cleveland's top-rated tire shop.",
     heroCTA: "GET A TIRE QUOTE",
     turnaround: "Most tire repairs done in under 20 minutes. Full installations under an hour. Walk-ins welcome — just pull up.",
-    pricingNote: "Stay in your car · We come to you · Used tires from $25 · All major brands",
+    pricingNote: "Stay in your car · We come to you · Used tires from $25 (select 12-inch; most $40-80) · All major brands",
     urgencyNote: "Tires below the legal tread limit triple your stopping distance on wet roads. Cleveland's freeze-thaw cycles and potholes accelerate wear — don't wait for a blowout.",
     signs: [
       "Tread depth below 2/32 of an inch (the penny test)",
@@ -166,7 +172,7 @@ export const SERVICES: ServiceData[] = [
       "Torque to manufacturer spec",
     ],
     pricingTiers: [
-      { label: "New tires (each)", range: "$80–$250" },
+      { label: "New tires (each)", range: "$89–$250" },
       { label: "Used tires (each)", range: "$40–$80" },
       { label: "Flat repair", range: "$15–$25" },
       { label: "TPMS sensor", range: "$45–$85" },
@@ -376,11 +382,11 @@ export const SERVICES: ServiceData[] = [
     ],
     pricingTiers: [
       { label: "Basic code read", range: "FREE" },
-      { label: "Full diagnostic evaluation", range: "$59.99" },
+      { label: "Full diagnostic evaluation", range: "$49" },
       { label: "Diagnostic fee credited toward repair", range: "Yes" },
     ],
     duration: "30-60 min",
-    startingPrice: "$59.99 (credited toward repair)",
+    startingPrice: "$49 (waived if you do the repair with us)",
     priceRange: "",
     whyChooseUs: "We test before we replace -- no parts guessing. Our advanced OBD-II scanners and live data analysis pinpoint the exact failed component so you only pay for what you need. Diagnostic fee is credited toward your repair, and everything is backed by our 12-month warranty.",
     commonSymptoms: [
@@ -397,16 +403,16 @@ export const SERVICES: ServiceData[] = [
     slug: "emissions",
     num: "04",
     title: "EMISSIONS & E-CHECK REPAIR",
-    shortDesc: "Failed Ohio E-Check? We diagnose and repair emissions problems — oxygen sensors, EVAP leaks, catalytic converters — and get you passing.",
+    shortDesc: "Failed Ohio E-Check? We diagnose and repair emissions problems — oxygen sensors, EVAP leaks, catalytic converters — then you retest at an official station.",
     // 2026-09-16 · claim-safety fix — "Pass Guaranteed" is an unsupported
     // promise (turnaround below says "Most emissions repairs completed in
     // 1-2 days," never a guarantee) and AGENTS.md bans "guaranteed" outright.
     // Unified with routes.ts:372's title so prerendered HTML and the live SPA
     // can't disagree.
     metaTitle: "Failed E-Check Cleveland · Free Readiness Check | Nick's",
-    metaDescription: "Failed your Ohio E-Check? Free readiness check + we fix the failure — O2 sensors, EVAP, catalytics. State tests; we get you passing. Same-day diagnosis. (216) 862-0005.",
-    heroHeadline: "Failed E-Check?\nWe'll get you passing.",
-    heroSubline: "The state runs the official E-Check — we run a FREE readiness check that tells you if you'll pass, then diagnose and repair the exact emissions problem and make sure all monitors complete so you pass the official test.",
+    metaDescription: "Failed your Ohio E-Check? Free readiness check, then we fix what failed: O2 sensors, EVAP leaks, catalytic converters. The state runs the test. (216) 862-0005.",
+    heroHeadline: "Failed E-Check?\nWe'll find what failed.",
+    heroSubline: "The state runs the official E-Check — we run a FREE readiness check that shows whether your car is ready to test, then diagnose and repair the exact emissions problem and help the monitors complete before you retest.",
     heroCTA: "SCHEDULE E-CHECK REPAIR",
     turnaround: "Most emissions repairs completed in 1–2 days. Drive cycle verification included.",
     pricingNote: "Free E-Check report review · Honest assessment if repair cost exceeds vehicle value",
@@ -422,7 +428,7 @@ export const SERVICES: ServiceData[] = [
     problems: [
       {
         question: "Failed Ohio E-Check?",
-        answer: "Ohio E-Check failures are usually caused by a check engine light, incomplete readiness monitors, or high tailpipe emissions. Many shops just clear the code and send you back — which does not work because the monitors need time to reset. We diagnose the actual cause, repair it, and ensure all emissions monitors complete before you return for re-testing.",
+        answer: "Ohio E-Check failures are usually caused by a check engine light, incomplete readiness monitors, or stored emissions trouble codes. Many shops just clear the code and send you back — which does not work because the monitors need time to reset. We diagnose the actual cause, repair it, and ensure all emissions monitors complete before you return for re-testing.",
       },
       {
         question: "Check engine light causing E-Check failure?",
@@ -460,7 +466,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "How much does it cost to fix an E-Check failure in Cleveland?",
-        answer: "The cost depends entirely on what caused the failure — a loose gas cap and a catalytic converter are very different repairs. That is why Nick's starts with a free readiness check and a written estimate before any work: you see exactly what failed and what fixing it takes before you commit to anything. Payment programs are available, and checking approval does not require a credit history or a hard credit pull."
+        answer: "The cost depends entirely on what caused the failure — a loose gas cap and a catalytic converter are very different repairs. That is why Nick's starts with a free readiness check and a written estimate before any work: you see exactly what failed and what fixing it takes before you commit to anything. Payment programs are available: some do not require established credit, and each provider decides approval."
       },
       {
         question: "How long does it take to fix an emissions problem?",
@@ -468,7 +474,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "What Ohio counties require E-Check testing?",
-        answer: "Ohio E-Check emissions testing is required in seven Northeast Ohio counties: Cuyahoga, Geauga, Lake, Lorain, Medina, Portage, and Summit. Vehicles model year 1996 and newer that are registered in these counties must pass the E-Check every two years. The test is an OBD-II scan that checks for emissions-related trouble codes and monitor readiness."
+        answer: `Ohio E-Check emissions testing is required in seven Northeast Ohio counties: Cuyahoga, Geauga, Lake, Lorain, Medina, Portage, and Summit. ${OHIO_ECHECK.scope.display} The test is an OBD-II scan that checks for emissions-related trouble codes and monitor readiness.`
       }
     ],
     includedItems: [
@@ -488,7 +494,7 @@ export const SERVICES: ServiceData[] = [
     duration: "Free check now / 1-2 days (repair)",
     startingPrice: "FREE E-Check check",
     priceRange: "",
-    whyChooseUs: "The state runs the official E-Check — we run a free readiness check that tells you if you'll pass before you go, and we fix it if you won't. We specialize in Ohio E-Check failures and know the exact drive cycles to get your monitors to complete fast. We fix the root cause -- not just clear codes. Walk-ins 7 days, same-day diagnosis, and a 12-month parts / 90-day labor warranty on repairs.",
+    whyChooseUs: "The state runs the official E-Check — we run a free readiness check that shows whether your car is ready to test, and we repair what isn't ready. We specialize in Ohio E-Check failures and know the exact drive cycles to get your monitors to complete fast. We fix the root cause -- not just clear codes. Walk-ins 7 days, same-day diagnosis, and a 12-month parts / 90-day labor warranty on repairs.",
     commonSymptoms: [
       "Failed Ohio E-Check inspection",
       "Check engine light before emissions test",
@@ -512,7 +518,7 @@ export const SERVICES: ServiceData[] = [
     metaTitle: "Oil Change Cleveland · From $49 · Same-Day Walk-In | Nick's",
     metaDescription: "Cleveland oil change from $49 (full synthetic from $80) — new filter + free multi-point check, in and out before your coffee's cold. Walk-ins 7 days. (216) 862-0005",
     heroHeadline: "OIL CHANGE\nCLEVELAND OH",
-    heroSubline: "Looking for an oil change in Cleveland? Conventional or synthetic-blend just $49 with coupon code OIL2999. Full synthetic from $80. New filter, free multi-point inspection. First-come, first-served — no appointment, no drop-off. Pull up, have a seat, and you're out before your coffee's cold.",
+    heroSubline: `Looking for an oil change in Cleveland? Conventional or synthetic-blend just $${OIL_PRICE.conventional}${OIL_COUPON_CLAUSE}. Full synthetic from $${OIL_PRICE.fullSynthetic}. New filter, free multi-point inspection. First-come, first-served — no appointment, no drop-off. Pull up, have a seat, and you're out before your coffee's cold.`,
     heroCTA: "GET YOUR OIL CHANGED",
     turnaround: "Most oil changes done in 15 minutes. No appointment needed. We're the fastest in the city — check our reviews.",
     pricingNote: "Free multi-point inspection with every oil change · Correct oil weight per manufacturer spec",
@@ -566,7 +572,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "How much does an oil change cost in Cleveland?",
-        answer: "At Nick's Tire & Auto, a conventional or synthetic-blend oil change is $49 with coupon code OIL2999, and full synthetic starts at $80, plus tax. Every oil change includes a new filter and a free multi-point check. Mention the code when you arrive. Call (216) 862-0005."
+        answer: `At Nick's Tire & Auto, a conventional or synthetic-blend oil change is $${OIL_PRICE.conventional}${OIL_COUPON_CLAUSE}, and full synthetic starts at $${OIL_PRICE.fullSynthetic}, plus tax. Every oil change includes a new filter and a free multi-point check.${OIL_COUPON_CLAUSE ? " Mention the code when you arrive." : ""} Call (216) 862-0005.`
       },
       {
         question: "What is the difference between synthetic and conventional oil?",
@@ -578,7 +584,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I get an oil change near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 offers oil changes: $49 conventional/blend with coupon code OIL2999, $80 full synthetic, plus tax. Every oil change includes a free multi-point check. Walk-ins welcome 7 days a week, most done in 15 minutes. Call (216) 862-0005."
+        answer: `Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 offers oil changes: $${OIL_PRICE.conventional} conventional/blend${OIL_COUPON_CLAUSE}, $${OIL_PRICE.fullSynthetic} full synthetic, plus tax. Every oil change includes a free multi-point check. Walk-ins welcome 7 days a week, most done in 15 minutes. Call (216) 862-0005.`
       }
     ],
     includedItems: [
@@ -590,7 +596,7 @@ export const SERVICES: ServiceData[] = [
       "Oil life monitor reset",
     ],
     pricingTiers: [
-      { label: "Conventional / synthetic blend (coupon OIL2999)", range: "$49" },
+      { label: `Conventional / synthetic blend${oilCouponActive() ? ` (coupon ${OIL_COUPON.code})` : ""}`, range: `$${OIL_PRICE.conventional}` },
       { label: "Full synthetic", range: "From $80" },
     ],
     duration: "15-30 min",
@@ -718,8 +724,8 @@ export const SERVICES: ServiceData[] = [
     num: "07",
     title: "AC & HEATING",
     shortDesc: "AC recharge, compressor, condenser, evaporator, heater core, and blower motor repair. Stay comfortable year-round.",
-    metaTitle: "AC Repair Cleveland · Cold Air By Lunch · $10 Down | Nick's",
-    metaDescription: "Cleveland car AC repair — leak test with UV dye, recharge, compressor, condenser, heater core. Most jobs blow cold by lunch. Free check. (216) 862-0005.",
+    metaTitle: "AC Repair Cleveland · Open 7 Days · Written Quote | Nick's",
+    metaDescription: "Cleveland car AC repair — leak test with UV dye, recharge, compressor, condenser, heater core. Written quote before work. Free check. (216) 862-0005.",
     heroHeadline: "Cold air, fast —\nor we keep working.",
     heroSubline: "Everything you need to know about your car's air conditioning system — common problems, repair costs, and when to get service. From the technicians Cleveland drivers trust.",
     heroCTA: "FIX MY AC",
@@ -1073,7 +1079,7 @@ export const SERVICES: ServiceData[] = [
     title: "EXHAUST & MUFFLER",
     shortDesc: "Muffler, catalytic converter, exhaust pipe, manifold, and resonator repair. Quiet your ride and pass emissions.",
     metaTitle: "Muffler Shop Cleveland · Stop Announcing Yourself | Nick's",
-    metaDescription: "Cleveland muffler & exhaust shop where the rumble stops by lunch. Muffler, full exhaust, catalytic converter, weld jobs. Open Sunday. From $189. (216) 862-0005.",
+    metaDescription: "Cleveland muffler & exhaust shop. Muffler, full exhaust, catalytic converter, weld jobs. Written quote before work. Open Sunday. From $189. (216) 862-0005.",
     heroHeadline: "Exhaust never breaks Tuesday.\nWe're open Sunday.",
     heroSubline: "Searching for muffler shops near me in Cleveland? Nick's handles the entire exhaust system from manifold to tailpipe — muffler replacement, catalytic converters, exhaust pipes, and emissions repair. Same-day service starting at $149.",
     heroCTA: "FIX MY EXHAUST",

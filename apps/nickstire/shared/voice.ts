@@ -57,7 +57,11 @@ export type VoiceSource =
   | "lint-brand-voice"
   | "igAutopost.generator"
   | "igAutopost.critic"
-  | "voice-compliance";
+  | "voice-compliance"
+  // Claim rules cite the document that makes the claim unsupportable, not a style guide.
+  | "AGENTS.md" // apps/nickstire/AGENTS.md "Content and claim safety"
+  | "shared/financing.ts" // provider-language rules, truth-reviewed against provider disclosures
+  | "Ohio EPA"; // the E-Check program's own published rules
 
 /** Why a phrase is banned — drives how the fix is explained. */
 export type KillReason =
@@ -65,7 +69,8 @@ export type KillReason =
   | "archetype" // HERO/RULER/SAGE invasion of a CAREGIVER+EVERYMAN brand
   | "llm-tell" // ChatGPT/Claude-ism that marks copy as AI-written
   | "bot-speak" // customer-service-script phrasing
-  | "positioning"; // contradicts a standing operator directive (FCFS, payment programs)
+  | "positioning" // contradicts a standing operator directive (FCFS, payment programs)
+  | "claim"; // a factual promise the shop cannot back (credit outcome, legal deadline, pass guarantee)
 
 export interface KillRule {
   /** Stable slug. Referenced by tests and suppression comments — never renumber. */
@@ -845,6 +850,151 @@ export const KILL_RULES: readonly KillRule[] = Object.freeze([
     note:
       "Deliberately scoped to DIRECT conflation ('Acima financing', 'credit via Acima'). Provider lists naming Acima beside real lenders are governed by shared/financing.ts's product-accuracy header, not this rule — lender names themselves are intentional customer copy, not violations.",
   },
+
+  // ─── Unsupported claims (claim-safety) ────────────────────────────────────
+  // Not style. Each of these is a factual promise the shop cannot keep, and each
+  // was live on the public site on 2026-10-01: in FAQ JSON-LD, in llms.txt, in the
+  // sitewide service footer, and in the GBP post generator. They sit in the
+  // kernel so the copy linter, the IG generator and critic prompts, and the
+  // corpus scan in canonical-business-truth.test.ts all read one list.
+  {
+    id: "claim.no-credit-check",
+    pattern:
+      /\bno[- ](?:hard[- ]|traditional[- ])?credit[- ]checks?\b|\bwithout (?:a )?(?:hard |traditional )?credit checks?\b|\bzero[- ]credit[- ]checks?\b|\bcredit[- ]check[- ]free\b|\bwe (?:don['’]t|do not|never|won['’]t) (?:(?:check|run|pull) (?:your |a |any |hard )*credit(?: checks?)?|do (?:a |any )?(?:hard )?credit checks?)\b(?! cards?\b)/i,
+    label: "no credit check",
+    why:
+      "False for at least two of the four providers: Koalafi says 'we check your credit', and American First Finance says 'credit may be checked'. Acima and Snap pull consumer-report data too. What the providers actually say is that established credit is not required (shared/financing.ts).",
+    fix: "Name the providers and say the provider decides approval; PAYMENT_PROGRAMS_* in shared/financing.ts has the approved lines",
+    reason: "claim",
+    severity: "block",
+    // Same principle as CHEAP_QUERY_TARGETS: the rule governs what the shop
+    // claims, not an address or the searcher's own question. Kept to exact
+    // phrases: a bare "no credit check?" would also pass "No credit check? No
+    // problem.", and a bare quoted form would pass alt="No credit check tires".
+    // Each phrase is the EXACT string in use, never a fragment: a fragment such
+    // as "tires with no credit check?" also spared "Need tires with no credit
+    // check? We've got you covered." (an independent review, 2026-10-01).
+    allow: [
+      // URL slugs: addresses, not claims (renaming them would 404 indexed pages)
+      "no-credit-check-tires-cleveland",
+      "auto-repair-payment-programs-no-credit-check",
+      "financing-auto-repair-no-credit-check",
+      // the searcher's own question, answered honestly on that page
+      "searching for no credit check tires? straight answer",
+      "searching for no credit check tires? here's the straight answer",
+      "searching for no credit check tires?\\nhere's the straight answer",
+      "no credit check tires cleveland? straight answers",
+      "can i get tires with no credit check?",
+      "this page answers the 'no credit check tires' search",
+      // prompts telling a model NOT to say it
+      "never say 'no credit check'",
+      "never write 'no credit check'",
+    ],
+    exempt: ["admin"],
+    sources: ["AGENTS.md", "shared/financing.ts"],
+    note: "The SMS reply planner checks every draft against the claim rules (planViolations), so a drafted 'no credit check' is held for the operator.",
+  },
+  {
+    id: "claim.approval-promise",
+    // Numbers may be spelled out ("takes about a minute", the declined-repair
+    // text) or abbreviated ("pre-qual in 60s"). Guards for honest copy reviews
+    // measured firing: an ESTIMATE approved by text is the customer approving
+    // work; "qualify for the military discount" is not an approval rate; and
+    // "Once approved, the brake job takes about 90 minutes" is job timing, so
+    // the generic "approved ... in/takes N minutes" arm needs a financing word
+    // in the same sentence. "Reply YES to approve up to $350" authorizes an
+    // estimate, and "if you're pre-approved with Snap" states a condition.
+    pattern:
+      /\bapproved (?:in|within) (?:about |under |just |only )?(?:\d+|an?|one|two|three|five|ten|sixty|ninety|a few) ?(?:sec(?:ond)?s?|min(?:ute)?s?)\b|\b(?:decisions?|approvals?) in (?:about |under |just |only )?(?:(?:\d+|a few) ?)?sec(?:ond)?s?\b|\bpre-?qual(?:if(?:ied|ies|ying|ication|y))?\b[^.\n]{0,40}?\b(?:in|takes)\s+(?:about |under |just |only )?(?:\d+|an?|one|two|three|five|ten|sixty|ninety|a few)\s?(?:sec(?:ond)?s?|min(?:ute)?s?|s)\b|\bpre-?qual(?:if(?:ied|ying|ication|y))?\b[^.\n]{0,20}?\b(?:is |are )?(?:instant|immediate)\b|(?<=\b(?:financ\w*|payment programs?|lease(?:-to-own)?|credit|acima|snap|koalafi|american first|apply\w*|applications?|providers?|pre-?qual\w*)\b[^.\n]{0,80})\bapprov(?:ed|als?)\b[^.\n]{0,20}?\b(?:in|takes)\s+(?:about |under |just |only )?(?:(?:\d+|an?|one|two|three|five|ten|a few)\s?)?(?:sec(?:ond)?s?|min(?:ute)?s?)\b|\bapprov(?:ed|als?)\b[^.\n]{0,20}?\b(?:in|takes)\s+(?:about |under |just |only )?(?:(?:\d+|an?|one|two|three|five|ten|a few)\s?)?(?:sec(?:ond)?s?|min(?:ute)?s?)\b(?=[^.\n]{0,80}\b(?:financ\w*|payment programs?|lease(?:-to-own)?|credit|acima|snap|koalafi|american first|apply\w*|applications?|providers?)\b)|\b(?:\d+|one|two|three|five|ten|sixty|ninety)[- ](?:sec(?:ond)?|min(?:ute)?)s?[- ](?:approvals?|decisions?|pre-?qual\w*)\b|\bdecisions? in (?:under |about |less than )?(?:a|one) minute\b|\bapprov(?:ed|als?) on the spot\b|\bapproves? you on the spot\b|\b(?:payment programs?|financing|lease-to-own)(?: approved)? on the spot\b|\bon[- ]the[- ]spot approvals?\b|\binstant approvals?\b|\bapprovals? (?:is |are )?(?:instant|immediate|guaranteed)\b|\bguaranteed approvals?\b|\bsame[- ]day approvals?\b|\bget approved (?:today|now|fast|quickly|in)\b|(?<!\b(?:if you(?:['’]re| are)|already|your) )\bpre-?approv(?:ed|al)\b|\bup to \$[\d,]+ approved\b|\bapproved (?:for )?up to \$[\d,]+|\b(?:customers|people|applicants|you)(?: (?:get|are|can|will))? (?:approved?|qualify) (?:for )?up to \$[\d,]+|\bmost (?:customers|people|applicants) (?:are )?(?:approved|qualify)\b(?! for (?:an? |the |our )?[^.\n]{0,30}?\b(?:discount|special|coupon|offer|deal|rebate|warranty|price)\b)|\b(?:the )?majority of (?:applicants|customers|people) (?:are approved|qualify|get approved)\b|\bget people approved\b|\bwhen one says no, the next says yes\b/i,
+    label: "approved in 90 seconds / approved on the spot",
+    why: "Approval, its timing and its amount belong to the provider. No published provider term supports a speed or an approval rate (shared/financing.ts).",
+    fix: "'The provider decides approval and amount; not every applicant is approved.'",
+    reason: "claim",
+    severity: "block",
+    exempt: ["admin"],
+    sources: ["AGENTS.md", "shared/financing.ts"],
+  },
+  {
+    id: "claim.no-credit-impact",
+    // FICO counts as a score: an unattributed "applying won't affect your FICO
+    // score" is false for American First Finance. The two providers that
+    // publish a FICO statement are allowed only in their attributed lines.
+    // "A soft pull to the right" is an alignment symptom, not a credit check.
+    pattern:
+      /\bsoft[- ]pull only\b|\bno fico ding\b|\b(?:no|without a|not require a|doesn['’]t require a) hard (?:credit )?(?:pull|inquiry|check)\b|\b(?:does not|doesn['’]t|won['’]t|will not|never) require\b[^.\n]{0,40}?\bhard (?:credit )?(?:pull|inquiry|check)\b|\bdoesn['’]t pull credit\b|\b(?:won['’]t|wont|doesn['’]t|does not|will not|never) (?:hurt|affect|ding|lower|impact|hit|drop|damage) (?:your |my )?(?:credit(?: scores?| reports?)?|scores?|fico(?: scores?)?)\b(?! cards?\b)|\bno impact (?:to|on) (?:your |my )?(?:credit(?: scores?)?|scores?|fico(?: scores?)?)\b|\b(?:won['’]t|doesn['’]t|does not|will not|never) (?:show (?:up )?on|appear on|go on) (?:your )?(?:credit )?reports?\b|\bsoft (?:credit )?(?:pull|check|inquiry|inquiries)\b(?!\s+(?:to|toward|towards) (?:the (?:left|right|side)|one side|either side)\b|\s+(?:when|while|under) (?:braking|driving|accelerating)\b)|\bsoft pre-?qual\w*/i,
+    label: "soft pull only / no FICO ding",
+    why: "Only Snap and Koalafi publish a no-FICO-impact statement, and even Snap says another consumer-report score may be affected. American First Finance may check credit.",
+    fix: "Attribute the credit effect to the provider that publishes it, or link to /financing",
+    reason: "claim",
+    severity: "block",
+    allow: [
+      "snap says applying won't affect your fico score",
+      "snap says applying does not affect your fico score",
+      "applying does not affect your fico score, but snap may obtain",
+      "applying doesn't affect your fico score, per snap",
+      "koalafi says this does not affect your fico score",
+    ],
+    exempt: ["admin"],
+    sources: ["shared/financing.ts"],
+  },
+  {
+    id: "claim.lease-no-interest",
+    pattern: /\bsame[- ]as[- ]cash\b|\binterest[- ]free\b|\bno interest\b(?! in\b)|\b0% (?:interest|apr)\b|\bzero[- ]interest\b(?! in\b)/i,
+    label: "same as cash / no interest",
+    why: "Lease-to-own is not credit, so 'interest' framing misdescribes it. The FTC's 2020 order against Progressive Leasing bars 'no interest' claims made without the total cost, and its one count was the promise that customers would pay the cash price. Payoff windows vary by provider and agreement.",
+    fix: "'Early purchase options may reduce the total cost; the agreement controls' (shared/financing.ts)",
+    reason: "claim",
+    severity: "block",
+    exempt: ["admin"],
+    sources: ["shared/financing.ts"],
+  },
+  {
+    id: "claim.echeck-deadline",
+    // Deadline PHRASINGS, not proximity: "30 days" within 80 characters of
+    // "E-Check" also fired on true advice ("disconnected the battery in the
+    // last 30 days, your car may not be ready for E-Check"). The 60-day retest
+    // window in the E-Check guide was the same invention with another number.
+    pattern:
+      /\b(?:30|60|thirty|sixty)[- ]days? (?:to (?:fix|remedy|repair|make repairs|re-?test|pass|get (?:it |your car )?(?:fixed|repaired))|from the fail\w*|after (?:that|expired|the fail\w*|failing))|\b(?:30|60|thirty|sixty)[- ]day (?:deadline|repair window|clock|grace period)\b|\b(?:you(?:['’]ve| have)|you get|gives? you) (?:only )?(?:30|60|thirty|sixty) days\b(?=[^.\n]{0,60}\b(?:re-?test\w*|e-?check|emissions)\b)|\bregistration (?:goes|becomes|is|will be|gets) (?:invalid|suspended|revoked|cancell?ed)\b|\binvalid (?:registration|tags)\b|\bin (?:30|60) days when (?:your )?registration expires\b|\bday e-?check deadline\b|\bdays to e-?check fail(?:ure)?\b|\bday 31\b(?=\s*[=:—–-]|[^.\n]{0,60}\b(?:tickets?|impound\w*|registration|tags|criminal|expired)\b)|\bre-?tests? (?:is |are )?free within (?:30|60|thirty|sixty) days\b|\bwithin (?:30|60|thirty|sixty) days of (?:the |your )?(?:fail\w*|e-?check)/i,
+    label: "E-Check 30-day deadline / registration goes invalid",
+    why: "Ohio sets no 30-day repair deadline after a failed E-Check. The real consequence is that the registration cannot be renewed until the vehicle passes or qualifies for a waiver or extension.",
+    fix: "'Ohio won't renew your registration until the vehicle passes E-Check or qualifies for a waiver or extension.'",
+    reason: "claim",
+    severity: "block",
+    exempt: ["admin"],
+    sources: ["Ohio EPA"],
+  },
+  {
+    id: "claim.echeck-pass-guarantee",
+    // "We'll get you passing" (the /emissions H1) and "so you pass the official
+    // test" promise the outcome the state's test decides. "We run a free
+    // readiness check" is the honest line and must stay clean.
+    pattern:
+      /\bpass(?:ing)? guarantee(?:d)?\b|\bguarantee(?:d)? (?:to |you(?:['’]ll)? )?pass\b|\bguarantee(?:s|d)? (?:that )?(?:your car |it )pass(?:es)?\b|\bsame[- ]day pass\b|\bpass promise\b|\bpass (?:it )?(?:the )?first time\b|\bno ["'“]?do it twice["'”]? risk\b|\bwe(?:['’]ll| will)? (?:handle|do|run|perform|offer|conduct) (?:the |your |an? )?(?:state |official |ohio )?(?:emissions|e-?check) test(?:ing|s)?\b|\bwe(?:['’]ll| will)? (?:handle|do|run|perform|offer|conduct) (?:the |your )?(?:state|official) (?:emissions |e-?check )?tests?\b|\bwe(?:['’]ll| will)? (?:run|do|perform|handle|conduct) (?:your|the) e-?check\b(?! readiness| pre-?check| prep| repairs?| codes?| diagnos\w*| paperwork| failures?| fix\w*)|\bget (?:you|your (?:car|vehicle)|it) (?:passing|to pass)\b|\bget (?:you|your (?:car|vehicle)|it) (?:legal|street[- ]legal)\b(?=[^\n]{0,80}\b(?:e-?check|emissions|registration)\b)|(?<=\b(?:e-?check|emissions)\b[^\n]{0,80})\bget (?:you|your (?:car|vehicle)|it) (?:legal|street[- ]legal)\b|\bso (?:that )?(?:you|it|your (?:car|vehicle)) (?:will )?pass(?:es)?\b/i,
+    label: "pass guaranteed / same-day pass",
+    why: "Only the state's E-Check test passes a car, and AGENTS.md bans 'guaranteed' outright. services.ts dropped 'Pass Guaranteed' on 2026-09-16; four other surfaces kept it.",
+    fix: "'Free readiness check before you test, and we fix the cause of the failure.'",
+    reason: "claim",
+    severity: "block",
+    exempt: ["admin"],
+    sources: ["AGENTS.md", "Ohio EPA"],
+  },
+  {
+    id: "claim.echeck-certified",
+    // The sitewide JSON-LD said "Certified station" and the trust tags said
+    // "Ohio E-Check Certified" until 2026-10-01. "EPA-certified converter" (a
+    // part) and "Only official E-Check stations run the state test" (the true
+    // rule) must stay clean.
+    pattern:
+      /\b(?:state|ohio|epa)[- ]certified (?:e-?check|emissions|repair|facility|station|shop|inspection)\b|\b(?:state|ohio)[- ]certified\b(?=[^.\n]{0,40}\b(?:e-?check|emissions)\b)|\be-?check[- ]certified\b|(?<!\bASE[- ])\bcertified (?:e-?check |emissions |inspection )?(?:testing |test )?(?:station|facility)\b|\bwe(?:['’]re| are) (?:an? )?(?:official|certified|licensed|authorized|state) (?:e-?check|emissions)(?: testing| test)? (?:station|facility|site|center)\b/i,
+    label: "state-certified E-Check repair / certified test station",
+    why: "Ohio EPA certifies emissions repair facilities (OAC 3745-26-15) and Nick's is not on its published list. Nick's is not an E-Check test station either: only official stations run the state test (shared/echeck.ts).",
+    fix: "'Free E-Check readiness check before the state test; we repair what failed.'",
+    reason: "claim",
+    severity: "block",
+    exempt: ["admin"],
+    sources: ["Ohio EPA"],
+  },
 ]);
 
 // ─── The positive half — previously enforced NOWHERE ────────────────────────
@@ -978,7 +1128,10 @@ export interface FindOptions {
 export function findVoiceViolations(text: string, opts: FindOptions = {}): VoiceViolation[] {
   const { surface, includeWarnings = true, skipRuleIds = [] } = opts;
   const out: VoiceViolation[] = [];
-  const lower = text.toLowerCase();
+  // Curly quotes fold to straight ones for allow matching only. Each swap is one
+  // character for one, so match indexes still line up with `text`. The test
+  // corpus normalizes quotes before scanning; live SMS and ad copy do not.
+  const lower = text.toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"');
 
   for (const rule of KILL_RULES) {
     if (skipRuleIds.includes(rule.id)) continue;

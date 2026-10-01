@@ -84,7 +84,7 @@ export const GBP_QA_SEEDS: GbpQa[] = [
     category: "payment",
     question: "Do you offer payment programs if I can't pay all at once?",
     answer:
-      "Yes — we work with lease-to-own and payment-program providers like Acima and Snap so you can split the cost. Approval is quick and there's no hard credit check to apply. Ask us at the counter or check the Payment Programs page on nickstire.org.",
+      "Yes — we work with lease-to-own and payment-program providers like Acima and Snap so you can split the cost. Some don't require established credit, and each provider decides approval. Ask us at the counter or check the Payment Programs page on nickstire.org.",
   },
   {
     category: "scheduling",

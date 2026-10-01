@@ -741,7 +741,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Checking estimates aging out…",
     icon: DollarSign,
     color: "amber",
-    link: { href: "/revenue", label: "Revenue" },
+    link: { href: "https://nickstire.org/admin?tab=revenue", label: "Open Money" },
     subtitle: (out) => {
       const o = out as { totalAtRisk?: number; count?: number } | null;
       if (o?.totalAtRisk && o?.count) return `$${o.totalAtRisk} at risk · ${o.count} stale`;
@@ -902,7 +902,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Pulling latest body metrics…",
     icon: Scale,
     color: "emerald",
-    link: { href: "/stats#body", label: "Body" },
+    link: { href: "/stats?tab=body", label: "Body" },
     subtitle: (out) => {
       const o = out as { weight?: number; bodyFat?: number; entries?: unknown[]; count?: number } | null;
       if (!o) return null;

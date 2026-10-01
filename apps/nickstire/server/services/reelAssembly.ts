@@ -162,6 +162,15 @@ export const CAPTION_SAFE = {
   minFontPx: 34,
 } as const;
 
+/**
+ * Vertical anchor of every NON-hook beat caption, as a fraction of frame
+ * height (drawtext `y=h*0.62`). The hook caption is vertically centred
+ * instead. Exported so the deterministic pixel checks (renderedPixelStats)
+ * inspect the SAME band the overlay is drawn into, rather than a second
+ * hand-copied number that drifts the day this one moves.
+ */
+export const CAPTION_BEAT_Y_FRAC = 0.62;
+
 /** Estimated rendered text-box width in px for the caption's longest line. */
 export function estimateCaptionWidthPx(caption: string, fontSize: number): number {
   const longest = Math.max(...caption.split("\n").map((l) => l.length), 0);
@@ -366,7 +375,7 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
         const stepOut = j === lines.length - 1 ? next : `d${i}l${j + 1}`;
         const yExpr = isHook
           ? `(h-${lines.length * lineH})/2+${j * lineH}`
-          : `h*0.62+${j * lineH}`;
+          : `h*${CAPTION_BEAT_Y_FRAC}+${j * lineH}`;
         fc.push(
           `[${stepIn}]drawtext=fontfile='${fontEsc}':textfile='caption_${i}_${j}.txt':fontsize=${size}:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=${yExpr}:enable='gte(t,${start.toFixed(2)})*lt(t,${end.toFixed(2)})'[${stepOut}]`,
         );

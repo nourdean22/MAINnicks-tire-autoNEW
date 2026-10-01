@@ -128,11 +128,14 @@ export function NickSidePane({
 
   // Restore persisted state on mount · SSR-safe.
   useEffect(() => {
-    try {
-      if (localStorage.getItem(STORAGE_KEY) === "1") setOpen(true);
-    } catch {
-      /* private browsing · stay closed */
-    }
+    const frame = requestAnimationFrame(() => {
+      try {
+        if (localStorage.getItem(STORAGE_KEY) === "1") setOpen(true);
+      } catch {
+        /* private browsing · stay closed */
+      }
+    });
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   // 2026-09-15 · tell the inspector how wide the open pane is (see the const).
@@ -286,7 +289,7 @@ export function NickSidePane({
                 type="button"
                 onClick={toggle}
                 aria-label="close nick"
-                className="ml-auto inline-flex h-10 w-10 lg:h-8 lg:w-8 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]/[0.15] active:scale-90 transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+                className="ml-auto inline-flex h-11 w-11 lg:h-8 lg:w-8 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]/[0.15] active:scale-90 transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
               >
                 <X size={14} strokeWidth={2} />
               </button>

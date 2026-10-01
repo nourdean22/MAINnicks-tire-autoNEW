@@ -794,7 +794,7 @@ export default function TireFinder() {
     <PageLayout showChat={true}>
       <SEOHead
         title="Used Tires in Euclid & Cleveland · From $25 Installed | Nick's Tire & Auto"
-        description="Used tires in Euclid & Cleveland from $25 installed. Every tire inspected, mounted, balanced, valve stems included. Walk in 7 days, first-come first-served. (216) 862-0005"
+        description="Used tires in Euclid & Cleveland from $25 installed (select 12-inch; most $40-80). Every tire inspected, mounted, balanced, valve stems included. Walk in 7 days, first-come first-served. (216) 862-0005"
         canonicalPath="/tires"
       />
       {/* v1.7 SEO · BreadcrumbList JSON-LD + visible nav */}
@@ -815,7 +815,7 @@ export default function TireFinder() {
             "@type": "Product",
             name: "New & Used Tires at Nick's Tire & Auto",
             description:
-              "Used tires from $25 installed, new tires from $89. Free mount, balance, valve stems, TPMS reset, alignment check on every set. Cleveland's first-come-first-served tire shop on Euclid Ave.",
+              "Used tires from $25 installed (select 12-inch; most $40-80), new tires from $89. Free mount, balance, valve stems, TPMS reset, alignment check on every set. Cleveland's first-come-first-served tire shop on Euclid Ave.",
             brand: { "@type": "Brand", name: "Nick's Tire & Auto" },
             category: "Auto Tires",
             image: [
@@ -888,7 +888,7 @@ export default function TireFinder() {
               </p>
               <p className="mt-2 text-sm text-foreground/80 leading-relaxed">
                 The fix is cheaper than the deductible: inspected used tires from{" "}
-                <strong className="text-primary">$25 installed</strong>, new sets with mounting,
+                <strong className="text-primary">$25 installed (select 12-inch; most $40-80)</strong>, new sets with mounting,
                 balancing, valve stems, TPMS reset, and disposal already in the price.
               </p>
               {/* 2026-07-04 operator ask: membership hook INSIDE the PAS
@@ -1205,7 +1205,7 @@ export default function TireFinder() {
                 { label: "Chain shop (Pep Boys / Firestone)", price: "$120 + $99 install" },
                 { label: "Nick's — tire + free install package", price: "From $25", ours: true },
               ]}
-              source="Nick's free Installation Package ($289+ value): mounting, balancing, valve stems, TPMS reset, disposal, tire rotation for life. Used tires from $25."
+              source="Nick's free Installation Package ($289+ value): mounting, balancing, valve stems, TPMS reset, disposal, tire rotation for life. Used tires from $25 (select 12-inch; most $40-80)."
             />
             <div className="mt-8">
               <FearCalibrationBlock
@@ -1221,7 +1221,7 @@ export default function TireFinder() {
                   {
                     value: "$1,200",
                     consequence:
-                      "Average bill from a Cleveland-pothole blowout when the tire was already past wear-bar. New rim, new tire, sometimes alignment + suspension. A $25 used tire would have prevented it.",
+                      "Average bill from a Cleveland-pothole blowout when the tire was already past wear-bar. New rim, new tire, sometimes alignment + suspension. A used tire would have prevented it.",
                     source: "City of Cleveland pothole-claim data; in-shop incident reports.",
                   },
                   {
@@ -1794,7 +1794,7 @@ export default function TireFinder() {
                     Every casing has to clear all four gates below before it's allowed on the rack —
                     the ones that fail get scrapped, not discounted. Same professional installation,
                     same included mount/balance/valve stems/disposal — just a friendlier number on the
-                    receipt. Payment programs on the spot if you need them.
+                    receipt. Payment programs from four providers if you need them.
                   </p>
                   <p className="text-[10px] text-muted-foreground/60 mt-1.5">
                     Select 12-inch sizes from $25 installed; most standard passenger sizes $40–$80 installed.
@@ -2065,7 +2065,7 @@ export default function TireFinder() {
           <div className="grid gap-3 sm:grid-cols-2">
             <a href="/used-tires-cleveland" className="group block bg-card/60 border border-border/30 rounded-lg p-5 hover:border-primary/40 transition-colors">
               <p className="text-xs font-mono text-primary tracking-wider mb-1">USED TIRES</p>
-              <h3 className="text-base font-bold text-foreground mb-1.5 group-hover:text-primary transition-colors">From $25 installed</h3>
+              <h3 className="text-base font-bold text-foreground mb-1.5 group-hover:text-primary transition-colors">From $25 installed (select 12-inch; most $40-80)</h3>
               <p className="text-foreground/60 text-xs leading-relaxed">Quality-inspected. Tread, sidewall, DOT date verified before install.</p>
             </a>
             <a href="/new-tires-cleveland" className="group block bg-card/60 border border-border/30 rounded-lg p-5 hover:border-primary/40 transition-colors">

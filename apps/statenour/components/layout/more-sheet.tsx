@@ -13,20 +13,21 @@
  * 2026-08-12 · two fixes, operator-reported ("stale UI and architecture"):
  *   · Open state now lives in useMoreSheetStore (Zustand — matches the
  *     chat-ui-store precedent) instead of a raw window CustomEvent bus.
- *   · The sheet only ever animated IN — every close path unmounted on the
- *     same frame the store flipped `open`, so it visibly snapped away.
- *     `mounted` now trails `open` by one animation frame (fadeSlideDown,
- *     unmount on animationend) so open and close are symmetric.
+ *   · 2026-10-01 convergence: the sheet now runs on the existing Base UI
+ *     Dialog primitive. Focus is trapped/restored, Escape/outside dismissal
+ *     and scroll locking are enforced instead of only promised by aria-modal;
+ *     open/close still use the existing fadeSlide sheet animations.
  *   · The five verb sections were five identical gray labels. They ARE a
  *     real sequence (the operator's own OS-loop), so that's now the one
  *     structural device: an ordinal badge (01–05) in the display face,
  *     replacing the flat mono tertiary label.
  */
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { NAV, bySection, type NavSection } from "./nav-items";
 import { useMoreSheetStore } from "@/lib/state/more-sheet-store";
 import { useRecentPages } from "@/lib/hooks/use-recent-pages";
@@ -34,7 +35,7 @@ import { useSystemPulse } from "@/lib/hooks/use-system-pulse";
 import { pickSmartNow } from "@/lib/floating-home/smart-now";
 import { COMMAND_PALETTE_OPEN_EVENT } from "@/components/command-palette";
 import { CAPTURE_OPEN_EVENT } from "@/components/brain-dump-modal";
-import { Search, NotebookPen, ArrowRight, Clock, Brain } from "lucide-react";
+import { Search, NotebookPen, ArrowRight, Clock, Brain, X } from "lucide-react";
 import { NICK_PANE_OPEN_EVENT, NICK_PANE_MOUNTED_ATTR } from "@/components/mastery/nick-side-pane";
 
 const SECTIONS: { key: NavSection; label: string; ordinal: string }[] = [
@@ -58,80 +59,51 @@ export function MoreSheet() {
   // hydration mismatch and no setState-in-effect.
   const hasNickPane =
     open && typeof document !== "undefined" && document.documentElement.dataset[NICK_PANE_MOUNTED_ATTR] === "1";
-  // `mounted` trails `open` by one exit-animation frame — this is what
-  // makes closing symmetric with opening instead of an instant unmount.
-  const [mounted, setMounted] = useState(false);
-  const sheetRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname() ?? "/";
   const pulse = useSystemPulse();
   const smartNow = pickSmartNow({ pathname, pulse });
   const { candidates: recentCandidates } = useRecentPages();
-
-  useEffect(() => {
-    if (open) setMounted(true);
-  }, [open]);
 
   // Auto-close on route change (a no-op via closeSheet if already closed).
   useEffect(() => {
     close();
   }, [pathname, close]);
 
-  // Escape closes.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, close]);
-
-  if (!mounted) return null;
-
   const footer = NAV.filter((n) => n.footer);
 
   return (
-    <div
-      className="fixed inset-0 z-[70] flex flex-col justify-end"
-      role="dialog"
-      aria-modal="true"
-      aria-label="More navigation"
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) close();
+      }}
     >
-      {/* Scrim — fades with the sheet since both key off the same `open`. */}
-      <button
-        aria-label="Close menu"
-        className={cn(
-          "absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-200",
-          open ? "opacity-100" : "opacity-0",
-        )}
-        onClick={close}
-      />
-
-      {/* Sheet */}
-      <div
-        ref={sheetRef}
-        onAnimationEnd={() => {
-          if (!open) setMounted(false);
-        }}
-        className={cn(
-          "relative max-h-[86vh] overflow-y-auto rounded-t-2xl border-t border-[var(--gold)]/30 bg-[var(--bg-void)] pb-[env(safe-area-inset-bottom,12px)]",
-          // Depth shadow (unchanged) layered with a soft top-edge gold glow
-          // — the same composition --shadow-gold-strong uses, applied here
-          // as literal values since Tailwind arbitrary shadows can't nest a
-          // comma-bearing var() inside another arbitrary value.
-          "shadow-[0_-20px_60px_rgba(0,0,0,0.7),0_-1px_30px_rgba(253,185,19,0.06)]",
-          open ? "animate-fadeSlideUp" : "animate-fadeSlideDown",
-        )}
+      <DialogContent
+        unstyled
+        showCloseButton={false}
+        overlayClassName="z-[70] bg-black/60 backdrop-blur-sm"
+        className="fixed inset-x-0 bottom-0 z-[71] max-h-[86dvh] overflow-y-auto overscroll-contain rounded-t-2xl border-t border-[var(--gold)]/30 bg-[var(--bg-void)] pb-[env(safe-area-inset-bottom,12px)] outline-none shadow-[0_-20px_60px_rgba(0,0,0,0.7),0_-1px_30px_rgba(253,185,19,0.06)] data-open:animate-fadeSlideUp data-closed:animate-fadeSlideDown"
       >
+        <DialogTitle className="sr-only">More navigation</DialogTitle>
         {/* Sticky header: grab handle + Search */}
         <div className="sticky top-0 z-10 border-b border-[var(--border-default)] bg-[var(--bg-void)] px-4 pb-3 pt-2">
-          <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[var(--border-default)]" />
+          <div className="relative mb-2 flex min-h-11 items-center justify-center">
+            <div className="h-1 w-10 rounded-full bg-[var(--border-default)]" aria-hidden />
+            <button
+              type="button"
+              onClick={close}
+              aria-label="Close More menu"
+              className="absolute right-0 inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-raised)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+            >
+              <X size={18} />
+            </button>
+          </div>
           <button
             onClick={() => {
               window.dispatchEvent(new Event(COMMAND_PALETTE_OPEN_EVENT));
               close();
             }}
-            className="flex w-full items-center gap-2 rounded-xl border border-[var(--gold)]/30 bg-[var(--bg-raised)]/40 px-3 py-2.5 text-[var(--text-secondary)] transition-colors hover:border-[var(--gold)]/60 hover:text-[var(--gold)]"
+            className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-[var(--gold)]/30 bg-[var(--bg-raised)]/40 px-3 py-2.5 text-[var(--text-secondary)] transition-colors hover:border-[var(--gold)]/60 hover:text-[var(--gold)]"
           >
             <Search size={16} className="shrink-0" />
             <span className="text-sm">Search everything…</span>
@@ -163,7 +135,7 @@ export function MoreSheet() {
               href={smartNow.href}
               onClick={close}
               className={cn(
-                "flex items-center gap-2 rounded-lg px-3 py-2 text-xs transition-colors",
+                "flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 text-xs transition-colors",
                 smartNow.urgency === "high"
                   ? "bg-rose-500/[0.08] text-rose-200 hover:bg-rose-500/15"
                   : smartNow.urgency === "medium"
@@ -201,7 +173,7 @@ export function MoreSheet() {
                     key={r.href}
                     href={r.href}
                     onClick={close}
-                    className="max-w-[140px] truncate rounded-full border border-[var(--border-default)] bg-[var(--bg-base)]/40 px-2 py-0.5 font-mono text-[9px] text-[var(--text-secondary)] transition-colors hover:border-[var(--gold)]/30 hover:bg-[var(--gold)]/10 hover:text-[var(--gold)]"
+                    className="inline-flex min-h-11 max-w-[140px] items-center truncate rounded-full border border-[var(--border-default)] bg-[var(--bg-base)]/40 px-3 py-1 font-mono text-[9px] text-[var(--text-secondary)] transition-colors hover:border-[var(--gold)]/30 hover:bg-[var(--gold)]/10 hover:text-[var(--gold)]"
                     title={r.href}
                   >
                     {r.label}
@@ -216,7 +188,7 @@ export function MoreSheet() {
               window.dispatchEvent(new Event(CAPTURE_OPEN_EVENT));
               close();
             }}
-            className="flex w-full items-center gap-3 rounded-lg border-l-2 border-l-transparent px-3 py-2 text-xs text-[var(--text-secondary)] transition-colors hover:border-l-[var(--gold)] hover:bg-[var(--gold)]/10 hover:text-[var(--gold)]"
+            className="flex min-h-11 w-full items-center gap-3 rounded-lg border-l-2 border-l-transparent px-3 py-2 text-xs text-[var(--text-secondary)] transition-colors hover:border-l-[var(--gold)] hover:bg-[var(--gold)]/10 hover:text-[var(--gold)]"
             aria-label="Capture a thought (⌘⇧J)"
           >
             <NotebookPen size={15} strokeWidth={1.75} />
@@ -259,7 +231,7 @@ export function MoreSheet() {
                       onClick={close}
                       aria-current={active ? "page" : undefined}
                       className={cn(
-                        "flex items-center gap-2 rounded-lg px-2.5 py-2 transition-colors",
+                        "flex min-h-11 items-center gap-2 rounded-lg px-2.5 py-2 transition-colors",
                         active
                           ? "bg-[var(--gold)]/10 text-[var(--gold)]"
                           : "text-[var(--text-secondary)] hover:bg-[var(--bg-raised)] hover:text-[var(--text-primary)]",
@@ -282,7 +254,7 @@ export function MoreSheet() {
           {footer.map((n) => {
             const Icon = n.icon;
             const className =
-              "flex flex-1 items-center justify-center gap-2 rounded-lg border border-[var(--border-default)] px-3 py-2 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)] transition-colors hover:border-[var(--gold)]/30 hover:text-[var(--gold)]";
+              "flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-[var(--border-default)] px-3 py-2 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)] transition-colors hover:border-[var(--gold)]/30 hover:text-[var(--gold)]";
             if (n.external) {
               return (
                 <a
@@ -309,7 +281,7 @@ export function MoreSheet() {
             );
           })}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

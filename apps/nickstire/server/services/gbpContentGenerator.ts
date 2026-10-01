@@ -333,21 +333,24 @@ const MATH_ARGUMENTS = [
     today: { amount: `$${BRAKE_PRICE.padsMax}`, thing: "brake pads on one axle" },
     later: { amount: `$${BRAKE_PRICE.caliperAndRotorReplacementEstimate}`, thing: "caliper and rotor replacement if worn to the metal" },
     explanation: "Cleveland salt eats brake hardware faster than dry-state cars. Catching it early IS the maintenance.",
-    paymentProgram: "Payment Programs: Acima · Snap · Koalafi · $10 down today · pay it down monthly",
+    paymentProgram: "Payment Programs: Acima · Snap Finance · Koalafi · American First Finance · the provider decides approval",
     imageHint: `side-by-side: worn pad ($${BRAKE_PRICE.padsMax}) and chewed-up rotor ($${BRAKE_PRICE.caliperAndRotorReplacementEstimate}) with prices overlaid in brand yellow`,
   },
   {
     today: { amount: `$${SERVICE_PRICE.eCheckFixStarting}`, thing: "E-Check fix today" },
-    later: { amount: "$0 — but a $150 ticket and impound risk", thing: "in 30 days when registration expires" },
-    explanation: "Failed E-Check has a 30-day deadline. Day 31, you're parked. Most failures are exhaust-related and fixable in an afternoon.",
-    paymentProgram: "Payment programs: $10 down · pay over time · pass promise/assistance or we keep working",
-    imageHint: "the actual E-Check repair certificate next to a state-issued failed-test letter",
+    // 2026-10-01 · this entry promised a "30-day deadline", a "$150 ticket and
+    // impound risk" and a "pass promise". None is an Ohio rule or a shop policy;
+    // shared/echeck.ts carries what Ohio publishes.
+    later: { amount: "No registration renewal", thing: "until the car passes or qualifies for a waiver or extension" },
+    explanation: "Many failures trace back to the exhaust. A free readiness check tells you where you stand before you go back for the state test.",
+    paymentProgram: "Payment programs from four providers",
+    imageHint: "a state-issued failed E-Check report on the counter next to a scan tool",
   },
   {
     today: { amount: `$${OIL_PRICE.fullSynthetic}`, thing: "synthetic oil change today" },
     later: { amount: "$4,000+", thing: "engine rebuild in 60K miles if you skip oil changes" },
     explanation: "Sludge from old oil destroys engines. The math is brutal but the maintenance is cheap.",
-    paymentProgram: "Walk in any day. 30 minutes. Free 27-point check while you wait.",
+    paymentProgram: "Walk in any day. 30 minutes. Free multi-point check while you wait.",
     imageHint: "drained black oil pan vs clean new oil — same engine, 90 days apart",
   },
   {

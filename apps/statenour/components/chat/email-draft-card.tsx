@@ -128,7 +128,7 @@ export function EmailDraftCard({ draft: initial }: { draft: EmailDraft }) {
         {state.kind === "idle" && (
           <button
             onClick={() => setEditing((v) => !v)}
-            className="text-[10px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] flex items-center gap-1"
+            className="flex min-h-11 items-center gap-1 px-2 text-[10px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] sm:min-h-8"
           >
             {editing ? <X size={11} /> : <Pencil size={11} />}
             {editing ? "Done" : "Edit"}

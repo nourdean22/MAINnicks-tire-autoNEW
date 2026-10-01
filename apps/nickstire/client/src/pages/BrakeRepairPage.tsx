@@ -9,6 +9,7 @@
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
 import { useReviewStats } from "@/hooks/useReviewStats";
 import { BUSINESS } from "@shared/business";
+import { BRAKE_PRICE } from "@shared/pricing";
 import { BRAKES_PHOTOS } from "@/components/PhotoRibbon";
 import { Disc, Activity, Wrench } from "lucide-react";
 import { Link } from "wouter";
@@ -16,6 +17,13 @@ import { Link } from "wouter";
 // A FUNCTION, not a module constant: the rating and review count are live
 // (useReviewStats), and a module-scope object is built once at import time —
 // before any hook can run — so it could only ever carry the static floor.
+// Starting prices, per axle (shared/pricing.ts). Pads + rotors "starting at
+// $149.99, depending on vehicle" is the operator's 2026-10-01 decision, and the
+// condition sits in the page's fine print. It replaced a "Summer Special — up
+// to 30% off" that ended September 30 (SpecialsPage) but kept running here.
+const PADS_FROM = `From $${BRAKE_PRICE.padsStarting}`;
+const PADS_ROTORS_FROM = `From $${BRAKE_PRICE.padsAndRotorsStarting.toFixed(2)}`;
+
 const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServicePageConfig => ({
   canonicalPath: "/brakes",
   // 2026-05-06 wave-16 · pro photo pack: under-car brake repair action
@@ -34,13 +42,13 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
   // "Come in and wait" is a real option (FCFS, ~60-min pad jobs per the FAQ),
   // so the hero also gets the built-in directions CTA next to SCHEDULE DROP-OFF.
   heroTertiaryCta: { label: "GET DIRECTIONS", href: BUSINESS.urls.googleMapsDirections, external: true },
-  startingPrice: "Summer Special — up to 30% off brake service. Free check, written quote first.",
-  pricingTitle: "SUMMER SPECIAL — BRAKE PRICING",
-  pricingSub: "Summer Special pricing varies by vehicle. Drive in for a free check and a written quote — discounts up to 30% off standard rates. We show you the worn part on the lift before we touch the bill.",
+  startingPrice: `Pads ${PADS_FROM.toLowerCase()} per axle, pads + rotors ${PADS_ROTORS_FROM.toLowerCase()}*. Free check, written quote first.`,
+  pricingTitle: "BRAKE PRICING",
+  pricingSub: "Starting prices, per axle. Drive in for a free check and a written quote. We show you the worn part on the lift before we touch the bill.",
   tiers: [
-    { name: "Pad Replacement", price: "Summer Special", sub: "per axle · up to 30% off · price varies by vehicle", use: "Pads worn, rotors still within spec. The cheapest stop-pedal fix that exists. Out the door in 60 minutes. Come in for your written quote." },
-    { name: "Pads + Rotors", price: "Summer Special", sub: "per axle · up to 30% off · price varies by vehicle", use: "Rotors scored from a winter of too many late-stops. The most common Cleveland brake job by a country mile. Drive in today for pricing.", featured: true },
-    { name: "Full Brake Job", price: "Summer Special", sub: "per axle · includes calipers if needed", use: "Calipers seized, lines leaking, full system refresh. The once-a-decade reset that buys you another 60K miles. Summer Special pricing — come in for a quote." },
+    { name: "Pad Replacement", price: PADS_FROM, sub: "per axle · price varies by vehicle", use: "Pads worn, rotors still within spec. The cheapest stop-pedal fix that exists. Out the door in 60 minutes. Come in for your written quote." },
+    { name: "Pads + Rotors", price: `${PADS_ROTORS_FROM}*`, sub: "per axle", use: "Rotors scored from a winter of too many late-stops. The most common Cleveland brake job by a country mile. Drive in today for your written quote.", featured: true },
+    { name: "Full Brake Job", price: "Free check", sub: "per axle · includes calipers if needed", use: "Calipers seized, lines leaking, full system refresh. The once-a-decade reset that buys you another 60K miles. Written quote before any work." },
   ],
   includedTitle: "WHAT'S INCLUDED",
   includedSub: "Every brake service at Nick's comes with this — we tell you the cost before we touch anything.",
@@ -96,16 +104,17 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
   ],
   bookingService: "brakes",
   serviceType: "Brake Repair",
+  finePrint: `*Pads + rotors start at $${BRAKE_PRICE.padsAndRotorsStarting.toFixed(2)} per axle, depending on vehicle. Every price on this page is per axle, and your final price is in a written quote before any work begins.`,
   aeoAnswer: `For brake repair in Cleveland, Nick's Tire & Auto at 17625 Euclid Ave (44112, east side) does a free brake check with a written quote before any work - and you don't pay until you say yes. Pad replacement starts at $149 per axle, open 7 days a week, ${reviewRating} stars from ${reviewCountDisplay} drivers. Call (216) 862-0005 or walk in.`,
   // Curiosity arc (2026-05-30) — hero hook = self-relevant gap (no $; the
-  // $149/$279 tiers below are the payoff); stakes hook reframes "can it wait?"
+  // starting-price tiers below are the payoff); stakes hook reframes "can it wait?"
   // and pulls into the fear stats (which substantiate the cascade cost).
   curiosityArc: {
-    heroHook: "Summer Special — up to 30% off. Which brakes does your car need?",
+    heroHook: "Pads, rotors or the full job? Which brakes does your car need?",
     stakesHook: "Wondering if it can wait? Worn pads draw a line — and every week pushes you past it.",
   },
   ctaHeadline: "BOOK YOUR BRAKE SERVICE",
-  ctaSub: "Free check, written quote, you don't pay until you say yes. Walk in or drop off — 17625 Euclid Ave, Euclid/Cleveland OH.",
+  ctaSub: "Free check, written quote, you don't pay until you say yes. Walk in or drop off — 17625 Euclid Ave, Cleveland, OH 44112.",
 
   // ─── CONVERSION ARCHITECTURE ──────────────────────────
   anchorTable: {
@@ -179,7 +188,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
         icon: <Disc className="w-5 h-5" />,
         symptom: "Tires bald or wearing uneven?",
         consequence: "Worn brakes + worn tires = doubled stopping distance. Both at once is a real risk.",
-        relief: "Used tires from $25 installed in 20 minutes — done while we do brakes.",
+        relief: "Used tires from $25 installed (select 12-inch; most $40-80), done while we do brakes.",
         ctaLabel: "GET TIRES",
         ctaHref: "/tires",
       },

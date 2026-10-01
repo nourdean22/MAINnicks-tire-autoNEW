@@ -53,7 +53,7 @@ import { ActiveFiltersStrip } from "@/components/ui/filter-chip-bar";
 import { HiddenRiskWarning } from "@/components/missions/hidden-risk-warning";
 import { computeHiddenRiskSummary } from "@/lib/tasks/hidden-risk";
 import { cn } from "@/lib/utils";
-import { PageHeader } from "@/components/layout/ui";
+import { StandardPage } from "@/components/layout/standard-page";
 import { isUserProject } from "@/lib/services/mission-helpers";
 import type { Task } from "@/components/actions/shared";
 import { useCustomDomains } from "@/hooks/use-custom-domains";
@@ -203,15 +203,15 @@ function MissionsPageInner() {
   return (
     <MissionDispatchProvider actions={actions}>
       <MissionInspectorActions />
-      <div className="mx-auto w-full max-w-5xl space-y-8 xl:max-w-[1400px]">
-        {!executionModeActive && (
-          <PageHeader
-            eyebrow="Execution Deck"
-            title="Missions"
-            description="The work that needs you."
-          />
-        )}
-
+      <StandardPage
+        eyebrow="Execution Deck"
+        title="Missions"
+        description="The work that needs you."
+        width="workspace"
+        rhythm="workspace"
+        className="w-full"
+        showHeader={!executionModeActive}
+      >
         <HiddenRiskWarning
           summary={hiddenRiskSummary}
           executionModeActive={executionModeActive}
@@ -466,7 +466,7 @@ function MissionsPageInner() {
         )}
 
         <MissionModalsManager missions={missions} />
-      </div>
+      </StandardPage>
     </MissionDispatchProvider>
   );
 }

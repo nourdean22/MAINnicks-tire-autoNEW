@@ -18,7 +18,7 @@ const UNSAFE_PHRASES: Record<string, string> = {
   "prevent accidents": "support safer driving",
   "never worry again": "gain peace of mind",
   "will pass e-check": "helps prepare for e-check",
-  "credit check": "financing options available",
+  "credit check": "payment programs available",
   "only 1 left": "limited availability",
   "offer ends in 5 minutes": "offer available for a limited time",
   "your brakes are dangerous": "ensure your brakes are performing well",

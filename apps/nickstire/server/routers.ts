@@ -84,6 +84,7 @@ import {
   metaAdsArchitectRouter,
 } from "./routers/index";
 import { voiceAgentRouter } from "./routers/voiceAgent";
+import { creativeOsRouter } from "./routers/creativeOs";
 import { vapiRouter } from "./routers/vapi";
 import { revenueOpsRouter } from "./routers/revenueOps";
 import { revenueAttributionRouter } from "./routers/revenueAttribution";
@@ -212,6 +213,8 @@ export const appRouter = router({
   closedLoop: closedLoopRouter,
   socialPipeline: socialPipelineRouter,
   metaAdsArchitect: metaAdsArchitectRouter,
+  // Creative Intelligence OS (Wave C): organic evidence, atomizer, pattern miner, trends
+  creativeOs: creativeOsRouter,
   // WP-23 · NHTSA read-only vehicle enrichment (VIN decode + recalls)
   vehicleData: vehicleDataRouter,
 });

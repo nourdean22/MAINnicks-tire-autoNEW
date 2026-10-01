@@ -29,6 +29,7 @@
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
 import { useReviewStats } from "@/hooks/useReviewStats";
+import { BUSINESS } from "@shared/business";
 import { Car, Wrench, Activity } from "lucide-react";
 
 // A FUNCTION, not a module constant: the rating and review count are live
@@ -115,7 +116,9 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
   bookingService: "alignment",
   serviceType: "Wheel Alignment · Cleveland",
   ctaHeadline: "GET THE PULL-CHECK · FREE · WALK IN ANY DAY",
-  ctaSub: "17625 Euclid Ave, Cleveland OH · 9am-6pm Mon-Sat · 9am-4pm Sun · walk-in welcome · (216) 862-0005",
+  // Hours come from BUSINESS: this line said "9am-6pm Mon-Sat" while the shop
+  // opens at 8 (and the same page's header said 8AM).
+  ctaSub: `${BUSINESS.address.street}, ${BUSINESS.address.city} ${BUSINESS.address.state} · ${BUSINESS.hours.display} · walk-in welcome · ${BUSINESS.phone.display}`,
 
   anchorTable: {
     serviceName: "Four-wheel alignment · Cleveland market quotes",

@@ -232,7 +232,7 @@ export function GoalBoard() {
 
   // Wave AW · 2026-05-28 · cross-page hash-anchor wiring. Wave AR added
   // `id={`goal-${g.id}`}` to each row, but if the operator lands on
-  // `/goals#goal-X` while horizonFilter is anything other than "ALL",
+  // `/stats?tab=goals#goal-X` while horizonFilter is anything other than "ALL",
   // the target row sits in display:none — browser hash-scroll silently
   // no-ops. operator-pulse.ts ALREADY emits these links from /home for
   // dormant goals (lib/services/operator-pulse.ts:208) so this is a
@@ -246,13 +246,15 @@ export function GoalBoard() {
     const m = /^#goal-([\w-]+)$/.exec(hash);
     if (!m) return;
     const goalId = m[1];
-    setHorizonFilter("ALL");
     let r1 = 0;
     let r2 = 0;
     r1 = requestAnimationFrame(() => {
+      setHorizonFilter("ALL");
       r2 = requestAnimationFrame(() => {
         const el = document.getElementById(`goal-${goalId}`);
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (!el) return;
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
       });
     });
     return () => {
@@ -289,7 +291,10 @@ export function GoalBoard() {
   }, [utils]);
 
   useEffect(() => {
-    load();
+    const frame = requestAnimationFrame(() => {
+      void load();
+    });
+    return () => cancelAnimationFrame(frame);
   }, [load]);
 
   // Apr 27 · cross-tab reactive refresh. When NOW completes a task

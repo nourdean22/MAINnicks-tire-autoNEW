@@ -13,7 +13,7 @@ export default function DiscountTireAlternative() {
       slug="discount-tire-alternative-cleveland"
       seoTitle="Discount Tire Alternative Cleveland · One-Stop Shop | Nick's"
       seoDescription="Discount Tire is tires only — they can't do brakes, oil, or alignment. Nick's Tire & Auto: tires + brakes + repair under one roof, open 7 days, walk-in any time."
-      intro="Discount Tire is genuinely good — at tires. Free flat repair, free balance, free rotation for the lifetime of the tire. We respect that model. The catch: it's tires only. Brakes? Different shop. Oil change? Different shop. Alignment? Most Discount Tires don't do it. So when you've got a tire problem AND something else going on, that's two trips to two places — usually on different days. Nick's Tire & Auto on Euclid Ave does both at the same time. Walk in 7 days. Used tires from $25 installed. Brakes, oil, alignment, mechanical repair — all under one roof. Free check. Written quote. You don't pay until you say yes."
+      intro="Discount Tire is genuinely good — at tires. Free flat repair, free balance, free rotation for the lifetime of the tire. We respect that model. The catch: it's tires only. Brakes? Different shop. Oil change? Different shop. Alignment? Most Discount Tires don't do it. So when you've got a tire problem AND something else going on, that's two trips to two places — usually on different days. Nick's Tire & Auto on Euclid Ave does both at the same time. Walk in 7 days. Used tires from $25 installed (select 12-inch; most $40-80). Brakes, oil, alignment, mechanical repair — all under one roof. Free check. Written quote. You don't pay until you say yes."
       extraFaqs={[
         {
           question: "Why doesn't Discount Tire do brakes or alignment?",
@@ -25,7 +25,7 @@ export default function DiscountTireAlternative() {
         },
         {
           question: "What does Nick's offer that Discount Tire can't?",
-          answer: "Brakes, oil change, alignment, suspension, mechanical repair, used tires from $25, Sunday hours, written quote before any wrench moves, and a mechanic who can hand you a flashlight and walk you under your car so you can see the worn part yourself. Discount Tire is excellent at the slice of work they do. Nick's covers the whole car.",
+          answer: "Brakes, oil change, alignment, suspension, mechanical repair, used tires from $25 (select 12-inch; most $40-80), Sunday hours, written quote before any wrench moves, and a mechanic who can hand you a flashlight and walk you under your car so you can see the worn part yourself. Discount Tire is excellent at the slice of work they do. Nick's covers the whole car.",
         },
         {
           question: "Can Nick's match Discount Tire's free services on tires they install?",

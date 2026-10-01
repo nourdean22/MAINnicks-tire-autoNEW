@@ -72,7 +72,7 @@ const SEASONAL_GUIDES = [
       { title: "Battery Test", desc: "Batteries that survived summer heat often fail with the first cold snap. Have your battery tested — it takes 5 minutes and can prevent a no-start situation on a freezing morning." },
       { title: "Brake Check", desc: "Fall is the ideal time for a brake check before winter conditions. We check pads, rotors, calipers, and brake lines, then show you what we find." },
       { title: "Headlight Check", desc: "Days get shorter fast. Make sure all headlights, taillights, and turn signals are working. Foggy or yellowed headlight lenses reduce visibility significantly — we can restore them." },
-      { title: "E-Check / Emissions", desc: "If your Ohio E-Check is due, get it done in fall before the holiday rush. If your check engine light is on, we'll tell you what's wrong and fix the emissions issue so you pass." },
+      { title: "E-Check / Emissions", desc: "If your Ohio E-Check is due, get it done in fall before the holiday rush. If your check engine light is on, we'll tell you what's wrong and fix the emissions issue before you retest." },
     ],
   },
 ];

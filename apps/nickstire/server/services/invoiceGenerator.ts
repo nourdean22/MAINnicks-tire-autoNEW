@@ -62,7 +62,7 @@ export async function generateInvoiceHTML(data: InvoiceData): Promise<string> {
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;border-bottom:2px solid #1E4D8C;padding-bottom:20px">
     <div>
       <h1 style="margin:0;font-size:24px;color:#FDB913;font-weight:800">NICK'S TIRE & AUTO</h1>
-      <p style="margin:4px 0 0;font-size:12px;color:#8B949E">17625 Euclid Ave, Euclid OH 44112 | (216) 862-0005</p>
+      <p style="margin:4px 0 0;font-size:12px;color:#8B949E">17625 Euclid Ave, Cleveland, OH 44112 | (216) 862-0005</p>
     </div>
     <div style="text-align:right">
       <div style="font-size:11px;color:#8B949E;text-transform:uppercase;letter-spacing:1px">Invoice</div>

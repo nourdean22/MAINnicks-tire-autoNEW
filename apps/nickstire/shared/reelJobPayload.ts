@@ -29,9 +29,34 @@
 import type { StoryboardBeat } from "../client/src/lib/facelessReelStudio";
 import type { ApprovedProductionPackSnapshot, EpisodeContract, ProductionSlot } from "./episodeContract";
 import type { ReelStructureFingerprint } from "./reelStructureFingerprint";
+import type { RenderedQaVerdict } from "../server/services/renderedQa";
 
 /** Durable provenance for which approved-pack cursor owns this Reel job. */
 export type ApprovedPackPool = "active_slate" | "full_approved_library";
+
+/**
+ * A real-shop photo the retrieval layer (`server/services/realAssetFirst`)
+ * matched to this brief. Media provenance only — `rights_status = real_shop`
+ * on the registry row is what licenses its use; `enrichment` is the typed
+ * vision read that scored it. Shaped here, not imported from the server
+ * service, so this contract stays client-safe.
+ */
+export interface RealAssetRef {
+  assetId: string;
+  url: string;
+  score: number;
+  why: string[];
+  enrichment: {
+    subject?: string;
+    service?: string;
+    symptoms?: string[];
+    failureMode?: string;
+    visibleEvidence?: string[];
+    safeClaims?: string[];
+    quality?: number;
+    season?: string;
+  };
+}
 
 export interface ReelJobPayloadView {
   topic?: string;
@@ -80,6 +105,17 @@ export interface ReelJobPayloadView {
    */
   voiceoverScript?: string;
   episodeContract?: EpisodeContract;
+  /** Set by reelDraftPrep when a real-shop photo matched the brief's topic. */
+  realAsset?: RealAssetRef;
+  /**
+   * The rendered-QA verdict `runRenderedQaOnJob` writes back onto the same
+   * payload (frames → pixel stats → vision critic → craft score). Declared
+   * here (type-only import, erased at runtime) so the writer and the readers
+   * in qualityGate / selectiveRepair / commandCenter share one shape instead
+   * of each casting `payload.renderedQa` to its own guess. Carries
+   * `craftScore`, `escalate`, `pixelStats` and `visionCalls` since 2026-10-01.
+   */
+  renderedQa?: RenderedQaVerdict;
 }
 
 /** Never throws — an unparsable or missing payload returns an empty view,

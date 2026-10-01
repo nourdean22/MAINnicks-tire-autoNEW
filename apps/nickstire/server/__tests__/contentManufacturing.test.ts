@@ -288,6 +288,39 @@ describe("Content Domination Engine - Manufacturing & Safety", () => {
       expect(result.safe).toBe(false);
       expect(result.errors[0]).toContain("Violated Rule 3");
     });
+
+    it("should reject the Voice Kernel's unsupported claims, and pass the same draft without them", () => {
+      const baseDraft = {
+        hookText: "Payment programs for tires and repairs.",
+        bodyText: "Four providers, each with its own application and terms.",
+        visualStyle: "Style A",
+        persona: "Cleveland Car Doctor",
+        interactiveDmKeyword: "TIRES",
+        caption: "Compare them at the shop.",
+        hashtags: ["tires"],
+        scoreCuriosity: 80,
+        scoreEmotion: 80,
+        scoreShareability: 80,
+        scoreCommentPotential: 80,
+        scoreSavePotential: 80,
+        scoreLocalRelevance: 80,
+        scoreRevenueRelevance: 80,
+        scoreAuthority: 80,
+        scoreHookStrength: 80,
+        briefJson: "{}"
+      };
+
+      // Control: the honest draft passes, so a failure below is the claim.
+      expect(validateClaimSafety(baseDraft)).toEqual({ safe: true, errors: [] });
+
+      const claimed = validateClaimSafety({ ...baseDraft, caption: "No credit check. Approved on the spot." });
+      expect(claimed.safe).toBe(false);
+      expect(claimed.errors.some((e) => e.includes("Violated Rule 2a") && e.includes("claim.no-credit-check"))).toBe(true);
+
+      const echeck = validateClaimSafety({ ...baseDraft, hookText: "We're a state certified E-Check repair facility." });
+      expect(echeck.safe).toBe(false);
+      expect(echeck.errors.some((e) => e.includes("claim.echeck-certified"))).toBe(true);
+    });
   });
 
   describe("generateScoredDraft", () => {

@@ -4,6 +4,7 @@ import { createLogger } from "../../lib/logger";
 import { sendTelegram } from "../../services/telegram";
 import { getCallStateHistory } from "../../services/voice-call-state";
 import { classifyCall, extractCallSignals } from "../../services/vapiCallClassifier";
+import { classifyVoiceDemand, LOW_CONFIDENCE, VOICE_DEMAND_CLASSIFIER_VERSION } from "../../services/voiceDemandClassifier";
 import { extractCustomerTurns } from "../../services/customerTurns";
 import { extractDemand } from "@shared/callDemandExtraction";
 import { disposeCall } from "@shared/callTaxonomy";
@@ -193,6 +194,9 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
   let errored = 0;
   let technicalFailures = 0;
   let verifiedCaptures = 0;
+  let demandShadowClassified = 0;
+  let demandShadowUnclear = 0;
+  let demandShadowLowConfidence = 0;
 
   for (const row of rows) {
     try {
@@ -257,6 +261,15 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
        */
       const speech = extractCustomerTurns(detail.transcript ?? null);
       const demand = extractDemand(speech.turns);
+
+      // Rich demand classifier SHADOW ONLY. It reads the caller's first
+      // substantive turn and cannot change routing, queue membership, scoring,
+      // or customer copy in this release. Persist the disagreement substrate
+      // first; only promote it after real production adjudication.
+      const demandShadow = classifyVoiceDemand(speech.firstSubstantive);
+      if (demandShadow.intent === "unclear") demandShadowUnclear++;
+      else demandShadowClassified++;
+      if (demandShadow.confidence < LOW_CONFIDENCE) demandShadowLowConfidence++;
 
       const result = classifyCall({
         durationSeconds: row.durationSeconds ?? 0,
@@ -336,6 +349,18 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
           revenueOpsV1: measurement,
           /** Buying specifics from the caller's own turns. Null-safe throughout. */
           demand,
+          /**
+           * Richer demand taxonomy in shadow. The incumbent classifier remains
+           * authoritative; this envelope exists so we can measure coverage and
+           * adjudicate real disagreements before any cutover.
+           */
+          demandShadowV1: {
+            version: VOICE_DEMAND_CLASSIFIER_VERSION,
+            input: "customer_first_substantive",
+            ...demandShadow,
+            incumbentIntents: result.intents,
+            incumbentOutcome: result.outcome,
+          },
           /**
            * Where the outcome's evidence came from. Persisted so queue and
            * dashboard can separate "no demand" from "we could not read the
@@ -518,6 +543,9 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
     averageQuality,
     verifiedCaptures,
     technicalFailures,
+    demandShadowClassified,
+    demandShadowUnclear,
+    demandShadowLowConfidence,
     deferred,
     outbound,
     errored,
@@ -525,6 +553,6 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
 
   return {
     recordsProcessed: rows.length - deferred - outbound - errored,
-    details: `${scored.length} quality-scored · ${verifiedCaptures} verified captures · ${technicalFailures} technical failures · ${deferred} deferred · ${outbound} outbound · ${errored} errors${archiveDetails}`,
+    details: `${scored.length} quality-scored · ${verifiedCaptures} verified captures · ${technicalFailures} technical failures · demand shadow ${demandShadowClassified} classified / ${demandShadowUnclear} unclear / ${demandShadowLowConfidence} low-confidence · ${deferred} deferred · ${outbound} outbound · ${errored} errors${archiveDetails}`,
   };
 }

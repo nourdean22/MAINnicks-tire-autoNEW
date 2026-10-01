@@ -444,13 +444,20 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string, custom
 // SIP-transient on the webhook (see extractEndedReason).
 type VapiWebhookMessage = {
   type: string;
+  /** Vapi status-update/speech-update lifecycle status. */
+  status?: string;
   call?: {
     id?: string;
+    assistantId?: string;
     startedAt?: string;
     endedAt?: string;
     duration?: number;
     durationSeconds?: number;
     endedReason?: string;
+  };
+  assistant?: {
+    id?: string;
+    metadata?: Record<string, string>;
   };
   startedAt?: string;
   endedAt?: string;
@@ -657,6 +664,41 @@ async function processCallEndReport(
           }
         }
 
+        // ─── Persist exact SERVED-BEHAVIOR fingerprint ─────────────────────
+        // updateAssistant stamps a hash into assistant.metadata AFTER learned
+        // lessons and live transfer settings are merged. Prefer the assistant
+        // object Vapi delivered with this call: that is provider-side evidence
+        // of what served, not a guess from current source code. Until the next
+        // Push Latest Config older live assistants may lack the hash; persist
+        // that absence explicitly rather than backfilling today's code hash.
+        try {
+          const servedAssistantId = event.assistant?.id ?? event.call?.assistantId ?? null;
+          const meta = event.assistant?.metadata ?? {};
+          const behavior = {
+            v: 1,
+            assistantId: servedAssistantId,
+            hash: meta.nickBehaviorHash ?? null,
+            schema: meta.nickBehaviorSchema ?? null,
+            promptPolicy: meta.nickPromptPolicy ?? null,
+            source: meta.nickBehaviorHash ? "vapi_assistant_metadata" : "assistant_metadata_unavailable",
+          };
+          const { sql } = await import("drizzle-orm");
+          await d.execute(sql`
+            UPDATE vapi_call_logs
+            SET metadata = JSON_SET(
+              COALESCE(metadata, JSON_OBJECT()),
+              '$.behavior',
+              JSON_EXTRACT(${JSON.stringify(behavior)}, '$')
+            )
+            WHERE vapiCallId = ${String(callId)}
+          `);
+        } catch (behaviorErr) {
+          log.warn("[vapi webhook] behavior fingerprint persist failed (analytics only)", {
+            errorType: behaviorErr instanceof Error ? behaviorErr.name : typeof behaviorErr,
+            errorId: "VAPI_METADATA_BEHAVIOR_PERSIST_FAILED",
+          });
+        }
+
         // ─── Persist CUSTOMER-only speech (2026-07-26 demand audit) ─────────
         // The full transcript has been in hand here since wave-fix-2026-05-25,
         // used for a keyword scan and then dropped. Meanwhile `transcriptUrl`
@@ -700,13 +742,16 @@ async function processCallEndReport(
             const { sql } = await import("drizzle-orm");
             await d.execute(sql`
               UPDATE vapi_call_logs
-              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.customerSpeech', CAST(${JSON.stringify(speech)} AS JSON))
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.customerSpeech', JSON_EXTRACT(${JSON.stringify(speech)}, '$'))
               WHERE vapiCallId = ${String(callId)}
             `);
           }
         } catch (speechErr) {
+          // Never log the raw DB error here: Drizzle includes bound SQL params
+          // in its message, and those params contain customer speech/phone text.
           log.warn("[vapi webhook] customer-speech persist failed (analytics only)", {
-            error: speechErr instanceof Error ? speechErr.message : String(speechErr),
+            errorType: speechErr instanceof Error ? speechErr.name : typeof speechErr,
+            errorId: "VAPI_METADATA_CUSTOMER_SPEECH_PERSIST_FAILED",
           });
         }
 
@@ -751,9 +796,16 @@ async function processCallEndReport(
             const stored = { ...read, transferUpdateSeen };
             await d.execute(sql`
               UPDATE vapi_call_logs
-              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.transferArtifact', CAST(${JSON.stringify(stored)} AS JSON))
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.transferArtifact', JSON_EXTRACT(${JSON.stringify(stored)}, '$'))
               WHERE vapiCallId = ${String(callId)}
             `);
+            log.info("[vapi webhook] transfer artifact persisted", {
+              callId: String(callId),
+              verdict: read.verdict,
+              artifactPresent: read.artifactPresent,
+              transferUpdateSeen,
+              statuses: read.transfers.map((t) => t.status),
+            });
             if (read.unrecognisedStatuses.length) {
               // A status VAPI added that this app does not model. Loud, because
               // silently bucketing it as unknown would hide a real drift.
@@ -763,8 +815,11 @@ async function processCallEndReport(
             }
           }
         } catch (transferErr) {
+          // The raw driver message can embed the transfer destination in bound
+          // params; never create a second phone-number surface in Railway logs.
           log.warn("[vapi webhook] transfer-artifact persist failed (analytics only)", {
-            error: transferErr instanceof Error ? transferErr.message : String(transferErr),
+            errorType: transferErr instanceof Error ? transferErr.name : typeof transferErr,
+            errorId: "VAPI_METADATA_TRANSFER_ARTIFACT_PERSIST_FAILED",
           });
         }
 
@@ -789,7 +844,7 @@ async function processCallEndReport(
             const { sql } = await import("drizzle-orm");
             await d.execute(sql`
               UPDATE vapi_call_logs
-              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.voiceClaims', CAST(${JSON.stringify(claims)} AS JSON))
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.voiceClaims', JSON_EXTRACT(${JSON.stringify(claims)}, '$'))
               WHERE vapiCallId = ${String(callId)}
             `);
             if (claims.violations.length) {
@@ -802,8 +857,11 @@ async function processCallEndReport(
             }
           }
         } catch (claimErr) {
+          // Claim records derive from assistant utterances and may still carry
+          // conversation text in SQL params. Log the class, not the driver body.
           log.warn("[vapi webhook] voice-claim persist failed (analytics only)", {
-            error: claimErr instanceof Error ? claimErr.message : String(claimErr),
+            errorType: claimErr instanceof Error ? claimErr.name : typeof claimErr,
+            errorId: "VAPI_METADATA_VOICE_CLAIM_PERSIST_FAILED",
           });
         }
 
@@ -1128,12 +1186,10 @@ router.post("/vapi", async (req: Request, res: Response) => {
         return;
       }
 
-      case "status-update":
       case "call-start": {
-        log.info("Vapi call started", { callId: event.call?.id });
-        // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
-        // Record `greeted` on call start. Fire-and-forget · the existing
-        // ack path stays untouched.
+        // Legacy/explicit call-start event. Current Vapi server-message defaults
+        // use status-update and mark the true start as status=in-progress.
+        log.info("Vapi call started", { callId: event.call?.id, source: "call-start" });
         const callId = event.call?.id;
         const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
         if (callId) {
@@ -1146,7 +1202,39 @@ router.post("/vapi", async (req: Request, res: Response) => {
             })
           ).catch(() => { /* intentionally swallowed */ });
         }
-        // Acknowledge — no work needed for V1
+        res.json({ ack: true });
+        return;
+      }
+
+      case "status-update": {
+        // Vapi emits scheduled/queued/ringing/in-progress/forwarding/ended.
+        // Only in-progress means the conversation actually started. The old
+        // combined branch stamped every status as "greeted", producing several
+        // fake starts for one call in production.
+        const status = event.status ?? "unknown";
+        log.info("Vapi status update", { callId: event.call?.id, status });
+        if (status === "in-progress") {
+          const callId = event.call?.id;
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          if (callId) {
+            import("../../services/voice-call-state").then(({ recordCallState }) =>
+              recordCallState({
+                callId,
+                assistantId,
+                state: "greeted",
+                metadata: { eventType: event.type, status },
+              })
+            ).catch(() => { /* intentionally swallowed */ });
+          }
+        }
+        res.json({ ack: true });
+        return;
+      }
+
+      case "speech-update": {
+        // Normal Vapi lifecycle telemetry (started/stopped speaking). We do not
+        // persist it yet; explicitly acknowledge it so production logs do not
+        // mislabel supported provider traffic as an unknown event.
         res.json({ ack: true });
         return;
       }

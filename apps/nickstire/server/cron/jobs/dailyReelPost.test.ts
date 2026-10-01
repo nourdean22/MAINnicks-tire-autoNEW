@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { checkReviewReply } from "@shared/reviewReplyQa";
-import { MANIFEST, runDailyReelPost } from "./dailyReelPost";
+import { MANIFEST, runDailyReelPost, reelPublishPlatforms, facebookLiveWithoutInstagram } from "./dailyReelPost";
 
 describe("dailyReelPost", () => {
   it("covers reels 5-30 in order (26 reels)", () => {
@@ -85,5 +85,35 @@ describe("buildReelShadowJudgeInput (shadow judge, log-only)", () => {
     // Empty caption falls back to the title so the judge always has a text.
     expect(input.concept.coreIdea).toBe("autopost-x");
     expect(input.concept.hook.length).toBeGreaterThan(0);
+  });
+});
+
+// Facebook cross-post (armed 2026-10-01). The cron used to send ["instagram"]
+// only, so a reel never reached the Page as video. Two pure decisions pin it.
+describe("reelPublishPlatforms (REEL_FB_CROSSPOST_ENABLED)", () => {
+  it("is Instagram-only unless the flag is exactly 'true'", () => {
+    for (const bad of [undefined, "false", "1", "TRUE", "yes", ""]) {
+      expect(reelPublishPlatforms({ REEL_FB_CROSSPOST_ENABLED: bad } as NodeJS.ProcessEnv)).toEqual(["instagram"]);
+    }
+  });
+  it("adds Facebook AFTER Instagram when armed (positive control)", () => {
+    expect(reelPublishPlatforms({ REEL_FB_CROSSPOST_ENABLED: "true" } as NodeJS.ProcessEnv)).toEqual(["instagram", "facebook"]);
+  });
+});
+
+describe("facebookLiveWithoutInstagram (partial publish must PARK, never retry)", () => {
+  it("names the live Facebook post when IG failed cleanly", () => {
+    expect(facebookLiveWithoutInstagram([
+      { platform: "facebook", success: true, postId: "fb_123" },
+      { platform: "instagram", success: false },
+    ])).toBe("fb_123");
+  });
+  it("still parks when FB succeeded without returning an id", () => {
+    expect(facebookLiveWithoutInstagram([{ platform: "facebook", success: true }, { platform: "instagram", success: false }])).toBe("(no id returned)");
+  });
+  it("is null when IG succeeded, when FB failed, or when FB was not attempted", () => {
+    expect(facebookLiveWithoutInstagram([{ platform: "facebook", success: true, postId: "x" }, { platform: "instagram", success: true, postId: "y" }])).toBeNull();
+    expect(facebookLiveWithoutInstagram([{ platform: "facebook", success: false }, { platform: "instagram", success: false }])).toBeNull();
+    expect(facebookLiveWithoutInstagram([{ platform: "instagram", success: false }])).toBeNull();
   });
 });

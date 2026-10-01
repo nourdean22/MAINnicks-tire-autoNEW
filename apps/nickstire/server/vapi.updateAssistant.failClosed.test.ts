@@ -35,10 +35,24 @@ type Call = { url: string; method: string; body?: string };
 
 function stubVapi(get: () => Promise<Response>) {
   const calls: Call[] = [];
+  let lastPatch: Record<string, unknown> | null = null;
   vi.stubEnv("VAPI_API_KEY", "test-key");
   vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit = {}) => {
     const method = (init.method ?? "GET").toUpperCase();
-    calls.push({ url: String(url), method, body: typeof init.body === "string" ? init.body : undefined });
+    const body = typeof init.body === "string" ? init.body : undefined;
+    calls.push({ url: String(url), method, body });
+    if (method === "PATCH") {
+      lastPatch = body ? JSON.parse(body) as Record<string, unknown> : {};
+      return new Response(JSON.stringify({ id: "asst-1", ...lastPatch }), { status: 200 });
+    }
+    if (method === "GET" && lastPatch) {
+      // Second GET = provider read-back after PATCH. Echo the stored metadata
+      // exactly as Vapi's assistant GET endpoint does.
+      return new Response(JSON.stringify({
+        ...LIVE_ASSISTANT,
+        metadata: (lastPatch as { metadata?: unknown }).metadata,
+      }), { status: 200 });
+    }
     if (method === "GET") return get();
     return new Response("{}", { status: 200 });
   }));
@@ -70,11 +84,33 @@ describe("updateAssistant fails closed when it cannot read the live assistant", 
     const calls = stubVapi(async () => new Response(JSON.stringify(LIVE_ASSISTANT), { status: 200 }));
     const res = await updateAssistant("asst-1", "https://nickstire.org/api/webhooks/vapi");
     expect(res.success).toBe(true);
+    expect(res.verified).toBe(true);
+    expect(res.behaviorHash).toMatch(/^[a-f0-9]{24}$/);
     const patch = calls.find((c) => c.method === "PATCH");
     expect(patch).toBeTruthy();
     const sent = JSON.parse(patch!.body!);
     const transfer = sent.model.tools.find((t: { type?: string }) => t.type === "transferCall");
     expect(transfer.destinations[0].number).toBe("+12165550199");
     expect(transfer.destinations[0].transferPlan).toEqual(LIVE_PLAN);
+    expect(sent.metadata?.nickBehaviorHash).toMatch(/^[a-f0-9]{24}$/);
+    expect(sent.metadata?.nickBehaviorSchema).toBe("vapi-behavior-v1");
+    expect(sent.metadata?.nickPromptPolicy).toBe("neutral-first");
   });
+  it("rotating the webhook secret does not create a fake behavior-version change", async () => {
+    stubVapi(async () => new Response(JSON.stringify(LIVE_ASSISTANT), { status: 200 }));
+
+    vi.stubEnv("VAPI_WEBHOOK_SECRET", "secret-a");
+    const first = await updateAssistant("asst-1", "https://nickstire.org/api/webhooks/vapi");
+    expect(first.success).toBe(true);
+    expect(first.verified).toBe(true);
+
+    vi.stubEnv("VAPI_WEBHOOK_SECRET", "secret-b");
+    const second = await updateAssistant("asst-1", "https://nickstire.org/api/webhooks/vapi");
+    expect(second.success).toBe(true);
+    expect(second.verified).toBe(true);
+
+    expect(first.behaviorHash).toMatch(/^[a-f0-9]{24}$/);
+    expect(second.behaviorHash).toBe(first.behaviorHash);
+  });
+
 });

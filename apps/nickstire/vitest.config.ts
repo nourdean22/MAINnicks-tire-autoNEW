@@ -97,7 +97,6 @@ export default defineConfig({
         "server/lib/membership-guards.ts",
         "server/services/invoiceGenerator.ts",
         "server/services/snapApplications.ts",
-        "server/services/financingPreQual.ts",
         "server/services/declinedRecoverySequence.ts",
         "server/services/declinedWorkRecovery.ts",
         "server/services/auditTrail.ts",

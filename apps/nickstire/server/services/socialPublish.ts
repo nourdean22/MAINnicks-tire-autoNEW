@@ -52,6 +52,13 @@ export interface PublishInput {
    * boundary: automated actors fail CLOSED, operators proceed loud.
    */
   actor?: "operator" | "automated";
+  /**
+   * Facebook-native caption variant (README §G "FB Reel: same reel, FB caption
+   * variant"). Used for the Facebook publish when present; Instagram always
+   * gets `caption`. Build it with `server/services/facebookVariant.ts` — longer,
+   * conversational, a question for comments, no hashtag wall.
+   */
+  fbCaption?: string;
 }
 
 export interface PublishOutcome {
@@ -246,12 +253,42 @@ export async function publishToSocial(input: PublishInput): Promise<PublishOutco
   }
 
   if (input.platforms.includes("facebook")) {
-    const fbRes = await postToFacebook({
-      message: input.caption,
-      imageUrl: input.imageUrl ?? input.imageUrls?.[0],
-      link: input.link,
-    });
-    results.push({ platform: "facebook", ...fbRes });
+    const fbImage = input.imageUrl ?? input.imageUrls?.[0];
+    let fbMessage = input.fbCaption ?? input.caption;
+    if (!fbImage && input.videoUrl && !input.isStory) {
+      // README §G: a Facebook Reel gets a Facebook-native caption, never the IG
+      // hashtag wall. A caller may hand one in; otherwise derive it here, at the
+      // choke point, so no reel reaches the Page with IG mechanics in its text.
+      // Photo cross-posts keep today's behaviour (caption as given).
+      if (!input.fbCaption) {
+        const { buildFacebookCaption } = await import("./facebookVariant");
+        fbMessage = buildFacebookCaption({ igCaption: input.caption }).caption;
+      }
+      // A reel cross-posted to the Page. Until 2026-10-01 this branch sent the
+      // caption with NO media (imageUrl undefined for a reel), so every
+      // cross-posted reel became a text status. Same two gates as the IG reel
+      // door below — autonomously assembled video is the riskiest publish
+      // shape whichever Page it lands on — and the claim check runs on the
+      // caption Facebook will actually show.
+      if (process.env.REEL_PUBLISH_ENABLED !== "true") {
+        results.push({ platform: "facebook", success: false, error: "Reel publishing is disabled (set REEL_PUBLISH_ENABLED=true to arm)." });
+      } else {
+        const fbBlockers = checkReviewReply(fbMessage).filter((f) => f.severity === "block");
+        if (fbBlockers.length) {
+          results.push({ platform: "facebook", success: false, error: `Reel caption blocked by claim-safety: ${fbBlockers.map((b) => b.rule).join(", ")}` });
+        } else {
+          const fbRes = await postToFacebook({ message: fbMessage, videoUrl: input.videoUrl });
+          results.push({ platform: "facebook", ...fbRes });
+        }
+      }
+    } else {
+      const fbRes = await postToFacebook({
+        message: fbMessage,
+        imageUrl: fbImage,
+        link: input.link,
+      });
+      results.push({ platform: "facebook", ...fbRes });
+    }
   }
 
   if (input.platforms.includes("instagram")) {

@@ -269,7 +269,7 @@ function PageTabsInner({ tabs, param = "tab", defaultKey, lenses, className }: P
               aria-selected={isActive}
               onClick={() => select(t.key)}
               className={cn(
-                "shrink-0 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.14em]",
+                "min-h-11 shrink-0 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.14em]",
                 "border-b-2 -mb-px transition-colors focus-visible:outline-none",
                 "focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40",
                 isActive

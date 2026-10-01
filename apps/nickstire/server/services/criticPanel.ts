@@ -11,34 +11,45 @@
  * and let ANY block force repair — no averaging, so a single hard failure is
  * never diluted by six clean lenses.
  *
- * This module owns the lens definitions + the PURE merge (unit-tested).
+ * WHAT IS WIRED, EXACTLY (2026-10-01, Creative Intelligence OS README §L.2).
  *
- * NOT WIRED — READ THIS BEFORE TRUSTING ANYTHING ABOVE.
+ *   ADAPTIVE ESCALATION OF ONE LENS, behind a flag. `runRenderedQaOnJob`
+ *   (renderedQa.ts) calls `escalateIfNeeded` right after the general critic
+ *   when the pipeline passes `specialist: true`, which reelPipeline.ts derives
+ *   from `RENDERED_QA_SPECIALIST === "true"` (default OFF). The general
+ *   verdict's `escalate` field — chosen deterministically from its findings,
+ *   never by the model — names at most ONE lens: automotive, editorial,
+ *   typography, brand or composition. That lens runs through the SAME vision
+ *   wrapper the general critic uses (`callVisionCritic`), its verdict is
+ *   merged with `mergePanel`, the craft score is refolded, and `visionCalls`
+ *   on the verdict records the spend: 1 with the flag off, ≤2 with it on.
  *
- * There is no live multi-lens run. This docstring used to claim one ("the live
- * multi-lens run reuses evaluateRenderedReel per lens"), and it was never true:
- * grepped 2026-09-09 across server/, client/, shared/ and scripts/, the only
- * importers of `CRITIC_LENSES`, `mergePanel` or this file are its own tests.
- * Production runs the SINGLE general critic — `runRenderedQaOnJob` calls
- * `evaluateRenderedReel` once, and nothing calls this.
+ * WHAT IS NOT WIRED.
  *
- * That matters in both directions. A defect code added here reaches no reel, so
- * the craft codes added on 2026-09-09 are live only because they were also
- * added to the registry in renderedQa.ts, which IS wired. And a test asserting
- * against these lens definitions is green over a subject that never runs.
+ *   The full seven-lens panel. Nothing runs `visual_continuity` or
+ *   `strategic`, and nothing runs more than one lens per reel. Seven calls per
+ *   reel against a daily generation budget the autonomy policy caps is a SPEND
+ *   decision an operator has to make; the escalation path above is the
+ *   ~1.2-calls-per-reel compromise the README asked for instead. The lens
+ *   definitions and the merge remain unit-tested on their own.
  *
- * Wiring it is a SPEND decision, not a code decision: one vision call per lens
- * means seven per reel instead of one, against a daily generation budget the
- * autonomy policy caps. It needs an operator to authorize the multiplier, so
- * the honest state is "designed, tested, dormant" — recorded here rather than
- * left for the next reader to discover.
+ * This header used to say "NOT WIRED" outright, and before that it claimed a
+ * live multi-lens run that never existed. Both corrections are kept here so
+ * the next reader does not have to rediscover either.
  */
-import type { RenderedFinding, RenderedQaVerdict } from "./renderedQa";
-import { RENDERED_DEFECT_CODES } from "./renderedQa";
+import type { EscalationLens, EvaluateRenderedReelInput, ExtractedFrame, RenderedFinding, RenderedQaVerdict } from "./renderedQa";
+import { RENDERED_DEFECT_CODES, beatsDocFor, callVisionCritic, clampVerdict, craftScore } from "./renderedQa";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("services:critic-panel");
 
 export type CriticLens =
   | "visual_continuity" | "automotive" | "editorial"
   | "typography" | "brand" | "strategic" | "composition";
+
+/** A panel member: a specialist lens, or the general critic whose verdict a
+ *  lens is merged into. */
+export type PanelMember = CriticLens | "general";
 
 /** Which defect codes each lens is responsible for + its focusing instruction.
  *  A code may appear in more than one lens (e.g. text artifacts matter to both
@@ -76,9 +87,9 @@ export const CRITIC_LENSES: Record<CriticLens, { codes: (keyof typeof RENDERED_D
 
 export interface PanelVerdict {
   decision: "approve" | "repair";
-  findings: Array<RenderedFinding & { lenses: CriticLens[] }>;
-  lensesRun: CriticLens[];
-  lensesSkipped: CriticLens[];
+  findings: Array<RenderedFinding & { lenses: PanelMember[] }>;
+  lensesRun: PanelMember[];
+  lensesSkipped: PanelMember[];
 }
 
 const KEY = (f: RenderedFinding) => `${f.code}::${f.beatNumber ?? "x"}`;
@@ -90,11 +101,11 @@ const SEV_RANK: Record<string, number> = { block: 2, warn: 1 };
  * finding forces repair — a single hard fail is never averaged away.
  */
 export function mergePanel(
-  perLens: Array<{ lens: CriticLens; verdict: RenderedQaVerdict | null }>,
+  perLens: Array<{ lens: PanelMember; verdict: RenderedQaVerdict | null }>,
 ): PanelVerdict {
-  const lensesRun: CriticLens[] = [];
-  const lensesSkipped: CriticLens[] = [];
-  const byKey = new Map<string, RenderedFinding & { lenses: CriticLens[] }>();
+  const lensesRun: PanelMember[] = [];
+  const lensesSkipped: PanelMember[] = [];
+  const byKey = new Map<string, RenderedFinding & { lenses: PanelMember[] }>();
 
   for (const { lens, verdict } of perLens) {
     if (!verdict || verdict.critic === "skipped") { lensesSkipped.push(lens); continue; }
@@ -114,4 +125,89 @@ export function mergePanel(
   const findings = [...byKey.values()].sort((a, b) => (SEV_RANK[b.severity] ?? 0) - (SEV_RANK[a.severity] ?? 0));
   const decision = findings.some((f) => f.severity === "block") ? "repair" : "approve";
   return { decision, findings, lensesRun, lensesSkipped };
+}
+
+// ─── Adaptive specialist escalation (wired, flag-gated) ───────────
+
+export interface SpecialistContext {
+  brief: EvaluateRenderedReelInput["brief"];
+}
+
+type SpecialistLens = Exclude<EscalationLens, "none">;
+
+/**
+ * One focused vision pass through the SAME wrapper as the general critic. The
+ * lens is told what the general critic already reported so it confirms or
+ * refutes rather than re-inventing; it may only emit its own codes. Never
+ * throws — a failed call is a "skipped" lens verdict, which mergePanel records
+ * as skipped rather than clean.
+ */
+async function runSpecialistLens(lens: SpecialistLens, frames: ExtractedFrame[], context: SpecialistContext, general: RenderedQaVerdict): Promise<RenderedQaVerdict> {
+  const def = CRITIC_LENSES[lens];
+  const codeDoc = def.codes
+    .map((code) => `${code} (${RENDERED_DEFECT_CODES[code].severity}): ${RENDERED_DEFECT_CODES[code].meaning}`)
+    .join("\n");
+  const priorDoc = general.findings.length
+    ? general.findings.map((f) => `- ${f.code} on beat ${f.beatNumber ?? "first/final"} (${f.severity}${typeof f.confidence === "number" ? `, confidence ${f.confidence}` : ""}): ${f.description}`).join("\n")
+    : "- (none)";
+  const system = [
+    `You are a SPECIALIST creative QA critic for automotive reels, with exactly one concern.`,
+    `FOCUS: ${def.focus}`,
+    `Frames are labeled in order: first, per-beat midpoints, final. Judge ONLY what is visible.`,
+    `Emit findings ONLY with these exact codes — your lens owns no others, and an empty findings list is a valid answer:\n${codeDoc || "(this lens has no defect codes; return zero findings unless something within your focus is plainly wrong)"}`,
+    `PLANNED BEATS:\n${beatsDocFor(context.brief)}`,
+    `The general critic already reported:\n${priorDoc}\nYou were called because it was not sure. CONFIRM a prior finding by re-emitting it with your own confidence, REFUTE it by leaving it out, and ADD anything within your focus it missed.`,
+    `For each finding give beatNumber (the beat whose frame shows it, or null for first/final), a concrete description, preserve[] (what the repair must keep), change[] (the minimal change) and confidence 0-1. Decision "repair" only for a block. Do not praise.`,
+  ].join("\n\n");
+  const user = `Inspect these ${frames.length} frames (order: ${frames.map((f) => f.label).join(", ")}) through the ${lens} lens only. Topic: ${context.brief.topic ?? "unknown"}. Hero: ${context.brief.objectCharacter ?? "unknown"}.`;
+  try {
+    const parsed = await callVisionCritic({ frames, system, user });
+    return clampVerdict(parsed, frames.length, "vision");
+  } catch (err) {
+    log.warn("specialist lens unavailable — recorded as skipped, not as clean", {
+      lens, err: err instanceof Error ? err.message.slice(0, 160) : String(err),
+    });
+    return clampVerdict({ decision: "approve", findings: [] }, frames.length, "skipped");
+  }
+}
+
+/**
+ * Run the ONE lens the general verdict asked for (`verdict.escalate`) and
+ * merge it in. Gated by `RENDERED_QA_SPECIALIST === "true"` unless the caller
+ * passes `enabled` explicitly (the pipeline does, so the gate is visible at
+ * the call site). Returns the verdict untouched when disabled, when the
+ * general critic did not evaluate, or when it asked for no lens — so with the
+ * flag off the vision-call count is exactly what it was before this existed.
+ *
+ * `visionCalls` counts ATTEMPTS: a lens call that times out was still sent and
+ * is still spend, so it is counted even when the lens comes back skipped.
+ */
+export async function escalateIfNeeded(
+  verdict: RenderedQaVerdict,
+  frames: ExtractedFrame[],
+  context: SpecialistContext,
+  opts: { enabled?: boolean } = {},
+): Promise<RenderedQaVerdict> {
+  const enabled = opts.enabled ?? process.env.RENDERED_QA_SPECIALIST === "true";
+  if (!enabled) return verdict;
+  if (verdict.critic !== "vision" || !verdict.escalate || verdict.escalate === "none") return verdict;
+  const lens = verdict.escalate;
+  const lensVerdict = await runSpecialistLens(lens, frames, context, verdict);
+  const panel = mergePanel([
+    { lens: "general", verdict },
+    { lens, verdict: lensVerdict },
+  ]);
+  // The general critic may say "repair" with zero codable findings (real
+  // signal, see clampVerdict); mergePanel only sees findings, so OR the two.
+  const decision = verdict.decision === "repair" || panel.decision === "repair" ? "repair" : "approve";
+  const findingsAdded = Math.max(0, panel.findings.length - verdict.findings.length);
+  log.info("specialist lens merged", { lens, lensCritic: lensVerdict.critic, findingsAdded, decision });
+  return {
+    ...verdict,
+    decision,
+    findings: panel.findings,
+    craftScore: craftScore(panel.findings, verdict.pixelStats),
+    visionCalls: (verdict.visionCalls ?? 1) + 1,
+    specialist: { lens, critic: lensVerdict.critic, findingsAdded },
+  };
 }

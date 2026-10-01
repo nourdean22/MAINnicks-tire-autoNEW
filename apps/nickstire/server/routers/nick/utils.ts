@@ -233,7 +233,14 @@ export const WARRANTY_SCHEDULE: Record<string, { months: number; miles: number; 
   "transmission": { months: 12, miles: 0, description: REPAIR_WARRANTY },
 };
 
-/** Financing providers available at Nick's */
+/**
+ * Financing providers available at Nick's — operator-side quote math only.
+ * Provider names, caps, minimums and credit wording must agree with
+ * shared/financing.ts; `type` is only the quote-math assumption (2026-10-01: the payoff
+ * lines said "90/100 days same as cash", Koalafi's cap said $10,000 against its
+ * published $7,500, and Koalafi was called a soft check when Koalafi says it
+ * checks credit through alternative bureaus).
+ */
 export const FINANCING_OPTIONS = [
   {
     provider: "Acima",
@@ -241,29 +248,29 @@ export const FINANCING_OPTIONS = [
     minAmount: 100,
     maxAmount: 5000,
     termMonths: [3, 6, 12],
-    approvalType: "No credit needed",
-    earlyBuyoutDiscount: "90 days same as cash",
+    approvalType: "No credit history required; uses consumer-report data",
+    earlyBuyoutDiscount: "Early purchase option; deadline and savings in the lease",
     note: "Lease-to-own option. Total cost is higher if paid over full term.",
   },
   {
     provider: "Snap Finance",
     type: "lease_to_own",
-    minAmount: 150,
+    minAmount: 300,
     maxAmount: 5000,
     termMonths: [12],
-    approvalType: "No credit needed",
-    earlyBuyoutDiscount: "100 days same as cash",
-    note: "Easy approval. Best for customers wanting a 100-day payoff window.",
+    approvalType: "No credit needed per Snap; consumer-report data used",
+    earlyBuyoutDiscount: "Promotional payoff terms vary by product and agreement",
+    note: "Snap decides approval. Payoff window depends on the product offered.",
   },
   {
     provider: "Koalafi",
     type: "lease_to_own",
     minAmount: 200,
-    maxAmount: 10000,
+    maxAmount: 7500,
     termMonths: [6, 12, 18, 24],
-    approvalType: "Soft credit check",
-    earlyBuyoutDiscount: "90 days same as cash",
-    note: "Higher limits available. Good for major repairs. Soft check, no impact to score.",
+    approvalType: "Credit check through alternative bureaus (Koalafi says no FICO impact)",
+    earlyBuyoutDiscount: "Early purchase options; terms in the agreement",
+    note: "Highest published cap of the four. Good for major repairs.",
   },
 ];
 
@@ -531,10 +538,10 @@ Return a JSON object with:
 
 Pricing guidelines:
 - Labor rate: $85/hour
-- Oil change: $40-70 (conventional/synthetic)
-- Brake pads per axle: $89-150 (parts) + 1-2 hours labor
+- Oil change: $49 conventional/blend, $80 full synthetic
+- Brakes per axle: pads from $149, pads + rotors from $149.99, depending on vehicle
 - Tire mount/balance: $20-30 per tire
-- Diagnostics: $50-100
+- Diagnostics: $49, waived if the customer does the repair with us
 - E-Check repair: $100-800 depending on issue
 - Always give a RANGE, never a single price
 - Include disclaimer: "Final price may vary after in-person inspection"`;

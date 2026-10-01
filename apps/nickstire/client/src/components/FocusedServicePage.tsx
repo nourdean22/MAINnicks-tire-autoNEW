@@ -62,6 +62,7 @@ import LossAversionStat from "./conversion/LossAversionStat";
 import ServiceTriageCard from "./conversion/ServiceTriageCard";
 import TextMeQuote from "./conversion/TextMeQuote";
 import TrustBlock from "./TrustBlock";
+import { offerPriceFields } from "@/lib/offerPrice";
 
 // Default hero swapped from CloudFront stock → real shop storefront (May 2026).
 // This propagates the real photo to every service page using FocusedServicePage
@@ -160,6 +161,9 @@ export interface ServicePageConfig {
   ctaHeadline?: string;
   /** Bottom-of-page CTA sub */
   ctaSub?: string;
+  /** Conditions on the prices this page shows ("depending on vehicle"),
+   *  rendered as fine print at the very bottom of the page. */
+  finePrint?: string;
   /** Hero secondary CTA override. Defaults to SCHEDULE DROP-OFF → #booking.
    *  Sit-and-wait FCFS services (oil changes) have NO drop-off — customers
    *  pull up and wait — so they swap in "CAN I COME NOW?" here. */
@@ -397,10 +401,10 @@ function AeoAnswer({ config }: { config: ServicePageConfig }) {
     // brand-voice kernel (shared/voice.ts) prescribes it, and SMS, voice and
     // 100+ pages repeat it. A 2026-09-08 pass briefly paraphrased it here as
     // "every charge is on a written estimate you approve first" on the theory
-    // that a $59.99 diagnostic contradicts it; it does not — the diagnostic
+    // that a paid diagnostic contradicts it; it does not — the diagnostic
     // is itself on the written quote before it is charged. Canon restored;
     // any change to this promise is the owner's, made in shared/voice.ts.
-    `${config.serviceType} at Nick's Tire & Auto, 17625 Euclid Ave in Cleveland/Euclid, OH: ${priceClause}. Walk in 7 days a week — no appointment needed, and you don't pay until you say yes. Call (216) 862-0005.`;
+    `${config.serviceType} at Nick's Tire & Auto, ${BUSINESS.address.full}: ${priceClause}. Walk in 7 days a week — no appointment needed, and you don't pay until you say yes. Call (216) 862-0005.`;
   return <AeoAnswerBlock answer={answer} />;
 }
 
@@ -826,11 +830,14 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
             // without the qualifier.
             "itemListElement": config.tiers
               .map((t) => {
-                const numericPrice = t.price.replace(/[^0-9.]/g, "").split(".")[0];
-                if (!numericPrice) return null;
+                // Dollar amounts only: stripping every non-digit published the
+                // /warranties tier "12-Mo Parts / 90-Day Labor" as a $1290 Offer
+                // (lib/offerPrice.ts).
+                const priceFields = offerPriceFields(t.price);
+                if (!priceFields) return null;
                 return {
                   "@type": "Offer",
-                  "price": numericPrice,
+                  ...priceFields,
                   "priceCurrency": "USD",
                   "itemOffered": { "@type": "Service", "name": `${t.name} ${config.serviceType}`, "serviceType": config.serviceType },
                 };
@@ -1034,6 +1041,13 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
           </div>
         </div>
       </section>
+      {config.finePrint && (
+        <section className="py-6 border-t border-border/50" aria-label="Pricing fine print">
+          <div className="container">
+            <p className="text-xs leading-relaxed text-foreground/70">{config.finePrint}</p>
+          </div>
+        </section>
+      )}
     </PageLayout>
   );
 }

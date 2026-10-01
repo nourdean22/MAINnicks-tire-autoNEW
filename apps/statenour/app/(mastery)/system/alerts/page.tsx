@@ -19,7 +19,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { PageHeader } from "@/components/layout/ui";
+import { StandardPage } from "@/components/layout/standard-page";
 import { Panel } from "@/components/panel";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
@@ -196,12 +196,14 @@ export default function AlertsInspectorPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-6">
-      <PageHeader parentHref="/system" parentLabel="system"
-        eyebrow="System"
-        title="Alerts inspector"
-        description="Every alert across the 7 brain-side detectors · filter · drill into audit trail"
-      />
+    <StandardPage
+      eyebrow="System"
+      title="Alerts Inspector"
+      description="Every alert across the seven brain-side detectors · filter · drill into the audit trail."
+      width="xl"
+      rhythm="comfortable"
+      className="px-4 py-6"
+    >
 
       <Panel className="mt-4">
         {/* Controls row */}
@@ -379,6 +381,6 @@ export default function AlertsInspectorPage() {
           </ul>
         )}
       </Panel>
-    </main>
+    </StandardPage>
   );
 }

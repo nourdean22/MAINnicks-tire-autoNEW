@@ -175,7 +175,7 @@ export default function SiteFooter() {
                   // Sitewide discoverability + crawler-friendly direct
                   // hrefs from every page that includes the footer (which
                   // is every public page).
-                  { href: "/no-credit-check-tires-cleveland", label: "No-Credit-Check Tires" },
+                  { href: "/no-credit-check-tires-cleveland", label: "Bad Credit? Tire Options" },
                   { href: "/tires#open-sundays", label: "Sunday Tire Shop" },
                 ].map((l) => (
                   <Link key={l.href} href={l.href} className={LINK_CLASS}>{l.label}</Link>

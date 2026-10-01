@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "2026-10-01 first full OpenWebUI -> NOUR Cockpit -> CockpitRun canary did NOT complete. Headless real UI verified the selected model was NOUR Cockpit and submitted marker UI_E2E_CANARY_20261001_0951. No new JSON file appeared under %USERPROFILE%\\AI\\cockpit\\runs and the marker was absent from existing run state. Live gateway log shows the corresponding nour-auto turn started at 14:17:27 with routingChars=401 and completed at 14:18:12 on claude-code after codex quota exhaustion with toolCalls=0. Therefore do not claim natural-language OpenWebUI -> Cockpit execution as working yet. Cockpit bridge health, isolated worktrees, OpenCode execution, and Chat Controls optimizer remain independently verified. Next diagnostic target is the exact OpenWebUI outgoing chat payload: determine whether direct_server:nour-cockpit is materialized into tool_servers/tools for the request or whether the model received the tool schema and declined it."
+    }
+  }
+}

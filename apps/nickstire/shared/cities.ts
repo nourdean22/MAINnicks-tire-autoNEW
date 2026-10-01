@@ -36,7 +36,7 @@ export const CITIES: CityData[] = [
     neighborhoods: ["Downtown Euclid", "Indian Hills", "Euclid Green", "Bluestone", "Upson"],
     localContent: "Nick's Tire & Auto sits right on Euclid Avenue. From Indian Hills, Euclid Green, or anywhere along Lakeshore Boulevard, we're 2 minutes away. Routine oil change to complex engine work — same playbook every job: lift the car, hand you the flashlight, write the quote first. Cheaper than the dealer. More honest than the chain. The shop your grandfather would've nodded at, with the OBD-II gear your kid's Tesla needs.",
     serviceHighlights: [
-      "Ohio E-Check and emissions repair (state-certified)",
+      "Ohio E-Check failure diagnosis and emissions repair",
       "Brake check on a lift you can walk under",
       "New + used tires with free mount, balance, valve stems, alignment check",
       "OBD-II code pull free with repair, plain-English explanation",
@@ -64,7 +64,7 @@ export const CITIES: CityData[] = [
       "Brake service — pads, rotors, calipers, ABS — measured on a lift you can see",
       "New + used tires from major brands with the free install package",
       "OBD-II code pull free with repair, explained in real English",
-      "Ohio E-Check + emissions repair, state-certified",
+      "Ohio E-Check failure diagnosis + emissions repair",
       "Cooling system, belts, hoses — caught before they tow you",
       "Steering + suspension tuned for the Lake Erie freeze-thaw"
     ],
@@ -89,8 +89,8 @@ export const CITIES: CityData[] = [
     // want LOCAL Parma) wasn't overcome by the Uber drive-time bait.
     // Reframing around price + Sunday-hours value props that local Parma
     // shops don't offer — the only thing that overcomes 25-min drive.
-    metaTitle: "Parma Auto Repair · Used Tires $25 · Open Sundays | Nick's",
-    metaDescription: "Parma drivers — Nick's Tire & Auto. Used tires from $25 installed (chains won't sell them). Open Sundays 9a-4p when shops close. ★4.9 · 1,710+ reviews. (216) 862-0005",
+    metaTitle: "Parma Auto Repair · Used Tires · Open Sundays | Nick's",
+    metaDescription: "Parma drivers: used tires from $25 installed (select 12-inch; most $40-80). Open Sundays 9a-4p. ★4.9 · 1,710+ reviews. Nick's Tire & Auto · (216) 862-0005",
     heroHeadline: "AUTO REPAIR\nWORTH THE DRIVE FROM PARMA",
     heroSubline: "Parma drivers tired of three different local shops giving three different prices for the same job come to Nick's Tire & Auto for one answer — the honest one. 25 minutes up I-480, and we Uber you home and back so you don't sacrifice a Saturday sitting around. 4.9★ from 1,710+ Cleveland-area drivers who came in skeptical and left with a working car.",
     distance: "15 miles",
@@ -101,7 +101,7 @@ export const CITIES: CityData[] = [
       "We'll tell you what's wrong on check-engine and warning lights",
       "Brake repair and replacement with OE-spec parts",
       "New and used tire sales with the install package included",
-      "Emissions and E-Check failure work — state-certified",
+      "Emissions and E-Check failure work — free readiness check",
       "Exhaust system repair and replacement",
       "General mechanical repair and maintenance"
     ],
@@ -121,7 +121,7 @@ export const CITIES: CityData[] = [
     metaTitle: "Parma Heights Auto Repair · Open Sundays | Nick's",
     metaDescription: "Parma Heights drivers cross town for an honest mechanic. 4.9★ 1,710+ reviews. Free Uber drop-off + pick-up. Brakes, tires, check-engine light. Walk-ins 7 days.",
     heroHeadline: "PARMA HEIGHTS\nAUTO REPAIR — WORTH THE DRIVE",
-    heroSubline: "Parma Heights drivers fed up with overpriced local shops are crossing town to Nick's Tire & Auto for honest answers, written quotes before any wrench moves, and payment programs approved on the spot. 25 minutes up I-480 — and we Uber you home and back so you don't lose a day sitting around. Free check. Written quote. You don't pay until you say yes.",
+    heroSubline: "Parma Heights drivers fed up with overpriced local shops are crossing town to Nick's Tire & Auto for honest answers, written quotes before any wrench moves, and payment programs from four providers. 25 minutes up I-480 — and we Uber you home and back so you don't lose a day sitting around. Free check. Written quote. You don't pay until you say yes.",
     distance: "16 miles",
     driveTime: "25 minutes",
     neighborhoods: ["Pleasant Lake", "Stumph Road", "York Road", "Pearl Road", "Snow Road"],
@@ -131,7 +131,7 @@ export const CITIES: CityData[] = [
       "New & used tires installed FREE with our install package",
       "Check engine light — free scan, real-English explanation",
       "Wheel alignment to fix the damage Pearl Rd & York Rd potholes did over winter",
-      "Payment programs approved on the spot — soft pull, no FICO ding",
+      "Payment programs from four providers — each decides approval",
       "Free Uber drop-off and pick-up from anywhere in Parma Heights"
     ],
     testimonial: {
@@ -404,15 +404,15 @@ export const CITIES: CityData[] = [
     distance: "0 miles",
     driveTime: "You're here",
     neighborhoods: ["Downtown Cleveland", "East Side", "West Side", "Collinwood", "Nottingham", "Five Points", "University Circle", "Tremont", "Ohio City", "Slavic Village", "Glenville", "Hough"],
-    localContent: "Nick's Tire & Auto is at 17625 Euclid Avenue in the heart of Cleveland's East Side — yes, the shop is literally on Euclid Ave. Since 2018 the formula has been boring on purpose: honest answers, transparent pricing, solid work, no upsells. We show you the problem on a lift, explain your options in real English, and let you decide. Free check. Written quote. You don't pay until you say yes. That approach earned us a 4.9★ rating across 1,710+ Google reviews — the highest of any independent shop in the metro. Tires, brakes, check-engine light, emissions, transmission, or that strange noise that started this morning. Walk-ins welcome 7 days a week, payment programs on the spot through Acima, Koalafi, Snap Finance, and American First Finance.",
+    localContent: "Nick's Tire & Auto is at 17625 Euclid Avenue in the heart of Cleveland's East Side — yes, the shop is literally on Euclid Ave. Since 2018 the formula has been boring on purpose: honest answers, transparent pricing, solid work, no upsells. We show you the problem on a lift, explain your options in real English, and let you decide. Free check. Written quote. You don't pay until you say yes. That approach earned us a 4.9★ rating across 1,710+ Google reviews. Tires, brakes, check-engine light, emissions, transmission, or that strange noise that started this morning. Walk-ins welcome 7 days a week, payment programs through Acima, Koalafi, Snap Finance, and American First Finance.",
     serviceHighlights: [
       "Cleveland's largest new & used tire selection with free install package",
       "Brake repair — pads, rotors, calipers, ABS on a lift you can see",
       "Engine work with OBD-II + factory-level scanners",
-      "Ohio E-Check and emissions repair — state-certified",
+      "Ohio E-Check failure diagnosis and emissions repair",
       "Oil changes faster than your barista finishes your name",
       "Transmission, suspension, electrical, exhaust, and the weird rattle that started yesterday",
-      "Auto-repair payment programs on the spot — soft pull only",
+      "Auto-repair payment programs from four providers",
       "Walk-ins welcome 7 days a week, including Sunday 9 AM–4 PM"
     ],
     testimonial: {

@@ -16,10 +16,10 @@
  * Automation Policies · Brain Categories).
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Panel } from "@/components/panel";
-import { PageHeader } from "@/components/layout/ui";
+import { StandardPage } from "@/components/layout/standard-page";
 import { usePullRefresh } from "@/lib/hooks/use-pull-refresh";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { cn } from "@/lib/utils";
@@ -37,6 +37,7 @@ import { ToolUsageCensusPanel } from "@/components/system/tool-usage-census-pane
 import { EvidenceGatePanel } from "@/components/system/evidence-gate-panel";
 import { ObservabilityStatusPanel } from "@/components/system/observability-status-panel";
 import { OwnerPanel } from "@/components/system/owner-panel";
+import { StaleDataPanel } from "@/components/system/stale-data-panel";
 
 // Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the three
 // authedFetch reads (diagnostics + brain status + health) are now three
@@ -44,6 +45,10 @@ import { OwnerPanel } from "@/components/system/owner-panel";
 // `refetchInterval` drives that. `refresh` (pull-to-refresh + the manual
 // Refresh button) now refetches all three.
 import { trpc } from "@/lib/trpc/client";
+
+const subscribeHydration = () => () => {};
+const clientHydrationSnapshot = () => true;
+const serverHydrationSnapshot = () => false;
 
 interface DiagnosticsData {
   db: { connected: boolean; latency_ms: number };
@@ -147,8 +152,11 @@ export default function SystemPage() {
   // between the SSR render and the first client render (server time vs
   // client time, ms apart). Gate it behind a mounted flag so the
   // initial HTML matches on both, then fill it in client-side.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(
+    subscribeHydration,
+    clientHydrationSnapshot,
+    serverHydrationSnapshot,
+  );
   // 2026-08-19 · unknown-is-not-fresh: this used to fall back to
   // `new Date()` when no fetch had ever succeeded, so a FAILED
   // diagnostics read stamped the freshness chip "fresh as of now".
@@ -191,35 +199,35 @@ export default function SystemPage() {
   );
 
   return (
-    <div
-      className="mx-auto max-w-5xl space-y-8 px-3 py-4 sm:space-y-10 sm:px-4 sm:py-6 xl:max-w-6xl"
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
+    <StandardPage
+      eyebrow="NOUR OS"
+      title="System"
+      description={`v${d?.version ?? "..."}${mounted && diagnosticsQuery.dataUpdatedAt > 0 ? ` · Last refresh: ${new Date(diagnosticsQuery.dataUpdatedAt).toLocaleTimeString()}` : ""}`}
+      width="2xl"
+      rhythm="workspace"
+      className="px-3 py-4 sm:space-y-10 sm:px-4 sm:py-6"
+      parent={null}
+      rootProps={{ onTouchStart, onTouchEnd }}
+      actions={
+        <div className="flex items-center gap-2">
+          <FreshnessChip
+            lastFetchedAt={lastFetchedAt}
+            source="diagnostics + brain + health"
+            onReload={refresh}
+          />
+          <button
+            onClick={refresh}
+            disabled={loading}
+            className="inline-flex min-h-[44px] items-center rounded-lg border border-[var(--border-hover)] bg-[var(--bg-raised)]/5 px-4 py-2 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-[var(--bg-raised)]/10 disabled:opacity-50"
+          >
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
+      }
     >
       {refreshing && (
         <div className="text-center text-xs text-[var(--text-tertiary)] animate-pulse">Refreshing...</div>
       )}
-      <PageHeader
-        eyebrow="NOUR OS"
-        title="system"
-        description={`v${d?.version ?? "..."}${mounted && diagnosticsQuery.dataUpdatedAt > 0 ? ` · Last refresh: ${new Date(diagnosticsQuery.dataUpdatedAt).toLocaleTimeString()}` : ""}`}
-        actions={
-          <div className="flex items-center gap-2">
-            <FreshnessChip
-              lastFetchedAt={lastFetchedAt}
-              source="diagnostics + brain + health"
-              onReload={refresh}
-            />
-            <button
-              onClick={refresh}
-              disabled={loading}
-              className="rounded-lg border border-[var(--border-hover)] bg-[var(--bg-raised)]/5 px-4 py-2 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-[var(--bg-raised)]/10 disabled:opacity-50"
-            >
-              {loading ? "Refreshing..." : "Refresh"}
-            </button>
-          </div>
-        }
-      />
 
       {/* ── CONTROL TOWER (2026-09-16 · Visible Transformation) ──────────
           One verdict in display type, then only the exceptions; the vitals
@@ -348,6 +356,11 @@ export default function SystemPage() {
           subsurfaces lift into a "needs attention" strip at the top
           of the grid. */}
       <SystemHubGrid />
+
+      {/* Consolidated from the retired /system/stale page. The scan and
+          category-specific cleanup policies remained live; this is their
+          operator surface now, without resurrecting another subpage. */}
+      <StaleDataPanel />
 
       {/* ── SYSTEM DIGESTS (Wire 3) ────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -599,6 +612,6 @@ export default function SystemPage() {
           already lifts degraded surfaces above their groups so
           the live signal is preserved.
           ~95 LOC removed. */}
-    </div>
+    </StandardPage>
   );
 }

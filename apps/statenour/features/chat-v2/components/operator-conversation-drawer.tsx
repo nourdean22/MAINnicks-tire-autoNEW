@@ -62,23 +62,23 @@ export function OperatorConversationDrawer({
   return (
     <aside className="flex h-full flex-col bg-void text-fg">
       <div className="flex items-center gap-2 border-b border-edge p-3">
-        <button onClick={onNew} className="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-gold px-3 text-xs font-bold text-black">
+        <button onClick={onNew} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-gold px-3 text-xs font-bold text-black">
           <Plus size={14} /> New chat
         </button>
-        <button onClick={onClose} aria-label="Close history" className="flex h-10 w-10 items-center justify-center rounded-lg border border-edge text-fg-secondary hover:text-fg"><X size={16} /></button>
+        <button onClick={onClose} aria-label="Close history" className="flex h-11 w-11 items-center justify-center rounded-lg border border-edge text-fg-secondary hover:text-fg"><X size={16} /></button>
       </div>
 
       <div className="space-y-2 border-b border-edge p-3">
-        <button onClick={onShowActions} className="flex min-h-10 w-full items-center gap-2 rounded-lg border border-gold/25 bg-gold/[0.05] px-3 text-left text-xs font-semibold text-gold hover:bg-gold/10">
+        <button onClick={onShowActions} className="flex min-h-11 w-full items-center gap-2 rounded-lg border border-gold/25 bg-gold/[0.05] px-3 text-left text-xs font-semibold text-gold hover:bg-gold/10">
           <History size={14} /> Verified recent actions
         </button>
         <div className="relative">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-tertiary" />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search conversations" className="h-10 w-full rounded-lg border border-edge bg-raised pl-9 pr-3 text-xs text-fg outline-none focus:border-gold/40" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search conversations" className="h-11 w-full rounded-lg border border-edge bg-raised pl-9 pr-3 text-xs text-fg outline-none focus:border-gold/40" />
         </div>
         <div className="grid grid-cols-2 rounded-lg border border-edge bg-raised p-1">
           {(["active", "pinned"] as const).map((value) => (
-            <button key={value} onClick={() => setMode(value)} className={`min-h-8 rounded-md text-[10px] font-semibold uppercase tracking-wider ${mode === value ? "bg-elevated text-fg" : "text-fg-tertiary"}`}>
+            <button key={value} onClick={() => setMode(value)} className={`min-h-11 rounded-md sm:min-h-8 text-[10px] font-semibold uppercase tracking-wider ${mode === value ? "bg-elevated text-fg" : "text-fg-tertiary"}`}>
               {value}
             </button>
           ))}
@@ -133,7 +133,7 @@ export function OperatorConversationDrawer({
             </div>
           </div>
         ))}
-        {hasMore && <button disabled={loadingMore} onClick={onLoadMore} className="mt-2 min-h-10 w-full rounded-lg border border-edge text-xs text-fg-secondary disabled:opacity-50">{loadingMore ? "Loading…" : "Load older"}</button>}
+        {hasMore && <button disabled={loadingMore} onClick={onLoadMore} className="mt-2 min-h-11 w-full rounded-lg border border-edge text-xs text-fg-secondary disabled:opacity-50">{loadingMore ? "Loading…" : "Load older"}</button>}
       </div>
       {renameDialog}
       {deleteDialog}

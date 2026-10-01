@@ -15,7 +15,7 @@
  */
 
 import { useState } from "react";
-import { PageHeader } from "@/components/layout/ui";
+import { StandardPage } from "@/components/layout/standard-page";
 import { Panel } from "@/components/panel";
 import { MemoryInspectorSidebar } from "@/components/chat/memory-inspector-sidebar";
 import { TypedToolCards } from "@/features/chat-v2/components/typed-tool-cards";
@@ -104,12 +104,14 @@ export default function ChatStatesPage() {
   const [evidenceOpen, setEvidenceOpen] = useState<"fresh" | "unfetched" | null>(null);
 
   return (
-    <div className="px-4 pb-[var(--bottom-chrome-h)] max-w-2xl mx-auto space-y-4">
-      <PageHeader
-        eyebrow="SYSTEM"
-        title="Chat States"
-        description="Real components against fixtures — eyeball after UI changes; nothing here is mocked"
-      />
+    <StandardPage
+      eyebrow="System"
+      title="Chat States"
+      description="Real components against fixtures — eyeball after UI changes; nothing here is mocked."
+      width="sm"
+      rhythm="comfortable"
+      className="px-4 pb-[var(--bottom-chrome-h)]"
+    >
 
       <Panel>
         <p className="text-[11px] uppercase tracking-[0.16em] text-fg-secondary/70 mb-2">{SECTIONS[0]} / {SECTIONS[1]}</p>
@@ -172,6 +174,6 @@ export default function ChatStatesPage() {
         }
         fetchedAt={evidenceOpen === "fresh" ? FRESH_FETCHED_AT : null}
       />
-    </div>
+    </StandardPage>
   );
 }

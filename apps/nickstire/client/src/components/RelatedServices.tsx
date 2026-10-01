@@ -15,6 +15,7 @@
 import { Link } from "wouter";
 import { ArrowRight, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Snowflake } from "lucide-react";
 import { SERVICES } from "@shared/services";
+import { SERVICE_RELATIONSHIPS, canonicalServicePath } from "@shared/internalLinks";
 
 interface ServiceInfo {
   slug: string;
@@ -86,7 +87,13 @@ SERVICE_MAP.alignment = {
   icon: ICON_BY_SLUG.alignment || <Gauge className="w-5 h-5" />,
 };
 
-/** Default related service mappings when no explicit list is provided */
+/**
+ * FALLBACK ONLY (2026-10-01, Wave C link layer). The live source is
+ * `SERVICE_RELATIONSHIPS` in `@shared/internalLinks` — the curated prior the
+ * link recommender also reads, so the strip and the scorer agree. This map is
+ * consulted only for a service slug the curated graph does not know yet;
+ * `client/src/__tests__/related-services-curated.test.tsx` pins that order.
+ */
 const DEFAULT_RELATED: Record<string, string[]> = {
   tires: ["brakes", "alignment", "diagnostics", "oil-change"],
   brakes: ["tires", "diagnostics", "general-repair", "alignment"],
@@ -115,12 +122,18 @@ interface Props {
   title?: string;
 }
 
+/**
+ * Which slugs the grid shows, in order: an explicit `related` prop, else the
+ * curated graph, else the legacy fallback, else the four core services.
+ * Exported (not default) so the test exercises the real decision.
+ */
+export function resolveRelatedSlugs(current: string, related?: string[]): string[] {
+  const slugs = related ?? SERVICE_RELATIONSHIPS[current] ?? DEFAULT_RELATED[current] ?? ["tires", "brakes", "diagnostics", "oil-change"];
+  return slugs.filter((s) => s !== current && SERVICE_MAP[s]).slice(0, 4);
+}
+
 export default function RelatedServices({ current, related, title = "Related Services" }: Props) {
-  const slugs = related || DEFAULT_RELATED[current] || ["tires", "brakes", "diagnostics", "oil-change"];
-  const services = slugs
-    .filter((s) => s !== current && SERVICE_MAP[s])
-    .slice(0, 4)
-    .map((s) => SERVICE_MAP[s]);
+  const services = resolveRelatedSlugs(current, related).map((s) => SERVICE_MAP[s]);
 
   if (services.length === 0) return null;
 
@@ -137,7 +150,9 @@ export default function RelatedServices({ current, related, title = "Related Ser
           {services.map((s) => (
             <Link
               key={s.slug}
-              href={`/${s.slug}`}
+              // canonical route: "/general-repair" is a 301 alias of
+              // /auto-repair-near-me — the card must not pay the redirect.
+              href={canonicalServicePath(s.slug)}
               className="group block p-6 border border-border/20 rounded-xl hover:border-primary/30 transition-all"
             >
               <div className="text-primary/60 group-hover:text-primary transition-colors mb-3">
@@ -158,7 +173,7 @@ export default function RelatedServices({ current, related, title = "Related Ser
         <div className="mt-6 flex flex-wrap gap-4 text-xs text-foreground/70">
           {/* wave-110 — "financing" is a banned brand word; copy now uses
               "Payment programs." (link target /financing stays — that's the URL slug). */}
-          <Link href="/financing" className="hover:text-primary transition-colors">Payment programs · Apply in 2 minutes · No credit check</Link>
+          <Link href="/financing" className="hover:text-primary transition-colors">Payment programs · 4 providers · Each provider decides approval</Link>
           <span className="text-foreground/20">|</span>
           <Link href="/booking" className="hover:text-primary transition-colors">Schedule your drop-off online</Link>
           <span className="text-foreground/20">|</span>

@@ -132,7 +132,14 @@ export type PrimaryVariable =
   | "length_band"
   | "franchise"
   | "voice_mode"
-  | "content_origin";
+  | "content_origin"
+  // Wave B presets (README §R). Each is a field on ExperimentArm so
+  // findConfounds can check it — a variable you can name must be a field you
+  // can check. Duration reuses `length_band`; opening asset reuses
+  // `content_origin`.
+  | "cover_origin"
+  | "audio_style"
+  | "fb_format";
 
 /** Everything recorded about one published episode, so a result can be traced
  *  back to every input that produced it. */
@@ -155,6 +162,9 @@ export interface ExperimentArm {
   narrativeFormat?: string;
   lengthBand?: string;
   voiceMode?: string;
+  coverOrigin?: string;
+  audioStyle?: string;
+  fbFormat?: string;
 }
 
 export interface ExperimentDefinition {
@@ -193,6 +203,7 @@ export function findConfounds(def: ExperimentDefinition): string[] {
   const controlled: (keyof ExperimentArm)[] = [
     "franchiseId", "ctaType", "postingSlot", "contentOrigin", "provider", "model", "promptVersion",
     "hookStyle", "narrativeFormat", "lengthBand", "voiceMode",
+    "coverOrigin", "audioStyle", "fbFormat",
   ];
   // The field the experiment is legitimately varying is exempt. Every
   // PrimaryVariable must appear here, or its own arm field would be reported as
@@ -206,6 +217,9 @@ export function findConfounds(def: ExperimentDefinition): string[] {
     narrative_format: "narrativeFormat",
     length_band: "lengthBand",
     voice_mode: "voiceMode",
+    cover_origin: "coverOrigin",
+    audio_style: "audioStyle",
+    fb_format: "fbFormat",
   };
   const exempt = varying[def.primaryVariable];
   const confounds: string[] = [];
@@ -385,4 +399,163 @@ export function assignArm(def: ExperimentDefinition, episodeKey: string): Experi
   let h = 0;
   for (let i = 0; i < episodeKey.length; i++) h = (h * 31 + episodeKey.charCodeAt(i)) >>> 0;
   return def.arms[h % def.arms.length];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// PRESETS (README §R, Wave B). One place for every operator-startable
+// experiment, so routers/content.ts cannot drift from what the pipeline reads.
+//
+// hook_style_v1 keeps its ORIGINAL experimentId and arms byte-for-byte:
+// startExperiment is ON DUPLICATE KEY UPDATE on experiment_id, so a changed id
+// would start a second experiment beside the live one instead of re-asserting it.
+//
+// Only duration_v1 is WIRED (reelBriefGen reads the lane and sets the brief's
+// target). The others are EXPOSED: startable, assigned at enqueue, resolvable
+// by the daily cron — but nothing in generation reads their arm yet. Each
+// carries a `wiring` note saying exactly that, so the experiment card never
+// implies an intervention that is not happening.
+// ─────────────────────────────────────────────────────────────────────────
+
+export const EXPERIMENT_PRESET_IDS = [
+  "hook_style_v1",
+  "duration_v1",
+  "opening_asset_v1",
+  "carousel_cover_v1",
+  "audio_v1",
+  "fb_format_v1",
+] as const;
+export type ExperimentPresetId = typeof EXPERIMENT_PRESET_IDS[number];
+
+/**
+ * Duration lanes for duration_v1. The arm's variantValue IS the lane id, and
+ * the lane's seconds are what reelBriefGen targets. Declared here, not in the
+ * generator, so the resolver and the generator read one table.
+ */
+export const DURATION_LANES = {
+  "18-24s": { minSeconds: 18, maxSeconds: 24 },
+  "30-40s": { minSeconds: 30, maxSeconds: 40 },
+  "45-60s": { minSeconds: 45, maxSeconds: 60 },
+} as const;
+export type DurationLaneId = keyof typeof DURATION_LANES;
+
+export function isDurationLaneId(v: unknown): v is DurationLaneId {
+  return typeof v === "string" && Object.prototype.hasOwnProperty.call(DURATION_LANES, v);
+}
+
+export interface ExperimentPreset extends ExperimentDefinition {
+  preset: ExperimentPresetId;
+  hypothesis: string;
+  /** What the primary metric stands in for, when the §R metric is not yet gatherable. */
+  metricNote: string;
+  /** WIRED: the arm changes generation. EXPOSED: recorded + resolvable, not yet read by any generator. */
+  wiring: "wired" | "exposed";
+}
+
+export function buildExperimentPreset(preset: ExperimentPresetId, startedAt: string = new Date().toISOString()): ExperimentPreset {
+  switch (preset) {
+    case "hook_style_v1":
+      return {
+        preset,
+        experimentId: "hook-style-direct-v1",
+        primaryVariable: "hook_style",
+        objective: "discovery",
+        primaryMetric: "shares_per_reach",
+        arms: [
+          { armId: "hook-control", variantValue: "baseline", hookStyle: "baseline" },
+          { armId: "hook-direct", variantValue: "direct", hookStyle: "direct" },
+        ],
+        startedAt,
+        hypothesis: "A direct opener (no warm-up) beats the baseline on sends/reach.",
+        metricNote: "shares_per_reach resolves to the `shares` snapshot column.",
+        wiring: "wired",
+      };
+    case "duration_v1":
+      return {
+        preset,
+        experimentId: "duration-lane-v1",
+        primaryVariable: "length_band",
+        objective: "discovery",
+        primaryMetric: "shares_per_reach",
+        arms: [
+          { armId: "duration-18-24", variantValue: "18-24s", lengthBand: "18-24s" },
+          { armId: "duration-30-40", variantValue: "30-40s", lengthBand: "30-40s" },
+          { armId: "duration-45-60", variantValue: "45-60s", lengthBand: "45-60s" },
+        ],
+        startedAt,
+        hypothesis: "30-40 s explainers hold the 20 s 3-s survival with higher sends; then 45-60 s.",
+        // §R names 3-s skip, watch/duration and sends/reach. The resolver
+        // (contentExperimentResolve.GATHERABLE_METRIC) has no skip-rate column
+        // mapping and the snapshot stores skipRate as a DECIMAL string the
+        // gatherer would read as null; watch/duration needs the reel's own
+        // length, which no snapshot stores. sends/reach is the one of the three
+        // that is both duration-neutral and decidable today.
+        metricNote: "sends/reach (shares_per_reach). 3-s skip and watch/duration are not gatherable by the resolver yet. " +
+          "Under REEL_OUTPUT_RULES (35 s storyboard ceiling, 6 beats x 4 s = 24 s render cap) the 30-40 s and 45-60 s arms both clamp to a 30-35 s declared target — raise the ceiling and the clip cap before reading those two arms apart.",
+        wiring: "wired",
+      };
+    case "opening_asset_v1":
+      return {
+        preset,
+        experimentId: "opening-asset-v1",
+        primaryVariable: "content_origin",
+        objective: "discovery",
+        primaryMetric: "shares_per_reach",
+        arms: [
+          { armId: "open-ai", variantValue: "ai_generated", contentOrigin: "ai_generated" },
+          { armId: "open-real", variantValue: "real_shop", contentOrigin: "real_shop" },
+        ],
+        startedAt,
+        hypothesis: "A real-shop opening frame beats an AI opening frame on 3-s survival.",
+        metricNote: "sends/reach stands in for 3-s skip (not gatherable yet). Non-follower reach is not stored.",
+        wiring: "exposed",
+      };
+    case "carousel_cover_v1":
+      return {
+        preset,
+        experimentId: "carousel-cover-v1",
+        primaryVariable: "cover_origin",
+        objective: "utility",
+        primaryMetric: "saves_per_reach",
+        arms: [
+          { armId: "cover-deterministic", variantValue: "deterministic", coverOrigin: "deterministic" },
+          { armId: "cover-real", variantValue: "real", coverOrigin: "real" },
+        ],
+        startedAt,
+        hypothesis: "A carousel with a real cover photo earns more saves/reach than the deterministic cover.",
+        metricNote: "saves_per_reach resolves to the `saved` snapshot column.",
+        wiring: "exposed",
+      };
+    case "audio_v1":
+      return {
+        preset,
+        experimentId: "audio-style-v1",
+        primaryVariable: "audio_style",
+        objective: "discovery",
+        primaryMetric: "avg_watch_time",
+        arms: [
+          { armId: "audio-vo-bed", variantValue: "vo_bed", audioStyle: "vo_bed" },
+          { armId: "audio-vo-foley", variantValue: "vo_foley", audioStyle: "vo_foley" },
+        ],
+        startedAt,
+        hypothesis: "Foley + VO beats music-bed + VO on completion.",
+        metricNote: "avg_watch_time (reach-weighted) stands in for completion; replays are not stored.",
+        wiring: "exposed",
+      };
+    case "fb_format_v1":
+      return {
+        preset,
+        experimentId: "fb-format-v1",
+        primaryVariable: "fb_format",
+        objective: "community",
+        primaryMetric: "reach",
+        arms: [
+          { armId: "fb-image", variantValue: "image_crosspost", fbFormat: "image_crosspost" },
+          { armId: "fb-album", variantValue: "album", fbFormat: "album" },
+        ],
+        startedAt,
+        hypothesis: "An FB album (4-6 photos) beats a cross-posted image on local reach and comments.",
+        metricNote: "reach (raw total). Comments are not a gatherable snapshot metric for the resolver.",
+        wiring: "exposed",
+      };
+  }
 }

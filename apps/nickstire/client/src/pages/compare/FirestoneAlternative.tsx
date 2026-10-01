@@ -24,7 +24,7 @@ export default function FirestoneAlternative() {
       slug="firestone-alternative-cleveland"
       seoTitle="Firestone Alternative Cleveland · No Chain Pricing | Nick's"
       seoDescription="Firestone wants $200/hr labor, an appointment, and a Firestone credit card. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, transparent pricing, real address."
-      intro={`Firestone is fine if you want corporate paperwork. Lifetime alignment program. Bridgestone tire selection. Brand recognition. Also: appointment-required, chain-level labor rates, dealership-style upsell pressure, and a ${formatRating(fs.rating ?? 0)}-star Google rating on ${fs.count} reviews at the Downtown Cleveland location vs Nick's ${reviewRatingDisplay} stars on ${reviewCountDisplay} reviews at one shop on Euclid Ave. Nick's is the opposite of corporate. Mechanic-owned. First-come-first-served. The estimate hits your hand in writing before any wrench moves. Used tires from $25 installed if a used tire fits. Open 7 days including Sunday. Yellow sign on Euclid Ave. Real address. Phone answered by an actual person at the shop.`}
+      intro={`Firestone is fine if you want corporate paperwork. Lifetime alignment program. Bridgestone tire selection. Brand recognition. Also: appointment-required, chain-level labor rates, dealership-style upsell pressure, and a ${formatRating(fs.rating ?? 0)}-star Google rating on ${fs.count} reviews at the Downtown Cleveland location vs Nick's ${reviewRatingDisplay} stars on ${reviewCountDisplay} reviews at one shop on Euclid Ave. Nick's is the opposite of corporate. Mechanic-owned. First-come-first-served. The estimate hits your hand in writing before any wrench moves. Used tires from $25 installed (select 12-inch; most $40-80) if a used tire fits. Open 7 days including Sunday. Yellow sign on Euclid Ave. Real address. Phone answered by an actual person at the shop.`}
       extraFaqs={[
         {
           question: "Is Firestone's lifetime alignment program worth it?",
@@ -36,7 +36,7 @@ export default function FirestoneAlternative() {
         },
         {
           question: "Does Nick's accept the Firestone credit card?",
-          answer: "No — Firestone's credit card is a Firestone-only program. Nick's offers payment programs through Acima, Snap, Affirm, and partner lenders that work at most service providers. Pre-qualified in 60 seconds with a soft credit pull (no impact to your score), up to $4,000 approved. Same financing convenience, no chain lock-in.",
+          answer: "No — Firestone's credit card is a Firestone-only program. Nick's accepts four third-party payment programs: Acima (lease-to-own), Snap Finance, Koalafi and American First Finance. Each provider decides approval and terms. No chain lock-in.",
         },
         {
           question: "Why do so many Firestone reviews mention surprise charges?",

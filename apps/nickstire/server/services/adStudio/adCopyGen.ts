@@ -9,6 +9,7 @@
 import { invokeLLM, type OutputSchema } from "../../_core/llm";
 import { createLogger } from "../../lib/logger";
 import { BUSINESS } from "@shared/business";
+import { findVoiceViolations } from "@shared/voice";
 import { getReviewCopy, type ReviewCopy } from "../../lib/reviewCopy";
 import type { AdCopy } from "./adTemplate";
 
@@ -22,7 +23,9 @@ const log = createLogger("services:adStudio:copy");
  * derives from this object.
  */
 export const AD_ANGLES: Record<"financing" | "free_check" | "trust", (reviews: ReviewCopy) => string> = {
-  financing: () => "FINANCING-LED: '$10 down, drive today' + no-credit-check + new tires from $89. Kill the price objection first; create urgency to act now.",
+  // 2026-10-01 · this angle used to ask for "no-credit-check". Koalafi and
+  // American First Finance both say they check credit (shared/financing.ts).
+  financing: () => "PAYMENT-PROGRAM-LED: four payment programs (Acima, Snap Finance, Koalafi, American First Finance) + new tires from $89. Some don't need established credit; never promise approval, and never say 'no credit check'. Kill the price objection first; create urgency to act now.",
   free_check: () => "OFFER-LED: a free tire/safety check as the no-brainer hook that drives walk-ins. Low friction, safety-forward but calm (never scary).",
   trust: ({ rating, countDisplay }) => `TRUST-LED: ${rating} stars / ${countDisplay} reviews / since 2018 / ASE-certified / 7-days walk-in. Why Cleveland keeps coming back — social proof as the engine.`,
 };
@@ -51,6 +54,11 @@ export function lintAdCopy(copy: AdCopy): string[] {
     if (b) issues.push(`${where}: banned word "${b[0]}"`);
     if (BAD_FREE.test(text)) issues.push(`${where}: "free" used outside a "free check" offer`);
     if (/&amp;|&lt;|&gt;/.test(text)) issues.push(`${where}: HTML entity leaked (use plain &, <, >)`);
+    // The kernel's claim rules (shared/voice.ts): promises the shop cannot back,
+    // e.g. "NO CREDIT CHECK." (Koalafi and American First Finance check credit).
+    for (const v of findVoiceViolations(text, { surface: "social" })) {
+      if (v.ruleId.startsWith("claim.")) issues.push(`${where}: unsupported claim "${v.match}" (${v.ruleId})`);
+    }
   }
   return issues;
 }
@@ -64,14 +72,14 @@ BUSINESS FACTS (all owner-confirmed — use freely, accurately):
 - ${BUSINESS.name} — "${BUSINESS.tagline}". ${BUSINESS.founded.display}. ${BUSINESS.ase.display}. ${BUSINESS.languageDisplay}.
 - ${reviewRating} stars, ${reviewCountDisplay} Google reviews. ${BUSINESS.address.full}. ${BUSINESS.phone.display}.
 - Open 7 days, walk-ins welcome, NO appointment, first come first serve. Free quick checks.
-- Financing: no credit check, $10 down, drive today (Acima/Snap/Koalafi). New tires from $89 installed. Used from $25 installed (most sizes $40-80 — the band MUST travel with $25). Any tire, any brand. Under-20-minute installs. 12-month parts / 90-day labor warranty.
+- Payment programs: Acima, Snap Finance, Koalafi, American First Finance. Some don't need established credit; the provider decides approval (never write 'no credit check'). New tires from $89 installed. Used from $25 installed on 12-inch rims (most sizes $40-80; the rim size and the band MUST travel with $25). Any tire, any brand. Under-20-minute installs. 12-month parts / 90-day labor warranty.
 
 ANGLE FOR THIS AD: ${AD_ANGLES[angle](reviews)}${topic ? `\nOPERATOR STEER: weave in this topic/season: ${topic}.` : ""}
 
 HARD CLAIM-SAFETY RULES:
 - BANNED words: quality, premium, luxury, tier, trusted, best, perfect, #1, guaranteed, cheapest. No superlatives, no fake guarantees, no fearmongering.
 - "free" only as a real free check ("free tire check", "free brake check").
-- Prices must be accurate; prefer "$10 down" and "from $89 installed" (clean). If you use "$25", pair it with "most sizes $40-80".
+- Prices must be accurate; prefer "from $89 installed" (clean). "$10" is Acima's start, offered only in select circumstances (shared/financing.ts) — use it only beside the Acima lease disclosure. If you use "$25", pair it with "select 12-inch rims" and "most sizes $40-80".
 - Plain text only — never HTML entities (&amp;), use a literal &.
 
 You write ONLY: the hook card, the value card (with exactly 3 short benefit ticks), the offer/free-check card, and the IG caption. (The proof + CTA cards are added automatically from real shop data — do not write them.)
@@ -130,7 +138,7 @@ export async function generateAdCopy(input: GenerateAdCopyInput): Promise<Genera
   const copy: AdCopy = {
     hookYellow: str(p.hookYellow), hookWhite: str(p.hookWhite), hookSub: str(p.hookSub),
     valueWhite: str(p.valueWhite), valueYellow: str(p.valueYellow),
-    valueTicks: [ticks[0] ?? "Drive home today", ticks[1] ?? "$10 down financing", ticks[2] ?? "Any tire, any brand"],
+    valueTicks: [ticks[0] ?? "Drive home today", ticks[1] ?? "4 payment programs", ticks[2] ?? "Any tire, any brand"],
     offerYellow: str(p.offerYellow) || "FREE", offerWhite: str(p.offerWhite) || "TIRE CHECK.",
     offerSub: str(p.offerSub), caption: str(p.caption),
   };

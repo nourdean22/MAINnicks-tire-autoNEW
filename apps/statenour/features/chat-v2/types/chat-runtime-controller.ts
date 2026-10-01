@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import type { ContextBlocks } from "@/components/chat/context-block-badges";
 
 export type ChatRuntimeController = {
   messages: UIMessage[];
@@ -10,6 +11,6 @@ export type ChatRuntimeController = {
   stop: () => void;
   regenerate: (options?: { messageId?: string } & any) => Promise<void>;
   setMessages: (messages: UIMessage[] | ((messages: UIMessage[]) => UIMessage[])) => void;
-  liveContextBlocksRef: React.RefObject<any>;
-  lastTraceIdRef: React.RefObject<string | null>;
+  liveContextBlocks: ContextBlocks | null;
+  lastTraceId: string | null;
 };

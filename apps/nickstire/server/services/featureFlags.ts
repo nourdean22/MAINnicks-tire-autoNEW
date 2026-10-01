@@ -62,7 +62,7 @@ export const FLAG_DEFINITIONS = [
   { key: "fomo_ticker_enabled", description: "Live activity ticker on public site (X just booked...)" },
   { key: "dynamic_social_proof", description: "Real-time review quotes on service pages" },
   { key: "smart_exit_intent", description: "Exit-intent popup with personalized offer" },
-  { key: "financing_pre_approval", description: "Pre-approval CTA before customer arrives" },
+  { key: "financing_pre_approval", description: "Payment-program application CTA before customer arrives" },
   { key: "drop_off_sms_flow", description: "Automated drop-off → status → pickup SMS sequence" },
   { key: "uber_integration_cta", description: "Suggest Uber/Lyft after drop-off" },
 
