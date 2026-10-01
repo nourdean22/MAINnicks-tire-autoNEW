@@ -262,10 +262,12 @@ describe("the repo-wide rule, not three named files", () => {
   });
 
   /**
-   * Three files this session may not edit, because a concurrent session owns
+   * Files this session may not edit, because a concurrent session owns
    * the chat / media layer. NOT an exemption on the merits — every one of these
    * is the same shape as the thirteen converted alongside it, and each should
-   * go the same way.
+   * go the same way. chat-island.tsx went on 2026-10-01: its memory inspector
+   * read apiHandler's envelope and showed zero memories on every open; it now
+   * reads through apiFetch (features/chat-v2/lib/inspector-recall.ts).
    *
    * An exemption list with no expiry is how a gate rots: entries accumulate and
    * nobody removes a stale one, because nothing complains. The test below makes
@@ -274,7 +276,6 @@ describe("the repo-wide rule, not three named files", () => {
    * to delete. The carve-out cannot outlive its reason.
    */
   const DEFERRED = [
-    "features/chat-v2/components/chat-island.tsx",
     "hooks/chat/use-audio-transcribe.ts",
     "hooks/use-realtime-voice.ts",
   ];
@@ -301,8 +302,8 @@ describe("the repo-wide rule, not three named files", () => {
     // Fails when a deferral becomes unnecessary — either the file was converted
     // (delete the entry) or it was renamed/removed (delete the entry). Either
     // way the list is wrong and the failure says which entry to remove. Without
-    // this, the three below outlive the concurrency that caused them and quietly
-    // become three permanently-unchecked files.
+    // this, the entries below outlive the concurrency that caused them and
+    // quietly become permanently-unchecked files.
     const stale = DEFERRED.filter((f) => {
       try {
         return uncheckedOwnApiCasts(readFileSync(f, "utf8")).length === 0;

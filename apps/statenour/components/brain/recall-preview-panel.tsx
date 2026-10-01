@@ -3,6 +3,8 @@
 import { FormEvent, useState } from "react";
 import { Brain, Loader2, Search, ShieldCheck } from "lucide-react";
 import { apiFetch } from "@/lib/utils/api-fetch";
+// Read-only recall (preview=1): what "without sending a chat message" promises.
+import { recallPreviewUrl } from "@/lib/brain/recall-preview-url";
 
 type RecallHit = {
   memoryId: string;
@@ -26,15 +28,6 @@ type RecallReport = {
   provenanceReason?: string;
   promptBlock?: string;
 };
-/**
- * `preview=1` makes the route run recall read-only (no lastSeen bump, no
- * recall-quality metric), which is what "without sending a chat message"
- * promises. Exported so the test drives the exact URL this panel sends.
- */
-export function recallPreviewUrl(q: string, includePrompt: boolean): string {
-  return `/api/brain/recall?q=${encodeURIComponent(q)}&limit=8&includePrompt=${includePrompt ? "1" : "0"}&preview=1`;
-}
-
 export function RecallPreviewPanel() {
   const [query, setQuery] = useState("");
   const [includePrompt, setIncludePrompt] = useState(false);
