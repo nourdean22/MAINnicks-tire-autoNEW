@@ -5585,6 +5585,26 @@
       "file": "apps/nickstire/server/services/obligationMirror.ts",
       "symbol": "closeEmergency",
       "reason": "Q-22 phase 1 2026-09-30 · TEST-VISIBLE CONTRACT: emergency_requests has no writer that changes status, so only a vanished row closes (phase 2 adds the close path). Runtime consumer: the emergency KindSpec -> runObligationMirror in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/brandTruth.ts",
+      "symbol": "STALE_FACT_PATTERNS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The list of retired business-fact literals (the 12k-mile warranty wording, a stale review floor, the wrong language pair, a rounded star rating) that the fact-drift canary in server/brandTruth.test.ts greps creative prompt sources for. It lives beside compileBrandTruth so the compiler and the canary that guards it change in one file; production code never needs to enumerate what it must not say — the restrictions it DOES emit are claimRestrictions. Positive control 2026-10-01: 3 hits on main."
+    },
+    {
+      "file": "apps/nickstire/server/content-generator.ts",
+      "symbol": "resolveRelatedServiceRoutes",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Consumed internally by generateArticle (model topic words -> canonical registry routes, redirects and inventions dropped); exported so server/contentGeneratorContract.test.ts can pin the mapping table (topic alias, 301 drop, cap at 4) without an LLM round-trip per case. Not unwired: every generated article passes through it."
+    },
+    {
+      "file": "apps/nickstire/server/services/imageProviderCircuit.ts",
+      "symbol": "classifyProviderFailure",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Consumed internally by tripCircuit; exported so imageProviderCircuit.test.ts can pin the three live failure shapes from the 2026-09-29..10-01 Railway logs (Higgsfield not_enough_credits, OpenRouter 402, HF 410 deprecated) to credits/credits/retired without opening a circuit as a side effect."
+    },
+    {
+      "file": "apps/nickstire/server/services/imageProviderCircuit.ts",
+      "symbol": "__resetCircuits",
+      "reason": "TEST-ONLY STATE RESET, vacuous in production by design. The circuit map is module state shared across one process; vitest runs serially in one process (singleFork), so each test file must clear it. Production never resets a circuit by hand — closeCircuit on success and the cooldown clock are the only live paths."
     }
   ]
 }

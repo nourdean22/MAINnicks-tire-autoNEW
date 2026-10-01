@@ -188,11 +188,6 @@ export async function compileBrandTruthLive(): Promise<BrandTruth> {
   }
 }
 
-/** Visible for tests: forget the live cache. */
-export function __resetBrandTruthCache(): void {
-  liveCache = null;
-}
-
 /**
  * Render the facts block a prompt embeds. Channel changes emphasis, never
  * the facts: ads lead with the offer-safe sentences, articles get the full
@@ -279,7 +274,7 @@ export function applyBrandTruthToCampaignInput<T extends CampaignInputFactFields
 
 /**
  * Literals that mean a creative source file is carrying a fact the SSOT
- * retired. The drift canary (brandTruthDrift.test.ts) greps creative prompt
+ * retired. The drift canary (server/brandTruth.test.ts) greps creative prompt
  * sources for these; a hit fails CI so the next stale fact cannot ship.
  */
 export const STALE_FACT_PATTERNS: readonly { pattern: RegExp; why: string }[] = [
