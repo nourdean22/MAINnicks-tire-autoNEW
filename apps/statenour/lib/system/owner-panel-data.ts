@@ -13,6 +13,7 @@ import { listPendingActions } from "@/lib/automation/approval-queue";
 import { listLaneStatus } from "@/lib/ai/budget";
 import { getOutboxHealth } from "@/lib/services/chat/post-turn-outbox";
 import { today } from "@/lib/utils/datetime";
+import { buildCostPerOutcomeAttribution } from "@/lib/intelligence/value-attribution";
 import {
   composeOwnerPanel,
   COST_WINDOW_DAYS,
@@ -52,6 +53,7 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
     spendAgg,
     unpriced,
     tasksDone,
+    valueAttribution,
   ] = await Promise.all([
       guarded(
         "cron runs",
@@ -146,6 +148,10 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
         "completed tasks",
         prisma.task.count({ where: { status: "DONE", deletedAt: null, updatedAt: { gte: costSince } } }),
       ),
+      guarded(
+        "value attribution",
+        buildCostPerOutcomeAttribution(COST_WINDOW_DAYS),
+      ),
     ]);
 
   const spend =
@@ -167,5 +173,6 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
     actionAttempts,
     spend,
     tasksDone,
+    valueAttribution,
   });
 }

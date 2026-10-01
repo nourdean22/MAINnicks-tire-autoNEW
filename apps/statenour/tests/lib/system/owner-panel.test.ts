@@ -41,6 +41,21 @@ const clean: OwnerPanelInput = {
   actionAttempts: [],
   spend: { costCents: 1234, calls: 40, unpricedCalls: 0 },
   tasksDone: 4,
+  valueAttribution: {
+    measurementState: "UNMEASURED",
+    matchedRefs: 0,
+    matchedMeasuredCostCents: 0,
+    matchedMeasuredRecoveredRevenueCents: 0,
+    measuredRecoveredOutcomes: 0,
+    costPerRecoveredOutcomeCents: null,
+    recoveredRevenuePerSendCostDollar: null,
+    estimatedSendCostCents: 0,
+    estimatedRecoveredRevenueCents: 0,
+    reasons: [
+      "no measured SMS/voice cost observations",
+      "no measured holdout-adjusted recovered revenue observations",
+    ],
+  },
 };
 
 const run = (jobName: string, status: string, min: number, extra: Partial<CronRow> = {}): CronRow => ({
@@ -389,6 +404,41 @@ describe("cost per outcome · never a zero for an unknown", () => {
     expect(tile(p, "ai_spend")).toMatchObject({ value: null, provenance: "UNMEASURED" });
     expect(tile(p, "per_task").value).toBeNull();
     expect(p.unreadable).toContain("AI spend");
+    expect(p.state).toBe("unknown");
+  });
+
+  it("renders measured matched send-cost versus holdout-adjusted recovered revenue", () => {
+    const p = composeOwnerPanel({
+      ...clean,
+      valueAttribution: {
+        measurementState: "MEASURED",
+        matchedRefs: 1,
+        matchedMeasuredCostCents: 500,
+        matchedMeasuredRecoveredRevenueCents: 25_000,
+        measuredRecoveredOutcomes: 5,
+        costPerRecoveredOutcomeCents: 100,
+        recoveredRevenuePerSendCostDollar: 50,
+        estimatedSendCostCents: 0,
+        estimatedRecoveredRevenueCents: 0,
+        reasons: [],
+      },
+    });
+    expect(tile(p, "recovered_revenue")).toMatchObject({
+      value: "$5.00 → $250.00",
+      provenance: "MEASURED",
+    });
+    expect(tile(p, "recovered_revenue").note).toMatch(
+      /\$1\.00\/recovered outcome.*50\.0×/i,
+    );
+  });
+
+  it("makes a failed value-attribution read UNKNOWN instead of fake-zero", () => {
+    const p = composeOwnerPanel({ ...clean, valueAttribution: null });
+    expect(tile(p, "recovered_revenue")).toMatchObject({
+      value: null,
+      provenance: "UNMEASURED",
+    });
+    expect(p.unreadable).toContain("value attribution");
     expect(p.state).toBe("unknown");
   });
 });
