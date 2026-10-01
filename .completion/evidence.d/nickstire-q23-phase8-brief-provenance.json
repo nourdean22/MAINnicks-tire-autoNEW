@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "apps/nickstire/server/__tests__/morningBriefMasterProvenance.test.ts (6/6 green, 1/6 red on main) + server/__tests__/morningBriefWindow.test.ts + server/ros083BriefPriorities.test.ts (22 passed together): the morningBrief cron's failure semantics are unchanged. The master block still sits in the same try/catch that logs 'Master intelligence for brief failed' and leaves the block empty; formatMasterBriefBlock is pure and total (no I/O, no throw on null engines). What changes is the text on a degraded read: a failed churn engine prints 'unknown, not zero' instead of 0, a failed review read prints 'unknown', and a scoreReliable=false report prints BUSINESS HEALTH UNKNOWN with no number instead of a reassuring score. No operator-facing send path, schedule or retry changes."
+    }
+  }
+}
