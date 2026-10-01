@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "2026-10-01 final NOUR Cockpit E2E proof. OpenWebUI default model NOUR Cockpit successfully invoked start_cockpit_run through the direct tool server, browser issued POST http://127.0.0.1:4101/runs/start, Cockpit returned HTTP 200 and created run cr_20261001_112711_fc4e81 with mission_id=null in an isolated linked worktree. OpenCode completed the read-only task. Independent verification after completion: git status --porcelain --untracked-files=all returned exit 0 with empty output; worktree HEAD exactly equals base_commit 664c6ffc73c60630f78ab2e44b0fa35e951d7732; git diff --check exit 0; diff stat empty; git-dir/common-dir resolve to the linked worktree and shared repo. A second natural-language OpenWebUI chat called check_cockpit_run for the exact run_id; browser issued POST /runs/status and received HTTP 200. The persisted OpenWebUI chat contains the assistant response sourced from check_cockpit_run, reporting status=ready, pending_approvals=[], mission_linked=false, diff=[] and the same run/worktree. The startup self-healer idempotence regression was also fixed by normalizing admin_user.settings via model_dump() when it is a Pydantic-style object; two consecutive ensure runs both returned changed=false and user_tool_server_changed=false. Mission/Task writes remain disabled."
+    }
+  }
+}

@@ -308,7 +308,13 @@ async def main():
     admin_user = await Users.get_user_by_id(user_id)
     if not admin_user:
         raise RuntimeError("OpenWebUI admin user could not be loaded")
-    user_settings = admin_user.settings if isinstance(admin_user.settings, dict) else {}
+    raw_user_settings = admin_user.settings
+    if hasattr(raw_user_settings, "model_dump"):
+        user_settings = raw_user_settings.model_dump()
+    elif isinstance(raw_user_settings, dict):
+        user_settings = dict(raw_user_settings)
+    else:
+        user_settings = {}
     ui_settings = (
         user_settings.get("ui")
         if isinstance(user_settings.get("ui"), dict)

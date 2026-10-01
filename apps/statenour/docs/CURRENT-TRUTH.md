@@ -592,3 +592,14 @@ This supersedes the pre-PR status notes immediately above while preserving them 
 - That exactly explains the latest canary: the six Cockpit function specs were injected, the model invoked `start_cockpit_run` and `check_cockpit_run`, but the browser executor could not resolve `http://127.0.0.1:4101` to a local server record and returned `{"error":"Tool Server Not Found"}` before the bridge received anything.
 - OpenWebUI exposes a supported field-level settings patch path via `Users.update_user_settings_by_id(...)`; the next fix is to persist the NOUR Cockpit server into the admin user''s UI `toolServers` setting and make that part of the self-healer. Do not patch the minified executor.
 
+
+## 2026-10-01 — NOUR Cockpit natural-language E2E VERIFIED
+
+- **OpenWebUI → NOUR Cockpit → browser direct tool executor → Cockpit bridge → OpenCode → isolated worktree → result back to OpenWebUI chat is now VERIFIED.**
+- Natural-language OpenWebUI chat invoked `start_cockpit_run`; the browser issued `POST http://127.0.0.1:4101/runs/start`, received **HTTP 200**, and created `cr_20261001_112711_fc4e81` with `mission_id=null` in a linked isolated worktree.
+- OpenCode completed the read-only task. Independent machine verification after completion: `git status --porcelain --untracked-files=all` returned **exit 0 + empty output**; worktree HEAD exactly equals base commit `664c6ffc73c60630f78ab2e44b0fa35e951d7732`; `git diff --check` returned 0; diff stat is empty; linked worktree git-dir/common-dir resolve correctly.
+- A second natural-language OpenWebUI chat explicitly called `check_cockpit_run` for the same run. The browser issued `POST /runs/status` and received **HTTP 200**. The persisted OpenWebUI chat stores the final assistant response with a real `check_cockpit_run` source, reporting `status=ready`, no pending approvals, `mission_linked=false`, and `diff=[]`.
+- The browser-executor registration bug is resolved by persisting the Cockpit direct server into the admin user''s `ui.toolServers` settings in addition to the global tool-server connection.
+- The startup self-healer idempotence regression is fixed by normalizing `admin_user.settings` through `model_dump()` when OpenWebUI returns a Pydantic-style settings object. Two consecutive ensure runs now both report `changed=false` and `user_tool_server_changed=false`.
+- **Mission/Task boundary remains intact:** Cockpit machine work stays in CockpitRun state/worktrees and does not write StateNour Mission/Task records by default.
+
