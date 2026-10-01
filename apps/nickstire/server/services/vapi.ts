@@ -1650,7 +1650,6 @@ export async function updateFollowUpAssistant(assistantId: string, serverUrl?: s
 export async function createProductionAssistant(serverUrl?: string): Promise<{
   success: boolean;
   assistantId?: string;
-  config?: VapiAssistantConfig;
   error?: string;
 }> {
   try {
@@ -1667,7 +1666,11 @@ export async function createProductionAssistant(serverUrl?: string): Promise<{
     }
     const data = (await res.json()) as { id: string };
     log.info("Created Vapi assistant", { id: data.id });
-    return { success: true, assistantId: data.id, config };
+    // 2026-10-01 · no `config` in the result. It carries server.secret, the
+    // credential Vapi authenticates its webhook calls with, and the admin
+    // router hands this object to the browser. The panel reads only
+    // success, assistantId and error.
+    return { success: true, assistantId: data.id };
   } catch (err) {
     log.error("Vapi create threw", { err: err instanceof Error ? err.message : String(err) });
     return { success: false, error: err instanceof Error ? err.message : "Create failed" };
