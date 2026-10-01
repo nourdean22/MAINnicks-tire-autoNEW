@@ -22,7 +22,12 @@
  * `buildLaneHealthRows` with its own `now`, like ../client/.../dataFreshness.ts.
  */
 
-import { buildHoldoutLift, type HoldoutLift, type HoldoutObservationInput } from "./loopScoreboard";
+import {
+  HOLDOUT_MIN_MATURED_PER_ARM,
+  buildHoldoutLift,
+  type HoldoutLift,
+  type HoldoutObservationInput,
+} from "./loopScoreboard";
 import { provenanceOf, type TileProvenance } from "./tileProvenance";
 
 export interface CustomerLaneSpec {
@@ -426,7 +431,7 @@ function classifyOutcome(spec: CustomerLaneSpec, payload: LaneHealthPayload): La
   }
   if (lift.status === "COLLECTING") {
     return {
-      text: `collecting · ${Math.min(lift.treatmentMatured, lift.controlMatured)} matured per arm, 30 needed`,
+      text: `collecting · ${Math.min(lift.treatmentMatured, lift.controlMatured)} matured per arm, ${HOLDOUT_MIN_MATURED_PER_ARM} needed`,
       provenance: UNMEASURED,
     };
   }

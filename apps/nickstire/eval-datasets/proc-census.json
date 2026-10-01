@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-30T18:04:45.553Z",
-  "count": 760,
+  "generatedAt": "2026-10-01T06:21:08.553Z",
+  "count": 761,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -699,6 +699,7 @@
     "query.smsOrchestrator.getTrainingStats",
     "query.smsOrchestrator.getVariantPerformance",
     "query.smsOrchestrator.getWeeklyReport",
+    "query.smsPerformance.laneHealth",
     "query.smsPerformance.recentSends",
     "query.smsPerformance.recoveredRevenue",
     "query.smsPerformance.summary30d",
