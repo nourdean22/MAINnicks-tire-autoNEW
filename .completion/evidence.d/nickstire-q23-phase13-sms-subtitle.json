@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Q-23 phase 13 (2026-10-01, branch nickstire/q23-phase13-sms-subtitle). What the operator sees: Admin > Outreach > Messages, the page header subtitle reads 'Two-way SMS with customers · sent from the shop F25e gateway · texts queue while it's offline' instead of '... routes through the shop F25e gateway with Twilio fallback'. Nothing else on the page changes; the subtitle is static copy. Why: server/sms.ts names the F25e the sole sender (Twilio intentionally not set up) and queues every send while a configured gateway is unreachable. Proof is a jsdom render, not a live admin session: client/src/__tests__/sms-section-no-twilio-q23.test.tsx mounts the real SmsSection with every tRPC procedure idle; red on main (no 'queue', has 'Twilio'), green with the change. Not yet seen by the operator on the installed PWA."
+    },
+    "capability-ledger-updated": {
+      "ref": "Q-23 phase 13: docs/operations/capability-ledger.json flips admin-gateway-one-rule-q23 to codeState merged (#2844, squash 811a3cdca) and points its SmsSection-subtitle deferred item at this phase. No new capability entry. admin-lane-health-q23 is not flipped: #2846 had not merged when this branch was cut. REALITY-LEDGER.md re-rendered by scripts/render-reality-ledger.mjs; scripts/check-capability-ledger.mjs: valid, 103 capabilities."
+    }
+  }
+}
