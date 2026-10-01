@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "deferred": "Q-50 phase 2b adds the 'Manufacturer warranty programs (may apply)' block to the admin work-order drawer's NHTSA panel and an unknown-name note for recalls and complaints. It cannot be walked through live yet: until the operator applies migration 0138, arms nhtsa_warranty_ingest and one ingest run finishes, the block correctly shows 'manufacturer program list unavailable - NOT the same as none on file'. Rendered behaviour is pinned instead by client/src/__tests__/nhtsa-warranty-panel.test.tsx (11 cases, 9 red on main). Walkthrough after the first ingest: open a work order for a 2016-2018 Hyundai Santa Fe on a phone and check the block, the footer and the update date."
+    },
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json: new entry work-order-nhtsa-warranty-programs-q50 (codeState in_progress, unit_verified, exposure disabled) with its tests and the operator steps that block it; REALITY-LEDGER.md re-rendered."
+    }
+  }
+}

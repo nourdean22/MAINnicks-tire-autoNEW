@@ -211,9 +211,18 @@ fields, its `signal`, and how the vehicle matched (`exact` model, or `related` m
 | Fresh ingest, zero matches | "None listed by NHTSA for this year/make/model", with the update date |
 
 Freshness comes from the latest `cron_log` row of `nhtsa-warranty-ingest` with status `completed`,
-read the way `cron/jobs/cronSkipWatchdog.ts` reads `cron_log`. Once it exists, the same reading can
-become a row on Intelligence HQ's Data freshness card (`client/src/pages/admin/today/dataFreshness.ts`,
-Q-23 phase 9); that is a follow-up, not part of phase 2.
+read the way `cron/jobs/cronSkipWatchdog.ts` reads `cron_log`.
+
+> **Corrected in phase 2b (2026-10-01).** Freshness is read from the ingest's own state row
+> (`lastSuccessAt` in `shop_settings` key `nhtsa_warranty_chunk_state`), not `cron_log`: a flag-off
+> or missing-migration skip is also logged there as `completed` (phase 2a review). "Flag off" is
+> not its own unavailable state either: per §11, turning the flag off keeps the last ingest on
+> screen with the staleness note after 3 days. An ingest that has never finished a run shows
+> "unavailable". Code: `server/services/nhtsaWarrantyRead.ts`.
+
+Once the ingest has run, the same freshness reading can become a row on Intelligence HQ's Data
+freshness card (`client/src/pages/admin/today/dataFreshness.ts`, Q-23 phase 9); that is a
+follow-up, not part of phase 2.
 
 ## 8 · Matching shop names to NHTSA names (and phase 1's carry-overs)
 

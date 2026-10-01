@@ -11,10 +11,17 @@ import {
   decodeVinForLookup as decodeCanonicalVin,
   normalizeVinForLookup,
 } from "./vinDecode";
+import { toNhtsaVehicleName } from "./nhtsaVehicleNames";
 
 const RECALLS_BASE = "https://api.nhtsa.gov/recalls/recallsByVehicle";
 const COMPLAINTS_BASE = "https://api.nhtsa.gov/complaints/complaintsByVehicle";
 const TIMEOUT_MS = 10_000;
+/**
+ * Complaints get longer: the first, uncached lookup for a car with many
+ * complaints can pass 10 s (a 2012 Ford Focus took 11.8 s, then 0.4 s cached;
+ * phase 1 live probe), so the first open showed "unavailable".
+ */
+const COMPLAINTS_TIMEOUT_MS = 25_000;
 const CACHE_TTL_MS = 24 * 3_600_000;
 const CACHE_MAX = 500;
 const SOURCE_LABEL = "NHTSA (public federal data)";
@@ -44,12 +51,29 @@ function cacheSet(key: string, value: unknown): void {
   recallCache.set(key, { at: Date.now(), value });
 }
 
-async function nhtsaFetch(url: string): Promise<unknown> {
+/** NHTSA answered 400 with a well-formed empty body: it has no vehicle under this name. */
+class UnknownVehicleError extends Error {}
+
+/** `{"count":0,"results":[]}` (or `Count`): the shape NHTSA's 400 carries for a name it does not know. */
+function isEmptyNhtsaBody(body: unknown): boolean {
+  if (!body || typeof body !== "object") return false;
+  const b = body as { count?: unknown; Count?: unknown; results?: unknown };
+  const count = b.count ?? b.Count;
+  return count === 0 && Array.isArray(b.results) && b.results.length === 0;
+}
+
+async function nhtsaFetch(url: string, timeoutMs = TIMEOUT_MS): Promise<unknown> {
   const res = await fetch(url, {
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
     headers: { "User-Agent": "nickstire-admin/1.0 (lead enrichment)" },
   });
-  if (!res.ok) throw new Error("NHTSA " + res.status);
+  if (!res.ok) {
+    if (res.status === 400) {
+      const body = await res.json().catch(() => null);
+      if (isEmptyNhtsaBody(body)) throw new UnknownVehicleError("NHTSA 400");
+    }
+    throw new Error("NHTSA " + res.status);
+  }
   return res.json();
 }
 
@@ -72,6 +96,23 @@ export interface VehicleDataError {
   ok: false;
   error: string;
   source: string;
+  /**
+   * "unknown_vehicle": NHTSA does not know this make/model spelling. A retry
+   * cannot fix it, and it is still not "none on file".
+   */
+  reason?: "unknown_vehicle";
+}
+
+function lookupError(err: unknown, year: string, make: string, model: string): VehicleDataError {
+  if (err instanceof UnknownVehicleError) {
+    return {
+      ok: false,
+      reason: "unknown_vehicle",
+      error: `NHTSA has no vehicle named "${make} ${model}" for ${year}. Check the spelling NHTSA uses (for example SILVERADO 1500, F-150).`,
+      source: SOURCE_LABEL,
+    };
+  }
+  return { ok: false, error: err instanceof Error ? err.message : String(err), source: SOURCE_LABEL };
 }
 
 /**
@@ -114,6 +155,8 @@ export interface RecallSummary {
   year: string;
   make: string;
   model: string;
+  /** The shop's make spelling was changed to NHTSA's (make/model above are what NHTSA was asked for). */
+  aliased: boolean;
   recallCount: number;
   recalls: Array<{
     campaign: string | null;
@@ -142,12 +185,12 @@ function reportedAt(value: unknown): number {
   return Number.isFinite(ms) ? ms : 0;
 }
 
+/** Year/make/model as NHTSA spells them (ADR-0021 §8 make aliases: Chevy -> CHEVROLET, Land + Rover ... -> LAND ROVER). */
 function vehicleArgs(args: { year: string; make: string; model: string }) {
   const year = args.year.trim();
-  const make = args.make.trim();
-  const model = args.model.trim();
+  const { make, model, aliased } = toNhtsaVehicleName(args.make, args.model);
   const valid = /^\d{4}$/.test(year) && make.length > 0 && model.length > 0;
-  return { year, make, model, valid };
+  return { year, make, model, aliased, valid };
 }
 
 function vehicleQuery(year: string, make: string, model: string): string {
@@ -164,7 +207,7 @@ export async function recallsByVehicle(args: {
   make: string;
   model: string;
 }): Promise<RecallSummary | VehicleDataError> {
-  const { year, make, model, valid } = vehicleArgs(args);
+  const { year, make, model, aliased, valid } = vehicleArgs(args);
   if (!valid) {
     return { ok: false, error: "year (YYYY), make, model required", source: SOURCE_LABEL };
   }
@@ -189,6 +232,7 @@ export async function recallsByVehicle(args: {
       year,
       make,
       model,
+      aliased,
       recallCount: typeof body.Count === "number" ? body.Count : rows.length,
       recalls: [...rows]
         .sort((a, b) => reportedAt(b.ReportReceivedDate) - reportedAt(a.ReportReceivedDate))
@@ -208,11 +252,7 @@ export async function recallsByVehicle(args: {
     cacheSet(key, result);
     return result;
   } catch (err) {
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : String(err),
-      source: SOURCE_LABEL,
-    };
+    return lookupError(err, year, make, model);
   }
 }
 
@@ -223,6 +263,8 @@ export interface ComplaintSummary {
   year: string;
   make: string;
   model: string;
+  /** The shop's make spelling was changed to NHTSA's (make/model above are what NHTSA was asked for). */
+  aliased: boolean;
   complaintCount: number;
   crashCount: number;
   fireCount: number;
@@ -243,7 +285,7 @@ export async function complaintsByVehicle(args: {
   make: string;
   model: string;
 }): Promise<ComplaintSummary | VehicleDataError> {
-  const { year, make, model, valid } = vehicleArgs(args);
+  const { year, make, model, aliased, valid } = vehicleArgs(args);
   if (!valid) {
     return { ok: false, error: "year (YYYY), make, model required", source: SOURCE_LABEL };
   }
@@ -253,7 +295,7 @@ export async function complaintsByVehicle(args: {
   if (cached) return cached;
 
   try {
-    const body = (await nhtsaFetch(COMPLAINTS_BASE + vehicleQuery(year, make, model))) as {
+    const body = (await nhtsaFetch(COMPLAINTS_BASE + vehicleQuery(year, make, model), COMPLAINTS_TIMEOUT_MS)) as {
       count?: number;
       results?: Array<Record<string, unknown>>;
     };
@@ -280,6 +322,7 @@ export async function complaintsByVehicle(args: {
       year,
       make,
       model,
+      aliased,
       complaintCount: typeof body.count === "number" ? body.count : rows.length,
       crashCount,
       fireCount,
@@ -294,11 +337,7 @@ export async function complaintsByVehicle(args: {
     cacheSet(key, result);
     return result;
   } catch (err) {
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : String(err),
-      source: SOURCE_LABEL,
-    };
+    return lookupError(err, year, make, model);
   }
 }
 

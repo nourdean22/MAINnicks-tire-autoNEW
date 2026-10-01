@@ -3030,6 +3030,37 @@
       "lastVerifiedAt": "2026-09-30"
     },
     {
+      "capabilityId": "work-order-nhtsa-warranty-programs-q50",
+      "name": "Work-order drawer shows NHTSA manufacturer warranty programs that may apply to the car (stored ingest, information only), and asks NHTSA by its own make names",
+      "owner": "system",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch nickstire/q50-phase2b-warranty-panel (draft PR, not merged): server/services/nhtsaWarrantyRead.ts (vehicleData.warrantyExtensions, SELECT-only read of the phase-2a tables, freshness from the ingest's lastSuccessAt, rows limited to each chunk's latest pass); server/services/nhtsaVehicleNames.ts (ADR-0021 section 8 make aliases shared with the live recall and complaint lookups); vehicleData.ts reports NHTSA's 400-with-empty-body as unknown_vehicle and gives complaints a 25 s timeout; NhtsaVehiclePanel.tsx block 'Manufacturer warranty programs (may apply)'.",
+        "tests": [
+          "server/services/nhtsaWarrantyRead.test.ts: 13 cases incl. never-ingested, migration-missing and failed reads as ok:false (never 'none listed'), the 3-day stale flag, Chevy/Silverado/2015 reading CHEVROLET, both stored Mercedes spellings, exact over related, year 9999 kept and labelled, pass times reaching the SQL as parameters, SELECT-only production SQL and LIKE escaping.",
+          "client/src/__tests__/nhtsa-warranty-panel.test.tsx: 11 cases incl. the three ADR-0021 section 7.3 states, the related-model and unstated-year labels, the always-on eligibility footer, no 'covered'/'free'/'will pay' wording, an unknown NHTSA name shown without a useless Retry, the park-outside badge and a complaints {ok:false} value.",
+          "server/__tests__/vehicleDataNhtsaNames.test.ts: 12 cases incl. alias resolution, NHTSA's 400 for an unknown name, errors not cached, dd/mm order, deaths-only injury, count vs rows, the complaints timeout.",
+          "server/services/nhtsaWarrantyFit.test.ts: 3 cases pinning fit(), the phase-2a review's surviving mutant.",
+          "27 of 27 mutants caught across the four files; the new panel cases were red on main (9 of 11) and both new server files fail to import there."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Shows 'unavailable' until the operator applies migration 0138, arms nhtsa_warranty_ingest and one ingest run finishes; no stored row has been read in production yet."
+        }
+      ],
+      "deferredScope": [
+        "Not on the technician's work order or any customer surface (ADR-0021 section 12 question 1 is still open; this is the advisor's drawer only).",
+        "A Data freshness row on Intelligence HQ for the ingest (ADR-0021 section 7.3 follow-up).",
+        "The previous-year chunk-name candidate from the phase-2a review (optional) is not built; it would change an existing chunkPlan expectation."
+      ],
+      "lastVerifiedAt": "2026-10-01"
+    },
+    {
       "capabilityId": "nickstire-daily-digest-q29",
       "name": "Daily digest (cron db-backup): counts-only nickstire -> StateNour, no customer rows",
       "owner": "system",
