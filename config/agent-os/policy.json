@@ -141,9 +141,9 @@
     {
       "id": "destructive-restore",
       "tools": ["Bash", "PowerShell"],
-      "pattern": "__GIT__(?:reset\\s+--hard\\b|checkout\\s+--\\s|clean\\s+-[a-zA-Z]*[dfxX][a-zA-Z]*\\b|restore\\b(?!(?=[^\\n]*--staged\\b)(?![^\\n]*--worktree\\b)))",
-      "why": "Memory git-sync-never-reset-hard: a sibling session's uncommitted work can be sitting in this tree, and none of these leave a reflog entry for unstaged changes. Covers reset --hard, checkout -- <path>, git clean -d/-f/-x, and worktree-writing git restore.",
-      "fix": "Sync with: git fetch origin main ; git merge --ff-only origin/main. To discard YOUR OWN edit, copy the file aside first (cp file file.bak). git restore --staged <file> (unstage only) stays allowed.",
+      "pattern": "__GIT__(?:reset\\s+--hard\\b|checkout\\s+--\\s|clean\\s+-[a-zA-Z]*[dfxX][a-zA-Z]*\\b|restore\\b(?!(?=[^\\n]*--staged\\b)(?![^\\n]*--worktree\\b))|checkout(?:\\s+-[A-Za-z]+|\\s+--[\\w-]+)*\\s+[^\\s;&|)\\-][^\\s;&|)]*\\s+--\\s|checkout(?:\\s+-[A-Za-z]+)*(?:\\s+[^\\s;&|)\\-][^\\s;&|)]*)?\\s+\\.\\/?(?=[\\s;&|)]|$)|checkout\\b[^;&|\\n]*?\\s(?:-[A-Za-z]*f[A-Za-z]*\\b|--force(?=[\\s;&|)]|$))|switch\\b[^;&|\\n]*?\\s(?:--discard-changes\\b|--force(?=[\\s;&|)]|$)|-[A-Za-z]*f[A-Za-z]*\\b)|checkout(?:\\s+-[A-Za-z]+)*(?:\\s+[^\\s;&|)\\-][^\\s;&|)]*)?\\s+[^\\s;&|)\\-][^\\s;&|)]*\\.(?:tsx?|jsx?|mjs|cjs|json|md|ya?ml|css|scss|html|sql|py|ps1|sh|lock|toml|txt|prisma)(?=[\\s;&|)]|$))",
+      "why": "Memory git-sync-never-reset-hard: a sibling session's uncommitted work can be sitting in this tree, and none of these leave a reflog entry for unstaged changes. Covers reset --hard, checkout -- <path>, git clean -d/-f/-x, and worktree-writing git restore. Red-team 2026-10-01: git's other spellings of the same discard passed: checkout . (all paths), checkout <ref> -- <path> and checkout <ref> . (the ref's copy over your edits), checkout -f / --force and switch -f / --force / --discard-changes (switching that throws local changes away). They are covered now, and so is checkout [<ref>] <file> when the word ends in a source-file extension; a bare checkout <word> without one stays allowed, because by text alone it is a branch switch.",
+      "fix": "Sync with: git fetch origin main ; git merge --ff-only origin/main. To discard YOUR OWN edit, copy the file aside first (cp file file.bak). git restore --staged <file> (unstage only) stays allowed. To take another ref's version of a file you have NOT edited, git show <ref>:<path> works after you copy the file aside; during a merge, git checkout --theirs / --ours <path> stays allowed.",
       "denyExamples": [
         "git reset --hard origin/main",
         "git reset --hard HEAD~1",
@@ -151,7 +151,18 @@
         "git checkout -- .",
         "git clean -xdf",
         "git restore app.ts",
-        "git restore --staged --worktree app.ts"
+        "git restore --staged --worktree app.ts",
+        "git checkout .",
+        "git checkout HEAD -- .",
+        "git checkout origin/main -- pnpm-lock.yaml",
+        "git checkout -q HEAD -- a.ts",
+        "git checkout HEAD .",
+        "git checkout -f main",
+        "git switch --discard-changes main",
+        "git switch -f main",
+        "git checkout . && git status",
+        "git checkout src/app.ts",
+        "git checkout main apps/nickstire/package.json"
       ],
       "allowExamples": [
         "git reset HEAD~1",
@@ -161,17 +172,23 @@
         "git checkout main",
         "git fetch origin main",
         "git merge --ff-only origin/main",
-        "git commit -m \"chore: use merge --ff-only, not git reset --hard\""
+        "git commit -m \"chore: use merge --ff-only, not git reset --hard\"",
+        "git checkout --theirs pnpm-lock.yaml",
+        "git checkout --theirs -- pnpm-lock.yaml",
+        "git checkout -B claude/x origin/main",
+        "git checkout feature/fix-foo",
+        "git switch --force-create feat/x",
+        "git diff HEAD -- src/app.ts"
       ]
     },
     {
       "id": "stash-pop",
       "tools": ["Bash", "PowerShell"],
-      "pattern": "__GIT__stash\\s+(?:pop|apply|branch)\\b",
-      "why": "Memory git-stash-pop-steals-sibling-stash: the stash is shared across worktrees. A no-op 'stash push' still exits 0, so pop/apply/branch can restore ANOTHER session's stash into your tree.",
+      "pattern": "__GIT__stash\\s+(?:pop|apply|branch|drop|clear)\\b",
+      "why": "Memory git-stash-pop-steals-sibling-stash: the stash is shared across worktrees. A no-op 'stash push' still exits 0, so pop/apply/branch can restore ANOTHER session's stash into your tree. The same sharing makes drop and clear destructive: they delete stash entries other sessions may own (red-team 2026-10-01).",
       "fix": "Copy the file aside instead (cp file file.bak), or address the stash by explicit ref after confirming it is yours (git stash list).",
-      "denyExamples": ["git stash pop", "git stash apply stash@{0}", "git stash branch tmp stash@{0}"],
-      "allowExamples": ["git stash list", "git status"]
+      "denyExamples": ["git stash pop", "git stash apply stash@{0}", "git stash branch tmp stash@{0}", "git stash drop", "git stash clear", "git stash drop stash@{1}"],
+      "allowExamples": ["git stash list", "git status", "git stash show -p stash@{0}"]
     },
     {
       "id": "worktree-remove",
