@@ -57,6 +57,8 @@ Categories below overlap and are keyword-derived, so they are directional—not 
 - Replaced squeak→pads implication with non-diagnostic urgency.
 - SMS persona now identifies as Nick's Tire & Auto's texting assistant, not Nick personally.
 - SMS persona pins thread continuity, one-question replies, direct handling of supplied tire sizes/quantities, and non-engagement with obvious spam/solicitation.
+- SMS brake-price playbook now distinguishes squeak/grind/shake without claiming which part is worn; remote-diagnosis guard applies to that lane.
+- NickGPT fine-tune runbook is aligned so a future Ollama model does not reintroduce the old Nick-impersonation persona.
 - Regression tests pin all of the above.
 
 ## Not changed yet
