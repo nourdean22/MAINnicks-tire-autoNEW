@@ -519,3 +519,14 @@ This supersedes the pre-PR status notes immediately above while preserving them 
 - UX objective: for NOUR Cockpit, keep useful power but reduce normal-path clutter and accidental misconfiguration. Preserve access to deeper parameters only through an explicit advanced/reveal path if required; do not globally cripple other models.
 - No Controls-panel UI patch has been applied yet at this checkpoint.
 
+
+## 2026-10-01 — NOUR Cockpit Chat Controls optimizer verified
+
+- The top-right OpenWebUI **Controls** panel is now optimized specifically for **NOUR Cockpit** through OpenWebUI''s supported `/static/loader.js` + `/static/custom.css` extension surface. No minified app bundle was edited.
+- Scope is model-specific: the patch activates only when `#model-selector-model-button` reports **Selected model: NOUR Cockpit** and only inside `#controls-container`.
+- For NOUR Cockpit, **33 raw Advanced Params rows** are hidden by default and replaced by a concise status card explaining that routing/tools/provider params are automatic. **Show raw overrides** restores every original row; the change is presentation-only and writes no model values.
+- Isolation canary: switching to `qwen35-4b-local` produced `data-nour-controls-mode=standard`, no NOUR summary, **0 hidden rows**, and Temperature remained visible.
+- This matches gateway truth: live `nour-auto` advertises `supported_parameters=["tools","tool_choice"]`; generic sampling/Ollama knobs are therefore misleading in the normal routed-model path.
+- The UI patch is self-healed by `ensure_openwebui_cockpit.py`, which preserves native OpenWebUI static content and replaces only the managed NOUR block.
+- **Still unfinished at this checkpoint:** real natural-language OpenWebUI → Cockpit → OpenCode canary, bridge PR/CI/merge, merged-runtime promotion, and known-good snapshot refresh.
+
