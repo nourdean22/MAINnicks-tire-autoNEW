@@ -23,6 +23,7 @@
 
 import { type TileProvenance, provenanceOf } from "@shared/tileProvenance";
 import { classifyIntegrationFreshness } from "@/lib/integrationFreshness";
+import { gatewayState } from "@/lib/gatewayState";
 import { mirrorFreshness } from "./todayPulse";
 
 /** Same window as the Overview "Integration freshness" card. */
@@ -154,24 +155,34 @@ export interface GatewayHealthPayload {
 
 export function smsGatewayRow(q: QuerySlice<GatewayHealthPayload>): FreshnessRow {
   const label = "SMS gateway";
-  if (q.isError) return unread("sms", label, "The gateway status could not be read. Unknown, not offline.");
-  if (!q.data) return checking("sms", label);
-  const g = q.data;
-  if (!g.configured) {
+  // The state is lib/gatewayState's, the rule every gateway reader shares
+  // (Q-23 phase 12): a failed background refetch keeps the last good read.
+  const state = gatewayState(q.data, q.isError);
+  if (state === "checking") return checking("sms", label);
+  if (state === "unknown") {
+    const g = q.data;
+    return g
+      ? unread("sms", label, `The gateway service did not answer${g.error ? ` (${g.error})` : ""}. Unknown, not offline.`)
+      : unread("sms", label, "The gateway status could not be read. Unknown, not offline.");
+  }
+  // gatewayState returns "checking" or "unknown" whenever there is no data.
+  const g = q.data as GatewayHealthPayload;
+  // A freshness card has to say when the read it shows is not the latest one.
+  const refreshNote = q.isError ? "Last good read; the latest refresh failed." : null;
+  if (state === "not_configured") {
     return { key: "sms", label, status: "not configured", detail: "Shop texts cannot send from the gateway.", provenance: MEASURED, loud: true };
   }
-  if (g.readable === false) {
-    return unread("sms", label, `The gateway service did not answer${g.error ? ` (${g.error})` : ""}. Unknown, not offline.`);
-  }
   const seen = typeof g.ageMinutes === "number" && g.lastSeen ? ` · seen ${ageText(g.ageMinutes)} ago` : "";
-  if (g.online) {
-    return { key: "sms", label, status: `online${seen}`, detail: null, provenance: MEASURED, loud: false };
+  if (state === "online") {
+    // A read that could not be refreshed needs a look, even when it said online.
+    return { key: "sms", label, status: `online${seen}`, detail: refreshNote, provenance: MEASURED, loud: refreshNote !== null };
   }
+  const offlineDetail = g.lastSeen ? "Shop texts are not going out from the gateway phone." : (g.error ?? "No gateway phone has checked in.");
   return {
     key: "sms",
     label,
     status: g.lastSeen ? `offline${seen}` : "offline",
-    detail: g.lastSeen ? "Shop texts are not going out from the gateway phone." : (g.error ?? "No gateway phone has checked in."),
+    detail: refreshNote ? `${offlineDetail} ${refreshNote}` : offlineDetail,
     provenance: MEASURED,
     loud: true,
   };

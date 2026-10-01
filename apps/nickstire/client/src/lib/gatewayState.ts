@@ -4,8 +4,13 @@
  * Q-23 phase 9 gave the resolver an additive `readable` field: false when the
  * Capevace API did not answer, so the phone's state is UNKNOWN. Reading
  * `online` alone turns that into "offline" and blames a phone nobody could ask
- * about. GatewayPill and the Data freshness card already split the two; this is
- * the same rule for the remaining readers (Q-23 phase 10).
+ * about. Every reader takes its state from here: MorningBrief, OutreachBrief,
+ * Settings (Q-23 phase 10), GatewayPill and the Data freshness row (phase 12).
+ *
+ * A failed background refetch keeps the last good read (see below). Whether the
+ * check RAN is a separate question: the Settings "checks could not run" banner
+ * counts the query error itself, and the Data freshness row says the latest
+ * refresh failed.
  *
  * "unknown"  · our query failed with nothing cached, or the vendor API did not answer.
  * "checking" · the first read is still in flight. No claim either way.

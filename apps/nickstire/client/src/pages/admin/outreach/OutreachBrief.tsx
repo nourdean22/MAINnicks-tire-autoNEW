@@ -69,7 +69,9 @@ export function OutreachBrief({ onRecoveryAction }: OutreachBriefProps) {
   const gwState = gatewayState(gw, gwError);
   const gwText =
     gwState === "online" ? "online"
-      : gwState === "offline" ? "offline (Twilio fallback active)"
+      // server/sms.ts queues texts while the gateway is offline. There is no
+      // Twilio fallback on that path (Q-23 phase 12).
+      : gwState === "offline" ? "offline (texts queue until the phone checks back in)"
         : gwState === "not_configured" ? "not configured"
           : gwState === "checking" ? "checking…"
             : "status unknown (the status read failed)";
