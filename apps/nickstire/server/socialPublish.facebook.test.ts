@@ -76,6 +76,34 @@ describe("publishToSocial — Facebook", () => {
     expect(calls.some((c) => c.url.includes("/feed"))).toBe(false);
   });
 
+  it("keeps an AI-generated reel off the Page: Facebook's Reels API has no disclosure field (no Graph call at all)", async () => {
+    const calls = stubGraph();
+    const out = await publishToSocial({
+      platforms: ["facebook"],
+      caption: "IG caption.",
+      fbCaption: "Facebook caption.",
+      videoUrl: "https://cdn.example.com/generated.mp4",
+      isAiGenerated: true,
+    });
+    const fb = out.results.find((r) => r.platform === "facebook");
+    expect(fb?.success).toBe(false);
+    expect(fb?.error).toContain("no AI-disclosure field");
+    expect(calls).toEqual([]);
+  });
+
+  it("an explicitly non-generated reel still goes to the Page (the flag decides, not the video)", async () => {
+    const calls = stubGraph();
+    const out = await publishToSocial({
+      platforms: ["facebook"],
+      caption: "IG caption.",
+      fbCaption: "Facebook caption.",
+      videoUrl: "https://cdn.example.com/shop-floor.mp4",
+      isAiGenerated: false,
+    });
+    expect(out.results.find((r) => r.platform === "facebook")).toEqual({ platform: "facebook", success: true, postId: "page_post_9" });
+    expect(calls.filter((c) => c.url.includes("/video_reels"))).toHaveLength(2);
+  });
+
   it("derives a Facebook-native caption for a reel when no fbCaption is given (no hashtag wall, a question)", async () => {
     const calls = stubGraph();
     await publishToSocial({ platforms: ["facebook"], caption: "Brake pads wear out. Link in bio.\n\n#brakes #cleveland #euclid #autorepair", videoUrl: "https://cdn.example.com/reel.mp4" });

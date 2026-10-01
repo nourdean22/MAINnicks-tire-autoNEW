@@ -111,6 +111,19 @@ describe("facebookLiveWithoutInstagram (partial publish must PARK, never retry)"
   it("still parks when FB succeeded without returning an id", () => {
     expect(facebookLiveWithoutInstagram([{ platform: "facebook", success: true }, { platform: "instagram", success: false }])).toBe("(no id returned)");
   });
+  it("parks an ambiguous Facebook publish too: the finish call got no answer, so the reel may be live", () => {
+    const id = facebookLiveWithoutInstagram([
+      { platform: "facebook", success: false, ambiguous: true, postId: "vid_7" },
+      { platform: "instagram", success: false },
+    ]);
+    expect(id).toContain("vid_7");
+    expect(id).toContain("may be live");
+    // Instagram live is still the authority: nothing to park.
+    expect(facebookLiveWithoutInstagram([
+      { platform: "facebook", success: false, ambiguous: true, postId: "vid_7" },
+      { platform: "instagram", success: true, postId: "ig_1" },
+    ])).toBeNull();
+  });
   it("is null when IG succeeded, when FB failed, or when FB was not attempted", () => {
     expect(facebookLiveWithoutInstagram([{ platform: "facebook", success: true, postId: "x" }, { platform: "instagram", success: true, postId: "y" }])).toBeNull();
     expect(facebookLiveWithoutInstagram([{ platform: "facebook", success: false }, { platform: "instagram", success: false }])).toBeNull();

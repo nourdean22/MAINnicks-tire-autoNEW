@@ -99,6 +99,25 @@ export async function reconcileAmbiguousPublishes(
       }
 
       if (verdict.status === "resolved_not_published") {
+        // INSTAGRAM'S SILENCE SAYS NOTHING ABOUT THE PAGE. reconcileAttempt reads
+        // only the Instagram account, and publishToSocial posts Facebook first, so
+        // an attempt that also went to the Page can have a live Facebook reel
+        // behind an Instagram that never got it. Releasing it re-posts the reel
+        // to the Page on the next tick (2026-10-01, review of #2865).
+        if (attempt.platforms.includes("facebook")) {
+          const detail =
+            `${verdict.detail} This attempt also went to the Facebook Page, which this check cannot see; ` +
+            "releasing it would post the reel to the Page again. Check the Page before retrying.";
+          await recordPublishOutcome(attempt.attemptId, OUTCOME.operatorRequired, {
+            error: `auto-reconcile handed to operator: ${detail}`.slice(0, 500),
+            platformResults: { detail, candidates: [], handoffReason: "facebook_unverifiable" },
+          });
+          out.leftForOperator.push({ jobId: attempt.jobId, why: "facebook_unverifiable" });
+          log.warn("ambiguous publish not released: the attempt also went to the Facebook Page", {
+            jobId: attempt.jobId, attemptId: attempt.attemptId,
+          });
+          continue;
+        }
         const res = await applyReconciliation({
           kind: attempt.kind,
           jobId,

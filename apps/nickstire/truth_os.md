@@ -24,7 +24,7 @@ not from `.env`:
 | `FEATURE_FOLLOWUP_CADENCE` | `1` | SMS · multi-touch follow-up cadence |
 | `ENABLE_CUSTOMER_CONFIRMATIONS` | `true` | SMS · booking confirmations |
 | `REEL_PUBLISH_ENABLED` | `true` | PUBLISH · reels to Instagram, and since #2865 the same door gates reel VIDEO to the Facebook Page |
-| `REEL_FB_CROSSPOST_ENABLED` | `true` *(set 2026-10-01 17:19Z, operator instruction)* | PUBLISH · the nightly reel cron also hands the reel to the Facebook Page as a video reel. Instagram stays the authority; FB failure only logs. Inert until #2865 is the running container. |
+| `REEL_FB_CROSSPOST_ENABLED` | `true` *(set 2026-10-01 17:19Z, operator instruction)* | PUBLISH · the nightly reel cron also hands the reel to the Facebook Page as a video reel. Instagram stays the authority; FB failure only logs. Inert until #2865 is the running container. **An AI-generated reel stays off the Page** (2026-10-01 fix): Facebook's Reels API has no AI-disclosure field, so `publishToSocial` skips it and logs why; Instagram still gets it with `is_ai_generated`. An ambiguous FB finish parks the job like a live one, and the reconcile pass hands an attempt that went to Facebook to the operator instead of releasing it. |
 | `REEL_AUTOPOST_ENABLED` | `true` | PUBLISH · unattended posting |
 | `REEL_COMMENT_RESPONDER_ENABLED` | `true` | PUBLISH · public replies to IG comments |
 | `SOCIAL_INVENTORY_PUBLISH_ENABLED` | `true` | PUBLISH · inventory posts |

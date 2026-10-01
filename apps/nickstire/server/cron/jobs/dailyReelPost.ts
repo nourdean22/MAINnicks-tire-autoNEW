@@ -333,11 +333,17 @@ export function reelPublishPlatforms(env: NodeJS.ProcessEnv = process.env): ("in
 }
 
 /** publishToSocial posts Facebook BEFORE Instagram, so "FB live, IG not" is a real
- *  outcome. Releasing the claim then would republish the Page on the next tick. */
-export function facebookLiveWithoutInstagram(results: ReadonlyArray<{ platform: string; success: boolean; postId?: string }>): string | null {
+ *  outcome. Releasing the claim then would republish the Page on the next tick.
+ *  An ambiguous Facebook finish (the publish call got no answer after the upload)
+ *  may be live too, so it parks the same way (2026-10-01, review of #2865). */
+export function facebookLiveWithoutInstagram(
+  results: ReadonlyArray<{ platform: string; success: boolean; postId?: string; ambiguous?: boolean }>,
+): string | null {
   const fb = results.find((r) => r.platform === "facebook");
   const ig = results.find((r) => r.platform === "instagram");
-  if (fb?.success && !ig?.success) return fb.postId ?? "(no id returned)";
+  if (ig?.success) return null;
+  if (fb?.success) return fb.postId ?? "(no id returned)";
+  if (fb?.ambiguous) return `${fb.postId ?? "(no id returned)"}, publish unanswered: may be live`;
   return null;
 }
 
