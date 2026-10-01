@@ -448,11 +448,16 @@ type VapiWebhookMessage = {
   status?: string;
   call?: {
     id?: string;
+    assistantId?: string;
     startedAt?: string;
     endedAt?: string;
     duration?: number;
     durationSeconds?: number;
     endedReason?: string;
+  };
+  assistant?: {
+    id?: string;
+    metadata?: Record<string, string>;
   };
   startedAt?: string;
   endedAt?: string;
@@ -657,6 +662,40 @@ async function processCallEndReport(
               error: backfillErr instanceof Error ? backfillErr.message : String(backfillErr),
             });
           }
+        }
+
+        // ─── Persist exact SERVED-BEHAVIOR fingerprint ─────────────────────
+        // updateAssistant stamps a hash into assistant.metadata AFTER learned
+        // lessons and live transfer settings are merged. Prefer the assistant
+        // object Vapi delivered with this call: that is provider-side evidence
+        // of what served, not a guess from current source code. Until the next
+        // Push Latest Config older live assistants may lack the hash; persist
+        // that absence explicitly rather than backfilling today's code hash.
+        try {
+          const servedAssistantId = event.assistant?.id ?? event.call?.assistantId ?? null;
+          const meta = event.assistant?.metadata ?? {};
+          const behavior = {
+            v: 1,
+            assistantId: servedAssistantId,
+            hash: meta.nickBehaviorHash ?? null,
+            schema: meta.nickBehaviorSchema ?? null,
+            promptPolicy: meta.nickPromptPolicy ?? null,
+            source: meta.nickBehaviorHash ? "vapi_assistant_metadata" : "assistant_metadata_unavailable",
+          };
+          const { sql } = await import("drizzle-orm");
+          await d.execute(sql`
+            UPDATE vapi_call_logs
+            SET metadata = JSON_SET(
+              COALESCE(metadata, JSON_OBJECT()),
+              '$.behavior',
+              CAST(${JSON.stringify(behavior)} AS JSON)
+            )
+            WHERE vapiCallId = ${String(callId)}
+          `);
+        } catch (behaviorErr) {
+          log.warn("[vapi webhook] behavior fingerprint persist failed (analytics only)", {
+            error: behaviorErr instanceof Error ? behaviorErr.message : String(behaviorErr),
+          });
         }
 
         // ─── Persist CUSTOMER-only speech (2026-07-26 demand audit) ─────────
