@@ -574,3 +574,12 @@ This supersedes the pre-PR status notes immediately above while preserving them 
 - Browser direct-tool execution reachability is also fixed. The Cockpit bridge now allows CORS **only** from `http://127.0.0.1:8080` and `http://localhost:8080`, while continuing to require a loopback Host. A real browser-origin GET `/health` returned 200 and browser-origin JSON POST `/runs/status` passed preflight and returned the expected 404 for a deliberately missing run.
 - **Still unfinished at this checkpoint:** rerun the natural-language OpenWebUI → CockpitRun → OpenCode canary with the fixed tool injection, then PR/CI/merge, merged-runtime promotion, final doctor, and known-good snapshot.
 
+
+## 2026-10-01 — direct-tool injection works; executor lookup is the final E2E gap
+
+- Fresh browser canary `UI_E2E_CANARY_20261001_DIRECTFIX_1` proved the loader injection is active: `window.__NOUR_COCKPIT_LAST_INJECTION__` recorded model `nour-cockpit`, server `nour-cockpit`, and the six expected operation names.
+- The model **did call Cockpit tools**. The UI showed attempted `start_cockpit_run` and `check_cockpit_run` tool calls.
+- Both tool calls returned exactly **`{"error":"Tool Server Not Found"}`**. No CockpitRun state file was created and the marker never reached the bridge.
+- This narrows the remaining defect to OpenWebUI''s **direct-tool executor server lookup/resolution**. Model routing, gateway tool-calling transport, tool-schema injection, browser CORS reachability, and the Cockpit bridge remain independently verified.
+- Next action: locate the literal error emitter and align the injected server identifier with the executor''s expected ID/index/store representation. Do not retry the canary until that lookup mismatch is corrected.
+
