@@ -61,6 +61,7 @@
  * Optional env: VAPI_WEBHOOK_SECRET  (HMAC verify; permissive without)
  */
 
+import { createHash } from "node:crypto";
 import { createLogger } from "../lib/logger";
 import { BUSINESS } from "../../shared/business";
 import { OIL_PRICE } from "../../shared/pricing";
@@ -956,6 +957,43 @@ interface VapiAssistantConfig {
   metadata?: Record<string, string>;
 }
 
+export const VAPI_BEHAVIOR_FINGERPRINT_SCHEMA = "vapi-behavior-v1";
+
+function stableBehaviorJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableBehaviorJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => a.localeCompare(b));
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableBehaviorJson(v)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+/**
+ * Hash only behavior-affecting assistant configuration. Authentication
+ * material is deliberately excluded: rotating VAPI_WEBHOOK_SECRET must not
+ * masquerade as a customer-experience change.
+ */
+export function computeVapiBehaviorHash(config: VapiAssistantConfig): string {
+  const server = config.server
+    ? { url: config.server.url, timeoutSeconds: config.server.timeoutSeconds }
+    : undefined;
+  const input = { ...config, server, metadata: undefined };
+  return createHash("sha256").update(stableBehaviorJson(input)).digest("hex").slice(0, 24);
+}
+
+function stampVapiBehaviorMetadata(config: VapiAssistantConfig): string {
+  const hash = computeVapiBehaviorHash(config);
+  config.metadata = {
+    ...(config.metadata ?? {}),
+    nickBehaviorHash: hash,
+    nickBehaviorSchema: VAPI_BEHAVIOR_FINGERPRINT_SCHEMA,
+    nickPromptPolicy: "neutral-first",
+  };
+  return hash;
+}
+
 // Keywords boost transcriber accuracy on shop-specific terms.
 // Deepgram lets us pre-prime the model with high-priority words.
 // VAPI's transcriber spec only allows 'word' or 'word:boost' format —
@@ -1619,6 +1657,7 @@ export async function createProductionAssistant(serverUrl?: string): Promise<{
 }> {
   try {
     const config = injectWebhookSecret(buildAssistantConfig(serverUrl));
+    stampVapiBehaviorMetadata(config);
     const res = await vapiFetch("/assistant", {
       method: "POST",
       body: JSON.stringify(config),
@@ -1733,6 +1772,13 @@ export async function updateAssistant(assistantId: string, serverUrl?: string): 
     const preLive = (await preRes.json()) as { model?: { tools?: Array<Record<string, unknown>> } };
     preserveLiveTransferDestinations(config, preLive.model?.tools ?? []);
 
+    // Serving provenance: stamp the FINAL config after learned lessons and
+    // dashboard-managed transfer settings are merged. Vapi echoes assistant
+    // metadata on server events when available; the webhook copies this hash
+    // into the call evidence envelope so downstream outcome analysis can tell
+    // exactly which behavior a caller experienced.
+    const behaviorHash = stampVapiBehaviorMetadata(config);
+
     const res = await vapiFetch(`/assistant/${assistantId}`, {
       method: "PATCH",
       body: JSON.stringify(config),
@@ -1742,7 +1788,7 @@ export async function updateAssistant(assistantId: string, serverUrl?: string): 
       log.error("Vapi assistant update failed", { status: res.status, body: text.slice(0, 500) });
       return { success: false, error: `${res.status}: ${text.slice(0, 200)}` };
     }
-    log.info("Updated Vapi assistant", { id: assistantId });
+    log.info("Updated Vapi assistant", { id: assistantId, behaviorHash });
     return { success: true };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Update failed" };
