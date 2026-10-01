@@ -57,6 +57,13 @@ TOOL_CONNECTIONS = [{
         ),
     },
 }]
+DIRECT_TOOL_SERVER = {
+    "url": "http://127.0.0.1:4101",
+    "path": "/openapi.json",
+    "auth_type": "none",
+    "key": "",
+    "config": {"enable": True},
+}
 
 MODEL_META = {
     "description": (
@@ -298,6 +305,43 @@ async def main():
         raise RuntimeError("OpenWebUI admin user not found")
     user_id = row[0]
 
+    admin_user = await Users.get_user_by_id(user_id)
+    if not admin_user:
+        raise RuntimeError("OpenWebUI admin user could not be loaded")
+    user_settings = admin_user.settings if isinstance(admin_user.settings, dict) else {}
+    ui_settings = (
+        user_settings.get("ui")
+        if isinstance(user_settings.get("ui"), dict)
+        else {}
+    )
+    current_direct_servers = ui_settings.get("toolServers")
+    if not isinstance(current_direct_servers, list):
+        current_direct_servers = []
+
+    desired_direct_servers = []
+    cockpit_server_found = False
+    for server in current_direct_servers:
+        if (
+            isinstance(server, dict)
+            and server.get("url") == DIRECT_TOOL_SERVER["url"]
+        ):
+            desired_direct_servers.append({**server, **DIRECT_TOOL_SERVER})
+            cockpit_server_found = True
+        else:
+            desired_direct_servers.append(server)
+    if not cockpit_server_found:
+        desired_direct_servers.append(DIRECT_TOOL_SERVER)
+
+    user_tool_server_changed = desired_direct_servers != current_direct_servers
+    if user_tool_server_changed:
+        updated_user = await Users.update_user_settings_by_id(
+            user_id,
+            {"ui": {"toolServers": desired_direct_servers}},
+        )
+        if not updated_user:
+            raise RuntimeError("Failed to persist NOUR Cockpit user tool server")
+        changed = True
+
     form = ModelForm(
         id=COCKPIT_ID,
         base_model_id=BASE_MODEL,
@@ -352,6 +396,13 @@ async def main():
         "tool_server_asset": TOOL_SERVER_ASSET,
         "tool_server_asset_changed": tool_asset_changed,
         "tool_spec_count": tool_spec_count,
+        "user_tool_server_registered": any(
+            isinstance(server, dict)
+            and server.get("url") == DIRECT_TOOL_SERVER["url"]
+            for server in desired_direct_servers
+        ),
+        "user_tool_server_changed": user_tool_server_changed,
+        "user_tool_server_count": len(desired_direct_servers),
         "mission_task_writes": False,
     }
     print("NOUR_COCKPIT_ENSURE=" + json.dumps(payload, separators=(",", ":")))
