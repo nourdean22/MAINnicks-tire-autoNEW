@@ -60,16 +60,40 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
  */
 function isCommentLine(text: string): boolean {
   const t = text.trim();
-  return t.startsWith("//") || t.startsWith("*") || t.startsWith("/*") || t.startsWith("{/*");
+  // "* " / "*/" / a bare "*" continue a block comment. "*No credit check
+  // required." is a JSX footnote, which is copy (independent review, 2026-10-01).
+  return t.startsWith("//") || /^\*(?:\s|\/|$)/.test(t) || t.startsWith("/*") || t.startsWith("{/*");
+}
+
+/**
+ * The non-comment lines of a file. A block comment opened at the start of a
+ * line ("/*", "/**", or JSX "{/*") runs to the line that closes it, so prose
+ * inside a multi-line JSX comment is documentation too: the per-line rule
+ * alone read "TireSizePage ... start around $25-60 each" in a comment as copy.
+ */
+function codeLines(text: string): Array<{ line: number; text: string }> {
+  const out: Array<{ line: number; text: string }> = [];
+  let inBlock = false;
+  text.split("\n").forEach((t, i) => {
+    const trimmed = t.trim();
+    if (inBlock) {
+      if (trimmed.includes("*/")) inBlock = false;
+      return;
+    }
+    if ((trimmed.startsWith("/*") || trimmed.startsWith("{/*")) && !trimmed.includes("*/")) {
+      inBlock = true;
+      return;
+    }
+    if (!isCommentLine(t)) out.push({ line: i + 1, text: t });
+  });
+  return out;
 }
 
 const FILES = SCAN_DIRS.flatMap((d) => sourceFiles(d));
 const LINES: Array<{ file: string; line: number; text: string }> = [];
 for (const f of FILES) {
   const rel = relative(ROOT, f).replace(/\\/g, "/");
-  readFileSync(f, "utf8").split("\n").forEach((text, i) => {
-    if (!isCommentLine(text)) LINES.push({ file: rel, line: i + 1, text });
-  });
+  for (const l of codeLines(readFileSync(f, "utf8"))) LINES.push({ file: rel, ...l });
 }
 
 describe("the scanner sees the codebase", () => {
@@ -87,6 +111,10 @@ describe("the scanner sees the codebase", () => {
     expect(isCommentLine("            {/* was RUN BY MOE SINCE 2018 */}")).toBe(true);
     expect(isCommentLine("            RUN BY MOE SINCE 2018")).toBe(false);
     expect(isCommentLine('    fix: "running this since 2019",')).toBe(false);
+    expect(isCommentLine("            *No credit check required.")).toBe(false);
+    expect(isCommentLine("             */")).toBe(true);
+    const lines = codeLines(["copy one", "  {/* a JSX comment", "     that wraps */}", "copy two", "/**", " * doc", " */", "copy three"].join("\n"));
+    expect(lines.map((l) => l.text)).toEqual(["copy one", "copy two", "copy three"]);
   });
 });
 
@@ -335,9 +363,7 @@ const SERVER_COPY_FILES = [
 ];
 const SERVER_LINES: Array<{ file: string; line: number; text: string }> = [];
 for (const rel of SERVER_COPY_FILES) {
-  readFileSync(join(ROOT, rel), "utf8").split("\n").forEach((text, i) => {
-    if (!isCommentLine(text)) SERVER_LINES.push({ file: rel, line: i + 1, text });
-  });
+  for (const l of codeLines(readFileSync(join(ROOT, rel), "utf8"))) SERVER_LINES.push({ file: rel, ...l });
 }
 const COPY_LINES = [...LINES, ...SERVER_LINES];
 
@@ -509,37 +535,99 @@ describe("prices the shop states as its own match shared/pricing.ts", () => {
 
 /**
  * The rules live in shared/voice.ts (reason "claim") so the copy linter, the IG
- * generator and critic prompts, Ad Studio's lintAdCopy and this scan read one
- * list. The linter checks only ADDED lines and voice-compliance.test.ts only a
- * fixed set of fields, so neither could see the "no credit check" pitch on
- * every prerendered page, the E-Check "30-day deadline" or "pass guaranteed".
- * This scan reads every customer-copy line, zero tolerance, twice: line by line,
- * and with each file's lines joined, because JSX prose wraps ("checking /
- * doesn't ding your score" was split across two lines and passed a line scan).
- * HTML entities are decoded first (&apos; hid "doesn't").
+ * generator and critic prompts, Ad Studio's lintAdCopy, the SMS reply planner
+ * and this scan read one list. The linter checks only ADDED lines and
+ * voice-compliance.test.ts only a fixed set of fields, so neither could see the
+ * "no credit check" pitch on every prerendered page, the E-Check "30-day
+ * deadline" or "pass guaranteed". This scan reads every line, zero tolerance,
+ * line by line and with each file's lines joined, because JSX prose wraps.
  *
- * Skipped, with reasons: shared/voice.ts (its labels ARE the banned phrases);
- * shared/proof.ts (attributed customer testimonials, consumed only by the admin
- * review-request screen; a customer's words are evidence, not shop copy, the
- * same rule voice-compliance.test.ts applies). Admin files are scanned as the
- * admin surface, which the claim rules exempt, exactly as the linter does.
+ * Text is normalized the way a reader sees it: HTML entities and curly quotes
+ * decoded, escaped quotes in source strings unescaped (no \"do it twice\" risk
+ * hid behind its backslashes), a literal \n read as a line break, and inline
+ * tags removed ("Approved <strong>on the spot</strong>"). Tag removal runs as a
+ * SECOND variant beside the untagged text, never instead of it: a stray "<" and
+ * ">" on one line could otherwise swallow a claim between them.
+ *
+ * SCOPE, widened 2026-10-01 after an independent review found claims the first
+ * version never read: client/src and shared; EVERY non-test file under server/
+ * (a customer SMS template lived in server/services, outside the eight named
+ * copy files); client/index.html (meta and JSON-LD on every page); and the src
+ * of each workspace package nickstire depends on (packages/meta-ads-architect
+ * wrote paid-ad copy with "no credit check" in it).
+ *
+ * Skipped, with reasons: shared/voice.ts and the ad package's compliance
+ * scanner (their patterns ARE the banned phrases); shared/proof.ts
+ * (testimonials consumed only by an admin screen, which a canary below pins). Admin files are scanned as the admin surface, which the
+ * claim rules exempt, exactly as the linter does.
  */
 const CLAIM_RULE_IDS = KILL_RULES.filter((r) => r.reason === "claim").map((r) => r.id);
-const CLAIM_SCAN_SKIP = new Set(["shared/voice.ts", "shared/proof.ts"]);
+const NON_CLAIM_RULE_IDS = KILL_RULES.filter((r) => r.reason !== "claim").map((r) => r.id);
+const CLAIM_SCAN_SKIP = new Set([
+  "shared/voice.ts",
+  "shared/proof.ts",
+  // the ad package's own compliance scanner: its patterns ARE the banned phrases
+  "../../packages/meta-ads-architect/src/compliance/scanner.ts",
+]);
 
-const decodeEntities = (t: string) =>
+/** The src of every workspace package nickstire declares, read from package.json. */
+function workspacePackageSrcDirs(): string[] {
+  const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
+  const wanted = new Set(
+    Object.entries({ ...pkg.dependencies, ...pkg.devDependencies })
+      .filter(([, v]) => String(v).startsWith("workspace:"))
+      .map(([k]) => k),
+  );
+  const packagesDir = join(ROOT, "..", "..", "packages");
+  return readdirSync(packagesDir)
+    .map((d) => join(packagesDir, d))
+    .filter((d) => {
+      try {
+        return wanted.has(JSON.parse(readFileSync(join(d, "package.json"), "utf8")).name);
+      } catch {
+        return false;
+      }
+    })
+    .map((d) => join(d, "src"));
+}
+
+const PACKAGE_SRC_DIRS = workspacePackageSrcDirs();
+const CLAIM_EXTRA_FILES = [
+  ...sourceFiles(join(ROOT, "server")),
+  join(ROOT, "client", "index.html"),
+  ...PACKAGE_SRC_DIRS.flatMap((d) => sourceFiles(d)),
+].filter((f) => !SERVER_COPY_FILES.includes(relative(ROOT, f).replace(/\\/g, "/")));
+const CLAIM_EXTRA_LINES: Array<{ file: string; line: number; text: string }> = [];
+for (const f of CLAIM_EXTRA_FILES) {
+  const rel = relative(ROOT, f).replace(/\\/g, "/");
+  for (const l of codeLines(readFileSync(f, "utf8"))) CLAIM_EXTRA_LINES.push({ file: rel, ...l });
+}
+const CLAIM_LINES = [...COPY_LINES, ...CLAIM_EXTRA_LINES];
+
+const decodeCopy = (t: string) =>
   t
-    .replace(/&apos;|&#39;|&rsquo;/g, "'")
-    .replace(/&quot;|&ldquo;|&rdquo;/g, '"')
-    .replace(/&nbsp;/g, " ")
+    .replace(/\\(["'])/g, "$1")
+    .replace(/\\n/g, " ")
+    .replace(/&apos;|&#39;|&#x27;|&#8217;|&rsquo;|&lsquo;|[\u2018\u2019]/g, "'")
+    .replace(/&quot;|&ldquo;|&rdquo;|[\u201c\u201d]/g, '"')
+    .replace(/&nbsp;|\u00a0/g, " ")
     .replace(/&amp;/g, "&");
+const stripTags = (t: string) => t.replace(/<[^<>\n]{1,200}>/g, "");
+const VARIANTS: Array<(t: string) => string> = [decodeCopy, (t) => stripTags(decodeCopy(t))];
 
-function claimHits(file: string, text: string): Array<{ ruleId: string; match: string; index: number }> {
+function rawClaimHits(file: string, text: string): Array<{ ruleId: string; match: string; index: number }> {
   if (CLAIM_SCAN_SKIP.has(file)) return [];
   const surface = file.includes("/admin/") ? "admin" : "web";
-  return findVoiceViolations(decodeEntities(text), { surface })
-    .filter((v) => CLAIM_RULE_IDS.includes(v.ruleId))
-    .map((v) => ({ ruleId: v.ruleId, match: v.match, index: v.index }));
+  return findVoiceViolations(text, { surface, skipRuleIds: NON_CLAIM_RULE_IDS }).map((v) => ({
+    ruleId: v.ruleId,
+    match: v.match,
+    index: v.index,
+  }));
+}
+
+/** Line pass only: both variants of one line. */
+function claimHits(file: string, text: string): Array<{ ruleId: string; match: string }> {
+  return VARIANTS.flatMap((norm) => rawClaimHits(file, norm(text)));
 }
 
 function claimFindings(lines: Array<{ file: string; line: number; text: string }>): string[] {
@@ -553,17 +641,19 @@ function claimFindings(lines: Array<{ file: string; line: number; text: string }
   }
   // Joined pass: a phrase split across wrapped lines. Reported at its first line.
   for (const [file, list] of byFile) {
-    let joined = "";
-    const starts: number[] = [];
-    for (const l of list) {
-      starts.push(joined.length);
-      joined += decodeEntities(l.text.trim()) + " ";
-    }
-    for (const h of claimHits(file, joined)) {
-      let i = 0;
-      while (i + 1 < starts.length && starts[i + 1] <= h.index) i++;
-      const key = `${file}:${list[i].line} [${h.ruleId}]`;
-      if (![...found].some((f) => f.startsWith(key))) found.add(`${key} "${h.match}" (wrapped)`);
+    for (const norm of VARIANTS) {
+      let joined = "";
+      const starts: number[] = [];
+      for (const l of list) {
+        starts.push(joined.length);
+        joined += norm(l.text.trim()) + " ";
+      }
+      for (const h of rawClaimHits(file, joined)) {
+        let i = 0;
+        while (i + 1 < starts.length && starts[i + 1] <= h.index) i++;
+        const key = `${file}:${list[i].line} [${h.ruleId}]`;
+        if (![...found].some((f) => f.startsWith(key))) found.add(`${key} "${h.match}" (wrapped)`);
+      }
     }
   }
   return [...found];
@@ -574,11 +664,27 @@ const scanOne = (text: string, file = "client/src/pages/Canary.tsx") =>
 
 describe("no unsupported claim reaches a customer surface", () => {
   it("the kernel carries the claim rules", () => {
-    expect(CLAIM_RULE_IDS.length).toBeGreaterThanOrEqual(6);
+    expect(CLAIM_RULE_IDS.length).toBeGreaterThanOrEqual(7);
+  });
+
+  it("the widened scope is actually read", () => {
+    expect(CLAIM_EXTRA_FILES.length).toBeGreaterThan(300);
+    expect(CLAIM_EXTRA_LINES.some((l) => l.file === "client/index.html")).toBe(true);
+    expect(CLAIM_EXTRA_LINES.some((l) => l.file.startsWith("server/services/declinedRecoverySequence"))).toBe(true);
+    expect(CLAIM_EXTRA_LINES.some((l) => l.file.includes("packages/meta-ads-architect/src/"))).toBe(true);
   });
 
   it("no customer-copy line makes a claim the shop cannot back", () => {
-    expect(claimFindings(COPY_LINES)).toEqual([]);
+    expect(claimFindings(CLAIM_LINES)).toEqual([]);
+  });
+
+  it("shared/proof.ts, which the scan skips, is still consumed only by admin screens", () => {
+    // The skip is safe only while no customer surface imports it.
+    const importers = [...FILES, ...CLAIM_EXTRA_FILES]
+      .map((f) => relative(ROOT, f).replace(/\\/g, "/"))
+      .filter((rel) => rel !== "shared/proof.ts" && /from ["'](?:@shared|(?:\.\.\/)+shared)\/proof["']/.test(readFileSync(join(ROOT, rel), "utf8")));
+    expect(importers.length).toBeGreaterThan(0);
+    for (const rel of importers) expect(rel, `${rel} imports shared/proof.ts`).toContain("/admin/");
   });
 
   // PER-RULE CANARY through the SAME function the corpus scan uses.
@@ -589,55 +695,333 @@ describe("no unsupported claim reaches a customer surface", () => {
     },
   );
 
-  // MUST-FLAG: wordings that were live on 2026-10-01 and slipped past the first
-  // version of these rules. A canary that only fires each rule on its own label
-  // cannot show the rule is too narrow; these can.
+  // MUST-FLAG: wordings that were live on 2026-10-01, or that the PR removed by
+  // hand and an independent review showed the first rules would let back in. A
+  // canary that only fires each rule on its own label cannot show a rule is too
+  // narrow; these can.
   it.each([
     ["claim.no-credit-check", "Pre-approval takes 2 minutes with no hard credit check."],
     ["claim.no-credit-check", "all $10 down with no traditional credit check"],
     ["claim.no-credit-check", "Bad credit? No credit check? No problem."],
+    ["claim.no-credit-check", "We don't check credit."],
+    ["claim.no-credit-check", "We don't do credit checks."],
+    ["claim.no-credit-check", "zero credit check, credit-check-free"],
+    ["claim.no-credit-check", "We say 'no credit check' because we mean it."],
+    ["claim.no-credit-check", "Need tires with no credit check? We've got you covered."],
+    ["claim.no-credit-check", "Searching for no credit check tires? You found them."],
     ["claim.no-credit-impact", "No credit history needed to check, and checking doesn't ding your score."],
     ["claim.no-credit-impact", "Pre-qualified in 60 seconds with a soft credit pull (no impact to your score)"],
     ["claim.no-credit-impact", "checking approval does not require a credit history or a hard credit pull"],
+    ["claim.no-credit-impact", "a credit check that doesn't show on your report and doesn't drop your score"],
+    ["claim.no-credit-impact", "Applying won't affect your FICO score."],
+    ["claim.no-credit-impact", "won't impact your credit score"],
+    ["claim.no-credit-impact", "soft inquiry only, soft pre-qualification"],
     ["claim.approval-promise", "Need tires? Acima approves you on the spot"],
     ["claim.approval-promise", "Walk-ins 7 days, payment programs on the spot."],
     ["claim.approval-promise", "Most customers qualify for $500-$5,000."],
     ["claim.approval-promise", "Soft credit pre-qualification takes 60 seconds"],
     ["claim.approval-promise", "Approved in seconds, guaranteed approval"],
+    ["claim.approval-promise", "Get approved today. Same-Day Approval."],
+    ["claim.approval-promise", "Most approvals come back in minutes, and approval is immediate."],
+    ["claim.approval-promise", "most customers approve up to $5,000"],
+    ["claim.approval-promise", "the majority of applicants qualify"],
+    ["claim.approval-promise", "Pre-qualification is instant"],
+    ["claim.approval-promise", "soft pre-qual in 60s"],
+    ["claim.approval-promise", "Instant approvals. Get pre-approved."],
+    ["claim.approval-promise", "Pre-qualifying takes about a minute, no obligation."],
+    ["claim.approval-promise", "Snap and Koalafi both advertise decisions in seconds for many applicants"],
     ["claim.lease-no-interest", "Some plans offer 0% interest for qualified buyers."],
     ["claim.echeck-deadline", "You have 30 days and one free retest after a failure."],
     ["claim.echeck-deadline", "Failed Ohio E-Check has a 30-day repair window. Day 31 = parking tickets."],
     ["claim.echeck-deadline", "you have 30 days to make repairs and retest at no additional cost"],
+    ["claim.echeck-deadline", "If your car fails E-Check, you have 30 days to get it fixed"],
+    ["claim.echeck-deadline", "30-day clock to fix it before registration expires."],
+    ["claim.echeck-deadline", "If your vehicle fails, you have 60 days to make repairs and retest for free."],
+    ["claim.echeck-deadline", "The retest is free within 60 days of the failure."],
+    ["claim.echeck-deadline", "Your registration will be suspended."],
     ["claim.echeck-pass-guarantee", "We handle emissions testing and can fix it so you pass the first time."],
     ["claim.echeck-pass-guarantee", "then fix the failure so you pass, no \"do it twice\" risk"],
     ["claim.echeck-pass-guarantee", "We guarantee your car passes."],
+    ["claim.echeck-pass-guarantee", "Failed E-Check?\nWe'll get you passing."],
+    ["claim.echeck-pass-guarantee", "we do the state test"],
+    ["claim.echeck-pass-guarantee", "We'll run your E-Check while you wait."],
+    ["claim.echeck-pass-guarantee", "we'll get you legal"],
+    ["claim.echeck-certified", "Ohio E-Check Emissions Testing & Repair. Certified station."],
+    ["claim.echeck-certified", "Ohio E-Check Certified"],
+    ["claim.echeck-certified", "State-certified emissions repair, free readiness check first."],
   ])("%s flags: %s", (id, text) => {
     expect(scanOne(text)).toContain(id);
   });
 
-  it("a phrase wrapped across JSX lines, with an HTML entity, is still caught", () => {
-    const wrapped = [
-      { file: "client/src/data/X.tsx", line: 10, text: "          far gone. No credit history needed to check, and checking" },
-      { file: "client/src/data/X.tsx", line: 11, text: "          doesn&apos;t ding your score. Come talk to us." },
-    ];
-    expect(claimFindings(wrapped).some((f) => f.includes("claim.no-credit-impact"))).toBe(true);
+  it("decodes what the reader sees: entities, escaped quotes, a literal \\n, inline tags", () => {
+    expect(scanOne("doesn&apos;t ding your score")).toContain("claim.no-credit-impact");
+    expect(scanOne(String.raw`then fix the failure so you pass, no \"do it twice\" risk`)).toContain("claim.echeck-pass-guarantee");
+    expect(scanOne(String.raw`'won\'t hurt your credit'`)).toContain("claim.no-credit-impact");
+    expect(scanOne("Approved <strong>on the spot</strong>.")).toContain("claim.approval-promise");
+    expect(scanOne("Snap\u2019s line: applying won\u2019t affect your credit score")).toContain("claim.no-credit-impact");
   });
 
-  it("MUST NOT FLAG: honest copy, addresses, the searcher's question, and admin", () => {
+  it("the joined pass catches a claim no single line holds", () => {
+    const wrapped = [
+      { file: "client/src/data/X.tsx", line: 10, text: "          Applying for any of your options won't" },
+      { file: "client/src/data/X.tsx", line: 11, text: "          affect your credit. Come talk to us." },
+    ];
+    // The line pass alone sees nothing...
+    expect(wrapped.flatMap((l) => claimHits(l.file, l.text))).toEqual([]);
+    // ...so a finding here can only come from the joined pass.
+    const found = claimFindings(wrapped);
+    expect(found.some((f) => f.includes("claim.no-credit-impact") && f.endsWith("(wrapped)"))).toBe(true);
+  });
+
+  it("a footnote line that starts with * is copy, not a comment", () => {
+    const lines = ["            *No credit check required."]
+      .filter((t) => !isCommentLine(t))
+      .map((text) => ({ file: "client/src/pages/Canary.tsx", line: 1, text }));
+    expect(claimFindings(lines).some((f) => f.includes("claim.no-credit-check"))).toBe(true);
+  });
+
+  it("MUST NOT FLAG: honest copy, addresses, attributed provider lines, the searcher's question, and admin", () => {
     for (const ok of [
       "We have no interest in selling you parts you don't need.",
+      "We have zero interest in upselling you.",
       "Most customers approve the estimate the same day.",
+      "Estimates are approved by text in under 2 minutes.",
+      "Most customers qualify for the military discount.",
       "Text YES to approve in 2 minutes.",
+      "Approval is not guaranteed. Approval and same-day decisions are not guaranteed.",
+      "Published approval amounts up to $7,500 for qualifying applicants",
       "Snap says applying won't affect your FICO score, though another consumer-report score may be.",
+      "Snap says a decision may be available in seconds.",
+      "Koalafi says this does not affect your FICO score.",
+      "We don't run your credit card until you approve the work.",
+      "A soft pull to the right usually means an alignment problem.",
       "You have 30 days from the date of purchase to complete the title transfer at a BMV office.",
+      "If you disconnected the battery in the last 30 days, your car may not be ready for E-Check.",
+      "Within the 90-day early purchase window, you pay less.",
       '<Link href="/no-credit-check-tires-cleveland">Bad credit? Tire options</Link>',
       "SEARCHING FOR NO CREDIT CHECK TIRES?\\nHERE'S THE STRAIGHT ANSWER.",
+      "No Credit Check Tires Cleveland? Straight Answers | Nick's",
       "Can I get tires with no credit check?",
       "Never say 'no credit check' or promise approval.",
       "The state runs the test; we run a free readiness check and fix whatever is causing a failure.",
+      "We'll run your E-Check readiness check while you wait.",
+      "Only official E-Check stations run the state test.",
+      "an EPA-certified converter",
+      "GET LEGAL",
+      "Ohio won't renew your registration until the vehicle passes E-Check or qualifies for a repair waiver or extension.",
     ]) {
       expect(scanOne(ok), ok).toEqual([]);
     }
     expect(scanOne("no credit check", "client/src/pages/admin/Canary.tsx")).toEqual([]);
+  });
+});
+
+/* -- facts the claim rules cannot express ---------------------------------- */
+
+/**
+ * Same corpus, three facts that need numbers or names rather than phrases.
+ *
+ * USED-TIRE FLOOR. "$25" is real only on 12-inch rims (BUSINESS.usedTires), and
+ * AGENTS.md requires the price to travel with that fine print. On 2026-10-01
+ * about twenty-five customer lines said "from $25" with no rim size, including
+ * the FAQ on thirty R16-R20 size pages, where it is never true.
+ *
+ * ADDRESS CITY. 58 lines said "17625 Euclid Ave, Euclid"; the postal city, the
+ * Google listing and BUSINESS.address all say Cleveland.
+ *
+ * E-CHECK NUMBERS. The E-Check guide quoted a $19.50 fee, a 60-day free retest
+ * and a $300 waiver; a blog post quoted $27.50. Ohio's numbers live in
+ * shared/echeck.ts: three free tests in 365 days, then $18; a waiver needs more
+ * than $450 since 2026-01-01.
+ */
+const FACT_SKIP = new Set([
+  "shared/voice.ts",
+  "shared/proof.ts",
+  // an admin-only decision record that quotes the site's price on purpose
+  "client/src/lib/opsRegistry.ts",
+]);
+const factFiles = new Map<string, Array<{ line: number; text: string }>>();
+for (const l of CLAIM_LINES) {
+  if (FACT_SKIP.has(l.file) || l.file.includes("/admin/")) continue;
+  const list = factFiles.get(l.file) ?? [];
+  list.push({ line: l.line, text: stripTags(decodeCopy(l.text)) });
+  factFiles.set(l.file, list);
+}
+
+const RIM_FINEPRINT = /12[- ]?inch|12["\u201d]|12-in\b|fineprint/i;
+const TYPICAL_BAND = /\$40\s*[-\u2013]\s*\$?80|typicalBand|explanation/i;
+function usedFloorWithoutFineprint(file: string, list: Array<{ line: number; text: string }>): string[] {
+  const out: string[] = [];
+  let joined = "";
+  const starts: number[] = [];
+  for (const l of list) {
+    starts.push(joined.length);
+    joined += l.text.trim() + " ";
+  }
+  for (const m of joined.matchAll(/\$25\b/g)) {
+    const at = m.index ?? 0;
+    const before = joined.slice(Math.max(0, at - 40), at);
+    const after = joined.slice(at, at + 200);
+    // The used-tire floor, not "Plug repair from $25" or "mount-and-balance
+    // starts at $25": "used" in the same clause just before, or "$25 used" after.
+    // A template expression is not a sentence end: "Used ${page.size} tires ...".
+    const clause = before.replace(/\$\{[^}]*\}/g, "X");
+    // The price belongs to the list item it closes: in "New and used tires,
+    // flat repair from $25" that is flat repair. A bare lead-in ("used tires,
+    // from $25") prices the item before it.
+    const items = clause.split(/[,;(\u2014]/);
+    let item = items.pop() ?? "";
+    while (items.length && /^\s*(?:(?:from|starting|starts?|at|just|only|as low as)\s*)*$/i.test(item)) item = items.pop() ?? "";
+    const usedItem = /\bused\b[^.!?]*$/i.test(clause) && /\b(?:used|tires?)\b/i.test(item);
+    if (!usedItem && !/^\$25\s+(?:installed\s+)?used\b/i.test(after)) continue;
+    const near = before.slice(-80) + after;
+    if (RIM_FINEPRINT.test(near) && TYPICAL_BAND.test(near)) continue;
+    let i = 0;
+    while (i + 1 < starts.length && starts[i + 1] <= at) i++;
+    out.push(`${file}:${list[i].line} "${joined.slice(Math.max(0, at - 40), at + 40).trim()}"`);
+  }
+  return out;
+}
+
+// A comma after the street introduces the city; without one, only a city that
+// runs straight into the state counts ("17625 Euclid Ave. Pull up" is a sentence).
+/**
+ * ACIMA "$10". client/src/lib/acima.ts says FTC Regulation M requires a
+ * disclosure near every "$10", and shared/financing.ts says the $10 start is
+ * Acima's, "available only in select circumstances". On 2026-10-01 about thirty
+ * customer lines said "$10-down financing" or "$10 down via Snap/Acima/Koalafi",
+ * where it is false for three of the four providers and carried no disclosure.
+ * Every "$10" must name Acima nearby and carry the select-circumstances line
+ * (or render a disclosure constant) within the next few hundred characters.
+ */
+function tenDollarWithoutDisclosure(file: string, list: Array<{ line: number; text: string }>): string[] {
+  const out: string[] = [];
+  let joined = "";
+  const starts: number[] = [];
+  for (const l of list) {
+    starts.push(joined.length);
+    joined += l.text.trim() + " ";
+  }
+  for (const m of joined.matchAll(/\$10(?![\d,.KkMm]|\/| to \$)/g)) {
+    const at = m.index ?? 0;
+    // Only the payment hook: "$10 down", "$10 initial payment", "$10-down
+    // financing". "$10 to $30 for a gas cap" and "a $10 air filter" are parts.
+    const context = joined.slice(Math.max(0, at - 40), at + 60);
+    if (!/down|initial payment|lease|financ|payment program|acima|\bstart/i.test(context)) continue;
+    const near = joined.slice(Math.max(0, at - 160), at + 400);
+    const namesAcima = /acima/i.test(joined.slice(Math.max(0, at - 160), at + 160));
+    const disclosed = /select circumstances|ACIMA_COMPACT_DISCLOSURE|acima\.disclosure/i.test(near);
+    if (namesAcima && disclosed) continue;
+    let i = 0;
+    while (i + 1 < starts.length && starts[i + 1] <= at) i++;
+    out.push(`${file}:${list[i].line} "${joined.slice(Math.max(0, at - 40), at + 40).trim()}"`);
+  }
+  return out;
+}
+
+const ADDRESS_CITY =
+  /17625 Euclid Ave(?:nue)?(?:,\s*([A-Z][a-z]+)\b|\s+([A-Z][a-z]+)(?=,?\s+(?:OH|Ohio)\b))/g;
+const cityOf = (m: RegExpMatchArray) => m[1] ?? m[2];
+const STALE_ECHECK_NUMBERS =
+  /\$(?:19\.50|27\.50)\b|\$300\b(?<!(?:was|from|it was) \$300\b)[^.\n]{0,80}\bwaiver|\bwaiver\b[^.\n]{0,80}(?<!was |from |it was )\$300\b/gi;
+
+function factFindings(check: (file: string, list: Array<{ line: number; text: string }>) => string[]): string[] {
+  return [...factFiles].flatMap(([file, list]) => check(file, list));
+}
+
+describe("facts the claim rules cannot express", () => {
+  it("every used-tire '$25' carries the 12-inch fine print and the typical band", () => {
+    expect(factFindings(usedFloorWithoutFineprint)).toEqual([]);
+  });
+
+  it("the used-tire matcher sees a bare floor and spares one with its fine print", () => {
+    const at = (text: string) => usedFloorWithoutFineprint("x", [{ line: 1, text }]);
+    expect(at("Used tires from $25 installed. Walk in 7 days.")).toHaveLength(1);
+    expect(at("USED TIRES - FROM $25")).toHaveLength(1);
+    expect(at("Used tires from $25 installed (12-inch rims; most sizes $40-80).")).toEqual([]);
+    expect(at("Used tires from $25 installed (most sizes $40-80)")).toHaveLength(1);
+    expect(at("used: ${USED.typicalBand}; from $25 on ${USED.fineprint}")).toEqual([]);
+    expect(at("A $25 gift card with any purchase.")).toEqual([]);
+    expect(at("We'll show you why before offering a used tire. Plug repair from $25.")).toEqual([]);
+    expect(at("When a $25 used tire solves it, we don't push new.")).toHaveLength(1);
+    expect(at("Used ${page.size} tires start around $25-60 each.")).toHaveLength(1);
+    // The price belongs to the item it closes. Until 2026-10-01 this flat-repair
+    // price was read as the used-tire floor, and a sweep gave it tire fine print.
+    expect(at("New and used tires, flat repair from $25, brakes and alignment.")).toEqual([]);
+    expect(at("Used tires, from $25 installed.")).toHaveLength(1);
+    expect(at("New and used tires (used from $25 installed).")).toHaveLength(1);
+  });
+
+  it("no sentence states the used-tire band twice", () => {
+    // A fine-print sweep that inserts "(select 12-inch; most $40-80)" next to a
+    // band already there reads "most $40-80) on select sizes, most $40-80"; 37
+    // neighborhood pages shipped that way in this PR's first draft.
+    const twice = /\$40\s*[-\u2013]\s*\$?80[^.!?\n]{0,60}\$40\s*[-\u2013]\s*\$?80/;
+    expect(twice.test("used from $25 installed (select 12-inch; most $40-80) on select sizes, most $40-80 — with")).toBe(true);
+    expect(twice.test("used from $25 installed on select 12-inch rims, most $40-80. Most sizes $40-80.")).toBe(false);
+    const found: string[] = [];
+    for (const [file, list] of factFiles) {
+      for (const l of list) if (twice.test(l.text)) found.push(`${file}:${l.line}`);
+    }
+    expect(found).toEqual([]);
+  });
+
+  it("every '$10' names Acima and carries its select-circumstances disclosure", () => {
+    expect(factFindings(tenDollarWithoutDisclosure)).toEqual([]);
+  });
+
+  it("the $10 matcher sees a bare hook and spares the disclosed Acima line and fees", () => {
+    const at = (text: string) => tenDollarWithoutDisclosure("x", [{ line: 1, text }]);
+    expect(at("Stack any deal with $10-down financing.")).toHaveLength(1);
+    expect(at("$10 down via Snap/Acima/Koalafi")).toHaveLength(1);
+    expect(at("Acima lease-to-own can start at $10 in select circumstances.")).toEqual([]);
+    expect(at("Tire balancing +$10/tire if needed.")).toEqual([]);
+    expect(at("Sensor replacement is $100 to $250.")).toEqual([]);
+    expect(at("Clean the mass airflow sensor: $10 for a can of MAF cleaner.")).toEqual([]);
+    expect(at("Engine and cabin air filters are $10 to $25 each.")).toEqual([]);
+  });
+
+  it(`every '17625 Euclid Ave, <city>' names ${BUSINESS.address.city}`, () => {
+    const wrong = factFindings((file, list) =>
+      list.flatMap((l) =>
+        [...l.text.matchAll(ADDRESS_CITY)]
+          .filter((m) => cityOf(m) !== BUSINESS.address.city)
+          .map((m) => `${file}:${l.line} "${m[0]}"`),
+      ),
+    );
+    expect(wrong).toEqual([]);
+  });
+
+  it("the address matcher reads the city and ignores the street name", () => {
+    const cities = (t: string) => [...t.matchAll(ADDRESS_CITY)].map(cityOf);
+    expect(cities("17625 Euclid Ave, Euclid, OH 44112")).toEqual(["Euclid"]);
+    expect(cities("17625 Euclid Ave, Cleveland, OH 44112")).toEqual(["Cleveland"]);
+    expect(cities("17625 Euclid Ave Cleveland OH")).toEqual(["Cleveland"]);
+    expect(cities("17625 Euclid Ave. Pull up any day.")).toEqual([]);
+    expect(cities("17625 Euclid Ave, Euclid. Walk in.")).toEqual(["Euclid"]);
+  });
+
+  it("no E-Check fee or waiver figure contradicts shared/echeck.ts", () => {
+    const stale = factFindings((file, list) =>
+      list.flatMap((l) => [...l.text.matchAll(STALE_ECHECK_NUMBERS)].map((m) => `${file}:${l.line} "${m[0]}"`)),
+    );
+    expect(stale).toEqual([]);
+  });
+
+  it("the E-Check number matcher sees the stale figures and spares the history line", () => {
+    const hits = (t: string) => [...t.matchAll(STALE_ECHECK_NUMBERS)].map((m) => m[0]);
+    expect(hits("It costs $19.50 at any official E-Check station.")).toHaveLength(1);
+    expect(hits("a valid form of payment ($27.50 for most vehicles)")).toHaveLength(1);
+    expect(hits("if you spend at least $300 on emissions-related repairs, you may qualify for a waiver")).toHaveLength(1);
+    expect(hits("Since January 1, 2026, a repair waiver requires more than $450 in emissions repairs (it was $300).")).toEqual([]);
+  });
+
+  it("no JSON-LD property asserts a credit or certification claim", () => {
+    const props = factFindings((file, list) =>
+      list
+        .filter((l) => /name:\s*["'](?:\w*[Cc]redit[Cc]heck\w*|\w*[Cc]ertified\w*)["']/.test(l.text))
+        .map((l) => `${file}:${l.line} ${l.text.trim()}`),
+    );
+    expect(props).toEqual([]);
   });
 });
