@@ -66,7 +66,11 @@ describe("VAPI corpus-grounded conversation rules", () => {
     expect(src).toContain("vapiCallId: vapiCallLogs.vapiCallId");
     expect(src).toContain('eq(expectedArrivals.source, "voice")');
     expect(src).toContain('link: "sourceRef=vapiCallId"');
-    expect(src).toContain('"reconciled_observed"');
+    expect(src).toContain('"reconciled_same_invoice"');
+    expect(src).toContain('"reconciled_other_invoice"');
+    expect(src).toContain('"same_candidate_invoice"');
+    expect(src).toContain('"different_invoice"');
+    expect(src).toContain("Number(row.reconciledInvoiceId) === Number(candidate.invoiceId)");
     expect(src).toContain("...(behavior.hash ? { behavior } : {})");
     expect(src).toContain("...(arrivalEvidence ? { arrival: arrivalEvidence } : {})");
   });

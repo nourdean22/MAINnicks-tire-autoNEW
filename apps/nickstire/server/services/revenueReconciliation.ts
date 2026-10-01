@@ -108,11 +108,14 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
       rowsFromExecute<{ callId: number }>(currentDecisionRaw).map((row) => Number(row.callId)),
     );
     const leadById = new Map(leadRows.map((row) => [row.leadId, row]));
-    const arrivalByVapiCallId = new Map(
-      arrivalRows
-        .filter((row) => row.sourceRef)
-        .map((row) => [String(row.sourceRef), row]),
-    );
+    const arrivalsByVapiCallId = new Map<string, typeof arrivalRows>();
+    for (const row of arrivalRows) {
+      if (!row.sourceRef) continue;
+      const key = String(row.sourceRef);
+      const rows = arrivalsByVapiCallId.get(key) ?? [];
+      rows.push(row);
+      arrivalsByVapiCallId.set(key, rows);
+    }
     const callById = new Map(callRows.map((row) => [row.callId, row]));
     const candidates = buildCallInvoiceCandidates({
       calls: callRows as CallObservation[],
@@ -138,7 +141,25 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
       const lead = call?.leadId == null ? null : leadById.get(call.leadId) ?? null;
       const callMetadata = asRecord(call?.metadata);
       const behavior = asRecord(callMetadata.behavior);
-      const arrival = call?.vapiCallId ? arrivalByVapiCallId.get(call.vapiCallId) ?? null : null;
+      const arrivals = call?.vapiCallId ? arrivalsByVapiCallId.get(call.vapiCallId) ?? [] : [];
+      // A model can fire bookSlot more than once. Prefer the receipt that
+      // reconciles to THIS revenue candidate; otherwise preserve the strongest
+      // other arrival evidence without implying the two invoices are the same.
+      const arrival = (
+        arrivals.find((row) =>
+          row.reconciledInvoiceId != null &&
+          candidate.invoiceId != null &&
+          Number(row.reconciledInvoiceId) === Number(candidate.invoiceId)
+        ) ??
+        arrivals.find((row) => row.status === "arrived" && row.reconciledInvoiceId != null) ??
+        arrivals[0] ??
+        null
+      );
+      const sameCandidateInvoice = Boolean(
+        arrival?.reconciledInvoiceId != null &&
+        candidate.invoiceId != null &&
+        Number(arrival.reconciledInvoiceId) === Number(candidate.invoiceId)
+      );
       const arrivalEvidence = arrival ? {
         source: "expected_arrivals",
         link: "sourceRef=vapiCallId",
@@ -146,9 +167,16 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
         reconciledInvoiceId: arrival.reconciledInvoiceId,
         expectedDate: arrival.expectedDate,
         arrivedAt: arrival.arrivedAt,
-        evidenceLevel: arrival.status === "arrived" && arrival.reconciledInvoiceId != null
-          ? "reconciled_observed"
-          : "observed_intent",
+        relationshipToRevenueCandidate: sameCandidateInvoice
+          ? "same_candidate_invoice"
+          : arrival.reconciledInvoiceId != null
+            ? "different_invoice"
+            : "no_invoice_yet",
+        evidenceLevel: sameCandidateInvoice && arrival.status === "arrived"
+          ? "reconciled_same_invoice"
+          : arrival.status === "arrived" && arrival.reconciledInvoiceId != null
+            ? "reconciled_other_invoice"
+            : "observed_intent",
       } : null;
       if (candidate.resolution === "attributed") verified += 1;
       else if (candidate.resolution === "manual_review") inferred += 1;
