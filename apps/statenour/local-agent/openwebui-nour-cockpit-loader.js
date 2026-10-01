@@ -1,11 +1,109 @@
 (() => {
   'use strict';
 
-  const VERSION = '2026-10-01.1';
+  const VERSION = '2026-10-01.2';
   const COCKPIT_MODEL_LABEL = 'NOUR Cockpit';
+  const COCKPIT_MODEL_ID = 'nour-cockpit';
+  const COCKPIT_TOOL_ID = 'direct_server:nour-cockpit';
+  const TOOL_SERVER_ASSET = '/static/nour-cockpit-tool-server.json';
   let scheduled = false;
 
   const normalize = (value) => String(value || '').trim().replace(/\s+/g, ' ');
+
+  function installCockpitToolInjection() {
+    if (window.__NOUR_COCKPIT_FETCH_PATCHED__) return;
+    const nativeFetch = window.fetch.bind(window);
+    let serverPromise = null;
+
+    const getServer = async () => {
+      if (!serverPromise) {
+        serverPromise = nativeFetch(TOOL_SERVER_ASSET, { cache: 'no-store' })
+          .then((response) => {
+            if (!response.ok) throw new Error('NOUR Cockpit tool server asset unavailable');
+            return response.json();
+          })
+          .then((server) => {
+            if (
+              !server
+              || server.id !== COCKPIT_MODEL_ID
+              || !Array.isArray(server.specs)
+              || server.specs.length !== 6
+            ) {
+              throw new Error('NOUR Cockpit tool server asset is invalid');
+            }
+            return server;
+          });
+      }
+      return serverPromise;
+    };
+
+    const shouldInject = (payload) => {
+      const toolIds = payload?.model_item?.info?.meta?.toolIds;
+      return payload?.model === COCKPIT_MODEL_ID
+        && Array.isArray(toolIds)
+        && toolIds.includes(COCKPIT_TOOL_ID)
+        && (!Array.isArray(payload.tool_servers) || payload.tool_servers.length === 0);
+    };
+
+    const patchBody = async (bodyText) => {
+      if (typeof bodyText !== 'string' || !bodyText.trim()) return null;
+      let payload;
+      try {
+        payload = JSON.parse(bodyText);
+      } catch {
+        return null;
+      }
+      if (!shouldInject(payload)) return null;
+      payload.tool_servers = [await getServer()];
+      window.__NOUR_COCKPIT_LAST_INJECTION__ = {
+        at: Date.now(),
+        model: payload.model,
+        server: COCKPIT_MODEL_ID,
+        specs: payload.tool_servers[0].specs.map((spec) => spec.name),
+      };
+      return JSON.stringify(payload);
+    };
+
+    window.fetch = async (input, init) => {
+      const requestUrl = typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input instanceof Request
+            ? input.url
+            : '';
+      const absolute = new URL(requestUrl, window.location.href);
+      const method = String(
+        init?.method || (input instanceof Request ? input.method : 'GET')
+      ).toUpperCase();
+      const isChat = absolute.origin === window.location.origin
+        && absolute.pathname === '/api/chat/completions'
+        && method === 'POST';
+
+      if (!isChat) return nativeFetch(input, init);
+
+      if (typeof init?.body === 'string') {
+        const patched = await patchBody(init.body);
+        if (patched !== null) {
+          return nativeFetch(input, { ...init, body: patched });
+        }
+        return nativeFetch(input, init);
+      }
+
+      if (input instanceof Request && init?.body === undefined) {
+        const originalBody = await input.clone().text();
+        const patched = await patchBody(originalBody);
+        if (patched !== null) {
+          const replacement = new Request(input, { body: patched });
+          return nativeFetch(replacement, init);
+        }
+      }
+
+      return nativeFetch(input, init);
+    };
+
+    window.__NOUR_COCKPIT_FETCH_PATCHED__ = true;
+  }
 
   function cockpitSelected() {
     const selector = document.getElementById('model-selector-model-button');
@@ -98,6 +196,7 @@
   }
 
   function start() {
+    installCockpitToolInjection();
     schedule();
     new MutationObserver(schedule).observe(document.body, {
       childList: true,

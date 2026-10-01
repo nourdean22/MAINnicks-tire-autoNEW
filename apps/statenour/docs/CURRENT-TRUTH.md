@@ -565,3 +565,13 @@ This supersedes the pre-PR status notes immediately above while preserving them 
 - The NOUR Cockpit model will point `meta.toolIds` at the native tool ID so OpenWebUI''s existing model-load path auto-selects it correctly.
 - No native Workspace Tool has been installed yet at this checkpoint.
 
+
+## 2026-10-01 — OpenWebUI direct-tool last-mile wiring fixed and browser-verified
+
+- Payload capture identified the exact OpenWebUI 0.11.4 gap: the `nour-cockpit` model item correctly carried `meta.toolIds=["direct_server:nour-cockpit"]`, but the real `POST /api/chat/completions` request sent **`tool_servers: []`**. Switching models away/back did not change this. Even manually toggling the NOUR Cockpit tool entry to `aria-pressed=true` / `aria-checked=true` still produced an empty `tool_servers` payload and no `tool_ids` field.
+- The fix stays in the supported customization/runtime layer rather than forking minified OpenWebUI bundles. `ensure_openwebui_cockpit.py` now fetches the live Cockpit OpenAPI and materializes exactly six user-facing operations into **`/static/nour-cockpit-tool-server.json`**: start, check, continue, approve, cancel, recent.
+- `openwebui-nour-cockpit-loader.js` now wraps only same-origin `POST /api/chat/completions` and injects that fully materialized direct server only when the selected model is `nour-cockpit`, its model metadata contains `direct_server:nour-cockpit`, and OpenWebUI would otherwise send an empty tool-server list.
+- Browser payload proof after the fix: `toolServerCount=1`, `serverId=nour-cockpit`, `serverUrl=http://127.0.0.1:4101`, and **6 specs** with the expected operation names. The loader also recorded its injection receipt in `window.__NOUR_COCKPIT_LAST_INJECTION__`.
+- Browser direct-tool execution reachability is also fixed. The Cockpit bridge now allows CORS **only** from `http://127.0.0.1:8080` and `http://localhost:8080`, while continuing to require a loopback Host. A real browser-origin GET `/health` returned 200 and browser-origin JSON POST `/runs/status` passed preflight and returned the expected 404 for a deliberately missing run.
+- **Still unfinished at this checkpoint:** rerun the natural-language OpenWebUI → CockpitRun → OpenCode canary with the fixed tool injection, then PR/CI/merge, merged-runtime promotion, final doctor, and known-good snapshot.
+

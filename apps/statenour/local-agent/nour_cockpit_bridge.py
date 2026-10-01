@@ -713,11 +713,24 @@ OPENAPI = {
 }
 
 
+CORS_ORIGINS = {"http://127.0.0.1:8080", "http://localhost:8080"}
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "NOURCockpit/1.0"
 
     def log_message(self, fmt: str, *args: Any) -> None:
         log("http " + (fmt % args))
+
+    def _cors_origin(self) -> str | None:
+        origin = (self.headers.get("origin") or "").strip()
+        return origin if origin in CORS_ORIGINS else None
+
+    def _send_cors_headers(self) -> None:
+        origin = self._cors_origin()
+        if origin:
+            self.send_header("access-control-allow-origin", origin)
+            self.send_header("vary", "Origin")
 
     def _json(self, code: int, payload: Any) -> None:
         raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -725,12 +738,17 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("content-type", "application/json; charset=utf-8")
         self.send_header("content-length", str(len(raw)))
         self.send_header("cache-control", "no-store")
+        self._send_cors_headers()
         self.end_headers()
         self.wfile.write(raw)
 
     def _allowed_host(self) -> bool:
         host = (self.headers.get("host") or "").split(":", 1)[0].strip("[]").lower()
         return host in {"127.0.0.1", "localhost", "::1"}
+
+    def _allowed_origin(self) -> bool:
+        origin = (self.headers.get("origin") or "").strip()
+        return not origin or origin in CORS_ORIGINS
 
     def _body(self) -> dict[str, Any]:
         length = int(self.headers.get("content-length") or "0")
@@ -745,7 +763,21 @@ class Handler(BaseHTTPRequestHandler):
         if not self._allowed_host():
             self._json(403, {"ok": False, "error": "loopback host required"})
             return False
+        if not self._allowed_origin():
+            self._json(403, {"ok": False, "error": "local OpenWebUI origin required"})
+            return False
         return True
+
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        if not self._guard():
+            return
+        self.send_response(204)
+        self._send_cors_headers()
+        self.send_header("access-control-allow-methods", "GET, POST, OPTIONS")
+        requested_headers = (self.headers.get("access-control-request-headers") or "").strip()
+        self.send_header("access-control-allow-headers", requested_headers or "content-type")
+        self.send_header("access-control-max-age", "600")
+        self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
         if not self._guard():

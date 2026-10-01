@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import sqlite3
+import urllib.request
 from pathlib import Path
 
 os.environ.setdefault("DATA_DIR", r"C:\Users\nourd\AppData\Roaming\open-webui\data")
@@ -68,6 +69,173 @@ MODEL_META = {
     "tags": [{"name": "cockpit"}, {"name": "default"}],
 }
 
+COCKPIT_TOOL_OPERATIONS = {
+    "start_cockpit_run",
+    "check_cockpit_run",
+    "continue_cockpit_run",
+    "approve_cockpit_run",
+    "cancel_cockpit_run",
+    "recent_cockpit_runs",
+}
+TOOL_SERVER_ASSET = "nour-cockpit-tool-server.json"
+
+
+def _fetch_json(url: str) -> dict:
+    request = urllib.request.Request(
+        url,
+        headers={"Accept": "application/json", "Cache-Control": "no-cache"},
+    )
+    with urllib.request.urlopen(request, timeout=5) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _resolve_schema(schema: dict, components: dict, seen: set[str] | None = None) -> dict:
+    if not isinstance(schema, dict):
+        return {}
+    seen = set(seen or ())
+    ref = schema.get("$ref")
+    if ref:
+        parts = ref.strip("#/").split("/")
+        if len(parts) < 2 or parts[0] != "components":
+            return {}
+        name = parts[-1]
+        if name in seen:
+            return {}
+        resolved = components
+        for part in parts[1:]:
+            resolved = resolved.get(part, {}) if isinstance(resolved, dict) else {}
+        return _resolve_schema(resolved, components, seen | {name})
+    result = json.loads(json.dumps(schema))
+    if isinstance(result.get("properties"), dict):
+        result["properties"] = {
+            key: _resolve_schema(value, components, seen)
+            for key, value in result["properties"].items()
+        }
+    if isinstance(result.get("items"), dict):
+        result["items"] = _resolve_schema(result["items"], components, seen)
+    for keyword in ("oneOf", "anyOf", "allOf"):
+        if isinstance(result.get(keyword), list):
+            result[keyword] = [
+                _resolve_schema(value, components, seen) for value in result[keyword]
+            ]
+    return result
+
+
+def _openapi_tool_specs(openapi_spec: dict) -> list[dict]:
+    specs: list[dict] = []
+    components = openapi_spec.get("components", {})
+    for path, methods in openapi_spec.get("paths", {}).items():
+        if not isinstance(methods, dict):
+            continue
+        path_params = methods.get("parameters", [])
+        if not isinstance(path_params, list):
+            path_params = []
+        for method, operation in methods.items():
+            if method.lower() not in {"get", "post", "put", "patch", "delete"}:
+                continue
+            if not isinstance(operation, dict):
+                continue
+            operation_id = operation.get("operationId")
+            if operation_id not in COCKPIT_TOOL_OPERATIONS:
+                continue
+            tool = {
+                "name": operation_id,
+                "description": operation.get(
+                    "description",
+                    operation.get("summary", "No description available."),
+                ),
+                "parameters": {"type": "object", "properties": {}, "required": []},
+            }
+            merged: dict[tuple[str, str], dict] = {}
+            op_params = operation.get("parameters", [])
+            if not isinstance(op_params, list):
+                op_params = []
+            for param in [*path_params, *op_params]:
+                if isinstance(param, dict) and param.get("name"):
+                    merged[(param["name"], param.get("in", ""))] = param
+            for param in merged.values():
+                name = param.get("name")
+                schema = param.get("schema", {}) if isinstance(param.get("schema"), dict) else {}
+                description = schema.get("description") or param.get("description") or ""
+                if isinstance(schema.get("enum"), list):
+                    values = ", ".join(str(value) for value in schema["enum"])
+                    description = (description + f". Possible values: {values}").strip()
+                prop = {
+                    "type": schema.get("type") or "string",
+                    "description": description,
+                }
+                if schema.get("type") == "array" and "items" in schema:
+                    prop["items"] = schema["items"]
+                tool["parameters"]["properties"][name] = prop
+                if param.get("required"):
+                    tool["parameters"]["required"].append(name)
+            request_body = operation.get("requestBody")
+            if isinstance(request_body, dict):
+                content = request_body.get("content", {})
+                schema = (
+                    content.get("application/json", {}).get("schema")
+                    if isinstance(content, dict)
+                    else None
+                )
+                if isinstance(schema, dict):
+                    resolved = _resolve_schema(schema, components)
+                    if isinstance(resolved.get("properties"), dict):
+                        tool["parameters"]["properties"].update(resolved["properties"])
+                        required = resolved.get("required", [])
+                        if isinstance(required, list):
+                            tool["parameters"]["required"] = list(
+                                dict.fromkeys([*tool["parameters"]["required"], *required])
+                            )
+                    elif resolved.get("type") == "array":
+                        tool["parameters"] = resolved
+            specs.append(tool)
+    return specs
+
+
+def materialize_cockpit_tool_server() -> dict:
+    connection = TOOL_CONNECTIONS[0]
+    spec_url = connection["url"].rstrip("/") + "/" + connection["path"].lstrip("/")
+    openapi = _fetch_json(spec_url)
+    if not isinstance(openapi, dict) or "paths" not in openapi:
+        raise RuntimeError("NOUR Cockpit OpenAPI is invalid")
+    openapi = json.loads(json.dumps(openapi))
+    info = openapi.setdefault("info", {})
+    info["title"] = connection["info"]["name"]
+    info["description"] = connection["info"]["description"]
+    specs = _openapi_tool_specs(openapi)
+    names = {spec.get("name") for spec in specs}
+    if names != COCKPIT_TOOL_OPERATIONS:
+        raise RuntimeError(
+            f"NOUR Cockpit tool spec mismatch: expected={sorted(COCKPIT_TOOL_OPERATIONS)} "
+            f"actual={sorted(name for name in names if name)}"
+        )
+    return {
+        "id": connection["info"]["id"],
+        "idx": 0,
+        "url": connection["url"].rstrip("/"),
+        "openapi": openapi,
+        "info": info,
+        "specs": specs,
+    }
+
+
+def sync_tool_server_asset() -> tuple[bool, int]:
+    server = materialize_cockpit_tool_server()
+    desired = json.dumps(server, ensure_ascii=False, separators=(",", ":")) + "\n"
+    changed = False
+    for target_dir in (
+        OPENWEBUI_PACKAGE / "frontend" / "static",
+        OPENWEBUI_PACKAGE / "static",
+    ):
+        if not target_dir.is_dir():
+            raise RuntimeError(f"OpenWebUI static directory missing: {target_dir}")
+        target = target_dir / TOOL_SERVER_ASSET
+        current = target.read_text(encoding="utf-8") if target.exists() else ""
+        if current != desired:
+            target.write_text(desired, encoding="utf-8")
+            changed = True
+    return changed, len(server["specs"])
+
 
 def remove_managed_ui_block(text: str) -> str:
     while UI_START in text:
@@ -113,7 +281,8 @@ def sync_ui_assets() -> bool:
 
 async def main():
     ui_changed = sync_ui_assets()
-    changed = ui_changed
+    tool_asset_changed, tool_spec_count = sync_tool_server_asset()
+    changed = ui_changed or tool_asset_changed
     connections = await Config.get("tool_server.connections", []) or []
     if connections != TOOL_CONNECTIONS:
         await Config.upsert({"tool_server.connections": TOOL_CONNECTIONS})
@@ -180,6 +349,9 @@ async def main():
         "default_model": await Config.get("ui.default_models", ""),
         "ui_patch": "installed",
         "ui_changed": ui_changed,
+        "tool_server_asset": TOOL_SERVER_ASSET,
+        "tool_server_asset_changed": tool_asset_changed,
+        "tool_spec_count": tool_spec_count,
         "mission_task_writes": False,
     }
     print("NOUR_COCKPIT_ENSURE=" + json.dumps(payload, separators=(",", ":")))
