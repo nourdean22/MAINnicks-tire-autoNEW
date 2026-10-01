@@ -3030,14 +3030,45 @@
       "lastVerifiedAt": "2026-09-30"
     },
     {
-      "capabilityId": "nickstire-daily-digest-q29",
-      "name": "Daily digest (cron db-backup): counts-only nickstire -> StateNour, no customer rows",
+      "capabilityId": "work-order-nhtsa-warranty-programs-q50",
+      "name": "Work-order drawer shows NHTSA manufacturer warranty programs that may apply to the car (stored ingest, information only), and asks NHTSA by its own make names",
       "owner": "system",
       "codeState": "in_progress",
       "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "PR #2816 (branch nickstire/q29-daily-digest-counts-only): server/services/dbBackup.ts reads count(*) only and posts { kind, date, timestamp, counts, recent24h }; StateNour /api/sync/backup whitelists the count keys on POST and GET via lib/nickstire/daily-digest.ts.",
+        "codeCommit": "Branch nickstire/q50-phase2b-warranty-panel (draft PR, not merged): server/services/nhtsaWarrantyRead.ts (vehicleData.warrantyExtensions, SELECT-only read of the phase-2a tables, freshness from the ingest's lastSuccessAt, rows limited to each chunk's latest pass); server/services/nhtsaVehicleNames.ts (ADR-0021 section 8 make aliases shared with the live recall and complaint lookups); vehicleData.ts reports NHTSA's 400-with-empty-body as unknown_vehicle and gives complaints a 25 s timeout; NhtsaVehiclePanel.tsx block 'Manufacturer warranty programs (may apply)'.",
+        "tests": [
+          "server/services/nhtsaWarrantyRead.test.ts: 13 cases incl. never-ingested, migration-missing and failed reads as ok:false (never 'none listed'), the 3-day stale flag, Chevy/Silverado/2015 reading CHEVROLET, both stored Mercedes spellings, exact over related, year 9999 kept and labelled, pass times reaching the SQL as parameters, SELECT-only production SQL and LIKE escaping.",
+          "client/src/__tests__/nhtsa-warranty-panel.test.tsx: 11 cases incl. the three ADR-0021 section 7.3 states, the related-model and unstated-year labels, the always-on eligibility footer, no 'covered'/'free'/'will pay' wording, an unknown NHTSA name shown without a useless Retry, the park-outside badge and a complaints {ok:false} value.",
+          "server/__tests__/vehicleDataNhtsaNames.test.ts: 12 cases incl. alias resolution, NHTSA's 400 for an unknown name, errors not cached, dd/mm order, deaths-only injury, count vs rows, the complaints timeout.",
+          "server/services/nhtsaWarrantyFit.test.ts: 3 cases pinning fit(), the phase-2a review's surviving mutant.",
+          "27 of 27 mutants caught across the four files; the new panel cases were red on main (9 of 11) and both new server files fail to import there."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Shows 'unavailable' until the operator applies migration 0138, arms nhtsa_warranty_ingest and one ingest run finishes; no stored row has been read in production yet."
+        }
+      ],
+      "deferredScope": [
+        "Not on the technician's work order or any customer surface (ADR-0021 section 12 question 1 is still open; this is the advisor's drawer only).",
+        "A Data freshness row on Intelligence HQ for the ingest (ADR-0021 section 7.3 follow-up).",
+        "The previous-year chunk-name candidate from the phase-2a review (optional) is not built; it would change an existing chunkPlan expectation."
+      ],
+      "lastVerifiedAt": "2026-10-01"
+    },
+    {
+      "capabilityId": "nickstire-daily-digest-q29",
+      "name": "Daily digest (cron db-backup): counts-only nickstire -> StateNour, no customer rows",
+      "owner": "system",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Q-29, merged as #2816 (squash 908df6c9, 2026-10-01): server/services/dbBackup.ts reads count(*) only and posts { kind, date, timestamp, counts, recent24h }; StateNour /api/sync/backup whitelists the count keys on POST and GET via lib/nickstire/daily-digest.ts.",
         "tests": [
           "server/services/dbBackup.test.ts: canary contact details in the 24h window never reach the POST body or Telegram; body keys are exactly the digest keys; an archive 401 still fails the run. Red on main 3/4 before the fix.",
           "apps/statenour/tests/api/sync-backup-digest.test.ts: a legacy row-carrying body is stored and served counts-only; non-numeric counts become null; sync auth runs before any write. Red on main's route 4/6."
@@ -3173,11 +3204,11 @@
       "capabilityId": "admin-gateway-one-rule-q23",
       "name": "Every admin reader of the SMS gateway status takes its state from one rule (lib/gatewayState), and no admin surface claims a Twilio fallback the send path does not have",
       "owner": "operator",
-      "codeState": "in_progress",
+      "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch nickstire/q23-phase12-gateway-one-rule (Q-23 phase 12, draft PR, not merged): GatewayPill and dataFreshness.smsGatewayRow now call gatewayState instead of keeping their own copies of the rule. The cached-data case is settled once, on the helper's side: a failed background refetch keeps the last good read (client/src/main.tsx sets retry: 0, so one failed refetch on tab-back would otherwise flip every badge to unknown). The Data freshness row adds 'Last good read; the latest refresh failed.' in that case. GatewayPill says 'Checking gateway...' while the first read is in flight (it said 'Gateway offline') and says 'not configured' only when a read said so (a still-loading sms.status used to read as not configured). useSettingsStatus counts the gateway query error in the 'N of 8 checks could not run' banner, like its 7 sibling checks; since #2843 a failed refetch with cached data dropped it. SettingsStatusTab's F25e pill says 'status unknown · the status read failed' when our query failed with nothing cached (it blamed the gateway service). OutreachBrief's offline line and the Settings gateway-offline alert no longer claim a Twilio fallback: server/sms.ts queues every text while a configured gateway is unreachable and never falls back to Twilio on that path. Supersedes the two gateway deferred items on admin-gateway-unknown-readers-q23.",
+        "codeCommit": "Q-23 phase 12, merged as #2844 (squash 811a3cdca, 2026-10-01): GatewayPill and dataFreshness.smsGatewayRow now call gatewayState instead of keeping their own copies of the rule. The cached-data case is settled once, on the helper's side: a failed background refetch keeps the last good read (client/src/main.tsx sets retry: 0, so one failed refetch on tab-back would otherwise flip every badge to unknown). The Data freshness row adds 'Last good read; the latest refresh failed.' in that case. GatewayPill says 'Checking gateway...' while the first read is in flight (it said 'Gateway offline') and says 'not configured' only when a read said so (a still-loading sms.status used to read as not configured). useSettingsStatus counts the gateway query error in the 'N of 8 checks could not run' banner, like its 7 sibling checks; since #2843 a failed refetch with cached data dropped it. SettingsStatusTab's F25e pill says 'status unknown · the status read failed' when our query failed with nothing cached (it blamed the gateway service). OutreachBrief's offline line and the Settings gateway-offline alert no longer claim a Twilio fallback: server/sms.ts queues every text while a configured gateway is unreachable and never falls back to Twilio on that path. Supersedes the two gateway deferred items on admin-gateway-unknown-readers-q23.",
         "tests": [
           "client/src/__tests__/gateway-one-rule-q23.test.tsx: GatewayPill on a failed refetch with a cached live and a cached silent read, first read in flight, still-loading sms.status, and two controls; smsGatewayRow on a failed refetch with cached live data and with a cached vendor failure, plus a clean-read control; the Settings banner listing the gateway on a failed refetch with cached data (and the state staying the cached read), once on a vendor failure, not on a clean read; the Settings F25e pill on a failed query with nothing cached; no Twilio claim in OutreachBrief or the Settings alert. Red on main 8 of 13 (the 2 later pill cases were added after the M4 mutant survived). Mutants 8 of 8 caught (banner drops the query error, pill state drops isSmsGwError, pill ignores the query error, pill 'not configured' on a loading status, no refresh note, row ignores the query error, Twilio copy restored, pill detail wording)."
         ],
@@ -3191,7 +3222,7 @@
       ],
       "deferredScope": [
         "Q-23 remaining: the lane-health strip (phase 11, claimed separately).",
-        "SmsSection's subtitle still says texts route 'with Twilio fallback'; it is page copy, not a status reading, and is left for the owner of that page."
+        "SmsSection's subtitle said texts route 'with Twilio fallback': taken off by Q-23 phase 13 (branch nickstire/q23-phase13-sms-subtitle), pinned by client/src/__tests__/sms-section-no-twilio-q23.test.tsx."
       ],
       "lastVerifiedAt": "2026-10-01"
     },
@@ -3199,11 +3230,11 @@
       "capabilityId": "admin-lane-health-q23",
       "name": "Intelligence HQ shows each customer-contact lane's last run, 30-day sends, holdout-adjusted outcome and blocked reason, and a failed read says 'unknown', never 0 or 'not run'",
       "owner": "operator",
-      "codeState": "in_progress",
+      "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch nickstire/q23-phase11-lane-health (Q-23 phase 11, draft PR, not merged): shared/laneHealth.ts registers the eight customer lanes live in the scheduler (declined-work recovery, retention D7-D365, win-back, review requests, review-reminder drafts, weather, drip, review+referral auto-retry), each with its cron job, its sms_messages.variantKey pattern and, for the Q-21 lanes, its contact_experiment_assignments lane keys. New admin query smsPerformance.laneHealth makes four independent reads, each with its own failure flag: cron_log (newest and newest-completed run per job, age computed in SQL), 30-day outbound sends per variantKey (same delivered allowlist as summary30d), the Q-21 holdout cohorts (readHoldoutObservations, extracted unchanged from recoveredRevenue so the board and the strip share one read) and the holdout flags. The 'Customer lanes' card under 'Data freshness' classifies each lane as running / blocked / stale / failing / unknown: a scheduler skip names its flag, env var or dependency; a failed run shows its first line with digit runs masked; a lock skip defers to the last completed run; a completed run that says it did nothing on purpose (declined recovery's 'DRY RUN: N eligible', 'nothing was sent', 'flag ... off', 'not set up') is blocked with that clause as the reason, and any other completed run's own summary is shown as 'last run said'; a lane that runs but delivered 0 of N texts is blocked; the outcome is the pooled gross lift vs holdout (ESTIMATE), 'collecting', 'not armed', 'migration 0136 not applied', or why the lane has no Q-21 holdout. Every failed read is 'unknown' and UNMEASURED. 'Eligible' is not drawn: no lane records how many customers it considered; cron_log.records_processed is shown as 'processed N'.",
+        "codeCommit": "Q-23 phase 11, merged as #2846 (squash 69d9519f, 2026-10-01): shared/laneHealth.ts registers the eight customer lanes live in the scheduler (declined-work recovery, retention D7-D365, win-back, review requests, review-reminder drafts, weather, drip, review+referral auto-retry), each with its cron job, its sms_messages.variantKey pattern and, for the Q-21 lanes, its contact_experiment_assignments lane keys. New admin query smsPerformance.laneHealth makes four independent reads, each with its own failure flag: cron_log (newest and newest-completed run per job, age computed in SQL), 30-day outbound sends per variantKey (same delivered allowlist as summary30d), the Q-21 holdout cohorts (readHoldoutObservations, extracted unchanged from recoveredRevenue so the board and the strip share one read) and the holdout flags. The 'Customer lanes' card under 'Data freshness' classifies each lane as running / blocked / stale / failing / unknown: a scheduler skip names its flag, env var or dependency; a failed run shows its first line with digit runs masked; a lock skip defers to the last completed run; a completed run that says it did nothing on purpose (declined recovery's 'DRY RUN: N eligible', 'nothing was sent', 'flag ... off', 'not set up') is blocked with that clause as the reason, and any other completed run's own summary is shown as 'last run said'; a lane that runs but delivered 0 of N texts is blocked; the outcome is the pooled gross lift vs holdout (ESTIMATE), 'collecting', 'not armed', 'migration 0136 not applied', or why the lane has no Q-21 holdout. Every failed read is 'unknown' and UNMEASURED. 'Eligible' is not drawn: no lane records how many customers it considered; cron_log.records_processed is shown as 'processed N'.",
         "tests": [
           "shared/laneHealth.test.ts: run states (recent, unreadable log, no row, flag skip, failed with a masked phone, formatted phones, emails and a bare 7-digit number masked while a date survives, lock skip, stale, SQL age preferred), sends (variant pooling, unreadable vs measured 0, ran-but-undelivered, drafts label), completed-but-idle runs (dry run behind a long prefix, failed match, control summary kept as a note), outcome (matured lift, pooling, collecting, failed read vs not armed, 0136 pending, no-holdout lane), helpers.",
           "server/laneHealthRegistry.test.ts: every lane's job name is registered in cron/scheduler.ts, every sender still writes its key, no two lanes claim one key, and each holdout lane agrees with contactLaneForVariant.",

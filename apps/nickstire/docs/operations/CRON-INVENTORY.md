@@ -4,7 +4,7 @@ Every background job in `server/cron/scheduler.ts` (tiered scheduler) and the
 HTTP-triggerable registry in `server/cron/index.ts`. **This file is generated** from
 those two sources — `server/cron/cronInventoryParity.test.ts` fails when they drift.
 
-**Last regenerated: 2026-09-30 by `scripts/gen-cron-inventory.mts`.**
+**Last regenerated: 2026-10-01 by `scripts/gen-cron-inventory.mts`.**
 
 > The code is the source of truth. To add or change a job, edit the scheduler and
 > re-run the generator in the same commit; write the job's purpose in the last column.
@@ -18,10 +18,10 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | heartbeat | every 5m | 4 / 2 |
 | pulse | every 15m | 24 / 0 |
 | hourly | every 2h | 36 / 1 |
-| daily | every 1d | 52 / 0 |
+| daily | every 1d | 53 / 0 |
 | briefings | every 12h | 6 / 0 |
 
-**Total: 125 tiered jobs (122 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
+**Total: 126 tiered jobs (123 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
 
 ## heartbeat (every 5m)
 
@@ -135,6 +135,7 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `invoice-cross-reconciliation` | no | no | yes | — |
 | `low-stock-alerts` | no | no | yes | — |
 | `monte-carlo-forecast` | no | no | yes | — |
+| `nhtsa-warranty-ingest` | no | no | yes | Q-50 2a (ADR-0021): downloads NHTSA's public manufacturer-communications zips and upserts only warranty-extension rows into `nhtsa_mfr_warranty_comms`/`_products`. Sends nothing. Flag `nhtsa_warranty_ingest` (default OFF); migration 0138; Sunday = every chunk. Last in the tier on purpose. |
 | `no-show-detection` | no | no | yes | — |
 | `pipelines-auto-run` | no | no | yes | — |
 | `plate-retention-scrub` | no | no | yes | Nulls plate text on `vehicle_visits` rows past the 30-day ADR-0017 window, sparing EXACT customer matches. Reads nothing until a plate recogniser is wired. |

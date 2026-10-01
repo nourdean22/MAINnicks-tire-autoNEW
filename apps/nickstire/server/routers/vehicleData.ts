@@ -1,12 +1,13 @@
 /**
  * Vehicle data router (WP-23, 2026-07-29) — read-only NHTSA lookups
  * for lead/quote enrichment and the work-order drawer's NHTSA panel
- * (Q-50). Admin-gated; the service enforces the
+ * (Q-50, plus stored manufacturer warranty extensions in phase 2b). Admin-gated; the service enforces the
  * advisor framing (source label + disclaimer travel in the payload).
  */
 import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { complaintsByVehicle, decodeVin, recallsByVehicle } from "../services/vehicleData";
+import { warrantyExtensionsByVehicle } from "../services/nhtsaWarrantyRead";
 
 const vehicleInput = z.object({
   year: z.string().regex(/^\d{4}$/),
@@ -27,4 +28,12 @@ export const vehicleDataRouter = router({
   complaints: adminProcedure
     .input(vehicleInput)
     .query(async ({ input }) => complaintsByVehicle(input)),
+
+  /**
+   * Manufacturer warranty extensions that MAY apply (Q-50 phase 2b, ADR-0021 §7),
+   * read from the stored NHTSA manufacturer-communications ingest. Information only.
+   */
+  warrantyExtensions: adminProcedure
+    .input(vehicleInput)
+    .query(async ({ input }) => warrantyExtensionsByVehicle(input)),
 });
