@@ -28,6 +28,8 @@
  * production for months.
  */
 
+export const VOICE_DEMAND_CLASSIFIER_VERSION = "voice-demand-v1";
+
 export type VoiceIntent =
   // Tires
   | "used_tire_price" | "used_tire_availability" | "new_tire_quote" | "tire_size_help"

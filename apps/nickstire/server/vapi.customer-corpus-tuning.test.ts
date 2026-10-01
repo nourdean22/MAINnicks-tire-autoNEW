@@ -96,4 +96,19 @@ describe("VAPI corpus-grounded conversation rules", () => {
     expect(src).not.toContain("error: claimErr instanceof Error ? claimErr.message");
   });
 
+  it("runs the richer demand classifier in shadow without changing the incumbent decision path", () => {
+    const src = readFileSync(new URL("./cron/jobs/vapiCallEval.ts", import.meta.url), "utf8");
+    expect(src).toContain("classifyVoiceDemand(speech.firstSubstantive)");
+    expect(src).toContain("demandShadowV1");
+    expect(src).toContain("VOICE_DEMAND_CLASSIFIER_VERSION");
+    expect(src).toContain("incumbentIntents: result.intents");
+    expect(src).toContain("incumbentOutcome: result.outcome");
+    expect(src).toContain("demandShadowClassified");
+    expect(src).toContain("demandShadowUnclear");
+    expect(src).toContain("demandShadowLowConfidence");
+    // The real disposition still consumes the incumbent result, not shadow.
+    expect(src).toContain("outcome: result.outcome");
+    expect(src).not.toContain("outcome: demandShadow.intent");
+  });
+
 });
