@@ -297,8 +297,8 @@ function unifiedModelRecord(model, status = "available") {
     owned_by: model.owned_by,
     context_length: model.context_length,
     context_window: model.context_length,
-    capabilities: { function_calling: false },
-    supported_parameters: [],
+    capabilities: { function_calling: true },
+    supported_parameters: ["tools", "tool_choice"],
     status: { value: status },
     meta: {
       nour: {
@@ -378,8 +378,121 @@ function messagesToPrompt(messages) {
   if (!Array.isArray(messages)) return "";
   return messages
     .filter(message => message && typeof message === "object")
-    .map(message => String(message.role || "user").toUpperCase() + ":\n" + messageContentText(message.content))
+    .map(message => {
+      const role = String(message.role || "user").toUpperCase();
+      const content = messageContentText(message.content);
+      const extras = [];
+      if (Array.isArray(message.tool_calls) && message.tool_calls.length) {
+        const calls = message.tool_calls.map(call => ({
+          id: String(call && call.id || ""),
+          name: String(call && call.function && call.function.name || ""),
+          arguments: String(call && call.function && call.function.arguments || "{}"),
+        }));
+        extras.push("TOOL_CALLS:\n" + JSON.stringify(calls));
+      }
+      if (String(message.role || "").toLowerCase() === "tool") {
+        extras.push(
+          "TOOL_RESULT_META:\n" +
+          JSON.stringify({
+            tool_call_id: String(message.tool_call_id || ""),
+            name: String(message.name || ""),
+          })
+        );
+      }
+      return role + ":\n" + [content, ...extras].filter(Boolean).join("\n");
+    })
     .join("\n\n");
+}
+
+function normalizeToolDefinitions(tools) {
+  if (!Array.isArray(tools)) return [];
+  return tools
+    .filter(tool => tool && tool.type === "function" && tool.function && tool.function.name)
+    .map(tool => ({
+      name: String(tool.function.name),
+      description: String(tool.function.description || ""),
+      parameters: tool.function.parameters && typeof tool.function.parameters === "object"
+        ? tool.function.parameters
+        : { type: "object", properties: {} },
+    }));
+}
+
+function buildToolAwarePrompt(messages, tools, toolChoice) {
+  const normalizedTools = normalizeToolDefinitions(tools);
+  const conversation = messagesToPrompt(messages);
+  if (!normalizedTools.length || toolChoice === "none") return conversation;
+  const choice = typeof toolChoice === "string"
+    ? toolChoice
+    : (toolChoice && toolChoice.function && toolChoice.function.name
+      ? { function: String(toolChoice.function.name) }
+      : "auto");
+  return [
+    "__NOUR_TOOL_PROTOCOL__",
+    "You are the reasoning model inside an OpenAI-compatible tool loop.",
+    "You do NOT execute tools yourself. Decide whether the client must execute one or more tools.",
+    "Return ONLY one JSON object and no markdown.",
+    "If tools are needed, use:",
+    '{"type":"tool_calls","tool_calls":[{"id":"call_1","name":"TOOL_NAME","arguments":{}}]}',
+    "If no tool is needed, use:",
+    '{"type":"final","content":"FINAL_ANSWER"}',
+    "Tool arguments MUST be valid JSON objects matching the supplied schema.",
+    "Use tool results already present in the conversation before deciding on another tool.",
+    "Tool choice policy: " + JSON.stringify(choice),
+    "AVAILABLE_TOOLS:",
+    JSON.stringify(normalizedTools),
+    "CONVERSATION:",
+    conversation,
+  ].join("\n\n");
+}
+
+function extractJsonObject(text) {
+  const raw = String(text || "").trim();
+  const unfenced = raw
+    .replace(/^\`\`\`(?:json)?\s*/i, "")
+    .replace(/\s*\`\`\`$/i, "")
+    .trim();
+  try { return JSON.parse(unfenced); } catch {}
+  const first = unfenced.indexOf("{");
+  const last = unfenced.lastIndexOf("}");
+  if (first >= 0 && last > first) {
+    try { return JSON.parse(unfenced.slice(first, last + 1)); } catch {}
+  }
+  return null;
+}
+
+function parseToolDecision(output, tools, toolChoice) {
+  const normalizedTools = normalizeToolDefinitions(tools);
+  const allowed = new Set(normalizedTools.map(tool => tool.name));
+  if (!normalizedTools.length || toolChoice === "none") {
+    return { content: String(output || ""), tool_calls: [], finish_reason: "stop" };
+  }
+  const parsed = extractJsonObject(output);
+  const rawCalls = parsed && Array.isArray(parsed.tool_calls)
+    ? parsed.tool_calls
+    : (parsed && parsed.tool_call ? [parsed.tool_call] : []);
+  const toolCalls = [];
+  for (let i = 0; i < rawCalls.length; i++) {
+    const call = rawCalls[i] || {};
+    const name = String(call.name || call.function && call.function.name || "");
+    if (!allowed.has(name)) continue;
+    let args = call.arguments ?? (call.function && call.function.arguments) ?? {};
+    if (typeof args === "string") {
+      try { args = JSON.parse(args); } catch { args = {}; }
+    }
+    if (!args || typeof args !== "object" || Array.isArray(args)) args = {};
+    toolCalls.push({
+      id: String(call.id || "call_nour_" + Date.now().toString(36) + "_" + i),
+      type: "function",
+      function: { name, arguments: JSON.stringify(args) },
+    });
+  }
+  if (toolCalls.length) {
+    return { content: null, tool_calls: toolCalls, finish_reason: "tool_calls" };
+  }
+  if (parsed && parsed.type === "final" && typeof parsed.content === "string") {
+    return { content: parsed.content, tool_calls: [], finish_reason: "stop" };
+  }
+  return { content: String(output || ""), tool_calls: [], finish_reason: "stop" };
 }
 
 function userRoutingContext(messages) {
@@ -502,9 +615,14 @@ function runLaneProbe() {
   return runWorkerAdapter(undefined, "--local-probe", "ok", 45000);
 }
 
-function writeOpenAiCompletion(res, requestedModel, output, stream, lane = "unknown") {
+function writeOpenAiCompletion(res, requestedModel, decision, stream, lane = "unknown") {
   const id = "chatcmpl-nour-" + Date.now().toString(36);
   const created = Math.floor(Date.now() / 1000);
+  const content = decision && Object.prototype.hasOwnProperty.call(decision, "content")
+    ? decision.content
+    : String(decision || "");
+  const toolCalls = Array.isArray(decision && decision.tool_calls) ? decision.tool_calls : [];
+  const finishReason = String(decision && decision.finish_reason || (toolCalls.length ? "tool_calls" : "stop"));
   if (stream) {
     res.writeHead(200, {
       "content-type": "text/event-stream; charset=utf-8",
@@ -519,23 +637,49 @@ function writeOpenAiCompletion(res, requestedModel, output, stream, lane = "unkn
       model: requestedModel,
       choices: [{ index: 0, delta: { role: "assistant" }, finish_reason: null }],
     }) + "\n\n");
+    if (toolCalls.length) {
+      res.write("data: " + JSON.stringify({
+        id,
+        object: "chat.completion.chunk",
+        created,
+        model: requestedModel,
+        choices: [{
+          index: 0,
+          delta: {
+            tool_calls: toolCalls.map((call, index) => ({
+              index,
+              id: call.id,
+              type: "function",
+              function: {
+                name: call.function.name,
+                arguments: call.function.arguments,
+              },
+            })),
+          },
+          finish_reason: null,
+        }],
+      }) + "\n\n");
+    } else if (content !== null && content !== undefined && String(content).length) {
+      res.write("data: " + JSON.stringify({
+        id,
+        object: "chat.completion.chunk",
+        created,
+        model: requestedModel,
+        choices: [{ index: 0, delta: { content: String(content) }, finish_reason: null }],
+      }) + "\n\n");
+    }
     res.write("data: " + JSON.stringify({
       id,
       object: "chat.completion.chunk",
       created,
       model: requestedModel,
-      choices: [{ index: 0, delta: { content: output }, finish_reason: null }],
-    }) + "\n\n");
-    res.write("data: " + JSON.stringify({
-      id,
-      object: "chat.completion.chunk",
-      created,
-      model: requestedModel,
-      choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+      choices: [{ index: 0, delta: {}, finish_reason: finishReason }],
     }) + "\n\n");
     res.end("data: [DONE]\n\n");
     return;
   }
+  const message = { role: "assistant", content: content === undefined ? "" : content };
+  if (toolCalls.length) message.tool_calls = toolCalls;
   res.writeHead(200, { "content-type": "application/json; charset=utf-8", "x-nour-lane": lane });
   res.end(JSON.stringify({
     id,
@@ -544,8 +688,8 @@ function writeOpenAiCompletion(res, requestedModel, output, stream, lane = "unkn
     model: requestedModel,
     choices: [{
       index: 0,
-      message: { role: "assistant", content: output },
-      finish_reason: "stop",
+      message,
+      finish_reason: finishReason,
     }],
     usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
   }));
@@ -569,7 +713,8 @@ async function serveUnifiedChat(req, res, body) {
     return;
   }
   const requestedModel = String(payload.model || "");
-  const prompt = messagesToPrompt(payload.messages);
+  const toolDefinitions = normalizeToolDefinitions(payload.tools);
+  const prompt = buildToolAwarePrompt(payload.messages, toolDefinitions.length ? payload.tools : [], payload.tool_choice);
   if (!prompt.trim()) {
     res.writeHead(400, { "content-type": "application/json" });
     res.end(JSON.stringify({ error: { message: "No chat messages supplied", type: "invalid_request_error" } }));
@@ -594,12 +739,13 @@ async function serveUnifiedChat(req, res, body) {
     const attemptFailures = Array.isArray(result && result.result && result.result.attemptFailures)
       ? result.result.attemptFailures.join(",")
       : "";
+    const decision = parseToolDecision(output, payload.tools, payload.tool_choice);
     log(
       `unified served model=${requestedModel} lane=${lane} candidates=${candidates} ` +
       `attemptTimeout=${attemptTimeout}s failures=${attemptFailures || "none"} ` +
-      `promptChars=${prompt.length} ms=${Date.now()-started}`
+      `toolCalls=${decision.tool_calls.length} promptChars=${prompt.length} ms=${Date.now()-started}`
     );
-    writeOpenAiCompletion(res, requestedModel, output, Boolean(payload.stream), lane);
+    writeOpenAiCompletion(res, requestedModel, decision, Boolean(payload.stream), lane);
   } catch (err) {
     const message = String(err && err.message ? err.message : err);
     if (err && err.code === "RESEARCH_BUSY") {

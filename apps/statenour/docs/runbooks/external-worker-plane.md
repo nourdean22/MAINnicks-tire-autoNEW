@@ -1,8 +1,8 @@
 # Runbook · External worker plane — subscription/local execution
 
-- **Status:** active · **Domain:** ai-runtime · **Risk:** high · **Last verified:** 2026-09-30
+- **Status:** active · **Domain:** ai-runtime · **Risk:** high · **Last verified:** 2026-10-01
 - **When to use:** installing, routing, debugging, or proving NattyNour external-worker execution.
-- **Source of truth:** `lib/workers/external-worker.ts`, `lib/workers/contracts.ts`, `local-agent/external_worker_agent.py`, `lib/services/runner-state.ts`.
+- **Source of truth:** `lib/workers/external-worker.ts`, `lib/workers/contracts.ts`, `local-agent/external_worker_agent.py`, `local-agent/nour-local-gateway.js`, `lib/services/runner-state.ts`.
 
 ## Architecture
 
@@ -35,6 +35,8 @@ OpenWebUI is a local chat surface over that gateway. It is not the worker orches
 12. Research web content is untrusted data. Evidence prompts explicitly forbid treating page content as instructions, and research runs remain read-only even when the machine's separate durable-write gate is enabled. Page-derived memos reach the critic and synthesizer only inside `<research_data>` fences, and the critic's `gap` is reduced to a plain search query (no URLs, IPs, paths or control characters, max 200 chars) before it can steer a WebFetch round. The research CLI runs from a fresh empty temp directory, never the repo checkout; it is removed best-effort afterwards and needs no Python-version-specific keyword. `install-external-worker.ps1` does not pin a Python version (it uses whatever `python.exe` is on PATH); the gateway spawns interactive and research runs with its own hard-coded Python 3.14 path. WebFetch is not restricted from private/metadata addresses: Claude Code `WebFetch(domain:...)` rules match the hostname string only (no CIDR, no resolved-IP check), so a deny list would not stop a public name that resolves to a private address.
 13. The local gateway (`127.0.0.1:11436`) refuses browser-originated calls. Every route, GET included, requires a loopback `Host` (`127.0.0.1`, `localhost` or `[::1]`, any port) and answers 403 otherwise; this is what stops a DNS-rebinding page from reading `/v1/models` or `/health/lanes`. A present non-loopback `Origin` also gets 403, and a `POST /v1/*` without `content-type: application/json` gets 415. Only one research run executes at a time: the worker holds an OS file lock (`%TEMP%\nour-research.lock`, override `NOUR_RESEARCH_LOCK_PATH`) for both `nour-research` and a `nour-auto` it promotes to research, and a second run gets 429 `nour_research_busy`. The OS releases the lock if the run is killed. Callers that send no `Origin` and use a loopback name (OpenWebUI at `127.0.0.1:8080`, the worker, OpenCode/Goose, curl) are unaffected. A client addressing the gateway as `host.docker.internal` (for example OpenWebUI in Docker) would be refused, and the refusal is logged as `reason=host`. There is no bearer token yet.
 14. Lane subprocesses never inherit `RUNNER_SHARED_SECRET`; only the worker process itself uses it.
+15. Interactive OpenAI-style tool calling is transport-only at the NOUR gateway. A request carrying `tools` / `tool_choice` is converted into a strict tool-decision envelope for the already-selected read-only lane; the gateway validates any returned tool name against the caller-supplied definitions and emits standard OpenAI `tool_calls` (including streaming deltas). Prior assistant tool calls and tool-result messages are serialized back into the next reasoning turn. `tool_choice=none` bypasses the tool protocol, and an unknown tool name is never forwarded. The gateway itself does not execute shell/filesystem tools and this does not enable `NOUR_EXTERNAL_WORKER_ALLOW_WRITES`; execution authority stays with the client (for example an isolated OpenCode worktree/session).
+
 
 ## Install / persistence
 
@@ -62,12 +64,13 @@ triggers, and zero `external_worker_agent.py` processes.
 1. **Local contract:** `python -m unittest local-agent\test_external_worker_agent.py local-agent\test_external_worker_installer.py local-agent\test_nour_local_gateway.py` (the gateway test needs `node` and stubs every lane).
 2. **Router oracle:** `pnpm eval:router-oracle` — AUTO/no-consent, paid-only fail-closed, MAX+consent, quota fallback, FREE, privacy boundary.
 3. **Lane probe:** confirm ChatGPT-plan/Codex/Claude/Antigravity/local-Qwen health reflects real auth/quota/policy, not merely binary presence.
-4. **Runner receipt:** start the task and verify a fresh RunnerNode heartbeat + lane metadata from `getExternalWorkerStatus`.
-5. **Read-only job:** queue `queueExternalWorkerJob` with `allowWorkspaceWrite=false`; read it with `getExternalWorkerJob`; require durable completed status plus Reality Ledger phase receipts.
-6. **Fallback canary:** with Codex quota exhausted, a read-only candidate list may complete on Claude/local; prove selected lane in the persisted result.
-7. **Research canary:** run `nour-research` against a current factual question. Require a persisted receipt, at least one verified WebFetch page for `complete`, and zero promotion of text-only URLs into sources.
-8. **ChatGPT-plan canary:** run `chatgpt-plan-bridge.mjs --self-test`, then OAuth sign-in only when the selected account/workspace permits delegated plan use. A policy denial is an unavailable lane, not permission to substitute an API key.
-9. **Write canary:** keep writes OFF by default. When explicitly authorized later, use an isolated disposable workspace and verify no second-lane execution occurs after a failure.
+4. **Interactive tool-loop canary:** on an isolated gateway/OpenCode pair, require one harmless tool request to persist a completed OpenCode tool part, then require a second model turn to consume that exact tool result and produce the final answer. A model-selected tool name outside the caller's tool list must not execute.
+5. **Runner receipt:** start the task and verify a fresh RunnerNode heartbeat + lane metadata from `getExternalWorkerStatus`.
+6. **Read-only job:** queue `queueExternalWorkerJob` with `allowWorkspaceWrite=false`; read it with `getExternalWorkerJob`; require durable completed status plus Reality Ledger phase receipts.
+7. **Fallback canary:** with Codex quota exhausted, a read-only candidate list may complete on Claude/local; prove selected lane in the persisted result.
+8. **Research canary:** run `nour-research` against a current factual question. Require a persisted receipt, at least one verified WebFetch page for `complete`, and zero promotion of text-only URLs into sources.
+9. **ChatGPT-plan canary:** run `chatgpt-plan-bridge.mjs --self-test`, then OAuth sign-in only when the selected account/workspace permits delegated plan use. A policy denial is an unavailable lane, not permission to substitute an API key.
+10. **Write canary:** keep writes OFF by default. When explicitly authorized later, use an isolated disposable workspace and verify no second-lane execution occurs after a failure.
 
 ## Failure / recovery
 

@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "StateNour has no Nick's-style capability ledger for this local-agent surface. Truth was updated instead in apps/statenour/docs/CURRENT-TRUTH.md and docs/runbooks/external-worker-plane.md. Branch cockpit/tool-calling-20261001 adds OpenAI-compatible tools/tool_choice transport to local-agent/nour-local-gateway.js without enabling worker writes. Proof on NattyNour: 66/66 local-agent Python tests green; Node syntax green; Python compile green; chatgpt-plan bridge self-test 17/17; git diff --check green. Isolated live canary used gateway 127.0.0.1:11437 plus isolated OpenCode 1.18.34 on 127.0.0.1:4098. A real NOUR Auto turn emitted bash(git status --short), OpenCode persisted/executed the tool with exit 0, sent the tool result back, and the second model turn returned the exact status. Direct Codex reported quota exhaustion and NOUR Auto failed over to Claude Code while preserving the tool call. NOT CLAIMED: live 127.0.0.1:11436 cutover, PR merge/CI, OpenWebUI cockpit bridge registration, autonomous merge/deploy authority, or any bdnick Mission/Task mutation."
+    }
+  }
+}
