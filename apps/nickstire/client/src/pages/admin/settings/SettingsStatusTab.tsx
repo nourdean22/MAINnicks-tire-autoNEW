@@ -257,7 +257,7 @@ export default function SettingsStatusTab() {
             // Q-23 phase 10 · a vendor API failure is unknown (grey), not
             // "offline · check device": nobody could ask the phone.
             online={smsGwUnknown ? undefined : smsGwHealth?.online ?? false}
-            detail={smsGwUnknown ? "status unknown · the gateway service did not answer" : smsGwHealth?.online ? `last seen ${smsGwHealth.ageMinutes ?? "?"}m ago` : "offline · check device"}
+            detail={smsGwUnknown ? (smsGwHealth ? "status unknown · the gateway service did not answer" : "status unknown · the status read failed") : smsGwHealth?.online ? `last seen ${smsGwHealth.ageMinutes ?? "?"}m ago` : "offline · check device"}
             onlineIcon={<MessageSquare className="w-3.5 h-3.5 text-emerald-400" />}
             offlineIcon={<MessageSquare className={`w-3.5 h-3.5 ${smsGwUnknown ? "text-foreground/40" : "text-red-400"}`} />}
           />
