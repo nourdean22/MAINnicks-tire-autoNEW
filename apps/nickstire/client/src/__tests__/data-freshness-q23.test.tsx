@@ -28,6 +28,8 @@ vi.mock("@/lib/trpc", () => ({
       gatewayHealth: { useQuery: () => h.gateway },
       status: { useQuery: () => h.smsStatus },
     },
+    // Q-50 phase 3's NHTSA row, held loading so it is quiet; its cases are in data-freshness-nhtsa-q50.test.tsx.
+    vehicleData: { warrantyIngestFreshness: { useQuery: () => ({ data: undefined, isLoading: true, isError: false }) } },
   },
 }));
 

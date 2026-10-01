@@ -43,6 +43,9 @@ const SUMMARY_CHARS = 2_000;
 /** model_year when the manufacturer did not state one. */
 const YEAR_NOT_STATED = 9999;
 
+/** The ingest's feature flag (featureFlags.ts FLAG_DEFINITIONS). */
+const INGEST_FLAG = "nhtsa_warranty_ingest";
+
 const WARRANTY_DISCLAIMER =
   "Eligibility depends on VIN, mileage, in-service date and sometimes state. Confirm with a dealer before quoting this repair.";
 
@@ -218,6 +221,67 @@ async function dbReadStore(): Promise<WarrantyReadStore | null> {
 export interface WarrantyReadDeps {
   store?: WarrantyReadStore | null;
   now?: () => Date;
+}
+
+/* ── ingest freshness (Intelligence HQ's Data freshness row, Q-50 phase 3) ── */
+
+/** What the Data freshness row needs: the ingest's last success, and whether the job is switched on. */
+export interface WarrantyFreshnessStore {
+  readState(): Promise<IngestState>;
+  /** The `nhtsa_warranty_ingest` flag row. A missing row is OFF (the flag seeds OFF). */
+  readArmed(): Promise<boolean>;
+}
+
+export type WarrantyIngestFreshness =
+  | {
+      ok: true;
+      /** ISO time the last run that finished without error ended; null = no run has ever finished. */
+      lastSuccessAt: string | null;
+      /** Same 3-day rule the work-order panel uses (§7.3), so the two never disagree. */
+      stale: boolean;
+      /** The `nhtsa_warranty_ingest` flag. */
+      armed: boolean;
+    }
+  | { ok: false; error: string };
+
+async function dbFreshnessStore(): Promise<WarrantyFreshnessStore | null> {
+  const store = await dbReadStore();
+  if (!store) return null;
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) return null;
+  return {
+    readState: () => store.readState(),
+    async readArmed() {
+      // Read directly, not through featureFlags.isEnabled: that answers false when the
+      // flag table cannot be read, and this row must say "unknown" then, not "off".
+      const [rows] = await db.execute(sql`SELECT value FROM feature_flags WHERE \`key\` = ${INGEST_FLAG} LIMIT 1`);
+      const v = (rows as unknown as Array<{ value?: unknown }>)?.[0]?.value;
+      return v === true || v === 1 || v === "1";
+    },
+  };
+}
+
+/**
+ * How current the stored NHTSA warranty list is, for the Data freshness card.
+ * A failed read is `{ ok: false }` (the row says "unknown"), never "never ran".
+ */
+export async function warrantyIngestFreshness(
+  deps: { store?: WarrantyFreshnessStore | null; now?: () => Date } = {},
+): Promise<WarrantyIngestFreshness> {
+  try {
+    const store = deps.store !== undefined ? deps.store : await dbFreshnessStore();
+    if (!store) throw new Error("database unavailable");
+    const [state, armed] = await Promise.all([store.readState(), store.readArmed()]);
+    const lastSuccessMs = state.lastSuccessAt ? Date.parse(state.lastSuccessAt) : NaN;
+    if (!Number.isFinite(lastSuccessMs)) return { ok: true, lastSuccessAt: null, stale: false, armed };
+    const now = (deps.now ?? (() => new Date()))();
+    return { ok: true, lastSuccessAt: new Date(lastSuccessMs).toISOString(), stale: now.getTime() - lastSuccessMs > STALE_AFTER_MS, armed };
+  } catch (err) {
+    log.warn("warranty ingest freshness read failed", { error: err instanceof Error ? err.message : String(err) });
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 /** Manufacturer warranty extensions that may apply to a year/make/model (§7.1). */

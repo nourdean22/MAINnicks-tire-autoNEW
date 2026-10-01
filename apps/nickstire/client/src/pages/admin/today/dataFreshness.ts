@@ -11,8 +11,14 @@
  *     the same `mirrorFreshness` the "Today, for real" card uses;
  *   - SMS gateway · `sms.gatewayHealth`, the reader every gateway badge uses.
  *
- * No new server reader: a second definition of "stale" or "offline" is how the
- * badges drifted apart before (see GATEWAY_OFFLINE_MINUTES).
+ * No new server reader for those three: a second definition of "stale" or
+ * "offline" is how the badges drifted apart before (see GATEWAY_OFFLINE_MINUTES).
+ *
+ * A fourth row (Q-50 phase 3) reports the NHTSA manufacturer-program list behind
+ * the work-order drawer. No existing reader covered the ingest, so it has its own,
+ * `vehicleData.warrantyIngestFreshness`, which applies the drawer's 3-day rule
+ * server-side (same constant, same module), so the row and the drawer cannot
+ * disagree about "stale".
  *
  * The rule every row keeps: a failed read is UNMEASURED and says "unknown", never
  * a healthy state and never an offline one. "We could not ask" and "we asked and
@@ -30,7 +36,7 @@ import { mirrorFreshness } from "./todayPulse";
 const SHOPDRIVER_STALE_AFTER_MINUTES = 24 * 60;
 
 export interface FreshnessRow {
-  key: "shopdriver" | "invoices" | "sms";
+  key: "shopdriver" | "invoices" | "sms" | "nhtsa";
   label: string;
   /** Short state, e.g. "fresh · 12m old", "offline", "unknown". */
   status: string;
@@ -186,4 +192,47 @@ export function smsGatewayRow(q: QuerySlice<GatewayHealthPayload>): FreshnessRow
     provenance: MEASURED,
     loud: true,
   };
+}
+
+// ─── NHTSA manufacturer-program list (Q-50 phase 3) ──────────────────────
+
+export type WarrantyIngestFreshnessPayload =
+  | { ok: true; lastSuccessAt: string | null; stale: boolean; armed: boolean }
+  | { ok: false; error: string };
+
+export function nhtsaWarrantyRow(q: QuerySlice<WarrantyIngestFreshnessPayload>, now: Date): FreshnessRow {
+  const label = "NHTSA program list";
+  if (q.isError || (q.data && !q.data.ok)) {
+    return unread("nhtsa", label, "The ingest state could not be read. Unknown, not stale.");
+  }
+  if (!q.data) return checking("nhtsa", label);
+  const d = q.data;
+  const off = "The nhtsa_warranty_ingest job is switched off.";
+  if (!d.lastSuccessAt) {
+    return d.armed
+      ? {
+          key: "nhtsa", label, status: "no finished run",
+          detail: "The ingest is on but has never finished a run, so work orders show manufacturer programs as unavailable. Check its cron_log rows.",
+          provenance: MEASURED, loud: true,
+        }
+      : {
+          // The flag ships OFF on purpose (ADR-0021 §9): quiet until someone arms it.
+          key: "nhtsa", label, status: "not set up",
+          detail: `${off} Work orders show manufacturer programs as unavailable.`,
+          provenance: MEASURED, loud: false,
+        };
+  }
+  const last = new Date(d.lastSuccessAt);
+  if (Number.isNaN(last.getTime())) return unread("nhtsa", label, "The last ingest time is not a valid date.");
+  const age = ageText(Math.max(0, Math.floor((now.getTime() - last.getTime()) / 60_000)));
+  if (d.stale) {
+    return {
+      key: "nhtsa", label, status: `stale · ${age} old`,
+      detail: d.armed
+        ? "No ingest has finished in 3 days. Work orders say the list may be out of date. Check its cron_log rows."
+        : `${off} Work orders say the list may be out of date.`,
+      provenance: MEASURED, loud: true,
+    };
+  }
+  return { key: "nhtsa", label, status: `fresh · ${age} old`, detail: d.armed ? null : off, provenance: MEASURED, loud: false };
 }

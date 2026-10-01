@@ -3061,6 +3061,33 @@
       "lastVerifiedAt": "2026-10-01"
     },
     {
+      "capabilityId": "admin-data-freshness-nhtsa-q50",
+      "name": "Intelligence HQ's Data freshness card reports how current the stored NHTSA manufacturer-program list is, and the ingest probes last year's open-chunk name before failing",
+      "owner": "system",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch nickstire/q50-phase3-freshness-row (draft PR, not merged): server/services/nhtsaWarrantyRead.ts (warrantyIngestFreshness: the ingest's lastSuccessAt, the work-order panel's own 3-day stale rule, and the nhtsa_warranty_ingest flag read from its row so a flag-table failure is unknown, not off); vehicleData.warrantyIngestFreshness; client/src/pages/admin/today/dataFreshness.ts nhtsaWarrantyRow + DataFreshness.tsx fourth row; server/services/nhtsaWarrantyParse.ts previousYearCandidate, probed last by resolveOpenChunk.",
+        "tests": [
+          "server/services/nhtsaWarrantyPhase3.test.ts: 10 cases incl. never-finished (armed and off), the 3-day boundary both sides, failed state/flag/database reads as ok:false, SELECT-only production SQL with the flag key as a parameter, a missing flag row as off, and the January 2027 probe order 2025-2027, 2025-2029, 2025-2026 with 2026's order and message unchanged.",
+          "client/src/__tests__/data-freshness-nhtsa-q50.test.tsx: 9 cases incl. not set up (quiet), armed but never finished (loud), fresh, stale armed and off (loud), a failed read and ok:false as UNMEASURED unknown, and the card counting the row in 'need a look'.",
+          "17 of 19 new cases fail on main (the other 2 pin unchanged behaviour); 5 of 5 mutants caught."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "The row reads 'not set up' until the operator applies migration 0138 and arms nhtsa_warranty_ingest; no run has finished in production yet."
+        }
+      ],
+      "deferredScope": [
+        "The work-order panel still offers Retry on 'never ingested' and 'not installed', where a retry cannot help: the existing nhtsa-warranty-panel test asserts that Retry, and the shift loop may not rewrite an existing test, so that change needs the operator's go-ahead."
+      ],
+      "lastVerifiedAt": "2026-10-01"
+    },
+    {
       "capabilityId": "nickstire-daily-digest-q29",
       "name": "Daily digest (cron db-backup): counts-only nickstire -> StateNour, no customer rows",
       "owner": "system",
