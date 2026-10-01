@@ -12,7 +12,7 @@ import { leads } from "../../drizzle/schema";
 import { buildLeadContactStatusSet } from "./leadUpdateSet";
 import { recordLeadDelivery } from "../lead-delivery";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
-import { sendLeadEvent } from "../meta-capi";
+import { requireCapiDelivery, sendLeadEvent } from "../meta-capi";
 import { logIntegrationFailure } from "../integration-failures";
 import { withRetry } from "../retry";
 import { sendSmsOrThrow, leadConfirmationSms } from "../sms";
@@ -259,7 +259,7 @@ export const leadRouter = router({
       // Meta Conversions API: Send server-side Lead event
       if (input.pixelEventId) {
         withRetry(
-          () => sendLeadEvent({
+          () => requireCapiDelivery(sendLeadEvent({
             eventId: input.pixelEventId,
             sourceUrl: SITE_URL,
             phone: input.phone,
@@ -270,7 +270,7 @@ export const leadRouter = router({
             fbp: input.pixelUserData?.fbp,
             contentName: input.source === "fleet" ? "Fleet Inquiry" : "Lead Form Submission",
             contentCategory: input.source || "popup",
-          }),
+          })),
           { maxRetries: 3, baseDelayMs: 1000, label: "sendLeadEvent (lead)" }
         ).catch(err => {
           log.error("[CAPI] Lead event failed:", err);

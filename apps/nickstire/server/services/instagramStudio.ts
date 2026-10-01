@@ -39,6 +39,37 @@ const generatedDraftSchema = z.object({
   })).max(7),
 });
 
+/**
+ * Model output is structurally validated BEFORE length limits are enforced.
+ *
+ * The prior path parsed directly with generatedDraftSchema, so a perfectly
+ * salvageable draft (for example a 125-char carousel body) threw before the
+ * compaction code below could ever run. That exact failure happened in
+ * production on 2026-09-30 across all five generated carousel slides.
+ *
+ * Keep this schema strict about shape and minimum usefulness, but permissive
+ * about upper bounds; normalize once, then validate the normalized result with
+ * generatedDraftSchema so the renderer/publisher still receive the exact same
+ * bounded contract.
+ */
+const generatedDraftLooseSchema = z.object({
+  topic: z.string().min(2),
+  caption: z.string().min(10),
+  hashtags: z.array(z.string().min(1)),
+  headline: z.string().min(2),
+  subheadline: z.string().min(2),
+  cta: z.string().min(2),
+  artDirection: z.string().min(10),
+  rationale: z.string().min(5),
+  conceptKey: z.string().min(3),
+  carouselSlides: z.array(z.object({
+    role: z.enum(["hook", "truth", "proof", "action", "cta"]),
+    headline: z.string().min(2),
+    body: z.string().min(2),
+    artDirection: z.string().min(5),
+  })),
+});
+
 const OUTPUT_SCHEMA: OutputSchema = {
   name: "instagram_studio_draft",
   strict: true,
@@ -101,6 +132,37 @@ export function compactCaption(value: string, max: number): string {
 
 function normalizeHashtag(value: string): string {
   return value.replace(/^#+/, "").replace(/[^a-zA-Z0-9_]/g, "").slice(0, 40);
+}
+
+/**
+ * Normalize a model-produced Instagram draft into the publish/render contract.
+ *
+ * This is deliberately pure and exported for regression tests. The LLM is
+ * allowed to overshoot upper bounds; the application is responsible for
+ * enforcing them deterministically before the strict schema gate.
+ */
+export function normalizeGeneratedInstagramDraft(value: unknown): z.infer<typeof generatedDraftSchema> {
+  const parsed = generatedDraftLooseSchema.parse(value);
+  return generatedDraftSchema.parse({
+    topic: compact(parsed.topic, 180),
+    caption: compactCaption(parsed.caption, 2200),
+    hashtags: [...new Set(parsed.hashtags.map(normalizeHashtag).filter(Boolean))].slice(0, 12),
+    headline: compact(parsed.headline, 42),
+    subheadline: compact(parsed.subheadline, 90),
+    cta: compact(parsed.cta, 52),
+    artDirection: compact(parsed.artDirection, 500),
+    rationale: compact(parsed.rationale, 500),
+    conceptKey: compact(
+      parsed.conceptKey.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+      64,
+    ),
+    carouselSlides: parsed.carouselSlides.slice(0, 7).map((slide) => ({
+      role: slide.role,
+      headline: compact(slide.headline, 42),
+      body: compact(slide.body, 110),
+      artDirection: compact(slide.artDirection, 300),
+    })),
+  });
 }
 
 function scoreStatus(score: number, blockAt = 5, warnAt = 7): InstagramQualityGate {
@@ -415,6 +477,7 @@ NON-NEGOTIABLE RULES:
 - Visual fields must contain clean final copy, never fragments, placeholders, repeated words, or decimal punctuation mistakes.
 - Hashtags must omit the # symbol.
 - For a carousel, output exactly five slides in this order: hook, truth, proof, action, cta.
+- Every carousel slide headline max 42 characters; body max 110; artDirection max 300.
 - For non-carousel formats, carouselSlides must be an empty array.
 - artDirection describes composition and subject; it must not ask an image model to draw text.
 - conceptKey must be a short lowercase kebab-case identifier.
@@ -432,7 +495,7 @@ Return only JSON matching the schema.`;
 
   const raw = result.choices?.[0]?.message?.content;
   if (typeof raw !== "string" || !raw.trim()) throw new Error("The content model returned an empty draft.");
-  const parsed = generatedDraftSchema.parse(JSON.parse(raw));
+  const parsed = normalizeGeneratedInstagramDraft(JSON.parse(raw));
 
   const carouselSlides: InstagramCarouselSlide[] = input.format === "carousel"
     ? parsed.carouselSlides.slice(0, 5)
@@ -442,13 +505,13 @@ Return only JSON matching the schema.`;
   }
 
   const normalized = {
-    caption: compactCaption(parsed.caption, 2200),
-    headline: compact(parsed.headline, 42),
-    subheadline: compact(parsed.subheadline, 90),
-    cta: compact(parsed.cta, 52),
-    artDirection: compact(parsed.artDirection, 500),
-    hashtags: [...new Set(parsed.hashtags.map(normalizeHashtag).filter(Boolean))].slice(0, 12),
-    conceptKey: compact(parsed.conceptKey.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""), 64),
+    caption: parsed.caption,
+    headline: parsed.headline,
+    subheadline: parsed.subheadline,
+    cta: parsed.cta,
+    artDirection: parsed.artDirection,
+    hashtags: parsed.hashtags,
+    conceptKey: parsed.conceptKey,
   };
 
   const quality = evaluateInstagramDraft({
