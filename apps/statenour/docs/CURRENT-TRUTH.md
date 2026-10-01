@@ -531,3 +531,12 @@ This supersedes the pre-PR status notes immediately above while preserving them 
 - The UI patch is self-healed by `ensure_openwebui_cockpit.py`, which preserves native OpenWebUI static content and replaces only the managed NOUR block.
 - **Still unfinished at this checkpoint:** real natural-language OpenWebUI → Cockpit → OpenCode canary, bridge PR/CI/merge, merged-runtime promotion, and known-good snapshot refresh.
 
+
+## 2026-10-01 — first full OpenWebUI → Cockpit canary exposed a last-mile gap
+
+- A real headless OpenWebUI chat canary ran with **Selected model: NOUR Cockpit** and submitted marker `UI_E2E_CANARY_20261001_0951`, explicitly asking the Cockpit to start a read-only isolated run.
+- **It did not create a CockpitRun.** No new machine-local run JSON appeared and the marker was absent from existing CockpitRun state.
+- Gateway receipt for the corresponding turn: `nour-auto` started at **14:17:27**, routed through the normal candidate set, Codex reported quota exhaustion, Claude Code completed at **14:18:12**, and the gateway logged **`toolCalls=0`**.
+- Therefore the natural-language OpenWebUI → Cockpit execution path is **NOT YET VERIFIED**. Do not regress the already-proven lower layers: direct live gateway function calling, OpenCode execution, Cockpit bridge/worktree isolation, approval gating, one-button startup, and the NOUR-Cockpit-specific Controls optimizer all remain separately verified.
+- Next step is payload-level diagnosis: capture the actual OpenWebUI chat request to determine whether model `meta.toolIds=["direct_server:nour-cockpit"]` is being materialized into the per-chat direct-tool-server/tool schema or whether the tool was present and the routed model declined to call it.
+
