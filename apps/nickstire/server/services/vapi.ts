@@ -957,7 +957,7 @@ interface VapiAssistantConfig {
   metadata?: Record<string, string>;
 }
 
-export const VAPI_BEHAVIOR_FINGERPRINT_SCHEMA = "vapi-behavior-v1";
+const VAPI_BEHAVIOR_FINGERPRINT_SCHEMA = "vapi-behavior-v1";
 
 function stableBehaviorJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableBehaviorJson).join(",")}]`;
@@ -975,7 +975,7 @@ function stableBehaviorJson(value: unknown): string {
  * material is deliberately excluded: rotating VAPI_WEBHOOK_SECRET must not
  * masquerade as a customer-experience change.
  */
-export function computeVapiBehaviorHash(config: VapiAssistantConfig): string {
+function computeVapiBehaviorHash(config: VapiAssistantConfig): string {
   const server = config.server
     ? { url: config.server.url, timeoutSeconds: config.server.timeoutSeconds }
     : undefined;
