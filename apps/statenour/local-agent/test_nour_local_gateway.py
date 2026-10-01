@@ -28,11 +28,15 @@ mod.gatewayDeps.runInteractiveAdapter = async request => {
   runnerCalls++;
   const prompt = String(request && request.prompt || "");
   if (prompt.includes("ADAPTER_BUSY")) {
-    // What the worker returns when the OS research slot is held, for example by
-    // a "nour-auto" run the worker promoted to research after the gateway let it in.
-    const err = new Error("a research run is already in progress");
-    err.code = "RESEARCH_BUSY";
-    throw err;
+    // The exact JSON the worker prints when the OS research slot is held, for
+    // example by a "nour-auto" run it promoted to research after the gateway let
+    // it in, turned into an Error by the gateway's own parser.
+    throw mod.workerFailure({
+      status: "failed",
+      errorCode: "RESEARCH_BUSY",
+      errorMessage: "a research run is already in progress; retry when it finishes",
+      autoPromotedToResearch: true,
+    }, "");
   }
   if (prompt.includes("ADAPTER_FAIL")) throw new Error("adapter exploded");
   await new Promise(r => setTimeout(r, 400));
