@@ -8,9 +8,10 @@
  * Originally built TIRE FIRST on a 2026-05 claim that ~60% of inbound calls are "do you
  * have a used tire for my [vehicle]?", with general repair as the secondary
  * flow. Treat that percentage as an UNVERIFIED HYPOTHESIS, not a standing fact:
- * it originates in this comment rather than in any current demand report, and
- * that tire-first architecture rested on it. The 2026-09/10 corpus rerun now starts
- * before treating the split as evidence, and reprioritize the flows if it moved.
+ * it originates in this comment rather than in any current demand report. The
+ * 2026-09/10 customer-corpus rerun no longer supports assuming used tires before
+ * the caller gives a tire signal, so the live prompt now starts neutral and
+ * specializes fast. Keep re-measuring the mix instead of hard-coding a majority.
  *
  * STACK
  *  · Transcriber: Deepgram nova-2-phonecall (call-tuned, lowest latency,
