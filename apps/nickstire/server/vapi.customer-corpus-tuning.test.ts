@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ASSISTANT_SYSTEM_PROMPT } from "./services/vapi";
 
@@ -26,5 +27,30 @@ describe("VAPI corpus-grounded conversation rules", () => {
   it("does not diagnose squeaking brakes as probably just pads", () => {
     expect(ASSISTANT_SYSTEM_PROMPT).not.toContain("often still just the pads");
     expect(ASSISTANT_SYSTEM_PROMPT).toContain("brake problems usually get more expensive when they wait");
+  });
+  it("does not use universal competitor-charge claims", () => {
+    expect(ASSISTANT_SYSTEM_PROMPT).not.toContain("any other shop charges to even look");
+  });
+
+  it("keeps the weekly optimizer aligned with neutral-first behavior", () => {
+    const src = readFileSync(new URL("./services/promptEvolution.ts", import.meta.url), "utf8");
+    expect(src).not.toContain("keep the tire-first default");
+    expect(src).toContain("start neutral and identify the caller's need before specializing");
+  });
+
+  it("gives weekly prompt evolution a job-specific budget above the 4-minute default", () => {
+    const src = readFileSync(new URL("./cron/scheduler.ts", import.meta.url), "utf8");
+    const start = src.indexOf('name: "prompt-evolution-weekly"');
+    const end = src.indexOf("},", start);
+    const block = src.slice(start, end + 2);
+    expect(block).toContain("timeoutMs: 30 * 60 * 1000");
+  });
+
+  it("does not stamp every Vapi status update as a greeted call", () => {
+    const src = readFileSync(new URL("./routes/webhooks/vapi.ts", import.meta.url), "utf8");
+    expect(src).toContain('case "status-update"');
+    expect(src).toContain('status === "in-progress"');
+    expect(src).not.toContain('case "status-update":\n      case "call-start"');
+    expect(src).toContain('case "speech-update"');
   });
 });
