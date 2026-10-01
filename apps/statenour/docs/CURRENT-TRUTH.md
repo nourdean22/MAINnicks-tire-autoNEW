@@ -583,3 +583,11 @@ This supersedes the pre-PR status notes immediately above while preserving them 
 - This narrows the remaining defect to OpenWebUI''s **direct-tool executor server lookup/resolution**. Model routing, gateway tool-calling transport, tool-schema injection, browser CORS reachability, and the Cockpit bridge remain independently verified.
 - Next action: locate the literal error emitter and align the injected server identifier with the executor''s expected ID/index/store representation. Do not retry the canary until that lookup mismatch is corrected.
 
+
+## 2026-10-01 — final executor lookup root cause pinned to per-user toolServers settings
+
+- The literal **`Tool Server Not Found`** emitter is in OpenWebUI''s browser-side `execute:tool` handler. It takes `e.server.url` and resolves it through the current user''s **`settings.toolServers`** list first, with terminal-server fallbacks.
+- The admin user''s persisted settings currently contain ordinary `ui` preferences but **no `toolServers` entry at all**.
+- That exactly explains the latest canary: the six Cockpit function specs were injected, the model invoked `start_cockpit_run` and `check_cockpit_run`, but the browser executor could not resolve `http://127.0.0.1:4101` to a local server record and returned `{"error":"Tool Server Not Found"}` before the bridge received anything.
+- OpenWebUI exposes a supported field-level settings patch path via `Users.update_user_settings_by_id(...)`; the next fix is to persist the NOUR Cockpit server into the admin user''s UI `toolServers` setting and make that part of the self-healer. Do not patch the minified executor.
+
