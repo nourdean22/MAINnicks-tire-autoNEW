@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-01T09:40:30.148Z",
-  "count": 763,
+  "generatedAt": "2026-10-01T16:35:31.789Z",
+  "count": 768,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -97,6 +97,8 @@
     "mutation.coupons.delete",
     "mutation.coupons.redeem",
     "mutation.coupons.update",
+    "mutation.creativeOs.atomize",
+    "mutation.creativeOs.minePattern",
     "mutation.customerEvents.log",
     "mutation.customerNotifications.markSent",
     "mutation.customerNotifications.send",
@@ -457,6 +459,9 @@
     "query.conversion.shopCapacity",
     "query.coupons.active",
     "query.coupons.all",
+    "query.creativeOs.atomizePlan",
+    "query.creativeOs.organicEvidence",
+    "query.creativeOs.trends",
     "query.customerEvents.summary",
     "query.customerEvents.topRibbonPhotos",
     "query.customerEvents.topRibbonPhotosPublic",
