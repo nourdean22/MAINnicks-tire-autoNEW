@@ -23,4 +23,17 @@ describe("NICK_SMS_SYSTEM_PROMPT", () => {
     expect(NICK_SMS_SYSTEM_PROMPT).toMatch(/never guess a price/i);
     expect(NICK_SMS_SYSTEM_PROMPT).toMatch(/free check/i);
   });
+
+  it("identifies as the shop assistant instead of impersonating Nick", () => {
+    expect(NICK_SMS_SYSTEM_PROMPT).toMatch(/texting assistant for Nick's Tire & Auto/i);
+    expect(NICK_SMS_SYSTEM_PROMPT).toMatch(/never impersonate Nick/i);
+    expect(NICK_SMS_SYSTEM_PROMPT).not.toMatch(/You are Nick, the owner-operator/i);
+  });
+
+  it("pins thread continuity and one-question behavior from the customer corpus audit", () => {
+    expect(NICK_SMS_SYSTEM_PROMPT).toMatch(/answer the customer's latest message first/i);
+    expect(NICK_SMS_SYSTEM_PROMPT).toMatch(/Ask at most one question per reply/i);
+    expect(NICK_SMS_SYSTEM_PROMPT).toMatch(/If the customer gives a tire size, answer that size directly/i);
+    expect(NICK_SMS_SYSTEM_PROMPT).toMatch(/spam, solicitation, wrong-number/i);
+  });
 });
