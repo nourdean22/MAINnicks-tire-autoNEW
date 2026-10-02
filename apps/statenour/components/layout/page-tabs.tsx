@@ -23,7 +23,9 @@
  * (a full-bleed canvas, an indexed library, a reading column, a ledger, a
  * board), not just the label under a bar.
  *
- * Aesthetic: gold-on-dark underline tab bar, matching StandardPage. No purple.
+ * Aesthetic (UI v2, 2026-10-02 · docs/design/ui-v2/SYSTEM.md): Geist sentence-case labels, the
+ * selected tab is the one gold signal (a 2px underline), everything else is text colour. No
+ * display face on a tab, no uppercase, no gold text.
  */
 
 import { Suspense, useCallback } from "react";
@@ -66,7 +68,7 @@ interface PageTabsProps {
 }
 
 const SUB_ITEM =
-  "inline-flex min-h-[44px] shrink-0 items-center font-mono text-[12px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gold/40";
+  "inline-flex min-h-[44px] shrink-0 items-center text-[13px] font-medium transition-colors duration-[var(--motion-state)]";
 
 function SubSwitch({
   tabs,
@@ -105,7 +107,7 @@ function SubSwitch({
               variant === "index" && "xl:border-l-2 xl:pl-3",
               variant !== "index" && "-mb-px border-b-2 px-1",
               isActive
-                ? cn("text-gold", variant === "index" ? "xl:border-gold" : "border-gold")
+                ? cn("text-fg", variant === "index" ? "xl:border-accent" : "border-accent")
                 : cn("text-fg-tertiary hover:text-fg-secondary", variant === "index" ? "xl:border-transparent" : "border-transparent"),
             )}
           >
@@ -228,12 +230,11 @@ function PageTabsInner({ tabs, param = "tab", defaultKey, lenses, className }: P
                 aria-selected={isActive}
                 onClick={() => select(l.tabs[0])}
                 className={cn(
-                  "-mb-px flex min-h-[52px] shrink-0 flex-col justify-end border-b-2 pb-2 text-left transition-colors",
-                  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gold/40",
-                  isActive ? "border-gold text-fg" : "border-transparent text-fg-tertiary hover:text-fg-secondary",
+                  "-mb-px flex min-h-[52px] shrink-0 flex-col justify-end border-b-2 pb-2 text-left transition-colors duration-[var(--motion-state)]",
+                  isActive ? "border-accent text-fg" : "border-transparent text-fg-tertiary hover:text-fg-secondary",
                 )}
               >
-                <span className="font-display text-2xl font-bold uppercase leading-none tracking-tight sm:text-[28px]">
+                <span className="text-[17px] font-semibold leading-none tracking-[-0.01em] sm:text-[18px]">
                   {l.label}
                 </span>
                 {l.hint && (
@@ -257,7 +258,7 @@ function PageTabsInner({ tabs, param = "tab", defaultKey, lenses, className }: P
       <div
         role="tablist"
         aria-label="Page sections"
-        className="flex items-center gap-1 overflow-x-auto border-b border-[var(--border-default)]"
+        className="flex items-center gap-1 overflow-x-auto border-b border-edge-subtle"
       >
         {tabs.map((t) => {
           const isActive = t.key === activeKey;
@@ -269,12 +270,11 @@ function PageTabsInner({ tabs, param = "tab", defaultKey, lenses, className }: P
               aria-selected={isActive}
               onClick={() => select(t.key)}
               className={cn(
-                "min-h-11 shrink-0 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.14em]",
-                "border-b-2 -mb-px transition-colors focus-visible:outline-none",
-                "focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40",
+                "min-h-11 shrink-0 px-3 py-2 text-[13px] font-medium",
+                "border-b-2 -mb-px transition-colors duration-[var(--motion-state)]",
                 isActive
-                  ? "border-[var(--gold)] text-[var(--gold)]"
-                  : "border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
+                  ? "border-accent text-fg"
+                  : "border-transparent text-fg-tertiary hover:text-fg-secondary",
               )}
             >
               {t.label}
