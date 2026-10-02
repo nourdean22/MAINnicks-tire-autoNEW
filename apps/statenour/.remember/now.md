@@ -1,5 +1,11 @@
 # Session ledger — statenour
 
+**Updated: 2026-10-02 ET** (full-circle bug hunt #2888 · MERGED `f3051532` · DEPLOYED Railway `c84db7d0` 16:03Z · prod DDL applied with operator yes: result_ref index + reality_event_envelope)
+
+## 2026-10-02 · bug hunt — 20 fixes + the reality ledger restored
+
+#2888: chat cap floor 6,000; ledger fixes (dated summaries, newest-row decide, no resultRef on dismissals, chip-id keys, 6-day forecast window, two-tab advisory lock); control plane (mega aliases, per-run kill decision, kill does not page, diagnose skips declared degradation, run-now on Inngest crons, disabled capability respected); SQL (`deleted_at`, Date bind, error-rate attribution); UI/read models. Prod: `intelligence_outcomes_result_ref_idx` valid; `reality_event_envelope` applied 15:54Z (it was never applied; `/api/sync/evidence` failed 38x since 09-30). Verify: next evidence sync writes reality_events row 333 and no `event_version` error after 15:55Z. Telegram webhook is healthy (wave 4 claim was wrong). Open, found 16:00Z: the Home brain-graph "Unlinked" tray — decision nodes (`decision_replays`) only get edges from mission/goal FKs; semantic-link covers BrainMemory only; 10 `auto`-linked rows lost their FK when the goal/mission was deleted (SetNull) but still read `auto`. The Obsidian engine has never written its status row to prod (`local_sync_log` module obsidian_engine: 0 rows).
+
 **Updated: 2026-10-02 ET** (full-circle wave 4 · `statenour/full-circle-e-census-close` · both censuses closed for code: E5/E6/E11/E12 + five settings items · prod measured · FOUND Telegram webhook silent since ≥09-25 · PR open · wave 3 #2886 DEPLOYED `1bcffea6` / Railway `6f46ff0c`, no rows yet)
 
 ## 2026-10-02 · full-circle wave 4 — the outcome-ledger census closes
