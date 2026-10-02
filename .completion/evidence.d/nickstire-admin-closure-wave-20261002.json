@@ -7,7 +7,7 @@
       "ref": "WHAT THE OPERATOR SEES after this diff: (1) Outreach -> SMS Orchestrator review queue shrinks to drafts under 7 days; acting on a closed draft says 'already closed (<status>: <reason>) — refresh'; a >7-day draft must be edited before sending. (2) Opportunities: one missed-call card per phone; served ones close with a receipt naming the invoice/callback/lead/booking. (3) Approvals: fewer Nick drafts (none for calls a tool already captured); subtitle scoped to this queue. (4) Today: an open callback card appends 'Invoiced <date> … likely served, close if handled'. (5) Settings -> Status cannot say 'All clear' with a commissioned camera offline/calibration-invalid/worker stale; Lot header reads 'Live · N camera issues'. (6) Market card names its GSC source. Proof: the client tests named in the capability-ledger entry admin-closure-wave-20261002. Live walkthrough DEFERRED until deploy: no production admin session exists in this cloud container."
     },
     "capability-ledger-updated": {
-      "ref": "UPDATED: docs/operations/capability-ledger.json adds 'admin-closure-wave-20261002' (codeState in_progress, operationalState unit_verified, exposure internal, blockers name the first post-deploy cron_log receipts) and REALITY-LEDGER.md is regenerated."
+      "ref": "UPDATED: docs/operations/capability-ledger.json adds 'admin-closure-wave-20261002' (codeState merged (lands with this merge, per the instagram-capi-growth-wave precedent), operationalState unit_verified, exposure internal, blockers name the first post-deploy cron_log receipts) and REALITY-LEDGER.md is regenerated."
     }
   }
 }

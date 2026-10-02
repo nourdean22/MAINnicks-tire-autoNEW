@@ -3346,7 +3346,7 @@
       "capabilityId": "admin-closure-wave-20261002",
       "name": "Admin queues close their loops: stale SMS review drafts expire/supersede, missed calls close on service and collapse per phone, Nick's draft proposals are capture-aware, open callbacks show served evidence, parents cannot be green over broken cameras",
       "owner": "operator",
-      "codeState": "in_progress",
+      "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal",
       "evidence": {
