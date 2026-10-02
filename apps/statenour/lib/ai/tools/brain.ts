@@ -729,6 +729,205 @@ export const brainTools = {
     },
   }),
 
+  saveResearchReport: tool({
+    description:
+      "Persist a completed external research report from Perplexity Enterprise into StateNour's research memory. Use only for substantive finished research worth keeping. This stores citations/provenance as EXTERNAL_CONTENT; it does not create tasks or execute recommendations.",
+    inputSchema: z.object({
+      title: z.string().min(3).max(240),
+      question: z.string().min(3).max(2_000),
+      summary: z.string().min(20).max(20_000),
+      findings: z.array(z.string().min(1).max(4_000)).max(50).default([]),
+      citations: z
+        .array(
+          z.object({
+            title: z.string().max(500).optional(),
+            url: z.string().url().max(2_000),
+          }),
+        )
+        .max(100)
+        .default([]),
+      recommendations: z.array(z.string().min(1).max(4_000)).max(30).default([]),
+      confidence: z.number().min(0).max(1).default(0.8),
+      researchedAt: z.string().datetime().optional(),
+      dedupKey: z
+        .string()
+        .min(3)
+        .max(120)
+        .regex(/^[a-zA-Z0-9._:-]+$/)
+        .optional()
+        .describe("Stable key for reruns of the same research report. Omit to derive one from title + UTC date."),
+    }),
+    execute: async ({
+      title,
+      question,
+      summary,
+      findings,
+      citations,
+      recommendations,
+      confidence,
+      researchedAt,
+      dedupKey,
+    }) => {
+      const observedAt = researchedAt ? new Date(researchedAt) : new Date();
+      const slug = title
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, "")
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-")
+        .slice(0, 72);
+      const key =
+        dedupKey ?? `perplexity:${slug || "research"}:${observedAt.toISOString().slice(0, 10)}`;
+      const content = [
+        title,
+        "",
+        `Question: ${question}`,
+        "",
+        summary,
+        findings.length ? `\nFindings:\n- ${findings.join("\n- ")}` : "",
+        recommendations.length
+          ? `\nRecommendations:\n- ${recommendations.join("\n- ")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const metadata = {
+        recordType: "perplexity_enterprise_research",
+        provider: "perplexity-enterprise",
+        question,
+        findings,
+        citations,
+        recommendations,
+        researchedAt: observedAt.toISOString(),
+        ingestion: "mcp",
+      };
+
+      const row = await prisma.brainMemory.upsert({
+        where: {
+          category_key: {
+            category: BRAIN_CATEGORIES.RESEARCH_PACK,
+            key,
+          },
+        },
+        create: {
+          category: BRAIN_CATEGORIES.RESEARCH_PACK,
+          key,
+          content,
+          confidence,
+          source: "perplexity-enterprise:mcp",
+          createdBy: "perplexity-enterprise",
+          trustTier: "EXTERNAL_CONTENT",
+          lastVerifiedAt: observedAt,
+          metadata: metadata as never,
+        },
+        update: {
+          content,
+          confidence,
+          source: "perplexity-enterprise:mcp",
+          trustTier: "EXTERNAL_CONTENT",
+          lastVerifiedAt: observedAt,
+          lastSeen: new Date(),
+          seenCount: { increment: 1 },
+          deletedAt: null,
+          metadata: metadata as never,
+        },
+      });
+
+      return {
+        saved: true,
+        id: row.id,
+        key,
+        category: BRAIN_CATEGORIES.RESEARCH_PACK,
+        citationCount: citations.length,
+        findingCount: findings.length,
+        recommendationCount: recommendations.length,
+      };
+    },
+  }),
+
+  proposeResearchAction: tool({
+    description:
+      "Persist a bounded action PROPOSAL derived from external research. This does not create a Task, send anything, publish anything, or execute code. Use it when research supports an action Nour should review.",
+    inputSchema: z.object({
+      title: z.string().min(3).max(240),
+      rationale: z.string().min(10).max(8_000),
+      evidence: z.array(z.string().min(1).max(2_000)).max(30).default([]),
+      priority: z.enum(["low", "medium", "high"]).default("medium"),
+      relatedReportKey: z.string().max(120).optional(),
+      dedupKey: z
+        .string()
+        .min(3)
+        .max(120)
+        .regex(/^[a-zA-Z0-9._:-]+$/)
+        .optional(),
+    }),
+    execute: async ({ title, rationale, evidence, priority, relatedReportKey, dedupKey }) => {
+      const slug = title
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, "")
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-")
+        .slice(0, 72);
+      const key = dedupKey ?? `perplexity-proposal:${slug || "action"}`;
+      const content = [
+        title,
+        "",
+        rationale,
+        evidence.length ? `\nEvidence:\n- ${evidence.join("\n- ")}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const metadata = {
+        recordType: "research_action_proposal",
+        provider: "perplexity-enterprise",
+        status: "proposed",
+        priority,
+        evidence,
+        relatedReportKey: relatedReportKey ?? null,
+        proposedAt: new Date().toISOString(),
+        ingestion: "mcp",
+      };
+
+      const row = await prisma.brainMemory.upsert({
+        where: {
+          category_key: {
+            category: BRAIN_CATEGORIES.RESEARCH_ACTION,
+            key,
+          },
+        },
+        create: {
+          category: BRAIN_CATEGORIES.RESEARCH_ACTION,
+          key,
+          content,
+          confidence: 0.75,
+          source: "perplexity-enterprise:mcp",
+          createdBy: "perplexity-enterprise",
+          trustTier: "EXTERNAL_CONTENT",
+          metadata: metadata as never,
+        },
+        update: {
+          content,
+          source: "perplexity-enterprise:mcp",
+          trustTier: "EXTERNAL_CONTENT",
+          lastSeen: new Date(),
+          seenCount: { increment: 1 },
+          deletedAt: null,
+          metadata: metadata as never,
+        },
+      });
+
+      return {
+        proposed: true,
+        executed: false,
+        id: row.id,
+        key,
+        category: BRAIN_CATEGORIES.RESEARCH_ACTION,
+        priority,
+      };
+    },
+  }),
+
   // Apr 20 · Device RPC via chat. Nour says "lock the front door" or
   // "turn on the shop lights" and Nick resolves the device by
   // fuzzy name/location, enqueues a DeviceCommand row, and the

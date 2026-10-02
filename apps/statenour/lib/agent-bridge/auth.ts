@@ -34,6 +34,11 @@ interface TokenSlot {
 const TOKEN_SLOTS: readonly TokenSlot[] = [
   { clientId: "read-client", scope: "read", env: "AGENT_BRIDGE_TOKEN_READ" },
   { clientId: "tasks-client", scope: "tasks", env: "AGENT_BRIDGE_TOKEN_TASKS" },
+  // Perplexity Enterprise custom-connector token. This is deliberately a
+  // separate identity + scope so external research can read StateNour and
+  // write only research artifacts/proposals — never tasks, sends, code, or
+  // customer-facing state.
+  { clientId: "perplexity-enterprise", scope: "research", env: "AGENT_BRIDGE_TOKEN_PERPLEXITY" },
   // Legacy single token. Capability REDUCED to read-only: it used to grant the
   // full surface, and the whole point of this change is that no token does.
   // Measured zero bridge callers ever, so nothing breaks; a client needing
@@ -78,11 +83,15 @@ export function assertBridgeAuth(req: Request): BridgeIdentity {
   }
 
   const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    throw new Error("Unauthorized");
-  }
-
-  const token = authHeader.split(" ")[1];
+  const bearerToken = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice("Bearer ".length).trim()
+    : "";
+  // Custom remote MCP clients do not all serialize "API key" auth the same
+  // way. Bearer remains canonical, while x-api-key is accepted as a narrow
+  // compatibility path for Perplexity custom connectors. Both resolve through
+  // the exact same constant-time token -> scope map below.
+  const apiKeyToken = (req.headers.get("x-api-key") || req.headers.get("api-key") || "").trim();
+  const token = bearerToken || apiKeyToken;
   if (!token) {
     throw new Error("Unauthorized");
   }
@@ -92,7 +101,7 @@ export function assertBridgeAuth(req: Request): BridgeIdentity {
   const anyConfigured = TOKEN_SLOTS.some((s) => (process.env[s.env] ?? "").trim().length > 0);
   if (!anyConfigured) {
     throw new Error(
-      "Server configuration error: no AGENT_BRIDGE token is set (AGENT_BRIDGE_TOKEN_READ / _TASKS / legacy AGENT_BRIDGE_SECRET_TOKEN). Failing closed.",
+      "Server configuration error: no AGENT_BRIDGE token is set (AGENT_BRIDGE_TOKEN_READ / _TASKS / _PERPLEXITY / legacy AGENT_BRIDGE_SECRET_TOKEN). Failing closed.",
     );
   }
 

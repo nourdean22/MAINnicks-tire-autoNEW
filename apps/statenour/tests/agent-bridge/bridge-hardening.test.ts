@@ -56,6 +56,9 @@ describe("HARD_DENY · protected operations are never reachable", () => {
     // lists are non-empty. A test over two empty lists trivially "passes".
     expect(scopeTools("read").length).toBeGreaterThan(10);
     expect(scopeTools("tasks").length).toBeGreaterThan(scopeTools("read").length);
+    expect(scopeTools("research").length).toBeGreaterThan(scopeTools("read").length);
+    expect(scopeTools("research")).toContain("saveResearchReport");
+    expect(scopeTools("research")).not.toContain("createTask");
   });
 
   it("computeHardDeny derives critical-risk + business_write from the catalog, not just the explicit list", () => {
@@ -126,12 +129,17 @@ describe("resolveBridgeToken · per-client scopes", () => {
   const env = {
     AGENT_BRIDGE_TOKEN_READ: "test-read-token-fake",
     AGENT_BRIDGE_TOKEN_TASKS: "test-tasks-token-fake",
+    AGENT_BRIDGE_TOKEN_PERPLEXITY: "test-perplexity-token-fake",
     AGENT_BRIDGE_SECRET_TOKEN: "test-legacy-token-fake",
   };
 
   it("maps each token to its scope; legacy is READ-ONLY now", () => {
     expect(resolveBridgeToken("test-read-token-fake", env)).toEqual({ clientId: "read-client", scope: "read" });
     expect(resolveBridgeToken("test-tasks-token-fake", env)).toEqual({ clientId: "tasks-client", scope: "tasks" });
+    expect(resolveBridgeToken("test-perplexity-token-fake", env)).toEqual({
+      clientId: "perplexity-enterprise",
+      scope: "research",
+    });
     // The capability reduction: the legacy full-surface token is now read-only.
     expect(resolveBridgeToken("test-legacy-token-fake", env)).toEqual({ clientId: "legacy", scope: "read" });
   });

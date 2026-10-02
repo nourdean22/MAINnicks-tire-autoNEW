@@ -163,6 +163,10 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "logSituation",                 category: "personal_write", cost: "free" },
   { name: "markCommitmentBroken",         category: "personal_write", cost: "free" },
   { name: "pinMemory",                    category: "personal_write", cost: "free" },
+  // Perplexity Enterprise remote MCP return-channel. These are deliberately
+  // bounded writes: research memory + proposal only; no execution or sends.
+  { name: "saveResearchReport",           category: "personal_write", sideEffecting: true, cost: "free", riskClass: "low" },
+  { name: "proposeResearchAction",         category: "personal_write", sideEffecting: true, cost: "free", riskClass: "low" },
   { name: "resolveAlert",                 category: "personal_write", cost: "free" },
   { name: "reviewDecisionReplay",         category: "personal_write", cost: "free" },
   { name: "runDeviceCommand",             category: "personal_write", sideEffecting: true, cost: "free" },

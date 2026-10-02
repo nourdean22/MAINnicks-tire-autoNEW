@@ -50,7 +50,12 @@ export function getBridgeSafeTools(protocol: "mcp" | "actions", scope?: BridgeSc
     }
     
     let jsonSchema = { type: "object", properties: {} };
-    if (handlerTool.parameters) {
+    // AI SDK v5+ names this `inputSchema`; older tools used `parameters`.
+    // Prefer the current property but keep the legacy fallback so the bridge
+    // advertises real schemas instead of silently degrading every modern tool
+    // to `{}` — remote MCP clients such as Perplexity depend on these schemas.
+    const handlerSchema = handlerTool.inputSchema ?? handlerTool.parameters;
+    if (handlerSchema) {
       // 2026-09-10 · was `zodToJsonSchema` from `zod-to-json-schema`,
       // which is ARCHIVED upstream (last release 3.25.2, 2026-03-27).
       // An archived JSON-Schema emitter inside the tool-exposure path of
@@ -61,7 +66,7 @@ export function getBridgeSafeTools(protocol: "mcp" | "actions", scope?: BridgeSc
       // to the empty object, not throw and drop the tool from the
       // bridge entirely.
       try {
-        jsonSchema = (z.toJSONSchema(handlerTool.parameters) as any) || jsonSchema;
+        jsonSchema = (z.toJSONSchema(handlerSchema) as any) || jsonSchema;
       } catch {
         // leave the permissive default; the tool stays exposed
       }
@@ -89,10 +94,10 @@ export async function executeBridgeTool(tool: any, args: any) {
   // field hit the handler as undefined → unbounded reads / DB errors. This
   // is the single choke point both bridges share. On failure, return the
   // same { error, message } shape callers already handle (never throw an
-  // unvalidated call through). Tools without a zod `parameters` schema
-  // skip validation unchanged (back-compat).
+  // unvalidated call through). Tools without a zod `inputSchema`/legacy
+  // `parameters` schema skip validation unchanged (back-compat).
   let input = args;
-  const schema = tool?.handler?.parameters;
+  const schema = tool?.handler?.inputSchema ?? tool?.handler?.parameters;
   if (schema && typeof schema.safeParse === "function") {
     const parsed = schema.safeParse(args ?? {});
     if (!parsed.success) {

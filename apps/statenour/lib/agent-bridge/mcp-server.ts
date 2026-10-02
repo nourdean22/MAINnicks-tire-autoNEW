@@ -216,7 +216,15 @@ export const mcpHttpHandler: McpHttpHandler = createMcpHandler(
  * oaiusercontent.com), so allowing them keeps the check's point: no
  * attacker-controlled page can drive the bridge from a browser.
  */
-const HOSTED_MCP_CLIENT_ORIGINS = ["claude.ai", "chatgpt.com", "chat.openai.com"];
+const HOSTED_MCP_CLIENT_ORIGINS = [
+  "claude.ai",
+  "chatgpt.com",
+  "chat.openai.com",
+  // Perplexity Enterprise custom remote MCP / Computer. Keep exact hostnames
+  // (no wildcard) so a look-alike origin cannot reuse a valid bearer/API key.
+  "perplexity.ai",
+  "www.perplexity.ai",
+];
 
 /**
  * Hostnames a browser `Origin` may carry on POST /api/mcp: this app's own

@@ -158,7 +158,13 @@ describe("POST /api/mcp - Origin validation (Q-18)", () => {
     expect(res.status).toBe(200);
   });
 
-  it.each(["https://claude.ai", "https://chatgpt.com", "https://chat.openai.com"])(
+  it.each([
+    "https://claude.ai",
+    "https://chatgpt.com",
+    "https://chat.openai.com",
+    "https://perplexity.ai",
+    "https://www.perplexity.ai",
+  ])(
     "POSITIVE CONTROL: hosted MCP client Origin %s with a valid token initializes",
     async (origin) => {
       const spy = vi.spyOn(console, "log").mockImplementation(() => {});

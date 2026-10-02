@@ -33,10 +33,14 @@
  */
 import { TOOL_CATALOG, getToolRiskClass, type ToolMeta } from "@/lib/ai/tools/catalog";
 
-export type BridgeScope = "read" | "tasks";
+export type BridgeScope = "read" | "tasks" | "research";
 
-/** Every scope name a token may carry. `tasks` is a superset of `read`. */
-export const BRIDGE_SCOPES: readonly BridgeScope[] = ["read", "tasks"];
+/**
+ * Every scope name a token may carry. `tasks` and `research` are separate
+ * supersets of `read`: task clients can mutate operator tasks/brain state;
+ * research clients can only persist bounded research artifacts/proposals.
+ */
+export const BRIDGE_SCOPES: readonly BridgeScope[] = ["read", "tasks", "research"];
 
 /**
  * The operator's protected-operations list, by tool name. These are denied
@@ -151,6 +155,17 @@ const TASKS_ONLY_TOOLS: readonly string[] = [
 ];
 
 /**
+ * RESEARCH scope — purpose-built for Perplexity Enterprise custom MCP.
+ * The connector gets the normal read surface plus two append/update-style
+ * research writes. It cannot create/complete tasks, message anyone, publish,
+ * execute code, browse autonomously, or reach customer-facing writes.
+ */
+const RESEARCH_ONLY_TOOLS: readonly string[] = [
+  "saveResearchReport",
+  "proposeResearchAction",
+];
+
+/**
  * The tool allowlist for a scope, with HARD_DENY subtracted as a final
  * guarantee — so even if a protected-ops name were mistakenly added to a list
  * above, it could not be exposed. The subtraction is the load-bearing line; the
@@ -158,7 +173,12 @@ const TASKS_ONLY_TOOLS: readonly string[] = [
  * decorative.
  */
 export function scopeTools(scope: BridgeScope, hardDeny: Set<string> = BRIDGE_HARD_DENY): string[] {
-  const base = scope === "tasks" ? [...READ_TOOLS, ...TASKS_ONLY_TOOLS] : [...READ_TOOLS];
+  const base =
+    scope === "tasks"
+      ? [...READ_TOOLS, ...TASKS_ONLY_TOOLS]
+      : scope === "research"
+        ? [...READ_TOOLS, ...RESEARCH_ONLY_TOOLS]
+        : [...READ_TOOLS];
   return base.filter((name) => !hardDeny.has(name));
 }
 
