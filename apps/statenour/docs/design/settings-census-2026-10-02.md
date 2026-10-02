@@ -260,3 +260,33 @@ limit 50 (the tool returns the 50 most recent matching lines; the span of their 
 Reading: /settings is a daily surface, so what it shows is what the operator sees most. The seven Diagnostics blocks that can
 render "clean" on a failed read (finding 8) sit on the page the operator reads most often; /proof is close to unvisited.
 Route-level counts only; Railway http logs do not identify which block on the page was looked at.
+
+## Applied · full-circle wave 2 (2026-10-02, branch `statenour/full-circle-c-settings-system`)
+
+Every disposition above was executed, with four deviations recorded here rather than silently:
+
+| Block | Census said | Done | Why it differs |
+|---|---|---|---|
+| SystemOpsHub | MOVE -> /system | DELETED | `/system` already mounts `SystemHubGrid` (same 11 links, live severity chips from `/api/system/hub`); a second hub would be the duplicate the census was written to remove. `useSystemPulse` survives for `components/layout/more-sheet.tsx`. |
+| CommandSpinePulse | MOVE -> /system | DELETED | The whole card was a link to `/system`; on `/system` it would link to itself. Its data (active command, proof ratio, risks) is Home's brief; `operator.commandCenterState` keeps its other consumers. |
+| SystemInfoCard | MERGE -> /system | DELETED | `/system`'s hub chips already carry tools + brain status; the one-pixel "LIVE" dot that stayed green on one failed read is gone with it. |
+| CronControlPanel | MERGE -> /system/crons | DELETED + runbook links ported (`lib/system/cron-runbooks.ts`, pinned to the files that exist) + the kill switch made TRUE for Inngest crons | Finding 7 (kill switch write-only for 19 crons) is fixed at the dispatch layer, not described: `CronLifecycleMiddleware.wrapFunctionHandler` returns `{ skipped: true, reason: "disabled via settings" }` for a killed cron, 30 s read cache, fail-open. `tests/observability/cron-lifecycle.test.ts`. |
+
+Executed as described: HQErrorsCard deleted (control tower + `/system/logs?view=errors`); SystemHealthCard -> `/system/health` with
+explicit unreadable / healthy lines (it rendered nothing for three different states); SystemDataCards split -> `/system/health`
+(trend, error rate, quotas; an empty 7-day trend now names the silent digest cron) and `/brain` (memory of the day); DeployChip ->
+`/system` header, linking the monorepo (finding 17: the link went to the retired `statenour-os` repo) and rendering `build · unknown`
+on a failed read; SkillLibraryPanel's second mount removed; Speed Ribbon toggle + `hooks/chat/use-chat-speed-ribbon.ts` + its test
+deleted; `/api/settings/crons` and `/api/settings/crons/trigger` deleted with `listScheduledCrons` (the vercel.json reader) and
+`triggerCronByName` (`system.runCron` now resolves through the manifest, so the chat `/cron run` path works for every active cron
+again, not only the stale mega-fanout list); the `switch` a11y contract moved to the `/system/crons` toggle; the Settings page copy
+is "identity · scoring · ai · flags · notifications" and the console header comment names the ownership test.
+
+Not done here (operator or later wave): Default Mode "auto" unreachable (finding 2, needs a transformer or an explicit `null`
+sentinel in `aiConfigPatchSchema`); JournalBrainPanel slider mins vs server validators; the 9 dead `AUTOPILOT_DEFAULTS` keys; the
+stale copy in the push toggle and the ticker card; `NICK_MUTATION_LOCK` self-lockout from the flags board.
+
+Found while applying: `system.errorRateByRoute` (one of the three SystemDataCards reads) had failed on every call since it shipped —
+its window was bound as text into `created_at >= $1` (SQLSTATE 42883) — so finding 8's "renders nothing on a failed read" had a
+fourth, permanent instance on this page: the Error-rate card showed its unmeasured line forever. Fixed with the move (service, REST
+twin, and the task-timing predictor that shared the bind); see RECONCILIATION.
