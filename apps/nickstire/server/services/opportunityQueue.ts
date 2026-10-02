@@ -51,7 +51,9 @@ export const OPPORTUNITY_STATES = [
   // say "this is not worth acting on" without asserting something false:
   //   lost           — claims a sale was lost
   //   do_not_contact — sets consent_ok=0 for that PHONE, forever, from any UI
-  //   duplicate      — claims this row duplicates another (nothing ever wrote it)
+  //   duplicate      — claims this row duplicates another (since 2026-10-02 the
+  //                    missed-call reconciler writes it: same-phone collapse, and
+  //                    "served by another channel" — see reconcile step 3a)
   //   snooze         — neutral, but time-boxed and not a close
   // An operator hiding an irrelevant row was forced to pick a lie. `dismissed`
   // records exactly what happened: a human looked and judged it not actionable.
@@ -221,6 +223,12 @@ function mapRow(r: Record<string, unknown>): OpportunityRow {
     createdAt: new Date(r.created_at as string),
     updatedAt: new Date(r.updated_at as string),
   };
+}
+
+/** Last-10-digit phone key (the house join rule), or null when there are not 10 digits. */
+export function phone10(p: unknown): string | null {
+  const d = String(p ?? "").replace(/\D/g, "").slice(-10);
+  return d.length === 10 ? d : null;
 }
 
 function rowsFromExecute(value: unknown): Array<Record<string, unknown>> {
@@ -1104,10 +1112,10 @@ export async function collectPendingCallbacks(): Promise<CollectorStats> {
  * CALL BACK — consent gates for SMS don't apply to returning a call, so
  * consentOk stays true. Never sends anything.
  */
-export async function collectMissedCalls(): Promise<CollectorStats> {
+export async function collectMissedCalls(): Promise<CollectorStats & { collapsed: number }> {
   const { getDbTyped } = await import("../db");
   const db = await getDbTyped();
-  if (!db) return { scanned: 0, inserted: 0, refreshed: 0 };
+  if (!db) return { scanned: 0, inserted: 0, refreshed: 0, collapsed: 0 };
 
   const { vapiCallLogs } = await import("../../drizzle/schema");
   const { and, eq, gte, lte, isNull, isNotNull, desc } = await import("drizzle-orm");
@@ -1149,11 +1157,46 @@ export async function collectMissedCalls(): Promise<CollectorStats> {
     log.warn("[opportunity-queue] missed-call collector query failed", {
       error: err instanceof Error ? err.message : String(err),
     });
-    return { scanned: 0, inserted: 0, refreshed: 0 };
+    return { scanned: 0, inserted: 0, refreshed: 0, collapsed: 0 };
+  }
+
+  // Collapse (2026-10-02): ONE live missed_call row per PHONE, not per call.
+  // A customer who redials three times is one person waiting, not three
+  // cards. The (source_type, source_id=vapiCallId) key is unchanged — historic
+  // rows depend on it — so the collapse is a skip: a call whose phone already
+  // has a live row from a DIFFERENT call is counted as `collapsed` and not
+  // inserted. Live phones are fetched ONCE per run. A failed read degrades to
+  // the old per-call behaviour; reconcile step 3a collapses any leftovers.
+  const liveByPhone = new Map<string, Set<string>>();
+  if (rows.length > 0) {
+    try {
+      const { sql } = await import("drizzle-orm");
+      const live = rowsFromExecute(await db.execute(sql`
+        SELECT source_id, customer_phone FROM revenue_opportunities
+        WHERE source_type = 'missed_call'
+          AND state IN (${sql.join(LIVE_STATES.map((s) => sql`${s}`), sql`, `)})
+          AND customer_phone IS NOT NULL
+        LIMIT 2000
+      `));
+      for (const l of live) {
+        const p = phone10(l.customer_phone as string | null);
+        if (!p) continue;
+        const ids = liveByPhone.get(p) ?? new Set<string>();
+        ids.add(String(l.source_id));
+        liveByPhone.set(p, ids);
+      }
+    } catch (err) {
+      if (!isMissingTableError(err)) {
+        log.warn("[opportunity-queue] missed-call live-phone read failed (no collapse this run)", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
   }
 
   let inserted = 0;
   let refreshed = 0;
+  let collapsed = 0;
   for (const r of rows) {
     const meta = (r.metadata ?? null) as Record<string, unknown> | null;
     const eligible = isMissedCallEligible({
@@ -1168,6 +1211,13 @@ export async function collectMissedCalls(): Promise<CollectorStats> {
       createdAtMs: new Date(r.createdAt).getTime(),
     }, now);
     if (!eligible) continue;
+
+    const p10 = phone10(r.phoneNumber);
+    const liveIds = p10 ? liveByPhone.get(p10) : undefined;
+    if (liveIds && !liveIds.has(r.vapiCallId)) {
+      collapsed++; // same person already has a live card — one card per phone
+      continue;
+    }
 
     const ageMin = Math.round((now - new Date(r.createdAt).getTime()) / 60_000);
     const res = await upsertOpportunity({
@@ -1186,11 +1236,15 @@ export async function collectMissedCalls(): Promise<CollectorStats> {
       },
       consentOk: true, // returning a phone call the customer made
     });
-    if (res === "inserted") inserted++;
-    else if (res === "refreshed") refreshed++;
-    else return { scanned: rows.length, inserted, refreshed };
+    if (res === "inserted") {
+      inserted++;
+      // an older call for the same phone later in this (newest-first) batch
+      // collapses into the row just inserted
+      if (p10) liveByPhone.set(p10, new Set([...(liveIds ?? []), r.vapiCallId]));
+    } else if (res === "refreshed") refreshed++;
+    else return { scanned: rows.length, inserted, refreshed, collapsed };
   }
-  return { scanned: rows.length, inserted, refreshed };
+  return { scanned: rows.length, inserted, refreshed, collapsed };
 }
 
 /**
@@ -1725,6 +1779,115 @@ export async function collectInspectionDeferrals(): Promise<CollectorStats> {
   return { scanned: byInspection.size, inserted, refreshed };
 }
 
+// ─── Missed-call closure semantics (2026-10-02) · pure, exported for tests ─
+//
+// Pre-fix, the only exit for a live missed_call row was the 7-day age-out to
+// `lost` — a customer who called back, booked, or paid an invoice the next
+// day still read as a lost sale a week later (866 `lost` rows, almost all
+// age-outs). These helpers decide, per live row, whether LATER evidence for
+// the same phone shows the customer was served. Evidence is matched on the
+// last-10 phone key and must be STRICTLY after the anchor (the missed call's
+// own time; the row's created_at when the call row is gone) — anything at or
+// before the call cannot be the response to it. Invoices are the one
+// exception (`>=`, "dated on/after"): invoice timestamps are coarse
+// (ingestion stamps noon of the invoice date), and recordOutcome re-verifies
+// every candidate through classifyOutcomeMatch before anything becomes won.
+
+export type MissedCallEvidenceSource =
+  | "invoices"
+  | "callback_requests"
+  | "leads"
+  | "bookings"
+  | "vapi_call_logs";
+
+export interface MissedCallServedEvidence {
+  source: MissedCallEvidenceSource;
+  id: number;
+  phone: string | null;
+  at: Date;
+  /** extra receipt detail, e.g. "lead #12" for a captured follow-up call */
+  detail?: string;
+}
+
+/**
+ * Earliest qualifying invoice (→ won via recordOutcome) and earliest
+ * qualifying non-invoice service signal (→ served close) for one live row.
+ * Different phone, unparseable phone, or evidence not after the anchor → null.
+ */
+export function decideMissedCallServed(input: {
+  phone: string | null;
+  anchorAt: Date;
+  evidence: readonly MissedCallServedEvidence[];
+}): { invoice: MissedCallServedEvidence | null; served: MissedCallServedEvidence | null } {
+  const p = phone10(input.phone);
+  const anchor = input.anchorAt.getTime();
+  let invoice: MissedCallServedEvidence | null = null;
+  let served: MissedCallServedEvidence | null = null;
+  if (!p || !Number.isFinite(anchor)) return { invoice, served };
+  for (const e of input.evidence) {
+    if (phone10(e.phone) !== p) continue;
+    const t = e.at.getTime();
+    if (!Number.isFinite(t)) continue;
+    if (e.source === "invoices") {
+      if (t >= anchor && (!invoice || t < invoice.at.getTime())) invoice = e;
+    } else if (t > anchor && (!served || t < served.at.getTime())) {
+      served = e;
+    }
+  }
+  return { invoice, served };
+}
+
+/** Receipt note naming the exact evidence row. */
+export function missedCallServedNote(e: MissedCallServedEvidence): string {
+  return `served: ${e.source} #${e.id} at ${e.at.toISOString()}${e.detail ? ` (${e.detail})` : ""}`;
+}
+
+/**
+ * Close state for "the customer was served by another channel". `duplicate`
+ * is the true statement (the need now lives in that other record) and the
+ * transition table allows it from new/assigned. From a worked state
+ * (attempted/contacted/…) duplicate is illegal, so it falls back to the
+ * file's convention: `lost`, with the truth carried by the receipt.
+ */
+export function servedCloseState(from: OpportunityState): "duplicate" | "lost" {
+  return canTransition(from, "duplicate") ? "duplicate" : "lost";
+}
+
+/**
+ * Same-phone collapse plan over live missed_call rows: per phone, keep the
+ * NEWEST call (ties → larger id, deterministic); older rows collapse into
+ * it as `duplicate`. A row an operator has already worked (state with no
+ * legal duplicate edge) is never collapsed — it is reported in `skipped`.
+ * Rows without a 10-digit phone are never grouped.
+ */
+export function planMissedCallCollapse(
+  rows: ReadonlyArray<{ id: string; phone: string | null; anchorAt: Date; state: OpportunityState }>,
+): { collapse: Array<{ id: string; keepId: string }>; skipped: string[] } {
+  const groups = new Map<string, Array<(typeof rows)[number]>>();
+  for (const r of rows) {
+    const p = phone10(r.phone);
+    if (!p) continue;
+    const g = groups.get(p) ?? [];
+    g.push(r);
+    groups.set(p, g);
+  }
+  const collapse: Array<{ id: string; keepId: string }> = [];
+  const skipped: string[] = [];
+  for (const g of Array.from(groups.values())) {
+    if (g.length < 2) continue;
+    const keep = g.reduce((a, b) => {
+      const d = b.anchorAt.getTime() - a.anchorAt.getTime();
+      return d > 0 || (d === 0 && b.id > a.id) ? b : a;
+    });
+    for (const r of g) {
+      if (r.id === keep.id) continue;
+      if (canTransition(r.state, "duplicate")) collapse.push({ id: r.id, keepId: keep.id });
+      else skipped.push(r.id);
+    }
+  }
+  return { collapse, skipped };
+}
+
 // ─── Source reconcilers (Strike-2) ──────────────────────────────────
 //
 // A queue that only ever ADDS rows drifts into a wall of stale asks:
@@ -1734,7 +1897,10 @@ export async function collectInspectionDeferrals(): Promise<CollectorStats> {
 // vocabulary: a source-linked invoice → won via recordOutcome (direct
 // match); everything else → `lost` with a receipt naming the REAL
 // reason (the state machine has no "resolved" state by design — the
-// receipt, not the coarse state, carries the truth).
+// receipt, not the coarse state, carries the truth). One exception: the
+// missed-call step 3a writes `duplicate` where the transition table allows
+// it, because "served by another channel" / "collapsed into a newer call"
+// is literally a duplicate, and `lost` would falsely claim a lost sale.
 
 export interface ReconcileStats {
   checked: number;
@@ -1837,15 +2003,161 @@ export async function reconcileOpportunities(): Promise<ReconcileStats> {
     }
   }
 
+  // 3a. missed_call SERVED closure + same-phone collapse (2026-10-02). Runs
+  //     BEFORE the age-out (3) so a customer who was served closes with the
+  //     truth — `won` on a later invoice (via recordOutcome, the only path to
+  //     won), or served/duplicate on a later callback request, lead, booking
+  //     or captured call — instead of "aged out" a week later. Then live rows
+  //     sharing a phone collapse into the newest. Fetch-once + JS decide
+  //     (the abandoned_form precedent): one bounded live read, one call-time
+  //     read by unique vapiCallId, one evidence read per source filtered to
+  //     the live phones and to times after the oldest anchor. A failed
+  //     evidence read only means fewer closures this run, never a false one.
+  try {
+    const liveRaw = rowsFromExecute(await db.execute(sql`
+      SELECT id, source_id, state, customer_phone, created_at
+      FROM revenue_opportunities
+      WHERE source_type = 'missed_call'
+        AND state IN (${stateList})
+      ORDER BY created_at DESC
+      LIMIT 500
+    `));
+    if (liveRaw.length > 0) {
+      const toDate = (v: unknown): Date => (v instanceof Date ? v : new Date(String(v)));
+      const callAt = new Map<string, Date>();
+      try {
+        const calls = rowsFromExecute(await db.execute(sql`
+          SELECT vapiCallId, createdAt FROM vapi_call_logs
+          WHERE vapiCallId IN (${sql.join(liveRaw.map((r) => sql`${String(r.source_id)}`), sql`, `)})
+        `));
+        for (const c of calls) callAt.set(String(c.vapiCallId), toDate(c.createdAt));
+      } catch (err) {
+        log.warn("[opportunity-queue] missed-call call-time read failed (anchoring on created_at)", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+      const live = liveRaw.map((r) => ({
+        id: String(r.id),
+        state: String(r.state) as OpportunityState,
+        phone: r.customer_phone == null ? null : String(r.customer_phone),
+        anchorAt: callAt.get(String(r.source_id)) ?? toDate(r.created_at),
+      }));
+      const phones = Array.from(new Set(live.map((r) => phone10(r.phone)).filter((p): p is string => p != null)));
+      const anchors = live.map((r) => r.anchorAt.getTime()).filter(Number.isFinite);
+
+      const evidence: MissedCallServedEvidence[] = [];
+      if (phones.length > 0 && anchors.length > 0) {
+        const since = new Date(Math.min(...anchors));
+        const inPhones = (col: ReturnType<typeof sql.raw>) =>
+          sql`RIGHT(REGEXP_REPLACE(${col}, '[^0-9]', ''), 10) IN (${sql.join(phones.map((p) => sql`${p}`), sql`, `)})`;
+        const sources: Array<{ source: MissedCallEvidenceSource; query: ReturnType<typeof sql> }> = [
+          { source: "invoices", query: sql`
+            SELECT id, customerPhone AS phone, invoiceDate AS at FROM invoices
+            WHERE invoiceDate >= ${since} AND paymentStatus != 'refunded'
+              AND customerPhone IS NOT NULL AND ${inPhones(sql.raw("customerPhone"))}
+            ORDER BY invoiceDate ASC LIMIT 1000` },
+          { source: "callback_requests", query: sql`
+            SELECT id, phone, createdAt AS at FROM callback_requests
+            WHERE createdAt > ${since} AND ${inPhones(sql.raw("phone"))}
+            ORDER BY createdAt ASC LIMIT 1000` },
+          { source: "leads", query: sql`
+            SELECT id, phone, createdAt AS at FROM leads
+            WHERE createdAt > ${since} AND phone IS NOT NULL AND ${inPhones(sql.raw("phone"))}
+            ORDER BY createdAt ASC LIMIT 1000` },
+          { source: "bookings", query: sql`
+            SELECT id, phone, createdAt AS at FROM bookings
+            WHERE createdAt > ${since} AND phone IS NOT NULL AND ${inPhones(sql.raw("phone"))}
+            ORDER BY createdAt ASC LIMIT 1000` },
+          { source: "vapi_call_logs", query: sql`
+            SELECT id, phoneNumber AS phone, createdAt AS at, leadId, callbackId FROM vapi_call_logs
+            WHERE createdAt > ${since} AND (leadId IS NOT NULL OR callbackId IS NOT NULL)
+              AND phoneNumber IS NOT NULL AND ${inPhones(sql.raw("phoneNumber"))}
+            ORDER BY createdAt ASC LIMIT 1000` },
+        ];
+        for (const s of sources) {
+          try {
+            for (const e of rowsFromExecute(await db.execute(s.query))) {
+              const detail = s.source === "vapi_call_logs"
+                ? [e.leadId != null ? `lead #${Number(e.leadId)}` : "", e.callbackId != null ? `callback #${Number(e.callbackId)}` : ""]
+                    .filter(Boolean).join(", ")
+                : undefined;
+              evidence.push({
+                source: s.source,
+                id: Number(e.id),
+                phone: e.phone == null ? null : String(e.phone),
+                at: toDate(e.at),
+                ...(detail ? { detail } : {}),
+              });
+            }
+          } catch (err) {
+            if (!isMissingTableError(err) && !isUnknownColumnError(err)) {
+              log.warn("[opportunity-queue] missed-call served-evidence read failed", {
+                source: s.source,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+          }
+        }
+      }
+
+      const closedIds = new Set<string>();
+      for (const r of live) {
+        const { invoice, served } = decideMissedCallServed({ phone: r.phone, anchorAt: r.anchorAt, evidence });
+        if (!invoice && !served) continue;
+        stats.checked++;
+        if (invoice) {
+          const res = await recordOutcome({ id: r.id, invoiceId: invoice.id, by: "reconciler" });
+          if (res.ok) {
+            stats.won++;
+            closedIds.add(r.id);
+            continue;
+          }
+        }
+        if (served) {
+          const res = await transitionOpportunity({
+            id: r.id,
+            to: servedCloseState(r.state),
+            by: "reconciler",
+            note: missedCallServedNote(served),
+          });
+          if (res.ok) {
+            stats.closed++;
+            closedIds.add(r.id);
+          }
+        }
+      }
+
+      const plan = planMissedCallCollapse(live.filter((r) => !closedIds.has(r.id)));
+      for (const c of plan.collapse) {
+        stats.checked++;
+        const res = await transitionOpportunity({
+          id: c.id,
+          to: "duplicate",
+          by: "reconciler",
+          note: `collapsed into ${c.keepId} (same phone, newer missed call)`,
+        });
+        if (res.ok) stats.closed++;
+      }
+    }
+  } catch (err) {
+    if (!isMissingTableError(err)) {
+      log.warn("[opportunity-queue] missed-call served/collapse reconciler failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   // 3. missed_call: a week-old missed call is not an actionable owner
   //    decision anymore — age it out instead of letting it pin the inbox.
+  //    LIMIT raised 100 → 500 (2026-10-02) so an accumulated backlog drains
+  //    in one pass instead of 100 rows per run.
   try {
     const stale = rowsFromExecute(await db.execute(sql`
       SELECT id FROM revenue_opportunities
       WHERE source_type = 'missed_call'
         AND state IN (${stateList})
         AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)
-      LIMIT 100
+      LIMIT 500
     `));
     stats.checked += stale.length;
     for (const r of stale) {
@@ -2105,7 +2417,7 @@ export async function refreshOpportunityQueue(): Promise<{ recordsProcessed: num
   let details =
     `reconciled: ${reconciled.won}won+${reconciled.closed}closed/${reconciled.checked} · ` +
     `estimates: ${fmt(estimates)} · callbacks: ${fmt(callbacks)} · ` +
-    `missed calls: ${fmt(missedCalls)} · deferrals: ${fmt(inspections)} · ` +
+    `missed calls: ${fmt(missedCalls)}/${missedCalls.collapsed}collapsed · deferrals: ${fmt(inspections)} · ` +
     `stale leads: ${fmt(staleLeads)} · no-shows: ${fmt(noShows)} · ` +
     `waiting texts: ${fmt(humanPending)} · abandoned forms: ${fmt(abandonedFormsStats)}`;
   const recordsProcessed =
