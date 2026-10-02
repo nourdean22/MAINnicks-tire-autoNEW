@@ -106,4 +106,4 @@ verdict and big metrics stay Barlow; everything else is Geist), and gives the ch
 never gets. Governing sentence: **work is solid, controls can float, gold signals, motion explains.**
 
 Rendered as code, not Figma: the three directions were prototyped as token sets against the hermetic dev
-server (`?ui=v1` keeps the old grammar reachable for comparison); B is what ships.
+server (a `?ui=v1` comparison lane kept the old grammar reachable until PR 3 deleted it); B is what ships.

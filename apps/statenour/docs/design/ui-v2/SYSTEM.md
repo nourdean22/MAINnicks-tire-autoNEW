@@ -77,8 +77,9 @@ selected state — the one place ambient gold survives).
 | Micro metadata | Geist Mono | 11px | 500 | — |
 
 Type floor: `text-[9px]`/`text-[10px]` are lifted to 11/12px below `md` (the existing phone gate, unchanged)
-and, under the v2 lane, to 11px at every width; `tracking-[0.16em|0.18em|0.2em]` settles at 0.12em. Both are
-class-substring rules in `base.css` (1,526 + 162 call sites fixed by five lines; `?ui=v1` keeps the old density).
+and to 11px at every width; `tracking-[0.16em|0.18em|0.2em]` settles at 0.12em. Both are class-substring rules
+in `base.css` (1,526 + 162 call sites fixed by five lines). The `?ui=v1` comparison lane that once gated them
+was deleted in PR 3 (2026-10-02); the only way back is `git revert`.
 No element default is uppercase any more; uppercase is opt-in via the eyebrow and verdict roles. The `h1/h2/h3`
 defaults live in `@layer base` so a size utility on a heading wins — unlayered, they silently beat every utility.
 

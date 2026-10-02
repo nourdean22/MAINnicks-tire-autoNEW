@@ -29,9 +29,9 @@ const base = read("app/styles/base.css");
 const effects = read("app/styles/effects.css");
 const layout = read("app/layout.tsx");
 
-/** base.css / tokens.css without the `:root[data-ui="v1"]` comparison lane (which legitimately keeps the old gold). */
-const baseV2 = base.split("UI v1 comparison lane")[0];
-const tokensV2 = tokens.split("UI v1 comparison lane")[0];
+/** PR 3 (2026-10-02) deleted the `?ui=v1` comparison lane, so the whole sheet is the v2 grammar. */
+const baseV2 = base;
+const tokensV2 = tokens;
 
 describe("UI v2 grammar", () => {
   it("declares the semantic surface roles and keeps the legacy aliases pointing at them", () => {
@@ -84,16 +84,18 @@ describe("UI v2 grammar", () => {
     expect(read("components/chat/message-action-sheet.tsx")).toContain("slideUpSheet");
   });
 
-  it("the v1 comparison lane exists and the layout stamps data-ui from the cookie", () => {
-    expect(tokens).toContain(':root[data-ui="v1"]');
-    expect(base).toContain(':root[data-ui="v1"]');
-    expect(layout).toMatch(/data-ui=\{/);
-    expect(layout).toMatch(/cookies\(\)\)\.get\(UI_VERSION_COOKIE\)/);
-    expect(read("lib/ui-version.ts")).toContain('UI_VERSION_COOKIE = "statenour_ui"');
-    // the constant must come from the plain module: imported from the "use client" file it is a
-    // client reference on the server and the cookie lookup silently misses (2026-10-01)
-    expect(layout).toContain('from "@/lib/ui-version"');
-    expect(layout).toContain("<UiVersionSwitch />");
+  it("the v1 comparison lane is gone: no data-ui gate, no cookie read, no switch, no particle canvas", () => {
+    // PR 3 (2026-10-02). The lane was migration scaffolding (`?ui=v1` → cookie → `<html data-ui>` →
+    // `:root[data-ui="v1"]` blocks); keeping it meant every v2 rule had to be written twice and the
+    // particle canvas stayed mounted for nobody. Positive control: on 1dfcfa2c every line below fails.
+    expect(tokens).not.toContain('data-ui');
+    expect(base).not.toContain('data-ui');
+    expect(layout).not.toMatch(/data-ui|ui-version|UiVersionSwitch|cookies\(\)/);
+    const { existsSync } = require("node:fs") as typeof import("node:fs");
+    for (const gone of ["lib/ui-version.ts", "components/ui/ui-version-switch.tsx", "components/hud/neural-background.tsx"]) {
+      expect(existsSync(join(ROOT, gone)), `${gone} should be deleted`).toBe(false);
+    }
+    expect(read("lib/feature-flags.ts")).not.toContain("STATENOUR_UI");
   });
 
   it("content never gets translucent material; only the ui-material class does", () => {
@@ -135,8 +137,8 @@ describe("UI v2 cascade defects found by the 2026-10-01 hostile review stay fixe
     expect(effects).not.toMatch(/\.skeleton \{[^}]*253, 185, 19/);
   });
 
-  it("the v2 type floor and tracking cap apply at every width, keyed off the lane", () => {
-    expect(baseV2).toMatch(/:root:not\(\[data-ui="v1"\]\) \[class\*="text-\[9px\]"\],\s*:root:not\(\[data-ui="v1"\]\) \[class\*="text-\[10px\]"\] \{ font-size: 11px; \}/);
+  it("the v2 type floor and tracking cap apply at every width, unconditionally", () => {
+    expect(baseV2).toMatch(/^\[class\*="text-\[9px\]"\],\s*\[class\*="text-\[10px\]"\] \{ font-size: 11px; \}/m);
     expect(baseV2).toMatch(/\[class\*="tracking-\[0\.18em\]"\][\s\S]{0,120}letter-spacing: 0\.12em/);
   });
 });
@@ -189,11 +191,9 @@ describe("custom properties read by the app are defined", () => {
     const set = new Set<string>(LIBRARY_OWNED);
     const css = execSync("git ls-files -- 'app/styles/*.css' 'app/globals.css'", { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);
     for (const f of css) {
-      // Only runtime-scoped definitions count: not the `?ui=v1` comparison lane, and not `@theme inline`
-      // (Tailwind v4 emits no custom property for an inline theme entry, so `var(--color-content)` is dead).
-      const runtime = read(f)
-        .split("UI v1 comparison lane")[0]
-        .replace(/@theme inline\s*\{[^}]*\}/g, "");
+      // Only runtime-scoped definitions count, so not `@theme inline` (Tailwind v4 emits no custom
+      // property for an inline theme entry, so `var(--color-content)` is dead at runtime).
+      const runtime = read(f).replace(/@theme inline\s*\{[^}]*\}/g, "");
       for (const m of runtime.matchAll(/(?:^|[{;])\s*(--[A-Za-z0-9_-]+)\s*:/gm)) set.add(m[1]);
     }
     const ts = execSync("git ls-files -- 'app/**/*.ts' 'app/**/*.tsx' 'components/**/*.tsx' 'lib/**/*.ts' 'lib/**/*.tsx'", { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);

@@ -308,12 +308,12 @@ body {
    The same class-substring mechanism, now on desktop too: 9px and 10px labels (550 + 976 call
    sites) read at 11px, and the 0.16–0.2em eyebrow tracking (162 call sites) settles at 0.12em.
    Unlayered, so it wins over the utilities without !important; the phone block above still wins
-   below 768px because it is !important. Reversible with the lane: `?ui=v1` keeps the old density. */
-:root:not([data-ui="v1"]) [class*="text-[9px]"],
-:root:not([data-ui="v1"]) [class*="text-[10px]"] { font-size: 11px; }
-:root:not([data-ui="v1"]) [class*="tracking-[0.16em]"],
-:root:not([data-ui="v1"]) [class*="tracking-[0.18em]"],
-:root:not([data-ui="v1"]) [class*="tracking-[0.2em]"] { letter-spacing: 0.12em; }
+   below 768px because it is !important. */
+[class*="text-[9px]"],
+[class*="text-[10px]"] { font-size: 11px; }
+[class*="tracking-[0.16em]"],
+[class*="tracking-[0.18em]"],
+[class*="tracking-[0.2em]"] { letter-spacing: 0.12em; }
 
 /* ── Desktop spine lane ─────────────────────────────────────────────────────
    <main> pads left by --spine-w (components/layout/desktop-spine.tsx). v2: 3.75rem (60px). */
@@ -345,22 +345,3 @@ body {
 }
 @media (min-width: 768px)  { .vt-verdict { font-size: 2.5rem; } }
 @media (min-width: 1280px) { .vt-verdict { font-size: 3rem; } }
-
-/* UI v2 has no decorative particle field; the canvas stays mounted for the v1 lane. */
-:root:not([data-ui="v1"]) [data-neural-bg] { display: none; }
-
-/* ── UI v1 comparison lane (typography) — see tokens.css for the colour half ─────────── */
-:root[data-ui="v1"] h1, :root[data-ui="v1"] .page-title { font-family: var(--font-display); text-transform: uppercase; font-weight: 700; }
-:root[data-ui="v1"] h2, :root[data-ui="v1"] .section-title { font-family: var(--font-display); text-transform: uppercase; }
-:root[data-ui="v1"] h3 { font-family: var(--font-display); }
-:root[data-ui="v1"] .page-title { font-size: 2.5rem; letter-spacing: -0.03em; line-height: 0.95; }
-@media (min-width: 768px)  { :root[data-ui="v1"] .page-title { font-size: 3.5rem; } }
-@media (min-width: 1280px) { :root[data-ui="v1"] .page-title { font-size: 4.5rem; } }
-:root[data-ui="v1"] .vt-verdict { font-size: 2.25rem; }
-@media (min-width: 768px)  { :root[data-ui="v1"] .vt-verdict { font-size: 3.25rem; } }
-@media (min-width: 1280px) { :root[data-ui="v1"] .vt-verdict { font-size: 4.25rem; } }
-:root[data-ui="v1"] .glass-card { background: var(--glass-bg); -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur)); border-color: var(--glass-border); border-radius: 12px; }
-:root[data-ui="v1"] .glass-card-active { box-shadow: 0 0 20px var(--gold-glow); }
-:root[data-ui="v1"] body { letter-spacing: 0.01em; }
-:root[data-ui="v1"] .section-label, :root[data-ui="v1"] .eyebrow, :root[data-ui="v1"] .vt-eyebrow { font-family: var(--font-display); letter-spacing: 0.18em; }
-@media (min-width: 1280px) { :root[data-ui="v1"] { --spine-w: 4.5rem; } }

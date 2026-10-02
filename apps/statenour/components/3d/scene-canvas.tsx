@@ -26,8 +26,7 @@
  *     viewport. Rather than unmount the WebGL context (expensive to
  *     re-create), the inner canvas flips R3F's `frameloop` to `"never"`
  *     off-screen and `"always"` on-screen — the render loop stops, the
- *     context is kept warm. Mirrors the visibility lifecycle of
- *     components/hud/neural-background.tsx.
+ *     context is kept warm.
  *   · `prefers-reduced-motion` is resolved here and forwarded; a scene
  *     that gets `reducedMotion` renders a single static frame
  *     (`frameloop="demand"`) instead of an animated `useFrame` loop.

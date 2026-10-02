@@ -148,45 +148,6 @@
   --sidebar-ring: var(--accent);
 }
 
-/* ── UI v1 comparison lane ────────────────────────────────────────────
-   `?ui=v1` sets a cookie; app/layout.tsx writes data-ui="v1" on <html>. The old grammar's
-   values come back for side-by-side screenshots and rollback diagnosis. Migration
-   infrastructure, not a second design system: delete this block once v2 is accepted. */
-:root[data-ui="v1"] {
-  --canvas: #050505;
-  --workspace: #0A0A0A;
-  --surface: #111111;
-  --surface-raised: #1A1A1A;
-  --surface-interactive: #222222;
-  --surface-hover: #262626;
-  --overlay: #0A0A0A;
-  --text-primary: #F0F0F0;
-  --text-secondary: #A3A3A3;
-  --text-tertiary: #909090;
-  --edge-subtle: rgba(255, 255, 255, 0.06);
-  --edge-default: #1F1F1F;
-  --edge-strong: #333333;
-  --control-glass: rgba(17, 17, 17, 0.7);
-  --glass-blur: 12px;
-  --shadow-gold-soft: 0 4px 20px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(253, 185, 19, 0.04);
-  --shadow-gold-strong: 0 0 30px rgba(253, 185, 19, 0.08), 0 12px 40px rgba(0, 0, 0, 0.5);
-  --shadow-deep: 0 20px 60px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
-  /* shadcn bridge, pre-v2 values (4016737b). --accent is NOT restored: v2 components read it
-     as the gold signal and would render black under the lane. */
-  --card: oklch(0.07 0 0);
-  --card-foreground: oklch(0.94 0 0);
-  --popover: oklch(0.07 0 0);
-  --popover-foreground: oklch(0.94 0 0);
-  --secondary: oklch(0.1 0 0);
-  --secondary-foreground: oklch(0.7 0 0);
-  --muted: oklch(0.1 0 0);
-  --muted-foreground: oklch(0.45 0 0);
-  --border: oklch(0.14 0 0);
-  --input: oklch(0.12 0 0);
-  --ring: oklch(0.78 0.16 85);
-  --gold-glow: rgba(253, 185, 19, 0.15);
-}
-
 /* ── Tailwind theme bridge ─────────────────────────────────────────────
    Maps the custom properties into Tailwind v4 tokens so components write `bg-surface` /
    `text-fg-secondary` / `border-edge` instead of arbitrary values. A colour utility only exists

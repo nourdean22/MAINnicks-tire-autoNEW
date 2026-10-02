@@ -95,7 +95,7 @@ Tests + docs
   literal (same floor, different class string).
 - `docs/design/ui-v2/{README,SYSTEM,SURFACES,PLAN}.md`, `docs/DESIGN.md` pointer, `shots/`.
 
-## 4 · Honest scope of the `?ui=v1` lane
+## 4 · Honest scope of the `?ui=v1` lane (historical — deleted in PR 3, §13)
 
 The lane restores the OLD TOKENS AND TYPOGRAPHY: the five surface steps, three text levels, three edges,
 glass, the three shadows, the shadcn bridge values (card / popover / muted / secondary / border / input /
@@ -299,3 +299,28 @@ the `data-ui` gates in `base.css`), delete the unconsumed `Command` / `CommandDi
 (stats) to `GlassCard`, lift the 24px inline edit buttons in brain's beliefs / contradiction / identity panels to
 the 44px floor, redesign (not substitute) the realtime voice orb, sweep `rounded-md` / bare `rounded` / `slate-*`
 on lines no agent touched, and capture after-screenshots on a machine with headroom for the dev server.
+
+## 13 · PR 3 (2026-10-02) — the lane and the dead wrappers come out
+
+Branch `statenour/ui-v2-delete-v1-lane`, one commit, one squash merge. Deleted: `lib/ui-version.ts` and its
+test, `components/ui/ui-version-switch.tsx`, the cookie read + `data-ui` stamp + `<UiVersionSwitch />` in
+`app/layout.tsx`, the `:root[data-ui="v1"]` colour block in `tokens.css` (36 lines) and typography block in
+`base.css` (14 lines), the `:root:not([data-ui="v1"])` gate on the type floor (now unconditional), the
+`STATENOUR_UI` flag-registry entry, and the particle canvas (`components/hud/neural-background.tsx` + its mount
+in the mastery layout): with the lane gone its only remaining job was to mount a hidden canvas and return. In
+`components/ui/command.tsx` the `Command`, `CommandDialog`, `CommandItem` and `CommandShortcut` wrappers (and
+their Dialog / lucide imports) are gone; the Resolver owns its `CommandPrimitive` root and `PaletteRow`, and
+the five primitives it still uses (`CommandInput/List/Empty/Group/Separator`) stay.
+
+The grammar test's lane assertion flipped from "the lane exists" to "the lane is gone" (positive control: on
+`1dfcfa2c` tokens.css has 2 `data-ui` hits, base.css 20, the layout imports the switch), the type-floor
+assertion lost its `:root:not(...)` prefix, and the dead-custom-property gate no longer needs to strip the lane.
+Rollback is `git revert`; nothing else restores the old grammar now.
+
+**Receipts:** `tsc --noEmit` 0 · eslint 0 errors · vitest 38 files / 354 passed (every test referencing a
+touched file + the grammar, nav-shell, anti-slop, mount-graph, palette-root contracts) · anti-slop 0 ·
+stale-docs strict 0 · parity OK · `next build` (cleared cache) exit 0 (full route table).
+
+**Still flagged (not this PR):** migrate the last `components/ui/card.tsx` importers (stats) to `GlassCard`,
+lift the 24px inline edit buttons in brain's beliefs / contradiction / identity panels to 44px, redesign the
+realtime voice orb, sweep `rounded-md` / bare `rounded` / `slate-*` on untouched lines, after-screenshots.
