@@ -3412,6 +3412,7 @@
           "source": "2026-10-02 office watch live check"
         },
         {
+          "severity": "P2",
           "description": "'Heard:' topic line (conversation_episodes.gist, migration 0141): merged + unit-verified only. Needs Admin -> Run migrations to apply 0141; until then the gist is computed and logged as a flag but not stored. Live proof: a 'conversation extracted' log line with gist true and a 'Heard:' line in Admin -> Lot.",
           "source": "2026-10-02 office heard-gist PR"
         },
