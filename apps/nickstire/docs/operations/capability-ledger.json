@@ -3403,7 +3403,7 @@
           "camera-bridge vision/tests/test_officepeople.py (11): per-frame counts, unavailable/inference error/no cv2 -> null never 0, opt-out never loads, single load per process, label default vehicle, person detector cannot confirm arrivals; 9 mutations each caught",
           "camera-bridge vision/tests/test_officeframes.py (8) + test_officewake.py (+3): snapshot URL, sampler misses/closing frame/max, per-segment selection + thinning, OpenCV 1280->640 downscale, each episode carries its own frames, 120s post timeout with frames, capture failure stops the sampler; per-segment selection mutation turns red"
         ],
-        "liveRuns": "Pre-merge on NicksMax 2026-10-02: Eufy bridge /snapshot/T8410P5225154105 returned 200 image/jpeg 201,063 bytes; the supervisor's code-change rule restarted the office worker once at 14:16:15 ET and the worker reported CAPTURING with a fresh heartbeat. Live 2026-10-02: migration 0140 applied via Admin -> Run migrations at 18:52-18:53Z; NicksMax worker status lastConversationFramesPosted=1 at 19:35:48Z matching a 200 on POST /api/conversation-episodes; after PR #2899 (aa76a73, deployment e146fe72 SUCCESS 20:27:59Z) added a per-episode outcome log, Railway deploy logs show 10 of 10 framed episodes 20:29:51Z-20:54:36Z logging 'office visual stored' visualStatus DONE, provider ollama, model gemma4:31b, latency 539-1184 ms, error null, and zero 'office visual not stored' lines."
+        "liveRuns": "Pre-merge on NicksMax 2026-10-02: Eufy bridge /snapshot/T8410P5225154105 returned 200 image/jpeg 201,063 bytes; the supervisor's code-change rule restarted the office worker once at 14:16:15 ET and the worker reported CAPTURING with a fresh heartbeat. Live 2026-10-02: migration 0140 applied via Admin -> Run migrations at 18:52-18:53Z; NicksMax worker status lastConversationFramesPosted=1 at 19:35:48Z matching a 200 on POST /api/conversation-episodes; after PR #2899 (aa76a73, deployment e146fe72 SUCCESS 20:27:59Z) added a per-episode outcome log, Railway deploy logs show 10 of 10 framed episodes 20:29:51Z-20:54:36Z logging 'office visual stored' visualStatus DONE, provider ollama, model gemma4:31b, latency 539-1184 ms, error null, and zero 'office visual not stored' lines. On-box person count live 2026-10-02: person-detection-0200 fetched to NicksMax camera-bridge/ov_models (sha256 verified), office venv has openvino 2026.4 + cv2, a live snapshot counted 0 with no load error; after #2901 (781542d, deployment c4916064 SUCCESS, superseded by 3ceaf943 SUCCESS 21:48:21Z which contains it) 9 of 9 framed episodes 21:35:40Z-22:00:37Z logged 'office visual stored' with onBoxPeople a number (1,1,1,0,0,0,0,1,1), DONE, ollama gemma4:31b, 494-8537 ms, error null."
       },
       "blockers": [
         {
@@ -3413,12 +3413,7 @@
         },
         {
           "severity": "P2",
-          "description": "Self-learning (Right / Wrong reviews -> calibration notes in the vision prompt), on-box person count (frames[].people -> visual.onBoxPeople) and camera context in fact extraction are merged + unit-verified only. Live proof: a saved review row, a later prompt carrying it, an 'office visual stored' log line with onBoxPeople a number.",
-          "source": "2026-10-02 office self-learning PR"
-        },
-        {
-          "severity": "P2",
-          "description": "On NicksMax the person model must be fetched (python vision/fetch_models.py from camera-bridge/) and openvino must be importable in the office worker's camera-bridge/.venv; until then every frame posts people: null (correct, but nothing is counted).",
+          "description": "Self-learning (Right / Wrong reviews -> calibration notes in the vision prompt) and camera context in fact extraction are deployed but not yet exercised live: proof is a saved review row (visual.review) and a later episode described with it in the prompt. On-box person count is live-proven (see liveRuns).",
           "source": "2026-10-02 office self-learning PR"
         }
       ],
