@@ -90,26 +90,42 @@ export async function recordShown(input: RecordShownInput): Promise<string | nul
   try {
     const contentHash = outcomeContentHash(input.summary);
     const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // Fast path, no lock: a re-show inside the dedup window (the 60 s polls of
+    // Home, the deck and the chips) is one indexed read.
     const existing = await prisma.intelligenceOutcome.findFirst({
       where: { contentHash, shownAt: { gte: dayAgo } },
       select: { id: true },
     });
     if (existing) return existing.id;
-    const row = await prisma.intelligenceOutcome.create({
-      data: {
-        kind: input.kind,
-        sourceEngine: input.sourceEngine,
-        contentHash,
-        summary: input.summary.slice(0, 2000),
-        shownSurface: input.shownSurface,
-        evidenceRefs: (input.evidenceRefs ?? undefined) as never,
-        confidence: input.confidence ?? undefined,
-        conversationId: input.conversationId ?? undefined,
-        traceId: input.traceId ?? undefined,
-      },
-      select: { id: true },
+    // Miss: check-then-create under a transaction-scoped advisory lock keyed
+    // on the content hash (2026-10-02). Without it, two tabs or devices
+    // polling the same surface both missed and both created a row; the
+    // operator's decision then landed on one and the twin stayed undecided
+    // forever. The lock serialises only writers of the SAME text, is released
+    // at commit, and needs no schema change.
+    return await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`intelligence_outcome:${contentHash}`}))`;
+      const again = await tx.intelligenceOutcome.findFirst({
+        where: { contentHash, shownAt: { gte: dayAgo } },
+        select: { id: true },
+      });
+      if (again) return again.id;
+      const row = await tx.intelligenceOutcome.create({
+        data: {
+          kind: input.kind,
+          sourceEngine: input.sourceEngine,
+          contentHash,
+          summary: input.summary.slice(0, 2000),
+          shownSurface: input.shownSurface,
+          evidenceRefs: (input.evidenceRefs ?? undefined) as never,
+          confidence: input.confidence ?? undefined,
+          conversationId: input.conversationId ?? undefined,
+          traceId: input.traceId ?? undefined,
+        },
+        select: { id: true },
+      });
+      return row.id;
     });
-    return row.id;
   } catch (err) {
     logError("intel.outcome-ledger", err, { stage: "record-shown", kind: input.kind }, "warn");
     return null;
