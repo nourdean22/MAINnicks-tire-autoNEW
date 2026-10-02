@@ -31,6 +31,9 @@ import { extractConversationFacts, type TranscriptSegment } from "../services/co
 import {
   analyzeOfficeFrames, officeVisualColumnReady, OFFICE_VISUAL_MAX_FRAMES, type OfficeVisual,
 } from "../services/officeVisual";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routes:conversationEpisodes");
 
 function safeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -213,6 +216,23 @@ export function registerConversationEpisodeRoute(app: Express): void {
       });
     }
 
+    const visualStatus = frames.length === 0 ? null
+      : visual ? visual.status
+      : process.env.OFFICE_VISUAL_ANALYSIS === "0" ? "DISABLED"
+      : "NOT_STORED_VISUAL_COLUMN_UNAVAILABLE";
+    // One line per episode that carried frames, so the logs alone answer "did the camera's
+    // stills become a description?" Only the producer sees the reply; without this a DONE and a
+    // silently skipped analysis looked identical from the server side.
+    if (visualStatus) {
+      const meta = {
+        episodeId: e.episodeId, frames: frames.length, visualStatus,
+        provider: visual?.provider ?? null, model: visual?.model ?? null,
+        latencyMs: visual?.latencyMs ?? null, error: visual?.error ?? null,
+      };
+      if (visualStatus === "DONE") log.info("office visual stored", meta);
+      else log.warn("office visual not stored", meta);
+    }
+
     // The reply reports what was DROPPED as well as what was kept. A caller that only sees a
     // fact count cannot tell a quiet conversation from a transcript the gate rejected, and
     // those call for opposite responses at the shop.
@@ -227,10 +247,7 @@ export function registerConversationEpisodeRoute(app: Express): void {
       engine: extracted.engine,
       speakerCount: e.speakerCount ?? null,
       framesReceived: frames.length,
-      visualStatus: frames.length === 0 ? null
-        : visual ? visual.status
-        : process.env.OFFICE_VISUAL_ANALYSIS === "0" ? "DISABLED"
-        : "NOT_STORED_VISUAL_COLUMN_UNAVAILABLE",
+      visualStatus,
       visualError: visual?.error ?? null,
     });
   });
