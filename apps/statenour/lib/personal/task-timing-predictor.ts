@@ -87,6 +87,12 @@ export async function predictBestHoursForTask(opts: {
   // status='DONE' (the row was last touched at completion time
   // or shortly after). Query uses Prisma's auto-mapped column
   // names (camelCase, no @map).
+  //
+  // ⚠ `since` is bound as a Date (2026-10-02). As `toISOString()` it was
+  // text, Postgres has no `timestamp >= text` operator (SQLSTATE 42883),
+  // and the `.catch(() => [])` below turned that into "no history" on
+  // every call — the predictor had never seen a completion. Pinned in
+  // tests/personal/task-timing-predictor-bind.test.ts.
   const completions = await prisma
     .$queryRawUnsafe<RawCompletion[]>(
       `SELECT
@@ -99,7 +105,7 @@ export async function predictBestHoursForTask(opts: {
          AND "deletedAt" IS NULL
          AND "updatedAt" >= $1
        LIMIT 5000`,
-      since.toISOString(),
+      since,
     )
     .catch(() => []);
 

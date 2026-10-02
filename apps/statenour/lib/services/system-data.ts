@@ -152,7 +152,17 @@ interface RouteRow {
   max_ms: number;
 }
 
-/** Per-route reliability metrics over a window, scored "fix-first". */
+/**
+ * Per-route reliability metrics over a window, scored "fix-first".
+ *
+ * ⚠ `since` is bound as a Date, never as `toISOString()`. Postgres has no
+ * `timestamp >= text` operator, so the string form failed EVERY call with
+ * SQLSTATE 42883 ("operator does not exist: timestamp without time zone >=
+ * text") — found 2026-10-02 on the hermetic e2e stack the moment the card
+ * moved to /system/health. Under Settings > Diagnostics it had rendered
+ * "Error rate: unmeasured — the read failed" for as long as the query has
+ * existed. Pinned in tests/services/system-data-error-rate.test.ts.
+ */
 export async function buildErrorRateByRoute(range = "24h", minRequests = 5) {
   const minReq = Math.max(1, minRequests || 5);
   const hours = RANGE_TO_HOURS[range] ?? 24;
@@ -176,7 +186,7 @@ export async function buildErrorRateByRoute(range = "24h", minRequests = 5) {
         ORDER BY requests DESC
         LIMIT 200
       `,
-      since.toISOString(),
+      since,
       minReq,
     ),
     prisma.$queryRawUnsafe<Array<{ path: string; errors: number }>>(
@@ -189,7 +199,7 @@ export async function buildErrorRateByRoute(range = "24h", minRequests = 5) {
           AND context->>'path' IS NOT NULL
         GROUP BY context->>'path'
       `,
-      since.toISOString(),
+      since,
     ),
   ]);
 

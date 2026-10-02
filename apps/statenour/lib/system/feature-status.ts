@@ -107,7 +107,7 @@ export const FEATURE_REGISTRY: FeatureMeta[] = [
     name: "Health digest 7d trend",
     endpoint: "/api/system/health-trend",
     status: "LIVE",
-    notes: "4 days of history · direction=improving · ready for sparkline render on /settings.",
+    notes: "4 days of history · direction=improving · sparkline renders on /system/health (moved from /settings 2026-10-02).",
   },
   {
     name: "Per-route error rate",
