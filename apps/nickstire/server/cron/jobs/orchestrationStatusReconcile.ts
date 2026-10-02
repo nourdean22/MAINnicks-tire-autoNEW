@@ -27,6 +27,7 @@
  */
 import { sql } from "drizzle-orm";
 import { getDb } from "../../db";
+import { affectedRowCount } from "../../lib/db-affected";
 
 const RECONCILE_LOOKBACK_DAYS = 7; // module-private: an export whose only importer is a test is what the orphan gate exists to catch
 /** How long after queueing the delayed queue may legitimately still send: next 08:00 plus slack. */
@@ -50,9 +51,9 @@ function decideStamp(c: Candidate): Stamp {
 
 type Executor = { execute(query: ReturnType<typeof sql>): Promise<unknown> };
 
-const rowsOf = (result: unknown): Candidate[] => {
+const rowsOf = <T = Candidate>(result: unknown): T[] => {
   const r = Array.isArray(result) && Array.isArray(result[0]) ? result[0] : result;
-  return Array.isArray(r) ? (r as Candidate[]) : [];
+  return Array.isArray(r) ? (r as T[]) : [];
 };
 
 /** The queued rows in the lookback that have at least one outbound message row in their window. */
@@ -112,5 +113,101 @@ export async function reconcileQueuedOrchestrations(
   return {
     recordsProcessed: sent + failed,
     details: `stamped sent ${sent} · failed ${failed} · left queued ${left} of ${candidates.length} with a message row · lookback ${lookbackDays}d, window ${QUEUE_WINDOW_HOURS}h`,
+  };
+}
+
+/* ─── Stale human-review drafts ─────────────────────────────────────────────
+ * 2026-10-02 · a `drafted` row with requires_human_approval=1 sits in the
+ * review queue until an operator taps it, and nothing else ever closed one:
+ * 366 open in production, the oldest from 2026-06-24. The obligation behind a
+ * draft can end without the draft being touched — the operator answered from
+ * the thread, the customer texted again (a fresh draft supersedes this one), or
+ * simply the week it answered is gone. A months-old draft is not a reply.
+ *
+ * Bookkeeping only — never sends. Each closure is a compare-and-swap on
+ * `status = 'drafted'`, so an operator acting on the same row wins the race;
+ * status_reason names the rule, message_body is untouched, so every closure is
+ * auditable and reversible by hand.
+ */
+
+/** A human-review draft older than this is expired: it answers a conversation that has moved on. */
+export const STALE_DRAFT_MAX_AGE_DAYS = 7;
+/** Candidates read per run — oldest first, so a backlog drains over successive pulses. */
+const STALE_DRAFT_BATCH = 500;
+
+interface DraftCandidate {
+  id: number;
+  /** The linked sms_response_jobs row reached a terminal state (answered, no-reply-needed, …). */
+  jobClosed: number | string | boolean | null;
+  /** A linked job is still open (pending / processing / human_pending). */
+  jobOpen: number | string | boolean | null;
+  /**
+   * inbound_sms only: the CUSTOMER texted again after this draft (that message gets its own
+   * draft/reply). Outbound rows deliberately do not count: sms_messages cannot tell a
+   * human answer from an automated reminder, and a reminder does not answer the customer.
+   * A human answer closes the draft via resolveHumanPendingForConversation instead.
+   */
+  newerActivity: number | string | boolean | null;
+  /** created more than STALE_DRAFT_MAX_AGE_DAYS ago. */
+  stale: number | string | boolean | null;
+}
+
+type DraftClosure =
+  | { status: "cancelled"; statusReason: "obligation_closed" | "superseded_by_newer_activity" }
+  | { status: "expired"; statusReason: "stale_draft_expired" }
+  | null;
+
+/** Obligation closed beats superseded beats age; an open job with no other signal keeps the draft. */
+function decideDraftClosure(c: DraftCandidate): DraftClosure {
+  if (Number(c.jobClosed) === 1 && Number(c.jobOpen) !== 1) return { status: "cancelled", statusReason: "obligation_closed" };
+  if (Number(c.newerActivity) === 1) return { status: "cancelled", statusReason: "superseded_by_newer_activity" };
+  if (Number(c.stale) === 1) return { status: "expired", statusReason: "stale_draft_expired" };
+  return null;
+}
+
+async function selectDraftCandidates(d: Executor, maxAgeDays: number): Promise<DraftCandidate[]> {
+  const result = await d.execute(sql`
+    SELECT o.id AS id,
+           EXISTS (SELECT 1 FROM sms_response_jobs j WHERE j.orchestrationId = o.id
+                   AND j.status IN ('responded', 'suppressed', 'failed', 'dead', 'human_replied', 'no_reply_required')) AS jobClosed,
+           EXISTS (SELECT 1 FROM sms_response_jobs j WHERE j.orchestrationId = o.id
+                   AND j.status IN ('pending', 'processing', 'human_pending')) AS jobOpen,
+           (o.event_type = 'inbound_sms' AND o.related_conversation_id IS NOT NULL AND EXISTS (
+              SELECT 1 FROM sms_messages m WHERE m.conversationId = o.related_conversation_id
+                AND m.createdAt > o.createdAt AND m.direction = 'inbound')) AS newerActivity,
+           (o.createdAt < NOW() - INTERVAL ${maxAgeDays} DAY) AS stale
+    FROM sms_orchestrations o
+    WHERE o.status = 'drafted' AND o.requires_human_approval = 1
+    ORDER BY o.id ASC
+    LIMIT ${STALE_DRAFT_BATCH}
+  `);
+  return rowsOf<DraftCandidate>(result);
+}
+
+export async function reconcileStaleHumanReviewDrafts(
+  d?: Executor | null,
+  maxAgeDays: number = STALE_DRAFT_MAX_AGE_DAYS,
+): Promise<{ recordsProcessed: number; details: string }> {
+  const db = d === undefined ? await getDb() : d;
+  if (!db) return { recordsProcessed: 0, details: "No DB — no drafts reconciled" };
+  const candidates = await selectDraftCandidates(db, maxAgeDays);
+  const closed = { obligation_closed: 0, superseded_by_newer_activity: 0, stale_draft_expired: 0 };
+  let lostRace = 0;
+  let left = 0;
+  for (const c of candidates) {
+    const closure = decideDraftClosure(c);
+    if (!closure) { left += 1; continue; }
+    const res = await db.execute(sql`
+      UPDATE sms_orchestrations
+      SET status = ${closure.status}, status_reason = ${closure.statusReason}, updatedAt = NOW()
+      WHERE id = ${Number(c.id)} AND status = 'drafted' AND requires_human_approval = 1
+    `);
+    if (affectedRowCount(res) === 1) closed[closure.statusReason] += 1;
+    else lostRace += 1;
+  }
+  const total = closed.obligation_closed + closed.superseded_by_newer_activity + closed.stale_draft_expired;
+  return {
+    recordsProcessed: total,
+    details: `drafts closed ${total}: obligation_closed ${closed.obligation_closed} · superseded ${closed.superseded_by_newer_activity} · expired ${closed.stale_draft_expired} · lost race ${lostRace} · left open ${left} of ${candidates.length} · max age ${maxAgeDays}d`,
   };
 }

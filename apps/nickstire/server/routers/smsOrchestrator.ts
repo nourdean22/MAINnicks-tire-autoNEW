@@ -2,11 +2,19 @@ import { z } from "zod";
 import { router, adminProcedure } from "../_core/trpc";
 import { getDbTyped } from "../db";
 import { smsOrchestrations, smsLearningRecommendations, nickgptTrainingExamples, appSecretKv, nickgptDrafts } from "../../drizzle/schema";
-import { desc, sql, eq, and, or, like } from "drizzle-orm";
+import { desc, sql, eq, and, or, like, getTableColumns } from "drizzle-orm";
 import { generateDailySmsReport, generateWeeklySmsReport, getSmsVariantPerformance } from "../services/smsLearningEngine";
 import { getCustomerJourneyTimeline } from "../services/smsOrchestrator";
 import { sendSms } from "../sms";
 import { TRPCError } from "@trpc/server";
+import { affectedRowCount } from "../lib/db-affected";
+import { createLogger } from "../lib/logger";
+import { STALE_DRAFT_MAX_AGE_DAYS } from "../cron/jobs/orchestrationStatusReconcile";
+
+const log = createLogger("routers:smsOrchestrator");
+
+/** The statuses getHumanReviewQueue lists — the only ones an operator may action. */
+const HUMAN_REVIEW_ACTIONABLE = new Set(["drafted", "received"]);
 
 export const smsOrchestratorRouter = router({
   getOrchestrations: adminProcedure
@@ -171,7 +179,11 @@ export const smsOrchestratorRouter = router({
       const db = await getDbTyped();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
-      const [row] = await db.select()
+      // Age is computed in SQL: driver-parsed TiDB timestamps come back shifted on ET.
+      const [row] = await db.select({
+          ...getTableColumns(smsOrchestrations),
+          isStale: sql<number>`(${smsOrchestrations.createdAt} < NOW() - INTERVAL ${STALE_DRAFT_MAX_AGE_DAYS} DAY)`,
+        })
         .from(smsOrchestrations)
         .where(eq(smsOrchestrations.id, input.id))
         .limit(1);
@@ -179,6 +191,28 @@ export const smsOrchestratorRouter = router({
       if (!row) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Review item not found" });
       }
+      // A closed row (sent, cancelled, expired, …) is history, not a draft —
+      // acting on it would re-send or overwrite what already happened.
+      if (!HUMAN_REVIEW_ACTIONABLE.has(row.status)) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `This draft was already closed (${row.status}${row.statusReason ? `: ${row.statusReason}` : ""}) — refresh the queue.`,
+        });
+      }
+      // A draft written for a conversation a week ago answers a question the
+      // customer is no longer asking. Sending it verbatim is refused; edit_and_send
+      // (the operator wrote fresh text) is still allowed.
+      if (input.action === "send" && Number(row.isStale) === 1) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `This draft is more than ${STALE_DRAFT_MAX_AGE_DAYS} days old — edit it before sending.`,
+        });
+      }
+      // Every write below is a compare-and-swap on the status just read, so a
+      // second tap, a second admin, or the stale-draft reconciler cannot both win.
+      const stillAt = (status: string) => and(eq(smsOrchestrations.id, input.id), eq(smsOrchestrations.status, status));
+      const lostRace = () => new TRPCError({ code: "CONFLICT", message: "This draft was just actioned elsewhere — refresh the queue." });
+      let obligationClosedAs: "human_replied" | "no_reply_required" | null = null;
 
       if (input.action === "send" || input.action === "edit_and_send") {
         const messageToSend = input.action === "send" ? row.messageBody : (input.editedMessage || "");
@@ -186,15 +220,31 @@ export const smsOrchestratorRouter = router({
           throw new TRPCError({ code: "BAD_REQUEST", message: "Message body cannot be empty" });
         }
 
-        const sendResult = await sendSms(row.customerPhone, messageToSend, {
-          via: row.providerUsed === "none" ? "shop" : row.providerUsed as any,
-          variantKey: row.variantKey,
-          skipPersist: false,
-          // Operator explicitly approved this exact message — exempt from the
-          // chokepoint takeover suppression (which their approval would
-          // otherwise trip via the manual-send audit trail).
-          humanInitiated: true,
-        });
+        // Claim BEFORE sending: a CAS after the send cannot un-send a duplicate.
+        const claim = await db.update(smsOrchestrations)
+          .set({ status: "sending", statusReason: "operator_send_claimed" })
+          .where(stillAt(row.status));
+        if (affectedRowCount(claim) !== 1) throw lostRace();
+
+        let sendResult: Awaited<ReturnType<typeof sendSms>>;
+        try {
+          sendResult = await sendSms(row.customerPhone, messageToSend, {
+            via: row.providerUsed === "none" ? "shop" : row.providerUsed as any,
+            variantKey: row.variantKey,
+            skipPersist: false,
+            // Operator explicitly approved this exact message — exempt from the
+            // chokepoint takeover suppression (which their approval would
+            // otherwise trip via the manual-send audit trail).
+            humanInitiated: true,
+          });
+        } catch (err) {
+          // A throw is attempted-not-confirmed (the text may have gone out):
+          // stay `sending` so the row cannot be re-sent from the queue.
+          await db.update(smsOrchestrations)
+            .set({ statusReason: "send_threw_delivery_unconfirmed" })
+            .where(stillAt("sending"));
+          throw err;
+        }
 
         // `uncertain` (gateway timeout) is attempted-not-confirmed: persisted as
         // `sending`, never "sent" — same mapping as the orchestrator's own path.
@@ -211,7 +261,8 @@ export const smsOrchestratorRouter = router({
             statusReason: operatorReason,
             sendResultJson: sendResult ? JSON.stringify(sendResult) : null,
           })
-          .where(eq(smsOrchestrations.id, input.id));
+          .where(stillAt("sending"));
+        if (sendResult.success) obligationClosedAs = "human_replied";
 
         if (input.action === "edit_and_send") {
           const { trackDraftFeedback } = await import("../services/smsLearningEngine");
@@ -225,19 +276,24 @@ export const smsOrchestratorRouter = router({
           }
         }
       } else if (input.action === "resolve") {
-        await db.update(smsOrchestrations)
+        const res = await db.update(smsOrchestrations)
           .set({
             status: "skipped",
             statusReason: "resolved_by_operator",
           })
-          .where(eq(smsOrchestrations.id, input.id));
+          .where(stillAt(row.status));
+        if (affectedRowCount(res) !== 1) throw lostRace();
+        obligationClosedAs = "no_reply_required";
       } else if (input.action === "bad_suggestion") {
-        await db.update(smsOrchestrations)
+        // Rejecting the AI's wording does NOT answer the customer — the
+        // obligation stays open until a human replies or marks no-reply-needed.
+        const res = await db.update(smsOrchestrations)
           .set({
             status: "skipped",
             statusReason: "rejected_by_operator_bad_suggestion",
           })
-          .where(eq(smsOrchestrations.id, input.id));
+          .where(stillAt(row.status));
+        if (affectedRowCount(res) !== 1) throw lostRace();
 
         const { trackDraftFeedback } = await import("../services/smsLearningEngine");
         const [latestDraft] = await db.select({ id: nickgptDrafts.id })
@@ -247,6 +303,22 @@ export const smsOrchestratorRouter = router({
           .limit(1);
         if (latestDraft) {
           await trackDraftFeedback(latestDraft.id, "rejected", "");
+        }
+      }
+
+      // ROS-058: the human acted — close the conversation's SLA obligation (and
+      // its sibling drafts). The primary action already succeeded, so a miss
+      // here is logged, never thrown.
+      if (obligationClosedAs && row.relatedConversationId) {
+        try {
+          const { resolveHumanPendingForConversation } = await import("../services/smsResponseJobs");
+          await resolveHumanPendingForConversation(row.relatedConversationId, obligationClosedAs);
+        } catch (err) {
+          log.warn("human-pending resolution failed after review action", {
+            orchestrationId: input.id,
+            conversationId: row.relatedConversationId,
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
       }
 
