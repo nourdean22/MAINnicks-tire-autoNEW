@@ -149,7 +149,7 @@ export function NudgePanel() {
           const inner = (
             <div
               className={cn(
-                "group flex items-start gap-2 px-2 py-1.5 rounded border transition-colors",
+                "group flex items-start gap-2 px-2 py-1.5 rounded-micro border transition-colors",
                 n.severity === "high" ? "border-red-500/30 bg-red-500/5"
                   : n.severity === "medium" ? "border-amber-500/30 bg-amber-500/5"
                   : "border-[var(--border-default)] bg-[var(--bg-base)]",

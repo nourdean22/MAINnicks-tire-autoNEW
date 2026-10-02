@@ -2,6 +2,10 @@
 
 
 
+## 2026-10-02 - UI v2 PR 4: backlog closed (card.tsx gone, GlassCard + ui-material layered, cn merges v2 scales, orb gone, radius/slate sweep, chat-v2 converted)
+
+`components/ui/card.tsx` is deleted; `GlassCard` is the only card and its `.neural-glass*` rules (and `.ui-material`) sit in `@layer components`, so className utilities a caller passes now apply. `cn` (`lib/utils.ts`) extends tailwind-merge with the v2 radius / shadow scales. The realtime voice overlay renders a solid state disc with one `pulse-live` ring while working. `rounded-md|lg|sm`, bare `rounded` and `slate-*` are swept onto the v2 names/tokens across `app/`, `components/` and `features/chat-v2` (the last unconverted slice). Brain inline edit buttons meet the 44px touch floor below `sm`. Ship record: `docs/RECONCILIATION.md` top entry.
+
 ## 2026-10-02 - UI v2 PR 3: the `?ui=v1` comparison lane and the CommandDialog wrappers are deleted
 
 There is no longer a per-browser or env switch back to the pre-v2 grammar: `lib/ui-version.ts`, `components/ui/ui-version-switch.tsx`, the `data-ui` stamp in `app/layout.tsx`, the `:root[data-ui="v1"]` blocks in `tokens.css` / `base.css`, the `STATENOUR_UI` flag-registry entry and the decorative particle canvas (`components/hud/neural-background.tsx`) are gone; the v2 type floor applies unconditionally. `components/ui/command.tsx` exports only the five primitives the ⌘K Resolver uses. Rollback of the grammar is `git revert`. Pinned by `tests/repo/ui-v2-grammar.test.ts` ("the v1 comparison lane is gone"). Ship record: `docs/RECONCILIATION.md` top entry.

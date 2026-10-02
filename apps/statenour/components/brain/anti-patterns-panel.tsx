@@ -114,13 +114,13 @@ export function AntiPatternsPanel() {
           ))}
         </div>
       ) : query.isError ? (
-        <GlassCard className="p-4">
+        <GlassCard>
           <p className="text-sm text-amber-300">
             Anti-pattern library could not load — state unknown, not empty.
           </p>
         </GlassCard>
       ) : items.length === 0 ? (
-        <GlassCard className="p-4">
+        <GlassCard>
           <p className="text-sm text-[var(--text-secondary)]">
             No active anti-patterns are recorded.
           </p>
@@ -128,13 +128,13 @@ export function AntiPatternsPanel() {
       ) : (
         <div className="space-y-2.5">
           {visible.map((item) => (
-            <GlassCard key={item.key} className="p-4">
+            <GlassCard key={item.key} className="">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span
                       className={cn(
-                        "rounded border px-2 py-0.5 text-[11px] font-mono",
+                        "rounded-micro border px-2 py-0.5 text-[11px] font-mono",
                         SEVERITY_TONE[item.severity],
                       )}
                     >

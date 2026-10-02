@@ -37,10 +37,10 @@ export function AttachmentPreview({
         <img
           src={preview}
           alt="Attached"
-          className="w-10 h-10 rounded object-cover border border-[var(--border-default)]"
+          className="w-10 h-10 rounded-control object-cover border border-[var(--border-default)]"
         />
       ) : (
-        <div className="w-10 h-10 rounded border border-[var(--border-default)] bg-[var(--bg-elevated)] flex items-center justify-center text-[var(--text-tertiary)]">
+        <div className="w-10 h-10 rounded-control border border-[var(--border-default)] bg-[var(--bg-elevated)] flex items-center justify-center text-[var(--text-tertiary)]">
           {isAudio ? <Music size={14} /> : isPdf ? <FileText size={14} /> : <Paperclip size={14} />}
         </div>
       )}

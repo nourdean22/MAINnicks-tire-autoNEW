@@ -292,7 +292,7 @@ export default function UiLabPage() {
             aria-pressed={realityMode}
             className="min-h-[44px] rounded-control border border-edge-default bg-content px-3 py-2 font-mono text-[12px] text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg md:min-h-0"
           >
-            reality mode · {realityMode ? "on" : "off"}
+            Reality mode · {realityMode ? "on" : "off"}
           </button>
         </div>
         <ul className="divide-y divide-edge-subtle">

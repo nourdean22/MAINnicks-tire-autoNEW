@@ -128,9 +128,9 @@ export function BrainHealthView() {
             </div>
             <button
               onClick={reload}
-              className="shrink-0 text-[11px] font-mono px-2 py-1 rounded border border-rose-400/40 text-rose-300 hover:bg-rose-400/10"
+              className="shrink-0 text-[11px] font-mono px-2 py-1 rounded-control border border-rose-400/40 text-rose-300 hover:bg-rose-400/10"
             >
-              retry
+              Retry
             </button>
           </div>
         </GlassCard>
@@ -205,7 +205,7 @@ export function BrainHealthView() {
                 disabled={compileMut.isPending || compileStatusQ.data?.eligible === 0}
                 className="shrink-0 inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {compileMut.isPending ? "compiling…" : "compile next 10"}
+                {compileMut.isPending ? "Compiling…" : "Compile next 10"}
               </button>
             </div>
           </GlassCard>
@@ -236,7 +236,7 @@ export function BrainHealthView() {
                     <div
                       key={`${f.category}-${f.flag}-${i}`}
                       className={cn(
-                        "flex items-center justify-between gap-2 px-2 py-1.5 rounded border",
+                        "flex items-center justify-between gap-2 px-2 py-1.5 rounded-micro border",
                         toneClass,
                       )}
                     >
@@ -388,7 +388,7 @@ function CategoryRow({ c }: { c: CategoryHealth }) {
   return (
     <div
       className={cn(
-        "px-2 py-1.5 rounded border bg-[var(--bg-base)]/40 transition-colors",
+        "px-2 py-1.5 rounded-micro border bg-[var(--bg-base)]/40 transition-colors",
         dormant
           ? "border-[var(--text-tertiary)]/30 opacity-60"
           : noVecs

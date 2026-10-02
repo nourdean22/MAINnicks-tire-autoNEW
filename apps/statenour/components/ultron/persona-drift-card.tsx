@@ -158,7 +158,7 @@ export function PersonaDriftCard() {
           const driftPct = Math.round(d.drift * 100);
           return (
             <li key={d.key} className="text-[11px] leading-snug">
-              <div className="-mx-1 flex items-start gap-2 px-1 py-1 rounded-sm">
+              <div className="-mx-1 flex items-start gap-2 px-1 py-1 rounded-micro">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-1.5">
                     <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-amber-400/80 tabular-nums">

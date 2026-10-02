@@ -124,7 +124,7 @@ export function BreakPromiseModal({
             type="button"
             onClick={onCancel}
             aria-label="Cancel and close dialog"
-            className="-mr-1 -mt-1 inline-flex h-11 w-11 items-center justify-center rounded-lg text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg"
+            className="-mr-1 -mt-1 inline-flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg"
           >
             <X size={11} aria-hidden />
           </button>
@@ -144,7 +144,7 @@ export function BreakPromiseModal({
             onChange={(e) => onReasonChange(e.target.value)}
             placeholder="One sentence is enough. Nick will learn from this."
             rows={3}
-            className="w-full rounded border border-edge-default bg-content px-2 py-2 text-[16px] text-fg placeholder:text-fg-tertiary resize-none outline-none focus:border-accent sm:text-[11px]"
+            className="w-full rounded-control border border-edge-default bg-content px-2 py-2 text-[16px] text-fg placeholder:text-fg-tertiary resize-none outline-none focus:border-accent sm:text-[11px]"
           />
           <p className="text-[11px] text-fg-tertiary mt-1 italic">
             Saved to the broken-promise log. Pattern-tagged so Nick can flag similar commitments later.

@@ -115,7 +115,7 @@ export function ResearchPipelineStatus() {
   }
 
   return (
-    <GlassCard className="border-amber-500/30 bg-amber-500/[0.06] p-3 space-y-2">
+    <GlassCard className="border-amber-500/30 bg-amber-500/[0.06] space-y-2">
       <div className="flex items-center gap-2">
         <AlertTriangle size={13} className="text-amber-400 shrink-0" />
         <h3 className="text-[11px] font-mono font-bold text-amber-300">
@@ -145,7 +145,7 @@ export function ResearchPipelineStatus() {
           {status.statusCounts.map((s) => (
             <span
               key={s.status}
-              className="px-1.5 py-0.5 rounded border border-(--border-default) bg-content text-[11px] font-mono text-(--text-tertiary)"
+              className="px-1.5 py-0.5 rounded-micro border border-(--border-default) bg-content text-[11px] font-mono text-(--text-tertiary)"
             >
               {s.status.replaceAll("_", " ")} · {s.count}
             </span>

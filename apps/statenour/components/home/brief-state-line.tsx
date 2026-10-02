@@ -90,7 +90,7 @@ export function BriefStateLine({
         </div>
 
         {loading ? (
-          <div className="mt-4 h-14 w-4/5 animate-pulse rounded bg-raised sm:h-20" aria-hidden />
+          <div className="mt-4 h-14 w-4/5 animate-pulse rounded-micro bg-raised sm:h-20" aria-hidden />
         ) : (
           state && <p className="vt-verdict mt-3 max-w-[18ch]">{state.summary}</p>
         )}

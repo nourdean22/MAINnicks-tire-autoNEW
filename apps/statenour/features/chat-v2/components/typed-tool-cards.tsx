@@ -32,7 +32,7 @@ const STATE_COLOR: Record<FleetArtifact["state"], string> = {
   fresh: "text-emerald-300",
   stale: "text-amber-300",
   never_produced: "text-red-300",
-  unknown: "text-zinc-400",
+  unknown: "text-fg-tertiary",
 };
 
 function FleetTruthCard({ output }: { output: FleetTruthOutput }) {
@@ -43,13 +43,13 @@ function FleetTruthCard({ output }: { output: FleetTruthOutput }) {
   ];
   if (rows.length === 0) return null;
   return (
-    <div className="mt-2 rounded-xl border border-edge bg-void/60 p-3" data-testid="fleet-truth-card">
+    <div className="mt-2 rounded-surface border border-edge-subtle bg-content p-3" data-testid="fleet-truth-card">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
+        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary">
           Fleet truth
         </span>
         <span
-          className={`text-[10px] font-semibold ${output.allFresh ? "text-emerald-300" : "text-amber-300"}`}
+          className={`text-[11px] font-semibold ${output.allFresh ? "text-emerald-300" : "text-amber-300"}`}
         >
           {output.allFresh ? "all fresh" : "attention needed"}
         </span>
@@ -60,15 +60,15 @@ function FleetTruthCard({ output }: { output: FleetTruthOutput }) {
             <span className="font-mono text-fg-tertiary">
               {r.app === "nickstire" && !r.capability.startsWith("nickstire") ? `nickstire:${r.capability}` : r.capability}
             </span>
-            <span className={STATE_COLOR[r.state] ?? "text-zinc-400"}>
+            <span className={STATE_COLOR[r.state] ?? "text-fg-tertiary"}>
               {r.state.replace("_", " ")}
               {r.ageH != null ? ` · ${r.ageH}h` : ""}
             </span>
           </div>
         ))}
       </div>
-      <Link href="/system/fleet" className="mt-2 inline-block text-[10px] text-gold hover:underline">
-        open fleet page
+      <Link href="/system/fleet" className="mt-2 inline-block text-[12px] font-medium text-fg-secondary hover:text-fg hover:underline">
+        Open fleet page
       </Link>
     </div>
   );
@@ -95,7 +95,7 @@ const URGENCY_COLOR: Record<string, string> = {
   critical: "text-red-300",
   today: "text-amber-300",
   this_week: "text-sky-300",
-  later: "text-zinc-400",
+  later: "text-fg-tertiary",
 };
 
 function TopDecisionsCard({ output }: { output: TopDecisionsOutput }) {
@@ -103,12 +103,12 @@ function TopDecisionsCard({ output }: { output: TopDecisionsOutput }) {
   const rows = output.decisions ?? [];
   if (rows.length === 0) return null;
   return (
-    <div className="mt-2 rounded-xl border border-edge bg-void/60 p-3" data-testid="top-decisions-card">
+    <div className="mt-2 rounded-surface border border-edge-subtle bg-content p-3" data-testid="top-decisions-card">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
+        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary">
           Decision inbox — top {rows.length}
         </span>
-        <span className="text-[10px] text-fg-tertiary">
+        <span className="text-[11px] text-fg-tertiary">
           {output.totalLive ?? 0} live
           {output.excludedSnoozed ? ` · ${output.excludedSnoozed} snoozed` : ""}
           {output.excludedNoConsent ? ` · ${output.excludedNoConsent} no-consent` : ""}
@@ -116,9 +116,9 @@ function TopDecisionsCard({ output }: { output: TopDecisionsOutput }) {
       </div>
       <ol className="space-y-2">
         {rows.map((d, i) => (
-          <li key={d.id ?? i} className="rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
+          <li key={d.id ?? i} className="rounded-control border border-edge-subtle bg-surface-raised px-3 py-2">
             <div className="flex items-baseline justify-between gap-2">
-              <span className={`text-[10px] font-semibold uppercase tracking-wider ${URGENCY_COLOR[d.urgency ?? ""] ?? "text-zinc-400"}`}>
+              <span className={`font-mono text-[11px] font-medium uppercase tracking-[0.12em] ${URGENCY_COLOR[d.urgency ?? ""] ?? "text-fg-tertiary"}`}>
                 {d.urgency ?? "unranked"}
               </span>
               <span className="text-[11px] tabular-nums text-fg-secondary">
@@ -130,7 +130,7 @@ function TopDecisionsCard({ output }: { output: TopDecisionsOutput }) {
           </li>
         ))}
       </ol>
-      <p className="mt-2 text-[10px] text-fg-tertiary">
+      <p className="mt-2 text-[11px] text-fg-tertiary">
         Same read as the admin Decision Inbox — decide there; this card never mutates.
       </p>
     </div>

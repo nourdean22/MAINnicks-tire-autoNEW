@@ -93,7 +93,7 @@ export function MoreSheet() {
               type="button"
               onClick={close}
               aria-label="Close More menu"
-              className="absolute right-0 inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-raised)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+              className="absolute right-0 inline-flex h-11 w-11 items-center justify-center rounded-control text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-raised)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
             >
               <X size={18} />
             </button>
@@ -135,7 +135,7 @@ export function MoreSheet() {
               href={smartNow.href}
               onClick={close}
               className={cn(
-                "flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 text-xs transition-colors",
+                "flex min-h-11 items-center gap-2 rounded-control px-3 py-2 text-xs transition-colors",
                 smartNow.urgency === "high"
                   ? "bg-rose-500/[0.08] text-rose-200 hover:bg-rose-500/15"
                   : smartNow.urgency === "medium"
@@ -160,7 +160,7 @@ export function MoreSheet() {
           )}
 
           {recentCandidates.length > 0 && (
-            <div className="rounded-lg bg-[var(--bg-raised)]/30 px-2 py-1.5">
+            <div className="rounded-surface bg-[var(--bg-raised)]/30 px-2 py-1.5">
               <div className="mb-1 flex items-center gap-1">
                 <Clock size={9} className="text-[var(--text-tertiary)]" />
                 <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
@@ -188,7 +188,7 @@ export function MoreSheet() {
               window.dispatchEvent(new Event(CAPTURE_OPEN_EVENT));
               close();
             }}
-            className="flex min-h-11 w-full items-center gap-3 rounded-lg border-l-2 border-l-transparent px-3 py-2 text-xs text-[var(--text-secondary)] transition-colors hover:bg-surface-hover hover:text-fg"
+            className="flex min-h-11 w-full items-center gap-3 rounded-control border-l-2 border-l-transparent px-3 py-2 text-xs text-[var(--text-secondary)] transition-colors hover:bg-surface-hover hover:text-fg"
             aria-label="Capture a thought (⌘⇧J)"
           >
             <NotebookPen size={15} strokeWidth={1.75} />
@@ -231,7 +231,7 @@ export function MoreSheet() {
                       onClick={close}
                       aria-current={active ? "page" : undefined}
                       className={cn(
-                        "flex min-h-11 items-center gap-2 rounded-lg px-2.5 py-2 transition-colors",
+                        "flex min-h-11 items-center gap-2 rounded-control px-2.5 py-2 transition-colors",
                         active
                           ? "bg-accent-soft text-fg"
                           : "text-[var(--text-secondary)] hover:bg-[var(--bg-raised)] hover:text-[var(--text-primary)]",
@@ -254,7 +254,7 @@ export function MoreSheet() {
           {footer.map((n) => {
             const Icon = n.icon;
             const className =
-              "flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-[var(--border-default)] px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:border-edge-strong hover:text-fg";
+              "flex min-h-11 flex-1 items-center justify-center gap-2 rounded-control border border-[var(--border-default)] px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:border-edge-strong hover:text-fg";
             if (n.external) {
               return (
                 <a

@@ -175,7 +175,7 @@ export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: P
                   onClick={() => onPickDifferent(alt.id)}
                   className="inline-flex min-h-[44px] shrink-0 items-center rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
                 >
-                  make this the move
+                  Make this the move
                 </button>
               </li>
             ))}

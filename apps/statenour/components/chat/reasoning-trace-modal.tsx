@@ -91,7 +91,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
         unstyled
         showCloseButton={false}
         overlayClassName="z-[180] bg-[var(--bg-void)]/85"
-        className="fixed inset-y-8 left-1/2 z-[181] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 overflow-y-auto rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] outline-none"
+        className="fixed inset-y-8 left-1/2 z-[181] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 overflow-y-auto rounded-surface border border-[var(--border-default)] bg-[var(--bg-base)] outline-none"
       >
         {/* Header */}
         <header className="sticky top-0 bg-[var(--bg-base)] flex items-start justify-between p-5 border-b border-[var(--border-default)]">
@@ -118,7 +118,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
           </div>
           <button
             onClick={onClose}
-            className="w-11 h-11 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-all active:scale-90"
+            className="w-11 h-11 md:w-9 md:h-9 rounded-control flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-all active:scale-90"
             aria-label="Close reasoning trace"
           >
             <X size={18} className="md:!w-4 md:!h-4" />
@@ -132,7 +132,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
           {data && (
             <>
               {/* Reply preview */}
-              <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)]/60 p-4">
+              <section className="rounded-surface border border-[var(--border-default)] bg-[var(--bg-raised)]/60 p-4">
                 <p className="text-eyebrow">Nick replied</p>
                 <p
                   className="text-[var(--text-secondary)] text-sm mt-2 leading-relaxed"
@@ -157,7 +157,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
               {/* v10.0.384 · LLM-as-judge score · feedback layer */}
               {data.feedback?.judgment && (
                 <section
-                  className={`rounded-lg p-4 border ${
+                  className={`rounded-surface p-4 border ${
                     data.feedback.judgment.flagForReview
                       ? "border-amber-500/30 bg-amber-500/5"
                       : "border-emerald-500/20 bg-emerald-500/5"
@@ -224,7 +224,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
               {/* v10.0.384 · adversarial counter-view · per /yann-lecun */}
               {data.feedback?.objection && (
                 <section
-                  className={`rounded-lg p-4 border ${
+                  className={`rounded-surface p-4 border ${
                     data.feedback.objection.severity >= 3
                       ? "border-rose-500/30 bg-rose-500/5"
                       : data.feedback.objection.severity >= 2
@@ -277,7 +277,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
                       {items.map((hit) => (
                         <li
                           key={hit.memoryId}
-                          className="rounded border border-[var(--border-default)] bg-[var(--bg-raised)]/40 p-3"
+                          className="rounded-micro border border-[var(--border-default)] bg-[var(--bg-raised)]/40 p-3"
                         >
                           <p
                             className="text-[var(--text-secondary)] text-[13px] leading-snug"

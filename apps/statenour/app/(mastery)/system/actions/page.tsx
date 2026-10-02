@@ -234,7 +234,7 @@ export default function ActionsPage() {
             disabled={loading}
             className="rounded-control border border-edge-strong bg-content px-4 py-2 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
           >
-            {loading ? "refreshing…" : "refresh"}
+            {loading ? "Refreshing…" : "Refresh"}
           </button>
         </div>
       }
@@ -310,7 +310,7 @@ export default function ActionsPage() {
                 onClick={() => setRuleFilter(null)}
                 className="ml-auto rounded-full bg-rose-500/10 px-3 py-1 text-xs text-rose-300 hover:bg-rose-500/20"
               >
-                clear rule filter: {ruleFilter} ×
+                Clear rule filter: {ruleFilter} ×
               </button>
             )}
           </div>
@@ -340,7 +340,7 @@ export default function ActionsPage() {
                     <div className="min-w-0">
               <div className="truncate font-mono text-xs text-fg">{r.ruleName}</div>
                       <div className="text-[11px] text-fg-tertiary">
-                        last fired {timeAgo(r.lastFiredAt)}
+                        Last fired {timeAgo(r.lastFiredAt)}
                       </div>
                     </div>
                     <div className="text-right">
@@ -434,7 +434,7 @@ export default function ActionsPage() {
                           a.result === "failed" ? "bg-rose-400" :
                           a.result === "skipped" ? "bg-fg-tertiary" : "bg-amber-400",
                         )} />
-                        <span className="rounded bg-surface-interactive px-1.5 py-[1px] text-[11px] text-fg-secondary">
+                        <span className="rounded-micro bg-surface-interactive px-1.5 py-[1px] text-[11px] text-fg-secondary">
                           {a.approval}
                         </span>
                         <div className="min-w-0">
@@ -458,13 +458,13 @@ export default function ActionsPage() {
                       {isOpen && (
                         <div className="space-y-2 border-t border-edge-subtle px-3 pb-3 pt-2">
                           {a.error && (
-                            <div className="rounded bg-rose-500/10 p-2 text-[11px] text-rose-300">
+                            <div className="rounded-micro bg-rose-500/10 p-2 text-[11px] text-rose-300">
               <div className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-rose-400/70">error</div>
                               <pre className="overflow-x-auto whitespace-pre-wrap break-words">{a.error}</pre>
                             </div>
                           )}
                           {a.payload !== null && a.payload !== undefined && (
-                            <div className="rounded bg-content p-2">
+                            <div className="rounded-micro bg-content p-2">
               <div className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">payload</div>
                               <pre className="overflow-x-auto whitespace-pre-wrap break-words text-[11px] text-fg-secondary">
                                 {JSON.stringify(a.payload, null, 2)}
@@ -547,7 +547,7 @@ export default function ActionsPage() {
                             {req.toolId}
                           </span>
                           <span className={cn(
-                            "rounded px-1.5 py-0.5 text-[11px] font-mono font-medium",
+                            "rounded-micro px-1.5 py-0.5 text-[11px] font-mono font-medium",
                             isCritical ? "bg-rose-500/20 text-rose-300" :
                             req.riskClass === "high" ? "bg-amber-500/20 text-amber-300" :
                             "bg-sky-500/20 text-sky-300"
@@ -581,7 +581,7 @@ export default function ActionsPage() {
                       </div>
                     </div>
 
-                    <div className="rounded bg-content p-3 space-y-1">
+                    <div className="rounded-micro bg-content p-3 space-y-1">
                       <div className="flex items-center justify-between">
                         <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">payload parameters</div>
                         <button
@@ -593,9 +593,9 @@ export default function ActionsPage() {
                               setEditText(JSON.stringify(req.payload, null, 2));
                             }
                           }}
-                          className="min-h-[32px] rounded border border-edge-subtle px-2 text-[11px] font-mono text-fg-secondary hover:text-fg hover:bg-surface-hover transition"
+                          className="min-h-[32px] rounded-control border border-edge-subtle px-2 text-[11px] font-mono text-fg-secondary hover:text-fg hover:bg-surface-hover transition"
                         >
-                          {editingId === req.id ? "cancel edit" : "edit args"}
+                          {editingId === req.id ? "Cancel edit" : "Edit args"}
                         </button>
                       </div>
                       {editingId === req.id ? (
@@ -606,7 +606,7 @@ export default function ActionsPage() {
                             rows={Math.min(12, editText.split("\n").length + 1)}
                             spellCheck={false}
                             className={cn(
-                              "w-full rounded border bg-content p-2 text-xs font-mono text-fg focus:outline-none",
+                              "w-full rounded-control border bg-content p-2 text-xs font-mono text-fg focus:outline-none",
                               editParse.ok ? "border-edge-default" : "border-rose-500/50",
                             )}
                             aria-label="edited payload JSON"

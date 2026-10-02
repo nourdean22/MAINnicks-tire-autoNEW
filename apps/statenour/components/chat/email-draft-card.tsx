@@ -248,7 +248,7 @@ function Field({
         <input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-1 bg-[var(--bg-void)] border border-[var(--border-default)] rounded px-2 py-1 text-[12px] text-[var(--text-primary)] focus:border-accent outline-none"
+          className="flex-1 bg-[var(--bg-void)] border border-[var(--border-default)] rounded-control px-2 py-1 text-[12px] text-[var(--text-primary)] focus:border-accent outline-none"
         />
       ) : (
         <span className="flex-1 text-[12px] text-[var(--text-primary)] truncate">{value}</span>
@@ -276,7 +276,7 @@ function BodyField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           rows={Math.min(12, Math.max(4, value.split("\n").length + 1))}
-          className="w-full bg-[var(--bg-void)] border border-[var(--border-default)] rounded px-2 py-1.5 text-[12px] text-[var(--text-primary)] focus:border-accent outline-none font-sans leading-relaxed resize-y"
+          className="w-full bg-[var(--bg-void)] border border-[var(--border-default)] rounded-control px-2 py-1.5 text-[12px] text-[var(--text-primary)] focus:border-accent outline-none font-sans leading-relaxed resize-y"
         />
       ) : (
         <pre className="text-[12px] text-[var(--text-secondary)] font-sans leading-relaxed whitespace-pre-wrap break-words">

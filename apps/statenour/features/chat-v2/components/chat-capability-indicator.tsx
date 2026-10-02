@@ -44,7 +44,7 @@ export function ChatCapabilityIndicator() {
     <Link
       href="/settings"
       title="Open provider and capability health"
-      className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-2.5 font-mono text-[9px] uppercase tracking-wider transition ${
+      className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-2.5 font-mono text-[11px] transition ${
         degraded
           ? "border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15"
           : "border-emerald-500/25 bg-emerald-500/[0.07] text-emerald-300 hover:bg-emerald-500/10"

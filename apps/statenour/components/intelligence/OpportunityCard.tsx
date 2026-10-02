@@ -61,7 +61,7 @@ export function OpportunityCard({ opportunity, onStatusChange }: OpportunityCard
     macro: "bg-emerald-900/40 text-emerald-200 border-emerald-800/80",
   };
 
-  const domainColor = domainColors[opportunity.domain] || "bg-slate-800/60 text-slate-200 border-slate-700";
+  const domainColor = domainColors[opportunity.domain] || "bg-surface-interactive text-fg border-edge-default";
 
   return (
     <div className="relative rounded-surface border border-edge-subtle bg-content p-5 transition-colors duration-[var(--motion-state)] hover:border-edge-default">
@@ -71,7 +71,7 @@ export function OpportunityCard({ opportunity, onStatusChange }: OpportunityCard
           <span className={`rounded-micro border px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-[0.12em] ${domainColor}`}>
             {opportunity.domain}
           </span>
-          <span className="flex items-center gap-1 rounded-md bg-slate-800/40 px-2 py-0.5 text-xs font-semibold text-slate-400">
+          <span className="flex items-center gap-1 rounded-micro bg-surface-interactive px-2 py-0.5 text-xs font-semibold text-fg-tertiary">
             Score: <strong className="text-white">{opportunity.score}</strong>
           </span>
         </div>
@@ -79,15 +79,15 @@ export function OpportunityCard({ opportunity, onStatusChange }: OpportunityCard
         {/* Priority Indicator */}
         <div className="flex items-center gap-1.5">
           {opportunity.score >= 80 ? (
-            <span className="flex items-center gap-1 rounded-md bg-red-950/60 px-2 py-0.5 text-xs font-bold text-red-400 border border-red-900/60">
+            <span className="flex items-center gap-1 rounded-micro bg-red-950/60 px-2 py-0.5 text-xs font-bold text-red-400 border border-red-900/60">
               <ShieldAlert className="h-3 w-3" /> Critical
             </span>
           ) : opportunity.score >= 60 ? (
-            <span className="flex items-center gap-1 rounded-md bg-amber-950/60 px-2 py-0.5 text-xs font-bold text-amber-400 border border-amber-900/60">
+            <span className="flex items-center gap-1 rounded-micro bg-amber-950/60 px-2 py-0.5 text-xs font-bold text-amber-400 border border-amber-900/60">
               <Zap className="h-3 w-3" /> High
             </span>
           ) : (
-            <span className="flex items-center gap-1 rounded-md bg-slate-800/60 px-2 py-0.5 text-xs font-bold text-slate-400">
+            <span className="flex items-center gap-1 rounded-micro bg-surface-interactive px-2 py-0.5 text-xs font-bold text-fg-tertiary">
               Medium
             </span>
           )}
@@ -96,33 +96,33 @@ export function OpportunityCard({ opportunity, onStatusChange }: OpportunityCard
 
       {/* Body */}
       <div className="mt-4">
-        <h3 className="text-base font-bold text-slate-100">{opportunity.title}</h3>
-        <p className="mt-2 text-sm leading-relaxed text-slate-300">{opportunity.description}</p>
+        <h3 className="text-base font-bold text-fg">{opportunity.title}</h3>
+        <p className="mt-2 text-sm leading-relaxed text-fg-secondary">{opportunity.description}</p>
       </div>
 
       {/* Metrics breakdown */}
-      <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 border-t border-slate-800/40 pt-4 text-xs text-slate-400">
+      <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 border-t border-edge-default pt-4 text-xs text-fg-tertiary">
         <div className="flex items-center justify-between">
           <span>Impact</span>
-          <span className="font-semibold text-slate-200">{opportunity.impact}/100</span>
+          <span className="font-semibold text-fg">{opportunity.impact}/100</span>
         </div>
         <div className="flex items-center justify-between">
           <span>Urgency</span>
-          <span className="font-semibold text-slate-200">{opportunity.urgency}/100</span>
+          <span className="font-semibold text-fg">{opportunity.urgency}/100</span>
         </div>
         <div className="flex items-center justify-between">
           <span>Confidence</span>
-          <span className="font-semibold text-slate-200">{Math.round(opportunity.confidence * 100)}%</span>
+          <span className="font-semibold text-fg">{Math.round(opportunity.confidence * 100)}%</span>
         </div>
         <div className="flex items-center justify-between">
           <span>Reversibility</span>
-          <span className="font-semibold text-slate-200">{opportunity.reversibility}/100</span>
+          <span className="font-semibold text-fg">{opportunity.reversibility}/100</span>
         </div>
       </div>
 
       {/* Decision Status / Actions */}
-      <div className="mt-5 flex items-center justify-between gap-4 border-t border-slate-800/40 pt-4">
-        <div className="text-xs text-slate-500">
+      <div className="mt-5 flex items-center justify-between gap-4 border-t border-edge-default pt-4">
+        <div className="text-xs text-fg-tertiary">
           Status:{" "}
           <span className={`font-semibold capitalize ${
             currentStatus === "accepted"
@@ -142,20 +142,20 @@ export function OpportunityCard({ opportunity, onStatusChange }: OpportunityCard
             <button
               onClick={() => handleAction("declined")}
               disabled={loading}
-              className="flex h-8 items-center gap-1 rounded-lg border border-red-900/60 bg-red-950/20 px-3 text-xs font-semibold text-red-400 transition-all hover:bg-red-950/60 hover:text-white disabled:opacity-50"
+              className="flex h-8 items-center gap-1 rounded-control border border-red-900/60 bg-red-950/20 px-3 text-xs font-semibold text-red-400 transition-all hover:bg-red-950/60 hover:text-white disabled:opacity-50"
             >
               <X className="h-3.5 w-3.5" /> Decline
             </button>
             <button
               onClick={() => handleAction("accepted")}
               disabled={loading}
-              className="flex h-8 items-center gap-1 rounded-lg border border-emerald-900/60 bg-emerald-950/20 px-3 text-xs font-semibold text-emerald-400 transition-all hover:bg-emerald-950/60 hover:text-white disabled:opacity-50"
+              className="flex h-8 items-center gap-1 rounded-control border border-emerald-900/60 bg-emerald-950/20 px-3 text-xs font-semibold text-emerald-400 transition-all hover:bg-emerald-950/60 hover:text-white disabled:opacity-50"
             >
               <Check className="h-3.5 w-3.5" /> Accept
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+          <div className="flex items-center gap-1.5 text-xs text-fg-tertiary">
             {currentStatus === "accepted" ? (
               <span className="flex items-center gap-1 text-emerald-400">
                 <Check className="h-4.5 w-4.5" /> Accepted Decision

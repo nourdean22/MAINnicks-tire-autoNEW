@@ -149,11 +149,11 @@ export default function ProactivePreviewPage() {
         {/* Status Strip */}
         <Panel className="flex flex-col gap-4 border-edge-default p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 rounded bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold tracking-wide text-emerald-400">
+            <span className="inline-flex items-center gap-1.5 rounded-micro bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold tracking-wide text-emerald-400">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
               DRY-RUN ONLY
             </span>
-            <span className="inline-flex items-center rounded bg-sky-500/10 px-2 py-0.5 text-xs font-semibold tracking-wide text-sky-400">
+            <span className="inline-flex items-center rounded-micro bg-sky-500/10 px-2 py-0.5 text-xs font-semibold tracking-wide text-sky-400">
               NO-SEND GUARANTEE
             </span>
             <span className="text-xs text-fg-tertiary font-mono">
@@ -167,12 +167,12 @@ export default function ProactivePreviewPage() {
               type="datetime-local"
               value={mockTime}
               onChange={(e) => setMockTime(e.target.value)}
-              className="rounded border border-edge-subtle bg-transparent px-2 py-1 text-xs font-mono text-fg focus:outline-none focus:border-edge-subtle"
+              className="rounded-control border border-edge-subtle bg-transparent px-2 py-1 text-xs font-mono text-fg focus:outline-none focus:border-edge-subtle"
             />
             {mockTime && (
               <button
                 onClick={handleResetTime}
-                className="rounded bg-surface-interactive hover:bg-surface-hover px-2 py-1 text-[11px] font-mono text-fg"
+                className="rounded-control bg-surface-interactive hover:bg-surface-hover px-2 py-1 text-[11px] font-mono text-fg"
               >
                 Clear
               </button>
@@ -216,7 +216,7 @@ export default function ProactivePreviewPage() {
                       {preview.slot} slot
                     </h3>
                     <span
-                      className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${
+                      className={`rounded-micro px-1.5 py-0.5 text-[11px] font-semibold ${
                         wouldSend
                           ? "bg-emerald-400/10 text-emerald-400"
                           : "bg-amber-400/10 text-amber-300"
@@ -238,7 +238,7 @@ export default function ProactivePreviewPage() {
                       Message Draft
                     </span>
                     {preview.messageText ? (
-                      <div className="rounded border border-edge-subtle bg-content p-3 font-sans text-xs text-fg leading-relaxed whitespace-pre-wrap">
+                      <div className="rounded-surface border border-edge-subtle bg-content p-3 font-sans text-xs text-fg leading-relaxed whitespace-pre-wrap">
                         {preview.messageText}
                       </div>
                     ) : (
@@ -254,7 +254,7 @@ export default function ProactivePreviewPage() {
                       {preview.riskFlags.map((flag) => (
                         <span
                           key={flag}
-                          className="rounded bg-content px-1.5 py-0.5 text-[11px] font-mono text-fg-secondary border border-edge-default"
+                          className="rounded-micro bg-content px-1.5 py-0.5 text-[11px] font-mono text-fg-secondary border border-edge-default"
                         >
                           {flag}
                         </span>
@@ -277,12 +277,12 @@ export default function ProactivePreviewPage() {
                               ? "bg-sky-500/10 text-sky-400 border-sky-500/20"
                               : "bg-amber-400/10 text-amber-300 border-amber-500/20";
                           return (
-                            <div key={idx} className="rounded border border-edge-subtle p-2 space-y-1">
+                            <div key={idx} className="rounded-micro border border-edge-subtle p-2 space-y-1">
                               <div className="flex items-center justify-between gap-2">
-                                <span className="rounded bg-content px-1.5 py-0.5 text-[11px] font-mono text-fg-secondary border border-edge-default">
+                                <span className="rounded-micro bg-content px-1.5 py-0.5 text-[11px] font-mono text-fg-secondary border border-edge-default">
                                   {src.category}
                                 </span>
-                                <span className={`rounded border px-1.5 py-0.5 text-[11px] font-mono ${confColors}`}>
+                                <span className={`rounded-micro border px-1.5 py-0.5 text-[11px] font-mono ${confColors}`}>
                                   {src.confidence} confidence
                                 </span>
                               </div>
@@ -341,7 +341,7 @@ export default function ProactivePreviewPage() {
                 return (
                   <div key={flag} className="flex items-start gap-3 text-xs leading-normal">
                     <span
-                      className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px] font-semibold border ${
+                      className={`mt-0.5 shrink-0 rounded-micro px-1.5 py-0.5 font-mono text-[11px] font-semibold border ${
                         isActive
                           ? "bg-amber-400/10 text-amber-300 border-amber-500/20"
                           : "bg-content text-fg-tertiary border-edge-subtle"
@@ -374,7 +374,7 @@ export default function ProactivePreviewPage() {
                     type="checkbox"
                     checked={!!checklist[item.id]}
                     onChange={() => toggleCheck(item.id)}
-                    className="mt-0.5 h-4 w-4 rounded border-edge-subtle bg-transparent text-fg-secondary focus:ring-0 focus:ring-offset-0"
+                    className="mt-0.5 h-4 w-4 rounded-micro border-edge-subtle bg-transparent text-fg-secondary focus:ring-0 focus:ring-offset-0"
                   />
                   <span className={checklist[item.id] ? "text-fg line-through opacity-60" : ""}>
                     {item.label}
@@ -436,15 +436,15 @@ export default function ProactivePreviewPage() {
             </p>
             <ul className="space-y-2 font-mono text-xs text-fg">
               <li>
-                <code className="text-fg bg-content px-1.5 py-0.5 rounded">/preview-pushes all</code>
+                <code className="text-fg bg-content px-1.5 py-0.5 rounded-micro">/preview-pushes all</code>
                 <span className="text-fg-tertiary ml-2">Show preview of all slots</span>
               </li>
               <li>
-                <code className="text-fg bg-content px-1.5 py-0.5 rounded">/pushes morning</code>
+                <code className="text-fg bg-content px-1.5 py-0.5 rounded-micro">/pushes morning</code>
                 <span className="text-fg-tertiary ml-2">Show morning question slot only</span>
               </li>
               <li>
-                <code className="text-fg bg-content px-1.5 py-0.5 rounded">/pushes auto</code>
+                <code className="text-fg bg-content px-1.5 py-0.5 rounded-micro">/pushes auto</code>
                 <span className="text-fg-tertiary ml-2">Show current hour slot only</span>
               </li>
             </ul>

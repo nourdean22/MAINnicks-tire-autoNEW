@@ -87,12 +87,12 @@ function SourceGroup({
             href={href}
             className="text-[11px] font-mono text-[var(--text-tertiary)] hover:text-fg"
           >
-            see all →
+            See all →
           </Link>
         )}
       </div>
       {error ? (
-        <p className="text-[11px] text-rose-300/80 px-2 py-1.5 rounded border border-rose-500/20 bg-rose-500/[0.04]">
+        <p className="text-[11px] text-rose-300/80 px-2 py-1.5 rounded-micro border border-rose-500/20 bg-rose-500/[0.04]">
           ⚠ {error.replace(/_/g, " ")}
         </p>
       ) : (

@@ -304,7 +304,7 @@ Connected in view: ${inViewConnections.map((c) => `${c.node.label} (${c.type})`)
           className="w-full text-[13px] font-medium rounded-control border border-edge-default bg-content text-fg hover:border-edge-strong transition-colors duration-[var(--motion-state)] min-h-[48px] flex items-center justify-center gap-1.5 active:scale-[0.98]"
         >
           <MessageSquare size={12} />
-          ask nick about this
+          Ask nick about this
         </button>
         {node.type === "memory" && (
           <button
@@ -312,7 +312,7 @@ Connected in view: ${inViewConnections.map((c) => `${c.node.label} (${c.type})`)
             className="w-full text-[13px] font-medium rounded-control border border-edge-default bg-content text-fg-secondary hover:border-edge-strong hover:text-fg transition-colors duration-[var(--motion-state)] min-h-[48px] flex items-center justify-center gap-1"
           >
             <Eye size={11} />
-            inspect memory · proof + time
+            Inspect memory · proof + time
           </button>
         )}
         <div className="grid grid-cols-2 gap-1.5">
@@ -337,7 +337,7 @@ Connected in view: ${inViewConnections.map((c) => `${c.node.label} (${c.type})`)
             className="text-[13px] font-medium rounded-control border border-edge-default bg-content text-fg-secondary hover:border-edge-strong hover:text-fg transition-colors duration-[var(--motion-state)] min-h-[48px] flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-(--border-default)"
           >
             <Compass size={11} />
-            {inViewConnections.length === 0 ? "no connections" : "focus graph"}
+            {inViewConnections.length === 0 ? "No connections" : "Focus graph"}
           </button>
           {node.href && (
             <button

@@ -105,7 +105,7 @@ export function InlineChart({ spec }: { spec: ChartSpec }) {
           {spec.title}
         </p>
       )}
-      <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] p-2.5">
+      <div className="rounded-surface border border-[var(--border-default)] bg-[var(--bg-raised)] p-2.5">
         {spec.type === "line" || spec.type === "sparkline" ? (
           <LineChart spec={spec} />
         ) : spec.type === "bar" ? (

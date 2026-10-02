@@ -124,7 +124,7 @@ async function LearnPageInner({
           rel="noopener noreferrer"
           className="text-fg-secondary underline decoration-edge-strong underline-offset-2 hover:text-fg"
         >
-          source
+          Source
         </a>
       </p>
 

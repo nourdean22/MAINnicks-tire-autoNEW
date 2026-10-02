@@ -170,7 +170,7 @@ export function MissionRetroModal({
             disabled={submitting}
             className="min-h-11 px-2 text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg disabled:opacity-50"
           >
-            skip + archive
+            Skip + archive
           </button>
           <button
             type="button"
@@ -184,7 +184,7 @@ export function MissionRetroModal({
             {submitting && (
               <Loader2 size={12} className="animate-spin" strokeWidth={2} />
             )}
-            save retro + archive
+            Save retro + archive
           </button>
         </footer>
       </DialogContent>

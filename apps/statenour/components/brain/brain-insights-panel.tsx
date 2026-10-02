@@ -117,7 +117,7 @@ export function BrainInsightsPanel() {
 
 function CardShell({ title, count, accent, children }: { title: string; count: number; accent: string; children: React.ReactNode }) {
   return (
-    <div className="rounded border border-[var(--border-default)] bg-content p-3">
+    <div className="rounded-micro border border-[var(--border-default)] bg-content p-3">
       <div className="flex items-center justify-between mb-2">
         <span className={`text-[11px] font-mono ${accent}`}>
           {title}
@@ -188,7 +188,7 @@ function EvolutionCard({ stale, redundant, lowTrust }: { stale: EvolutionStale[]
         href="/brain?tab=wisdom&evolution=1"
         className="block text-[11px] font-mono text-fg-secondary hover:underline mt-1 py-2 sm:py-0"
       >
-        review all →
+        Review all →
       </a>
     </CardShell>
   );

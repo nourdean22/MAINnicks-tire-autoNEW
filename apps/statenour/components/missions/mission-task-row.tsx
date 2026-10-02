@@ -302,7 +302,7 @@ export function MissionTaskRow({
               return (
                 <div
                   key={i}
-                  className="absolute w-1 h-1 bg-emerald-300 rounded-sm"
+                  className="absolute w-1 h-1 bg-emerald-300 rounded-micro"
                   style={{
                     "--x": `${x}px`,
                     "--y": `${y}px`,

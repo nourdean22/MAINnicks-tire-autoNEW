@@ -106,7 +106,7 @@ export default function BlowUpModal({
             }}
             disabled={flipStatus.isPending}
           >
-            cancel
+            Cancel
           </Button>
           <Button
             variant="destructive"
@@ -119,7 +119,7 @@ export default function BlowUpModal({
             }
             disabled={!reasonValid || flipStatus.isPending}
           >
-            {flipStatus.isPending ? "blowing up…" : "confirm blow up"}
+            {flipStatus.isPending ? "Blowing up…" : "Confirm blow up"}
           </Button>
         </DialogFooter>
       </DialogContent>

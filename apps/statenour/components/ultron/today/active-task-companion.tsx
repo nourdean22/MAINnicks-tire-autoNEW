@@ -284,7 +284,7 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-control border text-[13px] font-medium border-blue-500/30 bg-blue-500/5 text-blue-300 hover:bg-blue-500/15 transition-colors"
           title="ask Nick for help with this task"
         >
-          <MessageSquareText size={10} /> ask nick
+          <MessageSquareText size={10} /> Ask nick
         </Link>
 
         <button
@@ -302,7 +302,7 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
           )}
           title="jot a quick note tied to this task"
         >
-          <StickyNote size={10} /> note
+          <StickyNote size={10} /> Note
         </button>
 
         <button
@@ -311,7 +311,7 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-control border text-[13px] font-medium border-amber-500/30 bg-amber-500/5 text-amber-300 hover:bg-amber-500/15 transition-colors disabled:opacity-40"
           title="capture a photo · ties to task timeline"
         >
-          <Camera size={10} /> photo
+          <Camera size={10} /> Photo
         </button>
 
         {recording ? (
@@ -320,7 +320,7 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-control border text-[13px] font-medium border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors"
             title="stop voice recording"
           >
-            <MicOff size={10} /> stop
+            <MicOff size={10} /> Stop
           </button>
         ) : (
           <button
@@ -339,7 +339,7 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-control border text-[13px] font-medium border-emerald-500/30 bg-emerald-500/5 text-emerald-300 hover:bg-emerald-500/15 transition-colors disabled:opacity-40"
           title="log a quick progress timestamp"
         >
-          <Check size={10} /> log
+          <Check size={10} /> Log
         </button>
 
         {eventCount > 0 && (
@@ -384,7 +384,7 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
             <button
               onClick={saveNote}
               disabled={busy || !draft.trim()}
-              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 w-7 h-7 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-30"
+              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 w-7 h-7 rounded-control border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-30"
               title="save note"
             >
               {busy ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
@@ -394,7 +394,7 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
                 setMode("closed");
                 setDraft("");
               }}
-              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 w-7 h-7 rounded border border-edge-default text-fg-tertiary hover:border-red-500/40 hover:text-red-400 transition-colors"
+              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 w-7 h-7 rounded-control border border-edge-default text-fg-tertiary hover:border-red-500/40 hover:text-red-400 transition-colors"
               title="cancel"
             >
               <X size={11} />
@@ -414,7 +414,7 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
             onClick={stopVoice}
             className="shrink-0 text-[13px] font-medium text-red-400 hover:bg-red-500/10 px-1.5 py-0.5 rounded-control"
           >
-            stop
+            Stop
           </button>
         </div>
       )}
@@ -443,7 +443,7 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
                 <img
                   src={e.photoUrl}
                   alt="session capture"
-                  className="h-6 w-6 object-cover rounded border border-edge-default"
+                  className="h-6 w-6 object-cover rounded-control border border-edge-default"
                 />
               ) : null}
               <p className="flex-1 min-w-0 truncate text-fg-secondary">

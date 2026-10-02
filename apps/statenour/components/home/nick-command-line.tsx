@@ -271,7 +271,7 @@ export function NickCommandLine() {
                     setInput(`${c.token} `);
                     taRef.current?.focus();
                   }}
-                  className="flex min-h-[36px] w-full items-baseline gap-3 rounded-md px-2 text-left transition-colors duration-150 hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+                  className="flex min-h-[36px] w-full items-baseline gap-3 rounded-control px-2 text-left transition-colors duration-150 hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
                 >
                   <span className="font-mono text-[13px] text-fg">{c.token}</span>
                   <span className="text-[12px] text-fg-tertiary">{c.hint}</span>

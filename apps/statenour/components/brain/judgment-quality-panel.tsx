@@ -26,8 +26,8 @@ export function JudgmentQualityPanel() {
   if (spcQ.isLoading || calQ.isLoading) {
     return (
       <section aria-label="judgment-quality" className="rounded-surface border border-edge-subtle p-4 space-y-2">
-        <div className="h-3 w-44 rounded bg-surface-interactive animate-pulse" />
-        <div className="h-16 rounded bg-surface-interactive animate-pulse" />
+        <div className="h-3 w-44 rounded-micro bg-surface-interactive animate-pulse" />
+        <div className="h-16 rounded-micro bg-surface-interactive animate-pulse" />
       </section>
     );
   }
