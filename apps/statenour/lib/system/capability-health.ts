@@ -60,6 +60,21 @@ interface ToolMemory {
 }
 
 const memory = new Map<string, ToolMemory>();
+let noDatabaseLogged = false;
+
+/**
+ * No connection string means there is nothing to write to (unit tests, a shell
+ * without env). Said once at debug, then silent: the guardian must stay cheap.
+ * lib/prisma.ts reads the same variable to build its client.
+ */
+function noDatabase(): boolean {
+  if (process.env.DATABASE_URL) return false;
+  if (!noDatabaseLogged) {
+    noDatabaseLogged = true;
+    log.debug("capability_receipts_disabled_no_database");
+  }
+  return true;
+}
 
 function mem(toolName: string): ToolMemory {
   let m = memory.get(toolName);
@@ -87,6 +102,7 @@ export async function recordCapabilityFailure(f: CapabilityFailure): Promise<voi
   // The next success must write a recovery again.
   m.recoveryWritten = false;
   if (m.degraded && at.getTime() - m.lastWriteAt < CAPABILITY_WRITE_THROTTLE_MS) return;
+  if (noDatabase()) return;
 
   try {
     const existing = await prisma.integration.findUnique({
@@ -147,6 +163,7 @@ export async function recordCapabilityFailure(f: CapabilityFailure): Promise<voi
 export async function recordCapabilityRecovery(toolName: string): Promise<void> {
   const m = mem(toolName);
   if (m.recoveryWritten) return;
+  if (noDatabase()) return;
   m.recoveryWritten = true;
 
   try {
@@ -177,4 +194,5 @@ export async function recordCapabilityRecovery(toolName: string): Promise<void> 
 /** Test-only · forgets every tool's in-process state. */
 export function __resetCapabilityHealthMemory(): void {
   memory.clear();
+  noDatabaseLogged = false;
 }

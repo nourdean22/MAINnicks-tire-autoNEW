@@ -10,7 +10,7 @@
  * database; the first success after a streak resets it and costs no query
  * afterwards until the next failure.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   findUnique: vi.fn(),
@@ -70,10 +70,26 @@ const row = (over: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv("DATABASE_URL", "postgresql://unit-test@localhost:5432/receipts");
   __resetCapabilityHealthMemory();
   mocks.findUnique.mockResolvedValue(null);
   mocks.upsert.mockResolvedValue({});
   mocks.update.mockResolvedValue({});
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+describe("without a connection string", () => {
+  it("attempts nothing and throws nothing — there is no database to write to", async () => {
+    vi.stubEnv("DATABASE_URL", "");
+    await recordCapabilityFailure(failure());
+    await recordCapabilityRecovery("firecrawl-scrape");
+    expect(mocks.findUnique).not.toHaveBeenCalled();
+    expect(mocks.upsert).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
 });
 
 describe("recordCapabilityFailure", () => {

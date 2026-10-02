@@ -326,7 +326,7 @@ export function BrainDumpModal() {
                   }}
                   aria-pressed={m.key === mode.key}
                   className={cn(
-                    "rounded-md border px-2 py-1 text-[9px] font-bold uppercase tracking-wider transition-all",
+                    "rounded-micro border px-2 py-1 text-[9px] font-bold uppercase tracking-wider transition-all",
                     "[@media(pointer:coarse)]:min-h-[44px] [@media(pointer:coarse)]:px-3",
                     m.key === mode.key
                       ? "bg-[var(--gold)]/15 border-[var(--gold)]/40 text-[var(--gold)]"
@@ -373,7 +373,7 @@ export function BrainDumpModal() {
                 onClick={submit}
                 disabled={text.trim().length < 3}
                 className={cn(
-                  "flex min-h-11 items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-bold border transition-all",
+                  "flex min-h-11 items-center gap-1.5 px-3 py-1.5 rounded-control text-[11px] font-bold border transition-all",
                   text.trim().length < 3
                     ? "bg-transparent border-zinc-800 text-zinc-600"
                     : "bg-[var(--gold)]/15 border-[var(--gold)]/40 text-[var(--gold)] hover:bg-[var(--gold)]/25"

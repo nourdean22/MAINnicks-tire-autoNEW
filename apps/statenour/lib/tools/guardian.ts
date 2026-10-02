@@ -31,6 +31,13 @@ import { isApprovalRequestExpired } from "@/lib/automation/approval-freshness";
 import { AsyncLocalStorage } from "async_hooks";
 import { recordCapabilityFailure, recordCapabilityRecovery } from "@/lib/system/capability-health";
 
+/**
+ * How long a terminal failure waits for its durable receipt to land before the
+ * error propagates. A database slower than this finishes the write in the
+ * background; the caller is never held hostage to the receipt.
+ */
+export const CAPABILITY_RECEIPT_WAIT_MS = 750;
+
 const log = rootLogger.withSurface("tools/guardian");
 
 export const pendingExecutions = new Map<string, { fn: Function; args: any[] }>();
@@ -693,17 +700,21 @@ export function withGuardian<T, A extends unknown[]>(
 
     // 2026-10-02 · the failure boundary writes its receipt BEFORE the throw so the
     // Owner Panel has a row to read (`capability_degraded`); the log line below it
-    // cannot be projected. The recorder never throws; even if it did, the caller's
-    // failure is the one that matters.
-    try {
-      await recordCapabilityFailure({
+    // cannot be projected. Bounded: the receipt gets CAPABILITY_RECEIPT_WAIT_MS to
+    // land, then the failure propagates whether or not the database answered.
+    await Promise.race([
+      recordCapabilityFailure({
         toolName,
         category: lastCategory,
         error: String((lastError as { message?: string })?.message ?? lastError ?? "unknown"),
-      });
-    } catch {
-      /* receipts never mask the failure they record */
-    }
+      }).catch(() => {
+        /* receipts never mask the failure they record */
+      }),
+      new Promise<void>((resolve) => {
+        const t = setTimeout(resolve, CAPABILITY_RECEIPT_WAIT_MS);
+        (t as { unref?: () => void }).unref?.();
+      }),
+    ]);
 
     throw new GuardianError(
       toolName,

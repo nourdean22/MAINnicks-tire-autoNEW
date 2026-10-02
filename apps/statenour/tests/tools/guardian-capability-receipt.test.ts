@@ -23,7 +23,7 @@ vi.mock("@/lib/system/capability-health", () => ({
   recordCapabilityRecovery: (...a: unknown[]) => recovery(...a),
 }));
 
-import { withGuardian, __resetGuardianBreakers } from "@/lib/tools/guardian";
+import { withGuardian, __resetGuardianBreakers, CAPABILITY_RECEIPT_WAIT_MS } from "@/lib/tools/guardian";
 
 beforeEach(() => {
   failure.mockReset();
@@ -89,5 +89,21 @@ describe("withGuardian · capability receipts", () => {
     await expect(failing()).rejects.toBeInstanceOf(Error);
     const succeeding = withGuardian("y", async () => 42, { maxRetries: 0, reliabilityOnly: true });
     expect(await succeeding()).toBe(42);
+  });
+
+  it("a recorder that never settles holds the failure for at most the wait bound", async () => {
+    failure.mockReturnValue(new Promise<void>(() => {}));
+    const guarded = withGuardian(
+      "slow-db",
+      async () => {
+        throw new Error("the real error");
+      },
+      { maxRetries: 0, reliabilityOnly: true },
+    );
+    const started = Date.now();
+    await expect(guarded()).rejects.toThrow(/the real error/);
+    const elapsed = Date.now() - started;
+    expect(elapsed).toBeGreaterThanOrEqual(CAPABILITY_RECEIPT_WAIT_MS - 50);
+    expect(elapsed).toBeLessThan(CAPABILITY_RECEIPT_WAIT_MS + 2_000);
   });
 });

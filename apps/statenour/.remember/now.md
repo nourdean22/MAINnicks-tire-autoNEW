@@ -1,5 +1,11 @@
 # Session ledger — statenour
 
+**Updated: 2026-10-02 ET** (full-circle Lane A · `statenour/full-circle-a-exception-coverage` · owner-exception coverage · PR open)
+
+## 2026-10-02 · full-circle Lane A — the Owner Panel can see a failing capability and a degraded brief
+
+Guardian terminal failures now leave a durable receipt in the incumbent `integrations` table (type `capability`; degraded after 3 consecutive; first success resets; 750 ms bounded wait; no DATABASE_URL → no-op) and the Owner Panel projects them as `capability_degraded`. A job output that declares degradation settles `partial` with a prefixed reason (`cron-status.ts` DECLARED_DEGRADATION_PREFIX); the daily brief's compose fallback now does that via `briefRunOutcome`; the panel pages `cron_degraded` only on the prefix (plain fan-out partials are diagnose-cron-failure's). Receipts: tsc 0 · eslint 0 errors · vitest 189 + 105 across the referencing set · anti-slop 0 · stale-docs 0 · parity 142/0 · check:crons clean · cleared-cache build exit 0. State: BUILT + TESTED; merge/deploy on the PR. Lesson: a durable write added to a hot failure path needs a bound and a "no database" no-op, or every unmocked test of that path hangs on a connection attempt (four 20 s timeouts on the first cut). Next: Settings control census (read-only), then WaitingSummary over Task.waitingOn / approvals / commitments. Mission brief: `docs/agent-os/FULL-CIRCLE-MISSION.md`.
+
 **Updated: 2026-10-02 ET** (UI v2 PR 4 · `statenour/ui-v2-backlog` · backlog closed · self-audit second commit)
 
 ## 2026-10-02 · UI v2 PR 4 — backlog closed
