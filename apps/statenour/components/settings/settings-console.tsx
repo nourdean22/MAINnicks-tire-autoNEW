@@ -67,8 +67,8 @@ const DOMAINS: DomainConfig[] = [
   },
 ];
 
-/** Where the operations this page used to host now live. One pointer each, no live data. */
-const OPERATIONS_LINKS: { href: string; label: string }[] = [
+/** Where the operations this page used to host now live, plus the habits pointer it always had. One link each, no live data. */
+const ELSEWHERE_LINKS: { href: string; label: string }[] = [
   { href: "/system", label: "System · health, errors, deploys" },
   { href: "/system/crons", label: "Crons · kill switch, run now, runbooks" },
   { href: "/brain", label: "Brain · skill library, memory of the day" },
@@ -117,10 +117,10 @@ export function SettingsConsole() {
         {/* Operations moved out of Settings (wave 2): pointers only. */}
         <div className="mt-3 lg:mt-8 px-2">
           <p className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary mb-2">
-            Operations
+            Elsewhere
           </p>
           <ul className="flex flex-col">
-            {OPERATIONS_LINKS.map((l) => (
+            {ELSEWHERE_LINKS.map((l) => (
               <li key={l.href}>
                 <Link
                   href={l.href}

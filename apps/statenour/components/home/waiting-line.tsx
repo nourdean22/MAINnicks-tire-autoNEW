@@ -58,10 +58,17 @@ export function waitingLineModel(summary: WaitingSummary | null, status: Waiting
   const items = [...summary.others.items, ...summary.system.items]
     .filter((i) => !isShopItem(i))
     .sort((a, b) => (b.ageMin ?? -1) - (a.ageMin ?? -1));
-  const total = summary.others.count + summary.system.count;
-  if (total === 0 && items.length === 0) return { kind: "nothing", failedSources: [], rows: [], more: 0, total: 0 };
+  // The count is what Home may show: the items in hand (shop items excluded)
+  // plus whatever the read model's bucket cap left unlisted — never a number
+  // that includes rows this surface refuses to render.
+  const hiddenByCap = Math.max(
+    0,
+    summary.others.count + summary.system.count - (summary.others.items.length + summary.system.items.length),
+  );
+  const total = items.length + hiddenByCap;
+  if (total === 0) return { kind: "nothing", failedSources: [], rows: [], more: 0, total: 0 };
   const rows = items.slice(0, WAITING_LINE_ROW_CAP);
-  return { kind: "rows", failedSources: [], rows, more: Math.max(0, total - rows.length), total };
+  return { kind: "rows", failedSources: [], rows, more: total - rows.length, total };
 }
 
 export function WaitingLineView({ summary, status }: { summary: WaitingSummary | null; status: WaitingLineStatus }) {

@@ -68,7 +68,10 @@ describe("intelligence-brief keeps the ledger id and rates on both delivery path
     const save = stepBody(BRIEF, "save-brief-log");
     expect(save).toMatch(/const id = await recordShown\(/);
     expect(save).toContain("return { ledgerId: id }");
-    expect(BRIEF).toContain('const { ledgerId } = await step.run("save-brief-log"');
+    // Read defensively: a run that memoized this step before it returned anything
+    // replays null, and a destructure there would fail the brief for the buttons.
+    expect(BRIEF).toContain('const savedBrief = await step.run("save-brief-log"');
+    expect(BRIEF).toContain("savedBrief?.ledgerId ?? null");
   });
 
   it("dispatch-push spreads the rating actions", () => {

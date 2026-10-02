@@ -93,8 +93,20 @@ describe("waitingLineModel", () => {
       others: { items: [item({ key: "callback:17", who: "Sam", source: "nickstire callback_requests 17" })], count: 1 },
     });
     const m = waitingLineModel(s, "ready");
-    expect(m.rows).toEqual([]);
-    expect(renderToStaticMarkup(<WaitingLineView summary={s} status="ready" />)).not.toContain("Sam");
+    // The only item was the shop's, so Home has nothing to show AND nothing to count.
+    expect(m.kind).toBe("nothing");
+    expect(renderToStaticMarkup(<WaitingLineView summary={s} status="ready" />)).toBe("");
+  });
+
+  it("rows the read model capped out of its bucket are counted, not forgotten", () => {
+    // others.count says 60 wait, but the bucket carries only 2 items (BUCKET_CAP upstream).
+    const s = summary({
+      others: { items: [item({ key: "task:a", who: "A", ageMin: 5 }), item({ key: "task:b", who: "B", ageMin: 9 })], count: 60 },
+    });
+    const m = waitingLineModel(s, "ready");
+    expect(m.total).toBe(60);
+    expect(m.rows.map((r) => r.key)).toEqual(["task:b", "task:a"]);
+    expect(m.more).toBe(58);
   });
 
   it("a deadline rides the age column", () => {

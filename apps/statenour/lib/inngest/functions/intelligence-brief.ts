@@ -332,7 +332,7 @@ export const intelligenceDailyBrief = inngest.createFunction(
     const combinedText = combineBriefText(morningHighlight, briefContent.text);
 
     // 4. Save Brief to BriefingLog
-    const { ledgerId } = await step.run("save-brief-log", async () => {
+    const savedBrief = await step.run("save-brief-log", async () => {
       const { prisma } = await import("@/lib/prisma");
       await prisma.briefingLog.create({
         data: {
@@ -360,6 +360,10 @@ export const intelligenceDailyBrief = inngest.createFunction(
       });
       return { ledgerId: id };
     });
+    // A run that memoized this step BEFORE the step returned anything replays
+    // `null` here (Inngest replays recorded step output); read it defensively
+    // so a deploy mid-run costs the buttons, never the brief.
+    const ledgerId: string | null = savedBrief?.ledgerId ?? null;
 
     // 5. Dispatch Web Push Notification — ONE push covering both briefs
     // when morning's highlight was there to combine.
