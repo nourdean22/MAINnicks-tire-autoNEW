@@ -176,6 +176,11 @@ export const smsOrchestratorRouter = router({
       editedMessage: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
+      // ROS-083 dead-handle guard, in the shape the fabricated-read gate recognises:
+      // resolveHumanPendingForConversation (below) returns 0 on a dead handle.
+      if (!(await getDbTyped())) {
+        throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Database unavailable — the draft was not actioned." });
+      }
       const db = await getDbTyped();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 

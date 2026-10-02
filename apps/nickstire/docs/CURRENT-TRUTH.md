@@ -18,6 +18,7 @@ Changed contracts:
 - **`convertedToLead` = "reached a tool"** (unchanged behaviour, comment corrected). It is never a lead conversion.
 - **Parents cannot be green over broken cameras**: Settings -> Status has 9 checks (camera health added); the Lot header reads the fleet verdict (`shared/cameraFleetHealth.ts`).
 - **GSC**: the Market card names its source (official property total vs partial stored rows); the Traffic Funnel reads web rows only, impression-weighted.
+- **Open callbacks show served evidence on Today**: an invoice dated the same day or later, or a later booking, for the same phone appends "likely served, close if handled" to the card (`callbackServed` bundle slice, cached 5 min). Nothing is auto-closed: the callback enum has no honest "served elsewhere".
 - **Review requests**: rows are still created only from website bookings marked completed; the work-order path (which never succeeded) is removed. ALG walk-in review asks go through `post-invoice-followup` and are not in `review_requests`.
 
 ## Creative Intelligence OS (2026-10-01, PR #2865 → `54a36662`) — merged; runtime receipt below

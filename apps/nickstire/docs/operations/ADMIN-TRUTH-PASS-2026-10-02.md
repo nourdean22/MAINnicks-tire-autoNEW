@@ -34,7 +34,10 @@ the PR body).
    booking drop, today's date in the prompt, past dates dropped; `scheduleCallback`
    links its callback to the call. Removed a work-order review-request insert that
    could never succeed.
-4. **No green over broken cameras.** Shared `summarizeCameraFleet`; Settings -> Status
+4. **Stale callbacks carry evidence.** Today appends "Invoiced <date> ... likely served" or
+   "Booked <date> ..." to an open callback card when the same phone was invoiced (same day
+   or later) or booked after the request. Hint only; the operator closes it.
+5. **No green over broken cameras.** Shared `summarizeCameraFleet`; Settings -> Status
    gets a camera check (RULE 5) and Lot's header stops saying "Live" over a degraded
    fleet. Approvals copy scoped to its own queue.
 
