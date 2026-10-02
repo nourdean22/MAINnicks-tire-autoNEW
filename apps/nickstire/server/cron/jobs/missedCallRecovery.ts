@@ -226,7 +226,11 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
     }
     return { recordsProcessed: processed, shadow: false, candidates };
   } catch (err) {
+    // Re-throw (2026-10-02): this used to return { recordsProcessed: 0, shadow: true }, so a
+    // broken run on a LIVE customer-texting lane was filed in cron_log as a completed shadow
+    // run — the observer's failure-streak alert never saw it (cronNoSwallowedFailure.test.ts
+    // explains why a return is a swallow). The scheduler records a throw as `failed`.
     log.error("Missed-call recovery failed", { error: err instanceof Error ? err.message : String(err) });
-    return { recordsProcessed: 0, shadow: true, candidates: 0 };
+    throw err;
   }
 }

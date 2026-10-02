@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   evidence: {} as Record<string, Record<string, unknown>>,
   evidenceCalls: [] as string[],
   sent: [] as string[],
+  dbThrows: false,
 }));
 
 vi.mock("../db", () => ({
@@ -19,7 +20,14 @@ vi.mock("../db", () => ({
     select: () => ({
       from: () => ({
         // calls query: .where().orderBy().limit(); opt-out query: await .where()
-        where: () => Object.assign(Promise.resolve([]), { orderBy: () => ({ limit: async () => h.callRows }) }),
+        where: () => Object.assign(Promise.resolve([]), {
+          orderBy: () => ({
+            limit: async () => {
+              if (h.dbThrows) throw new Error("ER_CON_COUNT_ERROR");
+              return h.callRows;
+            },
+          }),
+        }),
       }),
     }),
     execute: async () => [{ affectedRows: 1 }], // the at-most-once claim
@@ -114,6 +122,7 @@ describe("processMissedCallRecovery · tool-reaching callers", () => {
     h.evidence = {};
     h.evidenceCalls = [];
     h.sent = [];
+    h.dbThrows = false;
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -142,5 +151,11 @@ describe("processMissedCallRecovery · tool-reaching callers", () => {
     expect(out).toMatchObject({ shadow: false, candidates: 2, recordsProcessed: 2 });
     // the evidence read runs for tool-reaching calls only
     expect(h.evidenceCalls.sort()).toEqual(["tool-arrival", "tool-callbackrow", "tool-nothing", "tool-readfail"]);
+  });
+
+  it("a failed run THROWS (cron_log records failed), never a completed 'shadow' zero", async () => {
+    h.dbThrows = true;
+    await expect(processMissedCallRecovery()).rejects.toThrow(/ER_CON_COUNT_ERROR/);
+    expect(h.sent).toEqual([]);
   });
 });
