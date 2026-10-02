@@ -15,8 +15,10 @@
  * here, and it skips phones this lane already scheduled (postInvoiceFollowUp.ts), so a
  * customer is asked at most once per cooldown across both lanes.
  *
- * Deploy order: inert until 0139 is applied — checked in information_schema before any write
- * (invoiceId is not in drizzle/schema.ts yet, so every invoiceId reference here is raw SQL).
+ * Deploy order: inert until 0139 is applied — checked in information_schema before any write.
+ * 0139 was applied and recorded in production on 2026-10-02 and `invoiceId` is now declared in
+ * drizzle/schema.ts; the check stays as the guard for any database restored from before 0139
+ * (one cheap information_schema read per run).
  */
 import crypto from "node:crypto";
 import { sql } from "drizzle-orm";

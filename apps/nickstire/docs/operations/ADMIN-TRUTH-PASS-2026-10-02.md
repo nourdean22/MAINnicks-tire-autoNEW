@@ -53,7 +53,7 @@ the PR body).
    gets a camera check (RULE 5) and Lot's header stops saying "Live" over a degraded
    fleet. Approvals copy scoped to its own queue.
 
-## Migrations — prepared in this PR, applied by one operator action after deploy
+## Migrations — prepared in #2885, applied and recorded 2026-10-02
 
 Research (docs + evidence, no DB access from the build container) found: 0127/0128/0129 are
 APPLIED but unrecorded (record-only); 0130, 0132, 0133, 0136, 0137, 0138 were never applied;
@@ -80,6 +80,29 @@ Exact sequence (after merge + deploy):
    — exit 0 is the receipt. 0135 stays reported until its own state is verified.
 4. Keep every `contact_holdout_*` flag OFF until step 3 shows `heldout` in the
    `winback_sends`, `sms_campaign_sends` and `review_requests` status enums.
+
+PowerShell note: quote the list (`--only '0127,0128,…'`). Unquoted, PowerShell turns it into
+a numeric array (`127 128 …`), matches no file, and the script refuses — witnessed on the
+first run below, which wrote nothing.
+
+### Applied and recorded — 2026-10-02 (receipts)
+
+| Step | Receipt |
+|---|---|
+| Deploy | #2885 squash `d5838402` → Railway deployment `5c5eec0d`, SUCCESS, `server:ready` 15:49:15Z; `/api/health` healthy, `deploy.commit` d5838402 |
+| 1 · Apply | Operator tap on the d5838402 container, 15:53:21Z: **176 steps checked · 41 already in place · none failed**; audit trail "Operator ran DB migrations". (A first tap at 15:46:20Z ran on the previous container's shorter list — harmless, applied nothing new.) |
+| 2 · Dry run | `record-migrations.mjs` via `railway run` (prod TiDB, fingerprint `9486234786e5`): 0127, 0128, 0129, 0130, 0132, 0133, 0136, 0137, 0138, 0139 all `UNRECORDED_BUT_EXACT_MATCH` — the live schema matches every file exactly |
+| 2 · Execute | ledger backup `__drizzle_migrations_bak_20261002_record` (144 rows, count-checked), 10 rows inserted, every hash read back, exit 0 |
+| 3 · Strict | `reconcile-migrations.mjs --strict`: **exit 0, no blocking drift** — 153 files · 154 recorded · 125 `RECORDED_AND_MATCHED` · 0 `UNRECORDED_*`; 28 long-standing advisory mismatches (older migrations later superseded, or DDL the reconciler cannot parse) are reported, never gated |
+
+Consequences:
+- `review_requests.invoiceId` is declared in `drizzle/schema.ts` (follow-up PR), pinned to
+  0139 by `server/reviewRequestsInvoiceMigration.test.ts`.
+- 0136 is matched, so `heldout` exists in all three status enums: the precondition for the
+  `contact_holdout_*` flags is met. The flags are still OFF — arming them is a separate
+  operator decision (it changes who gets texted).
+- The backup table `__drizzle_migrations_bak_20261002_record` can be dropped once the ledger
+  has been trusted for a while; nothing reads it.
 
 ## Changed series (stated, not silent)
 
