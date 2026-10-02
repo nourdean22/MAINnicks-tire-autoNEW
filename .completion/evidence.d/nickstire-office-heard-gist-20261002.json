@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "migration-evidence": {
+      "deferred": "drizzle/0141_conversation_episodes_gist.sql (ALTER TABLE conversation_episodes ADD COLUMN IF NOT EXISTS gist TEXT NULL; additive, nullable, idempotent) is NOT applied yet: production DDL is operator-applied (Admin -> Run migrations) and this cloud container has no database route. The statement ships inside handleRunMigrations (server/routers/nick/intelligence.ts) next to 0140. Writer (conversationRoutes) and reader (lot.conversations) both check information_schema via conversationEpisodeColumnReady(d, 'gist') and stay inert until the column exists; the main INSERT is unchanged. Pinned by conversationRoutes.test.ts ('gist: written by its own UPDATE only once 0141 exists') and officeVisual.test.ts (per-column readiness cache). Receipt after apply: a 'conversation extracted' log line with gist true followed by a 'Heard:' line in Admin -> Lot."
+    },
+    "operator-walkthrough": {
+      "deferred": "WHAT THE OPERATOR SEES after this diff and migration 0141: Admin -> Lot -> Counter conversations shows, above the fact summary, 'Heard: <one sentence on what the conversation was about>' (e.g. 'Customer asking when their car will be ready'). When there is a gist but no actionable facts, the old 'No evidence-backed actionable facts were found.' line drops to small grey text under it. Garbled or low-coverage transcripts show no Heard line (withheld, same gates as facts). Before 0141 is applied nothing changes on screen. Live walkthrough DEFERRED until deploy + migration: no production admin session exists in this cloud container."
+    },
+    "capability-ledger-updated": {
+      "ref": "UPDATED in this diff: apps/nickstire/docs/operations/capability-ledger.json 'office-visual-watch-20261002' gains a P2 blocker for the 'Heard:' gist (0141 unapplied; live proof = log gist true + Heard line). REALITY-LEDGER.md re-rendered."
+    }
+  }
+}

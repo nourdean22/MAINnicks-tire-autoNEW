@@ -3412,6 +3412,10 @@
           "source": "2026-10-02 office watch live check"
         },
         {
+          "description": "'Heard:' topic line (conversation_episodes.gist, migration 0141): merged + unit-verified only. Needs Admin -> Run migrations to apply 0141; until then the gist is computed and logged as a flag but not stored. Live proof: a 'conversation extracted' log line with gist true and a 'Heard:' line in Admin -> Lot.",
+          "source": "2026-10-02 office heard-gist PR"
+        },
+        {
           "severity": "P2",
           "description": "Self-learning (Right / Wrong reviews -> calibration notes in the vision prompt) and camera context in fact extraction are deployed but not yet exercised live: proof is a saved review row (visual.review) and a later episode described with it in the prompt. On-box person count is live-proven (see liveRuns).",
           "source": "2026-10-02 office self-learning PR"
