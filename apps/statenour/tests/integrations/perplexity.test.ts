@@ -62,6 +62,30 @@ describe("Perplexity current APIs", () => {
       },
     });
   });
+
+  it.each(["failed", "cancelled"] as const)(
+    "rejects HTTP 200 Agent runs whose response status is %s",
+    async (status) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          new Response(
+            JSON.stringify({
+              status,
+              error: { message: "provider run did not complete" },
+              output: [],
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        ),
+      );
+
+      await expect(askPerplexity("test")).rejects.toThrow(
+        `Perplexity Agent API ${status}`,
+      );
+    },
+  );
+
   it("uses Search API for retrieval-first verified search", async () => {
     const fetchMock = vi.fn(async () =>
       new Response(JSON.stringify({

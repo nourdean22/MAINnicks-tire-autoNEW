@@ -169,6 +169,23 @@ async function _askPerplexity(
   }
 
   const data = (await res.json()) as Record<string, unknown>;
+  const responseStatus = typeof data.status === "string" ? data.status : undefined;
+  if (responseStatus === "failed" || responseStatus === "cancelled") {
+    const upstreamError =
+      data.error && typeof data.error === "object"
+        ? (data.error as Record<string, unknown>)
+        : undefined;
+    const message =
+      typeof upstreamError?.message === "string"
+        ? upstreamError.message
+        : `Perplexity Agent API run ${responseStatus}`;
+    const error: Error & { status?: string } = new Error(
+      `Perplexity Agent API ${responseStatus}: ${message.slice(0, 300)}`,
+    );
+    error.status = responseStatus;
+    throw error;
+  }
+
   const output: unknown[] = Array.isArray(data.output) ? data.output : [];
   const content = output
     .filter((item: unknown): item is Record<string, unknown> =>

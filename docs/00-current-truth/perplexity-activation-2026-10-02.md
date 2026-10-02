@@ -9,9 +9,10 @@ Status: PARTIALLY ACTIVATED / BLOCKED ON PROJECT-SCOPED API KEY
 - Service: `statenour-web`
 - Variable name: `PERPLEXITY_API_KEY`
 - Secret value is intentionally omitted from source and this receipt.
-- Variable mutation triggered Railway deployment `8bbf50ac-c345-4365-858f-e729fd6d662d`.
-- Deployment reached terminal `SUCCESS` at 2026-10-02T11:05:42.599Z.
-- A local ignored `.env.local` was used only for canary probes, then deleted because the repo's secret scanner intentionally scans ignored secret files too. No credential is retained in the worktree.
+- The supplied credential was temporarily installed for canary probes, then removed after live endpoints identified it as the wrong credential class.
+- Railway redeployment `1b8c2deb-5f02-4c61-be77-bf1fc826e093` reached terminal `SUCCESS` after removal.
+- Production currently has no `PERPLEXITY_API_KEY`; this prevents known-bad 403 calls while preserving Tavily/Exa/Google fallback.
+- Local worktree and last30days copies of the rejected credential were deleted after canary testing.
 
 ## Current API truth discovered live
 
@@ -50,26 +51,27 @@ A direct Search API probe also returned HTTP 403 in ~190 ms.
 
 ## Verification
 
-- Targeted Vitest: 3 files / 20 tests PASS.
+- Targeted Vitest: 3 files / 22 tests PASS.
 - Targeted ESLint on changed TypeScript/tests: PASS.
+- Agent API HTTP-200 `failed` / `cancelled` statuses are explicitly rejected and test-pinned.
 - Exact supplied secret scan against tracked files: NOT FOUND.
-- Full StateNour typecheck still fails on pre-existing unresolved workspace package modules
-  (`@nour/social-assets`, `@nour/ai-capabilities`, `@statenour/lenses`) and their
-  downstream implicit-any errors; no remaining typecheck error points at the Perplexity files.
-- last30days global private config resolves `PERPLEXITY_API_KEY`: VERIFIED.
+- Full StateNour typecheck initially exposed unbuilt workspace package artifacts.
+  After building `@nour/social-assets`, `@nour/ai-capabilities`, and `@statenour/lenses`,
+  `typecheck:raw` passes cleanly.
+- last30days private config resolved the supplied key during the canary, then was deleted after the credential-class failure.
 - last30days Search API canary: HTTP 403 with this credential type, 0 items.
 
 ## Activation ledger
 
-1. Production variable: DONE
-2. Private local secret: NOT RETAINED after canary; re-add only after issuing the correct project-scoped key
+1. Production variable: PENDING VALID PROJECT-SCOPED KEY; rejected organization key removed and runtime redeployed cleanly
+2. Private local/last30days secret: NOT RETAINED after canary; re-add only after issuing the correct project-scoped key
 3. Secret excluded from git: VERIFIED; `check:secrets` passes with 0 findings
 4. TypeScript API migration: BUILT + TARGETED TESTED + LINTED
 5. Cheap Search API live probe: BLOCKED — credential type rejected
 6. Live citation proof: BLOCKED by same credential
 7. `smartWebSearch`: MIGRATED + RESILIENT FALLBACK BUILT; live Perplexity proof blocked
 8. StateNour deep research: fallback remains available; Perplexity leg blocked
-9. last30days direct Perplexity: PRIVATE CONFIG WIRED; live Perplexity proof blocked
+9. last30days direct Perplexity: CODE READY; rejected credential removed from private config; live proof awaits project key
 10. Cost/latency/quality receipt: PARTIAL — failure latency captured; success metrics await project key
 
 ## Required final activation
