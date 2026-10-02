@@ -62,23 +62,23 @@ export function OperatorConversationDrawer({
   return (
     <aside className="flex h-full flex-col bg-void text-fg">
       <div className="flex items-center gap-2 border-b border-edge p-3">
-        <button onClick={onNew} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-gold px-3 text-xs font-bold text-black">
+        <button onClick={onNew} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg">
           <Plus size={14} /> New chat
         </button>
-        <button onClick={onClose} aria-label="Close history" className="flex h-11 w-11 items-center justify-center rounded-lg border border-edge text-fg-secondary hover:text-fg"><X size={16} /></button>
+        <button onClick={onClose} aria-label="Close history" className="flex h-11 w-11 items-center justify-center rounded-control border border-edge-default text-fg-secondary hover:text-fg"><X size={16} /></button>
       </div>
 
       <div className="space-y-2 border-b border-edge p-3">
-        <button onClick={onShowActions} className="flex min-h-11 w-full items-center gap-2 rounded-lg border border-gold/25 bg-gold/[0.05] px-3 text-left text-xs font-semibold text-gold hover:bg-gold/10">
+        <button onClick={onShowActions} className="flex min-h-11 w-full items-center gap-2 rounded-control border border-edge-default bg-content px-3 text-left text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg">
           <History size={14} /> Verified recent actions
         </button>
         <div className="relative">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-tertiary" />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search conversations" className="h-11 w-full rounded-lg border border-edge bg-raised pl-9 pr-3 text-xs text-fg outline-none focus:border-gold/40" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search conversations" className="h-11 w-full rounded-control border border-edge-default bg-raised pl-9 pr-3 text-[16px] sm:text-[13px] text-fg outline-none focus:border-accent" />
         </div>
-        <div className="grid grid-cols-2 rounded-lg border border-edge bg-raised p-1">
+        <div className="grid grid-cols-2 rounded-surface border border-edge-default bg-raised p-1">
           {(["active", "pinned"] as const).map((value) => (
-            <button key={value} onClick={() => setMode(value)} className={`min-h-11 rounded-md sm:min-h-8 text-[10px] font-semibold uppercase tracking-wider ${mode === value ? "bg-elevated text-fg" : "text-fg-tertiary"}`}>
+            <button key={value} onClick={() => setMode(value)} className={`min-h-11 rounded-control sm:min-h-8 text-[13px] font-medium capitalize transition-colors duration-[var(--motion-state)] ${mode === value ? "bg-accent-soft text-fg" : "text-fg-tertiary hover:text-fg-secondary"}`}>
               {value}
             </button>
           ))}
@@ -88,13 +88,13 @@ export function OperatorConversationDrawer({
       <div className="flex-1 overflow-y-auto p-2">
         {visible.length === 0 && <p className="p-5 text-center text-xs text-fg-tertiary">No conversations in this view.</p>}
         {visible.map((conversation) => (
-          <div key={conversation.id} className={`group mb-1 rounded-lg border p-2 transition ${activeId === conversation.id ? "border-gold/35 bg-gold/[0.06]" : "border-transparent hover:border-edge hover:bg-raised"}`}>
+          <div key={conversation.id} className={`group mb-1 rounded-control border p-2 transition ${activeId === conversation.id ? "border-accent/40 bg-accent-soft" : "border-transparent hover:border-edge-default hover:bg-raised"}`}>
             <button onClick={() => onSelect(conversation.id)} className="w-full text-left">
               <p className="truncate text-xs font-medium text-fg">{conversation.title || "Untitled conversation"}</p>
-              <p className="mt-1 text-[9px] text-fg-tertiary">{conversation._count.messages} messages · {new Date(conversation.createdAt).toLocaleDateString()}</p>
+              <p className="mt-1 text-[11px] text-fg-tertiary">{conversation._count.messages} messages · {new Date(conversation.createdAt).toLocaleDateString()}</p>
             </button>
             <div className="mt-2 flex items-center gap-1 opacity-70 transition group-hover:opacity-100">
-              <button onClick={() => onTogglePin(conversation.id)} title={pinnedIds.has(conversation.id) ? "Unpin" : "Pin"} aria-label={pinnedIds.has(conversation.id) ? "Unpin conversation" : "Pin conversation"} className="flex h-11 w-11 items-center justify-center rounded-md text-fg-tertiary hover:bg-elevated hover:text-gold sm:h-8 sm:w-8"><Pin size={12} fill={pinnedIds.has(conversation.id) ? "currentColor" : "none"} /></button>
+              <button onClick={() => onTogglePin(conversation.id)} title={pinnedIds.has(conversation.id) ? "Unpin" : "Pin"} aria-label={pinnedIds.has(conversation.id) ? "Unpin conversation" : "Pin conversation"} className="flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary hover:bg-elevated hover:text-fg sm:h-8 sm:w-8"><Pin size={12} fill={pinnedIds.has(conversation.id) ? "currentColor" : "none"} /></button>
               <button
                 onClick={async () => {
                   const next = await promptDialog({
@@ -106,11 +106,11 @@ export function OperatorConversationDrawer({
                   if (next?.trim()) onRename(conversation.id, next.trim());
                 }}
                 title="Rename"
-                className="min-h-11 rounded-md px-2 text-[10px] text-fg-tertiary hover:bg-elevated hover:text-fg sm:min-h-8"
+                className="min-h-11 rounded-control px-2 text-[12px] font-medium text-fg-tertiary hover:bg-elevated hover:text-fg sm:min-h-8"
               >
                 Rename
               </button>
-              <button onClick={() => onArchive(conversation.id)} title="Archive" aria-label="Archive conversation" className="ml-auto flex h-11 w-11 items-center justify-center rounded-md text-fg-tertiary hover:bg-elevated hover:text-fg sm:h-8 sm:w-8"><Archive size={12} /></button>
+              <button onClick={() => onArchive(conversation.id)} title="Archive" aria-label="Archive conversation" className="ml-auto flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary hover:bg-elevated hover:text-fg sm:h-8 sm:w-8"><Archive size={12} /></button>
               <button
                 onClick={async (event) => {
                   event.stopPropagation();
@@ -126,14 +126,14 @@ export function OperatorConversationDrawer({
                 }}
                 title="Delete"
                 aria-label="Delete conversation"
-                className="flex h-11 w-11 items-center justify-center rounded-md text-fg-tertiary hover:bg-red-500/10 hover:text-red-400 sm:h-8 sm:w-8"
+                className="flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary hover:bg-red-500/10 hover:text-red-400 sm:h-8 sm:w-8"
               >
                 <Trash2 size={12} />
               </button>
             </div>
           </div>
         ))}
-        {hasMore && <button disabled={loadingMore} onClick={onLoadMore} className="mt-2 min-h-11 w-full rounded-lg border border-edge text-xs text-fg-secondary disabled:opacity-50">{loadingMore ? "Loading…" : "Load older"}</button>}
+        {hasMore && <button disabled={loadingMore} onClick={onLoadMore} className="mt-2 min-h-11 w-full rounded-control border border-edge-default text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50">{loadingMore ? "Loading…" : "Load older"}</button>}
       </div>
       {renameDialog}
       {deleteDialog}

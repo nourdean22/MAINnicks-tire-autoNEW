@@ -418,12 +418,12 @@ function LogsPageInner() {
                   >
                     <div className="truncate font-mono text-[11px] text-fg">{e.label}</div>
                     {isOpen && e.detail && (
-                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-content p-2 text-[11px] text-fg-secondary">
+                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded-micro bg-content p-2 text-[11px] text-fg-secondary">
                         {e.detail}
                       </pre>
                     )}
                     {isOpen && e.meta && Object.keys(e.meta).length > 0 && (
-                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-content p-2 text-[11px] text-fg-tertiary">
+                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded-micro bg-content p-2 text-[11px] text-fg-tertiary">
                         {JSON.stringify(e.meta, null, 2)}
                       </pre>
                     )}

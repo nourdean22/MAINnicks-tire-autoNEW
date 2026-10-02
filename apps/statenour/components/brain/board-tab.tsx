@@ -201,7 +201,7 @@ export function BoardTab() {
 
       {/* ── Error shell ────────────────────────────────────────── */}
       {consultMutation.isError && (
-        <div className="rounded border border-red-500/30 bg-red-500/[0.04] px-3 py-3 text-[11px] text-red-300 mt-5">
+        <div className="rounded-micro border border-red-500/30 bg-red-500/[0.04] px-3 py-3 text-[11px] text-red-300 mt-5">
           consultation failed · {consultMutation.error?.message ?? "unknown"}
         </div>
       )}
@@ -409,7 +409,7 @@ export function BoardTab() {
           panel.tsx:35-43 — loading, unknown, empty — never a silent gap. */}
       {recentQuery.isError && (
         <div className="pt-4 border-t border-[var(--border-default)] mt-5">
-          <p className="rounded border border-red-500/25 bg-red-500/[0.04] px-3 py-2.5 text-[11px] text-red-300">
+          <p className="rounded-micro border border-red-500/25 bg-red-500/[0.04] px-3 py-2.5 text-[11px] text-red-300">
             recent consultations couldn&apos;t load — state unknown, not
             empty · {recentQuery.error?.message ?? "unknown"}
           </p>
@@ -441,7 +441,7 @@ export function BoardTab() {
             {recents.map((r) => (
               <li
                 key={r.id}
-                className="rounded border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02] px-3 py-2 space-y-1"
+                className="rounded-micro border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02] px-3 py-2 space-y-1"
               >
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[11px] font-mono text-fg-secondary">

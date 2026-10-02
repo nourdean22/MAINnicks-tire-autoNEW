@@ -152,7 +152,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
               key={t}
               onClick={() => setTab(t)}
               className={cn(
-                "text-[11px] font-mono px-2 py-1 rounded border transition-colors",
+                "text-[11px] font-mono px-2 py-1 rounded-control border transition-colors",
                 tab === t
                   ? "bg-red-500/10 text-red-400 border-red-500/30"
                   : "border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-primary)]",
@@ -180,7 +180,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
               id={`contradiction-row-${c.key}`}
               key={c.key}
               className={cn(
-                "p-2 rounded border transition-colors",
+                "p-2 rounded-micro border transition-colors",
                 c.status && c.status !== "unresolved"
                   ? "bg-[var(--bg-base)] border-[var(--border-default)] opacity-70"
                   : "bg-red-500/5 border-red-500/20",
@@ -221,7 +221,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                   <button
                     onClick={() => beginResolve(c.key, "current_wins")}
                     disabled={rowBusy}
-                    className="h-6 px-2 rounded border border-edge-subtle text-fg-secondary hover:bg-surface-hover text-[11px] font-mono inline-flex items-center gap-1"
+                    className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-edge-subtle text-fg-secondary hover:bg-surface-hover text-[11px] font-mono gap-1"
                     title="lock in current position, deprecate old"
                   >
                     <Check size={9} />
@@ -230,7 +230,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                   <button
                     onClick={() => beginResolve(c.key, "old_wins")}
                     disabled={rowBusy}
-                    className="h-6 px-2 rounded border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-edge-strong text-[11px] font-mono inline-flex items-center gap-1"
+                    className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-edge-strong text-[11px] font-mono gap-1"
                     title="hold old position, deprecate new"
                   >
                     old wins
@@ -238,7 +238,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                   <button
                     onClick={() => beginResolve(c.key, "both_valid")}
                     disabled={rowBusy}
-                    className="h-6 px-2 rounded border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-emerald-400 hover:border-emerald-500/30 text-[11px] font-mono"
+                    className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-emerald-400 hover:border-emerald-500/30 text-[11px] font-mono"
                     title="context-dependent, both still true"
                   >
                     both valid
@@ -246,7 +246,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                   <button
                     onClick={() => resolve(c.key, "dismissed")}
                     disabled={rowBusy}
-                    className="h-6 w-6 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 hover:border-red-400/30 inline-flex items-center justify-center"
+                    className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-control sm:min-h-6 sm:min-w-6 border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 hover:border-red-400/30 justify-center"
                     title="false positive"
                   >
                     <X size={10} />
@@ -264,19 +264,19 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                     onChange={(e) => setNoteText(e.target.value)}
                     placeholder="optional: explain the reversal"
                     rows={2}
-                    className="w-full px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
+                    className="w-full px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded-control text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
                   />
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => resolve(c.key, pendingResolve, noteText.trim() || undefined)}
                       disabled={rowBusy}
-                      className="h-6 px-2 rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[11px] font-mono inline-flex items-center gap-1"
+                      className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[11px] font-mono gap-1"
                     >
                       <Check size={9} /> confirm
                     </button>
                     <button
                       onClick={() => { setNotingKey(null); setNoteText(""); setPendingResolve(null); }}
-                      className="h-6 px-2 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 text-[11px] font-mono inline-flex items-center gap-1"
+                      className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 text-[11px] font-mono gap-1"
                     >
                       <X size={9} /> cancel
                     </button>

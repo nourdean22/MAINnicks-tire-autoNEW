@@ -68,7 +68,7 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
               if (!val || typeof val !== "string" || key === "platform") return null;
               const hex = extractHex(val);
               return (
-                <div key={key} className="flex items-center justify-between bg-surface-raised border border-edge-subtle rounded-md px-2.5 py-1.5">
+                <div key={key} className="flex items-center justify-between bg-surface-raised border border-edge-subtle rounded-control px-2.5 py-1.5">
                   <span className="text-fg-tertiary capitalize">{key.replace(/([A-Z])/g, " $1")}</span>
                   <div className="flex items-center gap-1.5 font-mono text-[11px] text-fg-secondary">
                     {hex && (
@@ -91,7 +91,7 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
             <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-2">Layout Structure</div>
             <div className="space-y-1.5 text-xs">
               {pageStructure.map((sec, idx) => (
-                <div key={idx} className="flex gap-3 bg-surface-raised border border-edge-subtle p-2 rounded-md">
+                <div key={idx} className="flex gap-3 bg-surface-raised border border-edge-subtle p-2 rounded-control">
                   <div className="flex-shrink-0 h-5 w-5 rounded-full bg-surface-interactive border border-edge-subtle flex items-center justify-center font-mono text-[11px] text-fg-secondary">
                     {idx + 1}
                   </div>

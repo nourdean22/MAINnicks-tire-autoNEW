@@ -230,7 +230,7 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
           </p>
           <ul className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
             {data.stale.slice(0, 25).map((c) => (
-              <li key={c.id} className="flex items-start gap-3 rounded border border-[var(--border-default)] bg-[var(--bg-base)] p-3">
+              <li key={c.id} className="flex items-start gap-3 rounded-micro border border-[var(--border-default)] bg-[var(--bg-base)] p-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-[12px] text-[var(--text-primary)] leading-snug" style={{ maxWidth: "60ch" }}>
                     {c.content.slice(0, 180)}
@@ -244,7 +244,7 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
                   type="button"
                   disabled={busyId === c.id}
                   onClick={() => void deprecateOne(c.id, c.key)}
-                  className="text-[11px] font-mono px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 disabled:opacity-50 shrink-0"
+                  className="text-[11px] font-mono px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded-control border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 disabled:opacity-50 shrink-0"
                 >
                   {busyId === c.id ? "…" : "deprecate"}
                 </button>
@@ -261,7 +261,7 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
           </p>
           <ul className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
             {data.redundant.slice(0, 25).map((c) => (
-              <li key={`${c.keepId}_${c.mergeId}`} className="rounded border border-[var(--border-default)] bg-[var(--bg-base)] p-3">
+              <li key={`${c.keepId}_${c.mergeId}`} className="rounded-micro border border-[var(--border-default)] bg-[var(--bg-base)] p-3">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-emerald-400 mb-1">
@@ -290,7 +290,7 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
                     type="button"
                     disabled={busyId === c.mergeId}
                     onClick={() => void deprecateOne(c.mergeId, c.mergeKey)}
-                    className="text-[11px] font-mono px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 disabled:opacity-50"
+                    className="text-[11px] font-mono px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded-control border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 disabled:opacity-50"
                   >
                     {busyId === c.mergeId ? "…" : "deprecate merge-side"}
                   </button>
@@ -308,7 +308,7 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
           </p>
           <ul className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
             {data.lowTrust.slice(0, 25).map((c) => (
-              <li key={c.id} className="flex items-start gap-3 rounded border border-[var(--border-default)] bg-[var(--bg-base)] p-3">
+              <li key={c.id} className="flex items-start gap-3 rounded-micro border border-[var(--border-default)] bg-[var(--bg-base)] p-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-[12px] text-[var(--text-primary)] leading-snug" style={{ maxWidth: "60ch" }}>
                     {c.content.slice(0, 180)}
@@ -333,7 +333,7 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
                     type="button"
                     disabled={busyId === c.id}
                     onClick={() => void deprecateOne(c.id, c.key)}
-                    className="text-[11px] font-mono px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 disabled:opacity-50"
+                    className="text-[11px] font-mono px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded-control border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 disabled:opacity-50"
                   >
                     {busyId === c.id ? "…" : "deprecate"}
                   </button>

@@ -550,7 +550,7 @@ export function WisdomTab() {
               aria-label="Search wisdom"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 min-w-0 bg-[var(--bg-base)] border border-[var(--border-default)] rounded px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-accent"
+              className="flex-1 min-w-0 bg-[var(--bg-base)] border border-[var(--border-default)] rounded-control px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-accent"
             />
             <SortDropdown<WisdomSort>
               value={sortKey}
@@ -643,7 +643,7 @@ export function WisdomTab() {
                           <textarea
                             value={editDraft}
                             onChange={(e) => setEditDraft(e.target.value)}
-                            className="w-full min-h-[7em] bg-[var(--bg-base)] border border-edge-subtle rounded px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-accent font-mono"
+                            className="w-full min-h-[7em] bg-[var(--bg-base)] border border-edge-subtle rounded-control px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-accent font-mono"
                             autoFocus
                           />
                           <div className="mt-2 flex items-center gap-2">
@@ -704,7 +704,7 @@ export function WisdomTab() {
                                 setEditingId(entry.id);
                                 setEditDraft(entry.content);
                               }}
-                              className="w-11 h-11 md:w-7 md:h-7 rounded flex items-center justify-center text-[var(--text-tertiary)] hover:text-fg hover:bg-[var(--bg-elevated)] active:scale-90 transition-transform"
+                              className="w-11 h-11 md:w-7 md:h-7 rounded-control flex items-center justify-center text-[var(--text-tertiary)] hover:text-fg hover:bg-[var(--bg-elevated)] active:scale-90 transition-transform"
                               title="Edit wisdom"
                               aria-label="Edit wisdom"
                             >
@@ -712,7 +712,7 @@ export function WisdomTab() {
                             </button>
                             <button
                               onClick={() => void deprecateWisdom(entry.id)}
-                              className="w-11 h-11 md:w-7 md:h-7 rounded flex items-center justify-center text-[var(--text-tertiary)] hover:text-rose-400 hover:bg-rose-500/10 active:scale-90 transition-transform"
+                              className="w-11 h-11 md:w-7 md:h-7 rounded-control flex items-center justify-center text-[var(--text-tertiary)] hover:text-rose-400 hover:bg-rose-500/10 active:scale-90 transition-transform"
                               title="Deprecate (soft-delete) · can be restored"
                               aria-label="Deprecate wisdom"
                             >

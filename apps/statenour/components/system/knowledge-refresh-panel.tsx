@@ -63,7 +63,7 @@ export function KnowledgeRefreshPanel() {
           onClick={runRefresh}
           disabled={refreshing}
           className={cn(
-            "rounded-md border px-3 py-1.5 text-xs font-medium transition min-h-[44px] sm:min-h-[32px]",
+            "rounded-control border px-3 py-1.5 text-xs font-medium transition min-h-[44px] sm:min-h-[32px]",
             refreshing
               ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
               : "border-edge-subtle bg-content text-fg-secondary hover:bg-surface-hover",
@@ -77,7 +77,7 @@ export function KnowledgeRefreshPanel() {
         Knowledge sync, Embeddings) and hot-flushes the prompt cache. ~60s total.
       </p>
       {refreshError && (
-        <div className="rounded-md border border-rose-500/30 bg-rose-500/5 p-2 text-[11px] text-rose-300 mb-2">
+        <div className="rounded-control border border-rose-500/30 bg-rose-500/5 p-2 text-[11px] text-rose-300 mb-2">
           {refreshError}
         </div>
       )}
@@ -87,7 +87,7 @@ export function KnowledgeRefreshPanel() {
             <div
               key={r.id}
               className={cn(
-                "flex items-center justify-between rounded-md border px-2 py-1 text-xs",
+                "flex items-center justify-between rounded-control border px-2 py-1 text-xs",
                 r.ok
                   ? "border-emerald-500/20 bg-emerald-500/[0.03] text-emerald-200"
                   : "border-rose-500/30 bg-rose-500/[0.05] text-rose-200",

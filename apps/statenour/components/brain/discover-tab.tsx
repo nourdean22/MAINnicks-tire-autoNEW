@@ -264,7 +264,7 @@ export function DiscoverTab() {
 
   if (query.isError) {
     return (
-      <GlassCard className="p-4">
+      <GlassCard>
         <p className="text-sm text-amber-300">
           Discoveries couldn&apos;t load — state unknown, not empty.
         </p>
@@ -406,11 +406,11 @@ export function DiscoverTab() {
             const copies = d.clusterIds.length;
             const history = d.verdictHistory ?? [];
             return (
-              <GlassCard key={d.id} className="p-4 space-y-3">
+              <GlassCard key={d.id} className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={cn(
-                      "rounded border px-2 py-0.5 text-[11px] font-mono",
+                      "rounded-micro border px-2 py-0.5 text-[11px] font-mono",
                       meta.tone,
                     )}
                   >
@@ -424,12 +424,12 @@ export function DiscoverTab() {
                     // cluster membership at rate time and may reach copies this
                     // bounded scan never returned. Claiming an exact total here
                     // would be the same overstatement as the old badge.
-                    <span className="rounded border border-glass px-2 py-0.5 text-[11px] font-mono text-fg-secondary">
+                    <span className="rounded-micro border border-glass px-2 py-0.5 text-[11px] font-mono text-fg-secondary">
                       ×{copies} shown
                     </span>
                   )}
                   {d.verdict && (
-                    <span className="ml-auto rounded border border-glass px-2 py-0.5 text-[11px] font-mono text-fg-secondary">
+                    <span className="ml-auto rounded-micro border border-glass px-2 py-0.5 text-[11px] font-mono text-fg-secondary">
                       {d.verdict}
                     </span>
                   )}
@@ -441,7 +441,7 @@ export function DiscoverTab() {
                   // A resurfaced card MUST explain itself. Re-asking a settled
                   // question without saying why is exactly the repeat alert
                   // that gets overridden 87.9% of the time (Ancker et al.).
-                  <p className="rounded border border-amber-400/30 px-2 py-1 text-[11px] leading-relaxed text-amber-300">
+                  <p className="rounded-micro border border-amber-400/30 px-2 py-1 text-[11px] leading-relaxed text-amber-300">
                     You called this {history[history.length - 1].verdict}{" "}
                     {history.length === 1 ? "once" : `${history.length}×`} — it is back because
                     severity rose from {SEVERITY_WORD[history[history.length - 1].severityRank]} to{" "}

@@ -231,7 +231,7 @@ export function DecisionReplayCard() {
                     (pencil icon, expands the inline lesson form). The
                     two affordances coexist: deep-discussion-in-chat
                     path AND quick-capture-here path. */}
-                <div className="-mx-1 flex items-start gap-2 px-1 py-1 rounded-sm">
+                <div className="-mx-1 flex items-start gap-2 px-1 py-1 rounded-micro">
                   <Link
                     href={seedHref}
                     onClick={handleMarkConsumed}
@@ -251,7 +251,7 @@ export function DecisionReplayCard() {
                     aria-expanded={isExpanded}
                     aria-label={isExpanded ? "close lesson form" : "log lesson inline"}
                     className={cn(
-                      "shrink-0 -my-0.5 p-1 rounded transition-colors",
+                      "shrink-0 -my-0.5 p-1 rounded-micro transition-colors",
                       "min-w-[44px] min-h-[44px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center",
                       isExpanded
                         ? "bg-accent-soft text-fg"
@@ -280,7 +280,7 @@ export function DecisionReplayCard() {
                         rows={2}
                         disabled={submitting}
                         className={cn(
-                          "w-full resize-y rounded-md bg-content border border-edge-default",
+                          "w-full resize-y rounded-control bg-content border border-edge-default",
                           "text-[11px] leading-snug px-2 py-1.5 text-fg",
                           "placeholder:text-fg-tertiary",
                           "focus:border-accent focus:outline-none transition-colors",
@@ -329,7 +329,7 @@ export function DecisionReplayCard() {
                         rows={2}
                         disabled={submitting}
                         className={cn(
-                          "w-full resize-y rounded-md bg-content border border-edge-default",
+                          "w-full resize-y rounded-control bg-content border border-edge-default",
                           "text-[11px] leading-snug px-2 py-1.5 text-fg",
                           "placeholder:text-fg-tertiary",
                           "focus:border-accent focus:outline-none transition-colors",

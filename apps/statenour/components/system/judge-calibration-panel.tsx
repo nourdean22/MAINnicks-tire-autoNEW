@@ -69,7 +69,7 @@ export function JudgeCalibrationPanel() {
       </p>
 
       {calibration.isLoading ? (
-        <div className="h-4 w-40 rounded bg-surface-interactive animate-pulse" />
+        <div className="h-4 w-40 rounded-micro bg-surface-interactive animate-pulse" />
       ) : cal ? (
         <div className="text-[12px] tabular-nums flex items-center gap-4 py-1">
           <span className="text-fg-secondary/70">{cal.labeled} labeled</span>
@@ -104,11 +104,11 @@ export function JudgeCalibrationPanel() {
           </button>
           {expanded === next.id && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2 text-[11px]">
-              <div className="bg-content border border-edge-subtle rounded p-2">
+              <div className="bg-content border border-edge-subtle rounded-micro p-2">
                 <p className="text-[11px] font-mono text-fg-tertiary mb-1">A</p>
                 <p className="text-fg whitespace-pre-wrap">{next.v1Reply}</p>
               </div>
-              <div className="bg-content border border-edge-subtle rounded p-2">
+              <div className="bg-content border border-edge-subtle rounded-micro p-2">
               <p className="text-[11px] font-mono text-fg-tertiary mb-1">B</p>
                 <p className="text-fg whitespace-pre-wrap">{next.v2Reply}</p>
               </div>
@@ -120,7 +120,7 @@ export function JudgeCalibrationPanel() {
                 key={w}
                 disabled={label.isPending}
                 onClick={() => label.mutate({ id: next.id, winner: w })}
-                className="rounded px-3 py-1 text-[11px] border border-edge-default text-fg-secondary hover:text-fg disabled:opacity-50"
+                className="rounded-control px-3 py-1 text-[11px] border border-edge-default text-fg-secondary hover:text-fg disabled:opacity-50"
               >
                 {w === "v1" ? "A is better" : w === "v2" ? "B is better" : "tie"}
               </button>

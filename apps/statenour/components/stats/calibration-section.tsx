@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { GlassCard } from "@/components/ui/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -246,18 +246,18 @@ export function CalibrationSection() {
       {scoreboard && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Card A: Prediction Accuracy */}
-          <Card className="border-edge-default bg-content hover:bg-surface-hover transition-colors duration-[var(--motion-state)] relative overflow-hidden">
+          <GlassCard className="hover:bg-surface-hover transition-colors duration-[var(--motion-state)]">
             <div 
               className="absolute top-0 left-0 w-full h-[3px]"
               style={{ backgroundColor: scoreboard.colorHsl }}
             />
-            <CardHeader className="pb-2">
-              <CardTitle className="text-[15px] font-semibold text-fg flex items-center justify-between">
+            <div className="mb-4">
+              <h3 className="text-[15px] font-semibold text-fg flex items-center justify-between">
                 Prediction Calibration
                 <Activity className="h-4 w-4 text-fg-tertiary" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1">
+              </h3>
+            </div>
+            <div className="space-y-1">
               <div className="text-2xl font-bold font-mono text-fg">
                 {scoreboard.predictionAccuracyPct !== null 
                   ? `${scoreboard.predictionAccuracyPct}%` 
@@ -281,11 +281,11 @@ export function CalibrationSection() {
                   {scoreboard.calibrationVerdict === "unknown" && "Preliminary Data"}
                 </Badge>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </GlassCard>
 
           {/* Card B: Task ROI Accuracy */}
-          <Card className="border-edge-default bg-content hover:bg-surface-hover transition-colors duration-[var(--motion-state)] relative overflow-hidden">
+          <GlassCard className="hover:bg-surface-hover transition-colors duration-[var(--motion-state)]">
             <div 
               className="absolute top-0 left-0 w-full h-[3px]"
               style={{
@@ -294,13 +294,13 @@ export function CalibrationSection() {
                   : "hsl(142, 76%, 36%)"
               }}
             />
-            <CardHeader className="pb-2">
-              <CardTitle className="text-[15px] font-semibold text-fg flex items-center justify-between">
+            <div className="mb-4">
+              <h3 className="text-[15px] font-semibold text-fg flex items-center justify-between">
                 Task ROI Precision
                 <Sliders className="h-4 w-4 text-fg-tertiary" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1">
+              </h3>
+            </div>
+            <div className="space-y-1">
               <div className="text-2xl font-bold font-mono text-fg">
                 {scoreboard.taskRoiMae30d !== null 
                   ? `±${scoreboard.taskRoiMae30d.toFixed(1)} pts` 
@@ -320,19 +320,19 @@ export function CalibrationSection() {
                   {scoreboard.biasVerdict === "calibrated" && "Calibrated ROI estimation"}
                 </Badge>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </GlassCard>
 
           {/* Card C: Overestimate Rate */}
-          <Card className="border-edge-default bg-content hover:bg-surface-hover transition-colors duration-[var(--motion-state)] relative overflow-hidden">
+          <GlassCard className="hover:bg-surface-hover transition-colors duration-[var(--motion-state)]">
             <div className="absolute top-0 left-0 w-full h-[3px] bg-edge-strong" />
-            <CardHeader className="pb-2">
-              <CardTitle className="text-[15px] font-semibold text-fg flex items-center justify-between">
+            <div className="mb-4">
+              <h3 className="text-[15px] font-semibold text-fg flex items-center justify-between">
                 Overestimate Bias
                 <Flame className="h-4 w-4 text-fg-tertiary" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1">
+              </h3>
+            </div>
+            <div className="space-y-1">
               <div className="text-2xl font-bold font-mono text-fg">
                 {scoreboard.taskOverestimateRate30d}%
               </div>
@@ -342,8 +342,8 @@ export function CalibrationSection() {
               <div className="pt-2 text-[11px] text-fg-secondary">
                 Mean Bias: <span className="font-mono">{scoreboard.taskRoiBias30d !== null ? `${scoreboard.taskRoiBias30d.toFixed(1)} pts` : "0.0"}</span>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </GlassCard>
         </div>
       )}
 
@@ -400,15 +400,15 @@ export function CalibrationSection() {
         </div>
 
         {pending.length === 0 ? (
-          <Card className="border-edge-subtle bg-content">
-            <CardContent className="py-10 text-center space-y-2">
+          <GlassCard>
+            <div className="py-6 text-center space-y-2">
               <Check className="h-8 w-8 text-emerald-500 mx-auto" />
               <p className="text-sm text-fg font-medium">Outcome Review Queue Clear</p>
               <p className="text-xs text-fg-tertiary max-w-sm mx-auto">
                 No completed tasks or expired predictions require manual grading calibration at this time. Nightly cron compiles next reviews.
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          </GlassCard>
         ) : (
           <div className="grid grid-cols-1 gap-4">
             {pending.map((item, idx) => {
@@ -419,14 +419,14 @@ export function CalibrationSection() {
 
               if (efGradeMode) {
                 return (
-                  <Card
+                  <GlassCard
                     key={item.id}
                     className={cn(
-                      "border-edge-default bg-content hover:bg-surface-hover transition-colors duration-[var(--motion-state)]",
+                      "hover:bg-surface-hover transition-colors duration-[var(--motion-state)]",
                       isTask ? "border-l-indigo-500/20 border-l-[3px]" : "border-l-sky-500/20 border-l-[3px]"
                     )}
                   >
-                    <CardContent className="py-3 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       {/* Left: Metadata & Title */}
                       <div className="space-y-1 min-w-0 flex-1">
                         <div className="flex items-center gap-2">
@@ -538,21 +538,21 @@ export function CalibrationSection() {
                           Skip
                         </Button>
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </GlassCard>
                 );
               }
 
               return (
-                <Card 
+                <GlassCard 
                   key={item.id} 
                   className={cn(
-                    "border-edge-default bg-content hover:bg-surface-hover transition-colors duration-[var(--motion-state)] relative",
+                    "hover:bg-surface-hover transition-colors duration-[var(--motion-state)]",
                     isTask ? "border-l-indigo-500/40 border-l-[3px]" : "border-l-sky-500/40 border-l-[3px]",
                     isTopCard && "ring-1 ring-accent"
                   )}
                 >
-                  <CardContent className="pt-4 space-y-4">
+                  <div className="space-y-4">
                     {/* Header Row */}
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="space-y-1">
@@ -850,8 +850,8 @@ export function CalibrationSection() {
                         </div>
                       )}
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </GlassCard>
               );
             })}
           </div>
@@ -869,11 +869,11 @@ export function CalibrationSection() {
           </h3>
 
           {lessons.length === 0 ? (
-            <Card className="border-edge-subtle bg-content">
-              <CardContent className="py-8 text-center text-xs text-fg-tertiary">
+            <GlassCard>
+              <div className="py-4 text-center text-xs text-fg-tertiary">
                 No outcome lessons recorded yet. Resolve items to extract lessons.
-              </CardContent>
-            </Card>
+              </div>
+            </GlassCard>
           ) : (
             <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2">
               {lessons.map((lesson) => (
@@ -901,11 +901,11 @@ export function CalibrationSection() {
           </h3>
 
           {history.length === 0 ? (
-            <Card className="border-edge-subtle bg-content">
-              <CardContent className="py-8 text-center text-xs text-fg-tertiary">
+            <GlassCard>
+              <div className="py-4 text-center text-xs text-fg-tertiary">
                 No calibration history recorded.
-              </CardContent>
-            </Card>
+              </div>
+            </GlassCard>
           ) : (
             <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2">
               {history.map((h) => {

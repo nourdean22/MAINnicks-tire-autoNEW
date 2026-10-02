@@ -54,9 +54,9 @@ export function BriefLead({
   if (loading) {
     return (
       <section aria-label="the brief" className="mt-10 space-y-3 border-l-2 border-edge pl-5 sm:pl-6" aria-busy>
-        <div className="h-3 w-24 animate-pulse rounded bg-raised" />
-        <div className="h-7 w-3/4 animate-pulse rounded bg-raised" />
-        <div className="h-4 w-full animate-pulse rounded bg-raised" />
+        <div className="h-3 w-24 animate-pulse rounded-micro bg-raised" />
+        <div className="h-7 w-3/4 animate-pulse rounded-micro bg-raised" />
+        <div className="h-4 w-full animate-pulse rounded-micro bg-raised" />
       </section>
     );
   }
@@ -112,7 +112,7 @@ export function BriefLead({
           onClick={() => setShowWhy((v) => !v)}
           aria-expanded={showWhy}
           className={cn(
-            "inline-flex min-h-[44px] items-center gap-1 rounded-md px-3 text-[13px] text-fg-tertiary transition-colors duration-150 hover:text-fg",
+            "inline-flex min-h-[44px] items-center gap-1 rounded-control px-3 text-[13px] text-fg-tertiary transition-colors duration-150 hover:text-fg",
             FOCUS,
           )}
         >
@@ -126,7 +126,7 @@ export function BriefLead({
             onClick={() => setShowAlternatives((v) => !v)}
             aria-expanded={showAlternatives}
             className={cn(
-              "inline-flex min-h-[44px] items-center gap-1 rounded-md px-3 text-[13px] text-fg-tertiary transition-colors duration-150 hover:text-fg",
+              "inline-flex min-h-[44px] items-center gap-1 rounded-control px-3 text-[13px] text-fg-tertiary transition-colors duration-150 hover:text-fg",
               FOCUS,
             )}
           >

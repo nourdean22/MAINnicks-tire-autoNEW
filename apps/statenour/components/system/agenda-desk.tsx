@@ -37,8 +37,8 @@ export function AgendaDesk({ queryResult }: AgendaDeskProps) {
 
       {isLoading ? (
         <div className="space-y-2 py-4">
-              <div className="h-4 bg-content rounded animate-pulse w-3/4" />
-          <div className="h-4 bg-content rounded animate-pulse w-1/2" />
+              <div className="h-4 bg-content rounded-micro animate-pulse w-3/4" />
+          <div className="h-4 bg-content rounded-micro animate-pulse w-1/2" />
         </div>
       ) : items ? (
         <div className="flex-1 overflow-auto max-h-[220px] pr-1 space-y-2">
@@ -60,7 +60,7 @@ export function AgendaDesk({ queryResult }: AgendaDeskProps) {
                   <div key={item.id} className="flex gap-2.5 pt-2 first:pt-0">
                     <div className="flex-1 space-y-0.5">
                       <div className="flex items-center justify-between gap-2">
-              <span className={`text-[11px] font-mono border px-1.5 py-0.25 rounded ${categoryColor}`}>
+              <span className={`text-[11px] font-mono border px-1.5 py-0.25 rounded-micro ${categoryColor}`}>
                           {item.category.replace("_", " ")}
                         </span>
                         <span className="text-[11px] text-fg-tertiary font-mono">

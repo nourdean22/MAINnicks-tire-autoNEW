@@ -318,7 +318,7 @@ export function PreferencesCard() {
                 : "reset all axes to neutral"
             }
             className={cn(
-              "shrink-0 -my-0.5 p-1 rounded transition-colors",
+              "shrink-0 -my-0.5 p-1 rounded-micro transition-colors",
               "min-w-[44px] min-h-[44px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center",
               confirmReset
                 ? "bg-rose-400/15 text-rose-300 border border-rose-400/45"

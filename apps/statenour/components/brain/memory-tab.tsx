@@ -260,7 +260,7 @@ function IdentityDeltaLine() {
   if (isError) return <ReadingUnavailable label="Identity delta" />;
   if (!data?.delta) return null;
   return (
-    <div className="flex items-start gap-2.5 rounded-md border border-violet-500/20 bg-violet-500/[0.04] px-3 py-2 text-[11px]">
+    <div className="flex items-start gap-2.5 rounded-control border border-violet-500/20 bg-violet-500/[0.04] px-3 py-2 text-[11px]">
       <span className="font-mono text-[11px] text-violet-300/70 shrink-0 mt-0.5">
         yesterday → today
       </span>

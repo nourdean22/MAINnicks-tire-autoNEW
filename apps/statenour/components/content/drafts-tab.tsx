@@ -168,7 +168,7 @@ export function DraftsTab() {
 
         {/* Empty state */}
         {data && data.drafts.length === 0 && !loading && (
-          <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] p-6 text-center text-sm text-[var(--text-tertiary)]">
+          <div className="rounded-surface border border-[var(--border-default)] bg-[var(--bg-raised)] p-6 text-center text-sm text-[var(--text-tertiary)]">
             {statusFilter === "pending"
               ? "Inbox zero · no drafts waiting for review. Ask Nick to generate ideas in chat."
               : `No ${statusFilter} drafts.`}
@@ -238,7 +238,7 @@ export function DraftsTab() {
                         <video
                           src={d.metadata.imageUrl}
                           controls
-                          className="h-auto w-full max-w-[280px] rounded shadow-lg object-contain bg-[var(--bg-void)] border border-[var(--border-default)]"
+                          className="h-auto w-full max-w-[280px] rounded-micro shadow-lg object-contain bg-[var(--bg-void)] border border-[var(--border-default)]"
                         />
                       ) : d.metadata.status === "rendering" ? (
                         <div className="flex flex-col items-center justify-center p-6 gap-3 text-purple-200">
@@ -252,7 +252,7 @@ export function DraftsTab() {
                         <img
                           src={`/api/content/render-asset?id=${d.id}`}
                           alt="Visual Preview"
-                          className="h-auto w-full max-w-[280px] rounded shadow-lg object-contain aspect-square bg-[var(--bg-void)] border border-[var(--border-default)]"
+                          className="h-auto w-full max-w-[280px] rounded-micro shadow-lg object-contain aspect-square bg-[var(--bg-void)] border border-[var(--border-default)]"
                           loading="lazy"
                           onError={(e) => {
                             e.currentTarget.style.display = "none";

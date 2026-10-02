@@ -1067,7 +1067,7 @@ export function LoopStream({
               {nextMove.task.goalId && goalLineage?.get(nextMove.task.goalId) ? (
                 <div className="mt-0.5 flex items-center gap-1 flex-wrap">
                   <span
-                    className="inline-flex items-center gap-1 rounded border border-violet-500/30 bg-violet-500/5 px-1.5 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em] text-violet-300 max-w-full"
+                    className="inline-flex items-center gap-1 rounded-micro border border-violet-500/30 bg-violet-500/5 px-1.5 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em] text-violet-300 max-w-full"
                     title="Completing this task auto-lifts this goal"
                   >
                     <Target size={9} className="shrink-0" />

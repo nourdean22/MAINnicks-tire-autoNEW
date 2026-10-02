@@ -121,7 +121,7 @@ export function BrainContinuityView() {
           </div>
           <button
             onClick={reload}
-            className="shrink-0 text-[11px] font-mono px-2 py-1 rounded border border-rose-400/40 text-rose-300 hover:bg-rose-400/10"
+            className="shrink-0 text-[11px] font-mono px-2 py-1 rounded-control border border-rose-400/40 text-rose-300 hover:bg-rose-400/10"
           >
             retry
           </button>
@@ -198,7 +198,7 @@ export function BrainContinuityView() {
                 <div
                   key={m.category}
                   className={cn(
-                    "flex items-center gap-2 px-2 py-1.5 rounded border transition-colors",
+                    "flex items-center gap-2 px-2 py-1.5 rounded-micro border transition-colors",
                     hot ? "border-edge-subtle bg-surface-interactive" : "border-[var(--border-default)] bg-[var(--bg-base)]/50",
                   )}
                 >
@@ -366,7 +366,7 @@ function MemoryRow({ m, now }: { m: Memory; now: number }) {
       data-entity={`memory:${m.id}`}
       data-entity-label={m.content.slice(0, 80)}
       onClick={() => openInspector({ kind: "memory", id: m.id })}
-      className="group min-h-[44px] cursor-pointer px-2 py-1.5 rounded bg-[var(--bg-base)]/50 border border-[var(--border-default)] hover:border-edge-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent data-[entity-focused=true]:border-accent data-[entity-selected=true]:bg-accent-soft transition-colors"
+      className="group min-h-[44px] cursor-pointer px-2 py-1.5 rounded-control bg-[var(--bg-base)]/50 border border-[var(--border-default)] hover:border-edge-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent data-[entity-focused=true]:border-accent data-[entity-selected=true]:bg-accent-soft transition-colors"
     >
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
@@ -396,7 +396,7 @@ function MemoryList({ memories, emptyMsg, highlight }: { memories: Memory[]; emp
   return (
     <div className="space-y-1">
       {memories.map((m, i) => (
-        <div key={m.id} className="flex items-start gap-2 px-2 py-1.5 rounded bg-[var(--bg-base)]/50 border border-[var(--border-default)]">
+        <div key={m.id} className="flex items-start gap-2 px-2 py-1.5 rounded-micro bg-[var(--bg-base)]/50 border border-[var(--border-default)]">
           <span className="shrink-0 w-4 text-[11px] font-mono text-[var(--text-tertiary)] tabular-nums">#{i + 1}</span>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">

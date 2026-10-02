@@ -148,7 +148,7 @@ export function useOutcomeDialog(): {
                 type="button"
                 onClick={() => submit(chip.value)}
                 className={cn(
-                  "min-h-12 rounded-lg border bg-[var(--bg-base)]/40 px-3 text-sm font-medium transition-colors",
+                  "min-h-12 rounded-control border bg-[var(--bg-base)]/40 px-3 text-sm font-medium transition-colors",
                   chip.className,
                 )}
               >
@@ -163,7 +163,7 @@ export function useOutcomeDialog(): {
             onChange={(e) => setState((s) => ({ ...s, lesson: e.target.value }))}
             placeholder="lesson learned — optional, becomes memory"
             maxLength={5000}
-            className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)]/40 px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--border-hover)] focus:outline-none"
+            className="w-full rounded-control border border-[var(--border-default)] bg-[var(--bg-base)]/40 px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--border-hover)] focus:outline-none"
           />
           <Button
             variant="outline"

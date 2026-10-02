@@ -133,7 +133,7 @@ export function CronFoldTree() {
             <div
               key={c.name}
               className={
-                "flex items-center justify-between gap-2 rounded border px-2 py-1 " +
+                "flex items-center justify-between gap-2 rounded-micro border px-2 py-1 " +
                 (ACTIVE_TINT[c.category] ?? ACTIVE_TINT.hygiene)
               }
             >
@@ -159,7 +159,7 @@ export function CronFoldTree() {
             {[...byTarget.entries()].map(([target, list]) => (
               <div
                 key={target}
-                className="rounded border border-edge-default bg-surface-raised p-2"
+                className="rounded-micro border border-edge-default bg-surface-raised p-2"
               >
                 <div className="mb-1 flex items-center gap-1.5">
               <ChevronRight size={11} className="text-fg-tertiary" />

@@ -257,7 +257,7 @@ export function usePromptDialog(): {
               setState((s) => ({ ...s, value: e.target.value }))
             }
             placeholder={state.placeholder}
-            className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)]/40 px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--border-hover)] focus:outline-none"
+            className="w-full rounded-control border border-[var(--border-default)] bg-[var(--bg-base)]/40 px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--border-hover)] focus:outline-none"
           />
           <DialogFooter>
             <Button

@@ -105,7 +105,7 @@ export function RelatedWisdomRow({ r }: { r: RelatedWisdom }) {
         // The wisdom tab's own ?focus= effect scrolls the card into
         // view, so suppress Next's scroll-to-top or the two fight.
         scroll={false}
-        className="flex gap-2 text-[11px] leading-snug rounded px-1 -mx-1 py-1 hover:bg-[var(--bg-elevated)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+        className="flex gap-2 text-[11px] leading-snug rounded-control px-1 -mx-1 py-1 hover:bg-[var(--bg-elevated)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
       >
         <span className="font-mono text-[var(--text-tertiary)] text-[11px] w-16 shrink-0 pt-0.5">
           {wisdomOriginMeta(r.origin).badge}

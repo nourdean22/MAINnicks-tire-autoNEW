@@ -89,7 +89,7 @@ export function ImageWithUpscale({ srcStr, alt, imageId }: ImageWithUpscaleProps
   return (
     <span className="relative group inline-block">
       {imgFailed ? (
-        <span className="inline-block rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 mt-2 mb-1 text-[11px] text-rose-300 font-mono">
+        <span className="inline-block rounded-surface border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 mt-2 mb-1 text-[11px] text-rose-300 font-mono">
           image failed to load ({currentSrc.slice(-12)})
         </span>
       ) : (
@@ -99,7 +99,7 @@ export function ImageWithUpscale({ srcStr, alt, imageId }: ImageWithUpscaleProps
             src={currentSrc}
             alt={alt}
             loading="lazy"
-            className="rounded-lg max-w-full max-h-[400px] border border-[var(--border)] mt-2 mb-1 cursor-pointer hover:opacity-90 transition-opacity"
+            className="rounded-surface max-w-full max-h-[400px] border border-[var(--border)] mt-2 mb-1 cursor-pointer hover:opacity-90 transition-opacity"
             onError={() => setImgFailed(true)}
           />
         </a>
@@ -183,14 +183,14 @@ export function ImageWithUpscale({ srcStr, alt, imageId }: ImageWithUpscaleProps
               <img
                 src={v.imageUrl}
                 alt="variant"
-                className="h-16 w-16 rounded border border-violet-500/30 cursor-pointer hover:opacity-80 transition-opacity object-cover"
+                className="h-16 w-16 rounded-control border border-violet-500/30 cursor-pointer hover:opacity-80 transition-opacity object-cover"
               />
             </a>
           ))}
         </span>
       )}
       {error && (
-        <span className="mt-1 inline-block rounded border border-rose-500/30 bg-rose-500/5 px-2 py-1 text-[11px] text-rose-300 font-mono">
+        <span className="mt-1 inline-block rounded-micro border border-rose-500/30 bg-rose-500/5 px-2 py-1 text-[11px] text-rose-300 font-mono">
           {error}
         </span>
       )}

@@ -135,7 +135,7 @@ export function SchemaDriftCard() {
               {report.findings.map((f, i) => (
                 <li
                   key={i}
-                  className={"rounded-md border p-2 text-[11px] " + (SEV_TINT[f.severity] ?? SEV_TINT.low)}
+                  className={"rounded-control border p-2 text-[11px] " + (SEV_TINT[f.severity] ?? SEV_TINT.low)}
                 >
                   <div className="flex items-center gap-2">
               <span className="font-mono text-[11px] uppercase tracking-[0.12em] opacity-80">

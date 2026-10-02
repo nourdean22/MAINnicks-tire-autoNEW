@@ -197,7 +197,7 @@ export function QualitativeIdentityPanel() {
                 </p>
                 <button
                   onClick={() => { setAdding(b); setAddText(""); }}
-                  className="h-5 w-5 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-fg hover:border-edge-strong inline-flex items-center justify-center"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-control sm:min-h-5 sm:min-w-5 border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-fg hover:border-edge-strong justify-center"
                   title="add manual entry"
                 >
                   <Plus size={9} />
@@ -211,18 +211,18 @@ export function QualitativeIdentityPanel() {
                     onChange={(e) => setAddText(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && void addEntry(b)}
                     placeholder={`add to ${BUCKET_LABELS[b].toLowerCase()}…`}
-                    className="flex-1 px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
+                    className="flex-1 px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded-control text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
                   />
                   <button
                     onClick={() => void addEntry(b)}
                     disabled={busy}
-                    className="h-6 px-2 rounded border border-emerald-500/30 text-emerald-400 text-[11px] font-mono"
+                    className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-emerald-500/30 text-emerald-400 text-[11px] font-mono"
                   >
                     add
                   </button>
                   <button
                     onClick={() => { setAdding(null); setAddText(""); }}
-                    className="h-6 w-6 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] inline-flex items-center justify-center"
+                    className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-control sm:min-h-6 sm:min-w-6 border border-[var(--border-default)] text-[var(--text-tertiary)] justify-center"
                   >
                     <X size={10} />
                   </button>
@@ -232,7 +232,7 @@ export function QualitativeIdentityPanel() {
                 {identity[b].map((e) => (
                   <div
                     key={e.text}
-                    className="group flex items-center gap-2 px-2 py-1.5 rounded border border-[var(--border-default)] bg-[var(--bg-base)]"
+                    className="group flex items-center gap-2 px-2 py-1.5 rounded-micro border border-[var(--border-default)] bg-[var(--bg-base)]"
                   >
                     <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", e.manual ? "bg-fg-secondary" : "bg-[var(--text-tertiary)]/40")} />
                     <span className="flex-1 text-[11px] text-[var(--text-primary)]">{e.text}</span>

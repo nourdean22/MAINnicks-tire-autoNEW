@@ -167,9 +167,9 @@ export function SituationCard({ initial = null }: SituationCardProps) {
   if (loading && !payload) {
     return (
       <section className="rounded-surface border border-edge-subtle bg-content p-4 animate-pulse">
-        <div className="h-3 w-24 rounded bg-surface-raised mb-2" />
-        <div className="h-4 w-3/4 rounded bg-surface-raised mb-1.5" />
-        <div className="h-3 w-1/2 rounded bg-surface-raised" />
+        <div className="h-3 w-24 rounded-micro bg-surface-raised mb-2" />
+        <div className="h-4 w-3/4 rounded-micro bg-surface-raised mb-1.5" />
+        <div className="h-3 w-1/2 rounded-micro bg-surface-raised" />
       </section>
     );
   }

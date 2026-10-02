@@ -121,7 +121,7 @@ function CoachEventCard({
   const Icon = event.priority === "P0" ? AlertTriangle : Sparkles;
 
   const body = (
-    <div className={["rounded-lg border px-3 py-2.5 transition-colors", tone.container].join(" ")}>
+    <div className={["rounded-surface border px-3 py-2.5 transition-colors", tone.container].join(" ")}>
       <div className="flex items-start gap-2.5">
         <Icon
           size={13}

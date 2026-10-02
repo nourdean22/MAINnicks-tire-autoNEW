@@ -177,13 +177,13 @@ export function TaskFilters({
         const showSearch = activeCount >= 5; // search is useless under 5 items — eyeball it
         if (!showKindRow && !showDomainRow && !showSearch) {
           return (
-            <div className="rounded-lg bg-content border border-edge-subtle px-2.5 py-1.5 text-[11px] text-fg-tertiary italic">
+            <div className="rounded-surface bg-content border border-edge-subtle px-2.5 py-1.5 text-[11px] text-fg-tertiary italic">
               Nothing to filter — {activeCount} routine{activeCount === 1 ? "" : "s"} on deck.
             </div>
           );
         }
         return (
-          <div className="rounded-lg bg-content border border-edge-subtle p-2.5 space-y-2">
+          <div className="rounded-surface bg-content border border-edge-subtle p-2.5 space-y-2">
             {/* Kind pills — hidden when only one bucket has tasks */}
             {showKindRow && (
               <div className="flex items-center gap-1.5 flex-wrap">

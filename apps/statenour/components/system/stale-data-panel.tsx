@@ -112,7 +112,7 @@ export function StaleDataPanel() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-sm font-medium text-fg">{category.title}</h3>
-                      <span className="rounded border border-amber-500/25 bg-amber-500/[0.04] px-2 py-0.5 text-[11px] font-mono text-amber-300">
+                      <span className="rounded-micro border border-amber-500/25 bg-amber-500/[0.04] px-2 py-0.5 text-[11px] font-mono text-amber-300">
                         {category.count} stale
                       </span>
                     </div>
@@ -127,7 +127,7 @@ export function StaleDataPanel() {
                         {category.examples.slice(0, 3).map((example) => (
                           <span
                             key={String(example.id)}
-                            className="rounded border border-edge-default px-2 py-1 text-[11px] font-mono text-fg-tertiary"
+                            className="rounded-micro border border-edge-default px-2 py-1 text-[11px] font-mono text-fg-tertiary"
                             title={example.label}
                           >
                             {example.label.slice(0, 42)} · {example.ageDays}d

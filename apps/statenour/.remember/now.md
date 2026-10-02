@@ -1,5 +1,11 @@
 # Session ledger — statenour
 
+**Updated: 2026-10-02 ET** (UI v2 PR 4 · `statenour/ui-v2-backlog` · backlog closed)
+
+## 2026-10-02 · UI v2 PR 4 — backlog closed
+
+card.tsx deleted → GlassCard everywhere; `.neural-glass*` + `.ui-material` moved to `@layer components` (eight call sites had utilities that never painted); `cn` extends tailwind-merge with v2 radius/shadow; brain inline buttons 44px floor; voice orb → solid state disc + one pulse-live ring; rounded-md/lg/sm + bare rounded + slate sweep; features/chat-v2 converted (the last unscoped slice). Code diff 139 files, +708 / −660 before the 16 screenshots; one commit. Receipts: `tsc --noEmit` exit 0 · eslint 0 errors on the 130 changed TS/TSX files · vitest 136 files / 1,587 passed, exit 0 (every test referencing a changed file + grammar, nav-shell, anti-slop, mobile-a11y, mount-graph, palette-root, modal contracts) · `tests/lib/cn-v2-tokens.test.ts` 4/4 with the stock-merger positive control · anti-slop 0 · stale-docs strict 0 · parity 142/0 · `next build` with `.next/cache` cleared exit 0 (full route table). Hostile review of the diff: 12 findings, all fixed (dialog gold glow from the layer move was the HIGH). Lessons: an unlayered component class silently eats caller utilities — the GlassCard tint bug hid for months; `features/` is a scope people forget.
+
 **Updated: 2026-10-02 ET** (UI v2 PR 3 · `statenour/ui-v2-delete-v1-lane` · `?ui=v1` lane, STATENOUR_UI flag, particle canvas and CommandDialog wrappers deleted)
 
 ## 2026-10-02 · UI v2 PR 3 — the lane comes out

@@ -197,7 +197,7 @@ export function ToolTelemetryPanel() {
       </div>
 
       {recordedCalls === 0 && (
-        <p className="text-[11px] text-amber-300/85 border border-amber-500/20 bg-amber-500/[0.04] rounded px-2 py-1.5 leading-relaxed">
+        <p className="text-[11px] text-amber-300/85 border border-amber-500/20 bg-amber-500/[0.04] rounded-micro px-2 py-1.5 leading-relaxed">
           <span className="font-mono text-amber-400">
             unmeasured, not zero
           </span>
@@ -210,7 +210,7 @@ export function ToolTelemetryPanel() {
 
       {/* Banners: Drift Warning */}
       {drift && (drift.inToolsetMissingFromRegistry.length > 0 || drift.inRegistryMissingFromToolset.length > 0) && (
-        <div className="p-3 bg-amber-500/[0.04] border border-amber-500/20 rounded-md text-[11px] text-amber-300/95 space-y-1">
+        <div className="p-3 bg-amber-500/[0.04] border border-amber-500/20 rounded-surface text-[11px] text-amber-300/95 space-y-1">
           <div className="flex items-center gap-1.5 font-bold text-amber-400">
             <AlertTriangle size={12} />
             <span>Registry Drift Detected</span>
@@ -218,7 +218,7 @@ export function ToolTelemetryPanel() {
           {drift.inToolsetMissingFromRegistry.length > 0 && (
             <p>
               Missing from catalog:{" "}
-              <span className="font-mono text-[11px] bg-amber-950/20 border border-amber-500/10 px-1 py-0.5 rounded text-amber-400/90 break-all text-left block">
+              <span className="font-mono text-[11px] bg-amber-950/20 border border-amber-500/10 px-1 py-0.5 rounded-micro text-amber-400/90 break-all text-left block">
                 {drift.inToolsetMissingFromRegistry.join(", ")}
               </span>
             </p>
@@ -226,7 +226,7 @@ export function ToolTelemetryPanel() {
           {drift.inRegistryMissingFromToolset.length > 0 && (
             <p>
               Scaffolded / missing from toolset:{" "}
-              <span className="font-mono text-[11px] bg-amber-950/20 border border-amber-500/10 px-1 py-0.5 rounded text-amber-400/90 break-all text-left block">
+              <span className="font-mono text-[11px] bg-amber-950/20 border border-amber-500/10 px-1 py-0.5 rounded-micro text-amber-400/90 break-all text-left block">
                 {drift.inRegistryMissingFromToolset.join(", ")}
               </span>
             </p>
@@ -236,7 +236,7 @@ export function ToolTelemetryPanel() {
 
       {/* Banners: Missing Env Keys */}
       {missingEnvKeys.length > 0 && (
-        <div className="p-3 bg-red-500/[0.04] border border-red-500/20 rounded-md text-[11px] text-red-300/95 space-y-1.5">
+        <div className="p-3 bg-red-500/[0.04] border border-red-500/20 rounded-surface text-[11px] text-red-300/95 space-y-1.5">
           <div className="flex items-center gap-1.5 font-bold text-red-400">
             <Key size={12} />
             <span>Missing Environment Keys</span>
@@ -244,7 +244,7 @@ export function ToolTelemetryPanel() {
           <p className="text-[11px] text-[var(--text-tertiary)] text-left">The following keys are required by active tools but missing in Railway environment variables:</p>
           <div className="flex flex-wrap gap-1.5">
             {missingEnvKeys.map((k) => (
-              <span key={k} className="font-mono text-[11px] bg-red-950/20 border border-red-500/20 px-1.5 py-0.5 rounded text-red-300/90">
+              <span key={k} className="font-mono text-[11px] bg-red-950/20 border border-red-500/20 px-1.5 py-0.5 rounded-micro text-red-300/90">
                 {k}
               </span>
             ))}
@@ -261,13 +261,13 @@ export function ToolTelemetryPanel() {
             placeholder="Search tools..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-2.5 py-1 text-[11px] rounded border border-[var(--border-default)] bg-[var(--bg-void)]/60 text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-accent"
+            className="w-full pl-8 pr-2.5 py-1 text-[11px] rounded-control border border-[var(--border-default)] bg-[var(--bg-void)]/60 text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-accent"
           />
         </div>
         <select
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
-          className="px-2 py-1 text-[11px] rounded border border-[var(--border-default)] bg-[var(--bg-void)]/60 text-[var(--text-primary)] focus:outline-none focus:border-accent sm:w-48"
+          className="px-2 py-1 text-[11px] rounded-control border border-[var(--border-default)] bg-[var(--bg-void)]/60 text-[var(--text-primary)] focus:outline-none focus:border-accent sm:w-48"
         >
           <option value="all">All Categories</option>
           {categories.map((cat) => (
@@ -337,12 +337,12 @@ export function ToolTelemetryPanel() {
                       </span>
                     </td>
                     <td className="py-2 hidden md:table-cell">
-                      <span className={cn("px-1 py-0.5 rounded text-[11px] font-mono font-semibold", riskColors)}>
+                      <span className={cn("px-1 py-0.5 rounded-micro text-[11px] font-mono font-semibold", riskColors)}>
                         {s.riskClass}
                       </span>
                     </td>
                     <td className="py-2 font-mono">
-                      <span className={cn("px-1.5 py-0.5 rounded text-[11px] font-mono", statusColors)}>
+                      <span className={cn("px-1.5 py-0.5 rounded-micro text-[11px] font-mono", statusColors)}>
                         {s.status.replace("_", " ")}
                       </span>
                     </td>
@@ -382,16 +382,16 @@ export function ToolTelemetryPanel() {
                               
                               <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary pt-1">Category & Operations</p>
                               <div className="flex flex-wrap gap-1.5 text-[9.5px]">
-                                <span className="px-1.5 py-0.5 bg-content border border-edge-subtle rounded">
+                                <span className="px-1.5 py-0.5 bg-content border border-edge-subtle rounded-micro">
                                   {CATEGORY_LABELS[s.category] ?? s.category}
                                 </span>
                                 {s.mutates && (
-                                  <span className="px-1.5 py-0.5 bg-amber-500/[0.04] border border-amber-500/10 text-amber-400/90 rounded">
+                                  <span className="px-1.5 py-0.5 bg-amber-500/[0.04] border border-amber-500/10 text-amber-400/90 rounded-micro">
                                     mutates external state
                                   </span>
                                 )}
                                 {!s.registered && (
-                                  <span className="px-1.5 py-0.5 bg-red-500/[0.04] border border-red-500/10 text-red-400/90 rounded">
+                                  <span className="px-1.5 py-0.5 bg-red-500/[0.04] border border-red-500/10 text-red-400/90 rounded-micro">
                                     unregistered in catalog
                                   </span>
                                 )}
@@ -434,7 +434,7 @@ export function ToolTelemetryPanel() {
                               {s.lastErrors.map((e, i) => (
                                 <p
                                   key={i}
-                                  className="text-[11px] font-mono text-red-300/80 break-all bg-red-950/10 p-1.5 rounded border border-red-500/10"
+                                  className="text-[11px] font-mono text-red-300/80 break-all bg-red-950/10 p-1.5 rounded-micro border border-red-500/10"
                                 >
                                   <span className="text-red-400/60 mr-1.5">{formatAgo(e.at)}</span>
                                   {e.message}

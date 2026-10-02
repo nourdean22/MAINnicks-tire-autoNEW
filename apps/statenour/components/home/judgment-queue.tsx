@@ -106,7 +106,7 @@ export function JudgmentQueue({
   if (loading) {
     return (
       <section aria-label="needs judgment" className="mt-12" aria-busy>
-        <div className="h-3 w-36 animate-pulse rounded bg-raised" />
+        <div className="h-3 w-36 animate-pulse rounded-micro bg-raised" />
       </section>
     );
   }
@@ -314,7 +314,7 @@ function JudgmentRow({
             onClick={() => onCommitmentVerdict(item.id, "dismiss")}
             aria-label="Dismiss proposal — remembered, never re-proposed"
             title="Dismiss — remembered, never re-proposed"
-            className="inline-flex size-11 items-center justify-center rounded-md border border-edge text-fg-tertiary transition-colors duration-150 hover:text-rose-300 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+            className="inline-flex size-11 items-center justify-center rounded-control border border-edge text-fg-tertiary transition-colors duration-150 hover:text-rose-300 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -344,7 +344,7 @@ function JudgmentRow({
           onClick={() => onFollowupVerdict(item.id, "dismiss")}
           aria-label="Dismiss follow-up"
           title="Dismiss follow-up"
-          className="inline-flex size-11 items-center justify-center rounded-md border border-edge text-fg-tertiary transition-colors duration-150 hover:text-fg disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+          className="inline-flex size-11 items-center justify-center rounded-control border border-edge text-fg-tertiary transition-colors duration-150 hover:text-fg disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
         >
           <Check className="h-3.5 w-3.5" />
         </button>

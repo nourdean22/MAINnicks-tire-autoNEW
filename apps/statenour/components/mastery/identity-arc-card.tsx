@@ -205,7 +205,7 @@ export function IdentityArcCard() {
                   {topActive.map((g) => (
                     <div
                       key={g.stat}
-                      className="flex items-center justify-between px-1.5 py-0.5 bg-emerald-500/2 rounded border border-emerald-500/10"
+                      className="flex items-center justify-between px-1.5 py-0.5 bg-emerald-500/2 rounded-micro border border-emerald-500/10"
                     >
                       <span className="text-fg">
                         {g.icon} {g.label}
@@ -226,7 +226,7 @@ export function IdentityArcCard() {
                   {stalled.map((g) => (
                     <div
                       key={g.stat}
-                      className="flex items-center justify-between px-1.5 py-0.5 bg-rose-500/2 rounded border border-rose-500/10"
+                      className="flex items-center justify-between px-1.5 py-0.5 bg-rose-500/2 rounded-micro border border-rose-500/10"
                     >
                       <span className="text-fg-secondary">
                         {g.icon} {g.label}

@@ -64,7 +64,7 @@ export function RecallPreviewPanel() {
           </p>
         </div>
         {report?.provenance ? (
-          <span className="rounded border border-edge px-2 py-1 font-mono text-[11px] text-fg-secondary">
+          <span className="rounded-micro border border-edge px-2 py-1 font-mono text-[11px] text-fg-secondary">
             {report.provenance}
           </span>
         ) : null}
@@ -99,7 +99,7 @@ export function RecallPreviewPanel() {
       </label>
 
       {error ? (
-        <p className="mt-3 rounded-md border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-300">
+        <p className="mt-3 rounded-control border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-300">
           {error} — state unknown, not empty.
         </p>
       ) : null}
@@ -113,13 +113,13 @@ export function RecallPreviewPanel() {
           </div>
 
           {report.hits.length === 0 ? (
-            <p className="rounded-md border border-edge px-3 py-3 text-xs text-fg-tertiary">
+            <p className="rounded-control border border-edge px-3 py-3 text-xs text-fg-tertiary">
               {report.provenanceReason ?? "Recall completed and found no eligible match."}
             </p>
           ) : (
             <div className="space-y-2">
               {report.hits.map((hit) => (
-                <article key={hit.memoryId} className="rounded-md border border-edge bg-void/50 p-3">
+                <article key={hit.memoryId} className="rounded-control border border-edge bg-void/50 p-3">
                   <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-fg-tertiary">
                     <span>{hit.category}</span>
                     <span>score {hit.finalScore.toFixed(3)}</span>
@@ -135,7 +135,7 @@ export function RecallPreviewPanel() {
           )}
 
           {includePrompt && report.promptBlock ? (
-            <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-void p-3 text-[11px] leading-4 text-fg-secondary">
+            <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-control border border-edge bg-void p-3 text-[11px] leading-4 text-fg-secondary">
               {report.promptBlock}
             </pre>
           ) : null}

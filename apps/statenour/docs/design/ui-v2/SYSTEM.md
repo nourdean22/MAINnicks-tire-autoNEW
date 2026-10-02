@@ -165,9 +165,13 @@ Home selective. A user-facing density preference is deferred until the default h
 ```
 
 Nothing that is read gets `backdrop-filter`. `.glass-card` is kept as a name for its 47 adopters but renders as
-a solid `--surface` card with an `--edge-subtle` border. `.neural-glass` (GlassCard, 43 importers) is the same
-solid card since the second pass: no gradient, no gold edge, no gold top line, no gold hover glow; `-active`
-keeps its 1px gold edge and `-critical` its red one. `.neural-glass-modal` (Dialog) is a solid `--overlay` step
+a solid `--surface` card with an `--edge-subtle` border. `.neural-glass` (GlassCard, the only card since PR 4
+deleted the shadcn `card.tsx`) is the same solid card since the second pass: no gradient, no gold edge, no gold
+top line, no gold hover glow; `-active` keeps its 1px gold edge and `-critical` its red one (no glow). Since PR 4
+`.neural-glass*` and `.ui-material` sit in `@layer components`, so a utility a consumer passes through
+`className` (a `border-l-[3px]` rail, a rose error tint, a hover) wins over the class defaults; unlayered, those
+utilities were silently ignored at eight call sites. `cn` (lib/utils.ts) extends tailwind-merge with the v2
+radius and shadow scales, so `rounded-control` + `rounded-full` resolves last-wins instead of coexisting. `.neural-glass-modal` (Dialog) is a solid `--overlay` step
 with the L2 shadow. The skeleton shimmer, `[data-card]` hover and `.glow-on-hover` are neutral; the CRT scan-line
 overlay and the chart drop-shadow glow are gone.
 

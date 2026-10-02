@@ -91,7 +91,7 @@ export function SelfCritiqueCard() {
             <li key={row.id}>
               <Link
                 href={href}
-                className="block min-h-[44px] py-2 px-2 -mx-2 rounded hover:bg-surface-hover transition-colors"
+                className="block min-h-[44px] py-2 px-2 -mx-2 rounded-control hover:bg-surface-hover transition-colors"
               >
                 <div className="flex items-baseline gap-2">
                   {typeof score === "number" && (

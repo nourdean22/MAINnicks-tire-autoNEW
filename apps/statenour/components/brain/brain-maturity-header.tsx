@@ -145,7 +145,7 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
             </div>
             <button
               onClick={reload}
-              className="shrink-0 text-[11px] font-mono px-2 py-1 rounded border border-rose-400/40 text-rose-300 hover:bg-rose-400/10 transition-colors"
+              className="shrink-0 text-[11px] font-mono px-2 py-1 rounded-control border border-rose-400/40 text-rose-300 hover:bg-rose-400/10 transition-colors"
             >
               retry
             </button>
@@ -197,7 +197,7 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
           </button>
           <button
             onClick={() => void resetBrain()}
-            className="text-[11px] font-mono px-2 py-1 rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 inline-flex items-center gap-1"
+            className="text-[11px] font-mono px-2 py-1 rounded-control border border-red-500/30 text-red-400 hover:bg-red-500/10 inline-flex items-center gap-1"
             title="nuke everything (double-confirm required)"
           >
             <RotateCcw size={10} />
@@ -260,7 +260,7 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
         </div>
       </div>
       {degraded && (
-        <p className="mt-3 text-[11px] text-amber-300/90 leading-relaxed border border-amber-500/25 bg-amber-500/[0.05] rounded px-2 py-1.5">
+        <p className="mt-3 text-[11px] text-amber-300/90 leading-relaxed border border-amber-500/25 bg-amber-500/[0.05] rounded-micro px-2 py-1.5">
           <span className="font-mono text-amber-400">
             read failed — unknown, not zero
           </span>

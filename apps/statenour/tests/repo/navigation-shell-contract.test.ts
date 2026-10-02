@@ -26,7 +26,7 @@ describe("responsive navigation shell contract", () => {
     expect(drawer).toContain('onClick={onClose} aria-label="Close history" className="flex h-11 w-11');
     expect(drawer).toContain('onClick={onShowActions} className="flex min-h-11');
     expect(drawer).toContain('placeholder="Search conversations" className="h-11');
-    expect(drawer).toContain('className={`min-h-11 rounded-md sm:min-h-8');
+    expect(drawer).toContain('className={`min-h-11 rounded-control sm:min-h-8');
     expect(drawer).toContain('className="mt-2 min-h-11 w-full');
   });
 
@@ -36,9 +36,9 @@ describe("responsive navigation shell contract", () => {
     expect(more).toContain('aria-label="Close More menu"');
     expect(more).toContain('className="absolute right-0 inline-flex h-11 w-11');
     expect(more).toContain('className="flex min-h-11 w-full items-center gap-2 rounded-control');
-    expect(more).toContain('"flex min-h-11 items-center gap-2 rounded-lg');
+    expect(more).toContain('"flex min-h-11 items-center gap-2 rounded-control');
     expect(more).toContain('className="inline-flex min-h-11 max-w-[140px]');
-    expect(more).toContain('"flex min-h-11 items-center gap-2 rounded-lg px-2.5 py-2');
+    expect(more).toContain('"flex min-h-11 items-center gap-2 rounded-control px-2.5 py-2');
     expect(more).toContain('"flex min-h-11 flex-1 items-center justify-center');
   });
 

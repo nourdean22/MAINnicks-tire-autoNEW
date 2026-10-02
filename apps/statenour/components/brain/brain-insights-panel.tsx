@@ -117,7 +117,7 @@ export function BrainInsightsPanel() {
 
 function CardShell({ title, count, accent, children }: { title: string; count: number; accent: string; children: React.ReactNode }) {
   return (
-    <div className="rounded border border-[var(--border-default)] bg-content p-3">
+    <div className="rounded-micro border border-[var(--border-default)] bg-content p-3">
       <div className="flex items-center justify-between mb-2">
         <span className={`text-[11px] font-mono ${accent}`}>
           {title}

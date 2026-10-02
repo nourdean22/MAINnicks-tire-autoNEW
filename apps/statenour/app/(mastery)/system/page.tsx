@@ -381,8 +381,8 @@ export default function SystemPage() {
 
           {changeDigestQuery.isLoading ? (
             <div className="space-y-2 py-4">
-              <div className="h-4 bg-content rounded animate-pulse w-3/4" />
-              <div className="h-4 bg-content rounded animate-pulse w-1/2" />
+              <div className="h-4 bg-content rounded-micro animate-pulse w-3/4" />
+              <div className="h-4 bg-content rounded-micro animate-pulse w-1/2" />
             </div>
           ) : changeDigestQuery.data ? (
             <div className="space-y-3.5 text-xs">
@@ -405,7 +405,7 @@ export default function SystemPage() {
               <div className="space-y-1 border-t border-edge-subtle pt-2.5">
               <div className="text-fg-tertiary font-medium">DEPLOYMENT</div>
                 <div className="text-fg flex items-center gap-2 flex-wrap">
-              <span className="font-mono bg-content px-1 rounded text-[11px]">
+              <span className="font-mono bg-content px-1 rounded-micro text-[11px]">
                     {changeDigestQuery.data.deployment.sha?.slice(0, 7) || "unknown"}
                   </span>
                   <span>({changeDigestQuery.data.deployment.branch || "unknown"})</span>
@@ -470,21 +470,21 @@ export default function SystemPage() {
 
           {memoryEvalsQuery.isLoading ? (
             <div className="space-y-2 py-4">
-              <div className="h-4 bg-content rounded animate-pulse w-3/4" />
-              <div className="h-4 bg-content rounded animate-pulse w-1/2" />
+              <div className="h-4 bg-content rounded-micro animate-pulse w-3/4" />
+              <div className="h-4 bg-content rounded-micro animate-pulse w-1/2" />
             </div>
           ) : memoryEvalsQuery.data ? (
             <div className="space-y-3 text-xs flex-1 flex flex-col">
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded bg-content border border-edge-subtle p-1.5">
+                <div className="rounded-micro bg-content border border-edge-subtle p-1.5">
                   <div className="text-emerald-400 text-sm font-bold">{memoryEvalsQuery.data.passed}</div>
                   <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Passed</div>
                 </div>
-                <div className="rounded bg-content border border-edge-subtle p-1.5">
+                <div className="rounded-micro bg-content border border-edge-subtle p-1.5">
                   <div className="text-red-400 text-sm font-bold">{memoryEvalsQuery.data.failed}</div>
                   <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Failed</div>
                 </div>
-                <div className="rounded bg-content border border-edge-subtle p-1.5">
+                <div className="rounded-micro bg-content border border-edge-subtle p-1.5">
               <div className="text-fg-secondary text-sm font-bold">{memoryEvalsQuery.data.manual}</div>
                   <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Manual</div>
                 </div>
@@ -504,7 +504,7 @@ export default function SystemPage() {
                       .map((f) => (
                         <div key={f.id} className="border-l-2 border-red-500/40 pl-2 py-0.5">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[11px] font-mono text-red-400 bg-red-950/20 border border-red-900/35 px-1 rounded">
+                            <span className="text-[11px] font-mono text-red-400 bg-red-950/20 border border-red-900/35 px-1 rounded-micro">
                               {f.severity}
                             </span>
                             <span className="text-fg-secondary font-mono text-[11px]">{f.id}</span>
@@ -541,8 +541,8 @@ export default function SystemPage() {
 
           {receiptFeedQuery.isLoading ? (
             <div className="space-y-2 py-4">
-              <div className="h-4 bg-content rounded animate-pulse w-3/4" />
-              <div className="h-4 bg-content rounded animate-pulse w-1/2" />
+              <div className="h-4 bg-content rounded-micro animate-pulse w-3/4" />
+              <div className="h-4 bg-content rounded-micro animate-pulse w-1/2" />
             </div>
           ) : receiptFeedQuery.data ? (
             <div className="flex-1 overflow-auto max-h-[220px] pr-1 space-y-2">

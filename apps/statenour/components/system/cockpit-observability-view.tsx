@@ -110,7 +110,7 @@ export function CockpitObservabilityView() {
     <div className="space-y-6">
       {/* KPI Row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 stagger-in">
-        <GlassCard className="flex flex-col justify-between p-4">
+        <GlassCard className="flex flex-col justify-between">
           <div className="flex items-center justify-between text-fg-secondary">
               <span className="font-mono text-[11px] uppercase tracking-[0.12em]">Cost Burned</span>
             <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
@@ -123,7 +123,7 @@ export function CockpitObservabilityView() {
           </div>
         </GlassCard>
 
-        <GlassCard className="flex flex-col justify-between p-4">
+        <GlassCard className="flex flex-col justify-between">
               <div className="flex items-center justify-between text-fg-secondary">
             <span className="font-mono text-[11px] uppercase tracking-[0.12em]">P95 TTFT</span>
             <Clock className="w-3.5 h-3.5 text-fg-secondary" />
@@ -137,7 +137,7 @@ export function CockpitObservabilityView() {
           </div>
         </GlassCard>
 
-        <GlassCard className="flex flex-col justify-between p-4">
+        <GlassCard className="flex flex-col justify-between">
               <div className="flex items-center justify-between text-fg-secondary">
             <span className="font-mono text-[11px] uppercase tracking-[0.12em]">Avg Latency</span>
             <Activity className="w-3.5 h-3.5 text-sky-400" />
@@ -151,7 +151,7 @@ export function CockpitObservabilityView() {
           </div>
         </GlassCard>
 
-        <GlassCard className="flex flex-col justify-between p-4">
+        <GlassCard className="flex flex-col justify-between">
               <div className="flex items-center justify-between text-fg-secondary">
             <span className="font-mono text-[11px] uppercase tracking-[0.12em]">Avg Feedback</span>
             <div className="flex gap-1 text-fg-secondary">
@@ -168,7 +168,7 @@ export function CockpitObservabilityView() {
         </GlassCard>
 
         <GlassCard
-          className="flex flex-col justify-between p-4"
+          className="flex flex-col justify-between"
           critical={kpis.pendingApprovalsCount > 0}
         >
           <div className="flex items-center justify-between text-fg-secondary">
@@ -364,7 +364,7 @@ export function CockpitObservabilityView() {
                       </td>
                       <td className="py-2.5 px-2">
                         <span className={cn(
-                "inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold font-mono",
+                "inline-flex items-center px-1.5 py-0.5 rounded-micro text-[11px] font-semibold font-mono",
                           run.status === "success" && "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
                           run.status === "errored" && "bg-rose-500/10 text-rose-400 border border-rose-500/20",
                           run.status === "cancelled" && "bg-content text-fg-secondary border border-edge-default",
@@ -428,11 +428,11 @@ export function CockpitObservabilityView() {
                     </td>
                     <td className="py-3 px-2">
                       {pv.active ? (
-                        <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 border border-emerald-500/25 px-1.5 py-0.5 text-[11px] font-bold text-emerald-400 font-mono">
+                        <span className="inline-flex items-center gap-1 rounded-micro bg-emerald-500/10 border border-emerald-500/25 px-1.5 py-0.5 text-[11px] font-bold text-emerald-400 font-mono">
                           Active
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded bg-content border border-edge-default px-1.5 py-0.5 text-[11px] font-bold text-fg-tertiary font-mono">
+                        <span className="inline-flex items-center gap-1 rounded-micro bg-content border border-edge-default px-1.5 py-0.5 text-[11px] font-bold text-fg-tertiary font-mono">
                           Inactive
                         </span>
                       )}

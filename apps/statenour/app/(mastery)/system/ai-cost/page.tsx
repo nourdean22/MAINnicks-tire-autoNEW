@@ -56,7 +56,7 @@ function TrendBars({ trend }: { trend: Feed["trend"] }) {
             <div className="relative w-full">
               <div
                 className={cn(
-                  "w-full rounded-sm transition-all",
+                  "w-full rounded-micro transition-all",
                   today ? "bg-emerald-400" : "bg-sky-400",
                 )}
                 style={{ height: `${h}px` }}
@@ -82,7 +82,7 @@ function BreakdownTable({ rows, total }: { rows: Breakdown[]; total: number }) {
         const pct = total > 0 ? Math.round((r.costCents / total) * 100) : 0;
         const barW = Math.max(2, Math.round((r.costCents / maxCost) * 100));
         return (
-          <div key={r.key} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 rounded px-2 py-1.5 transition hover:bg-surface-hover">
+          <div key={r.key} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 rounded-control px-2 py-1.5 transition hover:bg-surface-hover">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
               <span className="truncate font-mono text-xs text-fg">{r.key}</span>

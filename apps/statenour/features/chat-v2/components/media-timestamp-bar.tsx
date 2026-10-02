@@ -46,7 +46,7 @@ export function MediaTimestampBar({ text }: { text: string }) {
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5">
-      <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wide text-fg-tertiary">
+      <span className="inline-flex items-center gap-1 font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary">
         <Crosshair size={10} /> mentioned
       </span>
       {refs.map((ref) => {
@@ -58,7 +58,7 @@ export function MediaTimestampBar({ text }: { text: string }) {
           <button
             key={`${ref.start}-${ref.end ?? ""}`}
             onClick={() => requestSeek(ref.start)}
-            className="inline-flex h-12 min-w-12 items-center rounded-md border border-glass px-2.5 font-mono text-[10px] text-fg-secondary transition-colors hover:border-fg-tertiary hover:text-fg"
+            className="inline-flex h-12 min-w-12 items-center rounded-control border border-edge-default px-2.5 font-mono text-[11px] text-fg-secondary transition-colors hover:border-edge-strong hover:text-fg"
             aria-label={
               ref.end !== undefined
                 ? `Jump to ${label} in ${item.title}`

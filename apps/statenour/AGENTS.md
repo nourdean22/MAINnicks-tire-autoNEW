@@ -7,7 +7,7 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-10-02 · UI v2 PR 3 (v1 lane deleted) · `statenour/ui-v2-delete-v1-lane` · see RECONCILIATION.
+**Last refreshed:** 2026-10-02 · UI v2 PR 4 (backlog closed) · `statenour/ui-v2-backlog` · see RECONCILIATION.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--
@@ -76,8 +76,8 @@ script inside this app is active — do not resurrect one.
 
 ### Frontend conventions
 
-- **`GlassCard`** (`components/ui/glass-card.tsx`) is the canonical card. `components/ui/card.tsx` is
-  `@deprecated`, kept only for the structured API in `components/stats/*` — never import it in new code.
+- **`GlassCard`** (`components/ui/glass-card.tsx`) is the only card. The shadcn `components/ui/card.tsx` was
+  deleted in UI v2 PR 4 (2026-10-02); GlassCard's `.neural-glass` rule sits in `@layer components`, so className utilities win.
 - **Style through the theme bridge** (`bg-elevated`, `bg-raised`, `text-fg-secondary`,
   `border-glass`, `text-gold`) declared in `app/styles/tokens.css` `@theme inline`. Raw
   `bg-[var(--token)]` is legacy read-path only. **A token that does not exist emits zero CSS and fails

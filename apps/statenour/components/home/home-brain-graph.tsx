@@ -87,20 +87,20 @@ const EVIDENCE_ALPHA: Record<string, number> = {
 /** Lenses — client-side filters over the loaded payload. Honest views,
  *  not queries: they can only hide, never invent. */
 const LENSES: Array<{ key: string; label: string; match: (n: BrainGraphNode) => boolean }> = [
-  { key: "all", label: "ALL", match: () => true },
+  { key: "all", label: "All", match: () => true },
   {
     key: "business",
-    label: "BUSINESS",
+    label: "Business",
     match: (n) =>
       n.type === "business" ||
       n.id === "business" || n.id === "nicks-tire" ||
       String(n.metadata?.domain ?? "").toLowerCase() === "business" ||
       String(n.metadata?.domain ?? "").toLowerCase() === "finance",
   },
-  { key: "people", label: "PEOPLE", match: (n) => n.type === "person" },
-  { key: "goals", label: "GOALS", match: (n) => n.type === "goal" || n.type === "mission" || n.type === "task" },
-  { key: "decisions", label: "DECISIONS", match: (n) => n.type === "decision" },
-  { key: "mind", label: "MIND", match: (n) => n.type === "memory" || n.type === "journal" || n.metadata?.source === "category_hub" },
+  { key: "people", label: "People", match: (n) => n.type === "person" },
+  { key: "goals", label: "Goals", match: (n) => n.type === "goal" || n.type === "mission" || n.type === "task" },
+  { key: "decisions", label: "Decisions", match: (n) => n.type === "decision" },
+  { key: "mind", label: "Mind", match: (n) => n.type === "memory" || n.type === "journal" || n.metadata?.source === "category_hub" },
   // LAST 30D matches on `ageDays`, which only DATABASE-BACKED nodes carry.
   // Person nodes used to be built without it, so a person added yesterday
   // could never appear here — fixed at the source (lib/brain/brain-graph.ts
@@ -109,7 +109,7 @@ const LENSES: Array<{ key: string; label: string; match: (n: BrainGraphNode) => 
   // "FITNESS" and "cat:wisdom" are synthetic structure with no birthday, and
   // giving them a fake one to satisfy a filter would be the invented-data
   // move this file's whole rebuild was against.
-  { key: "recent", label: "LAST 30D", match: (n) => typeof n.ageDays === "number" && n.ageDays <= 30 },
+  { key: "recent", label: "Last 30d", match: (n) => typeof n.ageDays === "number" && n.ageDays <= 30 },
 ];
 
 export type LoadState =
@@ -1183,7 +1183,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
               activityPending && "border-dashed opacity-70",
             )}
           >
-            + ACTIVITY{activityPending ? " ·" : ""}
+            + Activity{activityPending ? " ·" : ""}
           </button>
         </div>
       )}
@@ -1298,7 +1298,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
             it through toggles that had already moved. Says WHAT is on
             screen, not just that something went wrong. */}
         {staleError && !showRefreshChip && (
-          <div className="absolute bottom-3 left-3 right-3 z-10 flex flex-wrap items-center gap-2 rounded border border-amber-500/30 bg-amber-500/10 px-2.5 py-2">
+          <div className="absolute bottom-3 left-3 right-3 z-10 flex flex-wrap items-center gap-2 rounded-micro border border-amber-500/30 bg-amber-500/10 px-2.5 py-2">
             <AlertTriangle size={11} className="text-amber-300 shrink-0" />
             <span className="font-mono text-[11px] text-amber-300">
               Refresh failed · showing the last graph that loaded
@@ -1382,7 +1382,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
           </button>
 
           {unlinkedOpen && (
-            <ul className="mt-1.5 max-h-40 overflow-y-auto rounded border border-(--border-default) bg-(--bg-elevated) divide-y divide-(--border-default)">
+            <ul className="mt-1.5 max-h-40 overflow-y-auto rounded-micro border border-(--border-default) bg-(--bg-elevated) divide-y divide-(--border-default)">
               {unlinked.map((n) => (
                 <li key={n.id}>
                   <button

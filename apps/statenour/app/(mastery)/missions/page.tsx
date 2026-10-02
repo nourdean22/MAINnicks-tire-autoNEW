@@ -476,10 +476,10 @@ function MissionsPageSkeleton() {
   // layout visibly jump on hydrate.
   return (
     <div className="mx-auto w-full max-w-5xl space-y-3">
-      <ShimmerSkeleton className="h-12 rounded-lg" />
+      <ShimmerSkeleton className="h-12 rounded-surface" />
       <ShimmerSkeleton className="h-40 rounded-surface" />
-      <ShimmerSkeleton className="h-24 rounded-lg" />
-      <ShimmerSkeleton className="h-24 rounded-lg" />
+      <ShimmerSkeleton className="h-24 rounded-surface" />
+      <ShimmerSkeleton className="h-24 rounded-surface" />
     </div>
   );
 }
