@@ -1,7 +1,19 @@
 # Session ledger - nickstire
 
 **Updated: 2026-10-01** (Creative Intelligence OS #2865 merged as `54a36662`; FB reel cross-post armed in prod; deployment 015c1e73 **SUCCESS** at 17:48:57Z — container logged `[server:ready]` 17:48:52Z, `Schema guard: all critical tables present` (6 checked), `Tiered scheduler started: 5 tiers, 126 jobs`; `/api/health` at 17:50:31Z reported `status: healthy`, `deploy.commit 54a366629ba89867dcd5dbc916e37bee88f8e645`, `deploymentId 015c1e73…`, database up (6 ms), AI gateway up, self-healing score 100)
-## 2026-10-02 · Admin closure wave (branch `claude/happy-maxwell-cp2gox`) — BUILT + TESTED, not deployed
+## 2026-10-02 · Admin closure wave — MERGED (#2885, d5838402), DEPLOYED, MIGRATIONS APPLIED + RECORDED
+
+Deploy: Railway `5c5eec0d` SUCCESS 15:49:15Z, /api/health commit d5838402. Migrations: operator tap on the new
+container 15:53:21Z (176 steps, none failed); `record-migrations.mjs` run from NattyNour via Desktop Commander in an
+isolated worktree (`.worktrees/record-migrations`): 10 rows recorded after a 144-row ledger backup; `reconcile-migrations
+--strict` exit 0, 0 UNRECORDED. Follow-up PR declares `review_requests.invoiceId` + parity test. Still to read: cron_log
+`orchestration-status-reconcile` "drafts closed N", `opportunity-queue-refresh` "collapsed". Holdout flags: precondition met
+(heldout in all 3 enums), still OFF — operator decision. Traps: quote `--only '0127,…'` in PowerShell (unquoted becomes
+127 128 …); worktree-setup.ps1 stalled >10 min on its repo-wide scans on NattyNour — junctioning root + app node_modules by
+hand was enough for these scripts, and `railway run` supplies the env.
+
+### Earlier note (pre-merge)
+2026-10-02 · Admin closure wave (branch `claude/happy-maxwell-cp2gox`) — BUILT + TESTED, not deployed
 
 Operator truth pass checked against code; corrections + gated items in `docs/operations/ADMIN-TRUTH-PASS-2026-10-02.md`.
 Shipped on the branch: SMS human-review draft lifecycle (reconciler + CAS + obligation linkage), missed-call

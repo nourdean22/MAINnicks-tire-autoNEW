@@ -3347,9 +3347,10 @@
       "name": "Admin queues close their loops: stale SMS review drafts expire/supersede, missed calls close on service and collapse per phone, Nick's draft proposals are capture-aware, open callbacks show served evidence, parents cannot be green over broken cameras",
       "owner": "operator",
       "codeState": "merged",
-      "operationalState": "unit_verified",
+      "operationalState": "deployed",
       "exposure": "internal",
       "evidence": {
+        "deploymentId": "Railway deployment 5c5eec0d-6745-4a53-8966-efc88ec5b606 (main auto-deploy of #2885 squash d5838402, SUCCESS 2026-10-02T15:49Z)",
         "codeCommit": "PR #2885 branch claude/happy-maxwell-cp2gox: orchestrationStatusReconcile.reconcileStaleHumanReviewDrafts (+ CAS-guarded actionHumanReview, obligation linkage in resolveHumanPendingForConversation); opportunityQueue reconcile step 3a + collectMissedCalls collapse; vapiActionExtraction capture-aware gate + scheduleCallback trail link; callbackServedEvidence bundle slice; shared/cameraFleetHealth in Settings Status + Lot header; Market GSC source label; Traffic Funnel web-only weighted position. Truth-pass corrections: docs/operations/ADMIN-TRUTH-PASS-2026-10-02.md.",
         "tests": [
           "server/__tests__/smsDraftClosure.test.ts (16): every reconciler rule + precedence + CAS SQL, lost race, stale-send refusal, claim-before-send, obligation closure; mutation-proven (4 plants)",
@@ -3360,18 +3361,26 @@
           "server/gscAggregationSemantics.test.ts F5: funnel web-only and impression-weighted",
           "server/services/invoiceReviewRequests.test.ts (8) + ros083ReviewQueue cron arms + postInvoiceFollowUp cross-lane dedupe (mutation-proven); server/migrationListGuards.test.ts re-asserted ENUMs == schema.ts (mutation-proven)"
         ],
-        "liveRuns": []
+        "liveRuns": [
+          "PR #2885 squash d5838402 deployed: Railway deployment 5c5eec0d SUCCESS, server:ready 2026-10-02T15:49:15Z, /api/health healthy with deploy.commit d5838402",
+          "Admin -> Apply built-in migrations on the d5838402 container at 2026-10-02T15:53:21Z: 176 steps checked, 41 already in place, none failed (audit trail 'Operator ran DB migrations')"
+        ],
+        "databaseAssertions": [
+          "record-migrations.mjs dry run (railway run, prod TiDB fingerprint 9486234786e5): 0127-0130, 0132, 0133, 0136-0139 all UNRECORDED_BUT_EXACT_MATCH, i.e. the live schema matches each file exactly",
+          "record-migrations.mjs --execute: ledger backup __drizzle_migrations_bak_20261002_record (144 rows), 10 rows inserted, every hash read back, exit 0",
+          "reconcile-migrations.mjs --strict: exit 0, no blocking drift; 153 files / 154 recorded / 125 RECORDED_AND_MATCHED / 0 UNRECORDED (28 pre-existing advisory mismatches, not gated)"
+        ]
       },
       "blockers": [
         {
           "severity": "P2",
-          "description": "Not merged or deployed. First post-deploy receipt to observe: cron_log orchestration-status-reconcile details 'drafts closed N' (expected: the ~366 drafted backlog falls to ~7 days) and opportunity-queue-refresh details 'collapsed'."
+          "description": "Merged and deployed (d5838402); migrations applied and recorded. Outcome not yet observed: first cron_log receipts still to read are orchestration-status-reconcile details 'drafts closed N' (expected: the ~366 drafted backlog falls to ~7 days), opportunity-queue-refresh details 'collapsed', and review-requests details 'invoice rows created N' (only while sms_review_requests is on)."
         }
       ],
       "deferredScope": [
-        "Applying the DDL: 0130/0132/0133/0136/0137/0138/0139 are in handleRunMigrations; one operator tap (Admin -> Run migrations) after deploy, then scripts/record-migrations.mjs via railway run for the ledger (0127-0139). Contact-holdout flags stay OFF until 'heldout' reads back in all three enums.",
         "convertedToLead=0 gate on missed-call recovery texts excludes ~101 calls/week that persisted nothing: widening it is a customer-contact decision (operator: on hold)."
       ],
+      "verificationExpiresAt": "2026-10-16",
       "lastVerifiedAt": "2026-10-02"
     }
   ],

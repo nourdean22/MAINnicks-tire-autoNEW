@@ -673,13 +673,16 @@ export type InsertCallbackRequest = typeof callbackRequests.$inferInsert;
  */
 export const reviewRequests = mysqlTable("review_requests", {
   id: int("id").autoincrement().primaryKey(),
-  /**
-   * Link to the completed booking — NULL for a row sourced from an ALG invoice (0139).
-   * The invoice source column `invoiceId` (UNIQUE) exists only after 0139 is applied and is
-   * written by raw SQL in services/invoiceReviewRequests.ts; it is NOT declared here until
-   * then, because projection-less select().from(reviewRequests) reads would name it first.
-   */
+  /** Link to the completed booking — NULL for a row sourced from an ALG invoice (0139). */
   bookingId: int("bookingId").references(() => bookings.id, { onDelete: "cascade" }),
+  /**
+   * The paid ALG/ShopDriver invoice this ask was created from (0139) — NULL for a
+   * booking-sourced row. UNIQUE: one review ask per invoice. Written by
+   * services/invoiceReviewRequests.ts. Declared 2026-10-02 only after 0139 was applied AND
+   * recorded in production (reconcile-migrations --strict exit 0), because projection-less
+   * select().from(reviewRequests) reads name every declared column.
+   */
+  invoiceId: int("invoiceId"),
   /** Customer name from booking */
   customerName: varchar("customerName", { length: 255 }).notNull(),
   /** Customer phone (normalized) */
@@ -707,6 +710,7 @@ export const reviewRequests = mysqlTable("review_requests", {
   index("idx_review_phone").on(table.phone),
   index("idx_review_status").on(table.status),
   index("idx_review_scheduled").on(table.scheduledAt),
+  uniqueIndex("uq_review_requests_invoice").on(table.invoiceId),
 ]);
 
 export type ReviewRequest = typeof reviewRequests.$inferSelect;
