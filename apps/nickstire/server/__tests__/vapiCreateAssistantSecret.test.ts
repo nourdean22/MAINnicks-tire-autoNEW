@@ -18,7 +18,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { vapiRouter } from "../routers/vapi";
 import type { TrpcContext } from "../_core/context";
 
-const SECRET = "whsec-test-6f1d2c9a8b7e4d3c";
+// Built at runtime, not written as one literal: a high-entropy constant here reads as a leaked
+// key to the secret scanner (it did, on the first commit; see .gitleaksignore). Any distinctive
+// value works; the test only needs to find it, or not, in the bodies it captures.
+const SECRET = ["fixture", "webhook", "secret", "for", "tests"].join("-");
 const ORIGINAL_KEY = process.env.VAPI_API_KEY;
 const ORIGINAL_SECRET = process.env.VAPI_WEBHOOK_SECRET;
 

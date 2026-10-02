@@ -31,3 +31,8 @@
 # is scanned exactly like code, and quoting the match to explain it recreates
 # the match. Both lines are gone from the tree; the range gate still sees them.
 104810333ad1fed3446eab9c717040edceefbbe8:.gitleaksignore:generic-api-key:15
+
+# PR #2876, its first fix commit: the new vapiCreateAssistantSecret test declared its fake webhook
+# secret as a single high-entropy string constant on line 21 (a test fixture, never a credential).
+# The test now builds the value at runtime; this line clears the historical commit for the range gate.
+2b136b3f27f002dbde9a9f6bace9ccf052f20f58:apps/nickstire/server/__tests__/vapiCreateAssistantSecret.test.ts:generic-api-key:21
