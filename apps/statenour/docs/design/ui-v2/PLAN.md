@@ -327,7 +327,7 @@ realtime voice orb, sweep `rounded-md` / bare `rounded` / `slate-*` on untouched
 
 ## 14 · PR 4 (2026-10-02) — the rest of the backlog
 
-Branch `statenour/ui-v2-backlog`, two commits, one squash merge. Everything §13 left flagged, plus two things
+Branch `statenour/ui-v2-backlog`, three commits (the third corrects one receipt sentence), one squash merge. Everything §13 left flagged, plus two things
 found on the way.
 
 - **`components/ui/card.tsx` deleted.** Its two importers (`components/stats/calibration-section.tsx`,
@@ -368,8 +368,10 @@ aliases (`bg-canvas/95`, `text-fg*` variants) → canonical tokens. (4) The dead
 micro-controls inside dense data panels stay mono — they are readouts, not labels.
 **Receipts, second commit:** `tsc --noEmit` exit 0 · eslint 0 errors / 49 pre-existing warnings on the 95 changed TS/TSX files ·
 vitest 142 files / 1,639 passed, exit 0 (same referencing-test rule, plus grammar, nav-shell, alert-inspector and cn-token contracts) ·
-anti-slop 0 · stale-docs strict 0 (222 files) · parity 142/0. The first commit's cleared-cache `next build` exit 0 covers the
-structure; this commit changes literals, radius classes and one repo test, and lands only through the pre-push `build:affected` hook.
+anti-slop 0 · stale-docs strict 0 (222 files) · parity 142/0. Cleared-cache `next build` on this
+commit: compiled in 72 s, 210 static pages, full route table, exit 0. No git hooks are installed in the cloud container, so
+lefthook's pre-push build never ran on these pushes; every gate above was run by hand and CI's turbo-affected verify is the
+remote build gate.
 
 **Open:** the `.glass-card` legacy class in base.css still carries `!important` on its state variants (47
 adopters, not touched); tailwind-merge now merges radius/shadow but a consumer that passes `bg-*` to
