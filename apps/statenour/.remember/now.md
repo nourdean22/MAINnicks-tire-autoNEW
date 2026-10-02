@@ -1,5 +1,11 @@
 # Session ledger — statenour
 
+**Updated: 2026-10-02 ET** (full-circle bug hunt #2888 · MERGED `f3051532` · DEPLOYED Railway `c84db7d0` 16:03Z · prod DDL applied with operator yes: result_ref index + reality_event_envelope)
+
+## 2026-10-02 · bug hunt — 20 fixes + the reality ledger restored
+
+#2888: chat cap floor 6,000; ledger fixes (dated summaries, newest-row decide, no resultRef on dismissals, chip-id keys, 6-day forecast window, two-tab advisory lock); control plane (mega aliases, per-run kill decision, kill does not page, diagnose skips declared degradation, run-now on Inngest crons, disabled capability respected); SQL (`deleted_at`, Date bind, error-rate attribution); UI/read models. Prod: `intelligence_outcomes_result_ref_idx` valid; `reality_event_envelope` applied 15:54Z (it was never applied; `/api/sync/evidence` failed 38x since 09-30). Verify: next evidence sync writes reality_events row 333 and no `event_version` error after 15:55Z. Telegram webhook is healthy (wave 4 claim was wrong). #2890 (open): graph anchors + dangling-link requeue + Obsidian lazy prisma + note-path claimer. NattyNour: stale Neon password replaced in the root .env (backups kept), OBSIDIAN_VAULT_PATH / REST_URL / REST_TOKEN set, bridge task re-enabled, launcher exports the DB vars, prod obsidian_engine row healthy at 16:34Z. **After #2890 merges, on NattyNour:** the three branch files (lib/obsidian/engine-config.ts, lib/obsidian/note-writer.ts, scripts/export-brain-to-obsidian.ts) are staged there - unstage them (git restore --staged), restore HEAD content by redirecting git show HEAD:<path> into each via cmd /c, then git pull --ff-only origin main and restart the bridge task. Decisions still unlinked after that are genuinely ungrounded (semantic-link covers BrainMemory only).
+
 **Updated: 2026-10-02 ET** (full-circle wave 4 · `statenour/full-circle-e-census-close` · both censuses closed for code: E5/E6/E11/E12 + five settings items · prod measured · FOUND Telegram webhook silent since ≥09-25 · PR open · wave 3 #2886 DEPLOYED `1bcffea6` / Railway `6f46ff0c`, no rows yet)
 
 ## 2026-10-02 · full-circle wave 4 — the outcome-ledger census closes
