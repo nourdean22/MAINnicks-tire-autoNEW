@@ -291,6 +291,9 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 }
 
 const DOMAIN_DEADLINE_MS = 8_000;
+/** Max out-of-window missions (and, separately, goals) loaded so a grounded
+ *  entry's FK edge has both ends. */
+const ANCHOR_FETCH_CAP = 20;
 
 interface StoredContradictionContent {
   new_memory_id?: string;
@@ -431,6 +434,43 @@ export async function getBrainGraph(params: {
   const dbDecisions = domainResult<Row>("decisions");
   const dbPeople = domainResult<Row>("people");
   const dbMemories = domainResult<Row>("memories");
+
+  // Anchors outside the window (2026-10-02). A journal entry, reflection or
+  // decision that IS grounded to a mission/goal rendered as UNLINKED whenever
+  // that mission/goal fell outside the top-N window (Home loads 10 ACTIVE
+  // missions and 8 active goals). The FK is a real edge, so load its other end.
+  // Bounded, deadline-guarded, and degraded-aware like every other domain.
+  const loadedMissionIds = new Set(dbMissions.map((m) => m.id));
+  const loadedGoalIds = new Set(dbGoals.map((g) => g.id));
+  const grounded = [...dbDumps, ...dbReflections, ...dbDecisions];
+  const missingMissionIds = [
+    ...new Set(grounded.map((r) => r.missionId).filter((id): id is string => !!id && !loadedMissionIds.has(id))),
+  ].slice(0, ANCHOR_FETCH_CAP);
+  const missingGoalIds = [
+    ...new Set(grounded.map((r) => r.goalId).filter((id): id is string => !!id && !loadedGoalIds.has(id))),
+  ].slice(0, ANCHOR_FETCH_CAP);
+  if (missingMissionIds.length > 0 || missingGoalIds.length > 0) {
+    const [anchorMissions, anchorGoals] = await Promise.allSettled([
+      missingMissionIds.length > 0
+        ? withDeadline(
+            prisma.mission.findMany({ where: { id: { in: missingMissionIds }, deletedAt: null } }) as unknown as Promise<Row[]>,
+            DOMAIN_DEADLINE_MS,
+            "anchor_missions",
+          )
+        : Promise.resolve([] as Row[]),
+      missingGoalIds.length > 0
+        ? withDeadline(
+            prisma.lifeGoal.findMany({ where: { id: { in: missingGoalIds }, deletedAt: null } }) as unknown as Promise<Row[]>,
+            DOMAIN_DEADLINE_MS,
+            "anchor_goals",
+          )
+        : Promise.resolve([] as Row[]),
+    ]);
+    if (anchorMissions.status === "fulfilled") dbMissions.push(...anchorMissions.value);
+    else degraded.push("anchor_missions");
+    if (anchorGoals.status === "fulfilled") dbGoals.push(...anchorGoals.value);
+    else degraded.push("anchor_goals");
+  }
 
   const nodes: BrainGraphNode[] = [];
   const edges: BrainGraphEdge[] = [];
