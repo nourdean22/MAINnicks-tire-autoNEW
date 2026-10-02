@@ -44,6 +44,10 @@ When Nour says "that", "the brain", "the admin", "what Claude was doing", "conti
 "what is left", or "everything", recover relevant history, repo state, files, PRs, issues, deployments,
 docs, logs, and connected evidence before asking him to repeat information.
 
+For a fresh context, handoff, or long autonomous coding mission, run `pnpm agent:bootstrap` first. It is a generated
+state receipt, not a policy source: it refreshes local Git truth when possible, reports worktrees/open-PR collisions,
+and routes only the app/context files relevant to the current diff. PARTIAL/UNKNOWN is not an all-clear.
+
 Treat prior AI conclusions as leads, not ground truth.
 
 ## Ground-truth order
