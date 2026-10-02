@@ -130,6 +130,16 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
           continue;
         }
 
+        // One review ask per cooldown across BOTH review lanes (2026-10-02): the
+        // invoice-sourced review_requests lane schedules at ~1 day, so by day 6-8 it
+        // has usually asked already. Skipping here keeps the customer at one ask.
+        const { getReviewSettings, isPhoneOnReviewCooldown } = await import("./db");
+        const reviewSettings = await getReviewSettings();
+        if (await isPhoneOnReviewCooldown(customer.phone, reviewSettings.cooldownDays)) {
+          result.skipped++;
+          continue;
+        }
+
         // At-most-once claim — bump smsCampaignSent BEFORE the send. If the
         // run crashes after the text goes out, the customer is already
         // marked, so the next daily run won't re-text. The conditional

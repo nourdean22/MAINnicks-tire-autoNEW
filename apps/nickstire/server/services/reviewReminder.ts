@@ -55,7 +55,8 @@ const REVIEW_REMINDER_VARIANT_KEY = "review_reminder";
 
 interface ReminderCandidate {
   id: number;
-  bookingId: number;
+  /** NULL for an invoice-sourced request (0139). */
+  bookingId: number | null;
   customerName: string;
   phone: string;
   status: string;

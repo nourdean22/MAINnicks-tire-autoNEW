@@ -41,6 +41,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.doUnmock("./services/featureFlags");
   vi.doUnmock("./routers/reviewRequests");
+  vi.doUnmock("./services/invoiceReviewRequests");
   vi.unstubAllEnvs();
   vi.resetModules();
 });
@@ -62,9 +63,18 @@ describe("the reads · DB-down is unknown, not an empty queue", () => {
   });
 });
 
+/** 2026-10-02 · the cron creates invoice-sourced rows before sending. Default: 0139 not applied. */
+const NOT_APPLIED = {
+  created: 0, onCooldown: 0, duplicate: 0, candidates: 0,
+  reason: "migration 0139_review_requests_invoice_source not applied — no invoice-sourced rows created",
+};
+const mockInvoiceLane = (impl: () => Promise<unknown> = async () => NOT_APPLIED) =>
+  vi.doMock("./services/invoiceReviewRequests", () => ({ createInvoiceReviewRequests: vi.fn(impl) }));
+
 describe("the cron · a failed run must be recorded as failed", () => {
   it("re-throws so both runners log status 'failed' rather than 'completed'", async () => {
     vi.doMock("./services/featureFlags", () => ({ isEnabled: vi.fn().mockResolvedValue(true) }));
+    mockInvoiceLane();
     vi.doMock("./routers/reviewRequests", () => ({
       processReviewRequestQueue: vi.fn().mockRejectedValue(new Error("Database unavailable — boom")),
     }));
@@ -75,6 +85,7 @@ describe("the cron · a failed run must be recorded as failed", () => {
 
   it("reports the REAL processed count, not the literal 0 the old typeof branch always produced", async () => {
     vi.doMock("./services/featureFlags", () => ({ isEnabled: vi.fn().mockResolvedValue(true) }));
+    mockInvoiceLane();
     vi.doMock("./routers/reviewRequests", () => ({
       processReviewRequestQueue: vi.fn().mockResolvedValue({ processed: 7, sent: 6, failed: 1 }),
     }));
@@ -87,6 +98,7 @@ describe("the cron · a failed run must be recorded as failed", () => {
 
   it("keeps a declined run legible — a real zero carries its reason", async () => {
     vi.doMock("./services/featureFlags", () => ({ isEnabled: vi.fn().mockResolvedValue(true) }));
+    mockInvoiceLane();
     vi.doMock("./routers/reviewRequests", () => ({
       processReviewRequestQueue: vi.fn().mockResolvedValue({
         processed: 0, sent: 0, failed: 0, reason: "Daily cap reached",
@@ -96,6 +108,29 @@ describe("the cron · a failed run must be recorded as failed", () => {
     const { processReviewRequests } = await import("./cron/jobs/reviewRequests");
     const result = await processReviewRequests();
     expect(result.recordsProcessed).toBe(0);
-    expect(result.details).toBe("Daily cap reached");
+    expect(result.details).toContain("Daily cap reached");
+    // The invoice lane's own decline is legible too, not a silent zero.
+    expect(result.details).toContain("migration 0139_review_requests_invoice_source not applied");
+  });
+
+  it("invoice-sourced rows created this run count as processed work", async () => {
+    vi.doMock("./services/featureFlags", () => ({ isEnabled: vi.fn().mockResolvedValue(true) }));
+    mockInvoiceLane(async () => ({ created: 3, onCooldown: 1, duplicate: 0, candidates: 4 }));
+    vi.doMock("./routers/reviewRequests", () => ({
+      processReviewRequestQueue: vi.fn().mockResolvedValue({ processed: 0, sent: 0, failed: 0, reason: "Outside send window" }),
+    }));
+    const { processReviewRequests } = await import("./cron/jobs/reviewRequests");
+    const result = await processReviewRequests();
+    expect(result.recordsProcessed).toBe(3);
+    expect(result.details).toContain("invoice rows created 3 of 4 (cooldown 1, dup 0)");
+  });
+
+  it("a failed invoice-lane read fails the run (recorded as failed), it does not vanish", async () => {
+    vi.doMock("./services/featureFlags", () => ({ isEnabled: vi.fn().mockResolvedValue(true) }));
+    mockInvoiceLane(async () => { throw new Error("database unavailable"); });
+    const send = vi.fn();
+    vi.doMock("./routers/reviewRequests", () => ({ processReviewRequestQueue: send }));
+    const { processReviewRequests } = await import("./cron/jobs/reviewRequests");
+    await expect(processReviewRequests()).rejects.toThrow(/database unavailable/);
   });
 });
