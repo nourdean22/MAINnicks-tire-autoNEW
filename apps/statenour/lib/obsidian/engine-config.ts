@@ -5,7 +5,6 @@
 import path from "path";
 import fs from "fs";
 import { ObsidianEngineStatus } from "./types";
-import { prisma } from "../prisma";
 
 export interface ObsidianEngineConfig {
   vaultPath: string;
@@ -97,6 +96,13 @@ export async function writeEngineStatus(
   if (options.persistToDatabase === false) return;
 
   try {
+    // Lazy on purpose (2026-10-02). A static import builds the Prisma client
+    // when this module loads, and the CLI runners import this module BEFORE
+    // they load the repo-root .env (ES imports are hoisted above the
+    // loadEnvFile call). The client then had no DATABASE_URL, every status
+    // write failed with "No database host", and production never saw an
+    // obsidian_engine row. Importing here reads the env as it is at write time.
+    const { prisma } = await import("../prisma");
     const existing = await prisma.localSyncLog.findFirst({
       where: { module: "obsidian_engine", action: "status" }
     });
