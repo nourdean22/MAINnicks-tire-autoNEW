@@ -13,14 +13,17 @@
  *                 includes the booking the approval itself created — that is its outcome);
  *   - callbackOn: earliest callback request created after it.
  * Dates are formatted in SQL (driver-parsed TiDB timestamps shift on ET). Read-only.
- * One bounded query over the ids on screen, cached 5 minutes per id set: each decided row
- * costs three regex-matched subqueries, and the Approvals list refetches.
+ * Set-based: one read of the proposals on screen, then ONE read each of invoices, bookings
+ * and callback_requests keyed by the proposals' phone IN-list (a correlated subquery per
+ * proposal per table regex-scanned those tables once per row). Cached 5 minutes per id
+ * set, because the Approvals list refetches.
  */
 import { sql } from "drizzle-orm";
 import crypto from "node:crypto";
 import { db } from "../lib/db-helper";
 import { cacheGet, cacheSet } from "../lib/cache";
 import { createLogger } from "../lib/logger";
+import { readRows } from "../lib/dbResult";
 
 const log = createLogger("services:proposalOutcomes");
 
@@ -31,7 +34,8 @@ type Downstream =
   | { readable: true; invoicedOn: string | null; bookedOn: string | null; callbackOn: string | null }
   | { readable: false };
 
-const day = (v: unknown): string | null => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+const ts = (v: unknown): string | null =>
+  typeof v === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(v) ? v : null;
 
 /**
  * Adds `downstream` to each row: null when undecided or the payload has no phone,
@@ -43,7 +47,7 @@ export async function withDownstreamOutcomes<T extends { id: string; status: str
   const ids = rows.filter((r) => DECIDED.has(r.status)).map((r) => r.id).slice(0, MAX_IDS);
   const byId = new Map<string, Downstream>();
   const cacheKey = ids.length
-    ? `proposal_downstream_v1:${crypto.createHash("sha1").update([...ids].sort().join(",")).digest("hex")}`
+    ? `proposal_downstream_v2:${crypto.createHash("sha1").update([...ids].sort().join(",")).digest("hex")}`
     : null;
   const cached = cacheKey ? await cacheGet<Record<string, Downstream>>(cacheKey) : null;
   if (cached) {
@@ -52,30 +56,60 @@ export async function withDownstreamOutcomes<T extends { id: string; status: str
     try {
       const d = await db();
       if (!d) throw new Error("database unavailable");
-      const phoneOf = sql.raw(`RIGHT(REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.payload_json, '$.phone')), '[^0-9]', ''), 10)`);
-      const key = (col: string) => sql.raw(`RIGHT(REGEXP_REPLACE(${col}, '[^0-9]', ''), 10)`);
-      const result = await d.execute(sql`
+      const proposals = readRows(await d.execute(sql`
         SELECT p.id AS id,
-               LENGTH(${phoneOf}) AS phoneLen,
-               (SELECT DATE_FORMAT(MIN(i.invoiceDate), '%Y-%m-%d') FROM invoices i
-                 WHERE i.paymentStatus <> 'refunded' AND i.invoiceDate >= DATE(p.created_at)
-                   AND i.customerPhone IS NOT NULL AND ${key("i.customerPhone")} = ${phoneOf}) AS invoicedOn,
-               (SELECT DATE_FORMAT(MIN(b.createdAt), '%Y-%m-%d') FROM bookings b
-                 WHERE b.createdAt > p.created_at AND ${key("b.phone")} = ${phoneOf}) AS bookedOn,
-               (SELECT DATE_FORMAT(MIN(c.createdAt), '%Y-%m-%d') FROM callback_requests c
-                 WHERE c.createdAt > p.created_at AND ${key("c.phone")} = ${phoneOf}) AS callbackOn
+               ${sql.raw(`RIGHT(REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(p.payload_json, '$.phone')), '[^0-9]', ''), 10)`)} AS phone,
+               DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt
         FROM admin_proposals p
         WHERE p.id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})
-      `);
-      const out = (Array.isArray(result) && Array.isArray(result[0]) ? result[0] : result) as Array<Record<string, unknown>>;
-      for (const r of Array.isArray(out) ? out : []) {
-        if (Number(r.phoneLen) !== 10) continue; // no usable phone -> no claim either way
-        byId.set(String(r.id), {
-          readable: true,
-          invoicedOn: day(r.invoicedOn),
-          bookedOn: day(r.bookedOn),
-          callbackOn: day(r.callbackOn),
-        });
+      `)).flatMap((r) => {
+        const phone = typeof r.phone === "string" && /^\d{10}$/.test(r.phone) ? r.phone : null;
+        const createdAt = ts(r.createdAt);
+        // no usable phone (or creation time) -> no claim either way
+        return phone && createdAt ? [{ id: String(r.id), phone, createdAt }] : [];
+      });
+      if (proposals.length > 0) {
+        const phones = [...new Set(proposals.map((p) => p.phone))];
+        const since = proposals.map((p) => p.createdAt).sort()[0];
+        const inPhones = (col: string) =>
+          sql`${sql.raw(`RIGHT(REGEXP_REPLACE(${col}, '[^0-9]', ''), 10)`)} IN (${sql.join(phones.map((p) => sql`${p}`), sql`, `)})`;
+        const key = (col: string) => sql.raw(`RIGHT(REGEXP_REPLACE(${col}, '[^0-9]', ''), 10)`);
+        const invoices = readRows(await d.execute(sql`
+          SELECT ${key("customerPhone")} AS phone, DATE_FORMAT(invoiceDate, '%Y-%m-%d %H:%i:%s') AS at
+          FROM invoices
+          WHERE paymentStatus <> 'refunded' AND invoiceDate >= DATE(${since})
+            AND customerPhone IS NOT NULL AND ${inPhones("customerPhone")}
+          ORDER BY invoiceDate ASC LIMIT 5000
+        `));
+        const bookings = readRows(await d.execute(sql`
+          SELECT ${key("phone")} AS phone, DATE_FORMAT(createdAt, '%Y-%m-%d %H:%i:%s') AS at
+          FROM bookings
+          WHERE createdAt > ${since} AND phone IS NOT NULL AND ${inPhones("phone")}
+          ORDER BY createdAt ASC LIMIT 5000
+        `));
+        const callbacks = readRows(await d.execute(sql`
+          SELECT ${key("phone")} AS phone, DATE_FORMAT(createdAt, '%Y-%m-%d %H:%i:%s') AS at
+          FROM callback_requests
+          WHERE createdAt > ${since} AND phone IS NOT NULL AND ${inPhones("phone")}
+          ORDER BY createdAt ASC LIMIT 5000
+        `));
+        /** Earliest qualifying row's DAY for this phone (rows arrive time-ascending). */
+        const firstDay = (rows: Array<Record<string, unknown>>, phone: string, ok: (at: string) => boolean) => {
+          for (const r of rows) {
+            const at = ts(r.at);
+            if (r.phone === phone && at && ok(at)) return at.slice(0, 10);
+          }
+          return null;
+        };
+        for (const p of proposals) {
+          const createdDay = p.createdAt.slice(0, 10);
+          byId.set(p.id, {
+            readable: true,
+            invoicedOn: firstDay(invoices, p.phone, (at) => at.slice(0, 10) >= createdDay),
+            bookedOn: firstDay(bookings, p.phone, (at) => at > p.createdAt),
+            callbackOn: firstDay(callbacks, p.phone, (at) => at > p.createdAt),
+          });
+        }
       }
       // Only a successful read is cached; a failure is retried on the next request.
       if (cacheKey) await cacheSet(cacheKey, Object.fromEntries(byId), 300);

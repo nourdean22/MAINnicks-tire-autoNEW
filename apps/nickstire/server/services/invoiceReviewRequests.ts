@@ -23,6 +23,7 @@ import { sql } from "drizzle-orm";
 import { getDb, getReviewSettings, isPhoneOnReviewCooldown } from "../db";
 import { isDuplicateKeyError } from "../lib/dbErrors";
 import { createLogger } from "../lib/logger";
+import { readRows } from "../lib/dbResult";
 
 const log = createLogger("services:invoiceReviewRequests");
 
@@ -34,24 +35,30 @@ const MAX_PER_RUN = 50;
  * The name the review SMS greets ("Hi {first word}, …" — routers/reviewRequests.ts
  * buildReviewMessage). ALG writes "Last, First" ("Aiken, David") and imports are often ALL
  * CAPS, so the raw invoice name would greet David as "Hi Aiken," / "Hi AIKEN,". Normalised to
- * "First Last", title-cased; anything without a plausible first name greets "there".
+ * "First Last", title-cased. Greets "there" instead when there is no plausible first name:
+ * a placeholder ("Unknown", "Cash"), an empty first part ("Smith,"), or a business — ALG
+ * also writes fleet/company accounts, and "ACME AUTO, LLC" would otherwise greet "Hi Llc,".
  */
+const BUSINESS_TOKEN =
+  /^(llc|inc|corp|corporation|co|company|ltd|lp|llp|pllc|auto|automotive|motors?|tires?|service|services|group|enterprises?|trucking|transport|logistics|fleet|rentals?|towing|church|school|city|county|dept|department|dealership|sales|repair)\.?$/i;
 function greetingName(raw: unknown): string {
-  const text = String(raw ?? "").trim();
-  const [last, first] = text.includes(",") ? text.split(",", 2).map((p) => p.trim()) : ["", text];
-  const ordered = (text.includes(",") ? `${first} ${last}` : first).replace(/\s+/g, " ").trim();
-  const firstWord = ordered.split(" ")[0] ?? "";
-  if (!/^[A-Za-z][A-Za-z'-]{1,}$/.test(firstWord) || /^(unknown|customer|cash|n\/?a|test)$/i.test(firstWord)) {
+  const text = String(raw ?? "").replace(/\s+/g, " ").trim();
+  const hasComma = text.includes(",");
+  const [last, first] = hasComma ? text.split(",", 2).map((p) => p.trim()) : ["", text];
+  const ordered = (hasComma ? `${first} ${last}` : first).trim();
+  const words = ordered.split(" ").filter(Boolean);
+  const firstWord = (hasComma ? first.split(" ")[0] : words[0]) ?? "";
+  if (
+    !/^[A-Za-z][A-Za-z'-]{1,}$/.test(firstWord) ||
+    /^(unknown|customer|cash|n\/?a|test)$/i.test(firstWord) ||
+    words.some((w) => BUSINESS_TOKEN.test(w))
+  ) {
     return "there";
   }
   const title = (w: string) => w.toLowerCase().replace(/(^|[-'])([a-z])/g, (_m, sep: string, c: string) => sep + c.toUpperCase());
-  return ordered.split(" ").map(title).join(" ").slice(0, 255);
+  return words.map(title).join(" ").slice(0, 255);
 }
 
-const rowsOf = (result: unknown): Array<Record<string, unknown>> => {
-  const r = Array.isArray(result) && Array.isArray(result[0]) ? result[0] : result;
-  return Array.isArray(r) ? (r as Array<Record<string, unknown>>) : [];
-};
 
 export async function createInvoiceReviewRequests(): Promise<{
   created: number;
@@ -64,7 +71,7 @@ export async function createInvoiceReviewRequests(): Promise<{
   const db = await getDb();
   if (!db) throw new Error("database unavailable");
 
-  const [ready] = rowsOf(await db.execute(sql`
+  const [ready] = readRows(await db.execute(sql`
     SELECT
       SUM(COLUMN_NAME = 'invoiceId') AS hasInvoiceId,
       SUM(COLUMN_NAME = 'bookingId' AND IS_NULLABLE = 'YES') AS bookingNullable
@@ -84,7 +91,7 @@ export async function createInvoiceReviewRequests(): Promise<{
   //  · Phones already asked inside the cooldown are excluded IN SQL, not skipped per row,
   //    so those invoices never fill this run's LIMIT and starve newer ones.
   const phoneKey = sql.raw(`RIGHT(REGEXP_REPLACE(i.customerPhone, '[^0-9]', ''), 10)`);
-  const candidates = rowsOf(await db.execute(sql`
+  const candidates = readRows(await db.execute(sql`
     SELECT i.id AS id, i.customerName AS name, ${phoneKey} AS phone
     FROM invoices i
     WHERE i.source = 'shopdriver' AND i.paymentStatus = 'paid'

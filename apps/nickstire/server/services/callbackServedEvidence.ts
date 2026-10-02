@@ -19,6 +19,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "../lib/db-helper";
 import { cacheGet, cacheSet } from "../lib/cache";
+import { readRows } from "../lib/dbResult";
 
 interface CallbackServedEvidence {
   kind: "invoice" | "booking";
@@ -33,10 +34,6 @@ const CACHE_TTL_SECONDS = 300;
 const MAX_CALLBACKS = 200;
 
 /** Dates are formatted IN SQL: driver-parsed TiDB timestamps come back shifted on ET. */
-const rowsOf = (result: unknown): Array<Record<string, unknown>> => {
-  const r = Array.isArray(result) && Array.isArray(result[0]) ? result[0] : result;
-  return Array.isArray(r) ? (r as Array<Record<string, unknown>>) : [];
-};
 
 const isoDay = (v: unknown): string | null =>
   typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
@@ -58,7 +55,7 @@ export async function getCallbackServedEvidence(): Promise<Record<number, Callba
   // invoices table per callback. Dates/times are formatted IN SQL (driver-parsed TiDB
   // timestamps shift on ET) and compared as same-format strings.
   const key = (col: string) => sql.raw(`RIGHT(REGEXP_REPLACE(${col}, '[^0-9]', ''), 10)`);
-  const callbacks = rowsOf(await d.execute(sql`
+  const callbacks = readRows(await d.execute(sql`
     SELECT c.id AS id, ${key("c.phone")} AS phone,
            DATE_FORMAT(c.createdAt, '%Y-%m-%d') AS day,
            DATE_FORMAT(c.createdAt, '%Y-%m-%d %H:%i:%s') AS at
@@ -72,7 +69,7 @@ export async function getCallbackServedEvidence(): Promise<Record<number, Callba
   if (phones.length > 0) {
     const since = callbacks.map((c) => String(c.day)).sort()[0];
     const inPhones = (col: string) => sql`${key(col)} IN (${sql.join(phones.map((p) => sql`${p}`), sql`, `)})`;
-    const invoices = rowsOf(await d.execute(sql`
+    const invoices = readRows(await d.execute(sql`
       SELECT ${key("customerPhone")} AS phone, DATE_FORMAT(invoiceDate, '%Y-%m-%d') AS day
       FROM invoices
       WHERE paymentStatus <> 'refunded' AND invoiceDate >= ${since}
@@ -80,7 +77,7 @@ export async function getCallbackServedEvidence(): Promise<Record<number, Callba
       ORDER BY invoiceDate ASC
       LIMIT 5000
     `));
-    const bookings = rowsOf(await d.execute(sql`
+    const bookings = readRows(await d.execute(sql`
       SELECT ${key("phone")} AS phone, DATE_FORMAT(createdAt, '%Y-%m-%d %H:%i:%s') AS at
       FROM bookings
       WHERE createdAt >= ${since} AND ${inPhones("phone")}

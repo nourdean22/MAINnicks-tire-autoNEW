@@ -19,7 +19,7 @@ the PR body).
 | 866 missed calls "lost" | **Mostly age-outs, not lost sales** | Reconcile step 3 moved every live missed call older than 7 days to `lost`, receipt "aged out". Any lost-rate must split receipts. |
 | 366 drafts "past the 30-min SLA" | **SLA belongs to another table** | The 30-min SLA is `sms_response_jobs.dueAt`. The drafts were real queue debt regardless: nothing ever closed one. |
 
-## What changed (one PR, four commits)
+## What changed (one PR)
 
 1. **SMS human-review drafts close.** Existing `orchestration-status-reconcile` pulse job
    now cancels a draft whose obligation closed, cancels one the customer superseded by
@@ -27,9 +27,13 @@ the PR body).
    needed" now cancels the conversation's drafts; approving a draft now closes the
    obligation; a stale draft cannot be sent verbatim; a double tap cannot double-send.
    Never sends. Expect the backlog to drop to ~7 days of drafts on the first pulse.
-2. **Missed calls close.** One live opportunity per phone; served-by-invoice -> `won`
-   via `recordOutcome`; served-by-callback/lead/booking/captured-call -> `duplicate`
-   with a receipt; same-phone duplicates collapse to the newest.
+2. **Missed calls close.** One live opportunity per phone; a PAID invoice on a later shop
+   day -> `won` via `recordOutcome`; a later callback/lead/booking/captured call, or a paid
+   invoice the same shop day (before-or-after the call is unknowable, so never a win) ->
+   `duplicate` with a receipt; same-phone duplicates collapse to the newest. Auto-closes
+   touch only untouched `new` cards; an assigned or worked card is left to its owner.
+   Times are shop-time strings formatted in SQL. Dismissing the newest card no longer
+   re-cards the phone's older calls.
 3. **Nick's proposals stop inviting rejection.** Capture-aware gate, walk-in-aware
    booking drop, today's date in the prompt, past dates dropped; `scheduleCallback`
    links its callback to the call. Removed a work-order review-request insert that
@@ -84,6 +88,9 @@ Exact sequence (after merge + deploy):
   (brain-intelligence actualScore = totalClicks) steps UP at this deploy because the basis
   changed, not because search improved. Follow-up for the StateNour side: its `gsc_summary` tool
   description still says "derived from raw click+impression sums".
+- **opportunity-queue-refresh `recordsProcessed`** now also counts missed-call cards the
+  collector collapsed (a collapse is a real change), so the loop-shape contract stops reading
+  a collapse-only run as idle.
 - **Traffic Funnel** clicks/impressions drop (Discover rows removed) and position changes
   (impression-weighted) at this deploy, for the same reason.
 
@@ -102,7 +109,9 @@ from the last 3 days (10-digit phone, not opted out, not asked inside the cooldo
 lane), then sends through the unchanged queue and every existing gate. `post-invoice-followup`
 skips phones already on review cooldown, so a customer gets one ask per cooldown across both
 lanes. Before 0139 the cron logs `invoice rows: migration 0139 … not applied` and creates
-nothing. Sending still requires the `sms_review_requests` flag.
+nothing. Sending still requires the `sms_review_requests` flag. The SMS greets "First Last"
+from ALG's "Last, First", and "there" for placeholders, an empty first name, or a business
+account (LLC / Inc / Auto / Tire / Towing ...); it says "your service", never the ticket text.
 
 ## Read-only post-deploy checks
 

@@ -59,7 +59,7 @@ const fakeDb = {
     }
     if (text.includes("SELECT id, source_id, state, customer_phone FROM revenue_opportunities")) return [livePhoneRows];
     if (text.includes("source_type = 'missed_call'") && text.includes("ORDER BY created_at DESC")) return [liveMissed];
-    if (text.includes("SELECT vapiCallId, createdAt FROM vapi_call_logs")) return [callTimes];
+    if (text.includes("SELECT vapiCallId,") && text.includes("FROM vapi_call_logs")) return [callTimes];
     if (text.includes("FROM callback_requests") && !text.includes("JOIN")) return [callbackRows];
     if (text.includes("SELECT id, customerPhone, invoiceDate FROM invoices WHERE id =")) {
       const hit = Object.keys(invoiceById).find((id) => text.includes(`,${id},`) || text.includes(`[${id}`) || text.includes(`${id}]`));
@@ -95,13 +95,14 @@ beforeEach(() => {
   refreshNext = false;
 });
 
-const HOUR = 3_600_000;
-const CALL_AT = new Date("2026-09-28T15:00:00Z");
+/** Shop-time SQL strings, exactly as DATE_FORMAT returns them. */
+const CALL_AT = "2026-09-28 11:00:00";
+const at = (day: string, time: string) => `${day} ${time}`;
 const ev = (over: Partial<MissedCallServedEvidence>): MissedCallServedEvidence => ({
   source: "callback_requests",
   id: 123,
   phone: "(216) 555-0142",
-  at: new Date(CALL_AT.getTime() + 2 * HOUR),
+  at: "2026-09-28 13:00:00",
   ...over,
 });
 
@@ -112,21 +113,33 @@ describe("decideMissedCallServed", () => {
     const d = decideMissedCallServed({ phone: "+12165550142", anchorAt: CALL_AT, evidence: [ev({})] });
     expect(d.invoice).toBeNull();
     expect(d.served?.source).toBe("callback_requests");
-    expect(missedCallServedNote(d.served!)).toBe(
-      `served: callback_requests #123 at ${new Date(CALL_AT.getTime() + 2 * HOUR).toISOString()}`,
-    );
+    expect(missedCallServedNote(d.served!)).toBe("served: callback_requests #123 at 2026-09-28 13:00:00 ET");
   });
 
-  it("a later invoice routes to the won path (invoice candidate), earliest first", () => {
+  it("a PAID invoice on a LATER shop day routes to the won path, earliest first", () => {
     const d = decideMissedCallServed({
       phone: "2165550142",
       anchorAt: CALL_AT,
       evidence: [
-        ev({ source: "invoices", id: 902, at: new Date(CALL_AT.getTime() + 48 * HOUR) }),
-        ev({ source: "invoices", id: 901, at: new Date(CALL_AT.getTime() + 24 * HOUR) }),
+        ev({ source: "invoices", id: 902, at: at("2026-09-30", "12:00:00") }),
+        ev({ source: "invoices", id: 901, at: at("2026-09-29", "12:00:00") }),
       ],
     });
     expect(d.invoice?.id).toBe(901);
+    expect(d.served).toBeNull();
+  });
+
+  it("a same-shop-day invoice is served (closes), never a win — before or after the call is unknowable", () => {
+    for (const time of ["08:00:00", "12:00:00", "18:00:00"]) {
+      const d = decideMissedCallServed({
+        phone: "2165550142",
+        anchorAt: CALL_AT,
+        evidence: [ev({ source: "invoices", id: 950, at: at("2026-09-28", time) })],
+      });
+      expect(d.invoice).toBeNull();
+      expect(d.served?.id).toBe(950);
+      expect(missedCallServedNote(d.served!)).toMatch(/not counted as won/);
+    }
   });
 
   it("evidence BEFORE (or exactly at) the call does NOT close", () => {
@@ -134,12 +147,27 @@ describe("decideMissedCallServed", () => {
       phone: "2165550142",
       anchorAt: CALL_AT,
       evidence: [
-        ev({ at: new Date(CALL_AT.getTime() - HOUR) }),
+        ev({ at: "2026-09-28 10:00:00" }),
         ev({ source: "leads", at: CALL_AT }),
-        ev({ source: "invoices", id: 900, at: new Date(CALL_AT.getTime() - 24 * HOUR) }),
+        ev({ source: "invoices", id: 900, at: at("2026-09-27", "12:00:00") }),
       ],
     });
     expect(d).toEqual({ invoice: null, served: null });
+  });
+
+  it("a malformed time (driver-parsed Date, ISO string, junk) is never evidence", () => {
+    const d = decideMissedCallServed({
+      phone: "2165550142",
+      anchorAt: CALL_AT,
+      evidence: [
+        ev({ at: "2026-09-29T12:00:00.000Z" }),
+        ev({ at: new Date("2026-09-29T12:00:00Z") as unknown as string }),
+        ev({ source: "invoices", at: "garbage" }),
+      ],
+    });
+    expect(d).toEqual({ invoice: null, served: null });
+    expect(decideMissedCallServed({ phone: "2165550142", anchorAt: "not a time", evidence: [ev({})] }))
+      .toEqual({ invoice: null, served: null });
   });
 
   it("a different phone does NOT close; an unparseable phone never matches", () => {
@@ -155,30 +183,30 @@ describe("decideMissedCallServed", () => {
       anchorAt: CALL_AT,
       evidence: [ev({ source: "vapi_call_logs", id: 77, detail: "lead #12" })],
     });
-    expect(missedCallServedNote(d.served!)).toMatch(/^served: vapi_call_logs #77 at .+ \(lead #12\)$/);
+    expect(missedCallServedNote(d.served!)).toMatch(/^served: vapi_call_logs #77 at .+ ET \(lead #12\)$/);
   });
 });
 
 describe("servedCloseState", () => {
-  it("duplicate where the transition table allows it; a worked row is left to its owner (never 'lost')", () => {
+  it("duplicate ONLY for an untouched `new` card; assigned/worked cards are left to their owner (never 'lost')", () => {
     expect(servedCloseState("new")).toBe("duplicate");
-    expect(servedCloseState("assigned")).toBe("duplicate");
-    // A served customer on a worked card is a RECOVERY, not a lost sale.
+    // An assigned card has an owner; a worked card is a RECOVERY in progress.
+    expect(servedCloseState("assigned")).toBeNull();
     expect(servedCloseState("attempted")).toBeNull();
     expect(servedCloseState("contacted")).toBeNull();
   });
 });
 
 describe("planMissedCallCollapse", () => {
-  const row = (id: string, phone: string | null, hoursAfter: number, state: "new" | "attempted" = "new") =>
-    ({ id, phone, anchorAt: new Date(CALL_AT.getTime() + hoursAfter * HOUR), state });
+  const row = (id: string, phone: string | null, hour: number, state: "new" | "assigned" | "attempted" = "new") =>
+    ({ id, phone, anchorAt: `2026-09-28 ${String(hour).padStart(2, "0")}:00:00`, state });
 
   it("keeps the NEWEST live row per phone; older ones collapse into it", () => {
     const plan = planMissedCallCollapse([
-      row("old", "2165550142", 0),
-      row("newest", "(216) 555-0142", 5),
-      row("mid", "+1 216 555 0142", 2),
-      row("other-person", "2165550199", 1),
+      row("old", "2165550142", 9),
+      row("newest", "(216) 555-0142", 14),
+      row("mid", "+1 216 555 0142", 11),
+      row("other-person", "2165550199", 10),
     ]);
     expect(plan.collapse).toEqual(
       expect.arrayContaining([{ id: "old", keepId: "newest" }, { id: "mid", keepId: "newest" }]),
@@ -187,19 +215,20 @@ describe("planMissedCallCollapse", () => {
     expect(plan.skipped).toEqual([]);
   });
 
-  it("never collapses a row an operator already worked; never groups phoneless rows", () => {
+  it("never collapses a row anyone has touched (assigned or worked); never groups phoneless rows", () => {
     const plan = planMissedCallCollapse([
-      row("worked", "2165550142", 0, "attempted"),
-      row("newest", "2165550142", 5),
-      row("nophone-a", null, 0),
-      row("nophone-b", null, 1),
+      row("worked", "2165550142", 9, "attempted"),
+      row("assigned", "2165550142", 10, "assigned"),
+      row("newest", "2165550142", 14),
+      row("nophone-a", null, 9),
+      row("nophone-b", null, 10),
     ]);
     expect(plan.collapse).toEqual([]);
-    expect(plan.skipped).toEqual(["worked"]);
+    expect(plan.skipped.sort()).toEqual(["assigned", "worked"]);
   });
 
   it("is idempotent: a single live row per phone is a no-op", () => {
-    expect(planMissedCallCollapse([row("only", "2165550142", 0)])).toEqual({ collapse: [], skipped: [] });
+    expect(planMissedCallCollapse([row("only", "2165550142", 9)])).toEqual({ collapse: [], skipped: [] });
   });
 
   it("phone10 is the house last-10 rule", () => {
@@ -211,39 +240,55 @@ describe("planMissedCallCollapse", () => {
 
 // ─── Reconcile wiring ───────────────────────────────────────────────
 
-function opp(id: string, phone: string, state = "new", createdAt = new Date(CALL_AT.getTime() + HOUR)) {
+/** A live row. `createdEt` is shop time; the stored (`raw`) value is UTC = ET + 4h in September. */
+function opp(id: string, phone: string, state = "new", createdEt = "2026-09-28 12:00:00") {
+  const createdRaw = `${createdEt.slice(0, 11)}${String(Number(createdEt.slice(11, 13)) + 4).padStart(2, "0")}${createdEt.slice(13)}`;
   return {
     id, source_type: "missed_call", source_id: `call-${id}`, customer_phone: phone,
     state, receipts_json: "[]", consent_ok: 1, attempts: 0, data_quality: "verified",
     urgency: "today", recommended_action: "x", reason: "x",
-    created_at: createdAt.toISOString(), updated_at: createdAt.toISOString(),
+    createdRaw, createdEt,
+    created_at: `${createdRaw.replace(" ", "T")}Z`, updated_at: `${createdRaw.replace(" ", "T")}Z`,
   };
 }
+const callRow = (id: string, et: string) => ({
+  vapiCallId: `call-${id}`,
+  atEt: et,
+  atRaw: `${et.slice(0, 11)}${String(Number(et.slice(11, 13)) + 4).padStart(2, "0")}${et.slice(13)}`,
+});
 
 describe("reconcileOpportunities · missed_call step 3a", () => {
-  it("won via recordOutcome on a later invoice; served → duplicate naming the callback; then collapse; all before age-out", async () => {
+  it("won via recordOutcome on a later-day paid invoice; served → duplicate naming the callback; then collapse; all before age-out", async () => {
     const won = opp("op-won", "2165550101");
     const served = opp("op-served", "2165550102");
     const dupOld = opp("op-dup-old", "2165550103");
-    const dupNew = opp("op-dup-new", "2165550103", "new", new Date(CALL_AT.getTime() + 6 * HOUR));
+    const dupNew = opp("op-dup-new", "2165550103", "new", "2026-09-28 17:00:00");
     const untouched = opp("op-quiet", "2165550104");
-    for (const o of [won, served, dupOld, dupNew, untouched]) oppRows[o.id] = o;
-    liveMissed = [dupNew, won, served, dupOld, untouched];
+    const sameDay = opp("op-sameday", "2165550105");
+    const assignedServed = opp("op-assigned", "2165550106", "assigned");
+    for (const o of [won, served, dupOld, dupNew, untouched, sameDay, assignedServed]) oppRows[o.id] = o;
+    liveMissed = [dupNew, won, served, dupOld, untouched, sameDay, assignedServed];
     callTimes = [
-      { vapiCallId: "call-op-won", createdAt: CALL_AT.toISOString() },
-      { vapiCallId: "call-op-served", createdAt: CALL_AT.toISOString() },
-      { vapiCallId: "call-op-dup-old", createdAt: CALL_AT.toISOString() },
-      { vapiCallId: "call-op-dup-new", createdAt: new Date(CALL_AT.getTime() + 5 * HOUR).toISOString() },
-      { vapiCallId: "call-op-quiet", createdAt: CALL_AT.toISOString() },
+      callRow("op-won", CALL_AT),
+      callRow("op-served", CALL_AT),
+      callRow("op-dup-old", CALL_AT),
+      callRow("op-dup-new", "2026-09-28 16:00:00"),
+      callRow("op-quiet", CALL_AT),
+      callRow("op-sameday", CALL_AT),
+      callRow("op-assigned", CALL_AT),
     ];
     // callback came in 10 min after the call — BEFORE the queue row was born
-    // (created_at = call + 1h). Anchoring on the call time is what closes it.
+    // (created 12:00 ET). Anchoring on the call time is what closes it.
     callbackRows = [
-      { id: 555, phone: "216-555-0102", at: new Date(CALL_AT.getTime() + 10 * 60_000).toISOString() },
-      { id: 556, phone: "2165550104", at: new Date(CALL_AT.getTime() - HOUR).toISOString() }, // before: no close
+      { id: 555, phone: "216-555-0102", at: "2026-09-28 11:10:00" },
+      { id: 556, phone: "2165550104", at: "2026-09-28 10:00:00" }, // before: no close
+      { id: 557, phone: "2165550106", at: "2026-09-28 11:30:00" }, // served, but the card is assigned
     ];
-    invoiceEvidenceRows = [{ id: 4242, phone: "2165550101", at: new Date(CALL_AT.getTime() + 21 * HOUR).toISOString() }];
-    invoiceById = { 4242: { id: 4242, customerPhone: "2165550101", invoiceDate: new Date(CALL_AT.getTime() + 21 * HOUR).toISOString() } };
+    invoiceEvidenceRows = [
+      { id: 4242, phone: "2165550101", at: "2026-09-29 08:00:00" },
+      { id: 4343, phone: "2165550105", at: "2026-09-28 08:00:00" }, // same shop day
+    ];
+    invoiceById = { 4242: { id: 4242, customerPhone: "2165550101", invoiceDate: "2026-09-29T12:00:00.000Z" } };
 
     const { reconcileOpportunities } = await import("./services/opportunityQueue");
     const stats = await reconcileOpportunities();
@@ -252,13 +297,20 @@ describe("reconcileOpportunities · missed_call step 3a", () => {
     const wonUpdate = captured.find((t) => t.includes("SET state = 'won'"));
     expect(wonUpdate).toContain("op-won");
     expect(wonUpdate).toContain("outcome_invoice_id");
+    expect(captured.some((t) => t.includes("SET state = 'won'") && t.includes("op-sameday"))).toBe(false);
 
     const updates = captured.filter((t) => t.includes("UPDATE revenue_opportunities") && !t.includes("SET state = 'won'"));
     const servedUpd = updates.find((t) => t.includes("op-served"));
     expect(servedUpd).toContain('"duplicate"');
-    expect(servedUpd).toContain("served: callback_requests #555 at");
+    expect(servedUpd).toContain("served: callback_requests #555 at 2026-09-28 11:10:00 ET");
     // CAS on the read state
     expect(servedUpd).toMatch(/WHERE id = .*AND state = /);
+
+    const sameDayUpd = updates.find((t) => t.includes("op-sameday"));
+    expect(sameDayUpd).toContain("served: invoices #4343");
+    expect(sameDayUpd).toContain("not counted as won");
+
+    expect(updates.some((t) => t.includes('"op-assigned"')), "an assigned card is never auto-closed").toBe(false);
 
     const collapseUpd = updates.find((t) => t.includes("op-dup-old"));
     expect(collapseUpd).toContain("collapsed into op-dup-new");
@@ -272,13 +324,29 @@ describe("reconcileOpportunities · missed_call step 3a", () => {
     expect(ageIdx).toBeGreaterThan(liveIdx);
     expect(captured[ageIdx]).toContain("LIMIT 500");
 
-    // bounded reads, phone-filtered evidence, sources never mutated
+    // bounded reads, phone-filtered evidence, dates formatted in SQL, sources never mutated
     expect(captured[liveIdx]).toContain("LIMIT 500");
+    expect(captured[liveIdx]).toContain("CONVERT_TZ(created_at");
     const cbQ = captured.find((t) => t.includes("FROM callback_requests"));
     expect(cbQ).toContain("REGEXP_REPLACE");
     expect(cbQ).toContain("LIMIT 1000");
+    expect(cbQ).toContain("DATE_FORMAT(CONVERT_TZ(createdAt");
+    // bound is the earliest STORED anchor, passed as a string (never a JS Date)
+    expect(cbQ).toContain("2026-09-28 15:00:00");
+    const invQ = captured.find((t) => t.includes("FROM invoices") && t.includes("REGEXP_REPLACE"));
+    expect(invQ).toContain("paymentStatus = 'paid'");
     const mutates = captured.some((t) => /UPDATE\s+(invoices|callback_requests|leads|bookings|vapi_call_logs)\b/i.test(t));
     expect(mutates).toBe(false);
+  });
+
+  it("a row with no readable anchor is never decided (no false closure)", async () => {
+    const o = { ...opp("op-noanchor", "2165550107"), createdRaw: null, createdEt: null };
+    oppRows[o.id] = o;
+    liveMissed = [o];
+    callbackRows = [{ id: 600, phone: "2165550107", at: "2026-09-28 13:00:00" }];
+    const { reconcileOpportunities } = await import("./services/opportunityQueue");
+    await reconcileOpportunities();
+    expect(captured.some((t) => t.includes("UPDATE revenue_opportunities") && t.includes("op-noanchor"))).toBe(false);
   });
 });
 
@@ -322,6 +390,27 @@ describe("collectMissedCalls · one live card per phone", () => {
     expect(stats.collapsed).toBe(0);
   });
 
+  it("dismissing the NEWEST card never resurrects the phone's older calls as fresh cards", async () => {
+    // call-new's card exists but was dismissed (not live); call-old has no card at all.
+    livePhoneRows = [];
+    refreshNext = true;
+    vapiSelectRows = [call("call-new", "2165550142", 60), call("call-old", "2165550142", 300)];
+    const { collectMissedCalls } = await import("./services/opportunityQueue");
+    const stats = await collectMissedCalls();
+    expect(inserts.filter((t) => t.includes("call-old")), "older call must not be carded").toHaveLength(0);
+    expect(stats.refreshed).toBe(1);
+  });
+
+  it("an older ASSIGNED card is left to its owner — only untouched `new` cards collapse", async () => {
+    livePhoneRows = [{ id: "op-assigned", source_id: "call-existing", state: "assigned", customer_phone: "2165550142" }];
+    oppRows["op-assigned"] = { id: "op-assigned", state: "assigned", source_type: "missed_call" };
+    vapiSelectRows = [call("call-redial", "2165550142", 60)];
+    const { collectMissedCalls } = await import("./services/opportunityQueue");
+    const stats = await collectMissedCalls();
+    expect(captured.some((t) => t.includes("UPDATE revenue_opportunities") && t.includes("collapsed into"))).toBe(false);
+    expect(stats.collapsed).toBe(0);
+  });
+
   it("an older card someone is already WORKING is never collapsed by a new call", async () => {
     livePhoneRows = [{ id: "op-worked", source_id: "call-existing", state: "attempted", customer_phone: "2165550142" }];
     oppRows["op-worked"] = { id: "op-worked", state: "attempted", source_type: "missed_call" };
@@ -343,7 +432,9 @@ describe("refreshOpportunityQueue · collapse is reported, not silent", () => {
         leadId: null, callbackId: null, metadata: null, createdAt: new Date(Date.now() - 60 * 60_000) },
     ];
     const { refreshOpportunityQueue } = await import("./services/opportunityQueue");
-    const { details } = await refreshOpportunityQueue();
+    const { details, recordsProcessed } = await refreshOpportunityQueue();
     expect(details).toMatch(/missed calls: 1new\/0ref\/1scan\/1collapsed/);
+    // a collapse is a real change: it counts toward recordsProcessed (1 insert + 1 collapse)
+    expect(recordsProcessed).toBeGreaterThanOrEqual(2);
   });
 });

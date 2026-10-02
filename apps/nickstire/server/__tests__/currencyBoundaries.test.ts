@@ -6,12 +6,14 @@
  */
 import { describe, expect, it } from "vitest";
 import { readCode } from "../testUtils/sourceAssertions";
+import { sliceBlock } from "../testUtils/sourceBlock";
 
 describe("money leaving nickstire is labelled or converted", () => {
   it("/api/bridge/analytics (ChatGPT action) converts invoice cents to dollars and says so", () => {
     const c = readCode("server/_core/bridge-routes.ts");
-    const start = c.indexOf("SUM(totalAmount) as totalRevenue");
-    const handler = c.slice(start, c.indexOf("customerStats:", start) + 200);
+    const handler = sliceBlock(c, "SUM(totalAmount) as totalRevenue", "timestamp: new Date().toISOString()", {
+      label: "bridge-routes.ts /api/bridge/analytics",
+    });
     expect(handler).toContain('moneyUnit: "USD dollars"');
     expect(handler).toMatch(/withUsd\(\(stats[^)]*\)\?\.\[0\], \["totalRevenue", "totalLabor", "totalParts", "totalTax", "avgTicket"\]\)/);
     expect(handler).toContain('withUsd(m, ["revenue", "labor", "parts"])');

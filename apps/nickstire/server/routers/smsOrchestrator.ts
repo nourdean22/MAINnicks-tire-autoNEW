@@ -178,6 +178,9 @@ export const smsOrchestratorRouter = router({
     .mutation(async ({ input }) => {
       // ROS-083 dead-handle guard, in the shape the fabricated-read gate recognises:
       // resolveHumanPendingForConversation (below) returns 0 on a dead handle.
+      // The second getDbTyped() just below is deliberate: the gate matches this literal
+      // `!(await getDbTyped())` form, and TypeScript narrows only the bound `db`. Both
+      // resolve the same cached handle — do not "simplify" this into one call.
       if (!(await getDbTyped())) {
         throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Database unavailable — the draft was not actioned." });
       }

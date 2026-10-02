@@ -4,14 +4,26 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ rows: [] as Array<Record<string, unknown>>, fail: false, queries: [] as string[] }));
+const h = vi.hoisted(() => ({
+  proposals: [] as Array<Record<string, unknown>>,
+  invoices: [] as Array<Record<string, unknown>>,
+  bookings: [] as Array<Record<string, unknown>>,
+  callbacks: [] as Array<Record<string, unknown>>,
+  fail: false,
+  queries: [] as string[],
+}));
 
 vi.mock("../lib/db-helper", () => ({
   db: vi.fn(async () => ({
     execute: async (q: unknown) => {
-      h.queries.push(JSON.stringify(q));
+      const t = JSON.stringify(q);
+      h.queries.push(t);
       if (h.fail) throw new Error("boom");
-      return [h.rows, []];
+      if (t.includes("FROM admin_proposals")) return [h.proposals, []];
+      if (t.includes("FROM invoices")) return [h.invoices, []];
+      if (t.includes("FROM bookings")) return [h.bookings, []];
+      if (t.includes("FROM callback_requests")) return [h.callbacks, []];
+      throw new Error("unexpected query");
     },
   })),
 }));
@@ -26,7 +38,10 @@ import { withDownstreamOutcomes } from "./proposalOutcomes";
 
 afterEach(() => {
   cache.clear();
-  h.rows = [];
+  h.proposals = [];
+  h.invoices = [];
+  h.bookings = [];
+  h.callbacks = [];
   h.fail = false;
   h.queries = [];
 });
@@ -40,17 +55,49 @@ const rows = [
 
 describe("withDownstreamOutcomes", () => {
   it("attaches the SQL-dated outcomes to decided rows; drafts and phoneless rows get null", async () => {
-    h.rows = [
-      { id: "a", phoneLen: 10, invoicedOn: "2026-09-28", bookedOn: null, callbackOn: null },
-      { id: "b", phoneLen: 10, invoicedOn: null, bookedOn: null, callbackOn: null },
-      { id: "d", phoneLen: 0, invoicedOn: null, bookedOn: null, callbackOn: null },
+    h.proposals = [
+      { id: "a", phone: "2165550101", createdAt: "2026-09-27 15:00:00" },
+      { id: "b", phone: "2165550102", createdAt: "2026-09-27 15:00:00" },
+      { id: "d", phone: "", createdAt: "2026-09-27 15:00:00" },
     ];
+    h.invoices = [
+      { phone: "2165550101", at: "2026-09-20 12:00:00" }, // before the proposal day: not an outcome
+      { phone: "2165550101", at: "2026-09-28 12:00:00" },
+    ];
+    h.bookings = [
+      { phone: "2165550102", at: "2026-09-27 14:00:00" }, // earlier the same day: not after
+      { phone: "2165550102", at: "2026-09-29 09:00:00" },
+    ];
+    h.callbacks = [{ phone: "2165550101", at: "2026-09-27 15:30:00" }];
     const out = await withDownstreamOutcomes(rows);
-    expect(out[0].downstream).toEqual({ readable: true, invoicedOn: "2026-09-28", bookedOn: null, callbackOn: null });
-    expect(out[1].downstream).toEqual({ readable: true, invoicedOn: null, bookedOn: null, callbackOn: null });
+    expect(out[0].downstream).toEqual({ readable: true, invoicedOn: "2026-09-28", bookedOn: null, callbackOn: "2026-09-27" });
+    expect(out[1].downstream).toEqual({ readable: true, invoicedOn: null, bookedOn: "2026-09-29", callbackOn: null });
     expect(out[2].downstream).toBeNull();
     expect(out[3].downstream).toBeNull();
     expect(h.queries.join("")).not.toMatch(/UPDATE|INSERT|DELETE/i);
+  });
+
+  it("set-based: one read per evidence table keyed by the phone IN-list, no correlated subquery", async () => {
+    h.proposals = [
+      { id: "a", phone: "2165550101", createdAt: "2026-09-27 15:00:00" },
+      { id: "b", phone: "2165550102", createdAt: "2026-09-26 15:00:00" },
+    ];
+    await withDownstreamOutcomes(rows);
+    for (const table of ["invoices", "bookings", "callback_requests"]) {
+      const qs = h.queries.filter((q) => q.includes(`FROM ${table}`));
+      expect(qs, table).toHaveLength(1);
+      expect(qs[0]).toContain("2165550101");
+      expect(qs[0]).toContain("2165550102");
+      expect(qs[0]).not.toContain("p.created_at");
+    }
+    // bound is the earliest proposal time, passed as a SQL string
+    expect(h.queries.find((q) => q.includes("FROM bookings"))).toContain("2026-09-26 15:00:00");
+  });
+
+  it("no usable phone on any decided row -> no evidence reads", async () => {
+    h.proposals = [{ id: "a", phone: null, createdAt: "2026-09-27 15:00:00" }];
+    await withDownstreamOutcomes(rows);
+    expect(h.queries).toHaveLength(1);
   });
 
   it("a failed read marks decided rows unreadable, never 'nothing happened'", async () => {
@@ -68,10 +115,12 @@ describe("withDownstreamOutcomes", () => {
 
 describe("withDownstreamOutcomes · cache", () => {
   it("the same id set is read once per TTL; a failed read is never cached", async () => {
-    h.rows = [{ id: "a", phoneLen: 10, invoicedOn: null, bookedOn: "2026-09-30", callbackOn: null }];
+    h.proposals = [{ id: "a", phone: "2165550101", createdAt: "2026-09-27 15:00:00" }];
+    h.bookings = [{ phone: "2165550101", at: "2026-09-30 10:00:00" }];
     await withDownstreamOutcomes([{ id: "a", status: "rejected" }]);
+    const n = h.queries.length;
     const second = await withDownstreamOutcomes([{ id: "a", status: "rejected" }]);
-    expect(h.queries).toHaveLength(1);
+    expect(h.queries).toHaveLength(n);
     expect(second[0].downstream).toMatchObject({ readable: true, bookedOn: "2026-09-30" });
 
     cache.clear();
@@ -80,6 +129,6 @@ describe("withDownstreamOutcomes · cache", () => {
     await withDownstreamOutcomes([{ id: "b", status: "rejected" }]);
     h.fail = false;
     await withDownstreamOutcomes([{ id: "b", status: "rejected" }]);
-    expect(h.queries).toHaveLength(2); // the failure did not poison the cache
+    expect(h.queries.length).toBeGreaterThan(1); // the failure did not poison the cache: read again
   });
 });

@@ -120,6 +120,21 @@ describe("createInvoiceReviewRequests", () => {
     expect(h.inserts[3]).toContain('"there"');
   });
 
+  it("business accounts and an empty first name greet 'there', never a suffix or a surname", async () => {
+    h.candidates = [
+      { id: 511, name: "ACME AUTO, LLC", phone: "2165550511" },
+      { id: 512, name: "Smith,", phone: "2165550512" },
+      { id: 513, name: "Lakeside Towing Inc", phone: "2165550513" },
+      { id: 514, name: "  o'brien ,  mary-kate ", phone: "2165550514" },
+    ];
+    await createInvoiceReviewRequests();
+    expect(h.inserts[0]).toContain('"there"');
+    expect(h.inserts[0]).not.toMatch(/Llc|LLC/);
+    expect(h.inserts[1]).toContain('"there"');
+    expect(h.inserts[2]).toContain('"there"');
+    expect(h.inserts[3]).toContain(`"Mary-Kate O'Brien"`);
+  });
+
   it("the invoice's raw service text never reaches the SMS (service is NULL -> 'your service')", async () => {
     h.candidates = [{ id: 601, name: "Pat Doe", phone: "2165550601" }];
     await createInvoiceReviewRequests();

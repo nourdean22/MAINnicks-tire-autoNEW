@@ -10,6 +10,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { sliceBlock } from "./testUtils/sourceBlock";
 import { resolve } from "node:path";
 
 const APP = process.cwd();
@@ -127,9 +128,7 @@ describe("F5 — the Traffic Funnel reads web rows only, impression-weighted (20
 describe("F6 — the StateNour bridge gsc_summary prefers the official total and labels it (2026-10-02)", () => {
   const BRIDGE = readFileSync(resolve(APP, "server/routes/nour-os-query.ts"), "utf8");
   const handler = () => {
-    const c = code(BRIDGE);
-    const start = c.indexOf('"gsc_summary": async');
-    return c.slice(start, c.indexOf('"gsc_top_queries"', start));
+    return sliceBlock(code(BRIDGE), '"gsc_summary": async', '"gsc_top_queries"', { label: "nour-os-query.ts" });
   };
 
   it("calls getGscReport before falling back to the stored rows", () => {

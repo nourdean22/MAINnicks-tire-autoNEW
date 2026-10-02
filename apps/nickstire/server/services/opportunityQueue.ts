@@ -29,6 +29,7 @@
 import { randomUUID } from "crypto";
 import { createLogger } from "../lib/logger";
 import { isMissingTableError, isUnknownColumnError } from "../lib/dbErrors";
+import { normalizePhone } from "./revenueAttribution";
 
 const log = createLogger("opportunity-queue");
 
@@ -225,10 +226,9 @@ function mapRow(r: Record<string, unknown>): OpportunityRow {
   };
 }
 
-/** Last-10-digit phone key (the house join rule), or null when there are not 10 digits. */
+/** Last-10-digit phone key (the house join rule, revenueAttribution.normalizePhone), or null. */
 export function phone10(p: unknown): string | null {
-  const d = String(p ?? "").replace(/\D/g, "").slice(-10);
-  return d.length === 10 ? d : null;
+  return normalizePhone(p == null ? null : String(p));
 }
 
 function rowsFromExecute(value: unknown): Array<Record<string, unknown>> {
@@ -1167,8 +1167,8 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
   // it as `duplicate`. (A first version skipped the new call instead, which
   // kept the OLDEST card: it aged out to `lost` at day 7 while the newer call
   // had left the 24h collector window — the customer's latest call vanished.)
-  // An older card someone is already working (no legal duplicate edge) is
-  // left alone. Live rows are fetched ONCE per run; a failed read degrades to
+  // An older card anyone has touched (assigned or worked — anything but
+  // `new`) is left alone. Live rows are fetched ONCE per run; a failed read degrades to
   // per-call cards and reconcile step 3a collapses the leftovers next run.
   const liveByPhone = new Map<string, Array<{ id: string; sourceId: string; state: OpportunityState }>>();
   if (rows.length > 0) {
@@ -1243,14 +1243,18 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
     if (res === "inserted" || res === "refreshed") {
       if (res === "inserted") inserted++;
       else refreshed++;
+      // The phone's NEWEST call is now handled, whatever its card's state: its older
+      // calls are never carded this run. (Marking only LIVE cards let an operator's
+      // dismissal of the newest card resurrect the phone's older calls as fresh cards.)
+      if (p10) cardedThisRun.add(p10);
       // Collapse only into a LIVE card: a refresh of a call whose card an operator
       // dismissed (or that was closed) must not close the phone's remaining live card into it.
       const cardIsLive = res === "inserted" || (livePhone ?? []).some((l) => l.sourceId === r.vapiCallId);
       if (p10 && cardIsLive) {
-        cardedThisRun.add(p10);
-        // Older live cards for this phone collapse into this newer call.
+        // Older UNTOUCHED (`new`) cards for this phone collapse into this newer call.
+        // An assigned card has an owner: it is left to them.
         for (const older of livePhone ?? []) {
-          if (older.sourceId === r.vapiCallId || !canTransition(older.state, "duplicate")) continue;
+          if (older.sourceId === r.vapiCallId || older.state !== "new" || !canTransition(older.state, "duplicate")) continue;
           const t = await transitionOpportunity({
             id: older.id,
             to: "duplicate",
@@ -1805,12 +1809,21 @@ export async function collectInspectionDeferrals(): Promise<CollectorStats> {
 // day still read as a lost sale a week later (866 `lost` rows, almost all
 // age-outs). These helpers decide, per live row, whether LATER evidence for
 // the same phone shows the customer was served. Evidence is matched on the
-// last-10 phone key and must be STRICTLY after the anchor (the missed call's
-// own time; the row's created_at when the call row is gone) — anything at or
-// before the call cannot be the response to it. Invoices are the one
-// exception (`>=`, "dated on/after"): invoice timestamps are coarse
-// (ingestion stamps noon of the invoice date), and recordOutcome re-verifies
-// every candidate through classifyOutcomeMatch before anything becomes won.
+// last-10 phone key.
+//
+// Every time here is a shop-time (America/New_York) 'YYYY-MM-DD HH:MM:SS'
+// string formatted IN SQL — driver-parsed TiDB timestamps shift on ET, and
+// such strings compare correctly as plain strings. Non-invoice evidence must
+// be STRICTLY after the anchor (the missed call's own time; the row's
+// created_at when the call row is gone) — anything at or before the call
+// cannot be the response to it. Invoices are compared by shop DAY, because
+// their times are coarse (ingestion stamps a fixed hour of the invoice date):
+//   - a PAID invoice on a LATER shop day → won candidate (recordOutcome
+//     re-verifies it through classifyOutcomeMatch before anything becomes won);
+//   - a paid invoice on the SAME shop day → the customer was in, but whether
+//     before or after the call is unknowable → served (closes `new` as
+//     duplicate), never counted as a win;
+//   - an earlier day → not evidence.
 
 export type MissedCallEvidenceSource =
   | "invoices"
@@ -1823,65 +1836,83 @@ export interface MissedCallServedEvidence {
   source: MissedCallEvidenceSource;
   id: number;
   phone: string | null;
-  at: Date;
+  /** Shop-time 'YYYY-MM-DD HH:MM:SS', formatted in SQL. */
+  at: string;
   /** extra receipt detail, e.g. "lead #12" for a captured follow-up call */
   detail?: string;
 }
 
+const SHOP_TS = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+/** A well-formed SQL-formatted timestamp, or null — malformed input is never evidence. */
+function shopTs(v: unknown): string | null {
+  return typeof v === "string" && SHOP_TS.test(v) ? v : null;
+}
+
 /**
- * Earliest qualifying invoice (→ won via recordOutcome) and earliest
- * qualifying non-invoice service signal (→ served close) for one live row.
- * Different phone, unparseable phone, or evidence not after the anchor → null.
+ * Earliest qualifying later-day invoice (→ won via recordOutcome) and earliest
+ * qualifying service signal (→ served close) for one live row. Different
+ * phone, unparseable phone or time, or evidence not after the anchor → null.
  */
 export function decideMissedCallServed(input: {
   phone: string | null;
-  anchorAt: Date;
+  anchorAt: string;
   evidence: readonly MissedCallServedEvidence[];
 }): { invoice: MissedCallServedEvidence | null; served: MissedCallServedEvidence | null } {
   const p = phone10(input.phone);
-  const anchor = input.anchorAt.getTime();
+  const anchor = shopTs(input.anchorAt);
   let invoice: MissedCallServedEvidence | null = null;
   let served: MissedCallServedEvidence | null = null;
-  if (!p || !Number.isFinite(anchor)) return { invoice, served };
+  if (!p || !anchor) return { invoice, served };
+  const anchorDay = anchor.slice(0, 10);
   for (const e of input.evidence) {
     if (phone10(e.phone) !== p) continue;
-    const t = e.at.getTime();
-    if (!Number.isFinite(t)) continue;
+    const t = shopTs(e.at);
+    if (!t) continue;
+    let candidate = e;
     if (e.source === "invoices") {
-      if (t >= anchor && (!invoice || t < invoice.at.getTime())) invoice = e;
-    } else if (t > anchor && (!served || t < served.at.getTime())) {
-      served = e;
+      const day = t.slice(0, 10);
+      if (day > anchorDay) {
+        if (!invoice || t < invoice.at) invoice = e;
+        continue;
+      }
+      if (day !== anchorDay) continue;
+      candidate = { ...e, detail: "same shop day as the call; order unknown, not counted as won" };
+    } else if (t <= anchor) {
+      continue;
     }
+    if (!served || t < served.at) served = candidate;
   }
   return { invoice, served };
 }
 
 /** Receipt note naming the exact evidence row. */
 export function missedCallServedNote(e: MissedCallServedEvidence): string {
-  return `served: ${e.source} #${e.id} at ${e.at.toISOString()}${e.detail ? ` (${e.detail})` : ""}`;
+  return `served: ${e.source} #${e.id} at ${e.at} ET${e.detail ? ` (${e.detail})` : ""}`;
 }
 
 /**
  * Close state for "the customer was served by another channel": `duplicate`
- * (the need now lives in that other record), legal from new/assigned. From a
- * worked state (attempted/contacted/…) the answer is NULL — leave the row to the
- * person working it. A first version fell back to `lost` there, which booked
- * every customer the shop RECOVERED (operator contacted them, they then booked)
- * as a lost sale. An invoice still closes a worked row as `won` via recordOutcome.
+ * (the need now lives in that other record) — and ONLY for an untouched
+ * `new` card. An assigned card has an owner and a worked card
+ * (attempted/contacted/…) has a person on it: NULL leaves it to them. (A first
+ * version fell back to `lost` on worked rows, which booked every customer the
+ * shop RECOVERED as a lost sale; a second auto-closed `assigned` rows out from
+ * under the person assigned.) An invoice still closes any live row as `won`
+ * via recordOutcome.
  */
 export function servedCloseState(from: OpportunityState): "duplicate" | null {
-  return canTransition(from, "duplicate") ? "duplicate" : null;
+  return from === "new" && canTransition(from, "duplicate") ? "duplicate" : null;
 }
 
 /**
  * Same-phone collapse plan over live missed_call rows: per phone, keep the
- * NEWEST call (ties → larger id, deterministic); older rows collapse into
- * it as `duplicate`. A row an operator has already worked (state with no
- * legal duplicate edge) is never collapsed — it is reported in `skipped`.
- * Rows without a 10-digit phone are never grouped.
+ * NEWEST call (ties → larger id, deterministic); older UNTOUCHED (`new`) rows
+ * collapse into it as `duplicate`. A row anyone has touched (assigned or
+ * worked) is never collapsed — it is reported in `skipped`. Rows without a
+ * 10-digit phone are never grouped. `anchorAt` is a shop-time SQL string.
  */
 export function planMissedCallCollapse(
-  rows: ReadonlyArray<{ id: string; phone: string | null; anchorAt: Date; state: OpportunityState }>,
+  rows: ReadonlyArray<{ id: string; phone: string | null; anchorAt: string; state: OpportunityState }>,
 ): { collapse: Array<{ id: string; keepId: string }>; skipped: string[] } {
   const groups = new Map<string, Array<(typeof rows)[number]>>();
   for (const r of rows) {
@@ -1896,12 +1927,13 @@ export function planMissedCallCollapse(
   for (const g of Array.from(groups.values())) {
     if (g.length < 2) continue;
     const keep = g.reduce((a, b) => {
-      const d = b.anchorAt.getTime() - a.anchorAt.getTime();
-      return d > 0 || (d === 0 && b.id > a.id) ? b : a;
+      const ta = shopTs(a.anchorAt) ?? "";
+      const tb = shopTs(b.anchorAt) ?? "";
+      return tb > ta || (tb === ta && b.id > a.id) ? b : a;
     });
     for (const r of g) {
       if (r.id === keep.id) continue;
-      if (canTransition(r.state, "duplicate")) collapse.push({ id: r.id, keepId: keep.id });
+      if (servedCloseState(r.state)) collapse.push({ id: r.id, keepId: keep.id });
       else skipped.push(r.id);
     }
   }
@@ -2025,17 +2057,25 @@ export async function reconcileOpportunities(): Promise<ReconcileStats> {
 
   // 3a. missed_call SERVED closure + same-phone collapse (2026-10-02). Runs
   //     BEFORE the age-out (3) so a customer who was served closes with the
-  //     truth — `won` on a later invoice (via recordOutcome, the only path to
-  //     won), or served/duplicate on a later callback request, lead, booking
-  //     or captured call — instead of "aged out" a week later. Then live rows
-  //     sharing a phone collapse into the newest. Fetch-once + JS decide
+  //     truth — `won` on a PAID invoice dated a later shop day (via
+  //     recordOutcome, the only path to won), or served/duplicate on a later
+  //     callback request, lead, booking, captured call or same-day paid
+  //     invoice — instead of "aged out" a week later. Then live rows sharing
+  //     a phone collapse into the newest. Served/collapse closes only touch
+  //     untouched `new` cards (servedCloseState). Fetch-once + JS decide
   //     (the abandoned_form precedent): one bounded live read, one call-time
   //     read by unique vapiCallId, one evidence read per source filtered to
   //     the live phones and to times after the oldest anchor. A failed
   //     evidence read only means fewer closures this run, never a false one.
   try {
+    // Two renderings per time, both formatted IN SQL: `raw` (the stored
+    // value, for bounding later reads) and `et` (shop time, for deciding).
+    const raw = (col: string) => sql.raw(`DATE_FORMAT(${col}, '%Y-%m-%d %H:%i:%s')`);
+    const et = (col: string) =>
+      sql.raw(`DATE_FORMAT(CONVERT_TZ(${col}, '+00:00', 'America/New_York'), '%Y-%m-%d %H:%i:%s')`);
     const liveRaw = rowsFromExecute(await db.execute(sql`
-      SELECT id, source_id, state, customer_phone, created_at
+      SELECT id, source_id, state, customer_phone,
+             ${raw("created_at")} AS createdRaw, ${et("created_at")} AS createdEt
       FROM revenue_opportunities
       WHERE source_type = 'missed_call'
         AND state IN (${stateList})
@@ -2043,53 +2083,65 @@ export async function reconcileOpportunities(): Promise<ReconcileStats> {
       LIMIT 500
     `));
     if (liveRaw.length > 0) {
-      const toDate = (v: unknown): Date => (v instanceof Date ? v : new Date(String(v)));
-      const callAt = new Map<string, Date>();
+      const callAt = new Map<string, { raw: string; et: string }>();
       try {
         const calls = rowsFromExecute(await db.execute(sql`
-          SELECT vapiCallId, createdAt FROM vapi_call_logs
+          SELECT vapiCallId, ${raw("createdAt")} AS atRaw, ${et("createdAt")} AS atEt FROM vapi_call_logs
           WHERE vapiCallId IN (${sql.join(liveRaw.map((r) => sql`${String(r.source_id)}`), sql`, `)})
         `));
-        for (const c of calls) callAt.set(String(c.vapiCallId), toDate(c.createdAt));
+        for (const c of calls) {
+          const r = shopTs(c.atRaw);
+          const e = shopTs(c.atEt);
+          if (r && e) callAt.set(String(c.vapiCallId), { raw: r, et: e });
+        }
       } catch (err) {
         log.warn("[opportunity-queue] missed-call call-time read failed (anchoring on created_at)", {
           error: err instanceof Error ? err.message : String(err),
         });
       }
-      const live = liveRaw.map((r) => ({
-        id: String(r.id),
-        state: String(r.state) as OpportunityState,
-        phone: r.customer_phone == null ? null : String(r.customer_phone),
-        anchorAt: callAt.get(String(r.source_id)) ?? toDate(r.created_at),
-      }));
+      const live = liveRaw.flatMap((r) => {
+        const fallback = { raw: shopTs(r.createdRaw), et: shopTs(r.createdEt) };
+        const at = callAt.get(String(r.source_id)) ?? fallback;
+        // No readable anchor → no decision for this row (never a false closure).
+        if (!at.raw || !at.et) return [];
+        return [{
+          id: String(r.id),
+          state: String(r.state) as OpportunityState,
+          phone: r.customer_phone == null ? null : String(r.customer_phone),
+          anchorRaw: at.raw,
+          anchorAt: at.et,
+        }];
+      });
       const phones = Array.from(new Set(live.map((r) => phone10(r.phone)).filter((p): p is string => p != null)));
-      const anchors = live.map((r) => r.anchorAt.getTime()).filter(Number.isFinite);
 
       const evidence: MissedCallServedEvidence[] = [];
-      if (phones.length > 0 && anchors.length > 0) {
-        const since = new Date(Math.min(...anchors));
+      if (phones.length > 0 && live.length > 0) {
+        // Stored-value bound; the exact strictly-after / same-day decision is
+        // made in decideMissedCallServed on the shop-time strings.
+        const since = live.map((r) => r.anchorRaw).sort()[0];
         const inPhones = (col: ReturnType<typeof sql.raw>) =>
           sql`RIGHT(REGEXP_REPLACE(${col}, '[^0-9]', ''), 10) IN (${sql.join(phones.map((p) => sql`${p}`), sql`, `)})`;
         const sources: Array<{ source: MissedCallEvidenceSource; query: ReturnType<typeof sql> }> = [
+          // PAID only: a `pending` invoice is an open ALG ticket, not a served customer.
           { source: "invoices", query: sql`
-            SELECT id, customerPhone AS phone, invoiceDate AS at FROM invoices
-            WHERE invoiceDate >= ${since} AND paymentStatus != 'refunded'
+            SELECT id, customerPhone AS phone, ${et("invoiceDate")} AS at FROM invoices
+            WHERE invoiceDate >= DATE_SUB(${since}, INTERVAL 1 DAY) AND paymentStatus = 'paid'
               AND customerPhone IS NOT NULL AND ${inPhones(sql.raw("customerPhone"))}
             ORDER BY invoiceDate ASC LIMIT 1000` },
           { source: "callback_requests", query: sql`
-            SELECT id, phone, createdAt AS at FROM callback_requests
+            SELECT id, phone, ${et("createdAt")} AS at FROM callback_requests
             WHERE createdAt > ${since} AND ${inPhones(sql.raw("phone"))}
             ORDER BY createdAt ASC LIMIT 1000` },
           { source: "leads", query: sql`
-            SELECT id, phone, createdAt AS at FROM leads
+            SELECT id, phone, ${et("createdAt")} AS at FROM leads
             WHERE createdAt > ${since} AND phone IS NOT NULL AND ${inPhones(sql.raw("phone"))}
             ORDER BY createdAt ASC LIMIT 1000` },
           { source: "bookings", query: sql`
-            SELECT id, phone, createdAt AS at FROM bookings
+            SELECT id, phone, ${et("createdAt")} AS at FROM bookings
             WHERE createdAt > ${since} AND phone IS NOT NULL AND ${inPhones(sql.raw("phone"))}
             ORDER BY createdAt ASC LIMIT 1000` },
           { source: "vapi_call_logs", query: sql`
-            SELECT id, phoneNumber AS phone, createdAt AS at, leadId, callbackId FROM vapi_call_logs
+            SELECT id, phoneNumber AS phone, ${et("createdAt")} AS at, leadId, callbackId FROM vapi_call_logs
             WHERE createdAt > ${since} AND (leadId IS NOT NULL OR callbackId IS NOT NULL)
               AND phoneNumber IS NOT NULL AND ${inPhones(sql.raw("phoneNumber"))}
             ORDER BY createdAt ASC LIMIT 1000` },
@@ -2097,6 +2149,8 @@ export async function reconcileOpportunities(): Promise<ReconcileStats> {
         for (const s of sources) {
           try {
             for (const e of rowsFromExecute(await db.execute(s.query))) {
+              const at = shopTs(e.at);
+              if (!at) continue;
               const detail = s.source === "vapi_call_logs"
                 ? [e.leadId != null ? `lead #${Number(e.leadId)}` : "", e.callbackId != null ? `callback #${Number(e.callbackId)}` : ""]
                     .filter(Boolean).join(", ")
@@ -2105,7 +2159,7 @@ export async function reconcileOpportunities(): Promise<ReconcileStats> {
                 source: s.source,
                 id: Number(e.id),
                 phone: e.phone == null ? null : String(e.phone),
-                at: toDate(e.at),
+                at,
                 ...(detail ? { detail } : {}),
               });
             }
@@ -2443,7 +2497,7 @@ export async function refreshOpportunityQueue(): Promise<{ recordsProcessed: num
     `waiting texts: ${fmt(humanPending)} · abandoned forms: ${fmt(abandonedFormsStats)}`;
   const recordsProcessed =
     reconciled.won + reconciled.closed +
-    estimates.inserted + callbacks.inserted + missedCalls.inserted + inspections.inserted +
+    estimates.inserted + callbacks.inserted + missedCalls.inserted + missedCalls.collapsed + inspections.inserted +
     staleLeads.inserted + noShows.inserted + humanPending.inserted + abandonedFormsStats.inserted;
 
   // Strike-4: the loop judges its own shape. The contract was built to

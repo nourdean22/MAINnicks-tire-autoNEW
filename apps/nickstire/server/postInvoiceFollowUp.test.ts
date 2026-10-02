@@ -108,35 +108,27 @@ describe("Post-Invoice Follow-Up", () => {
       vi.doUnmock("./services/featureFlags");
     });
 
+    // Real timers on purpose: the send path sleeps 1.1s between texts, and a fake-timer
+    // advance can run BEFORE the dynamic imports reach that setTimeout — it then never
+    // fires (CI: 30s timeout). One customer costs one real 1.1s sleep; that is the price
+    // of a deterministic test.
     it("skips a customer the review_requests lane already asked (cooldown) — no claim, no text", async () => {
-      vi.useFakeTimers({ shouldAdvanceTime: true });
-      try {
-        mockCooldown.mockResolvedValue(true);
-        const { sendSms } = await import("./sms");
-        const { processPostInvoiceFollowUps } = await import("./postInvoiceFollowUp");
-        const result = await processPostInvoiceFollowUps();
-        expect(mockCooldown).toHaveBeenCalledWith("2165550123", 30);
-        expect(result.skipped).toBe(1);
-        expect(sendSms).not.toHaveBeenCalled();
-        expect(mockWhere).not.toHaveBeenCalled();
-      } finally {
-        vi.useRealTimers();
-      }
+      mockCooldown.mockResolvedValue(true);
+      const { sendSms } = await import("./sms");
+      const { processPostInvoiceFollowUps } = await import("./postInvoiceFollowUp");
+      const result = await processPostInvoiceFollowUps();
+      expect(mockCooldown).toHaveBeenCalledWith("2165550123", 30);
+      expect(result.skipped).toBe(1);
+      expect(sendSms).not.toHaveBeenCalled();
+      expect(mockWhere).not.toHaveBeenCalled();
     });
 
     it("control: a phone NOT on cooldown is still texted", async () => {
-      vi.useFakeTimers({ shouldAdvanceTime: true });
-      try {
-        mockCooldown.mockResolvedValue(false);
-        const { sendSms } = await import("./sms");
-        const { processPostInvoiceFollowUps } = await import("./postInvoiceFollowUp");
-        const p = processPostInvoiceFollowUps();
-        await vi.advanceTimersByTimeAsync(2000);
-        await p;
-        expect(sendSms).toHaveBeenCalledTimes(1);
-      } finally {
-        vi.useRealTimers();
-      }
-    });
+      mockCooldown.mockResolvedValue(false);
+      const { sendSms } = await import("./sms");
+      const { processPostInvoiceFollowUps } = await import("./postInvoiceFollowUp");
+      await processPostInvoiceFollowUps();
+      expect(sendSms).toHaveBeenCalledTimes(1);
+    }, 10_000);
   });
 });

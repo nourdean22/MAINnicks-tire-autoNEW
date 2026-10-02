@@ -11,6 +11,12 @@ fleet verdict in Settings/Lot, GSC source label + funnel web-only/weighted. No m
 ~366 backlog to drop to ~7 days on the first pulse; `opportunity-queue-refresh` details ("collapsed").
 **Gated:** 0132/0136/0137 + 0127-0130/0133 drift; invoice-sourced review rows (DDL) vs existing
 `post-invoice-followup`; convertedToLead=0 gate on missed-call recovery texts; receivables need ShopDriver check.
+**Third review pass (same branch):** missed-call step 3a decides on SQL-formatted shop-time strings, PAID
+invoices only, same-day invoice = served (never won), auto-close only `new` cards; collector no longer
+re-cards older calls after the newest card is dismissed; collapses count in recordsProcessed; financing +
+proposal-outcome reads set-based; review greeting -> "there" for business names; `readRows()` in
+lib/dbResult.ts is the one raw-SELECT row unwrapper for new code. Fake timers around a real 1.1s send
+sleep timed out in CI -> real timers.
 
 ## 2026-10-01 · Creative Intelligence OS (#2865) merged; Facebook reels armed
 
