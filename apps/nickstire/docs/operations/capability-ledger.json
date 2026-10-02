@@ -3363,7 +3363,10 @@
         ],
         "liveRuns": [
           "PR #2885 squash d5838402 deployed: Railway deployment 5c5eec0d SUCCESS, server:ready 2026-10-02T15:49:15Z, /api/health healthy with deploy.commit d5838402",
-          "Admin -> Apply built-in migrations on the d5838402 container at 2026-10-02T15:53:21Z: 176 steps checked, 41 already in place, none failed (audit trail 'Operator ran DB migrations')"
+          "Admin -> Apply built-in migrations on the d5838402 container at 2026-10-02T15:53:21Z: 176 steps checked, 41 already in place, none failed (audit trail 'Operator ran DB migrations')",
+          "cron_log orchestration-status-reconcile 2026-10-02T16:04:17Z: drafts closed 366 (obligation_closed 52, superseded 7, expired 307, left open 0); later runs 0",
+          "cron_log review-requests 2026-10-02T17:13:18Z: invoice rows created 8 of 8 (cooldown 0, dup 0) — first invoice-sourced review rows",
+          "feature_flags read live 2026-10-02: sms_review_requests on; contact_holdouts_enabled + 5 contact_holdout_* lanes ARMED 17:25:10Z on operator instruction (server log 'Feature flag toggled' x6, read back true)"
         ],
         "databaseAssertions": [
           "record-migrations.mjs dry run (railway run, prod TiDB fingerprint 9486234786e5): 0127-0130, 0132, 0133, 0136-0139 all UNRECORDED_BUT_EXACT_MATCH, i.e. the live schema matches each file exactly",
@@ -3374,7 +3377,7 @@
       "blockers": [
         {
           "severity": "P2",
-          "description": "Merged and deployed (d5838402); migrations applied and recorded. Outcome not yet observed: first cron_log receipts still to read are orchestration-status-reconcile details 'drafts closed N' (expected: the ~366 drafted backlog falls to ~7 days), opportunity-queue-refresh details 'collapsed', and review-requests details 'invoice rows created N' (only while sms_review_requests is on)."
+          "description": "Merged and deployed (d5838402); migrations applied and recorded; drafts closed 366 and 8 invoice review rows observed in cron_log. Still unobserved: opportunity-queue-refresh details 'collapsed' (once per shop day; first run on the new code is the next shop day)."
         }
       ],
       "deferredScope": [

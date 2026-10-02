@@ -8,10 +8,11 @@ container 15:53:21Z (176 steps, none failed); `record-migrations.mjs` run from N
 isolated worktree (`.worktrees/record-migrations`): 10 rows recorded after a 144-row ledger backup; `reconcile-migrations
 --strict` exit 0, 0 UNRECORDED. #2891 (`62fb2271`) declares `review_requests.invoiceId` + a parity test; deployed as Railway
 `dd095678`, server:ready 17:12:10Z, no error lines. The NattyNour worktree was torn down afterwards (links verified, branch
-deleted, lease released). Still to read: cron_log `orchestration-status-reconcile` "drafts closed N",
-`opportunity-queue-refresh` "collapsed" (ledger claim expires 2026-10-16). `sms_review_requests` and `contact_holdout_*` are
-`feature_flags` TABLE rows, live values NOT read this wave; the holdout schema precondition (heldout in all 3 enums) is met —
-arming is an operator decision. A sibling session ("instagram nickstire", statenour branches) ran in parallel: no file or
+deleted, lease released). Receipts read 2026-10-02: drafts closed 366 at 16:04Z (52/7/307, 0 left);
+review-requests created 8 invoice rows 17:13Z; missed-call-recovery sent 6. Still to read: `opportunity-queue-refresh`
+"collapsed" (next shop day). Flags read live: `sms_review_requests` on, `missed_call_recovery` on + SEND=1. Holdouts ARMED
+17:25:10Z on operator instruction (master + 5 lanes; `review_reminder_drafts` off). Follow-up PR: recovery texts include
+tool-reaching calls proven to have saved nothing (fail closed on a failed read). A sibling session ("instagram nickstire", statenour branches) ran in parallel: no file or
 database overlap. Traps: quote `--only '0127,…'` in PowerShell (unquoted becomes
 127 128 …); worktree-setup.ps1 stalled >10 min on its repo-wide scans on NattyNour — junctioning root + app node_modules by
 hand was enough for these scripts, and `railway run` supplies the env.
@@ -26,7 +27,7 @@ fleet verdict in Settings/Lot, GSC source label + funnel web-only/weighted. No m
 **Watch after deploy:** `cron_log` `orchestration-status-reconcile` details ("drafts closed N") — expect the
 ~366 backlog to drop to ~7 days on the first pulse; `opportunity-queue-refresh` details ("collapsed").
 **Gated:** 0132/0136/0137 + 0127-0130/0133 drift; invoice-sourced review rows (DDL) vs existing
-`post-invoice-followup`; convertedToLead=0 gate on missed-call recovery texts; receivables need ShopDriver check.
+`post-invoice-followup`; ~~convertedToLead=0 gate on missed-call recovery texts~~ (widened 2026-10-02, see above); receivables need ShopDriver check.
 **Third review pass (same branch):** missed-call step 3a decides on SQL-formatted shop-time strings, PAID
 invoices only, same-day invoice = served (never won), auto-close only `new` cards; collector no longer
 re-cards older calls after the newest card is dismissed; collapses count in recordsProcessed; financing +

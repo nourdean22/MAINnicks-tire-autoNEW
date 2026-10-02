@@ -117,20 +117,31 @@ every receipt: `docs/operations/ADMIN-TRUTH-PASS-2026-10-02.md`.
 - **Missed calls close.** One live card per phone. A PAID invoice on a later shop day → `won` (via `recordOutcome`).
   A later callback / lead / booking / captured call, or a same-day paid invoice → `duplicate`, with a receipt. Only
   untouched `new` cards are auto-closed. First receipt: `opportunity-queue-refresh` "collapsed".
+- **Missed-call recovery reaches tool-reaching callers** (follow-up PR): a call that reached a tool (`convertedToLead=1`)
+  gets the recovery text only when a successful read proves it saved nothing (no lead, callback, callback request or
+  walk-in arrival). A failed read skips the call. Operator decision 2026-10-02, reversing the 2026-09-23 skip.
 - **Nick's call drafts are capture-aware.** No booking/callback draft for what a tool already captured; the
   extractor knows today's date. `scheduleCallback` links its callback to the call.
 - **Operator truth surfaces:** Approvals shows what happened after a decision; Today hints "likely served" on stale
   callbacks; financing clicks show who and whether they were invoiced; Settings → Status and Lot cannot be green over
   an offline camera; GSC numbers name their source. Money leaving nickstire is converted or labelled.
 
-**Not armed by this wave — the flags live in the `feature_flags` TABLE, not the env, so the env probe above cannot
-see them; their live values were NOT read here:**
-- `sms_review_requests` gates the review-request cron, including the new invoice-sourced rows (0139). While it is
-  off, nothing is created or sent.
-- `contact_holdouts_enabled` + `contact_holdout_*`: the schema precondition (`heldout` in all three status enums) is
-  now met. Arming them changes who gets texted — an operator decision.
+**`feature_flags` TABLE switches, read live 2026-10-02 via `GET /api/admin/flags` (the env probe above cannot see
+these):**
+- `sms_review_requests` = **on**: the review-request cron created its first 8 invoice-sourced rows at 17:13Z
+  (`cron_log`: "invoice rows created 8 of 8"); they send after the 24 h delay, through every existing gate.
+- `contact_holdouts_enabled` + `contact_holdout_retention|winback|weather|review_requests|campaigns` = **ARMED
+  2026-10-02 17:25:10Z** on operator instruction (server log "Feature flag toggled … ENABLED" ×6). 15% of eligible
+  customers per lane now get a recorded no-contact control (`heldout`) instead of the text; a failed assignment read
+  sends normally. `review_reminder_drafts` stays OFF (a separate experiment that adds review-queue drafts).
+- `missed_call_recovery` = on and env `MISSED_CALL_RECOVERY_SEND="1"`: recovery texts were already live (6 sent at
+  17:13Z).
 
-**Still open:** the missed-call recovery gate (`convertedToLead=0`) is on hold by operator decision;
+**First outcome receipts (`cron_log`):** `orchestration-status-reconcile` at 16:04:17Z — **drafts closed 366**
+(obligation closed 52 · superseded 7 · expired 307 · left open 0); later runs 0. `opportunity-queue-refresh` runs once
+per shop day and had already run before the deploy, so its first "collapsed" receipt is the next shop day.
+
+**Still open:**
 `__drizzle_migrations_bak_20261002_record` can be dropped later; the ledger claim `admin-closure-wave-20261002`
 expires 2026-10-16 without the cron receipts above.
 

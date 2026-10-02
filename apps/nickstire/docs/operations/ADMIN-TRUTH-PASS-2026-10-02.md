@@ -99,9 +99,9 @@ Consequences:
 - `review_requests.invoiceId` is declared in `drizzle/schema.ts` (follow-up PR), pinned to
   0139 by `server/reviewRequestsInvoiceMigration.test.ts`.
 - 0136 is matched, so `heldout` exists in all three status enums: the precondition for the
-  `contact_holdout_*` flags is met. Those flags are `feature_flags` table rows (default OFF);
-  their live values were not read in this wave. Arming them is a separate operator decision
-  (it changes who gets texted).
+  `contact_holdout_*` flags is met. On operator instruction they were ARMED at 17:25:10Z
+  (master + retention, winback, weather, review_requests, campaigns; read back `true`).
+  `review_reminder_drafts` stays off. `sms_review_requests` read live: on.
 - The backup table `__drizzle_migrations_bak_20261002_record` can be dropped once the ledger
   has been trusted for a while; nothing reads it.
 
@@ -122,7 +122,7 @@ Consequences:
 
 | Item | Why gated | Exact next action |
 |---|---|---|
-| `convertedToLead=0` gate on missed-call recovery | Changing it widens an autonomous SMS lane | ~101 calls/week reached a tool without persisting anything and are excluded from both missed-call recovery texts and the opportunity queue. Operator decision. |
+| ~~`convertedToLead=0` gate on missed-call recovery~~ | **Decided 2026-10-02: widen (operator).** | Recovery texts now include a tool-reaching call when a successful read proves it saved nothing; a failed read skips it (follow-up PR, `missedCallRecovery.test.ts`). The opportunity-queue collector still uses `convertedToLead=0`; widening the CARD side is not done. |
 | `create_booking_request` for a walk-in shop | Product decision | A caller who asked to "bring it in" without reaching `bookSlot` can still get a booking draft that, approved, creates a `bookings` appointment. |
 | Receivables | Needs ShopDriver check | Verify the three balances above before any contact. |
 
