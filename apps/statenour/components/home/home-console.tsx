@@ -13,6 +13,9 @@
  *   4 · Needs judgment — the only queue: things only Nour can decide
  *   5 · Horizon — one pointer per time scope, never a task list
  *   6 · Since last visit — a semantic diff, not a timeline
+ *   7 · Waiting on others (rail, 2026-10-02) — who owes the operator what,
+ *       from the WaitingSummary read model; decisions stay in section 4 and
+ *       the shop's queues stay on nickstire.org/admin
  *
  * Structure never rearranges itself (adaptive-UI research: layout churn
  * destroys the user's mental model); sections render nothing — not empty
@@ -39,6 +42,7 @@ import { BriefLead } from "./brief-lead";
 import { NickCommandLine } from "./nick-command-line";
 import { JudgmentQueue } from "./judgment-queue";
 import { HorizonLine } from "./horizon-line";
+import { WaitingLine } from "./waiting-line";
 import { ChangeLine } from "./change-line";
 
 export function HomeConsole() {
@@ -106,6 +110,7 @@ export function HomeConsole() {
         className="mt-12 border-t border-edge pt-8 empty:border-t-0 xl:sticky xl:top-8 xl:mt-0 xl:border-l xl:border-t-0 xl:border-edge xl:pl-10 xl:pt-2 xl:empty:border-l-0"
       >
         <HorizonLine horizon={brief?.horizon ?? null} />
+        <WaitingLine />
         <ChangeLine />
       </aside>
     </div>

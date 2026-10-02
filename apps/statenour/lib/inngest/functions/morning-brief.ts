@@ -206,6 +206,7 @@ async function sendBriefPush(brief: ComposedBrief): Promise<{
   failed: number;
 }> {
   const { sendPush } = await import("@/lib/notifications/push");
+  const { ratingPushActions } = await import("@/lib/services/outcome-rating-affordance");
 
   // LEDGER FIRST, THEN SEND (2026-09-18). The button has to carry a ledger id,
   // so the row must exist before the notification does — the same order
@@ -249,15 +250,7 @@ async function sendBriefPush(brief: ComposedBrief): Promise<{
     // worker routes an `oc_*` action to POST /api/outcomes/rate and
     // deliberately does NOT navigate — opening the app on a 👍 would punish the
     // operator for answering.
-    ...(ledgerId
-      ? {
-          data: { ledgerId },
-          actions: [
-            { action: "oc_useful", title: "👍 Useful" },
-            { action: "oc_not_useful", title: "👎 Not useful" },
-          ],
-        }
-      : {}),
+    ...ratingPushActions(ledgerId),
     chatSeed: {
       prompt: `morning brief for ${brief.date} just landed · walk me through the highest-leverage item and what to do about it today`,
       suggKind: "morning-brief",

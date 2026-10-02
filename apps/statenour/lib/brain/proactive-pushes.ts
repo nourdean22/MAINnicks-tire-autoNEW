@@ -83,12 +83,9 @@ async function sendRatablePush(slot: string, text: string): Promise<boolean> {
 
   try {
     const { sendTelegramWithButtons } = await import("@/lib/services/telegram");
-    const res = await sendTelegramWithButtons(text, [
-      [
-        { text: "👍 Useful", callback_data: `oc:u:${ledgerId}` },
-        { text: "👎 Not useful", callback_data: `oc:n:${ledgerId}` },
-      ],
-    ]);
+    const { ratingTelegramButtons } = await import("@/lib/services/outcome-rating-affordance");
+    // ledgerId is non-null on this path (the plain-send fallback above handles null).
+    const res = await sendTelegramWithButtons(text, ratingTelegramButtons(ledgerId) ?? []);
     return res.ok;
   } catch (err) {
     logError("brain.proactive-pushes", err, { fn: `${slot}.sendWithButtons`, ledgerId });

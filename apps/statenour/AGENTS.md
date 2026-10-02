@@ -107,7 +107,7 @@ Open the row that matches your task. These are pointers, not context.
 | Data model, table by table | [`docs/DATA-MODEL.md`](docs/DATA-MODEL.md) |
 | Auth gates + security posture | [`docs/SECURITY.md`](docs/SECURITY.md) |
 | Cron manifest (single source) | [`config/crons.ts`](config/crons.ts) — gated by `pnpm check:crons` |
-| Live cron catalog + kill switches | `GET /api/settings/crons` (`PATCH` toggles, `POST /api/settings/crons/trigger` fires) · operator surface `/system/crons` |
+| Live cron catalog + kill switches | `/system/crons` (tRPC `systemAutomation.cronDeck` · `setCronEnabled` toggles · `runManifestCron` fires). The kill switch gates route crons in `cronHandler` AND Inngest-native crons in `CronLifecycleMiddleware.wrapFunctionHandler` (2026-10-02). |
 | Schema-drift expectations | [`lib/db/schema-sentinel.ts`](lib/db/schema-sentinel.ts) |
 | Tool catalog (count = `TOOL_CATALOG.length`, never prose) | [`lib/ai/tools/catalog.ts`](lib/ai/tools/catalog.ts) |
 | Reasoning whitelist (read-only, `NICK_DEEP_REASONING`) | [`lib/ai/reasoning/reasoning-tools.ts`](lib/ai/reasoning/reasoning-tools.ts) |

@@ -456,6 +456,54 @@ async function warn(stage: string, meta: Record<string, unknown>, e: unknown): P
 }
 
 /**
+ * ★ THE KILL SWITCH, FOR INNGEST-NATIVE CRONS (2026-10-02).
+ *
+ * `isCronEnabled` (lib/services/cron-control.ts) was consulted ONLY by
+ * `cronHandler` (lib/utils/http.ts), which wraps /api/cron/* routes. The 19
+ * active `inngest: true` crons in config/crons.ts never pass through it, so
+ * the kill switch on /system/crons (and the Settings panel before it) was
+ * WRITE-ONLY for them: the row flipped, the toggle said Off, the cron kept
+ * running (docs/design/settings-census-2026-10-02.md, finding 7). Same
+ * reasoning as the lifecycle rows above — one registration here covers every
+ * Inngest function, including ones that do not exist yet, where a per-handler
+ * check would need a ratchet to stay applied.
+ *
+ * `wrapFunctionHandler` is the one middleware hook that can decline to run the
+ * handler: it owns `next()`. (Throwing from an `on*` hook cannot stop a run —
+ * the SDK try/catches those; see the NEVER THROWS note.) A killed cron returns
+ * the fleet's own skip shape, `{ skipped: true, reason }`, so `onRunComplete`
+ * settles it as a terminal-ok row with `skipReason = "disabled via settings"`,
+ * exactly what `cronHandler` produces for a killed route cron.
+ *
+ * ⚠ The hook runs once per REQUEST, and a run with N steps is N+ requests, so
+ * the read is cached per process for KILL_SWITCH_TTL_MS: a kill takes effect
+ * at the next request after the cache expires, not mid-step. Fail OPEN: an
+ * unreadable switch never stops a cron (`cronHandler` makes the same call).
+ */
+export const KILL_SWITCH_SKIP_REASON = "disabled via settings";
+export const KILL_SWITCH_TTL_MS = 30_000;
+const killSwitchCache = new Map<string, { enabled: boolean; at: number }>();
+
+/** Tests only. */
+export function __resetKillSwitchCache(): void {
+  killSwitchCache.clear();
+}
+
+export async function isCronKilled(jobName: string, now: number = Date.now()): Promise<boolean> {
+  const hit = killSwitchCache.get(jobName);
+  if (hit && now - hit.at < KILL_SWITCH_TTL_MS) return !hit.enabled;
+  try {
+    const { isCronEnabled } = await import("@/lib/services/cron-control");
+    const enabled = await isCronEnabled(jobName);
+    killSwitchCache.set(jobName, { enabled, at: now });
+    return !enabled;
+  } catch (e) {
+    await warn("kill-switch", { jobName }, e);
+    return false;
+  }
+}
+
+/**
  * Registered once in `lib/inngest/client.ts`; covers every function the client
  * serves, including ones added later.
  *
@@ -469,6 +517,23 @@ export class CronLifecycleMiddleware extends Middleware.BaseMiddleware {
 
   override async onRunStart(arg: { ctx: unknown; fn: unknown }): Promise<void> {
     await beginCronRun(arg.fn, arg.ctx);
+  }
+
+  // The kill switch (see isCronKilled above). Only cron-triggered functions
+  // with a manifest name are gated; event-triggered functions and fan-out
+  // children run untouched. Any failure in the check itself runs the cron.
+  override async wrapFunctionHandler(args: {
+    ctx: unknown;
+    fn: unknown;
+    next: () => Promise<unknown>;
+  }): Promise<unknown> {
+    if (isCronTriggered(args.fn)) {
+      const jobName = jobNameOf(args.fn);
+      if (jobName && (await isCronKilled(jobName))) {
+        return { skipped: true, reason: KILL_SWITCH_SKIP_REASON, jobName };
+      }
+    }
+    return args.next();
   }
 
   // `output` is the function's return value (Middleware.OnRunCompleteArgs) -

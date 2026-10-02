@@ -11,13 +11,9 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { operatorProcedure } from "../../trpc";
-import { CRONS } from "@/config/crons";
 import {
-  triggerCronByName,
-  triggerCronByPath,
+  runManifestCron,
   setCronEnabled as setCronEnabledService,
-  listCronControls,
-  getCronStats,
 } from "@/lib/services/cron-control";
 import { ServiceError } from "@/lib/utils/service-error";
 import { buildCronTree } from "@/lib/services/cron-tree";
@@ -25,7 +21,6 @@ import {
   buildCronRunHistory,
   buildCronCommandDeck,
 } from "@/lib/services/system-pages";
-import { runManifestCron } from "@/lib/services/cron-control";
 
 export const cronProcedures = {
   /**
@@ -36,16 +31,19 @@ export const cronProcedures = {
    *
    * Pre-fix the page was sending `{jobName}` to a route that
    * expected `{path}` · button was silently broken since wave-181.4.
-   * New tRPC takes the operator-natural `{jobName}` and derives the
-   * path internally via `triggerCronByName` · drift-proof against
-   * the catalog logic.
+   * New tRPC takes the operator-natural `{jobName}`; since 2026-10-02 it
+   * resolves the path from the config/crons.ts manifest (`runManifestCron`).
    *
    * Caller invalidates `system.cronDiagnostics` after success to
    * refresh the per-job stats table.
    */
   runCron: operatorProcedure
     .input(z.object({ jobName: z.string().min(1).max(80) }))
-    .mutation(async ({ input }) => triggerCronByName(input.jobName)),
+    // 2026-10-02 · was `triggerCronByName`, which looked the job up in the
+    // vercel.json catalog (`listScheduledCrons`, a file deleted with the
+    // Vercel deploy) and so answered "unknown jobName" for every cron but a
+    // stale hardcoded mega-fanout list. The manifest is the catalog.
+    .mutation(async ({ input }) => runManifestCron(input.jobName)),
 
   /**
    * Phase NN · owner-only · toggle a cron's enabled flag (kill-switch
@@ -74,75 +72,9 @@ export const cronProcedures = {
 
   // ───────────────── Settings · cron control panel (UU.2) ─────────────────
 
-  /**
-   * Phase UU.2 · owner-only · the CronControlPanel catalog. Replaces
-   * GET /api/settings/crons · every actively-scheduled cron joined to
-   * its kill-switch control state + 14-day success/fail stats.
-   *
-   * Wave AD fix (2026-06-02): rows now come from the `config/crons.ts`
-   * manifest (the live source of truth that `cronDeck` / `/system/crons`
-   * use), NOT the deleted `vercel.json`. The prior path read
-   * `listScheduledCrons()` (which `fs.readFileSync`'d a non-existent
-   * vercel.json → `[]`) plus a stale hardcoded MEGA_FANOUT name list
-   * whose names didn't match the manifest → `getCronStats()` matched no
-   * rows → every cron showed "never". Joining on the manifest's real
-   * `name` restores accurate last-fired times. Returns the row array
-   * directly (the panel reads it unwrapped). Row shape is unchanged so
-   * CronControlPanel needs no edit.
-   */
-  cronCatalog: operatorProcedure.query(async () => {
-    const [controls, stats] = await Promise.all([
-      listCronControls(),
-      getCronStats(),
-    ]);
-    const controlsMap = new Map(controls.map((c) => [c.jobName, c]));
-    // Active crons only — folded/retired/dormant don't fire on their own
-    // schedule, so a kill-switch + manual-trigger panel shouldn't list
-    // them (mirrors the scheduled-only intent of the old catalog).
-    return CRONS.filter((c) => c.mode === "active").map((c) => {
-      const control = controlsMap.get(c.name);
-      const stat = stats[c.name] ?? {
-        lastSuccessAt: null,
-        lastFailAt: null,
-        success14d: 0,
-        partial14d: 0,
-        fail14d: 0,
-      };
-      return {
-        jobName: c.name,
-        path: c.path ?? `/api/cron/${c.name}`,
-        schedule: c.schedule ?? "(mega fanout)",
-        enabled: control?.enabled ?? true,
-        note: control?.note ?? null,
-        controlUpdatedAt: control?.updatedAt ?? null,
-        ...stat,
-      };
-    });
-  }),
-
-  /**
-   * Phase UU.2 · owner-only · manually fire a cron by its path (e.g.
-   * `/api/cron/drift-check` or `/api/cron/mega?slot=morning`). Replaces
-   * POST /api/settings/crons/trigger · delegates to the same
-   * `triggerCronByPath` the REST route calls · drift impossible.
-   *
-   * The CronControlPanel already knows each cron's path (from
-   * `cronCatalog`), so a path-keyed trigger maps the panel's existing
-   * `trigger(path, jobName)` signature 1:1 · this is deliberately
-   * distinct from the jobName-keyed `runCron` (NN) which the cron-
-   * diagnostics page uses. The path guard mirrors the REST route.
-   */
-  triggerCron: operatorProcedure
-    .input(z.object({ path: z.string().min(1).max(200) }))
-    .mutation(async ({ input }) => {
-      if (!input.path.startsWith("/api/cron/")) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Invalid cron path",
-        });
-      }
-      return triggerCronByPath(input.path);
-    }),
+  // 2026-10-02 · `cronCatalog` and the path-keyed `triggerCron` were deleted
+  // with their only consumer, the Settings CronControlPanel; /system/crons
+  // reads `cronDeck` and fires `runManifestCron` (docs/design/settings-census-2026-10-02.md).
 
   // ──────────────── Settings · auto-pilot flags (UU.2) ────────────────
 

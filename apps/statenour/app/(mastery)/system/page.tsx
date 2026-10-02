@@ -38,6 +38,9 @@ import { EvidenceGatePanel } from "@/components/system/evidence-gate-panel";
 import { ObservabilityStatusPanel } from "@/components/system/observability-status-panel";
 import { OwnerPanel } from "@/components/system/owner-panel";
 import { StaleDataPanel } from "@/components/system/stale-data-panel";
+// 2026-10-02 · full-circle wave 2 · which code is live, in the header of the
+// page that answers "is everything OK?" (moved from Settings > Diagnostics).
+import { DeployChip } from "@/components/ultron/deploy-chip";
 
 // Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the three
 // authedFetch reads (diagnostics + brain status + health) are now three
@@ -210,6 +213,7 @@ export default function SystemPage() {
       rootProps={{ onTouchStart, onTouchEnd }}
       actions={
         <div className="flex items-center gap-2">
+          <DeployChip />
           <FreshnessChip
             lastFetchedAt={lastFetchedAt}
             source="diagnostics + brain + health"

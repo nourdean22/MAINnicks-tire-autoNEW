@@ -59,6 +59,9 @@ export function getInngest(): Inngest {
     // makes `/api/cron/*` routes self-reporting, so without this every
     // Inngest-native cron is invisible to `cron_job_log`, `/system/crons` and
     // every audit built on them — measured 2026-09-17: 15 of 19 wrote nothing.
+    // Since 2026-10-02 the same middleware also enforces the /system/crons
+    // kill switch for these functions (wrapFunctionHandler), which cronHandler
+    // had enforced for route crons only.
     //
     // ⚠ This is deliberately NOT 17 hand-placed calls inside the handlers. That
     // was the previous design, and it needed a CI ratchet to stay applied —

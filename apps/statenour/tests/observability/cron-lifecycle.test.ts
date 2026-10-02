@@ -358,6 +358,100 @@ describe("cron lifecycle · never throws", () => {
   });
 });
 
+describe("cron lifecycle · the kill switch gates Inngest-native crons (2026-10-02)", () => {
+  /**
+   * Before this, `isCronEnabled` was consulted only by `cronHandler`, so the
+   * /system/crons toggle was write-only for the 19 Inngest-native crons: the
+   * row flipped, the toggle said Off, the cron ran anyway (settings census
+   * 2026-10-02, finding 7). `wrapFunctionHandler` owns `next()`, so it is the
+   * one hook that can decline to run the handler.
+   */
+  async function loadWithSwitch(enabledByJob: Record<string, boolean | Error>) {
+    const { prisma, rows } = makeStore();
+    const isCronEnabled = vi.fn(async (jobName: string) => {
+      const v = enabledByJob[jobName];
+      if (v instanceof Error) throw v;
+      return v ?? true;
+    });
+    vi.resetModules();
+    vi.doMock("@/lib/prisma", () => ({ prisma }));
+    vi.doMock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
+    vi.doMock("@/lib/services/cron-control", () => ({ isCronEnabled }));
+    const mod = await import("../../lib/inngest/cron-lifecycle");
+    mod.__resetKillSwitchCache();
+    return { ...mod, prisma, rows, isCronEnabled };
+  }
+
+  afterEach(() => {
+    vi.doUnmock("@/lib/services/cron-control");
+  });
+
+  it("a killed cron never reaches its handler and returns the fleet's skip shape", async () => {
+    const { CronLifecycleMiddleware, KILL_SWITCH_SKIP_REASON } = await loadWithSwitch({ "goal-pruner": false });
+    const mw = new CronLifecycleMiddleware({ client: {} as never });
+    const next = vi.fn(async () => ({ pruned: 3 }));
+    const out = await mw.wrapFunctionHandler({ ctx: { runId: "r1" }, fn: cronFn("goal-pruner"), next });
+    expect(next).not.toHaveBeenCalled();
+    expect(out).toEqual({ skipped: true, reason: KILL_SWITCH_SKIP_REASON, jobName: "goal-pruner" });
+  });
+
+  it("…and the lifecycle settles that output as a terminal-ok row with skipReason, not a failure", async () => {
+    const { CronLifecycleMiddleware, deriveResultCount, rows } = await loadWithSwitch({ "goal-pruner": false });
+    const { deriveSkipReason } = await import("../../lib/services/cron-skip-reason");
+    const mw = new CronLifecycleMiddleware({ client: {} as never });
+    const fn = cronFn("goal-pruner");
+    const ctx = { runId: "r1" };
+    await mw.onRunStart({ ctx, fn });
+    const out = await mw.wrapFunctionHandler({ ctx, fn, next: vi.fn(async () => "never") });
+    await mw.onRunComplete({ ctx, fn, output: out });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("success");
+    expect(rows[0].skipReason).toBe("disabled via settings");
+    expect(deriveSkipReason(out)).toBe("disabled via settings");
+    expect(deriveResultCount(out)).toBeNull();
+  });
+
+  it("an enabled cron runs; an event-triggered function is never consulted", async () => {
+    const { CronLifecycleMiddleware, isCronEnabled } = await loadWithSwitch({ "goal-pruner": true });
+    const mw = new CronLifecycleMiddleware({ client: {} as never });
+    const next = vi.fn(async () => ({ ok: true }));
+    expect(await mw.wrapFunctionHandler({ ctx: {}, fn: cronFn("goal-pruner"), next })).toEqual({ ok: true });
+    expect(isCronEnabled).toHaveBeenCalledWith("goal-pruner");
+    isCronEnabled.mockClear();
+    expect(await mw.wrapFunctionHandler({ ctx: {}, fn: eventFn("fanout-child"), next })).toEqual({ ok: true });
+    expect(isCronEnabled).not.toHaveBeenCalled();
+  });
+
+  it("FAIL OPEN — an unreadable switch runs the cron (the same call cronHandler makes)", async () => {
+    const { CronLifecycleMiddleware } = await loadWithSwitch({ "goal-pruner": new Error("db down") });
+    const mw = new CronLifecycleMiddleware({ client: {} as never });
+    const next = vi.fn(async () => "ran");
+    expect(await mw.wrapFunctionHandler({ ctx: {}, fn: cronFn("goal-pruner"), next })).toBe("ran");
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it("one read per job per window — a run of many requests does not become a hot loop against the switch", async () => {
+    const { isCronKilled, isCronEnabled, KILL_SWITCH_TTL_MS } = await loadWithSwitch({ "mega-fanout": true });
+    const t0 = 1_000_000;
+    expect(await isCronKilled("mega-fanout", t0)).toBe(false);
+    expect(await isCronKilled("mega-fanout", t0 + 1_000)).toBe(false);
+    expect(await isCronKilled("mega-fanout", t0 + KILL_SWITCH_TTL_MS - 1)).toBe(false);
+    expect(isCronEnabled).toHaveBeenCalledTimes(1);
+    await isCronKilled("mega-fanout", t0 + KILL_SWITCH_TTL_MS);
+    expect(isCronEnabled).toHaveBeenCalledTimes(2);
+  });
+
+  it("MUTATION — a switch that goes Off is honoured once the window passes", async () => {
+    const state = { "goal-pruner": true as boolean | Error };
+    const { isCronKilled } = await loadWithSwitch(state);
+    const t0 = 5_000_000;
+    expect(await isCronKilled("goal-pruner", t0)).toBe(false);
+    state["goal-pruner"] = false;
+    expect(await isCronKilled("goal-pruner", t0 + 1)).toBe(false); // cached: not yet
+    expect(await isCronKilled("goal-pruner", t0 + 30_001)).toBe(true);
+  });
+});
+
 describe("TERMINAL_OK_STATUSES · the false-green regression guard", () => {
   it("EXCLUDES started — this is the whole defect", async () => {
     const { TERMINAL_OK_STATUSES } = await import("../../lib/inngest/cron-lifecycle");

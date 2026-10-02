@@ -63,7 +63,6 @@ interface AiConfig {
   webScraping?: boolean;
   disabledTools?: string[];
   alwaysOnTools?: string[];
-  showSpeedRibbon?: boolean;
   hapticFeedback?: boolean;
   promptCacheTtlMs?: number;
   toolEmbeddingsEnabled?: boolean;
@@ -96,14 +95,6 @@ export function AiSettingsPanel() {
       return localStorage.getItem("nour:haptic-enabled") !== "0";
     } catch {
       return true;
-    }
-  });
-  const [speedRibbonOn, setSpeedRibbonOn] = useState(() => {
-    try {
-      if (typeof window === "undefined") return false;
-      return localStorage.getItem("nour:chat:speed-ribbon") === "1";
-    } catch {
-      return false;
     }
   });
 
@@ -340,8 +331,11 @@ export function AiSettingsPanel() {
           />
         </Row>
 
-        {/* Device toggles — localStorage is the ONLY store (the old dual
-            DB write had no reader and made a second device's switch lie). */}
+        {/* Device toggle — localStorage is the ONLY store (the old dual
+            DB write had no reader and made a second device's switch lie).
+            The Speed Ribbon toggle that sat beside it was write-only: its
+            only reader hook was mounted nowhere (settings census 2026-10-02),
+            so the toggle, the hook and its test are gone. */}
         <Row label="Haptic Feedback">
           <Toggle
             value={hapticOn}
@@ -351,19 +345,8 @@ export function AiSettingsPanel() {
             }}
           />
         </Row>
-        <Row label="Speed Ribbon (per-message timing)">
-          <Toggle
-            value={speedRibbonOn}
-            onChange={(v) => {
-              try {
-                localStorage.setItem("nour:chat:speed-ribbon", v ? "1" : "0");
-              } catch {}
-              setSpeedRibbonOn(v);
-            }}
-          />
-        </Row>
         <p className="mt-1 text-[12px] text-fg-tertiary">
-          These two are per-device (stored in this browser).
+          Per-device (stored in this browser).
         </p>
       </GlassCard>
 

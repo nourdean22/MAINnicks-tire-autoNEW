@@ -18,9 +18,10 @@
  *     If the preference was hydrated from storage (no tap this
  *     session), a one-time window pointerdown primes instead.
  *
- * Preference persists at nour:chat:tts using the same hydration-safe
- * deferred read as use-chat-speed-ribbon (React 19 + Next 16 flag
- * init-from-localStorage in useState as a hydration mismatch).
+ * Preference persists at nour:chat:tts using a hydration-safe deferred
+ * read (React 19 + Next 16 flag init-from-localStorage in useState as a
+ * hydration mismatch). The speed-ribbon hook that shared this pattern was
+ * deleted 2026-10-02 as an unmounted orphan.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
