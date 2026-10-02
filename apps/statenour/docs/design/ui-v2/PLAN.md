@@ -1,7 +1,8 @@
 # UI v2 · PLAN — what shipped, how it is proven, what is left
 
-**Status (2026-10-01):** PR 1 of the cockpit wave is BUILT + TESTED on `statenour/ui-v2-cockpit`.
-Not merged, not deployed. The operator merges on an explicit go-ahead.
+**Status (2026-10-01 23:45Z):** PR 1 of the cockpit wave is LIVE + PROVEN. #2871 squash-merged as `18bf9ebc`,
+Railway statenour-web `754fae93` SUCCESS, the served stylesheet carries the v2 tokens and none of the removed
+rules, and `?ui=v1` stamps `data-ui="v1"` on production (verified with curl).
 Companions: [`README.md`](README.md) (audit · research · three directions · rubric),
 [`SYSTEM.md`](SYSTEM.md) (the visual system), [`SURFACES.md`](SURFACES.md) (per-surface specs).
 
