@@ -10,6 +10,12 @@ import { declineProvenance, countDeclineProvenance } from "../../../shared/decli
 import { captureDeclineAtCounter, readDeclineCaptures } from "../../services/declineCaptures";
 
 const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
+/**
+ * "High-value" lifetime spend, in CENTS like customers.totalSpent ($2,000 — the win-back
+ * router's cut). The dormant-customer query used to compare totalSpent (cents) to
+ * MONTHLY_TARGET (dollars), which made the real cutoff $1,000 (2026-10-02 currency audit).
+ */
+const HIGH_VALUE_CUSTOMER_CENTS = 200_000;
 import { eq, desc, gte, lte, and, sql, asc, inArray } from "drizzle-orm";
 import {
   jobAssignments, invoices, customerMetrics, kpiSnapshots, portalSessions,
@@ -752,7 +758,7 @@ export const invoicesRouter = router({
             // Check dormant high-value customers
             const [dormant] = await d.execute(rawSql`
               SELECT COUNT(*) as cnt FROM customers
-              WHERE lastVisitDate < DATE_SUB(NOW(), INTERVAL 90 DAY) AND totalSpent > ${MONTHLY_TARGET}
+              WHERE lastVisitDate < DATE_SUB(NOW(), INTERVAL 90 DAY) AND totalSpent > ${HIGH_VALUE_CUSTOMER_CENTS}
             `);
             const dormantRow = (dormant as RawRow[])?.[0];
             if (Number(dormantRow?.cnt) > 5) {

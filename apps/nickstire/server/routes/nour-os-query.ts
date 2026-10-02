@@ -410,12 +410,14 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
     if (!term) return { error: "Search term required" };
     const [rows] = await d.execute(sql`
       SELECT id, firstName, lastName, phone, vehicleYear, vehicleMake, vehicleModel,
-             segment, totalVisits, totalSpent, lastVisitDate
+             segment, totalVisits, totalSpent, ROUND(totalSpent / 100, 2) AS totalSpentDollars, lastVisitDate
       FROM customers
       WHERE firstName LIKE ${`%${term}%`} OR lastName LIKE ${`%${term}%`} OR phone LIKE ${`%${term}%`}
       ORDER BY totalSpent DESC LIMIT 20
     `);
-    return { customers: rows, count: (rows as unknown[]).length };
+    // totalSpent is integer CENTS (customers.totalSpent); totalSpentDollars is the value a
+    // model should quote. Both are sent so the existing cents reader keeps working (2026-10-02).
+    return { customers: rows, count: (rows as unknown[]).length, moneyUnits: { totalSpent: "cents", totalSpentDollars: "USD" } };
   },
 
   // ─── Vehicle lookup by plate (added 2026-09-08 · ADR-0017 camera vision) ──
