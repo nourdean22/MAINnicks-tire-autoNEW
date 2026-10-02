@@ -13,6 +13,7 @@
 import { sql } from "drizzle-orm";
 import { BUSINESS } from "@shared/business";
 import { deriveShopState, type ShopState, type ShopStateInputs } from "@shared/shopState";
+import { EXPECTED_CAMERAS } from "@shared/cameras";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("shop-state");
@@ -39,7 +40,19 @@ async function lotInput(): Promise<ShopStateInputs["lot"]> {
     // healthy feed with no transitions; a camera that died mid-visit is a dead
     // feed with a recent transition. camera_runtime.receivedAt is the producer
     // heartbeat (migration 0120) — the only thing that says "the sensor is alive".
-    const [feedRow] = await exec(sql`SELECT MAX(receivedAt) AS lastHeartbeatAt FROM camera_runtime`);
+    //
+    // 2026-10-02: ONLY the camera(s) that author vehicle truth, and only as fresh as
+    // their last HEALTHY FRAME. It was MAX(receivedAt) over every camera, so the office
+    // PTZ heartbeat kept the lot "fresh" while the sign camera was CAMERA_OFFLINE (last
+    // healthy frame ~6h old) — and a producer heartbeating over a dead camera looked
+    // alive too. MIN across vehicle-truth cameras: every one must be fresh. A producer
+    // that does not report lastHealthyFrameAt falls back to its heartbeat (prior behaviour).
+    const vehicleTruth = EXPECTED_CAMERAS.filter((c) => c.role === "vehicle_truth").map((c) => c.camera);
+    const [feedRow] = await exec(sql`
+      SELECT MIN(LEAST(receivedAt, COALESCE(lastHealthyFrameAt, receivedAt))) AS lastHeartbeatAt
+      FROM camera_runtime
+      WHERE camera IN (${sql.join(vehicleTruth.map((c) => sql`${c}`), sql`, `)})
+    `);
     const last = feedRow?.lastHeartbeatAt ? new Date(feedRow.lastHeartbeatAt as string | Date) : null;
     return { activeVisits: Number(visitRow?.activeVisits ?? 0), lastObservationAt: last && Number.isFinite(last.getTime()) ? last : null };
   } catch (err) {

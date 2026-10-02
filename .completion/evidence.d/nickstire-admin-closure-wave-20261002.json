@@ -1,0 +1,16 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "The only cron change adds reconcileStaleHumanReviewDrafts to the existing orchestration-status-reconcile handler (scheduler.ts). It THROWS on a failed query (cron-rethrow contract), returns 0 with a reason when there is no DB, and never sends. Proof: server/__tests__/smsDraftClosure.test.ts ('throw on failure', 'no DB', scheduler wiring pin) and lint:cron-wiring 0 faults. opportunityQueue reconcile step 3a logs and skips a failed evidence read (fewer closures, never a false one) — pinned in server/opportunityMissedCallClosure.test.ts. The review-requests cron now creates invoice-sourced rows before sending: a failed create THROWS (run recorded failed) and a pre-0139 database returns a stated reason, never a silent zero — ros083ReviewQueue.test.ts arms 'a failed invoice-lane read fails the run' and the details-contains-reason check."
+    },
+    "operator-walkthrough": {
+      "ref": "WHAT THE OPERATOR SEES after this diff: (1) Outreach -> SMS Orchestrator review queue shrinks to drafts under 7 days; acting on a closed draft says 'already closed (<status>: <reason>) — refresh'; a >7-day draft must be edited before sending. (2) Opportunities: one missed-call card per phone; served ones close with a receipt naming the invoice/callback/lead/booking. (3) Approvals: fewer Nick drafts (none for calls a tool already captured); subtitle scoped to this queue. (4) Today: an open callback card appends 'Invoiced <date> … likely served, close if handled'. (5) Settings -> Status cannot say 'All clear' with a commissioned camera offline/calibration-invalid/worker stale; Lot header reads 'Live · N camera issues'. (6) Market card names its GSC source. Proof: the client tests named in the capability-ledger entry admin-closure-wave-20261002. Live walkthrough DEFERRED until deploy: no production admin session exists in this cloud container."
+    },
+    "capability-ledger-updated": {
+      "ref": "UPDATED: docs/operations/capability-ledger.json adds 'admin-closure-wave-20261002' (codeState merged (lands with this merge, per the instagram-capi-growth-wave precedent), operationalState unit_verified, exposure internal, blockers name the first post-deploy cron_log receipts) and REALITY-LEDGER.md is regenerated."
+    },
+    "migration-evidence": {
+      "deferred": "drizzle/0139_review_requests_invoice_source.sql is NOT applied yet: production DDL is operator-applied and this cloud container has no database route (HTTPS-only egress). The DDL ships inside handleRunMigrations (with 0130/0132/0133/0136/0137/0138, generated from the .sql files); the code that depends on 0139 (services/invoiceReviewRequests.ts) checks information_schema and stays inert with a stated reason until it exists — pinned by invoiceReviewRequests.test.ts (inert pre-0139 incl. half-applied). Apply: Admin -> Run migrations after deploy; record: railway run --service MAINnicks-tire-auto -- node scripts/record-migrations.mjs --only 0127,...,0139 [--execute]; receipt: reconcile-migrations --strict exit 0. Procedure in apps/nickstire/docs/operations/ADMIN-TRUTH-PASS-2026-10-02.md."
+    }
+  }
+}

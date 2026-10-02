@@ -200,13 +200,18 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
         // Bridge JSON can deliver totalSpent as a string (TiDB DECIMAL
         // serializes to a string in some driver configs); Number() keeps
         // the tier thresholds robust to either number-or-string shape.
-        const spent = Number(existingCustomer.totalSpent);
+        // totalSpent from nickstire customer_search is integer CENTS (customers.totalSpent).
+        // The tiers used to compare it to DOLLAR literals (5000 / 1000), so $50 lifetime spend
+        // read as "high" and nearly every repeat customer was stored as "High-value —
+        // prioritize" (2026-10-02 currency audit). Same cents cut-offs as
+        // customer-preferences.ts tierFromLtv: $2,000 high, $500 mid.
+        const spentCents = Number(existingCustomer.totalSpent);
         const spendTier =
-          spent >= 5000 ? "high" : spent >= 1000 ? "mid" : "starter";
+          spentCents >= 200_000 ? "high" : spentCents >= 50_000 ? "mid" : "starter";
         await brainMemory.remember(
           "insight",
           `repeat_customer_${nameHash}_${today()}`,
-          `REPEAT CUSTOMER (${existingCustomer.totalVisits} visits, ${spendTier}-spend, segment: ${existingCustomer.segment}). High-value — prioritize.`,
+          `REPEAT CUSTOMER (${existingCustomer.totalVisits} visits, ${spendTier}-spend, segment: ${existingCustomer.segment}).${spendTier === "high" ? " High-value — prioritize." : ""}`,
           "pipeline_analysis"
         );
         actions.push("insight.repeat_customer");

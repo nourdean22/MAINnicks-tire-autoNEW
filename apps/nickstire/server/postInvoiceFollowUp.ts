@@ -85,6 +85,10 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
       log.error("[PostInvoiceFollowUp] Database not available");
       return result;
     }
+    // One review ask per cooldown across BOTH review lanes (2026-10-02). Read ONCE: the SQL
+    // exclusion and the per-customer check below must use the same configured window.
+    const { getReviewSettings, isPhoneOnReviewCooldown } = await import("./db");
+    const { cooldownDays } = await getReviewSettings();
     const eligibleCustomers = await db
       .select()
       .from(customers)
@@ -102,7 +106,12 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
           // the second bug that guaranteed 0 matches every run.
           gte(customers.lastVisitDate, eightDaysAgo),
           lte(customers.lastVisitDate, sixDaysAgo),
-          sql`${customers.phone} IS NOT NULL AND ${customers.phone} != '' AND ${customers.phone} REGEXP '^[0-9]{10}$'`
+          sql`${customers.phone} IS NOT NULL AND ${customers.phone} != '' AND ${customers.phone} REGEXP '^[0-9]{10}$'`,
+          // 2026-10-02 · phones the review_requests lane already asked inside its
+          // configured cooldown are excluded HERE. The per-customer cooldown check below never marks a
+          // skipped customer, so without this they would refill this .limit(20) every run and
+          // crowd out the customers this lane is still the only ask for.
+          sql`NOT EXISTS (SELECT 1 FROM review_requests rr WHERE rr.phone = ${customers.phone} AND rr.status <> 'failed' AND (rr.createdAt >= NOW() - INTERVAL ${cooldownDays} DAY OR rr.sentAt >= NOW() - INTERVAL ${cooldownDays} DAY))`
         )
       )
       .limit(20); // Max 20 per run to stay within rate limits
@@ -126,6 +135,12 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
         // Gate SMS behind feature flag
         const { isEnabled } = await import("./services/featureFlags");
         if (!(await isEnabled("sms_review_requests"))) {
+          result.skipped++;
+          continue;
+        }
+
+        // Belt-and-braces for a row scheduled between the query above and this send.
+        if (await isPhoneOnReviewCooldown(customer.phone, cooldownDays)) {
           result.skipped++;
           continue;
         }

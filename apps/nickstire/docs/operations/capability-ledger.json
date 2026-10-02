@@ -3341,6 +3341,38 @@
         "Post-merge SMS sample review and outcome measurement; the committed audit contains aggregates only, not raw customer PII or full transcripts."
       ],
       "lastVerifiedAt": "2026-10-01"
+    },
+    {
+      "capabilityId": "admin-closure-wave-20261002",
+      "name": "Admin queues close their loops: stale SMS review drafts expire/supersede, missed calls close on service and collapse per phone, Nick's draft proposals are capture-aware, open callbacks show served evidence, parents cannot be green over broken cameras",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "PR #2885 branch claude/happy-maxwell-cp2gox: orchestrationStatusReconcile.reconcileStaleHumanReviewDrafts (+ CAS-guarded actionHumanReview, obligation linkage in resolveHumanPendingForConversation); opportunityQueue reconcile step 3a + collectMissedCalls collapse; vapiActionExtraction capture-aware gate + scheduleCallback trail link; callbackServedEvidence bundle slice; shared/cameraFleetHealth in Settings Status + Lot header; Market GSC source label; Traffic Funnel web-only weighted position. Truth-pass corrections: docs/operations/ADMIN-TRUTH-PASS-2026-10-02.md.",
+        "tests": [
+          "server/__tests__/smsDraftClosure.test.ts (16): every reconciler rule + precedence + CAS SQL, lost race, stale-send refusal, claim-before-send, obligation closure; mutation-proven (4 plants)",
+          "server/opportunityMissedCallClosure.test.ts (13): served by callback/invoice->won, keep-newest collapse, evidence before the call never closes, worked rows never collapse; mutation-proven (4 plants)",
+          "server/services/vapiActionExtraction.test.ts + server/voiceLeadLinkage.test.ts (49): already-captured call -> no extraction, owned kinds dropped, prompt states today, past dates dropped, scheduleCallback records callbackId",
+          "server/services/callbackServedEvidence.test.ts (5): invoice beats booking, read-only, cached, failed read throws (never an empty 'nobody served' map)",
+          "shared/cameraFleetHealth.test.ts (6) + client/src/__tests__/gateway-unknown-readers-q23.test.tsx (camera arms): the 2026-10-02 production shape is DEGRADED; unreadable is UNKNOWN; offline camera blocks 'All clear'",
+          "server/gscAggregationSemantics.test.ts F5: funnel web-only and impression-weighted",
+          "server/services/invoiceReviewRequests.test.ts (8) + ros083ReviewQueue cron arms + postInvoiceFollowUp cross-lane dedupe (mutation-proven); server/migrationListGuards.test.ts re-asserted ENUMs == schema.ts (mutation-proven)"
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not merged or deployed. First post-deploy receipt to observe: cron_log orchestration-status-reconcile details 'drafts closed N' (expected: the ~366 drafted backlog falls to ~7 days) and opportunity-queue-refresh details 'collapsed'."
+        }
+      ],
+      "deferredScope": [
+        "Applying the DDL: 0130/0132/0133/0136/0137/0138/0139 are in handleRunMigrations; one operator tap (Admin -> Run migrations) after deploy, then scripts/record-migrations.mjs via railway run for the ledger (0127-0139). Contact-holdout flags stay OFF until 'heldout' reads back in all three enums.",
+        "convertedToLead=0 gate on missed-call recovery texts excludes ~101 calls/week that persisted nothing: widening it is a customer-contact decision (operator: on hold)."
+      ],
+      "lastVerifiedAt": "2026-10-02"
     }
   ],
   "axes": {

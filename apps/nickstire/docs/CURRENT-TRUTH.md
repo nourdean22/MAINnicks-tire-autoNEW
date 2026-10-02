@@ -7,6 +7,21 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Admin closure wave (2026-10-02) — BUILT + TESTED; not yet deployed
+
+Full corrections ledger and gated items: [`operations/ADMIN-TRUTH-PASS-2026-10-02.md`](operations/ADMIN-TRUTH-PASS-2026-10-02.md).
+Changed contracts:
+
+- **Human-review SMS drafts have a lifecycle.** `drafted` + `requires_human_approval` rows close as `cancelled·obligation_closed` (their `sms_response_jobs` obligation ended, or a thread reply / "No reply needed" closed it), `cancelled·superseded_by_newer_activity` (the customer texted again; outbound never counts) or `expired·stale_draft_expired` (>7 days), by the existing `orchestration-status-reconcile` pulse job. Never sends. A >7-day draft cannot be sent verbatim; the send is CAS-claimed before `sendSms`.
+- **A missed call is one opportunity per phone**, closed by the customer being served: invoice on/after the call -> `won` (`recordOutcome`); later callback / lead / booking / captured call -> `duplicate` with a receipt. `lost` from a missed call now means aged out or a worked row, read the receipt.
+- **Nick's draft proposals are capture-aware**: no draft for a call that persisted a lead/callback/booking; no callback draft when a callback row names the call; no booking draft when `bookSlot` recorded a walk-in. `scheduleCallback` now writes `vapi_call_logs.callbackId` via the trail.
+- **`convertedToLead` = "reached a tool"** (unchanged behaviour, comment corrected). It is never a lead conversion.
+- **Parents cannot be green over broken cameras**: Settings -> Status has 9 checks (camera health added); the Lot header reads the fleet verdict (`shared/cameraFleetHealth.ts`).
+- **GSC**: the Market card names its source (official property total vs partial stored rows); the Traffic Funnel reads web rows only, impression-weighted.
+- **Open callbacks show served evidence on Today**: an invoice dated the same day or later, or a later booking, for the same phone appends "likely served, close if handled" to the card (`callbackServed` bundle slice, cached 5 min). Nothing is auto-closed: the callback enum has no honest "served elsewhere".
+- **Review requests**: after migration 0139, paid ALG invoices create one `review_requests` row each (cron `review-requests`, inert with a stated reason until 0139 is applied); `post-invoice-followup` skips phones already on review cooldown. The work-order path (which never succeeded) is removed.
+- **Migrations 0130, 0132, 0133, 0136, 0137, 0138, 0139 are in `handleRunMigrations`** (generated from the .sql files); 0127-0129 were already applied and need only ledger records. Apply + record procedure: `operations/ADMIN-TRUTH-PASS-2026-10-02.md`.
+
 ## Creative Intelligence OS (2026-10-01, PR #2865 → `54a36662`) — merged; runtime receipt below
 
 Railway deployment `015c1e73-b1f7-486d-b887-d6c876b9f41f` for `54a366629ba89867dcd5dbc916e37bee88f8e645` — status at the time this file was written: ****SUCCESS** at 17:48:57Z — container logged `[server:ready]` 17:48:52Z, `Schema guard: all critical tables present` (6 checked), `Tiered scheduler started: 5 tiers, 126 jobs`; `/api/health` at 17:50:31Z reported `status: healthy`, `deploy.commit 54a366629ba89867dcd5dbc916e37bee88f8e645`, `deploymentId 015c1e73…`, database up (6 ms), AI gateway up, self-healing score 100**. The narrative, the four live defects and the evidence are in `truth_os.md` §2026-10-01 and `docs/creative-intelligence-os/README.md` (§A2 per-slice states, §V post-deploy receipts). Contracts that changed:

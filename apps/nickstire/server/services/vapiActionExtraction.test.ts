@@ -9,13 +9,20 @@
  *   3. proposal mapping — the VERIFIED telephony number is the only phone a
  *      draft can carry, and the idempotency key is per (call, kind).
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+const execute = vi.fn();
+vi.mock("../db", () => ({ getDb: async () => ({ execute }) }));
+
 import {
   ACTIONABLE_OUTCOMES,
   buildExtractionPrompt,
   buildProposalInputs,
+  dropAlreadyOwned,
   isOutboundCall,
+  loadCallCaptureEvidence,
   parseExtraction,
+  shopToday,
   shouldExtract,
   type CallMeta,
 } from "./vapiActionExtraction";
@@ -204,10 +211,112 @@ describe("isOutboundCall", () => {
 
 describe("prompt contract", () => {
   it("forbids invented contact info and demands the empty-array escape", () => {
-    const prompt = buildExtractionPrompt();
+    const prompt = buildExtractionPrompt("2026-10-02");
     expect(prompt).toContain("NEVER invent contact information");
     expect(prompt).toContain("empty actions array");
     expect(prompt).toContain("create_callback");
     expect(prompt).toContain("create_booking_request");
+  });
+});
+
+/**
+ * CAPTURE-AWARE GATE (2026-10-02). Production: 44 drafts, 38 rejected by a
+ * human. Two duplicate shapes drove it — a callback draft for a call whose
+ * scheduleCallback/escalate ALREADY wrote callback_requests, and a booking
+ * draft for a walk-in caller bookSlot already recorded as an expected arrival
+ * (and told "no appointment was booked").
+ */
+describe("capture-aware gate — no draft for a kind a tool already captured", () => {
+  it("a linked callback does NOT suppress the whole call — a separate booking ask still extracts", () => {
+    expect(shouldExtract(meta())).toBe("callback_needed");
+    // Ownership is per draft kind: the callback draft is dropped later (dropAlreadyOwned),
+    // the booking ask in the same call must still reach the extractor.
+    expect(shouldExtract(meta({ callbackId: 41 }))).toBe("callback_needed");
+    expect(shouldExtract(meta({ leadId: 9 }))).toBe("callback_needed");
+    // Both kinds owned (linked callback + linked booking) -> no LLM pass.
+    expect(shouldExtract(meta({ callbackId: 41, bookingId: 3 }))).toBeNull();
+  });
+
+  it("a linked callbackId owns the callback kind exactly like a callback row naming the call", () => {
+    const { kept, dropped } = dropAlreadyOwned(
+      parseExtraction('{"actions":[{"kind":"create_callback","reason":"call me","confidence":90},{"kind":"create_booking_request","reason":"Friday","confidence":80}]}'),
+      meta({ callbackId: 41 }),
+    );
+    expect(kept.map((a) => a.kind)).toEqual(["create_booking_request"]);
+    expect(dropped.map((d) => d.kind)).toEqual(["create_callback"]);
+    // A rack-check lead also owes the caller a contact.
+    expect(dropAlreadyOwned(parseExtraction('{"actions":[{"kind":"create_callback","reason":"call me","confidence":90}]}'), meta({ leadId: 9 })).kept).toEqual([]);
+  });
+
+  it("skips the LLM entirely when BOTH kinds are already owned", () => {
+    expect(shouldExtract(meta({ existingCallbackForCall: true }))).toBe("callback_needed");
+    expect(shouldExtract(meta({ existingCallbackForCall: true, hasExpectedArrival: true }))).toBeNull();
+  });
+
+  const both = parseExtraction(
+    '{"actions":[{"kind":"create_callback","reason":"call me back","confidence":90},{"kind":"create_booking_request","reason":"bring it in Friday","service":"brakes","confidence":80}]}',
+  );
+
+  it("drops the callback draft when a callback row already names this call", () => {
+    const { kept, dropped } = dropAlreadyOwned(both, meta({ existingCallbackForCall: true }));
+    expect(kept.map((a) => a.kind)).toEqual(["create_booking_request"]);
+    expect(dropped).toEqual([{ kind: "create_callback", reason: "callback_request_exists_for_call" }]);
+  });
+
+  it("drops the booking draft when bookSlot already recorded an expected arrival", () => {
+    const { kept, dropped } = dropAlreadyOwned(both, meta({ hasExpectedArrival: true }));
+    expect(kept.map((a) => a.kind)).toEqual(["create_callback"]);
+    expect(dropped).toEqual([{ kind: "create_booking_request", reason: "booking_or_expected_arrival_exists_for_call" }]);
+  });
+
+  it("keeps everything when nothing was captured", () => {
+    expect(dropAlreadyOwned(both, meta()).kept).toHaveLength(2);
+  });
+});
+
+describe("dates resolve against TODAY in shop time", () => {
+  it("shopToday reports the America/New_York calendar day, not UTC", () => {
+    // 2026-10-03 02:30 UTC is still Oct 2 (22:30 EDT) in Cleveland.
+    expect(shopToday(new Date("2026-10-03T02:30:00Z"))).toBe("2026-10-02");
+  });
+
+  it("the prompt states today's date and weekday and forbids past dates", () => {
+    const prompt = buildExtractionPrompt("2026-10-02");
+    expect(prompt).toContain("Today is Friday, 2026-10-02");
+    expect(prompt).toMatch(/never a past date/i);
+  });
+
+  it("parseExtraction drops a preferredDate before today, keeps today and later", () => {
+    const raw = (d: string) =>
+      `{"actions":[{"kind":"create_booking_request","reason":"bring it in","preferredDate":"${d}","confidence":70}]}`;
+    expect(parseExtraction(raw("2026-10-01"), "2026-10-02")[0].preferredDate).toBeNull();
+    expect(parseExtraction(raw("2026-10-02"), "2026-10-02")[0].preferredDate).toBe("2026-10-02");
+    expect(parseExtraction(raw("2026-10-09"), "2026-10-02")[0].preferredDate).toBe("2026-10-09");
+  });
+});
+
+describe("loadCallCaptureEvidence — one bounded read, fails open", () => {
+  it("maps the row: positive ids, tool engagement, and both existence flags", async () => {
+    execute.mockResolvedValueOnce([[{ leadId: null, callbackId: 41, convertedToLead: 1, hasCallback: 1, hasArrival: 0 }], []]);
+    await expect(loadCallCaptureEvidence("call-abc-123")).resolves.toEqual({
+      leadId: null,
+      callbackId: 41,
+      reachedTool: true,
+      existingCallbackForCall: true,
+      hasExpectedArrival: false,
+    });
+  });
+
+  it("a missing log row reads as 'nothing captured', not as record #0", async () => {
+    execute.mockResolvedValueOnce([[{ leadId: null, callbackId: 0, convertedToLead: null, hasCallback: 0, hasArrival: "1" }], []]);
+    const ev = await loadCallCaptureEvidence("call-abc-123");
+    expect(ev.callbackId).toBeNull();
+    expect(ev.reachedTool).toBe(false);
+    expect(ev.hasExpectedArrival).toBe(true);
+  });
+
+  it("a failed read returns {} so the gate behaves as before — never as 'captured'", async () => {
+    execute.mockRejectedValueOnce(new Error("ETIMEDOUT"));
+    await expect(loadCallCaptureEvidence("call-abc-123")).resolves.toEqual({});
   });
 });

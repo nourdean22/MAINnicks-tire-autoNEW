@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Mock the sms module
 vi.mock("./sms", () => ({
@@ -15,7 +15,11 @@ const mockWhere = vi.fn();
 const mockLimit = vi.fn();
 const mockSet = vi.fn();
 
+const mockCooldown = vi.fn();
+
 vi.mock("./db", () => ({
+  getReviewSettings: vi.fn(async () => ({ enabled: 1, delayMinutes: 1440, maxPerDay: 20, cooldownDays: 30 })),
+  isPhoneOnReviewCooldown: (...args: unknown[]) => mockCooldown(...args),
   getDb: vi.fn(() => ({
     select: () => ({
       from: () => ({
@@ -88,5 +92,43 @@ describe("Post-Invoice Follow-Up", () => {
     const windowMs = eightDaysAgo.getTime() - sixDaysAgo.getTime();
     const windowDays = windowMs / (1000 * 60 * 60 * 24);
     expect(windowDays).toBeCloseTo(2, 0);
+  });
+  // 2026-10-02 · one review ask per cooldown across BOTH lanes: the invoice-sourced
+  // review_requests lane usually asks first, so this lane must skip that phone.
+  describe("cross-lane dedupe", () => {
+    const customer = { id: 9, firstName: "Sam", phone: "2165550123", segment: "recent" };
+
+    beforeEach(async () => {
+      mockLimit.mockResolvedValue([customer]);
+      mockWhere.mockResolvedValue([{ affectedRows: 1 }]);
+      vi.doMock("./services/featureFlags", () => ({ isEnabled: vi.fn().mockResolvedValue(true) }));
+    });
+
+    afterEach(() => {
+      vi.doUnmock("./services/featureFlags");
+    });
+
+    // Real timers on purpose: the send path sleeps 1.1s between texts, and a fake-timer
+    // advance can run BEFORE the dynamic imports reach that setTimeout — it then never
+    // fires (CI: 30s timeout). One customer costs one real 1.1s sleep; that is the price
+    // of a deterministic test.
+    it("skips a customer the review_requests lane already asked (cooldown) — no claim, no text", async () => {
+      mockCooldown.mockResolvedValue(true);
+      const { sendSms } = await import("./sms");
+      const { processPostInvoiceFollowUps } = await import("./postInvoiceFollowUp");
+      const result = await processPostInvoiceFollowUps();
+      expect(mockCooldown).toHaveBeenCalledWith("2165550123", 30);
+      expect(result.skipped).toBe(1);
+      expect(sendSms).not.toHaveBeenCalled();
+      expect(mockWhere).not.toHaveBeenCalled();
+    });
+
+    it("control: a phone NOT on cooldown is still texted", async () => {
+      mockCooldown.mockResolvedValue(false);
+      const { sendSms } = await import("./sms");
+      const { processPostInvoiceFollowUps } = await import("./postInvoiceFollowUp");
+      await processPostInvoiceFollowUps();
+      expect(sendSms).toHaveBeenCalledTimes(1);
+    }, 10_000);
   });
 });

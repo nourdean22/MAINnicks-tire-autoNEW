@@ -232,9 +232,12 @@ async function ensureInitialized(): Promise<void> {
           const d = await getDb();
           const phone = (event.data.customerPhone || event.data.phone || "").replace(/\D/g, "").slice(-10);
           if (d && phone.length === 10) {
+            // event.data.totalAmount is DOLLARS on the bus (every emitter divides by 100);
+            // customers.totalSpent is integer CENTS. It used to add the dollars raw, so a
+            // $250 payment raised lifetime spend by $2.50 (2026-10-02 currency audit).
             await d.execute(sql`
               UPDATE customers
-              SET totalSpent = totalSpent + ${event.data.totalAmount || 0},
+              SET totalSpent = totalSpent + ${Math.round(Number(event.data.totalAmount || 0) * 100)},
                   totalVisits = totalVisits + 1,
                   lastVisitDate = NOW()
               WHERE RIGHT(phone, 10) = ${phone} OR RIGHT(phone2, 10) = ${phone}

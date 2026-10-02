@@ -238,8 +238,9 @@ export const financingRouter = router({
       const { financingClicks, leads } = await import("../../drizzle/schema");
       const { desc, eq } = await import("drizzle-orm");
       const d = await getDb();
-      if (!d) return [];
-      return d.select({
+      // A dead handle is UNKNOWN, not "no clicks yet" (ROS-083 shape).
+      if (!d) throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Database unavailable — financing clicks are unknown, not zero." });
+      const rows = await d.select({
         id: financingClicks.id,
         provider: financingClicks.provider,
         sourcePage: financingClicks.sourcePage,
@@ -253,5 +254,23 @@ export const financingRouter = router({
         .leftJoin(leads, eq(financingClicks.sessionId, leads.sessionId))
         .orderBy(desc(financingClicks.createdAt))
         .limit(input.limit);
+      // 2026-10-02 · the session id is also on bookings, callbacks, tire orders and
+      // click-to-call events; leads alone (3 rows in prod) identified 0 of 16 clicks.
+      // An enrichment failure must not hide clicks that DID load: the rows still render,
+      // each marked attributionUnavailable (the panel says "unknown", never "unidentified").
+      const { financingAttributionFor } = await import("../services/financingAttribution");
+      let ladder: Awaited<ReturnType<typeof financingAttributionFor>> | null = null;
+      try {
+        ladder = await financingAttributionFor(rows.map((r: { id: number }) => r.id));
+      } catch (err) {
+        log.warn("financing attribution enrichment failed — clicks shown without it", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+      return rows.map((r: { id: number } & Record<string, unknown>) => ({
+        ...r,
+        attribution: ladder?.get(r.id) ?? null,
+        attributionUnavailable: ladder === null,
+      }));
     }),
 });

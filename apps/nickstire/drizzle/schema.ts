@@ -673,8 +673,13 @@ export type InsertCallbackRequest = typeof callbackRequests.$inferInsert;
  */
 export const reviewRequests = mysqlTable("review_requests", {
   id: int("id").autoincrement().primaryKey(),
-  /** Link to the completed booking */
-  bookingId: int("bookingId").notNull().references(() => bookings.id, { onDelete: "cascade" }),
+  /**
+   * Link to the completed booking — NULL for a row sourced from an ALG invoice (0139).
+   * The invoice source column `invoiceId` (UNIQUE) exists only after 0139 is applied and is
+   * written by raw SQL in services/invoiceReviewRequests.ts; it is NOT declared here until
+   * then, because projection-less select().from(reviewRequests) reads would name it first.
+   */
+  bookingId: int("bookingId").references(() => bookings.id, { onDelete: "cascade" }),
   /** Customer name from booking */
   customerName: varchar("customerName", { length: 255 }).notNull(),
   /** Customer phone (normalized) */
@@ -1713,7 +1718,13 @@ export const vapiCallLogs = mysqlTable("vapi_call_logs", {
   aiSummary: text("aiSummary"),
   /** AI-extracted service mention (brakes, oil change, etc.) */
   serviceMention: varchar("serviceMention", { length: 120 }),
-  /** Whether this call produced a callback / booking / lead row */
+  /**
+   * MISNAMED — means "Nick REACHED a tool" (any state_tool_called / state_confirmed
+   * event, incl. the recap SMS), NOT "a lead row exists". Operator decision 2026-09-23
+   * (option C) kept the behaviour; durable capture is leadId / callbackId below.
+   * Measured 2026-10-02: ~101 calls/7d with 1 here, 0 with a leadId. Never count it as a
+   * lead conversion (METRICS-CONTRACT "Leads created" = calls linked to a real leads row).
+   */
   convertedToLead: int("convertedToLead").default(0).notNull(),
   leadId: int("leadId").references(() => leads.id, { onDelete: "set null" }),
   callbackId: int("callbackId").references(() => callbackRequests.id, { onDelete: "set null" }),

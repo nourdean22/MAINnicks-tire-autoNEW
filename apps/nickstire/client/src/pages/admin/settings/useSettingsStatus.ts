@@ -2,6 +2,10 @@ import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { gatewayState } from "@/lib/gatewayState";
 import { deriveCronIssues } from "./cron-issues";
+import { summarizeCameraFleet, type CameraFleetInputCamera } from "@shared/cameraFleetHealth";
+
+/** Every check below that can fail to run. The "could not run" banner divides by this. */
+export const SETTINGS_STATUS_CHECK_COUNT = 9;
 
 export interface OpenIssue {
   key: string;
@@ -23,6 +27,7 @@ export function useSettingsStatus() {
   const { data: smsStatus, isLoading: isSmsStatusLoading, isError: isSmsStatusError } = trpc.sms.status.useQuery(undefined, { staleTime: 60_000 });
   const { data: vapiStatus, isLoading: isVapiLoading, isError: isVapiError } = trpc.vapi.status.useQuery(undefined, { staleTime: 60_000 });
   const { data: cronHealth, isLoading: isCronLoading, isError: isCronError } = trpc.nickActions.cronHealth.useQuery(undefined, { staleTime: 30_000 });
+  const { data: lotHealth, isLoading: isLotHealthLoading, isError: isLotHealthError } = trpc.lot.health.useQuery(undefined, { staleTime: 60_000 });
 
   // 2. Aggregate loading states
   const isLoading =
@@ -33,7 +38,8 @@ export function useSettingsStatus() {
     isSmsGwLoading ||
     isSmsStatusLoading ||
     isVapiLoading ||
-    isCronLoading;
+    isCronLoading ||
+    isLotHealthLoading;
 
   /**
    * WHICH CHECKS COULD NOT RUN? Every rule below silently skips when its
@@ -57,6 +63,16 @@ export function useSettingsStatus() {
     isSmsStatusError && "SMS status",
     isVapiError && "voice (VAPI) status",
     isCronError && "cron health",
+    // A camera read that failed — or answered but left nothing judgeable (no commissioned
+    // camera, unreadable payload: fleet UNKNOWN) — is a check that did not run, never
+    // "cameras healthy".
+    (isLotHealthError ||
+      (lotHealth !== undefined &&
+        summarizeCameraFleet(
+          lotHealth.ok === true
+            ? { ok: true, cameras: lotHealth.cameras as unknown as CameraFleetInputCamera[] }
+            : { ok: false },
+        ).state === "UNKNOWN")) && "camera health",
   ].filter((name): name is string => Boolean(name));
 
   // 3. Compose open-issues stack (moved from view layer to state controller)
@@ -123,8 +139,30 @@ export function useSettingsStatus() {
     // sit green over genuine problems. Latest-run-per-job, deduped in the helper.
     issues.push(...deriveCronIssues(cronHealth ?? []));
 
+    // RULE 5 · commissioned camera not HEALTHY (or its interaction worker down). Before
+    // 2026-10-02 no rule read lot.health, so this tab said "All clear" while the sign camera
+    // was CAMERA_OFFLINE and the office worker STALE. The camera alert cron pages rather
+    // than fails, so RULE 4 never saw it either.
+    if (lotHealth?.ok === true) {
+      const fleet = summarizeCameraFleet({
+        ok: true,
+        cameras: lotHealth.cameras as unknown as CameraFleetInputCamera[],
+      });
+      for (const p of fleet.problems) {
+        issues.push({
+          key: `camera-${p.camera}`,
+          severity: /OFFLINE|NEVER_INGESTED|PRODUCER_OFFLINE|UNREGISTERED/.test(p.state) ? "alert" : "warning",
+          title: `Camera · ${p.label}: ${p.state}`,
+          detail: "Lot arrivals, bay truth or office capture from this camera cannot be trusted until it is HEALTHY again.",
+          whyText: "Per-camera state comes from lot.health (camera_runtime heartbeats + derived health lattice). Only commissioned cameras and unregistered producers are counted.",
+          actionHref: "/admin?tab=lot",
+          actionLabel: "Open Lot",
+        });
+      }
+    }
+
     return issues;
-  }, [flags, funnel, smsStatus, smsGwHealth, cronHealth]);
+  }, [flags, funnel, smsStatus, smsGwHealth, cronHealth, lotHealth]);
 
   const alertCount = useMemo(() => openIssues.filter((i) => i.severity === "alert").length, [openIssues]);
   const warningCount = useMemo(() => openIssues.filter((i) => i.severity === "warning").length, [openIssues]);

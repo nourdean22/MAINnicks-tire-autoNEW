@@ -410,12 +410,14 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
     if (!term) return { error: "Search term required" };
     const [rows] = await d.execute(sql`
       SELECT id, firstName, lastName, phone, vehicleYear, vehicleMake, vehicleModel,
-             segment, totalVisits, totalSpent, lastVisitDate
+             segment, totalVisits, totalSpent, ROUND(totalSpent / 100, 2) AS totalSpentDollars, lastVisitDate
       FROM customers
       WHERE firstName LIKE ${`%${term}%`} OR lastName LIKE ${`%${term}%`} OR phone LIKE ${`%${term}%`}
       ORDER BY totalSpent DESC LIMIT 20
     `);
-    return { customers: rows, count: (rows as unknown[]).length };
+    // totalSpent is integer CENTS (customers.totalSpent); totalSpentDollars is the value a
+    // model should quote. Both are sent so the existing cents reader keeps working (2026-10-02).
+    return { customers: rows, count: (rows as unknown[]).length, moneyUnits: { totalSpent: "cents", totalSpentDollars: "USD" } };
   },
 
   // ─── Vehicle lookup by plate (added 2026-09-08 · ADR-0017 camera vision) ──
@@ -780,14 +782,37 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
   // bridge + admin-tRPC routes share a single source of truth.
   // Pipeline at server/pipelines/gsc-data.ts populates search_performance
   // nightly via Google Service Account.
+  // 2026-10-02 · prefers Google's official NO-DIMENSION total, exactly like admin
+  // market.summary. The stored rows come from a query-dimensioned request, from which
+  // Google drops anonymized queries, so their SUM is a strict subset (the operator's own
+  // truth pass read 50,246 impressions off the rows vs 76,966 official). The fallback stays
+  // but is LABELLED via `source`, so StateNour can never read "partial" as "the total".
   "gsc_summary": async (filters) => {
-    const { getGscSummary } = await import("../pipelines/gsc-data");
+    const { getGscSummary, getGscReport } = await import("../pipelines/gsc-data");
     const today = new Date().toISOString().slice(0, 10);
     const thirtyAgo = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
-    return getGscSummary({
-      startDate: String(filters.from || thirtyAgo),
-      endDate: String(filters.to || today),
-    });
+    const startDate = String(filters.from || thirtyAgo);
+    const endDate = String(filters.to || today);
+    try {
+      const official = await getGscReport({ startDate, endDate }, { totalsOnly: true });
+      // No total row (inside GSC's data lag) is NOT an official zero -> fall back, labelled.
+      if (official?.summaryHasData) {
+        return {
+          from: startDate,
+          to: endDate,
+          totalClicks: official.summary.clicks,
+          totalImpressions: official.summary.impressions,
+          // Google returns a RATIO; this payload speaks percent (same as getGscSummary).
+          avgCtr: Number((official.summary.ctr * 100).toFixed(2)),
+          avgPosition: Number(official.summary.position.toFixed(2)),
+          source: "gsc_official_no_dimension" as const,
+        };
+      }
+    } catch {
+      // Fall through to the stored rows — the fallback reports its own provenance.
+    }
+    const stored = await getGscSummary({ startDate, endDate });
+    return { ...stored, source: "stored_query_rows_partial" as const };
   },
 
   "gsc_top_queries": async (filters) => {
