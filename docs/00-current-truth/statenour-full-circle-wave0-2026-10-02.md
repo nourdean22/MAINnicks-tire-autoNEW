@@ -235,7 +235,7 @@ ADR-0016 explicitly made Settings the canonical OPS entry based on the 2026-05 o
 
 Current operator intent reverses that: Settings should stop being Ops.
 
-Disposition: **supersede deliberately**, preserve deep links, move ownership after census. See proposed ADR-0024 on this branch.
+Disposition: **supersede deliberately**, preserve deep links, move ownership after census. See ADR-0025 (accepted 2026-10-02 after #2884) on this branch.
 
 ## L. External pattern research
 
@@ -333,7 +333,7 @@ No UI. No schema unless proven necessary.
 - System becomes exception-first;
 - Proof ownership clarified;
 - More taxonomy reduced.
-This is where ADR-0024 becomes ACCEPTED if implementation validates it.
+This is where ADR-0025 becomes ACCEPTED if implementation validates it.
 
 ### PR D — learning/calibration + production proof
 - coverage audit and extension of the **existing** `IntelligenceOutcome` shown→decision→outcome ledger, including ignored/dismissed/edited paths;

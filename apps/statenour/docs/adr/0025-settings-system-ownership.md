@@ -1,6 +1,6 @@
-# ADR-0024 · Settings is configuration; System owns operations
+# ADR-0025 · Settings is configuration; System owns operations
 
-**Status:** PROPOSED · 2026-10-02 ET  
+**Status:** ACCEPTED · 2026-10-02 ET (proposed the same day as ADR-0024; renumbered because 0024 is the Hidden High-Risk Warning ADR)  
 **Supersedes:** ADR-0016 only where ADR-0016 made Settings the canonical entry for OPS  
 **Scope:** StateNour information architecture and route ownership  
 **Decision owner:** Nour
@@ -85,12 +85,29 @@ For every Settings block, classify:
 - DELETE — dead/write-only/duplicated control
 - DEFER — ownership unresolved
 
-Do not perform the visual move while PR #2880 (`statenour/ui-v2-backlog`) is actively editing shared Settings/System/navigation-adjacent UI.
+Sequence the visual move after the UI-v2 backlog wave, so the two do not edit the same shared
+Settings/System/navigation UI at once.
 
-## Verification required before ACCEPTED
+## Invariant: surface placement does not establish ownership
 
-1. Census every Settings control: store, reader, application timing, failure mode, override precedence.
-2. Census System/Proof overlap and current route/deep-link usage.
-3. Confirm the canonical `nav-items.ts` registry remains the only nav registry.
-4. Implement in a post-#2880 UI wave with tests and production screenshots.
-5. Update ADR-0016 with an explicit superseded note or cross-link.
+Where a control's UI lives says nothing about who enforces it. Controls that change agent
+authority, tool access or external side effects keep their enforcement and audit in System/Policy
+wherever their UI is rendered. Settings may host the switch; it never becomes the safety authority.
+The incumbents this contract extends are the flag registry's read-only marking, the tool approval
+gate and the `AutomationPolicy` rows.
+
+## Non-goal
+
+Global precedence between preference, policy, capability and emergency control is not decided here.
+It is deferred to the first implementation that has to combine them.
+
+## Verification (why this is ACCEPTED)
+
+1. **Settings census:** `docs/design/settings-census-2026-10-02.md` covers every control (store,
+   reader, timing, failure mode) with a KEEP/MOVE/MERGE/DELETE/DEFER disposition.
+2. **Implemented:** full-circle wave 2, #2884 (`b008b801`, deployed). Settings went from 17 blocks
+   to 8 in three domains; ops blocks moved to `/system` or were merged/deleted as duplicates; the
+   cron panel moved to `/system/crons`.
+3. **One nav registry:** `components/layout/nav-items.ts` remains the only registry.
+4. **Sequencing:** UI v2 PR 4 (#2880, `f93469b7`) merged first.
+5. **ADR-0016** carries a superseded-in-part note pointing here.
