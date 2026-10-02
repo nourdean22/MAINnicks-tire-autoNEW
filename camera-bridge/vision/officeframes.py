@@ -14,9 +14,12 @@ the camera.
 from __future__ import annotations
 
 import base64
+import os
+import sys
 import threading
 import time
 import urllib.request
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 #: The server caps a frame at 400_000 base64 chars (~300 KB of JPEG) and the request at 2 MB.
@@ -143,4 +146,104 @@ def frames_for_segment(
         # Keep first, last and evenly spaced middles: the arc of the interaction, not a burst.
         step = (len(inside) - 1) / (limit - 1)
         inside = [inside[round(i * step)] for i in range(limit)]
-    return [{"at": f["at"], "mime": f["mime"], "base64": f["base64"]} for f in inside]
+    out = []
+    for f in inside:
+        item = {"at": f["at"], "mime": f["mime"], "base64": f["base64"]}
+        if "people" in f:
+            item["people"] = f["people"]
+        out.append(item)
+    return out
+
+
+# ---------------------------------------------------------------- on-box person count
+#
+# Each posted frame carries `"people": int | null`. null means NOT MEASURED (opted out, no
+# OpenCV, no OpenVINO, no model, load failure, undecodable frame, or inference error). It is
+# never 0 in those cases: "could not look" must not read as "nobody there".
+
+#: Relative to the models root; pinned in fetch_models.PINNED.
+PERSON_MODEL_REL = "person-detection-0200/FP16/person-detection-0200.xml"
+PERSON_MIN_CONF = 0.5
+
+
+def person_model_path() -> str:
+    """OFFICE_PERSON_MODEL_XML, else beside the vehicle model, else camera-bridge/ov_models.
+
+    Mirrors how the vehicle detector is found on NicksMax: VISION_OV_MODEL points at
+    <root>/vehicle-detection-0200/FP16/vehicle-detection-0200.xml, and fetch_models.py
+    (run from camera-bridge/) fetches into camera-bridge/ov_models by default.
+    """
+    override = os.environ.get("OFFICE_PERSON_MODEL_XML", "").strip()
+    if override:
+        return override
+    vehicle = os.environ.get("VISION_OV_MODEL", "").strip()
+    root = Path(vehicle).parents[2] if vehicle else Path(__file__).resolve().parents[1] / "ov_models"
+    return str(root / PERSON_MODEL_REL)
+
+
+def _person_detect_enabled() -> bool:
+    return os.environ.get("OFFICE_PERSON_DETECT", "1").strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _load_person_detector() -> Any:
+    from .detector import OpenVinoPersonDetector
+
+    return OpenVinoPersonDetector(person_model_path(), conf=PERSON_MIN_CONF)
+
+
+class PeopleCounter:
+    """Loads the person detector at most once per process; a failed load is remembered."""
+
+    def __init__(self, loader: Callable[[], Any] = _load_person_detector) -> None:
+        self._loader = loader
+        self._lock = threading.Lock()
+        self._loaded = False
+        self._detector: Any = None
+        self.unavailable_reason = ""
+
+    def _get(self) -> Any:
+        with self._lock:
+            if not self._loaded:
+                self._loaded = True
+                try:
+                    self._detector = self._loader()
+                except Exception as exc:  # noqa: BLE001 - DetectorUnavailable or a load crash
+                    self._detector = None
+                    self.unavailable_reason = f"{type(exc).__name__}: {exc}"[:300]
+                    print(f"office person count unavailable: {self.unavailable_reason}", file=sys.stderr)
+            return self._detector
+
+    def count(self, jpeg: bytes) -> Optional[int]:
+        if not _person_detect_enabled():
+            return None
+        try:
+            import cv2  # type: ignore
+            import numpy as np  # type: ignore
+        except Exception:  # noqa: BLE001
+            return None
+        detector = self._get()
+        if detector is None:
+            return None
+        try:
+            img = cv2.imdecode(np.frombuffer(jpeg, dtype=np.uint8), cv2.IMREAD_COLOR)
+            if img is None:
+                return None
+            return sum(1 for d in detector.detect(img) if float(d.score) >= PERSON_MIN_CONF)
+        except Exception:  # noqa: BLE001 - an inference failure is "not measured", never 0
+            return None
+
+
+_PEOPLE = PeopleCounter()
+
+
+def annotate_people(frames: list[dict[str, Any]], counter: Optional[PeopleCounter] = None) -> list[dict[str, Any]]:
+    """Set `people` on every frame in place (int, or None when not measured)."""
+    counter = counter or _PEOPLE
+    for f in frames:
+        try:
+            raw = base64.b64decode(f["base64"], validate=True)
+        except Exception:  # noqa: BLE001
+            f["people"] = None
+            continue
+        f["people"] = counter.count(raw)
+    return frames

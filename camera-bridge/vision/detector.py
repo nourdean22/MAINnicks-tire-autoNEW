@@ -123,7 +123,7 @@ class OpenVinoVehicleDetector(Detector):
     can_confirm = True
 
     def __init__(self, model_xml: str, device: str = "CPU", conf: float = 0.5,
-                 name: Optional[str] = None) -> None:
+                 name: Optional[str] = None, label: str = "vehicle") -> None:
         try:
             import openvino as ov  # noqa: WPS433 - optional dependency
         except Exception as exc:
@@ -136,6 +136,7 @@ class OpenVinoVehicleDetector(Detector):
         self.device = device
         self.conf = conf
         self.model_xml = model_xml
+        self.label = label
         self.name = name or f"openvino:{os.path.basename(model_xml).replace('.xml', '')}"
         core = ov.Core()
         if device not in core.available_devices and device != "AUTO":
@@ -191,9 +192,23 @@ class OpenVinoVehicleDetector(Detector):
                 continue
             out.append(Detection(
                 (max(0.0, x1), max(0.0, y1), min(float(w), x2), min(float(h), y2)),
-                score=conf, label="vehicle", source=self.name,
+                score=conf, label=self.label, source=self.name,
             ))
         return out
+
+
+class OpenVinoPersonDetector(OpenVinoVehicleDetector):
+    """Intel person-detection-0200: the same SSD [1, 1, N, 7] output, labelled "person".
+
+    Used to COUNT people in office frames. `can_confirm` is False: a person box must never
+    be able to confirm a vehicle arrival if this is ever wired into a DetectorCouncil.
+    """
+
+    can_confirm = False
+
+    def __init__(self, model_xml: str, device: str = "CPU", conf: float = 0.5,
+                 name: Optional[str] = None) -> None:
+        super().__init__(model_xml, device=device, conf=conf, name=name, label="person")
 
 
 @dataclass

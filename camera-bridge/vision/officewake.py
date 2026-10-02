@@ -452,6 +452,7 @@ def run_capture_once(
     post_fn: Optional[Callable[..., dict[str, Any]]] = None,
     clock: Callable[[], float] = time.time,
     frame_sampler: Optional[Any] = None,
+    people_counter: Optional[Any] = None,
 ) -> CaptureResult:
     from . import officeaudio, officeframes, officepost
 
@@ -522,6 +523,10 @@ def run_capture_once(
             "bounded capture returned no speech segments",
             _trigger_payload(trigger),
         )
+
+    # On-box person count, once per sampled frame (not per post). null = not measured.
+    if frames:
+        officeframes.annotate_people(frames, people_counter)
 
     prepared = 0
     transcribed = 0
