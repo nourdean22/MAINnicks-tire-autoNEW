@@ -149,6 +149,9 @@ export async function recordCapabilityFailure(f: CapabilityFailure): Promise<voi
     });
     m.degraded = degraded;
     m.lastWriteAt = at.getTime();
+    // One line per write (bounded by the throttle): the runtime receipt a reader
+    // without database access can verify in Railway logs.
+    log.info("capability_receipt_written", { toolName: f.toolName, status, consecutive, category: f.category });
   } catch (error) {
     log.warn("capability_failure_receipt_failed", { toolName: f.toolName, error: describe(error) });
   }
@@ -186,6 +189,7 @@ export async function recordCapabilityRecovery(toolName: string): Promise<void> 
       },
     });
     m.degraded = false;
+    log.info("capability_recovery_written", { toolName, previousStatus: existing.status, previousConsecutive: existing.consecutiveFailures });
   } catch (error) {
     log.warn("capability_recovery_receipt_failed", { toolName, error: describe(error) });
   }
