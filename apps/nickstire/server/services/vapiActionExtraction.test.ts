@@ -226,12 +226,26 @@ describe("prompt contract", () => {
  * draft for a walk-in caller bookSlot already recorded as an expected arrival
  * (and told "no appointment was booked").
  */
-describe("capture-aware gate — a call a tool already captured makes no draft", () => {
-  it("a persisted lead/callback/booking id short-circuits extraction (hard_conversion)", () => {
+describe("capture-aware gate — no draft for a kind a tool already captured", () => {
+  it("a linked callback does NOT suppress the whole call — a separate booking ask still extracts", () => {
     expect(shouldExtract(meta())).toBe("callback_needed");
-    expect(shouldExtract(meta({ callbackId: 41 }))).toBeNull();
-    expect(shouldExtract(meta({ leadId: 9 }))).toBeNull();
-    expect(shouldExtract(meta({ bookingId: 3 }))).toBeNull();
+    // Ownership is per draft kind: the callback draft is dropped later (dropAlreadyOwned),
+    // the booking ask in the same call must still reach the extractor.
+    expect(shouldExtract(meta({ callbackId: 41 }))).toBe("callback_needed");
+    expect(shouldExtract(meta({ leadId: 9 }))).toBe("callback_needed");
+    // Both kinds owned (linked callback + linked booking) -> no LLM pass.
+    expect(shouldExtract(meta({ callbackId: 41, bookingId: 3 }))).toBeNull();
+  });
+
+  it("a linked callbackId owns the callback kind exactly like a callback row naming the call", () => {
+    const { kept, dropped } = dropAlreadyOwned(
+      parseExtraction('{"actions":[{"kind":"create_callback","reason":"call me","confidence":90},{"kind":"create_booking_request","reason":"Friday","confidence":80}]}'),
+      meta({ callbackId: 41 }),
+    );
+    expect(kept.map((a) => a.kind)).toEqual(["create_booking_request"]);
+    expect(dropped.map((d) => d.kind)).toEqual(["create_callback"]);
+    // A rack-check lead also owes the caller a contact.
+    expect(dropAlreadyOwned(parseExtraction('{"actions":[{"kind":"create_callback","reason":"call me","confidence":90}]}'), meta({ leadId: 9 })).kept).toEqual([]);
   });
 
   it("skips the LLM entirely when BOTH kinds are already owned", () => {
@@ -252,7 +266,7 @@ describe("capture-aware gate — a call a tool already captured makes no draft",
   it("drops the booking draft when bookSlot already recorded an expected arrival", () => {
     const { kept, dropped } = dropAlreadyOwned(both, meta({ hasExpectedArrival: true }));
     expect(kept.map((a) => a.kind)).toEqual(["create_callback"]);
-    expect(dropped).toEqual([{ kind: "create_booking_request", reason: "expected_arrival_exists_for_call" }]);
+    expect(dropped).toEqual([{ kind: "create_booking_request", reason: "booking_or_expected_arrival_exists_for_call" }]);
   });
 
   it("keeps everything when nothing was captured", () => {

@@ -110,18 +110,15 @@ export function shouldExtract(meta: CallMeta): VapiOutcomeCategory | null {
   if (meta.transcript.trim().length < 40) return null;
   // Both draft kinds already owned by an operational row — nothing could survive
   // dropAlreadyOwned, so do not spend an LLM pass finding that out.
-  if (meta.existingCallbackForCall && meta.hasExpectedArrival) return null;
+  if (callbackOwned(meta) && bookingOwned(meta)) return null;
+  // Captured ids are deliberately NOT passed to classifyCall: a linked callback would make
+  // the WHOLE call hard_conversion and suppress a separate, explicit booking ask in the same
+  // call. Ownership is decided per draft kind (dropAlreadyOwned), not per call.
   const { outcome } = classifyCall({
     durationSeconds: meta.durationSeconds,
     endedReason: meta.endedReason,
     aiSummary: meta.summary,
     transcript: meta.transcript,
-    // A persisted lead/callback/booking makes this a hard_conversion — a person
-    // or tool already owns it, so no draft.
-    leadId: meta.leadId ?? null,
-    callbackId: meta.callbackId ?? null,
-    bookingId: meta.bookingId ?? null,
-    reachedTool: meta.reachedTool,
   });
   return ACTIONABLE_OUTCOMES.includes(outcome) ? outcome : null;
 }
@@ -225,6 +222,19 @@ export function parseExtraction(raw: string, today?: string): ExtractedAction[] 
  *     and told the caller NO appointment was booked (walk-in shop); approving a
  *     booking draft would contradict that.
  */
+/**
+ * Someone already owes this caller a contact: a linked callback, a callback row naming the
+ * call, or a lead row (tireInquiry's rack check — staff follow up on it). A callback draft
+ * would duplicate any of them.
+ */
+function callbackOwned(meta: CallMeta): boolean {
+  return meta.callbackId != null || meta.leadId != null || meta.existingCallbackForCall === true;
+}
+/** A booking or the walk-in commitment for this call already exists. */
+function bookingOwned(meta: CallMeta): boolean {
+  return meta.bookingId != null || meta.hasExpectedArrival === true;
+}
+
 export function dropAlreadyOwned(
   actions: readonly ExtractedAction[],
   meta: CallMeta,
@@ -232,10 +242,10 @@ export function dropAlreadyOwned(
   const kept: ExtractedAction[] = [];
   const dropped: Array<{ kind: ExtractedAction["kind"]; reason: string }> = [];
   for (const a of actions) {
-    if (a.kind === "create_callback" && meta.existingCallbackForCall) {
+    if (a.kind === "create_callback" && callbackOwned(meta)) {
       dropped.push({ kind: a.kind, reason: "callback_request_exists_for_call" });
-    } else if (a.kind === "create_booking_request" && meta.hasExpectedArrival) {
-      dropped.push({ kind: a.kind, reason: "expected_arrival_exists_for_call" });
+    } else if (a.kind === "create_booking_request" && bookingOwned(meta)) {
+      dropped.push({ kind: a.kind, reason: "booking_or_expected_arrival_exists_for_call" });
     } else {
       kept.push(a);
     }

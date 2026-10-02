@@ -102,7 +102,12 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
           // the second bug that guaranteed 0 matches every run.
           gte(customers.lastVisitDate, eightDaysAgo),
           lte(customers.lastVisitDate, sixDaysAgo),
-          sql`${customers.phone} IS NOT NULL AND ${customers.phone} != '' AND ${customers.phone} REGEXP '^[0-9]{10}$'`
+          sql`${customers.phone} IS NOT NULL AND ${customers.phone} != '' AND ${customers.phone} REGEXP '^[0-9]{10}$'`,
+          // 2026-10-02 · phones the review_requests lane already asked inside its 30-day
+          // cooldown are excluded HERE. The per-customer cooldown check below never marks a
+          // skipped customer, so without this they would refill this .limit(20) every run and
+          // crowd out the customers this lane is still the only ask for.
+          sql`NOT EXISTS (SELECT 1 FROM review_requests rr WHERE rr.phone = ${customers.phone} AND rr.status <> 'failed' AND (rr.createdAt >= NOW() - INTERVAL 30 DAY OR rr.sentAt >= NOW() - INTERVAL 30 DAY))`
         )
       )
       .limit(20); // Max 20 per run to stay within rate limits

@@ -159,14 +159,23 @@ interface DraftCandidate {
 
 type DraftClosure =
   | { status: "cancelled"; statusReason: "obligation_closed" | "superseded_by_newer_activity" }
-  | { status: "expired"; statusReason: "stale_draft_expired" }
+  | { status: "expired"; statusReason: "stale_draft_expired" | "stale_draft_expired_obligation_open" }
   | null;
 
 /** Obligation closed beats superseded beats age; an open job with no other signal keeps the draft. */
 function decideDraftClosure(c: DraftCandidate): DraftClosure {
   if (Number(c.jobClosed) === 1 && Number(c.jobOpen) !== 1) return { status: "cancelled", statusReason: "obligation_closed" };
   if (Number(c.newerActivity) === 1) return { status: "cancelled", statusReason: "superseded_by_newer_activity" };
-  if (Number(c.stale) === 1) return { status: "expired", statusReason: "stale_draft_expired" };
+  // A week-old draft answers a conversation that has moved on, so it expires even when
+  // its obligation is still open. The CUSTOMER is not dropped: the open sms_response_jobs
+  // row keeps them on Today's "waiting on a reply" list (listWaitingConversations), where
+  // the operator answers from the thread. The distinct reason keeps those rows findable.
+  if (Number(c.stale) === 1) {
+    return {
+      status: "expired",
+      statusReason: Number(c.jobOpen) === 1 ? "stale_draft_expired_obligation_open" : "stale_draft_expired",
+    };
+  }
   return null;
 }
 
@@ -196,7 +205,7 @@ export async function reconcileStaleHumanReviewDrafts(
   const db = d === undefined ? await getDb() : d;
   if (!db) return { recordsProcessed: 0, details: "No DB — no drafts reconciled" };
   const candidates = await selectDraftCandidates(db, maxAgeDays);
-  const closed = { obligation_closed: 0, superseded_by_newer_activity: 0, stale_draft_expired: 0 };
+  const closed = { obligation_closed: 0, superseded_by_newer_activity: 0, stale_draft_expired: 0, stale_draft_expired_obligation_open: 0 };
   let lostRace = 0;
   let left = 0;
   for (const c of candidates) {
@@ -210,9 +219,9 @@ export async function reconcileStaleHumanReviewDrafts(
     if (affectedRowCount(res) === 1) closed[closure.statusReason] += 1;
     else lostRace += 1;
   }
-  const total = closed.obligation_closed + closed.superseded_by_newer_activity + closed.stale_draft_expired;
+  const total = closed.obligation_closed + closed.superseded_by_newer_activity + closed.stale_draft_expired + closed.stale_draft_expired_obligation_open;
   return {
     recordsProcessed: total,
-    details: `drafts closed ${total}: obligation_closed ${closed.obligation_closed} · superseded ${closed.superseded_by_newer_activity} · expired ${closed.stale_draft_expired} · lost race ${lostRace} · left open ${left} of ${candidates.length} · max age ${maxAgeDays}d`,
+    details: `drafts closed ${total}: obligation_closed ${closed.obligation_closed} · superseded ${closed.superseded_by_newer_activity} · expired ${closed.stale_draft_expired} (+${closed.stale_draft_expired_obligation_open} with the customer still waiting) · lost race ${lostRace} · left open ${left} of ${candidates.length} · max age ${maxAgeDays}d`,
   };
 }

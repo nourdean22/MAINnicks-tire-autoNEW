@@ -121,6 +121,13 @@ const cand = (id: number, f: Partial<Record<"jobClosed" | "jobOpen" | "newerActi
   ({ id, jobClosed: 0, jobOpen: 0, newerActivity: 0, stale: 0, ...f });
 
 describe("reconcileStaleHumanReviewDrafts", () => {
+  it("a stale draft whose customer is still waiting expires with a findable reason", async () => {
+    const { db, issued } = fakeExecutor([cand(9, { stale: 1, jobOpen: 1 })]);
+    const out = await reconcileStaleHumanReviewDrafts(db, 7);
+    expect(out.details).toContain("expired 0 (+1 with the customer still waiting)");
+    expect(issued.some((q) => q.params.includes("stale_draft_expired_obligation_open"))).toBe(true);
+  });
+
   it("closes each draft by the first rule that holds, CAS-guarded on 'drafted', and leaves the rest open", async () => {
     const { db, issued } = fakeExecutor([
       cand(1, { jobClosed: 1, stale: 1 }), // obligation closed wins over age
@@ -132,7 +139,7 @@ describe("reconcileStaleHumanReviewDrafts", () => {
     ]);
     const out = await reconcileStaleHumanReviewDrafts(db, 7);
     expect(out.recordsProcessed).toBe(3);
-    expect(out.details).toBe("drafts closed 3: obligation_closed 1 · superseded 1 · expired 1 · lost race 0 · left open 3 of 6 · max age 7d");
+    expect(out.details).toBe("drafts closed 3: obligation_closed 1 · superseded 1 · expired 1 (+0 with the customer still waiting) · lost race 0 · left open 3 of 6 · max age 7d");
 
     const updates = issued.slice(1);
     expect(updates.map((u) => u.params)).toEqual([

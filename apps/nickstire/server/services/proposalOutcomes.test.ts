@@ -16,9 +16,16 @@ vi.mock("../lib/db-helper", () => ({
   })),
 }));
 
+const cache = vi.hoisted(() => new Map<string, unknown>());
+vi.mock("../lib/cache", () => ({
+  cacheGet: vi.fn(async (k: string) => (cache.has(k) ? cache.get(k) : null)),
+  cacheSet: vi.fn(async (k: string, v: unknown) => { cache.set(k, v); }),
+}));
+
 import { withDownstreamOutcomes } from "./proposalOutcomes";
 
 afterEach(() => {
+  cache.clear();
   h.rows = [];
   h.fail = false;
   h.queries = [];
@@ -56,5 +63,23 @@ describe("withDownstreamOutcomes", () => {
   it("no decided rows -> no query", async () => {
     await withDownstreamOutcomes([{ id: "c", status: "draft" }]);
     expect(h.queries).toHaveLength(0);
+  });
+});
+
+describe("withDownstreamOutcomes · cache", () => {
+  it("the same id set is read once per TTL; a failed read is never cached", async () => {
+    h.rows = [{ id: "a", phoneLen: 10, invoicedOn: null, bookedOn: "2026-09-30", callbackOn: null }];
+    await withDownstreamOutcomes([{ id: "a", status: "rejected" }]);
+    const second = await withDownstreamOutcomes([{ id: "a", status: "rejected" }]);
+    expect(h.queries).toHaveLength(1);
+    expect(second[0].downstream).toMatchObject({ readable: true, bookedOn: "2026-09-30" });
+
+    cache.clear();
+    h.queries = [];
+    h.fail = true;
+    await withDownstreamOutcomes([{ id: "b", status: "rejected" }]);
+    h.fail = false;
+    await withDownstreamOutcomes([{ id: "b", status: "rejected" }]);
+    expect(h.queries).toHaveLength(2); // the failure did not poison the cache
   });
 });

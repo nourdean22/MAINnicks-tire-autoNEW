@@ -42,6 +42,12 @@ export const statenourMetricsRouter = router({
       avgPosition: report.summary.position,
       ctrUnit: "ratio" as const,
       source: "gsc_official_no_dimension" as const,
+      /**
+       * FALSE when Google returned no total row for the window (inside GSC's 2-3 day lag):
+       * the totals above are then zeros that are NOT an official zero. Additive field —
+       * existing StateNour readers keep working; new ones must check it.
+       */
+      officialDataAvailable: report.summaryHasData,
       fetchedAt: new Date().toISOString(),
       topQueries: report.topQueries,
       topPages: report.topPages,

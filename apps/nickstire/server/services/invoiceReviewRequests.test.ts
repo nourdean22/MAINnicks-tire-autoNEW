@@ -133,5 +133,10 @@ describe("createInvoiceReviewRequests", () => {
     expect(q).toContain("i.source = 'shopdriver' AND i.paymentStatus = 'paid'");
     expect(q).toContain("NOT EXISTS (SELECT 1 FROM review_requests r WHERE r.invoiceId = i.id)");
     expect(q).toContain("c.smsOptOut = 1 OR c.smsCampaignDate >=");
+    // mixed-format customers.phone: match on the generated phone10 column, never raw phone
+    expect(q).toContain("c.phone10 =");
+    expect(q).not.toContain("c.phone =");
+    // phones already asked are excluded in SQL so they cannot fill the LIMIT
+    expect(q).toContain("FROM review_requests rr WHERE rr.phone =");
   });
 });

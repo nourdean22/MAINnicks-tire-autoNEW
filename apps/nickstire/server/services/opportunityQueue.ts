@@ -1160,19 +1160,22 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
     return { scanned: 0, inserted: 0, refreshed: 0, collapsed: 0 };
   }
 
-  // Collapse (2026-10-02): ONE live missed_call row per PHONE, not per call.
-  // A customer who redials three times is one person waiting, not three
-  // cards. The (source_type, source_id=vapiCallId) key is unchanged — historic
-  // rows depend on it — so the collapse is a skip: a call whose phone already
-  // has a live row from a DIFFERENT call is counted as `collapsed` and not
-  // inserted. Live phones are fetched ONCE per run. A failed read degrades to
-  // the old per-call behaviour; reconcile step 3a collapses any leftovers.
-  const liveByPhone = new Map<string, Set<string>>();
+  // Collapse (2026-10-02): ONE live missed_call row per PHONE, and it is the
+  // NEWEST call. The (source_type, source_id=vapiCallId) key is unchanged —
+  // historic rows depend on it. A new call for a phone that already has a
+  // live card is INSERTED and the phone's older un-worked cards collapse into
+  // it as `duplicate`. (A first version skipped the new call instead, which
+  // kept the OLDEST card: it aged out to `lost` at day 7 while the newer call
+  // had left the 24h collector window — the customer's latest call vanished.)
+  // An older card someone is already working (no legal duplicate edge) is
+  // left alone. Live rows are fetched ONCE per run; a failed read degrades to
+  // per-call cards and reconcile step 3a collapses the leftovers next run.
+  const liveByPhone = new Map<string, Array<{ id: string; sourceId: string; state: OpportunityState }>>();
   if (rows.length > 0) {
     try {
       const { sql } = await import("drizzle-orm");
       const live = rowsFromExecute(await db.execute(sql`
-        SELECT source_id, customer_phone FROM revenue_opportunities
+        SELECT id, source_id, state, customer_phone FROM revenue_opportunities
         WHERE source_type = 'missed_call'
           AND state IN (${sql.join(LIVE_STATES.map((s) => sql`${s}`), sql`, `)})
           AND customer_phone IS NOT NULL
@@ -1181,9 +1184,9 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
       for (const l of live) {
         const p = phone10(l.customer_phone as string | null);
         if (!p) continue;
-        const ids = liveByPhone.get(p) ?? new Set<string>();
-        ids.add(String(l.source_id));
-        liveByPhone.set(p, ids);
+        const live = liveByPhone.get(p) ?? [];
+        live.push({ id: String(l.id), sourceId: String(l.source_id), state: String(l.state) as OpportunityState });
+        liveByPhone.set(p, live);
       }
     } catch (err) {
       if (!isMissingTableError(err)) {
@@ -1197,6 +1200,8 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
   let inserted = 0;
   let refreshed = 0;
   let collapsed = 0;
+  /** Phones that got their (newest) card in this run. */
+  const cardedThisRun = new Set<string>();
   for (const r of rows) {
     const meta = (r.metadata ?? null) as Record<string, unknown> | null;
     const eligible = isMissedCallEligible({
@@ -1213,9 +1218,11 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
     if (!eligible) continue;
 
     const p10 = phone10(r.phoneNumber);
-    const liveIds = p10 ? liveByPhone.get(p10) : undefined;
-    if (liveIds && !liveIds.has(r.vapiCallId)) {
-      collapsed++; // same person already has a live card — one card per phone
+    const livePhone = p10 ? liveByPhone.get(p10) : undefined;
+    // A call OLDER than one already carded this run (rows are newest-first) is
+    // the redial's predecessor: it collapses into the newer card, not inserted.
+    if (p10 && cardedThisRun.has(p10)) {
+      collapsed++;
       continue;
     }
 
@@ -1236,13 +1243,25 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
       },
       consentOk: true, // returning a phone call the customer made
     });
-    if (res === "inserted") {
-      inserted++;
-      // an older call for the same phone later in this (newest-first) batch
-      // collapses into the row just inserted
-      if (p10) liveByPhone.set(p10, new Set([...(liveIds ?? []), r.vapiCallId]));
-    } else if (res === "refreshed") refreshed++;
-    else return { scanned: rows.length, inserted, refreshed, collapsed };
+    if (res === "inserted" || res === "refreshed") {
+      if (res === "inserted") inserted++;
+      else refreshed++;
+      if (p10) {
+        cardedThisRun.add(p10);
+        // Older live cards for this phone collapse into this newer call.
+        for (const older of livePhone ?? []) {
+          if (older.sourceId === r.vapiCallId || !canTransition(older.state, "duplicate")) continue;
+          const t = await transitionOpportunity({
+            id: older.id,
+            to: "duplicate",
+            by: "collector",
+            note: `collapsed into newer missed call ${r.vapiCallId.slice(0, 12)} (same phone)`,
+          });
+          if (t.ok) collapsed++;
+        }
+        liveByPhone.delete(p10);
+      }
+    } else return { scanned: rows.length, inserted, refreshed, collapsed };
   }
   return { scanned: rows.length, inserted, refreshed, collapsed };
 }
@@ -1843,14 +1862,15 @@ export function missedCallServedNote(e: MissedCallServedEvidence): string {
 }
 
 /**
- * Close state for "the customer was served by another channel". `duplicate`
- * is the true statement (the need now lives in that other record) and the
- * transition table allows it from new/assigned. From a worked state
- * (attempted/contacted/…) duplicate is illegal, so it falls back to the
- * file's convention: `lost`, with the truth carried by the receipt.
+ * Close state for "the customer was served by another channel": `duplicate`
+ * (the need now lives in that other record), legal from new/assigned. From a
+ * worked state (attempted/contacted/…) the answer is NULL — leave the row to the
+ * person working it. A first version fell back to `lost` there, which booked
+ * every customer the shop RECOVERED (operator contacted them, they then booked)
+ * as a lost sale. An invoice still closes a worked row as `won` via recordOutcome.
  */
-export function servedCloseState(from: OpportunityState): "duplicate" | "lost" {
-  return canTransition(from, "duplicate") ? "duplicate" : "lost";
+export function servedCloseState(from: OpportunityState): "duplicate" | null {
+  return canTransition(from, "duplicate") ? "duplicate" : null;
 }
 
 /**
@@ -2113,10 +2133,11 @@ export async function reconcileOpportunities(): Promise<ReconcileStats> {
             continue;
           }
         }
-        if (served) {
+        const servedTo = served ? servedCloseState(r.state) : null;
+        if (served && servedTo) {
           const res = await transitionOpportunity({
             id: r.id,
-            to: servedCloseState(r.state),
+            to: servedTo,
             by: "reconciler",
             note: missedCallServedNote(served),
           });

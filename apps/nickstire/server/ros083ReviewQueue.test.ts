@@ -125,12 +125,13 @@ describe("the cron · a failed run must be recorded as failed", () => {
     expect(result.details).toContain("invoice rows created 3 of 4 (cooldown 1, dup 0)");
   });
 
-  it("a failed invoice-lane read fails the run (recorded as failed), it does not vanish", async () => {
+  it("a failed invoice lane fails the run (recorded as failed) but the existing send queue STILL runs", async () => {
     vi.doMock("./services/featureFlags", () => ({ isEnabled: vi.fn().mockResolvedValue(true) }));
     mockInvoiceLane(async () => { throw new Error("database unavailable"); });
-    const send = vi.fn();
+    const send = vi.fn().mockResolvedValue({ processed: 2, sent: 2, failed: 0 });
     vi.doMock("./routers/reviewRequests", () => ({ processReviewRequestQueue: send }));
     const { processReviewRequests } = await import("./cron/jobs/reviewRequests");
-    await expect(processReviewRequests()).rejects.toThrow(/database unavailable/);
+    await expect(processReviewRequests()).rejects.toThrow(/invoice review lane failed \(database unavailable\); send queue still ran: sent 2/);
+    expect(send).toHaveBeenCalledTimes(1);
   });
 });

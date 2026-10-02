@@ -13,10 +13,13 @@
  *                 includes the booking the approval itself created — that is its outcome);
  *   - callbackOn: earliest callback request created after it.
  * Dates are formatted in SQL (driver-parsed TiDB timestamps shift on ET). Read-only.
- * One bounded query over the ids on screen.
+ * One bounded query over the ids on screen, cached 5 minutes per id set: each decided row
+ * costs three regex-matched subqueries, and the Approvals list refetches.
  */
 import { sql } from "drizzle-orm";
+import crypto from "node:crypto";
 import { db } from "../lib/db-helper";
+import { cacheGet, cacheSet } from "../lib/cache";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("services:proposalOutcomes");
@@ -39,7 +42,13 @@ export async function withDownstreamOutcomes<T extends { id: string; status: str
 ): Promise<Array<T & { downstream: Downstream | null }>> {
   const ids = rows.filter((r) => DECIDED.has(r.status)).map((r) => r.id).slice(0, MAX_IDS);
   const byId = new Map<string, Downstream>();
-  if (ids.length > 0) {
+  const cacheKey = ids.length
+    ? `proposal_downstream_v1:${crypto.createHash("sha1").update([...ids].sort().join(",")).digest("hex")}`
+    : null;
+  const cached = cacheKey ? await cacheGet<Record<string, Downstream>>(cacheKey) : null;
+  if (cached) {
+    for (const [id, d] of Object.entries(cached)) byId.set(id, d);
+  } else if (ids.length > 0) {
     try {
       const d = await db();
       if (!d) throw new Error("database unavailable");
@@ -68,6 +77,8 @@ export async function withDownstreamOutcomes<T extends { id: string; status: str
           callbackOn: day(r.callbackOn),
         });
       }
+      // Only a successful read is cached; a failure is retried on the next request.
+      if (cacheKey) await cacheSet(cacheKey, Object.fromEntries(byId), 300);
     } catch (err) {
       log.warn("proposal downstream read failed — rendered as unknown", {
         error: err instanceof Error ? err.message : String(err),

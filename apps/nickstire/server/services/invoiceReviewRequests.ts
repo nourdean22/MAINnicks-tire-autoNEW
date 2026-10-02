@@ -78,6 +78,11 @@ export async function createInvoiceReviewRequests(): Promise<{
   const settings = await getReviewSettings();
   if (!settings.enabled) return { ...empty, reason: "review requests are disabled in settings" };
 
+  // Matching notes for the candidate read below:
+  //  · customers.phone is stored in mixed formats; customers.phone10 is the generated
+  //    last-10-digits column (uniq_customer_phone10) made for exactly this match.
+  //  · Phones already asked inside the cooldown are excluded IN SQL, not skipped per row,
+  //    so those invoices never fill this run's LIMIT and starve newer ones.
   const phoneKey = sql.raw(`RIGHT(REGEXP_REPLACE(i.customerPhone, '[^0-9]', ''), 10)`);
   const candidates = rowsOf(await db.execute(sql`
     SELECT i.id AS id, i.customerName AS name, ${phoneKey} AS phone
@@ -88,8 +93,13 @@ export async function createInvoiceReviewRequests(): Promise<{
       AND LENGTH(${phoneKey}) = 10
       AND NOT EXISTS (SELECT 1 FROM review_requests r WHERE r.invoiceId = i.id)
       AND NOT EXISTS (
-        SELECT 1 FROM customers c WHERE c.phone = ${phoneKey}
+        SELECT 1 FROM customers c WHERE c.phone10 = ${phoneKey}
           AND (c.smsOptOut = 1 OR c.smsCampaignDate >= NOW() - INTERVAL ${settings.cooldownDays} DAY)
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM review_requests rr WHERE rr.phone = ${phoneKey} AND rr.status <> 'failed'
+          AND (rr.createdAt >= NOW() - INTERVAL ${settings.cooldownDays} DAY
+               OR rr.sentAt >= NOW() - INTERVAL ${settings.cooldownDays} DAY)
       )
     ORDER BY i.invoiceDate DESC
     LIMIT ${MAX_PER_RUN}

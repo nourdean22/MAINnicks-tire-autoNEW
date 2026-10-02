@@ -159,7 +159,10 @@ export const revenueOpsRouter = router({
       getGscReport(input),
       getGscSummary(input),
     ]);
-    const official = officialResult.status === "fulfilled" ? officialResult.value.summary : null;
+    // No total row (inside GSC's data lag) is "unavailable", not an official zero.
+    const official = officialResult.status === "fulfilled" && officialResult.value.summaryHasData
+      ? officialResult.value.summary
+      : null;
     const detail = detailResult.status === "fulfilled" ? detailResult.value : null;
     const detailRows = detail ? [{
       clicks: detail.totalClicks,

@@ -182,7 +182,7 @@ export const smsOrchestratorRouter = router({
         throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Database unavailable — the draft was not actioned." });
       }
       const db = await getDbTyped();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      if (!db) throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Database unavailable — the draft was not actioned." });
 
       // Age is computed in SQL: driver-parsed TiDB timestamps come back shifted on ET.
       const [row] = await db.select({

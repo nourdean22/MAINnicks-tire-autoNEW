@@ -145,3 +145,19 @@ describe("F6 — the StateNour bridge gsc_summary prefers the official total and
     expect(h).toMatch(/official\.summary\.ctr \* 100/);
   });
 });
+
+describe("F7 — an empty official response is not an official zero (2026-10-02)", () => {
+  const GSC_SRC = code(GSC);
+  it("getGscReport reports summaryHasData from the presence of the total row", () => {
+    expect(GSC_SRC).toMatch(/summaryHasData: totalRows\.length > 0/);
+  });
+  it("every summary-only caller asks for totals only and gates on summaryHasData", () => {
+    for (const f of ["server/routers/admin/market.ts", "server/routes/nour-os-query.ts"]) {
+      const c = code(readFileSync(resolve(APP, f), "utf8"));
+      expect(c, f).toMatch(/getGscReport\([^)]*\{ totalsOnly: true \}\)/);
+      expect(c, f).toContain("official?.summaryHasData");
+    }
+    const rev = code(readFileSync(resolve(APP, "server/routers/revenueOps.ts"), "utf8"));
+    expect(rev).toContain("officialResult.value.summaryHasData");
+  });
+});

@@ -792,8 +792,9 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
     const startDate = String(filters.from || thirtyAgo);
     const endDate = String(filters.to || today);
     try {
-      const official = await getGscReport({ startDate, endDate });
-      if (official) {
+      const official = await getGscReport({ startDate, endDate }, { totalsOnly: true });
+      // No total row (inside GSC's data lag) is NOT an official zero -> fall back, labelled.
+      if (official?.summaryHasData) {
         return {
           from: startDate,
           to: endDate,

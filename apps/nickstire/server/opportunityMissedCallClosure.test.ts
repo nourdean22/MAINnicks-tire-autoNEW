@@ -14,8 +14,8 @@
  *     through recordOutcome (UPDATE … state = 'won' + outcome_invoice_id),
  *     served/collapse closes are CAS transitions whose receipt names the
  *     exact evidence row, and no source table is ever mutated;
- *   - collector: a redial for a phone that already has a live row is
- *     collapsed (not inserted), and within one batch the newest call wins.
+ *   - collector: the NEWEST call for a phone gets the card; the phone's older
+ *     un-worked live card collapses into it (a worked card is left alone).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
@@ -55,7 +55,7 @@ const fakeDb = {
       inserts.push(text);
       return [{ affectedRows: 1 }];
     }
-    if (text.includes("SELECT source_id, customer_phone FROM revenue_opportunities")) return [livePhoneRows];
+    if (text.includes("SELECT id, source_id, state, customer_phone FROM revenue_opportunities")) return [livePhoneRows];
     if (text.includes("source_type = 'missed_call'") && text.includes("ORDER BY created_at DESC")) return [liveMissed];
     if (text.includes("SELECT vapiCallId, createdAt FROM vapi_call_logs")) return [callTimes];
     if (text.includes("FROM callback_requests") && !text.includes("JOIN")) return [callbackRows];
@@ -157,11 +157,12 @@ describe("decideMissedCallServed", () => {
 });
 
 describe("servedCloseState", () => {
-  it("duplicate where the transition table allows it, else the file convention (lost)", () => {
+  it("duplicate where the transition table allows it; a worked row is left to its owner (never 'lost')", () => {
     expect(servedCloseState("new")).toBe("duplicate");
     expect(servedCloseState("assigned")).toBe("duplicate");
-    expect(servedCloseState("attempted")).toBe("lost");
-    expect(servedCloseState("contacted")).toBe("lost");
+    // A served customer on a worked card is a RECOVERY, not a lost sale.
+    expect(servedCloseState("attempted")).toBeNull();
+    expect(servedCloseState("contacted")).toBeNull();
   });
 });
 
@@ -286,33 +287,48 @@ describe("collectMissedCalls · one live card per phone", () => {
     leadId: null, callbackId: null, metadata: null, createdAt: new Date(Date.now() - minsAgo * 60_000),
   });
 
-  it("skips a redial whose phone already has a live row; newest call in a batch wins", async () => {
-    livePhoneRows = [{ source_id: "call-existing", customer_phone: "(216) 555-0142" }];
+  it("the NEWEST call gets the card; the phone's older un-worked card collapses into it", async () => {
+    livePhoneRows = [{ id: "op-old", source_id: "call-existing", state: "new", customer_phone: "(216) 555-0142" }];
+    oppRows["op-old"] = { id: "op-old", state: "new", source_type: "missed_call" };
     vapiSelectRows = [
-      call("call-redial", "+12165550142", 60), // phone already live → collapsed
-      call("call-b-new", "2165550177", 90), // newest for 0177 → inserted
-      call("call-b-old", "2165550177", 300), // older 0177 in same batch → collapsed
-      call("call-existing", "2165550142", 400), // its own live row → refresh path, not collapsed
+      call("call-redial", "+12165550142", 60), // newest for 0142 -> inserted; op-old collapses into it
+      call("call-b-new", "2165550177", 90), // newest for 0177 -> inserted
+      call("call-b-old", "2165550177", 300), // older 0177 in the same batch -> not carded
+      call("call-existing", "2165550142", 400), // op-old's own call, older than the redial -> not carded
     ];
     const { collectMissedCalls } = await import("./services/opportunityQueue");
     const stats = await collectMissedCalls();
-    expect(stats.collapsed).toBe(2);
-    expect(inserts.some((t) => t.includes("call-redial"))).toBe(false);
-    expect(inserts.some((t) => t.includes("call-b-old"))).toBe(false);
+    expect(inserts.some((t) => t.includes("call-redial"))).toBe(true);
     expect(inserts.some((t) => t.includes("call-b-new"))).toBe(true);
-    expect(inserts.some((t) => t.includes("call-existing"))).toBe(true);
+    expect(inserts.some((t) => t.includes("call-b-old"))).toBe(false);
+    const collapseUpd = captured.find((t) => t.includes("UPDATE revenue_opportunities") && t.includes("collapsed into newer missed call"));
+    expect(collapseUpd, "the older live card must be closed into the newer call").toBeTruthy();
+    expect(collapseUpd).toContain("duplicate");
+    expect(stats.collapsed).toBe(3); // op-old closed + 2 older calls not carded
+  });
+
+  it("an older card someone is already WORKING is never collapsed by a new call", async () => {
+    livePhoneRows = [{ id: "op-worked", source_id: "call-existing", state: "attempted", customer_phone: "2165550142" }];
+    oppRows["op-worked"] = { id: "op-worked", state: "attempted", source_type: "missed_call" };
+    vapiSelectRows = [call("call-redial", "2165550142", 60)];
+    const { collectMissedCalls } = await import("./services/opportunityQueue");
+    const stats = await collectMissedCalls();
+    expect(inserts.some((t) => t.includes("call-redial"))).toBe(true);
+    expect(captured.some((t) => t.includes("UPDATE revenue_opportunities") && t.includes("collapsed into"))).toBe(false);
+    expect(stats.collapsed).toBe(0);
   });
 });
 
 describe("refreshOpportunityQueue · collapse is reported, not silent", () => {
   it("details carry the missed-call collapsed count", async () => {
-    livePhoneRows = [{ source_id: "call-existing", customer_phone: "2165550142" }];
+    livePhoneRows = [{ id: "op-old", source_id: "call-existing", state: "new", customer_phone: "2165550142" }];
+    oppRows["op-old"] = { id: "op-old", state: "new", source_type: "missed_call" };
     vapiSelectRows = [
       { id: 1, vapiCallId: "call-redial", phoneNumber: "2165550142", durationSeconds: 40, convertedToLead: 0,
         leadId: null, callbackId: null, metadata: null, createdAt: new Date(Date.now() - 60 * 60_000) },
     ];
     const { refreshOpportunityQueue } = await import("./services/opportunityQueue");
     const { details } = await refreshOpportunityQueue();
-    expect(details).toMatch(/missed calls: 0new\/0ref\/1scan\/1collapsed/);
+    expect(details).toMatch(/missed calls: 1new\/0ref\/1scan\/1collapsed/);
   });
 });
