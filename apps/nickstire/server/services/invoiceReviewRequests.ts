@@ -30,6 +30,24 @@ const log = createLogger("services:invoiceReviewRequests");
 const LOOKBACK_DAYS = 3;
 const MAX_PER_RUN = 50;
 
+/**
+ * The name the review SMS greets ("Hi {first word}, …" — routers/reviewRequests.ts
+ * buildReviewMessage). ALG writes "Last, First" ("Aiken, David") and imports are often ALL
+ * CAPS, so the raw invoice name would greet David as "Hi Aiken," / "Hi AIKEN,". Normalised to
+ * "First Last", title-cased; anything without a plausible first name greets "there".
+ */
+function greetingName(raw: unknown): string {
+  const text = String(raw ?? "").trim();
+  const [last, first] = text.includes(",") ? text.split(",", 2).map((p) => p.trim()) : ["", text];
+  const ordered = (text.includes(",") ? `${first} ${last}` : first).replace(/\s+/g, " ").trim();
+  const firstWord = ordered.split(" ")[0] ?? "";
+  if (!/^[A-Za-z][A-Za-z'-]{1,}$/.test(firstWord) || /^(unknown|customer|cash|n\/?a|test)$/i.test(firstWord)) {
+    return "there";
+  }
+  const title = (w: string) => w.toLowerCase().replace(/(^|[-'])([a-z])/g, (_m, sep: string, c: string) => sep + c.toUpperCase());
+  return ordered.split(" ").map(title).join(" ").slice(0, 255);
+}
+
 const rowsOf = (result: unknown): Array<Record<string, unknown>> => {
   const r = Array.isArray(result) && Array.isArray(result[0]) ? result[0] : result;
   return Array.isArray(r) ? (r as Array<Record<string, unknown>>) : [];
@@ -62,8 +80,7 @@ export async function createInvoiceReviewRequests(): Promise<{
 
   const phoneKey = sql.raw(`RIGHT(REGEXP_REPLACE(i.customerPhone, '[^0-9]', ''), 10)`);
   const candidates = rowsOf(await db.execute(sql`
-    SELECT i.id AS id, i.customerName AS name, ${phoneKey} AS phone,
-           LEFT(COALESCE(NULLIF(i.serviceDescription, ''), 'service'), 100) AS service
+    SELECT i.id AS id, i.customerName AS name, ${phoneKey} AS phone
     FROM invoices i
     WHERE i.source = 'shopdriver' AND i.paymentStatus = 'paid'
       AND i.invoiceDate >= NOW() - INTERVAL ${LOOKBACK_DAYS} DAY
@@ -90,12 +107,15 @@ export async function createInvoiceReviewRequests(): Promise<{
       continue;
     }
     try {
+      // service NULL -> the SMS says "your service". ALG's description field can be a raw
+      // ticket summary or even the VEHICLE ("thanks for trusting us with your 2014 honda
+      // civic!"); it is never customer copy.
       await db.execute(sql`
         INSERT INTO review_requests
           (bookingId, invoiceId, customerName, phone, service, status, scheduledAt, trackingToken)
         VALUES
-          (NULL, ${Number(c.id)}, ${String(c.name || "Customer").slice(0, 255)}, ${phone},
-           ${String(c.service)}, 'pending', NOW() + INTERVAL ${settings.delayMinutes} MINUTE,
+          (NULL, ${Number(c.id)}, ${greetingName(c.name)}, ${phone},
+           NULL, 'pending', NOW() + INTERVAL ${settings.delayMinutes} MINUTE,
            ${crypto.randomBytes(24).toString("hex")})
       `);
       created++;

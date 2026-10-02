@@ -105,6 +105,28 @@ describe("createInvoiceReviewRequests", () => {
     expect(await createInvoiceReviewRequests()).toMatchObject({ created: 0, duplicate: 1 });
   });
 
+  it("ALG 'Last, First' / ALL CAPS names greet by first name; junk names greet 'there'", async () => {
+    h.candidates = [
+      { id: 501, name: "AIKEN, DAVID", phone: "2165550501" },
+      { id: 502, name: "maria lopez", phone: "2165550502" },
+      { id: 503, name: "Unknown", phone: "2165550503" },
+      { id: 504, name: "", phone: "2165550504" },
+    ];
+    await createInvoiceReviewRequests();
+    expect(h.inserts[0]).toContain('"David Aiken"');
+    expect(h.inserts[0]).not.toContain("AIKEN, DAVID");
+    expect(h.inserts[1]).toContain('"Maria Lopez"');
+    expect(h.inserts[2]).toContain('"there"');
+    expect(h.inserts[3]).toContain('"there"');
+  });
+
+  it("the invoice's raw service text never reaches the SMS (service is NULL -> 'your service')", async () => {
+    h.candidates = [{ id: 601, name: "Pat Doe", phone: "2165550601" }];
+    await createInvoiceReviewRequests();
+    const select = h.queries.find((t) => t.includes("FROM invoices i")) ?? "";
+    expect(select).not.toContain("serviceDescription");
+  });
+
   it("candidates are paid shopdriver invoices from a short lookback, excluding opt-outs and the other lane's recent asks", async () => {
     await createInvoiceReviewRequests();
     const q = h.queries.find((t) => t.includes("FROM invoices i")) ?? "";
