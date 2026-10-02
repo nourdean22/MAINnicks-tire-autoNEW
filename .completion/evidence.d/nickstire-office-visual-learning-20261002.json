@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "deferred": "WHAT THE OPERATOR SEES after this diff, in Admin -> Lot -> Counter conversations: under each 'Saw:' line, two buttons, Right and Wrong (48px targets). Right saves at once and the row then reads 'You confirmed this.' Wrong opens an in-DOM field 'What actually happened? (optional)' with Save correction / Cancel; after saving the row reads 'You marked this wrong: <note>' with a 'change' link. A failed save shows 'Not saved: <reason>' inline (never a native dialog). When the shop-PC person detector measured the frames, the metrics row adds 'detector: N people' beside the model's 'N people seen'. Live walkthrough DEFERRED until this deploys: no production admin session exists in this cloud container."
+    },
+    "capability-ledger-updated": {
+      "ref": "UPDATED in this diff: apps/nickstire/docs/operations/capability-ledger.json 'office-visual-watch-20261002' drops the three deferredScope items this PR ships (self-learning, on-box person detection, visual -> fact extraction), adds their tests, and adds two P2 blockers: live proof of the new loop, and the NicksMax person model fetch + openvino in the office venv. REALITY-LEDGER.md re-rendered (110 capabilities)."
+    }
+  }
+}

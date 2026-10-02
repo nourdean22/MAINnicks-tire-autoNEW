@@ -238,6 +238,13 @@ export async function extractConversationFacts(
      *  an unmeasured clip must not be punished as though it had been measured and failed. */
     coveredSeconds?: number | null;
     totalSeconds?: number | null;
+    /**
+     * What the office camera SAW during this episode (services/officeVisual.ts summary +
+     * activities). Context only: it can disambiguate the transcript ("keys handed over" next to
+     * "here you go"), but it is never a segment, so no fact can cite it as evidence and the
+     * provenance rule below is unchanged.
+     */
+    visualContext?: string | null;
   } = {},
 ): Promise<ExtractionResult> {
   const dropped: { reason: string; count: number }[] = [];
@@ -264,7 +271,12 @@ export async function extractConversationFacts(
     const res = await invokeLLM({
       messages: [
         { role: "system", content: SYSTEM },
-        { role: "user", content: `Transcript segments:\n\n${numbered}` },
+        {
+          role: "user",
+          content: opts.visualContext?.trim()
+            ? `Camera context (what the office camera saw during this conversation; background only, it is NOT a transcript segment and must never be cited as evidence):\n${opts.visualContext.trim().slice(0, 800)}\n\nTranscript segments:\n\n${numbered}`
+            : `Transcript segments:\n\n${numbered}`,
+        },
       ],
       outputSchema: OUTPUT_SCHEMA,
       temperature: 0,

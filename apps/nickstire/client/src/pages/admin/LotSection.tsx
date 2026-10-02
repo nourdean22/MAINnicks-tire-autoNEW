@@ -186,8 +186,113 @@ type ConversationRow = {
     waitingUnattended: boolean | null;
     frameCount: number;
     error: string | null;
+    /** Max persons the shop-PC detector counted in one frame; null = not measured. */
+    onBoxPeople?: number | null;
+    review?: { verdict: "correct" | "wrong"; note: string | null; at: string } | null;
   } | null;
 };
+
+/**
+ * Right / Wrong on a "Saw:" line. A review becomes a calibration note in the next vision prompt
+ * (server/services/officeVisual.ts), so this is how the office camera learns this shop.
+ * In-DOM correction field, never window.prompt (suppressed in the iOS PWA).
+ */
+function VisualReview({
+  episodeId,
+  review,
+  onSaved,
+}: {
+  episodeId: string;
+  review: { verdict: "correct" | "wrong"; note: string | null } | null | undefined;
+  onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const save = trpc.lot.reviewConversationVisual.useMutation({
+    onSuccess: (r) => {
+      if (r.ok) {
+        setEditing(false);
+        setError(null);
+        onSaved();
+      } else {
+        setError(r.reason);
+      }
+    },
+    onError: (e) => setError(e.message),
+  });
+
+  if (review && !editing) {
+    return (
+      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-foreground/50">
+        <span>
+          {review.verdict === "correct" ? "You confirmed this." : "You marked this wrong"}
+          {review.verdict === "wrong" && review.note ? `: ${review.note}` : review.verdict === "wrong" ? "." : ""}
+        </span>
+        <button
+          type="button"
+          className="min-h-12 rounded-md px-3 text-foreground/60 underline active:scale-95"
+          onClick={() => setEditing(true)}
+        >
+          change
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-1 flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={save.isPending}
+          className="min-h-12 min-w-12 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 text-[12px] text-emerald-300 active:scale-95 disabled:opacity-50"
+          onClick={() => save.mutate({ episodeId, verdict: "correct" })}
+        >
+          Right
+        </button>
+        <button
+          type="button"
+          disabled={save.isPending}
+          className="min-h-12 min-w-12 rounded-md border border-red-500/30 bg-red-500/10 px-3 text-[12px] text-red-300 active:scale-95 disabled:opacity-50"
+          onClick={() => setEditing(true)}
+        >
+          Wrong
+        </button>
+      </div>
+      {editing && (
+        <div className="flex flex-col gap-2">
+          <input
+            type="text"
+            value={note}
+            maxLength={300}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="What actually happened? (optional)"
+            className="min-h-12 rounded-md border border-foreground/15 bg-transparent px-3 text-[13px]"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={save.isPending}
+              className="min-h-12 rounded-md border border-foreground/20 px-3 text-[12px] active:scale-95 disabled:opacity-50"
+              onClick={() => save.mutate({ episodeId, verdict: "wrong", note: note.trim() || null })}
+            >
+              Save correction
+            </button>
+            <button
+              type="button"
+              className="min-h-12 rounded-md px-3 text-[12px] text-foreground/50 active:scale-95"
+              onClick={() => { setEditing(false); setError(null); }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {error && <div className="text-[11px] text-red-300">Not saved: {error}</div>}
+    </div>
+  );
+}
 
 type CameraFacets = {
   producer: string;
@@ -1031,6 +1136,13 @@ function ConversationPanel({
                           )}
                         </div>
                       )}
+                      {row.visual?.status === "DONE" && row.visual.summary && (
+                        <VisualReview
+                          episodeId={row.episodeId}
+                          review={row.visual.review}
+                          onSaved={() => { void query.refetch(); }}
+                        />
+                      )}
                       {row.visual?.status === "FAILED" && (
                         <div className="mt-1 text-[11px] text-foreground/45">
                           Saw: unavailable. {row.visual.frameCount} frame{row.visual.frameCount === 1 ? "" : "s"} arrived but the vision model could not describe them.
@@ -1062,6 +1174,11 @@ function ConversationPanel({
                     {row.visual?.status === "DONE" && row.visual.peopleCount !== null && (
                       <span>
                         {row.visual.peopleCount} {row.visual.peopleCount === 1 ? "person" : "people"} seen
+                      </span>
+                    )}
+                    {typeof row.visual?.onBoxPeople === "number" && (
+                      <span>
+                        detector: {row.visual.onBoxPeople} {row.visual.onBoxPeople === 1 ? "person" : "people"}
                       </span>
                     )}
                     {row.sttEngine && <span>{row.sttEngine}</span>}

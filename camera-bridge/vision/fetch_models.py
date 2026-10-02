@@ -57,6 +57,20 @@ PINNED: tuple[PinnedFile, ...] = (
         "0c46011610964399a3cf5b1a3f8b1c8c2d84b914a69c02bc026b4e0272f464ce",
         3_634_654,
     ),
+    # Office "watch" person count (vision/officeframes.py). Same OMZ release, same SSD
+    # output format; verified live 2026-10-02 at exactly these digests and byte counts.
+    # Kept AFTER the vehicle pins: run_live.py reports the first pinned .bin as the
+    # vehicle model's digest, and main() prints PINNED[0] as the detector path.
+    PinnedFile(
+        "person-detection-0200/FP16/person-detection-0200.xml",
+        "6a393e1a58607cf65ff58b437b0aeb0bf6c46a18926e1c5718374c804c419faa",
+        254_619,
+    ),
+    PinnedFile(
+        "person-detection-0200/FP16/person-detection-0200.bin",
+        "cebd5b36edce228fd7a519b372d824f220466c4c7a0d75bfe22fbb6c5aca4fcd",
+        3_634_654,
+    ),
 )
 
 

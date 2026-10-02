@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-01T16:55:00.909Z",
-  "count": 771,
+  "generatedAt": "2026-10-02T21:14:22.450Z",
+  "count": 772,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -215,6 +215,7 @@
     "mutation.lead.update",
     "mutation.lot.endCommissioning",
     "mutation.lot.recordTruth",
+    "mutation.lot.reviewConversationVisual",
     "mutation.lot.startCommissioning",
     "mutation.loyalty.awardPoints",
     "mutation.loyalty.awardPointsByPhone",

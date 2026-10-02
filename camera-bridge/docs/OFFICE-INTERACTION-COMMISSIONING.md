@@ -192,6 +192,12 @@ How it runs:
 - The nickstire server sends them to the vision model (Ollama Cloud first, Gemini fallback). It
   stores ONLY the resulting description in `conversation_episodes.visual`.
 - Frames are never written to disk on NicksMax and never stored on the server.
+- Each frame also carries `people`: an on-box person count (Intel `person-detection-0200`,
+  OpenVINO, confidence >= 0.5). `null` means NOT MEASURED (no model, no openvino/cv2, load or
+  inference failure, or opted out) and never means "nobody there"; a measured empty office is `0`.
+- Fetch the model once on NicksMax from `camera-bridge/`: `python vision/fetch_models.py`
+  (lands in `ov_models/`, sha256-verified). Override the path with `OFFICE_PERSON_MODEL_XML`;
+  opt out with `OFFICE_PERSON_DETECT=0`. A load failure is printed once to stderr.
 
 On by default. To turn it off:
 - `OFFICE_VISUAL_ENABLED=0` on NicksMax (machine env; needs an elevated shell);

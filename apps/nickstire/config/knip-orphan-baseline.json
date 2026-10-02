@@ -5875,6 +5875,16 @@
       "file": "apps/nickstire/server/services/officeVisual.ts",
       "symbol": "__resetOfficeVisualReadyCache",
       "reason": "TEST SEAM, KNOWN. Clears the module-level cache of the migration-0140 readiness check so officeVisual.test.ts can pin both the positive cache and the negative re-check TTL. No runtime caller by design: production must keep the cache. Added 2026-10-02 (office watch)."
+    },
+    {
+      "file": "apps/nickstire/server/services/officeVisual.ts",
+      "symbol": "buildPrompt",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Assembles the vision prompt with the optional on-box person-count hint and the operator-review calibration block; null people means no hint (never a claimed zero). Runtime consumer is analyzeOfficeFrames in this module. officeVisual.test.ts pins both blocks and their absence. Added 2026-10-02 (office self-learning)."
+    },
+    {
+      "file": "apps/nickstire/server/services/officeVisual.ts",
+      "symbol": "calibrationNote",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Turns one operator review (Right / Wrong + correction) into a calibration line; an unreviewed description yields none. Runtime consumer is loadVisualCalibration in this module, which feeds the route's vision call. officeVisual.test.ts pins confirmed vs corrected vs unreviewed. Added 2026-10-02 (office self-learning)."
     }
   ]
 }

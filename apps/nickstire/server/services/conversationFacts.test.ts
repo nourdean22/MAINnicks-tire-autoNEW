@@ -263,3 +263,22 @@ describe("conversation summaries — evidence-backed only", () => {
     );
   });
 });
+
+describe("conversation facts — camera context (office watch)", () => {
+  it("puts what the camera saw ahead of the transcript, marked as context that cannot be cited", async () => {
+    replyWith({ facts: [] });
+    await extractConversationFacts(SEGMENTS, { visualContext: "Customer handed keys to staff at the counter." });
+    const user = (invokeLLM as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].messages[1].content as string;
+    expect(user).toContain("Customer handed keys to staff at the counter.");
+    expect(user).toContain("must never be cited as evidence");
+    expect(user.indexOf("Camera context")).toBeLessThan(user.indexOf("Transcript segments"));
+  });
+
+  it("without camera context the prompt is byte-identical to before", async () => {
+    replyWith({ facts: [] });
+    await extractConversationFacts(SEGMENTS, { visualContext: null });
+    const user = (invokeLLM as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].messages[1].content as string;
+    expect(user.startsWith("Transcript segments:")).toBe(true);
+    expect(user).not.toContain("Camera context");
+  });
+});

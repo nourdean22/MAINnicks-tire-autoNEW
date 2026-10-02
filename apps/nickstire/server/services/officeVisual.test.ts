@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   parseVisualReply, analyzeOfficeFrames, officeVisualColumnReady, storedVisual,
   __resetOfficeVisualReadyCache, OFFICE_VISUAL_MAX_FRAMES,
+  buildPrompt, calibrationNote, loadVisualCalibration, __resetOfficeVisualCalibration, type OfficeVisual,
 } from "./officeVisual";
 
 const META = { frameCount: 2, provider: "ollama", model: "m", latencyMs: 9 };
@@ -107,5 +108,55 @@ describe("storedVisual", () => {
     expect(storedVisual("{nope")).toBeNull();
     expect(storedVisual({ status: "MAYBE" })).toBeNull();
     expect(storedVisual(null)).toBeNull();
+  });
+});
+
+describe("office visual — learning loop and on-box people", () => {
+  const base: OfficeVisual = {
+    status: "DONE", summary: "One customer at the counter.", peopleCount: 1, activities: [],
+    waitingUnattended: false, frameCount: 1, provider: "ollama", model: "m", latencyMs: 5, error: null,
+  };
+  beforeEach(() => __resetOfficeVisualCalibration());
+
+  it("the prompt carries the on-box count and calibration notes only when present", () => {
+    const plain = buildPrompt(2);
+    expect(plain).not.toContain("person detector");
+    expect(plain).not.toContain("Calibration");
+    const p = buildPrompt(2, { onBoxPeople: 3, calibration: ["Was wrong: \"x\" -- what actually happened: \"y\""] });
+    expect(p).toContain("counted at most 3 people");
+    expect(p).toContain("Calibration from the shop owner");
+    expect(p).toContain("what actually happened");
+    // null means "not measured": no hint at all, never a claimed zero.
+    expect(buildPrompt(2, { onBoxPeople: null })).not.toContain("person detector");
+  });
+
+  it("calibration notes: confirmed vs corrected, and nothing for an unreviewed description", () => {
+    expect(calibrationNote(base)).toBeNull();
+    expect(calibrationNote({ ...base, review: { verdict: "correct", note: null, at: "t" } })).toContain("Confirmed accurate");
+    expect(calibrationNote({ ...base, review: { verdict: "wrong", note: "two customers, staff on phone", at: "t" } }))
+      .toContain("two customers, staff on phone");
+  });
+
+  it("loads corrections before confirmations, caches them, and a failed read is an empty list", async () => {
+    const row = (verdict: "correct" | "wrong", summary: string, note: string | null = null) =>
+      ({ visual: JSON.stringify({ ...base, summary, review: { verdict, note, at: "t" } }) });
+    const execute = vi.fn().mockResolvedValue([[
+      row("correct", "ok one"), row("wrong", "bad one", "really two people"), row("correct", "ok two"),
+    ]]);
+    const notes = await loadVisualCalibration({ execute }, 1_000);
+    expect(notes[0]).toContain("really two people");
+    expect(notes).toHaveLength(3);
+    await loadVisualCalibration({ execute }, 2_000);
+    expect(execute).toHaveBeenCalledTimes(1);
+
+    __resetOfficeVisualCalibration();
+    const broken = vi.fn().mockRejectedValue(new Error("db down"));
+    expect(await loadVisualCalibration({ execute: broken }, 3_000)).toEqual([]);
+  });
+
+  it("storedVisual reads back the review and the on-box count", () => {
+    const v = storedVisual(JSON.stringify({ ...base, onBoxPeople: 2, review: { verdict: "wrong", note: "n", at: "t" } }));
+    expect(v).toMatchObject({ onBoxPeople: 2, review: { verdict: "wrong", note: "n" } });
+    expect(storedVisual(JSON.stringify(base))).toMatchObject({ onBoxPeople: null, review: null });
   });
 });
