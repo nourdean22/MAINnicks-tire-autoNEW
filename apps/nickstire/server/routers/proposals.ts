@@ -40,7 +40,10 @@ export const proposalsRouter = router({
         .optional(),
     )
     .query(async ({ input }) => {
-      return listProposals({ statuses: input?.statuses, limit: input?.limit });
+      // Decided rows carry what happened to the customer afterwards (invoice / booking /
+      // callback) — the only way to tell a correct rejection from a lost customer.
+      const { withDownstreamOutcomes } = await import("../services/proposalOutcomes");
+      return withDownstreamOutcomes(await listProposals({ statuses: input?.statuses, limit: input?.limit }));
     }),
 
   get: dbAdminProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ input }) => {
