@@ -1,6 +1,6 @@
 # Session ledger — statenour
 
-**Updated: 2026-10-02 ET** (full-circle wave 2 · `statenour/full-circle-c-settings-system` · Settings/System recomposition + Inngest kill switch + Home WaitingLine + rateable daily brief · PR open)
+**Updated: 2026-10-02 ET** (full-circle wave 2 · `statenour/full-circle-c-settings-system` · Settings/System recomposition + Inngest kill switch + Home WaitingLine + rateable daily brief · PR #2884 open · wave 1 #2883 MERGED ba792990 + DEPLOYED 59bc223f, receipt path unproven until the next guardian failure)
 
 ## 2026-10-02 · full-circle wave 2 — Settings keeps configuration, System owns operations
 
