@@ -1,6 +1,7 @@
 # ADR-0016 · Merge Brain + Life into Actions · OPS into Settings
 
 - **Status:** accepted · 2026-05-15 · shipped v10.0.529.72 (Wave 18)
+- **Superseded in part:** by [ADR-0025](./0025-settings-system-ownership.md) (2026-10-02) — OPS is no longer folded into Settings; System owns machine operations.
 - **Context layer:** information architecture · QUICK NAV
 - **Owners:** operator (Nour) · IA call · executed in-session
 - **Supersedes:** v10.0.529.50 (Wave 4 nav upgrade · which had added the
