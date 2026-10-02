@@ -385,32 +385,15 @@ async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus)
     }
   }
 
-  // Auto review request on close
-  if (newStatus === "closed") {
-    try {
-      const { db, workOrders } = await getDbAndSchema();
-      const [wo] = await db.select().from(workOrders).where(eq(workOrders.id, workOrderId)).limit(1);
-      if (wo?.customerId) {
-        // wave-182: resolve numeric-id OR phone-keyed walk-in customer_id.
-        const { resolveWorkOrderCustomer } = await import("../lib/resolveWorkOrderCustomer");
-        const cust = await resolveWorkOrderCustomer(wo.customerId);
-        if (cust?.phone) {
-          const { createReviewRequest } = await import("../db");
-          const scheduledAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours later
-          await createReviewRequest({
-            customerName: cust.firstName || "Customer",
-            customerPhone: cust.phone,
-            customerEmail: cust.email || null,
-            service: wo.serviceDescription || "Auto Service",
-            scheduledAt,
-            status: "pending",
-          } as any);
-        }
-      }
-    } catch (e) {
-      log.error("[WO] Auto review request failed:", e);
-    }
-  }
+  // NO review request is created on close — deliberately. The insert that used
+  // to sit here wrote `as any` with columns review_requests does not have
+  // (customerPhone/customerEmail) and none of its NOT NULL ones (phone,
+  // bookingId, trackingToken), so TiDB strict mode rejected it on every close
+  // and the error was only logged. review_requests.bookingId is NOT NULL and a
+  // work order has no booking, so there is nothing honest to insert. Review
+  // asks for walk-in/ALG work need a migration first (review_requests.bookingId
+  // nullable + an invoiceId source), then scheduleReviewRequest
+  // (routers/reviewRequests.ts) as the single creator.
 
   // Dispatch to NOUR OS bridge
   try {

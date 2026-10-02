@@ -29,6 +29,7 @@
  * Gated by feature flag `vapi_action_proposals` (OFF by default — also the
  * deploy-order guard for migration 0111).
  */
+import { BUSINESS } from "@shared/business";
 import { createLogger } from "../lib/logger";
 import { classifyCall, type VapiOutcomeCategory } from "./vapiCallClassifier";
 import { createProposal, type CreateProposalResult } from "./proposals";
@@ -61,6 +62,22 @@ export interface CallMeta {
   endedReason: string | null;
   /** VAPI's own call type, e.g. "inboundPhoneCall" / "outboundPhoneCall". */
   callType?: string | null;
+  /**
+   * CAPTURED EVIDENCE — what a mid-call tool already persisted for THIS call.
+   * Without these the classifier's "already captured" branch could never fire
+   * here, so a call scheduleCallback/escalate had already written a callback
+   * for still drafted a second one (production: 38 of 44 drafts rejected).
+   * Loaded by `loadCallCaptureEvidence`; all optional so an absent read
+   * degrades to the pre-fix behavior, never to silence.
+   */
+  leadId?: number | null;
+  callbackId?: number | null;
+  bookingId?: number | null;
+  reachedTool?: boolean;
+  /** A callback_requests row already names this call (`callId=<id>` in its context). */
+  existingCallbackForCall?: boolean;
+  /** bookSlot already recorded the walk-in commitment (expected_arrivals.sourceRef = callId). */
+  hasExpectedArrival?: boolean;
 }
 
 /**
@@ -91,11 +108,20 @@ export function shouldExtract(meta: CallMeta): VapiOutcomeCategory | null {
   // No verified number = no proposal can safely name a contact. Skip.
   if (!meta.customerPhone || meta.customerPhone.replace(/\D/g, "").length < 7) return null;
   if (meta.transcript.trim().length < 40) return null;
+  // Both draft kinds already owned by an operational row — nothing could survive
+  // dropAlreadyOwned, so do not spend an LLM pass finding that out.
+  if (meta.existingCallbackForCall && meta.hasExpectedArrival) return null;
   const { outcome } = classifyCall({
     durationSeconds: meta.durationSeconds,
     endedReason: meta.endedReason,
     aiSummary: meta.summary,
     transcript: meta.transcript,
+    // A persisted lead/callback/booking makes this a hard_conversion — a person
+    // or tool already owns it, so no draft.
+    leadId: meta.leadId ?? null,
+    callbackId: meta.callbackId ?? null,
+    bookingId: meta.bookingId ?? null,
+    reachedTool: meta.reachedTool,
   });
   return ACTIONABLE_OUTCOMES.includes(outcome) ? outcome : null;
 }
@@ -114,10 +140,23 @@ export interface ExtractedAction {
   confidence: number;
 }
 
-/** Pure: the extractor's instruction. Exported so a test can pin its contract. */
-export function buildExtractionPrompt(): string {
+/** Today's calendar date in SHOP time (YYYY-MM-DD) — never the server's UTC day. */
+export function shopToday(now: Date = new Date()): string {
+  return now.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
+}
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/**
+ * Pure: the extractor's instruction. Exported so a test can pin its contract.
+ * `today` (YYYY-MM-DD, shop time) is stated in the prompt: without it the model
+ * had no anchor for "Friday" and emitted wrong or past dates.
+ */
+export function buildExtractionPrompt(today: string): string {
+  const weekday = WEEKDAYS[new Date(`${today}T12:00:00Z`).getUTCDay()] ?? "";
   return [
     "You read ONE phone call transcript from an auto shop's AI receptionist.",
+    `Today is ${weekday}, ${today} (shop time, ${BUSINESS.timezone}).`,
     "",
     "Extract ONLY actions the CALLER explicitly asked for. Two kinds exist:",
     '  "create_callback"        — the caller asked to be called back.',
@@ -127,7 +166,7 @@ export function buildExtractionPrompt(): string {
     "- Only explicit asks. A pricing question alone is NOT a callback request.",
     "- NEVER invent contact information. Report a name only if the caller stated one.",
     "- Phone numbers are handled by the system — do not extract them.",
-    '- preferredDate only when the caller named a concrete day, as "YYYY-MM-DD"; else null.',
+    `- preferredDate only when the caller named a concrete day, as "YYYY-MM-DD"; else null. Resolve relative days ("Friday", "tomorrow") against today. Never a past date: on or after ${today}.`,
     "- confidence 0-100: how explicit the ask was. 90+ only for verbatim requests.",
     "- Nothing actionable => an empty actions array. That is a good answer.",
     "",
@@ -139,9 +178,11 @@ export function buildExtractionPrompt(): string {
 /**
  * Pure: parse the model's reply. Unknown shapes THROW — a draft the schema
  * cannot validate must never be created "best-effort". Caps at 3 actions and
- * one per kind (the idempotency key is per (call, kind) anyway).
+ * one per kind (the idempotency key is per (call, kind) anyway). With `today`
+ * (YYYY-MM-DD), a preferredDate before it is dropped to null — a past date is
+ * a model error, not a caller ask.
  */
-export function parseExtraction(raw: string): ExtractedAction[] {
+export function parseExtraction(raw: string, today?: string): ExtractedAction[] {
   const m = /\{[\s\S]*\}/.exec(raw);
   if (!m) throw new Error(`extractor returned no JSON object: ${raw.slice(0, 120)}`);
   const parsed = JSON.parse(m[0]) as { actions?: unknown };
@@ -161,7 +202,10 @@ export function parseExtraction(raw: string): ExtractedAction[] {
     if (!reason) throw new Error(`extractor returned a ${kind} with no reason`);
     const confidenceRaw = Number(a.confidence);
     const confidence = Number.isFinite(confidenceRaw) ? Math.min(100, Math.max(0, Math.round(confidenceRaw))) : 0;
-    const date = typeof a.preferredDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(a.preferredDate) ? a.preferredDate : null;
+    const date =
+      typeof a.preferredDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(a.preferredDate) && !(today && a.preferredDate < today)
+        ? a.preferredDate
+        : null;
     out.push({
       kind,
       name: typeof a.name === "string" && a.name.trim() && a.name.trim().toLowerCase() !== "null" ? a.name.trim().slice(0, 120) : null,
@@ -172,6 +216,31 @@ export function parseExtraction(raw: string): ExtractedAction[] {
     });
   }
   return out;
+}
+
+/**
+ * Pure: drop draft kinds an operational row already owns for this call.
+ *   · create_callback — scheduleCallback/escalate already wrote callback_requests.
+ *   · create_booking_request — bookSlot already recorded an expected arrival
+ *     and told the caller NO appointment was booked (walk-in shop); approving a
+ *     booking draft would contradict that.
+ */
+export function dropAlreadyOwned(
+  actions: readonly ExtractedAction[],
+  meta: CallMeta,
+): { kept: ExtractedAction[]; dropped: Array<{ kind: ExtractedAction["kind"]; reason: string }> } {
+  const kept: ExtractedAction[] = [];
+  const dropped: Array<{ kind: ExtractedAction["kind"]; reason: string }> = [];
+  for (const a of actions) {
+    if (a.kind === "create_callback" && meta.existingCallbackForCall) {
+      dropped.push({ kind: a.kind, reason: "callback_request_exists_for_call" });
+    } else if (a.kind === "create_booking_request" && meta.hasExpectedArrival) {
+      dropped.push({ kind: a.kind, reason: "expected_arrival_exists_for_call" });
+    } else {
+      kept.push(a);
+    }
+  }
+  return { kept, dropped };
 }
 
 /**
@@ -235,11 +304,12 @@ export async function maybeProposeCallActions(meta: CallMeta): Promise<Extractio
   try {
     const outcome = shouldExtract(meta);
     if (!outcome) return { ran: false, created: 0, deduped: 0 };
+    const today = shopToday();
 
     const { invokeLLM } = await import("../_core/llm");
     const res = await invokeLLM({
       messages: [
-        { role: "system", content: buildExtractionPrompt() },
+        { role: "system", content: buildExtractionPrompt(today) },
         {
           role: "user",
           content: `Transcript:\n${meta.transcript.slice(0, 8000)}\n\nSummary: ${meta.summary ?? "(none)"}\n\nYour JSON:`,
@@ -255,7 +325,10 @@ export async function maybeProposeCallActions(meta: CallMeta): Promise<Extractio
     });
     const raw = res.choices?.[0]?.message?.content ?? "";
     const text = typeof raw === "string" ? raw : JSON.stringify(raw);
-    const actions = parseExtraction(text);
+    const { kept: actions, dropped } = dropAlreadyOwned(parseExtraction(text, today), meta);
+    for (const d of dropped) {
+      log.info("draft dropped — already owned by an operational row", { callId: meta.callId.slice(0, 16), kind: d.kind, reason: d.reason });
+    }
     if (actions.length === 0) return { ran: true, outcome, created: 0, deduped: 0 };
 
     let created = 0;
@@ -275,5 +348,53 @@ export async function maybeProposeCallActions(meta: CallMeta): Promise<Extractio
       error: message.slice(0, 200),
     });
     return { ran: true, created: 0, deduped: 0, error: message };
+  }
+}
+
+/**
+ * One bounded read of what this call ALREADY captured, for the gate above.
+ * Reads the vapi_call_logs row the webhook just wrote (leadId/callbackId come
+ * from the call-state trail there), plus the two rows a tool can write without
+ * a trail id: a callback_requests row whose context embeds `callId=<id>`
+ * (scheduleCallback/escalate) and an expected_arrivals row with
+ * sourceRef = callId (bookSlot). Fails OPEN to {} with a warn — the gate then
+ * behaves as before this existed (a possible duplicate draft a human rejects),
+ * never as "captured".
+ */
+export async function loadCallCaptureEvidence(
+  callId: string,
+): Promise<Pick<CallMeta, "leadId" | "callbackId" | "reachedTool" | "existingCallbackForCall" | "hasExpectedArrival">> {
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return {};
+    const likeCallId = `%callId=${callId.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const [rows] = await db.execute(sql`
+      SELECT
+        (SELECT leadId FROM vapi_call_logs WHERE vapiCallId = ${callId} LIMIT 1) AS leadId,
+        (SELECT callbackId FROM vapi_call_logs WHERE vapiCallId = ${callId} LIMIT 1) AS callbackId,
+        (SELECT convertedToLead FROM vapi_call_logs WHERE vapiCallId = ${callId} LIMIT 1) AS convertedToLead,
+        EXISTS (SELECT 1 FROM callback_requests
+                WHERE createdAt >= NOW() - INTERVAL 7 DAY AND context LIKE ${likeCallId}) AS hasCallback,
+        EXISTS (SELECT 1 FROM expected_arrivals WHERE sourceRef = ${callId}) AS hasArrival`);
+    const r = (rows as unknown as Array<Record<string, unknown>>)[0] ?? {};
+    const fk = (v: unknown): number | null => {
+      const n = Number(v);
+      return v != null && Number.isInteger(n) && n > 0 ? n : null;
+    };
+    return {
+      leadId: fk(r.leadId),
+      callbackId: fk(r.callbackId),
+      reachedTool: Number(r.convertedToLead) === 1,
+      existingCallbackForCall: Number(r.hasCallback) === 1,
+      hasExpectedArrival: Number(r.hasArrival) === 1,
+    };
+  } catch (err) {
+    log.warn("capture-evidence read failed — gate runs without it", {
+      callId: callId.slice(0, 16),
+      error: (err instanceof Error ? err.message : String(err)).slice(0, 200),
+    });
+    return {};
   }
 }

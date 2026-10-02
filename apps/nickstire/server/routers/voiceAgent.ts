@@ -1191,7 +1191,7 @@ export const voiceAgentRouter = router({
         const { callbackRequests } = await import("../../drizzle/schema");
         const d = await db();
         if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        await d.insert(callbackRequests).values({
+        const [insertedCallback] = await d.insert(callbackRequests).values({
           name: input.name,
           phone: input.phone.replace(/\D/g, ""),
           context: `[VOICE-AGENT CALLBACK]${input.callId ? ` callId=${input.callId}` : ""}${input.preferredTime ? ` · prefers: ${input.preferredTime}` : ""}${input.reason ? ` — ${input.reason}` : ""}`,
@@ -1199,6 +1199,26 @@ export const voiceAgentRouter = router({
           status: "new",
         });
         log.info("Voice agent scheduleCallback captured", { nameGiven: Boolean(input.name) });
+
+        // LINK THE CALLBACK TO THE CALL — exactly as `escalate` does. Without
+        // this the end-of-call webhook never saw a callbackId for the commonest
+        // callback path (prod: ~101 converted calls/week, 1 linked callbackId),
+        // and the draft-proposal gate could not tell this call was captured.
+        if (input.callId && insertedCallback?.insertId) {
+          try {
+            const { recordCallState } = await import("../services/voice-call-state");
+            await recordCallState({
+              callId: input.callId,
+              state: "tool_called",
+              metadata: { tool: "scheduleCallback", callbackId: Number(insertedCallback.insertId) },
+            });
+          } catch (err) {
+            log.warn("Failed to record callbackId on the call-state trail", {
+              callId: input.callId,
+              err: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
 
         // Same commitment as `escalate`, different entry point: the assistant
         // OFFERED the callback and the caller accepted by giving their details.
