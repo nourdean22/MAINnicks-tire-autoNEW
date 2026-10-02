@@ -203,6 +203,22 @@ export function combinedPushBody(morningHighlight: string | null, execText: stri
  * Daily Ingestion & Briefing Orchestrator
  * Cron: Daily at 10:00 UTC
  */
+/**
+ * 2026-10-02 · the run's terminal status derives from the compose result. A brief
+ * whose compose timed out used to return `completed` and settle `success` in
+ * cron_job_logs: the system knew it was degraded (the saved text says so) while
+ * the Owner Panel had nothing to read. `status: "partial"` + `degradedReason` is
+ * what lib/inngest/cron-lifecycle.ts deriveDegradation turns into a partial row.
+ */
+export function briefRunOutcome(brief: { degraded?: string }): {
+  status: "completed" | "partial";
+  degradedReason?: string;
+} {
+  return brief.degraded
+    ? { status: "partial", degradedReason: `brief compose degraded: ${brief.degraded}` }
+    : { status: "completed" };
+}
+
 export const intelligenceDailyBrief = inngest.createFunction(
   {
     id: "intelligence-daily-brief",
@@ -284,6 +300,9 @@ export const intelligenceDailyBrief = inngest.createFunction(
             "",
             "Raw opportunities are on /intelligence — the composed narrative returns when the provider does.",
           ].join("\n"),
+          // 2026-10-02 · carried to the run's return (briefRunOutcome) so the cron
+          // lifecycle settles `partial`, not `success`, and the Owner Panel sees it.
+          degraded: msg.slice(0, 300),
         };
       }
     });
@@ -425,6 +444,7 @@ export const intelligenceDailyBrief = inngest.createFunction(
     }
 
     return {
+      ...briefRunOutcome(briefContent as { degraded?: string }),
       date: briefContent.date,
       ingested: ingestionReport,
       opportunities: opportunityReport,

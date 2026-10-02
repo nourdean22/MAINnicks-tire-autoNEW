@@ -793,3 +793,45 @@ describe("cron lifecycle · one run, one row — parallel-step requests (2026-09
     expect(TERMINAL_OK_STATUSES).not.toContain("duplicate");
   });
 });
+
+describe("cron lifecycle · a degraded output settles partial, not success (2026-10-02)", () => {
+  it("records partial with the declared reason", async () => {
+    const store = makeStore();
+    const { CronLifecycleMiddleware } = await loadMiddleware(store.prisma);
+    const mw = new CronLifecycleMiddleware({ client: {} as never });
+    const fn = cronFn("intelligence-daily-brief");
+    const ctx = { runId: "run-degraded" };
+    await mw.onRunStart({ ctx, fn });
+    await mw.onRunComplete({
+      ctx,
+      fn,
+      output: { status: "partial", degradedReason: "brief compose degraded: compose timed out after 90s", pushSent: 1 },
+    });
+    const row = store.rows.find((r) => r.runId === "run-degraded");
+    expect(row?.status).toBe("partial");
+    expect(String(row?.error)).toBe("degraded · brief compose degraded: compose timed out after 90s");
+    expect(store.history).toEqual(["create:started", "update:partial"]);
+  });
+
+  it("a plain completed output still settles success with a null error", async () => {
+    const store = makeStore();
+    const { CronLifecycleMiddleware } = await loadMiddleware(store.prisma);
+    const mw = new CronLifecycleMiddleware({ client: {} as never });
+    const fn = cronFn("intelligence-daily-brief");
+    const ctx = { runId: "run-ok" };
+    await mw.onRunStart({ ctx, fn });
+    await mw.onRunComplete({ ctx, fn, output: { status: "completed", pushSent: 1 } });
+    const row = store.rows.find((r) => r.runId === "run-ok");
+    expect(row?.status).toBe("success");
+    expect(row?.error).toBeNull();
+  });
+
+  it("deriveDegradation reads status: partial or degraded: true, and nothing else", async () => {
+    const { deriveDegradation } = await loadMiddleware(makeStore().prisma);
+    expect(deriveDegradation({ status: "partial", degradedReason: "x" })).toEqual({ degraded: true, reason: "x" });
+    expect(deriveDegradation({ degraded: true })).toEqual({ degraded: true, reason: "finished degraded (partial); no reason declared" });
+    expect(deriveDegradation({ status: "completed" })).toEqual({ degraded: false, reason: null });
+    expect(deriveDegradation(undefined)).toEqual({ degraded: false, reason: null });
+    expect(deriveDegradation([1, 2])).toEqual({ degraded: false, reason: null });
+  });
+});

@@ -70,6 +70,7 @@
 
 import { Middleware } from "inngest";
 import { deriveSkipReason } from "@/lib/services/cron-skip-reason";
+import { DECLARED_DEGRADATION_PREFIX } from "@/lib/services/cron-status";
 
 /**
  * Statuses this module writes. `partial` is deliberately ABSENT: it remains
@@ -218,6 +219,27 @@ const INT32_MAX = 2_147_483_647;
 
 const asCount = (v: unknown): number | null =>
   typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= INT32_MAX ? v : null;
+
+/**
+ * 2026-10-02 · a function that RETURNS but declares degradation is a `partial`
+ * run, never a `success`. The intelligence brief's compose timeout degraded its
+ * text to an honest fallback and then returned `completed`; the row read
+ * `success`, and the one owner surface that reads this table saw nothing.
+ * Declared by `status: "partial"` or `degraded: true` on the output, with the
+ * reason in `degradedReason` (or `error`).
+ */
+export function deriveDegradation(output: unknown): { degraded: boolean; reason: string | null } {
+  if (!output || typeof output !== "object" || Array.isArray(output)) return { degraded: false, reason: null };
+  const o = output as Record<string, unknown>;
+  if (o.status !== "partial" && o.degraded !== true) return { degraded: false, reason: null };
+  const reason =
+    typeof o.degradedReason === "string" && o.degradedReason.trim()
+      ? o.degradedReason
+      : typeof o.error === "string" && o.error.trim()
+        ? o.error
+        : "finished degraded (partial); no reason declared";
+  return { degraded: true, reason };
+}
 
 export function deriveResultCount(output: unknown): number | null {
   if (Array.isArray(output)) return output.length;
@@ -408,7 +430,7 @@ export async function settleCronRun(
         // Always written: a success overriding `interrupted` must also clear
         // the presumed-dead text that sweep left behind.
         error: err === undefined ? null : describeError(err),
-        ...(status === CRON_STATUS.success
+        ...(TERMINAL_OK_STATUSES.includes(status)
           ? { resultCount: deriveResultCount(output), skipReason: deriveSkipReason(output) }
           : {}),
       },
@@ -452,7 +474,18 @@ export class CronLifecycleMiddleware extends Middleware.BaseMiddleware {
   // `output` is the function's return value (Middleware.OnRunCompleteArgs) -
   // the summary every job here already builds, now kept as `resultCount`.
   override async onRunComplete(arg: { ctx: unknown; fn: unknown; output?: unknown }): Promise<void> {
-    await settleCronRun(arg.fn, arg.ctx, CRON_STATUS.success, undefined, arg.output);
+    // A returned output that declares degradation settles `partial` with its reason
+    // (deriveDegradation, 2026-10-02); anything else is the success it always was.
+    const { degraded, reason } = deriveDegradation(arg.output);
+    await settleCronRun(
+      arg.fn,
+      arg.ctx,
+      degraded ? "partial" : CRON_STATUS.success,
+      // The prefix is what lets a reader tell a DECLARED degradation from a fan-out
+      // parent's plain `partial` (lib/services/cron-status.ts isDeclaredDegradation).
+      degraded ? `${DECLARED_DEGRADATION_PREFIX}${reason}` : undefined,
+      arg.output,
+    );
   }
 
   override async onRunError(arg: {

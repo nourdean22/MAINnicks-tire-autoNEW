@@ -13,6 +13,11 @@
  *   · lanes            -> listLaneStatus() (lib/ai/budget.ts), a capped lane
  *                         past its cap is STOPPED until midnight ET (startOfDay)
  *   · cost             -> ai_generations cost_cents, tasks marked DONE
+ *   · capabilities     -> integrations type=capability, the guardian's durable
+ *                         failure receipts (lib/system/capability-health.ts, 2026-10-02)
+ *   · degraded runs    -> cron_job_logs status=partial carrying the declared-degradation
+ *                         prefix (the brief's compose timeout, 2026-10-02); a plain partial
+ *                         (fan-out children failed) is diagnose-cron-failure's, not paged
  *
  * Rules (each one is the empty-vs-error skill):
  *   · a failed read is named in `unreadable` and the verdict is UNKNOWN,
@@ -27,7 +32,7 @@
  * Canary: tests/lib/system/owner-panel.test.ts.
  */
 
-import { isHardFailure } from "@/lib/services/cron-status";
+import { declaredDegradationReason, isDeclaredDegradation, isHardFailure } from "@/lib/services/cron-status";
 import { endOfDayET } from "@/lib/utils/datetime";
 
 export const EXCEPTION_WINDOW_MS = 24 * 60 * 60_000;
@@ -38,6 +43,8 @@ export const DECISIONS_VISIBLE_CAP = 5;
 export const DEPLOY_ALERT_TOOL = "railway.deploy_alert";
 /** In-flight consequential actions older than this are no longer ordinary latency. */
 export const ACTION_EXECUTION_STALE_MS = 30 * 60_000;
+/** A capability row nothing touched for this long is history, not a live exception. */
+export const CAPABILITY_WINDOW_MS = 7 * 24 * 60 * 60_000;
 
 const TERMINAL = new Set(["success", "partial", "failed", "interrupted"]);
 /** ActionAttempt states that record the provider accepted the page (lib/services/action-attempts.ts). */
@@ -58,7 +65,9 @@ export interface OwnerItem {
     | "action_failed"
     | "action_unknown"
     | "action_stalled"
-    | "approval";
+    | "approval"
+    | "cron_degraded"
+    | "capability_degraded";
   tone: "rose" | "amber" | "neutral";
   title: string;
   detail: string | null;
@@ -174,6 +183,17 @@ export interface ActionAttemptLite {
   settledAt: Date | null;
   updatedAt: Date;
 }
+/** One `integrations` row of type `capability` (lib/system/capability-health.ts). */
+export interface CapabilityLite {
+  name: string;
+  /** healthy | degraded | failed | disabled — only degraded/failed are read. */
+  status: string;
+  consecutiveFailures: number;
+  errorCount: number;
+  /** JSON: lastError, lastCategory, firstFailureAt, lastFailureAt, lastRecoveryAt. Shape-checked at read. */
+  metadata: unknown;
+  updatedAt: Date;
+}
 
 /** null = that read FAILED. [] / 0 = it succeeded and found nothing. */
 export interface OwnerPanelInput {
@@ -198,6 +218,8 @@ export interface OwnerPanelInput {
   tasksDone: number | null;
   /** Explicit source-backed cost/value attribution. null means the read itself failed. */
   valueAttribution: ValueAttributionLite | null;
+  /** Guarded capabilities currently degraded or failed. null = that read FAILED. */
+  capabilities: CapabilityLite[] | null;
 }
 
 const clip = (s: string | null | undefined, n = 140): string | null => {
@@ -206,6 +228,13 @@ const clip = (s: string | null | undefined, n = 140): string | null => {
   return t.length > n ? `${t.slice(0, n - 1)}…` : t;
 };
 const dollars = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+/** An ISO string out of a JSON column, or null when absent or unparseable. */
+const parseIso = (v: unknown): Date | null => {
+  if (typeof v !== "string") return null;
+  const d = new Date(v);
+  return Number.isFinite(d.getTime()) ? d : null;
+};
 
 function item(now: Date, base: Omit<OwnerItem, "ageMin" | "since"> & { since: Date | null }): OwnerItem {
   return {
@@ -243,6 +272,26 @@ export function cronExceptions(rows: CronRow[], now: Date): OwnerItem[] {
           title: `cron ${job} ${latest.status}`,
           detail: clip(latest.error) ?? "no error text recorded",
           since: firstFail.createdAt,
+          href: "/system/crons",
+          evidence: `cron_job_logs ${latest.id}`,
+        }),
+      );
+      continue;
+    }
+    // A `partial` row the job itself DECLARED degraded (cron-lifecycle writes the
+    // declared-degradation prefix: the brief's compose timeout) is something the
+    // owner should see today. A plain `partial` is a fan-out parent whose children
+    // failed — mega-evening alone has written 1,248 of them — and that chronic
+    // pattern is owned by diagnose-cron-failure, so it is not paged here.
+    if (isDeclaredDegradation(latest.status, latest.error)) {
+      out.push(
+        item(now, {
+          key: `cron-degraded:${job}`,
+          kind: "cron_degraded",
+          tone: "amber",
+          title: `cron ${job} ran degraded`,
+          detail: clip(declaredDegradationReason(latest.error ?? "")) ?? "degraded; no reason recorded",
+          since: latest.createdAt,
           href: "/system/crons",
           evidence: `cron_job_logs ${latest.id}`,
         }),
@@ -513,6 +562,29 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
           since: null,
           href: "/system/ai-cost",
           evidence: `ai_generations feature=${l.feature} today`,
+        }),
+      );
+    }
+
+  if (input.capabilities === null) unreadable.push("capabilities");
+  else
+    for (const c of input.capabilities) {
+      // A row nothing touched for a week is history: the capability stopped being
+      // called, or the process that would recover it never ran. Not a live exception.
+      if (now.getTime() - c.updatedAt.getTime() > CAPABILITY_WINDOW_MS) continue;
+      const meta = isRecord(c.metadata) ? c.metadata : {};
+      const lastError = typeof meta.lastError === "string" ? meta.lastError : null;
+      const lastCategory = typeof meta.lastCategory === "string" ? meta.lastCategory : null;
+      exceptions.push(
+        item(now, {
+          key: `capability:${c.name}`,
+          kind: "capability_degraded",
+          tone: c.status === "failed" ? "rose" : "amber",
+          title: `capability ${c.name} ${c.status} · ${c.consecutiveFailures} consecutive ${c.consecutiveFailures === 1 ? "failure" : "failures"}`,
+          detail: clip(lastError) ?? (lastCategory ? `last failure class: ${lastCategory}` : "no error text recorded"),
+          since: parseIso(meta.firstFailureAt) ?? c.updatedAt,
+          href: "/system/tools",
+          evidence: `integrations name=${c.name}`,
         }),
       );
     }

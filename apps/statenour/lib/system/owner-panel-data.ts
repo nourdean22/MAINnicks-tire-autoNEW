@@ -18,9 +18,11 @@ import {
   composeOwnerPanel,
   COST_WINDOW_DAYS,
   DEPLOY_ALERT_TOOL,
+  CAPABILITY_WINDOW_MS,
   EXCEPTION_WINDOW_MS,
   type OwnerPanel,
 } from "@/lib/system/owner-panel";
+import { CAPABILITY_INTEGRATION_TYPE } from "@/lib/system/capability-health";
 
 const log = rootLogger.withSurface("system/owner-panel");
 
@@ -54,6 +56,7 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
     unpriced,
     tasksDone,
     valueAttribution,
+    capabilities,
   ] = await Promise.all([
       guarded(
         "cron runs",
@@ -152,6 +155,20 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
         "value attribution",
         buildCostPerOutcomeAttribution(COST_WINDOW_DAYS),
       ),
+      guarded(
+        "capabilities",
+        prisma.integration.findMany({
+          where: {
+            type: CAPABILITY_INTEGRATION_TYPE,
+            enabled: true,
+            status: { in: ["degraded", "failed"] },
+            updatedAt: { gte: new Date(now.getTime() - CAPABILITY_WINDOW_MS) },
+          },
+          select: { name: true, status: true, consecutiveFailures: true, errorCount: true, metadata: true, updatedAt: true },
+          orderBy: { updatedAt: "desc" },
+          take: 50,
+        }),
+      ),
     ]);
 
   const spend =
@@ -174,5 +191,6 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
     spend,
     tasksDone,
     valueAttribution,
+    capabilities,
   });
 }

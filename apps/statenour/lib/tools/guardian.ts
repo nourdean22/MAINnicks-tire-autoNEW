@@ -29,6 +29,7 @@ import { prisma } from "@/lib/prisma";
 import { APPROVAL_DEDUPE_WINDOW_MS, samePayload } from "@/lib/tools/approval-match";
 import { isApprovalRequestExpired } from "@/lib/automation/approval-freshness";
 import { AsyncLocalStorage } from "async_hooks";
+import { recordCapabilityFailure, recordCapabilityRecovery } from "@/lib/system/capability-health";
 
 const log = rootLogger.withSurface("tools/guardian");
 
@@ -651,6 +652,12 @@ export function withGuardian<T, A extends unknown[]>(
           });
         }
         if (circuitBreaker) recordBreakerSuccess(toolName);
+        // 2026-10-02 · durable capability receipt (lib/system/capability-health.ts):
+        // a Set lookup on the hot path, one write after a streak. Fire-and-forget so a
+        // slow database never delays a successful call; never the caller's error.
+        void recordCapabilityRecovery(toolName).catch(() => {
+          /* receipts never mask the result they record */
+        });
         return result;
       } catch (err) {
         lastError = err;
@@ -682,6 +689,20 @@ export function withGuardian<T, A extends unknown[]>(
     // trips it and subsequent calls fast-fail during the cooldown.
     if (circuitBreaker) {
       recordBreakerFailure(toolName, lastCategory, breakerThreshold, breakerCooldownMs);
+    }
+
+    // 2026-10-02 · the failure boundary writes its receipt BEFORE the throw so the
+    // Owner Panel has a row to read (`capability_degraded`); the log line below it
+    // cannot be projected. The recorder never throws; even if it did, the caller's
+    // failure is the one that matters.
+    try {
+      await recordCapabilityFailure({
+        toolName,
+        category: lastCategory,
+        error: String((lastError as { message?: string })?.message ?? lastError ?? "unknown"),
+      });
+    } catch {
+      /* receipts never mask the failure they record */
     }
 
     throw new GuardianError(
