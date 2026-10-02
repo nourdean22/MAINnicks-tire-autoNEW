@@ -34,6 +34,34 @@ pnpm agent:verify
 `scripts/agent-os/verify.mjs` runs adapter parity, then **auto-discovers** every
 `scripts/agent-os/*.test.mjs` and runs it under Node's built-in test runner.
 
+## Fresh-session bootstrap
+
+```bash
+pnpm agent:bootstrap
+```
+
+`scripts/agent-os/bootstrap.mjs` is the generated **volatile-state receipt** for a fresh context or long autonomous
+mission. It does not replace `AGENTS.md`, NOUR COMMAND, Session Authority, Completion Authority, app truth docs, or the
+lightweight Claude SessionStart hooks. It composes the facts those layers should not hard-code:
+
+- refreshes `origin/main` when available and reports HEAD/ahead/behind/dirty state;
+- lists linked worktrees;
+- reads open PRs through `gh` when available and flags exact changed-file collisions with other branches;
+- routes the minimal next context (`AGENTS.md`, NOUR COMMAND, and only the touched app's truth/handoff files);
+- reports network/tooling failure as PARTIAL/UNKNOWN instead of silently presenting a clean state.
+
+Machine-readable/local-only forms:
+
+```bash
+pnpm agent:bootstrap -- --json
+pnpm agent:bootstrap -- --no-fetch --no-remote
+pnpm agent:bootstrap -- --json --write
+```
+
+`--write` caches the generated receipt under `.agent-cache/bootstrap/<HEAD>.json`; it is disposable derived state,
+not another source of truth. The bootstrap intentionally does **not** infer production health from Git state. Product/runtime
+verification remains app- and mission-specific.
+
 That discovery is deliberate. Editing anything under `.github/workflows/**` flips `test.yml`'s
 path filter and escalates CI from a ~1-minute security job to a full turbo sweep plus every
 nickstire and statenour validator (~50 minutes). Adding a new guard should cost a file, not an
