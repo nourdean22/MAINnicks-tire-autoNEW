@@ -29,7 +29,8 @@ import { sql } from "drizzle-orm";
 
 import { extractConversationFacts, type TranscriptSegment } from "../services/conversationFacts";
 import {
-  analyzeOfficeFrames, officeVisualColumnReady, OFFICE_VISUAL_MAX_FRAMES, type OfficeVisual,
+  analyzeOfficeFrames, loadVisualCalibration, officeVisualColumnReady, OFFICE_VISUAL_MAX_FRAMES,
+  type OfficeVisual,
 } from "../services/officeVisual";
 import { createLogger } from "../lib/logger";
 
@@ -99,6 +100,8 @@ const episodeSchema = z.object({
     at: z.union([z.string(), z.number()]).optional(),
     mime: z.enum(["image/jpeg", "image/png"]).default("image/jpeg"),
     base64: z.string().min(100).max(400_000),
+    /** Persons counted in this frame by the detector on NicksMax. null = not measured. */
+    people: z.number().int().min(0).max(50).nullish(),
   })).max(OFFICE_VISUAL_MAX_FRAMES).optional(),
 });
 
@@ -136,20 +139,40 @@ export function registerConversationEpisodeRoute(app: Express): void {
       }
     }
 
-    // Extraction runs BEFORE the write so the row lands complete. A two-step write would
+    // Vision runs FIRST (when it can be stored) so its description can inform fact extraction:
+    // "keys handed over" beside "here you go" is a different fact from the words alone. Measured
+    // 2026-10-02 at 0.5-1.2 s per call, so the serial cost is small next to extraction.
+    // Extraction still runs BEFORE the write so the row lands complete; a two-step write would
     // leave a PENDING row behind whenever extraction failed, and nothing reaps those.
-    // The vision call runs alongside it: independent inputs, and the slower of the two bounds
-    // the request instead of their sum.
-    const [extracted, visual] = await Promise.all([
-      extractConversationFacts(segments, {
-        meanVolumeDb: e.meanVolumeDb ?? null,
-        coveredSeconds: e.coveredSeconds,
-        totalSeconds: e.totalSeconds,
-      }),
-      visualReady
-        ? analyzeOfficeFrames(frames.map((f) => ({ mime: f.mime, base64: f.base64 })))
-        : Promise.resolve<OfficeVisual | null>(null),
-    ]);
+    const counted = frames.map((f) => f.people).filter((n): n is number => typeof n === "number");
+    const onBoxPeople = counted.length ? Math.max(...counted) : null;
+    let visual: OfficeVisual | null = null;
+    if (visualReady) {
+      let calibration: string[] = [];
+      try {
+        const { getDb } = await import("../db");
+        const dc = await getDb();
+        calibration = dc ? await loadVisualCalibration(dc) : [];
+      } catch {
+        calibration = [];
+      }
+      visual = await analyzeOfficeFrames(
+        frames.map((f) => ({ mime: f.mime, base64: f.base64 })),
+        undefined,
+        { calibration, onBoxPeople },
+      );
+      visual = { ...visual, onBoxPeople };
+    }
+    const visualContext = visual?.status === "DONE" && visual.summary
+      ? [visual.summary, visual.activities.length ? `Activities: ${visual.activities.join(", ")}.` : ""]
+          .filter(Boolean).join(" ")
+      : null;
+    const extracted = await extractConversationFacts(segments, {
+      meanVolumeDb: e.meanVolumeDb ?? null,
+      coveredSeconds: e.coveredSeconds,
+      totalSeconds: e.totalSeconds,
+      visualContext,
+    });
 
     // FAILED covers BOTH failures that can reach here, and it outranks everything: the
     // producer could not transcribe, or extraction could not run. Neither is "no facts found".
@@ -227,7 +250,7 @@ export function registerConversationEpisodeRoute(app: Express): void {
       const meta = {
         episodeId: e.episodeId, frames: frames.length, visualStatus,
         provider: visual?.provider ?? null, model: visual?.model ?? null,
-        latencyMs: visual?.latencyMs ?? null, error: visual?.error ?? null,
+        latencyMs: visual?.latencyMs ?? null, error: visual?.error ?? null, onBoxPeople,
       };
       if (visualStatus === "DONE") log.info("office visual stored", meta);
       else log.warn("office visual not stored", meta);
@@ -249,6 +272,7 @@ export function registerConversationEpisodeRoute(app: Express): void {
       framesReceived: frames.length,
       visualStatus,
       visualError: visual?.error ?? null,
+      onBoxPeople,
     });
   });
 }

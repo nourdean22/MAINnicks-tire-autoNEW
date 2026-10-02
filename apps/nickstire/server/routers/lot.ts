@@ -53,9 +53,10 @@ import {
 } from "../lib/commissioningReport";
 import { EXPECTED_CAMERAS } from "../../shared/cameras";
 import { isDuplicateKeyError } from "../lib/dbErrors";
+import { writeResult } from "../lib/dbResult";
 import { createLogger } from "../lib/logger";
 import { jsonArray, transcriptCoverage } from "../lib/conversationQuality";
-import { officeVisualColumnReady, storedVisual } from "../services/officeVisual";
+import { officeVisualColumnReady, storedVisual, __resetOfficeVisualCalibration } from "../services/officeVisual";
 
 const log = createLogger("routers:lot");
 
@@ -425,6 +426,44 @@ export const lotRouter = router({
           ok: false as const,
           reason: err instanceof Error ? err.message : "conversation read failed",
         };
+      }
+    }),
+
+  /**
+   * Operator verdict on what the office camera "Saw" for one conversation. This is the
+   * self-learning loop: reviewed descriptions become calibration notes in the next vision
+   * prompt (services/officeVisual.ts loadVisualCalibration), so a correction here changes how
+   * the camera describes the next customer. Stored inside the existing `visual` JSON
+   * (JSON_SET), so no migration; refused when the episode has no visual to review.
+   */
+  reviewConversationVisual: adminProcedure
+    .input(z.object({
+      episodeId: z.string().min(1).max(64),
+      verdict: z.enum(["correct", "wrong"]),
+      note: z.string().trim().max(300).nullish(),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await dbTyped();
+      if (!d) return { ok: false as const, reason: "database unavailable" };
+      try {
+        if (!(await officeVisualColumnReady(d))) return { ok: false as const, reason: "visual column not available" };
+        const review = {
+          verdict: input.verdict,
+          note: input.verdict === "wrong" && input.note ? input.note : null,
+          at: new Date().toISOString(),
+        };
+        const res = await d.execute(sql`
+          UPDATE conversation_episodes
+             SET visual = JSON_SET(visual, '$.review', CAST(${JSON.stringify(review)} AS JSON))
+           WHERE episodeId = ${input.episodeId} AND visual IS NOT NULL
+        `);
+        // A header without affectedRows is "unknown", not zero (lib/dbResult.ts); only a reported
+        // 0 means there was no stored description to review.
+        if (writeResult(res).affectedRows === 0) return { ok: false as const, reason: "no camera description stored for that conversation" };
+        __resetOfficeVisualCalibration();
+        return { ok: true as const, review };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "could not save the review" };
       }
     }),
 

@@ -16,6 +16,7 @@ vi.mock("../services/officeVisual", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../services/officeVisual")>()),
   analyzeOfficeFrames: vi.fn(),
   officeVisualColumnReady: vi.fn(),
+  loadVisualCalibration: vi.fn().mockResolvedValue([]),
 }));
 
 const logSpy = vi.hoisted(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }));
@@ -310,9 +311,11 @@ describe("conversation ingest — office visual frames", () => {
     const { res, out } = fakeRes();
     await h({ headers: { "x-sync-key": KEY }, body: body({ frames: [FRAME, FRAME] }) }, res);
     expect(out.code).toBe(200);
-    expect(analyzeFrames).toHaveBeenCalledWith([
-      { mime: "image/jpeg", base64: FRAME.base64 }, { mime: "image/jpeg", base64: FRAME.base64 },
-    ]);
+    expect(analyzeFrames).toHaveBeenCalledWith(
+      [{ mime: "image/jpeg", base64: FRAME.base64 }, { mime: "image/jpeg", base64: FRAME.base64 }],
+      undefined,
+      { calibration: [], onBoxPeople: null },
+    );
     expect(out.body).toMatchObject({ framesReceived: 2, visualStatus: "DONE", visualError: null });
     expect(execute).toHaveBeenCalledTimes(2);
     const update = JSON.stringify(execute.mock.calls[1][0]);
@@ -361,6 +364,44 @@ describe("conversation ingest — office visual frames", () => {
     await mount()({ headers: { "x-sync-key": KEY }, body: body() }, fakeRes().res);
     expect(logSpy.info).not.toHaveBeenCalledWith("office visual stored", expect.anything());
     expect(logSpy.warn).not.toHaveBeenCalledWith("office visual not stored", expect.anything());
+  });
+
+  it("on-box person counts: the max across frames rides into the prompt and the stored visual; unmeasured stays null", async () => {
+    visualReady.mockResolvedValue(true);
+    analyzeFrames.mockResolvedValue(DONE);
+    const execute = vi.fn().mockResolvedValue(undefined);
+    db.mockResolvedValue({ execute });
+    const { res, out } = fakeRes();
+    await mount()({ headers: { "x-sync-key": KEY }, body: body({ frames: [
+      { ...FRAME, people: 1 }, { ...FRAME, people: 3 }, { ...FRAME, people: null },
+    ] }) }, res);
+    expect(analyzeFrames.mock.calls.at(-1)?.[2]).toMatchObject({ onBoxPeople: 3 });
+    expect(JSON.stringify(execute.mock.calls[1][0])).toContain('\\"onBoxPeople\\":3');
+    expect(out.body).toMatchObject({ onBoxPeople: 3 });
+
+    // No frame measured -> null, never 0 ("could not look" is not "nobody there").
+    const b = fakeRes();
+    await mount()({ headers: { "x-sync-key": KEY }, body: body({ frames: [{ ...FRAME, people: null }, FRAME] }) }, b.res);
+    expect(analyzeFrames.mock.calls.at(-1)?.[2]).toMatchObject({ onBoxPeople: null });
+    expect(b.out.body).toMatchObject({ onBoxPeople: null });
+  });
+
+  it("what the camera saw is handed to fact extraction as context, only when the description succeeded", async () => {
+    visualReady.mockResolvedValue(true);
+    db.mockResolvedValue({ execute: vi.fn().mockResolvedValue(undefined) });
+
+    analyzeFrames.mockResolvedValue(DONE);
+    await mount()({ headers: { "x-sync-key": KEY }, body: body({ frames: [FRAME] }) }, fakeRes().res);
+    const ctx = extract.mock.calls.at(-1)?.[1]?.visualContext as string;
+    expect(ctx).toContain("Customer at the counter talking with staff.");
+    expect(ctx).toContain("customer at counter");
+
+    analyzeFrames.mockResolvedValue({ ...DONE, status: "FAILED", summary: null, error: "x" });
+    await mount()({ headers: { "x-sync-key": KEY }, body: body({ frames: [FRAME] }) }, fakeRes().res);
+    expect(extract.mock.calls.at(-1)?.[1]?.visualContext).toBeNull();
+
+    await mount()({ headers: { "x-sync-key": KEY }, body: body() }, fakeRes().res);
+    expect(extract.mock.calls.at(-1)?.[1]?.visualContext).toBeNull();
   });
 
   it("OFFICE_VISUAL_ANALYSIS=0 switches analysis off without touching the database", async () => {
