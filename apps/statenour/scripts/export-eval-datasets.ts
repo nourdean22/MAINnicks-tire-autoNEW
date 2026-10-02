@@ -21,6 +21,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { prisma } from "../lib/prisma";
+import { CORRECTION_WHERE } from "@/lib/services/outcome-ledger";
 
 const OUT_DIR = join(process.cwd(), "eval-datasets");
 const exportedAt = new Date().toISOString();
@@ -33,7 +34,7 @@ interface EvalCase {
 
 async function outcomeCases(): Promise<EvalCase[]> {
   const rows = await prisma.intelligenceOutcome.findMany({
-    where: { OR: [{ decision: "dismissed" }, { outcomeUseful: false }] },
+    where: CORRECTION_WHERE,
     orderBy: { shownAt: "desc" },
     take: 500,
     select: {

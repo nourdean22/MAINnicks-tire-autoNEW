@@ -74,13 +74,24 @@ export const healthProcedures = {
       const { prisma } = await import("@/lib/prisma");
       const windowDays = input?.windowDays ?? 7;
       const since = new Date(Date.now() - windowDays * 86_400_000);
-      const [stats, engines] = await Promise.all([
+      const [stats, engines, odometerRow] = await Promise.all([
         outcomeStats(windowDays),
         prisma.intelligenceOutcome.groupBy({
           by: ["sourceEngine", "kind"],
           where: { shownAt: { gte: since } },
           _count: { _all: true },
         }),
+        // 2026-10-02 · the outcome-harvest cron's rolling odometer row had no
+        // reader: the cockpit filtered EVAL_RUN rows by createdAt >= 24h and
+        // parsed them for `passed`, which this prose row never satisfies
+        // (outcome-ledger census E4). Read it by its stable key, no age filter;
+        // `updatedAt` is its freshness.
+        prisma.brainMemory
+          .findUnique({
+            where: { category_key: { category: "eval_run", key: "eval_run:corpus-odometer" } },
+            select: { content: true, updatedAt: true },
+          })
+          .catch(() => null),
       ]);
       return {
         windowDays,
@@ -90,6 +101,9 @@ export const healthProcedures = {
           kind: e.kind,
           rows: e._count._all,
         })),
+        odometer: odometerRow
+          ? { line: odometerRow.content, asOf: odometerRow.updatedAt.toISOString() }
+          : null,
       };
     }),
 

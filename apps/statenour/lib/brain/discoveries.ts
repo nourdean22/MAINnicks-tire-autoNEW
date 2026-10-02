@@ -62,10 +62,10 @@ export type DiscoveryVerdict = "investigate" | "known" | "noise";
  * Ledger decisions these map to (OutcomeDecision in outcome-ledger.ts).
  *
  * `known` is deliberately NOT "dismissed" (review fix, 2026-08-16). Every
- * harvester selects correction cases with
- * `OR: [{ decision: "dismissed" }, { outcomeUseful: false }]` —
- * outcomesNeedingReview(), recall-corpus-builder.ts:197 and
- * export-eval-datasets.ts:35 — and NONE of them reads `resultRef`. Mapping
+ * harvester selects correction cases with `CORRECTION_WHERE`
+ * (lib/services/outcome-ledger.ts, the single owner since 2026-10-02:
+ * outcomesNeedingReview, recall-corpus-builder, export-eval-datasets, the
+ * odometer script and the harvest cron) — and NONE of them reads `resultRef`. Mapping
  * "already knew" to dismissed would therefore harvest a claim the operator
  * confirmed TRUE as though it had been wrong, poisoning the accuracy corpus
  * with the one signal that is not about accuracy at all.

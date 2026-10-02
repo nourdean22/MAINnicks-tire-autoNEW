@@ -30,6 +30,7 @@
  * Missions deck); closure by content joins when it is (Discover → investigate).
  */
 import { createHash } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/utils/error-log";
 
@@ -40,7 +41,20 @@ export type OutcomeKind =
   | "suggestion"
   | "prediction";
 
-export type OutcomeDecision = "accepted" | "dismissed" | "edited" | "ignored";
+/** What the operator did. `edited` was declared for a year and never written (census 2026-10-02); it is gone. */
+export type OutcomeDecision = "accepted" | "dismissed" | "ignored";
+
+/**
+ * THE correction predicate — a recommendation the operator dismissed or rated
+ * not useful. One owner (2026-10-02): the harvest cron, the odometer script,
+ * the eval-dataset exporter and the recall-corpus builder each carried their
+ * own copy, so "what counts as a correction" could drift four ways silently.
+ * `tests/services/correction-where-single-owner.test.ts` pins that the literal
+ * exists nowhere else.
+ */
+export const CORRECTION_WHERE: Prisma.IntelligenceOutcomeWhereInput = {
+  OR: [{ decision: "dismissed" }, { outcomeUseful: false }],
+};
 
 /** Stable 16-hex hash of the normalized summary — exported for tests. */
 export function outcomeContentHash(summary: string): string {
@@ -336,7 +350,7 @@ export async function outcomeStats(windowDays = 30): Promise<{
 /** Correction candidates → future recall-eval corpus cases. */
 export async function outcomesNeedingReview(limit = 20) {
   return prisma.intelligenceOutcome.findMany({
-    where: { OR: [{ decision: "dismissed" }, { outcomeUseful: false }] },
+    where: CORRECTION_WHERE,
     orderBy: { shownAt: "desc" },
     take: limit,
     select: { id: true, kind: true, sourceEngine: true, summary: true, decision: true, outcomeUseful: true, shownAt: true },

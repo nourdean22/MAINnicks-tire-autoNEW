@@ -53,6 +53,16 @@ interface TakeContent {
 
 const TAKE_KEY = (entryId: string) => `journal-take:${entryId}`;
 
+/**
+ * The ledger summary of a take's next action (2026-10-02). Prefixed so it
+ * never collides with the verbatim task title the promote creates (which the
+ * completion-rating title bridge would otherwise match twice). The journal
+ * router ledgers it when the take renders; `promoteJournalTake` decides it.
+ */
+export function journalNextActionSummary(action: string): string {
+  return `next action: ${action.trim()}`;
+}
+
 export async function promoteJournalTake(
   entryId: string,
   kind: JournalTakeKind = "nextAction",
@@ -137,6 +147,21 @@ export async function promoteJournalTake(
 
   if (kind === "nextAction") {
     content.nextAction!.nextActionPromoted = true;
+    // 2026-10-02 · promoting the next action IS accepting the recommendation
+    // (outcome-ledger census E10 Journal). Joined by content — the router
+    // ledgered the same summary when the take rendered — and closed later by
+    // the task's completion rating via resultRef task:<id>. Fire-and-forget:
+    // the promotion already happened; the ledger never fails it.
+    void (async () => {
+      const { recordDecisionByContent } = await import("@/lib/services/outcome-ledger");
+      await recordDecisionByContent(
+        journalNextActionSummary(title), // title IS the validated next action on this branch
+        "accepted",
+        `task:${task.id}`,
+      );
+    })().catch(() => {
+      /* ledger failure must never fail a promotion */
+    });
   } else if (kind === "idea") {
     content.ideaPromoted = true;
   } else {

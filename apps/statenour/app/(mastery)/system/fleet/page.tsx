@@ -275,6 +275,14 @@ export default function FleetPage() {
                     {delivery.data.stats.unlabelled} unlabelled
                   </span>
                 </div>
+                {/* 2026-10-02 · the harvest cron's odometer (corrections vs the
+                    fine-tune trigger) finally has a reader. Absent row = the cron
+                    has not run, said as such — never an invented zero. */}
+                <p className="mt-1 text-[11px] text-fg-secondary/70" data-odometer={delivery.data.odometer ? "present" : "absent"}>
+                  {delivery.data.odometer
+                    ? `odometer · ${delivery.data.odometer.line} · as of ${new Date(delivery.data.odometer.asOf).toLocaleString()}`
+                    : "odometer · no eval_run:corpus-odometer row yet — the outcome-harvest cron has not written one"}
+                </p>
                 <p className="text-[11px] text-fg-secondary/50 mt-0.5">
                   producers writing rows:{" "}
                   {delivery.data.producers.length === 0

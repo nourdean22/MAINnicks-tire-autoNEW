@@ -866,6 +866,20 @@ export const brainRouter = router({
    * suppression filter). `until` defaults to "7d" — the panel sends
    * exactly that.
    */
+  /**
+   * 2026-10-02 · the other half of the nudge decision. Dismiss has written
+   * `dismissed` since 2026-08-16; following a nudge's link wrote nothing, so
+   * the lane was dismiss-only (outcome-ledger census E8). Joined by content
+   * exactly like dismissNudge — the text is the one thing both sides share.
+   */
+  acceptNudge: operatorProcedure
+    .input(z.object({ source: z.string().min(1).max(60), text: z.string().min(1).max(2000) }))
+    .mutation(async ({ input }) => {
+      const { recordDecisionByContent } = await import("@/lib/services/outcome-ledger");
+      const recorded = await recordDecisionByContent(input.text, "accepted", `nudge:${input.source}`);
+      return { ok: true, recorded };
+    }),
+
   dismissNudge: operatorProcedure
     .input(
       z.object({
