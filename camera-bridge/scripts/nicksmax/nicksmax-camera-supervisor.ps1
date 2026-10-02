@@ -71,6 +71,7 @@ function Read-State {
           restarts    = @($p.Value.restarts | Where-Object { $_ -ne $null } | ForEach-Object { [double]$_ })
           escalatedAt = [double]($p.Value.escalatedAt | Select-Object -First 1)
           portMisses  = [int]($p.Value.portMisses | Select-Object -First 1)
+          fingerprint = [string]($p.Value.fingerprint | Select-Object -First 1)
         }
       }
     } catch {
@@ -83,7 +84,7 @@ $state = Read-State
 $nowEpoch = [double][DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 
 function Get-Entry([string]$key) {
-  if (-not $state.ContainsKey($key)) { $state[$key] = @{ restarts = @(); escalatedAt = 0; portMisses = 0 } }
+  if (-not $state.ContainsKey($key)) { $state[$key] = @{ restarts = @(); escalatedAt = 0; portMisses = 0; fingerprint = "" } }
   return $state[$key]
 }
 
@@ -165,6 +166,20 @@ function Kick-Task([string]$taskName,[string]$key,[string]$why,[bool]$restart,[i
   }
 }
 
+# Fingerprint of the office worker's Python modules (vision\office*.py). The fingerprint recorded at
+# the last code-change restart lives in the ledger; a different one means the running process has
+# stale code. First sight of a tree also counts as changed: one restart then is harmless, and it is
+# what loads code pulled before this rule existed.
+function Get-OfficeCodeFingerprint([string]$dir) {
+  $files = Get-ChildItem -Path (Join-Path $dir "vision") -Filter "office*.py" -File -ErrorAction SilentlyContinue | Sort-Object Name
+  if (-not $files) { return "" }
+  $sha = [Security.Cryptography.SHA256]::Create()
+  try {
+    $parts = foreach ($f in $files) { $f.Name + ":" + [BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($f.FullName))) }
+  } finally { $sha.Dispose() }
+  return ($parts -join "|")
+}
+
 # Legacy GUI/WGC lane is retired on NicksMax. Disabled means disabled; do not resurrect it.
 # NicksMaxCameraSupervisorUser is the pre-SYSTEM copy of this supervisor; two supervisors
 # fought over the relay after the 2026-10-02 reboot, so it stays disabled too.
@@ -208,6 +223,15 @@ if ($ot -and $ot.State -ne "Disabled") {
     }
   } elseif ($ot.State -ne "Running") {
     Kick-Task $officeTask "office-worker" ("task state {0}" -f $ot.State) $false 2
+  } elseif (($officeFp = Get-OfficeCodeFingerprint $workDir) -and ((Get-Entry "office-code-version").fingerprint -ne $officeFp)) {
+    # A long-running Python process keeps the code it started with. When `git pull` changes the
+    # office worker's modules, restart it once so a deploy is just a pull (2026-10-02). The new
+    # fingerprint is recorded only when the restart is actually issued, so a throttled tick
+    # retries instead of forgetting the change.
+    if ((Restarts-InLastMinutes "office-worker" 2) -eq 0) {
+      Kick-Task $officeTask "office-worker" "office worker code changed on disk; restarting to load it" $true 2
+      (Get-Entry "office-code-version").fingerprint = $officeFp
+    }
   } elseif (Test-Path $officeStatusPath) {
     try {
       $hb = (Get-Content $officeStatusPath -Raw | ConvertFrom-Json).conversationWorkerHeartbeatAt
