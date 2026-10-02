@@ -5865,6 +5865,16 @@
       "file": "apps/nickstire/package.json",
       "symbol": "migrations:record",
       "reason": "OPERATOR-INVOKED, KNOWN (2026-10-02). Run only by a human with the production env injected (railway run --service MAINnicks-tire-auto -- …) after handleRunMigrations has applied DDL: it records verified migrations in __drizzle_migrations, which the in-app runner never writes. Dry run by default, --only required, records only what reconcile-migrations classifies UNRECORDED_BUT_EXACT_MATCH. Nothing in CI or the server may invoke it — a production ledger write is an operator action."
+    },
+    {
+      "file": "apps/nickstire/server/services/officeVisual.ts",
+      "symbol": "parseVisualReply",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Normalizes a vision model's reply into the stored OfficeVisual shape; a reply without a summary must become FAILED, never an empty DONE. Runtime consumer is analyzeOfficeFrames in this module. officeVisual.test.ts pins fenced/prose JSON and the no-summary rule (mutation-checked). Tests are excluded from knip project globs by design. Added 2026-10-02 (office watch)."
+    },
+    {
+      "file": "apps/nickstire/server/services/officeVisual.ts",
+      "symbol": "__resetOfficeVisualReadyCache",
+      "reason": "TEST SEAM, KNOWN. Clears the module-level cache of the migration-0140 readiness check so officeVisual.test.ts can pin both the positive cache and the negative re-check TTL. No runtime caller by design: production must keep the cache. Added 2026-10-02 (office watch)."
     }
   ]
 }

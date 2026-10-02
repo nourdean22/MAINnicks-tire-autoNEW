@@ -1,0 +1,111 @@
+/**
+ * officeVisual — the vision layer of the office camera ("watch", 2026-10-02).
+ * Pins: lenient JSON parsing, provider fallback, failure-is-stored, the frame cap, and the
+ * readiness cache that keeps the feature inert until migration 0140 is applied.
+ */
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  parseVisualReply, analyzeOfficeFrames, officeVisualColumnReady, storedVisual,
+  __resetOfficeVisualReadyCache, OFFICE_VISUAL_MAX_FRAMES,
+} from "./officeVisual";
+
+const META = { frameCount: 2, provider: "ollama", model: "m", latencyMs: 9 };
+const IMG = { mime: "image/jpeg" as const, base64: "AAAA" };
+
+describe("parseVisualReply", () => {
+  it("reads JSON wrapped in a code fence and prose", () => {
+    const v = parseVisualReply('Sure:\n```json\n{"summary":"Customer at counter with staff.","peopleCount":2,"activities":["customer at counter"],"waitingUnattended":false}\n```', META);
+    expect(v).toMatchObject({ status: "DONE", summary: "Customer at counter with staff.", peopleCount: 2, activities: ["customer at counter"], waitingUnattended: false });
+  });
+
+  it("a reply with no summary is FAILED, never an empty DONE", () => {
+    expect(parseVisualReply('{"peopleCount":1}', META).status).toBe("FAILED");
+    expect(parseVisualReply("I cannot see anything useful.", META).status).toBe("FAILED");
+  });
+
+  it("drops non-string activities and nonsense counts", () => {
+    const v = parseVisualReply('{"summary":"x","peopleCount":"many","activities":["a",3,""]}', META);
+    expect(v.peopleCount).toBeNull();
+    expect(v.activities).toEqual(["a"]);
+  });
+});
+
+describe("analyzeOfficeFrames", () => {
+  const saved = { o: process.env.OLLAMA_API_KEY, g: process.env.GEMINI_API_KEY };
+  beforeEach(() => { process.env.OLLAMA_API_KEY = "k"; process.env.GEMINI_API_KEY = "k"; });
+  afterEach(() => {
+    if (saved.o === undefined) delete process.env.OLLAMA_API_KEY; else process.env.OLLAMA_API_KEY = saved.o;
+    if (saved.g === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = saved.g;
+  });
+
+  it("uses Ollama first and returns its description", async () => {
+    const describe_ = vi.fn().mockResolvedValue({ ok: true, text: '{"summary":"Two people at the counter."}', provider: "ollama", model: "gemma", latencyMs: 3 });
+    const v = await analyzeOfficeFrames([IMG, IMG], describe_);
+    expect(v).toMatchObject({ status: "DONE", provider: "ollama", frameCount: 2 });
+    expect(describe_).toHaveBeenCalledTimes(1);
+    expect(describe_.mock.calls[0][0]).toMatchObject({ provider: "ollama" });
+  });
+
+  it("falls back to Gemini when Ollama fails, and keeps both errors when both fail", async () => {
+    const describe_ = vi.fn()
+      .mockResolvedValueOnce({ ok: false, error: "503", reason: "http_error" })
+      .mockResolvedValueOnce({ ok: true, text: '{"summary":"Staff alone at the desk."}', provider: "gemini", model: "g", latencyMs: 2 });
+    expect(await analyzeOfficeFrames([IMG], describe_)).toMatchObject({ status: "DONE", provider: "gemini" });
+
+    const failing = vi.fn().mockResolvedValue({ ok: false, error: "down", reason: "http_error" });
+    const v = await analyzeOfficeFrames([IMG], failing);
+    expect(v.status).toBe("FAILED");
+    expect(v.error).toContain("ollama: down");
+    expect(v.error).toContain("gemini: down");
+  });
+
+  it("no provider key is a FAILED visual with the reason, and no call is made", async () => {
+    delete process.env.OLLAMA_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    const describe_ = vi.fn();
+    const v = await analyzeOfficeFrames([IMG], describe_);
+    expect(v.status).toBe("FAILED");
+    expect(v.error).toMatch(/no vision provider/);
+    expect(describe_).not.toHaveBeenCalled();
+  });
+
+  it("caps the frames sent to the model", async () => {
+    const describe_ = vi.fn().mockResolvedValue({ ok: true, text: '{"summary":"x"}', provider: "ollama", model: "m", latencyMs: 1 });
+    await analyzeOfficeFrames(Array(10).fill(IMG), describe_);
+    expect(describe_.mock.calls[0][0].images).toHaveLength(OFFICE_VISUAL_MAX_FRAMES);
+  });
+});
+
+describe("officeVisualColumnReady", () => {
+  beforeEach(() => __resetOfficeVisualReadyCache());
+
+  it("caches a positive answer; re-checks a negative one after the TTL", async () => {
+    const yes = { execute: vi.fn().mockResolvedValue([[{ n: 1 }]]) };
+    expect(await officeVisualColumnReady(yes, 0)).toBe(true);
+    expect(await officeVisualColumnReady(yes, 10 ** 9)).toBe(true);
+    expect(yes.execute).toHaveBeenCalledTimes(1);
+
+    __resetOfficeVisualReadyCache();
+    const no = { execute: vi.fn().mockResolvedValue([[{ n: 0 }]]) };
+    expect(await officeVisualColumnReady(no, 0)).toBe(false);
+    expect(await officeVisualColumnReady(no, 1000)).toBe(false);
+    expect(no.execute).toHaveBeenCalledTimes(1);
+    await officeVisualColumnReady(no, 11 * 60 * 1000);
+    expect(no.execute).toHaveBeenCalledTimes(2);
+  });
+
+  it("a failed check reads as NOT ready", async () => {
+    const broken = { execute: vi.fn().mockRejectedValue(new Error("db down")) };
+    expect(await officeVisualColumnReady(broken, 0)).toBe(false);
+  });
+});
+
+describe("storedVisual", () => {
+  it("round-trips a stored string and rejects garbage", () => {
+    const stored = JSON.stringify({ status: "DONE", summary: "s", peopleCount: 1, activities: ["a"], waitingUnattended: true, frameCount: 2 });
+    expect(storedVisual(stored)).toMatchObject({ status: "DONE", summary: "s", waitingUnattended: true });
+    expect(storedVisual("{nope")).toBeNull();
+    expect(storedVisual({ status: "MAYBE" })).toBeNull();
+    expect(storedVisual(null)).toBeNull();
+  });
+});

@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "migration-evidence": {
+      "deferred": "drizzle/0140_conversation_episodes_visual.sql (ALTER TABLE conversation_episodes ADD COLUMN IF NOT EXISTS visual JSON NULL; additive, nullable, idempotent) is NOT applied yet: production DDL is operator-applied and this cloud container has no database route. The statement ships inside handleRunMigrations (server/routers/nick/intelligence.ts) next to 0139. Everything that depends on it checks information_schema first and stays inert until it exists: /api/conversation-episodes accepts frames but neither calls the vision model nor names the column (replies visualStatus NOT_STORED_VISUAL_COLUMN_UNAVAILABLE), and lot.conversations only selects `visual` once present. `visual` is deliberately not declared in drizzle/schema.ts until applied. Pinned by server/routes/conversationRoutes.test.ts ('before migration 0140 ...' asserts only the main INSERT runs) and server/services/officeVisual.test.ts (readiness cache + failed check reads not-ready). Apply: Admin -> Run migrations after deploy; receipt: information_schema shows the column and the next office episode replies visualStatus DONE."
+    },
+    "operator-walkthrough": {
+      "deferred": "WHAT THE OPERATOR SEES after this diff, once 0140 is applied: Admin -> Lot -> Counter conversations gains, under each episode's summary, a 'Saw:' line (one or two sentences of what the office camera saw), an amber 'customer waiting unattended' chip when the model reports it, and 'N people seen' in the metrics row; a vision failure reads 'Saw: unavailable. N frames arrived but the vision model could not describe them' (never silent). Before 0140, nothing changes on screen. Live walkthrough DEFERRED until deploy + migration: no production admin session exists in this cloud container, and no episode has carried frames through the deployed route yet."
+    },
+    "capability-ledger-updated": {
+      "ref": "UPDATED: docs/operations/capability-ledger.json adds 'office-visual-watch-20261002' (codeState merged — lands with this merge, per the admin-closure-wave precedent; operationalState unit_verified; exposure internal; blockers: migration 0140 unapplied (P1), first live visualStatus DONE (P2); deferredScope: self-learning, on-box person detection, feeding visuals into fact extraction). REALITY-LEDGER.md regenerated (110 capabilities)."
+    }
+  }
+}
