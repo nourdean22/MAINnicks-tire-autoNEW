@@ -103,3 +103,23 @@ describe("F4 — the tire-size KPI can actually match a row", () => {
     expect(like("https://nickstire.org/tires/205-55r16", "/tires/%")).toBe(false);
   });
 });
+
+describe("F5 — the Traffic Funnel reads web rows only, impression-weighted (2026-10-02)", () => {
+  const FUNNEL = readFileSync(resolve(APP, "server/routers/trafficFunnel.ts"), "utf8");
+
+  it("every search_performance read filters searchType = 'web'", () => {
+    // Discover rows carry query='' and no position meaning; summing them into the
+    // funnel inflated clicks/impressions and added a blank top-query bucket.
+    const c = code(FUNNEL);
+    const reads = c.split("FROM search_performance").length - 1;
+    const filtered = c.split("FROM search_performance").slice(1).filter((tail) => /^[\s\S]{0,200}searchType = 'web'/.test(tail)).length;
+    expect(reads).toBeGreaterThan(0);
+    expect(filtered).toBe(reads);
+  });
+
+  it("no unweighted AVG(position) remains in the funnel", () => {
+    const c = code(FUNNEL);
+    expect(c).not.toMatch(/AVG\(\s*position\s*\)/i);
+    expect(c).toMatch(/SUM\(position \* impressions\) \/ NULLIF\(SUM\(impressions\), 0\)/);
+  });
+});

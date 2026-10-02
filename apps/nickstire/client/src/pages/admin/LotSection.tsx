@@ -38,6 +38,7 @@
 import { useEffect, useState } from "react";
 
 import { trpc } from "@/lib/trpc";
+import { summarizeCameraFleet } from "@shared/cameraFleetHealth";
 import { PageHeader, StatCard, Panel, MetricGrid, EmptyState } from "./shared";
 // Durations live in shared/format.ts, with the "these take SQL-computed MINUTES,
 // never timestamps" contract documented next to them.
@@ -1108,6 +1109,12 @@ export default function LotSection() {
   const freshnessUnknown = n?.ok === true && n.staleSeconds === null && !n.neverIngested;
   const stale = n?.ok === true && n.staleSeconds !== null && n.staleSeconds > 300;
 
+  const fleet = summarizeCameraFleet(
+    health.isError
+      ? { ok: false, reason: health.error?.message }
+      : (health.data as Parameters<typeof summarizeCameraFleet>[0]),
+  );
+
   const badge: { label: string; variant: "success" | "warning" | "danger" | "neutral" } =
     nowFailed
       ? { label: "Unavailable", variant: "danger" }
@@ -1119,7 +1126,13 @@ export default function LotSection() {
             ? { label: "Freshness unknown", variant: "warning" }
             : stale
               ? { label: `Stale ${Math.round((n!.staleSeconds ?? 0) / 60)}m`, variant: "warning" }
-              : { label: "Live", variant: "success" };
+              : fleet.state === "DEGRADED"
+                ? // Fresh visits from one camera do not make the fleet healthy: before
+                  // 2026-10-02 this said "Live" while sign was CAMERA_OFFLINE.
+                  { label: `Live · ${fleet.problems.length} camera issue${fleet.problems.length === 1 ? "" : "s"}`, variant: "warning" }
+                : fleet.state === "UNKNOWN" && !health.isPending
+                  ? { label: "Live · camera health unknown", variant: "warning" }
+                  : { label: "Live", variant: "success" };
 
   const allRows: VisitRow[] =
     visits.data?.ok === true ? (visits.data.rows as unknown as VisitRow[]) : [];

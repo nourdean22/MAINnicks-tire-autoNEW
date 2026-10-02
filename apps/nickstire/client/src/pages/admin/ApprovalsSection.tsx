@@ -171,7 +171,7 @@ export default function ApprovalsSection() {
     <div className="space-y-4">
       <PageHeader
         title="Approvals"
-        subtitle="AI- and one-tap-originated actions wait here as drafts. Nothing executes without your approval — enforced server-side."
+        subtitle="AI- and one-tap-originated proposals wait here as drafts. Nothing in THIS queue executes without your approval — enforced server-side. Separate SMS lanes (safe auto-replies, campaigns, reminders) run under their own rollout modes: Outreach → SMS → Autonomy ladder."
         icon={<ShieldCheck className="w-5 h-5" />}
       />
 
@@ -292,7 +292,7 @@ export default function ApprovalsSection() {
                     <input
                       value={rejectNote}
                       onChange={(e) => setRejectNote(e.target.value)}
-                      placeholder="Why? (optional)"
+                      placeholder="Why? e.g. duplicate · already a walk-in · wrong date (optional)"
                       className="w-full bg-background/50 border border-border/30 rounded-md px-3 py-2 text-sm"
                     />
                     <div className="flex gap-2">

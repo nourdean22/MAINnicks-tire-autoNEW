@@ -81,6 +81,16 @@ export default function MarketSection() {
                 {str(s.from)} → {str(s.to)}
               </p>
             )}
+            {/* The server already says which number this is; the card used to drop it, so a
+                stored-rows subset (anonymized queries missing by construction) read exactly
+                like Google's property total. */}
+            <p className="col-span-full text-[11px] text-white/40">
+              {str(s.source) === "gsc_official_no_dimension"
+                ? "Source: Google Search Console property total (official, includes anonymized queries)"
+                : str(s.source) === "stored_query_rows_partial"
+                  ? "Source: stored query rows — PARTIAL, anonymized queries are missing; not the property total"
+                  : "Source: unknown"}
+            </p>
           </dl>
         )}
       </Card>

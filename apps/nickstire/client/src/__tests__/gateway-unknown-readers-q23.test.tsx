@@ -40,6 +40,7 @@ vi.mock("@/lib/trpc", () => ({
     trafficFunnel: { overview: h.proc("trafficFunnel.overview") },
     autoLabor: { status: h.proc("autoLabor.status") },
     nickActions: { cronHealth: h.proc("nickActions.cronHealth") },
+    lot: { health: h.proc("lot.health") },
     intelligence: {
       masterReport: h.proc("intelligence.masterReport"),
       recentDecisions: h.proc("intelligence.recentDecisions"),
@@ -191,6 +192,27 @@ describe("useSettingsStatus", () => {
     const { result } = renderHook(() => useSettingsStatus());
     expect(result.current.openIssues.map((i) => i.key)).toContain("f25e-offline");
     expect(result.current.failedChecks).not.toContain("SMS gateway health");
+  });
+
+  // 2026-10-02 · the tab said "All clear" while the sign camera was CAMERA_OFFLINE.
+  it("an offline commissioned camera is an open alert, so 'All clear' cannot render", () => {
+    set("lot.health", {
+      ok: true,
+      cameras: [
+        { camera: "sign", label: "Shop sign", state: "CAMERA_OFFLINE", commissioned: true, registered: true, conversation: null },
+        { camera: "inside", label: "Inside", state: "NEVER_INGESTED", commissioned: false, registered: true, conversation: null },
+      ],
+    });
+    const { result } = renderHook(() => useSettingsStatus());
+    const cams = result.current.openIssues.filter((i) => i.key.startsWith("camera-"));
+    expect(cams.map((i) => [i.key, i.severity])).toEqual([["camera-sign", "alert"]]);
+  });
+
+  it("an unreadable camera health is a check that could not run, never 'cameras fine'", () => {
+    set("lot.health", { ok: false, reason: "camera_runtime health read failed" });
+    const { result } = renderHook(() => useSettingsStatus());
+    expect(result.current.failedChecks).toContain("camera health");
+    expect(result.current.openIssues.some((i) => i.key.startsWith("camera-"))).toBe(false);
   });
 });
 
