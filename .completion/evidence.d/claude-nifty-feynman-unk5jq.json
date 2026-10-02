@@ -7,7 +7,7 @@
       "ref": "2026-10-01 review of #2865: server/cron/jobs/dailyReelPost.test.ts - an ambiguous Facebook finish (no answer, may be live) with Instagram refused now parks the nightly reel job (facebookLiveWithoutInstagram returns the id) instead of releasing it to assembled for a retry; Instagram live still returns null. Red on main; mutants 'ambiguous ignored' and 'IG-live check dropped' both caught."
     },
     "capability-ledger-updated": {
-      "ref": "2026-10-01 review of #2865: capability-ledger.json rows reel-ai-disclosure-gate (Facebook cross-post keeps AI reels off the Page) and rendered-creative-qa (an unreadable critic reply is a SKIPPED verdict) each gain a tests entry; REALITY-LEDGER.md re-rendered; check-capability-ledger valid, 108 capabilities."
+      "ref": "2026-10-01 Vapi secret fix: deliberately not updated. server/services/vapi.ts createProductionAssistant stops returning `config` (it carried server.secret, the Vapi webhook credential) to the admin vapi.createAssistant mutation; the request sent to Vapi is unchanged, secret included. No capability is added, removed, wired or unwired, and no state changes. Proof: server/__tests__/vapiCreateAssistantSecret.test.ts drives the real mutation through vapiRouter.createCaller - the body sent to Vapi still carries server.secret (control), the response carries none. Red on main (1 exact); 3/3 mutants caught."
     }
   }
 }
