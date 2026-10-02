@@ -36,6 +36,9 @@ import { createLogger } from "../lib/logger";
 
 const log = createLogger("routes:conversationEpisodes");
 
+/** How long fact extraction waits for the camera's description before going without it. */
+const VISUAL_CONTEXT_WAIT_MS = 15_000;
+
 function safeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   try {
@@ -146,33 +149,46 @@ export function registerConversationEpisodeRoute(app: Express): void {
     // leave a PENDING row behind whenever extraction failed, and nothing reaps those.
     const counted = frames.map((f) => f.people).filter((n): n is number => typeof n === "number");
     const onBoxPeople = counted.length ? Math.max(...counted) : null;
-    let visual: OfficeVisual | null = null;
-    if (visualReady) {
-      let calibration: string[] = [];
-      try {
-        const { getDb } = await import("../db");
-        const dc = await getDb();
-        calibration = dc ? await loadVisualCalibration(dc) : [];
-      } catch {
-        calibration = [];
-      }
-      visual = await analyzeOfficeFrames(
-        frames.map((f) => ({ mime: f.mime, base64: f.base64 })),
-        undefined,
-        { calibration, onBoxPeople },
-      );
-      visual = { ...visual, onBoxPeople };
-    }
-    const visualContext = visual?.status === "DONE" && visual.summary
-      ? [visual.summary, visual.activities.length ? `Activities: ${visual.activities.join(", ")}.` : ""]
+    const visualPromise: Promise<OfficeVisual | null> = visualReady
+      ? (async () => {
+          let calibration: string[] = [];
+          try {
+            const { getDb } = await import("../db");
+            const dc = await getDb();
+            calibration = dc ? await loadVisualCalibration(dc) : [];
+          } catch {
+            calibration = [];
+          }
+          const v = await analyzeOfficeFrames(
+            frames.map((f) => ({ mime: f.mime, base64: f.base64 })),
+            undefined,
+            { calibration, onBoxPeople },
+          );
+          return { ...v, onBoxPeople };
+        })()
+      : Promise.resolve(null);
+    // Extraction waits for the camera context at most VISUAL_CONTEXT_WAIT_MS. Vision's own worst
+    // case is 40 s per lane x 2 lanes; serialising that ahead of a 60 s extraction would outrun
+    // the producer's 120 s post timeout. Past the wait, facts are extracted without context and
+    // the description is still awaited and stored.
+    let waitTimer: ReturnType<typeof setTimeout> | undefined;
+    const early = await Promise.race([
+      visualPromise,
+      new Promise<null>((resolve) => { waitTimer = setTimeout(() => resolve(null), VISUAL_CONTEXT_WAIT_MS); }),
+    ]).finally(() => clearTimeout(waitTimer));
+    const visualContext = early?.status === "DONE" && early.summary
+      ? [early.summary, early.activities.length ? `Activities: ${early.activities.join(", ")}.` : ""]
           .filter(Boolean).join(" ")
       : null;
-    const extracted = await extractConversationFacts(segments, {
-      meanVolumeDb: e.meanVolumeDb ?? null,
-      coveredSeconds: e.coveredSeconds,
-      totalSeconds: e.totalSeconds,
-      visualContext,
-    });
+    const [extracted, visual] = await Promise.all([
+      extractConversationFacts(segments, {
+        meanVolumeDb: e.meanVolumeDb ?? null,
+        coveredSeconds: e.coveredSeconds,
+        totalSeconds: e.totalSeconds,
+        visualContext,
+      }),
+      visualPromise,
+    ]);
 
     // FAILED covers BOTH failures that can reach here, and it outranks everything: the
     // producer could not transcribe, or extraction could not run. Neither is "no facts found".

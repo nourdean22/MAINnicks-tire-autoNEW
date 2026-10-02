@@ -404,6 +404,28 @@ describe("conversation ingest — office visual frames", () => {
     expect(extract.mock.calls.at(-1)?.[1]?.visualContext).toBeNull();
   });
 
+  it("a slow vision call does not hold fact extraction past the wait; its description is still stored", async () => {
+    vi.useFakeTimers();
+    try {
+      visualReady.mockResolvedValue(true);
+      let finishVision: (v: unknown) => void = () => {};
+      analyzeFrames.mockReturnValue(new Promise((r) => { finishVision = r; }));
+      const execute = vi.fn().mockResolvedValue(undefined);
+      db.mockResolvedValue({ execute });
+      const { res, out } = fakeRes();
+      const done = mount()({ headers: { "x-sync-key": KEY }, body: body({ frames: [FRAME] }) }, res);
+      await vi.advanceTimersByTimeAsync(15_001);
+      expect(extract).toHaveBeenCalledTimes(1);
+      expect(extract.mock.calls[0][1].visualContext).toBeNull();
+      finishVision(DONE);
+      await done;
+      expect(out.body).toMatchObject({ visualStatus: "DONE" });
+      expect(JSON.stringify(execute.mock.calls[1][0])).toContain("Customer at the counter");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("OFFICE_VISUAL_ANALYSIS=0 switches analysis off without touching the database", async () => {
     process.env.OFFICE_VISUAL_ANALYSIS = "0";
     visualReady.mockResolvedValue(true);
