@@ -3357,7 +3357,8 @@
           "server/services/vapiActionExtraction.test.ts + server/voiceLeadLinkage.test.ts (49): already-captured call -> no extraction, owned kinds dropped, prompt states today, past dates dropped, scheduleCallback records callbackId",
           "server/services/callbackServedEvidence.test.ts (5): invoice beats booking, read-only, cached, failed read throws (never an empty 'nobody served' map)",
           "shared/cameraFleetHealth.test.ts (6) + client/src/__tests__/gateway-unknown-readers-q23.test.tsx (camera arms): the 2026-10-02 production shape is DEGRADED; unreadable is UNKNOWN; offline camera blocks 'All clear'",
-          "server/gscAggregationSemantics.test.ts F5: funnel web-only and impression-weighted"
+          "server/gscAggregationSemantics.test.ts F5: funnel web-only and impression-weighted",
+          "server/services/invoiceReviewRequests.test.ts (8) + ros083ReviewQueue cron arms + postInvoiceFollowUp cross-lane dedupe (mutation-proven); server/migrationListGuards.test.ts re-asserted ENUMs == schema.ts (mutation-proven)"
         ],
         "liveRuns": []
       },
@@ -3368,9 +3369,8 @@
         }
       ],
       "deferredScope": [
-        "Invoice-sourced review_requests rows (needs DDL: bookingId nullable + invoiceId) vs the existing post-invoice-followup lane: operator decision.",
-        "convertedToLead=0 gate on missed-call recovery texts excludes ~101 calls/week that persisted nothing: widening it is a customer-contact decision.",
-        "Migrations 0132/0136/0137 behind 0127-0130/0133 drift remain operator-applied."
+        "Applying the DDL: 0130/0132/0133/0136/0137/0138/0139 are in handleRunMigrations; one operator tap (Admin -> Run migrations) after deploy, then scripts/record-migrations.mjs via railway run for the ledger (0127-0139). Contact-holdout flags stay OFF until 'heldout' reads back in all three enums.",
+        "convertedToLead=0 gate on missed-call recovery texts excludes ~101 calls/week that persisted nothing: widening it is a customer-contact decision (operator: on hold)."
       ],
       "lastVerifiedAt": "2026-10-02"
     }

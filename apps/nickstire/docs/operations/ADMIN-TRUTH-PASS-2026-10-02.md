@@ -41,15 +41,50 @@ the PR body).
    gets a camera check (RULE 5) and Lot's header stops saying "Live" over a degraded
    fleet. Approvals copy scoped to its own queue.
 
+## Migrations — prepared in this PR, applied by one operator action after deploy
+
+Research (docs + evidence, no DB access from the build container) found: 0127/0128/0129 are
+APPLIED but unrecorded (record-only); 0130, 0132, 0133, 0136, 0137, 0138 were never applied;
+0135 is unknown; 0139 is new in this PR (invoice-sourced review requests). Every reader of a
+missing object degrades safely today (named "not applied" states); no `heldout` write can
+happen while 0136 is absent (needs a durable assignment row + OFF-by-default flags).
+
+This PR adds the DDL for 0130, 0132, 0133, 0136, 0137, 0138, 0139 to `handleRunMigrations`
+(verbatim from the .sql files, generated, not retyped). `migrationListGuards.test.ts` now pins
+every re-asserted `MODIFY … ENUM` to its schema.ts enum (mutation-proven), because a stale
+re-assertion would shrink a live enum.
+
+Exact sequence (after merge + deploy):
+1. Admin -> System Health -> Run migrations (or `POST /api/admin/run-migrations` with
+   `ADMIN_API_KEY`). Read `errors[]` in the response — `success:true` does not mean every
+   statement applied. Expected watch item: `MODIFY bookingId int NULL` touches the
+   `fk_reviewreq_booking` column; if TiDB refuses it, the invoice review lane simply stays
+   inert (it checks nullability before writing).
+2. Record the ledger (from a machine with the Railway CLI):
+   `railway run --service MAINnicks-tire-auto -- node scripts/record-migrations.mjs --only 0127,0128,0129,0130,0132,0133,0136,0137,0138,0139`
+   (dry run; it refuses anything the reconciler does not classify UNRECORDED_BUT_EXACT_MATCH),
+   then the same with `--execute`.
+3. `railway run --service MAINnicks-tire-auto -- node scripts/reconcile-migrations.mjs --strict`
+   — exit 0 is the receipt. 0135 stays reported until its own state is verified.
+4. Keep every `contact_holdout_*` flag OFF until step 3 shows `heldout` in the
+   `winback_sends`, `sms_campaign_sends` and `review_requests` status enums.
+
 ## Still operator-gated (not done by this PR)
 
 | Item | Why gated | Exact next action |
 |---|---|---|
-| Invoice-sourced review requests | Needs DDL: `review_requests.bookingId` NULL + `invoiceId` UNIQUE | Decide first whether `post-invoice-followup` stays the ALG review lane (it already texts). Do not add a second lane without deduping. |
-| Migrations 0132 / 0136 / 0137 | Hand-applied production DDL; 0127-0130, 0133 drift unresolved first | Follow `SCHEMA_DRIFT_RUNBOOK.md`; `reconcile-migrations.mjs --strict` read-back. Until 0132, every declined estimate is INFERRED; until 0136 no holdout measurement. |
 | `convertedToLead=0` gate on missed-call recovery | Changing it widens an autonomous SMS lane | ~101 calls/week reached a tool without persisting anything and are excluded from both missed-call recovery texts and the opportunity queue. Operator decision. |
 | `create_booking_request` for a walk-in shop | Product decision | A caller who asked to "bring it in" without reaching `bookSlot` can still get a booking draft that, approved, creates a `bookings` appointment. |
 | Receivables | Needs ShopDriver check | Verify the three balances above before any contact. |
+
+## Review requests now come from paid ALG invoices
+
+After 0139: the `review-requests` cron creates one pending row per paid shopdriver invoice
+from the last 3 days (10-digit phone, not opted out, not asked inside the cooldown by either
+lane), then sends through the unchanged queue and every existing gate. `post-invoice-followup`
+skips phones already on review cooldown, so a customer gets one ask per cooldown across both
+lanes. Before 0139 the cron logs `invoice rows: migration 0139 … not applied` and creates
+nothing. Sending still requires the `sms_review_requests` flag.
 
 ## Read-only post-deploy checks
 

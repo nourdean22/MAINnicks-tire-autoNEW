@@ -5860,6 +5860,11 @@
       "file": "apps/nickstire/server/services/vapiActionExtraction.ts",
       "symbol": "dropAlreadyOwned",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Drops a callback draft when a callback row names the call and a booking draft when bookSlot recorded a walk-in; runtime consumer is maybeProposeCallActions in this module. vapiActionExtraction.test.ts pins both drops. Tests are excluded from knip project globs by design, which is why a test-only importer reads as an orphan. Added 2026-10-02 (admin closure wave)."
+    },
+    {
+      "file": "apps/nickstire/package.json",
+      "symbol": "migrations:record",
+      "reason": "OPERATOR-INVOKED, KNOWN (2026-10-02). Run only by a human with the production env injected (railway run --service MAINnicks-tire-auto -- …) after handleRunMigrations has applied DDL: it records verified migrations in __drizzle_migrations, which the in-app runner never writes. Dry run by default, --only required, records only what reconcile-migrations classifies UNRECORDED_BUT_EXACT_MATCH. Nothing in CI or the server may invoke it — a production ledger write is an operator action."
     }
   ]
 }
