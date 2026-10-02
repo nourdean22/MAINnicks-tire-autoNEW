@@ -35,9 +35,9 @@ export function SelectionActionBar() {
       role="toolbar"
       aria-label="Selection actions"
       data-selection-bar={refs.length}
-      className="fixed bottom-[calc(var(--bottom-chrome-h,6rem)+0.5rem)] left-3 right-3 z-[54] flex flex-wrap items-center gap-2 rounded-xl border border-[var(--gold)]/30 bg-elevated px-3 py-2 shadow-[0_8px_30px_rgba(0,0,0,0.5)] md:left-auto md:right-[calc(var(--nick-fab-lane,0px)_+_0.75rem)] md:max-w-xl xl:right-[calc(var(--nick-fab-lane,0px)_+_var(--inspector-lane,0px)_+_0.75rem)]"
+      className="fixed bottom-[calc(var(--bottom-chrome-h,6rem)+0.5rem)] left-3 right-3 z-[54] flex flex-wrap items-center gap-2 ui-material rounded-float border border-edge-default px-3 py-2 shadow-l2 md:left-auto md:right-[calc(var(--nick-fab-lane,0px)_+_0.75rem)] md:max-w-xl xl:right-[calc(var(--nick-fab-lane,0px)_+_var(--inspector-lane,0px)_+_0.75rem)]"
     >
-      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-gold">
+      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg">
         {refs.length} selected
       </span>
       <EntityActionRow entities={refs} labelOf={labelOf} compact />
@@ -45,7 +45,7 @@ export function SelectionActionBar() {
         type="button"
         onClick={clear}
         aria-label="Clear selection"
-        className="ml-auto inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-fg-tertiary hover:text-fg md:min-h-[32px] md:min-w-[32px]"
+        className="ml-auto inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-fg-tertiary hover:text-fg md:min-h-[32px] md:min-w-[32px]"
       >
         <X size={14} />
       </button>

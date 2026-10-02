@@ -130,8 +130,8 @@ export function WisdomPill({
           // "lean in and engage" feel without it ever screaming for
           // attention. Border is a hairline gold-tinted line · the
           // editorial-minimalist signature.
-          "group/wisdom flex items-start gap-2 rounded-lg",
-          "border border-[var(--gold)]/12 bg-[var(--gold)]/[0.025]",
+          "group/wisdom flex items-start gap-2 rounded-surface",
+          "border border-edge-subtle bg-content",
           "px-2.5 py-1.5",
           "opacity-[0.55] focus-within:opacity-100 hover:opacity-100",
           "transition-opacity duration-200 ease-out",
@@ -139,12 +139,12 @@ export function WisdomPill({
       >
         <Sparkles
           size={11}
-          className="mt-[3px] shrink-0 text-[var(--gold)]/80"
+          className="mt-[3px] shrink-0 text-fg-tertiary"
           aria-hidden="true"
         />
         <div className="flex-1 min-w-0 flex flex-col gap-1">
           {loading && suggestions.length === 0 && (
-            <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
               listening…
             </span>
           )}
@@ -158,10 +158,10 @@ export function WisdomPill({
                 onClick={() => handleUse(s)}
                 onKeyDown={(e) => handleKeyDown(e, s)}
                 className={cn(
-                  "flex-1 min-w-0 text-left px-1.5 py-1 rounded",
+                  "flex-1 min-w-0 text-left px-1.5 py-1 rounded-control",
                   "text-[11.5px] sm:text-[12px] leading-[1.45]",
                   "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
-                  "hover:bg-[var(--gold)]/[0.05]",
+                  "hover:bg-surface-hover",
                   "transition-colors duration-150 ease-out",
                 )}
                 title="Press Enter to insert as a margin note"
@@ -169,7 +169,7 @@ export function WisdomPill({
               >
                 <span className="line-clamp-2 break-words">
                   <span
-                    className="text-[10px] font-mono uppercase tracking-[0.12em] text-[var(--gold)]/65 mr-1.5"
+                    className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)] mr-1.5"
                     aria-hidden="true"
                   >
                     {s.source}
@@ -181,7 +181,7 @@ export function WisdomPill({
                 type="button"
                 onClick={() => dismiss(s.id)}
                 className={cn(
-                  "shrink-0 mt-[2px] p-1 rounded",
+                  "shrink-0 mt-[2px] p-1 rounded-control",
                   "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]",
                   "hover:bg-[var(--bg-elevated)]",
                   "transition-colors duration-150",
@@ -206,22 +206,22 @@ export function WisdomPill({
                 setShowKillMenu(false);
               }}
               className={cn(
-                "px-1.5 py-0.5 rounded",
-                "text-[9px] font-mono uppercase tracking-[0.14em]",
+                "px-1.5 py-0.5 rounded-micro",
+                "text-[11px] font-mono",
                 "text-red-400 hover:text-red-300",
                 "border border-red-400/30 hover:border-red-400/50",
                 "transition-colors",
               )}
               title="Stop showing wisdom suggestions permanently"
             >
-              kill
+              Kill
             </button>
           ) : (
             <button
               type="button"
               onClick={() => setShowKillMenu(true)}
               className={cn(
-                "text-[9px] font-mono uppercase tracking-[0.14em]",
+                "text-[11px] font-mono",
                 "text-[var(--text-tertiary)]/60 hover:text-[var(--text-tertiary)]",
                 "opacity-0 group-hover/wisdom:opacity-100 focus:opacity-100",
                 "transition-opacity",

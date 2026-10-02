@@ -85,23 +85,23 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="flex items-start gap-2">
           <AlertTriangle size={14} className="text-rose-400 mt-0.5 shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-bold text-rose-300">
+            <p className="text-[13px] font-semibold text-rose-300">
               {this.props.name ? `${this.props.name} · ` : ""}render failed
             </p>
-            <p className="text-[10px] text-rose-300/80 mt-0.5 break-words">
+            <p className="text-[12px] text-rose-300/80 mt-0.5 break-words">
               {error.message.slice(0, 300)}
             </p>
-            <p className="text-[9px] text-rose-300/50 mt-1 font-mono">
+            <p className="text-[11px] text-rose-300/50 mt-1 font-mono">
               logged to /api/errors · check /system/logs?view=errors
             </p>
           </div>
           <button
             type="button"
             onClick={this.reset}
-            className="shrink-0 text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-rose-400/40 text-rose-300 hover:bg-rose-400/10 transition-colors inline-flex items-center gap-1"
+            className="shrink-0 text-[13px] font-medium px-2 py-1 rounded-control border border-rose-400/40 text-rose-300 hover:bg-rose-400/10 transition-colors duration-[var(--motion-state)] inline-flex items-center gap-1"
           >
             <RotateCcw size={10} />
-            retry
+            Retry
           </button>
         </div>
       </GlassCard>

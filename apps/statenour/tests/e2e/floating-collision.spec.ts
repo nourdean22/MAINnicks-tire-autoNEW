@@ -40,7 +40,7 @@ function findCollisions(): { floatingCount: number; controlCount: number; collis
   for (const el of Array.from(document.querySelectorAll<HTMLElement>("body *"))) {
     const cs = getComputedStyle(el);
     if (cs.position !== "fixed") continue;
-    if (cs.pointerEvents === "none") continue; // background layers (NeuralBackground canvas) cannot cover a control
+    if (cs.pointerEvents === "none") continue; // background layers cannot cover a control
     if (chrome && (el === chrome || chrome.contains(el))) continue; // the tab bar reserves its own padding
     const b = box(el);
     if (!b) continue;

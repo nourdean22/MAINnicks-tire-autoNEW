@@ -56,28 +56,28 @@ export function KnowledgeRefreshPanel() {
         {/* <p role="heading"> not <h2> — see contradiction-slot.tsx for the
             unlayered-base.css cascade trap. This markup rode along from the
             retired /knowledge page with the same latent bug. */}
-        <p role="heading" aria-level={2} className="text-sm font-semibold text-white flex items-center gap-1">
+        <p role="heading" aria-level={2} className="text-sm font-semibold text-fg flex items-center gap-1">
           <Sparkles className="h-4 w-4" /> Knowledge corpus refresh
         </p>
         <button
           onClick={runRefresh}
           disabled={refreshing}
           className={cn(
-            "rounded-md border px-3 py-1.5 text-xs font-medium transition min-h-[44px] sm:min-h-[32px]",
+            "rounded-control border px-3 py-1.5 text-xs font-medium transition min-h-[44px] sm:min-h-[32px]",
             refreshing
               ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
-              : "border-[var(--gold)]/40 bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/15",
+              : "border-edge-subtle bg-content text-fg-secondary hover:bg-surface-hover",
           )}
         >
-          {refreshing ? "refreshing…" : "refresh now"}
+          {refreshing ? "Refreshing…" : "Refresh now"}
         </button>
       </div>
-      <p className="text-[10px] text-zinc-500 mb-2">
+      <p className="text-[11px] text-fg-tertiary mb-2">
         Pulls fresh data from all sources (Industry RSS, ALG, Insights, Gmail, Calendar, Drive,
         Knowledge sync, Embeddings) and hot-flushes the prompt cache. ~60s total.
       </p>
       {refreshError && (
-        <div className="rounded-md border border-rose-500/30 bg-rose-500/5 p-2 text-[11px] text-rose-300 mb-2">
+        <div className="rounded-control border border-rose-500/30 bg-rose-500/5 p-2 text-[11px] text-rose-300 mb-2">
           {refreshError}
         </div>
       )}
@@ -87,15 +87,15 @@ export function KnowledgeRefreshPanel() {
             <div
               key={r.id}
               className={cn(
-                "flex items-center justify-between rounded-md border px-2 py-1 text-xs",
+                "flex items-center justify-between rounded-control border px-2 py-1 text-xs",
                 r.ok
                   ? "border-emerald-500/20 bg-emerald-500/[0.03] text-emerald-200"
                   : "border-rose-500/30 bg-rose-500/[0.05] text-rose-200",
               )}
             >
               <span className="font-mono">{r.id}</span>
-              <span className="text-[10px] opacity-75 truncate max-w-[55%]">{r.summary}</span>
-              <span className="text-[10px] tabular-nums opacity-50">{r.durationMs}ms</span>
+              <span className="text-[11px] opacity-75 truncate max-w-[55%]">{r.summary}</span>
+              <span className="text-[11px] tabular-nums opacity-50">{r.durationMs}ms</span>
             </div>
           ))}
         </div>

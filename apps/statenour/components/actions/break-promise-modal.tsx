@@ -93,7 +93,7 @@ export function BreakPromiseModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/70 px-4"
       // Backdrop click closes · click on the dialog body itself should
       // NOT close, so the inner div uses stopPropagation.
       onClick={onCancel}
@@ -104,7 +104,7 @@ export function BreakPromiseModal({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descId}
-        className="w-full max-w-md rounded-xl border border-red-500/30 bg-zinc-950 p-4 space-y-3 shadow-2xl"
+        className="w-full max-w-md rounded-surface border border-red-500/30 bg-content p-4 space-y-3 shadow-l2"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-2">
@@ -112,11 +112,11 @@ export function BreakPromiseModal({
           <div className="flex-1">
             <p
               id={titleId}
-              className="text-[10px] font-bold uppercase tracking-wider text-red-400"
+              className="font-mono text-[11px] uppercase tracking-[0.12em] text-red-400"
             >
               Break promise
             </p>
-            <p className="text-[12px] text-zinc-200 mt-0.5 leading-snug">
+            <p className="text-[12px] text-fg mt-0.5 leading-snug">
               {task.title}
             </p>
           </div>
@@ -124,7 +124,7 @@ export function BreakPromiseModal({
             type="button"
             onClick={onCancel}
             aria-label="Cancel and close dialog"
-            className="-mr-1 -mt-1 inline-flex h-11 w-11 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-zinc-900 hover:text-zinc-300"
+            className="-mr-1 -mt-1 inline-flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg"
           >
             <X size={11} aria-hidden />
           </button>
@@ -133,7 +133,7 @@ export function BreakPromiseModal({
           <label
             id={descId}
             htmlFor={`break-reason-${task.id}`}
-            className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 mb-1 block"
+            className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1 block"
           >
             What got in the way?
           </label>
@@ -144,9 +144,9 @@ export function BreakPromiseModal({
             onChange={(e) => onReasonChange(e.target.value)}
             placeholder="One sentence is enough. Nick will learn from this."
             rows={3}
-            className="w-full rounded border border-zinc-800 bg-zinc-900 px-2 py-2 text-[16px] text-zinc-200 placeholder:text-zinc-700 resize-none outline-none focus:border-red-500/30 sm:text-[11px]"
+            className="w-full rounded-control border border-edge-default bg-content px-2 py-2 text-[16px] text-fg placeholder:text-fg-tertiary resize-none outline-none focus:border-accent sm:text-[11px]"
           />
-          <p className="text-[8px] text-zinc-700 mt-1 italic">
+          <p className="text-[11px] text-fg-tertiary mt-1 italic">
             Saved to the broken-promise log. Pattern-tagged so Nick can flag similar commitments later.
           </p>
         </div>
@@ -154,14 +154,14 @@ export function BreakPromiseModal({
           <button
             type="button"
             onClick={onCancel}
-            className="min-h-11 px-3 py-1.5 text-[10px] text-zinc-500 hover:text-zinc-300"
+            className="min-h-11 px-3 py-1.5 text-[12px] text-fg-tertiary hover:text-fg"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={() => void onConfirm()}
-            className="min-h-11 rounded border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-red-300 hover:bg-red-500/20 hover:text-red-200"
+            className="min-h-11 rounded-control border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-[13px] font-medium text-red-300 hover:bg-red-500/20 hover:text-red-200"
           >
             Mark broken
           </button>

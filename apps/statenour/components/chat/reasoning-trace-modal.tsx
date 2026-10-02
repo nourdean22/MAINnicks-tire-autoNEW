@@ -90,8 +90,8 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
       <DialogContent
         unstyled
         showCloseButton={false}
-        overlayClassName="z-[180] bg-[var(--bg-void)]/90 backdrop-blur-md"
-        className="fixed inset-y-8 left-1/2 z-[181] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 overflow-y-auto rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] outline-none"
+        overlayClassName="z-[180] bg-[var(--bg-void)]/85"
+        className="fixed inset-y-8 left-1/2 z-[181] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 overflow-y-auto rounded-surface border border-[var(--border-default)] bg-[var(--bg-base)] outline-none"
       >
         {/* Header */}
         <header className="sticky top-0 bg-[var(--bg-base)] flex items-start justify-between p-5 border-b border-[var(--border-default)]">
@@ -101,7 +101,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
               Why Nick said that
             </DialogTitle>
             {data && (
-              <p className="text-[11px] font-mono text-[var(--text-tertiary)] mt-2 uppercase tracking-wider">
+              <p className="text-[11px] font-mono text-[var(--text-tertiary)] mt-2">
                 {data.recall.bdiChain || "no memories matched"} · scanned {data.recall.scanned} · {data.recall.durationMs}ms
                 {/* 2026-08-19 · memory-loop wave · provenance honesty:
                     receipt = what ACTUALLY fired on the turn (persisted at
@@ -118,7 +118,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
           </div>
           <button
             onClick={onClose}
-            className="w-11 h-11 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-all active:scale-90"
+            className="w-11 h-11 md:w-9 md:h-9 rounded-control flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-all active:scale-90"
             aria-label="Close reasoning trace"
           >
             <X size={18} className="md:!w-4 md:!h-4" />
@@ -132,7 +132,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
           {data && (
             <>
               {/* Reply preview */}
-              <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)]/60 p-4">
+              <section className="rounded-surface border border-[var(--border-default)] bg-[var(--bg-raised)]/60 p-4">
                 <p className="text-eyebrow">Nick replied</p>
                 <p
                   className="text-[var(--text-secondary)] text-sm mt-2 leading-relaxed"
@@ -157,7 +157,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
               {/* v10.0.384 · LLM-as-judge score · feedback layer */}
               {data.feedback?.judgment && (
                 <section
-                  className={`rounded-lg p-4 border ${
+                  className={`rounded-surface p-4 border ${
                     data.feedback.judgment.flagForReview
                       ? "border-amber-500/30 bg-amber-500/5"
                       : "border-emerald-500/20 bg-emerald-500/5"
@@ -201,7 +201,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
                                 : "text-rose-300";
                         return (
                           <div key={key} className="flex flex-col items-center">
-                            <span className="text-[var(--text-tertiary)] uppercase tracking-wider text-[9px]">
+                            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
                               {label}
                             </span>
                             <span className={`${tone} text-base`}>{v.toFixed(0)}</span>
@@ -224,7 +224,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
               {/* v10.0.384 · adversarial counter-view · per /yann-lecun */}
               {data.feedback?.objection && (
                 <section
-                  className={`rounded-lg p-4 border ${
+                  className={`rounded-surface p-4 border ${
                     data.feedback.objection.severity >= 3
                       ? "border-rose-500/30 bg-rose-500/5"
                       : data.feedback.objection.severity >= 2
@@ -235,7 +235,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
                   <p className="text-eyebrow flex items-center gap-2">
                     Counter-view
                     <span
-                      className={`text-[10px] font-mono uppercase tracking-wider ${
+                      className={`text-[11px] font-mono ${
                         data.feedback.objection.severity >= 3
                           ? "text-rose-300"
                           : data.feedback.objection.severity >= 2
@@ -277,7 +277,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
                       {items.map((hit) => (
                         <li
                           key={hit.memoryId}
-                          className="rounded border border-[var(--border-default)] bg-[var(--bg-raised)]/40 p-3"
+                          className="rounded-micro border border-[var(--border-default)] bg-[var(--bg-raised)]/40 p-3"
                         >
                           <p
                             className="text-[var(--text-secondary)] text-[13px] leading-snug"
@@ -286,7 +286,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
                             {hit.content.slice(0, 240)}
                             {hit.content.length > 240 ? "…" : ""}
                           </p>
-                          <p className="text-[10px] font-mono text-[var(--text-tertiary)] mt-2 uppercase tracking-wider flex flex-wrap items-center gap-x-3">
+                          <p className="text-[11px] font-mono text-[var(--text-tertiary)] mt-2 flex flex-wrap items-center gap-x-3">
                             <span>{hit.category}</span>
                             <span>·</span>
                             <span>{describeSeenCount(hit.seenCount)}</span>

@@ -177,3 +177,31 @@ pose is re-established. A successful command acknowledgement is not motor-moveme
 - Reliable summaries over real shop days: LONG-HORIZON PROVEN.
 
 Do not collapse those states into one "done".
+
+## Watch — still frames with every episode (2026-10-02)
+
+Operator decision: recording signs (visual + audio) are posted in the shop, and the office camera
+should watch as well as listen.
+
+How it runs:
+- During each bounded capture window, `vision/officeframes.py` pulls a still from the bridge's
+  `/snapshot/<serial>` route. It takes one at the start, one every `OFFICE_VISUAL_INTERVAL_SECONDS`
+  (default 30), and one closing frame, up to `OFFICE_VISUAL_MAX_FRAMES` (default 6).
+- Each frame is shrunk to 640 px wide.
+- Each episode carries only the frames inside its own time span (at most 4).
+- The nickstire server sends them to the vision model (Ollama Cloud first, Gemini fallback). It
+  stores ONLY the resulting description in `conversation_episodes.visual`.
+- Frames are never written to disk on NicksMax and never stored on the server.
+
+On by default. To turn it off:
+- `OFFICE_VISUAL_ENABLED=0` on NicksMax (machine env; needs an elevated shell);
+- or `OFFICE_VISUAL_ANALYSIS=0` on the nickstire Railway service.
+
+Inert until migration `0140_conversation_episodes_visual` is applied (Admin -> Run migrations).
+Until then the server accepts frames, drops them unanalyzed, and replies
+`visualStatus: NOT_STORED_VISUAL_COLUMN_UNAVAILABLE`.
+
+Proof rungs:
+1. Ledger `capture_finished` shows `frames_captured > 0`.
+2. The post reply shows `visualStatus: DONE`.
+3. Admin -> Lot -> Counter conversations shows a "Saw:" line.

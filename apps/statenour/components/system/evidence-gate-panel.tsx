@@ -34,8 +34,8 @@ const DRIVER_LABELS: Record<string, { label: string; tone: string; note?: string
   fact_check: { label: "fact-check", tone: "text-rose-300" },
   // Called out because it is not an evidence signal at all — a long reply is
   // not an unsupported one, and promoting on an aggregate would promote this.
-  length: { label: "length", tone: "text-zinc-500", note: "not an evidence signal" },
-  other: { label: "other", tone: "text-zinc-400" },
+  length: { label: "length", tone: "text-fg-tertiary", note: "not an evidence signal" },
+  other: { label: "other", tone: "text-fg-secondary" },
 };
 
 function Cohort({
@@ -54,29 +54,29 @@ function Cohort({
 }) {
   const drivers = Object.entries(cohort.byDriver).filter(([, n]) => n > 0);
   return (
-    <div className="flex-1 min-w-0 rounded border border-white/6 bg-white/[0.01] p-2.5 space-y-1.5">
-      <p className="text-[9px] uppercase tracking-[0.16em] text-zinc-400 font-semibold">{title}</p>
-      <p className="text-[9px] font-mono text-zinc-600">{subtitle}</p>
-      <p className="font-mono text-zinc-200">
+    <div className="flex-1 min-w-0 rounded-micro border border-edge-subtle p-2.5 space-y-1.5">
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">{title}</p>
+      <p className="text-[11px] font-mono text-fg-tertiary">{subtitle}</p>
+      <p className="font-mono text-fg">
         {cohort.wouldBlockPct === null ? (
           // The refusal, rendered as a refusal. Never a computed number.
           <span className="text-[11px] text-amber-300">rate withheld</span>
         ) : (
           <span className="text-[15px]">{cohort.wouldBlockPct.toFixed(1)}%</span>
         )}
-        <span className="ml-1.5 text-[9px] text-zinc-500">
+        <span className="ml-1.5 text-[11px] text-fg-tertiary">
           {cohort.wouldBlock}/{cohort.turns} turns
         </span>
       </p>
       {drivers.length > 0 && (
         <ul className="space-y-0.5">
           {drivers.map(([k, n]) => {
-            const d = DRIVER_LABELS[k] ?? { label: k, tone: "text-zinc-400" };
+            const d = DRIVER_LABELS[k] ?? { label: k, tone: "text-fg-secondary" };
             return (
-              <li key={k} className="flex items-baseline gap-1.5 text-[9px] font-mono">
+              <li key={k} className="flex items-baseline gap-1.5 text-[11px] font-mono">
                 <span className={d.tone}>{d.label}</span>
-                <span className="text-zinc-500">{n}</span>
-                {d.note && <span className="text-zinc-600 italic">· {d.note}</span>}
+                <span className="text-fg-tertiary">{n}</span>
+                {d.note && <span className="text-fg-tertiary italic">· {d.note}</span>}
               </li>
             );
           })}
@@ -101,29 +101,29 @@ function BufferShadowBlock({ shadow }: { shadow: BufferShadow }) {
   return (
     <div
       data-testid="buffer-shadow"
-      className="rounded border border-white/6 bg-white/[0.01] p-2.5 space-y-1.5"
+      className="rounded-micro border border-edge-subtle p-2.5 space-y-1.5"
     >
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
-        <p className="text-[9px] uppercase tracking-[0.16em] text-zinc-400 font-semibold">
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
           pre-flush buffer shadow
         </p>
-        <p className="text-[9px] font-mono text-zinc-600">
+        <p className="text-[11px] font-mono text-fg-tertiary">
           {`>= ${shadow.since.slice(0, 16).replace("T", " ")}`}
         </p>
       </div>
-      <p className="font-mono text-zinc-200">
+      <p className="font-mono text-fg">
         {shadow.wouldBufferPct === null ? (
           <span className="text-[11px] text-amber-300">rate withheld</span>
         ) : (
           <span className="text-[15px]">{shadow.wouldBufferPct.toFixed(1)}%</span>
         )}
-        <span className="ml-1.5 text-[9px] text-zinc-500">
+        <span className="ml-1.5 text-[11px] text-fg-tertiary">
           {shadow.wouldBuffer}/{shadow.withShadow} shadowed turns would buffer
         </span>
       </p>
-      <p className="text-[9px] font-mono text-zinc-400">
+      <p className="text-[11px] font-mono text-fg-secondary">
         {shadow.banner.wouldHaveBuffered} of {shadow.banner.turns} banner turns would have buffered
-        <span className="ml-1.5 text-zinc-500">
+        <span className="ml-1.5 text-fg-tertiary">
           {shadow.banner.recallPct === null
             ? "· recall withheld"
             : `· recall ${shadow.banner.recallPct.toFixed(1)}%`}
@@ -134,22 +134,22 @@ function BufferShadowBlock({ shadow }: { shadow: BufferShadow }) {
         {/* Optional chain on purpose: during a deploy skew the tRPC payload can come from a server
             that predates `legacy` (2026-09-23); a missing block must not take the whole panel down. */}
         {(shadow.legacy?.withShadow ?? 0) > 0 && (
-          <span className="ml-1.5 text-zinc-500">· {shadow.legacy.withShadow} legacy shadows excluded</span>
+          <span className="ml-1.5 text-fg-tertiary">· {shadow.legacy.withShadow} legacy shadows excluded</span>
         )}
       </p>
       {reasons.length > 0 && (
         <ul className="space-y-0.5">
           {reasons.map((r) => (
-            <li key={r.reason} className="flex items-baseline gap-1.5 text-[9px] font-mono min-w-0">
-              <span className="text-zinc-300 truncate min-w-0">{r.reason}</span>
-              <span className="text-zinc-500 shrink-0">
+            <li key={r.reason} className="flex items-baseline gap-1.5 text-[11px] font-mono min-w-0">
+              <span className="text-fg truncate min-w-0">{r.reason}</span>
+              <span className="text-fg-tertiary shrink-0">
                 {r.buffered} buffered · {r.bannered} banner
               </span>
             </li>
           ))}
         </ul>
       )}
-      <p className="text-[9px] text-zinc-600 leading-snug">{shadow.caveat}</p>
+      <p className="text-[11px] text-fg-tertiary leading-snug">{shadow.caveat}</p>
     </div>
   );
 }
@@ -159,9 +159,9 @@ export function EvidenceGatePanel() {
 
   if (q.isLoading) {
     return (
-      <section aria-label="evidence-gate-calibration" className="rounded-xl border border-white/5 p-4 space-y-2">
-        <div className="h-3 w-44 rounded bg-white/5 animate-pulse" />
-        <div className="h-16 rounded bg-white/[0.03] animate-pulse" />
+      <section aria-label="evidence-gate-calibration" className="rounded-surface border border-edge-subtle p-4 space-y-2">
+              <div className="h-3 w-44 rounded-micro bg-surface-interactive animate-pulse" />
+        <div className="h-16 rounded-micro bg-surface-interactive animate-pulse" />
       </section>
     );
   }
@@ -169,7 +169,7 @@ export function EvidenceGatePanel() {
     return (
       <section
         aria-label="evidence-gate-calibration"
-        className="rounded-xl border border-red-500/15 bg-red-500/5 p-4"
+        className="rounded-surface border border-red-500/15 bg-red-500/5 p-4"
       >
         <p className="text-[11px] text-red-400 flex items-center gap-1.5">
           <AlertCircle className="h-3.5 w-3.5" />
@@ -188,16 +188,16 @@ export function EvidenceGatePanel() {
   return (
     <section
       aria-label="evidence-gate-calibration"
-      className="rounded-xl border border-white/8 bg-white/[0.01] p-4 flex flex-col space-y-3"
+      className="rounded-surface border border-edge-subtle p-4 flex flex-col space-y-3"
     >
-      <div className="flex items-center justify-between gap-2 flex-wrap border-b border-white/6 pb-2">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-300 font-semibold flex items-center gap-1.5">
-          <ShieldAlert className="h-3.5 w-3.5 text-[var(--gold)]/80" /> Evidence Gate · promotion readout
+      <div className="flex items-center justify-between gap-2 flex-wrap border-b border-edge-subtle pb-2">
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg flex items-center gap-1.5">
+          <ShieldAlert className="h-3.5 w-3.5 text-fg-secondary" /> Evidence Gate · promotion readout
         </p>
         <span
           data-testid="gate-verdict"
           className={cn(
-            "text-[9px] font-mono uppercase tracking-wider rounded border px-1.5 py-px",
+            "text-[11px] font-mono rounded-micro border px-1.5 py-px",
             d.sufficient
               ? "border-emerald-400/25 text-emerald-300"
               : "border-amber-400/25 text-amber-300",
@@ -210,15 +210,15 @@ export function EvidenceGatePanel() {
       {/* Sample growth toward the floor — the ONLY thing between here and a
           decision, so it is the headline rather than a footnote. */}
       <div className="space-y-1">
-        <div className="flex items-baseline justify-between text-[9px] font-mono">
-          <span className="text-zinc-400">post-fix sample</span>
-          <span data-testid="sample-progress" className="text-zinc-300">
+              <div className="flex items-baseline justify-between text-[11px] font-mono">
+          <span className="text-fg-secondary">post-fix sample</span>
+          <span data-testid="sample-progress" className="text-fg">
             {after.turns} / {d.minSample} turns
           </span>
         </div>
-        <div className="h-1.5 rounded bg-white/5 overflow-hidden">
+        <div className="h-1.5 rounded-micro bg-surface-interactive overflow-hidden">
           <div
-            className={cn("h-full rounded", d.sufficient ? "bg-emerald-400/60" : "bg-amber-400/50")}
+            className={cn("h-full rounded-micro", d.sufficient ? "bg-emerald-400/60" : "bg-amber-400/50")}
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -239,7 +239,7 @@ export function EvidenceGatePanel() {
 
       <BufferShadowBlock shadow={d.bufferShadow} />
 
-      <p className="border-t border-white/6 pt-2 text-[9px] text-zinc-600 leading-snug">{d.caveat}</p>
+      <p className="border-t border-edge-subtle pt-2 text-[11px] text-fg-tertiary leading-snug">{d.caveat}</p>
     </section>
   );
 }

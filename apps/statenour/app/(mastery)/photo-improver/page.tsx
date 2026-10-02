@@ -155,10 +155,10 @@ export default function PhotoImproverPage() {
           onDrop={onDrop}
           onDragOver={(e) => e.preventDefault()}
           className={cn(
-            "rounded-lg border-2 border-dashed p-6 text-center transition-colors",
+            "rounded-surface border-2 border-dashed p-6 text-center transition-colors duration-[var(--motion-state)]",
             imageBase64 || imageUrl
               ? "border-emerald-500/40 bg-emerald-500/[0.03]"
-              : "border-white/15 hover:border-white/30 hover:bg-white/[0.02]",
+              : "border-edge-default hover:border-edge-strong hover:bg-surface-hover",
           )}
         >
           {(imageBase64 || imageUrl) ? (
@@ -167,7 +167,7 @@ export default function PhotoImproverPage() {
               <img
                 src={imageBase64 ? `data:image/png;base64,${imageBase64}` : imageUrl}
                 alt="upload"
-                className="rounded max-h-72 mx-auto border border-white/10"
+                className="rounded-control max-h-72 mx-auto border border-edge-subtle"
               />
               <button
                 onClick={() => {
@@ -175,28 +175,28 @@ export default function PhotoImproverPage() {
                   setImageUrl("");
                   setData(null);
                 }}
-                className="text-xs text-zinc-400 hover:text-zinc-200"
+                className="min-h-[44px] px-2 text-[13px] font-medium text-fg-tertiary hover:text-fg"
               >
-                replace
+                Replace
               </button>
             </div>
           ) : (
             <div className="space-y-3">
-              <Upload className="h-10 w-10 text-zinc-500 mx-auto" />
-              <div className="text-sm text-zinc-400">
+              <Upload className="h-10 w-10 text-fg-tertiary mx-auto" />
+              <div className="text-sm text-fg-secondary">
                 Drag a photo here, or
               </div>
-              <label className="inline-block cursor-pointer rounded-md border border-white/10 bg-white/[0.02] px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/[0.06]">
+              <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg">
                 <Upload className="h-3 w-3 inline mr-1" /> choose file
                 <input type="file" accept="image/*" onChange={onChoose} className="hidden" />
               </label>
-              <div className="text-xs text-zinc-500">— or paste a URL —</div>
+              <div className="text-xs text-fg-tertiary">— or paste a URL —</div>
               <input
                 type="text"
                 value={imageUrl}
                 onChange={(e) => setImageUrl(e.target.value)}
                 placeholder="https://... or /api/images/abc"
-                className="w-full max-w-md rounded-md border border-white/10 bg-white/[0.02] px-3 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-white/25"
+                className="w-full max-w-md min-h-[44px] rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg placeholder:text-fg-tertiary outline-none focus:border-accent"
               />
             </div>
           )}
@@ -208,20 +208,20 @@ export default function PhotoImproverPage() {
         <Panel>
           <div className="space-y-3">
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">mode</div>
+              <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">mode</div>
               <div className="flex gap-1">
                 {(["analyze", "rebrand", "both"] as const).map((m) => (
                   <button
                     key={m}
                     onClick={() => setMode(m)}
                     className={cn(
-                      "rounded-md px-3 py-1.5 text-xs transition-colors",
+                      "min-h-[44px] rounded-control border px-3 py-2 text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
                       mode === m
-                        ? "bg-violet-500/15 text-violet-200 border border-violet-500/40"
-                        : "bg-white/[0.02] text-zinc-400 hover:bg-white/[0.06] border border-white/10",
+                        ? "border-accent bg-accent-soft text-fg"
+                        : "border-edge-default bg-content text-fg-tertiary hover:border-edge-strong hover:text-fg-secondary",
                     )}
                   >
-                    {m === "analyze" ? "analyze only" : m === "rebrand" ? "rebrand only" : "analyze + rebrand"}
+                    {m === "analyze" ? "analyze only" : m === "rebrand" ? "Rebrand only" : "Analyze + rebrand"}
                   </button>
                 ))}
               </div>
@@ -230,16 +230,16 @@ export default function PhotoImproverPage() {
               onClick={run}
               disabled={loading}
               className={cn(
-                "rounded-lg border px-4 py-2 text-sm font-medium transition w-full sm:w-auto",
+                "min-h-[44px] rounded-control border px-4 py-2 text-[14px] font-semibold transition-colors duration-[var(--motion-state)] w-full sm:w-auto",
                 loading
                   ? "border-amber-500/40 bg-amber-500/10 text-amber-200 cursor-wait"
-                  : "border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15",
+                  : "border-transparent bg-accent text-[var(--text-inverse)] hover:bg-accent-hover",
               )}
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  {mode === "both" ? "analyzing + rebranding…" : mode === "rebrand" ? "rebranding…" : "analyzing…"}
+                  {mode === "both" ? "analyzing + rebranding…" : mode === "rebrand" ? "Rebranding…" : "Analyzing…"}
                 </span>
               ) : (
                 <span className="flex items-center justify-center gap-2">
@@ -267,19 +267,19 @@ export default function PhotoImproverPage() {
           <Panel>
             <div className="space-y-3">
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-zinc-500">subject</div>
-                <div className="text-sm text-zinc-200">{data.analysis.subject}</div>
+                <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">subject</div>
+                <div className="text-sm text-fg">{data.analysis.subject}</div>
               </div>
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-zinc-500">current mood</div>
-                <div className="text-sm text-amber-300">{data.analysis.currentMood}</div>
+                <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">current mood</div>
+                <div className="text-sm text-fg-secondary">{data.analysis.currentMood}</div>
               </div>
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">scores</div>
+                <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">scores</div>
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-1">
                   {Object.entries(data.analysis.scores).map(([k, v]) => (
-                    <div key={k} className="rounded-lg border border-white/10 bg-white/[0.02] p-1.5 text-center">
-                      <div className="text-[8px] uppercase tracking-wider text-zinc-500">{k.replace(/([A-Z])/g, " $1").trim()}</div>
+                    <div key={k} className="rounded-surface border border-edge-subtle bg-content p-1.5 text-center">
+                      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{k.replace(/([A-Z])/g, " $1").trim()}</div>
                       <div className={cn("font-mono text-base font-bold tabular-nums", scoreTone(v))}>
                         {v}
                       </div>
@@ -288,13 +288,13 @@ export default function PhotoImproverPage() {
                 </div>
               </div>
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">marketing fit</div>
+                <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">marketing fit</div>
                 <div className="flex gap-1 flex-wrap">
                   {Object.entries(data.analysis.marketingFit).filter(([k]) => k !== "best").map(([k, v]) => (
                     <span
                       key={k}
                       className={cn(
-                        "rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider border",
+                        "rounded-micro px-2 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em] border",
                         fitTone(v as string),
                         k === data.analysis!.marketingFit.best && "ring-2 ring-emerald-500/30",
                       )}
@@ -325,25 +325,25 @@ export default function PhotoImproverPage() {
           {/* Improvements */}
           {data.analysis.improvements.length > 0 && (
             <Panel>
-              <h2 className="text-sm font-semibold text-white mb-2">specific improvements</h2>
+              <h2 className="text-sm font-semibold text-fg mb-2">specific improvements</h2>
               <div className="space-y-1.5">
                 {data.analysis.improvements.map((imp, idx) => (
                   <div
                     key={idx}
                     className={cn(
-                      "rounded-md border px-2 py-1.5 text-xs flex items-start gap-2",
+                      "rounded-control border px-2 py-1.5 text-xs flex items-start gap-2",
                       imp.priority === "high"
                         ? "border-rose-500/30 bg-rose-500/[0.04] text-rose-200"
                         : imp.priority === "medium"
                           ? "border-amber-500/30 bg-amber-500/[0.04] text-amber-200"
-                          : "border-zinc-500/30 bg-zinc-500/[0.04] text-zinc-300",
+                          : "border-edge-subtle bg-content text-fg-secondary",
                     )}
                   >
-                    <span className="font-mono text-[9px] uppercase tracking-wider opacity-70 flex-shrink-0">
+                    <span className="font-mono text-[11px] uppercase tracking-[0.12em] opacity-70 flex-shrink-0">
                       [{imp.type}]
                     </span>
                     <span className="flex-1">{imp.instruction}</span>
-                    <span className="text-[9px] uppercase opacity-60">{imp.priority}</span>
+                    <span className="font-mono text-[11px] uppercase tracking-[0.12em] opacity-60">{imp.priority}</span>
                   </div>
                 ))}
               </div>
@@ -363,31 +363,31 @@ export default function PhotoImproverPage() {
             <img
               src={data.rebrandedImageUrl}
               alt="rebranded"
-              className="rounded-lg max-w-full max-h-96 mx-auto border border-emerald-500/30 cursor-pointer hover:opacity-90 transition-opacity"
+              className="rounded-surface max-w-full max-h-96 mx-auto border border-emerald-500/30 cursor-pointer hover:opacity-90 transition-opacity"
             />
           </a>
           <div className="flex gap-1 flex-wrap mt-3">
             <Link
               href={`/content?tab=publish&imageUrl=${encodeURIComponent(data.rebrandedImageUrl ?? `/api/images/${data.rebrandedImageId}`)}`}
-              className="rounded-md border border-violet-500/30 bg-violet-500/10 px-2 py-1 text-[10px] text-violet-200 hover:bg-violet-500/15 inline-flex items-center gap-1"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
             >
               <Send className="h-3 w-3" /> publish
             </Link>
             <Link
               href={`/chat?prompt=${encodeURIComponent(`Caption this image at ${data.rebrandedImageUrl ?? `/api/images/${data.rebrandedImageId}`} for Instagram. Use Nick's Tire voice + Cleveland tags + CTA.`)}`}
-              className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-200 hover:bg-emerald-500/15 inline-flex items-center gap-1"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
             >
               <ImageIcon className="h-3 w-3" /> caption
             </Link>
           </div>
-          <div className="mt-2 text-[10px] text-zinc-500 tabular-nums">
+          <div className="mt-2 font-mono text-[11px] text-fg-tertiary tabular-nums">
             {data.rebrandModel} · {data.rebrandDurationMs}ms
           </div>
         </Panel>
       )}
 
       {data && (
-        <p className="text-center text-[10px] text-zinc-600">
+        <p className="text-center font-mono text-[11px] text-fg-tertiary">
           analysis: {data.analysisModel} · {data.analysisDurationMs}ms
           {data.rebrandedImageUrl && ` · rebrand: ${data.rebrandModel} · ${data.rebrandDurationMs}ms`}
         </p>

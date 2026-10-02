@@ -70,10 +70,12 @@
 
 import { Middleware } from "inngest";
 import { deriveSkipReason } from "@/lib/services/cron-skip-reason";
+import { DECLARED_DEGRADATION_PREFIX } from "@/lib/services/cron-status";
 
 /**
- * Statuses this module writes. `partial` is deliberately ABSENT: it remains
- * valid for other producers (mega-fanout) and this module must never write it.
+ * Statuses this module writes. `partial` is written ONLY for a declared
+ * degradation (deriveDegradation, 2026-10-02 — `degraded · <reason>`); other
+ * partials still belong to their own producers (mega-fanout).
  */
 export const CRON_STATUS = {
   started: "started",
@@ -160,6 +162,34 @@ function jobNameOf(fn: unknown): string | null {
   return null;
 }
 
+/**
+ * Inngest function id → cron manifest name, where they differ. The kill switch
+ * is written under the manifest name (/system/crons), so the two mega slots
+ * never matched (bug-hunt 2026-10-02).
+ */
+export const INNGEST_ID_TO_CRON_NAME: Readonly<Record<string, string>> = {
+  "mega-fanout-morning": "mega",
+  "mega-fanout-evening": "mega-evening",
+};
+
+export function killSwitchNameOf(fn: unknown): string | null {
+  const id = jobNameOf(fn);
+  return id ? (INNGEST_ID_TO_CRON_NAME[id] ?? id) : null;
+}
+
+/**
+ * The kill decision is made once per RUN, on its first request, and held: a
+ * run with steps spans several requests, and re-deciding on each let a kill
+ * landing mid-run stop the rest of the steps and still record a clean skip
+ * (bug-hunt 2026-10-02). In-process memo; a restart re-decides.
+ */
+const runKillDecision = new Map<string, { killed: boolean; at: number }>();
+const RUN_DECISION_TTL_MS = 6 * 3_600_000;
+
+export function __resetRunKillDecisions(): void {
+  runKillDecision.clear();
+}
+
 function runIdOf(ctx: unknown): string | null {
   const v = (ctx as { runId?: unknown } | undefined)?.runId;
   return typeof v === "string" && v ? v : null;
@@ -218,6 +248,27 @@ const INT32_MAX = 2_147_483_647;
 
 const asCount = (v: unknown): number | null =>
   typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= INT32_MAX ? v : null;
+
+/**
+ * 2026-10-02 · a function that RETURNS but declares degradation is a `partial`
+ * run, never a `success`. The intelligence brief's compose timeout degraded its
+ * text to an honest fallback and then returned `completed`; the row read
+ * `success`, and the one owner surface that reads this table saw nothing.
+ * Declared by `status: "partial"` or `degraded: true` on the output, with the
+ * reason in `degradedReason` (or `error`).
+ */
+export function deriveDegradation(output: unknown): { degraded: boolean; reason: string | null } {
+  if (!output || typeof output !== "object" || Array.isArray(output)) return { degraded: false, reason: null };
+  const o = output as Record<string, unknown>;
+  if (o.status !== "partial" && o.degraded !== true) return { degraded: false, reason: null };
+  const reason =
+    typeof o.degradedReason === "string" && o.degradedReason.trim()
+      ? o.degradedReason
+      : typeof o.error === "string" && o.error.trim()
+        ? o.error
+        : "finished degraded (partial); no reason declared";
+  return { degraded: true, reason };
+}
 
 export function deriveResultCount(output: unknown): number | null {
   if (Array.isArray(output)) return output.length;
@@ -408,7 +459,7 @@ export async function settleCronRun(
         // Always written: a success overriding `interrupted` must also clear
         // the presumed-dead text that sweep left behind.
         error: err === undefined ? null : describeError(err),
-        ...(status === CRON_STATUS.success
+        ...(TERMINAL_OK_STATUSES.includes(status)
           ? { resultCount: deriveResultCount(output), skipReason: deriveSkipReason(output) }
           : {}),
       },
@@ -434,6 +485,55 @@ async function warn(stage: string, meta: Record<string, unknown>, e: unknown): P
 }
 
 /**
+ * ★ THE KILL SWITCH, FOR INNGEST-NATIVE CRONS (2026-10-02).
+ *
+ * `isCronEnabled` (lib/services/cron-control.ts) was consulted ONLY by
+ * `cronHandler` (lib/utils/http.ts), which wraps /api/cron/* routes. The 19
+ * active `inngest: true` crons in config/crons.ts never pass through it, so
+ * the kill switch on /system/crons (and the Settings panel before it) was
+ * WRITE-ONLY for them: the row flipped, the toggle said Off, the cron kept
+ * running (docs/design/settings-census-2026-10-02.md, finding 7). Same
+ * reasoning as the lifecycle rows above — one registration here covers every
+ * Inngest function, including ones that do not exist yet, where a per-handler
+ * check would need a ratchet to stay applied.
+ *
+ * `wrapFunctionHandler` is the one middleware hook that can decline to run the
+ * handler: it owns `next()`. (Throwing from an `on*` hook cannot stop a run —
+ * the SDK try/catches those; see the NEVER THROWS note.) A killed cron returns
+ * the fleet's own skip shape, `{ skipped: true, reason }`, so `onRunComplete`
+ * settles it as a terminal-ok row with `skipReason = "disabled via settings"`.
+ * (Unlike a killed route cron, which `cronHandler` returns from before
+ * logging, this does write rows — the owner panel ignores them.)
+ *
+ * ⚠ The hook runs once per REQUEST, and a run with N steps is N+ requests, so
+ * the read is cached per process for KILL_SWITCH_TTL_MS: a kill takes effect
+ * at the next request after the cache expires, not mid-step. Fail OPEN: an
+ * unreadable switch never stops a cron (`cronHandler` makes the same call).
+ */
+export const KILL_SWITCH_SKIP_REASON = "disabled via settings";
+export const KILL_SWITCH_TTL_MS = 30_000;
+const killSwitchCache = new Map<string, { enabled: boolean; at: number }>();
+
+/** Tests only. */
+export function __resetKillSwitchCache(): void {
+  killSwitchCache.clear();
+}
+
+export async function isCronKilled(jobName: string, now: number = Date.now()): Promise<boolean> {
+  const hit = killSwitchCache.get(jobName);
+  if (hit && now - hit.at < KILL_SWITCH_TTL_MS) return !hit.enabled;
+  try {
+    const { isCronEnabled } = await import("@/lib/services/cron-control");
+    const enabled = await isCronEnabled(jobName);
+    killSwitchCache.set(jobName, { enabled, at: now });
+    return !enabled;
+  } catch (e) {
+    await warn("kill-switch", { jobName }, e);
+    return false;
+  }
+}
+
+/**
  * Registered once in `lib/inngest/client.ts`; covers every function the client
  * serves, including ones added later.
  *
@@ -449,10 +549,51 @@ export class CronLifecycleMiddleware extends Middleware.BaseMiddleware {
     await beginCronRun(arg.fn, arg.ctx);
   }
 
+  // The kill switch (see isCronKilled above). Only cron-triggered functions
+  // with a manifest name are gated; event-triggered functions and fan-out
+  // children run untouched. Any failure in the check itself runs the cron.
+  override async wrapFunctionHandler(args: {
+    ctx: unknown;
+    fn: unknown;
+    next: () => Promise<unknown>;
+  }): Promise<unknown> {
+    if (isCronTriggered(args.fn)) {
+      const jobName = killSwitchNameOf(args.fn);
+      const runId = runIdOf(args.ctx);
+      const now = Date.now();
+      const held = runId ? runKillDecision.get(runId) : undefined;
+      let killed: boolean;
+      if (held && now - held.at < RUN_DECISION_TTL_MS) {
+        killed = held.killed;
+      } else {
+        killed = jobName ? await isCronKilled(jobName) : false;
+        if (runId) runKillDecision.set(runId, { killed, at: now });
+        if (runKillDecision.size > 500) {
+          for (const [k, v] of runKillDecision) if (now - v.at >= RUN_DECISION_TTL_MS) runKillDecision.delete(k);
+        }
+      }
+      if (killed) {
+        return { skipped: true, reason: KILL_SWITCH_SKIP_REASON, jobName };
+      }
+    }
+    return args.next();
+  }
+
   // `output` is the function's return value (Middleware.OnRunCompleteArgs) -
   // the summary every job here already builds, now kept as `resultCount`.
   override async onRunComplete(arg: { ctx: unknown; fn: unknown; output?: unknown }): Promise<void> {
-    await settleCronRun(arg.fn, arg.ctx, CRON_STATUS.success, undefined, arg.output);
+    // A returned output that declares degradation settles `partial` with its reason
+    // (deriveDegradation, 2026-10-02); anything else is the success it always was.
+    const { degraded, reason } = deriveDegradation(arg.output);
+    await settleCronRun(
+      arg.fn,
+      arg.ctx,
+      degraded ? "partial" : CRON_STATUS.success,
+      // The prefix is what lets a reader tell a DECLARED degradation from a fan-out
+      // parent's plain `partial` (lib/services/cron-status.ts isDeclaredDegradation).
+      degraded ? `${DECLARED_DEGRADATION_PREFIX}${reason}` : undefined,
+      arg.output,
+    );
   }
 
   override async onRunError(arg: {

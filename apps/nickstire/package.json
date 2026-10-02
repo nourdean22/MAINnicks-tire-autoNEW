@@ -47,6 +47,7 @@
     "checkout:safe": "node scripts/assert-safe-checkout.mjs",
     "migrations:reconcile": "node scripts/reconcile-migrations.mjs --report",
     "migrations:check": "node scripts/migrations-check.mjs",
+    "migrations:record": "node scripts/record-migrations.mjs",
     "lint:cron-wiring": "tsx scripts/lint-cron-wiring.ts",
     "triage:reels": "tsx scripts/build-reel-triage.mjs",
     "lint:orphans": "node scripts/knip-orphan-gate.mjs",

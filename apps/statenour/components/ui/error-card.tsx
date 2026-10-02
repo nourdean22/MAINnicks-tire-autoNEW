@@ -66,17 +66,17 @@ export function ErrorCard({
     <div
       role="alert"
       className={cn(
-        "rounded-lg border border-red-500/30 bg-red-500/5 p-3 space-y-2 animate-fade-in-scale shadow-[0_0_15px_rgba(239,68,68,0.08)] transition-all duration-300 ease-out hover:shadow-[0_0_20px_rgba(239,68,68,0.15)] hover:border-red-500/40",
+        "rounded-surface border border-red-500/30 bg-red-500/5 p-3 space-y-2 animate-fade-in-scale",
         className
       )}
     >
       <div className="flex items-start gap-2">
         <AlertTriangle size={14} className="text-red-400 mt-0.5 shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="text-[11px] font-bold text-red-300">{title}</p>
-          <p className="text-[10px] text-red-300/80 mt-0.5 break-words">{message}</p>
+          <p className="text-[13px] font-semibold text-red-300">{title}</p>
+          <p className="text-[12px] text-red-300/80 mt-0.5 break-words">{message}</p>
           {domain && (
-            <p className="text-[9px] text-red-300/50 mt-1 font-mono">{domain}</p>
+            <p className="text-[11px] text-red-300/50 mt-1 font-mono">{domain}</p>
           )}
         </div>
         {onDismiss && (
@@ -93,7 +93,7 @@ export function ErrorCard({
       {hint && (
         <div className="flex items-start gap-2 pt-1.5 border-t border-red-500/20">
           <Brain size={10} className="text-blue-300 mt-0.5 shrink-0" />
-          <p className="text-[10px] text-blue-200/80 leading-[1.45]">{hint}</p>
+          <p className="text-[12px] text-blue-200/80 leading-[1.45]">{hint}</p>
         </div>
       )}
 
@@ -102,19 +102,19 @@ export function ErrorCard({
           {onRetry && (
             <button
               onClick={onRetry}
-              className="flex items-center gap-1 px-2 h-6 rounded-md border border-red-500/30 bg-red-500/10 text-[9px] font-bold text-red-300 hover:bg-red-500/20 hover:border-red-500/50 hover:shadow-[0_0_10px_rgba(239,68,68,0.2)] transition-all duration-200 ease-out"
+              className="flex items-center gap-1 px-2 h-6 rounded-control border border-red-500/30 bg-red-500/10 text-[12px] font-medium text-red-300 hover:bg-red-500/20 hover:border-red-500/50 transition-colors duration-[var(--motion-state)]"
             >
               <RotateCcw size={10} />
-              RETRY
+              Retry
             </button>
           )}
           {onDiagnose && (
             <button
               onClick={onDiagnose}
-              className="flex items-center gap-1 px-2 h-6 rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/10 text-[9px] font-bold text-[var(--gold)] hover:bg-[var(--gold)]/20 hover:border-[var(--gold)]/50 hover:shadow-[0_0_10px_rgba(253,185,19,0.2)] transition-all duration-200 ease-out"
+              className="flex items-center gap-1 px-2 h-6 rounded-control border border-edge-default bg-content text-[12px] font-medium text-fg-secondary hover:border-edge-strong hover:text-fg transition-colors duration-[var(--motion-state)]"
             >
               <Brain size={10} />
-              DIAGNOSE WITH NICK
+              Diagnose with Nick
             </button>
           )}
         </div>

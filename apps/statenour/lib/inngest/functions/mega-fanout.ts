@@ -159,6 +159,9 @@ const DEFAULT_CHILD_TIMEOUT_MS = 90_000;
 export const DETACHED_CHILDREN: ReadonlySet<string> = new Set([
   "/api/cron/consolidate",
   "/api/cron/mastery-xp",
+  // 2026-10-02 · three sequential "reason" calls; a retry would re-run the
+  // whole thinking engine and duplicate its rows.
+  "/api/cron/think",
 ]);
 
 /**

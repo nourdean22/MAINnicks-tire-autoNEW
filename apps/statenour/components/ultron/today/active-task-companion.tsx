@@ -271,20 +271,20 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
   const recent = events.slice(-3).reverse();
 
   return (
-    <div className="border-t border-[var(--border-default)]/60 bg-[var(--bg-void)]/30">
+    <div className="border-t border-edge-subtle bg-canvas/30">
       {/* ── Quick actions row ───────────────────────────── */}
       <div className="px-3 py-1.5 flex items-center gap-1 flex-wrap">
-        <span className="shrink-0 text-[8px] font-bold uppercase tracking-[0.22em] text-[var(--gold)]/70 mr-1">
+        <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-1">
           <Sparkles size={9} className="inline mr-0.5" />
           session
         </span>
 
         <Link
           href={chatHref}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wider border-blue-500/30 bg-blue-500/5 text-blue-300 hover:bg-blue-500/15 transition-colors"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-control border text-[13px] font-medium border-blue-500/30 bg-blue-500/5 text-blue-300 hover:bg-blue-500/15 transition-colors"
           title="ask Nick for help with this task"
         >
-          <MessageSquareText size={10} /> ask nick
+          <MessageSquareText size={10} /> Ask nick
         </Link>
 
         <button
@@ -294,39 +294,39 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
           }}
           disabled={busy}
           className={cn(
-            "inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wider transition-colors",
+            "inline-flex items-center gap-1 px-2 py-0.5 rounded-control border text-[13px] font-medium transition-colors",
             mode === "note"
-              ? "border-[var(--gold)]/60 bg-[var(--gold)]/15 text-[var(--gold)]"
-              : "border-[var(--gold)]/30 bg-[var(--gold)]/5 text-[var(--gold)] hover:bg-[var(--gold)]/10",
+              ? "border-accent bg-accent-soft text-fg"
+              : "border-edge-default bg-content text-fg-secondary hover:border-edge-strong hover:text-fg",
             busy && "opacity-40 cursor-not-allowed",
           )}
           title="jot a quick note tied to this task"
         >
-          <StickyNote size={10} /> note
+          <StickyNote size={10} /> Note
         </button>
 
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={busy}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wider border-amber-500/30 bg-amber-500/5 text-amber-300 hover:bg-amber-500/15 transition-colors disabled:opacity-40"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-control border text-[13px] font-medium border-amber-500/30 bg-amber-500/5 text-amber-300 hover:bg-amber-500/15 transition-colors disabled:opacity-40"
           title="capture a photo · ties to task timeline"
         >
-          <Camera size={10} /> photo
+          <Camera size={10} /> Photo
         </button>
 
         {recording ? (
           <button
             onClick={stopVoice}
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wider border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors animate-pulse"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-control border text-[13px] font-medium border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors"
             title="stop voice recording"
           >
-            <MicOff size={10} /> stop
+            <MicOff size={10} /> Stop
           </button>
         ) : (
           <button
             onClick={startVoice}
             disabled={busy}
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wider border-violet-500/30 bg-violet-500/5 text-violet-300 hover:bg-violet-500/15 transition-colors disabled:opacity-40"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-control border text-[13px] font-medium border-violet-500/30 bg-violet-500/5 text-violet-300 hover:bg-violet-500/15 transition-colors disabled:opacity-40"
             title="dictate a voice note · transcribes in-browser"
           >
             <Mic size={10} /> voice
@@ -336,14 +336,14 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
         <button
           onClick={() => logProgress(`progress check · ${new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`)}
           disabled={busy}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wider border-emerald-500/30 bg-emerald-500/5 text-emerald-300 hover:bg-emerald-500/15 transition-colors disabled:opacity-40"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-control border text-[13px] font-medium border-emerald-500/30 bg-emerald-500/5 text-emerald-300 hover:bg-emerald-500/15 transition-colors disabled:opacity-40"
           title="log a quick progress timestamp"
         >
-          <Check size={10} /> log
+          <Check size={10} /> Log
         </button>
 
         {eventCount > 0 && (
-          <span className="ml-auto text-[8px] font-mono text-[var(--text-tertiary)]" title={`${eventCount} session event${eventCount === 1 ? "" : "s"}`}>
+          <span className="ml-auto font-mono text-[11px] text-fg-tertiary" title={`${eventCount} session event${eventCount === 1 ? "" : "s"}`}>
             {eventCount}
           </span>
         )}
@@ -378,13 +378,13 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
             }}
             placeholder="quick note · cmd/ctrl+enter to save"
             rows={2}
-            className="flex-1 min-w-0 rounded-md border border-[var(--border-default)] bg-[var(--bg-void)] px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--gold)]/40 focus:outline-none resize-none"
+            className="flex-1 min-w-0 rounded-control border border-edge-default bg-canvas px-2 py-1 text-[13px] text-fg placeholder:text-fg-tertiary focus:border-accent focus:outline-none resize-none"
           />
           <div className="flex flex-col gap-1 shrink-0">
             <button
               onClick={saveNote}
               disabled={busy || !draft.trim()}
-              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 w-7 h-7 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-30"
+              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 w-7 h-7 rounded-control border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-30"
               title="save note"
             >
               {busy ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
@@ -394,7 +394,7 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
                 setMode("closed");
                 setDraft("");
               }}
-              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 w-7 h-7 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-red-500/40 hover:text-red-400 transition-colors"
+              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 w-7 h-7 rounded-control border border-edge-default text-fg-tertiary hover:border-red-500/40 hover:text-red-400 transition-colors"
               title="cancel"
             >
               <X size={11} />
@@ -406,29 +406,29 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
       {/* ── Voice preview (while recording) ────────────────── */}
       {mode === "voice" && recording && (
         <div className="px-3 pb-2 flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse shrink-0" />
-          <p className="flex-1 min-w-0 text-[11px] text-[var(--text-primary)] italic truncate">
+          <div className="pulse-live w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+          <p className="flex-1 min-w-0 text-[11px] text-fg italic truncate">
             {draft || "listening…"}
           </p>
           <button
             onClick={stopVoice}
-            className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/10 px-1.5 py-0.5 rounded"
+            className="shrink-0 text-[13px] font-medium text-red-400 hover:bg-red-500/10 px-1.5 py-0.5 rounded-control"
           >
-            stop
+            Stop
           </button>
         </div>
       )}
 
       {/* ── Session log preview (last 3 entries) ───────────── */}
       {recent.length > 0 && (
-        <ul className="border-t border-[var(--border-default)]/40 divide-y divide-[var(--border-default)]/30">
+        <ul className="border-t border-edge-subtle divide-y divide-edge-subtle">
           {recent.map((e) => (
-            <li key={e.id} className="px-3 py-1 flex items-center gap-2 text-[10px]">
+            <li key={e.id} className="px-3 py-1 flex items-center gap-2 text-[11px]">
               <span
                 className={cn(
-                  "shrink-0 text-[8px] font-mono uppercase tracking-wider px-1 py-0 rounded border",
+                  "shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] px-1 py-0 rounded-micro border",
                   e.kind === "note"
-                    ? "text-[var(--gold)] border-[var(--gold)]/30 bg-[var(--gold)]/5"
+                    ? "text-fg-secondary border-edge-default bg-content"
                     : e.kind === "photo"
                       ? "text-amber-400 border-amber-500/30 bg-amber-500/5"
                       : e.kind === "voice"
@@ -443,13 +443,13 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
                 <img
                   src={e.photoUrl}
                   alt="session capture"
-                  className="h-6 w-6 object-cover rounded border border-[var(--border-default)]"
+                  className="h-6 w-6 object-cover rounded-control border border-edge-default"
                 />
               ) : null}
-              <p className="flex-1 min-w-0 truncate text-[var(--text-secondary)]">
+              <p className="flex-1 min-w-0 truncate text-fg-secondary">
                 {e.text || (e.kind === "photo" ? "photo captured" : "—")}
               </p>
-              <span className="shrink-0 text-[8px] font-mono text-[var(--text-tertiary)]">
+              <span className="shrink-0 font-mono text-[11px] text-fg-tertiary">
                 {formatAgo(e.createdAt)}
               </span>
             </li>

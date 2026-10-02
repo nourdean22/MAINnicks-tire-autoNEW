@@ -148,8 +148,8 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
 
   if (loading) {
     return (
-      <div className="rounded-lg border border-[var(--gold)]/30 bg-[var(--bg-raised)] p-4">
-        <p className="text-[11px] font-mono uppercase tracking-wider text-[var(--gold)]">
+      <div className="rounded-surface border border-edge-subtle bg-[var(--bg-raised)] p-4">
+        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
           loading evolution candidates…
         </p>
       </div>
@@ -164,8 +164,8 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
   // state unknown, not empty.
   if (evoQuery.isError || !data) {
     return (
-      <div className="rounded-lg border border-red-500/25 bg-red-500/5 p-4">
-        <p className="text-[11px] font-mono uppercase tracking-wider text-red-400">
+      <div className="rounded-surface border border-red-500/25 bg-red-500/5 p-4">
+        <p className="text-[11px] font-mono text-red-400">
           evolution review
         </p>
         <p className="mt-2 flex items-start gap-1.5 text-sm text-[var(--text-secondary)]">
@@ -184,13 +184,13 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
   if (data.totalCandidates === 0) {
     return (
       <div
-        className={`rounded-lg border p-4 ${
+        className={`rounded-surface border p-4 ${
           failures.length > 0
             ? "border-red-500/25 bg-red-500/5"
-            : "border-[var(--gold)]/30 bg-[var(--bg-raised)]"
+            : "border-edge-subtle bg-[var(--bg-raised)]"
         }`}
       >
-        <p className="text-[11px] font-mono uppercase tracking-wider text-[var(--gold)]">
+        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
           evolution review
         </p>
         {failures.length > 0 ? (
@@ -208,7 +208,7 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
   }
 
   return (
-    <div className="rounded-lg border border-[var(--gold)]/30 bg-[var(--bg-raised)] p-5">
+    <div className="rounded-surface border border-edge-subtle bg-[var(--bg-raised)] p-5">
       <div className="flex items-center justify-between mb-4">
         <div>
           <p className="text-eyebrow">Self-evolution review</p>
@@ -218,25 +218,25 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
           {/* Partial results are still results — but they are labelled. */}
           <FailureNote failures={failures} />
         </div>
-        <span className="text-[9px] font-mono text-[var(--text-tertiary)] uppercase tracking-wider">
+        <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
           v10.0.406
         </span>
       </div>
 
       {data.stale.length > 0 && (
         <section className="mb-4">
-          <p className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-secondary)] mb-2">
+          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mb-2">
             stale · cold {data.stale.length}
           </p>
           <ul className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
             {data.stale.slice(0, 25).map((c) => (
-              <li key={c.id} className="flex items-start gap-3 rounded border border-[var(--border-default)] bg-[var(--bg-base)] p-3">
+              <li key={c.id} className="flex items-start gap-3 rounded-micro border border-[var(--border-default)] bg-[var(--bg-base)] p-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-[12px] text-[var(--text-primary)] leading-snug" style={{ maxWidth: "60ch" }}>
                     {c.content.slice(0, 180)}
                     {c.content.length > 180 ? "…" : ""}
                   </p>
-                  <p className="mt-1 text-[10px] font-mono text-[var(--text-tertiary)]">
+                  <p className="mt-1 text-[11px] font-mono text-[var(--text-tertiary)]">
                     {c.daysSinceLastSeen}d cold · {(c.confidence * 100).toFixed(0)}% conf · {c.key}
                   </p>
                 </div>
@@ -244,7 +244,7 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
                   type="button"
                   disabled={busyId === c.id}
                   onClick={() => void deprecateOne(c.id, c.key)}
-                  className="text-[10px] font-mono uppercase tracking-wider px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 disabled:opacity-50 shrink-0"
+                  className="text-[11px] font-mono px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded-control border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 disabled:opacity-50 shrink-0"
                 >
                   {busyId === c.id ? "…" : "deprecate"}
                 </button>
@@ -256,15 +256,15 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
 
       {data.redundant.length > 0 && (
         <section className="mb-4">
-          <p className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-secondary)] mb-2">
+          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mb-2">
             redundant · merge {data.redundant.length}
           </p>
           <ul className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
             {data.redundant.slice(0, 25).map((c) => (
-              <li key={`${c.keepId}_${c.mergeId}`} className="rounded border border-[var(--border-default)] bg-[var(--bg-base)] p-3">
+              <li key={`${c.keepId}_${c.mergeId}`} className="rounded-micro border border-[var(--border-default)] bg-[var(--bg-base)] p-3">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <p className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 mb-1">
+                    <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-emerald-400 mb-1">
                       keep · {c.keepKey} · {(c.keepConfidence * 100).toFixed(0)}%
                     </p>
                     <p className="text-[12px] text-[var(--text-primary)] leading-snug">
@@ -273,7 +273,7 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
                     </p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-mono uppercase tracking-wider text-rose-400 mb-1">
+                    <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-rose-400 mb-1">
                       merge · {c.mergeKey} · {(c.mergeConfidence * 100).toFixed(0)}%
                     </p>
                     <p className="text-[12px] text-[var(--text-secondary)] leading-snug">
@@ -283,14 +283,14 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
                   </div>
                 </div>
                 <div className="flex items-center justify-between mt-2">
-                  <span className="text-[10px] font-mono text-[var(--text-tertiary)]">
+                  <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
                     cosine {c.similarity} · topics: {c.sharedTopics.join(", ")}
                   </span>
                   <button
                     type="button"
                     disabled={busyId === c.mergeId}
                     onClick={() => void deprecateOne(c.mergeId, c.mergeKey)}
-                    className="text-[10px] font-mono uppercase tracking-wider px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 disabled:opacity-50"
+                    className="text-[11px] font-mono px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded-control border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 disabled:opacity-50"
                   >
                     {busyId === c.mergeId ? "…" : "deprecate merge-side"}
                   </button>
@@ -303,18 +303,18 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
 
       {data.lowTrust.length > 0 && (
         <section>
-          <p className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-secondary)] mb-2">
+          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mb-2">
             low trust · review {data.lowTrust.length}
           </p>
           <ul className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
             {data.lowTrust.slice(0, 25).map((c) => (
-              <li key={c.id} className="flex items-start gap-3 rounded border border-[var(--border-default)] bg-[var(--bg-base)] p-3">
+              <li key={c.id} className="flex items-start gap-3 rounded-micro border border-[var(--border-default)] bg-[var(--bg-base)] p-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-[12px] text-[var(--text-primary)] leading-snug" style={{ maxWidth: "60ch" }}>
                     {c.content.slice(0, 180)}
                     {c.content.length > 180 ? "…" : ""}
                   </p>
-                  <p className="mt-1 text-[10px] font-mono text-[var(--text-tertiary)]">
+                  <p className="mt-1 text-[11px] font-mono text-[var(--text-tertiary)]">
                     {(c.confidence * 100).toFixed(0)}% conf · {c.key}
                   </p>
                 </div>
@@ -325,15 +325,15 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
                 <div className="flex flex-col gap-1 shrink-0">
                   <a
                     href={`/brain?tab=wisdom&focus=${encodeURIComponent(c.key)}`}
-                    className="text-[10px] font-mono uppercase tracking-wider px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 flex items-center justify-center rounded border border-[var(--gold)]/40 text-[var(--gold)] hover:bg-[var(--gold)]/10 text-center"
+                    className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg justify-center text-center"
                   >
-                    review →
+                    Review →
                   </a>
                   <button
                     type="button"
                     disabled={busyId === c.id}
                     onClick={() => void deprecateOne(c.id, c.key)}
-                    className="text-[10px] font-mono uppercase tracking-wider px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 disabled:opacity-50"
+                    className="text-[11px] font-mono px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded-control border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 disabled:opacity-50"
                   >
                     {busyId === c.id ? "…" : "deprecate"}
                   </button>

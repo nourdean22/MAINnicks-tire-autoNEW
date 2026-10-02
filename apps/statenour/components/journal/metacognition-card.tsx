@@ -26,26 +26,26 @@ export function MetacognitionCard() {
   return (
     <section
       aria-label="nick metacognition"
-      className="rounded-xl border border-cyan-500/20 bg-zinc-950/40 p-4 space-y-2"
+      className="rounded-surface border border-edge-subtle bg-content p-4 space-y-2"
     >
       <header className="flex items-center gap-2">
-        <BrainCircuit size={13} className="text-cyan-400" strokeWidth={2} />
-        <h3 className="text-[11px] font-mono uppercase tracking-[0.18em] text-cyan-300">
+        <BrainCircuit size={13} className="text-fg-tertiary" strokeWidth={1.75} />
+        <h3 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           nick&apos;s metacognition
         </h3>
         {trend === "accelerating" && (
-          <span className="ml-auto flex items-center gap-1 text-[9px] font-mono text-emerald-400">
+          <span className="ml-auto flex items-center gap-1 text-[11px] font-mono text-emerald-400">
             <TrendingUp size={10} aria-hidden /> accelerating
           </span>
         )}
         {trend === "decelerating" && (
-          <span className="ml-auto flex items-center gap-1 text-[9px] font-mono text-amber-400">
+          <span className="ml-auto flex items-center gap-1 text-[11px] font-mono text-amber-400">
             <TrendingDown size={10} aria-hidden /> decelerating
           </span>
         )}
       </header>
 
-      <p className="text-[12px] text-zinc-300 leading-relaxed">{data.selfAssessment}</p>
+      <p className="text-[13px] text-fg-secondary leading-relaxed">{data.selfAssessment}</p>
 
       {data.stagnationAlert && (
         <p className="flex items-start gap-1.5 text-[11px] text-amber-300/90 leading-snug">

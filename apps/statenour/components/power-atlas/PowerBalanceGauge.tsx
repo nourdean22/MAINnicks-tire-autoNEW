@@ -58,7 +58,7 @@ export default function PowerBalanceGauge({
       ? "text-emerald-300"
       : clamped < -0.05
         ? "text-amber-300"
-        : "text-[var(--text-secondary)]";
+        : "text-fg-secondary";
 
   async function commit(next: number) {
     if (!onUpdate) return;
@@ -72,11 +72,10 @@ export default function PowerBalanceGauge({
 
   return (
     <section
-      className="rounded-xl border bg-[var(--bg-raised)] p-4"
-      style={{ borderColor: "rgba(255,255,255,0.06)" }}
+      className="rounded-surface border border-edge-subtle bg-content p-4"
     >
       <div className="flex items-baseline justify-between gap-3 mb-3">
-        <h2 className="font-serif text-lg tracking-tight text-[var(--text-primary)]">
+        <h2 className="text-[17px] font-semibold text-fg">
           {label ?? "Power balance"}
         </h2>
         <span
@@ -102,7 +101,7 @@ export default function PowerBalanceGauge({
             onKeyUp={() => commit(draft)}
             disabled={saving}
             aria-label="power balance slider"
-            className="w-full appearance-none bg-transparent cursor-pointer disabled:opacity-50 [&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--bg-default)] [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[var(--gold,#FDB913)] [&::-webkit-slider-thumb]:-mt-1 [&::-moz-range-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-thumb]:size-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--bg-default)] [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-[var(--gold,#FDB913)]"
+            className="w-full appearance-none bg-transparent cursor-pointer disabled:opacity-50 [&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--canvas)] [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-accent [&::-webkit-slider-thumb]:-mt-1 [&::-moz-range-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-thumb]:size-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--canvas)] [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-accent"
             style={{
               ["--track-bg" as string]:
                 "linear-gradient(90deg, rgba(252,165,165,0.3) 0%, rgba(255,255,255,0.06) 50%, rgba(110,231,183,0.3) 100%)",
@@ -133,7 +132,7 @@ export default function PowerBalanceGauge({
             className="absolute top-0 h-1.5 w-px"
             style={{
               left: "50%",
-              background: "var(--gold, #FDB913)",
+              background: "var(--accent)",
               opacity: 0.7,
             }}
             aria-hidden="true"
@@ -144,15 +143,15 @@ export default function PowerBalanceGauge({
             style={{
               left: `${pctFromLeft}%`,
               transform: "translateX(-50%)",
-              background: "var(--bg-default, #0A0A0A)",
-              borderColor: "var(--gold, #FDB913)",
+              background: "var(--canvas)",
+              borderColor: "var(--accent)",
             }}
             aria-label="power balance indicator"
           />
         </div>
       )}
 
-      <div className="mt-3 flex items-center justify-between text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] tabular-nums">
+      <div className="mt-3 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
         <span>them −1.0</span>
         <span className={signColor}>
           {sign}

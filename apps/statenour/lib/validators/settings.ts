@@ -40,7 +40,11 @@ export const aiConfigPatchSchema = z
     defaultProvider: z
       .enum(["gemini", "ollama", "openai", "anthropic", "openrouter", "emergency"])
       .optional(),
-    defaultMode: z.enum(["standard", "deep"]).optional(),
+    // null = "auto" (clear the stored mode). An absent key cannot clear it:
+    // the tRPC link has no transformer, so `{ defaultMode: undefined }`
+    // arrives as `{}` and the merge keeps the old value — "auto" was
+    // unreachable from the panel (settings census finding 2, 2026-10-02).
+    defaultMode: z.enum(["standard", "deep"]).nullable().optional(),
     defaultTaskType: z
       .enum([
         "fast",
@@ -79,6 +83,19 @@ export const aiConfigPatchSchema = z
   .strict();
 
 export type AiConfigPatchInput = z.infer<typeof aiConfigPatchSchema>;
+
+/**
+ * Turn a validated patch into the service's `Partial<AiConfig>`: `null` for
+ * the mode becomes an explicit `undefined` under a PRESENT key, so the merge
+ * in `updateAiConfig` overwrites the stored value and JSON drops it — "auto".
+ */
+export function aiConfigPatchToConfig<T extends AiConfigPatchInput>(
+  input: T,
+): Omit<T, "defaultMode"> & { defaultMode?: "standard" | "deep" } {
+  const { defaultMode, ...rest } = input;
+  if (defaultMode === undefined) return rest;
+  return { ...rest, defaultMode: defaultMode ?? undefined };
+}
 
 // ────────────────────────── Skill curation ──────────────────────────
 //

@@ -117,10 +117,10 @@ export function OutreachTab() {
 
   return (
     <>
-      <p className="text-sm text-white/70" style={{ maxWidth: "60ch" }}>
+      <p className="text-sm text-fg-secondary" style={{ maxWidth: "60ch" }}>
         Propose → Telegram approval → Inngest dispatch → nickstire bridge.
         <br />
-        <span className="text-white/30">
+        <span className="text-fg-tertiary">
           Approved campaigns dispatch as a DRY RUN (count + preview to
           Telegram, no SMS) unless FEATURE_BULK_SMS_LIVE=1 is set on
           statenour.
@@ -129,7 +129,7 @@ export function OutreachTab() {
 
       {/* Segment */}
       <section className="mt-8 space-y-4">
-        <h2 className="text-[10px] uppercase tracking-[0.22em] text-white/40">
+        <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           Segment
         </h2>
         <Field label="Audience (sent to)">
@@ -139,7 +139,7 @@ export function OutreachTab() {
             options={["recent", "lapsed", "all"]}
           />
         </Field>
-        <p className="text-xs text-white/40">
+        <p className="text-xs text-fg-tertiary">
           Audience is what nickstire actually targets · recent = visited
           ≤90d · lapsed = 91-365d · all = every reachable customer. The
           filters below only annotate the Telegram preview label — they do
@@ -166,18 +166,18 @@ export function OutreachTab() {
             step={50}
             value={minDeclinedDollars}
             onChange={(e) => setMinDeclinedDollars(Number(e.target.value) || 0)}
-            className="bg-white/[0.04] border border-white/10 rounded px-3 py-2 text-sm w-32 text-right tabular-nums"
+            className="rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg focus:border-accent focus:outline-none w-32 text-right tabular-nums"
           />
         </Field>
-        <p className="text-sm text-white/70">
-          <span className="text-white/40">resolved · </span>
+        <p className="text-sm text-fg-secondary">
+          <span className="text-fg-tertiary">resolved · </span>
           {segmentLabel}
         </p>
       </section>
 
       {/* Composition */}
       <section className="mt-8 space-y-4">
-        <h2 className="text-[10px] uppercase tracking-[0.22em] text-white/40">
+        <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           Composition
         </h2>
         <Field label="Campaign ID">
@@ -185,7 +185,7 @@ export function OutreachTab() {
             type="text"
             value={campaignId}
             onChange={(e) => setCampaignId(e.target.value)}
-            className="bg-white/[0.04] border border-white/10 rounded px-3 py-2 text-sm w-full font-mono"
+            className="rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg focus:border-accent focus:outline-none w-full font-mono"
             placeholder="winback-high-ltv-2026-05-17"
           />
         </Field>
@@ -195,7 +195,7 @@ export function OutreachTab() {
             min={1}
             value={recipientCount}
             onChange={(e) => setRecipientCount(Number(e.target.value) || 1)}
-            className="bg-white/[0.04] border border-white/10 rounded px-3 py-2 text-sm w-32 text-right tabular-nums"
+            className="rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg focus:border-accent focus:outline-none w-32 text-right tabular-nums"
           />
         </Field>
         <Field label="Message (full SMS)">
@@ -203,7 +203,7 @@ export function OutreachTab() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             rows={4}
-            className="bg-white/[0.04] border border-white/10 rounded px-3 py-2 text-sm w-full"
+            className="rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg focus:border-accent focus:outline-none w-full"
             placeholder="The exact SMS sent to each recipient · {firstName} placeholder OK · STOP footer appended automatically"
           />
         </Field>
@@ -212,7 +212,7 @@ export function OutreachTab() {
             type="text"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            className="bg-white/[0.04] border border-white/10 rounded px-3 py-2 text-sm w-full"
+            className="rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg focus:border-accent focus:outline-none w-full"
             placeholder="why now · what makes this the right moment"
           />
         </Field>
@@ -225,11 +225,11 @@ export function OutreachTab() {
           disabled={!canPropose}
           onClick={() => void onPropose()}
           className={[
-            "px-5 py-2 rounded text-sm font-medium",
-            "transition-colors",
+            "px-4 py-2 rounded-control text-[14px] font-semibold",
+            "transition-colors duration-[var(--motion-state)]",
             canPropose
-              ? "bg-[#FDB913] text-black hover:bg-[#FDB913]/90"
-              : "bg-white/[0.04] text-white/40 cursor-not-allowed",
+              ? "bg-accent text-[var(--text-inverse)] hover:bg-accent-hover"
+              : "bg-surface-interactive text-fg-tertiary cursor-not-allowed",
           ].join(" ")}
         >
           {state === "sending"
@@ -248,7 +248,7 @@ export function OutreachTab() {
         ) : null}
       </div>
 
-      <p className="mt-12 text-[10px] uppercase tracking-[0.22em] text-white/30">
+      <p className="mt-12 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
         dispatch · wired to nickstire · dry-run unless FEATURE_BULK_SMS_LIVE=1
       </p>
     </>
@@ -266,7 +266,7 @@ function Field({
 }) {
   return (
     <label className="flex items-center justify-between gap-4 text-sm">
-      <span className="text-white/60 text-xs uppercase tracking-[0.14em] w-44 shrink-0">
+      <span className="text-[13px] text-fg-secondary w-44 shrink-0">
         {label}
       </span>
       <span className="flex-1">{children}</span>
@@ -287,7 +287,7 @@ function Select({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="bg-white/[0.04] border border-white/10 rounded px-3 py-2 text-sm w-full"
+      className="rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg focus:border-accent focus:outline-none w-full"
     >
       {options.map((opt) => (
         <option key={opt} value={opt} className="bg-[var(--bg-base)]">

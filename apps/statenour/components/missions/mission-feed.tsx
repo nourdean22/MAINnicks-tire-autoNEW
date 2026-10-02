@@ -182,10 +182,10 @@ export function MissionFeed({
           if (!av) {
             return (
               <div
-                className="ml-auto flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[8px] tracking-[0.1em] font-mono bg-amber-500/10 border-amber-500/30 text-amber-400"
+                className="ml-auto flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[11px] tracking-[0.1em] font-mono bg-amber-500/10 border-amber-500/30 text-amber-400"
                 title="Autonomic health could not be measured (health probe read failed). This is UNKNOWN, not idle."
               >
-                <span className="w-1 h-1 rounded-full bg-amber-400 animate-pulse" />
+                <span className="w-1 h-1 rounded-full bg-amber-400" />
                 <span>AUTONOMIC: UNKNOWN</span>
               </div>
             );
@@ -193,12 +193,12 @@ export function MissionFeed({
           return (
             <div
               className={cn(
-                "ml-auto flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[8px] tracking-[0.1em] font-mono transition-all duration-300",
+                "ml-auto flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[11px] tracking-[0.1em] font-mono",
                 av.status === "success"
-                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.1)]"
+                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
                   : av.status === "failed"
-                    ? "bg-rose-500/10 border-rose-500/30 text-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.1)]"
-                    : "bg-zinc-800/40 border-zinc-700/30 text-zinc-500"
+                    ? "bg-rose-500/10 border-rose-500/30 text-rose-400"
+                    : "bg-surface-interactive border-edge-default text-fg-tertiary"
               )}
               title={
                 av.lastRunAt
@@ -210,10 +210,10 @@ export function MissionFeed({
                 className={cn(
                   "w-1 h-1 rounded-full",
                   av.status === "success"
-                    ? "bg-emerald-400 animate-pulse"
+                    ? "bg-emerald-400"
                     : av.status === "failed"
-                      ? "bg-rose-400 animate-ping"
-                      : "bg-zinc-600"
+                      ? "bg-rose-400"
+                      : "bg-fg-tertiary"
                 )}
               />
               <span>
@@ -339,9 +339,9 @@ function EmptyMissions() {
         <button
           type="button"
           onClick={handleAskNick}
-          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-gold/40 px-4 font-mono text-[12px] uppercase tracking-[0.14em] text-gold transition-colors hover:bg-gold/10"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
         >
-          ✨ Ask Nick for Recommendations
+          Ask Nick for recommendations
         </button>
       </div>
     </div>

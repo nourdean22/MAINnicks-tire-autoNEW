@@ -10,8 +10,8 @@
  * power balance · log/blow-up actions.
  *
  * Aesthetic per spec section "Aesthetic · minimalist-UI inside statenour
- * dark/gold": serif page title (via font-serif utility) · monospace
- * amounts · 1px borders rgba(255,255,255,0.06) · 8-12px radii · NO
+ * dark/gold" (superseded 2026-10-02 by docs/design/ui-v2/SYSTEM.md): Geist
+ * sentence-case titles · monospace amounts · token edges + radii · NO
  * emojis on the new bento components · quiet motion (mount fade via
  * page-fade-in on StandardPage).
  *
@@ -109,7 +109,7 @@ function trustTone(score: number): { bg: string; text: string } {
       bg: "bg-sky-500/[0.08] border-sky-500/30",
       text: "text-sky-200",
     };
-  return { bg: "bg-zinc-500/[0.08] border-zinc-500/30", text: "text-zinc-300" };
+  return { bg: "bg-surface-interactive border-edge-default", text: "text-fg-secondary" };
 }
 
 function relativeTime(daysSince: number | null): string {
@@ -327,28 +327,26 @@ function RelationshipsPageInner() {
 
   return (
     <StandardPage
-      eyebrow="brain · people"
-      title="people"
+      eyebrow="Brain · people"
+      title="People"
       description="Your Power Atlas — tap a name to open their dossier, ledger, and open promises."
       rhythm="comfortable"
       width="2xl"
       loading={loading && !data}
       actions={
         <div className="flex items-center gap-2">
-          <Button
+          <button
             type="button"
-            variant="outline"
-            size="sm"
             onClick={() => {
               setEditPersonId(null);
               setEditInitial(undefined);
               setEditPersonOpen(true);
               telemetry.event("addPersonOpen");
             }}
-            className="text-[11px] font-mono uppercase tracking-[0.15em]"
+            className="inline-flex min-h-[44px] items-center rounded-control bg-accent px-4 text-[14px] font-semibold text-[var(--text-inverse)] transition-colors duration-[var(--motion-state)] hover:bg-accent-hover"
           >
-            + add person
-          </Button>
+            + Add person
+          </button>
           <FreshnessChip
             lastFetchedAt={data?.generatedAt}
             source="people-intelligence engine"
@@ -383,18 +381,18 @@ function RelationshipsPageInner() {
                 ? `${data.totals.neglected} ${data.totals.neglected === 1 ? "person is" : "people are"} going cold.`
                 : "No one is going cold."}
           </p>
-          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-0 font-mono text-[12px] uppercase tracking-[0.14em] text-fg-tertiary">
+          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-0 font-mono text-[12px] text-fg-tertiary">
             <button type="button" onClick={() => revealBrowse()} className="min-h-[44px] transition-colors hover:text-fg">
-              <span className="text-fg tabular-nums">{data.totals.total}</span> people
+              <span className="text-fg tabular-nums">{data.totals.total}</span> People
             </button>
             <button type="button" onClick={() => revealBrowse("neglect")} className="min-h-[44px] transition-colors hover:text-fg">
-              <span className={cn("tabular-nums", data.totals.neglected > 0 ? "text-amber-300" : "text-fg")}>{data.totals.neglected}</span> neglected
+              <span className={cn("tabular-nums", data.totals.neglected > 0 ? "text-amber-300" : "text-fg")}>{data.totals.neglected}</span> Neglected
             </button>
             <button type="button" onClick={() => revealBrowse("trust")} className="min-h-[44px] transition-colors hover:text-fg">
-              <span className="text-emerald-300 tabular-nums">{data.totals.high_trust}</span> high trust
+              <span className="text-emerald-300 tabular-nums">{data.totals.high_trust}</span> High trust
             </button>
             <button type="button" onClick={() => revealBrowse()} className="min-h-[44px] transition-colors hover:text-fg">
-              <span className={cn("tabular-nums", data.totals.sparse > 5 ? "text-amber-300" : "text-fg")}>{data.totals.sparse}</span> needs info
+              <span className={cn("tabular-nums", data.totals.sparse > 5 ? "text-amber-300" : "text-fg")}>{data.totals.sparse}</span> Needs info
             </button>
           </div>
         </section>
@@ -497,7 +495,7 @@ function RelationshipsPageInner() {
                 // from Wave AR.
                 className={cn(
                   "block w-full cursor-pointer border-l-2 py-3 pl-4 pr-2 text-left transition-colors scroll-mt-24 sm:pl-5",
-                  isSelected ? "border-l-gold bg-gold/[0.04]" : "border-l-transparent hover:bg-raised/40",
+                  isSelected ? "border-l-accent bg-accent-soft" : "border-l-transparent hover:bg-surface-hover",
                 )}
                 aria-expanded={isSelected}
               >
@@ -512,7 +510,7 @@ function RelationshipsPageInner() {
                       >
                         {p.name}
                       </span>
-                      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                      <span className="font-mono text-[11px] text-fg-tertiary">
                         {p.role}
                       </span>
                       {p.isNeglected && (
@@ -520,7 +518,7 @@ function RelationshipsPageInner() {
                          * "neglected" is a verdict the operator has to trust;
                          * the day count is already in the payload, so show
                          * the number that produced it. */
-                        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300">
+                        <span className="font-mono text-[11px] text-amber-300">
                           neglected{p.daysSinceInteraction !== null ? ` · ${p.daysSinceInteraction}d` : ""}
                         </span>
                       )}
@@ -568,7 +566,7 @@ function RelationshipsPageInner() {
                         // wave-AB.d-mobile · sub-44pt text-only link was
                         // unhittable on phones · padded out to 44pt
                         // minimum + active scale tap feedback.
-                        className="ml-auto inline-flex min-h-[44px] items-center px-3 -my-1 text-[11px] uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--gold)] active:scale-95 transition-transform cursor-pointer"
+                        className="ml-auto inline-flex min-h-[44px] items-center px-3 -my-1 text-[13px] font-medium text-fg-tertiary hover:text-fg active:scale-95 transition-transform cursor-pointer"
                       >
                         edit
                       </span>
@@ -595,7 +593,7 @@ function RelationshipsPageInner() {
                             : `delete ${p.name}`
                         }
                         className={cn(
-                          "inline-flex min-h-[44px] items-center px-3 -my-1 text-[11px] uppercase tracking-wider active:scale-95 transition-transform cursor-pointer disabled:opacity-50",
+                          "inline-flex min-h-[44px] items-center px-3 -my-1 text-[13px] font-medium active:scale-95 transition-transform cursor-pointer disabled:opacity-50",
                           confirmDeleteId === p.id
                             ? "text-rose-300 font-semibold"
                             : "text-rose-300/70 hover:text-rose-300",
@@ -614,12 +612,12 @@ function RelationshipsPageInner() {
                     )}
                   </div>
                   <div className="shrink-0 text-right">
-                    <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                    <div className="font-mono text-[11px] text-fg-tertiary">
                       trust
                     </div>
                     <div
                       className={cn(
-                        "font-display text-2xl font-bold leading-none tabular-nums",
+                        "text-[20px] font-semibold leading-none tabular-nums",
                         tone.text,
                       )}
                     >
@@ -627,7 +625,7 @@ function RelationshipsPageInner() {
                     </div>
                     {/* Tier in text, not color alone (WCAG 1.4.1) — also a
                         faster at-a-glance read for the operator. */}
-                    <div className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                    <div className="mt-0.5 font-mono text-[11px] text-fg-tertiary">
                       {p.trustScore >= 0.7
                         ? "high"
                         : p.trustScore >= 0.4
@@ -651,7 +649,7 @@ function RelationshipsPageInner() {
                 if (showAll && selectedPersonId) setRevealDismissedFor(selectedPersonId);
                 setShowAll(!showAll);
               }}
-              className="min-h-[44px] font-mono text-[12px] uppercase tracking-[0.14em] text-fg-tertiary transition-colors hover:text-gold"
+              className="min-h-[44px] text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
             >
               {showAll
                 ? `show fewer (cap ${VISIBLE_CAP})`
@@ -673,11 +671,11 @@ function RelationshipsPageInner() {
       </section>
 
       {/* ─── PERSON WORKSPACE · dossier, promises, timeline, the power atlas
-           rail (2026-09-16: a gold-ruled section under the list, not a
+           rail (2026-09-16: a hairline-ruled section under the list, not a
            bento bolted inside the disclosure) ─── */}
       {selectedPersonId && (
-        <section aria-labelledby="workspace-heading" className="border-l-2 border-gold pl-5 sm:pl-6">
-          <h2 id="workspace-heading" className="vt-eyebrow mb-4 text-gold">
+        <section aria-labelledby="workspace-heading" className="border-l-2 border-edge-strong pl-5 sm:pl-6">
+          <h2 id="workspace-heading" className="vt-eyebrow mb-4 text-fg-secondary">
             person workspace
           </h2>
           {personDetail.isLoading && (
@@ -827,18 +825,18 @@ function DetailPanel({
       {/* Header strip · name · earned-XP chip · status */}
       <div className="flex items-baseline justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <h2 className="vt-verdict max-w-[14ch]">
+          <h2 className="text-[17px] font-semibold text-fg max-w-[14ch]">
             {person.name}
           </h2>
           <RelationshipXpChip xp={xp} />
         </div>
         <div className="flex items-center gap-2">
-          <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary">
+          <span className="font-mono text-[11px] text-fg-tertiary">
             status
           </span>
           <span
             className={cn(
-              "font-mono text-[11px] uppercase tracking-[0.14em]",
+              "font-mono text-[11px]",
               blownUp
                 ? "text-rose-300"
                 : person.status === "active"
@@ -853,7 +851,7 @@ function DetailPanel({
 
       {blownUp && person.blowUpReason && (
         <div className="border-l-2 border-rose-500/60 pl-4 text-[14px] text-rose-200">
-          <span className="mr-2 font-mono text-[11px] uppercase tracking-[0.14em]">
+          <span className="mr-2 font-mono text-[11px]">
             blow-up reason:
           </span>
           {person.blowUpReason}
@@ -905,10 +903,9 @@ function DetailPanel({
 
           {/* Quick actions */}
           <section
-            className="rounded-xl border bg-[var(--bg-raised)] p-4 space-y-2"
-            style={{ borderColor: "rgba(255,255,255,0.06)" }}
+            className="rounded-surface border border-edge-subtle bg-content p-4 space-y-2"
           >
-            <h3 className="font-serif text-base tracking-tight text-[var(--text-primary)] mb-2">
+            <h3 className="text-[15px] font-semibold text-fg mb-2">
               Actions
             </h3>
             <div className="grid grid-cols-2 gap-2">
@@ -937,7 +934,7 @@ function DetailPanel({
               onClick={onOpenBlowUp}
               disabled={blownUp}
             >
-              {blownUp ? "blown up" : "blow up"}
+              {blownUp ? "Blown up" : "Blow up"}
             </Button>
           </section>
         </div>
@@ -948,14 +945,14 @@ function DetailPanel({
        *  grey empty-states on every profile. Folded behind one disclosure
        *  so the panel above stays focused; they fill in as the brain
        *  accumulates enough data to make them meaningful. */}
-      <details className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)]">
+      <details className="rounded-surface border border-edge-default bg-workspace">
         <summary
           aria-label="Deeper signals"
-          className="px-3 py-2.5 cursor-pointer text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] list-none"
+          className="px-3 py-2.5 cursor-pointer text-[13px] font-medium text-fg-tertiary hover:text-fg-secondary list-none"
         >
           <span aria-hidden="true">▸ </span>deeper signals
         </summary>
-        <div className="border-t border-[var(--border-default)]/60 p-3 grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="border-t border-edge-subtle p-3 grid grid-cols-1 lg:grid-cols-2 gap-4">
           <TopicGoalOverlapCard metadata={person.metadata} />
           <PowerPlaysHistory plays={plays} personId={person.id} />
           <ArcProjection
@@ -1006,15 +1003,15 @@ class DetailPanelErrorBoundary extends Component<
     if (this.state.error) {
       return (
         <div
-          className="rounded-lg border border-rose-500/30 bg-rose-500/[0.05] p-4 text-sm"
+          className="rounded-surface border border-rose-500/30 bg-rose-500/[0.05] p-4 text-sm"
         >
-          <div className="font-serif text-base text-rose-200 mb-1">
+          <div className="text-[15px] font-semibold text-rose-200 mb-1">
             Detail panel crashed
           </div>
           <p className="text-xs text-rose-200/80">
             {this.state.error.message || "Unknown render error"}
           </p>
-          <p className="mt-2 text-[10px] uppercase tracking-wider text-rose-200/60">
+          <p className="mt-2 text-[11px] text-rose-200/60">
             Pick another person or reload the page · the people list stays usable.
           </p>
         </div>

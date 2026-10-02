@@ -59,7 +59,7 @@ export default function BlowUpModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-serif text-lg">
+          <DialogTitle className="text-[17px] font-semibold">
             Blow up {personName}?
           </DialogTitle>
           <DialogDescription>
@@ -73,7 +73,7 @@ export default function BlowUpModal({
         <div className="space-y-2 mt-2">
           <label
             htmlFor="blow-up-reason"
-            className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]"
+            className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary"
           >
             Reason (min {MIN_REASON} chars) · stored forever
           </label>
@@ -87,7 +87,7 @@ export default function BlowUpModal({
             disabled={flipStatus.isPending}
             autoFocus
           />
-          <div className="text-[10px] text-[var(--text-tertiary)] tabular-nums">
+          <div className="font-mono text-[11px] text-fg-tertiary tabular-nums">
             {reason.trim().length} / {MIN_REASON} min · {reason.length} / 2000
             max
           </div>
@@ -106,7 +106,7 @@ export default function BlowUpModal({
             }}
             disabled={flipStatus.isPending}
           >
-            cancel
+            Cancel
           </Button>
           <Button
             variant="destructive"
@@ -119,7 +119,7 @@ export default function BlowUpModal({
             }
             disabled={!reasonValid || flipStatus.isPending}
           >
-            {flipStatus.isPending ? "blowing up…" : "confirm blow up"}
+            {flipStatus.isPending ? "Blowing up…" : "Confirm blow up"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -273,18 +273,18 @@ function TaskEditSheetBody({
       <DialogContent
         unstyled
         showCloseButton={false}
-        overlayClassName="z-50 bg-black/50 backdrop-blur-sm"
+        overlayClassName="z-50 bg-canvas/60"
         className={cn(
-          "fixed inset-x-0 bottom-0 z-[51] max-h-[90dvh] overflow-y-auto rounded-t-2xl border-t border-[var(--gold)]/30 bg-[var(--bg-base)] pb-[env(safe-area-inset-bottom,0px)] outline-none lg:inset-x-auto lg:bottom-auto lg:left-1/2 lg:top-1/2 lg:w-full lg:max-w-lg lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-2xl lg:border",
-          "shadow-[0_-20px_60px_rgba(0,0,0,0.5),0_0_40px_rgba(253,185,19,0.1)]",
+          "fixed inset-x-0 bottom-0 z-[51] max-h-[90dvh] overflow-y-auto rounded-t-float border-t border-edge-default bg-overlay pb-[env(safe-area-inset-bottom,0px)] outline-none lg:inset-x-auto lg:bottom-auto lg:left-1/2 lg:top-1/2 lg:w-full lg:max-w-lg lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-overlay lg:border",
+          "shadow-l2",
         )}
       >
-        <header className="sticky top-0 z-10 bg-[var(--bg-base)] flex items-center gap-2 border-b border-[var(--border-default)] px-4 py-3">
+        <header className="sticky top-0 z-10 bg-overlay flex items-center gap-2 border-b border-edge-subtle px-4 py-3">
           <div className="flex-1 min-w-0">
-            <p className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/80">
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               edit task
             </p>
-            <DialogTitle className="mt-0.5 truncate text-[14px] font-bold text-[var(--text-primary)]">
+            <DialogTitle className="mt-0.5 truncate text-[15px] font-semibold text-fg">
               {task.title}
             </DialogTitle>
           </div>
@@ -293,7 +293,7 @@ function TaskEditSheetBody({
             onClick={onClose}
             disabled={submitting}
             aria-label="close"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]/15"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:bg-surface-hover hover:text-fg"
           >
             <X size={14} strokeWidth={2} />
           </button>
@@ -394,10 +394,10 @@ function TaskEditSheetBody({
                       // the save guard fired "Pick at least one weekday" with no way to
                       // see why. Now uses registered tokens (gold/edge/fg-tertiary), and
                       // disabled state is finally visible instead of silently inert.
-                      className={`min-w-[44px] rounded-md border px-2 py-2 text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                      className={`min-w-[44px] rounded-control border px-2 py-2 text-[13px] font-medium transition-colors duration-[var(--motion-state)] disabled:opacity-40 disabled:cursor-not-allowed ${
                         on
-                          ? "border-gold bg-gold/15 text-gold"
-                          : "border-edge text-fg-tertiary hover:border-gold/50"
+                          ? "border-accent bg-accent-soft text-fg"
+                          : "border-edge-default text-fg-tertiary hover:border-edge-strong hover:text-fg-secondary"
                       }`}
                     >
                       {label}
@@ -484,46 +484,46 @@ function TaskEditSheetBody({
           )}
         </div>
 
-        <footer className="sticky bottom-0 z-10 bg-[var(--bg-base)] flex items-center gap-2 border-t border-[var(--border-default)] px-4 py-3">
+        <footer className="sticky bottom-0 z-10 bg-overlay flex items-center gap-2 border-t border-edge-subtle px-4 py-3">
           <button
             type="button"
             onClick={handleDelete}
             disabled={submitting}
-            className="inline-flex min-h-11 items-center gap-1.5 px-2 text-[11px] font-mono uppercase tracking-[0.15em] text-rose-300/80 hover:text-rose-300 disabled:opacity-50"
+            className="inline-flex min-h-11 items-center gap-1.5 px-2 text-[13px] font-medium text-rose-300/80 transition-colors duration-[var(--motion-state)] hover:text-rose-300 disabled:opacity-50"
           >
             <Trash2 size={11} strokeWidth={1.75} />
-            delete
+            Delete
           </button>
           {isComplex && (
             <button
               type="button"
               onClick={handleDecompose}
               disabled={submitting || decomposeMutation.isPending}
-              className="ml-2 inline-flex min-h-11 items-center gap-1.5 px-2 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)]/80 hover:text-[var(--gold)] disabled:opacity-50"
+              className="ml-2 inline-flex min-h-11 items-center gap-1.5 px-2 text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg disabled:opacity-50"
             >
               <Sparkles size={11} strokeWidth={1.75} />
-              decompose
+              Decompose
             </button>
           )}
           <button
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="ml-auto min-h-11 px-2 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] disabled:opacity-50"
+            className="ml-auto min-h-11 px-2 text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg disabled:opacity-50"
           >
-            cancel
+            Cancel
           </button>
           <button
             type="button"
             onClick={handleSave}
             disabled={submitting || !title.trim()}
             className={cn(
-              "inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--gold)]/50 bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/15 px-3 py-2 text-[12px] font-medium",
-              "disabled:opacity-50 transition-colors",
+              "inline-flex min-h-11 items-center gap-2 rounded-control bg-accent px-4 py-2 text-[14px] font-semibold text-[var(--text-inverse)] hover:bg-accent-hover",
+              "disabled:opacity-50 transition-colors duration-[var(--motion-state)]",
             )}
           >
             {submitting && <Loader2 size={12} className="animate-spin" strokeWidth={2} />}
-            save
+            Save
           </button>
         </footer>
         {/* iOS-PWA-safe confirm mount · renders null when idle. */}
@@ -536,7 +536,7 @@ function TaskEditSheetBody({
 // wave-AB.d · mobile · 16px font prevents iOS Safari zoom-on-focus ·
 // 44px min-h meets Apple HIG tap target for selects + inputs.
 const inputCls =
-  "w-full min-h-[44px] rounded-md border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.06] px-2.5 py-2 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 focus:border-[var(--gold)]/40 focus:outline-none transition-colors disabled:opacity-50";
+  "w-full min-h-[44px] rounded-control border border-edge-default bg-content px-2.5 py-2 text-[16px] text-fg placeholder:text-fg-tertiary/70 focus:border-accent focus:outline-none transition-colors duration-[var(--motion-state)] disabled:opacity-50";
 
 function Field({
   label,
@@ -547,7 +547,7 @@ function Field({
 }) {
   return (
     <label className="block space-y-1">
-      <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
         {label}
       </span>
       {children}

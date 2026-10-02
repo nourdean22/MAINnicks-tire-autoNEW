@@ -27,7 +27,7 @@
  * queries · status is composed client-side from cached snapshots.
  */
 import { Link } from "wouter";
-import { useSettingsStatus, OpenIssue } from "./useSettingsStatus";
+import { useSettingsStatus, OpenIssue, SETTINGS_STATUS_CHECK_COUNT } from "./useSettingsStatus";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -215,7 +215,7 @@ export default function SettingsStatusTab() {
         <div className="bg-amber-500/[0.06] border border-amber-500/30 p-6 flex items-center gap-4">
           <AlertTriangle className="w-8 h-8 text-amber-400 shrink-0" />
           <div>
-            <h3 className="font-semibold text-foreground tracking-tight">Status unknown — {failedChecks.length} of 8 checks could not run.</h3>
+            <h3 className="font-semibold text-foreground tracking-tight">Status unknown — {failedChecks.length} of {SETTINGS_STATUS_CHECK_COUNT} checks could not run.</h3>
             <p className="text-foreground/55 text-[12.5px] mt-0.5">
               Unreadable: {failedChecks.join(" · ")}. No news here is NOT good news — retry before trusting this page.
             </p>
@@ -227,7 +227,7 @@ export default function SettingsStatusTab() {
           <div>
             <h3 className="font-semibold text-foreground tracking-tight">All clear.</h3>
             <p className="text-foreground/55 text-[12.5px] mt-0.5">
-              No open alerts or warnings detected. Crons green · connections healthy · CTR thresholds clean.
+              No open alerts or warnings detected. Crons green · connections healthy · cameras healthy · CTR thresholds clean.
             </p>
           </div>
         </div>

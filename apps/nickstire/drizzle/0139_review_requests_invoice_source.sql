@@ -1,0 +1,33 @@
+-- 0139 · review_requests can be sourced from an ALG invoice, not only a website booking
+--
+-- WHY (2026-10-02 admin truth pass). Production review_requests held ONE row ever. The only
+-- creator was an admin marking a WEBSITE BOOKING completed (routers/booking.ts ->
+-- scheduleReviewRequest), but the shop's real completion signal is an ALG/ShopDriver invoice
+-- mirrored into `invoices`, which carries no booking — and bookingId was NOT NULL, so an
+-- invoice-sourced row was impossible. The work-order path that tried anyway wrote
+-- non-existent columns and failed on every close (removed in this wave).
+--
+-- Change:
+--   1. bookingId becomes NULLABLE (a row is sourced from a booking OR an invoice).
+--      Same type (INT), and the existing fk_reviewreq_booking (ON DELETE CASCADE) keeps working
+--      for booking rows. NULL never matches an FK.
+--   2. invoiceId INT NULL — the source invoice. No FK: invoices are upserted by the ALG mirror
+--      and a review row must not cascade with a re-import.
+--   3. UNIQUE(invoiceId) — the exactly-once guarantee per invoice. Booking rows carry NULL,
+--      and a UNIQUE index admits any number of NULLs.
+--
+-- Deploy order: the code that writes invoiceId ships FIRST and checks
+-- information_schema for this column before any write, so until this is applied the
+-- invoice sweep logs "migration 0139 not applied" and creates nothing. invoiceId is
+-- deliberately NOT declared in drizzle/schema.ts yet: projection-less
+-- db.select().from(reviewRequests) reads would name it before prod has it
+-- (nickstire-tidb-ddl). Declare it once this is applied and read back.
+--
+-- TiDB: one change per ALTER (TiDB rejects some combined ALTERs). Idempotent: MODIFY to the
+-- same definition is a no-op, ADD COLUMN IF NOT EXISTS, and the index create trips
+-- ER_DUP_KEYNAME on a re-run, which handleRunMigrations treats as already applied.
+-- Applied through handleRunMigrations (POST /api/admin/run-migrations or Admin -> Run
+-- migrations), whose array carries these same three statements.
+ALTER TABLE `review_requests` MODIFY COLUMN `bookingId` int NULL;
+ALTER TABLE `review_requests` ADD COLUMN IF NOT EXISTS `invoiceId` int NULL;
+CREATE UNIQUE INDEX `uq_review_requests_invoice` ON `review_requests` (`invoiceId`);

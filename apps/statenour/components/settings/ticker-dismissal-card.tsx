@@ -6,8 +6,9 @@
  * Extracted VERBATIM from app/(mastery)/settings/page.tsx (2026-06-02 ·
  * settings-shell redesign) · same behavior.
  *
- * May 02 · Both tickers (top + bottom) let Nour X-out individual items
- * (acknowledge + hide). This panel surfaces the count of dismissed
+ * May 02 · The ticker lets Nour X-out individual items (acknowledge +
+ * hide). Only the bottom ticker remains — GlobalTopTicker was deleted
+ * 2026-09-01 — so the copy names one ticker (settings census 2026-10-02). This panel surfaces the count of dismissed
  * IDs from localStorage and exposes a one-tap reset for when a stale
  * dismissal is masking a now-relevant signal.
  */
@@ -26,7 +27,7 @@ export function TickerDismissalReset() {
           <div className="flex-1">
             <p className="section-label mb-1">ticker dismissals</p>
             <p className="text-[11px] text-[var(--text-secondary)]">
-              No items dismissed yet. Hover any cell on the top or bottom ticker → tap × to acknowledge it (hides it across reloads).
+              No items dismissed yet. Tap × on any item in the bottom ticker to acknowledge it (hides it on this device across reloads).
             </p>
           </div>
         </div>
@@ -40,9 +41,9 @@ export function TickerDismissalReset() {
         <div className="flex-1">
           <p className="section-label mb-1">Ticker dismissals</p>
           <p className="text-[11px] text-[var(--text-secondary)]">
-            <span className="text-[var(--gold)] font-mono">{count}</span> ticker item{count === 1 ? "" : "s"} acknowledged + hidden across reloads.
+            <span className="text-fg font-mono">{count}</span> ticker item{count === 1 ? "" : "s"} acknowledged + hidden across reloads.
           </p>
-          <p className="text-[10px] text-[var(--text-tertiary)] mt-1.5">
+          <p className="text-[12px] text-fg-tertiary mt-1.5">
             Resetting brings them back so the marquee surfaces them again.
           </p>
         </div>
@@ -51,9 +52,9 @@ export function TickerDismissalReset() {
           onClick={() => {
             clearAll();
           }}
-          className="shrink-0 rounded-md border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:bg-zinc-800/80 hover:text-[var(--text-primary)] transition-colors"
+          className="shrink-0 inline-flex items-center rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
         >
-          reset
+          Reset
         </button>
       </div>
     </GlassCard>

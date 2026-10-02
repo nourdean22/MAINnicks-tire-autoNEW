@@ -190,6 +190,9 @@ import {
 } from "@/lib/services/board-consult-record";
 import { BOARD_IDS } from "@/lib/ai/board/boards";
 
+/** identityDelta: a snapshot older than this is not "yesterday -> today". */
+export const IDENTITY_DELTA_MAX_AGE_MS = 48 * 60 * 60 * 1000;
+
 export const brainRouter = router({
   /**
    * Phase UU · owner-only · /brain/wisdom dashboard feed · all
@@ -866,6 +869,20 @@ export const brainRouter = router({
    * suppression filter). `until` defaults to "7d" — the panel sends
    * exactly that.
    */
+  /**
+   * 2026-10-02 · the other half of the nudge decision. Dismiss has written
+   * `dismissed` since 2026-08-16; following a nudge's link wrote nothing, so
+   * the lane was dismiss-only (outcome-ledger census E8). Joined by content
+   * exactly like dismissNudge — the text is the one thing both sides share.
+   */
+  acceptNudge: operatorProcedure
+    .input(z.object({ source: z.string().min(1).max(60), text: z.string().min(1).max(2000) }))
+    .mutation(async ({ input }) => {
+      const { recordDecisionByContent } = await import("@/lib/services/outcome-ledger");
+      const recorded = await recordDecisionByContent(input.text, "accepted", `nudge:${input.source}`);
+      return { ok: true, recorded };
+    }),
+
   dismissNudge: operatorProcedure
     .input(
       z.object({
@@ -1319,6 +1336,8 @@ export const brainRouter = router({
           suggestionId: z.string().min(1).max(128),
           suggestionKind: SuggestionKind,
           event: ActionEvent,
+          /** 2026-10-02 · the chip's IntelligenceOutcome row (census E11). */
+          ledgerId: z.string().min(1).max(64).optional(),
           delaySeconds: z
             .number()
             .int()
@@ -1345,6 +1364,21 @@ export const brainRouter = router({
     )
     .mutation(async ({ input }) => {
       if (input.type === "action") {
+        // 2026-10-02 · census E11 fold: the tap also decides the chip's row in
+        // the main ledger. acted/modified = accepted, dismissed = dismissed,
+        // deferred = no decision yet. Fire-and-forget beside the BrainMemory
+        // write, which stays the 7d suppression source and the calibration
+        // readers' input.
+        const decision = input.event === "dismissed" ? "dismissed" : input.event === "deferred" ? null : "accepted";
+        if (input.ledgerId && decision) {
+          const ledgerId = input.ledgerId;
+          void (async () => {
+            const { recordDecisionFromEvidence } = await import("@/lib/services/outcome-ledger");
+            await recordDecisionFromEvidence(ledgerId, decision);
+          })().catch(() => {
+            /* ledger failure never fails the tap */
+          });
+        }
         return trackSuggestionAction({
           suggestionId: input.suggestionId,
           suggestionKind: input.suggestionKind,
@@ -1822,6 +1856,13 @@ export const brainRouter = router({
       select: { deltaFromLast: true, createdAt: true, date: true },
     });
     if (!row || !row.deltaFromLast || row.deltaFromLast.trim().length === 0) {
+      return null;
+    }
+    // The panel labels this "yesterday -> today". The writer (the thinking
+    // engine's identity tracker) went unscheduled from 2026-05-28 until
+    // /api/cron/think revived it, and the panel showed a May delta as today's
+    // (connection census 2026-10-02). A snapshot older than two days is not today's change.
+    if (Date.now() - row.createdAt.getTime() > IDENTITY_DELTA_MAX_AGE_MS) {
       return null;
     }
     return {

@@ -233,7 +233,7 @@ export function PublishTab() {
 
   return (
     <>
-      <p className="text-sm text-white/70 mb-4" style={{ maxWidth: "60ch" }}>
+      <p className="text-sm text-fg-secondary mb-4" style={{ maxWidth: "60ch" }}>
         Direct IG/FB publish + Buffer scheduling. Every action is explicit.
       </p>
 
@@ -241,8 +241,8 @@ export function PublishTab() {
         {/* Connection ribbon */}
         <Panel>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2 text-xs">
-              <div className="text-[10px] uppercase tracking-wider text-zinc-500">Buffer</div>
+            <div className="rounded-surface border border-edge-subtle bg-content p-2 text-xs">
+              <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Buffer</div>
               <div className={cn(
                 "mt-1 font-mono",
                 bufferConn?.ok ? "text-emerald-300" : "text-rose-300",
@@ -250,8 +250,8 @@ export function PublishTab() {
                 {bufferConn?.ok ? `connected · ${bufferConn.email} · ${bufferConn.profileCount} profiles` : (bufferConn?.error ?? "checking…")}
               </div>
             </div>
-            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2 text-xs">
-              <div className="text-[10px] uppercase tracking-wider text-zinc-500">Meta IG</div>
+            <div className="rounded-surface border border-edge-subtle bg-content p-2 text-xs">
+              <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Meta IG</div>
               <div className={cn(
                 "mt-1 font-mono",
                 scheduleQuery.data?.meta?.instagram === "connected" ? "text-emerald-300" : "text-rose-300"
@@ -259,8 +259,8 @@ export function PublishTab() {
                 {scheduleQuery.data?.meta?.instagram ?? "checking…"}
               </div>
             </div>
-            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2 text-xs">
-              <div className="text-[10px] uppercase tracking-wider text-zinc-500">Meta FB</div>
+            <div className="rounded-surface border border-edge-subtle bg-content p-2 text-xs">
+              <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Meta FB</div>
               <div className={cn(
                 "mt-1 font-mono",
                 scheduleQuery.data?.meta?.facebook === "connected" ? "text-emerald-300" : "text-rose-300"
@@ -274,10 +274,10 @@ export function PublishTab() {
         {/* Caption editor */}
         <Panel>
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-white">caption</h2>
+            <h2 className="text-sm font-semibold text-fg">caption</h2>
             <span className={cn(
-              "text-[10px] font-mono tabular-nums transition-colors duration-200",
-              charsLeft < 0 ? "text-rose-300" : charsLeft < 200 ? "text-amber-300" : "text-zinc-500",
+              "text-[11px] font-mono tabular-nums transition-colors duration-[var(--motion-state)]",
+              charsLeft < 0 ? "text-rose-300" : charsLeft < 200 ? "text-amber-300" : "text-fg-tertiary",
             )}>
               {charCount} / {charLimit}
             </span>
@@ -286,7 +286,7 @@ export function PublishTab() {
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
             placeholder="Paste or compose your post here…"
-            className="w-full h-44 rounded-md border border-white/10 bg-black/40 p-3 text-sm text-zinc-100 placeholder:text-zinc-500 outline-none focus:border-white/25 font-mono"
+            className="w-full h-44 rounded-control border border-edge-default bg-content p-3 text-[13px] text-fg placeholder:text-fg-tertiary outline-none focus:border-accent font-mono"
           />
         </Panel>
 
@@ -294,7 +294,7 @@ export function PublishTab() {
         <Panel>
           <div className="space-y-4">
             <div>
-              <h2 className="mb-2 text-sm font-semibold text-white flex items-center gap-1">
+              <h2 className="mb-2 text-sm font-semibold text-fg flex items-center gap-1">
                 <ImageIcon className="h-4 w-4" /> Image URL (required for IG Image post, optional cover for Reels)
               </h2>
               <input
@@ -302,12 +302,12 @@ export function PublishTab() {
                 value={imageUrl}
                 onChange={(e) => setImageUrl(e.target.value)}
                 placeholder="/api/images/abc123 or https://..."
-                className="w-full rounded-md border border-white/10 bg-white/[0.02] px-3 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-white/25 font-mono"
+                className="w-full rounded-control border border-edge-default bg-content px-3 py-1.5 text-[13px] text-fg placeholder:text-fg-tertiary outline-none focus:border-accent font-mono"
               />
             </div>
 
             <div>
-              <h2 className="mb-2 text-sm font-semibold text-white flex items-center gap-1">
+              <h2 className="mb-2 text-sm font-semibold text-fg flex items-center gap-1">
                 <Video className="h-4 w-4" /> Video URL (for Instagram Reels) - must be a public HTTPS URL
               </h2>
               <input
@@ -315,13 +315,13 @@ export function PublishTab() {
                 value={videoUrl}
                 onChange={(e) => setVideoUrl(e.target.value)}
                 placeholder="https://..."
-                className="w-full rounded-md border border-white/10 bg-white/[0.02] px-3 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-white/25 font-mono"
+                className="w-full rounded-control border border-edge-default bg-content px-3 py-1.5 text-[13px] text-fg placeholder:text-fg-tertiary outline-none focus:border-accent font-mono"
               />
             </div>
 
             {recentImages.length > 0 && (
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">recent generated images</div>
+                <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">recent generated images</div>
                 <div className="flex gap-1.5 flex-wrap">
                   {recentImages.slice(0, 8).map((img) => (
                     <button
@@ -329,8 +329,8 @@ export function PublishTab() {
                       type="button"
                       onClick={() => setImageUrl(img.url ?? `/api/images/${img.id}`)}
                       className={cn(
-                        "h-12 w-12 rounded border overflow-hidden hover:opacity-80 transition-opacity",
-                        imageUrl === (img.url ?? `/api/images/${img.id}`) ? "border-emerald-500" : "border-white/10",
+                        "h-12 w-12 rounded-control border overflow-hidden hover:opacity-80 transition-opacity",
+                        imageUrl === (img.url ?? `/api/images/${img.id}`) ? "border-emerald-500" : "border-edge-default",
                       )}
                       title={img.detail.slice(0, 100)}
                     >
@@ -345,15 +345,15 @@ export function PublishTab() {
             <div className="flex flex-wrap gap-4">
               {imageUrl && (
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Image Preview</div>
+                  <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">Image preview</div>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={imageUrl} alt="preview" className="rounded-md max-h-48 border border-white/10" />
+                  <img src={imageUrl} alt="preview" className="rounded-control max-h-48 border border-edge-subtle" />
                 </div>
               )}
               {videoUrl && (
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Video Preview</div>
-                  <video src={videoUrl} controls className="rounded-md max-h-48 border border-white/10" />
+                  <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">Video preview</div>
+                  <video src={videoUrl} controls className="rounded-control max-h-48 border border-edge-subtle" />
                 </div>
               )}
             </div>
@@ -362,8 +362,8 @@ export function PublishTab() {
 
         {/* Direct publish */}
         <Panel>
-          <h2 className="mb-2 text-sm font-semibold text-white flex items-center gap-1">
-            <Send className="h-4 w-4" /> Direct Publish
+          <h2 className="mb-2 text-sm font-semibold text-fg flex items-center gap-1">
+            <Send className="h-4 w-4" /> Direct publish
           </h2>
           {/* v10.0.529.106 · Wave 51 · mobile fix · iOS tap target standard
               is 44pt minimum · prev py-1 gave us ~22pt which is half the
@@ -373,10 +373,10 @@ export function PublishTab() {
           <div className="flex gap-2 mb-3 flex-wrap">
             <label
               className={cn(
-                "flex items-center gap-1.5 text-xs cursor-pointer rounded-md border px-3 min-h-[44px] transition-all duration-150",
+                "flex items-center gap-1.5 text-xs cursor-pointer rounded-control border px-3 min-h-[44px] transition-colors duration-[var(--motion-state)]",
                 platforms.instagram
                   ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
-                  : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20",
+                  : "border-edge-default bg-content text-fg-secondary hover:border-edge-strong",
               )}
             >
               <input
@@ -389,10 +389,10 @@ export function PublishTab() {
             </label>
             <label
               className={cn(
-                "flex items-center gap-1.5 text-xs cursor-pointer rounded-md border px-3 min-h-[44px] transition-all duration-150",
+                "flex items-center gap-1.5 text-xs cursor-pointer rounded-control border px-3 min-h-[44px] transition-colors duration-[var(--motion-state)]",
                 platforms.facebook
                   ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
-                  : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20",
+                  : "border-edge-default bg-content text-fg-secondary hover:border-edge-strong",
               )}
             >
               <input
@@ -409,7 +409,7 @@ export function PublishTab() {
             onClick={handlePublish}
             disabled={publishing || !caption.trim()}
             className={cn(
-              "rounded-lg border px-4 py-2 text-sm font-medium transition w-full sm:w-auto",
+              "rounded-control border px-4 py-2 text-[13px] font-medium transition-colors duration-[var(--motion-state)] w-full sm:w-auto",
               publishing
                 ? "border-amber-500/40 bg-amber-500/10 text-amber-200 cursor-wait"
                 : "border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15 disabled:opacity-50",
@@ -419,30 +419,30 @@ export function PublishTab() {
               <span className="flex items-center justify-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" /> Publishing…
               </span>
-            ) : "Publish Now"}
+            ) : "Publish now"}
           </button>
         </Panel>
 
         {/* Buffer schedule */}
         {bufferConn?.ok && (
           <Panel>
-            <h2 className="mb-2 text-sm font-semibold text-white flex items-center gap-1">
+            <h2 className="mb-2 text-sm font-semibold text-fg flex items-center gap-1">
               <Calendar className="h-4 w-4" /> Schedule via Buffer
             </h2>
             <div className="space-y-2">
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">when</div>
+                <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">when</div>
                 <div className="flex gap-1 flex-wrap">
                   {(["now", "next-slot", "datetime"] as const).map((m) => (
                     <button
                       key={m}
                       onClick={() => setScheduleMode(m)}
                       className={cn(
-                        "rounded-md px-2 py-1 text-xs transition-colors",
-                        scheduleMode === m ? "bg-white/10 text-white" : "bg-white/[0.02] text-zinc-500 hover:bg-white/[0.06]",
+                        "rounded-control px-2 py-1 text-[12px] font-medium transition-colors duration-[var(--motion-state)]",
+                        scheduleMode === m ? "bg-accent-soft text-fg" : "bg-surface-interactive text-fg-tertiary hover:bg-surface-hover hover:text-fg-secondary",
                       )}
                     >
-                      {m === "now" ? "post now" : m === "next-slot" ? "next slot" : "specific time"}
+                      {m === "now" ? "post now" : m === "next-slot" ? "Next slot" : "Specific time"}
                     </button>
                   ))}
                 </div>
@@ -451,18 +451,18 @@ export function PublishTab() {
                     type="datetime-local"
                     value={scheduledAt}
                     onChange={(e) => setScheduledAt(e.target.value)}
-                    className="mt-2 rounded-md border border-white/10 bg-white/[0.02] px-2 py-1 text-xs text-zinc-200"
+                    className="mt-2 rounded-control border border-edge-default bg-content px-2 py-1 text-[13px] text-fg focus:border-accent focus:outline-none"
                   />
                 )}
               </div>
               {profiles.length > 0 && (
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">channels</div>
+                  <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">channels</div>
                   <div className="flex gap-1 flex-wrap">
                     {profiles.map((p) => (
                       <label
                         key={p.id}
-                        className="flex items-center gap-1.5 text-xs px-3 min-h-[44px] rounded border border-white/10 cursor-pointer hover:bg-white/[0.04]"
+                        className="flex items-center gap-1.5 text-xs px-3 min-h-[44px] rounded-control border border-edge-default cursor-pointer hover:bg-surface-hover"
                       >
                         <input
                           type="checkbox"
@@ -476,7 +476,7 @@ export function PublishTab() {
                             }
                           }}
                         />
-                        <span className="font-mono text-[10px]">{p.service} · {p.formatted_username}</span>
+                        <span className="font-mono text-[11px]">{p.service} · {p.formatted_username}</span>
                       </label>
                     ))}
                   </div>
@@ -487,7 +487,7 @@ export function PublishTab() {
                 onClick={handleSchedule}
                 disabled={scheduling || !caption.trim()}
                 className={cn(
-                  "rounded-lg border px-4 py-2 text-sm font-medium transition w-full sm:w-auto",
+                  "rounded-control border px-4 py-2 text-[13px] font-medium transition-colors duration-[var(--motion-state)] w-full sm:w-auto",
                   scheduling
                     ? "border-amber-500/40 bg-amber-500/10 text-amber-200 cursor-wait"
                     : "border-sky-500/40 bg-sky-500/10 text-sky-200 hover:bg-sky-500/15 disabled:opacity-50",
@@ -522,25 +522,25 @@ export function PublishTab() {
         {/* Results log */}
         {results.length > 0 && (
           <Panel>
-            <h2 className="mb-2 text-sm font-semibold text-white">last publish</h2>
+            <h2 className="mb-2 text-sm font-semibold text-fg">last publish</h2>
             <div className="space-y-1">
               {results.map((r, idx) => (
                 <div
                   key={`${r.platform}-${idx}`}
                   className={cn(
-                    "rounded-md border px-2 py-1.5 text-xs flex items-center justify-between",
+                    "rounded-control border px-2 py-1.5 text-xs flex items-center justify-between",
                     r.ok
                       ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-200"
                       : "border-rose-500/30 bg-rose-500/5 text-rose-200",
                   )}
                 >
-                  <span className="font-mono uppercase tracking-wider">{r.platform}</span>
+                  <span className="font-mono text-[11px] uppercase tracking-[0.12em]">{r.platform}</span>
                   {r.ok && r.permalink ? (
                     <a href={r.permalink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:underline">
-                      <Globe className="h-3 w-3" /> view post
+                      <Globe className="h-3 w-3" /> View post
                     </a>
                   ) : (
-                    <span className="font-mono text-[10px]">{r.error ?? r.postId ?? "—"}</span>
+                    <span className="font-mono text-[11px]">{r.error ?? r.postId ?? "—"}</span>
                   )}
                 </div>
               ))}

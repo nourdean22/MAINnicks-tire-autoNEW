@@ -40,6 +40,9 @@ import { hourFrameMeta } from "@/lib/brain/hour-frame";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { sanitizeDeadline } from "@/lib/services/commitments";
 
+/** Causal chains not re-seen in this window are history, not current context. */
+const CAUSAL_CHAIN_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
 // ─── INBOUND: Process events from nickstire.org ──────────
 
 export interface ShopEvent {
@@ -200,13 +203,18 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
         // Bridge JSON can deliver totalSpent as a string (TiDB DECIMAL
         // serializes to a string in some driver configs); Number() keeps
         // the tier thresholds robust to either number-or-string shape.
-        const spent = Number(existingCustomer.totalSpent);
+        // totalSpent from nickstire customer_search is integer CENTS (customers.totalSpent).
+        // The tiers used to compare it to DOLLAR literals (5000 / 1000), so $50 lifetime spend
+        // read as "high" and nearly every repeat customer was stored as "High-value —
+        // prioritize" (2026-10-02 currency audit). Same cents cut-offs as
+        // customer-preferences.ts tierFromLtv: $2,000 high, $500 mid.
+        const spentCents = Number(existingCustomer.totalSpent);
         const spendTier =
-          spent >= 5000 ? "high" : spent >= 1000 ? "mid" : "starter";
+          spentCents >= 200_000 ? "high" : spentCents >= 50_000 ? "mid" : "starter";
         await brainMemory.remember(
           "insight",
           `repeat_customer_${nameHash}_${today()}`,
-          `REPEAT CUSTOMER (${existingCustomer.totalVisits} visits, ${spendTier}-spend, segment: ${existingCustomer.segment}). High-value — prioritize.`,
+          `REPEAT CUSTOMER (${existingCustomer.totalVisits} visits, ${spendTier}-spend, segment: ${existingCustomer.segment}).${spendTier === "high" ? " High-value — prioritize." : ""}`,
           "pipeline_analysis"
         );
         actions.push("insight.repeat_customer");
@@ -561,7 +569,10 @@ export async function generateShopIntelligence(): Promise<{ brief: string; actio
       select: { claim: true, reality: true },
     }),
     prisma.causalChain.findMany({
-      where: { broken: false },
+      // Recent only: the chain analyser went unscheduled 2026-05-28 (revived
+      // 2026-10-02 as /api/cron/think) and its frozen chains were fed into
+      // shop intelligence as current. A future freeze ages out instead.
+      where: { broken: false, lastSeen: { gte: new Date(Date.now() - CAUSAL_CHAIN_MAX_AGE_MS) } },
       orderBy: { frequency: "desc" },
       take: 3,
       select: { effect: true, rootCause: true, intervention: true },

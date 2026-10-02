@@ -21,9 +21,9 @@ export function VoiceWaveformOverlay({
   mode: "recording" | "continuous";
 }) {
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center gap-1.5 px-3.5 rounded-xl bg-gradient-to-r from-red-500/10 via-red-500/5 to-red-500/10 border border-red-500/40 pointer-events-none">
-      <span className="text-[10px] font-mono uppercase tracking-[0.22em] text-red-400 mr-2 inline-flex items-center gap-1.5">
-        <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" />
+    <div className="absolute inset-0 z-10 flex items-center justify-center gap-1.5 px-3.5 rounded-overlay bg-red-500/5 border border-red-500/40 pointer-events-none">
+      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-red-400 mr-2 inline-flex items-center gap-1.5">
+        <span className="h-1.5 w-1.5 rounded-full bg-red-400 pulse-live" />
         {mode === "continuous" ? "listening" : "recording"}
       </span>
       {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => {

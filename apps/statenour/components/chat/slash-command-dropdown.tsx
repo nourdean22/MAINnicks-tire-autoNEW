@@ -38,15 +38,15 @@ export function SlashCommandDropdown({
             else onPromptFire(command.prompt);
             onClose();
           }}
-          className="flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-gold/5"
+          className="flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface-hover"
         >
           <span className="text-base" aria-hidden>{command.icon}</span>
           <div className="min-w-0 flex-1">
             <span className="text-xs font-medium text-fg">{command.label}</span>
-            <span className="ml-2 font-mono text-[10px] text-fg-tertiary">{command.cmd}</span>
+            <span className="ml-2 font-mono text-[11px] text-fg-tertiary">{command.cmd}</span>
           </div>
-          {command.navigate && <span className="shrink-0 font-mono text-[8px] uppercase tracking-wider text-gold/60">nav</span>}
-          {command.action && <span className="shrink-0 font-mono text-[8px] uppercase tracking-wider text-blue-400/70">action</span>}
+          {command.navigate && <span className="shrink-0 font-mono text-[11px] text-fg-tertiary">nav</span>}
+          {command.action && <span className="shrink-0 font-mono text-[11px] text-blue-400/70">action</span>}
         </button>
       ))}
     </div>

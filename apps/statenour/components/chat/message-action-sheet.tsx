@@ -78,7 +78,7 @@ function ActionRow({
   destructive?: boolean;
 }) {
   const toneClass = {
-    gold: "bg-(--gold)/10 text-(--gold)",
+    gold: "bg-surface-raised text-fg",
     blue: "bg-blue-500/10 text-blue-400",
     emerald: "bg-emerald-500/10 text-emerald-400",
     neutral: "bg-(--bg-raised) text-(--text-secondary)",
@@ -95,7 +95,7 @@ function ActionRow({
     >
       <span
         className={cn(
-          "w-9 h-9 rounded-lg flex items-center justify-center shrink-0",
+          "w-9 h-9 rounded-control flex items-center justify-center shrink-0",
           toneClass,
         )}
       >
@@ -184,11 +184,11 @@ export function MessageActionSheet({
         ref={sheetRef}
         unstyled
         showCloseButton={false}
-        overlayClassName="z-120 bg-black/65 backdrop-blur-[2px] animate-fade-in"
+        overlayClassName="z-120 bg-(--bg-void)/70 animate-fade-in"
         className={cn(
           "fixed bottom-0 left-0 right-0 z-121",
           "bg-(--bg-void) border-t border-(--border-default)",
-          "rounded-t-2xl shadow-[0_-20px_60px_rgba(0,0,0,0.7)]",
+          "rounded-t-float shadow-l2",
           "max-h-[78dvh] overflow-y-auto outline-none",
         )}
         style={{
@@ -213,7 +213,7 @@ export function MessageActionSheet({
 
         {/* Message preview */}
         <div className="px-4 py-2.5 border-b border-(--border-default)">
-          <p className="text-[9px] font-mono uppercase tracking-[0.22em] text-(--text-tertiary) mb-1">
+          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-(--text-tertiary) mb-1">
             {role === "user" ? "your message" : "nick's reply"}
           </p>
           <p className="text-[12.5px] text-(--text-secondary) line-clamp-3 leading-relaxed">
@@ -364,7 +364,7 @@ export function MessageActionSheet({
         {/* Cancel — also large for thumb */}
         <button
           onClick={onClose}
-          className="w-full flex items-center justify-center gap-1.5 py-3.5 border-t border-(--border-default) text-[11px] font-mono uppercase tracking-[0.18em] text-(--text-tertiary) hover:text-(--text-primary) active:scale-[0.98] transition-colors"
+          className="w-full flex items-center justify-center gap-1.5 py-3.5 border-t border-(--border-default) text-[13px] font-medium text-(--text-tertiary) hover:text-(--text-primary) active:scale-[0.98] transition-colors"
           style={{ animation: `fadeSlideUp 0.32s ${delayCounter.current}ms ease-out both` }}
         >
           <X size={12} /> Close

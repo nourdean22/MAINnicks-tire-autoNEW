@@ -15,7 +15,7 @@ ordered queue the cloud shift loop works from. An item's status is its PR, not a
 | Product | Canonical roadmap | Mission |
 |---|---|---|
 | Nick's Tire | The master doc's §14.4 queue. [`apps/nickstire/docs/REVENUE-OPS-ROADMAP.md`](../../apps/nickstire/docs/REVENUE-OPS-ROADMAP.md) is Wave 1/2 history, unchanged since 2026-07-11 (per `apps/nickstire/CLAUDE.md`) | [`agent-os/product/nickstire/mission.md`](../../agent-os/product/nickstire/mission.md) |
-| NOUR OS (statenour) | No single canonical file — work runs in waves closed out in `CURRENT-TRUTH.md`. See [`agent-os/product/statenour/roadmap.md`](../../agent-os/product/statenour/roadmap.md) for the trust-ranked source list. | [`agent-os/product/statenour/mission.md`](../../agent-os/product/statenour/mission.md) |
+| NOUR OS (statenour) | The active reconstruction mission is [`docs/agent-os/FULL-CIRCLE-MISSION.md`](../agent-os/FULL-CIRCLE-MISSION.md) (verified snapshot, incumbents, gaps, slice order; wave 0 report: [`statenour-full-circle-wave0-2026-10-02.md`](./statenour-full-circle-wave0-2026-10-02.md), PR #2881). Otherwise no single canonical file — work runs in waves closed out in `CURRENT-TRUTH.md`. See [`agent-os/product/statenour/roadmap.md`](../../agent-os/product/statenour/roadmap.md) for the trust-ranked source list. | [`agent-os/product/statenour/mission.md`](../../agent-os/product/statenour/mission.md) |
 
 ## Where current status actually lives
 

@@ -517,6 +517,86 @@ async function analyzeViaOpenAiCompatible(args: {
   }
 }
 
+// ─── Raw-bytes, multi-image entry point ──────────────────────
+//
+// 2026-10-02 · analyzePhoto only accepts a PUBLIC URL it fetches itself (and rejects loopback /
+// RFC1918 hosts). The office camera's frames come from a box on the shop LAN, so they arrive as
+// bytes in the request instead. This shares the provider endpoints, keys and the Gemini
+// thinking-budget knob with analyzeViaOpenAiCompatible above, but takes inline images and returns
+// raw text: the caller owns its own prompt and parsing (services/officeVisual.ts).
+
+export interface VisionImage {
+  mime: "image/jpeg" | "image/png";
+  base64: string;
+}
+
+export type DescribeImagesResult =
+  | { ok: true; text: string; provider: "gemini" | "ollama"; model: string; latencyMs: number }
+  | { ok: false; error: string; reason: "no_provider" | "http_error" | "timeout" | "parse_error" };
+
+export async function describeImagesOpenAiCompatible(args: {
+  provider: "gemini" | "ollama";
+  images: VisionImage[];
+  prompt: string;
+  model?: string;
+  timeoutMs?: number;
+  maxTokens?: number;
+}): Promise<DescribeImagesResult> {
+  const keyVar = PROVIDER_KEY_VAR[args.provider];
+  const apiKey = process.env[keyVar];
+  if (!apiKey) return { ok: false, error: `${keyVar} not set`, reason: "no_provider" };
+  const endpoint =
+    args.provider === "gemini"
+      ? GEMINI_OPENAI_ENDPOINT
+      : `${(process.env.OLLAMA_BASE_URL || "https://ollama.com").replace(/[/]$/, "")}/v1/chat/completions`;
+  const model =
+    args.model ??
+    (args.provider === "gemini"
+      ? process.env.PHOTO_ASSESS_GEMINI_MODEL ?? GEMINI_VISION_MODEL
+      : process.env.PHOTO_ASSESS_OLLAMA_MODEL ?? OLLAMA_VISION_MODEL);
+  const maxTokens = args.maxTokens ?? 600;
+  const t0 = Date.now();
+  try {
+    const resp = await withTimeout(
+      fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: args.prompt },
+                ...args.images.map((img) => ({ type: "image_url", image_url: { url: `data:${img.mime};base64,${img.base64}` } })),
+              ],
+            },
+          ],
+          temperature: 0.2,
+          // Same knob as analyzeViaOpenAiCompatible (see the measurement there): Gemini spends a
+          // small budget on hidden thinking unless it is switched off.
+          ...(args.provider === "gemini"
+            ? { max_tokens: maxTokens, extra_body: { google: { thinking_config: { thinking_budget: 0 } } } }
+            : { max_tokens: maxTokens }),
+        }),
+      }),
+      args.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      `${args.provider}-vision-bytes`,
+    );
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => "");
+      return { ok: false, error: `${args.provider} ${resp.status}: ${body.slice(0, 200)}`, reason: "http_error" };
+    }
+    const data = (await resp.json()) as { choices?: Array<{ message?: { content?: unknown } }>; model?: string };
+    const text = contentText(data.choices?.[0]?.message?.content);
+    if (!text) return { ok: false, error: `${args.provider} returned no message content`, reason: "parse_error" };
+    return { ok: true, text, provider: args.provider, model: data.model || model, latencyMs: Date.now() - t0 };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg, reason: msg.toLowerCase().includes("timeout") ? "timeout" : "http_error" };
+  }
+}
+
 // ─── Health probe ─────────────────────────────────────────────
 
 export async function checkVisionHealth(): Promise<{

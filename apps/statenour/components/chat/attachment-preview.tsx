@@ -37,16 +37,16 @@ export function AttachmentPreview({
         <img
           src={preview}
           alt="Attached"
-          className="w-10 h-10 rounded object-cover border border-[var(--border-default)]"
+          className="w-10 h-10 rounded-control object-cover border border-[var(--border-default)]"
         />
       ) : (
-        <div className="w-10 h-10 rounded border border-[var(--border-default)] bg-[var(--bg-elevated)] flex items-center justify-center text-[var(--text-tertiary)]">
+        <div className="w-10 h-10 rounded-control border border-[var(--border-default)] bg-[var(--bg-elevated)] flex items-center justify-center text-[var(--text-tertiary)]">
           {isAudio ? <Music size={14} /> : isPdf ? <FileText size={14} /> : <Paperclip size={14} />}
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <div className="text-[10px] text-[var(--text-secondary)] truncate">{file.name}</div>
-        <div className="text-[9px] text-[var(--text-tertiary)]">
+        <div className="text-[12px] text-[var(--text-secondary)] truncate">{file.name}</div>
+        <div className="text-[11px] font-mono text-[var(--text-tertiary)]">
           {file.type || "application/octet-stream"}
           {file.size ? ` · ${Math.round(file.size / 1024)} KB` : ""}
         </div>

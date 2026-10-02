@@ -1,23 +1,26 @@
 "use client";
 
 /**
- * SystemHealthCard — morning health digest surfaced on HQ.
+ * SystemHealthCard — the nightly health digest, on /system/health.
  *
  * Reads the latest persisted digest from BrainMemory(category=
  * "system_health_digest") via /api/ultron/health-digest. The digest is
- * written nightly at 4am ET by /api/cron/health-digest. This card
- * closes the "push, not pull" loop: silent degradation now surfaces
- * WITHOUT Nour having to remember to open /system/diagnostics.
+ * written nightly at 4am ET by /api/cron/health-digest. Mounted under
+ * Settings > Diagnostics until the full-circle wave 2 recomposition
+ * (2026-10-02); it reads machine health, so it lives on /system/health now
+ * (docs/design/settings-census-2026-10-02.md).
  *
- * Render policy — deliberately SUBTLE when everything is healthy:
- *   • overall = "healthy" → card self-hides (no clutter)
+ * Render policy — honest in every state (2026-10-02; it used to render
+ * NOTHING for "healthy", for "not loaded yet" and for "the read failed",
+ * three states one pixel apart):
+ *   • read failed / 401 swallowed → one amber line: digest unreadable
+ *   • overall = "healthy" → one quiet line with the digest's age
  *   • overall = "warning" → amber strip, one-line summary, expandable
- *   • overall = "critical" → red card with pulse, top 3 highlights inline
+ *   • overall = "critical" → red card, top 3 highlights inline
  *   • digest >36h old → "stale" badge (nightly cron missed — itself a signal)
  *
  * Click any headline to deep-link into the matching detail page. Click
- * the rightmost chevron to collapse/expand. The header chip always
- * links to /system/diagnostics for the full probe grid.
+ * the rightmost chevron to collapse/expand.
  */
 
 import { useState, useCallback } from "react";
@@ -104,7 +107,7 @@ function signedNum(n: number): string {
 }
 
 export function SystemHealthCard() {
-  const { data, refetch } = useUltronFetch<HealthDigest>("/api/ultron/health-digest", {
+  const { data, loading, refetch } = useUltronFetch<HealthDigest>("/api/ultron/health-digest", {
     // Digest refreshes once a day. A 15-min HQ-local cache is ample —
     // no need to hammer the endpoint.
     ttlMs: 900_000,
@@ -133,10 +136,33 @@ export function SystemHealthCard() {
     }
   }, [refetch, refreshDigest]);
 
-  // Silent when healthy — the whole point of the "push" digest is
-  // to flag problems, not to congratulate on a clean run.
-  if (!data) return null;
-  if (data.overall === "healthy") return null;
+  if (loading) return null;
+  if (!data) {
+    // useUltronFetch swallows a 401 and a thrown fetch into data:null; on
+    // this page that is "unknown", and unknown is never rendered as clean.
+    return (
+      <p
+        aria-label="System health digest (unreadable)"
+        className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300/90"
+      >
+        Health digest: unreadable — the read failed (not healthy).
+      </p>
+    );
+  }
+  // A stale fallback (recompute failed, old row served) is checked BEFORE the
+  // healthy branch: an old "healthy" must never read as current (bug-hunt).
+  if (data.overall === "healthy" && !data.staleFallback) {
+    const ageHealthy = hoursSince(data.generatedAt ?? new Date().toISOString());
+    return (
+      <p
+        aria-label="System health digest (healthy)"
+        className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary"
+      >
+        Health digest: healthy · generated {Math.round(ageHealthy)}h ago
+        {ageHealthy > 36 ? " · stale, the nightly cron missed" : ""}
+      </p>
+    );
+  }
 
   // ── Stale-fallback render path ──
   // Apr 26 · "I don't want to see any old information presented to me
@@ -147,16 +173,16 @@ export function SystemHealthCard() {
     return (
       <section
         aria-label="System health digest (stale)"
-        className="rounded-xl border border-white/10 bg-white/[0.02] backdrop-blur-sm"
+        className="rounded-surface border border-edge-subtle bg-content"
       >
         <div className="flex items-center gap-2 px-3 py-2 text-sm">
-          <span className="h-2 w-2 rounded-full bg-[var(--text-tertiary)]" />
-          <AlertTriangle className="h-4 w-4 text-[var(--text-tertiary)]" />
-          <div className="flex-1 min-w-0 text-[var(--text-secondary)]">
-            <span className="font-semibold text-[var(--text-primary)]">
+          <span className="h-2 w-2 rounded-full bg-fg-tertiary" />
+          <AlertTriangle className="h-4 w-4 text-fg-tertiary" />
+          <div className="flex-1 min-w-0 text-fg-secondary">
+            <span className="font-semibold text-fg">
               Health digest stale
             </span>
-            <span className="ml-2 text-[var(--text-tertiary)]">
+            <span className="ml-2 text-fg-tertiary">
               · couldn&apos;t refresh — last data {Math.round(hoursSince(data.generatedAt))}h old, hidden
             </span>
           </div>
@@ -164,7 +190,7 @@ export function SystemHealthCard() {
             type="button"
             onClick={manualRefresh}
             disabled={refreshing}
-            className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-[var(--text-secondary)] hover:border-white/20 hover:text-[var(--text-primary)] transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded-control border border-edge-default bg-content text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg px-2 py-1 disabled:opacity-50"
           >
             <RefreshCw className={cn("h-3 w-3", refreshing && "animate-spin")} />
             <span>{refreshing ? "Refreshing…" : "Refresh"}</span>
@@ -204,7 +230,7 @@ export function SystemHealthCard() {
   const critical = data.overall === "critical";
   const Icon = critical ? AlertCircle : AlertTriangle;
 
-  // Tailwind-safe palette map — critical pulses, warning sits steady.
+  // Tailwind-safe palette map — critical and warning both sit steady (pulse is reserved for a working state).
   const palette = critical
     ? {
         border: "border-rose-500/40",
@@ -212,7 +238,7 @@ export function SystemHealthCard() {
         accent: "text-rose-300",
         dot: "bg-rose-400",
         ring: "ring-1 ring-rose-500/30",
-        pulse: "animate-pulse",
+        pulse: "",
       }
     : {
         border: "border-amber-500/30",
@@ -234,8 +260,9 @@ export function SystemHealthCard() {
     const label = critical ? "critical" : "degraded";
     topHighlights.push({
       severity: critical ? "critical" : "warning",
-      headline: `System ${label} — open diagnostics for details`,
-      link: "/system/health",
+      headline: `System ${label} — open the error log for details`,
+      // Was /system/health — the page this card is on (bug-hunt 2026-10-02).
+      link: "/system/logs?view=errors",
     });
   }
 
@@ -243,7 +270,7 @@ export function SystemHealthCard() {
     <section
       aria-label="System health digest"
       className={cn(
-        "rounded-xl border backdrop-blur-sm transition-colors",
+        "rounded-surface border transition-colors",
         palette.border,
         palette.bg,
         palette.ring,
@@ -256,7 +283,7 @@ export function SystemHealthCard() {
           <span className={cn("font-semibold", palette.accent)}>
             {critical ? "System critical" : "System degraded"}
           </span>
-          <span className="ml-2 text-[var(--text-secondary)]">
+          <span className="ml-2 text-fg-secondary">
             {counts.critical > 0 ? (
               <>
                 <AnimatedCounter value={counts.critical} /> critical ·{" "}
@@ -277,7 +304,7 @@ export function SystemHealthCard() {
           <span
             title={`vs ${data.trend.priorDate}: critical ${signedNum(data.trend.criticalDelta)} · warning ${signedNum(data.trend.warningDelta)} · silent crons ${signedNum(data.trend.silentCronsDelta)}`}
             className={cn(
-              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em]",
               data.trend.overallDirection === "degrading"
                 ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
                 : "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
@@ -294,7 +321,7 @@ export function SystemHealthCard() {
         {data.trend?.overallDirection === "stable" && (
           <span
             title={`vs ${data.trend.priorDate}: no change`}
-            className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.02] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]"
+            className="inline-flex items-center gap-1 rounded-full border border-edge-default bg-content px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary"
           >
             <Minus className="h-2.5 w-2.5" />
             <span>stable</span>
@@ -306,7 +333,7 @@ export function SystemHealthCard() {
             onClick={manualRefresh}
             disabled={refreshing}
             title={`Digest generated ${Math.round(ageH)}h ago — tap to refresh now`}
-            className="inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-rose-300 hover:bg-rose-500/20 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-rose-300 hover:bg-rose-500/20 transition-colors disabled:opacity-50"
           >
             <RefreshCw className={cn("h-2.5 w-2.5", refreshing && "animate-spin")} />
             <span>{refreshing ? "refreshing" : `stale ${Math.round(ageH)}h`}</span>
@@ -315,29 +342,29 @@ export function SystemHealthCard() {
         {data.livelyComputed && !stale && (
           <span
             title="Recomputed live in this request — not from yesterday's nightly cron"
-            className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300"
+            className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-emerald-300"
           >
             live
           </span>
         )}
         <Link
-          href="/system/health"
-          className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-[var(--text-secondary)] hover:border-white/20 hover:text-[var(--text-primary)] transition-colors"
+          href="/system/logs?view=errors"
+          className="rounded-control border border-edge-default bg-content text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg px-2 py-1"
         >
-          diagnostics →
+          Errors →
         </Link>
         <button
           type="button"
           aria-label={expanded ? "Collapse details" : "Expand details"}
           onClick={() => setExpanded((x) => !x)}
-          className="rounded-md p-1 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 inline-flex items-center justify-center text-[var(--text-tertiary)] hover:bg-white/5 hover:text-[var(--text-primary)] transition-colors"
+          className="rounded-control p-1 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 inline-flex items-center justify-center text-fg-tertiary hover:bg-surface-hover hover:text-fg transition-colors"
         >
           {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </button>
       </header>
 
       {/* Top 2-3 highlights always visible — that's the push value */}
-      <ul className="space-y-1 border-t border-white/5 px-3 py-2 text-xs">
+      <ul className="space-y-1 border-t border-edge-subtle px-3 py-2 text-xs">
         {topHighlights.map((h, i) => {
           const dotColor =
             h.severity === "critical"
@@ -351,13 +378,13 @@ export function SystemHealthCard() {
               {h.link ? (
                 <Link
                   href={h.link}
-                  className="flex-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors inline-flex items-center gap-1"
+                  className="flex-1 text-fg-secondary hover:text-fg transition-colors inline-flex items-center gap-1"
                 >
                   <span>{h.headline}</span>
                   <ExternalLink className="h-3 w-3 opacity-60" />
                 </Link>
               ) : (
-                <span className="flex-1 text-[var(--text-secondary)]">{h.headline}</span>
+                <span className="flex-1 text-fg-secondary">{h.headline}</span>
               )}
             </li>
           );
@@ -366,7 +393,7 @@ export function SystemHealthCard() {
 
       {/* Expanded — full stats grid for deep-dive */}
       {expanded && (
-        <div className="grid grid-cols-2 gap-2 border-t border-white/5 px-3 py-2 text-[11px] sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 border-t border-edge-subtle px-3 py-2 text-[11px] sm:grid-cols-4">
           <StatCell
             label="crons declared"
             numeric={stats.cronsDeclared}
@@ -422,14 +449,14 @@ function StatCell({
   warn?: boolean;
 }) {
   return (
-    <div className="rounded-md border border-white/5 bg-white/[0.02] px-2 py-1">
-      <div className="text-[var(--text-tertiary)] text-[9px] uppercase tracking-wide">
+    <div className="rounded-control border border-edge-subtle bg-content px-2 py-1">
+      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
         {label}
       </div>
       <div
         className={cn(
           "text-xs font-medium tabular-nums",
-          warn ? "text-amber-300" : "text-[var(--text-primary)]",
+          warn ? "text-amber-300" : "text-fg",
         )}
       >
         {numeric !== undefined ? <AnimatedCounter value={numeric} /> : value}

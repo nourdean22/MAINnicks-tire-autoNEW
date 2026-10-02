@@ -9,6 +9,24 @@ export async function processReviewRequests(): Promise<{ recordsProcessed: numbe
   try {
     const { isEnabled } = await import("../../services/featureFlags");
     if (!(await isEnabled("sms_review_requests"))) return { recordsProcessed: 0, details: "flag sms_review_requests off" };
+    // Paid ALG invoices -> pending review_requests rows (one per invoice, cooldown per phone).
+    // Before 2026-10-02 only a website booking marked completed could create a row, so
+    // walk-in work never got one. Inert (with a reason) until migration 0139 is applied.
+    // A failure here must not stop the EXISTING send queue (booking rows already pending):
+    // the queue still runs, then the run is re-thrown as failed so cron_log shows it.
+    const { createInvoiceReviewRequests } = await import("../../services/invoiceReviewRequests");
+    let fromInvoices: Awaited<ReturnType<typeof createInvoiceReviewRequests>> | null = null;
+    let invoiceLaneError: unknown = null;
+    try {
+      fromInvoices = await createInvoiceReviewRequests();
+    } catch (err) {
+      invoiceLaneError = err;
+    }
+    const createdNote = !fromInvoices
+      ? "invoice rows: FAILED"
+      : fromInvoices.reason
+        ? `invoice rows: ${fromInvoices.reason}`
+        : `invoice rows created ${fromInvoices.created} of ${fromInvoices.candidates} (cooldown ${fromInvoices.onCooldown}, dup ${fromInvoices.duplicate})`;
     const { processReviewRequestQueue } = await import("../../routers/reviewRequests");
     const result = await processReviewRequestQueue();
     // processReviewRequestQueue has ALWAYS returned an object — every one of
@@ -19,11 +37,16 @@ export async function processReviewRequests(): Promise<{ recordsProcessed: numbe
     // was not low; it was not a count. `details` carries the reason a run
     // declined so a legitimate zero (cap reached, quiet hours, gateway offline)
     // is legible as a decision rather than as nothing happening.
+    const sendNote = "reason" in result && result.reason
+      ? String(result.reason)
+      : `sent ${result.sent}, queued ${"queued" in result ? result.queued : 0}, holdout controls ${"heldOut" in result ? result.heldOut : 0}, failed ${result.failed}`;
+    if (invoiceLaneError) {
+      const msg = invoiceLaneError instanceof Error ? invoiceLaneError.message : String(invoiceLaneError);
+      throw new Error(`invoice review lane failed (${msg}); send queue still ran: ${sendNote}`);
+    }
     return {
-      recordsProcessed: result.processed,
-      details: "reason" in result && result.reason
-        ? String(result.reason)
-        : `sent ${result.sent}, queued ${"queued" in result ? result.queued : 0}, holdout controls ${"heldOut" in result ? result.heldOut : 0}, failed ${result.failed}`,
+      recordsProcessed: result.processed + (fromInvoices?.created ?? 0),
+      details: `${createdNote} | ${sendNote}`,
     };
   } catch (err) {
     // ROS-083 · this catch used to swallow and return { recordsProcessed: 0 },

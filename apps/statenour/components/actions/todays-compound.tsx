@@ -133,22 +133,22 @@ export function TodaysCompound() {
   return (
     <section
       aria-label="today's compounded growth"
-      className="flex items-center gap-1 flex-wrap rounded-md border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.03] px-2.5 py-1.5"
+      className="flex items-center gap-1 flex-wrap rounded-control border border-edge-subtle bg-content px-2.5 py-1.5"
     >
-      <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] shrink-0">
+      <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-[var(--text-tertiary)] shrink-0">
         today ·
       </span>
       {chips.map((c) => {
         const inner = (
           <>
-            <span className="text-[10px] font-mono lowercase tracking-[0.1em] text-[var(--text-tertiary)]">
+            <span className="text-[11px] font-mono lowercase tracking-[0.1em] text-[var(--text-tertiary)]">
               {c.label}
             </span>
             <span
               className={
                 c.accent
-                  ? "text-[10px] font-mono tabular-nums text-[var(--gold)]"
-                  : "text-[10px] font-mono tabular-nums text-[var(--text-primary)]"
+                  ? "text-[11px] font-mono tabular-nums font-semibold text-fg"
+                  : "text-[11px] font-mono tabular-nums text-[var(--text-primary)]"
               }
             >
               {c.value}
@@ -159,14 +159,14 @@ export function TodaysCompound() {
           <Link
             key={c.key}
             href={c.href}
-            className="inline-flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.04] px-2 py-0.5 transition-colors hover:border-[var(--gold)]/40 hover:bg-[var(--gold)]/[0.06] focus-visible:outline-none focus-visible:border-[var(--gold)]/60"
+            className="inline-flex items-center gap-1 rounded-full border border-edge-subtle bg-content px-2 py-0.5 transition-colors hover:border-edge-strong hover:bg-surface-hover focus-visible:border-accent"
           >
             {inner}
           </Link>
         ) : (
           <span
             key={c.key}
-            className="inline-flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.04] px-2 py-0.5"
+            className="inline-flex items-center gap-1 rounded-full border border-edge-subtle bg-content px-2 py-0.5"
           >
             {inner}
           </span>

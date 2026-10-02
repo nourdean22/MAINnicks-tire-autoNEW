@@ -678,7 +678,7 @@ export function GoalBoard() {
             size="sm"
             onClick={suggestGoals}
             disabled={suggesting}
-            className="h-7 px-2.5 bg-violet-500/15 text-violet-300 hover:bg-violet-500/30 text-[9px] font-bold border border-violet-500/30 shrink-0"
+            className="h-7 px-2.5 bg-violet-500/15 text-violet-300 hover:bg-violet-500/30 text-[11px] font-semibold border border-violet-500/30 shrink-0"
           >
             {suggesting ? (
               <Loader2 size={11} className="animate-spin mr-1" />
@@ -702,13 +702,13 @@ export function GoalBoard() {
                   else if (newTitle.trim()) setShowAddForm(true);
                 }
               }}
-              className="h-9 bg-zinc-900/60 border-zinc-800/40 text-[13px] placeholder:text-zinc-600 focus:border-blue-500/30 transition-all"
+              className="h-9 bg-content border-edge-subtle text-[13px] placeholder:text-fg-tertiary focus:border-accent transition-all"
             />
             <Button
               size="sm"
               disabled={adding}
               aria-label="Add goal"
-              className="h-9 w-9 p-0 bg-zinc-800/80 hover:bg-blue-500/20 hover:text-blue-400 border border-zinc-700/50 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-9 w-9 p-0 bg-surface-interactive hover:bg-blue-500/20 hover:text-blue-400 border border-edge-default shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={() => {
                 if (!showAddForm && newTitle.trim()) setShowAddForm(true);
                 else addManual();
@@ -719,15 +719,15 @@ export function GoalBoard() {
           </div>
 
           {showAddForm && newTitle.trim() && (
-            <div className="rounded-lg bg-zinc-900/40 border border-zinc-800/30 p-2.5 space-y-1.5">
+            <div className="rounded-surface bg-content border border-edge-subtle p-2.5 space-y-1.5">
               <Input
                 placeholder="Why does this matter?"
                 value={newWhy}
                 onChange={(e) => setNewWhy(e.target.value)}
-                className="h-7 bg-zinc-900/60 border-zinc-800/40 text-[11px] placeholder:text-zinc-700"
+                className="h-7 bg-content border-edge-subtle text-[11px] placeholder:text-fg-tertiary"
               />
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[8px] text-zinc-600 uppercase tracking-wider">
+                <span className="font-mono text-[11px] text-fg-tertiary uppercase tracking-[0.12em]">
                   Horizon:
                 </span>
                 {(["DAY", "WEEK", "MONTH", "QUARTER", "YEAR", "LIFE"] as Horizon[]).map(
@@ -736,10 +736,10 @@ export function GoalBoard() {
                       key={h}
                       onClick={() => setNewHorizon(newHorizon === h ? "" : h)}
                       className={cn(
-                        "text-[8px] px-2 py-0.5 rounded border uppercase tracking-wider transition-all",
+                        "text-[12px] font-medium px-2 py-0.5 rounded-control border transition-colors duration-[var(--motion-state)]",
                         newHorizon === h
                           ? HORIZON_LABELS[h].accent
-                          : "text-zinc-600 border-zinc-800/40"
+                          : "text-fg-tertiary border-edge-subtle"
                       )}
                     >
                       {HORIZON_LABELS[h].label}
@@ -754,14 +754,14 @@ export function GoalBoard() {
                     setNewWhy("");
                     setNewHorizon("");
                   }}
-                  className="text-[9px] text-zinc-600 hover:text-zinc-300 px-2"
+                  className="text-[11px] text-fg-tertiary hover:text-fg px-2"
                 >
-                  cancel
+                  Cancel
                 </button>
                 <Button
                   size="sm"
                   disabled={adding}
-                  className="h-6 px-3 text-[9px] bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black font-bold border border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="h-6 px-3 text-[11px] bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold border border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={addManual}
                 >
                   {adding ? <Loader2 size={9} className="inline animate-spin mr-1" /> : null}
@@ -777,15 +777,15 @@ export function GoalBoard() {
       {(overview || warning) && (
         <div className="space-y-1.5">
           {overview && (
-            <div className="flex items-start gap-2 p-2.5 rounded-lg bg-violet-500/5 border border-violet-500/20">
+            <div className="flex items-start gap-2 p-2.5 rounded-surface bg-violet-500/5 border border-violet-500/20">
               <Lightbulb size={11} className="text-violet-400/70 mt-0.5 shrink-0" />
-              <p className="text-[10px] text-zinc-300 italic leading-relaxed">{overview}</p>
+              <p className="text-[11px] text-fg-secondary italic leading-relaxed">{overview}</p>
             </div>
           )}
           {warning && (
-            <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/20">
+            <div className="flex items-start gap-2 p-2.5 rounded-surface bg-amber-500/5 border border-amber-500/20">
               <AlertTriangle size={11} className="text-amber-400/70 mt-0.5 shrink-0" />
-              <p className="text-[10px] text-amber-200/90 leading-relaxed">{warning}</p>
+              <p className="text-[11px] text-amber-200/90 leading-relaxed">{warning}</p>
             </div>
           )}
         </div>
@@ -794,23 +794,23 @@ export function GoalBoard() {
       {/* ── AI suggestions ── */}
       {suggested.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-violet-400/80 px-0.5">
+          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-violet-400/80 px-0.5">
             Nick suggests ({suggested.length})
           </p>
           {suggested.map((s, i) => (
             <div
               key={i}
-              className="rounded-lg border border-violet-500/20 bg-violet-500/[0.03] p-2.5 space-y-1"
+              className="rounded-surface border border-violet-500/20 bg-violet-500/[0.03] p-2.5 space-y-1"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[12px] font-bold text-zinc-200">{s.title}</p>
+                  <p className="text-[12px] font-semibold text-fg">{s.title}</p>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    <Badge className="bg-zinc-800 text-zinc-400 text-[8px] h-3">
+                    <Badge className="bg-surface-interactive text-fg-secondary text-[11px] h-4">
                       {s.domain}
                     </Badge>
                     {s.targetValue > 0 && (
-                      <span className="text-[9px] text-zinc-500 font-mono">
+                      <span className="text-[11px] text-fg-tertiary font-mono">
                         {s.targetValue} {s.unit}
                       </span>
                     )}
@@ -820,7 +820,7 @@ export function GoalBoard() {
                   size="sm"
                   onClick={() => adoptSuggestion(s)}
                   disabled={adoptingTitles.has(s.title)}
-                  className="h-6 px-2 text-[9px] bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black font-bold border border-emerald-500/30 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="h-6 px-2 text-[11px] bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold border border-emerald-500/30 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {adoptingTitles.has(s.title) ? (
                     <Loader2 size={9} className="animate-spin" />
@@ -829,9 +829,9 @@ export function GoalBoard() {
                   )}
                 </Button>
               </div>
-              {s.why && <p className="text-[10px] text-zinc-400 italic">{s.why}</p>}
+              {s.why && <p className="text-[11px] text-fg-secondary italic">{s.why}</p>}
               {s.firstMove && (
-                <p className="text-[10px] text-emerald-300/80">
+                <p className="text-[11px] text-emerald-300/80">
                   <Zap size={9} className="inline mr-1" />
                   First move: {s.firstMove}
                 </p>
@@ -845,16 +845,16 @@ export function GoalBoard() {
       {loading ? (
         <div className="space-y-2">
           {[1, 2].map((i) => (
-            <ShimmerSkeleton key={i} className="h-20 rounded-xl" />
+            <ShimmerSkeleton key={i} className="h-20 rounded-surface" />
           ))}
         </div>
       ) : goals.length === 0 ? (
-        <div className="text-center py-8 rounded-xl border border-zinc-800/40 bg-zinc-900/20 space-y-2">
-          <Target size={20} className="mx-auto text-zinc-700" />
-          <p className="text-[11px] text-zinc-500">
+        <div className="text-center py-8 rounded-surface border border-edge-subtle bg-content space-y-2">
+          <Target size={20} className="mx-auto text-fg-tertiary" />
+          <p className="text-[11px] text-fg-tertiary">
             Type a goal above or tap AI suggest.
           </p>
-          <p className="text-[9px] text-zinc-700 italic max-w-[240px] mx-auto">
+          <p className="text-[11px] text-fg-tertiary italic max-w-[240px] mx-auto">
             Think big. &ldquo;Lose 44 lbs.&rdquo; &ldquo;$10K/month take-home.&rdquo;
             &ldquo;Learn Spanish fluently.&rdquo; Nick will help you plan it.
           </p>
@@ -875,14 +875,14 @@ export function GoalBoard() {
                   type="button"
                   onClick={() => setHorizonFilter(h)}
                   className={cn(
-                    "shrink-0 inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider transition-colors",
+                    "shrink-0 inline-flex items-center gap-1.5 rounded-control border px-2 py-0.5 text-[12px] font-medium transition-colors duration-[var(--motion-state)]",
                     active
                       ? "border-amber-500/50 bg-amber-500/10 text-amber-300"
-                      : "border-zinc-800 text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300"
+                      : "border-edge-subtle text-fg-tertiary hover:bg-surface-hover hover:text-fg"
                   )}
                 >
                   <span>{HORIZON_TAB_LABEL[h]}</span>
-                  <span className={cn("text-[8px]", active ? "text-amber-400/70" : "text-zinc-600")}>
+                  <span className={cn("text-[11px]", active ? "text-amber-400/70" : "text-fg-tertiary")}>
                     {count}
                   </span>
                 </button>
@@ -891,7 +891,7 @@ export function GoalBoard() {
           </div>
 
           {filteredGoals.length === 0 ? (
-            <p className="text-[11px] text-zinc-600 italic px-2 py-3">
+            <p className="text-[11px] text-fg-tertiary italic px-2 py-3">
               No goals in this horizon. Switch tabs or add one above.
             </p>
           ) : null}
@@ -917,7 +917,7 @@ export function GoalBoard() {
                 // + GoalsHealthStrip chips point at #goal-<id> · smooth-
                 // scroll lands the operator on the right card. Matches
                 // the MissionCard anchor pattern.
-                className="rounded-xl border border-zinc-800/40 bg-zinc-900/40 overflow-hidden group flex scroll-mt-24"
+                className="rounded-surface border border-edge-subtle bg-content overflow-hidden group flex scroll-mt-24"
               >
                 {/* Apr 27 · GH4 — colored vertical stripe per horizon.
                     Glance-readable visual grouping; works alongside
@@ -940,7 +940,7 @@ export function GoalBoard() {
                       setExpandedGoal(isExpanded ? null : g.id);
                     }
                   }}
-                  className="w-full p-3 text-left hover:bg-zinc-900/60 transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-blue-500/40"
+                  className="w-full p-3 text-left hover:bg-surface-hover transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-accent"
                 >
                   <div className="flex items-start gap-2.5">
                     {/* Progress ring */}
@@ -971,7 +971,7 @@ export function GoalBoard() {
                           strokeLinecap="round"
                         />
                       </svg>
-                      <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold font-mono text-zinc-400">
+                      <span className="absolute inset-0 flex items-center justify-center text-[11px] font-semibold font-mono text-fg-secondary">
                         {g.progress}
                       </span>
                     </div>
@@ -989,7 +989,7 @@ export function GoalBoard() {
                             onChange={(e) => setEditTitle(e.target.value)}
                             aria-label="Goal title"
                             placeholder="Goal title"
-                            className="w-full bg-zinc-900 border border-amber-500/40 rounded px-2 py-1 text-[13px] font-bold text-zinc-100 focus:outline-none focus:border-amber-500"
+                            className="w-full bg-content border border-amber-500/40 rounded-control px-2 py-1 text-[13px] font-semibold text-fg focus:outline-none focus:border-accent"
                             autoFocus
                           />
                           <input
@@ -998,7 +998,7 @@ export function GoalBoard() {
                             onChange={(e) => setEditWhy(e.target.value)}
                             aria-label="Why this goal"
                             placeholder="Why does this matter? (optional)"
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[10px] text-zinc-300 italic focus:outline-none focus:border-amber-500/40"
+                            className="w-full bg-content border border-edge-default rounded-control px-2 py-1 text-[11px] text-fg-secondary italic focus:outline-none focus:border-accent"
                           />
                           {/* May 02 · target/metric/unit row — feeds the
                               pace math + progress chip on the goal card. */}
@@ -1010,7 +1010,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditTargetValue(e.target.value)}
                               aria-label="Target value"
                               placeholder="target"
-                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-[10px] text-zinc-300 focus:outline-none focus:border-amber-500/40"
+                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                             <input
                               type="text"
@@ -1018,7 +1018,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditMetric(e.target.value)}
                               aria-label="Metric"
                               placeholder="metric"
-                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-[10px] text-zinc-300 focus:outline-none focus:border-amber-500/40"
+                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                             <input
                               type="text"
@@ -1026,7 +1026,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditUnit(e.target.value)}
                               aria-label="Unit"
                               placeholder="unit"
-                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-[10px] text-zinc-300 focus:outline-none focus:border-amber-500/40"
+                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                           </div>
                           {/* May 02 · deadline + domain + status row */}
@@ -1035,12 +1035,12 @@ export function GoalBoard() {
                               type="date"
                               value={editDeadline}
                               onChange={(e) => setEditDeadline(e.target.value)}
-                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-[10px] text-zinc-300 focus:outline-none focus:border-amber-500/40"
+                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                             <select
                               value={editDomain}
                               onChange={(e) => setEditDomain(e.target.value)}
-                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-[9px] text-zinc-300 focus:outline-none focus:border-amber-500/40"
+                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
                               <option value="">— domain —</option>
                               <option value="business">business</option>
@@ -1052,7 +1052,7 @@ export function GoalBoard() {
                             <select
                               value={editStatus}
                               onChange={(e) => setEditStatus(e.target.value)}
-                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-[9px] text-zinc-300 focus:outline-none focus:border-amber-500/40"
+                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
                               <option value="">— status —</option>
                               <option value="active">active</option>
@@ -1069,7 +1069,7 @@ export function GoalBoard() {
                           <select
                             value={editParentId}
                             onChange={(e) => setEditParentId(e.target.value)}
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-[9px] text-zinc-300 focus:outline-none focus:border-violet-500/40"
+                            className="w-full bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                           >
                             <option value="">— no parent goal —</option>
                             {goals
@@ -1088,7 +1088,7 @@ export function GoalBoard() {
                             <select
                               value={editKind}
                               onChange={(e) => setEditKind(e.target.value)}
-                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-[9px] text-zinc-300 focus:outline-none focus:border-violet-500/40"
+                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
                               <option value="">— kind —</option>
                               <option value="metric">metric (target)</option>
@@ -1098,7 +1098,7 @@ export function GoalBoard() {
                             <select
                               value={editConviction}
                               onChange={(e) => setEditConviction(e.target.value)}
-                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-[9px] text-zinc-300 focus:outline-none focus:border-pink-500/40"
+                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
                               <option value="">— conviction —</option>
                               <option value="1">1 · meh</option>
@@ -1113,7 +1113,7 @@ export function GoalBoard() {
                             value={editIdentityLine}
                             onChange={(e) => setEditIdentityLine(e.target.value)}
                             placeholder="Identity line: the kind of person who... (narrative)"
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[10px] text-violet-300/90 italic focus:outline-none focus:border-violet-500/40"
+                            className="w-full bg-content border border-edge-default rounded-control px-2 py-1 text-[11px] text-violet-300/90 italic focus:outline-none focus:border-accent"
                           />
                           <div className="grid grid-cols-[1fr_auto] gap-1.5">
                             <input
@@ -1121,18 +1121,18 @@ export function GoalBoard() {
                               value={editKillCriteria}
                               onChange={(e) => setEditKillCriteria(e.target.value)}
                               placeholder="Kill if... (pre-committed exit)"
-                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[10px] text-zinc-300 focus:outline-none focus:border-rose-500/40"
+                              className="bg-content border border-edge-default rounded-control px-2 py-1 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                             <input
                               type="date"
                               value={editKillBy}
                               onChange={(e) => setEditKillBy(e.target.value)}
                               title="Kill-by date"
-                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[10px] text-zinc-300 focus:outline-none focus:border-rose-500/40"
+                              className="bg-content border border-edge-default rounded-control px-2 py-1 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             />
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[8px] text-zinc-600 uppercase tracking-wider">
+                            <span className="font-mono text-[11px] text-fg-tertiary uppercase tracking-[0.12em]">
                               Ambition:
                             </span>
                             {(["tenx", "incremental"] as const).map((a) => (
@@ -1141,10 +1141,10 @@ export function GoalBoard() {
                                 type="button"
                                 onClick={() => setEditAmbition(editAmbition === a ? "" : a)}
                                 className={cn(
-                                  "text-[8px] px-2 py-0.5 rounded border uppercase tracking-wider transition-all",
+                                  "text-[12px] font-medium px-2 py-0.5 rounded-control border transition-colors duration-[var(--motion-state)]",
                                   editAmbition === a
                                     ? "text-amber-300 border-amber-500/40 bg-amber-500/10"
-                                    : "text-zinc-600 border-zinc-800/40",
+                                    : "text-fg-tertiary border-edge-subtle",
                                 )}
                               >
                                 {a === "tenx" ? "10x" : "incremental"}
@@ -1155,7 +1155,7 @@ export function GoalBoard() {
                             <select
                               value={editHorizon}
                               onChange={(e) => setEditHorizon(e.target.value)}
-                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-[9px] text-zinc-300 focus:outline-none focus:border-amber-500/40"
+                              className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
                               <option value="">No horizon</option>
                               <option value="DAY">Day</option>
@@ -1169,7 +1169,7 @@ export function GoalBoard() {
                               type="button"
                               onClick={saveEdit}
                               disabled={savingEdit || !editTitle.trim()}
-                              className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-[9px] text-amber-300 font-bold uppercase tracking-wider hover:bg-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-control bg-amber-500/20 border border-amber-500/40 text-[11px] text-amber-300 font-medium hover:bg-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               {savingEdit ? (
                                 <Loader2 size={9} className="animate-spin" />
@@ -1181,7 +1181,7 @@ export function GoalBoard() {
                             <button
                               type="button"
                               onClick={cancelEdit}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-zinc-700 text-[9px] text-zinc-400 uppercase tracking-wider hover:border-zinc-600 hover:text-zinc-300"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-control border border-edge-default text-[12px] font-medium text-fg-secondary hover:border-edge-strong hover:text-fg"
                             >
                               <XIcon size={9} />
                               Cancel
@@ -1190,13 +1190,13 @@ export function GoalBoard() {
                         </div>
                       ) : null}
                       <div className={cn("flex items-center gap-1.5 flex-wrap", editingId === g.id && "hidden")}>
-                        <span className="text-[13px] font-bold text-zinc-100">
+                        <span className="text-[13px] font-semibold text-fg">
                           {g.title}
                         </span>
                         {horizonMeta && (
                           <Badge
                             className={cn(
-                              "text-[7px] h-3 border shrink-0",
+                              "text-[11px] h-4 border shrink-0",
                               horizonMeta.accent
                             )}
                           >
@@ -1204,12 +1204,12 @@ export function GoalBoard() {
                           </Badge>
                         )}
                         {g.kind && g.kind !== "metric" && (
-                          <Badge className="bg-violet-500/10 text-violet-300 text-[7px] h-3 border border-violet-500/20 shrink-0 uppercase">
+                          <Badge className="bg-violet-500/10 text-violet-300 text-[11px] h-4 border border-violet-500/20 shrink-0">
                             {g.kind}
                           </Badge>
                         )}
                         {noLoops && (
-                          <Badge className="bg-amber-500/10 text-amber-400 text-[7px] h-3 border border-amber-500/20 shrink-0">
+                          <Badge className="bg-amber-500/10 text-amber-400 text-[11px] h-4 border border-amber-500/20 shrink-0">
                             no plan
                           </Badge>
                         )}
@@ -1247,19 +1247,19 @@ export function GoalBoard() {
                               }}
                               title={`${v.reason} · tap to archive`}
                               className={cn(
-                                "text-[7px] h-3 px-1.5 rounded border shrink-0 inline-flex items-center gap-1 hover:bg-rose-500/20 transition-colors",
+                                "text-[11px] h-4 px-1.5 rounded-control border shrink-0 inline-flex items-center gap-1 hover:bg-rose-500/20 transition-colors",
                                 isStale
                                   ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
                                   : "border-amber-500/30 bg-amber-500/5 text-amber-400",
                               )}
                             >
-                              {isStale ? "stale · archive" : "decaying"}
+                              {isStale ? "Stale · archive" : "Decaying"}
                             </button>
                           );
                         })()}
                       </div>
                       {g.why && editingId !== g.id && (
-                        <p className="text-[10px] text-zinc-500 italic mt-0.5 line-clamp-1">
+                        <p className="text-[11px] text-fg-tertiary italic mt-0.5 line-clamp-1">
                           {g.why}
                         </p>
                       )}
@@ -1268,7 +1268,7 @@ export function GoalBoard() {
                           the linked goal's card. */}
                       {editingId !== g.id &&
                         (g.ladder?.parent || (g.ladder?.rollup.childCount ?? 0) > 0) && (
-                          <div className="flex items-center gap-1.5 mt-1 flex-wrap text-[9px] font-mono">
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap text-[11px] font-mono">
                             {g.ladder?.parent && (
                               <button
                                 type="button"
@@ -1283,7 +1283,7 @@ export function GoalBoard() {
                                   );
                                 }}
                                 title={`Part of: ${g.ladder!.parent!.title}`}
-                                className="inline-flex items-center gap-1 rounded-md border border-violet-500/30 bg-violet-500/5 px-1.5 py-0.5 text-violet-300 hover:bg-violet-500/15 transition-colors max-w-[60%]"
+                                className="inline-flex items-center gap-1 rounded-control border border-violet-500/30 bg-violet-500/5 px-1.5 py-0.5 text-violet-300 hover:bg-violet-500/15 transition-colors max-w-[60%]"
                               >
                                 <ArrowUp size={9} className="shrink-0" />
                                 <span className="truncate">{g.ladder!.parent!.title}</span>
@@ -1291,7 +1291,7 @@ export function GoalBoard() {
                             )}
                             {(g.ladder?.rollup.childCount ?? 0) > 0 && (
                               <span
-                                className="inline-flex items-center gap-1 rounded-md border border-sky-500/25 bg-sky-500/5 px-1.5 py-0.5 text-sky-300/90"
+                                className="inline-flex items-center gap-1 rounded-control border border-sky-500/25 bg-sky-500/5 px-1.5 py-0.5 text-sky-300/90"
                                 title="Sub-goals laddering into this one"
                               >
                                 <GitBranch size={9} className="shrink-0" />
@@ -1305,7 +1305,7 @@ export function GoalBoard() {
                         )}
                       {/* Ambition Engine P3 · identity line (narrative goals) */}
                       {g.identityLine && editingId !== g.id && (
-                        <p className="text-[10px] text-violet-300/80 italic mt-0.5 line-clamp-2">
+                        <p className="text-[11px] text-violet-300/80 italic mt-0.5 line-clamp-2">
                           &ldquo;{g.identityLine}&rdquo;
                         </p>
                       )}
@@ -1317,10 +1317,10 @@ export function GoalBoard() {
                           g.ambition ||
                           g.killBy ||
                           ((g.minutesInvested ?? 0) > 0 && g.progress > 0)) && (
-                          <div className="flex items-center gap-1.5 mt-1 flex-wrap text-[9px] font-mono">
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap text-[11px] font-mono">
                             {typeof g.conviction === "number" && (
                               <span
-                                className="inline-flex items-center gap-0.5 rounded-md border border-pink-500/30 bg-pink-500/5 px-1.5 py-0.5 text-pink-300/90"
+                                className="inline-flex items-center gap-0.5 rounded-control border border-pink-500/30 bg-pink-500/5 px-1.5 py-0.5 text-pink-300/90"
                                 title="Conviction — how devastated you'd be to lose this"
                               >
                                 <Flame size={9} className="shrink-0" />
@@ -1329,7 +1329,7 @@ export function GoalBoard() {
                             )}
                             {g.ambition && (
                               <span
-                                className="inline-flex items-center rounded-md border border-amber-500/30 bg-amber-500/5 px-1.5 py-0.5 text-amber-300/90 uppercase tracking-wider"
+                                className="inline-flex items-center rounded-micro border border-amber-500/30 bg-amber-500/5 px-1.5 py-0.5 text-amber-300/90"
                                 title="Ambition tag"
                               >
                                 {g.ambition === "tenx" ? "10x" : "incremental"}
@@ -1337,7 +1337,7 @@ export function GoalBoard() {
                             )}
                             {g.killBy && (
                               <span
-                                className="inline-flex items-center gap-0.5 rounded-md border border-rose-500/30 bg-rose-500/5 px-1.5 py-0.5 text-rose-300/80"
+                                className="inline-flex items-center gap-0.5 rounded-control border border-rose-500/30 bg-rose-500/5 px-1.5 py-0.5 text-rose-300/80"
                                 title={
                                   g.killCriteria
                                     ? `Kill if: ${g.killCriteria}`
@@ -1350,7 +1350,7 @@ export function GoalBoard() {
                             )}
                             {(g.minutesInvested ?? 0) > 0 && g.progress > 0 && (
                               <span
-                                className="inline-flex items-center gap-0.5 rounded-md border border-zinc-700 bg-zinc-800/40 text-zinc-500 px-1.5 py-0.5"
+                                className="inline-flex items-center gap-0.5 rounded-control border border-edge-default bg-surface-interactive text-fg-tertiary px-1.5 py-0.5"
                                 title="Idiot index — hours invested per 1% of progress (lower is better)"
                               >
                                 <Gauge size={9} className="shrink-0" />
@@ -1359,8 +1359,8 @@ export function GoalBoard() {
                             )}
                           </div>
                         )}
-                      <div className="flex items-center gap-2 mt-1 text-[9px] text-zinc-600 font-mono flex-wrap">
-                        <Badge className="bg-zinc-800/50 text-zinc-500 text-[8px] h-3 border-0">
+                      <div className="flex items-center gap-2 mt-1 text-[11px] text-fg-tertiary font-mono flex-wrap">
+                        <Badge className="bg-surface-interactive text-fg-tertiary text-[11px] h-4 border-0">
                           {g.domain}
                         </Badge>
                         {(g.linkedTaskCount ?? 0) > 0 && (
@@ -1376,10 +1376,10 @@ export function GoalBoard() {
                         {(g.linkedTaskCount ?? 0) > 0 && (
                           <span
                             className={cn(
-                              "inline-flex items-center gap-0.5 px-1 rounded border",
+                              "inline-flex items-center gap-0.5 px-1 rounded-control border",
                               (g.loopsThisWeek ?? 0) > 0
                                 ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-300"
-                                : "border-zinc-800 text-zinc-500"
+                                : "border-edge-subtle text-fg-tertiary"
                             )}
                             title="Tasks completed on this goal in the last 7 days"
                           >
@@ -1405,7 +1405,7 @@ export function GoalBoard() {
                               setLogId(g.id);
                               setLogValue("");
                             }}
-                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-zinc-700 hover:border-amber-500/40 hover:bg-amber-500/5 transition-colors"
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-control border border-edge-default hover:border-amber-500/40 hover:bg-amber-500/5 transition-colors"
                             title="Log progress"
                           >
                             <span>
@@ -1435,13 +1435,13 @@ export function GoalBoard() {
                                 }
                               }}
                               placeholder="+N"
-                              className="h-5 w-14 px-1.5 text-[10px] bg-zinc-900 border-amber-500/40"
+                              className="h-5 w-14 px-1.5 text-[11px] bg-content border-amber-500/40"
                             />
                             <button
                               type="button"
                               onClick={() => void submitProgressLog(g.id)}
                               disabled={logBusy || !logValue}
-                              className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-300 disabled:opacity-50"
+                              className="text-[12px] font-medium px-1.5 py-0.5 rounded-control border border-amber-500/40 bg-amber-500/10 text-amber-300 disabled:opacity-50"
                             >
                               {logBusy ? <Loader2 size={9} className="animate-spin" /> : "log"}
                             </button>
@@ -1451,7 +1451,7 @@ export function GoalBoard() {
                                 setLogId(null);
                                 setLogValue("");
                               }}
-                              className="text-[9px] text-zinc-600 hover:text-zinc-400"
+                              className="text-[11px] text-fg-tertiary hover:text-fg-secondary"
                             >
                               ✕
                             </button>
@@ -1475,7 +1475,7 @@ export function GoalBoard() {
                             return (
                               <span
                                 key={s.statKey}
-                                className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider"
+                                className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em]"
                                 style={{
                                   color: d.color,
                                   borderColor: `${d.color}40`,
@@ -1516,7 +1516,7 @@ export function GoalBoard() {
                                 ? "border-amber-500/30 bg-amber-500/5 text-amber-300"
                                 : v.kind === "missed"
                                   ? "border-rose-500/30 bg-rose-500/5 text-rose-300"
-                                  : "border-zinc-700 bg-zinc-800/40 text-zinc-400";
+                                  : "border-edge-default bg-surface-interactive text-fg-secondary";
                         const Icon =
                           v.kind === "ahead"
                             ? TrendingUp
@@ -1554,7 +1554,7 @@ export function GoalBoard() {
                             onClick={(e) => e.stopPropagation()}
                             title={`Add a daily-increment task for this goal (${suggestedAmount}/day)`}
                             className={cn(
-                              "mt-1.5 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[9px] font-mono hover:scale-[1.02] transition-transform",
+                              "mt-1.5 inline-flex items-center gap-1 rounded-control border px-1.5 py-0.5 text-[11px] font-mono hover:scale-[1.02] transition-transform",
                               tone
                             )}
                           >
@@ -1563,7 +1563,7 @@ export function GoalBoard() {
                         ) : (
                           <div
                             className={cn(
-                              "mt-1.5 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[9px] font-mono",
+                              "mt-1.5 inline-flex items-center gap-1 rounded-control border px-1.5 py-0.5 text-[11px] font-mono",
                               tone
                             )}
                           >
@@ -1581,14 +1581,14 @@ export function GoalBoard() {
                         <Link
                           href={`/missions?taskId=${g.nextMove.id}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-1.5 py-0.5 text-[9px] hover:bg-emerald-500/10 transition-colors w-full text-left"
+                          className="mt-1.5 inline-flex items-center gap-1.5 rounded-control border border-emerald-500/30 bg-emerald-500/5 px-1.5 py-0.5 text-[11px] hover:bg-emerald-500/10 transition-colors w-full text-left"
                           title="Open this task on the Actions page"
                         >
                           <Zap size={9} className="text-emerald-400 shrink-0" />
-                          <span className="font-mono uppercase tracking-wider text-emerald-400/70 shrink-0">
-                            {g.nextMove.status === "DOING" ? "in flight:" : "next:"}
+                          <span className="font-mono uppercase tracking-[0.12em] text-emerald-400/70 shrink-0">
+                            {g.nextMove.status === "DOING" ? "In flight:" : "Next:"}
                           </span>
-                          <span className="text-zinc-300 truncate">
+                          <span className="text-fg-secondary truncate">
                             {g.nextMove.title}
                           </span>
                           <ArrowRight size={9} className="text-emerald-400/60 shrink-0 ml-auto" />
@@ -1611,11 +1611,11 @@ export function GoalBoard() {
                               e.stopPropagation();
                               setMilestonesGoalId(g.id);
                             }}
-                            className="text-[9px] px-1.5 py-0.5 rounded border border-blue-500/40 bg-blue-500/10 text-blue-300 hover:border-blue-500/70 hover:bg-blue-500/25 transition-all font-bold uppercase tracking-wider inline-flex items-center gap-0.5"
+                            className="text-[11px] px-1.5 py-0.5 rounded-control border border-blue-500/40 bg-blue-500/10 text-blue-300 hover:border-blue-500/70 hover:bg-blue-500/25 transition-all font-medium inline-flex items-center gap-0.5"
                             title="Break this goal into 3-5 milestones with Nick — then spawn the mission"
                           >
                             <Brain size={8} />
-                            plan it
+                            Plan it
                           </button>
                         </div>
                       )}
@@ -1623,9 +1623,9 @@ export function GoalBoard() {
 
                     <div className="shrink-0 mt-1">
                       {isExpanded ? (
-                        <ChevronUp size={12} className="text-zinc-600" />
+                        <ChevronUp size={12} className="text-fg-tertiary" />
                       ) : (
-                        <ChevronDown size={12} className="text-zinc-600" />
+                        <ChevronDown size={12} className="text-fg-tertiary" />
                       )}
                     </div>
                   </div>
@@ -1667,7 +1667,7 @@ export function GoalBoard() {
 
                 {/* Expanded panel */}
                 {isExpanded && (
-                  <div className="px-3 pb-3 space-y-2 border-t border-zinc-800/30">
+                  <div className="px-3 pb-3 space-y-2 border-t border-edge-subtle">
                     {!showLegacyGoalIds.has(g.id) ? (
                       <div className="mt-2 space-y-2">
                         <ExecutionCoachSandbox
@@ -1686,7 +1686,7 @@ export function GoalBoard() {
                                 return next;
                               });
                             }}
-                            className="text-[8px] text-zinc-600 hover:text-zinc-400 uppercase tracking-wider flex items-center gap-1"
+                            className="text-[12px] font-medium text-fg-tertiary hover:text-fg-secondary flex items-center gap-1"
                           >
                             Show Legacy Details
                           </button>
@@ -1698,38 +1698,38 @@ export function GoalBoard() {
                         {latestCoach ? (
                           <div className="mt-2 space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <p className="text-[9px] font-bold uppercase tracking-wider text-amber-400/70">
+                              <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-amber-400/70">
                                 Nick&apos;s read
                               </p>
                               <button
                                 onClick={() => coachGoal(g.id)}
                                 disabled={coachingId === g.id}
-                                className="text-[8px] text-amber-400/50 hover:text-amber-400 uppercase"
+                                className="text-[12px] font-medium text-amber-400/50 hover:text-amber-400"
                               >
-                                {coachingId === g.id ? "thinking…" : "refresh"}
+                                {coachingId === g.id ? "Thinking…" : "Refresh"}
                               </button>
                             </div>
-                            <p className="text-[11px] text-zinc-300 leading-relaxed">
+                            <p className="text-[11px] text-fg-secondary leading-relaxed">
                               {latestCoach.read}
                             </p>
-                            <div className="flex items-start gap-2 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                            <div className="flex items-start gap-2 p-2 rounded-surface bg-emerald-500/5 border border-emerald-500/20">
                               <Zap size={10} className="text-emerald-400 shrink-0 mt-0.5" />
                               <div>
-                                <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-400/70">
+                                <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-emerald-400/70">
                                   Next move
                                 </p>
-                                <p className="text-[11px] text-zinc-200">
+                                <p className="text-[11px] text-fg">
                                   {latestCoach.nextAction}
                                 </p>
                               </div>
                             </div>
                             {latestCoach.blocker && (
-                              <div className="flex items-start gap-2 text-[10px]">
+                              <div className="flex items-start gap-2 text-[11px]">
                                 <AlertTriangle
                                   size={9}
                                   className="text-red-400/60 shrink-0 mt-0.5"
                                 />
-                                <span className="text-zinc-400">
+                                <span className="text-fg-secondary">
                                   Blocker: {latestCoach.blocker}
                                 </span>
                               </div>
@@ -1739,14 +1739,14 @@ export function GoalBoard() {
                           <button
                             onClick={() => coachGoal(g.id)}
                             disabled={coachingId === g.id}
-                            className="mt-2 w-full flex items-center justify-center gap-2 p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors"
+                            className="mt-2 w-full flex items-center justify-center gap-2 p-2.5 rounded-surface border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors"
                           >
                             {coachingId === g.id ? (
                               <Loader2 size={12} className="animate-spin text-amber-400" />
                             ) : (
                               <Brain size={12} className="text-amber-400" />
                             )}
-                            <span className="text-[10px] font-bold text-amber-300">
+                            <span className="text-[11px] font-semibold text-amber-300">
                               {coachingId === g.id
                                 ? "Nick is analyzing…"
                                 : "Ask Nick to analyze this goal"}
@@ -1758,7 +1758,7 @@ export function GoalBoard() {
                             children) — tap to scroll to that goal's card. */}
                         {(g.ladder?.children.length ?? 0) > 0 && (
                           <div className="mt-2 space-y-1">
-                            <p className="text-[9px] font-bold uppercase tracking-wider text-sky-400/70">
+                            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-sky-400/70">
                               Sub-goals ({g.ladder!.children.length})
                             </p>
                             {g.ladder!.children.map((c) => (
@@ -1774,12 +1774,12 @@ export function GoalBoard() {
                                       ?.scrollIntoView({ behavior: "smooth", block: "start" }),
                                   );
                                 }}
-                                className="w-full flex items-center gap-2 rounded-md border border-zinc-800/40 bg-zinc-900/40 px-2 py-1 hover:bg-zinc-900/70 transition-colors text-left"
+                                className="w-full flex items-center gap-2 rounded-control border border-edge-subtle bg-content px-2 py-1 hover:bg-surface-hover transition-colors text-left"
                               >
-                                <span className="text-[9px] font-mono text-zinc-500 w-7 shrink-0 text-right">
+                                <span className="text-[11px] font-mono text-fg-tertiary w-7 shrink-0 text-right">
                                   {c.progress}%
                                 </span>
-                                <span className="text-[10px] text-zinc-300 truncate flex-1">
+                                <span className="text-[11px] text-fg-secondary truncate flex-1">
                                   {c.title}
                                 </span>
                                 {(c.status === "achieved" || c.status === "completed") && (
@@ -1797,18 +1797,18 @@ export function GoalBoard() {
                               e.stopPropagation();
                               startEdit(g);
                             }}
-                            className="text-[8px] text-zinc-600 hover:text-amber-400 uppercase tracking-wider flex items-center gap-1"
+                            className="text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
                           >
                             <Pencil size={9} />
                             Edit
                           </button>
                           <button
                             onClick={() => archiveGoal(g.id)}
-                            className="text-[8px] text-zinc-700 hover:text-amber-400 uppercase tracking-wider flex items-center gap-1"
+                            className="text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
                             title="pauses the goal · history preserved · recoverable"
                           >
                             <Trash2 size={9} />
-                            archive
+                            Archive
                           </button>
                           <button
                             type="button"
@@ -1820,7 +1820,7 @@ export function GoalBoard() {
                                 return next;
                               });
                             }}
-                            className="ml-auto text-[8px] text-amber-400/60 hover:text-amber-400 uppercase tracking-wider"
+                            className="ml-auto text-[12px] font-medium text-amber-400/60 hover:text-amber-400"
                           >
                             Show Execution Coach
                           </button>

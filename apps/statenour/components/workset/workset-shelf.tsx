@@ -41,35 +41,35 @@ export function WorksetShelf() {
       aria-label="Workset"
       data-workset={entries.length}
       className={cn(
-        "fixed bottom-[calc(var(--bottom-chrome-h,6rem)+0.5rem)] left-3 z-[53] flex max-w-[calc(100vw-1.5rem)] items-center gap-1.5 overflow-x-auto rounded-xl border border-edge bg-elevated/95 px-2 py-1.5 no-scrollbar",
+        "fixed bottom-[calc(var(--bottom-chrome-h,6rem)+0.5rem)] left-3 z-[53] flex max-w-[calc(100vw-1.5rem)] items-center gap-1.5 overflow-x-auto rounded-float border border-edge-default bg-surface-raised px-2 py-1.5 shadow-l1 no-scrollbar",
         "md:max-w-[min(60vw,40rem)] md:right-auto",
         // 2026-09-16 · Visible Transformation · on desktop the workset is a
         // persistent strip at the top of <main>, in flow, not a floating pill.
-        "xl:static xl:z-auto xl:w-full xl:max-w-none xl:rounded-none xl:border-0 xl:border-b xl:border-edge xl:bg-transparent xl:px-8 xl:py-2.5",
+        "xl:static xl:z-auto xl:w-full xl:max-w-none xl:rounded-none xl:border-0 xl:border-b xl:border-edge-subtle xl:bg-transparent xl:shadow-none xl:px-8 xl:py-2.5",
       )}
     >
-      <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.16em] text-gold">
+      <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
         workset · {entries.length}
       </span>
       {entries.map((entry) => (
         <span
           key={`${entry.ref.kind}:${entry.ref.id}`}
-          className="inline-flex shrink-0 items-center overflow-hidden rounded-lg border border-edge bg-raised"
+          className="inline-flex shrink-0 items-center overflow-hidden rounded-control border border-edge-default bg-content"
         >
           <button
             type="button"
             onClick={() => openInspector(entry.ref)}
             title={`${ENTITY_KIND_LABEL[entry.ref.kind]} · ${describeExpiry(entry, now)}`}
-            className="inline-flex min-h-[44px] max-w-[11rem] items-center gap-1.5 px-2 text-[12px] text-fg-secondary hover:text-gold md:min-h-[36px]"
+            className="inline-flex min-h-[44px] max-w-[11rem] items-center gap-1.5 px-2 text-[13px] font-medium text-fg-secondary hover:text-fg md:min-h-[36px]"
           >
-            <span className="font-mono text-[11px] uppercase tracking-wide text-fg-tertiary">{entry.ref.kind}</span>
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{entry.ref.kind}</span>
             <span className="truncate">{entry.label}</span>
           </button>
           <button
             type="button"
             onClick={() => remove(entry.ref)}
             aria-label={`Remove ${entry.label} from workset`}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center border-l border-edge text-fg-tertiary hover:text-fg md:min-h-[36px] md:min-w-[32px]"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center border-l border-edge-default text-fg-tertiary hover:text-fg md:min-h-[36px] md:min-w-[32px]"
           >
             <X size={12} />
           </button>

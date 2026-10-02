@@ -40,6 +40,8 @@ import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { TrendCounter } from "@/components/ui/trend-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { SchemaDriftCard } from "@/components/system/schema-drift-card";
+import { SystemHealthDataCards } from "@/components/system/health-data-cards";
+import { SystemHealthCard } from "@/components/ultron/system-health-card";
 import { trpc } from "@/lib/trpc/client";
 import type { HealthReport } from "@/lib/services/system-health";
 
@@ -80,7 +82,7 @@ export default function SystemHealthPage() {
         width="lg"
         className="px-3 py-4"
       >
-        <p className="text-[var(--text-tertiary)]">Health report unavailable — state unknown, not healthy.</p>
+        <p className="text-fg-tertiary">Health report unavailable — state unknown, not healthy.</p>
       </StandardPage>
     );
   }
@@ -123,16 +125,16 @@ export default function SystemHealthPage() {
               source="health-report"
               onReload={load}
             />
-            <div className="inline-flex rounded-md border border-[var(--border-default)] overflow-hidden">
+            <div className="inline-flex rounded-control border border-edge-default overflow-hidden">
               {(["24h", "7d", "30d"] as const).map((r) => (
                 <button
                   key={r}
                   onClick={() => setRange(r)}
                   className={cn(
-                    "px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors",
+                    "px-2.5 py-1 text-[11px] font-bold transition-colors",
                     range === r
-                      ? "bg-[var(--gold)]/15 text-[var(--gold)]"
-                      : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]",
+                      ? "bg-accent-soft text-fg"
+                      : "text-fg-tertiary hover:text-fg",
                   )}
                 >
                   {r}
@@ -141,7 +143,7 @@ export default function SystemHealthPage() {
             </div>
             <button
               onClick={load}
-              className="p-1.5 rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--bg-raised)]"
+              className="p-1.5 rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover"
               aria-label="refresh"
               title="refresh"
             >
@@ -156,6 +158,14 @@ export default function SystemHealthPage() {
           dimensions that broke in prod (revenue $0 · evals 0/75 · bridge
           down) but weren't surfaced here. Loud (red) only when wrong. */}
       <OperationalStatus report={data} />
+
+      {/* 2026-10-02 · full-circle wave 2 · the nightly health digest (push
+          card) and the three data cards (7d trend · 24h error rate by route ·
+          integration quotas) moved here from Settings > Diagnostics: they
+          read machine health, and machine operations are /system's
+          (docs/design/settings-census-2026-10-02.md). */}
+      <SystemHealthCard />
+      <SystemHealthDataCards />
 
       {/* v8.2 BATCH 12 — schema-drift sentinel surface. Loud only when
           something's off; silent (✓ all expectations met) otherwise. */}
@@ -242,26 +252,26 @@ export default function SystemHealthPage() {
       </div>
 
       {/* Cron health table */}
-      <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)]">
-        <header className="flex items-center gap-2 px-3 py-2 border-b border-[var(--border-default)]">
-          <Activity size={12} className="text-[var(--gold)]" />
-          <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-[var(--gold)]">
+      <section className="rounded-surface border border-edge-default bg-content">
+              <header className="flex items-center gap-2 px-3 py-2 border-b border-edge-default">
+          <Activity size={12} className="text-fg-secondary" />
+          <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
             cron health · {data.range}
           </h2>
-          <span className="text-[9px] font-mono text-[var(--text-tertiary)] ml-auto">
+          <span className="text-[11px] font-mono text-fg-tertiary ml-auto">
             {data.cron.jobs.length} jobs reported
           </span>
         </header>
         {data.cron.jobs.length === 0 ? (
-          <p className="px-3 py-3 text-[11px] text-[var(--text-tertiary)] italic">
+          <p className="px-3 py-3 text-[11px] text-fg-tertiary italic">
             No cron logs in {data.range} — crons may be idle in this window. Check{" "}
-            <Link href="/system/crons" className="underline underline-offset-2 hover:text-[var(--gold)]">/system/crons</Link>{" "}
+            <Link href="/system/crons" className="underline underline-offset-2 hover:text-fg">/system/crons</Link>{" "}
             for the live control deck.
           </p>
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="text-[8px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+              <tr className="text-[12px] font-medium text-fg-secondary">
                 <th className="text-left px-3 py-1 font-normal">job</th>
                 <th className="text-right px-3 py-1 font-normal">success</th>
                 <th className="text-right px-3 py-1 font-normal">failed</th>
@@ -273,13 +283,13 @@ export default function SystemHealthPage() {
               {[...data.cron.jobs]
                 .sort((a, b) => b.failed - a.failed || b.success - a.success)
                 .map((j) => (
-                  <tr key={j.jobName} className="hover:bg-[var(--bg-void)]/40">
-                    <td className="px-3 py-1.5 text-[11px] font-mono text-[var(--text-primary)]">{j.jobName}</td>
+                  <tr key={j.jobName} className="hover:bg-canvas">
+              <td className="px-3 py-1.5 text-[11px] font-mono text-fg">{j.jobName}</td>
                     <td className="px-3 py-1.5 text-[11px] font-mono tabular-nums text-emerald-400 text-right"><AnimatedCounter value={j.success} /></td>
-                    <td className={cn("px-3 py-1.5 text-[11px] font-mono tabular-nums text-right", j.failed > 0 ? "text-red-400" : "text-[var(--text-tertiary)]")}>
+                    <td className={cn("px-3 py-1.5 text-[11px] font-mono tabular-nums text-right", j.failed > 0 ? "text-red-400" : "text-fg-tertiary")}>
                       <AnimatedCounter value={j.failed} />
                     </td>
-                    <td className="px-3 py-1.5 text-[11px] font-mono tabular-nums text-[var(--text-tertiary)] text-right"><AnimatedCounter value={j.avgMs} /></td>
+                    <td className="px-3 py-1.5 text-[11px] font-mono tabular-nums text-fg-tertiary text-right"><AnimatedCounter value={j.avgMs} /></td>
                     <td className="px-3 py-1.5 text-right">
                       {j.healthy ? (
                         <CheckCircle2 size={11} className="inline text-emerald-400" />
@@ -296,20 +306,20 @@ export default function SystemHealthPage() {
 
       {/* Error patterns */}
       {data.errors.topPatterns.length > 0 && (
-        <section className="rounded-lg border border-red-500/30 bg-red-500/5">
+        <section className="rounded-surface border border-red-500/30 bg-red-500/5">
           <header className="flex items-center gap-2 px-3 py-2 border-b border-red-500/20">
             <AlertTriangle size={12} className="text-red-400" />
-            <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-red-400">
+            <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-red-400">
               top error patterns · {data.range}
             </h2>
           </header>
           <ul className="divide-y divide-red-500/10">
             {data.errors.topPatterns.map((p, i) => (
               <li key={i} className="px-3 py-1.5 flex items-center gap-3">
-                <span className="shrink-0 text-[9px] font-mono font-bold tabular-nums text-red-400 w-6 text-right">
+              <span className="shrink-0 text-[11px] font-mono font-bold tabular-nums text-red-400 w-6 text-right">
                   ×<AnimatedCounter value={p.count} />
                 </span>
-                <span className="text-[11px] font-mono text-[var(--text-primary)] min-w-0 truncate">{p.msg}</span>
+                <span className="text-[11px] font-mono text-fg min-w-0 truncate">{p.msg}</span>
               </li>
             ))}
           </ul>
@@ -317,10 +327,10 @@ export default function SystemHealthPage() {
       )}
 
       {/* Freshness grid */}
-      <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)]">
-        <header className="flex items-center gap-2 px-3 py-2 border-b border-[var(--border-default)]">
-          <Clock size={12} className="text-blue-400" />
-          <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-blue-400">
+      <section className="rounded-surface border border-edge-default bg-content">
+              <header className="flex items-center gap-2 px-3 py-2 border-b border-edge-default">
+          <Clock size={12} className="text-fg-secondary" />
+          <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
             signal freshness
           </h2>
         </header>
@@ -340,10 +350,10 @@ export default function SystemHealthPage() {
 
       {/* Backlog + Vector tiles side by side */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)]">
-          <header className="flex items-center gap-2 px-3 py-2 border-b border-[var(--border-default)]">
+              <section className="rounded-surface border border-edge-default bg-content">
+          <header className="flex items-center gap-2 px-3 py-2 border-b border-edge-default">
             <Archive size={12} className="text-amber-400" />
-            <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-amber-400">
+            <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-400">
               backlog pressure
             </h2>
           </header>
@@ -358,17 +368,17 @@ export default function SystemHealthPage() {
           </dl>
         </section>
 
-        <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)]">
-          <header className="flex items-center gap-2 px-3 py-2 border-b border-[var(--border-default)]">
-            <Database size={12} className="text-violet-400" />
-            <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-violet-400">
+        <section className="rounded-surface border border-edge-default bg-content">
+              <header className="flex items-center gap-2 px-3 py-2 border-b border-edge-default">
+            <Database size={12} className="text-fg-secondary" />
+            <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
               vector coverage
             </h2>
-            <span className="text-[9px] font-mono text-[var(--text-tertiary)] ml-auto"><AnimatedCounter value={totalVectors} /> rows</span>
+            <span className="text-[11px] font-mono text-fg-tertiary ml-auto"><AnimatedCounter value={totalVectors} /> rows</span>
           </header>
           <dl className="p-3 space-y-1.5 text-[11px] font-mono">
             {data.vectorIndex.length === 0 ? (
-              <p className="italic text-[var(--text-tertiary)]">no vector rows</p>
+              <p className="italic text-fg-tertiary">no vector rows</p>
             ) : (
               data.vectorIndex
                 .sort((a, b) => b.count - a.count)
@@ -380,13 +390,13 @@ export default function SystemHealthPage() {
 
       {/* Law feedback */}
       {(data.lawFeedback.situationLogsWithLawId > 0 || data.lawFeedback.triggerContextLogs > 0) && (
-        <section className="rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/5">
+        <section className="rounded-surface border border-edge-subtle bg-content">
           <header className="flex items-center gap-2 px-3 py-2">
-            <Flame size={12} className="text-[var(--gold)]" />
-            <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-[var(--gold)]">
+            <Flame size={12} className="text-fg-secondary" />
+            <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
               strategic law feedback · {data.range}
             </h2>
-            <span className="text-[9px] font-mono text-[var(--text-tertiary)] ml-auto">
+            <span className="text-[11px] font-mono text-fg-tertiary ml-auto">
               {data.lawFeedback.situationLogsWithLawId} logged · {data.lawFeedback.triggerContextLogs} via trigger
             </span>
           </header>
@@ -402,24 +412,24 @@ export default function SystemHealthPage() {
           byte-identically to a healthy-but-quiet lens. Hiding the section
           on null threw that distinction away again at the consumer. */}
       {data.lens === null && (
-        <section className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
-          <span className="text-[10px] font-mono text-amber-300">
+        <section className="rounded-surface border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+              <span className="text-[11px] font-mono text-amber-300">
             strategic lens · read failed — unknown, not zero
           </span>
         </section>
       )}
       {data.lens && data.lens.totalFires > 0 && (
-        <section className="rounded-lg border border-emerald-500/30 bg-emerald-500/5">
+        <section className="rounded-surface border border-emerald-500/30 bg-emerald-500/5">
           <header className="flex items-center gap-2 px-3 py-2">
             <Activity size={12} className="text-emerald-400" />
-            <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-emerald-300">
+            <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-emerald-300">
               strategic lens · {data.range}
             </h2>
             <Link
               href="/system/calibration"
-              className="ml-auto text-[9px] font-mono text-emerald-400/80 hover:text-emerald-300"
+              className="ml-auto text-[11px] font-mono text-emerald-400/80 hover:text-emerald-300"
             >
-              full →
+              Full →
             </Link>
           </header>
           <dl className="px-3 pb-2 text-[11px] font-mono space-y-0.5">
@@ -444,10 +454,10 @@ export default function SystemHealthPage() {
           avg duration. Click-through to /system/vapi-calls for
           per-call detail. */}
       {data.voice && data.voice.totalCalls > 0 && (
-        <section className="rounded-lg border border-amber-500/30 bg-amber-500/5">
+        <section className="rounded-surface border border-amber-500/30 bg-amber-500/5">
           <header className="flex items-center gap-2 px-3 py-2">
             <Activity size={12} className="text-amber-400" />
-            <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-amber-300">
+            <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300">
               voice calls (VAPI) · {data.range}
             </h2>
           </header>
@@ -540,7 +550,7 @@ function OperationalStatus({ report }: { report: HealthReport }) {
   return (
     <section
       className={cn(
-        "rounded-lg border px-3 py-2.5",
+        "rounded-surface border px-3 py-2.5",
         allGood
           ? "border-emerald-500/30 bg-emerald-500/5"
           : down
@@ -556,7 +566,7 @@ function OperationalStatus({ report }: { report: HealthReport }) {
         )}
         <h2
           className={cn(
-            "text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em]",
+            "font-mono text-[11px] uppercase tracking-[0.12em]",
             allGood ? "text-emerald-300" : down ? "text-red-400" : "text-amber-300",
           )}
         >
@@ -564,20 +574,20 @@ function OperationalStatus({ report }: { report: HealthReport }) {
         </h2>
       </div>
       {reasons.length > 0 && (
-        <p className="mb-2 text-[10px] font-mono text-[var(--text-secondary)]">
+        <p className="mb-2 text-[11px] font-mono text-fg-secondary">
           {reasons.join(" · ")}
         </p>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <Link
           href="/system/calibration"
-          className="block rounded-md border border-[var(--border-default)] px-3 py-2 hover:bg-[var(--bg-void)]/30"
+          className="block rounded-control border border-edge-default px-3 py-2 hover:bg-canvas"
         >
           <div className="flex items-center justify-between mb-0.5">
-            <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               AI eval pass-rate
             </span>
-            <span className="text-[9px] font-mono text-[var(--text-tertiary)]/70">
+            <span className="text-[11px] font-mono text-fg-tertiary">
               calibration →
             </span>
           </div>
@@ -589,19 +599,19 @@ function OperationalStatus({ report }: { report: HealthReport }) {
               )}
             >
               {ev.passRate}%
-              <span className="ml-2 text-[10px] font-mono text-[var(--text-tertiary)]">
+              <span className="ml-2 text-[11px] font-mono text-fg-tertiary">
                 {ev.passed}/{ev.total}
               </span>
             </div>
           ) : (
-            <div className="text-sm text-[var(--text-tertiary)]">no eval run yet</div>
+            <div className="text-sm text-fg-tertiary">no eval run yet</div>
           )}
         </Link>
-        <div className="block rounded-md border border-[var(--border-default)] px-3 py-2">
+        <div className="block rounded-control border border-edge-default px-3 py-2">
           {/* Label said "bridge · data sources" but the number counts ALL
               probes regardless of kind — only 2 of the 6 are the nickstire
               bridge, and `bridgeFailing` was computed and never rendered. */}
-          <div className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mb-0.5">
+          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
             data-source probes
           </div>
           <div
@@ -621,7 +631,7 @@ function OperationalStatus({ report }: { report: HealthReport }) {
                     : `${ds.total} OK`}
           </div>
           {ds !== null && ds.bridgeFailing > 0 && (
-            <div className="text-[9px] font-mono text-red-300/90 mt-0.5">
+            <div className="text-[11px] font-mono text-red-300/90 mt-0.5">
               {ds.bridgeFailing} nickstire bridge
             </div>
           )}
@@ -636,7 +646,7 @@ function OperationalStatus({ report }: { report: HealthReport }) {
               <li
                 key={p.name}
                 className={cn(
-                  "text-[10px] font-mono truncate",
+                  "text-[11px] font-mono truncate",
                   p.ok ? "text-amber-300/90" : "text-red-300/90",
                 )}
               >
@@ -659,7 +669,7 @@ function FreshnessTile({
   extra?: string;
 }) {
   let text = "never";
-  let color = "text-[var(--text-tertiary)]";
+  let color = "text-fg-tertiary";
   if (hoursAgo !== null) {
     if (hoursAgo < 24) {
       text = `${hoursAgo}h ago`;
@@ -667,18 +677,18 @@ function FreshnessTile({
     } else {
       const days = Math.round(hoursAgo / 24);
       text = `${days}d ago`;
-      color = days <= 3 ? "text-[var(--text-secondary)]" : days <= 7 ? "text-amber-400" : "text-red-400";
+      color = days <= 3 ? "text-emerald-300" : days <= 7 ? "text-amber-400" : "text-red-400";
     }
   }
   return (
-    <div className="bg-[var(--bg-raised)] px-3 py-2">
-      <div className="text-[8px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mb-0.5">
+    <div className="bg-content px-3 py-2">
+              <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
         {label}
       </div>
-      <div className={cn("text-sm font-[var(--font-display)] font-bold tabular-nums", color)}>
+      <div className={cn("text-sm font-bold tabular-nums", color)}>
         {text}
       </div>
-      {extra && <div className="text-[8px] font-mono text-[var(--text-tertiary)]/80">{extra}</div>}
+      {extra && <div className="text-[11px] font-mono text-fg-tertiary">{extra}</div>}
     </div>
   );
 }
@@ -700,10 +710,10 @@ function KVRow({
       ? "text-amber-400"
       : tone === "ok"
         ? "text-emerald-300"
-        : "text-[var(--text-primary)]";
+        : "text-fg";
   const body = (
     <div className="flex items-center justify-between">
-      <span className="text-[var(--text-secondary)]">{k}</span>
+              <span className="text-fg-secondary">{k}</span>
       <span className={cn("tabular-nums font-bold", color)}>
         {typeof v === "number" ? <AnimatedCounter value={v} /> : v}
       </span>
@@ -711,7 +721,7 @@ function KVRow({
   );
   if (href) {
     return (
-      <Link href={href} className="block hover:bg-[var(--bg-void)]/30 -mx-1 px-1 py-0.5 rounded">
+      <Link href={href} className="block hover:bg-canvas -mx-1 px-1 py-0.5 rounded-control">
         {body}
       </Link>
     );

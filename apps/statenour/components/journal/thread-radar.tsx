@@ -14,8 +14,8 @@
  * dissolves into the persistent thread rail. Dismiss soft-deletes
  * the candidate so the next cron doesn't re-surface it.
  *
- * Aesthetic: editorial-minimalist · gold accent only on the live
- * action affordances · zero gradients · 44px tap targets · per
+ * Aesthetic: editorial-minimalist · gold only on the selected
+ * name pill · zero gradients · 44px tap targets · per
  * /goals + /scoreboard precedent.
  */
 
@@ -120,10 +120,10 @@ export function ThreadRadar({
           <button
             type="button"
             onClick={triggerScan}
-            className="text-[10px] uppercase tracking-[0.14em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition min-h-[32px] inline-flex items-center"
+            className="text-[13px] font-medium text-fg-secondary hover:text-fg transition-colors min-h-[32px] inline-flex items-center"
             title="run the convergence scan now · normally fires nightly at 22:00 UTC"
           >
-            scan radar now →
+            Scan radar now →
           </button>
         </section>
       );
@@ -137,13 +137,13 @@ export function ThreadRadar({
               type="button"
               onClick={triggerScan}
               disabled={scanState.busy}
-              className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] disabled:opacity-50"
+              className="text-fg-tertiary hover:text-fg disabled:opacity-50"
             >
-              {scanState.busy ? "scanning..." : "scan again"}
+              {scanState.busy ? "Scanning..." : "Scan again"}
             </button>
           }
         />
-        <p className="text-xs text-[var(--text-secondary)]">
+        <p className="text-xs text-fg-secondary">
           {scanState.error ? (
             <span className="text-red-300">{scanState.error}</span>
           ) : scanState.lastResult ? (
@@ -175,10 +175,10 @@ export function ThreadRadar({
             type="button"
             onClick={triggerScan}
             disabled={scanState.busy}
-            className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] disabled:opacity-50"
+            className="text-fg-tertiary hover:text-fg disabled:opacity-50"
             title="re-run the convergence scan"
           >
-            {scanState.busy ? "scanning..." : "rescan"}
+            {scanState.busy ? "Scanning..." : "Rescan"}
           </button>
         }
       />
@@ -257,12 +257,12 @@ function CandidateCard({
   };
 
   return (
-    <li className="rounded-lg border border-[#FDB913]/30 bg-[#FDB913]/[0.04] p-4">
+    <li className="rounded-surface border border-edge-default bg-surface-raised p-4">
       {/* Header · size + coherence + dismiss */}
       <div className="flex items-baseline justify-between gap-3 mb-3">
-        <div className="text-xs uppercase tracking-wider text-amber-200/80">
+        <div className="text-[13px] font-medium text-fg">
           {candidate.size} entries coalescing
-          <span className="ml-2 text-white/40">
+          <span className="ml-2 font-mono text-[12px] text-fg-tertiary">
             coherence {(candidate.coherence * 100).toFixed(0)}%
           </span>
         </div>
@@ -270,7 +270,7 @@ function CandidateCard({
           type="button"
           onClick={dismiss}
           disabled={busy}
-          className="text-[10px] uppercase tracking-wider text-white/40 hover:text-white/70 disabled:opacity-30 min-h-[44px] px-2"
+          className="text-[13px] font-medium text-fg-tertiary hover:text-fg disabled:opacity-30 min-h-[44px] px-2"
           title="not a real theme · don't re-fire"
         >
           dismiss
@@ -282,16 +282,16 @@ function CandidateCard({
         {candidate.members.slice(0, 5).map((m, i) => (
           <li
             key={`${m.entrySource}:${m.entryId}`}
-            className="text-sm text-white/75 flex gap-2"
+            className="text-sm text-fg-secondary flex gap-2"
           >
-            <span className="text-white/30 tabular-nums shrink-0">
+            <span className="text-fg-tertiary tabular-nums shrink-0">
               {i + 1}.
             </span>
             <span className="line-clamp-2">{m.excerpt}</span>
           </li>
         ))}
         {candidate.members.length > 5 ? (
-          <li className="text-[10px] text-white/30 tabular-nums uppercase tracking-wider pl-5">
+          <li className="text-[11px] font-mono text-fg-tertiary tabular-nums pl-5">
             + {candidate.members.length - 5} more
           </li>
         ) : null}
@@ -299,7 +299,7 @@ function CandidateCard({
 
       {/* Name picker */}
       <div className="space-y-2">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           Name this theme
         </p>
         <div className="flex flex-wrap gap-2">
@@ -313,8 +313,8 @@ function CandidateCard({
               }}
               className={`text-xs px-3 py-2 rounded-full border min-h-[44px] transition ${
                 chosen === s && custom.trim().length === 0
-                  ? "border-[#FDB913] bg-[#FDB913]/10 text-amber-100"
-                  : "border-white/15 text-white/70 hover:bg-white/5"
+                  ? "border-accent bg-accent-soft text-fg"
+                  : "border-edge-default text-fg-secondary hover:bg-surface-hover"
               }`}
             >
               {s}
@@ -327,13 +327,13 @@ function CandidateCard({
             value={custom}
             onChange={(e) => setCustom(e.target.value.slice(0, 120))}
             placeholder="or type your own"
-            className="flex-1 min-h-[44px] px-3 rounded border border-white/15 bg-transparent text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#FDB913]/60"
+            className="flex-1 min-h-[44px] px-3 rounded-control border border-edge-default bg-transparent text-sm text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent/60"
           />
           <button
             type="button"
             onClick={confirm}
             disabled={busy || finalName.length === 0}
-            className="text-xs uppercase tracking-wider px-4 min-h-[44px] rounded bg-[#FDB913] text-black font-medium hover:bg-[#FDB913]/90 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {busy ? "..." : "pin thread"}
           </button>

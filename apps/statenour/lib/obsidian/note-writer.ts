@@ -244,3 +244,28 @@ export function pruneConflictDir(
   }
   return { deleted, kept };
 }
+
+/**
+ * One note path per record per export run (2026-10-02). Two records that render
+ * to the same filename (reflections created in the same second; two goals or
+ * missions with the same title) used to overwrite each other on every export,
+ * and every overwrite woke the watch daemon, which exported again: an endless
+ * loop (143 MB of log, constant OneDrive churn) in which only the last writer
+ * was ever visible. The first record to claim a base name keeps it, so existing
+ * files do not move; a later record gets a short, stable id suffix. Callers must
+ * iterate in a deterministic order so the same record wins every run.
+ */
+export function createNotePathClaimer(): (dir: string, baseName: string, recordId: string) => string {
+  const owners = new Map<string, string>();
+  return (dir, baseName, recordId) => {
+    const plain = path.join(dir, `${baseName}.md`);
+    const owner = owners.get(plain);
+    if (owner === undefined || owner === recordId) {
+      owners.set(plain, recordId);
+      return plain;
+    }
+    const suffixed = path.join(dir, `${baseName} ${recordId.slice(-6)}.md`);
+    owners.set(suffixed, recordId);
+    return suffixed;
+  };
+}

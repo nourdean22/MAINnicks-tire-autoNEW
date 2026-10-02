@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "migration-evidence": {
+      "ref": "No new migration in this diff: it declares review_requests.invoiceId + uq_review_requests_invoice in drizzle/schema.ts, matching drizzle/0139_review_requests_invoice_source.sql, which is APPLIED and RECORDED in production (2026-10-02). Receipts: operator one-tap runner on deployment 5c5eec0d (d5838402) at 15:53:21Z, 176 steps, none failed; record-migrations.mjs dry run classified 0139 (with 0127-0130, 0132, 0133, 0136-0138) UNRECORDED_BUT_EXACT_MATCH against prod TiDB fingerprint 9486234786e5, --execute recorded them after a 144-row ledger backup with every hash read back; reconcile-migrations.mjs --strict exit 0, 0 UNRECORDED. Parity pinned by server/reviewRequestsInvoiceMigration.test.ts (4 tests; fails on undeclared column, wrong index name, NOT NULL — mutation-checked). Full receipts: apps/nickstire/docs/operations/ADMIN-TRUTH-PASS-2026-10-02.md 'Applied and recorded'."
+    },
+    "capability-ledger-updated": {
+      "ref": "UPDATED: apps/nickstire/docs/operations/capability-ledger.json 'admin-closure-wave-20261002' -> operationalState deployed with evidence.deploymentId (5c5eec0d), liveRuns (deploy + one-tap receipt), databaseAssertions (dry run, execute, --strict), verificationExpiresAt 2026-10-16; the blocker now names only the unobserved cron_log outcome receipts; the applied-DDL deferral is removed. check-capability-ledger exit 0; REALITY-LEDGER.md re-rendered."
+    }
+  }
+}

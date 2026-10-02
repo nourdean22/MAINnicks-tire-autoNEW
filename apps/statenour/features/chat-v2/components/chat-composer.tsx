@@ -306,7 +306,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
     <form
       onSubmit={onSubmit}
       className={`relative mx-auto flex w-full max-w-4xl flex-col gap-2 ${
-        dragDepth > 0 ? "rounded-xl outline-dashed outline-2 outline-offset-4 outline-fg-tertiary" : ""
+        dragDepth > 0 ? "rounded-overlay outline-dashed outline-2 outline-offset-4 outline-fg-tertiary" : ""
       }`}
       onDragEnter={(e) => {
         if (!e.dataTransfer?.types?.includes("Files")) return;
@@ -333,7 +333,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           cancellable — an invisible armed cascade-delete would be a
           destructive surprise. */}
       {editingMessageId && (
-        <div className="flex items-center justify-between gap-2 rounded-lg border border-gold/35 bg-gold/10 px-3 py-1.5 text-[11px] text-gold">
+        <div className="flex items-center justify-between gap-2 rounded-control border border-accent/40 bg-accent-soft px-3 py-1.5 text-[12px] text-accent">
           <span className="min-w-0 truncate">
             Editing a sent message — sending replaces it and everything after
           </span>
@@ -343,7 +343,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
               setEditingMessageId(null);
               setDraft("");
             }}
-            className="shrink-0 rounded-md border border-gold/35 px-2 py-0.5 font-semibold uppercase tracking-wider hover:bg-gold/15"
+            className="shrink-0 rounded-micro border border-accent/40 px-2 py-0.5 text-[12px] font-medium hover:bg-accent-medium"
           >
             Cancel
           </button>
@@ -397,24 +397,26 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
       )}
 
       {imgAttached && (
-        <div className="mb-1 overflow-hidden rounded-2xl border border-edge bg-raised">
+        <div className="mb-1 overflow-hidden rounded-float border border-edge-subtle bg-surface">
           <AttachmentPreview file={imgAttached.file} preview={imgAttached.preview} onClear={clearImg} />
         </div>
       )}
 
-      <div className="relative flex items-end gap-2 rounded-2xl border border-glass bg-raised/80 p-2 shadow-2xl transition focus-within:border-gold/40 focus-within:ring-2 focus-within:ring-gold/10">
-        <div className="flex shrink-0 items-center gap-1 pb-1 pl-1">
-          <button type="button" onClick={openImgGallery} className="flex h-11 w-11 items-center justify-center rounded-xl text-fg-secondary hover:bg-elevated hover:text-fg" aria-label="Attach image, audio or PDF">
+      {/* UI v2 (2026-10-01): the composer is control chrome, so it gets the translucent material
+          (docs/design/ui-v2/SYSTEM.md §11). Focus = one accent edge + an L1 lift, no glow ring. */}
+      <div className="ui-material relative flex items-end gap-1.5 rounded-overlay border border-edge-default p-1.5 transition-[border-color,box-shadow] duration-[var(--motion-state)] ease-[var(--ease-standard)] focus-within:border-accent/60 focus-within:shadow-l1">
+        <div className="flex shrink-0 items-center gap-0.5">
+          <button type="button" onClick={openImgGallery} className="flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:bg-surface-interactive hover:text-fg" aria-label="Attach image, audio or PDF">
             <ImageIcon size={18} />
           </button>
           <button
             type="button"
             onClick={voice.isRecording || voice.continuous ? voice.stopRecording : voice.startRecording}
             className={cn(
-              "flex h-11 w-11 items-center justify-center rounded-xl transition",
+              "flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)]",
               voice.isRecording || voice.continuous
-                ? "border border-red-500/30 bg-red-500/20 text-red-400"
-                : "text-fg-secondary hover:bg-elevated hover:text-fg",
+                ? "bg-rose-500/15 text-rose-300"
+                : "text-fg-tertiary hover:bg-surface-interactive hover:text-fg",
             )}
             aria-label="Voice input"
           >
@@ -455,17 +457,17 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
               }
             }}
             placeholder="Ask, analyze, create, or tell Nick to act…"
-            className="max-h-[200px] min-h-11 w-full resize-none bg-transparent px-2 py-2.5 text-[16px] text-fg outline-none placeholder:text-fg-tertiary"
+            className="max-h-[200px] min-h-11 w-full resize-none bg-transparent px-2 py-2.5 text-[16px] leading-[1.5] text-fg outline-none placeholder:text-fg-tertiary focus-visible:shadow-none"
             rows={1}
           />
         </div>
 
         {chat.isStreaming ? (
-          <button type="button" aria-label="Stop generating" onClick={chat.stop} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-500/90 text-white">
+          <button type="button" aria-label="Stop generating" onClick={chat.stop} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control bg-rose-500/90 text-white transition-colors hover:bg-rose-500">
             <span className="block h-3 w-3 rounded-[3px] bg-current" />
           </button>
         ) : (
-          <button type="submit" aria-label="Send message" disabled={!draft.trim() && !imgAttached} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gold text-black transition disabled:opacity-40">
+          <button type="submit" aria-label="Send message" disabled={!draft.trim() && !imgAttached} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control bg-accent text-[var(--text-inverse)] transition-colors duration-[var(--motion-micro)] hover:bg-accent-hover disabled:opacity-40">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-7 7m7-7l7 7" />
             </svg>

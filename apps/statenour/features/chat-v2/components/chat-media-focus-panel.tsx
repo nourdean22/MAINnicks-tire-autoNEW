@@ -42,20 +42,20 @@ export function ChatMediaFocusPanel() {
   return (
     <aside
       aria-label={`Media focus — ${item.title}`}
-      className="fixed inset-y-0 right-0 z-50 hidden w-80 flex-col border-l border-edge overflow-hidden bg-void shadow-2xl md:flex md:w-96"
+      className="fixed inset-y-0 right-0 z-50 hidden w-80 flex-col border-l border-edge-default overflow-hidden bg-overlay shadow-l1 md:flex md:w-96"
     >
       <header className="flex items-center gap-2 border-b border-edge px-3 py-2">
         <div className="min-w-0 flex-1">
           <div className="truncate text-[12px] text-fg-secondary">{item.title}</div>
           {queue.length > 0 ? (
-            <div className="text-[9px] text-fg-tertiary">{queue.length} queued</div>
+            <div className="text-[11px] text-fg-tertiary">{queue.length} queued</div>
           ) : null}
         </div>
 
         {queue.length > 0 ? (
           <button
             onClick={playNext}
-            className="flex h-12 w-12 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:text-fg"
+            className="flex h-12 w-12 items-center justify-center rounded-control text-fg-tertiary transition-colors hover:text-fg"
             aria-label="Play next in queue"
             title="Next"
           >
@@ -68,7 +68,7 @@ export function ChatMediaFocusPanel() {
 
         <button
           onClick={() => setFocused(false)}
-          className="flex h-12 w-12 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:text-fg"
+          className="flex h-12 w-12 items-center justify-center rounded-control text-fg-tertiary transition-colors hover:text-fg"
           aria-label="Return player to the dock"
           title="Back to dock"
         >
@@ -77,7 +77,7 @@ export function ChatMediaFocusPanel() {
 
         <button
           onClick={close}
-          className="flex h-12 w-12 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:text-red-400"
+          className="flex h-12 w-12 items-center justify-center rounded-control text-fg-tertiary transition-colors hover:text-red-400"
           aria-label="Close player"
           title="Close"
         >
@@ -86,7 +86,7 @@ export function ChatMediaFocusPanel() {
       </header>
 
       <div className="shrink-0 p-3">
-        <MediaPlayerSurface className="w-full rounded-lg border border-glass bg-black" />
+        <MediaPlayerSurface className="w-full rounded-surface border border-edge-subtle bg-black" />
       </div>
 
       {/* BDN-322 · saved moments for THIS media. Renders null when

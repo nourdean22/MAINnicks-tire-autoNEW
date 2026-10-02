@@ -17,6 +17,7 @@ import {
   type AiConfig,
 } from "@/lib/settings/ai-config";
 import { recordError } from "@/lib/errors/record-error";
+import { aiConfigPatchSchema, aiConfigPatchToConfig } from "@/lib/validators/settings";
 
 import { requireSession } from "@/lib/auth-guard";
 export const dynamic = "force-dynamic";
@@ -38,8 +39,14 @@ export async function GET(req: Request) {
 export async function PATCH(req: Request) {
   await requireSession(req);
   try {
-    const body = (await req.json()) as Partial<AiConfig>;
-    const updated = await updateAiConfig(body, "settings_ui");
+    // 2026-10-02 · this twin wrote its body unvalidated (any key, any type)
+    // into the live AI config; it now takes exactly what the tRPC mutation
+    // takes, through the same schema and the same "auto" mapping.
+    const parsed = aiConfigPatchSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return Response.json({ error: "invalid patch", issues: parsed.error.issues.slice(0, 5) }, { status: 400 });
+    }
+    const updated = await updateAiConfig(aiConfigPatchToConfig(parsed.data), "settings_ui");
     return Response.json(updated);
   } catch (err) {
     recordError("api:unknown", err, { route: "ai-config:patch" });

@@ -110,9 +110,9 @@ export function EntityActionRow({ entities, labelOf, extra, compact, className }
             className={cn(
               // 44px on phones (the house target floor, tests/e2e/target-size.spec.ts);
               // `compact` only tightens the desktop height.
-              "inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-edge px-2.5 text-[12px] text-fg-secondary transition-colors hover:border-[var(--gold)]/40 hover:text-gold",
+              "inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-2.5 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg",
               compact ? "md:min-h-[32px]" : "md:min-h-[36px]",
-              action.id === "workset" && allInWorkset && "border-[var(--gold)]/40 text-gold",
+              action.id === "workset" && allInWorkset && "border-accent text-fg",
             )}
           >
             <Icon size={13} aria-hidden />

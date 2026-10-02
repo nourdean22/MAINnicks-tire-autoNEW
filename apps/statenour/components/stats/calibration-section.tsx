@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { GlassCard } from "@/components/ui/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -218,11 +218,11 @@ export function CalibrationSection() {
     return (
       <div className="flex flex-col gap-6 py-6 animate-pulse" aria-hidden>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="h-24 rounded-lg bg-white/[0.02] border border-white/10" />
-          <div className="h-24 rounded-lg bg-white/[0.02] border border-white/10" />
-          <div className="h-24 rounded-lg bg-white/[0.02] border border-white/10" />
+          <div className="h-24 rounded-surface bg-content border border-edge-default" />
+          <div className="h-24 rounded-surface bg-content border border-edge-default" />
+          <div className="h-24 rounded-surface bg-content border border-edge-default" />
         </div>
-        <div className="h-[300px] rounded-lg bg-white/[0.02] border border-white/10" />
+        <div className="h-[300px] rounded-surface bg-content border border-edge-default" />
       </div>
     );
   }
@@ -246,29 +246,29 @@ export function CalibrationSection() {
       {scoreboard && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Card A: Prediction Accuracy */}
-          <Card className="border-white/10 bg-white/[0.02] hover:bg-white/[0.03] transition-all relative overflow-hidden">
+          <GlassCard className="hover:bg-surface-hover transition-colors duration-[var(--motion-state)]">
             <div 
               className="absolute top-0 left-0 w-full h-[3px]"
               style={{ backgroundColor: scoreboard.colorHsl }}
             />
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center justify-between">
+            <div className="mb-4">
+              <h3 className="text-[15px] font-semibold text-fg flex items-center justify-between">
                 Prediction Calibration
-                <Activity className="h-4 w-4 text-zinc-500" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              <div className="text-2xl font-bold font-mono text-white">
+                <Activity className="h-4 w-4 text-fg-tertiary" />
+              </h3>
+            </div>
+            <div className="space-y-1">
+              <div className="text-2xl font-bold font-mono text-fg">
                 {scoreboard.predictionAccuracyPct !== null 
                   ? `${scoreboard.predictionAccuracyPct}%` 
                   : "--"}
               </div>
-              <p className="text-[10px] text-zinc-500">
+              <p className="text-[11px] text-fg-tertiary">
                 {scoreboard.predictionCount30d} predictions (30d) &middot; Brier: {scoreboard.rollingBrier30d !== null ? scoreboard.rollingBrier30d.toFixed(3) : "N/A"}
               </p>
               <div className="pt-2">
                 <Badge 
-                  className="text-[10px] font-medium"
+                  className="text-[11px] font-medium"
                   style={{
                     backgroundColor: `${scoreboard.colorHsl}15`,
                     color: scoreboard.colorHsl,
@@ -281,11 +281,11 @@ export function CalibrationSection() {
                   {scoreboard.calibrationVerdict === "unknown" && "Preliminary Data"}
                 </Badge>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </GlassCard>
 
           {/* Card B: Task ROI Accuracy */}
-          <Card className="border-white/10 bg-white/[0.02] hover:bg-white/[0.03] transition-all relative overflow-hidden">
+          <GlassCard className="hover:bg-surface-hover transition-colors duration-[var(--motion-state)]">
             <div 
               className="absolute top-0 left-0 w-full h-[3px]"
               style={{
@@ -294,23 +294,23 @@ export function CalibrationSection() {
                   : "hsl(142, 76%, 36%)"
               }}
             />
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center justify-between">
+            <div className="mb-4">
+              <h3 className="text-[15px] font-semibold text-fg flex items-center justify-between">
                 Task ROI Precision
-                <Sliders className="h-4 w-4 text-zinc-500" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              <div className="text-2xl font-bold font-mono text-white">
+                <Sliders className="h-4 w-4 text-fg-tertiary" />
+              </h3>
+            </div>
+            <div className="space-y-1">
+              <div className="text-2xl font-bold font-mono text-fg">
                 {scoreboard.taskRoiMae30d !== null 
                   ? `±${scoreboard.taskRoiMae30d.toFixed(1)} pts` 
                   : "--"}
               </div>
-              <p className="text-[10px] text-zinc-500">
+              <p className="text-[11px] text-fg-tertiary">
                 MAE (Mean Absolute Error) across {scoreboard.taskRoiCount30d} tasks in 30d
               </p>
               <div className="pt-2">
-                <Badge className={cn("text-[10px] font-medium border bg-transparent", 
+                <Badge className={cn("text-[11px] font-medium border bg-transparent", 
                   scoreboard.biasVerdict === "overconfident" && "text-rose-400 border-rose-500/20 bg-rose-500/5",
                   scoreboard.biasVerdict === "underconfident" && "text-purple-400 border-purple-500/20 bg-purple-500/5",
                   scoreboard.biasVerdict === "calibrated" && "text-emerald-400 border-emerald-500/20 bg-emerald-500/5"
@@ -320,30 +320,30 @@ export function CalibrationSection() {
                   {scoreboard.biasVerdict === "calibrated" && "Calibrated ROI estimation"}
                 </Badge>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </GlassCard>
 
           {/* Card C: Overestimate Rate */}
-          <Card className="border-white/10 bg-white/[0.02] hover:bg-white/[0.03] transition-all relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-[3px] bg-zinc-700" />
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center justify-between">
+          <GlassCard className="hover:bg-surface-hover transition-colors duration-[var(--motion-state)]">
+            <div className="absolute top-0 left-0 w-full h-[3px] bg-edge-strong" />
+            <div className="mb-4">
+              <h3 className="text-[15px] font-semibold text-fg flex items-center justify-between">
                 Overestimate Bias
-                <Flame className="h-4 w-4 text-zinc-500" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              <div className="text-2xl font-bold font-mono text-white">
+                <Flame className="h-4 w-4 text-fg-tertiary" />
+              </h3>
+            </div>
+            <div className="space-y-1">
+              <div className="text-2xl font-bold font-mono text-fg">
                 {scoreboard.taskOverestimateRate30d}%
               </div>
-              <p className="text-[10px] text-zinc-500">
+              <p className="text-[11px] text-fg-tertiary">
                 Percentage of completed tasks where actual ROI was lower than estimate
               </p>
-              <div className="pt-2 text-[10px] text-zinc-400">
+              <div className="pt-2 text-[11px] text-fg-secondary">
                 Mean Bias: <span className="font-mono">{scoreboard.taskRoiBias30d !== null ? `${scoreboard.taskRoiBias30d.toFixed(1)} pts` : "0.0"}</span>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </GlassCard>
         </div>
       )}
 
@@ -351,21 +351,21 @@ export function CalibrationSection() {
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+            <h3 className="text-[17px] font-semibold text-fg flex items-center gap-2">
               <span>Pending Calibration Review ({pending.length})</span>
-              {pending.length > 0 && <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />}
+              {pending.length > 0 && <span className="h-2 w-2 rounded-full bg-amber-400" />}
             </h3>
             <button
               onClick={() => setEfGradeMode(!efGradeMode)}
               className={cn(
-                "px-2.5 py-1 text-xs rounded border font-mono font-bold transition-all flex items-center gap-1.5",
+                "px-2.5 py-1 text-[12px] rounded-control border font-medium transition-colors duration-[var(--motion-state)] flex items-center gap-1.5",
                 efGradeMode
                   ? "border-amber-500/40 bg-amber-500/[0.08] text-amber-200"
-                  : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20"
+                  : "border-edge-default bg-content text-fg-secondary hover:border-edge-strong"
               )}
               id="ef-grade-mode-toggle"
             >
-              <Sliders className={cn("h-3.5 w-3.5", efGradeMode && "text-amber-400 animate-pulse")} />
+              <Sliders className={cn("h-3.5 w-3.5", efGradeMode && "text-amber-400")} />
               {efGradeMode ? "ADHD Quick-Grade Active" : "ADHD Quick-Grade Mode"}
             </button>
           </div>
@@ -376,9 +376,9 @@ export function CalibrationSection() {
                 size="sm"
                 variant="outline"
                 className={cn(
-                  "text-xs cursor-pointer transition-all duration-300",
+                  "text-xs cursor-pointer transition-colors duration-[var(--motion-state)]",
                   efGradeMode
-                    ? "border-emerald-500 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500 hover:text-black font-bold ring-2 ring-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
+                    ? "border-emerald-500 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500 hover:text-black font-bold"
                     : "border-emerald-500/30 bg-emerald-500/5 text-emerald-300 hover:bg-emerald-500/10"
                 )}
                 onClick={() => handleBulkAction("approve_low_risk")}
@@ -389,7 +389,7 @@ export function CalibrationSection() {
               <Button
                 size="sm"
                 variant="outline"
-                className="text-xs border-rose-500/30 bg-rose-500/5 text-rose-300 hover:bg-rose-500/10 cursor-pointer transition-all duration-300"
+                className="text-xs border-rose-500/30 bg-rose-500/5 text-rose-300 hover:bg-rose-500/10 cursor-pointer transition-colors duration-[var(--motion-state)]"
                 onClick={() => handleBulkAction("reject_stale")}
                 disabled={bulkLoading || resolvingId !== null}
               >
@@ -400,15 +400,15 @@ export function CalibrationSection() {
         </div>
 
         {pending.length === 0 ? (
-          <Card className="border-white/5 bg-white/[0.01]">
-            <CardContent className="py-10 text-center space-y-2">
+          <GlassCard>
+            <div className="py-6 text-center space-y-2">
               <Check className="h-8 w-8 text-emerald-500 mx-auto" />
-              <p className="text-sm text-zinc-300 font-medium">Outcome Review Queue Clear</p>
-              <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+              <p className="text-sm text-fg font-medium">Outcome Review Queue Clear</p>
+              <p className="text-xs text-fg-tertiary max-w-sm mx-auto">
                 No completed tasks or expired predictions require manual grading calibration at this time. Nightly cron compiles next reviews.
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          </GlassCard>
         ) : (
           <div className="grid grid-cols-1 gap-4">
             {pending.map((item, idx) => {
@@ -419,27 +419,27 @@ export function CalibrationSection() {
 
               if (efGradeMode) {
                 return (
-                  <Card
+                  <GlassCard
                     key={item.id}
                     className={cn(
-                      "border-white/10 bg-white/[0.01] hover:bg-white/[0.02] transition-all duration-200",
+                      "hover:bg-surface-hover transition-colors duration-[var(--motion-state)]",
                       isTask ? "border-l-indigo-500/20 border-l-[3px]" : "border-l-sky-500/20 border-l-[3px]"
                     )}
                   >
-                    <CardContent className="py-3 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       {/* Left: Metadata & Title */}
                       <div className="space-y-1 min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <Badge className={cn("text-[8px] uppercase tracking-wider py-0 px-1",
+                          <Badge className={cn("text-[11px] py-0 px-1",
                             isTask ? "bg-indigo-500/10 text-indigo-300 border-indigo-500/20" : "bg-sky-500/10 text-sky-300 border-sky-500/20"
                           )}>
                             {isTask ? "Task ROI" : "Prediction"}
                           </Badge>
-                          <span className="text-[10px] text-zinc-500 font-mono">
+                          <span className="text-[11px] text-fg-tertiary font-mono">
                             {isTask ? `Est. ROI: ${item.predictedOutcome.roiScore}` : `Conf: ${(item.confidence * 100).toFixed(0)}%`}
                           </span>
                         </div>
-                        <h4 className="text-xs font-semibold text-zinc-200 truncate max-w-lg">
+                        <h4 className="text-xs font-semibold text-fg truncate max-w-lg">
                           {isTask ? item.predictedOutcome.title : item.predictedOutcome.prediction}
                         </h4>
                       </div>
@@ -460,7 +460,7 @@ export function CalibrationSection() {
                                 });
                               }}
                               disabled={resolvingId !== null}
-                              className="text-[10px] h-8 border-purple-500/20 bg-purple-500/[0.04] text-purple-300 hover:bg-purple-500 hover:text-black font-semibold"
+                              className="text-[11px] h-8 border-purple-500/20 bg-purple-500/[0.04] text-purple-300 hover:bg-purple-500 hover:text-black font-semibold"
                             >
                               Underestimated (+20)
                             </Button>
@@ -475,7 +475,7 @@ export function CalibrationSection() {
                                 });
                               }}
                               disabled={resolvingId !== null}
-                              className="text-[10px] h-8 border-emerald-500/20 bg-emerald-500/[0.04] text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold"
+                              className="text-[11px] h-8 border-emerald-500/20 bg-emerald-500/[0.04] text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold"
                             >
                               Spot On
                             </Button>
@@ -491,7 +491,7 @@ export function CalibrationSection() {
                                 });
                               }}
                               disabled={resolvingId !== null}
-                              className="text-[10px] h-8 border-rose-500/20 bg-rose-500/[0.04] text-rose-300 hover:bg-rose-500 hover:text-black font-semibold"
+                              className="text-[11px] h-8 border-rose-500/20 bg-rose-500/[0.04] text-rose-300 hover:bg-rose-500 hover:text-black font-semibold"
                             >
                               Overestimated (-20)
                             </Button>
@@ -508,9 +508,9 @@ export function CalibrationSection() {
                                 });
                               }}
                               disabled={resolvingId !== null}
-                              className="text-[10px] h-8 border-emerald-500/20 bg-emerald-500/[0.04] text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold"
+                              className="text-[11px] h-8 border-emerald-500/20 bg-emerald-500/[0.04] text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold"
                             >
-                              Confirmed ✅
+                              Confirmed
                             </Button>
                             <Button
                               size="xs"
@@ -522,9 +522,9 @@ export function CalibrationSection() {
                                 });
                               }}
                               disabled={resolvingId !== null}
-                              className="text-[10px] h-8 border-rose-500/20 bg-rose-500/[0.04] text-rose-300 hover:bg-rose-500 hover:text-black font-semibold"
+                              className="text-[11px] h-8 border-rose-500/20 bg-rose-500/[0.04] text-rose-300 hover:bg-rose-500 hover:text-black font-semibold"
                             >
-                              Disproven ❌
+                              Disproven
                             </Button>
                           </>
                         )}
@@ -533,53 +533,53 @@ export function CalibrationSection() {
                           variant="ghost"
                           onClick={() => handleResolve(item.id, "reject")}
                           disabled={resolvingId !== null}
-                          className="text-[10px] h-8 text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+                          className="text-[11px] h-8 text-fg-tertiary hover:text-fg hover:bg-surface-hover"
                         >
                           Skip
                         </Button>
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </GlassCard>
                 );
               }
 
               return (
-                <Card 
+                <GlassCard 
                   key={item.id} 
                   className={cn(
-                    "border-white/10 bg-white/[0.02] hover:bg-white/[0.03] transition-all duration-300 relative",
+                    "hover:bg-surface-hover transition-colors duration-[var(--motion-state)]",
                     isTask ? "border-l-indigo-500/40 border-l-[3px]" : "border-l-sky-500/40 border-l-[3px]",
-                    isTopCard && "ring-2 ring-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.15)] border-white/20"
+                    isTopCard && "ring-1 ring-accent"
                   )}
                 >
-                  <CardContent className="pt-4 space-y-4">
+                  <div className="space-y-4">
                     {/* Header Row */}
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge className={cn("text-[9px] uppercase tracking-wider py-0.5", 
+                          <Badge className={cn("text-[11px] py-0.5", 
                             isTask ? "bg-indigo-500/10 text-indigo-300 border-indigo-500/20" : "bg-sky-500/10 text-sky-300 border-sky-500/20"
                           )}>
                             {isTask ? "Task ROI Estimate" : "System Prediction"}
                           </Badge>
                           {isTopCard && (
-                            <Badge variant="outline" className="text-[9px] border-indigo-500/30 bg-indigo-500/5 text-indigo-400 font-mono py-0.5">
-                              ⌨️ Active Card (🡄 Reject | 🡆 Approve | 🡡🡣 Adjust)
+                            <Badge variant="outline" className="text-[11px] border-indigo-500/30 bg-indigo-500/5 text-indigo-400 font-mono py-0.5">
+                              Active Card (🡄 Reject | 🡆 Approve | 🡡🡣 Adjust)
                             </Badge>
                           )}
-                          <span className="text-[10px] text-zinc-500 font-mono">
+                          <span className="text-[11px] text-fg-tertiary font-mono">
                             ID: {item.sourceId.slice(0, 8)}
                           </span>
                         </div>
-                        <h4 className="text-sm font-semibold text-white">
+                        <h4 className="text-sm font-semibold text-fg">
                           {isTask ? item.predictedOutcome.title : item.predictedOutcome.prediction}
                         </h4>
                       </div>
                       <div className="text-right">
-                        <div className="text-xs font-medium text-zinc-400">
+                        <div className="text-xs font-medium text-fg-secondary">
                           {isTask ? `Estimated ROI: ${item.predictedOutcome.roiScore}` : `Confidence: ${(item.confidence * 100).toFixed(0)}%`}
                         </div>
-                        <p className="text-[10px] text-zinc-500 flex items-center gap-1 justify-end">
+                        <p className="text-[11px] text-fg-tertiary flex items-center gap-1 justify-end">
                           <Calendar className="h-3 w-3" />
                           {new Date(item.createdAt).toLocaleDateString()}
                         </p>
@@ -587,36 +587,36 @@ export function CalibrationSection() {
                     </div>
 
                     {/* Proposal Banner */}
-                    <div className="rounded-lg bg-zinc-950/40 border border-white/5 p-3 flex items-start gap-3">
+                    <div className="rounded-surface bg-surface-interactive border border-edge-subtle p-3 flex items-start gap-3">
                       {isTask ? (
                         <Award className="h-5 w-5 text-indigo-400 shrink-0 mt-0.5" />
                       ) : (
                         <Clock className="h-5 w-5 text-sky-400 shrink-0 mt-0.5" />
                       )}
                       <div className="space-y-1 text-xs">
-                        <p className="text-zinc-300 font-medium flex items-center gap-1.5">
+                        <p className="text-fg font-medium flex items-center gap-1.5">
                           Proposed Actual Outcome:
                           {isTask ? (
-                            <Badge className={cn("text-[10px] font-bold py-0 h-4",
+                            <Badge className={cn("text-[11px] font-bold py-0 h-4",
                               item.proposedActualOutcome.classification === "accurate" && "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
                               item.proposedActualOutcome.classification === "overestimated" && "bg-rose-500/10 text-rose-300 border-rose-500/20",
                               item.proposedActualOutcome.classification === "underestimated" && "bg-purple-500/10 text-purple-300 border-purple-500/20",
-                              item.proposedActualOutcome.classification === "insufficient_evidence" && "bg-zinc-500/10 text-zinc-300 border-zinc-500/20"
+                              item.proposedActualOutcome.classification === "insufficient_evidence" && "bg-surface-interactive text-fg border-edge-default"
                             )}>
                               ROI {item.proposedActualOutcome.outcomeScore} &middot; {item.proposedActualOutcome.classification}
                             </Badge>
                           ) : (
-                            <Badge className={cn("text-[10px] font-bold py-0 h-4",
+                            <Badge className={cn("text-[11px] font-bold py-0 h-4",
                               item.proposedActualOutcome.status === "confirmed" && "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
                               item.proposedActualOutcome.status === "disproven" && "bg-rose-500/10 text-rose-300 border-rose-500/20",
-                              item.proposedActualOutcome.status === "expired" && "bg-zinc-500/10 text-zinc-300 border-zinc-500/20",
+                              item.proposedActualOutcome.status === "expired" && "bg-surface-interactive text-fg border-edge-default",
                               item.proposedActualOutcome.status === "needs_more_evidence" && "bg-amber-500/10 text-amber-300 border-amber-500/20"
                             )}>
                               {item.proposedActualOutcome.status}
                             </Badge>
                           )}
                         </p>
-                        <p className="text-zinc-400 text-[11px] leading-relaxed">
+                        <p className="text-fg-secondary text-[11px] leading-relaxed">
                           {isTask ? item.proposedActualOutcome.rationale : item.proposedActualOutcome.outcomeDescription}
                         </p>
                       </div>
@@ -625,31 +625,31 @@ export function CalibrationSection() {
                     {/* Expandable Evidence Inspector */}
                     {isExpanded && (
                       <div className="pt-2 pb-1 space-y-3 animate-fade-in">
-                        <Separator className="bg-white/5" />
-                        <h5 className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold flex items-center gap-1.5">
+                        <Separator className="bg-edge-subtle" />
+                        <h5 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary flex items-center gap-1.5">
                           <FileText className="h-3 w-3" />
                           Evidence Details
                         </h5>
-                        <div className="rounded-lg bg-black/30 border border-white/5 p-3 text-xs space-y-2 text-zinc-400">
+                        <div className="rounded-surface bg-surface-interactive border border-edge-subtle p-3 text-xs space-y-2 text-fg-secondary">
                           {isTask ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               <div className="space-y-1">
-                                <span className="text-[10px] text-zinc-500 block">Execution Metrics</span>
-                                <div className="space-y-1 font-mono text-zinc-300">
-                                  <p>Effort Band: <span className="text-white">{item.predictedOutcome.effort}</span></p>
-                                  <p>Actual Minutes: <span className="text-white">{item.evidence.actualMinutes || "0"} min</span></p>
+                                <span className="text-[11px] text-fg-tertiary block">Execution Metrics</span>
+                                <div className="space-y-1 font-mono text-fg">
+                                  <p>Effort Band: <span className="text-fg">{item.predictedOutcome.effort}</span></p>
+                                  <p>Actual Minutes: <span className="text-fg">{item.evidence.actualMinutes || "0"} min</span></p>
                                 </div>
                               </div>
                               <div className="space-y-1">
-                                <span className="text-[10px] text-zinc-500 block">Completion Notes</span>
-                                <p className="italic text-zinc-300">
+                                <span className="text-[11px] text-fg-tertiary block">Completion Notes</span>
+                                <p className="italic text-fg">
                                   "{item.evidence.completionNote || "None recorded"}"
                                 </p>
                               </div>
                               {item.evidence.proof && (
                                 <div className="md:col-span-2 space-y-1">
-                                  <span className="text-[10px] text-zinc-500 block">Proof Uploaded</span>
-                                  <pre className="text-[10px] font-mono text-zinc-300 bg-zinc-950 p-2 rounded border border-white/5 overflow-auto max-h-24">
+                                  <span className="text-[11px] text-fg-tertiary block">Proof Uploaded</span>
+                                  <pre className="text-[11px] font-mono text-fg bg-surface-interactive p-2 rounded-control border border-edge-subtle overflow-auto max-h-24">
                                     {JSON.stringify(item.evidence.proof, null, 2)}
                                   </pre>
                                 </div>
@@ -659,22 +659,22 @@ export function CalibrationSection() {
                             <div className="space-y-3">
                               {item.evidence.businessMetrics && (
                                 <div className="space-y-1">
-                                  <span className="text-[10px] text-zinc-500 block">Business Metrics (From Nick's Tire)</span>
-                                  <pre className="text-[10px] font-mono text-zinc-300 bg-zinc-950 p-2 rounded border border-white/5 overflow-auto">
+                                  <span className="text-[11px] text-fg-tertiary block">Business Metrics (From Nick's Tire)</span>
+                                  <pre className="text-[11px] font-mono text-fg bg-surface-interactive p-2 rounded-control border border-edge-subtle overflow-auto">
                                     {JSON.stringify(item.evidence.businessMetrics, null, 2)}
                                   </pre>
                                 </div>
                               )}
                               {item.evidence.matchingMemories && (
                                 <div className="space-y-2">
-                                  <span className="text-[10px] text-zinc-500 block">Semantically Related Memories</span>
+                                  <span className="text-[11px] text-fg-tertiary block">Semantically Related Memories</span>
                                   {item.evidence.matchingMemories.map((m: any, idx: number) => (
-                                    <div key={idx} className="bg-zinc-950/60 p-2 rounded border border-white/5 text-[11px]">
-                                      <div className="flex items-center justify-between text-[9px] text-zinc-500 mb-1">
+                                    <div key={idx} className="bg-surface-interactive p-2 rounded-control border border-edge-subtle text-[11px]">
+                                      <div className="flex items-center justify-between text-[11px] text-fg-tertiary mb-1">
                                         <span>Match #{idx+1}</span>
                                         <span className="font-mono">Similarity: {(m.similarity * 100).toFixed(0)}%</span>
                                       </div>
-                                      <p className="text-zinc-300">"{m.content}"</p>
+                                      <p className="text-fg">"{m.content}"</p>
                                     </div>
                                   ))}
                                 </div>
@@ -687,17 +687,17 @@ export function CalibrationSection() {
 
                     {/* Action Form for Correcting */}
                     {isCorrecting && (
-                      <div className="pt-2 pb-1 space-y-4 animate-fade-in bg-zinc-950/20 p-3 rounded-lg border border-white/5">
-                        <h5 className="text-[10px] uppercase tracking-wider text-amber-400 font-semibold flex items-center gap-1.5">
+                      <div className="pt-2 pb-1 space-y-4 animate-fade-in bg-surface-interactive p-3 rounded-surface border border-edge-subtle">
+                        <h5 className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300 flex items-center gap-1.5">
                           <Sliders className="h-3 w-3" />
                           Override Calibrated Outcome
                         </h5>
                         
                         {isTask ? (
                           <div className="space-y-2">
-                            <label className="text-xs text-zinc-400 flex justify-between">
+                            <label className="text-xs text-fg-secondary flex justify-between">
                               <span>Correct Outcome ROI Score:</span>
-                              <span className="font-bold text-white font-mono">{correctionRoi} / 100</span>
+                              <span className="font-bold text-fg font-mono">{correctionRoi} / 100</span>
                             </label>
                             <input 
                               type="range" 
@@ -705,9 +705,9 @@ export function CalibrationSection() {
                               max="100" 
                               value={correctionRoi}
                               onChange={(e) => setCorrectionRoi(Number(e.target.value))}
-                              className="w-full h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                              className="w-full h-1 bg-edge-strong rounded-surface appearance-none cursor-pointer accent-indigo-500"
                             />
-                            <div className="flex justify-between text-[10px] text-zinc-500 font-mono">
+                            <div className="flex justify-between text-[11px] text-fg-tertiary font-mono">
                               <span>1 (Low)</span>
                               <span>50 (Mid)</span>
                               <span>100 (Max)</span>
@@ -716,7 +716,7 @@ export function CalibrationSection() {
                         ) : (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div className="space-y-1">
-                              <label className="text-xs text-zinc-400 block">Correct Status:</label>
+                              <label className="text-xs text-fg-secondary block">Correct Status:</label>
                               <div className="flex gap-1.5">
                                 {["confirmed", "disproven", "expired"].map((st) => (
                                   <button
@@ -724,10 +724,10 @@ export function CalibrationSection() {
                                     type="button"
                                     onClick={() => setCorrectionStatus(st as any)}
                                     className={cn(
-                                      "px-2.5 py-1 text-xs rounded border transition-all uppercase tracking-wider text-[10px] font-semibold",
+                                      "px-2.5 py-1 rounded-control border transition-colors duration-[var(--motion-state)] text-[12px] font-medium",
                                       correctionStatus === st 
                                         ? "bg-amber-400/10 text-amber-300 border-amber-400/30" 
-                                        : "bg-white/[0.02] border-white/10 text-zinc-400"
+                                        : "bg-content border-edge-default text-fg-secondary"
                                     )}
                                   >
                                     {st}
@@ -736,12 +736,12 @@ export function CalibrationSection() {
                               </div>
                             </div>
                             <div className="space-y-1">
-                              <label className="text-xs text-zinc-400 block">Outcome Description:</label>
+                              <label className="text-xs text-fg-secondary block">Outcome Description:</label>
                               <input 
                                 type="text"
                                 value={correctionDescription}
                                 onChange={(e) => setCorrectionDescription(e.target.value)}
-                                className="w-full text-xs bg-zinc-900 border border-white/10 rounded px-2 py-1 text-white placeholder:text-zinc-600 focus:outline-none focus:border-amber-400"
+                                className="w-full text-xs bg-surface-interactive border border-edge-default rounded-control px-2 py-1 text-fg placeholder:text-fg-tertiary focus:border-accent"
                                 placeholder="Describe actual results..."
                               />
                             </div>
@@ -749,12 +749,12 @@ export function CalibrationSection() {
                         )}
 
                         <div className="space-y-1">
-                          <label className="text-xs text-zinc-400 block">Adjustment Note (Optional):</label>
+                          <label className="text-xs text-fg-secondary block">Adjustment Note (Optional):</label>
                           <input 
                             type="text"
                             value={correctionNote}
                             onChange={(e) => setCorrectionNote(e.target.value)}
-                            className="w-full text-xs bg-zinc-900 border border-white/10 rounded px-2 py-1.5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-amber-400"
+                            className="w-full text-xs bg-surface-interactive border border-edge-default rounded-control px-2 py-1.5 text-fg placeholder:text-fg-tertiary focus:border-accent"
                             placeholder="Reason for override..."
                           />
                         </div>
@@ -763,7 +763,7 @@ export function CalibrationSection() {
                           <Button 
                             size="sm"
                             variant="ghost"
-                            className="text-xs text-zinc-400 hover:text-white"
+                            className="text-xs text-fg-secondary hover:text-fg"
                             onClick={() => setCorrectingId(null)}
                           >
                             Cancel
@@ -801,7 +801,7 @@ export function CalibrationSection() {
                       <button
                         type="button"
                         onClick={() => setExpandedId(isExpanded ? null : item.id)}
-                        className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition-all"
+                        className="text-xs text-fg-tertiary hover:text-fg flex items-center gap-1 transition-colors duration-[var(--motion-state)]"
                       >
                         {isExpanded ? (
                           <>Hide Evidence <ChevronUp className="h-3.5 w-3.5" /></>
@@ -815,7 +815,7 @@ export function CalibrationSection() {
                           <Button
                             size="xs"
                             variant="ghost"
-                            className="text-[10px] text-zinc-500 hover:text-zinc-300 uppercase tracking-wider py-1 min-h-[30px]"
+                            className="text-[11px] text-fg-tertiary hover:text-fg py-1 min-h-[30px]"
                             onClick={() => handleResolve(item.id, "needs_more_evidence")}
                             disabled={resolvingId !== null}
                           >
@@ -824,7 +824,7 @@ export function CalibrationSection() {
                           <Button
                             size="xs"
                             variant="ghost"
-                            className="text-[10px] text-rose-400 hover:text-rose-300 hover:bg-rose-500/5 uppercase tracking-wider py-1 min-h-[30px]"
+                            className="text-[11px] text-rose-400 hover:text-rose-300 hover:bg-rose-500/5 py-1 min-h-[30px]"
                             onClick={() => handleResolve(item.id, "reject")}
                             disabled={resolvingId !== null}
                           >
@@ -833,7 +833,7 @@ export function CalibrationSection() {
                           <Button
                             size="xs"
                             variant="outline"
-                            className="text-[10px] border-zinc-700 hover:border-white/20 text-zinc-300 uppercase tracking-wider py-1 min-h-[30px]"
+                            className="text-[11px] border-edge-strong hover:border-edge-strong text-fg py-1 min-h-[30px]"
                             onClick={() => startCorrection(item)}
                             disabled={resolvingId !== null}
                           >
@@ -841,7 +841,7 @@ export function CalibrationSection() {
                           </Button>
                           <Button
                             size="xs"
-                            className="text-[10px] bg-emerald-500 hover:bg-emerald-600 text-white font-semibold uppercase tracking-wider py-1 min-h-[30px] flex items-center gap-1"
+                            className="text-[11px] bg-emerald-500 hover:bg-emerald-600 text-fg font-semibold py-1 min-h-[30px] flex items-center gap-1"
                             onClick={() => handleResolve(item.id, "approve")}
                             disabled={resolvingId !== null}
                           >
@@ -850,41 +850,41 @@ export function CalibrationSection() {
                         </div>
                       )}
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </GlassCard>
               );
             })}
           </div>
         )}
       </div>
 
-      <Separator className="bg-white/5" />
+      <Separator className="bg-edge-subtle" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* 3. LESSONS FEED */}
         <div className="space-y-4">
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
-            <BookOpen className="h-4 w-4 text-zinc-500" />
+          <h3 className="text-[17px] font-semibold text-fg flex items-center gap-2">
+            <BookOpen className="h-4 w-4 text-fg-tertiary" />
             Calibration Lessons Feed
           </h3>
 
           {lessons.length === 0 ? (
-            <Card className="border-white/5 bg-white/[0.01]">
-              <CardContent className="py-8 text-center text-xs text-zinc-500">
+            <GlassCard>
+              <div className="py-4 text-center text-xs text-fg-tertiary">
                 No outcome lessons recorded yet. Resolve items to extract lessons.
-              </CardContent>
-            </Card>
+              </div>
+            </GlassCard>
           ) : (
             <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2">
               {lessons.map((lesson) => (
                 <div 
                   key={lesson.id}
-                  className="rounded-lg bg-zinc-950/40 border border-white/5 p-3 text-xs space-y-1"
+                  className="rounded-surface bg-surface-interactive border border-edge-subtle p-3 text-xs space-y-1"
                 >
-                  <p className="text-zinc-300 leading-relaxed font-sans">
+                  <p className="text-fg leading-relaxed font-sans">
                     {lesson.content}
                   </p>
-                  <p className="text-[9px] text-zinc-500 font-mono">
+                  <p className="text-[11px] text-fg-tertiary font-mono">
                     Logged: {new Date(lesson.createdAt).toLocaleString()}
                   </p>
                 </div>
@@ -895,17 +895,17 @@ export function CalibrationSection() {
 
         {/* 4. CALIBRATION HISTORY */}
         <div className="space-y-4">
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
-            <History className="h-4 w-4 text-zinc-500" />
+          <h3 className="text-[17px] font-semibold text-fg flex items-center gap-2">
+            <History className="h-4 w-4 text-fg-tertiary" />
             Recent Resolutions
           </h3>
 
           {history.length === 0 ? (
-            <Card className="border-white/5 bg-white/[0.01]">
-              <CardContent className="py-8 text-center text-xs text-zinc-500">
+            <GlassCard>
+              <div className="py-4 text-center text-xs text-fg-tertiary">
                 No calibration history recorded.
-              </CardContent>
-            </Card>
+              </div>
+            </GlassCard>
           ) : (
             <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2">
               {history.map((h) => {
@@ -913,38 +913,38 @@ export function CalibrationSection() {
                 return (
                   <div 
                     key={h.id}
-                    className="rounded-lg bg-white/[0.01] border border-white/5 p-3 text-xs space-y-2"
+                    className="rounded-surface bg-content border border-edge-subtle p-3 text-xs space-y-2"
                   >
-                    <div className="flex justify-between items-center text-[10px]">
-                      <Badge className={cn("text-[9px] font-semibold py-0.5",
+                    <div className="flex justify-between items-center text-[11px]">
+                      <Badge className={cn("text-[11px] font-semibold py-0.5",
                         h.status === "approved" ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20" : "bg-amber-500/10 text-amber-300 border-amber-500/20"
                       )}>
                         {h.status}
                       </Badge>
-                      <span className="text-zinc-500 font-mono">
+                      <span className="text-fg-tertiary font-mono">
                         {new Date(h.updatedAt).toLocaleDateString()}
                       </span>
                     </div>
 
                     <div className="space-y-1">
-                      <p className="font-semibold text-white">
+                      <p className="font-semibold text-fg">
                         {isTask ? h.predictedOutcome.title : h.predictedOutcome.prediction}
                       </p>
-                      <div className="text-[11px] text-zinc-400 leading-relaxed">
+                      <div className="text-[11px] text-fg-secondary leading-relaxed">
                         {isTask ? (
                           <p>
-                            Estimated: <span className="font-semibold text-white">{h.predictedOutcome.roiScore}</span> &middot; 
-                            Actual: <span className="font-semibold text-white">{h.approvedActualOutcome?.outcomeScore}</span> &middot;
-                            Class: <span className="italic text-zinc-300">{h.approvedActualOutcome?.classification}</span>
+                            Estimated: <span className="font-semibold text-fg">{h.predictedOutcome.roiScore}</span> &middot; 
+                            Actual: <span className="font-semibold text-fg">{h.approvedActualOutcome?.outcomeScore}</span> &middot;
+                            Class: <span className="italic text-fg">{h.approvedActualOutcome?.classification}</span>
                           </p>
                         ) : (
                           <p>
-                            Outcome: <span className="font-semibold text-white">{h.approvedActualOutcome?.status}</span> &middot; 
-                            Desc: <span className="italic text-zinc-300">{h.approvedActualOutcome?.outcomeDescription}</span>
+                            Outcome: <span className="font-semibold text-fg">{h.approvedActualOutcome?.status}</span> &middot; 
+                            Desc: <span className="italic text-fg">{h.approvedActualOutcome?.outcomeDescription}</span>
                           </p>
                         )}
                         {h.correctionNote && (
-                          <p className="text-[10px] text-amber-300 mt-1">
+                          <p className="text-[11px] text-amber-300 mt-1">
                             Override Reason: {h.correctionNote}
                           </p>
                         )}

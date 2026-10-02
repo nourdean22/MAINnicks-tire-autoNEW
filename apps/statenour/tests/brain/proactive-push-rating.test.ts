@@ -63,9 +63,14 @@ describe("the push carries a rating control", () => {
     const src = readFileSync(join(APP, "lib/brain/proactive-pushes.ts"), "utf8");
     // 1. the ledger id is obtained before the send
     expect(src).toMatch(/ledgerId\s*=\s*await recordShown\(/);
-    // 2. the button carries THAT id, not the content (callback_data caps at 64B)
-    expect(src).toMatch(/callback_data:\s*`oc:u:\$\{ledgerId\}`/);
-    expect(src).toMatch(/callback_data:\s*`oc:n:\$\{ledgerId\}`/);
+    // 2. the button carries THAT id, not the content (callback_data caps at 64B).
+    //    Since 2026-10-02 the button shape has ONE owner
+    //    (lib/services/outcome-rating-affordance.ts); the sender passes the id
+    //    to it, and the owner is pinned to the `oc:<u|n>:<id>` literal.
+    expect(src).toMatch(/sendTelegramWithButtons\(text, ratingTelegramButtons\(ledgerId\)/);
+    const owner = readFileSync(join(APP, "lib/services/outcome-rating-affordance.ts"), "utf8");
+    expect(owner).toMatch(/callback_data:\s*`oc:u:\$\{ledgerId\}`/);
+    expect(owner).toMatch(/callback_data:\s*`oc:n:\$\{ledgerId\}`/);
     // 3. no ledger id -> still send, just unrateable. The nudge is the product.
     expect(src).toMatch(/if \(!ledgerId\)/);
   });

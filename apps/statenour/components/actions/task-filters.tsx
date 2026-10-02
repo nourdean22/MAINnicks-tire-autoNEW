@@ -177,23 +177,23 @@ export function TaskFilters({
         const showSearch = activeCount >= 5; // search is useless under 5 items — eyeball it
         if (!showKindRow && !showDomainRow && !showSearch) {
           return (
-            <div className="rounded-lg bg-zinc-900/30 border border-zinc-800/20 px-2.5 py-1.5 text-[9px] text-zinc-600 italic">
+            <div className="rounded-surface bg-content border border-edge-subtle px-2.5 py-1.5 text-[11px] text-fg-tertiary italic">
               Nothing to filter — {activeCount} routine{activeCount === 1 ? "" : "s"} on deck.
             </div>
           );
         }
         return (
-          <div className="rounded-lg bg-zinc-900/50 border border-zinc-800/30 p-2.5 space-y-2">
+          <div className="rounded-surface bg-content border border-edge-subtle p-2.5 space-y-2">
             {/* Kind pills — hidden when only one bucket has tasks */}
             {showKindRow && (
               <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   onClick={() => setKindFilter("all")}
                   className={cn(
-                    "flex items-center gap-1 px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border transition-all",
+                    "flex items-center gap-1 px-2 py-1 rounded-control text-[12px] font-medium border transition-colors duration-[var(--motion-state)]",
                     kindFilter === "all"
-                      ? "text-amber-400 bg-zinc-800/80 border-zinc-700"
-                      : "text-zinc-600 border-zinc-800/30 hover:text-zinc-400"
+                      ? "text-fg bg-accent-soft border-accent"
+                      : "text-fg-tertiary border-edge-subtle hover:text-fg-secondary"
                   )}
                 >
                   All <span className="opacity-50 font-mono">{activeCount}</span>
@@ -203,10 +203,10 @@ export function TaskFilters({
                     key={f.key}
                     onClick={() => setKindFilter(f.key)}
                     className={cn(
-                      "flex items-center gap-1 px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border transition-all",
+                      "flex items-center gap-1 px-2 py-1 rounded-control text-[12px] font-medium border transition-colors duration-[var(--motion-state)]",
                       kindFilter === f.key
-                        ? `${f.color} bg-zinc-800/80 border-zinc-700`
-                        : "text-zinc-600 border-zinc-800/30 hover:text-zinc-400"
+                        ? `${f.color} bg-accent-soft border-accent`
+                        : "text-fg-tertiary border-edge-subtle hover:text-fg-secondary"
                     )}
                   >
                     {f.icon}
@@ -228,13 +228,13 @@ export function TaskFilters({
                 <button
                   onClick={() => setDomainFilter(null)}
                   className={cn(
-                    "text-[8px] px-2 py-0.5 rounded-full border uppercase tracking-wider transition-all",
+                    "text-[12px] px-2 py-0.5 rounded-full border transition-colors duration-[var(--motion-state)]",
                     !domainFilter
-                      ? "bg-zinc-700/50 text-zinc-200 border-zinc-600"
-                      : "text-zinc-600 border-zinc-800/40 hover:text-zinc-400"
+                      ? "bg-accent-soft text-fg border-accent"
+                      : "text-fg-tertiary border-edge-subtle hover:text-fg-secondary"
                   )}
                 >
-                  all
+                  All
                 </button>
                 {[...anchorEntries, ...customEntries, ...otherDomains].map((d) => {
                   const removable = d.isCustom; // anchors + auto-derived not removable
@@ -248,12 +248,12 @@ export function TaskFilters({
                           setDomainFilter(domainFilter === d.name ? null : d.name)
                         }
                         className={cn(
-                          "text-[8px] px-2 py-0.5 rounded-full border uppercase tracking-wider transition-all",
+                          "text-[12px] px-2 py-0.5 rounded-full border transition-colors duration-[var(--motion-state)]",
                           domainFilter === d.name
                             ? cn(dc(d.name), "border-current/30")
                             : d.count === 0
-                              ? "text-zinc-700 border-zinc-800/30 hover:text-zinc-500"
-                              : "text-zinc-600 border-zinc-800/40 hover:text-zinc-400",
+                              ? "text-fg-tertiary/60 border-edge-subtle hover:text-fg-tertiary"
+                              : "text-fg-tertiary border-edge-subtle hover:text-fg-secondary",
                           // In edit mode, attach right edge to the × button
                           filterEditMode && removable && "rounded-r-none",
                         )}
@@ -281,7 +281,7 @@ export function TaskFilters({
                             );
                             if (domainFilter === d.name) setDomainFilter(null);
                           }}
-                          className="text-[8px] px-1.5 py-0.5 rounded-r-full border border-l-0 border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/30"
+                          className="text-[11px] px-1.5 py-0.5 rounded-r-full border border-l-0 border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/30"
                           title={`Remove "${d.name}" from your filters`}
                         >
                           ✕
@@ -320,22 +320,22 @@ export function TaskFilters({
                         }
                       }}
                       placeholder="domain name"
-                      className="text-[9px] px-2 py-0.5 rounded-full border border-blue-500/40 bg-zinc-900 text-zinc-200 placeholder:text-zinc-600 outline-none focus:border-blue-500 w-28"
+                      className="text-[11px] px-2 py-0.5 rounded-full border border-blue-500/40 bg-content text-fg placeholder:text-fg-tertiary outline-none focus:border-accent w-28"
                     />
                     <button
                       onClick={() => {
                         setAddingDomain(false);
                         setNewDomainInput("");
                       }}
-                      className="text-[8px] text-zinc-600 hover:text-zinc-300"
+                      className="text-[11px] text-fg-tertiary hover:text-fg"
                     >
-                      cancel
+                      Cancel
                     </button>
                   </span>
                 ) : (
                   <button
                     onClick={() => setAddingDomain(true)}
-                    className="text-[8px] px-2 py-0.5 rounded-full border border-blue-500/30 bg-blue-500/5 text-blue-300 uppercase tracking-wider hover:bg-blue-500/15"
+                    className="text-[12px] px-2 py-0.5 rounded-full border border-blue-500/30 bg-blue-500/5 text-blue-300 hover:bg-blue-500/15"
                     title="Add a custom domain (e.g. learning, finance)"
                   >
                     + add
@@ -346,10 +346,10 @@ export function TaskFilters({
                   <button
                     onClick={() => setFilterEditMode((v) => !v)}
                     className={cn(
-                      "text-[8px] px-2 py-0.5 rounded-full border uppercase tracking-wider transition-all",
+                      "text-[12px] px-2 py-0.5 rounded-full border transition-colors duration-[var(--motion-state)]",
                       filterEditMode
                         ? "border-amber-500/50 bg-amber-500/15 text-amber-300"
-                        : "text-zinc-600 border-zinc-800/40 hover:text-zinc-400",
+                        : "text-fg-tertiary border-edge-subtle hover:text-fg-secondary",
                     )}
                     title={
                       filterEditMode
@@ -357,7 +357,7 @@ export function TaskFilters({
                         : "Show × to remove custom domains"
                     }
                   >
-                    {filterEditMode ? "done" : "edit"}
+                    {filterEditMode ? "Done" : "Edit"}
                   </button>
                 )}
               </div>
@@ -365,12 +365,12 @@ export function TaskFilters({
             {/* Search — only renders when 5+ loops (otherwise eyeball) */}
             {showSearch && (
               <div className="flex items-center gap-1.5">
-                <Search size={11} className="text-zinc-600 shrink-0" />
+                <Search size={11} className="text-fg-tertiary shrink-0" />
                 <Input
                   placeholder={getSearchPlaceholder()}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-7 bg-zinc-900/60 border-zinc-800/40 text-[11px] placeholder:text-zinc-700"
+                  className="h-7 bg-content border-edge-subtle text-[11px] placeholder:text-fg-tertiary"
                 />
               </div>
             )}

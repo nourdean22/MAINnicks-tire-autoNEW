@@ -73,7 +73,7 @@ function isStale(s: StoredSkill): boolean {
 type Tab = "candidates" | "active" | "graduated";
 
 function tierColor(tier: StoredSkill["tier"]): string {
-  return tier === "tiny" ? "text-emerald-400" : tier === "tactical" ? "text-[var(--gold)]" : "text-violet-400";
+  return tier === "tiny" ? "text-emerald-400" : tier === "tactical" ? "text-sky-400" : "text-violet-400";
 }
 
 export function SkillLibraryPanel() {
@@ -227,7 +227,7 @@ export function SkillLibraryPanel() {
       <div className="flex items-center justify-between mb-3">
         <div>
           <p className="section-label">Skill Library</p>
-          <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5">
+          <p className="text-[12px] text-fg-tertiary mt-0.5">
             patterns pulled from your wins · promote the ones that track · graduate when proven
           </p>
         </div>
@@ -243,21 +243,21 @@ export function SkillLibraryPanel() {
             onClick={() => void extractNow()}
             disabled={extracting}
             className={cn(
-              "text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border transition-colors inline-flex items-center gap-1",
+              "text-[12px] font-medium px-2 py-1 rounded-control border transition-colors duration-[var(--motion-state)] inline-flex items-center gap-1",
               extracting
-                ? "opacity-60 border-[var(--border-default)] text-[var(--text-tertiary)]"
-                : "border-[var(--gold)]/30 text-[var(--gold)] hover:bg-[var(--gold)]/10",
+                ? "opacity-60 border-edge-default text-fg-tertiary"
+                : "border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg",
             )}
             title="run extractor now (tasks + promises + reflections)"
           >
             {extracting ? <Loader2 size={10} className="animate-spin" /> : <Play size={10} />}
-            {extracting ? "extracting…" : "extract now"}
+            {extracting ? "Extracting…" : "Extract now"}
           </button>
           <button
             onClick={() => void load()}
-            className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--gold)] transition-colors"
+            className="text-[12px] font-medium text-fg-tertiary hover:text-fg transition-colors duration-[var(--motion-state)]"
           >
-            refresh
+            Refresh
           </button>
         </div>
       </div>
@@ -269,12 +269,12 @@ export function SkillLibraryPanel() {
           placeholder="search triggers / actions / keywords…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="w-full px-2 py-1.5 bg-[var(--bg-base)] border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--gold)]/30"
+          className="w-full px-2 py-1.5 rounded-control border border-edge-default bg-content text-[13px] text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent"
         />
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 mb-3 border-b border-[var(--border-default)] pb-2">
+      <div className="flex items-center gap-1 mb-3 border-b border-edge-subtle pb-2">
         {(
           [
             { id: "candidates" as const, label: "candidates", count: candidates.length, glyph: Target },
@@ -290,15 +290,15 @@ export function SkillLibraryPanel() {
               onClick={() => setTab(t.id)}
               aria-pressed={sel}
               className={cn(
-                "flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-mono uppercase tracking-wider transition-colors",
+                "flex items-center gap-1.5 px-2 py-1 rounded-control text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
                 sel
-                  ? "bg-[var(--gold)]/10 text-[var(--gold)] border border-[var(--gold)]/30"
-                  : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)] border border-transparent",
+                  ? "bg-accent-soft text-fg border border-transparent"
+                  : "text-fg-tertiary hover:text-fg-secondary border border-transparent",
               )}
             >
               <Glyph size={10} />
               {t.label}
-              <span className={cn("tabular-nums", sel ? "text-[var(--gold)]" : "text-[var(--text-tertiary)]")}>
+              <span className={cn("tabular-nums", sel ? "text-fg-secondary" : "text-fg-tertiary")}>
                 {t.count}
               </span>
             </button>
@@ -326,8 +326,8 @@ export function SkillLibraryPanel() {
             <div
               key={s.key}
               className={cn(
-                "group px-2 py-2 rounded border transition-colors",
-                "bg-[var(--bg-base)] border-[var(--border-default)]",
+                "group px-2 py-2 rounded-control border transition-colors",
+                "bg-surface-interactive border-edge-subtle",
                 rowBusy && "opacity-60",
                 stale && tab !== "graduated" && "border-amber-500/30 bg-amber-500/5",
                 s.polarity === "avoid" && "border-red-500/20",
@@ -338,23 +338,23 @@ export function SkillLibraryPanel() {
                   {editing ? (
                     <div className="space-y-2">
                       <div>
-                        <label className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+                        <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                           trigger
                         </label>
                         <input
                           value={editTrigger}
                           onChange={(e) => setEditTrigger(e.target.value)}
-                          className="w-full mt-0.5 px-2 py-1 text-[11px] bg-[var(--bg-overlay)] border border-[var(--border-default)] rounded text-[var(--text-primary)] focus:outline-none focus:border-[var(--gold)]/30"
+                          className="w-full mt-0.5 px-2 py-1 text-[13px] rounded-control border border-edge-default bg-content text-fg focus:outline-none focus:border-accent"
                         />
                       </div>
                       <div>
-                        <label className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+                        <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                           action
                         </label>
                         <input
                           value={editAction}
                           onChange={(e) => setEditAction(e.target.value)}
-                          className="w-full mt-0.5 px-2 py-1 text-[11px] bg-[var(--bg-overlay)] border border-[var(--border-default)] rounded text-[var(--text-primary)] focus:outline-none focus:border-[var(--gold)]/30"
+                          className="w-full mt-0.5 px-2 py-1 text-[13px] rounded-control border border-edge-default bg-content text-fg focus:outline-none focus:border-accent"
                         />
                       </div>
                     </div>
@@ -362,16 +362,16 @@ export function SkillLibraryPanel() {
                     <>
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[11px] text-[var(--text-primary)]">
-                          when <span className={cn(s.polarity === "avoid" ? "text-red-400" : "text-[var(--gold)]")}>{s.trigger}</span>
+                          when <span className={cn(s.polarity === "avoid" ? "text-red-400" : "font-medium")}>{s.trigger}</span>
                         </span>
-                        <span className={cn("text-[9px] font-mono uppercase tracking-wider", tierColor(s.tier))}>
+                        <span className={cn("font-mono text-[11px] uppercase tracking-[0.12em]", tierColor(s.tier))}>
                           {s.tier}
                         </span>
                         {s.polarity === "avoid" && (
-                          <span className="text-[9px] font-mono uppercase tracking-wider text-red-400">avoid</span>
+                          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-red-400">avoid</span>
                         )}
                         {stale && tab !== "graduated" && (
-                          <span className="inline-flex items-center gap-0.5 text-[9px] font-mono uppercase tracking-wider text-amber-400">
+                          <span className="inline-flex items-center gap-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-amber-400">
                             <AlertTriangle size={9} /> stale
                           </span>
                         )}
@@ -379,7 +379,7 @@ export function SkillLibraryPanel() {
                       <div className="mt-1 text-[11px] text-[var(--text-secondary)]">
                         {s.polarity === "avoid" ? "⛔" : "→"} {action}
                       </div>
-                      <div className="mt-1 flex items-center gap-3 text-[9px] font-mono text-[var(--text-tertiary)]">
+                      <div className="mt-1 flex items-center gap-3 text-[11px] font-mono text-fg-tertiary">
                         <span>
                           {s.times_succeeded}/{s.times_fired}
                           {s.times_fired > 0 && ` · ${rate}%`}
@@ -395,7 +395,7 @@ export function SkillLibraryPanel() {
                           {s.trigger_signals.map((sig) => (
                             <span
                               key={sig}
-                              className="text-[8px] font-mono px-1 py-0.5 rounded bg-[var(--bg-overlay)] text-[var(--text-tertiary)]"
+                              className="text-[11px] font-mono px-1 py-0.5 rounded-micro bg-surface-raised text-fg-tertiary"
                             >
                               {sig}
                             </span>
@@ -415,7 +415,7 @@ export function SkillLibraryPanel() {
                         disabled={rowBusy}
                         title="save"
                         aria-label="Save skill edit"
-                        className="h-9 w-9 sm:h-6 sm:w-6 rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 inline-flex items-center justify-center"
+                        className="h-9 w-9 sm:h-6 sm:w-6 rounded-control border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 inline-flex items-center justify-center"
                       >
                         <Check size={10} aria-hidden />
                       </button>
@@ -424,7 +424,7 @@ export function SkillLibraryPanel() {
                         disabled={rowBusy}
                         title="cancel"
                         aria-label="Cancel edit"
-                        className="h-9 w-9 sm:h-6 sm:w-6 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 inline-flex items-center justify-center"
+                        className="h-9 w-9 sm:h-6 sm:w-6 rounded-control border border-edge-default text-fg-tertiary hover:text-red-400 inline-flex items-center justify-center"
                       >
                         <X size={10} aria-hidden />
                       </button>
@@ -436,7 +436,7 @@ export function SkillLibraryPanel() {
                         disabled={rowBusy}
                         title="edit trigger + action"
                         aria-label="Edit trigger and action"
-                        className="h-9 w-9 sm:h-6 sm:w-6 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/30 inline-flex items-center justify-center"
+                        className="h-9 w-9 sm:h-6 sm:w-6 rounded-control border border-edge-default text-fg-tertiary hover:text-fg hover:border-edge-strong inline-flex items-center justify-center"
                       >
                         <Pencil size={10} aria-hidden />
                       </button>
@@ -446,17 +446,17 @@ export function SkillLibraryPanel() {
                             onClick={() => act(s.key, "promote")}
                             disabled={rowBusy}
                             title="promote to active"
-                            className="h-6 px-2 rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[9px] font-mono uppercase tracking-wider inline-flex items-center gap-1"
+                            className="h-6 px-2 rounded-control border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[12px] font-medium inline-flex items-center gap-1"
                           >
                             <ArrowUp size={9} />
-                            promote
+                            Promote
                           </button>
                           <button
                             onClick={() => act(s.key, "drop", "skill_pending")}
                             disabled={rowBusy}
                             title="drop candidate"
                             aria-label="Drop candidate"
-                            className="h-9 w-9 sm:h-6 sm:w-6 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 hover:border-red-400/30 inline-flex items-center justify-center"
+                            className="h-9 w-9 sm:h-6 sm:w-6 rounded-control border border-edge-default text-fg-tertiary hover:text-red-400 hover:border-red-400/30 inline-flex items-center justify-center"
                           >
                             <Trash2 size={10} aria-hidden />
                           </button>
@@ -468,17 +468,17 @@ export function SkillLibraryPanel() {
                             onClick={() => act(s.key, "graduate")}
                             disabled={rowBusy}
                             title="graduate (silent-track)"
-                            className="h-6 px-2 rounded border border-violet-500/30 text-violet-400 hover:bg-violet-500/10 text-[9px] font-mono uppercase tracking-wider inline-flex items-center gap-1"
+                            className="h-6 px-2 rounded-control border border-violet-500/30 text-violet-400 hover:bg-violet-500/10 text-[12px] font-medium inline-flex items-center gap-1"
                           >
                             <GraduationCap size={9} />
-                            graduate
+                            Graduate
                           </button>
                           <button
                             onClick={() => act(s.key, "drop", "skill")}
                             disabled={rowBusy}
                             title="drop skill"
                             aria-label="Drop skill"
-                            className="h-9 w-9 sm:h-6 sm:w-6 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 hover:border-red-400/30 inline-flex items-center justify-center"
+                            className="h-9 w-9 sm:h-6 sm:w-6 rounded-control border border-edge-default text-fg-tertiary hover:text-red-400 hover:border-red-400/30 inline-flex items-center justify-center"
                           >
                             <Trash2 size={10} aria-hidden />
                           </button>
@@ -489,9 +489,9 @@ export function SkillLibraryPanel() {
                           onClick={() => act(s.key, "ungraduate")}
                           disabled={rowBusy}
                           title="back to active (resume nudging)"
-                          className="h-6 px-2 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/30 text-[9px] font-mono uppercase tracking-wider"
+                          className="h-6 px-2 rounded-control border border-edge-default text-fg-tertiary hover:text-fg hover:border-edge-strong text-[12px] font-medium"
                         >
-                          un-grad
+                          Un-grad
                         </button>
                       )}
                     </>
@@ -551,7 +551,7 @@ export function SkillLibraryPanel() {
         )}
       </div>
 
-      <p className="text-[9px] text-[var(--text-tertiary)] mt-3 leading-relaxed">
+      <p className="text-[12px] text-fg-tertiary mt-3 leading-relaxed">
         Candidates surface every Sunday at 3am from the last 30 days of DONE tasks.
         Active skills reinforce on matching completions — when success_rate stays high after 5+ fires,
         graduate them to silent-track so the system stops nudging but keeps the pattern on file.

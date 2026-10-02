@@ -1060,7 +1060,7 @@ async function processCallEndReport(
     if (await isEnabled("vapi_action_proposals")) {
       const callId = event.call?.id;
       if (callId) {
-        const { maybeProposeCallActions } = await import("../../services/vapiActionExtraction");
+        const { maybeProposeCallActions, loadCallCaptureEvidence } = await import("../../services/vapiActionExtraction");
         const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
         const transcript =
           (event as { artifact?: { transcript?: string } }).artifact?.transcript ??
@@ -1081,6 +1081,10 @@ async function processCallEndReport(
           // Direction gate: our own outbound confirmation / recovery calls must
           // not produce drafts for work that already exists.
           callType: (event.call as { type?: string })?.type ?? null,
+          // Capture gate: what a mid-call tool already persisted for this call
+          // (lead/callback ids on the log row written above, a callback row
+          // naming the call, a bookSlot expected arrival). Fails open to {}.
+          ...(await loadCallCaptureEvidence(String(callId))),
         });
       }
     }

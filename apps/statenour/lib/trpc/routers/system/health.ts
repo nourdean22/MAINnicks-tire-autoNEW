@@ -74,13 +74,25 @@ export const healthProcedures = {
       const { prisma } = await import("@/lib/prisma");
       const windowDays = input?.windowDays ?? 7;
       const since = new Date(Date.now() - windowDays * 86_400_000);
-      const [stats, engines] = await Promise.all([
+      const [stats, engines, odometerRow] = await Promise.all([
         outcomeStats(windowDays),
         prisma.intelligenceOutcome.groupBy({
           by: ["sourceEngine", "kind"],
           where: { shownAt: { gte: since } },
           _count: { _all: true },
         }),
+        // 2026-10-02 · the outcome-harvest cron's rolling odometer row had no
+        // reader: the cockpit filtered EVAL_RUN rows by createdAt >= 24h and
+        // parsed them for `passed`, which this prose row never satisfies
+        // (outcome-ledger census E4). Read it by its stable key, no age filter;
+        // `updatedAt` is its freshness.
+        prisma.brainMemory
+          .findUnique({
+            where: { category_key: { category: "eval_run", key: "eval_run:corpus-odometer" } },
+            select: { content: true, updatedAt: true },
+          })
+          .then((row) => ({ row, failed: false as const }))
+          .catch(() => ({ row: null, failed: true as const })),
       ]);
       return {
         windowDays,
@@ -90,6 +102,11 @@ export const healthProcedures = {
           kind: e.kind,
           rows: e._count._all,
         })),
+        odometer: odometerRow.row
+          ? { line: odometerRow.row.content, asOf: odometerRow.row.updatedAt.toISOString() }
+          : null,
+        // A failed read is not "the cron never wrote one" (bug-hunt 2026-10-02).
+        odometerUnreadable: odometerRow.failed,
       };
     }),
 
@@ -335,6 +352,17 @@ export const healthProcedures = {
   integrationQuotas: operatorProcedure.query(async () =>
     buildIntegrationQuotas(),
   ),
+
+  /**
+   * 2026-10-02 · where Telegram sends the bot's updates (getWebhookInfo,
+   * read-only, token stays server-side). Zero webhook requests reached this
+   * app for a week while the bot kept sending — every rating button tap went
+   * elsewhere. See lib/services/telegram-webhook-status.ts.
+   */
+  telegramWebhook: operatorProcedure.query(async () => {
+    const { getTelegramWebhookStatus } = await import("@/lib/services/telegram-webhook-status");
+    return getTelegramWebhookStatus();
+  }),
 
   // ════════════════ Phase VV · system dashboard widgets ════════════════
 

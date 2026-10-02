@@ -54,7 +54,7 @@ const STATUS_CLS: Record<string, string> = {
   active: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
   restricted_active: "border-sky-500/30 bg-sky-500/10 text-sky-300",
   inert: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-  scaffolded: "border-edge text-fg-tertiary",
+  scaffolded: "border-edge-default text-fg-tertiary",
   blocked: "border-rose-500/40 bg-rose-500/10 text-rose-300",
 };
 
@@ -86,7 +86,7 @@ function Fact({ label, value }: { label: string; value: string | null | undefine
   if (!value) return null;
   return (
     <div className="min-w-0">
-      <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-tertiary">{label}</dt>
+      <dt className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{label}</dt>
       <dd className="break-words font-mono text-[12px] text-fg-secondary">{value}</dd>
     </div>
   );
@@ -121,21 +121,21 @@ export function ToolInspector({ entity }: InspectorPanelProps) {
     <div className="space-y-5" data-tool-inspector={t.id}>
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("rounded border px-1.5 py-px font-mono text-[10px] uppercase tracking-wide", STATUS_CLS[t.status] ?? "border-edge text-fg-tertiary")}>
+          <span className={cn("rounded-micro border px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em]", STATUS_CLS[t.status] ?? "border-edge-default text-fg-tertiary")}>
             {t.status.replace(/_/g, " ")}
           </span>
-          <span className="rounded border border-edge px-1.5 py-px font-mono text-[10px] uppercase tracking-wide text-fg-tertiary">{t.category}</span>
-          <span className={cn("font-mono text-[10px] uppercase tracking-wide", HEALTH_CLS[t.health] ?? "text-fg-tertiary")} data-tool-health={t.health}>
+          <span className="rounded-micro border border-edge-default px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{t.category}</span>
+          <span className={cn("font-mono text-[11px] uppercase tracking-[0.12em]", HEALTH_CLS[t.health] ?? "text-fg-tertiary")} data-tool-health={t.health}>
             health · {t.health.replace(/_/g, " ")}
           </span>
         </div>
-        <h2 className="font-display text-xl font-bold leading-tight text-fg">{t.label}</h2>
+        <h2 className="text-[17px] font-semibold leading-tight text-fg">{t.label}</h2>
         <p className="font-mono text-[11px] text-fg-tertiary">{t.id}</p>
         <p className="text-[13px] leading-relaxed text-fg-secondary">{t.description}</p>
       </header>
 
       <section aria-label="Access">
-        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-tertiary">access</p>
+        <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">access</p>
         <ul className="space-y-1">
           <Flag on={t.readAccess} label="read" meaning="reads external or local data" />
           <Flag on={t.writeAccess} label="write" meaning="writes to a system it does not own" />
@@ -146,8 +146,8 @@ export function ToolInspector({ entity }: InspectorPanelProps) {
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
         <div>
-          <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-tertiary">risk</dt>
-          <dd className={cn("font-mono text-[12px] uppercase", RISK_CLS[t.riskClass] ?? "text-fg-secondary")} data-tool-risk={t.riskClass}>
+          <dt className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">risk</dt>
+          <dd className={cn("font-mono text-[11px] uppercase tracking-[0.12em]", RISK_CLS[t.riskClass] ?? "text-fg-secondary")} data-tool-risk={t.riskClass}>
             {t.riskClass}
           </dd>
         </div>
@@ -159,7 +159,7 @@ export function ToolInspector({ entity }: InspectorPanelProps) {
       </dl>
 
       <section aria-label="Environment" data-tool-missing-env={t.missingEnv.length}>
-        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-tertiary">env</p>
+        <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">env</p>
         {t.missingEnv.length > 0 ? (
           <p className="font-mono text-[12px] text-amber-300">missing · {t.missingEnv.join(", ")}</p>
         ) : t.requiredEnv.length > 0 ? (
@@ -172,7 +172,7 @@ export function ToolInspector({ entity }: InspectorPanelProps) {
 
       {t.currentLimitations.length > 0 ? (
         <section aria-label="Limitations">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-tertiary">current limitations</p>
+          <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">current limitations</p>
           <ul className="list-disc space-y-0.5 pl-4 text-[12px] text-fg-secondary">
             {t.currentLimitations.map((l) => (
               <li key={l}>{l}</li>
@@ -183,7 +183,7 @@ export function ToolInspector({ entity }: InspectorPanelProps) {
       {t.notes ? <p className="text-[12px] italic text-fg-tertiary">{t.notes}</p> : null}
 
       <EntityActionRow entities={[entity]} labelOf={() => t.label} />
-      <p className="font-mono text-[10px] text-fg-tertiary">policy evaluation stays on the registry page — this is the capability as declared, not a toggle</p>
+      <p className="font-mono text-[11px] text-fg-tertiary">policy evaluation stays on the registry page — this is the capability as declared, not a toggle</p>
     </div>
   );
 }

@@ -171,7 +171,7 @@ export default function ApprovalsSection() {
     <div className="space-y-4">
       <PageHeader
         title="Approvals"
-        subtitle="AI- and one-tap-originated actions wait here as drafts. Nothing executes without your approval — enforced server-side."
+        subtitle="AI- and one-tap-originated proposals wait here as drafts. Nothing in THIS queue executes without your approval — enforced server-side. Separate SMS lanes (safe auto-replies, campaigns, reminders) run under their own rollout modes: Outreach → SMS → Autonomy ladder."
         icon={<ShieldCheck className="w-5 h-5" />}
       />
 
@@ -249,9 +249,12 @@ export default function ApprovalsSection() {
                   </details>
                 )}
 
-                {p.status === "rejected" && p.reviewNote && (
-                  <div className="text-[11px] text-muted-foreground">Rejected: {p.reviewNote}</div>
+                {p.status === "rejected" && (
+                  <div className="text-[11px] text-muted-foreground">
+                    Rejected{p.reviewedBy ? ` by ${p.reviewedBy}` : ""}: {p.reviewNote || "no reason given"}
+                  </div>
                 )}
+                <DownstreamLine downstream={p.downstream ?? null} />
                 {p.status === "failed" && (
                   <div className="text-[11px] text-red-500">
                     Execution failed: {String((p.executionResultJson as { error?: string } | null)?.error ?? "unknown")}
@@ -292,7 +295,7 @@ export default function ApprovalsSection() {
                     <input
                       value={rejectNote}
                       onChange={(e) => setRejectNote(e.target.value)}
-                      placeholder="Why? (optional)"
+                      placeholder="Why? e.g. duplicate · already a walk-in · wrong date (optional)"
                       className="w-full bg-background/50 border border-border/30 rounded-md px-3 py-2 text-sm"
                     />
                     <div className="flex gap-2">
@@ -365,6 +368,32 @@ export default function ApprovalsSection() {
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+type Downstream =
+  | { readable: true; invoicedOn: string | null; bookedOn: string | null; callbackOn: string | null }
+  | { readable: false };
+
+/**
+ * What happened to this customer after the decision (server: proposalOutcomes.ts).
+ * Without it a rejection was a black hole: nothing said whether the caller came in
+ * anyway or was lost. Unreadable renders as unknown, never as "nothing happened".
+ */
+function DownstreamLine({ downstream }: { downstream: Downstream | null }) {
+  if (!downstream) return null;
+  if (!downstream.readable) {
+    return <div className="text-[11px] text-amber-500">Afterwards: unknown (outcome read failed)</div>;
+  }
+  const parts = [
+    downstream.invoicedOn && `invoiced ${downstream.invoicedOn}`,
+    downstream.bookedOn && `booked ${downstream.bookedOn}`,
+    downstream.callbackOn && `callback requested ${downstream.callbackOn}`,
+  ].filter(Boolean);
+  return (
+    <div className={`text-[11px] ${parts.length ? "text-emerald-500" : "text-muted-foreground"}`}>
+      Afterwards: {parts.length ? parts.join(" · ") : "no invoice, booking or callback found for this phone"}
     </div>
   );
 }

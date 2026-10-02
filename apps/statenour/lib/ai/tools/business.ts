@@ -162,7 +162,7 @@ export const businessTools = {
   }),
 
   queryNickstire: tool({
-    description: "Query live data from nickstire.org. Queries: revenue_today, revenue_range, leads_today, leads_pipeline, leads_urgent, bookings_today, bookings_status, customer_search, callbacks_pending, work_orders_active, attention_needed, shop_pulse, feature_flags, gsc_summary, gsc_top_queries",
+    description: "Query live data from nickstire.org. Queries: revenue_today, revenue_range, leads_today, leads_pipeline, leads_urgent, bookings_today, bookings_status, customer_search, callbacks_pending, work_orders_active, attention_needed, shop_pulse, feature_flags, gsc_summary, gsc_top_queries. Money: customer_search.totalSpent is integer CENTS — quote totalSpentDollars. gsc_summary.source says whether totals are Google's official property total or a partial stored-row subset.",
     inputSchema: z.object({
       query: z.string().describe("Query name from the list above"),
       from: z.string().optional().describe("Start date YYYY-MM-DD (revenue_range, gsc_*)"),

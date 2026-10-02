@@ -74,10 +74,10 @@ export function SelfCritiqueCard() {
   return (
     <GlassCard className="space-y-3">
       <div className="flex items-center justify-between">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+        <div className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
           Nick flagged for review
         </div>
-        <div className="text-[10px] text-[var(--text-tertiary)] tabular-nums">
+        <div className="text-[11px] text-[var(--text-tertiary)] tabular-nums">
           {rows.length}
         </div>
       </div>
@@ -91,11 +91,11 @@ export function SelfCritiqueCard() {
             <li key={row.id}>
               <Link
                 href={href}
-                className="block min-h-[44px] py-2 px-2 -mx-2 rounded hover:bg-white/[0.04] transition-colors"
+                className="block min-h-[44px] py-2 px-2 -mx-2 rounded-control hover:bg-surface-hover transition-colors"
               >
                 <div className="flex items-baseline gap-2">
                   {typeof score === "number" && (
-                    <span className="text-[10px] tabular-nums shrink-0 text-amber-400">
+                    <span className="text-[11px] tabular-nums shrink-0 text-amber-400">
                       {score}/100
                     </span>
                   )}

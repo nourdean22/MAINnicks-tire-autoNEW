@@ -1,4 +1,7 @@
 /* Split from app/globals.css (2026-07-07) - import order in globals.css IS the cascade order; do not reorder. */
+/* UI v2 · Precision Material Cockpit (2026-10-01). Typography is Geist-led and sentence-case by
+   default; Barlow Condensed survives for exactly two roles (the page's one verdict, big metrics).
+   Rationale: docs/design/ui-v2/SYSTEM.md §3. */
 * {
   box-sizing: border-box;
 }
@@ -7,6 +10,9 @@ html {
   min-height: 100%;
   color-scheme: dark;
   scroll-behavior: smooth;
+  /* Firefox + Chromium 121+ standard scrollbar (the ::-webkit-* rules in effects.css cover the rest). */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
   /* Section 5.8 / WCAG 2.4.11 (2026-09-08): a focused control scrolled into view lands above
      the fixed bottom chrome, never under it. */
   scroll-padding-bottom: var(--bottom-chrome-h, 6rem);
@@ -15,109 +21,138 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
-  background: var(--bg-void);
+  background: var(--canvas);
   color: var(--text-primary);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
 }
 
 /* ═══════════════════════════════════════════════════════
-   DISPLAY TYPOGRAPHY — Barlow Condensed
+   HEADINGS — Geist Sans, sentence case. No element default is uppercase any more;
+   uppercase is opt-in through the eyebrow and verdict roles below.
    ═══════════════════════════════════════════════════════ */
-h1, .font-display { font-family: var(--font-display); }
-h1 { font-weight: 700; font-size: 1.75rem; letter-spacing: -0.02em; text-transform: uppercase; color: var(--text-primary); }
-h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; letter-spacing: -0.01em; text-transform: uppercase; color: var(--text-primary); }
-h3 { font-family: var(--font-display); font-weight: 600; font-size: 1rem; color: var(--text-primary); }
+/* In @layer base ON PURPOSE: an unlayered element rule beats every Tailwind utility (utilities live
+   in @layer utilities), which made `<h2 className="text-[26px]">` render at 17px. Layered, the
+   element default is exactly that — a default a class can override. */
+@layer base {
+  h1, h2, h3 { font-family: var(--font-body); color: var(--text-primary); margin: 0; }
+  h1 { font-weight: 600; font-size: 1.75rem; line-height: 1.1; letter-spacing: -0.02em; }
+  h2 { font-weight: 600; font-size: 1.0625rem; line-height: 1.25; letter-spacing: -0.01em; }
+  h3 { font-weight: 600; font-size: 0.9375rem; line-height: 1.3; }
+}
+.font-display { font-family: var(--font-display); }
 
 /* ═══════════════════════════════════════════════════════
-   GLASS CARDS — layered depth, frosted glass
+   FOCUS — two rings (canvas + accent) so it reads on void, raised, glass and gold fills.
+   WCAG 2.4.13. Replaces the browser default without removing it.
+   ═══════════════════════════════════════════════════════ */
+:where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ═══════════════════════════════════════════════════════
+   MATERIAL — control chrome only. Content never gets backdrop-filter (SYSTEM.md §11).
+   ═══════════════════════════════════════════════════════ */
+/* @layer components so a caller's own bg-/border- utility wins over the material defaults (PR 4). */
+@layer components {
+.ui-material {
+  background: var(--control-glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(115%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(115%);
+}
+}
+
+/* The signal notch — the one gold mark that appears without the operator acting.
+   Selected route · NOW · active mission · focused object. 2px wide, never glows. */
+.notch {
+  display: inline-block;
+  width: 2px;
+  height: 0.875rem;
+  border-radius: 9999px;
+  background: var(--accent);
+}
+
+/* ═══════════════════════════════════════════════════════
+   CARDS — `.glass-card` keeps its name for 47 adopters but is now a SOLID surface.
+   Hover lifts the edge one step; only an explicit active/critical/success state colours it.
    ═══════════════════════════════════════════════════════ */
 .glass-card {
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
-  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--edge-subtle);
+  border-radius: var(--radius-surface);
   padding: 1rem;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color var(--motion-state) var(--ease-standard);
 }
-.glass-card:hover { border-color: var(--border-hover); }
-.glass-card-active { border-color: var(--gold) !important; box-shadow: 0 0 20px var(--gold-glow); }
-.glass-card-critical { border-color: var(--status-red) !important; box-shadow: 0 0 20px rgba(239,68,68,0.15); }
-.glass-card-success { border-color: var(--status-green) !important; box-shadow: 0 0 20px rgba(34,197,94,0.15); }
+.glass-card:hover { border-color: var(--edge-default); }
+.glass-card-active { border-color: var(--accent) !important; }
+.glass-card-critical { border-color: var(--status-red) !important; }
+.glass-card-success { border-color: var(--status-green) !important; }
 
 /* ═══════════════════════════════════════════════════════
    UTILITY CLASSES
    ═══════════════════════════════════════════════════════ */
-.stat-number { font-family: var(--font-display); font-weight: 800; font-variant-numeric: tabular-nums; }
-.section-label { font-family: var(--font-display); font-size: 0.6875rem; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.08em; }
-.text-gold { color: var(--gold); }
-.bg-gold { background-color: var(--gold); }
-.border-gold { border-color: var(--gold); }
+.stat-number { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.section-label {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.text-gold { color: var(--accent); }
+.bg-gold { background-color: var(--accent); }
+.border-gold { border-color: var(--accent); }
 
 /* ═══════════════════════════════════════════════════════
-   v10.0.352 · EDITORIAL LAYOUT CLASSES (minimalist-ui adapted for dark)
-   These classes are referenced from <PageHeader>, <PanelHeader>,
-   <EmptyState> in components/layout/ui.tsx but were previously
-   undefined — components rendered structurally with zero bespoke
-   styling. Defining them once here applies the editorial rhythm to
-   every StandardPage / PageHeader adopter across the entire app.
-
-   Principles applied (warm-white minimalist · re-tuned for gold-on-
-   dark): generous spacing rhythm, tight tracking on display titles,
-   capped reading width on body copy (≤60ch), restrained eyebrow,
-   no decoration · the layout itself becomes the design.
+   EDITORIAL LAYOUT CLASSES — emitted by <PageHeader>, <PanelHeader>, <EmptyState>
+   (components/layout/ui.tsx). Defined once here; every StandardPage adopter inherits.
+   v2: the page title is Geist 600 at 28/32/36px, the eyebrow is mono, the divider is a hairline.
    ═══════════════════════════════════════════════════════ */
 .page-header {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border-default);
+  gap: 0.5rem;
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--edge-subtle);
 }
 @media (min-width: 768px) {
   .page-header {
     flex-direction: row;
-    align-items: flex-start;
+    align-items: flex-end;
     justify-content: space-between;
     gap: 1.5rem;
   }
 }
 .page-header > div:first-child {
-  /* Cap title block width so long descriptions wrap naturally instead
-     of stretching across a 1280px-wide page. 60ch is the editorial
-     sweet-spot for readability per minimalist-ui §3 typographic rule. */
   max-width: 60ch;
   flex: 1 1 auto;
   min-width: 0;
 }
 .page-title {
-  /* Inherits h1 base (Barlow Condensed, uppercase, gold accent fall-
-     through). Override font-size for a more editorial scale: 28px on
-     mobile / 36px on desktop. Tighter tracking + reduced top-margin
-     so the eyebrow → title relationship reads as a single unit. */
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 1.75rem;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.025em;
-  line-height: 1.05;
-  text-transform: uppercase;
+  line-height: 1.1;
+  text-transform: none;
+  text-wrap: balance;
   color: var(--text-primary);
-  margin: 0.125rem 0 0 0;
+  margin: 0.25rem 0 0 0;
 }
-@media (min-width: 768px) {
-  .page-title { font-size: 2.25rem; }
-}
+@media (min-width: 768px)  { .page-title { font-size: 2rem; } }
+@media (min-width: 1280px) { .page-title { font-size: 2.25rem; } }
 .page-copy {
   font-family: var(--font-body);
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   line-height: 1.55;
   color: var(--text-secondary);
   margin: 0.5rem 0 0 0;
-  letter-spacing: 0.005em;
+  max-width: 60ch;
 }
 .page-copy:empty { display: none; }
 .page-actions {
@@ -128,17 +163,16 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 1rem; color:
   flex-shrink: 0;
 }
 .eyebrow {
-  font-family: var(--font-display);
-  font-size: 0.625rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-tertiary);
   margin: 0;
 }
 
-/* Section header (PanelHeader) — same rhythm but smaller scale.
-   Used by sub-section heads inside StandardPage children. */
+/* Section header (PanelHeader) — same rhythm, smaller scale, sentence case. */
 .section-head {
   display: flex;
   flex-direction: column;
@@ -154,11 +188,11 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 1rem; color:
   }
 }
 .section-title {
-  font-family: var(--font-display);
-  font-size: 1.125rem;
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
   font-weight: 600;
   letter-spacing: -0.01em;
-  text-transform: uppercase;
+  text-transform: none;
   color: var(--text-primary);
   margin: 0.125rem 0 0 0;
 }
@@ -172,9 +206,7 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 1rem; color:
 }
 .section-copy:empty { display: none; }
 
-/* Empty state — quiet, centered, editorial · no decoration · just type.
-   Used everywhere lists/grids may be blank. Stops short of being a
-   decorative card · borders + padding only. */
+/* Empty state — quiet, centred, type only. A solid hairline, not a dashed box. */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -182,18 +214,17 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 1rem; color:
   text-align: center;
   gap: 0.375rem;
   padding: 2.5rem 1.5rem;
-  border: 1px dashed var(--border-default);
-  border-radius: 8px;
+  border: 1px solid var(--edge-subtle);
+  border-radius: var(--radius-surface);
   background: transparent;
   color: var(--text-secondary);
 }
 .empty-title {
-  font-family: var(--font-display);
-  font-size: 0.875rem;
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
+  text-transform: none;
+  color: var(--text-primary);
   margin: 0;
 }
 .empty-copy {
@@ -206,15 +237,7 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 1rem; color:
 }
 
 /* ═══════════════════════════════════════════════════════
-   v10.0.352 · EDITORIAL SERIF (optional · opt-in via class)
-   Per minimalist-ui §3 · pair the condensed display sans with an
-   editorial serif for hero quotes / journal entries / blockquote-
-   like passages. NOT a global override · drop-in via class only so
-   the operator-grade dark identity stays intact.
-
-   Usage: <p class="text-editorial">…</p>
-   Or for hero headlines on landing-style pages:
-   <h2 class="text-display-serif">…</h2>
+   EDITORIAL SERIF (opt-in via class) — hero quotes / journal passages only.
    ═══════════════════════════════════════════════════════ */
 .text-display-serif {
   font-family: var(--font-editorial), 'Instrument Serif', 'Lyon Text', 'Newsreader', Georgia, serif;
@@ -235,9 +258,7 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 1rem; color:
 }
 
 /* ═══════════════════════════════════════════════════════
-   v10.0.368 · A11Y · sr-only screen-reader-only utility
-   Standard pattern · visible to screen readers, invisible visually.
-   Used by aria-live status announcers in voice mode + reasoning trace.
+   A11Y · sr-only — used by aria-live announcers in voice mode + the activity summary.
    ═══════════════════════════════════════════════════════ */
 .sr-only {
   position: absolute;
@@ -252,15 +273,8 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 1rem; color:
 }
 
 /* ═══════════════════════════════════════════════════════
-   v10.0.352 · CARD PADDING NORMALIZATION
-   Per minimalist-ui §5: bento cards use 24-40px internal padding.
-   Many of our cards use cramped 12-16px which reads as dense rather
-   than premium. Bumping the rounded-lg dark-card pattern to 20px
-   (1.25rem) when there's no explicit p-* utility — Tailwind p-4
-   wins via specificity if the author wanted tighter padding.
-
-   Targets the same selector as the brand-anchor cascade so it lands
-   on every card surface across the OS without per-component edits.
+   CARD PADDING NORMALIZATION (v10.0.352) — unstyled `rounded-lg + border-…` cards get 20px.
+   Per-card `p-*` utilities still win. Behavioural, kept as-is.
    ═══════════════════════════════════════════════════════ */
 :is(section, div).rounded-lg:is(
   [class*="border-[var(--border-default)]"],
@@ -272,19 +286,8 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 1rem; color:
 }
 
 /* ═══════════════════════════════════════════════════════
-   iOS focus auto-zoom floor.
-
-   Paired with removing `maximumScale: 1` from the root viewport (which
-   blocked pinch zoom in the standalone PWA and failed WCAG 1.4.4). That
-   cap was also the only thing suppressing Safari's OTHER behaviour:
-   focusing a form control whose font-size is under 16px auto-zooms the
-   viewport and leaves it zoomed. chat-composer.tsx already pins its
-   textarea at text-[16px] for exactly this reason; the other ~49 sub-16px
-   inputs across 27 files were never brought along.
-
-   A 16px floor on coarse pointers satisfies both: zoom stays available,
-   and focusing an input no longer yanks the viewport. Desktop keeps its
-   denser type — this is scoped to the phone width the PWA runs at.
+   iOS focus auto-zoom floor — a sub-16px control yanks the viewport on focus in the PWA.
+   Scoped to the phone width; desktop keeps its density.
    ═══════════════════════════════════════════════════════ */
 @media (max-width: 767px) {
   input,
@@ -304,48 +307,44 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 1rem; color:
   [class*="text-[10px]"] { font-size: 12px !important; }
 }
 
-/* ── Visible Transformation wave (2026-09-16) ──────────────────────────────
-   The workbench waves shipped an object substrate the eye could not see; this
-   block is the part of the redesign every StandardPage adopter inherits at
-   once: the desktop spine's lane, and a masthead scale where the page title
-   is the loudest thing on the page. Unlayered on purpose (the h1/h2 rules
-   above are unlayered too, so a Tailwind utility would silently lose). */
+/* ── UI v2 type floor + tracking cap, every width (docs/design/ui-v2/SYSTEM.md §3) ──────────
+   The same class-substring mechanism, now on desktop too: 9px and 10px labels (550 + 976 call
+   sites) read at 11px, and the 0.16–0.2em eyebrow tracking (162 call sites) settles at 0.12em.
+   Unlayered, so it wins over the utilities without !important; the phone block above still wins
+   below 768px because it is !important. */
+[class*="text-[9px]"],
+[class*="text-[10px]"] { font-size: 11px; }
+[class*="tracking-[0.16em]"],
+[class*="tracking-[0.18em]"],
+[class*="tracking-[0.2em]"] { letter-spacing: 0.12em; }
+
+/* ── Desktop spine lane ─────────────────────────────────────────────────────
+   <main> pads left by --spine-w (components/layout/desktop-spine.tsx). v2: 3.75rem (60px). */
 :root { --spine-w: 0px; }
-@media (min-width: 1280px) { :root { --spine-w: 4.5rem; } }
+@media (min-width: 1280px) { :root { --spine-w: 3.75rem; } }
 
-.page-header { gap: 0.5rem; margin-bottom: 2rem; padding-bottom: 1.25rem; }
-.eyebrow {
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
-  font-size: 0.6875rem;
-  font-weight: 500;
-  letter-spacing: 0.18em;
-}
-.page-title { font-size: 2.5rem; letter-spacing: -0.03em; line-height: 0.95; }
-@media (min-width: 768px)  { .page-title { font-size: 3.5rem; } }
-@media (min-width: 1280px) { .page-title { font-size: 4.5rem; } }
-.page-copy { font-size: 1rem; max-width: 60ch; }
-@media (min-width: 1280px) { .page-copy { font-size: 1.0625rem; } }
-
-/* A real <h2> that reads as an eyebrow (program §5.9): structure for screen
-   readers and ⌘K-style navigation, mono eyebrow to the eye. */
+/* ── The verdict roles ──────────────────────────────────────────────────────
+   A real <h2> that reads as an eyebrow (program §5.9): structure for screen readers and
+   ⌘K-style navigation, mono eyebrow to the eye. */
 .vt-eyebrow {
   font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
   font-size: 0.6875rem;
   font-weight: 500;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   margin: 0;
 }
-/* The one verdict line a page is allowed to shout. */
+/* The ONE line a page is allowed to shout — Barlow Condensed, the identity accent.
+   v2 scales it down from 36/52/68px to 30/40/48px so it leads without posters. */
 .vt-verdict {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 2.25rem;
+  font-size: 1.875rem;
   line-height: 0.98;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
   text-transform: uppercase;
   text-wrap: balance;
   color: var(--text-primary);
 }
-@media (min-width: 768px)  { .vt-verdict { font-size: 3.25rem; } }
-@media (min-width: 1280px) { .vt-verdict { font-size: 4.25rem; } }
+@media (min-width: 768px)  { .vt-verdict { font-size: 2.5rem; } }
+@media (min-width: 1280px) { .vt-verdict { font-size: 3rem; } }

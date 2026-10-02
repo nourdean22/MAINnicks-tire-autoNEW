@@ -183,18 +183,18 @@ export function DecisionReplayCard() {
 
   return (
     <GlassCard
-      className="min-h-[96px] border-[var(--gold)]/25 bg-[var(--gold)]/[0.03]"
+      className="min-h-[96px]"
       data-testid="decision-replay-card"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
+        <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           decisions · replay
-          <span className="rounded-sm border border-[var(--gold)]/30 px-1 py-px text-[9px] tabular-nums text-[var(--gold)]">
+          <span className="rounded-micro border border-edge-default px-1 py-px text-[11px] tabular-nums text-fg-secondary">
             {due.length} due
           </span>
         </span>
         {consumedTodayCount > 0 && (
-          <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             {consumedTodayCount} pushed today
           </span>
         )}
@@ -231,18 +231,18 @@ export function DecisionReplayCard() {
                     (pencil icon, expands the inline lesson form). The
                     two affordances coexist: deep-discussion-in-chat
                     path AND quick-capture-here path. */}
-                <div className="-mx-1 flex items-start gap-2 px-1 py-1 rounded-sm">
+                <div className="-mx-1 flex items-start gap-2 px-1 py-1 rounded-micro">
                   <Link
                     href={seedHref}
                     onClick={handleMarkConsumed}
-                    className="flex-1 min-w-0 transition-colors hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:text-[var(--text-primary)]"
+                    className="flex-1 min-w-0 transition-colors hover:text-fg focus-visible:outline-none focus-visible:text-fg"
                     aria-label={`Replay decision in chat · ${promptPreview}`}
                   >
-                    <span className="text-[var(--text-secondary)]">
+                    <span className="text-fg-secondary">
                       {promptPreview}
                     </span>
                   </Link>
-                  <span className="shrink-0 text-[9px] font-mono uppercase tracking-wide tabular-nums text-[var(--text-tertiary)]">
+                  <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] tabular-nums text-fg-tertiary">
                     {age !== null ? `${age}d` : "—"}
                   </span>
                   <button
@@ -251,11 +251,11 @@ export function DecisionReplayCard() {
                     aria-expanded={isExpanded}
                     aria-label={isExpanded ? "close lesson form" : "log lesson inline"}
                     className={cn(
-                      "shrink-0 -my-0.5 p-1 rounded transition-colors",
+                      "shrink-0 -my-0.5 p-1 rounded-control transition-colors",
                       "min-w-[44px] min-h-[44px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center",
                       isExpanded
-                        ? "bg-[var(--gold)]/15 text-[var(--gold)]"
-                        : "text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.08]",
+                        ? "bg-accent-soft text-fg"
+                        : "text-fg-tertiary hover:text-fg hover:bg-surface-hover",
                     )}
                     title={isExpanded ? "close lesson form" : "log lesson inline"}
                   >
@@ -268,10 +268,10 @@ export function DecisionReplayCard() {
                     score (-1/0/+1) · lesson (optional). Gold left-rule
                     visually marks the form as a child of the row above. */}
                 {isExpanded && (
-                  <div className="mt-1 ml-2 border-l border-[var(--gold)]/25 pl-2.5 py-1.5 space-y-1.5">
+                  <div className="mt-1 ml-2 border-l border-edge-default pl-2.5 py-1.5 space-y-1.5">
                     <div>
-                      <label className="block text-[8px] font-bold uppercase tracking-wider text-[var(--text-tertiary)] mb-0.5">
-                        what actually happened
+                      <label className="block font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
+                        What actually happened
                       </label>
                       <textarea
                         value={outcome}
@@ -280,10 +280,10 @@ export function DecisionReplayCard() {
                         rows={2}
                         disabled={submitting}
                         className={cn(
-                          "w-full resize-y rounded-md bg-[var(--bg-raised)] border border-[var(--border-default)]",
-                          "text-[11px] leading-snug px-2 py-1.5 text-[var(--text-primary)]",
-                          "placeholder:text-[var(--text-tertiary)]",
-                          "focus:border-[var(--gold)]/40 focus:outline-none transition-colors",
+                          "w-full resize-y rounded-control bg-content border border-edge-default",
+                          "text-[11px] leading-snug px-2 py-1.5 text-fg",
+                          "placeholder:text-fg-tertiary",
+                          "focus:border-accent focus:outline-none transition-colors",
                           "min-h-[36px]",
                         )}
                         aria-label="what actually happened"
@@ -291,7 +291,7 @@ export function DecisionReplayCard() {
                     </div>
 
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[8px] font-bold uppercase tracking-wider text-[var(--text-tertiary)] mr-1">
+                      <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary mr-1">
                         score
                       </span>
                       {(["wrong", "mixed", "right"] as ScoreChoice[]).map((s) => (
@@ -302,15 +302,15 @@ export function DecisionReplayCard() {
                           disabled={submitting}
                           aria-pressed={score === s}
                           className={cn(
-                            "px-2 py-0.5 rounded border text-[9px] font-mono lowercase tracking-wide transition-colors",
+                            "px-2 py-0.5 rounded-control border font-mono text-[12px] lowercase transition-colors",
                             "min-h-[24px] flex items-center",
                             score === s
                               ? s === "wrong"
                                 ? "border-rose-400/50 bg-rose-400/15 text-rose-300"
                                 : s === "right"
                                   ? "border-emerald-400/50 bg-emerald-400/15 text-emerald-300"
-                                  : "border-[var(--text-tertiary)]/50 bg-[var(--bg-raised)] text-[var(--text-secondary)]"
-                              : "border-[var(--border-default)] bg-[var(--bg-raised)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
+                                  : "border-edge-strong bg-content text-fg-secondary"
+                              : "border-edge-default bg-content text-fg-tertiary hover:text-fg-secondary",
                           )}
                         >
                           {SCORE_LABELS[s]}
@@ -319,7 +319,7 @@ export function DecisionReplayCard() {
                     </div>
 
                     <div>
-                      <label className="block text-[8px] font-bold uppercase tracking-wider text-[var(--text-tertiary)] mb-0.5">
+                      <label className="block font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
                         lesson <span className="opacity-60">(optional)</span>
                       </label>
                       <textarea
@@ -329,10 +329,10 @@ export function DecisionReplayCard() {
                         rows={2}
                         disabled={submitting}
                         className={cn(
-                          "w-full resize-y rounded-md bg-[var(--bg-raised)] border border-[var(--border-default)]",
-                          "text-[11px] leading-snug px-2 py-1.5 text-[var(--text-primary)]",
-                          "placeholder:text-[var(--text-tertiary)]",
-                          "focus:border-[var(--gold)]/40 focus:outline-none transition-colors",
+                          "w-full resize-y rounded-control bg-content border border-edge-default",
+                          "text-[11px] leading-snug px-2 py-1.5 text-fg",
+                          "placeholder:text-fg-tertiary",
+                          "focus:border-accent focus:outline-none transition-colors",
                           "min-h-[36px]",
                         )}
                         aria-label="lesson (optional)"
@@ -340,7 +340,7 @@ export function DecisionReplayCard() {
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-mono text-[var(--text-tertiary)]">
+                      <span className="font-mono text-[11px] text-fg-tertiary">
                         {outcome.length}/{OUTCOME_MAX}
                         {lesson.length > 0 && ` · ${lesson.length}/${LESSON_MAX}`}
                       </span>
@@ -349,27 +349,27 @@ export function DecisionReplayCard() {
                           type="button"
                           onClick={closeForm}
                           disabled={submitting}
-                          className="px-2 py-1 rounded text-[10px] font-mono text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
+                          className="px-2 py-1 rounded-control text-[13px] font-medium text-fg-tertiary hover:text-fg transition-colors"
                         >
-                          cancel
+                          Cancel
                         </button>
                         <button
                           type="button"
                           onClick={() => submitLesson(row.id)}
                           disabled={submitting || outcome.trim().length === 0}
                           className={cn(
-                            "flex items-center gap-1.5 px-2.5 py-1 rounded border text-[10px] font-bold uppercase tracking-wider transition-colors",
+                            "flex items-center gap-1.5 px-2.5 py-1 rounded-control border text-[13px] font-medium transition-colors",
                             "min-h-[28px]",
                             submitting
-                              ? "bg-[var(--bg-surface)] border-[var(--border-hover)] text-[var(--text-tertiary)]"
+                              ? "bg-surface-interactive border-edge-strong text-fg-tertiary"
                               : outcome.trim().length === 0
-                                ? "bg-transparent border-[var(--border-default)] text-[var(--text-tertiary)] cursor-not-allowed"
-                                : "bg-[var(--gold)]/15 border-[var(--gold)]/40 text-[var(--gold)] hover:bg-[var(--gold)]/25",
+                                ? "bg-transparent border-edge-default text-fg-tertiary cursor-not-allowed"
+                                : "bg-content border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg",
                           )}
                           aria-label="log lesson"
                         >
                           {submitting ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
-                          {submitting ? "logging…" : "log"}
+                          {submitting ? "Logging…" : "Log"}
                         </button>
                       </div>
                     </div>
@@ -379,21 +379,21 @@ export function DecisionReplayCard() {
             );
           })}
           {more > 0 && (
-            <li className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+            <li className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               + {more} more queued
             </li>
           )}
         </ul>
       ) : (
-        <p className="mt-2 text-[11px] text-[var(--text-tertiary)]">
+        <p className="mt-2 text-[11px] text-fg-tertiary">
           no replays queued · the cron will pick fresh decisions tomorrow morning
         </p>
       )}
 
       {mostRecent && mostRecent.lesson && (
-        <p className="mt-2 border-t border-[var(--border-default)]/30 pt-2 text-[10px] italic text-[var(--text-tertiary)]">
+        <p className="mt-2 border-t border-edge-subtle pt-2 text-[11px] italic text-fg-tertiary">
           last lesson{" "}
-          <span className="not-italic text-[var(--text-secondary)]">
+          <span className="not-italic text-fg-secondary">
             “{trimText(mostRecent.lesson, 110)}”
           </span>
         </p>

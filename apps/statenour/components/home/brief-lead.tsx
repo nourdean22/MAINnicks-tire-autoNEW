@@ -23,12 +23,13 @@ import { ArrowRight, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import type { BriefLeadSection } from "@/lib/home/operator-brief";
 import { cn } from "@/lib/utils/cn";
 import { useInspector } from "@/hooks/use-inspector";
+import { trpc } from "@/lib/trpc/client";
 
 /** Section-kind accents — one semantic color per meaning, nothing else. */
 const KIND_TONE: Record<BriefLeadSection["kind"], string> = {
   error: "text-rose-300",
-  execute: "text-gold",
-  resume: "text-gold",
+  execute: "text-fg-secondary",
+  resume: "text-fg-secondary",
   decide: "text-rose-300",
   hygiene: "text-amber-300",
   triage: "text-amber-300",
@@ -51,12 +52,22 @@ export function BriefLead({
   // without leaving Home. The CTA still goes to the board.
   const { openInspector } = useInspector();
 
+  // 2026-10-02 · the lead is a ledgered recommendation (operator-brief.ts
+  // ledgerLeadShown). Taking the CTA is `accepted`; picking an alternative is
+  // `dismissed`. Fire-and-forget beside the navigation — a ledger failure must
+  // never cost the operator the move. No id → nothing to decide against.
+  const decide = trpc.operator.recordRecommendationDecision.useMutation();
+  const recordDecision = (decision: "accepted" | "dismissed", resultRef: string | null) => {
+    if (!lead?.ledgerId) return;
+    decide.mutate({ ledgerId: lead.ledgerId, decision, ...(resultRef ? { resultRef } : {}) });
+  };
+
   if (loading) {
     return (
       <section aria-label="the brief" className="mt-10 space-y-3 border-l-2 border-edge pl-5 sm:pl-6" aria-busy>
-        <div className="h-3 w-24 animate-pulse rounded bg-raised" />
-        <div className="h-7 w-3/4 animate-pulse rounded bg-raised" />
-        <div className="h-4 w-full animate-pulse rounded bg-raised" />
+        <div className="h-3 w-24 animate-pulse rounded-micro bg-raised" />
+        <div className="h-7 w-3/4 animate-pulse rounded-micro bg-raised" />
+        <div className="h-4 w-full animate-pulse rounded-micro bg-raised" />
       </section>
     );
   }
@@ -65,8 +76,11 @@ export function BriefLead({
   const tone = KIND_TONE[lead.kind];
 
   return (
-    <section aria-label="the brief" className="mt-10 border-l-2 border-gold pl-5 sm:pl-6">
-      <h2 className={cn("vt-eyebrow", tone)}>{lead.headline}</h2>
+    <section aria-label="the brief" className="mt-10 border-l border-edge-default pl-5 sm:pl-6">
+      <div className="flex items-center gap-2">
+        <span className="notch h-3" aria-hidden />
+        <h2 className={cn("vt-eyebrow", tone)}>{lead.headline}</h2>
+      </div>
 
       <p className="mt-3 max-w-[56ch] text-pretty text-lg leading-relaxed text-fg sm:text-xl">
         {lead.body}
@@ -76,8 +90,10 @@ export function BriefLead({
         {lead.cta && (
           <Link
             href={lead.cta.href}
+            onClick={() => recordDecision("accepted", lead.taskId ? `task:${lead.taskId}` : lead.cta?.href ?? null)}
+            data-lead-decision="accepted"
             className={cn(
-              "group inline-flex min-h-[52px] items-center gap-2 rounded-md bg-gold px-6 font-display text-base font-bold uppercase tracking-wide text-black transition-colors duration-150 hover:bg-gold-dim",
+              "group inline-flex min-h-[48px] items-center gap-2 rounded-control bg-accent px-5 text-[15px] font-semibold text-[var(--text-inverse)] transition-colors duration-[var(--motion-state)] hover:bg-accent-hover",
               FOCUS,
             )}
           >
@@ -94,7 +110,7 @@ export function BriefLead({
             type="button"
             onClick={() => openInspector({ kind: "task", id: lead.taskId! })}
             className={cn(
-              "inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-edge px-4 text-[13px] text-fg-secondary transition-colors duration-150 hover:border-edge-hover hover:text-fg",
+              "inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] text-fg-secondary transition-colors duration-150 hover:border-edge-strong hover:text-fg",
               FOCUS,
             )}
             data-brief-inspect={lead.taskId}
@@ -109,7 +125,7 @@ export function BriefLead({
           onClick={() => setShowWhy((v) => !v)}
           aria-expanded={showWhy}
           className={cn(
-            "inline-flex min-h-[44px] items-center gap-1 rounded-md px-3 text-[13px] text-fg-tertiary transition-colors duration-150 hover:text-fg",
+            "inline-flex min-h-[44px] items-center gap-1 rounded-control px-3 text-[13px] text-fg-tertiary transition-colors duration-150 hover:text-fg",
             FOCUS,
           )}
         >
@@ -123,7 +139,7 @@ export function BriefLead({
             onClick={() => setShowAlternatives((v) => !v)}
             aria-expanded={showAlternatives}
             className={cn(
-              "inline-flex min-h-[44px] items-center gap-1 rounded-md px-3 text-[13px] text-fg-tertiary transition-colors duration-150 hover:text-fg",
+              "inline-flex min-h-[44px] items-center gap-1 rounded-control px-3 text-[13px] text-fg-tertiary transition-colors duration-150 hover:text-fg",
               FOCUS,
             )}
           >
@@ -149,12 +165,14 @@ export function BriefLead({
             <li key={alt.href + alt.label}>
               <Link
                 href={alt.href}
+                onClick={() => recordDecision("dismissed", null)}
+                data-lead-decision="dismissed"
                 className={cn(
-                  "group flex min-h-[52px] flex-col justify-center py-2 transition-colors duration-150 hover:text-gold",
+                  "group flex min-h-[52px] flex-col justify-center py-2 transition-colors duration-150",
                   FOCUS,
                 )}
               >
-                <span className="text-[15px] font-medium text-fg group-hover:text-gold">{alt.label}</span>
+                <span className="text-[15px] font-medium text-fg group-hover:underline group-hover:underline-offset-4">{alt.label}</span>
                 <span className="text-[12px] text-fg-tertiary">{alt.why}</span>
               </Link>
             </li>

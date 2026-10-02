@@ -223,9 +223,9 @@ export function NickSidePane({
           // docked (inspector-host.tsx) — at right-4 it painted over the
           // panel's footer, where the entity actions live.
           "fixed bottom-[calc(var(--bottom-chrome-h,6rem)+0.5rem)] right-[calc(var(--inspector-lane,0px)_+_1rem)] z-[56] hidden md:inline-flex h-11 min-w-[44px] items-center gap-1.5 rounded-full px-3.5",
-          "border border-[var(--gold)]/40 bg-[var(--bg-base)]/95 backdrop-blur-sm",
-          "text-[var(--gold)] shadow-lg shadow-[var(--gold)]/10",
-          "hover:bg-[var(--gold)]/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40",
+          "ui-material border border-edge-default",
+          "text-fg-secondary shadow-l1",
+          "hover:text-fg focus-visible:outline-none",
           // Mobile-tightening #2 · active:scale tap feedback (replaces
           // absent haptic on iOS Safari PWAs · operator sees the FAB
           // press-down). Subtle enough not to feel "bouncy" on desktop.
@@ -237,7 +237,7 @@ export function NickSidePane({
         )}
       >
         <Brain size={14} strokeWidth={1.75} />
-        <span className="text-[10px] font-mono uppercase tracking-[0.18em]">nick</span>
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em]">nick</span>
       </button>
 
       {/* Pane · slide-in from right on desktop · bottom-sheet on
@@ -247,7 +247,7 @@ export function NickSidePane({
           {/* Backdrop · mobile only · tap to close. lg:hidden keeps
            *  desktop fully usable (no overlay). */}
           <div
-            className="fixed inset-0 z-[58] bg-black/40 backdrop-blur-sm lg:hidden"
+            className="fixed inset-0 z-[58] bg-canvas/60 lg:hidden"
             onClick={toggle}
             aria-hidden
           />
@@ -257,39 +257,39 @@ export function NickSidePane({
             className={cn(
               // z-[59]: above the z-[55] tab bar — the open sheet used to sit
               // UNDER the chrome, which overlapped its top edge on mobile.
-              "fixed z-[59] flex flex-col bg-[var(--bg-base)] border-[var(--border-default)]",
+              "fixed z-[59] flex flex-col bg-overlay border-edge-default shadow-l2",
               // Mobile bottom-sheet · 80vh max · 60vh min (2026-05-26
               // mobile-tightening · iPhone SE keyboard-up was leaving the
               // thread region < 30vh, the 60vh floor keeps the chat
               // usable even with the keyboard open)
-              "inset-x-0 bottom-0 min-h-[60vh] max-h-[80vh] rounded-t-2xl border-t",
+              "inset-x-0 bottom-0 min-h-[60vh] max-h-[80vh] rounded-t-float border-t",
               // Desktop right-pane · 380px wide · full height
-              "lg:top-0 lg:right-0 lg:bottom-0 lg:inset-x-auto lg:min-h-0 lg:max-h-none lg:w-[380px] lg:rounded-none lg:rounded-l-2xl lg:border-l lg:border-t-0",
+              "lg:top-0 lg:right-0 lg:bottom-0 lg:inset-x-auto lg:min-h-0 lg:max-h-none lg:w-[380px] lg:rounded-none lg:rounded-l-float lg:border-l lg:border-t-0",
               // iOS safe-area
               "pb-[env(safe-area-inset-bottom,0px)]",
             )}
           >
             {/* Header · drag handle (mobile) + title + close */}
-            <header className="flex items-center gap-2 border-b border-[var(--border-default)] px-4 py-3 shrink-0">
+            <header className="flex items-center gap-2 border-b border-edge-default px-4 py-3 shrink-0">
               <GripVertical
                 size={12}
                 className="text-[var(--text-tertiary)]/40 lg:hidden"
                 strokeWidth={1.75}
                 aria-hidden
               />
-              <Brain size={14} className="text-[var(--gold)] shrink-0" strokeWidth={1.75} />
-              <h2 className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
+              <Brain size={14} className="text-fg-tertiary shrink-0" strokeWidth={1.75} />
+              <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
                 nick · {page}
               </h2>
               {/* "esc to close" hint · desktop only · phones don't have Esc */}
-              <span className="ml-2 hidden lg:inline text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
+              <span className="ml-2 hidden lg:inline text-[11px] font-mono tabular-nums text-fg-tertiary">
                 esc to close
               </span>
               <button
                 type="button"
                 onClick={toggle}
                 aria-label="close nick"
-                className="ml-auto inline-flex h-11 w-11 lg:h-8 lg:w-8 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]/[0.15] active:scale-90 transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+                className="ml-auto inline-flex h-11 w-11 lg:h-8 lg:w-8 items-center justify-center rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover active:scale-90 transition-all focus-visible:outline-none"
               >
                 <X size={14} strokeWidth={2} />
               </button>
@@ -306,7 +306,7 @@ export function NickSidePane({
                   aria-label="proactive coach events"
                   className="space-y-1.5"
                 >
-                  <p className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/70">
+                  <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                     nick noticed
                   </p>
                   {coachEvents.map((event) => (
@@ -332,7 +332,7 @@ export function NickSidePane({
              *  thread + proactive chip surfaces both shipped via the
              *  Coach Channel layer + new side-pane-chat endpoint. */}
             <footer className="px-4 py-2 border-t border-[var(--border-default)]/60 shrink-0">
-              <p className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]/60">
+              <p className="font-mono text-[11px] text-fg-tertiary">
                 phase 5 full · multi-turn · proactive chips · per-device thread
               </p>
             </footer>
@@ -347,22 +347,22 @@ export function NickSidePane({
 
 function CoachChip({ event }: { event: CoachEvent }) {
   // Priority-gated styling · matches CoachEventBanner aesthetic
-  // (P0 amber · P1 gold · P2 neutral). Compact pane variant ·
+  // (P0 amber · P1 sky · P2 neutral; gold is a signal, not a tier). Compact pane variant ·
   // single-line title · body suppressed (operator can deep-link
   // for detail). Truncates long titles to keep the pane scannable.
   const tone =
     event.priority === "P0"
       ? "border-amber-500/30 bg-amber-500/[0.06] text-amber-300/90"
       : event.priority === "P1"
-        ? "border-[var(--gold)]/30 bg-[var(--gold)]/[0.05] text-[var(--gold)]"
-        : "border-[var(--border-default)] bg-[var(--bg-raised)]/[0.06] text-[var(--text-secondary)]";
+        ? "border-sky-500/30 bg-sky-500/[0.05] text-sky-300"
+        : "border-edge-default bg-surface-interactive text-fg-secondary";
   const Icon = event.priority === "P0" ? AlertTriangle : Sparkles;
 
   // Mobile-tightening #2 (2026-05-27): bumped padding + min-h-[44px]
   // so a tap lands cleanly on iPhone PWA. Single line clamp-2 stays · the
   // 44pt floor is met by the padding+icon+text on every chip.
   const body = (
-    <div className={cn("flex items-start gap-2 rounded-md border px-3 py-2.5 min-h-[44px]", tone)}>
+    <div className={cn("flex items-start gap-2 rounded-control border px-3 py-2.5 min-h-[44px]", tone)}>
       <Icon size={12} strokeWidth={1.75} className="mt-0.5 shrink-0" />
       <span className="text-[11px] leading-snug line-clamp-2 flex-1">{event.title}</span>
       {event.deepLink && (
@@ -375,7 +375,7 @@ function CoachChip({ event }: { event: CoachEvent }) {
     return (
       <Link
         href={event.deepLink}
-        className="block active:scale-[0.98] transition-transform focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40 rounded-md"
+        className="block active:scale-[0.98] transition-transform focus-visible:outline-none rounded-control"
       >
         {body}
       </Link>

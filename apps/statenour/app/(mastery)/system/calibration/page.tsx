@@ -62,8 +62,8 @@ interface CellTone {
 function cellTone(pct: number, total: number): CellTone {
   if (total === 0 || pct < 0) {
     return {
-      border: "border-[var(--border-default)]",
-      text: "text-[var(--text-tertiary)]",
+      border: "border-edge-default",
+      text: "text-fg-tertiary",
       bgStyle: { backgroundColor: "rgb(10 10 10 / 0.30)" },
     };
   }
@@ -162,7 +162,7 @@ export default function CalibrationPage() {
           />
           <Link
             href="/system"
-            className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-default)] px-3 py-1.5 text-xs text-[var(--text-secondary)] transition hover:border-[var(--border-hover)] hover:text-[var(--text-primary)]"
+            className="inline-flex items-center gap-1 rounded-control border border-edge-default px-3 py-1.5 text-xs text-fg-secondary transition hover:border-edge-strong hover:text-fg"
           >
             <ChevronLeft size={12} aria-hidden /> back
           </Link>
@@ -170,19 +170,19 @@ export default function CalibrationPage() {
       }
     >
       {error ? (
-        <GlassCard className="p-6">
+        <GlassCard>
           <div className="text-sm text-rose-300">failed to load · {error.message}</div>
         </GlassCard>
       ) : null}
 
-      <GlassCard className="p-6">
+      <GlassCard>
         <div className="flex items-center gap-2">
-          <Grid3x3 size={16} className="text-[var(--gold)]" aria-hidden />
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+          <Grid3x3 size={16} className="text-fg-secondary" aria-hidden />
+          <h2 className="text-[15px] font-semibold text-fg-secondary">
             Mood × Suggestion Kind
           </h2>
         </div>
-        <p className="mt-1 text-xs text-[var(--text-tertiary)]">
+        <p className="mt-1 text-xs text-fg-tertiary">
           Heatmap saturation = hit rate · brighter cell = more lift.
           Row sparkline = mood&apos;s hit rate over {data?.sinceDays ?? 30}d ·
           col sparkline = kind&apos;s hit rate over time. Pre-Wave-H rows
@@ -200,34 +200,34 @@ export default function CalibrationPage() {
             inclusive count (stamped + unstamped) · zero means "no
             suggestion-loop activity at all" · the truly empty case. */}
         {!isLoading && !error && data && data.totalRows === 0 ? (
-          <div className="mt-6 flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-[var(--border-default)] bg-[var(--bg-elevated)]/30 px-6 py-10 text-center">
+          <div className="mt-6 flex flex-col items-center justify-center gap-4 rounded-surface border border-dashed border-edge-default bg-surface-raised px-6 py-10 text-center">
             <div className="relative">
-              <div className="absolute inset-0 -m-1 rounded-full border border-[var(--gold)]/20" aria-hidden />
-              <div className="absolute inset-0 -m-3 rounded-full border border-[var(--gold)]/10" aria-hidden />
-              <Sparkles size={28} className="relative text-[var(--gold)]" aria-hidden />
+              <div className="absolute inset-0 -m-1 rounded-full border border-edge-subtle" aria-hidden />
+              <div className="absolute inset-0 -m-3 rounded-full border border-edge-subtle" aria-hidden />
+              <Sparkles size={28} className="relative text-fg-secondary" aria-hidden />
             </div>
             <div className="space-y-1">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-primary)]">
+              <h3 className="text-[15px] font-semibold text-fg">
                 Grid warming up
               </h3>
-              <p className="mx-auto max-w-sm text-xs text-[var(--text-secondary)]">
+              <p className="mx-auto max-w-sm text-xs text-fg-secondary">
                 Your mood × kind matrix fills as you tap or dismiss
                 Nick&apos;s suggestion chips. Each chip stamps the
                 current operator-state · the grid reveals which
                 kinds land in which moods.
               </p>
             </div>
-            <ol className="space-y-1.5 text-[11px] text-[var(--text-tertiary)]">
+            <ol className="space-y-1.5 text-[11px] text-fg-tertiary">
               <li className="flex items-center gap-2">
-                <span className="font-mono text-[var(--gold)]/70">1.</span>
-                <span>Visit <Link href="/" className="text-[var(--text-secondary)] hover:text-[var(--gold)] transition-colors">/</Link> · Nick surfaces chips based on your state</span>
+                <span className="font-mono text-fg-secondary">1.</span>
+                <span>Visit <Link href="/" className="text-fg-secondary hover:text-fg transition-colors">/</Link> · Nick surfaces chips based on your state</span>
               </li>
               <li className="flex items-center gap-2">
-                <span className="font-mono text-[var(--gold)]/70">2.</span>
+              <span className="font-mono text-fg-secondary">2.</span>
                 <span>Tap a chip to act · or × to dismiss · both are signal</span>
               </li>
               <li className="flex items-center gap-2">
-                <span className="font-mono text-[var(--gold)]/70">3.</span>
+              <span className="font-mono text-fg-secondary">3.</span>
                 <span>Return here · cells light up by mood × kind hit rate</span>
               </li>
             </ol>
@@ -245,18 +245,18 @@ export default function CalibrationPage() {
           <table className="w-full border-separate border-spacing-0">
             <thead>
               <tr>
-                <th className="sticky left-0 bg-[var(--bg-base)] px-2 py-1 text-left text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+                <th className="sticky left-0 bg-workspace px-2 py-1 text-left text-[12px] font-medium text-fg-secondary">
                   mood ↓ / kind →
                 </th>
                 {data?.byKind.map((k) => (
                   <th
                     key={k.kind}
-                    className="px-2 py-1 text-center text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]"
+                    className="px-2 py-1 text-center text-[11px] font-mono text-fg-tertiary"
                   >
                     <div className="flex flex-col items-center gap-0.5">
                       <span>{k.kind}</span>
                       {k.total > 0 && k.trend.length > 0 ? (
-                        <span className="text-[var(--text-tertiary)]">
+                        <span className="text-fg-tertiary">
                           <Sparkline
                             data={k.trend}
                             width={48}
@@ -271,7 +271,7 @@ export default function CalibrationPage() {
                     </div>
                   </th>
                 ))}
-                <th className="px-2 py-1 text-center text-[10px] font-mono uppercase tracking-wider text-[var(--gold)]">
+                <th className="px-2 py-1 text-center text-[12px] font-medium text-fg-secondary">
                   row total
                 </th>
               </tr>
@@ -284,11 +284,11 @@ export default function CalibrationPage() {
                 const rowTone = cellTone(pct, total);
                 return (
                   <tr key={moodRow.mood}>
-                    <td className="sticky left-0 bg-[var(--bg-base)] px-2 py-1 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+                    <td className="sticky left-0 bg-workspace px-2 py-1 text-sm font-semibold text-fg-secondary">
                       <div className="flex flex-col gap-0.5">
                         <span>{MOOD_LABEL[moodRow.mood as Mood]}</span>
                         {moodRow.total > 0 && moodRow.trend.length > 0 ? (
-                          <span className="text-[var(--text-tertiary)]">
+                          <span className="text-fg-tertiary">
                             <Sparkline
                               data={moodRow.trend}
                               width={56}
@@ -315,7 +315,7 @@ export default function CalibrationPage() {
                           key={kindCol.kind}
                           style={tone.bgStyle}
                           className={cn(
-                            "rounded border px-2 py-1.5 text-center font-mono text-[11px] tabular-nums transition-colors",
+                            "rounded-micro border px-2 py-1.5 text-center font-mono text-[11px] tabular-nums transition-colors",
                             tone.border,
                             tone.text,
                           )}
@@ -332,7 +332,7 @@ export default function CalibrationPage() {
                     <td
                       style={rowTone.bgStyle}
                       className={cn(
-                        "rounded border px-2 py-1.5 text-center font-mono text-[11px] tabular-nums",
+                        "rounded-micro border px-2 py-1.5 text-center font-mono text-[11px] tabular-nums",
                         rowTone.border,
                         rowTone.text,
                       )}
@@ -344,7 +344,7 @@ export default function CalibrationPage() {
               })}
               {/* Column totals row */}
               <tr>
-                <td className="sticky left-0 bg-[var(--bg-base)] px-2 py-2 text-[10px] font-mono uppercase tracking-wider text-[var(--gold)]">
+                <td className="sticky left-0 bg-workspace px-2 py-2 text-[12px] font-medium text-fg-secondary">
                   col total
                 </td>
                 {data?.byKind.map((k) => {
@@ -354,7 +354,7 @@ export default function CalibrationPage() {
                       key={k.kind}
                       style={tone.bgStyle}
                       className={cn(
-                        "rounded border px-2 py-1.5 text-center font-mono text-[11px] tabular-nums",
+                        "rounded-micro border px-2 py-1.5 text-center font-mono text-[11px] tabular-nums",
                         tone.border,
                         tone.text,
                       )}
@@ -372,47 +372,47 @@ export default function CalibrationPage() {
         </div>
       </GlassCard>
 
-      <GlassCard className="p-6">
+      <GlassCard>
         <div className="flex items-center gap-2">
-          <Award size={16} className="text-[var(--gold)]" aria-hidden />
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+          <Award size={16} className="text-fg-secondary" aria-hidden />
+          <h2 className="text-[15px] font-semibold text-fg-secondary">
             LLM Judge Calibration
           </h2>
         </div>
-        <p className="mt-1 text-xs text-[var(--text-tertiary)]">
+        <p className="mt-1 text-xs text-fg-tertiary">
           Measures agreement % between LLM judge verdicts (did V2 beat V1?) and your manual thumbs-up/down on chat replies.
         </p>
 
         {isJudgeLoading ? (
-          <div className="mt-4 text-xs text-[var(--text-tertiary)]">Loading calibration metrics...</div>
+          <div className="mt-4 text-xs text-fg-tertiary">Loading calibration metrics...</div>
         ) : judgeError ? (
           <div className="mt-4 text-xs text-rose-400">Failed to load judge calibration: {judgeError.message}</div>
         ) : judgeData ? (
           <div className="mt-4 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-[var(--bg-elevated)]/40 p-4 border border-[var(--border-default)]">
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-surface bg-surface-raised p-4 border border-edge-default">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono uppercase text-[var(--text-secondary)]">Verdict:</span>
+                  <span className="font-mono text-[11px] text-fg-tertiary">Verdict:</span>
                   <span className={cn(
-                    "text-xs font-semibold px-2 py-0.5 rounded border uppercase tracking-wider",
+                    "text-xs font-semibold px-2 py-0.5 rounded-micro border",
                     judgeData.verdict === "well-calibrated" && "bg-emerald-500/10 border-emerald-500/30 text-emerald-300",
                     judgeData.verdict === "moderate" && "bg-amber-500/10 border-amber-500/30 text-amber-300",
                     judgeData.verdict === "miscalibrated" && "bg-rose-500/10 border-rose-500/30 text-rose-300",
-                    judgeData.verdict === "preliminary" && "bg-[var(--bg-surface)] border-[var(--border-default)] text-[var(--text-secondary)]"
+                    judgeData.verdict === "preliminary" && "bg-surface-interactive border-edge-default text-fg-secondary"
                   )}>
                     {judgeData.verdict.replace("-", " ")}
                   </span>
                 </div>
-                <p className="text-[11px] text-[var(--text-tertiary)] max-w-md">
+                <p className="text-[11px] text-fg-tertiary max-w-md">
                   {judgeData.verdictReason}
                 </p>
               </div>
 
               <div className="text-right">
-                <div className="text-2xl font-bold font-mono text-[var(--gold)]">
+              <div className="text-2xl font-bold font-mono text-fg-secondary">
                   {judgeData.agreementPct >= 0 ? `${judgeData.agreementPct.toFixed(1)}%` : "—"}
                 </div>
-                <div className="text-[10px] text-[var(--text-tertiary)] font-mono uppercase">
+                <div className="text-fg-tertiary font-mono text-[11px] uppercase tracking-[0.12em]">
                   Agreement (n={judgeData.totalScored})
                 </div>
               </div>
@@ -420,34 +420,34 @@ export default function CalibrationPage() {
 
             {judgeData.totalScored > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)]/20 p-3">
-                  <div className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mb-2">
+              <div className="rounded-surface border border-edge-default bg-surface-raised p-3">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-2">
                     Confusion Matrix
                   </div>
                   <table className="w-full text-center border-separate border-spacing-1">
                     <thead>
                       <tr>
-                        <th className="text-[9px] font-mono text-[var(--text-tertiary)] text-left">Judge ↓ / Human →</th>
-                        <th className="text-[9px] font-mono text-emerald-400 py-0.5 bg-emerald-500/5 rounded border border-emerald-500/10">+1 Thumbs Up</th>
-                        <th className="text-[9px] font-mono text-rose-400 py-0.5 bg-rose-500/5 rounded border border-rose-500/10">-1 Thumbs Down</th>
+                        <th className="text-[11px] font-mono text-fg-tertiary text-left">Judge ↓ / Human →</th>
+                        <th className="text-[11px] font-mono text-emerald-400 py-0.5 bg-emerald-500/5 rounded-micro border border-emerald-500/10">+1 Thumbs Up</th>
+                        <th className="text-[11px] font-mono text-rose-400 py-0.5 bg-rose-500/5 rounded-micro border border-rose-500/10">-1 Thumbs Down</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr>
-                        <td className="text-[10px] font-semibold text-zinc-300 text-left font-mono">Preferred V2</td>
-                        <td className="bg-emerald-500/10 text-emerald-300 text-xs font-mono py-1.5 rounded border border-emerald-500/20" title="Agreement: Judge picked V2, Human liked V2">
+                        <td className="text-[11px] font-semibold text-fg text-left font-mono">Preferred V2</td>
+                        <td className="bg-emerald-500/10 text-emerald-300 text-xs font-mono py-1.5 rounded-micro border border-emerald-500/20" title="Agreement: Judge picked V2, Human liked V2">
                           {judgeData.matrix.find(c => c.judge === "v2" && c.human === "thumbs_up")?.count ?? 0}
                         </td>
-                        <td className="bg-rose-500/10 text-rose-300 text-xs font-mono py-1.5 rounded border border-rose-500/20" title="Disagree: Judge picked V2, Human disliked V2 (False Positive)">
+                        <td className="bg-rose-500/10 text-rose-300 text-xs font-mono py-1.5 rounded-micro border border-rose-500/20" title="Disagree: Judge picked V2, Human disliked V2 (False Positive)">
                           {judgeData.matrix.find(c => c.judge === "v2" && c.human === "thumbs_down")?.count ?? 0}
                         </td>
                       </tr>
                       <tr>
-                        <td className="text-[10px] font-semibold text-zinc-300 text-left font-mono">Preferred V1</td>
-                        <td className="bg-rose-500/10 text-rose-300 text-xs font-mono py-1.5 rounded border border-rose-500/20" title="Disagree: Judge picked V1, Human liked V2 (False Negative)">
+                        <td className="text-[11px] font-semibold text-fg text-left font-mono">Preferred V1</td>
+                        <td className="bg-rose-500/10 text-rose-300 text-xs font-mono py-1.5 rounded-micro border border-rose-500/20" title="Disagree: Judge picked V1, Human liked V2 (False Negative)">
                           {judgeData.matrix.find(c => c.judge === "v1" && c.human === "thumbs_up")?.count ?? 0}
                         </td>
-                        <td className="bg-emerald-500/10 text-emerald-300 text-xs font-mono py-1.5 rounded border border-emerald-500/20" title="Agreement: Judge picked V1, Human disliked V2">
+                        <td className="bg-emerald-500/10 text-emerald-300 text-xs font-mono py-1.5 rounded-micro border border-emerald-500/20" title="Agreement: Judge picked V1, Human disliked V2">
                           {judgeData.matrix.find(c => c.judge === "v1" && c.human === "thumbs_down")?.count ?? 0}
                         </td>
                       </tr>
@@ -455,33 +455,33 @@ export default function CalibrationPage() {
                   </table>
                 </div>
 
-                <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)]/20 p-3 space-y-2 flex flex-col justify-between">
+                <div className="rounded-surface border border-edge-default bg-surface-raised p-3 space-y-2 flex flex-col justify-between">
                   <div>
-                    <div className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mb-1">
+                    <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">
                       Exclusion Summary
                     </div>
-                    <ul className="text-[11px] text-[var(--text-secondary)] space-y-1 font-mono">
+                    <ul className="text-[11px] text-fg-secondary space-y-1 font-mono">
                       <li className="flex justify-between">
                         <span>Tied judgments:</span>
-                        <span className="text-[var(--text-primary)]">{judgeData.ties}</span>
+                        <span className="text-fg">{judgeData.ties}</span>
                       </li>
                       <li className="flex justify-between">
                         <span>No human feedback:</span>
-                        <span className="text-[var(--text-primary)]">{judgeData.noOperatorReaction}</span>
+                        <span className="text-fg">{judgeData.noOperatorReaction}</span>
                       </li>
                       <li className="flex justify-between">
                         <span>No source message:</span>
-                        <span className="text-[var(--text-primary)]">{judgeData.noSourceMessage}</span>
+                        <span className="text-fg">{judgeData.noSourceMessage}</span>
                       </li>
                     </ul>
                   </div>
-                  <p className="text-[10px] text-[var(--text-tertiary)] italic">
+                  <p className="text-[11px] text-fg-tertiary italic">
                     Ties, unrated replies, and synthetic evaluations are excluded from calibration percentages.
                   </p>
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-[var(--text-tertiary)] py-4 text-center border border-dashed border-[var(--border-default)] rounded-lg">
+              <p className="text-xs text-fg-tertiary py-4 text-center border border-dashed border-edge-default rounded-surface">
                 No human-evaluated comparisons in the last 30 days to calibrate the LLM judge.
               </p>
             )}
@@ -489,7 +489,7 @@ export default function CalibrationPage() {
         ) : null}
       </GlassCard>
 
-      <p className="text-[11px] text-[var(--text-tertiary)]">
+      <p className="text-[11px] text-fg-tertiary">
         LeCun-lens consolidation · M1 Closed-Loop Calibrated Brain.
         Reveals state-conditioned hit patterns invisible to chat-only
         agents · no competitor has the TaskEvent log + operator-state

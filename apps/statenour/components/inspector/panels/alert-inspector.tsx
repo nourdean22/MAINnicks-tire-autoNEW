@@ -73,7 +73,7 @@ export function AlertInspector({ entity }: InspectorPanelProps) {
     <div className="space-y-5" data-alert-inspector={m.id}>
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-px font-mono text-[10px] uppercase tracking-wide text-amber-300">
+          <span className="rounded-micro border border-amber-500/30 bg-amber-500/10 px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300">
             {m.category}
           </span>
           <span className="font-mono text-[11px] text-fg-tertiary">{formatAge(m.createdAt, now)}</span>
@@ -101,24 +101,24 @@ export function AlertInspector({ entity }: InspectorPanelProps) {
             resolve.mutate({ id: m.id });
           }}
           className={cn(
-            "inline-flex min-h-[44px] items-center rounded-lg border px-3 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors md:min-h-[36px]",
+            "inline-flex min-h-[44px] items-center rounded-control border px-3 text-[13px] font-medium transition-colors duration-[var(--motion-state)] md:min-h-[36px]",
             armed
               ? "border-rose-500/50 bg-rose-500/15 text-rose-200"
-              : "border-[var(--gold)]/40 bg-[var(--gold)]/10 text-gold hover:bg-[var(--gold)]/[0.16]",
+              : "border-accent bg-accent-soft text-fg hover:bg-accent-medium",
           )}
         >
-          {armed ? "tap again to resolve" : "resolve"}
+          {armed ? "Tap again to resolve" : "Resolve"}
         </button>
         <button
           type="button"
           disabled={busy}
           onClick={() => mute.mutate({ category: m.category, days: ALERT_MUTE_DAYS })}
-          className="inline-flex min-h-[44px] items-center rounded-lg border border-glass px-3 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary transition-colors hover:text-fg md:min-h-[36px]"
+          className="inline-flex min-h-[44px] items-center rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg md:min-h-[36px]"
         >
-          mute {m.category} · {ALERT_MUTE_DAYS}d
+          Mute {m.category} · {ALERT_MUTE_DAYS}d
         </button>
       </div>
-      <p className="font-mono text-[10px] text-fg-tertiary">
+      <p className="font-mono text-[11px] text-fg-tertiary">
         resolve soft-deletes this alert (the receipt is its deletedAt) · mute hides the whole category from the list and the home card
       </p>
 

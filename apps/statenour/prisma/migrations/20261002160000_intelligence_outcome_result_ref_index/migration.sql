@@ -1,0 +1,21 @@
+-- Index intelligence_outcomes.result_ref (2026-10-02, bug-hunt follow-up).
+--
+-- WHY. recordOutcomeByResultRef (lib/services/outcome-ledger.ts) runs
+--   UPDATE intelligence_outcomes SET ... WHERE result_ref = $1
+--     AND outcome_at IS NULL AND decision = 'accepted'
+-- on every rated task completion (checkTask). The table had indexes only on
+-- (kind, shown_at) and content_hash, so each completion was a sequential scan.
+-- Waves 3-4 added four read-path producers (Home lead, Missions deck, Journal
+-- next action, chat chips), which raise the table's growth rate.
+--
+-- WHY CONCURRENTLY, ALONE. A plain CREATE INDEX blocks writes for its
+-- duration; CONCURRENTLY does not, but cannot run inside a transaction, so this
+-- file holds that one statement and nothing else (precedent:
+-- 20260823010000_discovery_index_narrow). Applied by hand with an autocommit
+-- driver, then recorded with `prisma migrate resolve --applied`.
+--
+-- WHY NOT PARTIAL. `WHERE outcome_at IS NULL` would be smaller, but Prisma's
+-- @@index cannot express a predicate, so the schema and the database would
+-- disagree and `migrate diff` would report drift. Full index, matching
+-- @@index([resultRef]) in schema.prisma.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "intelligence_outcomes_result_ref_idx" ON "intelligence_outcomes"("result_ref");

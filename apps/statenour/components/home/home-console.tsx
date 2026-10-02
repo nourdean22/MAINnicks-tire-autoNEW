@@ -13,6 +13,9 @@
  *   4 · Needs judgment — the only queue: things only Nour can decide
  *   5 · Horizon — one pointer per time scope, never a task list
  *   6 · Since last visit — a semantic diff, not a timeline
+ *   7 · Waiting on others (rail, 2026-10-02) — who owes the operator what,
+ *       from the WaitingSummary read model; decisions stay in section 4 and
+ *       the shop's queues stay on nickstire.org/admin
  *
  * Structure never rearranges itself (adaptive-UI research: layout churn
  * destroys the user's mental model); sections render nothing — not empty
@@ -39,6 +42,7 @@ import { BriefLead } from "./brief-lead";
 import { NickCommandLine } from "./nick-command-line";
 import { JudgmentQueue } from "./judgment-queue";
 import { HorizonLine } from "./horizon-line";
+import { WaitingLine } from "./waiting-line";
 import { ChangeLine } from "./change-line";
 
 export function HomeConsole() {
@@ -64,7 +68,7 @@ export function HomeConsole() {
         />
 
         {refreshFailed && (
-          <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.14em] text-rose-300/80">
+          <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.12em] text-rose-300/80">
             refresh failed · showing last confirmed brief
           </p>
         )}
@@ -78,7 +82,7 @@ export function HomeConsole() {
             <button
               type="button"
               onClick={() => void briefQ.refetch()}
-              className="mt-4 inline-flex min-h-[44px] items-center rounded-md border border-edge px-4 font-mono text-[12px] uppercase tracking-[0.14em] text-fg-secondary transition-colors duration-150 hover:border-edge-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+              className="mt-4 inline-flex min-h-[44px] items-center rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
             >
               Retry
             </button>
@@ -106,6 +110,7 @@ export function HomeConsole() {
         className="mt-12 border-t border-edge pt-8 empty:border-t-0 xl:sticky xl:top-8 xl:mt-0 xl:border-l xl:border-t-0 xl:border-edge xl:pl-10 xl:pt-2 xl:empty:border-l-0"
       >
         <HorizonLine horizon={brief?.horizon ?? null} />
+        <WaitingLine />
         <ChangeLine />
       </aside>
     </div>

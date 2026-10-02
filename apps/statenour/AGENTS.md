@@ -7,7 +7,7 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-09-26 · Nick runtime/quality repair · #2673/#2680 MERGED · `2b021632` DEPLOY-VERIFIED · see RECONCILIATION.
+**Last refreshed:** 2026-10-02 · UI v2 PR 4 (backlog closed) · `statenour/ui-v2-backlog` · see RECONCILIATION.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--
@@ -76,11 +76,11 @@ script inside this app is active — do not resurrect one.
 
 ### Frontend conventions
 
-- **`GlassCard`** (`components/ui/glass-card.tsx`) is the canonical card. `components/ui/card.tsx` is
-  `@deprecated`, kept only for the structured API in `components/stats/*` — never import it in new code.
+- **`GlassCard`** (`components/ui/glass-card.tsx`) is the only card. The shadcn `components/ui/card.tsx` was
+  deleted in UI v2 PR 4 (2026-10-02); GlassCard's `.neural-glass` rule sits in `@layer components`, so className utilities win.
 - **Style through the theme bridge** (`bg-elevated`, `bg-raised`, `text-fg-secondary`,
   `border-glass`, `text-gold`) declared in `app/styles/tokens.css` `@theme inline`. Raw
-  `bg-[var(--…)]` is legacy read-path only. **A token that does not exist emits zero CSS and fails
+  `bg-[var(--token)]` is legacy read-path only. **A token that does not exist emits zero CSS and fails
   silently** — verify the rendered value, not the class name.
 - **`app/globals.css` is an import manifest only.** Real CSS lives in
   `app/styles/{tokens,base,effects}.css`; import order is cascade order. Append within the right
@@ -107,7 +107,7 @@ Open the row that matches your task. These are pointers, not context.
 | Data model, table by table | [`docs/DATA-MODEL.md`](docs/DATA-MODEL.md) |
 | Auth gates + security posture | [`docs/SECURITY.md`](docs/SECURITY.md) |
 | Cron manifest (single source) | [`config/crons.ts`](config/crons.ts) — gated by `pnpm check:crons` |
-| Live cron catalog + kill switches | `GET /api/settings/crons` (`PATCH` toggles, `POST /api/settings/crons/trigger` fires) · operator surface `/system/crons` |
+| Live cron catalog + kill switches | `/system/crons` (tRPC `systemAutomation.cronDeck` · `setCronEnabled` toggles · `runManifestCron` fires). The kill switch gates route crons in `cronHandler` AND Inngest-native crons in `CronLifecycleMiddleware.wrapFunctionHandler` (2026-10-02). |
 | Schema-drift expectations | [`lib/db/schema-sentinel.ts`](lib/db/schema-sentinel.ts) |
 | Tool catalog (count = `TOOL_CATALOG.length`, never prose) | [`lib/ai/tools/catalog.ts`](lib/ai/tools/catalog.ts) |
 | Reasoning whitelist (read-only, `NICK_DEEP_REASONING`) | [`lib/ai/reasoning/reasoning-tools.ts`](lib/ai/reasoning/reasoning-tools.ts) |

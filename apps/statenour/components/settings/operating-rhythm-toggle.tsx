@@ -53,9 +53,10 @@ export function OperatingRhythmToggle() {
     // service merges what it receives over AUTOPILOT_DEFAULTS (not over
     // the stored row), so a single-key payload would reset every other
     // stored flag back to its default. Spreading the live map first keeps
-    // every other stored value untouched and flips only this flag. (None
-    // of the other keys drive a worker today — this is belt-and-braces so
-    // the write can never have a surprise side effect.)
+    // every other stored value untouched and flips only this flag. (Since
+    // 2026-10-02 this is the only key the service keeps — the nine dead
+    // auto_* keys are dropped server-side — so the spread is belt-and-braces
+    // for any key added later.)
     const map = { ...(query.data?.flags ?? {}), [FLAG_KEY]: next };
     setFlags.mutate(
       { flags: map },
@@ -90,9 +91,9 @@ export function OperatingRhythmToggle() {
     <div className="mt-10">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Activity size={14} className="text-[var(--gold)]" />
-          <span className="text-sm font-[var(--font-display)] font-bold uppercase tracking-wider text-[var(--text-primary)]">
-            operating rhythm
+          <Activity size={14} className="text-fg-tertiary" />
+          <span className="text-[15px] font-semibold text-fg">
+            Operating rhythm
           </span>
         </div>
         <button
@@ -104,7 +105,7 @@ export function OperatingRhythmToggle() {
           aria-label={enabled ? "disable operating rhythm" : "enable operating rhythm"}
           className={cn(
             "relative w-11 h-6 rounded-full transition-colors",
-            enabled ? "bg-[var(--gold)]" : "bg-zinc-700",
+            enabled ? "bg-accent" : "bg-edge-strong",
             pendingDisable && "bg-rose-500/40",
             setFlags.isPending && "opacity-50",
           )}
@@ -118,14 +119,14 @@ export function OperatingRhythmToggle() {
           />
         </button>
       </div>
-      <p className="text-[10px] text-[var(--text-tertiary)]">
+      <p className="text-[12px] text-fg-tertiary">
         {enabled
           ? "On — Telegram checkpoints at 8am, 11am, 2pm, 5pm, 9pm guard focus and enforce shutdown."
           : "Off — no daily focus checkpoints. Tap to re-enable."}
       </p>
       {pendingDisable && (
-        <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-rose-500/30 bg-rose-500/5 px-2 py-2">
-          <span role="alert" className="flex-1 text-[10px] text-rose-300">
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-control border border-rose-500/30 bg-rose-500/5 px-2 py-2">
+          <span role="alert" className="flex-1 text-[12px] text-rose-300">
             Disable the focus checkpoints? This stops the cron from firing.
           </span>
           <ConfirmHold
@@ -140,14 +141,14 @@ export function OperatingRhythmToggle() {
           <button
             type="button"
             onClick={() => setPendingDisable(false)}
-            className="rounded border border-zinc-700 px-2 py-1 text-[10px] text-zinc-400 hover:bg-zinc-800"
+            className="rounded-control border border-edge-default px-2 py-1 text-[12px] text-fg-secondary hover:bg-surface-hover hover:text-fg"
           >
-            cancel
+            Cancel
           </button>
         </div>
       )}
       {mutationError && (
-        <p role="alert" className="mt-2 rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[10px] text-rose-300">
+        <p role="alert" className="mt-2 rounded-control border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[12px] text-rose-300">
           ⚠ {mutationError}
         </p>
       )}

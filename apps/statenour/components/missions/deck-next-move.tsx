@@ -36,7 +36,7 @@ function minutesLabel(mins: number): string {
   return `${mins} min`;
 }
 
-const RECORD_LABEL = "shrink-0 w-[9.5rem] pt-0.5 font-mono text-[11px] uppercase tracking-[0.14em] text-gold/80";
+const RECORD_LABEL = "shrink-0 w-[9.5rem] pt-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary";
 
 export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: Props) {
   const [alternatesOpen, setAlternatesOpen] = useState(false);
@@ -61,14 +61,14 @@ export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: P
   return (
     <section
       aria-labelledby="next-move-heading"
-      className="border-l-2 border-gold pl-5 sm:pl-6 xl:grid xl:grid-cols-[minmax(0,1fr)_18rem] xl:gap-12"
+      className="border-l-2 border-accent pl-5 sm:pl-6 xl:grid xl:grid-cols-[minmax(0,1fr)_18rem] xl:gap-12"
     >
       <div className="min-w-0">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 id="next-move-heading" className="vt-eyebrow text-gold">
+          <h2 id="next-move-heading" className="vt-eyebrow text-fg-secondary">
             {kind === "resume" ? "resume" : "next move"}
           </h2>
-          <span className="font-mono text-[12px] uppercase tracking-[0.14em] tabular-nums text-fg-tertiary">
+          <span className="font-mono text-[12px] uppercase tracking-[0.12em] tabular-nums text-fg-tertiary">
             today: {capacity.chosenCount} chosen · {minutesLabel(capacity.chosenMinutes)}
           </span>
         </div>
@@ -81,14 +81,14 @@ export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: P
         {task.nextPhysicalAction &&
           task.nextPhysicalAction.trim().toLowerCase() !== task.title.trim().toLowerCase() && (
             <p className="mt-4 max-w-[56ch] text-lg leading-relaxed text-fg-secondary">
-              <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary">first · </span>
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">first · </span>
               {task.nextPhysicalAction}
             </p>
           )}
 
         {kind === "resume" && resumeNote && (
           <p className="mt-4 border-t border-edge pt-3 text-[15px] text-fg">
-            <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-gold/80">you stopped at · </span>
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">you stopped at · </span>
             {resumeNote}
             {parkedAge && <span className="ml-2 font-mono text-[11px] text-fg-tertiary">{parkedAge}</span>}
           </p>
@@ -121,7 +121,7 @@ export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: P
                       href={href}
                       target={href.startsWith("/") ? undefined : "_blank"}
                       rel="noreferrer"
-                      className="break-all underline decoration-gold/40 underline-offset-2"
+                      className="break-all underline decoration-edge-strong underline-offset-2"
                     >
                       {href.replace(/^https?:\/\//, "").slice(0, 60)}
                     </a>
@@ -145,7 +145,7 @@ export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: P
         <button
           type="button"
           onClick={() => onStart(task.id)}
-          className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-md bg-gold px-6 font-display text-lg font-bold uppercase tracking-wide text-black transition-colors hover:bg-gold-dim focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+          className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-control bg-accent px-6 text-[15px] font-semibold text-[var(--text-inverse)] transition-colors duration-[var(--motion-state)] hover:bg-accent-hover"
         >
           ▶ {kind === "resume" ? "Resume" : "Start"} · {minutesLabel(task.effortMinutes)}
         </button>
@@ -154,7 +154,7 @@ export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: P
             type="button"
             aria-expanded={alternatesOpen}
             onClick={() => setAlternatesOpen((v) => !v)}
-            className="inline-flex min-h-[44px] items-center justify-center gap-1 rounded-md border border-edge px-4 font-mono text-[12px] uppercase tracking-[0.14em] text-fg-secondary transition-colors hover:border-edge-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            className="inline-flex min-h-[44px] items-center justify-center gap-1 rounded-control border border-edge-default bg-content px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
           >
             Different move {alternatesOpen ? "▴" : "▾"}
           </button>
@@ -173,9 +173,9 @@ export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: P
                 <button
                   type="button"
                   onClick={() => onPickDifferent(alt.id)}
-                  className="inline-flex min-h-[44px] shrink-0 items-center rounded-md border border-edge px-3 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary transition-colors hover:text-gold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+                  className="inline-flex min-h-[44px] shrink-0 items-center rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
                 >
-                  make this the move
+                  Make this the move
                 </button>
               </li>
             ))}

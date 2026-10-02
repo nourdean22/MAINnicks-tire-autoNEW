@@ -35,6 +35,7 @@ import { prisma } from "@/lib/prisma";
 import { DISCOVERY_CATEGORIES } from "./discoveries";
 import { RECALL_EXCLUDE_CATEGORIES } from "./categories";
 import type { RecallEvalCase } from "./recall-eval";
+import { CORRECTION_WHERE } from "@/lib/services/outcome-ledger";
 
 /** Cap so one bad week can't flood the corpus. */
 const MAX_PER_SOURCE = 25;
@@ -548,7 +549,7 @@ export async function buildRealRecallCases(): Promise<RealCorpusResult> {
   const [outcomes, warnings, toolFailures, noiseDiscoveries, durableFacts] = await Promise.all([
     read("intelligence_outcomes(dismissed|not-useful)", () =>
       prisma.intelligenceOutcome.findMany({
-        where: { OR: [{ decision: "dismissed" }, { outcomeUseful: false }] },
+        where: CORRECTION_WHERE,
         orderBy: { shownAt: "desc" },
         take: MAX_PER_SOURCE,
         select: {

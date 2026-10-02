@@ -165,7 +165,7 @@ export function SessionExpiryBanner() {
     >
       <div
         className={cn(
-          "mt-2 flex w-full max-w-2xl items-center gap-3 rounded-xl border px-3 py-2 shadow-lg backdrop-blur",
+          "mt-2 flex w-full max-w-2xl items-center gap-3 rounded-surface border px-3 py-2 shadow-l1",
           urgent
             ? "border-rose-500/50 bg-rose-950/80 text-rose-100"
             : "border-amber-500/40 bg-amber-950/80 text-amber-100",
@@ -174,7 +174,7 @@ export function SessionExpiryBanner() {
         <span
           className={cn(
             "h-2 w-2 shrink-0 rounded-full",
-            urgent ? "bg-rose-400 animate-pulse" : "bg-amber-400",
+            urgent ? "bg-rose-400" : "bg-amber-400",
           )}
           aria-hidden
         />
@@ -198,7 +198,7 @@ export function SessionExpiryBanner() {
           type="button"
           onClick={refresh}
           className={cn(
-            "inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
+            "inline-flex shrink-0 items-center gap-1 rounded-control border px-2 py-1 text-xs font-medium transition-colors",
             urgent
               ? "border-rose-400/50 bg-rose-500/20 hover:bg-rose-500/30"
               : "border-amber-400/40 bg-amber-500/20 hover:bg-amber-500/30",
@@ -211,7 +211,7 @@ export function SessionExpiryBanner() {
           type="button"
           onClick={dismiss}
           aria-label="Dismiss for 10 minutes"
-          className="rounded-md p-1 opacity-70 hover:bg-white/10 hover:opacity-100"
+          className="rounded-control p-1 opacity-70 hover:bg-surface-hover hover:opacity-100"
         >
           <X className="h-4 w-4" />
         </button>

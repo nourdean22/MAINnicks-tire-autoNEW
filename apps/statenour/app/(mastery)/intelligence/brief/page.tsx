@@ -92,7 +92,7 @@ export default function DailyBriefPage() {
       
       if (trimmed.startsWith("# ")) {
         return (
-          <h1 key={index} className="text-xl md:text-2xl font-black text-white tracking-tight mt-6 mb-4 pb-2 border-b border-slate-800">
+          <h1 key={index} className="text-xl md:text-2xl font-semibold text-fg tracking-tight mt-6 mb-4 pb-2 border-b border-edge-subtle">
             {trimmed.slice(2)}
           </h1>
         );
@@ -100,18 +100,18 @@ export default function DailyBriefPage() {
       
       if (trimmed.startsWith("## ")) {
         const title = trimmed.slice(3);
-        let icon = <Sparkles className="h-4.5 w-4.5 text-indigo-400" />;
+        let icon = <Sparkles className="h-4.5 w-4.5 text-fg-tertiary" />;
         
         if (title.includes("Alerts")) {
           icon = <AlertTriangle className="h-4.5 w-4.5 text-red-400" />;
         } else if (title.includes("Opportunities")) {
           icon = <Zap className="h-4.5 w-4.5 text-amber-400" />;
         } else if (title.includes("Decisions")) {
-          icon = <CheckSquare className="h-4.5 w-4.5 text-blue-400" />;
+          icon = <CheckSquare className="h-4.5 w-4.5 text-fg-tertiary" />;
         }
 
         return (
-          <h2 key={index} className="flex items-center gap-2 text-sm font-bold text-slate-200 tracking-wider uppercase mt-8 mb-4 border-l-2 border-slate-700 pl-3">
+          <h2 key={index} className="flex items-center gap-2 text-[15px] font-semibold text-fg mt-8 mb-4 border-l-2 border-edge-strong pl-3">
             {icon} {title}
           </h2>
         );
@@ -119,7 +119,7 @@ export default function DailyBriefPage() {
 
       if (trimmed.startsWith("* **")) {
         return (
-          <div key={index} className="mt-3 pl-4 border-l border-slate-800 py-1 text-sm text-slate-300 leading-relaxed">
+          <div key={index} className="mt-3 pl-4 border-l border-edge-subtle py-1 text-sm text-fg-secondary leading-relaxed">
             {trimmed}
           </div>
         );
@@ -127,7 +127,7 @@ export default function DailyBriefPage() {
 
       if (trimmed.startsWith("- ")) {
         return (
-          <li key={index} className="ml-6 list-disc text-sm text-slate-300 leading-relaxed mt-1">
+          <li key={index} className="ml-6 list-disc text-sm text-fg-secondary leading-relaxed mt-1">
             {trimmed.slice(2)}
           </li>
         );
@@ -138,7 +138,7 @@ export default function DailyBriefPage() {
       }
 
       return (
-        <p key={index} className="text-sm text-slate-300 leading-relaxed mt-1">
+        <p key={index} className="text-sm text-fg-secondary leading-relaxed mt-1">
           {trimmed}
         </p>
       );
@@ -158,28 +158,28 @@ export default function DailyBriefPage() {
         <button
           onClick={fetchLatestBrief}
           disabled={loading || generating}
-          className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 font-mono text-xs text-slate-400 transition-colors hover:text-slate-200 disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-          REFRESH
+          Refresh
         </button>
       }
     >
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3 border border-slate-800/40 rounded-2xl bg-slate-900/10 backdrop-blur-md">
-          <RefreshCw className="h-6 w-6 text-slate-500 animate-spin" />
-          <span className="text-xs font-mono text-slate-500">Loading daily executive brief...</span>
+        <div className="flex flex-col items-center justify-center py-20 gap-3 border border-edge-subtle rounded-surface bg-content">
+          <RefreshCw className="h-6 w-6 text-fg-tertiary animate-spin" />
+          <span className="text-xs font-mono text-fg-tertiary">Loading daily executive brief...</span>
         </div>
       ) : brief ? (
         <div className="space-y-6">
-          <div className="rounded-2xl border border-slate-800/50 bg-slate-950/40 p-6 backdrop-blur-md">
-            <div className="flex justify-between items-center text-xs font-mono text-slate-500 border-b border-slate-900 pb-3 mb-4">
-              <span>TYPE: DAILY BRIEF</span>
-              <span>COMPILED: {new Date(brief.createdAt).toLocaleString()}</span>
+          <div className="rounded-surface border border-edge-subtle bg-content p-6">
+            <div className="flex justify-between items-center font-mono text-[11px] text-fg-tertiary border-b border-edge-subtle pb-3 mb-4">
+              <span>Type: daily brief</span>
+              <span>Compiled: {new Date(brief.createdAt).toLocaleString()}</span>
             </div>
 
-            <div className="prose prose-invert max-w-none text-slate-300">
+            <div className="prose prose-invert max-w-none text-fg-secondary">
               {renderBriefContent(brief.content)}
             </div>
           </div>
@@ -188,48 +188,48 @@ export default function DailyBriefPage() {
             <button
               onClick={handleGenerate}
               disabled={generating}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-xs font-semibold text-slate-200 transition-all disabled:opacity-50"
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-control bg-accent px-4 py-2 text-[14px] font-semibold text-[var(--text-inverse)] transition-colors duration-[var(--motion-state)] hover:bg-accent-hover disabled:opacity-50"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${generating ? "animate-spin" : ""}`} />
-              RE-GENERATE BRIEF
+              Re-generate brief
             </button>
             <a
               href="/intelligence/ledger"
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-xs font-semibold text-white transition-all"
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
             >
-              OPEN DECISION LEDGER
+              Open decision ledger
             </a>
           </div>
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-16 text-center space-y-6 border border-slate-800/40 rounded-2xl bg-slate-900/10 backdrop-blur-md">
-          <div className="rounded-full bg-slate-900/80 p-4 border border-slate-800">
-            <FileText className="h-10 w-10 text-slate-500" />
+        <div className="flex flex-col items-center justify-center py-16 text-center space-y-6 border border-edge-subtle rounded-surface bg-content">
+          <div className="rounded-full bg-surface-interactive p-4 border border-edge-subtle">
+            <FileText className="h-10 w-10 text-fg-tertiary" />
           </div>
           <div className="space-y-2 max-w-sm">
-            <h3 className="text-sm font-semibold text-slate-200">
+            <h3 className="text-sm font-semibold text-fg">
               {errored
                 ? "Could Not Load Today's Briefing"
                 : emptyState?.lastBriefAt
                   ? "No Briefing Generated Today"
                   : "No Briefing Has Ever Been Generated"}
             </h3>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-fg-tertiary">
               {errored
                 ? "The request failed — this says nothing about whether a brief exists. Retry, or check /system/crons."
                 : (emptyState?.message ??
                   "Run ingestion and synthesis on your registered sources to compile today's executive brief.")}
             </p>
             {emptyState?.lastBriefAt ? (
-              <p className="text-xs font-mono text-amber-500/80">
-                LAST BRIEF: {new Date(emptyState.lastBriefAt).toLocaleString()}
+              <p className="text-xs font-mono text-amber-300">
+                Last brief: {new Date(emptyState.lastBriefAt).toLocaleString()}
               </p>
             ) : null}
           </div>
           <button
             onClick={handleGenerate}
             disabled={generating}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-xs font-semibold text-white transition-all disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-control bg-accent px-4 py-2 text-[14px] font-semibold text-[var(--text-inverse)] transition-colors duration-[var(--motion-state)] hover:bg-accent-hover disabled:opacity-50"
           >
             {generating ? (
               <>
@@ -239,7 +239,7 @@ export default function DailyBriefPage() {
             ) : (
               <>
                 <Sparkles className="h-4 w-4" />
-                Compile Today&apos;s Brief
+                Compile today&apos;s brief
               </>
             )}
           </button>

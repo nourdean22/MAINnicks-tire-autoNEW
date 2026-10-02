@@ -72,8 +72,26 @@ const enforceOperator = middleware(({ ctx, next }) => {
   });
 });
 
-const mutationGateMiddleware = middleware(async ({ ctx, next, type }) => {
+/**
+ * 2026-10-02 · settings census: the lock blocked EVERY operator mutation,
+ * including the flags-board write that turns the lock off — so once on, it
+ * could only be lifted outside the app (DB edit or redeploy). Exactly one
+ * call is exempt: `operator.setFeatureFlagOverride` with key exactly
+ * `NICK_MUTATION_LOCK` and value `"false"` or `null` (clear to the env
+ * default). Turning it ON, any other key, any other procedure, any other
+ * value: still gated. Matched on the raw input the procedure's own schema
+ * parses next, so what is exempted is what runs. Exported for the gate test.
+ */
+export function isMutationLockRelease(path: string, rawInput: unknown): boolean {
+  if (path !== "operator.setFeatureFlagOverride") return false;
+  if (!rawInput || typeof rawInput !== "object" || Array.isArray(rawInput)) return false;
+  const { key, value } = rawInput as { key?: unknown; value?: unknown };
+  return key === "NICK_MUTATION_LOCK" && (value === "false" || value === null);
+}
+
+const mutationGateMiddleware = middleware(async ({ ctx, next, type, path, getRawInput }) => {
   if (type !== "mutation") return next();
+  if (isMutationLockRelease(path, await getRawInput().catch(() => undefined))) return next();
 
   let locked = false;
   let unresolved = false;

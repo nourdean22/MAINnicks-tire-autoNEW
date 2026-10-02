@@ -37,7 +37,7 @@ interface DriftReport {
 const SEV_TINT: Record<string, string> = {
   high: "text-rose-300 border-rose-500/30 bg-rose-500/5",
   medium: "text-amber-300 border-amber-500/30 bg-amber-500/5",
-  low: "text-zinc-300 border-zinc-500/20 bg-zinc-500/5",
+  low: "text-fg-secondary border-edge-default bg-surface-interactive",
 };
 
 export function SchemaDriftCard() {
@@ -66,7 +66,7 @@ export function SchemaDriftCard() {
   if (loading && !report) {
     return (
       <GlassCard>
-        <p className="text-[11px] text-[var(--text-tertiary)]">checking schema drift…</p>
+        <p className="text-[11px] text-fg-tertiary">checking schema drift…</p>
       </GlassCard>
     );
   }
@@ -126,29 +126,29 @@ export function SchemaDriftCard() {
           </p>
           <button
             onClick={() => setExpanded((v) => !v)}
-            className="mt-1 text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--gold)]"
+            className="mt-1 font-mono text-[11px] text-fg-tertiary hover:text-fg"
           >
-            {expanded ? "hide" : "show"} findings
+            {expanded ? "Hide" : "Show"} findings
           </button>
           {expanded && (
             <ul className="mt-2 space-y-1.5">
               {report.findings.map((f, i) => (
                 <li
                   key={i}
-                  className={"rounded-md border p-2 text-[11px] " + (SEV_TINT[f.severity] ?? SEV_TINT.low)}
+                  className={"rounded-control border p-2 text-[11px] " + (SEV_TINT[f.severity] ?? SEV_TINT.low)}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-[10px] uppercase tracking-wider opacity-80">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] opacity-80">
                       {f.severity}
                     </span>
                     {f.expectation.table && (
-                      <span className="font-mono text-[10px] opacity-70">
+                      <span className="font-mono text-[11px] opacity-70">
                         {f.expectation.table}
                       </span>
                     )}
                   </div>
                   <p className="mt-0.5 break-words">{f.problem}</p>
-                  <p className="mt-0.5 text-[10px] opacity-60">{f.expectation.reason}</p>
+                  <p className="mt-0.5 text-[11px] opacity-60">{f.expectation.reason}</p>
                 </li>
               ))}
             </ul>

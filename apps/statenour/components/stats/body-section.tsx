@@ -19,7 +19,7 @@ import { logger as rootLogger } from "@/lib/logger";
 
 // v10.0.31 — structured logger for body-section errors.
 const log = rootLogger.withSurface("body/section");
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { GlassCard } from "@/components/ui/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -241,7 +241,7 @@ export function BodySection() {
             <span className="font-mono text-2xl font-bold text-[var(--text-primary)]">
               <AnimatedCounter value={progress.current} decimals={1} locale={false} />
             </span>
-            <p className="text-[10px] text-[var(--text-tertiary)]">
+            <p className="font-mono text-[11px] text-fg-tertiary">
               lbs · target {progress.target}
               {progress.current > progress.target &&
                 ` · ${Math.round(progress.current - progress.target)} to go`}
@@ -259,13 +259,13 @@ export function BodySection() {
 
       {/* Progress Summary */}
       {progress && (
-        <Card className="border-[var(--border-default)] bg-[var(--bg-raised)]">
-          <CardContent className="flex flex-col gap-3 pt-4">
+        <GlassCard>
+          <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between text-xs text-[var(--text-tertiary)]">
               <span>Current</span>
               <span>Target: {progress.target} lbs</span>
             </div>
-            <div className="h-2 rounded-full bg-[var(--bg-raised)] overflow-hidden">
+            <div className="h-2 rounded-full bg-surface-interactive overflow-hidden">
               <div
                 className="h-full rounded-full bg-[#22c55e] transition-all duration-150 ease-in-out"
                 style={{
@@ -281,19 +281,19 @@ export function BodySection() {
                 ~{progress.weeks_to_go}w &middot; est. {progress.projected_date}
               </span>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </GlassCard>
       )}
 
       {/* Weight Chart */}
       {chartData.length > 0 && (
-        <Card className="border-[var(--border-default)] bg-[var(--bg-raised)]">
-          <CardHeader>
-            <CardTitle className="text-sm text-[var(--text-tertiary)]">
+        <GlassCard>
+          <div className="mb-4">
+            <h3 className="text-[15px] font-semibold text-fg">
               Weight (90 days)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </h3>
+          </div>
+          <div>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={chartData}>
                 <CartesianGrid stroke="#1a1a1a" strokeDasharray="3 3" />
@@ -322,11 +322,11 @@ export function BodySection() {
                 {progress && (
                   <ReferenceLine
                     y={progress.target}
-                    stroke="#FDB913"
+                    stroke="var(--text-secondary)"
                     strokeDasharray="6 3"
                     label={{
                       value: `Target: ${progress.target}`,
-                      fill: "#FDB913",
+                      fill: "var(--text-secondary)",
                       fontSize: 10,
                       position: "right",
                     }}
@@ -342,16 +342,16 @@ export function BodySection() {
                 />
               </LineChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
+          </div>
+        </GlassCard>
       )}
 
-      <Separator className="bg-[var(--bg-raised)]" />
+      <Separator className="bg-edge-subtle" />
 
       {/* Quick Entry Form */}
-      <Card className="border-[var(--border-default)] bg-[var(--bg-raised)]">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm text-[var(--text-tertiary)]">Quick Entry</CardTitle>
+      <GlassCard>
+        <div className="mb-4 flex flex-row items-center justify-between">
+          <h3 className="text-[15px] font-semibold text-fg">Quick Entry</h3>
           <Button
             variant="ghost"
             size="xs"
@@ -371,17 +371,17 @@ export function BodySection() {
               setEfStress(null);
               setNotes("");
             }}
-            className="h-7 text-[10px] font-mono px-2 bg-white/[0.02] border border-white/10 text-zinc-400 hover:text-white"
+            className="h-7 rounded-control border border-edge-default px-2 text-[11px] text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
           >
-            {efLogMode ? "Normal Mode" : "EF Quick-Log ⚡"}
+            {efLogMode ? "Normal Mode" : "EF Quick-Log"}
           </Button>
-        </CardHeader>
-        <CardContent>
+        </div>
+        <div>
           {efLogMode ? (
             <div className="space-y-4 animate-fade-in">
               {/* Sleep Taps */}
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] w-16">sleep</span>
+                <span className="font-mono text-[11px] text-fg-tertiary w-16">sleep</span>
                 {[
                   { label: "deficit (<6h)", key: "low" },
                   { label: "restful (7.5h)", key: "restful" },
@@ -392,12 +392,12 @@ export function BodySection() {
                     type="button"
                     onClick={() => setEfSleep(opt.key)}
                     className={cn(
-                      "min-h-[40px] px-3 rounded-md border text-[11px] transition-all",
+                      "min-h-[40px] px-3 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
                       efSleep === opt.key
                         ? opt.key === "low"
                           ? "border-amber-500/40 bg-amber-500/[0.08] text-amber-200"
                           : "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
-                        : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20",
+                        : "border-edge-default bg-content text-fg-secondary hover:border-edge-strong",
                     )}
                   >
                     {opt.label}
@@ -407,22 +407,22 @@ export function BodySection() {
 
               {/* Workout Taps */}
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] w-16">workout</span>
+                <span className="font-mono text-[11px] text-fg-tertiary w-16">workout</span>
                 {[
-                  { label: "yes 💪", value: true },
-                  { label: "rest ☕", value: false },
+                  { label: "yes", value: true },
+                  { label: "rest", value: false },
                 ].map((opt) => (
                   <button
                     key={String(opt.value)}
                     type="button"
                     onClick={() => setWorkoutDone(opt.value)}
                     className={cn(
-                      "min-h-[40px] px-4 rounded-md border text-[11px] transition-all",
+                      "min-h-[40px] px-4 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
                       workoutDone === opt.value
                         ? opt.value
                           ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
-                          : "border-zinc-500/40 bg-zinc-500/[0.08] text-zinc-300"
-                        : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20",
+                          : "border-edge-strong bg-surface-interactive text-fg"
+                        : "border-edge-default bg-content text-fg-secondary hover:border-edge-strong",
                     )}
                   >
                     {opt.label}
@@ -432,27 +432,27 @@ export function BodySection() {
 
               {/* Energy Taps */}
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] w-16">energy</span>
+                <span className="font-mono text-[11px] text-fg-tertiary w-16">energy</span>
                 {[
-                  { label: "🔋 1", value: 1 },
-                  { label: "🔋 2", value: 2 },
-                  { label: "⚡ 3", value: 3 },
-                  { label: "⚡ 4", value: 4 },
-                  { label: "🔥 5", value: 5 },
+                  { label: "1", value: 1 },
+                  { label: "2", value: 2 },
+                  { label: "3", value: 3 },
+                  { label: "4", value: 4 },
+                  { label: "5", value: 5 },
                 ].map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
                     onClick={() => setEnergy(opt.value)}
                     className={cn(
-                      "min-h-[40px] px-3 rounded-md border text-[11px] transition-all",
+                      "min-h-[40px] px-3 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
                       energy === opt.value
                         ? opt.value <= 2
                           ? "border-amber-500/40 bg-amber-500/[0.08] text-amber-200"
                           : opt.value >= 4
                           ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
                           : "border-sky-500/40 bg-sky-500/[0.08] text-sky-200"
-                        : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20",
+                        : "border-edge-default bg-content text-fg-secondary hover:border-edge-strong",
                     )}
                   >
                     {opt.label}
@@ -462,25 +462,25 @@ export function BodySection() {
 
               {/* Stress Taps */}
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] w-16">stress</span>
+                <span className="font-mono text-[11px] text-fg-tertiary w-16">stress</span>
                 {[
-                  { label: "😌 low", value: 1 },
-                  { label: "⚖️ stable", value: 3 },
-                  { label: "⚠️ high", value: 5 },
+                  { label: "low", value: 1 },
+                  { label: "stable", value: 3 },
+                  { label: "high", value: 5 },
                 ].map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
                     onClick={() => setEfStress(opt.value)}
                     className={cn(
-                      "min-h-[40px] px-3.5 rounded-md border text-[11px] transition-all",
+                      "min-h-[40px] px-3.5 rounded-control border text-[12px] transition-colors duration-[var(--motion-state)]",
                       efStress === opt.value
                         ? opt.value === 1
                           ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
                           : opt.value === 3
                           ? "border-sky-500/40 bg-sky-500/[0.08] text-sky-200"
                           : "border-rose-500/40 bg-rose-500/[0.08] text-rose-200"
-                        : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20",
+                        : "border-edge-default bg-content text-fg-secondary hover:border-edge-strong",
                     )}
                   >
                     {opt.label}
@@ -493,14 +493,14 @@ export function BodySection() {
                 <button
                   type="button"
                   onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="text-[10px] font-mono text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition-all underline outline-none"
+                  className="font-mono text-[12px] text-fg-tertiary hover:text-fg-secondary flex items-center gap-1 transition-colors duration-[var(--motion-state)] underline"
                 >
                   {showAdvanced ? "Hide advanced fields" : "Show advanced fields (Weight, BF%, Waist, Notes)"}
                 </button>
               </div>
 
               {showAdvanced && (
-                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/5 animate-fade-in">
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-edge-subtle animate-fade-in">
                   <Input
                     type="number"
                     step="0.1"
@@ -583,7 +583,7 @@ export function BodySection() {
                   row · the MODE classifier reads these. Editorial-minimalist
                   chips with 44px tap targets · mobile-first. */}
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] w-16">workout</span>
+                <span className="font-mono text-[11px] text-fg-tertiary w-16">workout</span>
                 {[
                   { label: "yes", value: true },
                   { label: "no", value: false },
@@ -593,32 +593,32 @@ export function BodySection() {
                     type="button"
                     onClick={() => setWorkoutDone(opt.value)}
                     className={cn(
-                      "min-h-[44px] px-3 rounded-md border transition-all",
+                      "min-h-[44px] px-3 rounded-control border transition-colors duration-[var(--motion-state)]",
                       workoutDone === opt.value
                         ? opt.value
                           ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
-                          : "border-zinc-500/40 bg-zinc-500/[0.08] text-zinc-300"
-                        : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20",
+                          : "border-edge-strong bg-surface-interactive text-fg"
+                        : "border-edge-default bg-content text-fg-secondary hover:border-edge-strong",
                     )}
                   >
                     {opt.label}
                   </button>
                 ))}
-                <span className="ml-2 text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] w-16 text-center">energy</span>
+                <span className="ml-2 font-mono text-[11px] text-fg-tertiary w-16 text-center">energy</span>
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button
                     key={n}
                     type="button"
                     onClick={() => setEnergy(n)}
                     className={cn(
-                      "min-h-[44px] w-10 rounded-md border font-mono transition-all",
+                      "min-h-[44px] w-10 rounded-control border font-mono transition-colors duration-[var(--motion-state)]",
                       energy === n
                         ? n <= 2
                           ? "border-amber-500/40 bg-amber-500/[0.08] text-amber-200"
                           : n >= 4
                           ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
                           : "border-sky-500/40 bg-sky-500/[0.08] text-sky-200"
-                        : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20",
+                        : "border-edge-default bg-content text-fg-secondary hover:border-edge-strong",
                     )}
                     aria-label={`energy ${n} of 5`}
                   >
@@ -631,7 +631,7 @@ export function BodySection() {
 
           <Button
             size="sm"
-            className="mt-3 w-full bg-[#FDB913] text-[#0a0a0a] hover:bg-[#FDB913]/80 font-bold uppercase tracking-wider h-10"
+            className="mt-3 h-10 w-full rounded-control bg-accent text-[14px] font-semibold text-[var(--text-inverse)] transition-colors duration-[var(--motion-state)] hover:bg-accent-hover"
             onClick={logWeight}
             disabled={submitting || (
               efLogMode
@@ -641,31 +641,31 @@ export function BodySection() {
           >
             {submitting ? "Logging…" : "Log Entry"}
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </GlassCard>
 
       {/* Recent Entries Table */}
       {entries.length > 0 && (
-        <Card className="border-[var(--border-default)] bg-[var(--bg-raised)]">
-          <CardHeader>
-            <CardTitle className="text-sm text-[var(--text-tertiary)]">
+        <GlassCard>
+          <div className="mb-4">
+            <h3 className="text-[15px] font-semibold text-fg">
               Recent Entries
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </h3>
+          </div>
+          <div>
             <div className="flex flex-col gap-0">
               {/* Table header */}
-              <div className="grid grid-cols-4 gap-2 border-b border-[var(--border-default)] pb-2 mb-2">
-                <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+              <div className="grid grid-cols-4 gap-2 border-b border-edge-default pb-2 mb-2">
+                <span className="font-mono text-[11px] text-fg-tertiary">
                   Date
                 </span>
-                <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] text-right">
+                <span className="font-mono text-[11px] text-fg-tertiary text-right">
                   Weight
                 </span>
-                <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] text-right">
+                <span className="font-mono text-[11px] text-fg-tertiary text-right">
                   BF%
                 </span>
-                <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] text-right">
+                <span className="font-mono text-[11px] text-fg-tertiary text-right">
                   Waist
                 </span>
               </div>
@@ -674,7 +674,7 @@ export function BodySection() {
                   /* v10.0.31 — was key={i}; on poll refresh a prepended
                      entry shifted indices and React swapped row data. */
                   key={e.date}
-                  className="grid grid-cols-4 gap-2 py-1.5 border-b border-[var(--border-default)]/50 last:border-0"
+                  className="grid grid-cols-4 gap-2 py-1.5 border-b border-edge-subtle last:border-0"
                 >
                   <span className="text-xs text-[var(--text-tertiary)]">
                     {e.date.slice(5)}
@@ -691,8 +691,8 @@ export function BodySection() {
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </GlassCard>
       )}
 
       {entries.length === 0 && (

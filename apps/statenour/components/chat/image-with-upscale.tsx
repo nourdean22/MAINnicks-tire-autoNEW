@@ -89,7 +89,7 @@ export function ImageWithUpscale({ srcStr, alt, imageId }: ImageWithUpscaleProps
   return (
     <span className="relative group inline-block">
       {imgFailed ? (
-        <span className="inline-block rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 mt-2 mb-1 text-[11px] text-rose-300 font-mono">
+        <span className="inline-block rounded-surface border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 mt-2 mb-1 text-[11px] text-rose-300 font-mono">
           image failed to load ({currentSrc.slice(-12)})
         </span>
       ) : (
@@ -99,7 +99,7 @@ export function ImageWithUpscale({ srcStr, alt, imageId }: ImageWithUpscaleProps
             src={currentSrc}
             alt={alt}
             loading="lazy"
-            className="rounded-lg max-w-full max-h-[400px] border border-[var(--border)] mt-2 mb-1 cursor-pointer hover:opacity-90 transition-opacity"
+            className="rounded-surface max-w-full max-h-[400px] border border-[var(--border)] mt-2 mb-1 cursor-pointer hover:opacity-90 transition-opacity"
             onError={() => setImgFailed(true)}
           />
         </a>
@@ -115,10 +115,10 @@ export function ImageWithUpscale({ srcStr, alt, imageId }: ImageWithUpscaleProps
             onClick={handleVary}
             disabled={varying || !!upscaling}
             className={cn(
-              "rounded-md border border-white/15 bg-black/70 backdrop-blur-sm px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition",
+              "rounded-control border border-edge-strong bg-overlay/80 px-2 py-1 text-[11px] font-mono transition-colors duration-[var(--motion-state)]",
               varying
                 ? "text-violet-300 border-violet-500/40"
-                : "text-white hover:bg-black/85",
+                : "text-fg hover:bg-overlay",
             )}
             title="Variations (2× turbo, ~$0.02 each)"
           >
@@ -135,10 +135,10 @@ export function ImageWithUpscale({ srcStr, alt, imageId }: ImageWithUpscaleProps
             onClick={() => handleUpscale(2)}
             disabled={!!upscaling || varying}
             className={cn(
-              "rounded-md border border-white/15 bg-black/70 backdrop-blur-sm px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition",
+              "rounded-control border border-edge-strong bg-overlay/80 px-2 py-1 text-[11px] font-mono transition-colors duration-[var(--motion-state)]",
               upscaling === 2
                 ? "text-amber-300 border-amber-500/40"
-                : "text-white hover:bg-black/85",
+                : "text-fg hover:bg-overlay",
             )}
             title="Upscale 2× (~$0.02, 30s)"
           >
@@ -155,10 +155,10 @@ export function ImageWithUpscale({ srcStr, alt, imageId }: ImageWithUpscaleProps
             onClick={() => handleUpscale(4)}
             disabled={!!upscaling || varying}
             className={cn(
-              "rounded-md border border-white/15 bg-black/70 backdrop-blur-sm px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition",
+              "rounded-control border border-edge-strong bg-overlay/80 px-2 py-1 text-[11px] font-mono transition-colors duration-[var(--motion-state)]",
               upscaling === 4
                 ? "text-amber-300 border-amber-500/40"
-                : "text-white hover:bg-black/85",
+                : "text-fg hover:bg-overlay",
             )}
             title="Upscale 4× (~$0.04, 60s) — billboard/print quality"
           >
@@ -176,21 +176,21 @@ export function ImageWithUpscale({ srcStr, alt, imageId }: ImageWithUpscaleProps
           All <span> not <div> because the parent is <p> via markdown. */}
       {variants.length > 0 && (
         <span className="mt-2 inline-flex gap-1.5 flex-wrap">
-          <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider self-center">variants:</span>
+          <span className="text-[11px] font-mono text-fg-tertiary self-center">variants:</span>
           {variants.map((v) => (
             <a key={v.imageId} href={v.imageUrl} target="_blank" rel="noopener noreferrer">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={v.imageUrl}
                 alt="variant"
-                className="h-16 w-16 rounded border border-violet-500/30 cursor-pointer hover:opacity-80 transition-opacity object-cover"
+                className="h-16 w-16 rounded-control border border-violet-500/30 cursor-pointer hover:opacity-80 transition-opacity object-cover"
               />
             </a>
           ))}
         </span>
       )}
       {error && (
-        <span className="mt-1 inline-block rounded border border-rose-500/30 bg-rose-500/5 px-2 py-1 text-[10px] text-rose-300 font-mono">
+        <span className="mt-1 inline-block rounded-micro border border-rose-500/30 bg-rose-500/5 px-2 py-1 text-[11px] text-rose-300 font-mono">
           {error}
         </span>
       )}

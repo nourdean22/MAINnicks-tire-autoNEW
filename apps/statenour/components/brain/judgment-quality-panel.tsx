@@ -25,15 +25,15 @@ export function JudgmentQualityPanel() {
 
   if (spcQ.isLoading || calQ.isLoading) {
     return (
-      <section aria-label="judgment-quality" className="rounded-xl border border-white/5 p-4 space-y-2">
-        <div className="h-3 w-44 rounded bg-white/5 animate-pulse" />
-        <div className="h-16 rounded bg-white/[0.03] animate-pulse" />
+      <section aria-label="judgment-quality" className="rounded-surface border border-edge-subtle p-4 space-y-2">
+        <div className="h-3 w-44 rounded-micro bg-surface-interactive animate-pulse" />
+        <div className="h-16 rounded-micro bg-surface-interactive animate-pulse" />
       </section>
     );
   }
   if (spcQ.isError || calQ.isError) {
     return (
-      <section aria-label="judgment-quality" className="rounded-xl border border-red-500/15 bg-red-500/5 p-4">
+      <section aria-label="judgment-quality" className="rounded-surface border border-red-500/15 bg-red-500/5 p-4">
         <p className="text-[11px] text-red-400 flex items-center gap-1.5">
           <AlertCircle className="h-3.5 w-3.5" />
           Judgment-quality readings couldn&apos;t load — state unknown, not empty.
@@ -48,39 +48,39 @@ export function JudgmentQualityPanel() {
   return (
     <section
       aria-label="judgment-quality"
-      className="rounded-xl border border-white/8 bg-white/[0.01] p-4 flex flex-col space-y-4"
+      className="rounded-surface border border-edge-subtle bg-content p-4 flex flex-col space-y-4"
     >
-      <div className="flex items-center justify-between gap-2 border-b border-white/6 pb-2">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-300 font-semibold flex items-center gap-1.5">
-          <Scale className="h-3.5 w-3.5 text-[var(--gold)]/80" /> Judgment Quality
+      <div className="flex items-center justify-between gap-2 border-b border-edge-subtle pb-2">
+        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary flex items-center gap-1.5">
+          <Scale className="h-3.5 w-3.5 text-fg-secondary" /> Judgment Quality
         </p>
       </div>
 
       {/* BDN-105 · wisdom gate */}
       <div className="space-y-1.5">
-        <p className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
           wisdom gate · promotion mix
         </p>
         {spc && spc.totals.total === 0 ? (
-          <p className="text-[11px] text-zinc-500">
+          <p className="text-[11px] text-fg-tertiary">
             No promotion attempts recorded in the last 8 weeks. The rule went unattended 2026-08-12 —
             the first runs land on tonight&apos;s engine pass.
           </p>
         ) : (
           <>
-            <p className="text-[11px] text-zinc-400">
+            <p className="text-[11px] text-fg-secondary">
               {spc?.totals.promoted} promoted · {spc?.totals.gateRejected} gate-rejected ·{" "}
               {spc?.totals.dupeSkipped} dupe-skipped
               {(spc?.totals.failed ?? 0) > 0 && ` · ${spc?.totals.failed} failed`}
             </p>
             {(spc?.totals.parked ?? 0) > 0 && (
-              <p className="text-[10px] text-amber-400/80">
+              <p className="text-[11px] text-amber-400/80">
                 {spc?.totals.parked} attempt{spc?.totals.parked === 1 ? "" : "s"} never reached the
                 gate — parked awaiting approval. Those are a wiring reading, not a quality one.
               </p>
             )}
             {spc?.underSampled && (
-              <p className="text-[10px] text-amber-400/80">
+              <p className="text-[11px] text-amber-400/80">
                 Under-sampled ({spc.decided} decided run{spc.decided === 1 ? "" : "s"}) — a shifting
                 mix means nothing yet. Hand-audit the first promotions instead of reading this as a
                 trend.
@@ -89,7 +89,7 @@ export function JudgmentQualityPanel() {
             {!spc?.underSampled && (
               <ul className="space-y-0.5">
                 {spc?.weeks.slice(0, 4).map((w) => (
-                  <li key={w.weekStart} className="text-[10px] font-mono text-zinc-500">
+                  <li key={w.weekStart} className="text-[11px] font-mono text-fg-tertiary">
                     {w.weekStart} · {w.promoted}✓ {w.gateRejected}✗ {w.dupeSkipped}⊘
                   </li>
                 ))}
@@ -100,24 +100,24 @@ export function JudgmentQualityPanel() {
       </div>
 
       {/* BDN-106 · confidence calibration */}
-      <div className="space-y-1.5 border-t border-white/6 pt-3">
-        <p className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+      <div className="space-y-1.5 border-t border-edge-subtle pt-3">
+        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
           stated confidence · vs outcomes
         </p>
         {cal?.note ? (
-          <p className="text-[11px] text-zinc-500">{cal.note}</p>
+          <p className="text-[11px] text-fg-tertiary">{cal.note}</p>
         ) : (
           <ul className="space-y-0.5">
             {cal?.bands.map((b) => (
-              <li key={b.band} className="text-[10px] font-mono text-zinc-400">
+              <li key={b.band} className="text-[11px] font-mono text-fg-secondary">
                 {b.band.padEnd(4)} · {b.hitRate === null ? "n/a" : `${Math.round(b.hitRate * 100)}% kept`} (
                 {b.kept}/{b.resolved})
-                {b.unresolved > 0 && <span className="text-zinc-600"> · {b.unresolved} open</span>}
+                {b.unresolved > 0 && <span className="text-fg-tertiary"> · {b.unresolved} open</span>}
               </li>
             ))}
           </ul>
         )}
-        <p className="text-[9px] text-zinc-600 leading-relaxed">
+        <p className="text-[11px] text-fg-tertiary leading-relaxed">
           If HIGH does not outperform LOW once this fills in, the confidence chip is decoration and
           should be retired rather than trusted.
         </p>

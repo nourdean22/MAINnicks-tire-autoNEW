@@ -237,7 +237,7 @@ export function NickCommandLine() {
           aria-label="Nick's response"
         >
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-gold/40 bg-gold/10 text-gold">
+            <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-edge-default bg-content text-fg-secondary">
               {isLoading ? <Loader2 size={12} className="motion-safe:animate-spin" /> : <Brain size={12} />}
             </div>
             <div className="min-w-0 flex-1 space-y-3 text-sm">
@@ -259,7 +259,7 @@ export function NickCommandLine() {
 
       <form
         onSubmit={submit}
-        className="relative border-b-2 border-edge transition-colors duration-150 focus-within:border-gold"
+        className="relative border-b-2 border-edge transition-colors duration-150 focus-within:border-accent"
       >
         {slashMenu.length > 0 && (
           <ul aria-label="commands" className="border-b border-edge py-1.5">
@@ -271,9 +271,9 @@ export function NickCommandLine() {
                     setInput(`${c.token} `);
                     taRef.current?.focus();
                   }}
-                  className="flex min-h-[36px] w-full items-baseline gap-3 rounded-md px-2 text-left transition-colors duration-150 hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+                  className="flex min-h-[36px] w-full items-baseline gap-3 rounded-control px-2 text-left transition-colors duration-150 hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
                 >
-                  <span className="font-mono text-[13px] text-gold">{c.token}</span>
+                  <span className="font-mono text-[13px] text-fg">{c.token}</span>
                   <span className="text-[12px] text-fg-tertiary">{c.hint}</span>
                 </button>
               </li>
@@ -294,7 +294,7 @@ export function NickCommandLine() {
                   setInput(q);
                   taRef.current?.focus();
                 }}
-                className="inline-flex min-h-[44px] items-center rounded-full border border-edge px-3 text-left text-[12px] text-fg-tertiary transition-colors duration-150 hover:border-gold/30 hover:text-gold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+                className="inline-flex min-h-[44px] items-center rounded-full border border-edge px-3 text-left text-[12px] text-fg-tertiary transition-colors duration-150 hover:border-edge-strong hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
               >
                 {q}
               </button>
@@ -303,7 +303,7 @@ export function NickCommandLine() {
         )}
 
         <div className="flex items-end gap-3 py-1">
-          <span aria-hidden className="pb-3 font-mono text-2xl leading-none text-gold">
+          <span aria-hidden className="pb-3 font-mono text-2xl leading-none text-fg-tertiary">
             ›
           </span>
           <label htmlFor="nick-line" className="sr-only">
@@ -327,7 +327,7 @@ export function NickCommandLine() {
             className="min-h-[44px] flex-1 resize-none bg-transparent px-0 py-3 text-[17px] leading-snug text-fg placeholder:text-fg-tertiary focus:outline-none sm:text-[18px]"
           />
           <div className="flex shrink-0 items-center gap-2 pb-1">
-            <span className="hidden select-none font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary sm:inline">
+            <span className="hidden select-none font-mono text-[11px] text-fg-tertiary sm:inline">
               / to focus
             </span>
             <button
@@ -335,9 +335,9 @@ export function NickCommandLine() {
               disabled={!canSend}
               aria-label="send"
               className={cn(
-                "inline-flex size-11 items-center justify-center rounded-lg transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold",
+                "inline-flex size-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold",
                 canSend
-                  ? "bg-gold text-black hover:bg-gold-dim"
+                  ? "bg-accent text-[var(--text-inverse)] hover:bg-accent-hover"
                   : "border border-edge bg-raised text-fg-tertiary",
               )}
             >
@@ -355,7 +355,7 @@ export function NickCommandLine() {
         <button
           type="button"
           onClick={fireBrief}
-          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-gold/30 bg-gold/10 px-4 font-mono text-[11px] uppercase tracking-[0.14em] text-gold transition-colors duration-150 hover:bg-gold/20 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-surface px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
         >
           <Brain size={11} />
           Morning brief

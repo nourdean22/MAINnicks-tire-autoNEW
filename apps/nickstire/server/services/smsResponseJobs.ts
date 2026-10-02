@@ -440,6 +440,20 @@ export async function resolveHumanPendingForConversation(
   `);
   const closed = affectedRowCount(res);
   if (closed > 0) log.info("human-pending obligations resolved", { conversationId, resolution, closed });
+  // The obligation's DRAFTS close with it, or the review queue keeps offering
+  // an answer to a question a human already handled. CAS on 'drafted' so an
+  // operator mid-action wins; a miss here is logged — the jobs above closed.
+  try {
+    const drafts = await db.execute(sql`
+      UPDATE sms_orchestrations
+      SET status = 'cancelled', status_reason = 'obligation_closed', updatedAt = NOW()
+      WHERE related_conversation_id = ${conversationId} AND status = 'drafted' AND requires_human_approval = 1
+    `);
+    const cancelled = affectedRowCount(drafts);
+    if (cancelled > 0) log.info("review drafts closed with their obligation", { conversationId, cancelled });
+  } catch (err) {
+    log.warn("review-draft closure failed", { conversationId, error: err instanceof Error ? err.message : String(err) });
+  }
   return closed;
 }
 

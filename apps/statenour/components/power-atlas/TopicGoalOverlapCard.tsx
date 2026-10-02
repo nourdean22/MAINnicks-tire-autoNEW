@@ -74,13 +74,12 @@ export default function TopicGoalOverlapCard({
   if (!overlap) {
     return (
       <section
-        className="rounded-xl border bg-[var(--bg-raised)] p-4"
-        style={{ borderColor: "rgba(255,255,255,0.06)" }}
+        className="rounded-surface border border-edge-subtle bg-content p-4"
       >
-        <h3 className="font-serif text-base tracking-tight text-[var(--text-primary)] mb-2">
+        <h3 className="text-[15px] font-semibold text-fg mb-2">
           Topic × goal overlap
         </h3>
-        <p className="text-xs text-[var(--text-tertiary)]">
+        <p className="text-xs text-fg-tertiary">
           Needs ≥5 chat mentions + active goals to compute · scoring runs
           weekly.
         </p>
@@ -92,35 +91,33 @@ export default function TopicGoalOverlapCard({
 
   return (
     <section
-      className="rounded-xl border bg-[var(--bg-raised)] p-4"
-      style={{ borderColor: "rgba(255,255,255,0.06)" }}
+      className="rounded-surface border border-edge-subtle bg-content p-4"
     >
       <div className="flex items-baseline justify-between gap-3 mb-3">
-        <h3 className="font-serif text-base tracking-tight text-[var(--text-primary)]">
+        <h3 className="text-[15px] font-semibold text-fg">
           Topic × goal overlap
         </h3>
         <div className="flex items-baseline gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             alignment
           </span>
-          <span className="font-mono tabular-nums text-base text-[var(--text-primary)]">
+          <span className="font-mono tabular-nums text-base text-fg">
             {score100}
           </span>
-          <span className="text-[10px] text-[var(--text-tertiary)]">/100</span>
+          <span className="text-[11px] text-fg-tertiary">/100</span>
         </div>
       </div>
 
       {overlap.topics.length > 0 && (
         <div className="mb-3">
-          <div className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] mb-1.5">
+          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1.5">
             topics
           </div>
           <div className="flex flex-wrap gap-1.5">
             {overlap.topics.map((t, i) => (
               <span
                 key={`${t}:${i}`}
-                className="text-[11px] px-1.5 py-0.5 rounded border text-[var(--text-secondary)]"
-                style={{ borderColor: "rgba(255,255,255,0.06)" }}
+                className="text-[11px] px-1.5 py-0.5 rounded-micro border border-edge-subtle text-fg-secondary"
               >
                 {t}
               </span>
@@ -131,19 +128,18 @@ export default function TopicGoalOverlapCard({
 
       {overlap.goalMatches.length > 0 ? (
         <div
-          className="border-t pt-3 space-y-2"
-          style={{ borderColor: "rgba(255,255,255,0.06)" }}
+          className="border-t border-edge-subtle pt-3 space-y-2"
         >
-          <div className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             goal matches · {overlap.goalMatches.length}
           </div>
           {overlap.goalMatches.map((m) => (
             <div key={m.goalId} className="text-xs">
-              <p className="text-[var(--text-secondary)] leading-snug">
+              <p className="text-fg-secondary leading-snug">
                 {m.goalTitle}
               </p>
               {m.matchedTopics.length > 0 && (
-                <p className="mt-0.5 text-[10px] text-[var(--text-tertiary)]">
+                <p className="mt-0.5 text-[11px] text-fg-tertiary">
                   via: {m.matchedTopics.join(" · ")}
                 </p>
               )}
@@ -152,8 +148,7 @@ export default function TopicGoalOverlapCard({
         </div>
       ) : (
         <p
-          className="border-t pt-3 text-xs italic text-[var(--text-tertiary)]"
-          style={{ borderColor: "rgba(255,255,255,0.06)" }}
+          className="border-t border-edge-subtle pt-3 text-xs italic text-fg-tertiary"
         >
           No active goals matched.
         </p>

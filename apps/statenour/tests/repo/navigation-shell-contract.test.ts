@@ -13,7 +13,7 @@ describe("responsive navigation shell contract", () => {
     const bottom = source("components/layout/bottom-tab-bar.tsx");
     const spine = source("components/layout/desktop-spine.tsx");
 
-    expect(bottom).toContain("bg-[var(--bg-void)]/95 backdrop-blur-xl xl:hidden");
+    expect(bottom).toContain("ui-material flex items-stretch border-t border-edge-subtle xl:hidden");
     expect(spine).toContain("hidden w-[var(--spine-w,4.5rem)] flex-col");
     expect(spine).toContain("xl:flex");
     expect(bottom.indexOf("<BottomPulseTicker />")).toBeLessThan(bottom.indexOf("<nav"));
@@ -26,7 +26,7 @@ describe("responsive navigation shell contract", () => {
     expect(drawer).toContain('onClick={onClose} aria-label="Close history" className="flex h-11 w-11');
     expect(drawer).toContain('onClick={onShowActions} className="flex min-h-11');
     expect(drawer).toContain('placeholder="Search conversations" className="h-11');
-    expect(drawer).toContain('className={`min-h-11 rounded-md sm:min-h-8');
+    expect(drawer).toContain('className={`min-h-11 rounded-control sm:min-h-8');
     expect(drawer).toContain('className="mt-2 min-h-11 w-full');
   });
 
@@ -35,16 +35,16 @@ describe("responsive navigation shell contract", () => {
 
     expect(more).toContain('aria-label="Close More menu"');
     expect(more).toContain('className="absolute right-0 inline-flex h-11 w-11');
-    expect(more).toContain('className="flex min-h-11 w-full items-center gap-2 rounded-xl');
-    expect(more).toContain('"flex min-h-11 items-center gap-2 rounded-lg');
+    expect(more).toContain('className="flex min-h-11 w-full items-center gap-2 rounded-control');
+    expect(more).toContain('"flex min-h-11 items-center gap-2 rounded-control');
     expect(more).toContain('className="inline-flex min-h-11 max-w-[140px]');
-    expect(more).toContain('"flex min-h-11 items-center gap-2 rounded-lg px-2.5 py-2');
+    expect(more).toContain('"flex min-h-11 items-center gap-2 rounded-control px-2.5 py-2');
     expect(more).toContain('"flex min-h-11 flex-1 items-center justify-center');
   });
 
   it("keeps classic PageTabs at the same 44px phone floor as lensed tabs", () => {
     const tabs = source("components/layout/page-tabs.tsx");
-    expect(tabs).toContain('"min-h-11 shrink-0 px-3 py-2 text-[11px]');
+    expect(tabs).toContain('"min-h-11 shrink-0 px-3 py-2 text-[13px] font-medium');
     expect(tabs).toContain('const SUB_ITEM =\n  "inline-flex min-h-[44px]');
   });
 

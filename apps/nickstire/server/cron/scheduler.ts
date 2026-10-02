@@ -1175,11 +1175,14 @@ function buildTiers(): void {
         // queued forever, 243 of them sent — docs/operations/QUEUE-CENSUS-
         // 2026-09-22.md). Bookkeeping only: reads sms_messages, stamps the
         // orchestration, never sends. Rows older than 7 days are the operator's
-        // back-stamp script.
+        // back-stamp script. 2026-10-02: the same pass closes stale human-review
+        // drafts (366 open, oldest 2026-06-24) — cancelled/expired, never sent.
         name: "orchestration-status-reconcile",
         handler: async () => {
-          const { reconcileQueuedOrchestrations } = await import("./jobs/orchestrationStatusReconcile");
-          return reconcileQueuedOrchestrations();
+          const { reconcileQueuedOrchestrations, reconcileStaleHumanReviewDrafts } = await import("./jobs/orchestrationStatusReconcile");
+          const queued = await reconcileQueuedOrchestrations();
+          const drafts = await reconcileStaleHumanReviewDrafts();
+          return { recordsProcessed: queued.recordsProcessed + drafts.recordsProcessed, details: `${queued.details} | ${drafts.details}` };
         },
       },
       {

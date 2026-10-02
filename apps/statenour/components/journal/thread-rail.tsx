@@ -115,14 +115,14 @@ export function ThreadRail({
   if (error) {
     return (
       <section className="mb-8">
-        <div className="flex items-center gap-2 rounded-md border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-[10px] text-rose-300">
+        <div className="flex items-center gap-2 rounded-control border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-[11px] text-rose-300">
           <span className="flex-1">⚠ couldn&apos;t load threads · {error.message.slice(0, 80)}</span>
           <button
             type="button"
             onClick={() => void reload()}
-            className="rounded border border-rose-500/40 px-2 py-0.5 font-mono uppercase tracking-wider hover:bg-rose-500/15"
+            className="rounded-control border border-rose-500/40 px-2 py-0.5 font-mono hover:bg-rose-500/15"
           >
-            retry
+            Retry
           </button>
         </div>
       </section>
@@ -150,7 +150,7 @@ export function ThreadRail({
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="text-[10px] uppercase tracking-[0.14em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition min-h-[32px] inline-flex items-center"
+            className="text-[13px] font-medium text-fg-secondary hover:text-fg transition-colors min-h-[32px] inline-flex items-center"
           >
             + new thread
           </button>
@@ -170,7 +170,7 @@ export function ThreadRail({
               <button
                 type="button"
                 onClick={() => setCreating(true)}
-                className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                className="text-fg-tertiary hover:text-fg"
               >
                 + new
               </button>
@@ -179,9 +179,9 @@ export function ThreadRail({
               <button
                 type="button"
                 onClick={() => setShowDormant((s) => !s)}
-                className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                className="text-fg-tertiary hover:text-fg"
               >
-                {showDormant ? "hide" : "show"} {dormant.length} dormant
+                {showDormant ? "Hide" : "Show"} {dormant.length} dormant
               </button>
             ) : null}
           </div>
@@ -219,8 +219,8 @@ export function ThreadRail({
       ) : null}
 
       {showDormant && dormant.length > 0 ? (
-        <div className="pt-2 mt-3 border-t border-white/5">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-2">
+        <div className="pt-2 mt-3 border-t border-edge-subtle">
+          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-2">
             Dormant · 30+ days quiet
           </p>
           <ul className="space-y-2 opacity-60">
@@ -278,7 +278,7 @@ function ThreadCard({
   }, [thread.status, thread.lastJoinAt, thread.namedAt]);
 
   return (
-    <li className="rounded-lg border border-white/10 bg-white/[0.02] transition hover:bg-white/[0.04]">
+    <li className="rounded-control border border-edge-subtle bg-surface-interactive transition-colors hover:bg-surface-hover">
       <button
         type="button"
         onClick={onToggle}
@@ -286,16 +286,16 @@ function ThreadCard({
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-medium text-white truncate">
+            <p className="text-sm font-medium text-fg truncate">
               {thread.name}
             </p>
             {thread.status === "dormant" ? (
-              <span className="text-[10px] uppercase tracking-wider text-white/40 border border-white/15 rounded px-1.5 py-0.5">
+              <span className="text-[11px] font-mono text-fg-tertiary border border-edge-default rounded-micro px-1.5 py-0.5">
                 dormant
               </span>
             ) : driftDays !== null ? (
               <span
-                className="text-[10px] uppercase tracking-wider text-amber-300/80 border border-amber-500/30 rounded px-1.5 py-0.5 bg-amber-500/[0.06]"
+                className="text-[11px] font-mono text-amber-300/80 border border-amber-500/30 rounded-micro px-1.5 py-0.5 bg-amber-500/[0.06]"
                 title={`No activity in ${driftDays} days · revive or let drift to dormant`}
               >
                 drifting · {driftDays}d
@@ -304,7 +304,7 @@ function ThreadCard({
               /* Item E · arc chip — only shown when the trend is REAL
                  (≥2 joins this week AND more than the prior week). */
               <span
-                className="text-[10px] uppercase tracking-wider text-emerald-300/90 border border-emerald-500/30 rounded px-1.5 py-0.5 bg-emerald-500/[0.06]"
+                className="text-[11px] font-mono text-emerald-300/90 border border-emerald-500/30 rounded-micro px-1.5 py-0.5 bg-emerald-500/[0.06]"
                 title={`${thread.joins7d} entries this week vs ${thread.joinsPrior7d} last week — this arc is compounding`}
               >
                 strengthening · {thread.joins7d}/wk
@@ -312,27 +312,27 @@ function ThreadCard({
             ) : null}
           </div>
           {!expanded && thread.recentExcerpts[0] ? (
-            <p className="text-xs text-white/50 mt-1 line-clamp-1">
+            <p className="text-xs text-fg-tertiary mt-1 line-clamp-1">
               {thread.recentExcerpts[0]}
             </p>
           ) : null}
         </div>
         <div className="text-right shrink-0">
-          <p className="text-xs tabular-nums text-white/70">
+          <p className="text-xs tabular-nums text-fg-secondary">
             {thread.memberCount}{" "}
-            {thread.memberCount === 1 ? "entry" : "entries"}
+            {thread.memberCount === 1 ? "Entry" : "Entries"}
           </p>
-          <p className="text-[10px] uppercase tracking-wider text-white/40">
+          <p className="text-[11px] font-mono text-fg-tertiary">
             {lastActivity}
           </p>
         </div>
       </button>
 
       {expanded ? (
-        <div className="px-4 pb-4 border-t border-white/5 pt-3 space-y-3">
+        <div className="px-4 pb-4 border-t border-edge-subtle pt-3 space-y-3">
           {/* Item E · arc line — the thread's life in one honest row:
               when it started, how big it is, this week vs last. */}
-          <p className="text-[10px] uppercase tracking-wider text-white/40 tabular-nums">
+          <p className="text-[11px] font-mono text-fg-tertiary tabular-nums">
             arc · first seen{" "}
             {new Date(thread.detectedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
             {" · "}{thread.memberCount} entries
@@ -344,14 +344,14 @@ function ThreadCard({
                   ? "text-emerald-300/90"
                   : thread.trend === "fading" || thread.trend === "stale"
                     ? "text-amber-300/80"
-                    : "text-white/50"
+                    : "text-fg-tertiary"
               }
             >
               {thread.trend}
             </span>
           </p>
           {thread.summary ? (
-            <p className="text-xs text-white/60 italic">
+            <p className="text-xs text-fg-tertiary italic">
               "{thread.summary}"
             </p>
           ) : null}
@@ -359,9 +359,9 @@ function ThreadCard({
             {thread.recentExcerpts.map((e, i) => (
               <li
                 key={i}
-                className="text-xs text-white/70 flex gap-2"
+                className="text-xs text-fg-secondary flex gap-2"
               >
-                <span className="text-white/30 tabular-nums shrink-0">
+                <span className="text-fg-tertiary tabular-nums shrink-0">
                   {i + 1}.
                 </span>
                 <span className="line-clamp-2">{e}</span>
@@ -377,12 +377,12 @@ function ThreadCard({
                 ?threadId= filter once /api/journal accepts it. */}
             <a
               href={`/journal?search=${encodeURIComponent(thread.name)}`}
-              className="text-[10px] uppercase tracking-wider text-amber-200/80 hover:text-amber-100 min-h-[32px] inline-flex items-center"
+              className="text-[13px] font-medium text-fg-secondary hover:text-fg min-h-[32px] inline-flex items-center"
             >
-              view in feed →
+              View in feed →
             </a>
             {thread.coherence != null ? (
-              <p className="text-[10px] uppercase tracking-wider text-white/30">
+              <p className="text-[11px] font-mono text-fg-tertiary">
                 coherence {(thread.coherence * 100).toFixed(0)}%
               </p>
             ) : null}
@@ -413,8 +413,8 @@ function NewThreadForm({
   onCancel: () => void;
 }) {
   return (
-    <div className="rounded-lg border border-[#FDB913]/30 bg-[#FDB913]/[0.04] p-3 space-y-2">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+    <div className="rounded-surface border border-edge-default bg-surface-raised p-3 space-y-2">
+      <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
         New thread
       </p>
       <div className="flex gap-2 items-stretch">
@@ -431,13 +431,13 @@ function NewThreadForm({
           }}
           placeholder="theme name (e.g. 'the pricing puzzle')"
           autoFocus
-          className="flex-1 min-h-[44px] px-3 rounded border border-white/15 bg-transparent text-sm text-[var(--text-primary)] placeholder:text-white/30 focus:outline-none focus:border-[#FDB913]/60"
+          className="flex-1 min-h-[44px] px-3 rounded-control border border-edge-default bg-transparent text-sm text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent/60"
         />
         <button
           type="button"
           onClick={onSubmit}
           disabled={busy || newName.trim().length === 0}
-          className="text-xs uppercase tracking-[0.14em] px-3 min-h-[44px] rounded bg-[#FDB913] text-black font-medium hover:bg-[#FDB913]/90 disabled:opacity-30 disabled:cursor-not-allowed"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-30 disabled:cursor-not-allowed"
         >
           {busy ? "..." : "create"}
         </button>
@@ -445,15 +445,15 @@ function NewThreadForm({
           type="button"
           onClick={onCancel}
           disabled={busy}
-          className="text-xs uppercase tracking-[0.14em] px-3 min-h-[44px] rounded border border-white/15 text-white/70 hover:bg-white/5 disabled:opacity-30"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control px-3 text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg disabled:opacity-30"
         >
-          cancel
+          Cancel
         </button>
       </div>
       {err ? (
         <p className="text-[11px] text-red-300">{err}</p>
       ) : (
-        <p className="text-[11px] text-[var(--text-tertiary)]">
+        <p className="text-[11px] text-fg-tertiary">
           Empty thread · auto-join populates it as new captures match
           its centroid (or pin members later).
         </p>

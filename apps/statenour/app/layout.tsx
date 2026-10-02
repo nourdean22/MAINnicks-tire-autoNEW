@@ -70,7 +70,7 @@ export const viewport: Viewport = {
   // iOS PWAs (browsers override the cap; home-screen installs honor it),
   // which fails WCAG 1.4.4 — and this app leans on 9-11px text.
   viewportFit: "cover",
-  themeColor: "#050505",
+  themeColor: "#090907",
 };
 
 export default function RootLayout({

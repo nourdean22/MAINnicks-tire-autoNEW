@@ -3,7 +3,6 @@ import { MoreSheet } from "@/components/layout/more-sheet";
 import { PageTracker } from "@/components/brain/page-tracker";
 import { PageContextBridge } from "@/components/chat/page-context-bridge";
 import { SwipeNavigation } from "@/components/layout/swipe-navigation";
-import { NeuralBackground } from "@/components/hud/neural-background";
 import { KeyboardShortcuts } from "@/components/hud/keyboard-shortcuts";
 import { SessionExpiryBanner } from "@/components/hud/session-expiry-banner";
 import { AmbientAura } from "@/components/hud/ambient-aura";
@@ -64,11 +63,10 @@ export default function MasteryLayout({
           Visually hidden until focused (sr-only → not-sr-only on focus). */}
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-[var(--bg-elevated)] focus:px-4 focus:py-2 focus:text-[var(--text-primary)] focus:outline focus:outline-2 focus:outline-[var(--glass-border)]"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-control focus:bg-[var(--bg-elevated)] focus:px-4 focus:py-2 focus:text-[var(--text-primary)] focus:outline focus:outline-2 focus:outline-[var(--glass-border)]"
       >
         Skip to main content
       </a>
-      <NeuralBackground />
       <PageTracker />
       {/* v10.0.529.91 · Wave 35 · invisible · watches usePathname +
           URL hash to extract the entity ID the operator is viewing ·

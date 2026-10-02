@@ -1,7 +1,7 @@
 import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
-import { outcomeStats } from "@/lib/services/outcome-ledger";
+import { CORRECTION_WHERE, outcomeStats } from "@/lib/services/outcome-ledger";
 export const maxDuration = 60;
 
 /**
@@ -42,7 +42,7 @@ export const GET = cronHandler(async () => {
   // The trigger metric — the count both UPSTREAMS WATCH rows (LoRA
   // fine-tune · Ax/DSPy) reopen on. All-time, matching the script.
   const corrections = await prisma.intelligenceOutcome.count({
-    where: { OR: [{ decision: "dismissed" }, { outcomeUseful: false }] },
+    where: CORRECTION_WHERE,
   });
 
   // Supplementary correction-shaped labels (same sources as the script).
@@ -53,7 +53,12 @@ export const GET = cronHandler(async () => {
   });
   const tapCounts: Record<string, number> = {};
   for (const r of suggestionRows) {
-    const action = String((r.metadata as { action?: unknown } | null)?.action ?? "none");
+    // 2026-10-02 · the writer (suggestion-loop.trackSuggestionAction) stores the
+    // tap under `event`; this read `action`, so every row counted as "none" and
+    // suggestionVerdicts had been 0 since the counter shipped. `action` kept as
+    // a fallback for any row written by another hand.
+    const meta = r.metadata as { event?: unknown; action?: unknown } | null;
+    const action = String(meta?.event ?? meta?.action ?? "none");
     tapCounts[action] = (tapCounts[action] ?? 0) + 1;
   }
   const suggestionVerdicts =

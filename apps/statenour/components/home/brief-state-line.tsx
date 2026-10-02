@@ -25,10 +25,10 @@ import type { BriefStateSection } from "@/lib/home/operator-brief";
 import { cn } from "@/lib/utils/cn";
 
 const DOT: Record<string, string> = {
-  unknown: "bg-zinc-500",
+  unknown: "bg-fg-tertiary",
   healthy: "bg-emerald-400",
   degraded: "bg-amber-400",
-  broken: "bg-rose-400 motion-safe:animate-pulse",
+  broken: "bg-rose-400",
 };
 
 const HEALTH_LABEL: Record<string, string> = {
@@ -73,20 +73,24 @@ export function BriefStateLine({
     <header aria-label="operator state" className="pt-2">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         {/* Real h1: the page's one document-outline root. base.css styles h1
-            unlayered (display font, 1.75rem, uppercase) and BEATS utilities —
-            don't add size/tracking classes here, they'd silently lose. */}
+            in @layer base (28px Geist, sentence case) — keep it bare so the
+            page title stays uniform across pages. */}
         <h1>Nour</h1>
-        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-fg-tertiary">
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           {dateStr}
           {timeStr && <span className="text-fg-secondary"> · {timeStr}</span>}
         </p>
       </div>
 
-      <div className="mt-6 border-t border-edge pt-6">
-        <h2 className="vt-eyebrow text-fg-secondary">Now</h2>
+      <div className="mt-6 border-t border-edge-subtle pt-6">
+        {/* UI v2: the signal notch marks NOW — the one gold mark on the page that is not an action. */}
+        <div className="flex items-center gap-2">
+          <span className="notch h-3" aria-hidden />
+          <h2 className="vt-eyebrow text-fg-secondary">Now</h2>
+        </div>
 
         {loading ? (
-          <div className="mt-4 h-14 w-4/5 animate-pulse rounded bg-raised sm:h-20" aria-hidden />
+          <div className="mt-4 h-14 w-4/5 animate-pulse rounded-micro bg-raised sm:h-20" aria-hidden />
         ) : (
           state && <p className="vt-verdict mt-3 max-w-[18ch]">{state.summary}</p>
         )}
@@ -94,14 +98,14 @@ export function BriefStateLine({
         <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-1">
           <Link
             href="/system"
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-md font-mono text-[12px] uppercase tracking-[0.14em] text-fg-tertiary transition-colors duration-150 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-control font-mono text-[12px] text-fg-tertiary transition-colors duration-150 hover:text-fg"
             title={health?.detail || undefined}
           >
             <span aria-hidden className={cn("inline-block h-2 w-2 rounded-full", DOT[dotState])} />
             {HEALTH_LABEL[dotState]}
           </Link>
           {state && !state.queues.measured && !unreadable && (
-            <span className="font-mono text-[12px] uppercase tracking-[0.14em] text-amber-400/90">
+            <span className="font-mono text-[12px] text-amber-300">
               some queues unread
             </span>
           )}

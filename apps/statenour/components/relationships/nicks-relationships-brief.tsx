@@ -63,16 +63,16 @@ export function NicksRelationshipsBrief({
   return (
     <section
       aria-label="nick's relationships brief"
-      className="rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] px-4 py-3"
+      className="rounded-surface border border-edge-subtle bg-content px-4 py-3"
     >
       <div className="flex items-start gap-2">
         <Brain
           size={12}
-          className="text-[var(--gold)] mt-0.5 shrink-0"
+          className="text-fg-tertiary mt-0.5 shrink-0"
           strokeWidth={1.75}
         />
         <div className="flex-1 min-w-0">
-          <p className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/80">
+          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             nick · today&apos;s relationships
           </p>
           <p className="mt-1 text-[12px] text-[var(--text-primary)] leading-snug whitespace-pre-line">

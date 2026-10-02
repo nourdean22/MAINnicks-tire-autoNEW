@@ -1,6 +1,40 @@
 # Session ledger - nickstire
 
-**Updated: 2026-10-01** (Creative Intelligence OS #2865 merged as `54a36662`; FB reel cross-post armed in prod; deployment 015c1e73 **SUCCESS** at 17:48:57Z — container logged `[server:ready]` 17:48:52Z, `Schema guard: all critical tables present` (6 checked), `Tiered scheduler started: 5 tiers, 126 jobs`; `/api/health` at 17:50:31Z reported `status: healthy`, `deploy.commit 54a366629ba89867dcd5dbc916e37bee88f8e645`, `deploymentId 015c1e73…`, database up (6 ms), AI gateway up, self-healing score 100)
+**Updated: 2026-10-02** (admin closure wave #2885 `d5838402` + follow-up #2891 `62fb2271` merged and deployed; migrations 0127-0139 applied and recorded — see the first section below. The 2026-10-01 #2865 receipt is in its own section further down.)
+## 2026-10-02 · Admin closure wave — MERGED (#2885, d5838402), DEPLOYED, MIGRATIONS APPLIED + RECORDED
+
+Deploy: Railway `5c5eec0d` SUCCESS 15:49:15Z, /api/health commit d5838402. Migrations: operator tap on the new
+container 15:53:21Z (176 steps, none failed); `record-migrations.mjs` run from NattyNour via Desktop Commander in an
+isolated worktree (`.worktrees/record-migrations`): 10 rows recorded after a 144-row ledger backup; `reconcile-migrations
+--strict` exit 0, 0 UNRECORDED. #2891 (`62fb2271`) declares `review_requests.invoiceId` + a parity test; deployed as Railway
+`dd095678`, server:ready 17:12:10Z, no error lines. The NattyNour worktree was torn down afterwards (links verified, branch
+deleted, lease released). Receipts read 2026-10-02: drafts closed 366 at 16:04Z (52/7/307, 0 left);
+review-requests created 8 invoice rows 17:13Z; missed-call-recovery sent 6. Still to read: `opportunity-queue-refresh`
+"collapsed" (next shop day). Flags read live: `sms_review_requests` on, `missed_call_recovery` on + SEND=1. Holdouts ARMED
+17:25:10Z on operator instruction (master + 5 lanes; `review_reminder_drafts` off). Follow-up PR: recovery texts include
+tool-reaching calls proven to have saved nothing (fail closed on a failed read). A sibling session ("instagram nickstire", statenour branches) ran in parallel: no file or
+database overlap. Traps: quote `--only '0127,…'` in PowerShell (unquoted becomes
+127 128 …); worktree-setup.ps1 stalled >10 min on its repo-wide scans on NattyNour — junctioning root + app node_modules by
+hand was enough for these scripts, and `railway run` supplies the env.
+
+### Earlier note (pre-merge)
+2026-10-02 · Admin closure wave (branch `claude/happy-maxwell-cp2gox`) — BUILT + TESTED, not deployed
+
+Operator truth pass checked against code; corrections + gated items in `docs/operations/ADMIN-TRUTH-PASS-2026-10-02.md`.
+Shipped on the branch: SMS human-review draft lifecycle (reconciler + CAS + obligation linkage), missed-call
+one-per-phone + served-closure, capture-aware Vapi draft proposals + scheduleCallback callbackId link, camera
+fleet verdict in Settings/Lot, GSC source label + funnel web-only/weighted. No migration, no send, no flag.
+**Watch after deploy:** `cron_log` `orchestration-status-reconcile` details ("drafts closed N") — expect the
+~366 backlog to drop to ~7 days on the first pulse; `opportunity-queue-refresh` details ("collapsed").
+**Gated:** 0132/0136/0137 + 0127-0130/0133 drift; invoice-sourced review rows (DDL) vs existing
+`post-invoice-followup`; ~~convertedToLead=0 gate on missed-call recovery texts~~ (widened 2026-10-02, see above); receivables need ShopDriver check.
+**Third review pass (same branch):** missed-call step 3a decides on SQL-formatted shop-time strings, PAID
+invoices only, same-day invoice = served (never won), auto-close only `new` cards; collector no longer
+re-cards older calls after the newest card is dismissed; collapses count in recordsProcessed; financing +
+proposal-outcome reads set-based; review greeting -> "there" for business names; `readRows()` in
+lib/dbResult.ts is the one raw-SELECT row unwrapper for new code. Fake timers around a real 1.1s send
+sleep timed out in CI -> real timers.
+
 ## 2026-10-01 · Creative Intelligence OS (#2865) merged; Facebook reels armed
 
 **Repo truth.** PR #2865 squash-merged to `main` as `54a366629ba89867dcd5dbc916e37bee88f8e645` (8 commits: Wave A truth + safety, Wave C creativeOs router, Waves B/C agents + review fixes, knip/census/gitleaks CI fixes, FB cross-post arming, fail-open-slice fix). CI on the merged head: node 10,768 passed, e2e, typecheck, knip orphan gate 0 NEW, gitleaks, security, adapter parity all green. Branch `claude/epic-pascal-i34a9l` still exists on origin (delete pushes hung through the container proxy) — merged, harmless, delete from the UI.

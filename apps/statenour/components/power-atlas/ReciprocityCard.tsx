@@ -52,18 +52,17 @@ export default function ReciprocityCard({ metadata }: ReciprocityCardProps) {
   if (!reciprocity || reciprocity.sampleSize < 5) {
     return (
       <section
-        className="rounded-xl border bg-[var(--bg-raised)] p-4"
-        style={{ borderColor: "rgba(255,255,255,0.06)" }}
+        className="rounded-surface border border-edge-subtle bg-content p-4"
       >
         <div className="flex items-baseline justify-between gap-3 mb-2">
-          <h3 className="font-serif text-base tracking-tight text-[var(--text-primary)]">
+          <h3 className="text-[15px] font-semibold text-fg">
             Reciprocity gradient
           </h3>
-          <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             90d
           </span>
         </div>
-        <p className="text-xs text-[var(--text-tertiary)]">
+        <p className="text-xs text-fg-tertiary">
           Needs ≥5 events to compute · log more interactions.
         </p>
       </section>
@@ -75,35 +74,34 @@ export default function ReciprocityCard({ metadata }: ReciprocityCardProps) {
 
   return (
     <section
-      className="rounded-xl border bg-[var(--bg-raised)] p-4"
-      style={{ borderColor: "rgba(255,255,255,0.06)" }}
+      className="rounded-surface border border-edge-subtle bg-content p-4"
     >
       <div className="flex items-baseline justify-between gap-3 mb-3">
-        <h3 className="font-serif text-base tracking-tight text-[var(--text-primary)]">
+        <h3 className="text-[15px] font-semibold text-fg">
           Reciprocity gradient
         </h3>
-        <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           90d
         </span>
       </div>
 
       {/* Horizontal split bar · amber accent on larger share */}
       <div
-        className="flex h-2 w-full overflow-hidden rounded"
+        className="flex h-2 w-full overflow-hidden rounded-micro"
         style={{ backgroundColor: "rgba(255,255,255,0.04)" }}
       >
         <div
           className={
             operatorLeads
               ? "bg-amber-400/80"
-              : "bg-zinc-500/40"
+              : "bg-edge-strong"
           }
           style={{ width: `${operatorInitiatedPct}%` }}
         />
         <div
           className={
             operatorLeads
-              ? "bg-zinc-500/40"
+              ? "bg-edge-strong"
               : "bg-amber-400/80"
           }
           style={{ width: `${theirInitiatedPct}%` }}
@@ -113,28 +111,28 @@ export default function ReciprocityCard({ metadata }: ReciprocityCardProps) {
       {/* Legend · operator vs them */}
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             operator
           </div>
           <div
-            className={`font-mono tabular-nums ${operatorLeads ? "text-amber-300" : "text-[var(--text-secondary)]"}`}
+            className={`font-mono tabular-nums ${operatorLeads ? "text-amber-300" : "text-fg-secondary"}`}
           >
             {operatorInitiatedPct}%
           </div>
         </div>
         <div className="text-right">
-          <div className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             them
           </div>
           <div
-            className={`font-mono tabular-nums ${operatorLeads ? "text-[var(--text-secondary)]" : "text-amber-300"}`}
+            className={`font-mono tabular-nums ${operatorLeads ? "text-fg-secondary" : "text-amber-300"}`}
           >
             {theirInitiatedPct}%
           </div>
         </div>
       </div>
 
-      <div className="mt-3 text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] tabular-nums">
+      <div className="mt-3 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
         sample · <span className="font-mono">{sampleSize}</span> events
       </div>
     </section>

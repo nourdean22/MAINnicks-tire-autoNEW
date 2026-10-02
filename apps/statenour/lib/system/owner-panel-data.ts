@@ -8,6 +8,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { REPO_MIGRATIONS } from "@/lib/db/migration-manifest";
 import { logger as rootLogger } from "@/lib/logger";
 import { listPendingActions } from "@/lib/automation/approval-queue";
 import { listLaneStatus } from "@/lib/ai/budget";
@@ -18,9 +19,11 @@ import {
   composeOwnerPanel,
   COST_WINDOW_DAYS,
   DEPLOY_ALERT_TOOL,
+  CAPABILITY_WINDOW_MS,
   EXCEPTION_WINDOW_MS,
   type OwnerPanel,
 } from "@/lib/system/owner-panel";
+import { CAPABILITY_INTEGRATION_TYPE } from "@/lib/system/capability-health";
 
 const log = rootLogger.withSurface("system/owner-panel");
 
@@ -54,6 +57,8 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
     unpriced,
     tasksDone,
     valueAttribution,
+    capabilities,
+    unappliedMigrations,
   ] = await Promise.all([
       guarded(
         "cron runs",
@@ -152,6 +157,30 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
         "value attribution",
         buildCostPerOutcomeAttribution(COST_WINDOW_DAYS),
       ),
+      guarded(
+        "capabilities",
+        prisma.integration.findMany({
+          where: {
+            type: CAPABILITY_INTEGRATION_TYPE,
+            enabled: true,
+            status: { in: ["degraded", "failed"] },
+            updatedAt: { gte: new Date(now.getTime() - CAPABILITY_WINDOW_MS) },
+          },
+          select: { name: true, status: true, consecutiveFailures: true, errorCount: true, metadata: true, updatedAt: true },
+          orderBy: { updatedAt: "desc" },
+          take: 50,
+        }),
+      ),
+      guarded(
+        "migrations",
+        prisma.$queryRaw<{ migration_name: string }[]>`
+          SELECT migration_name FROM _prisma_migrations
+          WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
+        `.then((rows) => {
+          const applied = new Set(rows.map((r) => r.migration_name));
+          return REPO_MIGRATIONS.filter((name) => !applied.has(name));
+        }),
+      ),
     ]);
 
   const spend =
@@ -174,5 +203,7 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
     spend,
     tasksDone,
     valueAttribution,
+    capabilities,
+    unappliedMigrations,
   });
 }

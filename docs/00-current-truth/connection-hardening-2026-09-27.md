@@ -37,6 +37,12 @@ The production alert rail has proven detection, claim, retry, and recovery-state
 
 ### NicksMax camera authority / reboot / ESU
 
+**Updated receipt 2026-10-02 (#2896):** a real cold boot happened at 09:15 ET.
+- **SYSTEM supervisor:** came up in Session 0 (loop pid 2656). Cold-boot persistence for the sign lane is now observed, not just claimed.
+- **`NicksMaxCameraSupervisorUser`:** was **Running again** (not disabled), so two supervisor loops fought over the relay. It is disabled again, and the supervisor now keeps it on its retired-task list.
+- **Office conversation worker:** failed at every boot because its SYSTEM task pointed into a cleaned-up git worktree. The supervisor now repoints it to `NOURCITY\camera-bridge` and restarts it when stopped or when its heartbeat is stale.
+- **Single source:** the supervisor lives in `camera-bridge/scripts/nicksmax/`; `data\` holds a shim with a last-known-good fallback. NicksMax tracks `main`.
+
 **Updated receipt 2026-09-28:** the earlier sibling-session camera guard is superseded. NicksMax now owns the lightweight production `sign` camera-processing lane.
 
 - The V380 desktop GUI is not a production dependency and was absent during final verification.

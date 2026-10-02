@@ -31,6 +31,15 @@ export const statenourMetricsRouter = router({
       startDate: input.startDate,
       endDate: input.endDate,
     });
+    // No total row from Google (a window inside GSC's 2-3 day lag) is NOT an official zero.
+    // StateNour's queryCanonicalGscSummary already turns a non-OK response into { error },
+    // so failing here is the honest, contract-safe answer (2026-10-02).
+    if (!report.summaryHasData) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: `No official GSC data for ${input.startDate}..${input.endDate} yet (Search Console lags 2-3 days) — not a zero.`,
+      });
+    }
 
     return {
       metricDefinitionVersion: "gsc-revenue-ops-v1" as const,

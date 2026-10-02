@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { SkillLibraryPanel } from "@/components/settings/skill-library-panel";
 import { IdentityPanel } from "@/components/settings/identity-panel";
+import { MemoryOfDayCard } from "@/components/brain/memory-of-day-card";
 import { QualitativeIdentityPanel } from "@/components/brain/qualitative-identity-panel";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
@@ -101,10 +102,10 @@ export function MemoryTab() {
         </p>
         <a
           href="/brain?tab=health"
-          className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] px-3 py-2 min-h-[44px] inline-flex items-center rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-[var(--gold)]/40 hover:text-[var(--gold)] transition-colors"
+          className="shrink-0 inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
           title="memory rollup · categories · continuity"
         >
-          health →
+          Health →
         </a>
       </div>
 
@@ -208,6 +209,9 @@ export function MemoryTab() {
             <div id="persona-drift" className="scroll-mt-24">
               <PersonaDriftCard />
             </div>
+            {/* 2026-10-02 · moved from Settings > Diagnostics: brain content,
+                not machine health (docs/design/settings-census-2026-10-02.md). */}
+            <MemoryOfDayCard />
             <SkillLibraryPanel />
             <IdentityPanel />
             <QualitativeIdentityPanel />
@@ -260,8 +264,8 @@ function IdentityDeltaLine() {
   if (isError) return <ReadingUnavailable label="Identity delta" />;
   if (!data?.delta) return null;
   return (
-    <div className="flex items-start gap-2.5 rounded-md border border-violet-500/20 bg-violet-500/[0.04] px-3 py-2 text-[11px]">
-      <span className="font-mono uppercase tracking-wider text-[8px] text-violet-300/70 shrink-0 mt-0.5">
+    <div className="flex items-start gap-2.5 rounded-control border border-violet-500/20 bg-violet-500/[0.04] px-3 py-2 text-[11px]">
+      <span className="font-mono text-[11px] text-violet-300/70 shrink-0 mt-0.5">
         yesterday → today
       </span>
       <p className="text-[var(--text-secondary)] leading-snug flex-1">
@@ -279,7 +283,7 @@ function IdentityDeltaLine() {
  */
 function ReadingUnavailable({ label }: { label: string }) {
   return (
-    <div className="rounded-lg border border-red-500/15 bg-red-500/5 px-3 py-2">
+    <div className="rounded-control border border-red-500/15 bg-red-500/5 px-3 py-2">
       <p className="text-[11px] text-red-400/90">
         {label} couldn&apos;t load — state unknown, not empty.
       </p>
@@ -320,9 +324,9 @@ function LearningVelocityScoreboard() {
   if (!data) return null;
   const pct = data.memoryPctChange30d;
   return (
-    <div className="rounded-lg border border-[var(--gold)]/20 bg-[var(--gold)]/[0.02] p-3 space-y-2">
+    <div className="rounded-surface border border-edge-subtle bg-content p-3 space-y-2">
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
-        <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-[var(--gold)]/80">
+        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
           Learning velocity
         </p>
         <p
@@ -347,7 +351,7 @@ function LearningVelocityScoreboard() {
           {data.healthScore}/{data.healthScoreMax}
         </p>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-[10px] font-mono">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-[11px] font-mono">
         <ScoreboardCell
           label="memories · 7d"
           value={data.memoriesThisWeek}
@@ -393,7 +397,7 @@ function ScoreboardCell({
       {delta !== null && delta !== 0 && (
         <span
           className={cn(
-            "text-[9px] tabular-nums",
+            "text-[11px] tabular-nums",
             delta > 0 ? "text-emerald-400/70" : "text-rose-400/70",
           )}
         >
@@ -438,18 +442,18 @@ function CalibrationTile() {
         ? "text-amber-300"
         : "text-[var(--text-tertiary)]";
   return (
-    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-void)]/40 p-3 space-y-2">
+    <div className="rounded-surface border border-[var(--border-default)] bg-[var(--bg-void)]/40 p-3 space-y-2">
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
         {/* "resolved 30d", not "30d" — the population is predictions that
             RESOLVED in the last 30 days, whenever they were made. */}
-        <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-[var(--text-tertiary)]">
+        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
           Calibration · resolved 30d
         </p>
         <p className={cn("text-[11px] font-mono tabular-nums", verdictTint)}>
           {data.verdict.replace(/-/g, " ")}
         </p>
       </div>
-      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1.5 text-[10px] font-mono">
+      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1.5 text-[11px] font-mono">
         <span>
           <span className="text-[var(--text-tertiary)] mr-1">mean Brier</span>
           <span className="text-[var(--text-primary)] tabular-nums">

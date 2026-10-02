@@ -77,10 +77,10 @@ export function PendingClassificationBanner({
       role="region"
       aria-live="polite"
       aria-label="AI classification suggestion — review and accept or dismiss"
-      className="rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/[0.06] p-3"
+      className="rounded-control border border-edge-default bg-surface-raised p-3"
     >
       <div className="flex items-center justify-between gap-2 mb-1.5">
-        <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           Nick suggests
         </p>
         <div className="flex items-center gap-2">
@@ -90,9 +90,9 @@ export function PendingClassificationBanner({
             size="sm"
             disabled={busy}
             onClick={() => accept.mutate({ personId })}
-            className="h-7 border-[var(--gold)]/40 text-[var(--gold)] hover:bg-[var(--gold)]/10 text-[11px] uppercase tracking-wider"
+            className="h-7 text-[13px] font-medium"
           >
-            {accept.isPending ? "applying…" : "accept"}
+            {accept.isPending ? "Applying…" : "Accept"}
           </Button>
           <Button
             type="button"
@@ -100,16 +100,16 @@ export function PendingClassificationBanner({
             size="sm"
             disabled={busy}
             onClick={() => dismiss.mutate({ personId })}
-            className="h-7 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] text-[11px] uppercase tracking-wider"
+            className="h-7 text-[13px] font-medium text-fg-tertiary hover:text-fg"
           >
             dismiss
           </Button>
         </div>
       </div>
-      <div className="space-y-1 text-xs text-[var(--text-secondary)]">
+      <div className="space-y-1 text-xs text-fg-secondary">
         {roleLabel && (
           <div>
-            role → <span className="text-[var(--text-primary)] font-medium">{roleLabel}</span>
+            role → <span className="text-fg font-medium">{roleLabel}</span>
           </div>
         )}
         {pc.leverageNotes && (
@@ -123,7 +123,7 @@ export function PendingClassificationBanner({
           </div>
         )}
         {pc.basis && (
-          <div className="text-[10px] text-[var(--text-tertiary)] line-clamp-1">
+          <div className="text-[11px] text-fg-tertiary line-clamp-1">
             basis: {pc.basis}
           </div>
         )}
@@ -143,7 +143,7 @@ export function RelationshipXpChip({
     .map(([stat, v]) => `${STAT_LABELS[stat] ?? stat} +${Math.round(v * 10) / 10}`);
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full border border-[var(--gold)]/30 bg-[var(--gold)]/[0.06] px-2 py-0.5 text-[10px] font-mono tabular-nums text-[var(--gold)]"
+      className="inline-flex items-center gap-1 rounded-full border border-edge-default bg-surface-interactive px-2 py-0.5 font-mono text-[11px] tabular-nums text-fg-secondary"
       title={`${parts.join(" · ")} · across ${xp.count} reps`}
       aria-label={`Earned ${xp.total} mastery XP from relationship work: ${parts.join(", ")}, across ${xp.count} reps`}
     >
@@ -181,13 +181,12 @@ export function OpenPromisesPanel({
   if (!tasks || tasks.length === 0) {
     return (
       <section
-        className="rounded-xl border bg-[var(--bg-raised)] p-4"
-        style={{ borderColor: "rgba(255,255,255,0.06)" }}
+        className="rounded-surface border border-edge-subtle bg-content p-4"
       >
-        <h3 className="font-serif text-base tracking-tight text-[var(--text-primary)] mb-1">
+        <h3 className="text-[15px] font-semibold text-fg mb-1">
           Open promises
         </h3>
-        <p className="text-xs text-[var(--text-tertiary)]">
+        <p className="text-xs text-fg-tertiary">
           No open tasks linked to {personName}. Promises you make to them — via
           a PROMISE loop or the task&apos;s &ldquo;who&rdquo; field — surface here.
         </p>
@@ -196,14 +195,13 @@ export function OpenPromisesPanel({
   }
   return (
     <section
-      className="rounded-xl border bg-[var(--bg-raised)] p-4"
-      style={{ borderColor: "rgba(255,255,255,0.06)" }}
+      className="rounded-surface border border-edge-subtle bg-content p-4"
     >
       <div className="flex items-baseline justify-between mb-2">
-        <h3 className="font-serif text-base tracking-tight text-[var(--text-primary)]">
+        <h3 className="text-[15px] font-semibold text-fg">
           Open promises to {personName}
         </h3>
-        <span className="text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
+        <span className="font-mono text-[11px] tabular-nums text-fg-tertiary">
           {tasks.length}
         </span>
       </div>
@@ -214,23 +212,23 @@ export function OpenPromisesPanel({
           return (
             <li
               key={t.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] px-3 py-2"
+              className="flex items-center justify-between gap-3 rounded-control border border-edge-subtle bg-workspace px-3 py-2"
             >
-              <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-secondary)]">
+              <span className="min-w-0 flex-1 truncate text-xs text-fg-secondary">
                 {t.title}
               </span>
               <div className="flex shrink-0 items-center gap-2">
                 {due && (
                   <span
                     className={cn(
-                      "text-[10px] font-mono tabular-nums",
-                      overdue ? "text-rose-300" : "text-[var(--text-tertiary)]",
+                      "font-mono text-[11px] tabular-nums",
+                      overdue ? "text-rose-300" : "text-fg-tertiary",
                     )}
                   >
                     {due}
                   </span>
                 )}
-                <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                   {t.loopKind.toLowerCase()}
                 </span>
               </div>

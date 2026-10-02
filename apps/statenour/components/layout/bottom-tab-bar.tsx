@@ -96,7 +96,7 @@ export function BottomTabBar() {
       <BottomPulseTicker />
       <nav
         aria-label="Primary"
-        className="flex items-stretch border-t border-edge bg-[var(--bg-void)]/95 backdrop-blur-xl xl:hidden"
+        className="ui-material flex items-stretch border-t border-edge-subtle xl:hidden"
       >
         {BOTTOM_TABS.map((tab) => {
           const Icon = tab.icon;
@@ -107,29 +107,24 @@ export function BottomTabBar() {
               href={tab.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 transition-colors",
-                active
-                  ? "text-[var(--gold)]"
-                  : "text-fg-tertiary hover:text-[var(--text-secondary)]",
+                "relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-1 py-1.5 transition-colors duration-[var(--motion-state)]",
+                active ? "text-fg" : "text-fg-tertiary hover:text-fg-secondary",
               )}
             >
-              {active && (
-                <span className="absolute top-0 h-0.5 w-8 rounded-full bg-gold" />
-              )}
+              {/* UI v2: the signal notch is the only gold on the bar — one mark, no gold text. */}
+              {active && <span className="absolute top-0 h-0.5 w-6 rounded-full bg-accent" aria-hidden />}
               <Icon size={20} strokeWidth={active ? 2.25 : 1.75} />
-              <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em]">
-                {tab.label}
-              </span>
+              <span className="text-[11px] font-medium leading-none">{tab.label}</span>
             </Link>
           );
         })}
         <button
           onClick={openMoreSheet}
           aria-label="More — all surfaces and search"
-          className="relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-fg-tertiary transition-colors hover:text-gold"
+          className="relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-1 py-1.5 text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg-secondary"
         >
           <LayoutGrid size={20} strokeWidth={1.75} />
-          <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em]">More</span>
+          <span className="text-[11px] font-medium leading-none">More</span>
         </button>
       </nav>
     </div>

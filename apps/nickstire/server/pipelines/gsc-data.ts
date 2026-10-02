@@ -320,8 +320,24 @@ export async function fetchSearchPerformance(
  * single-dimension calls so each table reconciles to the GSC UI.
  * Powers `scripts/gsc-report.ts` (the `pnpm gsc:report` one-command).
  */
-export async function getGscReport(dateRange: DateRange): Promise<{
+export async function getGscReport(
+  dateRange: DateRange,
+  opts?: {
+    /**
+     * Only the no-dimension grand total. Callers that use `summary` alone (admin
+     * Market card, the StateNour bridge) pass this so a read costs ONE Google call,
+     * not three whose top-25 lists are thrown away.
+     */
+    totalsOnly?: boolean;
+  },
+): Promise<{
   summary: { clicks: number; impressions: number; ctr: number; position: number };
+  /**
+   * FALSE when Google returned no total row (a range inside GSC's 2-3 day lag, or no
+   * data). `summary` is then all zeros that are NOT an official zero — callers must fall
+   * back instead of reporting "0 clicks, official".
+   */
+  summaryHasData: boolean;
   topQueries: Array<{ key: string; clicks: number; impressions: number; ctr: number; position: number }>;
   topPages: Array<{ key: string; clicks: number; impressions: number; ctr: number; position: number }>;
 }> {
@@ -351,8 +367,8 @@ export async function getGscReport(dateRange: DateRange): Promise<{
   // by clicks desc, so rowLimit 25 yields the top 25.
   const [totalRows, queryRows, pageRows] = await Promise.all([
     query({}),
-    query({ dimensions: ["query"], rowLimit: 25 }),
-    query({ dimensions: ["page"], rowLimit: 25 }),
+    opts?.totalsOnly ? Promise.resolve([] as ApiRow[]) : query({ dimensions: ["query"], rowLimit: 25 }),
+    opts?.totalsOnly ? Promise.resolve([] as ApiRow[]) : query({ dimensions: ["page"], rowLimit: 25 }),
   ]);
 
   const total = totalRows[0] ?? { clicks: 0, impressions: 0, ctr: 0, position: 0 };
@@ -370,6 +386,7 @@ export async function getGscReport(dateRange: DateRange): Promise<{
       ctr: total.ctr,
       position: total.position,
     },
+    summaryHasData: totalRows.length > 0,
     topQueries: queryRows.map(shape),
     topPages: pageRows.map(shape),
   };

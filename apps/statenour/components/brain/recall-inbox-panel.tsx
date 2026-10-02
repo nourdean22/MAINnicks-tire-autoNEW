@@ -75,24 +75,24 @@ function SourceGroup({
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
           <Icon size={11} className={tint} aria-hidden />
-          <span className={cn("text-[9px] font-bold uppercase tracking-[0.18em]", tint)}>
+          <span className={cn("text-[11px] font-bold", tint)}>
             {label}
           </span>
-          <span className="text-[9px] font-mono text-[var(--text-tertiary)] tabular-nums">
+          <span className="text-[11px] font-mono text-[var(--text-tertiary)] tabular-nums">
             · {total}
           </span>
         </div>
         {total > items.length && (
           <Link
             href={href}
-            className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--gold)]"
+            className="text-[11px] font-mono text-[var(--text-tertiary)] hover:text-fg"
           >
-            see all →
+            See all →
           </Link>
         )}
       </div>
       {error ? (
-        <p className="text-[10px] text-rose-300/80 px-2 py-1.5 rounded border border-rose-500/20 bg-rose-500/[0.04]">
+        <p className="text-[11px] text-rose-300/80 px-2 py-1.5 rounded-micro border border-rose-500/20 bg-rose-500/[0.04]">
           ⚠ {error.replace(/_/g, " ")}
         </p>
       ) : (
@@ -110,12 +110,12 @@ function SourceGroup({
                 {item.preview}
               </Link>
               {item.meta && (
-                <span className="shrink-0 text-[9px] font-mono text-[var(--text-tertiary)]/70 truncate max-w-[120px]">
+                <span className="shrink-0 text-[11px] font-mono text-[var(--text-tertiary)]/70 truncate max-w-[120px]">
                   {item.meta}
                 </span>
               )}
               {item.at && (
-                <span className="shrink-0 text-[9px] font-mono text-[var(--text-tertiary)]/60 tabular-nums">
+                <span className="shrink-0 text-[11px] font-mono text-[var(--text-tertiary)]/60 tabular-nums">
                   {timeAgo(item.at)}
                 </span>
               )}
@@ -138,13 +138,13 @@ export function RecallInboxPanel() {
   if (data.totalCount === 0) return null;
 
   return (
-    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-void)]/40 p-3 space-y-4">
+    <div className="rounded-surface border border-[var(--border-default)] bg-[var(--bg-void)]/40 p-3 space-y-4">
       <div className="flex items-baseline justify-between gap-3">
         <div className="flex items-center gap-2">
-          <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-[var(--gold)]/80">
+          <span className="text-[11px] font-bold text-fg-secondary">
             Recall · attention
           </span>
-          <span className="text-[10px] font-mono text-[var(--text-tertiary)] tabular-nums">
+          <span className="text-[11px] font-mono text-[var(--text-tertiary)] tabular-nums">
             {data.totalCount} items across {[
               data.pins.total > 0 ? 1 : 0,
               data.linkReview.total > 0 ? 1 : 0,
@@ -168,7 +168,7 @@ export function RecallInboxPanel() {
         total={data.pins.total}
         error={data.pins.error}
         href="/pins"
-        tint="text-[var(--gold)]/80"
+        tint="text-fg-secondary"
       />
       <SourceGroup
         label="link-review"

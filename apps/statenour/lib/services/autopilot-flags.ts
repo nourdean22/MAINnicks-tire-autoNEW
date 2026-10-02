@@ -10,30 +10,33 @@
  * Storage: a single `UserPreference` row keyed "autopilot_flags" whose
  * `value` column holds a JSON-stringified `Record<string, boolean>`.
  * Reads fall back to DEFAULTS; writes merge over DEFAULTS so every known
- * flag key always has a value.
+ * flag key always has a value. Unknown keys are dropped on both sides.
  */
 
 import { prisma } from "@/lib/prisma";
 
 /**
- * The historical default flag set. Kept identical to the REST route's
- * `DEFAULTS` map verbatim — the settings page seeds its own richer list
- * of flags client-side, but this server-side default is what a brand-new
- * install (no UserPreference row) reads back. The page merges whatever
- * the server returns over its local list, so extra client-only keys are
- * simply preserved at their local default.
+ * The flag set the runtime actually reads. 2026-10-02 (settings census): the
+ * nine `auto_*` keys that lived here (auto_morning_autopilot, auto_morning_brief,
+ * auto_stale_lead_alert, auto_commitment_check, auto_brain_cycle,
+ * auto_drift_escalation, auto_followup_quotes, auto_weekly_targets,
+ * auto_revenue_alerts) had no reader anywhere in apps/ or packages/ — stored
+ * dead weight that looked like controls. The one live key is
+ * `adhd_operating_rhythm`, read by lib/brain/operating-rhythm.ts (absent or
+ * true = ON; only an explicit false stops the rhythm).
  */
 export const AUTOPILOT_DEFAULTS: Record<string, boolean> = {
-  auto_morning_autopilot: true,
-  auto_morning_brief: true,
-  auto_stale_lead_alert: true,
-  auto_commitment_check: true,
-  auto_brain_cycle: true,
-  auto_drift_escalation: true,
-  auto_followup_quotes: true,
-  auto_weekly_targets: false,
-  auto_revenue_alerts: true,
+  adhd_operating_rhythm: true,
 };
+
+/** Keep only keys something reads, so a dead key cannot ride along forever. */
+function knownOnly(flags: Record<string, unknown>): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  for (const key of Object.keys(AUTOPILOT_DEFAULTS)) {
+    if (typeof flags[key] === "boolean") out[key] = flags[key] as boolean;
+  }
+  return out;
+}
 
 const PREF_KEY = "autopilot_flags";
 
@@ -44,7 +47,8 @@ export async function getAutopilotFlags(): Promise<Record<string, boolean>> {
       where: { key: PREF_KEY },
     });
     if (!pref?.value) return { ...AUTOPILOT_DEFAULTS };
-    return JSON.parse(pref.value as string) as Record<string, boolean>;
+    const stored = JSON.parse(pref.value as string) as Record<string, unknown>;
+    return { ...AUTOPILOT_DEFAULTS, ...knownOnly(stored) };
   } catch {
     return { ...AUTOPILOT_DEFAULTS };
   }
@@ -58,7 +62,10 @@ export async function getAutopilotFlags(): Promise<Record<string, boolean>> {
 export async function setAutopilotFlags(
   flags: Record<string, boolean>,
 ): Promise<Record<string, boolean>> {
-  const merged = { ...AUTOPILOT_DEFAULTS, ...flags };
+  // Dead keys in the payload (the toggle spreads whatever the read returned)
+  // or already in the stored row are dropped here, so the row converges on
+  // the live set at the next write.
+  const merged = { ...AUTOPILOT_DEFAULTS, ...knownOnly(flags) };
   await prisma.userPreference.upsert({
     where: { key: PREF_KEY },
     create: { key: PREF_KEY, value: JSON.stringify(merged) },

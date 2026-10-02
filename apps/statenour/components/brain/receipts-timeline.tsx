@@ -33,7 +33,7 @@ const FILTERS: Array<{ key: StatusFilter; label: string }> = [
 const STATUS_DOT: Record<string, string> = {
   success: "bg-emerald-400",
   partial: "bg-amber-400",
-  skipped: "bg-zinc-500",
+  skipped: "bg-fg-tertiary",
   needs_approval: "bg-rose-400",
   failed: "bg-rose-500",
 };
@@ -54,15 +54,15 @@ export function ReceiptsTimeline({ limit = 30 }: { limit?: number }) {
 
   if (feedQ.isLoading) {
     return (
-      <section aria-label="receipts-timeline" className="rounded-xl border border-white/5 p-4 space-y-2">
-        <div className="h-3 w-44 rounded bg-white/5 animate-pulse" />
-        <div className="h-24 rounded bg-white/[0.03] animate-pulse" />
+      <section aria-label="receipts-timeline" className="rounded-surface border border-edge-subtle p-4 space-y-2">
+        <div className="h-3 w-44 rounded-micro bg-surface-interactive animate-pulse" />
+        <div className="h-24 rounded-micro bg-surface-interactive animate-pulse" />
       </section>
     );
   }
   if (feedQ.isError) {
     return (
-      <section aria-label="receipts-timeline" className="rounded-xl border border-red-500/15 bg-red-500/5 p-4">
+      <section aria-label="receipts-timeline" className="rounded-surface border border-red-500/15 bg-red-500/5 p-4">
         <p className="text-[11px] text-red-400 flex items-center gap-1.5">
           <AlertCircle className="h-3.5 w-3.5" />
           Receipts couldn&apos;t load — state unknown, not empty.
@@ -83,13 +83,13 @@ export function ReceiptsTimeline({ limit = 30 }: { limit?: number }) {
   return (
     <section
       aria-label="receipts-timeline"
-      className="rounded-xl border border-white/8 bg-white/[0.01] p-4 flex flex-col space-y-3"
+      className="rounded-surface border border-edge-subtle bg-content p-4 flex flex-col space-y-3"
     >
-      <div className="flex items-center justify-between gap-2 flex-wrap border-b border-white/6 pb-2">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-300 font-semibold flex items-center gap-1.5">
-          <ReceiptText className="h-3.5 w-3.5 text-[var(--gold)]/80" /> Activity &amp; Receipts
+      <div className="flex items-center justify-between gap-2 flex-wrap border-b border-edge-subtle pb-2">
+        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary flex items-center gap-1.5">
+          <ReceiptText className="h-3.5 w-3.5 text-fg-secondary" /> Activity &amp; Receipts
         </p>
-        <span className="text-[9px] font-mono text-zinc-500">
+        <span className="text-[11px] font-mono text-fg-tertiary">
           {counts.total} in window · {counts.success} ok · {counts.failed} failed
         </span>
       </div>
@@ -102,10 +102,10 @@ export function ReceiptsTimeline({ limit = 30 }: { limit?: number }) {
             aria-selected={filter === f.key}
             onClick={() => setFilter(f.key)}
             className={cn(
-              "rounded-full border px-2 py-1 min-h-[32px] text-[10px] font-mono transition",
+              "rounded-full border px-2.5 py-1 min-h-[32px] text-[12px] font-medium transition-colors duration-[var(--motion-state)]",
               filter === f.key
-                ? "border-[var(--gold)]/40 text-[var(--gold)] bg-[var(--gold)]/5"
-                : "border-white/10 text-zinc-500 hover:text-zinc-300",
+                ? "border-accent text-fg bg-surface-interactive"
+                : "border-edge-default text-fg-tertiary hover:border-edge-strong hover:text-fg",
             )}
           >
             {f.label}
@@ -114,7 +114,7 @@ export function ReceiptsTimeline({ limit = 30 }: { limit?: number }) {
       </div>
 
       {filtered.length === 0 ? (
-        <p className="text-[11px] text-zinc-500 py-2">
+        <p className="text-[11px] text-fg-tertiary py-2">
           {items.length === 0
             ? "No receipts in the current window — nothing acted, nothing audited."
             : "No receipts match this filter in the current window."}
@@ -124,30 +124,30 @@ export function ReceiptsTimeline({ limit = 30 }: { limit?: number }) {
           {filtered.map((r) => (
             <li
               key={r.receiptId}
-              className="flex items-start gap-2 p-2 rounded bg-white/1 border border-white/3"
+              className="flex items-start gap-2 p-2 rounded-micro bg-content border border-edge-subtle"
             >
               <span
                 aria-hidden
                 className={cn(
                   "mt-1.5 inline-block h-1.5 w-1.5 rounded-full shrink-0",
-                  STATUS_DOT[r.status] ?? "bg-zinc-500",
+                  STATUS_DOT[r.status] ?? "bg-fg-tertiary",
                 )}
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] font-mono text-zinc-300 truncate">{r.toolName}</span>
-                  <span className="text-[8px] font-mono uppercase tracking-wider text-zinc-600 border border-white/8 rounded px-1 py-px">
+                  <span className="text-[11px] font-mono text-fg-secondary truncate">{r.toolName}</span>
+                  <span className="text-[11px] font-mono text-fg-tertiary border border-edge-subtle rounded-micro px-1 py-px">
                     {r.category}
                   </span>
-                  <span className="text-[9px] font-mono text-zinc-600 ml-auto shrink-0">
+                  <span className="text-[11px] font-mono text-fg-tertiary ml-auto shrink-0">
                     {timeAgo(r.createdAt)}
                   </span>
                 </div>
-                <p className="text-[11px] text-zinc-400 leading-snug mt-0.5 break-words">
+                <p className="text-[11px] text-fg-secondary leading-snug mt-0.5 break-words">
                   {r.userVisibleSummary}
                 </p>
                 {r.status === "failed" && r.errorSafeMessage && (
-                  <p className="text-[10px] text-rose-400/90 mt-0.5">{r.errorSafeMessage}</p>
+                  <p className="text-[11px] text-rose-400/90 mt-0.5">{r.errorSafeMessage}</p>
                 )}
               </div>
             </li>

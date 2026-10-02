@@ -67,6 +67,7 @@ import {
 } from "@/lib/services/journal-calibrate";
 import { ServiceError } from "@/lib/utils/service-error";
 import {
+  JOURNAL_SETTING_BOUNDS,
   calibrationRulingSchema,
   reflectSubmitSchema,
 } from "@/lib/validators/journal";
@@ -584,6 +585,30 @@ export const journalRouter = router({
           /* malformed take · ignore */
         }
       }
+      // 2026-10-02 · the take's next action is a recommendation the operator is
+      // SHOWN; before this the journal recorded nothing in the outcome ledger
+      // (census §5). Fire-and-forget; recordShown dedups the same action within
+      // 24h, so a re-rendered receipt is not a second recommendation. Already-
+      // promoted actions are not re-offered, so they are not re-ledgered.
+      if (take?.nextAction && !take.nextAction.nextActionPromoted) {
+        const action = take.nextAction.action;
+        const domain = take.nextAction.domain;
+        void (async () => {
+          const [{ recordShown }, { journalNextActionSummary }] = await Promise.all([
+            import("@/lib/services/outcome-ledger"),
+            import("@/lib/services/journal-promote"),
+          ]);
+          await recordShown({
+            kind: "suggestion",
+            sourceEngine: "journal:next-action",
+            summary: journalNextActionSummary(action),
+            shownSurface: "journal",
+            evidenceRefs: { entryId: input.id, silo: input.silo, domain },
+          });
+        })().catch(() => {
+          /* ledger failure must never break the receipt */
+        });
+      }
       return {
         entryType: input.silo === "brain_dump" ? (row as { entryType?: string | null }).entryType ?? null : null,
         linkStatus: row.linkStatus,
@@ -757,11 +782,24 @@ export const journalRouter = router({
   updateSettings: operatorProcedure
     .input(
       z.object({
-        baselineXp: z.number().min(0.1).max(5).optional(),
+        baselineXp: z.number().min(JOURNAL_SETTING_BOUNDS.baselineXp.min).max(JOURNAL_SETTING_BOUNDS.baselineXp.max).optional(),
         baselineEnabled: z.boolean().optional(),
-        qualityFloorChars: z.number().int().min(0).max(2000).optional(),
-        groundedXpMultiplier: z.number().min(1).max(5).optional(),
-        autoConfirmThreshold: z.number().min(0).max(1).optional(),
+        qualityFloorChars: z
+          .number()
+          .int()
+          .min(JOURNAL_SETTING_BOUNDS.qualityFloorChars.min)
+          .max(JOURNAL_SETTING_BOUNDS.qualityFloorChars.max)
+          .optional(),
+        groundedXpMultiplier: z
+          .number()
+          .min(JOURNAL_SETTING_BOUNDS.groundedXpMultiplier.min)
+          .max(JOURNAL_SETTING_BOUNDS.groundedXpMultiplier.max)
+          .optional(),
+        autoConfirmThreshold: z
+          .number()
+          .min(JOURNAL_SETTING_BOUNDS.autoConfirmThreshold.min)
+          .max(JOURNAL_SETTING_BOUNDS.autoConfirmThreshold.max)
+          .optional(),
         challengeCadence: z.enum(["every", "daily", "off"]).optional(),
         creativeIntensity: z.enum(["bold", "balanced", "off"]).optional(),
       }),

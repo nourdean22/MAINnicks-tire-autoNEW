@@ -112,16 +112,22 @@ export const trafficFunnelRouter = router({
       ] = await Promise.all([
         // GSC aggregate (clicks, impressions) over the last N days.
         // search_performance stores ctr * 100 and position * 100.
+        // WEB ONLY and IMPRESSION-WEIGHTED (2026-10-02): Discover rows (query='', no
+        // position meaning) were summed into web totals and AVG(position) gave a
+        // 1-impression row the same weight as a 10k one. Same rules as gsc-data.ts
+        // getGscSummary. These are still STORED query rows — a subset of the property
+        // total (anonymized queries missing); the Market card carries the official one.
         exec(
           d,
           sql`
             SELECT
               COALESCE(SUM(clicks), 0) AS clicks,
               COALESCE(SUM(impressions), 0) AS impressions,
-              COALESCE(AVG(position), 0) / 100 AS avgPosition,
+              COALESCE(SUM(position * impressions) / NULLIF(SUM(impressions), 0), 0) / 100 AS avgPosition,
               COUNT(DISTINCT date) AS days
             FROM search_performance
             WHERE date >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY), '%Y-%m-%d')
+              AND searchType = 'web'
           `,
         ),
         exec(
@@ -131,9 +137,10 @@ export const trafficFunnelRouter = router({
               query,
               SUM(clicks) AS clicks,
               SUM(impressions) AS impressions,
-              AVG(position) / 100 AS avgPosition
+              SUM(position * impressions) / NULLIF(SUM(impressions), 0) / 100 AS avgPosition
             FROM search_performance
             WHERE date >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY), '%Y-%m-%d')
+              AND searchType = 'web'
             GROUP BY query
             ORDER BY clicks DESC
             LIMIT 10
@@ -148,6 +155,7 @@ export const trafficFunnelRouter = router({
               SUM(impressions) AS impressions
             FROM search_performance
             WHERE date >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY), '%Y-%m-%d')
+              AND searchType = 'web'
               AND page IS NOT NULL
             GROUP BY page
             ORDER BY clicks DESC
@@ -224,6 +232,7 @@ export const trafficFunnelRouter = router({
               SUM(CASE WHEN LOWER(query) REGEXP '(nick|nicks|tire ?and ?auto|tire auto|moes auto)' THEN 0 ELSE clicks END) AS nonBrandedClicks
             FROM search_performance
             WHERE date >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY), '%Y-%m-%d')
+              AND searchType = 'web'
           `,
         ),
         exec(

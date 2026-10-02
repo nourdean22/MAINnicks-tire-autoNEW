@@ -65,7 +65,7 @@ function DialogContent({
           // now the default for every Dialog · LogLedgerModal's per-modal
           // !important overrides are deleted (the primitive handles it).
           // dvh (not vh) so iOS Safari URL-bar collapse doesn't clip.
-          "fixed top-auto sm:top-1/2 bottom-4 sm:bottom-auto left-1/2 z-[70] grid w-full max-w-[calc(100%-2rem)] max-h-[90dvh] -translate-x-1/2 translate-y-0 sm:-translate-y-1/2 gap-4 mb-[env(safe-area-inset-bottom,0px)] sm:mb-0 rounded-xl neural-glass-modal p-4 text-sm text-popover-foreground border border-primary/20 shadow-[0_0_40px_rgba(253,185,19,0.1)] duration-200 outline-none overflow-y-auto overscroll-contain sm:max-w-sm data-open:animate-fade-in-scale data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
+          "fixed top-auto sm:top-1/2 bottom-4 sm:bottom-auto left-1/2 z-[70] grid w-full max-w-[calc(100%-2rem)] max-h-[90dvh] -translate-x-1/2 translate-y-0 sm:-translate-y-1/2 gap-4 mb-[env(safe-area-inset-bottom,0px)] sm:mb-0 rounded-overlay neural-glass-modal p-4 text-sm text-fg duration-[var(--motion-panel)] outline-none overflow-y-auto overscroll-contain sm:max-w-sm data-open:animate-fade-in-scale data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
           ),
           className
         )}

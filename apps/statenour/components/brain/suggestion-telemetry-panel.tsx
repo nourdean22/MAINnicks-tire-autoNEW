@@ -45,7 +45,7 @@ export function SuggestionTelemetryPanel() {
 
   if (!stats && !statsQuery.isError) {
     return (
-      <GlassCard className="p-4">
+      <GlassCard>
         <div className="text-[11px] text-[var(--text-tertiary)]">
           Suggestion telemetry — loading…
         </div>
@@ -55,7 +55,7 @@ export function SuggestionTelemetryPanel() {
 
   if (statsQuery.isError && !stats) {
     return (
-      <GlassCard className="p-4">
+      <GlassCard>
         <div className="flex items-center gap-2 text-[11px] text-red-400">
           <AlertCircle size={12} /> telemetry load failed:{" "}
           {statsQuery.error.message}
@@ -74,14 +74,14 @@ export function SuggestionTelemetryPanel() {
     stats.requests > 0 ? Math.round((stats.heuristic / stats.requests) * 100) : 0;
 
   return (
-    <GlassCard className="p-4 space-y-3">
+    <GlassCard className="space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
-        <Sparkles size={14} className="text-[var(--gold)]" />
-        <h2 className="text-[13px] font-[var(--font-display)] font-bold uppercase tracking-wider text-[var(--text-primary)]">
+        <Sparkles size={14} className="text-fg-secondary" />
+        <h2 className="text-[15px] font-semibold text-fg">
           Smart Replies — Live Telemetry
         </h2>
         <FreshnessChip lastFetchedAt={loadedAt} source="lambda" compact onReload={() => void statsQuery.refetch()} />
-        <span className="text-[10px] text-[var(--text-tertiary)]">lambda-local</span>
+        <span className="text-[11px] text-[var(--text-tertiary)]">lambda-local</span>
       </div>
 
       {stats.requests === 0 ? (
@@ -92,7 +92,7 @@ export function SuggestionTelemetryPanel() {
         <>
           {/* Hit-rate bar */}
           <div>
-            <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mb-1">
+            <div className="flex items-center justify-between text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mb-1">
               <span>cache hit rate</span>
               <span
                 className={cn(
@@ -122,7 +122,7 @@ export function SuggestionTelemetryPanel() {
           </div>
 
           {/* Source split */}
-          <div className="grid grid-cols-4 gap-2 text-[10px] font-mono uppercase tracking-wider">
+          <div className="grid grid-cols-4 gap-2 text-[11px] font-mono">
             <div className="flex flex-col gap-0.5">
               <span className="text-[var(--text-tertiary)]">cache</span>
               <span className="text-emerald-400 text-[12px] tabular-nums">
@@ -131,10 +131,10 @@ export function SuggestionTelemetryPanel() {
             </div>
             <div className="flex flex-col gap-0.5">
               <span className="text-[var(--text-tertiary)]">ai</span>
-              <span className="text-[var(--gold)] text-[12px] tabular-nums">
+              <span className="text-fg-secondary text-[12px] tabular-nums">
                 <AnimatedCounter value={stats.aiOk} duration={600} />
                 {aiSuccessPct !== null && stats.aiFail > 0 && (
-                  <span className="text-[9px] text-[var(--text-tertiary)] ml-1">
+                  <span className="text-[11px] text-[var(--text-tertiary)] ml-1">
                     /{aiSuccessPct}% ok
                   </span>
                 )}
@@ -165,7 +165,7 @@ export function SuggestionTelemetryPanel() {
           </div>
 
           {/* Latency */}
-          <div className="flex items-center gap-3 text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+          <div className="flex items-center gap-3 text-[11px] font-mono text-fg-tertiary">
             <span className="flex items-center gap-1">
               <Zap size={10} /> avg {stats.avgLatencyMs}ms
             </span>
@@ -186,14 +186,14 @@ export function SuggestionTelemetryPanel() {
 
           {/* Interpretation helper */}
           {hitPct < 20 && stats.requests > 5 && (
-            <div className="flex items-center gap-2 text-[10px] text-amber-400/80 border-l-2 border-amber-400/40 pl-2">
+            <div className="flex items-center gap-2 text-[11px] text-amber-400/80 border-l-2 border-amber-400/40 pl-2">
               <Brain size={10} />
               low cache hit — consider widening the warm window or
               pre-warming on more surfaces
             </div>
           )}
           {aiSuccessPct !== null && aiSuccessPct < 70 && (
-            <div className="flex items-center gap-2 text-[10px] text-red-400/80 border-l-2 border-red-400/40 pl-2">
+            <div className="flex items-center gap-2 text-[11px] text-red-400/80 border-l-2 border-red-400/40 pl-2">
               <AlertCircle size={10} />
               ai success rate low ({aiSuccessPct}%) — heuristic
               fallback is carrying the load

@@ -31,7 +31,7 @@ export function IdentityArcCard() {
 
   if (isLoading) {
     return (
-      <div className="h-[200px] rounded-lg border border-white/10 bg-white/[0.02] animate-pulse" />
+      <div className="h-[200px] rounded-surface border border-edge-subtle bg-content animate-pulse" />
     );
   }
 
@@ -79,20 +79,20 @@ export function IdentityArcCard() {
   return (
     <section
       aria-label="identity-arc-card"
-      className="rounded-lg border border-white/10 bg-white/[0.02] p-3.5 flex flex-col justify-between space-y-3 min-h-[195px]"
+      className="rounded-surface border border-edge-subtle bg-content p-3.5 flex flex-col justify-between space-y-3 min-h-[195px]"
     >
-      <div className="flex items-center justify-between border-b border-white/[0.06] pb-2">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+      <div className="flex items-center justify-between border-b border-edge-subtle pb-2">
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           Identity evolution & arc
         </p>
         <div className="flex gap-1">
           <button
             onClick={() => setActiveTab("projection")}
             className={cn(
-              "px-2 py-0.5 rounded text-[10px] font-semibold transition uppercase tracking-[0.06em]",
+              "px-2 py-0.5 rounded-control text-[12px] font-medium transition-colors duration-[var(--motion-state)]",
               activeTab === "projection"
-                ? "bg-white/[0.08] text-white"
-                : "text-white/40 hover:text-white/60"
+                ? "bg-accent-soft text-fg"
+                : "text-fg-tertiary hover:text-fg-secondary"
             )}
           >
             30d Projection
@@ -100,10 +100,10 @@ export function IdentityArcCard() {
           <button
             onClick={() => setActiveTab("growth")}
             className={cn(
-              "px-2 py-0.5 rounded text-[10px] font-semibold transition uppercase tracking-[0.06em]",
+              "px-2 py-0.5 rounded-control text-[12px] font-medium transition-colors duration-[var(--motion-state)]",
               activeTab === "growth"
-                ? "bg-white/[0.08] text-white"
-                : "text-white/40 hover:text-white/60"
+                ? "bg-accent-soft text-fg"
+                : "text-fg-tertiary hover:text-fg-secondary"
             )}
           >
             XP Growth
@@ -115,7 +115,7 @@ export function IdentityArcCard() {
         {activeTab === "projection" ? (
           <div className="space-y-2">
             {trajectories.length === 0 ? (
-              <p className="text-[11px] text-white/50">No trajectory projections available.</p>
+              <p className="text-[12px] text-fg-tertiary">No trajectory projections available.</p>
             ) : (
               <div className="grid grid-cols-1 gap-1.5 text-[11px]">
                 {trajectories.map((t) => {
@@ -125,23 +125,23 @@ export function IdentityArcCard() {
                   return (
                     <div
                       key={t.axis}
-                      className="flex items-center justify-between py-1 px-1.5 rounded bg-white/[0.01] border border-white/[0.03] hover:border-white/[0.08]"
+                      className="flex items-center justify-between py-1 px-1.5 rounded-control bg-surface-interactive border border-edge-subtle hover:border-edge-strong transition-colors duration-[var(--motion-state)]"
                     >
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="truncate font-medium text-white/80">
+                        <span className="truncate font-medium text-fg">
                           {t.label}
                         </span>
                         {t.warning && (
                           <span
                             title={`Warning: ${t.warning}`}
                             className={cn(
-                              "inline-flex text-[9px] px-1 rounded-full",
+                              "inline-flex text-[11px] font-semibold px-1.5 rounded-full",
                               t.warning.includes("decline") || t.warning === "below_30"
                                 ? "bg-rose-500/10 text-rose-400"
                                 : "bg-amber-500/10 text-amber-400"
                             )}
                           >
-                            ⚠️
+                            !
                           </span>
                         )}
                       </div>
@@ -173,22 +173,22 @@ export function IdentityArcCard() {
         ) : (
           <div className="space-y-3 text-[11px]">
             {/* MoM / QoQ Trend Metrics Grid */}
-            <div className="grid grid-cols-2 gap-2 border-b border-white/6 pb-2">
-              <div className="p-2 rounded bg-white/1 border border-white/4">
-                <p className="text-[9px] uppercase tracking-wider text-white/40">MoM Growth</p>
+            <div className="grid grid-cols-2 gap-2 border-b border-edge-subtle pb-2">
+              <div className="p-2 rounded-control bg-surface-interactive border border-edge-subtle">
+                <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">MoM Growth</p>
                 <div className="flex items-baseline justify-between mt-0.5">
-                  <span className="text-xs font-semibold text-white">{momXp.toFixed(0)} XP</span>
-                  <span className={cn("text-[10px] font-semibold flex items-center gap-0.5", momPct >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                  <span className="text-xs font-semibold text-fg">{momXp.toFixed(0)} XP</span>
+                  <span className={cn("text-[11px] font-semibold flex items-center gap-0.5", momPct >= 0 ? "text-emerald-400" : "text-rose-400")}>
                     {momPct >= 0 ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
                     {momPct >= 0 ? "+" : ""}{momPct.toFixed(0)}%
                   </span>
                 </div>
               </div>
-              <div className="p-2 rounded bg-white/1 border border-white/4">
-                <p className="text-[9px] uppercase tracking-wider text-white/40">QoQ Growth</p>
+              <div className="p-2 rounded-control bg-surface-interactive border border-edge-subtle">
+                <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">QoQ Growth</p>
                 <div className="flex items-baseline justify-between mt-0.5">
-                  <span className="text-xs font-semibold text-white">{qoqXp.toFixed(0)} XP</span>
-                  <span className={cn("text-[10px] font-semibold flex items-center gap-0.5", qoqPct >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                  <span className="text-xs font-semibold text-fg">{qoqXp.toFixed(0)} XP</span>
+                  <span className={cn("text-[11px] font-semibold flex items-center gap-0.5", qoqPct >= 0 ? "text-emerald-400" : "text-rose-400")}>
                     {qoqPct >= 0 ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
                     {qoqPct >= 0 ? "+" : ""}{qoqPct.toFixed(0)}%
                   </span>
@@ -198,16 +198,16 @@ export function IdentityArcCard() {
 
             {topActive.length > 0 && (
               <div className="space-y-1.5">
-                <p className="text-[9px] uppercase tracking-widest text-emerald-400 font-semibold flex items-center gap-1">
+                <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-emerald-400 flex items-center gap-1">
                   <Zap className="h-2.5 w-2.5" /> Top 3 Active stats (30d)
                 </p>
                 <div className="grid grid-cols-1 gap-1">
                   {topActive.map((g) => (
                     <div
                       key={g.stat}
-                      className="flex items-center justify-between px-1.5 py-0.5 bg-emerald-500/2 rounded border border-emerald-500/10"
+                      className="flex items-center justify-between px-1.5 py-0.5 bg-emerald-500/2 rounded-micro border border-emerald-500/10"
                     >
-                      <span className="text-white/80">
+                      <span className="text-fg">
                         {g.icon} {g.label}
                       </span>
                       <span className="font-semibold text-emerald-400">+{g.gained30d} XP</span>
@@ -219,19 +219,19 @@ export function IdentityArcCard() {
 
             {stalled.length > 0 && (
               <div className="space-y-1.5">
-                <p className="text-[9px] uppercase tracking-widest text-rose-400/90 font-semibold flex items-center gap-1">
+                <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-rose-400 flex items-center gap-1">
                   <Activity className="h-2.5 w-2.5" /> Stalled stats (Active past 180d, 0 XP in 30d)
                 </p>
                 <div className="grid grid-cols-1 gap-1">
                   {stalled.map((g) => (
                     <div
                       key={g.stat}
-                      className="flex items-center justify-between px-1.5 py-0.5 bg-rose-500/2 rounded border border-rose-500/10"
+                      className="flex items-center justify-between px-1.5 py-0.5 bg-rose-500/2 rounded-micro border border-rose-500/10"
                     >
-                      <span className="text-white/60">
+                      <span className="text-fg-secondary">
                         {g.icon} {g.label}
                       </span>
-                      <span className="text-white/40">stalled</span>
+                      <span className="text-fg-tertiary">stalled</span>
                     </div>
                   ))}
                 </div>
@@ -239,13 +239,13 @@ export function IdentityArcCard() {
             )}
 
             {topActive.length === 0 && stalled.length === 0 && (
-              <p className="text-white/50">No XP growth comparisons calculated yet.</p>
+              <p className="text-fg-tertiary">No XP growth comparisons calculated yet.</p>
             )}
           </div>
         )}
       </div>
 
-      <div className="text-[9px] text-white/30 flex items-center gap-1 border-t border-white/4 pt-2">
+      <div className="text-[11px] text-fg-tertiary flex items-center gap-1 border-t border-edge-subtle pt-2">
         <Info className="h-2.5 w-2.5" />
         {activeTab === "projection" 
           ? "Linear regression over 14d snap history."

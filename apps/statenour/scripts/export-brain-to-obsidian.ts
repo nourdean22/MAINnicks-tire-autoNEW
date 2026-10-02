@@ -13,6 +13,7 @@ import { prisma } from "../lib/prisma";
 import { getObsidianEngineConfig, readEngineStatus, writeEngineStatus } from "../lib/obsidian/engine-config";
 import { ObsidianEngineStatus, EngineIssue } from "../lib/obsidian/types";
 import {
+  createNotePathClaimer,
   hasIdenticalNewestConflict,
   planNoteWrite,
   pruneConflictDir,
@@ -44,6 +45,8 @@ const exportConflicts: ConflictRecord[] = [];
 let exportedGoals = 0;
 let exportedMissions = 0;
 let exportedReflections = 0;
+/** One path per record per run; see createNotePathClaimer. */
+const claimNotePath = createNotePathClaimer();
 let exportedMemories = 0;
 let exportFailed = 0;
 
@@ -164,11 +167,12 @@ async function main() {
   try {
     const goals = await prisma.lifeGoal.findMany({
       where: { deletedAt: null },
+      // Deterministic order: on a title collision the oldest keeps the plain name.
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     });
 
     for (const goal of goals) {
       const sanitizedTitle = sanitizeFilename(goal.title);
-      const filename = `${sanitizedTitle}.md`;
 
       const metadata = {
         title: goal.title,
@@ -197,7 +201,7 @@ async function main() {
         body += `## Plan Data\n\`\`\`json\n${JSON.stringify(goal.planData, null, 2)}\n\`\`\`\n\n`;
       }
 
-      const success = safeWriteNote(path.join(goalsDir, filename), metadata, body);
+      const success = safeWriteNote(claimNotePath(goalsDir, sanitizedTitle, goal.id), metadata, body);
       if (success) exportedGoals++;
     }
     console.log(`    └─ ✅ ${exportedGoals} individual life goals written to Statenour/Goals/`);
@@ -211,11 +215,11 @@ async function main() {
   try {
     const missions = await prisma.mission.findMany({
       where: { deletedAt: null },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     });
 
     for (const mission of missions) {
       const sanitizedTitle = sanitizeFilename(mission.title);
-      const filename = `${sanitizedTitle}.md`;
 
       const metadata = {
         title: mission.title,
@@ -246,7 +250,7 @@ async function main() {
         body += `## Plan Data\n\`\`\`json\n${JSON.stringify(mission.planData, null, 2)}\n\`\`\`\n\n`;
       }
 
-      const success = safeWriteNote(path.join(missionsDir, filename), metadata, body);
+      const success = safeWriteNote(claimNotePath(missionsDir, sanitizedTitle, mission.id), metadata, body);
       if (success) exportedMissions++;
     }
     console.log(`    └─ ✅ ${exportedMissions} individual missions written to Statenour/Missions/`);
@@ -261,13 +265,13 @@ async function main() {
     const reflections = await prisma.reflection.findMany({
       where: { deletedAt: null },
       take: 50,
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
 
     for (const ref of reflections) {
       const dateStr = ref.createdAt.toISOString().split("T")[0];
       const timeStr = ref.createdAt.toTimeString().split(" ")[0].replace(/:/g, "-");
-      const filename = `${dateStr}_${timeStr}_reflection.md`;
+      const baseName = `${dateStr}_${timeStr}_reflection`;
 
       const metadata = {
         title: `Reflection ${dateStr} ${ref.createdAt.toTimeString().split(" ")[0]}`,
@@ -289,7 +293,7 @@ async function main() {
       body += `## Insight\n\n${ref.insight}\n\n`;
       body += `## Evidence\n\n${ref.evidence}\n`;
 
-      const success = safeWriteNote(path.join(reflectionsDir, filename), metadata, body);
+      const success = safeWriteNote(claimNotePath(reflectionsDir, baseName, ref.id), metadata, body);
       if (success) exportedReflections++;
     }
     console.log(`    └─ ✅ ${exportedReflections} reflections written to Statenour/Reflections/`);
@@ -405,7 +409,6 @@ async function main() {
 
         for (const mem of catMemories) {
           const sanitizedKey = sanitizeFilename(mem.key);
-          const filename = `${sanitizedKey}.md`;
 
           const metadata = {
             title: mem.key,
@@ -424,7 +427,7 @@ async function main() {
             body += `## Metadata\n\`\`\`json\n${JSON.stringify(mem.metadata, null, 2)}\n\`\`\`\n`;
           }
 
-          const success = safeWriteNote(path.join(categorySubdir, filename), metadata, body);
+          const success = safeWriteNote(claimNotePath(categorySubdir, sanitizedKey, mem.id), metadata, body);
           if (success) exportedMemories++;
         }
       }

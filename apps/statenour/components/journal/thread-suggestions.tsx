@@ -136,14 +136,14 @@ export function ThreadSuggestions({
       <MasterySectionLabel
         label="Possible joins"
         count={suggestions.length}
-        action={<span className="text-white/30">borderline matches</span>}
+        action={<span className="text-fg-tertiary">borderline matches</span>}
       />
       {/* 2026-05-24 · Wave R · per-action error banner · paired with
           the log lines in accept/dismiss. Pre-fix a failed accept
           looked identical to a slow accept · operator would re-tap
           the same suggestion forever. Auto-clears on next tap. */}
       {actionError && (
-        <div className="rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[10px] text-rose-300">
+        <div className="rounded-control border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[11px] text-rose-300">
           ⚠ {actionError}
         </div>
       )}
@@ -151,15 +151,15 @@ export function ThreadSuggestions({
         {suggestions.map((s) => (
           <li
             key={s.key}
-            className="rounded-lg border border-white/10 bg-white/[0.02] p-3 transition hover:bg-white/[0.04]"
+            className="rounded-control border border-edge-subtle bg-surface-interactive p-3 transition-colors hover:bg-surface-hover"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1">
+                <p className="text-[11px] font-mono text-fg-tertiary mb-1">
                   thread · {s.threadName} · similarity{" "}
                   {(s.similarity * 100).toFixed(0)}%
                 </p>
-                <p className="text-sm text-white/80 line-clamp-2">
+                <p className="text-sm text-fg-secondary line-clamp-2">
                   {s.excerpt}
                 </p>
               </div>
@@ -168,15 +168,15 @@ export function ThreadSuggestions({
                   type="button"
                   onClick={() => accept(s.key)}
                   disabled={busyKey === s.key}
-                  className="text-[10px] uppercase tracking-wider px-3 min-h-[44px] rounded border border-[#FDB913]/40 text-amber-200 hover:bg-[#FDB913]/10 disabled:opacity-30"
+                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-30"
                 >
-                  join
+                  Join
                 </button>
                 <button
                   type="button"
                   onClick={() => dismiss(s.key)}
                   disabled={busyKey === s.key}
-                  className="text-[10px] uppercase tracking-wider px-3 min-h-[44px] rounded border border-white/15 text-white/50 hover:bg-white/5 disabled:opacity-30"
+                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control px-3 text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg disabled:opacity-30"
                 >
                   skip
                 </button>

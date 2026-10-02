@@ -83,7 +83,7 @@ export function EvalPassRateTile({ state }: Props) {
       ? "text-emerald-300"
       : deltaPp < -1
         ? "text-rose-300"
-        : "text-[var(--text-tertiary)]";
+        : "text-fg-tertiary";
   const trendLabel =
     deltaPp > 1
       ? `up ${deltaPp}pp`
@@ -107,9 +107,9 @@ export function EvalPassRateTile({ state }: Props) {
   const worst = latest.worstCategories?.[0];
 
   return (
-    <GlassCard ruled className={cn("min-h-[112px] hover:border-[var(--gold)]/40 transition-colors", tierBorder)}>
+    <GlassCard ruled className={cn("min-h-[112px]", tierBorder)}>
         <div className="flex items-center justify-between mb-1">
-          <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
+          <span className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             <Target size={11} />
             eval · pass rate
           </span>
@@ -117,27 +117,27 @@ export function EvalPassRateTile({ state }: Props) {
 
         <div className="flex items-baseline gap-2">
           <span className={cn(
-            "text-[26px] font-[var(--font-display)] font-bold leading-none tabular-nums",
-            tier === "green" ? "text-[var(--text-primary)]" : tierText,
+            "stat-number text-[26px] leading-none",
+            tier === "green" ? "text-fg" : tierText,
           )}>
             {Math.round(passRate * 100)}
-            <span className="ml-1 text-[12px] font-mono text-[var(--text-tertiary)]">%</span>
+            <span className="ml-1 text-[12px] font-mono text-fg-tertiary">%</span>
           </span>
           {trailingAvg !== null && (
-            <span className={cn("inline-flex items-center gap-1 text-[10px] font-mono", trendColor)}>
+            <span className={cn("inline-flex items-center gap-1 font-mono text-[11px]", trendColor)}>
               <TrendIcon size={10} />
               {trendLabel}
             </span>
           )}
         </div>
 
-        <p className="mt-1 text-[10px] font-mono text-[var(--text-secondary)] tabular-nums">
+        <p className="mt-1 font-mono text-[11px] text-fg-secondary tabular-nums">
           {latest.passed}/{latest.totalRan} passed
         </p>
 
         {worst && worst.failed > 0 && (
-          <p className="mt-2 text-[10px] font-mono text-[var(--text-tertiary)]">
-            worst: <span className="text-[var(--text-primary)]">{worst.category}</span>{" "}
+          <p className="mt-2 font-mono text-[11px] text-fg-tertiary">
+            worst: <span className="text-fg">{worst.category}</span>{" "}
             <span className="text-rose-300 tabular-nums">
               {worst.failed}/{worst.total} fail
             </span>

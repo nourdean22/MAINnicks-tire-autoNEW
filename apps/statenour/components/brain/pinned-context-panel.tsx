@@ -99,7 +99,7 @@ function stalenessClass(days: number) {
   if (days >= STALE_DAYS) {
     return "border-amber-500/30 bg-amber-500/[0.03] ring-amber-500/10";
   }
-  return "border-[var(--gold)]/30 bg-[var(--gold)]/[0.03] ring-[var(--gold)]/10";
+  return "border-edge-subtle bg-content";
 }
 
 function stalenessLabel(days: number) {
@@ -229,9 +229,9 @@ export function PinnedContextPanel() {
       const el = document.getElementById("pinned-context");
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "start" });
-        el.classList.add("ring-2", "ring-[var(--gold)]/50");
+        el.classList.add("ring-2", "ring-accent");
         setTimeout(() => {
-          el.classList.remove("ring-2", "ring-[var(--gold)]/50");
+          el.classList.remove("ring-2", "ring-accent");
         }, 1600);
       }
     }
@@ -350,17 +350,17 @@ export function PinnedContextPanel() {
       .slice(0, PINNED_PROMPT_CAP)
       .filter((p) => p.content.length > PINNED_PROMPT_CHARS).length;
     return (
-      <div className="flex flex-wrap items-center gap-3 text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+      <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono text-fg-tertiary">
         <span className="flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-[var(--gold)] shadow-[0_0_6px_var(--gold)]" />
+          <span className="w-1.5 h-1.5 rounded-full bg-fg-secondary" />
           {pins.length} pinned
         </span>
         <span className="flex items-center gap-1">
-          <Sparkles size={10} className="text-[var(--gold)]/60" />
+          <Sparkles size={10} className="text-fg-secondary" />
           {stats.injectedCount}/{PINNED_PROMPT_CAP} in prompt
           {overCap && (
             <span
-              className="ml-1 px-1.5 py-px rounded-full bg-amber-500/15 text-amber-400 text-[8px]"
+              className="ml-1 px-1.5 py-px rounded-full bg-amber-500/15 text-amber-400 text-[11px]"
               title={`Only the ${PINNED_PROMPT_CAP} most recently updated pins ride with every request. The other ${pins.length - PINNED_PROMPT_CAP} sit idle until you reinforce or edit them.`}
             >
               over cap
@@ -396,16 +396,16 @@ export function PinnedContextPanel() {
   }, [stats, pins]);
 
   return (
-    <div id="pinned-context" className="scroll-mt-20 rounded-xl transition-shadow">
-    <GlassCard className="p-4 space-y-3">
+    <div id="pinned-context" className="scroll-mt-20 rounded-surface transition-shadow">
+    <GlassCard className="space-y-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <Pin size={14} className="text-[var(--gold)]" />
-          <h2 className="text-[13px] font-[var(--font-display)] font-bold uppercase tracking-wider text-[var(--text-primary)]">
+          <Pin size={14} className="text-fg-secondary" />
+          <h2 className="text-[15px] font-semibold text-fg">
             Pinned Context
           </h2>
-          <span className="text-[10px] text-[var(--text-tertiary)]">
+          <span className="text-[11px] text-[var(--text-tertiary)]">
             always loaded · confidence 1.0
           </span>
           <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void load()} />
@@ -413,10 +413,10 @@ export function PinnedContextPanel() {
         <button
           onClick={() => setAddOpen((o) => !o)}
           className={cn(
-            "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors",
+            "inline-flex min-h-[36px] items-center gap-1 px-3 py-1 rounded-control border text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
             addOpen
-              ? "bg-[var(--gold)]/25 text-[var(--gold)]"
-              : "border border-[var(--border-default)] text-[var(--text-secondary)] hover:border-[var(--gold)]/40 hover:text-[var(--gold)]"
+              ? "border-accent bg-surface-interactive text-fg"
+              : "border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg"
           )}
         >
           <Plus size={11} /> Pin new
@@ -428,8 +428,8 @@ export function PinnedContextPanel() {
 
       {/* Add-new drawer */}
       {addOpen && (
-        <div className="rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/[0.03] p-3 space-y-2 animate-fade-in">
-          <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-[var(--gold)]/80">
+        <div className="rounded-surface border border-edge-subtle bg-content p-3 space-y-2 animate-fade-in">
+          <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
             <Plus size={10} /> new pin
           </div>
           <textarea
@@ -438,7 +438,7 @@ export function PinnedContextPanel() {
             onChange={(e) => setNewContent(e.target.value)}
             placeholder="Nick must always know: __________"
             rows={3}
-            className="w-full bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-md px-2.5 py-1.5 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--gold)]/40 resize-none"
+            className="w-full bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-control px-2.5 py-1.5 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-accent resize-none"
           />
           <div className="flex items-center gap-2">
             <Tag size={10} className="text-[var(--text-tertiary)] shrink-0" />
@@ -446,11 +446,11 @@ export function PinnedContextPanel() {
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
               placeholder="optional label (e.g. 'current goal')"
-              className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-md px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--gold)]/40"
+              className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-control px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-accent"
             />
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-[9px] text-[var(--text-tertiary)]">
+            <span className="text-[11px] text-[var(--text-tertiary)]">
               {newContent.trim().length}/{PIN_STORAGE_CHARS}
               {newContent.trim().length > PINNED_PROMPT_CHARS && (
                 <span className="ml-1 text-amber-400">
@@ -465,16 +465,16 @@ export function PinnedContextPanel() {
                   setNewContent("");
                   setNewLabel("");
                 }}
-                className="px-2 py-1 text-[10px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                className="px-2 py-1 text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
               >
-                cancel
+                Cancel
               </button>
               <button
                 onClick={addPin}
                 disabled={!newContent.trim()}
-                className="px-2.5 py-1 rounded-md bg-[var(--gold)]/20 text-[var(--gold)] text-[10px] font-bold uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--gold)]/30 transition-colors"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                pin
+                Pin
               </button>
             </div>
           </div>
@@ -496,9 +496,9 @@ export function PinnedContextPanel() {
           empty. {error}
           <button
             onClick={load}
-            className="ml-auto px-2 py-0.5 rounded border border-red-500/30 hover:bg-red-500/10"
+            className="ml-auto px-2 py-0.5 rounded-control border border-red-500/30 hover:bg-red-500/10"
           >
-            retry
+            Retry
           </button>
         </div>
       )}
@@ -530,9 +530,9 @@ export function PinnedContextPanel() {
               <li
                 key={pin.id}
                 className={cn(
-                  "rounded-lg border p-2.5 transition-all ring-1",
+                  "rounded-surface border p-2.5 transition-all ring-1",
                   stalenessClass(days),
-                  editing && "ring-2 ring-[var(--gold)]/30",
+                  editing && "ring-2 ring-accent",
                   // 10.2 — stale pins breathe subtly, very-stale more urgently
                   !editing && days >= VERY_STALE_DAYS && "pin-very-stale-breathe",
                   !editing && days >= STALE_DAYS && days < VERY_STALE_DAYS && "pin-stale-breathe",
@@ -549,7 +549,7 @@ export function PinnedContextPanel() {
                       rows={Math.min(6, Math.max(2, editContent.split("\n").length + 1))}
                       title="Edit pin content"
                       placeholder="Edit pin content..."
-                      className="w-full bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-md px-2 py-1.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--gold)]/40 resize-none"
+                      className="w-full bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-control px-2 py-1.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-accent resize-none"
                     />
                     <div className="flex items-center gap-2">
                       <Tag size={10} className="text-[var(--text-tertiary)] shrink-0" />
@@ -557,10 +557,10 @@ export function PinnedContextPanel() {
                         value={editLabel}
                         onChange={(e) => setEditLabel(e.target.value)}
                         placeholder="label (optional)"
-                        className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-md px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--gold)]/40"
+                        className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-control px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-accent"
                       />
                     </div>
-                    <div className="flex items-center justify-between text-[9px] text-[var(--text-tertiary)]">
+                    <div className="flex items-center justify-between text-[11px] text-[var(--text-tertiary)]">
                       <span>
                         {editContent.trim().length}/{PIN_STORAGE_CHARS}
                         {editContent.trim().length > PINNED_PROMPT_CHARS && (
@@ -572,7 +572,7 @@ export function PinnedContextPanel() {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={cancelEdit}
-                          className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                          className="p-1 rounded-control hover:bg-[var(--bg-elevated)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
                           title="cancel"
                         >
                           <X size={12} />
@@ -580,7 +580,7 @@ export function PinnedContextPanel() {
                         <button
                           onClick={() => saveEdit(pin)}
                           disabled={busyId === pin.id}
-                          className="p-1 rounded bg-[var(--gold)]/20 text-[var(--gold)] hover:bg-[var(--gold)]/30 disabled:opacity-40 transition-colors"
+                          className="p-1 rounded-control bg-surface-interactive text-fg-secondary hover:bg-surface-hover disabled:opacity-40 transition-colors"
                           title="save"
                         >
                           {busyId === pin.id ? (
@@ -598,8 +598,8 @@ export function PinnedContextPanel() {
                       <div className="flex-1 min-w-0">
                         {pin.metadata?.label && (
                           <div className="flex items-center gap-1 mb-1">
-                            <Tag size={9} className="text-[var(--gold)]/60" />
-                            <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--gold)]/80">
+                            <Tag size={9} className="text-fg-secondary" />
+                            <span className="text-[11px] font-mono text-fg-secondary">
                               {pin.metadata.label}
                             </span>
                           </div>
@@ -607,7 +607,7 @@ export function PinnedContextPanel() {
                         <p className="text-[12px] leading-snug text-[var(--text-primary)] whitespace-pre-wrap break-words">
                           {pin.content}
                         </p>
-                        <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+                        <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-[11px] font-mono text-fg-tertiary">
                           <span
                             className={cn(
                               days >= VERY_STALE_DAYS
@@ -622,7 +622,7 @@ export function PinnedContextPanel() {
                           <span>src: {pin.source}</span>
                           {pin.seenCount > 1 && <span>×{pin.seenCount} reinforced</span>}
                           {injected ? (
-                            <span className="text-[var(--gold)]/80 flex items-center gap-0.5">
+                            <span className="text-fg-secondary flex items-center gap-0.5">
                               <Sparkles size={9} /> in prompt
                             </span>
                           ) : (
@@ -648,7 +648,7 @@ export function PinnedContextPanel() {
                         <button
                           onClick={() => reinforce(pin)}
                           disabled={busyId === pin.id}
-                          className="p-2 md:p-1.5 rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/10 disabled:opacity-40 transition-colors touch-manipulation"
+                          className="p-2 md:p-1.5 rounded-control text-[var(--text-tertiary)] hover:text-fg hover:bg-surface-hover disabled:opacity-40 transition-colors touch-manipulation"
                           title="still relevant — reset staleness"
                         >
                           {busyId === pin.id ? (
@@ -659,7 +659,7 @@ export function PinnedContextPanel() {
                         </button>
                         <button
                           onClick={() => startEdit(pin)}
-                          className="p-2 md:p-1.5 rounded text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors touch-manipulation"
+                          className="p-2 md:p-1.5 rounded-control text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors touch-manipulation"
                           title="edit"
                         >
                           <Pencil size={12} />
@@ -667,7 +667,7 @@ export function PinnedContextPanel() {
                         <button
                           onClick={() => unpin(pin.id)}
                           disabled={busyId === pin.id}
-                          className="p-2 md:p-1.5 rounded text-[var(--text-tertiary)] hover:text-red-400 hover:bg-red-500/10 disabled:opacity-40 transition-colors touch-manipulation"
+                          className="p-2 md:p-1.5 rounded-control text-[var(--text-tertiary)] hover:text-red-400 hover:bg-red-500/10 disabled:opacity-40 transition-colors touch-manipulation"
                           title="unpin"
                         >
                           <PinOff size={12} />
@@ -688,7 +688,7 @@ export function PinnedContextPanel() {
           whole subsection, which is the same "declares nothing" shape the
           empty state above was fixed for. */}
       {ccStateQuery.isError && (
-        <div className="pt-3 border-t border-white/5">
+        <div className="pt-3 border-t border-edge-subtle">
           <EmptyState
             title="Hot Rules couldn't load"
             provenance="ERROR"
@@ -698,11 +698,11 @@ export function PinnedContextPanel() {
       )}
 
       {brainRules && brainRules.length > 0 && (
-        <div className="pt-3 border-t border-white/5 space-y-2">
-          <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--gold)]/80">
+        <div className="pt-3 border-t border-edge-subtle space-y-2">
+          <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
             <Sparkles size={11} />
             <span>Active Hot Rules</span>
-            <span className="text-[9px] text-[var(--text-tertiary)] font-normal font-mono normal-case">
+            <span className="text-[11px] text-[var(--text-tertiary)] font-normal font-mono normal-case">
               most-re-sighted constraints
             </span>
           </div>
@@ -710,9 +710,9 @@ export function PinnedContextPanel() {
             {brainRules.map((rule) => (
               <li
                 key={rule.key}
-                className="text-[11.5px] leading-relaxed text-[var(--text-secondary)] bg-white/[0.01] border border-white/5 rounded-md p-2 flex items-start gap-2"
+                className="text-[12px] leading-relaxed text-[var(--text-secondary)] bg-content border border-edge-subtle rounded-control p-2 flex items-start gap-2"
               >
-                <span className="inline-flex px-1.5 py-0.5 rounded border border-[var(--gold)]/20 bg-[var(--gold)]/5 text-[8px] font-mono uppercase tracking-wider text-[var(--gold)] shrink-0 mt-0.5">
+                <span className="inline-flex px-1.5 py-0.5 rounded-micro border border-edge-subtle bg-surface-interactive text-[11px] font-mono text-fg-secondary shrink-0 mt-0.5">
                   {rule.category}
                 </span>
                 <div className="flex-1 min-w-0">
@@ -725,7 +725,7 @@ export function PinnedContextPanel() {
                       carries no seenCount column, which is the helper's
                       documented last-resort case, so its output is hedged
                       ("seen ~4x") rather than stated as history. */}
-                  <p className="font-mono text-[9px] text-[var(--text-tertiary)] uppercase tracking-wider mb-0.5">
+                  <p className="font-mono text-[11px] text-fg-tertiary mb-0.5">
                     {rule.key} · {describeConfidenceAsAttention(rule.confidence)}
                   </p>
                   <p className="whitespace-pre-wrap break-words">{rule.content}</p>

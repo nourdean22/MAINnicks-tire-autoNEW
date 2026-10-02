@@ -213,22 +213,22 @@ export function MilestonesFlow({
   };
 
   return (
-    <div className="rounded-lg border border-blue-500/30 bg-blue-500/[0.04] p-3 space-y-3">
+    <div className="rounded-surface border border-blue-500/30 bg-blue-500/[0.04] p-3 space-y-3">
       <div className="flex items-start gap-2">
         <Sparkles size={12} className="text-blue-400 mt-0.5 shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
+          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-blue-400">
             Milestones for &ldquo;{goal.title.slice(0, 60)}&rdquo;
           </p>
           {rationale && (
-            <p className="text-[10px] text-zinc-400 italic mt-0.5">
+            <p className="text-[12px] text-fg-secondary italic mt-0.5">
               {rationale}
             </p>
           )}
         </div>
         <button
           onClick={onCancel}
-          className="text-zinc-600 hover:text-zinc-200 shrink-0"
+          className="text-fg-tertiary hover:text-fg shrink-0"
           aria-label="Cancel"
         >
           <X size={14} />
@@ -236,7 +236,7 @@ export function MilestonesFlow({
       </div>
 
       {phase === "loading" && (
-        <div className="flex items-center gap-2 text-[10px] text-zinc-500 italic py-3">
+        <div className="flex items-center gap-2 text-[12px] text-fg-tertiary italic py-3">
           <Loader2 size={11} className="animate-spin" />
           <span>Nick is breaking this down into 3-5 checkpoints…</span>
         </div>
@@ -245,14 +245,14 @@ export function MilestonesFlow({
       {phase !== "loading" && (
         <>
           {error && (
-            <p className="text-[9px] text-rose-400 italic">
+            <p className="text-[11px] text-rose-400 italic">
               AI: {error} · using blank list, edit + confirm to plan anyway
             </p>
           )}
           <div className="space-y-1.5">
             {milestones.map((m, i) => (
               <div key={i} className="flex items-start gap-1.5">
-                <span className="text-[9px] font-mono text-blue-400/70 mt-1.5 shrink-0 w-5">
+                <span className="text-[11px] font-mono text-blue-400/70 mt-1.5 shrink-0 w-5">
                   {i + 1}
                 </span>
                 <textarea
@@ -260,13 +260,13 @@ export function MilestonesFlow({
                   onChange={(e) => updateMilestone(i, e.target.value)}
                   rows={1}
                   placeholder="What's the checkpoint here?"
-                  className="flex-1 rounded border border-zinc-800 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-200 placeholder:text-zinc-600 outline-none focus:border-blue-500/50 resize-none leading-snug"
+                  className="flex-1 rounded-control border border-edge-default bg-content px-2 py-1 text-[11px] text-fg placeholder:text-fg-tertiary outline-none focus:border-accent resize-none leading-snug"
                   disabled={phase === "generating"}
                 />
                 <button
                   onClick={() => removeMilestone(i)}
                   disabled={phase === "generating"}
-                  className="text-zinc-700 hover:text-rose-400 mt-1.5 shrink-0 disabled:opacity-50"
+                  className="text-fg-tertiary hover:text-rose-400 mt-1.5 shrink-0 disabled:opacity-50"
                   title="Remove"
                 >
                   <Trash2 size={11} />
@@ -277,25 +277,25 @@ export function MilestonesFlow({
               <button
                 onClick={addMilestone}
                 disabled={phase === "generating"}
-                className="text-[10px] text-blue-300/70 hover:text-blue-300 inline-flex items-center gap-1 ml-6 disabled:opacity-50"
+                className="text-[12px] text-blue-300/70 hover:text-blue-300 inline-flex items-center gap-1 ml-6 disabled:opacity-50"
               >
                 <Plus size={10} />
-                add milestone
+                Add milestone
               </button>
             )}
           </div>
 
-          <div className="flex items-center justify-between pt-1.5 border-t border-zinc-800/40">
-            <span className="text-[9px] text-zinc-600 italic">
+          <div className="flex items-center justify-between pt-1.5 border-t border-edge-subtle">
+            <span className="text-[11px] text-fg-tertiary italic">
               Each milestone becomes a phase in the plan
             </span>
             <button
               onClick={() => void generatePlan()}
               disabled={phase === "generating" || milestones.filter((m) => m.trim()).length < 2}
               className={cn(
-                "inline-flex items-center gap-1 rounded-md border px-3 py-1 text-[11px] font-bold uppercase tracking-wider transition-colors",
+                "inline-flex items-center gap-1 rounded-control border px-3 py-1 text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
                 phase === "generating"
-                  ? "border-zinc-700 text-zinc-500"
+                  ? "border-edge-default text-fg-tertiary"
                   : "border-blue-500/40 bg-blue-500/15 text-blue-300 hover:bg-blue-500 hover:text-black",
               )}
             >
@@ -304,7 +304,7 @@ export function MilestonesFlow({
               ) : (
                 <Brain size={11} />
               )}
-              {phase === "generating" ? "planning…" : "spin up project"}
+              {phase === "generating" ? "Planning…" : "Spin up project"}
             </button>
           </div>
         </>

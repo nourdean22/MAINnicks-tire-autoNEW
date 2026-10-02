@@ -82,10 +82,10 @@ function PlayOutput({ kind, output }: { kind: PlayKind; output: unknown }) {
   if (kind === "arc_plan") {
     const o = output as ArcPlanOutput;
     return (
-      <div className="space-y-2 text-xs text-[var(--text-secondary)]">
+      <div className="space-y-2 text-xs text-fg-secondary">
         {o.goal && (
           <p>
-            <span className="text-[var(--text-tertiary)] uppercase text-[10px] tracking-wider mr-2">
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-2">
               goal
             </span>
             {o.goal}
@@ -93,7 +93,7 @@ function PlayOutput({ kind, output }: { kind: PlayKind; output: unknown }) {
         )}
         {o.currentState && o.desiredState && (
           <p>
-            <span className="text-[var(--text-tertiary)] uppercase text-[10px] tracking-wider mr-2">
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-2">
               from → to
             </span>
             {o.currentState} → {o.desiredState}
@@ -104,10 +104,9 @@ function PlayOutput({ kind, output }: { kind: PlayKind; output: unknown }) {
             {o.phases.map((ph, i) => (
               <li
                 key={i}
-                className="border-l-2 pl-3"
-                style={{ borderColor: "rgba(253,185,19,0.4)" }}
+                className="border-l-2 border-edge-strong pl-3"
               >
-                <div className="text-[10px] uppercase tracking-wider text-amber-300/80 font-mono">
+                <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300/80">
                   {String(ph.order ?? i + 1).padStart(2, "0")} ·{" "}
                   {ph.label ?? "phase"}
                 </div>
@@ -123,24 +122,23 @@ function PlayOutput({ kind, output }: { kind: PlayKind; output: unknown }) {
   if (kind === "message_draft") {
     const o = output as MessageDraftOutput;
     return (
-      <div className="space-y-3 text-xs text-[var(--text-secondary)]">
+      <div className="space-y-3 text-xs text-fg-secondary">
         {o.subject && (
           <p>
-            <span className="text-[var(--text-tertiary)] uppercase text-[10px] tracking-wider mr-2">
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-2">
               subject
             </span>
             <span className="font-mono">{o.subject}</span>
           </p>
         )}
         {o.body && (
-          <pre className="text-xs whitespace-pre-wrap font-sans bg-[var(--bg-default)] border rounded p-3" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+          <pre className="text-xs whitespace-pre-wrap font-sans bg-canvas border border-edge-subtle rounded-control p-3">
             {o.body}
           </pre>
         )}
         {o.rationale && (
           <p
-            className="border-t pt-2 italic text-[var(--text-primary)]"
-            style={{ borderColor: "rgba(255,255,255,0.06)" }}
+            className="border-t border-edge-subtle pt-2 italic text-fg"
           >
             &ldquo;{o.rationale}&rdquo;
           </p>
@@ -152,10 +150,10 @@ function PlayOutput({ kind, output }: { kind: PlayKind; output: unknown }) {
   if (kind === "scarcity_play") {
     const o = output as ScarcityPlayOutput;
     return (
-      <div className="space-y-2 text-xs text-[var(--text-secondary)]">
+      <div className="space-y-2 text-xs text-fg-secondary">
         {o.when && (
           <p>
-            <span className="text-[var(--text-tertiary)] uppercase text-[10px] tracking-wider mr-2">
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-2">
               when
             </span>
             {o.when}
@@ -163,7 +161,7 @@ function PlayOutput({ kind, output }: { kind: PlayKind; output: unknown }) {
         )}
         {o.how && (
           <p>
-            <span className="text-[var(--text-tertiary)] uppercase text-[10px] tracking-wider mr-2">
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-2">
               how
             </span>
             {o.how}
@@ -171,13 +169,12 @@ function PlayOutput({ kind, output }: { kind: PlayKind; output: unknown }) {
         )}
         {o.why && (
           <p
-            className="border-t pt-2 italic text-[var(--text-primary)]"
-            style={{ borderColor: "rgba(255,255,255,0.06)" }}
+            className="border-t border-edge-subtle pt-2 italic text-fg"
           >
             &ldquo;{o.why}&rdquo;
           </p>
         )}
-        <p className="text-[10px] uppercase tracking-wider text-amber-300/70 font-mono">
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300/70">
           law applied · {o.lawApplied ?? 16}
         </p>
       </div>
@@ -187,19 +184,18 @@ function PlayOutput({ kind, output }: { kind: PlayKind; output: unknown }) {
   if (kind === "reciprocity_assess") {
     const o = output as ReciprocityOutput;
     return (
-      <div className="space-y-2 text-xs text-[var(--text-secondary)]">
+      <div className="space-y-2 text-xs text-fg-secondary">
         {(o.operatorInitiatedPct !== undefined ||
           o.theirInitiatedPct !== undefined) && (
           <div className="flex items-center gap-4 font-mono tabular-nums">
             <span>operator: {o.operatorInitiatedPct ?? "?"}%</span>
-            <span className="text-[var(--text-tertiary)]">·</span>
+            <span className="text-fg-tertiary">·</span>
             <span>them: {o.theirInitiatedPct ?? "?"}%</span>
           </div>
         )}
         {o.recommendation && (
           <p
-            className="border-t pt-2 italic text-[var(--text-primary)]"
-            style={{ borderColor: "rgba(255,255,255,0.06)" }}
+            className="border-t border-edge-subtle pt-2 italic text-fg"
           >
             &ldquo;{o.recommendation}&rdquo;
           </p>
@@ -209,7 +205,7 @@ function PlayOutput({ kind, output }: { kind: PlayKind; output: unknown }) {
   }
 
   return (
-    <pre className="text-[10px] whitespace-pre-wrap font-mono text-[var(--text-tertiary)]">
+    <pre className="font-mono text-[11px] whitespace-pre-wrap text-fg-tertiary">
       {JSON.stringify(output, null, 2)}
     </pre>
   );
@@ -251,7 +247,7 @@ export default function PowerPlaysModal({
         className="w-full"
         onClick={() => setOpen(true)}
       >
-        power plays
+        Power plays
       </Button>
       <Dialog
         open={open}
@@ -262,7 +258,7 @@ export default function PowerPlaysModal({
       >
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="font-serif text-lg">
+          <DialogTitle className="text-[17px] font-semibold">
             Power plays · {personName}
           </DialogTitle>
           <DialogDescription>
@@ -274,7 +270,7 @@ export default function PowerPlaysModal({
         <div className="space-y-2 mt-2">
           <label
             htmlFor="power-play-goal"
-            className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]"
+            className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary"
           >
             Your goal (optional)
           </label>
@@ -312,7 +308,7 @@ export default function PowerPlaysModal({
         </div>
 
         {mutation.isPending && (
-          <p className="text-xs text-[var(--text-tertiary)] italic">
+          <p className="text-xs text-fg-tertiary italic">
             running {selectedKind ? KIND_LABELS[selectedKind] : "play"}…
           </p>
         )}
@@ -326,8 +322,7 @@ export default function PowerPlaysModal({
           selectedKind &&
           !mutation.isPending && (
             <div
-              className="mt-2 rounded-lg border bg-[var(--bg-default)] p-3"
-              style={{ borderColor: "rgba(255,255,255,0.06)" }}
+              className="mt-2 rounded-control border border-edge-subtle bg-canvas p-3"
             >
               <PlayOutput kind={selectedKind} output={output} />
             </div>
@@ -342,7 +337,7 @@ export default function PowerPlaysModal({
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>
-            close
+            Close
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -317,14 +317,14 @@ export function ReflectComposer() {
 
   // ── Render ──────────────────────────────────────────
   return (
-    <section id="journal-reflect-composer" className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-3 scroll-mt-24">
+    <section id="journal-reflect-composer" className="rounded-surface border border-edge-subtle bg-content p-3 space-y-3 scroll-mt-24">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <Eye size={12} className="text-emerald-400" />
-        <span className="text-[9px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-emerald-400">
+        <Eye size={12} className="text-fg-tertiary" />
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           reflect
         </span>
-        <span className="text-[9px] font-mono text-[var(--text-tertiary)]">
+        <span className="text-[11px] font-mono text-fg-tertiary">
           · {tmpl.label.toLowerCase()}
         </span>
 
@@ -332,24 +332,24 @@ export function ReflectComposer() {
         <div className="relative ml-auto">
           <button
             onClick={() => setShowPicker((v) => !v)}
-            className="flex items-center gap-1 text-[9px] font-mono text-[var(--text-tertiary)] hover:text-emerald-400"
+            className="flex items-center gap-1 text-[11px] font-mono text-fg-tertiary hover:text-fg"
             aria-label="switch template"
           >
-            switch <ChevronDown size={10} />
+            Switch <ChevronDown size={10} />
           </button>
           {showPicker && (
-            <div className="absolute right-0 top-full mt-1 z-30 w-64 rounded-md border border-emerald-500/30 bg-[var(--bg-void)] shadow-lg overflow-hidden">
+            <div className="absolute right-0 top-full mt-1 z-30 w-64 rounded-float border border-edge-default bg-overlay shadow-l2 overflow-hidden">
               {TEMPLATES.map((t) => (
                 <button
                   key={t.key}
                   onClick={() => setTemplate(t.key)}
                   className={cn(
-                    "w-full text-left px-3 py-2 hover:bg-emerald-500/10 transition-colors border-b border-[var(--border-default)] last:border-b-0",
-                    t.key === templateKey && "bg-emerald-500/10",
+                    "w-full text-left px-3 py-2 hover:bg-surface-hover transition-colors border-b border-edge-subtle last:border-b-0",
+                    t.key === templateKey && "bg-accent-soft",
                   )}
                 >
-                  <p className="text-[11px] text-[var(--text-primary)] font-medium">{t.label}</p>
-                  <p className="text-[9px] text-[var(--text-tertiary)]">{t.tagline}</p>
+                  <p className="text-[13px] text-fg font-medium">{t.label}</p>
+                  <p className="text-[11px] text-fg-tertiary">{t.tagline}</p>
                 </button>
               ))}
             </div>
@@ -370,7 +370,7 @@ export function ReflectComposer() {
       <div className="space-y-1.5">
         {tmpl.fields.map((f) => (
           <div key={f.key}>
-            <label className="text-[8px] font-bold uppercase tracking-wider text-[var(--text-tertiary)] block mb-0.5">
+            <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary block mb-0.5">
               {f.label}
             </label>
             <textarea
@@ -380,10 +380,10 @@ export function ReflectComposer() {
               rows={1}
               disabled={submitting}
               className={cn(
-                "w-full resize-y rounded-md bg-[var(--bg-raised)] border border-[var(--border-default)]",
-                "text-[11px] leading-snug px-2 py-1.5 text-[var(--text-primary)]",
-                "placeholder:text-[var(--text-tertiary)]",
-                "focus:border-emerald-500/40 focus:outline-none transition-colors",
+                "w-full resize-y rounded-control bg-surface-interactive border border-edge-default",
+                "text-[13px] leading-snug px-2 py-1.5 text-fg",
+                "placeholder:text-fg-tertiary",
+                "focus:border-accent/40 focus:outline-none transition-colors",
                 "min-h-[30px]",
               )}
             />
@@ -393,7 +393,7 @@ export function ReflectComposer() {
 
       {/* Mood row */}
       <div className="flex items-center gap-1 flex-wrap">
-        <span className="text-[8px] font-bold uppercase tracking-wider text-[var(--text-tertiary)] mr-1">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-1">
           mood
         </span>
         {MOODS.map((m) => (
@@ -401,10 +401,10 @@ export function ReflectComposer() {
             key={m.emoji}
             onClick={() => setMood((cur) => (cur === m.label ? "" : m.label))}
             className={cn(
-              "flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] font-mono transition-all",
+              "flex items-center gap-1 px-1.5 py-0.5 rounded-micro border text-[11px] font-mono transition-colors",
               mood === m.label
-                ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-400 scale-105"
-                : "border-[var(--border-default)] bg-[var(--bg-raised)] text-[var(--text-tertiary)] hover:border-emerald-500/30",
+                ? "border-accent/40 bg-accent-soft text-fg"
+                : "border-edge-default bg-surface-interactive text-fg-tertiary hover:border-edge-strong",
             )}
             title={m.label}
           >
@@ -427,27 +427,27 @@ export function ReflectComposer() {
           onClick={toggleExtract}
           aria-pressed={extractIntelligence}
           className={cn(
-            "flex items-center gap-1.5 px-2 py-1 rounded border text-[9px] font-mono uppercase tracking-wider transition-colors",
+            "flex items-center gap-1.5 px-2 py-1 rounded-micro border text-[11px] font-mono transition-colors",
             extractIntelligence
-              ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-400"
-              : "border-[var(--border-default)] bg-[var(--bg-raised)] text-[var(--text-tertiary)] hover:border-emerald-500/30",
+              ? "border-accent/40 bg-accent-soft text-fg"
+              : "border-edge-default bg-surface-interactive text-fg-tertiary hover:border-edge-strong",
           )}
           title={extractIntelligence ? "extraction on · action items + commitments will be derived" : "extraction off · reflection saves as a Reflection row only"}
         >
           <Sparkles size={9} />
-          extract action items
+          Extract action items
         </button>
         <button
           type="button"
           onClick={() => setShowSplitHelp((v) => !v)}
           aria-label="explain the routing split"
           aria-expanded={showSplitHelp}
-          className="flex items-center text-[var(--text-tertiary)] hover:text-emerald-400 transition-colors"
+          className="flex items-center text-fg-tertiary hover:text-fg transition-colors"
         >
           <Info size={11} />
         </button>
         {showSplitHelp && (
-          <p className="basis-full text-[10px] leading-relaxed text-[var(--text-tertiary)] mt-1 px-2 py-1.5 rounded bg-[var(--bg-raised)] border border-[var(--border-default)]">
+          <p className="basis-full text-[11px] leading-relaxed text-fg-tertiary mt-1 px-2 py-1.5 rounded-control bg-surface-interactive border border-edge-subtle">
             By default reflections stay light · just a structured row +
             a counter-question. Turn extraction on for AAR / SSC entries
             where you want action items into your INBOX and commitments
@@ -459,39 +459,39 @@ export function ReflectComposer() {
 
       {/* Submit */}
       <div className="flex items-center justify-between">
-        <span className="text-[9px] font-mono text-[var(--text-tertiary)]">
+        <span className="text-[11px] font-mono text-fg-tertiary">
           {filledCount}/{tmpl.fields.length} filled
         </span>
         <button
           onClick={submit}
           disabled={submitting || filledCount === 0}
           className={cn(
-            "flex items-center gap-1.5 px-3 py-1 rounded border text-[10px] font-bold uppercase tracking-wider transition-colors",
+            "inline-flex min-h-[44px] items-center gap-1.5 rounded-control px-4 text-[14px] font-semibold transition-colors duration-[var(--motion-state)]",
             submitting
-              ? "bg-zinc-800 border-zinc-700 text-zinc-500"
+              ? "bg-surface-interactive text-fg-tertiary"
               : filledCount === 0
-                ? "bg-transparent border-[var(--border-default)] text-[var(--text-tertiary)] cursor-not-allowed"
-                : "bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25",
+                ? "border border-edge-default bg-transparent text-fg-tertiary cursor-not-allowed"
+                : "bg-accent text-[var(--text-inverse)] hover:bg-accent-hover",
           )}
         >
           {submitting ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
-          {submitting ? "logging…" : "log reflection"}
+          {submitting ? "Logging…" : "Log reflection"}
         </button>
       </div>
 
       {/* Pushback card — Nick's counter-question, shown inline after submit */}
       {pushback && (
-        <div className="rounded-md border border-blue-500/40 bg-blue-500/5 p-2.5">
+        <div className="rounded-control border border-edge-default bg-surface-raised p-2.5">
           <div className="flex items-center gap-1.5 mb-1">
-            <Target size={10} className="text-blue-400" />
-            <span className="text-[9px] font-bold uppercase tracking-wider text-blue-400">
+            <Target size={10} className="text-fg-tertiary" />
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               nick counters
             </span>
           </div>
-          <p className="text-[12px] text-[var(--text-primary)] leading-snug italic">
+          <p className="text-[13px] text-fg leading-snug italic">
             {pushback}
           </p>
-          <p className="text-[9px] text-[var(--text-tertiary)] mt-1">
+          <p className="text-[11px] text-fg-tertiary mt-1">
             sit with it · or answer in a follow-up reflection
           </p>
         </div>
@@ -499,34 +499,34 @@ export function ReflectComposer() {
 
       {/* Next-step row — memory calibration or bet desk */}
       {nextStep && nextStep !== "done" && (
-        <div className="flex items-center gap-2 pt-1 border-t border-[var(--border-default)]">
-          <span className="text-[9px] text-[var(--text-tertiary)]">next:</span>
+        <div className="flex items-center gap-2 pt-1 border-t border-edge-subtle">
+          <span className="text-[11px] text-fg-tertiary">next:</span>
           {nextStep === "memory-check" && (
             <button
               onClick={toggleCalibration}
-              className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-400 hover:underline"
+              className="inline-flex min-h-[44px] items-center gap-1 text-[13px] font-medium text-fg-secondary hover:text-fg"
             >
               <RotateCcw size={10} />
-              calibrate memories
+              Calibrate memories
               <ArrowRight size={10} />
             </button>
           )}
           {nextStep === "bet" && (
             <Link
               href="/"
-              className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--gold)] hover:underline"
+              className="inline-flex min-h-[44px] items-center gap-1 text-[13px] font-medium text-fg-secondary hover:text-fg"
             >
               <Target size={10} />
-              log this as a bet
+              Log this as a bet
               <ArrowRight size={10} />
             </Link>
           )}
           <button
             onClick={resetForNext}
-            className="ml-auto flex items-center gap-0.5 text-[9px] text-[var(--text-tertiary)] hover:text-red-400"
+            className="ml-auto flex items-center gap-0.5 text-[11px] text-fg-tertiary hover:text-fg"
             title="clear and start a new reflection"
           >
-            <XIcon size={9} /> new
+            <XIcon size={9} /> New
           </button>
         </div>
       )}
@@ -554,11 +554,11 @@ function GhostCounterQuestionInline() {
   const [dismissed, setDismissed] = useState(false);
   if (!data || dismissed) return null;
   return (
-    <div className="flex items-start gap-2 rounded-md border border-glass bg-elevated px-2.5 py-2 text-[12px]">
+    <div className="flex items-start gap-2 rounded-control border border-edge-subtle bg-surface-raised px-2.5 py-2 text-[13px]">
       <Eye size={11} className="mt-0.5 shrink-0 text-fg-tertiary" aria-hidden />
       <div className="flex-1 min-w-0">
         <p className="text-fg leading-snug">
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-fg-tertiary">NICK · </span>
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">NICK · </span>
           {data.question}
         </p>
         {data.basis && (
@@ -571,7 +571,7 @@ function GhostCounterQuestionInline() {
         type="button"
         onClick={() => setDismissed(true)}
         aria-label="Dismiss counter-question"
-        className="shrink-0 min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-[var(--text-tertiary)] hover:text-fg transition-colors"
+        className="shrink-0 min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-fg-tertiary hover:text-fg transition-colors"
       >
         <XIcon size={11} />
       </button>

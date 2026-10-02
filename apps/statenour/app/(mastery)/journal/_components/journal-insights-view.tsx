@@ -39,7 +39,7 @@ export function JournalInsightsView({
       <JournalThreadsStrip />
 
       {/* ── Thread Ops ── */}
-      <div className="space-y-4 pt-4 border-t border-white/5">
+      <div className="space-y-4 pt-4 border-t border-edge-subtle">
         <ThreadRadar onThreadCreated={() => setThreadRefresh((n) => n + 1)} />
         <ThreadRail refreshSignal={threadRefresh} />
         <ThreadSuggestions

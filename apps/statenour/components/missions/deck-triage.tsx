@@ -34,7 +34,7 @@ function nextWeekIso(): string {
 }
 
 const VERB =
-  "inline-flex min-h-[44px] shrink-0 items-center rounded-md border border-edge px-3 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary transition-colors hover:border-edge-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
+  "inline-flex min-h-[44px] shrink-0 items-center rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg";
 
 export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTask }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -46,10 +46,10 @@ export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTa
   return (
     <section aria-labelledby="triage-heading">
       <div className="flex items-end justify-between gap-3 border-b border-edge pb-3">
-        <h2 id="triage-heading" className="vt-eyebrow text-gold/80">
+        <h2 id="triage-heading" className="vt-eyebrow text-fg-secondary">
           decide
         </h2>
-        <span className="font-mono text-[12px] uppercase tracking-[0.14em] tabular-nums text-fg-tertiary">
+        <span className="font-mono text-[12px] uppercase tracking-[0.12em] tabular-nums text-fg-tertiary">
           {triage.totalCount > triage.rows.length
             ? `showing ${triage.rows.length} of ${triage.totalCount}`
             : `${triage.totalCount} waiting`}
@@ -68,7 +68,7 @@ export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTa
 
               {row.kind === "capture" && (
                 <Link href="/system/inbox" className={VERB}>
-                  open inbox ↗
+                  Open inbox ↗
                 </Link>
               )}
 
@@ -82,10 +82,10 @@ export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTa
               {(row.kind === "unattached" || row.kind === "rescue") && task && (
                 <div className="flex shrink-0 items-center gap-2">
                   <button type="button" onClick={() => onEditTask(task)} className={VERB}>
-                    file it
+                    File it
                   </button>
                   <button type="button" onClick={() => onSnoozeTask(task.id, nextWeekIso())} className={VERB}>
-                    later
+                    Later
                   </button>
                   {confirmDelete === task.id ? (
                     <button
@@ -94,9 +94,9 @@ export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTa
                         onDeleteTask(task.id);
                         setConfirmDelete(null);
                       }}
-                      className="inline-flex min-h-[44px] items-center rounded-md border border-rose-500/50 bg-rose-500/10 px-3 font-mono text-[11px] uppercase tracking-[0.12em] text-rose-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+                      className="inline-flex min-h-[44px] items-center rounded-control border border-rose-500/50 bg-rose-500/10 px-3 text-[13px] font-medium text-rose-300"
                     >
-                      confirm ✕
+                      Confirm ✕
                     </button>
                   ) : (
                     <button
@@ -104,7 +104,7 @@ export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTa
                       onClick={() => setConfirmDelete(task.id)}
                       onBlur={() => setConfirmDelete((v) => (v === task.id ? null : v))}
                       aria-label={`Delete ${task.title}`}
-                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-edge font-mono text-[12px] text-fg-tertiary transition-colors hover:text-rose-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control border border-edge-default font-mono text-[12px] text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-rose-300"
                     >
                       ✕
                     </button>

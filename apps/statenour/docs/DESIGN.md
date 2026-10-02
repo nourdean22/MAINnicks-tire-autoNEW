@@ -2,6 +2,13 @@
 
 **Aesthetic stance:** Dark Industrial Command Center · void black · gold accents · glass depth · information density.
 
+> **2026-10-01 · UI v2 (Precision Material Cockpit).** The current grammar is specified in
+> [`docs/design/ui-v2/`](design/ui-v2/README.md) — `SYSTEM.md` (tokens, type, radius, elevation,
+> motion, the gold-as-signal rule, material only on control chrome), `SURFACES.md` (chat / home /
+> core dispositions) and `PLAN.md` (what shipped, test matrix, before/after receipts). Where this
+> file and that set disagree, `ui-v2/SYSTEM.md` wins; `tests/repo/ui-v2-grammar.test.ts` pins it.
+> The previous grammar is reachable on any deployment via `?ui=v1` (cookie `statenour_ui`).
+
 **Three of these are gate-checked** by `scripts/check-anti-slop.sh`, which runs
 inside `pnpm verify:hard`:
 
@@ -146,9 +153,9 @@ them lives in the same file's `prefers-reduced-motion` block.
 
 ### `<GlassCard />` (`components/ui/glass-card.tsx`) — the canonical card
 
-Every card surface uses GlassCard (`.neural-glass`: layered gradient + backdrop blur + gold hairline). Props: `active` / `critical` / `success` state styling, polymorphic `as="a" | "button"` with correct keyboard/ARIA semantics.
+Every card surface uses GlassCard (`.neural-glass`: a solid `--surface` step with an `--edge-subtle` hairline, in `@layer components` so className utilities win). Props: `active` / `critical` / `success` state styling, polymorphic `as="a" | "button"` with correct keyboard/ARIA semantics.
 
-`components/ui/card.tsx` (shadcn Card) is **@deprecated** — kept only for the structured CardHeader/Content API still used by `components/stats/body-section.tsx` + `calibration-section.tsx`. Never import it in new code. (Those two screens migrate deliberately with visual verification, not by blind restyle — `.neural-glass` hand-CSS padding beats Tailwind slot utilities at equal specificity.)
+`components/ui/card.tsx` (shadcn Card) was deleted in UI v2 PR 4 (2026-10-02); its two stats importers use GlassCard with plain `div` / `h3` / `p` slots.
 
 ### `<DecisionSpread />` (`components/ui/decision-spread.tsx`)
 

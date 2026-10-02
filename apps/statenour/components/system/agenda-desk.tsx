@@ -22,14 +22,14 @@ export function AgendaDesk({ queryResult }: AgendaDeskProps) {
   const { data: items, isLoading } = queryResult;
 
   return (
-    <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02] p-5 flex flex-col gap-4 md:col-span-2 lg:col-span-1 backdrop-blur-md">
-      <div className="flex items-center justify-between border-b border-zinc-800/60 pb-3">
+    <Panel className="border-edge-default p-5 flex flex-col gap-4 md:col-span-2 lg:col-span-1 ">
+              <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
         <div>
-          <span className="text-[10px] font-mono uppercase tracking-wider text-purple-400">A1 · Agenda Desk</span>
-          <h3 className="text-sm font-semibold text-white mt-0.5">Active Commitments & Intentions</h3>
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">A1 · Agenda Desk</span>
+          <h3 className="text-sm font-semibold text-fg mt-0.5">Active Commitments & Intentions</h3>
         </div>
         {items && (
-          <span className="rounded-full bg-zinc-900 border border-zinc-800 px-2 py-0.5 text-[10px] font-mono text-zinc-400">
+          <span className="rounded-full bg-content border border-edge-subtle px-2 py-0.5 text-[11px] font-mono text-fg-secondary">
             {items.length} items
           </span>
         )}
@@ -37,15 +37,15 @@ export function AgendaDesk({ queryResult }: AgendaDeskProps) {
 
       {isLoading ? (
         <div className="space-y-2 py-4">
-          <div className="h-4 bg-zinc-900/50 rounded animate-pulse w-3/4" />
-          <div className="h-4 bg-zinc-900/50 rounded animate-pulse w-1/2" />
+              <div className="h-4 bg-content rounded-micro animate-pulse w-3/4" />
+          <div className="h-4 bg-content rounded-micro animate-pulse w-1/2" />
         </div>
       ) : items ? (
         <div className="flex-1 overflow-auto max-h-[220px] pr-1 space-y-2">
           {items.length === 0 ? (
-            <div className="text-zinc-600 text-xs text-center py-6">No active agenda items.</div>
+            <div className="text-fg-tertiary text-xs text-center py-6">No active agenda items.</div>
           ) : (
-            <div className="divide-y divide-zinc-900/50 space-y-2">
+            <div className="divide-y divide-edge-subtle space-y-2">
               {items.map((item: any) => {
                 const categoryColor =
                   item.category === "WITNESSED_COMMITMENT"
@@ -60,23 +60,23 @@ export function AgendaDesk({ queryResult }: AgendaDeskProps) {
                   <div key={item.id} className="flex gap-2.5 pt-2 first:pt-0">
                     <div className="flex-1 space-y-0.5">
                       <div className="flex items-center justify-between gap-2">
-                        <span className={`text-[9px] font-mono border px-1.5 py-0.25 rounded uppercase tracking-wider ${categoryColor}`}>
+              <span className={`text-[11px] font-mono border px-1.5 py-0.25 rounded-micro ${categoryColor}`}>
                           {item.category.replace("_", " ")}
                         </span>
-                        <span className="text-[10px] text-zinc-500 font-mono">
+                        <span className="text-[11px] text-fg-tertiary font-mono">
                           {timeAgo(item.createdAt)}
                         </span>
                       </div>
-                      <h4 className="text-zinc-100 text-xs font-medium leading-snug mt-1">
+                      <h4 className="text-fg text-xs font-medium leading-snug mt-1">
                         {item.title}
                       </h4>
                       {item.description && (
-                        <p className="text-zinc-400 text-[11px] leading-relaxed">
+                        <p className="text-fg-secondary text-[11px] leading-relaxed">
                           {item.description}
                         </p>
                       )}
                       {item.dueDate && (
-                        <div className="text-[9px] text-zinc-500 font-mono mt-0.5">
+                        <div className="text-[11px] text-fg-tertiary font-mono mt-0.5">
                           Due: {new Date(item.dueDate).toLocaleDateString()}
                         </div>
                       )}
@@ -88,7 +88,7 @@ export function AgendaDesk({ queryResult }: AgendaDeskProps) {
           )}
         </div>
       ) : (
-        <div className="text-zinc-500 text-xs py-4">No agenda items available.</div>
+        <div className="text-fg-tertiary text-xs py-4">No agenda items available.</div>
       )}
     </Panel>
   );

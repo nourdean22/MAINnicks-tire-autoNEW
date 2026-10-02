@@ -76,18 +76,13 @@ export function DecisionSpread({
 }: DecisionSpreadProps) {
   return (
     <article
-      className={`rounded-2xl border border-[var(--border-soft)] bg-[var(--bg-card)] hover:border-[color-mix(in_oklab,var(--gold)_30%,var(--border-soft))] transition-colors overflow-hidden ${className}`}
+      className={`rounded-surface border border-edge-subtle bg-content overflow-hidden ${className}`}
     >
       <style jsx>{`
         .connector {
           position: relative;
           height: 1px;
-          background: linear-gradient(
-            to right,
-            color-mix(in oklab, var(--gold) 50%, transparent),
-            var(--gold) 50%,
-            color-mix(in oklab, var(--gold) 50%, transparent)
-          );
+          background: var(--edge-strong);
         }
         .connector::before,
         .connector::after {
@@ -97,9 +92,8 @@ export function DecisionSpread({
           width: 6px;
           height: 6px;
           border-radius: 9999px;
-          background: var(--gold);
+          background: var(--text-tertiary);
           transform: translateY(-50%);
-          box-shadow: 0 0 10px color-mix(in oklab, var(--gold) 60%, transparent);
         }
         .connector::before {
           left: -3px;
@@ -108,17 +102,17 @@ export function DecisionSpread({
           right: -3px;
         }
         .label {
-          font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", monospace;
-          font-size: 9.5px;
-          letter-spacing: 0.18em;
+          font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+          font-size: 11px;
+          letter-spacing: 0.12em;
           text-transform: uppercase;
           color: var(--text-tertiary);
         }
         .score {
-          font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", monospace;
+          font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
           font-variant-numeric: tabular-nums;
           font-weight: 500;
-          color: var(--gold);
+          color: var(--text-primary);
         }
       `}</style>
 
@@ -156,7 +150,7 @@ export function DecisionSpread({
         {/* RIGHT */}
         <div className="min-w-0 md:text-right">
           <p className="label mb-2">{rightLabel}</p>
-          <h3 className="text-[15px] sm:text-base font-medium text-[var(--gold)] leading-snug mb-2">
+          <h3 className="text-[15px] sm:text-base font-medium text-[var(--text-primary)] leading-snug mb-2">
             {rightTitle}
           </h3>
           {rightBody && (
@@ -168,7 +162,7 @@ export function DecisionSpread({
       </div>
 
       {actions && (
-        <div className="px-4 sm:px-6 py-3 border-t border-[var(--border-soft)] bg-[color-mix(in_oklab,var(--bg-card)_92%,var(--gold)_2%)]">
+        <div className="px-4 sm:px-6 py-3 border-t border-edge-subtle bg-surface-raised">
           {actions}
         </div>
       )}

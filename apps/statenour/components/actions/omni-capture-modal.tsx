@@ -110,7 +110,7 @@ export function OmniCaptureModal({
         type="button"
         onClick={() => setOpen(true)}
         aria-label="omni capture"
-        className="lg:hidden fixed bottom-4 left-4 z-40 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--gold)]/40 bg-[var(--bg-base)]/95 backdrop-blur-sm text-[var(--gold)] shadow-lg shadow-[var(--gold)]/10 active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40 pb-[env(safe-area-inset-bottom,0px)]"
+        className="lg:hidden fixed bottom-4 left-4 z-40 inline-flex h-11 w-11 items-center justify-center ui-material rounded-full border border-edge-default text-fg shadow-l1 active:scale-95 transition-colors duration-[var(--motion-state)] hover:border-edge-strong pb-[env(safe-area-inset-bottom,0px)]"
       >
         <Plus size={18} strokeWidth={2} />
       </button>
@@ -128,15 +128,15 @@ export function OmniCaptureModal({
       <DialogContent
         unstyled
         showCloseButton={false}
-        overlayClassName="z-50 bg-black/60 backdrop-blur-sm"
-        className="fixed left-1/2 top-[20vh] z-[51] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-2xl border border-[var(--gold)]/40 bg-[var(--bg-base)] shadow-2xl shadow-[var(--gold)]/10 outline-none sm:top-[18vh]"
+        overlayClassName="z-50 bg-overlay/70"
+        className="fixed left-1/2 top-[20vh] z-[51] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-overlay border border-edge-default bg-overlay shadow-l2 outline-none sm:top-[18vh]"
       >
         <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-4 py-2.5">
-          <Sparkles size={13} className="text-[var(--gold)]" strokeWidth={1.75} />
-          <DialogTitle className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/80">
-            omni capture
+          <Sparkles size={13} className="text-fg-tertiary" strokeWidth={1.75} />
+          <DialogTitle className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
+            Omni capture
           </DialogTitle>
-          <span className="ml-auto hidden lg:inline text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
+          <span className="ml-auto hidden lg:inline text-[11px] font-mono tabular-nums text-[var(--text-tertiary)]">
             ⌘K · esc to close
           </span>
           <button
@@ -146,7 +146,7 @@ export function OmniCaptureModal({
               setText("");
             }}
             aria-label="close"
-            className="ml-2 inline-flex h-11 w-11 lg:h-8 lg:w-8 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]/[0.15] active:scale-90 transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+            className="ml-2 inline-flex h-11 w-11 lg:h-8 lg:w-8 items-center justify-center rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover active:scale-90 transition-colors duration-[var(--motion-state)]"
           >
             <X size={14} strokeWidth={2} />
           </button>
@@ -166,21 +166,21 @@ export function OmniCaptureModal({
             placeholder={placeholder}
             disabled={submitting}
             // 44pt min for iOS PWA · 16px font for no iOS zoom
-            className="w-full min-h-[44px] rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.1] px-3.5 py-2 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 focus:border-[var(--gold)]/40 focus:bg-[var(--bg-raised)]/[0.2] focus:outline-none transition-colors disabled:opacity-50"
+            className="w-full min-h-[44px] rounded-control border border-edge-default bg-content px-3.5 py-2 text-[16px] text-fg placeholder:text-fg-tertiary focus:border-accent focus:outline-none transition-colors duration-[var(--motion-state)] disabled:opacity-50"
             autoComplete="off"
             spellCheck
             aria-label="task or note"
           />
           <div className="mt-2 flex items-center justify-between gap-3">
-            <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]/70">
+            <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
               {text ? `${text.trim().length} chars · enter to capture` : "type · enter · done"}
             </span>
             <button
               type="submit"
               disabled={!text.trim() || submitting}
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-[var(--gold)]/50 bg-[var(--gold)]/10 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.05em] text-[var(--gold)] hover:bg-[var(--gold)]/15 disabled:opacity-40 disabled:hover:bg-[var(--gold)]/10 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-control bg-accent px-4 py-1.5 text-[14px] font-semibold text-[var(--text-inverse)] hover:bg-accent-hover disabled:opacity-40 disabled:hover:bg-accent transition-colors duration-[var(--motion-state)]"
             >
-              {submitting ? "capturing…" : "capture"}
+              {submitting ? "Capturing…" : "Capture"}
             </button>
           </div>
         </form>

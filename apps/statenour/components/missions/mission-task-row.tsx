@@ -219,13 +219,13 @@ export function MissionTaskRow({
         // 2026-09-16 · Visible Transformation: a ruled row (the list divides
         // rows with hairlines); state is a left rule, never a box.
         "group flex flex-wrap items-start gap-2 py-2.5 pl-2 pr-2.5 sm:pr-3 border-l-2 border-l-transparent transition-colors scroll-mt-24",
-        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gold/50 data-[entity-focused=true]:border-l-gold/60 data-[entity-selected=true]:bg-gold/[0.05]",
+        "data-[entity-focused=true]:border-l-accent/60 data-[entity-selected=true]:bg-accent-soft",
         isDoing
           ? "border-l-amber-400 bg-amber-500/[0.03] animate-breath"
           : "hover:bg-raised/40",
         isDone && "opacity-50",
         indent === 1 && "ml-6 pl-3",
-        isDraggedOver && "border-l-gold/60 bg-gold/[0.03]"
+        isDraggedOver && "border-l-accent/60 bg-accent-soft"
       )}
     >
       {/* Drag handle */}
@@ -233,7 +233,7 @@ export function MissionTaskRow({
         <div
           onMouseDown={() => setIsDraggable(true)}
           onMouseUp={() => setIsDraggable(false)}
-          className="p-1 cursor-grab active:cursor-grabbing text-zinc-500 hover:text-[var(--gold)] transition-colors shrink-0 flex items-center h-10 self-center"
+          className="p-1 cursor-grab active:cursor-grabbing text-fg-tertiary hover:text-fg transition-colors duration-[var(--motion-state)] shrink-0 flex items-center h-10 self-center"
           aria-label="Drag to reorder task"
         >
           <GripVertical size={12} />
@@ -265,14 +265,13 @@ export function MissionTaskRow({
           "shrink-0 inline-flex items-center justify-center min-h-[44px] min-w-[44px] -m-2 p-2 rounded-full transition-colors active:scale-95 relative",
           "[&>span]:h-5 [&>span]:w-5 [&>span]:rounded-full [&>span]:border",
           isDone
-            ? "[&>span]:bg-[var(--gold)]/30 [&>span]:border-[var(--gold)]/60 text-[var(--bg-void)]"
+            ? "[&>span]:bg-emerald-400/80 [&>span]:border-emerald-400 text-[var(--text-inverse)]"
             : isDoing
               ? "[&>span]:border-amber-400/70 hover:[&>span]:border-amber-300"
-              : "[&>span]:border-[var(--border-default)] hover:[&>span]:border-[var(--gold)]/60",
-          busy === "complete" && "[&>span]:animate-pulse",
+              : "[&>span]:border-edge-default hover:[&>span]:border-edge-strong",
         )}
       >
-        <span className="flex items-center justify-center">
+        <span className={cn("flex items-center justify-center", busy === "complete" && "pulse-live")}>
           {isDone && <Check size={12} strokeWidth={3} />}
         </span>
 
@@ -303,7 +302,7 @@ export function MissionTaskRow({
               return (
                 <div
                   key={i}
-                  className="absolute w-1 h-1 bg-[var(--gold)] rounded-sm"
+                  className="absolute w-1 h-1 bg-emerald-300 rounded-micro"
                   style={{
                     "--x": `${x}px`,
                     "--y": `${y}px`,
@@ -333,7 +332,7 @@ export function MissionTaskRow({
           *  frame is "both" — the case where one fact alone misleads; a one-off
           *  DONE already says everything with a line-through. */}
         {showsCompletionFrame && (
-          <p className="mt-0.5 font-mono text-[11px] tracking-[0.06em] text-gold">
+          <p className="mt-0.5 font-mono text-[11px] tracking-[0.06em] text-fg-secondary">
             {completionDisplay.label}
           </p>
         )}
@@ -348,16 +347,16 @@ export function MissionTaskRow({
           <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             {isDoing && <span className="text-amber-400">doing</span>}
             {isNicksPick && (
-              <span className="text-[var(--gold)]/80 px-1 py-0.5 rounded border border-[var(--gold)]/20 bg-[var(--gold)]/[0.04]">
+              <span className="text-fg-secondary px-1 py-0.5 rounded-micro border border-edge-default bg-surface-raised">
                 ✨ NICK'S PICK *(hypothesis)*
               </span>
             )}
-            {isComplex && <span className="text-[var(--gold)]/80">✨ complex</span>}
+            {isComplex && <span className="text-fg-secondary">✨ complex</span>}
             {task.waitingOn && (
               <span className="text-amber-200/80">⏸ {task.waitingOn}</span>
             )}
             {isDaily && (
-              <span className="inline-flex items-center gap-1.5 text-[var(--gold)]">
+              <span className="inline-flex items-center gap-1.5 text-fg-secondary">
                 <span>↻ daily</span>
                 <StreakBadge streak={(task as unknown as { streakCount?: number }).streakCount} />
               </span>
@@ -381,10 +380,10 @@ export function MissionTaskRow({
                   aria-expanded={snoozeOpen}
                   disabled={busy === "snooze"}
                   className={cn(
-                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-md border transition-colors min-h-[28px]",
+                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-micro border transition-colors duration-[var(--motion-state)] min-h-[28px]",
                     isSnoozed
                       ? "border-violet-500/30 bg-violet-500/[0.08] text-violet-200"
-                      : "border-[var(--border-default)]/60 bg-[var(--bg-raised)]/[0.04] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/30",
+                      : "border-edge-default bg-content text-fg-tertiary hover:text-fg hover:border-edge-strong",
                   )}
                 >
                   <Clock size={9} strokeWidth={2} />
@@ -396,7 +395,7 @@ export function MissionTaskRow({
                   <span
                     role="menu"
                     aria-label="snooze options"
-                    className="absolute z-30 top-[110%] left-0 w-44 rounded-md border border-[var(--border-default)] bg-[var(--bg-raised)] shadow-lg overflow-hidden"
+                    className="absolute z-30 top-[110%] left-0 w-44 rounded-float border border-edge-default bg-surface-raised shadow-l1 overflow-hidden"
                   >
                     <button
                       type="button"
@@ -410,7 +409,7 @@ export function MissionTaskRow({
                           setBusy(null);
                         }
                       }}
-                      className="block w-full text-left px-3 py-2 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--text-secondary)] hover:bg-[var(--gold)]/[0.06] hover:text-[var(--gold)]"
+                      className="block w-full min-h-[44px] text-left px-3 py-2 text-[13px] font-medium text-fg-secondary hover:bg-surface-hover hover:text-fg"
                     >
                       ↪ tomorrow · 6am
                     </button>
@@ -426,7 +425,7 @@ export function MissionTaskRow({
                           setBusy(null);
                         }
                       }}
-                      className="block w-full text-left px-3 py-2 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--text-secondary)] hover:bg-[var(--gold)]/[0.06] hover:text-[var(--gold)] border-t border-[var(--border-default)]/40"
+                      className="block w-full min-h-[44px] text-left px-3 py-2 text-[13px] font-medium text-fg-secondary hover:bg-surface-hover hover:text-fg border-t border-edge-subtle"
                     >
                       ↪ next mon · 6am
                     </button>
@@ -445,7 +444,7 @@ export function MissionTaskRow({
                             setBusy(null);
                           }
                         }}
-                        className="block w-full text-left px-3 py-2 text-[11px] font-mono uppercase tracking-[0.15em] text-rose-300 hover:bg-rose-500/[0.06] border-t border-[var(--border-default)]/40"
+                        className="block w-full min-h-[44px] text-left px-3 py-2 text-[13px] font-medium text-rose-300 hover:bg-rose-500/[0.06] border-t border-edge-subtle"
                       >
                         × clear snooze
                       </button>
@@ -488,7 +487,7 @@ export function MissionTaskRow({
             type="button"
             onClick={() => openInspector({ kind: "task", id: task.id })}
             aria-label="inspect task"
-            className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/10 active:scale-95 transition-transform"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover active:scale-95 transition-transform"
           >
             <Eye size={12} strokeWidth={2} />
           </button>
@@ -496,7 +495,7 @@ export function MissionTaskRow({
             type="button"
             onClick={() => actions.handleEditTask(task)}
             aria-label="edit task"
-            className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/10 active:scale-95 transition-transform"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover active:scale-95 transition-transform"
           >
             <Pencil size={12} strokeWidth={2} />
           </button>
@@ -514,7 +513,7 @@ export function MissionTaskRow({
               disabled={busy !== null}
               aria-label="decompose task"
               title="Decompose task into subtasks"
-              className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/10 active:scale-95 transition-transform disabled:opacity-50"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover active:scale-95 transition-transform disabled:opacity-50"
             >
               <Sparkles size={12} strokeWidth={2} />
             </button>
@@ -532,7 +531,7 @@ export function MissionTaskRow({
               }}
               disabled={busy === "start"}
               aria-label="start"
-              className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-amber-400 hover:bg-amber-500/10 active:scale-95 transition-transform disabled:opacity-50"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary hover:text-amber-400 hover:bg-amber-500/10 active:scale-95 transition-transform disabled:opacity-50"
             >
               <Play size={12} strokeWidth={2} />
             </button>
@@ -551,7 +550,7 @@ export function MissionTaskRow({
               disabled={busy !== null}
               aria-label="hand to Nick"
               title="Hand to Nick — he drafts, you review"
-              className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-amber-300 hover:bg-amber-500/10 active:scale-95 transition-transform disabled:opacity-50"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary hover:text-amber-300 hover:bg-amber-500/10 active:scale-95 transition-transform disabled:opacity-50"
             >
               <Bot size={12} strokeWidth={2} />
             </button>
@@ -568,7 +567,7 @@ export function MissionTaskRow({
             }}
             disabled={busy === "delete"}
             aria-label="delete"
-            className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-rose-400 hover:bg-rose-500/10 active:scale-95 transition-transform disabled:opacity-50"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary hover:text-rose-400 hover:bg-rose-500/10 active:scale-95 transition-transform disabled:opacity-50"
           >
             <Trash2 size={12} strokeWidth={2} />
           </button>
@@ -581,7 +580,7 @@ export function MissionTaskRow({
            *  lit up on hover — invisible on touch. Matches the
            *  MissionCard mission-reorder polish from this wave. */}
           {(canMoveUp || canMoveDown) && (
-            <span className="inline-flex rounded-md border border-[var(--border-default)]/60 bg-[var(--bg-raised)]/[0.06] overflow-hidden">
+            <span className="inline-flex rounded-control border border-edge-default bg-content overflow-hidden">
               <button
                 type="button"
                 onClick={async () => {
@@ -600,15 +599,15 @@ export function MissionTaskRow({
                 className={cn(
                   "inline-flex h-11 w-11 items-center justify-center transition-transform active:scale-95",
                   canMoveUp
-                    ? "text-[var(--text-secondary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.08]"
-                    : "text-[var(--text-tertiary)]/30 cursor-not-allowed",
+                    ? "text-fg-secondary hover:text-fg hover:bg-surface-hover"
+                    : "text-fg-tertiary/30 cursor-not-allowed",
                 )}
               >
                 <ArrowUp size={12} strokeWidth={2} />
               </button>
               <span
                 aria-hidden
-                className="w-px bg-[var(--border-default)]/60"
+                className="w-px bg-edge-default"
               />
               <button
                 type="button"
@@ -628,8 +627,8 @@ export function MissionTaskRow({
                 className={cn(
                   "inline-flex h-11 w-11 items-center justify-center transition-transform active:scale-95",
                   canMoveDown
-                    ? "text-[var(--text-secondary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.08]"
-                    : "text-[var(--text-tertiary)]/30 cursor-not-allowed",
+                    ? "text-fg-secondary hover:text-fg hover:bg-surface-hover"
+                    : "text-fg-tertiary/30 cursor-not-allowed",
                 )}
               >
                 <ArrowDown size={12} strokeWidth={2} />

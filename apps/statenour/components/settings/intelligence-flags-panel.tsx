@@ -32,7 +32,7 @@ export function IntelligenceFlagsPanel() {
   const [applyNotice, setApplyNotice] = useState<string | null>(null);
 
   // Flags change on operator action, not by themselves — 10s polling was
-  // a 37-flag payload every tick for nothing. 60s + focus refetch.
+  // the whole registry's payload every tick for nothing. 60s + focus refetch.
   const { data, isLoading, refetch } = trpc.operator.featureFlags.useQuery(undefined, {
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
@@ -92,14 +92,14 @@ export function IntelligenceFlagsPanel() {
   return (
     <GlassCard className="space-y-4">
       {/* Panel Header */}
-      <div className="flex items-center justify-between border-b border-[var(--border-default)]/40 pb-3">
+      <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
         <div className="flex items-center gap-2">
-          <Brain size={14} className="text-[var(--gold)]" />
-          <span className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-[var(--gold)]">
-            Cognitive & Autonomy Substrates
+          <Brain size={14} className="text-fg-tertiary" />
+          <span className="text-[15px] font-semibold text-fg">
+            Cognitive & autonomy substrates
           </span>
         </div>
-        <span className="text-[9px] text-[var(--text-tertiary)] uppercase tracking-wider font-mono">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           {flags.filter(f => f.isOn).length} Active / {flags.length} Total
         </span>
       </div>
@@ -112,7 +112,7 @@ export function IntelligenceFlagsPanel() {
       </p>
 
       {applyNotice && (
-        <p role="alert" className="rounded-md border border-amber-400/30 bg-amber-400/[0.06] px-3 py-2 text-[10.5px] text-amber-200/90">
+        <p role="alert" className="rounded-control border border-amber-400/30 bg-amber-400/[0.06] px-3 py-2 text-[12px] text-amber-200/90">
           {applyNotice}
         </p>
       )}
@@ -128,11 +128,11 @@ export function IntelligenceFlagsPanel() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search flags (e.g. autonomy, recall)..."
-            className="w-full h-8 pl-8 pr-3 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--gold)]/40 outline-none"
+            className="w-full h-8 pl-8 pr-3 rounded-control border border-edge-default bg-content text-[13px] text-fg placeholder:text-fg-tertiary focus:border-accent outline-none"
           />
         </div>
         {/* Status Filter */}
-        <div className="flex items-center gap-0.5 rounded-md border border-[var(--border-default)] p-0.5 bg-[var(--bg-elevated)] self-start sm:self-auto">
+        <div className="flex items-center gap-0.5 rounded-control border border-edge-default p-0.5 bg-surface-raised self-start sm:self-auto">
           {["all", "stable", "canary", "experimental"].map((s) => (
             <button
               key={s}
@@ -142,10 +142,10 @@ export function IntelligenceFlagsPanel() {
                 setStatusFilter(s);
               }}
               className={cn(
-                "px-2 h-6 text-[9px] font-bold uppercase tracking-wider rounded transition-colors",
+                "px-2 h-6 text-[11px] font-medium rounded-micro transition-colors duration-[var(--motion-state)]",
                 statusFilter === s
-                  ? "bg-[var(--gold)]/20 text-[var(--gold)]"
-                  : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+                  ? "bg-accent-soft text-fg"
+                  : "text-fg-tertiary hover:text-fg-secondary"
               )}
             >
               {s}
@@ -165,7 +165,7 @@ export function IntelligenceFlagsPanel() {
             return (
               <div 
                 key={flag.key}
-                className="flex flex-col md:flex-row md:items-center justify-between p-3 rounded-lg border border-[var(--border-default)]/30 bg-[var(--bg-elevated)]/20 gap-3 hover:bg-[var(--bg-elevated)]/40 transition-colors"
+                className="flex flex-col md:flex-row md:items-center justify-between p-3 rounded-control border border-edge-subtle bg-surface-interactive gap-3 hover:bg-surface-hover transition-colors duration-[var(--motion-state)]"
               >
                 {/* Left Side: Meta & Info */}
                 <div className="flex-1 space-y-1">
@@ -174,7 +174,7 @@ export function IntelligenceFlagsPanel() {
                     <span 
                       className={cn(
                         "h-1.5 w-1.5 rounded-full shrink-0",
-                        flag.isOn ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)] animate-pulse" : "bg-zinc-600"
+                        flag.isOn ? "bg-emerald-400" : "bg-edge-strong"
                       )}
                     />
                     {/* Name */}
@@ -184,7 +184,7 @@ export function IntelligenceFlagsPanel() {
                     {/* Lifecycle Badge */}
                     <span 
                       className={cn(
-                        "px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider",
+                        "px-1.5 py-0.5 rounded-micro font-mono text-[11px] font-medium uppercase tracking-[0.12em]",
                         flag.status === "stable" ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" :
                         flag.status === "canary" ? "bg-blue-500/10 border border-blue-500/20 text-blue-400" :
                         flag.status === "experimental" ? "bg-amber-500/10 border border-amber-500/20 text-amber-400" :
@@ -195,22 +195,22 @@ export function IntelligenceFlagsPanel() {
                     </span>
                     {/* High Risk warning badge */}
                     {isHighRisk && (
-                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold bg-red-500/15 border border-red-500/25 text-red-400 uppercase tracking-wider">
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-micro font-mono text-[11px] font-medium bg-red-500/15 border border-red-500/25 text-red-400 uppercase tracking-[0.12em]">
                         <AlertTriangle size={8} /> High Risk
                       </span>
                     )}
                   </div>
                   {/* Description */}
-                  <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed">
+                  <p className="text-[12px] text-fg-secondary leading-relaxed">
                     {flag.description}
                   </p>
                   {/* Default env behavior info */}
-                  <div className="flex items-start gap-1 text-[9px] text-[var(--text-tertiary)] bg-[var(--bg-elevated)]/30 p-1.5 rounded border border-[var(--border-default)]/20">
+                  <div className="flex items-start gap-1 text-[11px] text-fg-tertiary bg-surface-raised p-1.5 rounded-control border border-edge-subtle">
                     <Info size={9} className="mt-0.5 shrink-0" />
                     <span><strong>Default behaviour:</strong> {flag.defaultBehavior}</span>
                   </div>
                   {isReadOnly && (
-                    <p className="text-[9px] font-mono uppercase tracking-wider text-amber-300/80">
+                    <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300/80">
                       Environment-controlled · read-only here
                     </p>
                   )}
@@ -219,22 +219,22 @@ export function IntelligenceFlagsPanel() {
                 {/* Right Side: Override Controls */}
                 <div className="shrink-0 flex items-center gap-2 self-end md:self-center">
                   {isReadOnly ? (
-                    <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+                    <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                       ENV ONLY
                     </span>
                   ) : (
                   <>
                   {/* If override is ENV, value is null. If ON, value is true. If OFF, value is false */}
-                  <div className="flex items-center gap-0.5 rounded-md border border-[var(--border-default)] p-0.5 bg-[var(--bg-elevated)]">
+                  <div className="flex items-center gap-0.5 rounded-control border border-edge-default p-0.5 bg-surface-raised">
                     {/* DEFAULT button */}
                     <button
                       onClick={() => handleOverride(flag.key, null)}
                       aria-pressed={overrideState === "ENV"}
                       className={cn(
-                        "px-2 h-6 text-[8px] font-bold uppercase tracking-wider rounded transition-colors",
+                        "px-2 h-6 text-[11px] font-medium rounded-micro transition-colors duration-[var(--motion-state)]",
                         overrideState === "ENV"
-                          ? "bg-[var(--gold)]/20 text-[var(--gold)]"
-                          : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+                          ? "bg-accent-soft text-fg"
+                          : "text-fg-tertiary hover:text-fg-secondary"
                       )}
                     >
                       Default
@@ -245,10 +245,10 @@ export function IntelligenceFlagsPanel() {
                       onClick={() => handleOverride(flag.key, "false")}
                       aria-pressed={overrideState === "OFF"}
                       className={cn(
-                        "px-2 h-6 text-[8px] font-bold uppercase tracking-wider rounded transition-colors",
+                        "px-2 h-6 text-[11px] font-medium rounded-micro transition-colors duration-[var(--motion-state)]",
                         overrideState === "OFF"
                           ? "bg-red-500/20 text-red-400"
-                          : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+                          : "text-fg-tertiary hover:text-fg-secondary"
                       )}
                     >
                       Force OFF
@@ -260,10 +260,10 @@ export function IntelligenceFlagsPanel() {
                         onClick={() => handleOverride(flag.key, "true")}
                         aria-pressed={overrideState === "ON"}
                         className={cn(
-                          "px-2 h-6 text-[8px] font-bold uppercase tracking-wider rounded transition-colors",
+                          "px-2 h-6 text-[11px] font-medium rounded-micro transition-colors duration-[var(--motion-state)]",
                           overrideState === "ON"
                             ? "bg-emerald-500/20 text-emerald-400"
-                            : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+                            : "text-fg-tertiary hover:text-fg-secondary"
                         )}
                       >
                         Force ON
@@ -275,7 +275,7 @@ export function IntelligenceFlagsPanel() {
                   {isHighRisk && (
                     <div className="flex items-center">
                       {overrideState === "ON" ? (
-                        <span className="text-[9px] font-bold uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-md">
+                        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-control">
                           FORCED ON
                         </span>
                       ) : (

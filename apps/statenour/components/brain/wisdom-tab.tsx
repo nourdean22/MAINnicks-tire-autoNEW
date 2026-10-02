@@ -444,7 +444,7 @@ export function WisdomTab() {
           ].map((k) => (
             <div
               key={k.label}
-              className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)]"
+              className="rounded-surface border border-[var(--border-default)] bg-[var(--bg-raised)]"
             >
               <p className="text-eyebrow">{k.label}</p>
               <p className="stat-number text-2xl text-[var(--text-primary)] mt-1">{k.value}</p>
@@ -454,13 +454,13 @@ export function WisdomTab() {
 
         {/* ── Wisdom of the moment ────────────────────────────── */}
         {moment && (
-          <section className="rounded-lg border border-[var(--gold)]/25 bg-gradient-to-br from-[var(--gold-ghost)] to-transparent p-6 md:p-8">
+          <section className="rounded-surface border border-edge-subtle p-6 md:p-8">
             <p className="text-eyebrow">Wisdom of the moment</p>
             <p className="text-display-serif text-2xl md:text-3xl text-[var(--text-primary)] mt-3 leading-tight">
               {moment.content}
             </p>
             <p className="text-[11px] font-mono text-[var(--text-tertiary)] mt-4 flex items-center gap-2 flex-wrap">
-              <span className="text-[var(--gold)]/80 uppercase tracking-wider">
+              <span className="text-fg-secondary">
                 {wisdomOriginMeta(moment.origin).label}
               </span>
               <span>·</span>
@@ -474,14 +474,14 @@ export function WisdomTab() {
         )}
 
         {/* ── Filter + search ──────────────────────────────── */}
-        <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] p-4">
+        <section className="rounded-surface border border-[var(--border-default)] bg-[var(--bg-raised)] p-4">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-eyebrow shrink-0">Filter origin:</p>
             <button
               onClick={() => setFilter("all")}
-              className={`min-h-[44px] sm:min-h-0 px-3 py-2 sm:px-2 sm:py-0.5 rounded text-[11px] font-mono uppercase tracking-wider transition-colors ${
+              className={`min-h-[44px] sm:min-h-0 px-3 py-2 sm:px-2 sm:py-0.5 rounded-control text-[13px] font-medium transition-colors duration-[var(--motion-state)] ${
                 filter === "all"
-                  ? "bg-[var(--gold)]/20 text-[var(--gold)] border border-[var(--gold)]/30"
+                  ? "bg-surface-interactive text-fg border border-accent"
                   : "border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
               }`}
             >
@@ -489,7 +489,7 @@ export function WisdomTab() {
                   filter, and what that yields is the loaded page. The
                   origin chips beside it sum to exactly this number
                   (`groupings.origin` is counted over `entries`). */}
-              all ({loaded})
+              All ({loaded})
             </button>
             {Object.entries(data.groupings.origin)
               .sort((a, b) => b[1] - a[1])
@@ -497,9 +497,9 @@ export function WisdomTab() {
                 <button
                   key={origin}
                   onClick={() => setFilter(origin)}
-                  className={`min-h-[44px] sm:min-h-0 px-3 py-2 sm:px-2 sm:py-0.5 rounded text-[11px] font-mono uppercase tracking-wider transition-colors ${
+                  className={`min-h-[44px] sm:min-h-0 px-3 py-2 sm:px-2 sm:py-0.5 rounded-control text-[13px] font-medium transition-colors duration-[var(--motion-state)] ${
                     filter === origin
-                      ? "bg-[var(--gold)]/20 text-[var(--gold)] border border-[var(--gold)]/30"
+                      ? "bg-surface-interactive text-fg border border-accent"
                       : "border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
                   }`}
                 >
@@ -515,13 +515,13 @@ export function WisdomTab() {
             <p className="text-eyebrow shrink-0">Topic:</p>
             <button
               onClick={() => setTopicFilter("all")}
-              className={`min-h-[44px] sm:min-h-0 px-3 py-2 sm:px-2 sm:py-0.5 rounded text-[11px] font-mono uppercase tracking-wider transition-colors ${
+              className={`min-h-[44px] sm:min-h-0 px-3 py-2 sm:px-2 sm:py-0.5 rounded-control text-[13px] font-medium transition-colors duration-[var(--motion-state)] ${
                 topicFilter === "all"
                   ? "bg-violet-500/20 text-violet-300 border border-violet-500/30"
                   : "border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
               }`}
             >
-              all ({topicCounts.all})
+              All ({topicCounts.all})
             </button>
             {(["money", "people", "strategy", "execution", "ops", "brand", "self", "body", "time", "power"] as const).map((t) => {
               const count = topicCounts[t];
@@ -530,7 +530,7 @@ export function WisdomTab() {
                 <button
                   key={t}
                   onClick={() => setTopicFilter(t)}
-                  className={`min-h-[44px] sm:min-h-0 px-3 py-2 sm:px-2 sm:py-0.5 rounded text-[11px] font-mono uppercase tracking-wider transition-colors ${
+                  className={`min-h-[44px] sm:min-h-0 px-3 py-2 sm:px-2 sm:py-0.5 rounded-control text-[13px] font-medium transition-colors duration-[var(--motion-state)] ${
                     topicFilter === t
                       ? "bg-violet-500/20 text-violet-300 border border-violet-500/30"
                       : "border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
@@ -550,7 +550,7 @@ export function WisdomTab() {
               aria-label="Search wisdom"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 min-w-0 bg-[var(--bg-base)] border border-[var(--border-default)] rounded px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-[var(--gold)]/40"
+              className="flex-1 min-w-0 bg-[var(--bg-base)] border border-[var(--border-default)] rounded-control px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-accent"
             />
             <SortDropdown<WisdomSort>
               value={sortKey}
@@ -632,9 +632,9 @@ export function WisdomTab() {
                     <article
                       key={entry.id}
                       id={`wisdom-${entry.key}`}
-                      className={`rounded-lg border bg-[var(--bg-raised)] p-5 group/card relative ${
+                      className={`rounded-surface border bg-[var(--bg-raised)] p-5 group/card relative ${
                         focusKey === entry.key
-                          ? "border-[var(--gold)] shadow-[0_0_20px_rgba(253,185,19,0.25)]"
+                          ? "border-accent"
                           : "border-[var(--border-default)]"
                       }`}
                     >
@@ -643,13 +643,13 @@ export function WisdomTab() {
                           <textarea
                             value={editDraft}
                             onChange={(e) => setEditDraft(e.target.value)}
-                            className="w-full min-h-[7em] bg-[var(--bg-base)] border border-[var(--gold)]/30 rounded px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--gold)] font-mono"
+                            className="w-full min-h-[7em] bg-[var(--bg-base)] border border-edge-subtle rounded-control px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-accent font-mono"
                             autoFocus
                           />
                           <div className="mt-2 flex items-center gap-2">
                             <button
                               onClick={() => void saveEdit(entry.id)}
-                              className="px-3 py-1 rounded text-[11px] font-mono uppercase tracking-wider bg-[var(--gold)]/20 text-[var(--gold)] border border-[var(--gold)]/30 hover:bg-[var(--gold)]/30 flex items-center gap-1"
+                              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
                             >
                               <Check size={12} /> Save
                             </button>
@@ -658,11 +658,11 @@ export function WisdomTab() {
                                 setEditingId(null);
                                 setEditDraft("");
                               }}
-                              className="px-3 py-1 rounded text-[11px] font-mono uppercase tracking-wider border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] flex items-center gap-1"
+                              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
                             >
                               <X size={12} /> Cancel
                             </button>
-                            <span className="ml-auto text-[10px] font-mono text-[var(--text-tertiary)]">
+                            <span className="ml-auto text-[11px] font-mono text-[var(--text-tertiary)]">
                               {editDraft.length} chars · min 30
                             </span>
                           </div>
@@ -672,7 +672,7 @@ export function WisdomTab() {
                           <p className="text-[var(--text-primary)] text-sm leading-relaxed" style={{ maxWidth: "70ch" }}>
                             {entry.content}
                           </p>
-                          <p className="mt-3 text-[10px] font-mono text-[var(--text-tertiary)] uppercase tracking-wider flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <p className="mt-3 text-[11px] font-mono text-fg-tertiary flex flex-wrap items-center gap-x-3 gap-y-1">
                             <span className={tone(entry.hotness)}>
                               {entry.seenCount === 0 ? "cold · seed only" : `fired ${entry.seenCount.toLocaleString()}×`}
                             </span>
@@ -704,7 +704,7 @@ export function WisdomTab() {
                                 setEditingId(entry.id);
                                 setEditDraft(entry.content);
                               }}
-                              className="w-11 h-11 md:w-7 md:h-7 rounded flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--bg-elevated)] active:scale-90 transition-transform"
+                              className="w-11 h-11 md:w-7 md:h-7 rounded-control flex items-center justify-center text-[var(--text-tertiary)] hover:text-fg hover:bg-[var(--bg-elevated)] active:scale-90 transition-transform"
                               title="Edit wisdom"
                               aria-label="Edit wisdom"
                             >
@@ -712,7 +712,7 @@ export function WisdomTab() {
                             </button>
                             <button
                               onClick={() => void deprecateWisdom(entry.id)}
-                              className="w-11 h-11 md:w-7 md:h-7 rounded flex items-center justify-center text-[var(--text-tertiary)] hover:text-rose-400 hover:bg-rose-500/10 active:scale-90 transition-transform"
+                              className="w-11 h-11 md:w-7 md:h-7 rounded-control flex items-center justify-center text-[var(--text-tertiary)] hover:text-rose-400 hover:bg-rose-500/10 active:scale-90 transition-transform"
                               title="Deprecate (soft-delete) · can be restored"
                               aria-label="Deprecate wisdom"
                             >

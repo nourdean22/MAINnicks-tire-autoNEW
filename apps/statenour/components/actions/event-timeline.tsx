@@ -31,14 +31,14 @@ interface EventTimelineProps {
 }
 
 const KIND_COLOR: Record<string, string> = {
-  created: "bg-zinc-500",
+  created: "bg-fg-tertiary",
   started: "bg-blue-400",
   completed: "bg-emerald-400",
   abandoned: "bg-rose-400",
   reframed: "bg-amber-400",
   priority_changed: "bg-violet-400",
   linked: "bg-sky-400",
-  unlinked: "bg-zinc-500",
+  unlinked: "bg-fg-tertiary",
   nudged: "bg-amber-300",
   snoozed: "bg-amber-500",
   stale_flagged: "bg-amber-500",
@@ -80,7 +80,7 @@ export function EventTimeline({ taskId }: EventTimelineProps) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 text-[9px] text-zinc-600">
+      <div className="flex items-center gap-2 text-[11px] text-fg-tertiary">
         <Loader2 size={9} className="animate-spin" />
         <span>loading history…</span>
       </div>
@@ -89,7 +89,7 @@ export function EventTimeline({ taskId }: EventTimelineProps) {
 
   if (events.length === 0) {
     return (
-      <p className="text-[9px] text-zinc-700 italic">
+      <p className="text-[11px] text-fg-tertiary italic">
         No events yet. Future state changes will appear here.
       </p>
     );
@@ -97,29 +97,29 @@ export function EventTimeline({ taskId }: EventTimelineProps) {
 
   return (
     <div className="space-y-1">
-      <div className="text-[8px] uppercase tracking-wider text-zinc-700 font-mono">
+      <div className="text-[11px] uppercase tracking-[0.12em] text-fg-tertiary font-mono">
         timeline · {events.length}
       </div>
       <ul className="space-y-0.5">
         {events.slice(0, 8).map((e) => {
-          const dot = KIND_COLOR[e.kind] || "bg-zinc-500";
+          const dot = KIND_COLOR[e.kind] || "bg-fg-tertiary";
           const label = KIND_LABEL[e.kind] || e.kind;
           return (
             <li
               key={e.id}
-              className="flex items-center gap-1.5 text-[9px]"
+              className="flex items-center gap-1.5 text-[11px]"
               title={e.source ? `${e.kind} · source: ${e.source}` : e.kind}
             >
               <span className={cn("h-1 w-1 rounded-full shrink-0", dot)} />
-              <span className="text-zinc-500">{label}</span>
-              <span className="text-zinc-700 font-mono ml-auto">
+              <span className="text-fg-tertiary">{label}</span>
+              <span className="text-fg-tertiary font-mono ml-auto">
                 {formatRelative(e.createdAt)} ago
               </span>
             </li>
           );
         })}
         {events.length > 8 && (
-          <li className="text-[8px] text-zinc-700 font-mono italic">
+          <li className="text-[11px] text-fg-tertiary font-mono italic">
             + {events.length - 8} earlier
           </li>
         )}

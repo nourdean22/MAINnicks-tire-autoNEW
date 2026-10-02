@@ -6,6 +6,7 @@
  */
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -43,7 +44,7 @@ const SOURCE_META: Record<Nudge["source"], { label: string; tint: string }> = {
   contradiction: { label: "contradiction", tint: "text-amber-300" },
   ghost: { label: "ghost", tint: "text-violet-400" },
   skill: { label: "skill", tint: "text-emerald-300" },
-  pin_hygiene: { label: "pins", tint: "text-[var(--gold)]" },
+  pin_hygiene: { label: "pins", tint: "text-fg-secondary" },
   belief_refresh: { label: "belief", tint: "text-sky-300" },
   correlation: { label: "correlation", tint: "text-fuchsia-300" },
   decision_drift: { label: "decision drift", tint: "text-rose-300" },
@@ -61,6 +62,10 @@ export function NudgePanel() {
   const utils = trpc.useUtils();
   const nudgesQuery = trpc.brain.nudges.useQuery(undefined);
   const dismissMutation = trpc.brain.dismissNudge.useMutation();
+  // 2026-10-02 · following a nudge's link is accepting it (the dismiss side has
+  // written `dismissed` since 2026-08-16; this lane was dismiss-only). Fire-
+  // and-forget beside the navigation.
+  const acceptMutation = trpc.brain.acceptNudge.useMutation();
   // WAS A FALSE ALL-CLEAR. This previously read `isError ? [] : (...)`, so a
   // FAILED query fell into the same branch as a genuinely empty one and the
   // panel rendered a green "In rhythm · all subsystems stable" across nine
@@ -138,7 +143,7 @@ export function NudgePanel() {
           <p className="section-label">Live nudges</p>
           <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void nudgesQuery.refetch()} />
         </div>
-        <span className="text-[9px] font-mono text-[var(--text-tertiary)]">
+        <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
           <AnimatedCounter value={nudges.filter((n) => n.severity === "high").length} /> high ·{" "}
           <AnimatedCounter value={nudges.filter((n) => n.severity === "medium").length} /> med ·{" "}
           <AnimatedCounter value={nudges.filter((n) => n.severity === "low").length} /> low
@@ -149,7 +154,7 @@ export function NudgePanel() {
           const inner = (
             <div
               className={cn(
-                "group flex items-start gap-2 px-2 py-1.5 rounded border transition-colors",
+                "group flex items-start gap-2 px-2 py-1.5 rounded-micro border transition-colors",
                 n.severity === "high" ? "border-red-500/30 bg-red-500/5"
                   : n.severity === "medium" ? "border-amber-500/30 bg-amber-500/5"
                   : "border-[var(--border-default)] bg-[var(--bg-base)]",
@@ -158,7 +163,7 @@ export function NudgePanel() {
               <span className="mt-0.5">{SEVERITY_GLYPH[n.severity]}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] text-[var(--text-primary)]">{n.text}</p>
-                <p className={cn("text-[9px] font-mono uppercase tracking-wider mt-0.5", SOURCE_META[n.source]?.tint ?? "text-[var(--text-tertiary)]")}>
+                <p className={cn("text-[11px] font-mono mt-0.5", SOURCE_META[n.source]?.tint ?? "text-fg-tertiary")}>
                   {SOURCE_META[n.source]?.label ?? n.source}
                 </p>
               </div>
@@ -190,9 +195,17 @@ export function NudgePanel() {
             </div>
           );
           return n.link ? (
-            <a key={`${n.source}-${i}`} href={n.link} className="block hover:brightness-110">
+            // next/link, not <a>: every nudge link is an in-app path, and a full
+            // document navigation would abort the fire-and-forget accept below.
+            <Link
+              key={`${n.source}-${i}`}
+              href={n.link}
+              onClick={() => acceptMutation.mutate({ source: n.source, text: n.text })}
+              data-nudge-decision="accepted"
+              className="block hover:brightness-110"
+            >
               {inner}
-            </a>
+            </Link>
           ) : (
             <div key={`${n.source}-${i}`}>{inner}</div>
           );

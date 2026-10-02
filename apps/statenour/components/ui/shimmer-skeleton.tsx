@@ -11,7 +11,7 @@ interface ShimmerSkeletonProps {
 }
 
 export function ShimmerSkeleton({ className, variant = "text" }: ShimmerSkeletonProps) {
-  const base = "rounded-lg bg-[var(--bg-raised)] overflow-hidden relative before:absolute before:inset-0 before:bg-gradient-to-r before:from-transparent before:via-[rgba(253,185,19,0.03)] before:to-transparent before:animate-[shimmer_2s_ease-in-out_infinite]";
+  const base = "rounded-control bg-surface-raised overflow-hidden relative before:absolute before:inset-0 before:bg-gradient-to-r before:from-transparent before:via-[rgba(255,255,255,0.04)] before:to-transparent before:animate-[shimmer_2s_ease-in-out_infinite]";
 
   if (variant === "card") {
     return (
@@ -57,7 +57,7 @@ export function ShimmerSkeleton({ className, variant = "text" }: ShimmerSkeleton
     return (
       <div data-skeleton className={cn("grid grid-cols-2 gap-1.5", className)}>
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className={cn(base, "h-10 rounded-lg")} />
+          <div key={i} className={cn(base, "h-10 rounded-surface")} />
         ))}
       </div>
     );

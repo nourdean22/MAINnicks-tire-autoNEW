@@ -23,7 +23,7 @@ type Props = {
 };
 
 const VERB =
-  "inline-flex min-h-[44px] shrink-0 items-center rounded-md border border-edge px-3 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary transition-colors hover:border-edge-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
+  "inline-flex min-h-[44px] shrink-0 items-center rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg";
 
 export function DeckWaiting({ waiting, tasks, onEditTask, onUnblock }: Props) {
   if (waiting.length === 0) return null;
@@ -44,7 +44,7 @@ export function DeckWaiting({ waiting, tasks, onEditTask, onUnblock }: Props) {
         <h2 id="waiting-heading" className="vt-eyebrow text-fg-secondary">
           waiting · blocked
         </h2>
-        <span className="font-display text-2xl font-bold leading-none tabular-nums text-amber-300">{waiting.length}</span>
+        <span className="stat-number text-2xl leading-none text-amber-300">{waiting.length}</span>
       </div>
       <ul className="divide-y divide-edge">
         {waiting.map((w) => {
@@ -63,17 +63,17 @@ export function DeckWaiting({ waiting, tasks, onEditTask, onUnblock }: Props) {
               </div>
               {w.delegatedToNick ? (
                 <button type="button" onClick={() => openNick(w.title)} className={VERB}>
-                  check in
+                  Check in
                 </button>
               ) : (
                 task && (
                   <button type="button" onClick={() => onEditTask(task)} className={VERB}>
-                    nudge
+                    Nudge
                   </button>
                 )
               )}
               <button type="button" onClick={() => onUnblock(w.id)} className={VERB}>
-                unblock
+                Unblock
               </button>
             </li>
           );

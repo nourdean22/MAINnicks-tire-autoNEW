@@ -56,15 +56,14 @@ function TrendBars({ trend }: { trend: Feed["trend"] }) {
             <div className="relative w-full">
               <div
                 className={cn(
-                  "w-full rounded-sm transition-all",
-                  today ? "bg-gradient-to-t from-emerald-500 to-emerald-300" : "bg-gradient-to-t from-sky-700 to-sky-400",
-                  "group-hover:from-violet-600 group-hover:to-violet-300",
+                  "w-full rounded-micro transition-all",
+                  today ? "bg-emerald-400" : "bg-sky-400",
                 )}
                 style={{ height: `${h}px` }}
                 title={`${t.day} · ${dollars(t.costCents)} · ${t.calls} calls`}
               />
             </div>
-            <span className="hidden text-[9px] text-zinc-600 sm:block">{t.day.slice(5)}</span>
+            <span className="hidden text-[11px] text-fg-tertiary sm:block">{t.day.slice(5)}</span>
           </div>
         );
       })}
@@ -74,7 +73,7 @@ function TrendBars({ trend }: { trend: Feed["trend"] }) {
 
 function BreakdownTable({ rows, total }: { rows: Breakdown[]; total: number }) {
   if (rows.length === 0) {
-    return <p className="text-xs text-zinc-500">no data in window</p>;
+    return <p className="text-xs text-fg-tertiary">no data in window</p>;
   }
   const maxCost = Math.max(...rows.map((r) => r.costCents), 1);
   return (
@@ -83,13 +82,13 @@ function BreakdownTable({ rows, total }: { rows: Breakdown[]; total: number }) {
         const pct = total > 0 ? Math.round((r.costCents / total) * 100) : 0;
         const barW = Math.max(2, Math.round((r.costCents / maxCost) * 100));
         return (
-          <div key={r.key} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 rounded px-2 py-1.5 transition hover:bg-white/[0.03]">
+          <div key={r.key} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 rounded-control px-2 py-1.5 transition hover:bg-surface-hover">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="truncate font-mono text-xs text-zinc-200">{r.key}</span>
-                <span className="flex-shrink-0 text-[10px] text-zinc-500">{r.calls} calls</span>
+              <span className="truncate font-mono text-xs text-fg">{r.key}</span>
+                <span className="flex-shrink-0 text-[11px] text-fg-tertiary">{r.calls} calls</span>
               </div>
-              <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-zinc-900">
+              <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-content">
                 <div
                   className={cn(
                     "h-full rounded-full",
@@ -99,11 +98,11 @@ function BreakdownTable({ rows, total }: { rows: Breakdown[]; total: number }) {
                 />
               </div>
             </div>
-            <div className="text-right font-mono text-xs tabular-nums text-zinc-100">{dollars(r.costCents)}</div>
-            <div className="text-right text-[10px] text-zinc-500 tabular-nums">{pct}%</div>
+            <div className="text-right font-mono text-xs tabular-nums text-fg">{dollars(r.costCents)}</div>
+            <div className="text-right text-[11px] text-fg-tertiary tabular-nums">{pct}%</div>
             <div className={cn(
-              "text-right text-[10px] tabular-nums",
-              r.errorRate > 20 ? "text-rose-400" : r.errorRate > 5 ? "text-amber-400" : "text-zinc-500",
+              "text-right text-[11px] tabular-nums",
+              r.errorRate > 20 ? "text-rose-400" : r.errorRate > 5 ? "text-amber-400" : "text-fg-tertiary",
             )}>
               {r.avgLatencyMs}ms {r.errorRate > 0 ? `· ${r.errorRate}% err` : ""}
             </div>
@@ -156,9 +155,9 @@ export default function AiCostPage() {
           <button
             onClick={load}
             disabled={loading}
-            className="rounded-lg border border-[var(--border-hover)] bg-[var(--bg-raised)]/5 px-4 py-2 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-[var(--bg-raised)]/10 disabled:opacity-50"
+            className="rounded-control border border-edge-strong bg-content px-4 py-2 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
           >
-            {loading ? "refreshing…" : "refresh"}
+            {loading ? "Refreshing…" : "Refresh"}
           </button>
         </div>
       }
@@ -170,7 +169,7 @@ export default function AiCostPage() {
           the cards read as plain values (no fake comparison). The trend
           history feeds the inline sparkline straight from feed.trend. */}
       {feed && active && (
-        <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
+        <Panel className="border-edge-default">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <TrendCounter
               value={active.totalCostCents}
@@ -197,7 +196,7 @@ export default function AiCostPage() {
               history={feed.trend.slice(-7).map((t) => t.calls)}
               label="calls"
               goodWhen="neutral"
-              tone="gold"
+              tone="tertiary"
             />
             <TrendCounter
               value={Math.round(active.avgLatencyMs)}
@@ -232,15 +231,15 @@ export default function AiCostPage() {
             />
           </div>
           {burnRate && (
-            <div className="mt-3 flex items-baseline justify-between border-t border-[var(--border-soft)]/50 pt-2.5">
-              <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-500">
+            <div className="mt-3 flex items-baseline justify-between border-t border-edge-subtle pt-2.5">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                 burn rate · today
               </span>
               <span className="flex items-baseline gap-2">
                 <span className={cn("font-mono text-xl font-bold tabular-nums", burnRate.tint)}>
                   {burnRate.ratio.toFixed(1)}×
                 </span>
-                <span className="text-[10px] text-zinc-500">{burnRate.label}</span>
+                <span className="text-[11px] text-fg-tertiary">{burnRate.label}</span>
               </span>
             </div>
           )}
@@ -257,7 +256,7 @@ export default function AiCostPage() {
               "rounded-full px-3 py-1 text-xs transition",
               window === w
                 ? "bg-emerald-500/15 text-emerald-200"
-                : "bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800/60",
+                : "bg-content text-fg-secondary hover:bg-surface-hover",
             )}
           >
             {w}
@@ -267,10 +266,10 @@ export default function AiCostPage() {
 
       {/* 14-day trend */}
       {feed && (
-        <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
+        <Panel className="border-edge-default">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-white">14-day trend</h2>
-            <span className="text-xs text-zinc-500">
+            <h2 className="text-sm font-semibold text-fg">14-day trend</h2>
+            <span className="text-xs text-fg-tertiary">
               max day · {dollars(Math.max(...feed.trend.map((t) => t.costCents)))}
             </span>
           </div>
@@ -284,18 +283,18 @@ export default function AiCostPage() {
       {/* Breakdowns */}
       {feed && active && (
         <div className="grid gap-4 md:grid-cols-2">
-          <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
-            <h2 className="mb-3 text-sm font-semibold text-white">by feature · top 10</h2>
+              <Panel className="border-edge-default">
+            <h2 className="mb-3 text-sm font-semibold text-fg">by feature · top 10</h2>
             <BreakdownTable rows={active.byFeature} total={active.totalCostCents} />
           </Panel>
-          <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
-            <h2 className="mb-3 text-sm font-semibold text-white">by model · top 10</h2>
+          <Panel className="border-edge-default">
+            <h2 className="mb-3 text-sm font-semibold text-fg">by model · top 10</h2>
             <BreakdownTable rows={active.byModel} total={active.totalCostCents} />
           </Panel>
         </div>
       )}
 
-      <p className="pt-2 text-center text-[10px] text-zinc-600">
+      <p className="pt-2 text-center text-[11px] text-fg-tertiary">
         auto-refresh 60s · source: AiGeneration · writes come from lib/ai/track.ts
       </p>
     </StandardPage>

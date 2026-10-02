@@ -94,7 +94,7 @@ export function MegaConfirmDialog({
   return createPortal(
     <div
       // Backdrop · click cancels · presents the modal
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-overlay/70"
       onClick={(e) => {
         if (e.target === e.currentTarget) onCancel();
       }}
@@ -105,11 +105,11 @@ export function MegaConfirmDialog({
         aria-modal="true"
         aria-labelledby="mega-confirm-title"
         aria-describedby="mega-confirm-message"
-        className="max-w-md w-full mx-4 max-h-[85vh] overflow-y-auto rounded-lg border border-[var(--gold)]/30 bg-[var(--bg-base)] shadow-2xl p-6 space-y-4"
+        className="max-w-md w-full mx-4 max-h-[85vh] overflow-y-auto rounded-overlay border border-edge-default bg-overlay shadow-l2 p-6 space-y-4"
       >
         <h2
           id="mega-confirm-title"
-          className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]"
+          className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary"
         >
           {title}
         </h2>
@@ -123,7 +123,7 @@ export function MegaConfirmDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="text-xs font-mono uppercase tracking-[0.14em] px-4 min-h-[44px] rounded border border-white/15 text-[var(--text-secondary)] hover:bg-white/5"
+            className="inline-flex min-h-[44px] items-center rounded-control border border-edge-default bg-content px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
           >
             {cancelLabel}
           </button>
@@ -131,7 +131,7 @@ export function MegaConfirmDialog({
             type="button"
             ref={confirmRef}
             onClick={onConfirm}
-            className="text-xs font-mono uppercase tracking-[0.14em] px-4 min-h-[44px] rounded bg-[var(--gold)] text-black font-medium hover:bg-[var(--gold)]/90"
+            className="inline-flex min-h-[44px] items-center rounded-control bg-accent px-4 text-[14px] font-semibold text-[var(--text-inverse)] transition-colors duration-[var(--motion-state)] hover:bg-accent-hover"
           >
             {confirmLabel}
           </button>

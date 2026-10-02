@@ -93,7 +93,7 @@ interface HubCard {
   group: CardGroup;
   description: string;
   chip: (d: HubPayload | null) => { label: string; severity: Severity };
-  featured?: boolean; // gold ring + floats to the top of its group
+  featured?: boolean; // edge-strong ring + floats to the top of its group
 }
 
 // Wave AD-honesty (2026-06-03): the prior "mega-delete" removed ~30
@@ -405,7 +405,7 @@ const SEVERITY_PALETTE: Record<
   critical: {
     bg: "bg-rose-500/8",
     border: "border-rose-500/40",
-    dot: "bg-rose-400 animate-pulse",
+    dot: "bg-rose-400",
     text: "text-rose-300",
   },
   info: {
@@ -415,10 +415,10 @@ const SEVERITY_PALETTE: Record<
     text: "text-sky-300",
   },
   unknown: {
-    bg: "bg-white/2",
-    border: "border-white/10",
-    dot: "bg-zinc-500",
-    text: "text-(--text-muted)",
+    bg: "bg-surface-interactive",
+    border: "border-edge-subtle",
+    dot: "bg-fg-tertiary",
+    text: "text-fg-tertiary",
   },
 };
 
@@ -452,13 +452,13 @@ function GroupHeader({
     <div className="mb-2 flex items-center gap-2">
       <h3
         className={cn(
-          "text-[10px] font-semibold uppercase tracking-[0.14em]",
+          "font-mono text-[11px] uppercase tracking-[0.12em]",
           tone === "alert" ? "text-amber-300" : "text-(--text-tertiary)",
         )}
       >
         {label}
       </h3>
-      <span className="text-[10px] tabular-nums text-(--text-muted)">
+      <span className="text-[11px] tabular-nums text-fg-tertiary">
         {count}
       </span>
       <span className="h-px flex-1 bg-(--border-default)" />
@@ -479,10 +479,10 @@ function HubCardLink({
     <Link
       href={card.href}
       className={cn(
-        "group relative rounded-xl border p-3 transition-colors hover:bg-white/4",
+        "group relative rounded-surface border p-3 transition-colors hover:bg-surface-hover",
         pal.bg,
         pal.border,
-        card.featured && "ring-1 ring-(--gold)/20",
+        card.featured && "ring-1 ring-edge-strong",
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -500,7 +500,7 @@ function HubCardLink({
         </div>
         <span
           className={cn(
-            "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium tabular-nums",
+            "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium tabular-nums",
             pal.border,
             pal.text,
           )}
