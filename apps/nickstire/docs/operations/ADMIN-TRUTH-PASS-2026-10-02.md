@@ -99,8 +99,9 @@ Consequences:
 - `review_requests.invoiceId` is declared in `drizzle/schema.ts` (follow-up PR), pinned to
   0139 by `server/reviewRequestsInvoiceMigration.test.ts`.
 - 0136 is matched, so `heldout` exists in all three status enums: the precondition for the
-  `contact_holdout_*` flags is met. The flags are still OFF — arming them is a separate
-  operator decision (it changes who gets texted).
+  `contact_holdout_*` flags is met. Those flags are `feature_flags` table rows (default OFF);
+  their live values were not read in this wave. Arming them is a separate operator decision
+  (it changes who gets texted).
 - The backup table `__drizzle_migrations_bak_20261002_record` can be dropped once the ledger
   has been trusted for a while; nothing reads it.
 
