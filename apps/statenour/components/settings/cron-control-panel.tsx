@@ -206,16 +206,16 @@ export function CronControlPanel() {
             <p className="section-label">Cron Control</p>
             <FreshnessChip lastFetchedAt={loadedAt} source="crons" compact onReload={() => void load()} />
           </div>
-          <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5">
+          <p className="text-[12px] text-fg-tertiary mt-0.5">
             {totalCount} scheduled · {killedCount} killed · kill switches survive restarts
           </p>
         </div>
         <button
           onClick={() => void load()}
-          className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--gold)] transition-colors"
+          className="text-[12px] font-medium text-fg-tertiary hover:text-fg transition-colors duration-[var(--motion-state)]"
           title="refresh stats"
         >
-          refresh
+          Refresh
         </button>
       </div>
 
@@ -228,20 +228,20 @@ export function CronControlPanel() {
             placeholder="filter…"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="w-full pl-7 pr-2 py-1.5 bg-[var(--bg-base)] border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--gold)]/30"
+            className="w-full pl-7 pr-2 py-1.5 rounded-control border border-edge-default bg-content text-[13px] text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent"
           />
         </div>
         <button
           onClick={() => setShowDisabledOnly((v) => !v)}
           aria-pressed={showDisabledOnly}
           className={cn(
-            "px-2 py-1.5 text-[9px] font-mono uppercase tracking-wider rounded border transition-colors",
+            "px-2 py-1.5 text-[12px] font-medium rounded-control border transition-colors duration-[var(--motion-state)]",
             showDisabledOnly
               ? "bg-red-500/10 border-red-500/30 text-red-400"
-              : "border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]",
+              : "border-edge-default text-fg-tertiary hover:text-fg",
           )}
         >
-          disabled only
+          Disabled only
         </button>
       </div>
 
@@ -260,7 +260,7 @@ export function CronControlPanel() {
       <div className="space-y-4">
         {grouped.map(({ bucket, rows: bucketRows }) => (
           <div key={bucket}>
-            <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-[var(--text-tertiary)] mb-1.5">
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1.5">
               {bucket}
             </p>
             <div className="space-y-1">
@@ -268,9 +268,9 @@ export function CronControlPanel() {
                 <div
                   key={r.jobName}
                   className={cn(
-                    "group flex items-center gap-2 px-2 py-1.5 rounded border transition-colors",
+                    "group flex items-center gap-2 px-2 py-1.5 rounded-control border transition-colors",
                     r.enabled
-                      ? "bg-[var(--bg-base)] border-[var(--border-default)]"
+                      ? "bg-surface-interactive border-edge-subtle"
                       : "bg-red-500/5 border-red-500/20",
                   )}
                 >
@@ -280,7 +280,7 @@ export function CronControlPanel() {
                       "w-1.5 h-1.5 rounded-full shrink-0",
                       r.enabled
                         ? r.fail14d > r.success14d
-                          ? "bg-amber-400 animate-pulse"
+                          ? "bg-amber-400"
                           : "bg-emerald-400"
                         : "bg-red-400",
                     )}
@@ -299,7 +299,7 @@ export function CronControlPanel() {
                       <span className="text-[11px] font-mono text-[var(--text-primary)] truncate">
                         {r.jobName}
                       </span>
-                      <span className="text-[9px] font-mono text-[var(--text-tertiary)] shrink-0">
+                      <span className="text-[11px] font-mono text-fg-tertiary shrink-0">
                         {describeSchedule(r.schedule)}
                       </span>
                       <a
@@ -310,13 +310,13 @@ export function CronControlPanel() {
                         }
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[9px] font-mono text-[var(--gold)]/60 hover:text-[var(--gold)] hover:underline shrink-0 ml-auto mr-1"
+                        className="text-[11px] font-mono text-fg-tertiary hover:text-fg hover:underline shrink-0 ml-auto mr-1"
                         title="view runbook"
                       >
                         [runbook]
                       </a>
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5 text-[9px] font-mono text-[var(--text-tertiary)]">
+                    <div className="flex items-center gap-2 mt-0.5 text-[11px] font-mono text-fg-tertiary">
                       <span className="inline-flex items-center gap-0.5">
                         <CheckCircle2 size={8} className="text-emerald-400" />
                         {r.success14d} · {timeAgo(r.lastSuccessAt)}
@@ -341,8 +341,8 @@ export function CronControlPanel() {
                     title={`fire ${r.path}`}
                     aria-label={`fire ${r.jobName} now`}
                     className={cn(
-                      "w-6 h-6 rounded flex items-center justify-center border transition-colors shrink-0",
-                      "border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/30",
+                      "w-6 h-6 rounded-control flex items-center justify-center border transition-colors shrink-0",
+                      "border-edge-default text-fg-tertiary hover:text-fg hover:border-edge-strong",
                       firing !== null && "opacity-50 cursor-wait",
                     )}
                   >
@@ -396,10 +396,10 @@ export function CronControlPanel() {
         )}
       </div>
 
-      <p className="text-[9px] text-[var(--text-tertiary)] mt-3 leading-relaxed">
+      <p className="text-[12px] text-fg-tertiary mt-3 leading-relaxed">
         Kill switches store in BrainMemory (category: cron_control). Disabled
-        crons short-circuit inside <code className="text-[var(--gold)]/70">cronHandler</code> — they
-        return <code className="text-[var(--gold)]/70">{'{'}skipped:true{'}'}</code> and
+        crons short-circuit inside <code className="text-fg-secondary">cronHandler</code> — they
+        return <code className="text-fg-secondary">{'{'}skipped:true{'}'}</code> and
         stay out of the cron-job log. Manual triggers fire with the same
         CRON_SECRET the scheduler uses.
       </p>

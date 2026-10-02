@@ -261,13 +261,13 @@ export function ToolTelemetryPanel() {
             placeholder="Search tools..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-2.5 py-1 text-[11px] rounded border border-[var(--border-default)] bg-[var(--bg-void)]/60 text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-[var(--border-focus)]"
+            className="w-full pl-8 pr-2.5 py-1 text-[11px] rounded border border-[var(--border-default)] bg-[var(--bg-void)]/60 text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-accent"
           />
         </div>
         <select
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
-          className="px-2 py-1 text-[11px] rounded border border-[var(--border-default)] bg-[var(--bg-void)]/60 text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)] sm:w-48"
+          className="px-2 py-1 text-[11px] rounded border border-[var(--border-default)] bg-[var(--bg-void)]/60 text-[var(--text-primary)] focus:outline-none focus:border-accent sm:w-48"
         >
           <option value="all">All Categories</option>
           {categories.map((cat) => (
@@ -353,7 +353,7 @@ export function ToolTelemetryPanel() {
                       className={cn(
                         "py-2 text-right tabular-nums",
                         s.totalCalls === 0
-                          ? "text-[var(--text-muted)]"
+                          ? "text-fg-tertiary"
                           : rate < 50
                             ? "text-red-400"
                             : rate < 80
@@ -413,7 +413,7 @@ export function ToolTelemetryPanel() {
                                           <CheckCircle2 size={10} className="text-emerald-400" />
                                         )}
                                         <span className={missing ? "text-red-400/95" : "text-emerald-300/95"}>{key}</span>
-                                        <span className="text-[11px] text-[var(--text-muted)]">
+                                        <span className="text-[11px] text-fg-tertiary">
                                           ({missing ? "missing" : "configured"})
                                         </span>
                                       </div>

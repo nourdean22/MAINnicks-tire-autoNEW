@@ -120,7 +120,7 @@ export function GhostNickStrip() {
         <div className="flex items-center gap-1.5">
           <Ghost size={12} className="text-violet-400" />
           <p className="section-label">Ghost Nick</p>
-          <span className="text-[9px] font-mono text-[var(--text-tertiary)]">
+          <span className="font-mono text-[11px] text-fg-tertiary">
             · shadow predictor
           </span>
         </div>
@@ -128,11 +128,11 @@ export function GhostNickStrip() {
           {accPct != null && (
             <span
               className={cn(
-                "text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded",
+                "font-mono text-[11px] uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-micro",
                 accPct >= 65
                   ? "text-emerald-400 bg-emerald-500/10"
                   : accPct >= 40
-                    ? "text-[var(--gold)] bg-[var(--gold)]/10"
+                    ? "text-fg-secondary bg-surface-interactive"
                     : "text-amber-400 bg-amber-500/10",
               )}
               title={`${accuracy?.hits ?? 0} hits · ${accuracy?.surprises ?? 0} surprises`}
@@ -141,19 +141,19 @@ export function GhostNickStrip() {
             </span>
           )}
           {calibrating && (
-            <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded text-[var(--text-tertiary)] bg-[var(--bg-overlay)]" title="need ≥3 outcomes to show accuracy">
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-micro text-fg-tertiary bg-surface-interactive" title="need ≥3 outcomes to show accuracy">
               calibrating {totalCalls}/3
             </span>
           )}
           {predictedAgo != null && (
-            <span className="text-[9px] font-mono text-[var(--text-tertiary)]" title={new Date(bundle!.predicted_at).toLocaleString()}>
+            <span className="font-mono text-[11px] text-fg-tertiary" title={new Date(bundle!.predicted_at).toLocaleString()}>
               {predictedAgo < 1 ? "just now" : predictedAgo < 60 ? `${predictedAgo}m` : `${Math.round(predictedAgo / 60)}h`}
             </span>
           )}
           <button
             onClick={() => void recompute()}
             disabled={recomputing || loading}
-            className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-violet-400 transition-colors inline-flex items-center gap-1"
+            className="text-[13px] font-medium text-fg-tertiary hover:text-violet-400 transition-colors inline-flex items-center gap-1"
           >
             {recomputing || loading ? <Loader2 size={9} className="animate-spin" /> : <RefreshCw size={9} />}
             recompute
@@ -168,15 +168,15 @@ export function GhostNickStrip() {
             return (
               <div
                 key={p.task_id ?? `${p.title}-${i}`}
-                className="group flex items-center gap-2 px-2 py-1.5 rounded border border-[var(--border-default)] bg-[var(--bg-base)]"
+                className="group flex items-center gap-2 px-2 py-1.5 rounded-control border border-edge-subtle bg-workspace"
                 title={p.signals.join(" · ")}
               >
-                <span className="text-[9px] font-mono text-violet-400 shrink-0">#{i + 1}</span>
-                <span className="flex-1 text-[11px] text-[var(--text-primary)] truncate">{p.title}</span>
+                <span className="font-mono text-[11px] text-violet-400 shrink-0">#{i + 1}</span>
+                <span className="flex-1 text-[11px] text-fg truncate">{p.title}</span>
                 {p.matched_skills.length > 0 && (
-                  <Target size={10} className="text-[var(--gold)]" />
+                  <Target size={10} className="text-fg-tertiary" />
                 )}
-                <span className="text-[10px] font-mono tabular-nums text-[var(--text-tertiary)] shrink-0">
+                <span className="font-mono text-[11px] tabular-nums text-fg-tertiary shrink-0">
                   {pct}%
                 </span>
                 <DismissButton
@@ -192,7 +192,7 @@ export function GhostNickStrip() {
         </div>
       )}
 
-      <p className="text-[9px] text-[var(--text-tertiary)] mt-2 leading-relaxed">
+      <p className="text-[11px] text-fg-tertiary mt-2 leading-relaxed">
         horizon {bundle?.horizon_hours ?? 6}h · hits when you close a predicted task; surprises
         when you do something else. Accuracy climbs as Ghost learns your rhythm.
       </p>

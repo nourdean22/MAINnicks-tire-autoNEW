@@ -9,7 +9,7 @@
  * textarea + save/cancel buttons; "save" calls
  * `trpc.task.updateDossier.useMutation()` which embeds + persists.
  *
- * Aesthetic: serif heading · 1px border at rgba(255,255,255,0.06) ·
+ * Aesthetic: Geist heading · 1px edge-subtle border on a solid content card ·
  * 8-12px radius · no emoji.
  */
 
@@ -52,16 +52,15 @@ export default function DossierEditor({
 
   return (
     <section
-      className="rounded-xl border bg-[var(--bg-raised)] p-4"
-      style={{ borderColor: "rgba(255,255,255,0.06)" }}
+      className="rounded-surface border border-edge-subtle bg-content p-4"
     >
       <div className="flex items-baseline justify-between gap-3 mb-3">
-        <h2 className="font-serif text-lg tracking-tight text-[var(--text-primary)]">
+        <h2 className="text-[17px] font-semibold text-fg">
           Dossier
         </h2>
         <div className="flex items-center gap-3">
           {lastUpdated && (
-            <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               updated {lastUpdated}
             </span>
           )}
@@ -69,7 +68,7 @@ export default function DossierEditor({
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="text-[11px] uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--gold)] transition-colors"
+              className="text-[13px] font-medium text-fg-secondary hover:text-fg transition-colors"
             >
               edit
             </button>
@@ -78,11 +77,11 @@ export default function DossierEditor({
       </div>
 
       {!editing ? (
-        <div className="text-sm leading-relaxed text-[var(--text-secondary)] whitespace-pre-wrap min-h-[6rem]">
+        <div className="text-sm leading-relaxed text-fg-secondary whitespace-pre-wrap min-h-[6rem]">
           {initialDossier?.trim() ? (
             initialDossier
           ) : (
-            <span className="italic text-[var(--text-tertiary)]">
+            <span className="italic text-fg-tertiary">
               No dossier yet. Tap edit to write the first 5 bullets about this
               person — what they want, what they fear, what they bring.
             </span>
@@ -101,7 +100,7 @@ export default function DossierEditor({
             disabled={updateDossier.isPending}
           />
           <div className="flex items-center justify-between gap-3">
-            <span className="text-[10px] text-[var(--text-tertiary)] tabular-nums">
+            <span className="font-mono text-[11px] text-fg-tertiary tabular-nums">
               {draft.length} / 20000
             </span>
             <div className="flex gap-2">

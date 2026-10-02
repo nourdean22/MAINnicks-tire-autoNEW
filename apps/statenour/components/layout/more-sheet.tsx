@@ -81,7 +81,7 @@ export function MoreSheet() {
       <DialogContent
         unstyled
         showCloseButton={false}
-        overlayClassName="z-[70] bg-black/60 backdrop-blur-sm"
+        overlayClassName="z-[70] bg-[var(--bg-void)]/70"
         className="fixed inset-x-0 bottom-0 z-[71] max-h-[86dvh] overflow-y-auto overscroll-contain rounded-t-overlay border-t border-edge-default bg-overlay pb-[env(safe-area-inset-bottom,12px)] outline-none shadow-l2 data-open:animate-fadeSlideUp data-closed:animate-fadeSlideDown"
       >
         <DialogTitle className="sr-only">More navigation</DialogTitle>
@@ -93,7 +93,7 @@ export function MoreSheet() {
               type="button"
               onClick={close}
               aria-label="Close More menu"
-              className="absolute right-0 inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-raised)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+              className="absolute right-0 inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-raised)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
             >
               <X size={18} />
             </button>
@@ -103,11 +103,11 @@ export function MoreSheet() {
               window.dispatchEvent(new Event(COMMAND_PALETTE_OPEN_EVENT));
               close();
             }}
-            className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-edge-default bg-surface px-3 py-2.5 text-[var(--text-secondary)] transition-colors hover:border-edge-strong hover:text-fg"
+            className="flex min-h-11 w-full items-center gap-2 rounded-control border border-edge-default bg-content px-3 py-2.5 text-[var(--text-secondary)] transition-colors hover:border-edge-strong hover:text-fg"
           >
             <Search size={16} className="shrink-0" />
             <span className="text-sm">Search everything…</span>
-            <kbd className="ml-auto hidden font-mono text-[9px] text-[var(--text-tertiary)] sm:inline">
+            <kbd className="ml-auto hidden font-mono text-[11px] text-[var(--text-tertiary)] sm:inline">
               ⌘K
             </kbd>
           </button>
@@ -120,7 +120,7 @@ export function MoreSheet() {
                 window.dispatchEvent(new Event(NICK_PANE_OPEN_EVENT));
                 close();
               }}
-              className="mt-2 flex w-full min-h-[44px] items-center gap-2 rounded-xl border border-edge-default bg-surface px-3 py-2.5 text-[var(--text-secondary)] transition-colors hover:border-edge-strong hover:text-fg md:hidden"
+              className="mt-2 flex w-full min-h-[44px] items-center gap-2 rounded-control border border-edge-default bg-content px-3 py-2.5 text-[var(--text-secondary)] transition-colors hover:border-edge-strong hover:text-fg md:hidden"
             >
               <Brain size={16} className="shrink-0" />
               <span className="text-sm">Ask Nick about this page</span>
@@ -140,7 +140,7 @@ export function MoreSheet() {
                   ? "bg-rose-500/[0.08] text-rose-200 hover:bg-rose-500/15"
                   : smartNow.urgency === "medium"
                     ? "bg-amber-500/[0.06] text-amber-200 hover:bg-amber-500/15"
-                    : "bg-[var(--gold)]/[0.05] text-[var(--gold)]/80 hover:bg-[var(--gold)]/15",
+                    : "bg-accent-soft text-fg hover:bg-surface-hover",
               )}
               title={`${smartNow.reason} · tap to jump`}
             >
@@ -150,7 +150,7 @@ export function MoreSheet() {
                 </span>
               )}
               <div className="min-w-0 flex-1">
-                <div className="text-[9px] font-mono uppercase tracking-wider opacity-60">
+                <div className="font-mono text-[11px] uppercase tracking-[0.12em] opacity-60">
                   Now
                 </div>
                 <div className="truncate text-[11px] font-medium">{smartNow.label}</div>
@@ -163,7 +163,7 @@ export function MoreSheet() {
             <div className="rounded-lg bg-[var(--bg-raised)]/30 px-2 py-1.5">
               <div className="mb-1 flex items-center gap-1">
                 <Clock size={9} className="text-[var(--text-tertiary)]" />
-                <span className="font-mono text-[8px] uppercase tracking-wider text-[var(--text-tertiary)]">
+                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
                   recent
                 </span>
               </div>
@@ -173,7 +173,7 @@ export function MoreSheet() {
                     key={r.href}
                     href={r.href}
                     onClick={close}
-                    className="inline-flex min-h-11 max-w-[140px] items-center truncate rounded-full border border-[var(--border-default)] bg-[var(--bg-base)]/40 px-3 py-1 font-mono text-[9px] text-[var(--text-secondary)] transition-colors hover:border-[var(--gold)]/30 hover:bg-[var(--gold)]/10 hover:text-[var(--gold)]"
+                    className="inline-flex min-h-11 max-w-[140px] items-center truncate rounded-full border border-[var(--border-default)] bg-[var(--bg-base)]/40 px-3 py-1 font-mono text-[11px] text-[var(--text-secondary)] transition-colors hover:border-edge-strong hover:text-fg"
                     title={r.href}
                   >
                     {r.label}
@@ -188,12 +188,12 @@ export function MoreSheet() {
               window.dispatchEvent(new Event(CAPTURE_OPEN_EVENT));
               close();
             }}
-            className="flex min-h-11 w-full items-center gap-3 rounded-lg border-l-2 border-l-transparent px-3 py-2 text-xs text-[var(--text-secondary)] transition-colors hover:border-l-[var(--gold)] hover:bg-[var(--gold)]/10 hover:text-[var(--gold)]"
+            className="flex min-h-11 w-full items-center gap-3 rounded-lg border-l-2 border-l-transparent px-3 py-2 text-xs text-[var(--text-secondary)] transition-colors hover:bg-surface-hover hover:text-fg"
             aria-label="Capture a thought (⌘⇧J)"
           >
             <NotebookPen size={15} strokeWidth={1.75} />
-            <span className="text-[10px] font-medium uppercase tracking-[0.15em]">Capture</span>
-            <kbd className="ml-auto hidden font-mono text-[8px] text-[var(--text-tertiary)] sm:inline">
+            <span className="text-[13px] font-medium">Capture</span>
+            <kbd className="ml-auto hidden font-mono text-[11px] text-[var(--text-tertiary)] sm:inline">
               ⌘⇧J
             </kbd>
           </button>
@@ -212,11 +212,11 @@ export function MoreSheet() {
               <div className="mb-1.5 flex items-center gap-2 px-1">
                 <span
                   aria-hidden
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[var(--gold)]/25 bg-[var(--gold-ghost)] font-mono text-[8px] text-[var(--gold)]/80"
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-edge-default bg-surface-raised font-mono text-[11px] text-fg-tertiary"
                 >
                   {ordinal}
                 </span>
-                <span className="font-[var(--font-display)] text-[12px] font-semibold uppercase tracking-[0.15em] text-[var(--text-secondary)]">
+                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                   {label}
                 </span>
               </div>
@@ -233,12 +233,12 @@ export function MoreSheet() {
                       className={cn(
                         "flex min-h-11 items-center gap-2 rounded-lg px-2.5 py-2 transition-colors",
                         active
-                          ? "bg-[var(--gold)]/10 text-[var(--gold)]"
+                          ? "bg-accent-soft text-fg"
                           : "text-[var(--text-secondary)] hover:bg-[var(--bg-raised)] hover:text-[var(--text-primary)]",
                       )}
                     >
                       <Icon size={15} strokeWidth={active ? 2.25 : 1.75} className="shrink-0" />
-                      <span className="truncate text-[10px] font-medium uppercase tracking-[0.1em]">
+                      <span className="truncate text-[13px] font-medium">
                         {n.label}
                       </span>
                     </Link>
@@ -254,7 +254,7 @@ export function MoreSheet() {
           {footer.map((n) => {
             const Icon = n.icon;
             const className =
-              "flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-[var(--border-default)] px-3 py-2 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)] transition-colors hover:border-[var(--gold)]/30 hover:text-[var(--gold)]";
+              "flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-[var(--border-default)] px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:border-edge-strong hover:text-fg";
             if (n.external) {
               return (
                 <a
@@ -267,7 +267,7 @@ export function MoreSheet() {
                 >
                   <Icon size={14} strokeWidth={1.75} />
                   {n.label}
-                  <span aria-hidden className="text-[8px] text-[var(--text-tertiary)]">
+                  <span aria-hidden className="text-[11px] text-[var(--text-tertiary)]">
                     ↗
                   </span>
                 </a>

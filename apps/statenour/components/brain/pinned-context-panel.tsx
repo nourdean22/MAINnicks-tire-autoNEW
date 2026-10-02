@@ -710,7 +710,7 @@ export function PinnedContextPanel() {
             {brainRules.map((rule) => (
               <li
                 key={rule.key}
-                className="text-[11.5px] leading-relaxed text-[var(--text-secondary)] bg-content border border-edge-subtle rounded-md p-2 flex items-start gap-2"
+                className="text-[12px] leading-relaxed text-[var(--text-secondary)] bg-content border border-edge-subtle rounded-md p-2 flex items-start gap-2"
               >
                 <span className="inline-flex px-1.5 py-0.5 rounded border border-edge-subtle bg-surface-interactive text-[11px] font-mono text-fg-secondary shrink-0 mt-0.5">
                   {rule.category}

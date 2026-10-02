@@ -17,7 +17,7 @@ export default function MasteryError({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 px-4">
-      <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center">
+      <div className="w-16 h-16 rounded-float bg-red-500/10 flex items-center justify-center">
         <AlertTriangle className="w-7 h-7 text-red-400" strokeWidth={1.75} />
       </div>
       <div className="text-center">
@@ -31,13 +31,13 @@ export default function MasteryError({
       <div className="flex items-center gap-3">
         <button
           onClick={reset}
-          className="px-6 py-2.5 rounded-lg bg-[var(--gold)] text-[var(--bg-void)] font-medium text-sm hover:opacity-90 transition-opacity"
+          className="inline-flex min-h-[44px] items-center rounded-control bg-accent px-4 py-2 text-[14px] font-semibold text-[var(--text-inverse)] transition-colors duration-[var(--motion-state)] hover:bg-accent-hover"
         >
-          Try Again
+          Try again
         </button>
         <Link
           href="/"
-          className="px-6 py-2.5 rounded-lg border border-[var(--border-default)] text-[var(--text-secondary)] font-medium text-sm hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-colors"
+          className="inline-flex min-h-[44px] items-center rounded-control border border-edge-default bg-content px-4 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
         >
           Back to home
         </Link>

@@ -48,7 +48,7 @@ export default async function ProofPage() {
   return (
     <StandardPage eyebrow="System / proof" title="Proof" description="reality → hypothesis → proof → judgment → retained learning">
       {!s.ledgerAvailable && (
-        <div role="status" className="mb-6 rounded-lg border border-glass bg-elevated px-4 py-3 text-sm">
+        <div role="status" className="mb-6 rounded-surface border border-edge-subtle bg-content px-4 py-3 text-sm">
           <span className="font-semibold">Ledger not migrated yet.</span>{" "}
           <span className="text-fg-secondary">
             Apply <code className="font-mono text-xs">prisma/migrations/20260915140000_reality_ledger</code> and confirm with <code className="font-mono text-xs">prisma migrate status</code>. Until then every list below is empty by construction, not by fact.
@@ -56,13 +56,13 @@ export default async function ProofPage() {
         </div>
       )}
       <section aria-labelledby="grades" className="mb-8">
-        <h2 id="grades" className="text-xs uppercase tracking-widest text-fg-secondary mb-3">
+        <h2 id="grades" className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-3">
           Evidence on file · {totalClaims} claim{totalClaims === 1 ? "" : "s"}
         </h2>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
           {Object.entries(s.byGrade).map(([grade, n]) => (
-            <div key={grade} className="rounded-lg border border-glass bg-elevated px-3 py-2">
-              <div className="font-mono text-sm text-gold">{grade}</div>
+            <div key={grade} className="rounded-surface border border-edge-subtle bg-content px-3 py-2">
+              <div className="font-mono text-sm text-fg-secondary">{grade}</div>
               <div className="text-2xl font-semibold tabular-nums">{n}</div>
               <div className="text-[11px] text-fg-secondary">{GRADE_LABEL[grade]}</div>
             </div>
@@ -71,14 +71,14 @@ export default async function ProofPage() {
       </section>
 
       <section aria-labelledby="claims" className="mb-8">
-        <h2 id="claims" className="text-xs uppercase tracking-widest text-fg-secondary mb-3">Standing claims</h2>
+        <h2 id="claims" className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-3">Standing claims</h2>
         {s.claims.length === 0 ? (
           <p className="text-sm text-fg-secondary">No claims yet. The first arrives when a web experiment resolves or a proof run fails an episode.</p>
         ) : (
-          <ul className="divide-y divide-glass">
+          <ul className="divide-y divide-edge-subtle">
             {s.claims.map((c) => (
               <li key={c.id} className="py-3 flex gap-3">
-                <span className="font-mono text-xs text-gold shrink-0 w-8">{c.grade}</span>
+                <span className="font-mono text-xs text-fg-secondary shrink-0 w-8">{c.grade}</span>
                 <div className="min-w-0">
                   <p className="text-sm">{c.claimText}</p>
                   <p className="text-[11px] text-fg-secondary mt-1">
@@ -92,11 +92,11 @@ export default async function ProofPage() {
       </section>
 
       <section aria-labelledby="events" className="mb-8">
-        <h2 id="events" className="text-xs uppercase tracking-widest text-fg-secondary mb-3">Reality, most recent</h2>
+        <h2 id="events" className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-3">Reality, most recent</h2>
         {s.events.length === 0 ? (
           <p className="text-sm text-fg-secondary">No events yet. The nickstire cron and the proof workflow post here.</p>
         ) : (
-          <ul className="divide-y divide-glass">
+          <ul className="divide-y divide-edge-subtle">
             {s.events.map((e) => (
               <li key={e.id} className="py-2 text-sm flex flex-wrap gap-x-3">
                 <span className="font-mono text-xs">{e.eventType}</span>
@@ -110,16 +110,16 @@ export default async function ProofPage() {
       </section>
 
       <section aria-labelledby="timeline" className="mb-8">
-        <h2 id="timeline" className="text-xs uppercase tracking-widest text-fg-secondary mb-3">Repo Time Machine · judged commits</h2>
+        <h2 id="timeline" className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-3">Repo Time Machine · judged commits</h2>
         {timeline.commits.length === 0 ? (
           <p className="text-sm text-fg-secondary">No judged commits yet. Every proof run records the commit the live site actually served; rows appear here, newest first, with the delta against the previous judged commit.</p>
         ) : (
-          <ul className="divide-y divide-glass">
+          <ul className="divide-y divide-edge-subtle">
             {timeline.commits.map((c) => (
               <li key={c.liveCommit ?? "unknown"} className="py-3 text-sm">
                 <div className="flex flex-wrap gap-x-3 items-baseline">
                   {c.liveCommit ? (
-                    <a href={`${REPO_COMMIT_URL}${c.liveCommit}`} className="font-mono text-xs text-gold underline-offset-2 hover:underline">{c.liveCommit.slice(0, 9)}</a>
+                    <a href={`${REPO_COMMIT_URL}${c.liveCommit}`} className="font-mono text-xs text-fg-secondary underline-offset-2 hover:text-fg hover:underline">{c.liveCommit.slice(0, 9)}</a>
                   ) : (
                     <span className="font-mono text-xs text-fg-secondary">unknown commit</span>
                   )}
@@ -127,7 +127,7 @@ export default async function ProofPage() {
                     run: {c.runOutcome ?? "—"}
                     {c.unexpected !== null ? ` ${c.unexpected} failed${delta(c.deltas.unexpected)}` : ""}
                   </span>
-                  <span className={`font-mono text-xs ${c.holdout?.outcome === "failure" ? "text-gold" : "text-fg-secondary"}`}>{holdoutText(c.holdout, c.deltas.holdoutUnexpected)}</span>
+                  <span className={`font-mono text-xs ${c.holdout?.outcome === "failure" ? "text-rose-300" : "text-fg-secondary"}`}>{holdoutText(c.holdout, c.deltas.holdoutUnexpected)}</span>
                   <span className="text-fg-secondary text-xs ml-auto">
                     {c.runs} run{c.runs === 1 ? "" : "s"} · {when(c.judgedAt)}
                   </span>
@@ -146,15 +146,15 @@ export default async function ProofPage() {
       </section>
 
       <section aria-labelledby="taste" className="mb-8">
-        <h2 id="taste" className="text-xs uppercase tracking-widest text-fg-secondary mb-3">Your judgments</h2>
+        <h2 id="taste" className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-3">Your judgments</h2>
         {s.judgments.length === 0 ? (
           <p className="text-sm text-fg-secondary">None yet. Every accept/reject between two candidates lands here and teaches the critic what you prefer &mdash; never what is &ldquo;objectively better&rdquo;.</p>
         ) : (
-          <ul className="divide-y divide-glass">
+          <ul className="divide-y divide-edge-subtle">
             {s.judgments.map((j) => (
               <li key={j.id} className="py-3">
                 <p className="text-sm">
-                  <span className="font-semibold">{j.surface}</span> · preferred <span className="text-gold font-mono">{j.winner}</span> · {j.reasonCodes.join(", ")}
+                  <span className="font-semibold">{j.surface}</span> · preferred <span className="font-mono text-fg">{j.winner}</span> · {j.reasonCodes.join(", ")}
                 </p>
                 <p className="text-[11px] text-fg-secondary mt-1">{j.context.slice(0, 160)} · {when(j.decidedAt)}</p>
               </li>
@@ -164,11 +164,11 @@ export default async function ProofPage() {
       </section>
 
       <section aria-labelledby="proposals">
-        <h2 id="proposals" className="text-xs uppercase tracking-widest text-fg-secondary mb-3">Night Shift proposals</h2>
+        <h2 id="proposals" className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-3">Night Shift proposals</h2>
         {s.proposals.length === 0 ? (
           <p className="text-sm text-fg-secondary">None yet. A proposal is one PR with its proof receipts; merging it is the only way it ships.</p>
         ) : (
-          <ul className="divide-y divide-glass">
+          <ul className="divide-y divide-edge-subtle">
             {s.proposals.map((p) => (
               <li key={p.id} className="py-2 text-sm flex flex-wrap gap-x-3">
                 <span className="font-mono text-xs">{p.status.toLowerCase()}</span>

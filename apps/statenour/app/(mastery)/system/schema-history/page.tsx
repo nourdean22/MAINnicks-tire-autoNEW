@@ -204,7 +204,7 @@ function SchemaHistoryInner() {
       <div className="space-y-4">
         {entries.length === 0 ? (
           <Panel className="border-edge-default py-12 text-center">
-            <Database className="mx-auto h-8 w-8 text-[var(--text-muted)] opacity-50" />
+            <Database className="mx-auto h-8 w-8 text-fg-tertiary opacity-50" />
             <p className="mt-3 text-sm text-fg-secondary font-medium">No ledger entries found</p>
             <p className="mt-1 text-xs text-fg-tertiary">
               No schema changes recorded for the selected filters.

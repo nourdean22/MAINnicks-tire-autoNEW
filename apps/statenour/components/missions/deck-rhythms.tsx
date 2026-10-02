@@ -23,11 +23,11 @@ export function DeckRhythms({ rhythms, onComplete }: Props) {
   return (
     <section
       aria-labelledby="rhythms-heading"
-      className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-base)] p-3 sm:p-4"
+      className="rounded-surface border border-edge-subtle bg-content p-3 sm:p-4"
     >
       <h2
         id="rhythms-heading"
-        className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--text-tertiary)]"
+        className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary"
       >
         rhythms
       </h2>
@@ -45,8 +45,8 @@ export function DeckRhythms({ rhythms, onComplete }: Props) {
                 aria-hidden
                 className={
                   r.doneToday
-                    ? "inline-flex h-5 w-5 items-center justify-center rounded-full bg-[var(--gold)] text-[11px] font-bold text-black"
-                    : "inline-block h-5 w-5 rounded-full border border-[var(--border-default)] transition-colors hover:border-[var(--gold)]/60"
+                    ? "inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-400 text-[11px] font-bold text-[var(--text-inverse)]"
+                    : "inline-block h-5 w-5 rounded-full border border-edge-default transition-colors duration-[var(--motion-state)] hover:border-edge-strong"
                 }
               >
                 {r.doneToday ? "✓" : ""}
@@ -55,14 +55,14 @@ export function DeckRhythms({ rhythms, onComplete }: Props) {
             <span
               className={
                 r.doneToday
-                  ? "min-w-0 flex-1 truncate text-[13px] text-[var(--text-tertiary)] line-through decoration-[var(--border-default)]"
-                  : "min-w-0 flex-1 truncate text-[13px] text-[var(--text-primary)]"
+                  ? "min-w-0 flex-1 truncate text-[13px] text-fg-tertiary line-through decoration-edge-default"
+                  : "min-w-0 flex-1 truncate text-[13px] text-fg"
               }
             >
               {r.title}
             </span>
             {r.windowOf > 0 && (
-              <span className="shrink-0 font-mono text-[10px] tabular-nums text-[var(--text-tertiary)]">
+              <span className="shrink-0 font-mono text-[11px] tabular-nums text-fg-tertiary">
                 {r.windowDone} of {r.windowOf}
                 {r.loopKind === "WEEKLY" ? " · weekly" : ""}
               </span>

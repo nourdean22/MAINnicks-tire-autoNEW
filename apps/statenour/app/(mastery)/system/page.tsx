@@ -226,7 +226,7 @@ export default function SystemPage() {
       }
     >
       {refreshing && (
-        <div className="text-center text-xs text-fg-tertiary animate-pulse">Refreshing...</div>
+        <div className="text-center text-xs text-fg-tertiary pulse-live">Refreshing...</div>
       )}
 
       {/* ── CONTROL TOWER (2026-09-16 · Visible Transformation) ──────────
@@ -249,7 +249,7 @@ export default function SystemPage() {
         )}
       >
         <h2 id="tower-heading" className="vt-eyebrow text-fg-secondary">
-          control tower
+          Control tower
         </h2>
         <p
           className={cn(
@@ -368,7 +368,7 @@ export default function SystemPage() {
         <Panel className="border-edge-default p-5 flex flex-col gap-4">
               <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
             <div>
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-400">F2 · System Change Digest</span>
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">F2 · System Change Digest</span>
               <h3 className="text-sm font-semibold text-fg mt-0.5">Reconciliation Summary</h3>
             </div>
             {changeDigestQuery.data?.deployment.status && (
@@ -458,7 +458,7 @@ export default function SystemPage() {
         <Panel className="border-edge-default p-5 flex flex-col gap-4">
               <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
             <div>
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-400">P5 · Grounded Truth Evals</span>
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">P5 · Grounded Truth Evals</span>
               <h3 className="text-sm font-semibold text-fg mt-0.5">Scoreboard</h3>
             </div>
             {memoryEvalsQuery.data && (
@@ -529,7 +529,7 @@ export default function SystemPage() {
         <Panel className="border-edge-default p-5 flex flex-col gap-4 md:col-span-2 lg:col-span-1">
               <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
             <div>
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-400">F4 · Action Receipt Feed</span>
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">F4 · Action Receipt Feed</span>
               <h3 className="text-sm font-semibold text-fg mt-0.5">Recent Activities</h3>
             </div>
             {receiptFeedQuery.data?.counts && (

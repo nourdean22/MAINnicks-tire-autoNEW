@@ -54,7 +54,7 @@ const ACTIVE_TINT: Record<string, string> = {
   compose: "bg-violet-500/15 text-violet-300 border-violet-500/30",
   ingest: "bg-blue-500/15 text-blue-300 border-blue-500/30",
   brain: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-  hygiene: "bg-fg-tertiary text-fg border-edge-default",
+  hygiene: "bg-surface-interactive text-fg-secondary border-edge-default",
   signals: "bg-amber-500/15 text-amber-300 border-amber-500/30",
   review: "bg-pink-500/15 text-pink-300 border-pink-500/30",
   device: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30",

@@ -25,10 +25,10 @@ import type { BriefStateSection } from "@/lib/home/operator-brief";
 import { cn } from "@/lib/utils/cn";
 
 const DOT: Record<string, string> = {
-  unknown: "bg-zinc-500",
+  unknown: "bg-fg-tertiary",
   healthy: "bg-emerald-400",
   degraded: "bg-amber-400",
-  broken: "bg-rose-400 motion-safe:animate-pulse",
+  broken: "bg-rose-400",
 };
 
 const HEALTH_LABEL: Record<string, string> = {
@@ -73,8 +73,8 @@ export function BriefStateLine({
     <header aria-label="operator state" className="pt-2">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         {/* Real h1: the page's one document-outline root. base.css styles h1
-            unlayered (display font, 1.75rem, uppercase) and BEATS utilities —
-            don't add size/tracking classes here, they'd silently lose. */}
+            in @layer base (28px Geist, sentence case) — keep it bare so the
+            page title stays uniform across pages. */}
         <h1>Nour</h1>
         <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           {dateStr}

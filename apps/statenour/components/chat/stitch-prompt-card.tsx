@@ -41,14 +41,14 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
   const { designSystem, pageStructure, interactionNotes, constraints } = data;
 
   return (
-    <div className="my-3 rounded-xl border border-white/10 bg-white/[0.02] overflow-hidden shadow-xl max-w-2xl font-sans">
+    <div className="my-3 rounded-surface border border-edge-subtle bg-content overflow-hidden max-w-2xl font-sans">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-amber-500/10 via-yellow-500/5 to-transparent px-4 py-3 border-b border-white/10 flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-edge-subtle flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4.5 w-4.5 text-[#e5a93b] animate-pulse" />
-          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-200">Stitch Prompt Architect</span>
+          <Sparkles className="h-4.5 w-4.5 text-fg-tertiary" />
+          <span className="text-[13px] font-semibold text-fg">Stitch Prompt Architect</span>
         </div>
-        <div className="flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-medium text-[#e5a93b] border border-amber-500/20">
+        <div className="flex items-center gap-1.5 rounded-full border border-edge-default bg-surface-raised px-2.5 py-0.5 text-[11px] font-medium text-fg-secondary">
           {designSystem.platform || "Web"}
         </div>
       </div>
@@ -56,24 +56,24 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
       <div className="p-4 space-y-4">
         {/* Purpose */}
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-mono font-semibold">Purpose</div>
-          <p className="text-sm font-medium text-zinc-100 mt-1">{data.oneLinePurpose}</p>
+          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Purpose</div>
+          <p className="text-sm font-medium text-fg mt-1">{data.oneLinePurpose}</p>
         </div>
 
         {/* Design System Tokens */}
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-mono font-semibold mb-2">Design System Grid</div>
+          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-2">Design System Grid</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
             {Object.entries(designSystem).map(([key, val]) => {
               if (!val || typeof val !== "string" || key === "platform") return null;
               const hex = extractHex(val);
               return (
-                <div key={key} className="flex items-center justify-between bg-white/[0.01] border border-white/[0.03] rounded-md px-2.5 py-1.5">
-                  <span className="text-zinc-500 capitalize">{key.replace(/([A-Z])/g, " $1")}</span>
-                  <div className="flex items-center gap-1.5 font-mono text-[11px] text-zinc-300">
+                <div key={key} className="flex items-center justify-between bg-surface-raised border border-edge-subtle rounded-md px-2.5 py-1.5">
+                  <span className="text-fg-tertiary capitalize">{key.replace(/([A-Z])/g, " $1")}</span>
+                  <div className="flex items-center gap-1.5 font-mono text-[11px] text-fg-secondary">
                     {hex && (
                       <span 
-                        className="h-2.5 w-2.5 rounded-full border border-white/20" 
+                        className="h-2.5 w-2.5 rounded-full border border-edge-strong" 
                         style={{ backgroundColor: hex }} 
                       />
                     )}
@@ -88,16 +88,16 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
         {/* Page Structure */}
         {pageStructure && pageStructure.length > 0 && (
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-mono font-semibold mb-2">Layout Structure</div>
+            <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-2">Layout Structure</div>
             <div className="space-y-1.5 text-xs">
               {pageStructure.map((sec, idx) => (
-                <div key={idx} className="flex gap-3 bg-white/[0.01] border border-white/[0.03] p-2 rounded-md">
-                  <div className="flex-shrink-0 h-5 w-5 rounded-full bg-zinc-800 border border-white/5 flex items-center justify-center font-mono text-[10px] text-[#e5a93b]">
+                <div key={idx} className="flex gap-3 bg-surface-raised border border-edge-subtle p-2 rounded-md">
+                  <div className="flex-shrink-0 h-5 w-5 rounded-full bg-surface-interactive border border-edge-subtle flex items-center justify-center font-mono text-[11px] text-fg-secondary">
                     {idx + 1}
                   </div>
                   <div>
-                    <span className="font-semibold text-zinc-200 block">{sec.section}</span>
-                    <span className="text-zinc-400 text-[11px] mt-0.5 block">{sec.description}</span>
+                    <span className="font-semibold text-fg block">{sec.section}</span>
+                    <span className="text-fg-secondary text-[11px] mt-0.5 block">{sec.description}</span>
                   </div>
                 </div>
               ))}
@@ -109,8 +109,8 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-1">
           {constraints && constraints.length > 0 && (
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-mono font-semibold mb-1.5">Constraints</div>
-              <ul className="space-y-1 text-zinc-400 list-disc list-inside pl-1 text-[11px]">
+              <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1.5">Constraints</div>
+              <ul className="space-y-1 text-fg-secondary list-disc list-inside pl-1 text-[11px]">
                 {constraints.map((c, idx) => (
                   <li key={idx}>{c}</li>
                 ))}
@@ -119,8 +119,8 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
           )}
           {interactionNotes && interactionNotes.length > 0 && (
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-mono font-semibold mb-1.5">Interactions</div>
-              <ul className="space-y-1 text-zinc-400 list-disc list-inside pl-1 text-[11px]">
+              <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1.5">Interactions</div>
+              <ul className="space-y-1 text-fg-secondary list-disc list-inside pl-1 text-[11px]">
                 {interactionNotes.map((n, idx) => (
                   <li key={idx}>{n}</li>
                 ))}
@@ -130,17 +130,17 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
         </div>
 
         {/* Markdown Expand Panel */}
-        <div className="border border-white/5 rounded-lg overflow-hidden bg-black/25">
+        <div className="border border-edge-subtle rounded-control overflow-hidden bg-canvas">
           <button
             type="button"
             onClick={() => setExpandedPrompt(!expandedPrompt)}
-            className="flex min-h-11 w-full items-center justify-between px-3 py-2 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/[0.02]"
+            className="flex min-h-11 w-full items-center justify-between px-3 py-2 text-xs font-medium text-fg-secondary transition-colors hover:bg-surface-hover"
           >
             <span>Raw Markdown Prompt ({data.finalPromptMarkdown.length} chars)</span>
             {expandedPrompt ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
           {expandedPrompt && (
-            <div className="p-3 border-t border-white/5 font-mono text-[10px] text-zinc-400 max-h-60 overflow-y-auto whitespace-pre-wrap select-all">
+            <div className="p-3 border-t border-edge-subtle font-mono text-[11px] text-fg-secondary max-h-60 overflow-y-auto whitespace-pre-wrap select-all">
               {data.finalPromptMarkdown}
             </div>
           )}
@@ -151,10 +151,10 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
           type="button"
           onClick={handleCopy}
           className={cn(
-            "flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-xs font-semibold transition-all duration-200",
+            "flex min-h-11 w-full items-center justify-center gap-2 rounded-control border px-4 py-2.5 text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
             copied
               ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
-              : "bg-[#e5a93b]/10 border-[#e5a93b]/30 text-[#e5a93b] hover:bg-[#e5a93b]/15"
+              : "bg-content border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg"
           )}
         >
           {copied ? (

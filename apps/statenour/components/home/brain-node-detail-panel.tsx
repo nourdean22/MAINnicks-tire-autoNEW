@@ -153,37 +153,37 @@ Connected in view: ${inViewConnections.map((c) => `${c.node.label} (${c.type})`)
   return (
     <div
       className={cn(
-        "glass-card border-(--border-default) bg-[#0A0A0A]/95 backdrop-blur-md shadow-2xl flex flex-col z-20",
+        "glass-card border-edge-default bg-overlay shadow-l1 flex flex-col z-20",
         isMobile
-          ? "fixed inset-x-0 bottom-0 max-h-[72vh] rounded-t-2xl rounded-b-none animate-slide-up-soft pb-[env(safe-area-inset-bottom)]"
+          ? "fixed inset-x-0 bottom-0 max-h-[72vh] rounded-t-float rounded-b-none animate-slide-up-soft pb-[env(safe-area-inset-bottom)]"
           : "absolute right-3 top-16 bottom-3 w-80 max-w-full animate-fade-in-scale",
       )}
     >
       {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-(--border-default)">
         <div className="flex items-center gap-2 flex-wrap">
-          <IconComponent size={14} className="text-(--gold)" />
-          <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-(--text-tertiary)">
+          <IconComponent size={14} className="text-fg-tertiary" />
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-(--text-tertiary)">
             {node.type}
           </span>
           {evidence && (
-            <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-semibold font-mono uppercase tracking-wider border", evidence.cls)}>
+            <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded-micro font-mono text-[11px] font-medium uppercase tracking-[0.12em] border", evidence.cls)}>
               {evidence.text}
             </span>
           )}
           {node.contradicted && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-semibold font-mono uppercase tracking-wider border border-rose-500/30 text-rose-300 bg-rose-500/10">
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-micro font-mono text-[11px] font-medium uppercase tracking-[0.12em] border border-rose-500/30 text-rose-300 bg-rose-500/10">
               contradicted
             </span>
           )}
           {node.status && node.status !== "active" && (
             <span
               className={cn(
-                "inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-semibold font-mono uppercase tracking-wider border",
+                "inline-flex items-center px-1.5 py-0.5 rounded-micro font-mono text-[11px] font-medium uppercase tracking-[0.12em] border",
                 node.status === "risk" && "bg-rose-500/10 border-rose-500/20 text-rose-400",
-                node.status === "opportunity" && "bg-(--gold)/10 border-(--gold)/20 text-(--gold)",
+                node.status === "opportunity" && "bg-amber-500/10 border-amber-500/20 text-amber-300",
                 node.status === "done" && "bg-emerald-500/10 border-emerald-500/20 text-emerald-400",
-                node.status === "stale" && "bg-zinc-500/10 border-zinc-500/20 text-zinc-400",
+                node.status === "stale" && "bg-surface-interactive border-edge-default text-fg-tertiary",
               )}
             >
               {node.status}
@@ -206,14 +206,14 @@ Connected in view: ${inViewConnections.map((c) => `${c.node.label} (${c.type})`)
         </h4>
 
         {/* Attention + time — real numbers, never percentages */}
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-mono text-(--text-tertiary)">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-mono text-(--text-tertiary)">
           {typeof node.seenCount === "number" && (
             <span className="inline-flex items-center gap-1"><Eye size={10} /> seen {node.seenCount}×</span>
           )}
           {typeof node.ageDays === "number" && (
             <span className="inline-flex items-center gap-1">
               <Clock size={10} />
-              {node.isNew ? <span className="text-(--gold)">new · {node.ageDays}d</span> : `${node.ageDays}d old`}
+              {node.isNew ? <span className="text-(--text-secondary)">new · {node.ageDays}d</span> : `${node.ageDays}d old`}
             </span>
           )}
           {typeof node.expiresInDays === "number" && (
@@ -225,22 +225,22 @@ Connected in view: ${inViewConnections.map((c) => `${c.node.label} (${c.type})`)
 
         {/* The record's own content — or an honest absence */}
         {fact ? (
-          <p className="text-xs text-(--text-secondary) leading-relaxed bg-black/30 p-2.5 rounded border border-(--border-default)/60 whitespace-pre-wrap">
+          <p className="text-xs text-(--text-secondary) leading-relaxed bg-canvas p-2.5 rounded-control border border-(--border-default)/60 whitespace-pre-wrap">
             {fact}
           </p>
         ) : (
-          <p className="text-[10px] font-mono text-(--text-tertiary) italic">
+          <p className="text-[11px] font-mono text-(--text-tertiary) italic">
             no stored content on this node
           </p>
         )}
 
         {/* Connections — in view */}
         <div className="space-y-1.5">
-          <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-(--text-tertiary) inline-flex items-center gap-1">
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-(--text-tertiary) inline-flex items-center gap-1">
             <Link2 size={10} /> connected here ({inViewConnections.length})
           </span>
           {inViewConnections.length === 0 ? (
-            <p className="text-[10px] font-mono text-(--text-tertiary) italic">
+            <p className="text-[11px] font-mono text-(--text-tertiary) italic">
               unlinked in this view — isolation is signal
             </p>
           ) : (
@@ -250,13 +250,13 @@ Connected in view: ${inViewConnections.map((c) => `${c.node.label} (${c.type})`)
                   <button
                     onClick={() => onSelectNode?.(c.node.id)}
                     className={cn(
-                      "w-full text-left px-2 py-1.5 rounded border text-[10px] leading-snug transition-colors min-h-[36px]",
+                      "w-full text-left px-2 py-1.5 rounded-control border text-[12px] leading-snug transition-colors min-h-[36px]",
                       c.type === "contradicts"
                         ? "border-rose-500/30 bg-rose-500/5 text-rose-200 hover:border-rose-400/50"
-                        : "border-(--border-default)/60 bg-black/20 text-(--text-secondary) hover:border-(--gold)/25",
+                        : "border-(--border-default)/60 bg-canvas text-(--text-secondary) hover:border-edge-strong",
                     )}
                   >
-                    <span className="font-mono text-[8px] uppercase tracking-wider mr-1.5 opacity-70">
+                    <span className="font-mono text-[11px] mr-1.5 opacity-70">
                       {c.type === "contradicts" ? "⚡ contradicts" : c.type.replace("_", " ")}
                     </span>
                     {c.node.label.length > 46 ? c.node.label.slice(0, 46) + "…" : c.node.label}
@@ -270,24 +270,24 @@ Connected in view: ${inViewConnections.map((c) => `${c.node.label} (${c.type})`)
         {/* Stored neighborhood (memory_edges lane) */}
         {nType !== null && (
           <div className="space-y-1.5">
-            <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-(--text-tertiary)">
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-(--text-tertiary)">
               stored relationships
             </span>
             {neighborhood.isLoading ? (
-              <p className="text-[10px] font-mono text-(--text-tertiary)">loading…</p>
+              <p className="text-[11px] font-mono text-(--text-tertiary)">loading…</p>
             ) : neighborhood.isError ? (
-              <p className="text-[10px] font-mono text-amber-400">
+              <p className="text-[11px] font-mono text-amber-400">
                 relationship read failed — unknown, not zero
               </p>
             ) : (neighborhood.data?.nodes?.length ?? 0) === 0 ? (
-              <p className="text-[10px] font-mono text-(--text-tertiary) italic">
+              <p className="text-[11px] font-mono text-(--text-tertiary) italic">
                 none recorded
               </p>
             ) : (
               <ul className="space-y-0.5">
                 {neighborhood.data!.nodes.slice(0, 8).map((n) => (
-                  <li key={`${n.type}:${n.id}`} className="text-[10px] text-(--text-secondary) px-2 py-1 rounded bg-black/20 border border-(--border-default)/40">
-                    <span className="font-mono text-[8px] uppercase tracking-wider mr-1.5 opacity-60">{n.type}</span>
+                  <li key={`${n.type}:${n.id}`} className="text-[12px] text-(--text-secondary) px-2 py-1 rounded-control bg-canvas border border-(--border-default)/40">
+                    <span className="font-mono text-[11px] mr-1.5 opacity-60">{n.type}</span>
                     {n.label.length > 48 ? n.label.slice(0, 48) + "…" : n.label}
                   </li>
                 ))}
@@ -301,7 +301,7 @@ Connected in view: ${inViewConnections.map((c) => `${c.node.label} (${c.type})`)
       <div className="pt-3 border-t border-(--border-default) flex flex-col gap-1.5">
         <button
           onClick={handleAskNick}
-          className="w-full text-[10px] font-mono uppercase tracking-wider font-semibold rounded bg-(--gold) text-(--text-inverse) hover:bg-(--gold-dim) transition-colors min-h-[48px] flex items-center justify-center gap-1.5 active:scale-[0.98]"
+          className="w-full text-[13px] font-medium rounded-control border border-edge-default bg-content text-fg hover:border-edge-strong transition-colors duration-[var(--motion-state)] min-h-[48px] flex items-center justify-center gap-1.5 active:scale-[0.98]"
         >
           <MessageSquare size={12} />
           ask nick about this
@@ -309,7 +309,7 @@ Connected in view: ${inViewConnections.map((c) => `${c.node.label} (${c.type})`)
         {node.type === "memory" && (
           <button
             onClick={() => openInspector({ kind: "memory", id: node.id })}
-            className="w-full text-[9px] font-mono uppercase tracking-wider rounded border border-(--border-default) bg-(--bg-elevated) text-(--text-secondary) hover:border-(--gold)/20 transition-colors min-h-[48px] flex items-center justify-center gap-1"
+            className="w-full text-[13px] font-medium rounded-control border border-edge-default bg-content text-fg-secondary hover:border-edge-strong hover:text-fg transition-colors duration-[var(--motion-state)] min-h-[48px] flex items-center justify-center gap-1"
           >
             <Eye size={11} />
             inspect memory · proof + time
@@ -334,7 +334,7 @@ Connected in view: ${inViewConnections.map((c) => `${c.node.label} (${c.type})`)
                 ? "this node has no connections in the loaded graph — there is no neighbourhood to focus"
                 : undefined
             }
-            className="text-[9px] font-mono uppercase tracking-wider rounded border border-(--border-default) bg-(--bg-elevated) text-(--text-secondary) hover:border-(--gold)/20 transition-colors min-h-[48px] flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-(--border-default)"
+            className="text-[13px] font-medium rounded-control border border-edge-default bg-content text-fg-secondary hover:border-edge-strong hover:text-fg transition-colors duration-[var(--motion-state)] min-h-[48px] flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-(--border-default)"
           >
             <Compass size={11} />
             {inViewConnections.length === 0 ? "no connections" : "focus graph"}
@@ -342,9 +342,9 @@ Connected in view: ${inViewConnections.map((c) => `${c.node.label} (${c.type})`)
           {node.href && (
             <button
               onClick={() => router.push(node.href!)}
-              className="text-[9px] font-mono uppercase tracking-wider rounded border border-(--border-default) bg-(--bg-elevated) text-(--text-secondary) hover:border-(--gold)/20 transition-colors min-h-[48px] flex items-center justify-center gap-1"
+              className="text-[13px] font-medium rounded-control border border-edge-default bg-content text-fg-secondary hover:border-edge-strong hover:text-fg transition-colors duration-[var(--motion-state)] min-h-[48px] flex items-center justify-center gap-1"
             >
-              open page
+              Open page
               <ArrowRight size={11} />
             </button>
           )}

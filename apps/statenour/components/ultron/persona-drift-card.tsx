@@ -135,18 +135,18 @@ export function PersonaDriftCard() {
 
   return (
     <GlassCard
-      className="min-h-[96px] border-[var(--gold)]/25 bg-[var(--gold)]/[0.03]"
+      className="min-h-[96px]"
       data-testid="persona-drift-card"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
+        <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           <Compass size={11} />
           identity · drift
-          <span className="rounded-sm border border-[var(--gold)]/30 px-1 py-px text-[9px] tabular-nums text-[var(--gold)]">
+          <span className="rounded-micro border border-edge-default px-1 py-px text-[11px] tabular-nums text-fg-secondary">
             {items.length} · {Math.round(strongest * 100)}% max
           </span>
         </span>
-        <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] tabular-nums">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
           7d window
         </span>
       </div>
@@ -161,14 +161,14 @@ export function PersonaDriftCard() {
               <div className="-mx-1 flex items-start gap-2 px-1 py-1 rounded-sm">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-1.5">
-                    <span className="shrink-0 text-[8.5px] font-mono uppercase tracking-[0.18em] text-amber-400/80 tabular-nums">
+                    <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-amber-400/80 tabular-nums">
                       {driftPct}%
                     </span>
-                    <span className="text-[var(--text-primary)]">
+                    <span className="text-fg">
                       {trimText(d.excerpt)}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5 mt-0.5 text-[9px] font-mono text-[var(--text-tertiary)] tabular-nums">
+                  <div className="flex items-center gap-1.5 mt-0.5 font-mono text-[11px] text-fg-tertiary tabular-nums">
                     {age !== null && (
                       <span title={`detected ${d.detectedAt}`}>
                         {age === 0 ? "today" : `${age}d ago`}
@@ -194,7 +194,7 @@ export function PersonaDriftCard() {
                           title={meta.title}
                           aria-label={`${r} this drift event`}
                           className={cn(
-                            "flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] font-mono lowercase tracking-wide transition-colors",
+                            "flex items-center gap-1 px-1.5 py-0.5 rounded-control border font-mono text-[12px] lowercase transition-colors",
                             "min-h-[44px] sm:min-h-[24px]",
                             meta.tone,
                             isSubmitting && "opacity-60 cursor-wait",
@@ -215,7 +215,7 @@ export function PersonaDriftCard() {
           );
         })}
         {more > 0 && (
-          <li className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] pl-3">
+          <li className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary pl-3">
             <span className="inline-flex items-center gap-1">
               <ChevronRight size={9} />+ {more} more in window
             </span>
@@ -223,7 +223,7 @@ export function PersonaDriftCard() {
         )}
       </ul>
 
-      <p className="mt-2 border-t border-[var(--border-default)]/30 pt-2 text-[10px] italic text-[var(--text-tertiary)]">
+      <p className="mt-2 border-t border-edge-subtle pt-2 text-[11px] italic text-fg-tertiary">
         drift = 1 − cosine(reply, 8-axis identity) · persistent drift here suggests your stated spec needs updating
       </p>
     </GlassCard>

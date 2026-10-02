@@ -96,7 +96,7 @@ export function BottomTabBar() {
       <BottomPulseTicker />
       <nav
         aria-label="Primary"
-        className="flex items-stretch border-t border-edge bg-[var(--bg-void)]/95 backdrop-blur-xl xl:hidden"
+        className="ui-material flex items-stretch border-t border-edge-subtle xl:hidden"
       >
         {BOTTOM_TABS.map((tab) => {
           const Icon = tab.icon;

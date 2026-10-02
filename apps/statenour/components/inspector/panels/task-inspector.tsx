@@ -42,8 +42,8 @@ function Row({ label, value, tone }: { label: string; value: string | null | und
   if (!value) return null;
   return (
     <div>
-      <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-tertiary">{label}</dt>
-      <dd className={tone === "warn" ? "text-[13px] text-amber-300" : tone === "gold" ? "text-[13px] text-gold" : "text-[13px] text-fg-secondary"}>
+      <dt className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{label}</dt>
+      <dd className={tone === "warn" ? "text-[13px] text-amber-300" : tone === "gold" ? "text-[13px] text-fg" : "text-[13px] text-fg-secondary"}>
         {value}
       </dd>
     </div>
@@ -72,10 +72,10 @@ function PageActions({ taskId, actions }: { taskId: string; actions: InspectorPa
             }
           }}
           className={cn(
-            "inline-flex min-h-[44px] items-center rounded-lg border px-3 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors md:min-h-[36px]",
+            "inline-flex min-h-[44px] items-center rounded-control border px-3 text-[13px] font-medium transition-colors duration-[var(--motion-state)] md:min-h-[36px]",
             a.tone === "primary"
-              ? "border-[var(--gold)]/40 bg-[var(--gold)]/10 text-gold hover:bg-[var(--gold)]/[0.16]"
-              : "border-glass text-fg-secondary hover:text-fg",
+              ? "border-accent bg-accent-soft text-fg hover:bg-accent-medium"
+              : "border-edge-default bg-content text-fg-secondary hover:border-edge-strong hover:text-fg",
             busy === a.id && "opacity-60",
           )}
         >
@@ -137,16 +137,16 @@ export function TaskInspector({ entity }: InspectorPanelProps) {
     <div className="space-y-5" data-task-inspector={t.id}>
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded border border-edge px-1.5 py-px font-mono text-[10px] uppercase tracking-wide text-fg-tertiary">
+          <span className="rounded-micro border border-edge-default px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             {t.status.toLowerCase()}
           </span>
           {t.mission ? (
-            <span className="rounded border border-edge px-1.5 py-px font-mono text-[10px] uppercase tracking-wide text-fg-tertiary">
+            <span className="rounded-micro border border-edge-default px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               {t.mission.title}
             </span>
           ) : null}
         </div>
-        <h2 className="font-display text-xl font-bold leading-tight text-fg">{t.title}</h2>
+        <h2 className="text-[17px] font-semibold leading-tight text-fg">{t.title}</h2>
       </header>
 
       {pageActions && pageActions.length > 0 ? <PageActions taskId={t.id} actions={pageActions} /> : null}
@@ -162,7 +162,7 @@ export function TaskInspector({ entity }: InspectorPanelProps) {
       </dl>
 
       <section aria-label="Why">
-        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-tertiary">why this priority</p>
+        <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">why this priority</p>
         {t.priorityManual && manualScore !== null ? (
           <p className="font-mono text-[12px] text-fg-secondary" data-priority-manual={manualScore}>
             manual override {manualScore} · set by you; the scorer is not consulted
@@ -182,7 +182,7 @@ export function TaskInspector({ entity }: InspectorPanelProps) {
 
       <EntityActionRow entities={[entity]} labelOf={() => t.title} />
       {!pageActions || pageActions.length === 0 ? (
-        <p className="font-mono text-[10px] text-fg-tertiary">complete · snooze · park run from the Missions board — open it there to act</p>
+        <p className="font-mono text-[11px] text-fg-tertiary">complete · snooze · park run from the Missions board — open it there to act</p>
       ) : null}
     </div>
   );

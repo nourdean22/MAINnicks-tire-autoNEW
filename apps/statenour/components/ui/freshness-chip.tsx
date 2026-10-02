@@ -108,8 +108,8 @@ function fmtAge(ms: number): { text: string; tone: "live" | "fresh" | "recent" |
 }
 
 const TONE_STYLES: Record<string, { text: string; dot: string; bg: string }> = {
-  live: { text: "text-emerald-400", dot: "bg-emerald-400 animate-pulse", bg: "bg-emerald-500/5 border-emerald-500/20" },
-  fresh: { text: "text-[var(--gold)]", dot: "bg-[var(--gold)]", bg: "bg-[var(--gold)]/5 border-[var(--gold)]/20" },
+  live: { text: "text-emerald-400", dot: "bg-emerald-400", bg: "bg-emerald-500/5 border-emerald-500/20" },
+  fresh: { text: "text-emerald-300", dot: "bg-emerald-300", bg: "bg-transparent border-edge-default" },
   recent: { text: "text-[var(--text-secondary)]", dot: "bg-[var(--text-secondary)]", bg: "bg-transparent border-[var(--border-default)]" },
   stale: { text: "text-amber-400", dot: "bg-amber-400", bg: "bg-amber-500/5 border-amber-500/25" },
   "very-stale": { text: "text-rose-400", dot: "bg-rose-400", bg: "bg-rose-500/5 border-rose-500/30" },
@@ -126,7 +126,7 @@ export function FreshnessChip({ lastFetchedAt, source, onReload, compact, classN
     return (
       <span
         className={cn(
-          "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-mono",
+          "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-mono",
           "border-[var(--border-default)] text-[var(--text-tertiary)]",
           className,
         )}
@@ -161,7 +161,7 @@ export function FreshnessChip({ lastFetchedAt, source, onReload, compact, classN
   );
 
   const className_ = cn(
-    "group inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-mono transition-colors",
+    "group inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-mono transition-colors",
     styles.bg,
     className,
   );
@@ -171,7 +171,7 @@ export function FreshnessChip({ lastFetchedAt, source, onReload, compact, classN
       <button
         type="button"
         onClick={onReload}
-        className={cn(className_, "hover:border-[var(--gold)]/40 cursor-pointer")}
+        className={cn(className_, "hover:border-edge-strong cursor-pointer")}
         title={`Last refresh · tap to reload`}
       >
         {content}

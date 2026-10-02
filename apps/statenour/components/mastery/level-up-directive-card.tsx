@@ -110,15 +110,15 @@ export function LevelUpDirectiveCard() {
     return (
       <section
         aria-label="level-up directive"
-        className="rounded-lg border border-white/10 bg-white/[0.02] px-3.5 py-2.5"
+        className="rounded-surface border border-edge-subtle bg-content px-3.5 py-2.5"
       >
-        <p className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           Level-up directive
         </p>
-        <p className="mt-1 text-[11px] leading-snug text-white/55">
+        <p className="mt-1 text-[12px] leading-snug text-fg-secondary">
           Missing data — no stat history to rank yet. Complete a{" "}
-          <Link href="/missions" className="underline decoration-white/20 underline-offset-2 hover:text-white/80">
-            mission task
+          <Link href="/missions" className="underline decoration-edge-strong underline-offset-2 hover:text-fg">
+            Mission task
           </Link>{" "}
           to put the first rep on the board.
         </p>
@@ -133,7 +133,7 @@ export function LevelUpDirectiveCard() {
   return (
     <section
       aria-label="level-up directive"
-      className="rounded-lg border px-3.5 py-2.5 space-y-1.5"
+      className="rounded-surface border px-3.5 py-2.5 space-y-1.5"
       style={{
         borderColor: `${stat.color}40`,
         backgroundColor: `${stat.color}0f`,
@@ -141,11 +141,11 @@ export function LevelUpDirectiveCard() {
     >
       {/* eyebrow + avoidance mirror */}
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           Level-up directive
         </p>
         {directive.neglected ? (
-          <p className="shrink-0 text-[9px] font-semibold uppercase tracking-[0.14em] text-amber-400/90">
+          <p className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300">
             Neglected this week · 0 XP in 7 days
           </p>
         ) : null}
@@ -156,7 +156,7 @@ export function LevelUpDirectiveCard() {
         <span className="shrink-0 text-base leading-none" aria-hidden>
           {stat.icon}
         </span>
-        <span className="truncate text-[12.5px] font-medium text-white/90">
+        <span className="truncate text-[13px] font-medium text-fg">
           {stat.shortLabel || stat.label}
         </span>
         <span
@@ -168,13 +168,13 @@ export function LevelUpDirectiveCard() {
       </div>
 
       {/* why · always "Because…" / "Based on…" */}
-      <p className="text-[11px] leading-snug text-white/60">
+      <p className="text-[12px] leading-snug text-fg-secondary">
         {directive.reason}
       </p>
 
       {/* skill-cape milestone, only when the next level is a tier gate */}
       {directive.milestone ? (
-        <p className="text-[10px] tabular-nums text-white/45">
+        <p className="text-[12px] tabular-nums text-fg-tertiary">
           Milestone in reach · {Math.round(directive.xpToNext)} XP to Lvl{" "}
           {directive.milestone.level} {directive.milestone.tier}
         </p>
@@ -184,18 +184,18 @@ export function LevelUpDirectiveCard() {
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 pt-0.5">
         <Link
           href={directive.rep.href}
-          className="inline-flex min-h-[36px] items-center rounded-md border px-3 text-[10.5px] font-semibold uppercase tracking-[0.08em] transition hover:bg-white/[0.06]"
+          className="inline-flex min-h-[36px] items-center rounded-control border px-3 text-[13px] font-medium transition-colors duration-[var(--motion-state)] hover:bg-surface-hover"
           style={{ borderColor: `${stat.color}66`, color: stat.color }}
         >
           {directive.rep.cta} →
         </Link>
-        <span className="min-w-0 flex-1 truncate text-[11px] text-white/55">
+        <span className="min-w-0 flex-1 truncate text-[12px] text-fg-secondary">
           {directive.rep.text}
         </span>
         {showGoalAnchor ? (
           <a
             href={`/stats?tab=goals#goal-${directive.goal!.id}`}
-            className="shrink-0 max-w-[160px] truncate text-[10px] text-white/45 underline decoration-white/15 underline-offset-2 hover:text-white/75"
+            className="shrink-0 max-w-[160px] truncate text-[11px] text-fg-tertiary underline decoration-edge-strong underline-offset-2 hover:text-fg"
             title={directive.goal!.title}
           >
             goal: {directive.goal!.title}
@@ -205,7 +205,7 @@ export function LevelUpDirectiveCard() {
 
       {/* build diagnosis · only when the math is clear */}
       {directive.imbalance ? (
-        <p className="text-[9px] uppercase tracking-[0.16em] text-white/30">
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           Build imbalance · {directive.imbalance}
         </p>
       ) : null}

@@ -65,13 +65,13 @@ export function OsDriftTile({ state }: Props) {
   const monsterThreshold = state.data.monsterLocThreshold ?? 800;
 
   return (
-    <GlassCard ruled className="min-h-[112px] border-l-gold/60">
+    <GlassCard ruled className="min-h-[112px] border-l-edge-strong">
       <div className="flex items-center justify-between mb-1">
-        <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
+        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           <Activity size={11} />
           os · drift
         </span>
-        <span className="text-[9px] font-mono text-[var(--text-tertiary)]">
+        <span className="font-mono text-[11px] text-fg-tertiary">
           vs 7d ago
         </span>
       </div>
@@ -101,7 +101,7 @@ export function OsDriftTile({ state }: Props) {
             ? "text-rose-300"
             : isGood
               ? "text-emerald-300"
-              : "text-[var(--text-tertiary)]";
+              : "text-fg-tertiary";
 
           // Only show delta chip when we actually have a prior value to
           // compare against — without a baseline a "+5" would be misleading.
@@ -112,18 +112,18 @@ export function OsDriftTile({ state }: Props) {
               key={key}
               className="flex items-baseline justify-between gap-2 text-[11px] font-mono"
             >
-              <dt className="text-[var(--text-secondary)] tracking-wide">{label}</dt>
+              <dt className="text-fg-secondary tracking-wide">{label}</dt>
               <dd className="inline-flex items-baseline gap-2">
-                <span className="tabular-nums text-[var(--text-primary)]">{nowVal}</span>
+                <span className="tabular-nums text-fg">{nowVal}</span>
                 {showDelta ? (
                   <span
-                    className={cn("tabular-nums text-[9px]", deltaColor)}
+                    className={cn("tabular-nums text-[11px]", deltaColor)}
                     aria-label={`delta ${text}`}
                   >
                     {text}
                   </span>
                 ) : (
-                  <span className="text-[9px] text-[var(--text-tertiary)]/40">·</span>
+                  <span className="text-[11px] text-fg-tertiary/40">·</span>
                 )}
               </dd>
             </div>
@@ -131,7 +131,7 @@ export function OsDriftTile({ state }: Props) {
         })}
       </dl>
 
-      <p className="mt-1.5 text-[9px] font-mono text-[var(--text-tertiary)]/70">
+      <p className="mt-1.5 font-mono text-[11px] text-fg-tertiary">
         monster &gt; {monsterThreshold} LOC
       </p>
     </GlassCard>

@@ -282,7 +282,7 @@ export const DOMAIN_COLOR: Record<string, string> = {
   health: "bg-green-500/15 text-green-400",
   finance: "bg-blue-500/15 text-blue-400",
   content: "bg-pink-500/15 text-pink-400",
-  default: "bg-zinc-500/15 text-zinc-400",
+  default: "bg-surface-interactive text-fg-secondary",
 };
 
 export const HABIT_ICON: Record<string, string> = {

@@ -33,7 +33,7 @@ export function HorizonLine({ horizon }: { horizon: BriefHorizonSection | null }
     return (
       <section aria-label="horizon">
         <h2 className="vt-eyebrow text-fg-secondary">Horizon</h2>
-        <p className="mt-3 font-mono text-[12px] uppercase tracking-[0.14em] text-amber-300/90">
+        <p className="mt-3 font-mono text-[12px] uppercase tracking-[0.12em] text-amber-300/90">
           horizon unmeasured — reads failed
         </p>
       </section>
@@ -47,8 +47,8 @@ export function HorizonLine({ horizon }: { horizon: BriefHorizonSection | null }
       <ol className="mt-4 border-l border-edge">
         {horizon.slots.map((slot) => (
           <li key={slot.scope} className="relative flex min-h-[44px] items-start gap-3 pl-5">
-            <span aria-hidden className="absolute -left-[3.5px] top-[19px] h-1.5 w-1.5 rounded-full bg-gold" />
-            <span className="w-12 shrink-0 pt-3 font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary">
+            <span aria-hidden className="absolute -left-[3.5px] top-[19px] h-1.5 w-1.5 rounded-full bg-fg-tertiary" />
+            <span className="w-12 shrink-0 pt-3 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               {SCOPE_LABEL[slot.scope] ?? slot.scope}
             </span>
             {/* No title attr: the source is already the visible span beside
@@ -56,7 +56,7 @@ export function HorizonLine({ horizon }: { horizon: BriefHorizonSection | null }
                 serializers. */}
             <Link
               href={slot.href}
-              className="block min-w-0 flex-1 truncate py-3 text-[15px] text-fg transition-colors duration-150 hover:text-gold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+              className="block min-w-0 flex-1 truncate py-3 text-[15px] text-fg transition-colors duration-150 hover:underline hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
             >
               {slot.label}
             </Link>

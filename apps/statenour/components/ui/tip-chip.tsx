@@ -179,9 +179,9 @@ export function TipChip({
         className={cn(
           "inline-flex items-center justify-center rounded-full transition-colors",
           "min-w-[24px] min-h-[24px] p-1",
-          "text-[var(--text-tertiary)] hover:text-[var(--gold)]",
-          "focus-visible:ring-1 focus-visible:ring-[var(--gold)] focus-visible:outline-none",
-          open && "text-[var(--gold)]",
+          "text-fg-tertiary hover:text-fg",
+          "focus-visible:outline-none",
+          open && "text-fg",
           className,
         )}
       >
@@ -199,12 +199,12 @@ export function TipChip({
             zIndex: 80,
           }}
           className={cn(
-            "rounded-md border border-[var(--gold)]/30 bg-[var(--bg-raised)] px-3 py-2 shadow-lg",
+            "rounded-float border border-edge-default bg-overlay px-3 py-2 shadow-l1",
             "text-[11px] leading-snug text-[var(--text-secondary)]",
           )}
         >
           {title && (
-            <div className="mb-1 text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--gold)]">
+            <div className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               {title}
             </div>
           )}

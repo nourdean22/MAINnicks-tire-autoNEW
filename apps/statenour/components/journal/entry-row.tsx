@@ -93,7 +93,7 @@ export function JournalEntryRow({
         // screen readers announce open/closed state · focus-visible
         // ring matches the rest of the surface's keyboard nav.
         aria-expanded={isExpanded}
-        className="w-full flex items-start gap-3 px-3 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/40 focus-visible:ring-inset rounded-control"
+        className="w-full flex items-start gap-3 px-3 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-inset rounded-control"
       >
         {/* Type icon */}
         <div className={cn("shrink-0 mt-0.5", meta.color)}>
@@ -354,7 +354,7 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="What will happen by the target date?"
-        className="w-full rounded-control border border-edge-default bg-surface-interactive px-2 py-1 text-[13px] text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-gold/60"
+        className="w-full rounded-control border border-edge-default bg-surface-interactive px-2 py-1 text-[13px] text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent/60"
         maxLength={500}
       />
       <div className="flex items-center gap-2">

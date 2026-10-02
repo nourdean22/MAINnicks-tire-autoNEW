@@ -141,7 +141,7 @@ export function BeliefsPanel() {
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
               rows={2}
-              className="w-full px-2 py-1 bg-[var(--bg-overlay)] border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-accent"
+              className="w-full px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-accent"
             />
             <div className="flex items-center gap-1.5">
               <button
@@ -173,7 +173,7 @@ export function BeliefsPanel() {
                 {b.theme_tokens.length > 0 && (
                   <div className="mt-1 flex items-center gap-1 flex-wrap">
                     {b.theme_tokens.slice(0, 5).map((t) => (
-                      <span key={t} className="text-[11px] font-mono px-1 py-0.5 rounded bg-[var(--bg-overlay)] text-[var(--text-tertiary)]">
+                      <span key={t} className="text-[11px] font-mono px-1 py-0.5 rounded bg-surface-interactive text-[var(--text-tertiary)]">
                         {t}
                       </span>
                     ))}

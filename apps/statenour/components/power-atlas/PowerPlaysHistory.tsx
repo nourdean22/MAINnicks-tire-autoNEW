@@ -92,16 +92,16 @@ function outcomeTone(o: PlayOutcome): {
       };
     case "not_executed":
       return {
-        border: "border-zinc-500/30",
-        bg: "bg-zinc-500/[0.06]",
-        text: "text-zinc-300",
+        border: "border-edge-default",
+        bg: "bg-surface-interactive",
+        text: "text-fg-secondary",
         label: "not executed",
       };
     default:
       return {
-        border: "border-[rgba(255,255,255,0.06)]",
+        border: "border-edge-subtle",
         bg: "bg-transparent",
-        text: "text-[var(--text-tertiary)]",
+        text: "text-fg-tertiary",
         label: "none",
       };
   }
@@ -127,8 +127,7 @@ function PlayRowDisplay({
 
   return (
     <li
-      className="border-b last:border-b-0 py-2"
-      style={{ borderColor: "rgba(255,255,255,0.04)" }}
+      className="border-b border-edge-subtle last:border-b-0 py-2"
     >
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
         <button
@@ -137,14 +136,14 @@ function PlayRowDisplay({
           className="flex items-baseline gap-2 text-left flex-1 min-w-0"
           aria-expanded={expanded}
         >
-          <span className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium">
+          <span className="text-[13px] font-medium text-fg-secondary">
             {kindLabel(play.kind)}
           </span>
-          <span className="text-[10px] text-[var(--text-tertiary)] tabular-nums font-mono">
+          <span className="font-mono text-[11px] text-fg-tertiary tabular-nums">
             {relativeTime(play.createdAt)}
           </span>
           <span
-            className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${tone.border} ${tone.bg} ${tone.text}`}
+            className={`font-mono text-[11px] uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-micro border ${tone.border} ${tone.bg} ${tone.text}`}
           >
             {tone.label}
           </span>
@@ -161,8 +160,7 @@ function PlayRowDisplay({
               outcome: v as "win" | "partial" | "loss" | "not_executed",
             });
           }}
-          className="text-[10px] uppercase tracking-wider bg-transparent border rounded px-1.5 py-0.5 text-[var(--text-tertiary)] focus:text-[var(--text-secondary)] focus:outline-none disabled:opacity-50"
-          style={{ borderColor: "rgba(255,255,255,0.06)" }}
+          className="text-[13px] font-medium bg-transparent border border-edge-default rounded-control px-1.5 py-0.5 text-fg-tertiary focus:border-accent focus:text-fg-secondary focus:outline-none disabled:opacity-50"
           aria-label="mark outcome"
         >
           <option value="">set outcome</option>
@@ -174,18 +172,14 @@ function PlayRowDisplay({
       </div>
 
       {play.outcomeNote && (
-        <p className="mt-1 text-[10px] italic text-[var(--text-tertiary)]">
+        <p className="mt-1 text-[11px] italic text-fg-tertiary">
           note: {play.outcomeNote}
         </p>
       )}
 
       {expanded && (
         <pre
-          className="mt-2 text-[10px] leading-snug overflow-x-auto rounded border p-2 font-mono text-[var(--text-secondary)] whitespace-pre-wrap break-words"
-          style={{
-            borderColor: "rgba(255,255,255,0.06)",
-            backgroundColor: "rgba(255,255,255,0.02)",
-          }}
+          className="mt-2 font-mono text-[11px] leading-snug overflow-x-auto rounded-control border border-edge-subtle bg-surface-interactive p-2 text-fg-secondary whitespace-pre-wrap break-words"
         >
           {(() => {
             try {
@@ -207,13 +201,12 @@ export default function PowerPlaysHistory({
   if (plays.length === 0) {
     return (
       <section
-        className="rounded-xl border bg-[var(--bg-raised)] p-4"
-        style={{ borderColor: "rgba(255,255,255,0.06)" }}
+        className="rounded-surface border border-edge-subtle bg-content p-4"
       >
-        <h3 className="font-serif text-base tracking-tight text-[var(--text-primary)] mb-2">
+        <h3 className="text-[15px] font-semibold text-fg mb-2">
           Plays history
         </h3>
-        <p className="text-xs text-[var(--text-tertiary)]">
+        <p className="text-xs text-fg-tertiary">
           No plays run yet. Use Power plays in the right rail to draft an
           arc / message / scarcity play.
         </p>
@@ -223,14 +216,13 @@ export default function PowerPlaysHistory({
 
   return (
     <section
-      className="rounded-xl border bg-[var(--bg-raised)] p-4"
-      style={{ borderColor: "rgba(255,255,255,0.06)" }}
+      className="rounded-surface border border-edge-subtle bg-content p-4"
     >
       <div className="flex items-baseline justify-between gap-3 mb-2">
-        <h3 className="font-serif text-base tracking-tight text-[var(--text-primary)]">
+        <h3 className="text-[15px] font-semibold text-fg">
           Plays history
         </h3>
-        <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           last 10
         </span>
       </div>

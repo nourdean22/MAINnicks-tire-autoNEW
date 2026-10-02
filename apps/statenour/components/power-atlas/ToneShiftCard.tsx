@@ -58,18 +58,17 @@ export default function ToneShiftCard({ metadata }: ToneShiftCardProps) {
   if (!toneShift) {
     return (
       <section
-        className="rounded-xl border bg-[var(--bg-raised)] p-4"
-        style={{ borderColor: "rgba(255,255,255,0.06)" }}
+        className="rounded-surface border border-edge-subtle bg-content p-4"
       >
         <div className="flex items-baseline justify-between gap-3 mb-2">
-          <h3 className="font-serif text-base tracking-tight text-[var(--text-primary)]">
+          <h3 className="text-[15px] font-semibold text-fg">
             Tone shift
           </h3>
-          <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             trailing 3 vs 30
           </span>
         </div>
-        <p className="text-xs text-[var(--text-tertiary)]">
+        <p className="text-xs text-fg-tertiary">
           Needs ≥10 chat mentions to compute · scoring runs nightly.
         </p>
       </section>
@@ -81,52 +80,50 @@ export default function ToneShiftCard({ metadata }: ToneShiftCardProps) {
 
   return (
     <section
-      className="rounded-xl border bg-[var(--bg-raised)] p-4"
-      style={{ borderColor: "rgba(255,255,255,0.06)" }}
+      className="rounded-surface border border-edge-subtle bg-content p-4"
     >
       <div className="flex items-baseline justify-between gap-3 mb-3">
-        <h3 className="font-serif text-base tracking-tight text-[var(--text-primary)]">
+        <h3 className="text-[15px] font-semibold text-fg">
           Tone shift
         </h3>
-        <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           trailing 3 vs 30
         </span>
       </div>
 
       <div className="grid grid-cols-2 gap-3 text-xs">
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             recent · 3
           </div>
-          <div className="font-mono tabular-nums text-[var(--text-secondary)]">
+          <div className="font-mono tabular-nums text-fg-secondary">
             {formatSentiment(recentSentiment)}
           </div>
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             trailing · 30
           </div>
-          <div className="font-mono tabular-nums text-[var(--text-secondary)]">
+          <div className="font-mono tabular-nums text-fg-secondary">
             {formatSentiment(trailingSentiment)}
           </div>
         </div>
       </div>
 
       <div
-        className="mt-3 border-t pt-3 flex items-baseline justify-between"
-        style={{ borderColor: "rgba(255,255,255,0.06)" }}
+        className="mt-3 border-t border-edge-subtle pt-3 flex items-baseline justify-between"
       >
-        <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           shift
         </span>
         <span
-          className={`font-mono tabular-nums text-sm ${alert ? "text-amber-300" : "text-[var(--text-secondary)]"}`}
+          className={`font-mono tabular-nums text-sm ${alert ? "text-amber-300" : "text-fg-secondary"}`}
         >
           {shiftSigned}
         </span>
       </div>
 
-      <div className="mt-2 text-[10px] text-[var(--text-tertiary)]">
+      <div className="mt-2 text-[11px] text-fg-tertiary">
         scale · -1.0 (very negative) to +1.0 (very positive)
       </div>
     </section>

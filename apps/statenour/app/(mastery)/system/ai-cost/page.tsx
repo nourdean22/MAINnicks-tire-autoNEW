@@ -231,7 +231,7 @@ export default function AiCostPage() {
             />
           </div>
           {burnRate && (
-            <div className="mt-3 flex items-baseline justify-between border-t border-[var(--border-soft)]/50 pt-2.5">
+            <div className="mt-3 flex items-baseline justify-between border-t border-edge-subtle pt-2.5">
               <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                 burn rate · today
               </span>

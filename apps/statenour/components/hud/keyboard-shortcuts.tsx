@@ -129,7 +129,7 @@ export function KeyboardShortcuts() {
   return (
     <>
       {goPrefix && !open ? (
-        <div className="fixed bottom-4 right-4 z-[100] hidden rounded-lg border border-[var(--gold)]/20 bg-[var(--bg-elevated)] px-3 py-1.5 font-mono text-[11px] text-[var(--gold)] animate-fadeSlideUp sm:block">
+        <div className="fixed bottom-4 right-4 z-[100] hidden rounded-control border border-edge-default bg-surface-raised px-3 py-1.5 font-mono text-[11px] text-fg animate-fadeSlideUp sm:block">
           G → press a key...
         </div>
       ) : null}
@@ -137,11 +137,11 @@ export function KeyboardShortcuts() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
           showCloseButton={false}
-          overlayClassName="z-[100] bg-black/60 backdrop-blur-sm"
-          className="z-[101] w-full max-w-md overflow-hidden border-[var(--border-default)] bg-[var(--bg-elevated)] p-0 shadow-2xl sm:max-w-md"
+          overlayClassName="z-[100] bg-[var(--bg-void)]/70"
+          className="z-[101] w-full max-w-md overflow-hidden border-[var(--border-default)] bg-[var(--bg-elevated)] p-0 shadow-l2 sm:max-w-md"
         >
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-default)]">
-          <DialogTitle className="text-sm font-[var(--font-display)] font-bold uppercase tracking-wider text-[var(--gold)]">
+          <DialogTitle className="text-[15px] font-semibold text-fg">
             Keyboard Shortcuts
           </DialogTitle>
           <button
@@ -163,7 +163,7 @@ export function KeyboardShortcuts() {
                     <span className="text-xs text-[var(--text-secondary)]">{s.action}</span>
                     <div className="flex items-center gap-1">
                       {s.keys.map(k => (
-                        <kbd key={k} className="inline-flex items-center justify-center min-w-[24px] h-5 px-1.5 rounded border border-[var(--border-default)] bg-[var(--bg-raised)] text-[10px] font-mono text-[var(--text-secondary)]">
+                        <kbd key={k} className="inline-flex items-center justify-center min-w-[24px] h-5 px-1.5 rounded border border-[var(--border-default)] bg-[var(--bg-raised)] text-[11px] font-mono text-[var(--text-secondary)]">
                           {k}
                         </kbd>
                       ))}
@@ -175,7 +175,7 @@ export function KeyboardShortcuts() {
           ))}
         </div>
         <div className="px-4 py-2 border-t border-[var(--border-default)] text-center">
-          <span className="text-[10px] text-[var(--text-tertiary)]">Press <kbd className="inline px-1 py-0.5 rounded border border-[var(--border-default)] bg-[var(--bg-raised)] text-[9px] font-mono">?</kbd> to toggle</span>
+          <span className="text-[11px] text-[var(--text-tertiary)]">Press <kbd className="inline px-1 py-0.5 rounded border border-[var(--border-default)] bg-[var(--bg-raised)] text-[11px] font-mono">?</kbd> to toggle</span>
         </div>
         </DialogContent>
       </Dialog>

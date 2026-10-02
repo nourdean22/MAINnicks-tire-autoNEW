@@ -136,7 +136,7 @@ export function EmptyState(props: EmptyStateProps) {
     return (
       <p
         className={cn(
-          "text-[9px] font-mono text-[var(--text-tertiary)]/50 py-1 text-center",
+          "text-[11px] font-mono text-[var(--text-tertiary)]/50 py-1 text-center",
           className,
         )}
         data-provenance="SUPPRESSED"
@@ -158,7 +158,7 @@ export function EmptyState(props: EmptyStateProps) {
       {Icon && (
         <div
           className={cn(
-            "w-10 h-10 rounded-full flex items-center justify-center border animate-breath",
+            "w-10 h-10 rounded-full flex items-center justify-center border",
             s.iconBg,
           )}
         >
@@ -168,19 +168,19 @@ export function EmptyState(props: EmptyStateProps) {
       <p className={cn("text-[11.5px] font-medium", s.titleColor)}>{title}</p>
       <p
         className={cn(
-          "text-[9px] font-mono uppercase tracking-wider",
+          "font-mono text-[11px] uppercase tracking-[0.12em]",
           PROVENANCE_CHIP[provenance],
         )}
       >
         {PROVENANCE_LABEL[provenance]}
       </p>
       {why && (
-        <p className="text-[10px] text-[var(--text-tertiary)] max-w-[320px] leading-relaxed">
+        <p className="text-[12px] text-[var(--text-tertiary)] max-w-[320px] leading-relaxed">
           {why}
         </p>
       )}
       {unlock && (
-        <p className="text-[9px] font-mono text-[var(--text-tertiary)]/80 max-w-[360px] leading-relaxed italic">
+        <p className="text-[11px] font-mono text-[var(--text-tertiary)]/80 max-w-[360px] leading-relaxed italic">
           → {unlock}
         </p>
       )}
@@ -192,8 +192,8 @@ export function EmptyState(props: EmptyStateProps) {
               onClick={cta.onClick}
               disabled={cta.disabled}
               className={cn(
-                "text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded border transition-all duration-200 ease-out",
-                "border-[var(--gold)]/40 text-[var(--gold)] hover:bg-[var(--gold)]/10 hover:border-[var(--gold)]/60 hover:shadow-[0_0_10px_rgba(253,185,19,0.15)]",
+                "inline-flex min-h-[44px] items-center text-[13px] font-medium px-3 py-2 rounded-control border transition-colors duration-[var(--motion-state)]",
+                "border-edge-default bg-content text-fg-secondary hover:border-edge-strong hover:text-fg",
                 "disabled:opacity-40 disabled:cursor-not-allowed",
               )}
             >
@@ -203,7 +203,7 @@ export function EmptyState(props: EmptyStateProps) {
           {secondaryLink && (
             <a
               href={secondaryLink.href}
-              className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] transition-colors"
+              className="inline-flex min-h-[44px] items-center text-[13px] font-medium px-2 py-1 rounded-control text-fg-tertiary hover:text-fg transition-colors duration-[var(--motion-state)]"
             >
               {secondaryLink.label} →
             </a>

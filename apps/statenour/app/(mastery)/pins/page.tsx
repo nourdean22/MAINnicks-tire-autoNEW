@@ -246,7 +246,7 @@ export default function PinsPage() {
 
       {/* New pin */}
       <Panel>
-        <h2 className="mb-2 text-sm font-semibold text-white flex items-center gap-1">
+        <h2 className="mb-2 text-sm font-semibold text-fg flex items-center gap-1">
           <Plus className="h-4 w-4" /> pin a new fact
         </h2>
         <div className="space-y-2">
@@ -255,24 +255,24 @@ export default function PinsPage() {
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
             placeholder="optional label (e.g. 'shop floor rule')"
-            className="w-full rounded-md border border-white/10 bg-white/[0.02] px-3 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-white/25"
+            className="w-full min-h-[44px] rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg placeholder:text-fg-tertiary outline-none focus:border-accent"
           />
           <textarea
             value={newContent}
             onChange={(e) => setNewContent(e.target.value)}
             placeholder="The fact / rule / preference (max 2000 chars). Top-5 most-recent pins inject into every system prompt."
-            className="w-full h-24 rounded-md border border-white/10 bg-black/40 p-2 text-sm text-zinc-100 placeholder:text-zinc-500 outline-none focus:border-white/25 font-mono"
+            className="w-full h-24 rounded-control border border-edge-default bg-content p-2 text-sm text-fg placeholder:text-fg-tertiary outline-none focus:border-accent font-mono"
           />
           <div className="flex justify-between items-center">
-            <span className="text-[10px] text-zinc-500">{newContent.length} / 2000</span>
+            <span className="font-mono text-[11px] text-fg-tertiary">{newContent.length} / 2000</span>
             <button
               onClick={createNewPin}
               disabled={creating || !newContent.trim()}
               className={cn(
-                "rounded-md border px-3 py-1.5 text-xs font-medium transition",
+                "min-h-[44px] rounded-control border px-4 py-2 text-[14px] font-semibold transition-colors duration-[var(--motion-state)]",
                 creating
                   ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
-                  : "border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15 disabled:opacity-50",
+                  : "border-transparent bg-accent text-[var(--text-inverse)] hover:bg-accent-hover disabled:opacity-50",
               )}
             >
               {creating ? "Pinning…" : "Pin"}
@@ -289,7 +289,7 @@ export default function PinsPage() {
             <Stat label="stale" value={data.stats.stalePins} tone="text-amber-300" />
             <Stat label="very stale" value={data.stats.veryStalePins} tone="text-rose-300" />
             <Stat label="injected" value={data.stats.injectedCount} tone="text-sky-300" />
-            <Stat label="prompt tokens" value={data.stats.estimatedPromptTokens} tone="text-[var(--gold)]/80" />
+            <Stat label="prompt tokens" value={data.stats.estimatedPromptTokens} tone="text-fg" />
           </div>
         </Panel>
       )}
@@ -346,24 +346,24 @@ export default function PinsPage() {
                       value={editLabel}
                       onChange={(e) => setEditLabel(e.target.value)}
                       placeholder="label"
-                      className="w-full rounded-md border border-white/10 bg-white/[0.02] px-2 py-1 text-xs text-zinc-200"
+                      className="w-full min-h-[44px] rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg focus:border-accent outline-none"
                     />
                     <textarea
                       value={editContent}
                       onChange={(e) => setEditContent(e.target.value)}
-                      className="w-full h-24 rounded-md border border-white/10 bg-black/40 p-2 text-sm text-zinc-100 font-mono"
+                      className="w-full h-24 rounded-control border border-edge-default bg-content p-2 text-sm text-fg font-mono focus:border-accent outline-none"
                     />
                     <div className="flex gap-1">
                       <button
                         onClick={saveEdit}
-                        className="rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 px-2 py-1 text-xs hover:bg-emerald-500/15"
+                        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
                       >
                         <Save className="h-3 w-3 inline mr-1" />
                         save
                       </button>
                       <button
                         onClick={cancelEdit}
-                        className="rounded-md border border-white/10 bg-white/[0.02] text-zinc-400 px-2 py-1 text-xs hover:bg-white/5"
+                        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control px-3 py-2 text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
                       >
                         <X className="h-3 w-3 inline mr-1" />
                         cancel
@@ -374,33 +374,33 @@ export default function PinsPage() {
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2 flex-wrap">
                       {isInjected ? (
-                        <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                        <span className="text-[11px] font-mono uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-micro bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
                           <Sparkles className="h-2.5 w-2.5 inline mr-0.5" /> injected
                         </span>
                       ) : (
-                        <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-zinc-500/10 border border-zinc-500/20 text-zinc-500">
+                        <span className="text-[11px] font-mono uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-micro bg-surface-interactive border border-edge-subtle text-fg-tertiary">
                           stored
                         </span>
                       )}
                       {p.metadata?.label && (
-                        <span className="text-[10px] font-medium text-zinc-300">{p.metadata.label}</span>
+                        <span className="text-[12px] font-medium text-fg-secondary">{p.metadata.label}</span>
                       )}
-                      <span className="text-[9px] text-zinc-500 ml-auto">
+                      <span className="font-mono text-[11px] text-fg-tertiary ml-auto">
                         {p.source ?? "—"} · {new Date(p.updatedAt).toLocaleDateString()}
                       </span>
                     </div>
-                    <p className="text-sm text-zinc-200 whitespace-pre-wrap">{p.content}</p>
+                    <p className="text-sm text-fg whitespace-pre-wrap">{p.content}</p>
                     <div className="flex gap-1 pt-1">
                       <button
                         onClick={() => startEdit(p)}
-                        className="text-[10px] text-zinc-400 hover:text-zinc-200 inline-flex items-center gap-0.5 min-h-[44px] px-1 -mx-1"
+                        className="text-[13px] font-medium text-fg-tertiary hover:text-fg inline-flex items-center gap-0.5 min-h-[44px] px-1 -mx-1"
                       >
                         <Edit3 className="h-3 w-3" /> edit
                       </button>
-                      <span className="text-[10px] text-zinc-600">·</span>
+                      <span className="text-[11px] text-fg-tertiary">·</span>
                       <button
                         onClick={() => unpin(p.id)}
-                        className="text-[10px] text-rose-400 hover:text-rose-200 inline-flex items-center gap-0.5 min-h-[44px] px-1 -mx-1"
+                        className="text-[13px] font-medium text-rose-400 hover:text-rose-200 inline-flex items-center gap-0.5 min-h-[44px] px-1 -mx-1"
                       >
                         <PinOff className="h-3 w-3" /> unpin
                       </button>
@@ -415,7 +415,7 @@ export default function PinsPage() {
 
       {!loading && data && data.pins.length === 0 && (
         <Panel>
-          <p className="p-4 text-center text-sm text-zinc-500">
+          <p className="p-4 text-center text-sm text-fg-tertiary">
             No pins yet. Add one above to inject it into every system prompt.
           </p>
         </Panel>
@@ -426,7 +426,7 @@ export default function PinsPage() {
   );
 }
 
-function Stat({ label, value, tone = "text-zinc-300" }: { label: string; value: number; tone?: string }) {
+function Stat({ label, value, tone = "text-fg-secondary" }: { label: string; value: number; tone?: string }) {
   return (
     <div className="border-l-2 border-edge py-1 pl-3">
       <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{label}</div>

@@ -13,7 +13,7 @@ describe("responsive navigation shell contract", () => {
     const bottom = source("components/layout/bottom-tab-bar.tsx");
     const spine = source("components/layout/desktop-spine.tsx");
 
-    expect(bottom).toContain("bg-[var(--bg-void)]/95 backdrop-blur-xl xl:hidden");
+    expect(bottom).toContain("ui-material flex items-stretch border-t border-edge-subtle xl:hidden");
     expect(spine).toContain("hidden w-[var(--spine-w,4.5rem)] flex-col");
     expect(spine).toContain("xl:flex");
     expect(bottom.indexOf("<BottomPulseTicker />")).toBeLessThan(bottom.indexOf("<nav"));
@@ -35,7 +35,7 @@ describe("responsive navigation shell contract", () => {
 
     expect(more).toContain('aria-label="Close More menu"');
     expect(more).toContain('className="absolute right-0 inline-flex h-11 w-11');
-    expect(more).toContain('className="flex min-h-11 w-full items-center gap-2 rounded-xl');
+    expect(more).toContain('className="flex min-h-11 w-full items-center gap-2 rounded-control');
     expect(more).toContain('"flex min-h-11 items-center gap-2 rounded-lg');
     expect(more).toContain('className="inline-flex min-h-11 max-w-[140px]');
     expect(more).toContain('"flex min-h-11 items-center gap-2 rounded-lg px-2.5 py-2');

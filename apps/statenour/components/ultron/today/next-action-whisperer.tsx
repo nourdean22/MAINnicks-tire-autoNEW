@@ -131,20 +131,20 @@ export function NextActionWhisperer() {
   return (
     <section
       className={cn(
-        "rounded-lg border border-[var(--gold)]/40 bg-[var(--gold)]/5 px-3 py-2.5",
+        "rounded-surface border border-edge-default bg-surface-raised px-3 py-2.5",
         "flex items-center gap-3 animate-fade-in-scale",
       )}
     >
-      <Zap size={14} className="text-[var(--gold)] shrink-0" />
+      <Zap size={14} className="text-fg-tertiary shrink-0" />
       <div className="flex-1 min-w-0">
-        <p className="text-[8px] font-bold uppercase tracking-[0.22em] text-[var(--gold)] mb-0.5">
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
           next action · {suggestion.effort ? EFFORT_LABEL[suggestion.effort] ?? suggestion.effort : "—"} slot
         </p>
-        <p className="text-[12px] text-[var(--text-primary)] leading-snug truncate">
+        <p className="text-[12px] text-fg leading-snug truncate">
           {suggestion.title}
         </p>
         {suggestion.mission?.title && (
-          <p className="text-[9px] text-[var(--text-tertiary)] truncate">
+          <p className="text-[11px] text-fg-tertiary truncate">
             {suggestion.mission.title}
           </p>
         )}
@@ -152,13 +152,13 @@ export function NextActionWhisperer() {
       <div className="flex items-center gap-1.5 shrink-0">
         <button
           onClick={start}
-          className="flex items-center gap-1 px-2 py-1 min-h-[44px] sm:min-h-0 rounded border border-[var(--gold)]/40 bg-[var(--gold)]/15 text-[9px] font-bold uppercase tracking-wider text-[var(--gold)] hover:bg-[var(--gold)]/25 transition-colors"
+          className="flex items-center gap-1 px-2 py-1 min-h-[44px] sm:min-h-0 rounded-control border border-edge-default bg-content text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
         >
           <Play size={9} /> start
         </button>
         <button
           onClick={skip}
-          className="min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 w-6 h-6 rounded flex items-center justify-center text-[var(--text-tertiary)] hover:text-red-400 hover:bg-red-500/10"
+          className="min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 w-6 h-6 rounded-control flex items-center justify-center text-fg-tertiary hover:text-red-400 hover:bg-red-500/10"
           aria-label="Skip for 5 min"
         >
           <XIcon size={11} />

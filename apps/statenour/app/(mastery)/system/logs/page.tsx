@@ -261,7 +261,7 @@ function LogsPageInner() {
                 className={cn(
                   "px-2.5 py-1.5 text-xs font-medium transition",
                   view === "stream"
-                    ? "bg-white/[0.08] text-fg"
+                    ? "bg-accent-soft text-fg"
                     : "text-fg-secondary hover:text-fg hover:bg-surface-interactive",
                 )}
                 title="Chronological stream · 5 sources · windowed query"
@@ -402,7 +402,7 @@ function LogsPageInner() {
                   className={cn(
                     "grid grid-cols-[auto_auto_auto_1fr_auto] items-center gap-3 px-3 py-2 transition",
                     isFresh && "bg-emerald-500/[0.03]",
-                    isOpen && "",
+                    isOpen && "bg-surface-interactive",
                   )}
                 >
                   <span className={cn("inline-block h-2 w-2 rounded-full flex-shrink-0", LEVEL_DOT[e.level])} />

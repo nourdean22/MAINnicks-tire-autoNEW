@@ -83,7 +83,7 @@ export function SortDropdown<T extends string = string>({
 
   return (
     <label className={`flex items-center gap-2 shrink-0 ${className ?? ""}`}>
-      <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hidden sm:inline">
+      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary hidden sm:inline">
         {label}
       </span>
       <div className="relative">
@@ -93,11 +93,11 @@ export function SortDropdown<T extends string = string>({
           aria-label={ariaLabel}
           title={meta?.hint}
           className={[
-            "text-[12px] font-mono px-3 py-2 sm:px-2 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded border bg-[var(--bg-raised)] text-[var(--text-primary)] focus:outline-none cursor-pointer transition-colors",
-            // ux-audit · "visibility of system status" · gold border when customized
+            "text-[13px] font-medium px-3 py-2 sm:px-2 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded-control border bg-content text-fg focus:outline-none cursor-pointer transition-colors duration-[var(--motion-state)]",
+            // ux-audit · "visibility of system status" · accent border when customized (a selected state)
             isCustomized
-              ? "border-[var(--gold)]/40 pr-7"
-              : "border-[var(--border-default)] focus:border-[var(--gold)]/40",
+              ? "border-accent pr-7"
+              : "border-edge-default hover:border-edge-strong focus:border-accent",
           ].join(" ")}
         >
           {options.map((o) => (
@@ -117,7 +117,7 @@ export function SortDropdown<T extends string = string>({
             }}
             aria-label="Reset sort to default"
             title="Reset to default"
-            className="absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-[10px] text-[var(--text-tertiary)] hover:text-rose-400 rounded hover:bg-rose-500/10"
+            className="absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-[12px] text-fg-tertiary hover:text-rose-400 rounded-micro hover:bg-rose-500/10"
           >
             ×
           </button>

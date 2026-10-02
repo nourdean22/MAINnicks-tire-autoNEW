@@ -64,10 +64,10 @@ type StatusFilter = typeof STATUS_FILTERS[number];
 
 const STATUS_TONE: Record<DraftStatus, { bg: string; text: string; label: string }> = {
   pending: { bg: "border-amber-500/30 bg-amber-500/[0.04]", text: "text-amber-200", label: "pending" },
-  rendering: { bg: "border-purple-500/30 bg-purple-500/[0.04] animate-pulse", text: "text-purple-200", label: "rendering video" },
+  rendering: { bg: "border-purple-500/30 bg-purple-500/[0.04] pulse-live", text: "text-purple-200", label: "rendering video" },
   approved: { bg: "border-emerald-500/30 bg-emerald-500/[0.04]", text: "text-emerald-200", label: "approved" },
   scheduled: { bg: "border-sky-500/30 bg-sky-500/[0.04]", text: "text-sky-200", label: "scheduled" },
-  published: { bg: "border-zinc-500/30 bg-zinc-500/[0.04]", text: "text-zinc-300", label: "published" },
+  published: { bg: "border-edge-default bg-surface-raised", text: "text-fg-secondary", label: "published" },
   rejected: { bg: "border-rose-500/30 bg-rose-500/[0.04]", text: "text-rose-200", label: "rejected" },
 };
 
@@ -137,11 +137,11 @@ export function DraftsTab() {
         {/* 4-stat rollup · same pattern as /people + /system/cockpit */}
         {data && (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            <Stat label="pending" value={data.counts.pending} tint={data.counts.pending > 0 ? "text-amber-300" : "text-zinc-500"} />
-            <Stat label="rendering" value={data.counts.rendering || 0} tint={data.counts.rendering > 0 ? "text-purple-300 animate-pulse" : "text-zinc-500"} />
+            <Stat label="pending" value={data.counts.pending} tint={data.counts.pending > 0 ? "text-amber-300" : "text-fg-tertiary"} />
+            <Stat label="rendering" value={data.counts.rendering || 0} tint={data.counts.rendering > 0 ? "text-purple-300 pulse-live" : "text-fg-tertiary"} />
             <Stat label="approved" value={data.counts.approved} tint="text-emerald-300" />
             <Stat label="scheduled" value={data.counts.scheduled} tint="text-sky-300" />
-            <Stat label="rejected" value={data.counts.rejected} tint="text-zinc-500" />
+            <Stat label="rejected" value={data.counts.rejected} tint="text-fg-tertiary" />
           </div>
         )}
 
@@ -185,20 +185,20 @@ export function DraftsTab() {
               return (
                 <div
                   key={d.key}
-                  className={cn("rounded-lg border p-4", tone.bg)}
+                  className={cn("rounded-surface border p-4", tone.bg)}
                 >
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Badge className={cn("h-auto rounded px-1.5 py-0.5 bg-transparent border-current text-[10px] font-normal uppercase tracking-wider", tone.text)}>
+                      <Badge className={cn("h-auto rounded-micro px-1.5 py-0.5 bg-transparent border-current font-mono text-[11px] font-medium uppercase tracking-[0.12em]", tone.text)}>
                         {tone.label}
                       </Badge>
                       {d.metadata.kind && (
-                        <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+                        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                           {d.metadata.kind}
                         </span>
                       )}
                       {d.metadata.source && (
-                        <span className="text-[10px] italic text-[var(--text-tertiary)]">
+                        <span className="text-[11px] italic text-fg-tertiary">
                           from {d.metadata.source}
                         </span>
                       )}
@@ -206,7 +206,7 @@ export function DraftsTab() {
                       {typeof d.metadata.sourceMetadata?.criticScore === "number" && (
                         <span
                           className={cn(
-                            "text-[10px] px-1.5 py-0.5 rounded border font-mono tabular-nums",
+                            "text-[11px] px-1.5 py-0.5 rounded-micro border font-mono tabular-nums",
                             d.metadata.sourceMetadata.criticScore < 60
                               ? "text-red-400 border-red-500/40 bg-red-500/10"
                               : d.metadata.sourceMetadata.criticScore <= 75
@@ -219,7 +219,7 @@ export function DraftsTab() {
                         </span>
                       )}
                     </div>
-                    <span className="text-[10px] text-[var(--text-tertiary)] tabular-nums whitespace-nowrap">
+                    <span className="text-[11px] font-mono text-fg-tertiary tabular-nums whitespace-nowrap">
                       {ageString(d.metadata.generatedAt)}
                     </span>
                   </div>
@@ -229,11 +229,11 @@ export function DraftsTab() {
                   </p>
 
                   {/* On-the-fly Image/Video Preview */}
-                  <div className="my-3 overflow-hidden rounded border border-[var(--border-default)] bg-[var(--bg-raised)] max-w-sm">
-                    <div className="border-b border-[var(--border-default)] bg-black/10 px-3 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-                      {d.metadata.imageUrl?.endsWith(".mp4") ? "Video Asset Preview" : "Visual Asset Preview"}
+                  <div className="my-3 overflow-hidden rounded-control border border-edge-subtle bg-content max-w-sm">
+                    <div className="border-b border-edge-subtle px-3 py-1.5 font-mono text-[11px] font-medium text-fg-tertiary uppercase tracking-[0.12em]">
+                      {d.metadata.imageUrl?.endsWith(".mp4") ? "Video asset preview" : "Visual asset preview"}
                     </div>
-                    <div className="p-3 flex justify-center bg-black/20">
+                    <div className="p-3 flex justify-center bg-canvas">
                       {d.metadata.imageUrl?.endsWith(".mp4") ? (
                         <video
                           src={d.metadata.imageUrl}
@@ -246,7 +246,7 @@ export function DraftsTab() {
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                           </svg>
-                          <span className="text-xs uppercase tracking-wider font-semibold">Generating Video...</span>
+                          <span className="text-[12px] font-medium">Generating video...</span>
                         </div>
                       ) : (
                         <img
@@ -265,7 +265,7 @@ export function DraftsTab() {
                   {d.metadata.suggestedPlatforms && d.metadata.suggestedPlatforms.length > 0 && (
                     <div className="mb-3 flex flex-wrap gap-1.5">
                       {d.metadata.suggestedPlatforms.map((p) => (
-                        <Badge key={p} className="h-auto rounded px-1.5 py-0.5 bg-transparent border-[var(--border-default)] text-[var(--text-tertiary)] text-[10px] font-normal uppercase tracking-wider">
+                        <Badge key={p} className="h-auto rounded-micro px-1.5 py-0.5 bg-transparent border-edge-default text-fg-tertiary font-mono text-[11px] font-medium uppercase tracking-[0.12em]">
                           {p}
                         </Badge>
                       ))}
@@ -279,7 +279,7 @@ export function DraftsTab() {
                         <button
                           type="button"
                           disabled
-                          className="min-h-[44px] px-4 rounded-md border border-purple-500/20 bg-purple-500/5 text-purple-300 text-sm font-medium flex items-center gap-2 cursor-not-allowed opacity-75"
+                          className="min-h-[44px] px-4 rounded-control border border-purple-500/20 bg-purple-500/5 text-purple-300 text-sm font-medium flex items-center gap-2 cursor-not-allowed opacity-75"
                         >
                           <svg className="animate-spin h-4 w-4 text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -295,7 +295,7 @@ export function DraftsTab() {
                             onClick={() => handleActionClick(d.key, "approve")}
                             disabled={busyKey === d.key}
                             className={cn(
-                              "min-h-[44px] px-4 rounded-md border text-sm font-medium transition-all duration-200 disabled:opacity-50",
+                              "min-h-[44px] px-4 rounded-control border text-sm font-medium transition-all duration-200 disabled:opacity-50",
                               confirmKey?.key === d.key && confirmKey.action === "approve"
                                 ? "border-emerald-500 bg-emerald-500/20 text-emerald-200 font-bold px-5"
                                 : "border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15"
@@ -308,10 +308,10 @@ export function DraftsTab() {
                             onClick={() => handleActionClick(d.key, "reject")}
                             disabled={busyKey === d.key}
                             className={cn(
-                              "min-h-[44px] px-4 rounded-md border text-sm font-medium transition-all duration-200 disabled:opacity-50",
+                              "min-h-[44px] px-4 rounded-control border text-sm font-medium transition-all duration-200 disabled:opacity-50",
                               confirmKey?.key === d.key && confirmKey.action === "reject"
                                 ? "border-rose-500 bg-rose-500/20 text-rose-200 font-bold px-5"
-                                : "border-zinc-500/40 bg-zinc-500/5 text-zinc-300 hover:bg-zinc-500/15"
+                                : "border-edge-default bg-content text-fg-secondary hover:border-edge-strong hover:text-fg"
                             )}
                           >
                             {busyKey === d.key ? "…" : confirmKey?.key === d.key && confirmKey.action === "reject" ? "Confirm Reject" : "Reject"}
@@ -321,7 +321,7 @@ export function DraftsTab() {
                       {isApproved && (
                         <Link
                           href={`/content?tab=publish&caption=${encodeURIComponent(d.content)}`}
-                          className="min-h-[44px] px-4 rounded-md border border-sky-500/40 bg-sky-500/10 text-sky-200 text-sm font-medium hover:bg-sky-500/15 inline-flex items-center"
+                          className="min-h-[44px] px-4 rounded-control border border-sky-500/40 bg-sky-500/10 text-sky-200 text-sm font-medium hover:bg-sky-500/15 inline-flex items-center"
                         >
                           Schedule →
                         </Link>
@@ -344,11 +344,11 @@ export function DraftsTab() {
 
 function Stat({ label, value, tint }: { label: string; value: number; tint: string }) {
   return (
-    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] p-3 text-center">
+    <div className="rounded-surface border border-edge-subtle bg-content p-3 text-center">
       <div className={cn("text-2xl font-bold font-mono tabular-nums", tint)}>
         {value}
       </div>
-      <div className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
         {label}
       </div>
     </div>

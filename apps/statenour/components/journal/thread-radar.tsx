@@ -313,7 +313,7 @@ function CandidateCard({
               }}
               className={`text-xs px-3 py-2 rounded-full border min-h-[44px] transition ${
                 chosen === s && custom.trim().length === 0
-                  ? "border-gold bg-accent-soft text-fg"
+                  ? "border-accent bg-accent-soft text-fg"
                   : "border-edge-default text-fg-secondary hover:bg-surface-hover"
               }`}
             >
@@ -327,7 +327,7 @@ function CandidateCard({
             value={custom}
             onChange={(e) => setCustom(e.target.value.slice(0, 120))}
             placeholder="or type your own"
-            className="flex-1 min-h-[44px] px-3 rounded-control border border-edge-default bg-transparent text-sm text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-gold/60"
+            className="flex-1 min-h-[44px] px-3 rounded-control border border-edge-default bg-transparent text-sm text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent/60"
           />
           <button
             type="button"

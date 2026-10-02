@@ -122,7 +122,7 @@ async function LearnPageInner({
           href="https://github.com/codecrafters-io/build-your-own-x"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-[var(--gold)] hover:underline"
+          className="text-fg-secondary underline decoration-edge-strong underline-offset-2 hover:text-fg"
         >
           source
         </a>
@@ -143,13 +143,13 @@ async function LearnPageInner({
             name="q"
             defaultValue={q}
             placeholder="search topic / title"
-            className="w-full pl-9 pr-3 py-2 bg-[var(--bg-raised)] border border-[var(--border-default)] rounded-lg text-[12px] text-[var(--text-primary)] focus:border-[var(--gold)]/40 outline-none"
+            className="w-full min-h-[44px] pl-9 pr-3 py-2 bg-content border border-edge-default rounded-control text-[13px] text-fg focus:border-accent outline-none"
           />
         </div>
         <select
           name="lang"
           defaultValue={lang}
-          className="px-3 py-2 bg-[var(--bg-raised)] border border-[var(--border-default)] rounded-lg text-[12px] text-[var(--text-primary)] focus:border-[var(--gold)]/40 outline-none"
+          className="min-h-[44px] px-3 py-2 bg-content border border-edge-default rounded-control text-[13px] text-fg focus:border-accent outline-none"
         >
           <option value="">any language</option>
           {[
@@ -183,7 +183,7 @@ async function LearnPageInner({
         {hasFilter && (
           <Link
             href="/learn"
-            className="inline-flex min-h-[44px] items-center rounded-md border border-edge px-3 font-mono text-[12px] uppercase tracking-[0.14em] text-fg-tertiary transition-colors hover:text-fg-secondary"
+            className="inline-flex min-h-[44px] items-center rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
           >
             Clear
           </Link>
@@ -193,10 +193,10 @@ async function LearnPageInner({
       {hasFilter && (
         <p className="text-[11px] font-mono text-[var(--text-tertiary)] mb-3">
           {filteredTotal} match{filteredTotal === 1 ? "" : "es"} for{" "}
-          {q && <span className="text-[var(--gold)]">&ldquo;{q}&rdquo;</span>}
+          {q && <span className="text-fg">&ldquo;{q}&rdquo;</span>}
           {q && lang && " · "}
           {lang && (
-            <span className="text-[var(--gold)]">
+            <span className="text-fg">
               language: {lang}
             </span>
           )}
@@ -210,7 +210,7 @@ async function LearnPageInner({
             <a
               key={c.slug}
               href={`#${c.slug}`}
-              className="text-[10px] font-mono uppercase tracking-[0.15em] px-2 py-1 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/30 transition-colors"
+              className="inline-flex min-h-[44px] items-center rounded-control border border-edge-default px-3 text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg-secondary"
             >
               {c.name} · {c.tutorials.length}
             </a>
@@ -229,9 +229,9 @@ async function LearnPageInner({
         <div className="space-y-6">
           {filteredCats.map((c) => (
             <section key={c.slug} id={c.slug}>
-              <h2 className="text-[14px] font-[var(--font-display)] font-bold text-[var(--gold)] mb-2 flex items-baseline gap-2">
+              <h2 className="text-[15px] font-semibold text-fg mb-2 flex items-baseline gap-2">
                 {c.name}
-                <span className="text-[10px] font-mono text-[var(--text-tertiary)] uppercase tracking-wider">
+                <span className="font-mono text-[11px] text-fg-tertiary">
                   {c.tutorials.length}
                 </span>
               </h2>
@@ -239,7 +239,7 @@ async function LearnPageInner({
                 {c.tutorials.map((t, i) => (
                   <li
                     key={`${t.url}-${i}`}
-                    className="flex items-start gap-2 border-b border-l-2 border-edge border-l-transparent px-3 py-2 transition-colors hover:border-l-gold/60"
+                    className="flex items-start gap-2 border-b border-l-2 border-edge-subtle border-l-transparent px-3 py-2 transition-colors duration-[var(--motion-state)] hover:border-l-edge-strong hover:bg-surface-hover"
                   >
                     <a
                       href={t.url}
@@ -249,11 +249,11 @@ async function LearnPageInner({
                     >
                       <div className="flex items-baseline gap-2 flex-wrap">
                         {t.language && (
-                          <span className="text-[10px] font-mono uppercase tracking-[0.1em] text-[var(--gold)] shrink-0">
+                          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary shrink-0">
                             {t.language}
                           </span>
                         )}
-                        <span className="text-[12.5px] text-[var(--text-primary)] hover:text-[var(--gold)] transition-colors leading-snug">
+                        <span className="text-[13px] text-fg leading-snug">
                           {t.title}
                         </span>
                         {t.videoOnly && (
@@ -263,7 +263,7 @@ async function LearnPageInner({
                           />
                         )}
                       </div>
-                      <p className="text-[10px] text-[var(--text-tertiary)] font-mono mt-0.5 truncate">
+                      <p className="text-[11px] text-fg-tertiary font-mono mt-0.5 truncate">
                         {hostnameOf(t.url)}
                       </p>
                     </a>

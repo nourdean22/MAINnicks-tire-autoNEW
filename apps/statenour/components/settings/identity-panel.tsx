@@ -48,7 +48,7 @@ interface HistoryPoint {
 }
 
 // ── Sparkline helper — flat SVG line ──────────────────────────────────
-function Sparkline({ values, color = "var(--gold)" }: { values: number[]; color?: string }) {
+function Sparkline({ values, color = "var(--text-secondary)" }: { values: number[]; color?: string }) {
   if (values.length < 2) return null;
   const w = 60;
   const h = 14;
@@ -96,7 +96,7 @@ function directionGlyph(d: Axis["direction"]) {
 
 function barColor(value: number): string {
   if (value >= 75) return "bg-emerald-400";
-  if (value >= 55) return "bg-[var(--gold)]";
+  if (value >= 55) return "bg-emerald-400/60";
   if (value >= 35) return "bg-amber-400";
   return "bg-red-400";
 }
@@ -175,7 +175,7 @@ export function IdentityPanel() {
             <p className="section-label">Identity Snapshot</p>
             <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void load()} />
           </div>
-          <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5">
+          <p className="text-[12px] text-fg-tertiary mt-0.5">
             8-axis self-model · rolls daily 04:30 · pin any axis to override
           </p>
         </div>
@@ -183,14 +183,14 @@ export function IdentityPanel() {
           onClick={() => void recompute()}
           disabled={refreshing}
           className={cn(
-            "text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border transition-colors inline-flex items-center gap-1",
+            "text-[12px] font-medium px-2 py-1 rounded-control border transition-colors duration-[var(--motion-state)] inline-flex items-center gap-1",
             refreshing
-              ? "opacity-60 border-[var(--border-default)] text-[var(--text-tertiary)]"
-              : "border-[var(--gold)]/30 text-[var(--gold)] hover:bg-[var(--gold)]/10",
+              ? "opacity-60 border-edge-default text-fg-tertiary"
+              : "border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg",
           )}
         >
           {refreshing ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
-          {refreshing ? "computing…" : "recompute"}
+          {refreshing ? "Computing…" : "Recompute"}
         </button>
       </div>
 
@@ -211,7 +211,7 @@ export function IdentityPanel() {
             const isEditing = pinning === key;
             const rowBusy = busy === key;
             return (
-              <div key={key} className="px-2 py-2 rounded border border-[var(--border-default)] bg-[var(--bg-base)]">
+              <div key={key} className="px-2 py-2 rounded-control border border-edge-subtle bg-surface-interactive">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
                     <span className="text-[11px] text-[var(--text-primary)] truncate">
@@ -226,7 +226,7 @@ export function IdentityPanel() {
                       return <Sparkline values={series} />;
                     })()}
                     {isPinned && (
-                      <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--gold)]">
+                      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-accent">
                         pinned
                       </span>
                     )}
@@ -247,7 +247,7 @@ export function IdentityPanel() {
                         disabled={rowBusy}
                         title={isPinned ? "edit / clear override" : "pin override"}
                         aria-label={isPinned ? `edit or clear ${AXIS_LABELS[key]} override` : `pin ${AXIS_LABELS[key]} override`}
-                        className="h-9 w-9 sm:h-5 sm:w-5 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/30 inline-flex items-center justify-center"
+                        className="h-9 w-9 sm:h-5 sm:w-5 rounded-control border border-edge-default text-fg-tertiary hover:text-fg hover:border-edge-strong inline-flex items-center justify-center"
                       >
                         {isPinned ? <PinOff size={9} aria-hidden /> : <Pin size={9} aria-hidden />}
                       </button>
@@ -256,25 +256,25 @@ export function IdentityPanel() {
                 </div>
 
                 {/* Bar */}
-                <div className="relative mt-1.5 h-1.5 rounded-full bg-[var(--bg-overlay)] overflow-hidden">
+                <div className="relative mt-1.5 h-1.5 rounded-full bg-surface-interactive overflow-hidden">
                   <div
                     className={cn("absolute left-0 top-0 h-full transition-all", barColor(effective))}
                     style={{ width: `${effective}%` }}
                   />
                   {isPinned && (
                     <div
-                      className="absolute top-0 h-full w-[1px] bg-white/40"
+                      className="absolute top-0 h-full w-[1px] bg-fg-secondary"
                       style={{ left: `${a.value}%` }}
                       title={`computed: ${a.value}`}
                     />
                   )}
                 </div>
 
-                <p className="text-[9px] font-mono text-[var(--text-tertiary)] mt-1">
+                <p className="text-[11px] font-mono text-fg-tertiary mt-1">
                   {AXIS_TIPS[key]}
                 </p>
                 {a.evidence.length > 0 && (
-                  <p className="text-[9px] text-[var(--text-tertiary)] mt-0.5">
+                  <p className="text-[11px] text-fg-tertiary mt-0.5">
                     · {a.evidence.join(" · ")}
                   </p>
                 )}
@@ -288,14 +288,14 @@ export function IdentityPanel() {
                       value={pinValue}
                       onChange={(e) => setPinValue(e.target.value)}
                       placeholder="0-100 or blank to clear"
-                      className="flex-1 px-2 py-1 bg-[var(--bg-overlay)] border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--gold)]/30"
+                      className="flex-1 px-2 py-1 rounded-control border border-edge-default bg-content text-[13px] text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent"
                     />
                     <button
                       onClick={() => void savePin(key)}
                       disabled={rowBusy}
-                      className="h-6 px-2 text-[9px] font-mono uppercase tracking-wider rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                      className="h-6 px-2 text-[12px] font-medium rounded-control border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
                     >
-                      {rowBusy ? "…" : "save"}
+                      {rowBusy ? "…" : "Save"}
                     </button>
                     <button
                       onClick={() => {
@@ -303,9 +303,9 @@ export function IdentityPanel() {
                         setPinValue("");
                       }}
                       disabled={rowBusy}
-                      className="h-6 px-2 text-[9px] font-mono uppercase tracking-wider rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400"
+                      className="h-6 px-2 text-[12px] font-medium rounded-control border border-edge-default text-fg-tertiary hover:text-fg"
                     >
-                      cancel
+                      Cancel
                     </button>
                   </div>
                 )}
@@ -316,7 +316,7 @@ export function IdentityPanel() {
       )}
 
       {snap && (
-        <p className="text-[9px] text-[var(--text-tertiary)] mt-3 leading-relaxed">
+        <p className="text-[12px] text-fg-tertiary mt-3 leading-relaxed">
           Last computed {new Date(snap.computed_at).toLocaleString()}. Overrides persist; a thin
           marker on the bar shows the computed value underneath so you can see drift. Cron
           refresh-identity rolls daily at 04:30 and emits a brain_insight when any axis moves ≥15

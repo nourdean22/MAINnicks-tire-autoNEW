@@ -23,7 +23,7 @@ import { trpc } from "@/lib/trpc/client";
  *  itself unmeasured when its query errors. */
 function UnmeasuredLine({ label }: { label: string }) {
   return (
-    <p className="font-mono text-[10px] uppercase tracking-wide text-[var(--text-tertiary)]">
+    <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
       {label}: unmeasured — the read failed (not zero).
     </p>
   );
@@ -55,7 +55,7 @@ function HealthTrendCard() {
       ? "text-emerald-400"
       : data.summary.direction === "degrading"
         ? "text-rose-400"
-        : "text-zinc-400";
+        : "text-fg-secondary";
 
   return (
     <GlassCard>
@@ -98,7 +98,7 @@ function HealthTrendCard() {
                 />
               ))}
             </svg>
-            <div className="text-[10px] font-mono space-y-0.5">
+            <div className="text-[11px] font-mono space-y-0.5">
               <div>
                 avg warnings:{" "}
                 <span className="text-[var(--text-secondary)]">
@@ -160,7 +160,7 @@ function ErrorRateCard() {
       <div className="flex items-center gap-2 mb-2">
         <AlertTriangle size={14} className="text-amber-400" />
         <p className="section-label">Error rate · 24h</p>
-        <span className="ml-auto text-[10px] font-mono text-[var(--text-tertiary)]">
+        <span className="ml-auto text-[11px] font-mono text-fg-tertiary">
           {summary.totalErrors} errors · {summary.overallErrorRate}% overall
         </span>
       </div>
@@ -169,7 +169,7 @@ function ErrorRateCard() {
           {worst.map((r) => (
             <div
               key={`${r.method}__${r.path}`}
-              className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 text-[10px] font-mono py-1 border-b border-white/5 last:border-0"
+              className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 text-[11px] font-mono py-1 border-b border-edge-subtle last:border-0"
             >
               <span className="truncate text-[var(--text-secondary)]">
                 {r.method} {r.path}
@@ -187,7 +187,7 @@ function ErrorRateCard() {
           ))}
         </div>
       ) : (
-        <p className="text-[10px] text-[var(--text-tertiary)]">
+        <p className="text-[12px] text-fg-tertiary">
           Errors logged but none on the top-traffic routes.
         </p>
       )}
@@ -223,7 +223,7 @@ function IntegrationQuotasCard() {
       <div className="flex items-center gap-2 mb-2">
         <Gauge size={14} className="text-[var(--text-tertiary)]" />
         <p className="section-label">Integration quotas</p>
-        <span className="ml-auto text-[10px] font-mono text-[var(--text-tertiary)]">
+        <span className="ml-auto text-[11px] font-mono text-fg-tertiary">
           {summary.configured}/{summary.total} live · {summary.missing} missing
           {summary.errors > 0 ? ` · ${summary.errors} err` : ""}
         </span>
@@ -235,20 +235,20 @@ function IntegrationQuotasCard() {
               ? "text-emerald-300"
               : p.status === "error"
                 ? "text-rose-300"
-                : "text-zinc-500";
+                : "text-fg-tertiary";
           const dot =
             p.status === "configured"
               ? "bg-emerald-400"
               : p.status === "error"
                 ? "bg-rose-400"
-                : "bg-zinc-600";
+                : "bg-edge-strong";
           return (
             <div
               key={p.provider}
-              className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-2 text-[10px] font-mono py-1 border-b border-white/5 last:border-0"
+              className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-2 text-[11px] font-mono py-1 border-b border-edge-subtle last:border-0"
             >
               <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
-              <span className="text-[var(--text-secondary)] uppercase tracking-wide">
+              <span className="text-fg-secondary uppercase tracking-[0.12em]">
                 {p.provider}
               </span>
               <span className={tint}>{p.status}</span>
@@ -283,9 +283,9 @@ function MemoryOfDayCard() {
   return (
     <GlassCard>
       <div className="flex items-center gap-2 mb-2">
-        <Sparkles size={14} className="text-[var(--gold)]" />
+        <Sparkles size={14} className="text-fg-tertiary" />
         <p className="section-label">Memory of the day</p>
-        <span className="ml-auto text-[10px] font-mono text-[var(--text-tertiary)]">
+        <span className="ml-auto text-[11px] font-mono text-fg-tertiary">
           {data.dayKey}
         </span>
       </div>
@@ -293,8 +293,8 @@ function MemoryOfDayCard() {
         {m.content.slice(0, 360)}
         {m.content.length > 360 ? "…" : ""}
       </div>
-      <div className="flex items-center gap-3 text-[10px] font-mono text-[var(--text-tertiary)]">
-        <span className="uppercase tracking-wide text-[var(--gold)]/70">
+      <div className="flex items-center gap-3 text-[11px] font-mono text-fg-tertiary">
+        <span className="uppercase tracking-[0.12em] text-fg-secondary">
           {m.category.replace(/_/g, " ")}
         </span>
         <span>·</span>

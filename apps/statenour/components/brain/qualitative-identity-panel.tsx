@@ -211,7 +211,7 @@ export function QualitativeIdentityPanel() {
                     onChange={(e) => setAddText(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && void addEntry(b)}
                     placeholder={`add to ${BUCKET_LABELS[b].toLowerCase()}…`}
-                    className="flex-1 px-2 py-1 bg-[var(--bg-overlay)] border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
+                    className="flex-1 px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
                   />
                   <button
                     onClick={() => void addEntry(b)}

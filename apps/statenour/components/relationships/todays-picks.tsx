@@ -92,21 +92,21 @@ export function TodaysPicks({ refetchKey = 0, onLogged }: TodaysPicksProps) {
   return (
     <section
       aria-label="today's outreach picks"
-      className="rounded-lg border border-[var(--gold)]/25 bg-[var(--bg-base)]"
+      className="rounded-surface border border-edge-subtle bg-content"
     >
       {/* Eyebrow row · the one-liner that replaces the card stack */}
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full px-3 py-2 flex items-center gap-2 text-left min-h-[44px] hover:bg-[var(--gold)]/[0.04] transition-colors"
+        className="w-full px-3 py-2 flex items-center gap-2 text-left min-h-[44px] hover:bg-surface-hover transition-colors duration-[var(--motion-state)]"
         aria-expanded={expanded}
       >
         <Target
           size={11}
-          className="text-[var(--gold)] shrink-0"
+          className="text-fg-tertiary shrink-0"
           strokeWidth={2}
         />
-        <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/80 shrink-0">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary shrink-0">
           nick · today
         </span>
         <span className="text-[var(--text-tertiary)]/40 shrink-0">·</span>
@@ -118,7 +118,7 @@ export function TodaysPicks({ refetchKey = 0, onLogged }: TodaysPicksProps) {
           {active.rationale}
         </span>
         {visible.length > 1 && (
-          <span className="text-[9px] font-mono tabular-nums text-[var(--text-tertiary)] shrink-0">
+          <span className="text-[11px] font-mono tabular-nums text-fg-tertiary shrink-0">
             {clampedIdx + 1}/{visible.length}
           </span>
         )}
@@ -134,7 +134,7 @@ export function TodaysPicks({ refetchKey = 0, onLogged }: TodaysPicksProps) {
 
       {/* Expanded editor */}
       {expanded && (
-        <div className="border-t border-[var(--gold)]/15">
+        <div className="border-t border-edge-subtle">
           <PickEditor
             key={active.personId}
             pick={active}
@@ -275,8 +275,8 @@ function PickEditor({
         }
         className={cn(
           // 16px font prevents iOS zoom-on-focus
-          "w-full rounded-md border border-[var(--border-default)]/60 bg-[var(--bg-raised)]/[0.04] px-2.5 py-2 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 resize-none",
-          "focus:outline-none focus:border-[var(--gold)]/40 disabled:opacity-50",
+          "w-full rounded-control border border-edge-default bg-content px-2.5 py-2 text-[16px] text-fg placeholder:text-fg-tertiary resize-none",
+          "focus:outline-none focus:border-accent disabled:opacity-50",
         )}
       />
 
@@ -285,45 +285,45 @@ function PickEditor({
           type="button"
           onClick={handleSend}
           disabled={!draft.trim() || sending || draftLoading}
-          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-[var(--gold)]/50 bg-[var(--gold)]/10 px-3 py-2 text-[12px] font-medium text-[var(--gold)] hover:bg-[var(--gold)]/15 active:scale-95 transition-transform disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary hover:border-edge-strong hover:text-fg active:scale-95 transition-transform disabled:opacity-50"
         >
           {sending ? (
             <Loader2 size={12} className="animate-spin" strokeWidth={2} />
           ) : (
             <Send size={12} strokeWidth={2} />
           )}
-          log outreach
+          Log outreach
         </button>
         <button
           type="button"
           onClick={handleRegen}
           disabled={draftLoading || sending}
           aria-label="regenerate draft"
-          className="inline-flex min-h-[44px] items-center gap-1 px-2 py-2 text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--gold)] active:scale-95 transition-transform disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center gap-1 px-2 py-2 text-[13px] font-medium text-fg-tertiary hover:text-fg active:scale-95 transition-transform disabled:opacity-50"
         >
           <RefreshCw size={11} strokeWidth={1.75} />
-          different angle
+          Different angle
         </button>
         <button
           type="button"
           onClick={onDismiss}
           aria-label="skip pick"
-          className="inline-flex min-h-[44px] items-center gap-1 px-2 py-2 text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-rose-300 active:scale-95 transition-transform"
+          className="inline-flex min-h-[44px] items-center gap-1 px-2 py-2 text-[13px] font-medium text-fg-tertiary hover:text-rose-300 active:scale-95 transition-transform"
         >
           <X size={11} strokeWidth={1.75} />
-          skip
+          Skip
         </button>
         {hasNext && (
           <button
             type="button"
             onClick={onNext}
-            className="ml-auto inline-flex min-h-[44px] items-center gap-1 px-2 py-2 text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--gold)] active:scale-95 transition-transform"
+            className="ml-auto inline-flex min-h-[44px] items-center gap-1 px-2 py-2 text-[13px] font-medium text-fg-tertiary hover:text-fg active:scale-95 transition-transform"
           >
-            next pick →
+            Next pick →
           </button>
         )}
       </div>
-      <span className="block text-[10px] font-mono text-[var(--text-tertiary)]/70 leading-tight">
+      <span className="block text-[11px] font-mono text-fg-tertiary leading-tight">
         logs +1 deposit to {pick.personName.split(" ")[0]}&apos;s ledger
       </span>
     </div>

@@ -133,12 +133,12 @@ export function DeepModeNudge() {
       onClick={() => {
         router.push(`/brain?tab=reason&q=${encodeURIComponent(verdict.text)}`);
       }}
-      className="fixed bottom-4 right-4 z-50 inline-flex items-center gap-2 px-3 py-2 rounded-full border border-[var(--gold)]/40 bg-black/80 backdrop-blur text-[var(--gold)] text-[11px] font-mono uppercase tracking-[0.14em] shadow-lg hover:bg-[var(--gold)]/[0.1] transition"
+      className="fixed bottom-4 right-4 z-50 inline-flex items-center gap-2 px-3 py-2 ui-material rounded-full border border-edge-default text-fg text-[13px] font-medium shadow-l1 transition-colors duration-[var(--motion-state)] hover:border-edge-strong"
       title={`Classifier sees this as ${verdict.tier}-tier. Click to send to Nick's reasoning engine.`}
     >
       <span
         aria-hidden
-        className="h-1.5 w-1.5 rounded-full bg-[var(--gold)] shadow-[0_0_0_3px_rgba(253,185,19,0.25)]"
+        className="h-1.5 w-1.5 rounded-full bg-amber-400"
       />
       deep mode · {verdict.tier} →
     </button>

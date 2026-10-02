@@ -346,7 +346,7 @@ export function NickMessage({
             // Task list items (GFM)
             input: ({ checked }: MDProps) => (
               <span className={cn("inline-block w-3.5 h-3.5 rounded border mr-1.5 align-text-bottom", checked ? "bg-emerald-500/20 border-emerald-500/40" : "border-[var(--border-default)]")}>
-                {checked && <span className="text-emerald-400 text-[9px] flex items-center justify-center">✓</span>}
+                {checked && <span className="text-emerald-400 text-[11px] flex items-center justify-center">✓</span>}
               </span>
             ),
           } as unknown as StreamdownComponents}
@@ -358,7 +358,7 @@ export function NickMessage({
       {actions.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-2">
           {actions.map((a, i) => (
-            <span key={i} className="inline-flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/8 border border-emerald-500/15 rounded-full px-2 py-0.5">
+            <span key={i} className="inline-flex items-center gap-1 text-[11px] text-emerald-400 bg-emerald-500/8 border border-emerald-500/15 rounded-full px-2 py-0.5">
               <span className="w-1 h-1 rounded-full bg-emerald-400" />{a}
             </span>
           ))}
@@ -366,7 +366,7 @@ export function NickMessage({
       )}
       {streaming && (
         <span
-          className="inline-block w-[6px] h-[13px] ml-0.5 -mb-0.5 bg-[var(--gold)] rounded-sm align-baseline"
+          className="inline-block w-[6px] h-[13px] ml-0.5 -mb-0.5 bg-accent rounded-sm align-baseline"
           style={{ animation: "pulse 1.2s ease-in-out infinite" }}
           aria-hidden="true"
         />
@@ -382,7 +382,7 @@ export function NickMessage({
             <button
               key={qa.label}
               onClick={() => onQuickAction(qa.prompt)}
-              className="inline-flex min-h-11 items-center gap-1 rounded-full border border-[var(--border-default)] px-2 py-1 text-[10px] text-[var(--text-tertiary)] transition-all hover:border-[var(--gold)]/30 hover:text-[var(--gold)] sm:min-h-8"
+              className="inline-flex min-h-11 items-center gap-1 rounded-full border border-[var(--border-default)] px-2 py-1 text-[12px] text-[var(--text-tertiary)] transition-colors hover:border-edge-strong hover:text-[var(--text-primary)] sm:min-h-8"
             >
               {qa.label}
             </button>
@@ -401,7 +401,7 @@ export function NickMessage({
 
 
       {showTiming && timing && timing.endedAt && (
-        <div className="flex items-center gap-2 mt-1.5 pt-1 border-t border-[var(--border-default)]/30 text-[8px] font-mono text-[var(--text-tertiary)] tabular-nums">
+        <div className="flex items-center gap-2 mt-1.5 pt-1 border-t border-[var(--border-default)]/30 text-[11px] font-mono text-[var(--text-tertiary)] tabular-nums">
           {timing.firstTokenAt && (
             <span title="Time to first token">
               first {((timing.firstTokenAt - timing.sentAt) / 1000).toFixed(2)}s
@@ -422,7 +422,7 @@ export function NickMessage({
           {timing.label && (
             <>
               <span className="opacity-50">·</span>
-              <span className="text-[var(--gold)]/60">{timing.label}</span>
+              <span className="text-[var(--text-secondary)]">{timing.label}</span>
             </>
           )}
           {model && (
@@ -442,7 +442,7 @@ export function NickMessage({
            or older history without timing data). Always shows on assistant
            replies that have a model field, separately from the timing row. */}
       {!showTiming && model && (
-        <div className="flex items-center gap-1 mt-1 text-[8px] font-mono text-[var(--text-tertiary)]/60 tabular-nums">
+        <div className="flex items-center gap-1 mt-1 text-[11px] font-mono text-[var(--text-tertiary)]/60 tabular-nums">
           <span title={`Model: ${model}`}>{prettyModelLabel(model)}</span>
         </div>
       )}

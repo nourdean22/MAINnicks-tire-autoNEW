@@ -31,7 +31,7 @@ export interface ContextBlocks {
 
 const BLOCK_META: Record<keyof ContextBlocks, { icon: typeof Brain; label: string; color: string }> = {
   recall: { icon: MessagesSquare, label: "Past chat recall", color: "text-blue-400" },
-  skills: { icon: Target, label: "Active skills", color: "text-[var(--gold)]" },
+  skills: { icon: Target, label: "Active skills", color: "text-fg-secondary" },
   identity: { icon: Compass, label: "Identity snapshot", color: "text-emerald-400" },
   ghost: { icon: Ghost, label: "Ghost Nick", color: "text-violet-400" },
   qualitative: { icon: Eye, label: "Qualitative identity", color: "text-amber-400" },
@@ -59,7 +59,7 @@ export function ContextBlockBadges({ blocks }: { blocks: ContextBlocks | undefin
           return <Icon key={k} size={8} className={meta.color} />;
         })}
         {fired.length > 5 && (
-          <span className="text-[8px] font-mono text-[var(--text-tertiary)]">
+          <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
             +{fired.length - 5}
           </span>
         )}
@@ -74,7 +74,7 @@ export function ContextBlockBadges({ blocks }: { blocks: ContextBlocks | undefin
               <span
                 key={k}
                 className={cn(
-                  "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-mono uppercase tracking-wider border border-[var(--border-default)] bg-[var(--bg-raised)]",
+                  "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-micro text-[11px] font-mono border border-[var(--border-default)] bg-[var(--bg-raised)]",
                   meta.color,
                 )}
               >

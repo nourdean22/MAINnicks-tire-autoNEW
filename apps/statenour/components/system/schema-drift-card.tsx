@@ -37,7 +37,7 @@ interface DriftReport {
 const SEV_TINT: Record<string, string> = {
   high: "text-rose-300 border-rose-500/30 bg-rose-500/5",
   medium: "text-amber-300 border-amber-500/30 bg-amber-500/5",
-  low: "text-fg border-edge-default bg-fg-tertiary",
+  low: "text-fg-secondary border-edge-default bg-surface-interactive",
 };
 
 export function SchemaDriftCard() {

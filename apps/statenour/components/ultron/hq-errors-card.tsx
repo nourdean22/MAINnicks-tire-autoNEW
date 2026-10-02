@@ -77,7 +77,7 @@ export function HQErrorsCard() {
         border: "border-rose-500/40",
         bg: "bg-rose-500/[0.08]",
         text: "text-rose-200",
-        dot: "bg-rose-400 animate-pulse",
+        dot: "bg-rose-400",
       }
     : {
         border: "border-amber-500/35",
@@ -91,7 +91,7 @@ export function HQErrorsCard() {
   return (
     <section
       aria-label="Recent errors"
-      className={cn("rounded-xl border backdrop-blur-sm", pal.border, pal.bg)}
+      className={cn("rounded-surface border", pal.border, pal.bg)}
     >
       <header className="flex items-center gap-2 px-3 py-2 text-sm">
         <span className={cn("h-2 w-2 rounded-full", pal.dot)} />
@@ -99,18 +99,18 @@ export function HQErrorsCard() {
         <span className={cn("font-semibold", pal.text)}>
           {count24h} error{count24h === 1 ? "" : "s"} 24h
         </span>
-        <span className="text-[10px] text-[var(--text-tertiary)] tabular-nums">
+        <span className="font-mono text-[11px] text-fg-tertiary tabular-nums">
           · {distinctCount} distinct
         </span>
         <Link
           href="/system/logs?view=errors"
-          className="ml-auto inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-[var(--text-secondary)] hover:border-white/20 hover:text-[var(--text-primary)] transition-colors"
+          className="ml-auto inline-flex items-center gap-1 rounded-control border border-edge-default bg-content text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg px-2 py-1"
         >
           <span>view all</span>
           <ArrowRight className="h-3 w-3" />
         </Link>
       </header>
-      <ul className="space-y-0 border-t border-white/5 px-3 py-1.5 text-xs">
+      <ul className="space-y-0 border-t border-edge-subtle px-3 py-1.5 text-xs">
         {groups.slice(0, 3).map((g, i) => (
           <li key={i} className="flex items-start gap-2 py-1">
             <span
@@ -121,7 +121,7 @@ export function HQErrorsCard() {
             />
             <Link
               href="/system/logs?view=errors"
-              className="flex-1 min-w-0 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              className="flex-1 min-w-0 text-fg-secondary hover:text-fg transition-colors"
             >
               <span className="truncate block" title={g.message}>
                 {g.message}
@@ -129,17 +129,17 @@ export function HQErrorsCard() {
             </Link>
             <span
               className={cn(
-                "shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-medium tabular-nums",
+                "shrink-0 rounded-full border px-1.5 py-0.5 text-[11px] font-medium tabular-nums",
                 g.count >= 20
                   ? "border-rose-500/45 bg-rose-500/15 text-rose-200"
                   : g.count >= 5
                     ? "border-amber-500/35 bg-amber-500/10 text-amber-200"
-                    : "border-white/10 bg-white/5 text-[var(--text-tertiary)]",
+                    : "border-edge-default bg-surface-interactive text-fg-tertiary",
               )}
             >
               ×{g.count}
             </span>
-            <span className="shrink-0 text-[10px] text-[var(--text-tertiary)] tabular-nums">
+            <span className="shrink-0 font-mono text-[11px] text-fg-tertiary tabular-nums">
               {g.lastSeen ? timeAgo(g.lastSeen) : "—"}
             </span>
           </li>

@@ -1220,10 +1220,10 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
             <button
               type="button"
               onClick={() => fetchGraphData()}
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg min-h-[48px]"
+              className="inline-flex min-h-[48px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
             >
               <RefreshCw size={12} />
-              retry
+              Retry
             </button>
           </div>
         )}
@@ -1257,9 +1257,9 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
                     setFocusId(null);
                     setLocalOnly(false);
                   }}
-                  className="mt-1 inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg min-h-[48px]"
+                  className="mt-1 inline-flex min-h-[48px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
                 >
-                  back to the full map
+                  Back to the full map
                 </button>
               </>
             ) : (
@@ -1273,10 +1273,10 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
                 <button
                   type="button"
                   onClick={() => fetchGraphData()}
-                  className="mt-1 inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg min-h-[48px]"
+                  className="mt-1 inline-flex min-h-[48px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
                 >
                   <RefreshCw size={12} />
-                  retry
+                  Retry
                 </button>
               </>
             )}
@@ -1301,7 +1301,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
           <div className="absolute bottom-3 left-3 right-3 z-10 flex flex-wrap items-center gap-2 rounded border border-amber-500/30 bg-amber-500/10 px-2.5 py-2">
             <AlertTriangle size={11} className="text-amber-300 shrink-0" />
             <span className="font-mono text-[11px] text-amber-300">
-              refresh failed · showing the last graph that loaded
+              Refresh failed · showing the last graph that loaded
             </span>
             <span className="font-mono text-[11px] text-amber-200/70 basis-full sm:basis-auto">
               {staleError}
@@ -1312,7 +1312,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
               className="ml-auto inline-flex min-h-11 items-center gap-1 rounded-control border border-amber-400/40 px-2.5 py-1 text-[13px] font-medium text-amber-200 hover:bg-amber-400/10 sm:min-h-8"
             >
               <RefreshCw size={10} />
-              retry
+              Retry
             </button>
           </div>
         )}

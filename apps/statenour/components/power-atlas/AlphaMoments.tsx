@@ -30,13 +30,12 @@ export default function AlphaMoments({ personId }: AlphaMomentsProps) {
   if (moments.length === 0) {
     return (
       <section
-        className="rounded-xl border bg-[var(--bg-raised)] p-4"
-        style={{ borderColor: "rgba(255,255,255,0.06)" }}
+        className="rounded-surface border border-edge-subtle bg-content p-4"
       >
-        <h2 className="font-serif text-lg tracking-tight text-[var(--text-primary)] mb-2">
+        <h2 className="text-[17px] font-semibold text-fg mb-2">
           Alpha moments
         </h2>
-        <p className="text-xs text-[var(--text-tertiary)]">
+        <p className="text-xs text-fg-tertiary">
           No peaks pinned yet. From the ledger timeline, long-press an
           entry to mark it as a peak / shift / insight.
         </p>
@@ -46,14 +45,13 @@ export default function AlphaMoments({ personId }: AlphaMomentsProps) {
 
   return (
     <section
-      className="rounded-xl border bg-[var(--bg-raised)] p-4"
-      style={{ borderColor: "rgba(255,255,255,0.06)" }}
+      className="rounded-surface border border-edge-subtle bg-content p-4"
     >
       <div className="flex items-baseline justify-between gap-3 mb-3">
-        <h2 className="font-serif text-lg tracking-tight text-[var(--text-primary)]">
+        <h2 className="text-[17px] font-semibold text-fg">
           Alpha moments
         </h2>
-        <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] tabular-nums">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
           {moments.length}
         </span>
       </div>
@@ -61,16 +59,15 @@ export default function AlphaMoments({ personId }: AlphaMomentsProps) {
         {moments.map((m, i) => (
           <li
             key={`${m.ledgerId}:${i}`}
-            className="border-l-2 pl-3"
-            style={{ borderColor: "rgba(253,185,19,0.4)" }}
+            className="border-l-2 border-edge-strong pl-3"
           >
-            <div className="text-[10px] uppercase tracking-wider text-amber-300/80">
+            <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300/80">
               {m.kind}
             </div>
-            <p className="text-sm text-[var(--text-secondary)] mt-1 leading-snug break-words">
+            <p className="text-sm text-fg-secondary mt-1 leading-snug break-words">
               {m.moment}
             </p>
-            <p className="text-[10px] text-[var(--text-tertiary)] mt-1 font-mono tabular-nums">
+            <p className="font-mono text-[11px] text-fg-tertiary mt-1 tabular-nums">
               {m.createdAt.slice(0, 10)}
             </p>
           </li>

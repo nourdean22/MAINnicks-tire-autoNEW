@@ -25,7 +25,7 @@ export function SegmentedSelect({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="flex items-center gap-0.5 rounded-md border border-[var(--border-default)] p-0.5 bg-[var(--bg-elevated)]">
+    <div className="flex items-center gap-0.5 rounded-control border border-edge-default p-0.5 bg-surface-raised">
       {options.map((o) => (
         <button
           key={o}
@@ -36,9 +36,9 @@ export function SegmentedSelect({
             onChange(o);
           }}
           className={cn(
-            "px-2 h-5 text-[9px] font-bold uppercase tracking-wider rounded transition-colors",
+            "px-2 h-5 text-[11px] font-medium rounded-micro transition-colors duration-[var(--motion-state)]",
             value === o
-              ? "bg-[var(--gold)]/20 text-[var(--gold)]"
+              ? "bg-accent-soft text-fg"
               : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
           )}
         >
@@ -57,8 +57,8 @@ export function Toggle({ value, onChange }: { value: boolean; onChange: (v: bool
       className={cn(
         "relative w-9 h-5 rounded-full border transition-colors",
         value
-          ? "bg-[var(--gold)]/30 border-[var(--gold)]/50"
-          : "bg-[var(--bg-elevated)] border-[var(--border-default)]",
+          ? "bg-accent border-accent"
+          : "bg-surface-raised border-edge-default",
       )}
       role="switch"
       aria-checked={value}
@@ -67,7 +67,7 @@ export function Toggle({ value, onChange }: { value: boolean; onChange: (v: bool
         aria-hidden
         className={cn(
           "absolute top-0.5 w-3.5 h-3.5 rounded-full transition-all",
-          value ? "left-4.5 bg-[var(--gold)]" : "left-0.5 bg-[var(--text-tertiary)]",
+          value ? "left-4.5 bg-[var(--text-inverse)]" : "left-0.5 bg-fg-tertiary",
         )}
       />
     </button>

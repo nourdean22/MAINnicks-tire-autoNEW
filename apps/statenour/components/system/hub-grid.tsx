@@ -418,7 +418,7 @@ const SEVERITY_PALETTE: Record<
     bg: "bg-surface-interactive",
     border: "border-edge-subtle",
     dot: "bg-fg-tertiary",
-    text: "text-(--text-muted)",
+    text: "text-fg-tertiary",
   },
 };
 
@@ -458,7 +458,7 @@ function GroupHeader({
       >
         {label}
       </h3>
-      <span className="text-[11px] tabular-nums text-(--text-muted)">
+      <span className="text-[11px] tabular-nums text-fg-tertiary">
         {count}
       </span>
       <span className="h-px flex-1 bg-(--border-default)" />

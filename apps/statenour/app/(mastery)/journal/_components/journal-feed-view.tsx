@@ -82,7 +82,7 @@ export function JournalFeedView() {
             aria-label="Search journal archive"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-8 pr-8 py-2 min-h-[44px] sm:min-h-0 rounded-control bg-surface-interactive border border-edge-default text-[13px] text-fg placeholder:text-fg-tertiary outline-none focus:border-gold/40 transition-colors"
+            className="w-full pl-8 pr-8 py-2 min-h-[44px] sm:min-h-0 rounded-control bg-surface-interactive border border-edge-default text-[13px] text-fg placeholder:text-fg-tertiary outline-none focus:border-accent/40 transition-colors"
           />
           {search.length > 0 && (
             <button

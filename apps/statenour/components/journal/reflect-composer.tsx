@@ -383,7 +383,7 @@ export function ReflectComposer() {
                 "w-full resize-y rounded-control bg-surface-interactive border border-edge-default",
                 "text-[13px] leading-snug px-2 py-1.5 text-fg",
                 "placeholder:text-fg-tertiary",
-                "focus:border-gold/40 focus:outline-none transition-colors",
+                "focus:border-accent/40 focus:outline-none transition-colors",
                 "min-h-[30px]",
               )}
             />
@@ -403,7 +403,7 @@ export function ReflectComposer() {
             className={cn(
               "flex items-center gap-1 px-1.5 py-0.5 rounded-micro border text-[11px] font-mono transition-colors",
               mood === m.label
-                ? "border-gold/40 bg-accent-soft text-fg"
+                ? "border-accent/40 bg-accent-soft text-fg"
                 : "border-edge-default bg-surface-interactive text-fg-tertiary hover:border-edge-strong",
             )}
             title={m.label}
@@ -429,7 +429,7 @@ export function ReflectComposer() {
           className={cn(
             "flex items-center gap-1.5 px-2 py-1 rounded-micro border text-[11px] font-mono transition-colors",
             extractIntelligence
-              ? "border-gold/40 bg-accent-soft text-fg"
+              ? "border-accent/40 bg-accent-soft text-fg"
               : "border-edge-default bg-surface-interactive text-fg-tertiary hover:border-edge-strong",
           )}
           title={extractIntelligence ? "extraction on · action items + commitments will be derived" : "extraction off · reflection saves as a Reflection row only"}

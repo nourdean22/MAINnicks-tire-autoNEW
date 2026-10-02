@@ -72,21 +72,21 @@ export function CostSloTile({ state }: Props) {
           : "green";
 
   const tierBorder = {
-    neutral: "border-[var(--gold)]/25 bg-[var(--gold)]/[0.04]",
+    neutral: "border-l-edge-strong",
     green: "border-l-emerald-400/70",
     amber: "border-l-amber-400",
     red: "border-l-rose-400",
   }[tier];
 
   const tierText = {
-    neutral: "text-[var(--gold)]",
+    neutral: "text-fg-tertiary",
     green: "text-emerald-300",
     amber: "text-amber-300",
     red: "text-rose-300",
   }[tier];
 
   const sparkColor = {
-    neutral: "var(--gold)",
+    neutral: "var(--text-tertiary)",
     green: "rgb(110 231 183)",
     amber: "rgb(252 211 77)",
     red: "rgb(253 164 175)",
@@ -111,14 +111,14 @@ export function CostSloTile({ state }: Props) {
       {...cardProps}
     >
       {/* Header strip · label + freshness/tier dot · matches the
-          existing tile vocabulary (uppercase gold mono label). */}
+          existing tile vocabulary (mono eyebrow). */}
       <div className="flex items-center justify-between mb-1">
-        <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
+        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           <DollarSign size={11} />
           cost · today
         </span>
         {utilization !== null && (
-          <span className={cn("text-[9px] font-mono tabular-nums", tierText)}>
+          <span className={cn("font-mono text-[11px] tabular-nums", tierText)}>
             {Math.round(utilization * 100)}% of cap
           </span>
         )}
@@ -126,17 +126,17 @@ export function CostSloTile({ state }: Props) {
 
       {/* Big number — burn USD · forecast inline as smaller meta. */}
       <div className="flex items-baseline gap-2">
-        <span className="text-[26px] font-[var(--font-display)] font-bold leading-none tabular-nums text-[var(--text-primary)]">
+        <span className="stat-number text-[26px] leading-none text-fg">
           {formatUsd(burn)}
         </span>
         {cap > 0 && (
-          <span className="text-[10px] font-mono text-[var(--text-tertiary)] tabular-nums">
+          <span className="font-mono text-[11px] text-fg-tertiary tabular-nums">
             / {formatUsd(cap)}
           </span>
         )}
       </div>
-      <p className="mt-1 text-[10px] font-mono text-[var(--text-secondary)]">
-        forecast EOD <span className="text-[var(--text-primary)] tabular-nums">{formatUsd(forecast)}</span>
+      <p className="mt-1 font-mono text-[11px] text-fg-secondary">
+        forecast EOD <span className="text-fg tabular-nums">{formatUsd(forecast)}</span>
       </p>
 
       {/* Sparkline — 7d daily burn series · decorative, hidden from a11y tree. */}
@@ -148,7 +148,7 @@ export function CostSloTile({ state }: Props) {
 
       {/* Drilldown trigger — only when there are conversations to show. */}
       {top.length > 0 && (
-        <div className="mt-2 flex items-center justify-between text-[10px] font-mono text-[var(--text-tertiary)]">
+        <div className="mt-2 flex items-center justify-between font-mono text-[11px] text-fg-tertiary">
           <span>{top.length} top {top.length === 1 ? "convo" : "convos"}</span>
           <ChevronRight
             size={12}
@@ -159,16 +159,16 @@ export function CostSloTile({ state }: Props) {
 
       {/* Expanded drilldown — inline list, no modal. */}
       {expanded && top.length > 0 && (
-        <ul className="mt-2 space-y-1 border-t border-white/5 pt-2">
+        <ul className="mt-2 space-y-1 border-t border-edge-subtle pt-2">
           {top.slice(0, 3).map((c) => (
             <li
               key={c.id}
-              className="flex items-center justify-between gap-2 text-[10px] font-mono"
+              className="flex items-center justify-between gap-2 font-mono text-[11px]"
             >
-              <span className="truncate text-[var(--text-secondary)]" title={c.label}>
+              <span className="truncate text-fg-secondary" title={c.label}>
                 {c.label}
               </span>
-              <span className="shrink-0 tabular-nums text-[var(--text-primary)]">
+              <span className="shrink-0 tabular-nums text-fg">
                 {formatUsd(c.usd)}
               </span>
             </li>
@@ -193,15 +193,15 @@ export function EmptyTile({
   icon?: React.ReactNode;
 }) {
   return (
-    <GlassCard ruled className="min-h-[112px] border-l-gold/40">
-      <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/70">
+    <GlassCard ruled className="min-h-[112px] border-l-edge-strong">
+      <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
         {icon}
         {label}
       </div>
-      <p className="mt-3 text-[11px] text-[var(--text-tertiary)] leading-snug">
+      <p className="mt-3 text-[11px] text-fg-tertiary leading-snug">
         {hint}
       </p>
-      <p className="mt-2 text-[9px] font-mono text-[var(--text-tertiary)]/60">
+      <p className="mt-2 font-mono text-[11px] text-fg-tertiary">
         endpoint quiet · check back after first run
       </p>
     </GlassCard>
@@ -211,11 +211,11 @@ export function EmptyTile({
 export function ErrorTile({ label, message }: { label: string; message: string }) {
   return (
     <GlassCard ruled className="min-h-[112px] border-rose-500/30 bg-rose-500/5">
-      <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.18em] text-rose-300">
+      <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-rose-300">
         <AlertTriangle size={11} />
         {label} · failed
       </div>
-      <p className="mt-2 break-words text-[10px] font-mono text-rose-300/70">
+      <p className="mt-2 break-words font-mono text-[11px] text-rose-300/70">
         {message.slice(0, 140)}
       </p>
     </GlassCard>

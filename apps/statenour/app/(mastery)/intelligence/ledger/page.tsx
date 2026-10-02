@@ -84,26 +84,26 @@ export default function DecisionLedgerPage() {
         <button
           onClick={() => fetchOpportunities(activeTab)}
           disabled={loading}
-          className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 font-mono text-xs text-slate-400 transition-colors hover:text-slate-200 disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-          REFRESH
+          Refresh
         </button>
       }
     >
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-800 mb-6 overflow-x-auto scrollbar-none gap-2">
+      <div className="flex border-b border-edge-subtle mb-6 overflow-x-auto scrollbar-none gap-2">
         {tabs.map((tab) => {
           const isSelected = activeTab === tab.key;
           return (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-medium tracking-wider uppercase transition-all ${
+              className={`flex min-h-[44px] items-center gap-2 border-b-2 px-4 py-3 text-[13px] font-medium transition-colors duration-[var(--motion-state)] ${
                 isSelected
-                  ? "border-indigo-500 text-slate-100"
-                  : "border-transparent text-slate-500 hover:border-slate-800 hover:text-slate-300"
+                  ? "border-accent text-fg"
+                  : "border-transparent text-fg-tertiary hover:text-fg-secondary"
               }`}
             >
               {tab.icon}
@@ -115,17 +115,17 @@ export default function DecisionLedgerPage() {
 
       {/* Opportunities List */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3 border border-slate-800/40 rounded-2xl bg-slate-900/10 backdrop-blur-md">
-          <RefreshCw className="h-6 w-6 text-slate-500 animate-spin" />
-          <span className="text-xs font-mono text-slate-500">Loading ledger data...</span>
+        <div className="flex flex-col items-center justify-center py-20 gap-3 border border-edge-subtle rounded-surface bg-content">
+          <RefreshCw className="h-6 w-6 text-fg-tertiary animate-spin" />
+          <span className="text-xs font-mono text-fg-tertiary">Loading ledger data...</span>
         </div>
       ) : opportunities.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center border border-slate-800/40 rounded-2xl bg-slate-900/10 backdrop-blur-md px-6">
-          <div className="rounded-full bg-slate-900/80 p-4 border border-slate-800 text-slate-500 mb-4">
+        <div className="flex flex-col items-center justify-center py-16 text-center border border-edge-subtle rounded-surface bg-content px-6">
+          <div className="rounded-full bg-surface-interactive p-4 border border-edge-subtle text-fg-tertiary mb-4">
             <LayoutList className="h-8 w-8" />
           </div>
-          <h3 className="text-sm font-semibold text-slate-200 capitalize">No {activeTab} Opportunities</h3>
-          <p className="text-xs text-slate-500 max-w-sm mt-1">
+          <h3 className="text-sm font-semibold text-fg capitalize">No {activeTab} Opportunities</h3>
+          <p className="text-xs text-fg-tertiary max-w-sm mt-1">
             {activeTab === "pending"
               ? "All opportunities have been processed. Tap compile on the briefing page to check for new ones."
               : `There are no opportunities marked as ${activeTab} yet.`}

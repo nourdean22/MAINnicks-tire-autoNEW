@@ -238,7 +238,12 @@ export function PageNick({
             <button
               onClick={() => ask()}
               disabled={!question.trim() && !presets?.length}
-              className="flex items-center justify-center w-9 h-9 rounded-control bg-accent text-[var(--text-inverse)] hover:bg-accent-hover transition-colors duration-[var(--motion-state)] disabled:opacity-40"
+              className={cn(
+                "flex items-center justify-center w-9 h-9 rounded-control transition-colors duration-[var(--motion-state)] disabled:opacity-40",
+                question.trim()
+                  ? "bg-accent text-[var(--text-inverse)] hover:bg-accent-hover"
+                  : "border border-edge-default bg-content text-fg-tertiary hover:border-edge-strong hover:text-fg",
+              )}
               aria-label="Send"
             >
               <Send size={12} />

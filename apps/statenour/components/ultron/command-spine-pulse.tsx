@@ -33,7 +33,7 @@ const PRIORITY_TINT: Record<string, string> = {
   critical: "border-rose-500/40 bg-rose-500/[0.04] text-rose-200",
   high: "border-amber-500/40 bg-amber-500/[0.04] text-amber-200",
   medium: "border-sky-500/30 bg-sky-500/[0.03] text-sky-200",
-  low: "border-[var(--border-hover)] bg-[var(--bg-elevated)]/30 text-[var(--text-secondary)]",
+  low: "border-edge-strong bg-surface-raised/30 text-fg-secondary",
 };
 
 export function CommandSpinePulse() {
@@ -72,45 +72,45 @@ export function CommandSpinePulse() {
   return (
     <Link
       href="/system"
-      className="block rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02] p-3 transition-colors hover:border-[var(--gold)]/30"
+      className="block rounded-surface border border-edge-subtle bg-content p-3 transition-colors duration-[var(--motion-state)] hover:border-edge-strong"
       title="Open command center · v9.0 Command Spine"
     >
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           🎯 command spine · v9.0
         </span>
-        <span className="text-[9px] font-mono text-[var(--text-tertiary)]/60">
+        <span className="font-mono text-[11px] text-fg-tertiary">
           tap to expand →
         </span>
       </div>
 
       {/* Active command */}
       <div className="mb-1.5 flex items-center gap-2">
-        <Target size={11} className="shrink-0 text-[var(--gold)]" />
+        <Target size={11} className="shrink-0 text-fg-tertiary" />
         {state.commands.active ? (
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <span
               className={cn(
-                "shrink-0 rounded-full border px-1.5 py-px text-[9px] font-mono uppercase tracking-wider",
+                "shrink-0 rounded-full border px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em]",
                 PRIORITY_TINT[state.commands.active.priority] ??
                   PRIORITY_TINT.low,
               )}
             >
               {state.commands.active.priority}
             </span>
-            <span className="truncate text-[11px] text-[var(--text-primary)]">
+            <span className="truncate text-[11px] text-fg">
               {state.commands.active.title}
             </span>
           </div>
         ) : (
-          <span className="text-[11px] text-[var(--text-tertiary)]">
+          <span className="text-[11px] text-fg-tertiary">
             between commands · {state.commands.open.length} queued
           </span>
         )}
       </div>
 
       {/* Proof + risks row */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-mono">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px]">
         <span className="inline-flex items-center gap-1 text-emerald-300">
           <CheckCircle2 size={10} />
           proof {proofRatio}
@@ -128,7 +128,7 @@ export function CommandSpinePulse() {
           </span>
         )}
         {totalRisks === 0 && state.commands.active && (
-          <span className="text-[var(--text-tertiary)]">risks · clear</span>
+          <span className="text-fg-tertiary">risks · clear</span>
         )}
       </div>
     </Link>

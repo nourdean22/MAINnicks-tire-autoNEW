@@ -85,7 +85,6 @@ export function Sparkline({
           cy={last.y}
           r={2}
           fill={color}
-          className="animate-pulse"
         />
       )}
     </svg>

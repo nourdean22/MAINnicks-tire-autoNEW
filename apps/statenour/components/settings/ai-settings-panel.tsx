@@ -236,9 +236,9 @@ export function AiSettingsPanel() {
             <button
               type="button"
               onClick={() => void loadConfig()}
-              className="rounded border border-[var(--border-default)] px-2.5 py-1.5 text-[10px] font-mono uppercase tracking-[0.1em] text-[var(--text-secondary)] hover:text-[var(--text-primary)] min-h-[44px]"
+              className="rounded-control border border-edge-default px-2.5 py-1.5 text-[13px] font-medium text-fg-secondary hover:border-edge-strong hover:text-fg min-h-[44px]"
             >
-              retry
+              Retry
             </button>
           </div>
         ) : (
@@ -254,18 +254,18 @@ export function AiSettingsPanel() {
       <GlassCard>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Database size={13} className="text-[var(--gold)]" />
-            <span className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-[var(--gold)]">
-              Cold Memory
+            <Database size={13} className="text-fg-tertiary" />
+            <span className="text-[15px] font-semibold text-fg">
+              Cold memory
             </span>
           </div>
           <button
             onClick={syncDrive}
             disabled={syncing}
-            className="flex items-center gap-1 px-2.5 h-7 rounded-md bg-[var(--gold)]/10 border border-[var(--gold)]/40 text-[10px] font-bold text-[var(--gold)] hover:bg-[var(--gold)]/20 transition-colors disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded-control border border-edge-default bg-content px-2.5 py-1.5 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-40"
           >
             <RefreshCw size={11} className={cn(syncing && "animate-spin")} />
-            {syncing ? "SYNCING…" : "SYNC NOW"}
+            {syncing ? "Syncing…" : "Sync now"}
           </button>
         </div>
 
@@ -287,12 +287,12 @@ export function AiSettingsPanel() {
         )}
 
         {syncResult && (
-          <div className="mt-2 px-3 py-2 rounded-md bg-[var(--bg-elevated)] border border-[var(--border-default)]">
-            <p className="text-[10px] text-[var(--text-secondary)]">{syncResult}</p>
+          <div className="mt-2 px-3 py-2 rounded-control bg-surface-raised border border-edge-default">
+            <p className="text-[12px] text-fg-secondary">{syncResult}</p>
           </div>
         )}
 
-        <p className="text-[9px] text-[var(--text-tertiary)] mt-2">
+        <p className="text-[12px] text-fg-tertiary mt-2">
           Nick reaches into this via the <code>searchColdMemory</code> tool. Sync
           pulls the 25 most recently-modified Drive docs and embeds them for
           semantic search.
@@ -303,9 +303,9 @@ export function AiSettingsPanel() {
       <GlassCard>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Sliders size={13} className="text-[var(--gold)]" />
-            <span className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-[var(--gold)]">
-              AI Config — Live
+            <Sliders size={13} className="text-fg-tertiary" />
+            <span className="text-[15px] font-semibold text-fg">
+              AI config — live
             </span>
           </div>
           <ConfirmHold
@@ -362,7 +362,7 @@ export function AiSettingsPanel() {
             }}
           />
         </Row>
-        <p className="mt-1 text-[9px] text-[var(--text-tertiary)]">
+        <p className="mt-1 text-[12px] text-fg-tertiary">
           These two are per-device (stored in this browser).
         </p>
       </GlassCard>
@@ -370,12 +370,12 @@ export function AiSettingsPanel() {
       {/* ── Tool Opt-in / Opt-out (#13) ── */}
       <GlassCard>
         <div className="flex items-center gap-2 mb-3">
-          <Cpu size={13} className="text-[var(--gold)]" />
-          <span className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-[var(--gold)]">
-            Tool Blocklist
+          <Cpu size={13} className="text-fg-tertiary" />
+          <span className="text-[15px] font-semibold text-fg">
+            Tool blocklist
           </span>
         </div>
-        <p className="text-[10px] text-[var(--text-tertiary)] mb-2">
+        <p className="text-[12px] text-fg-tertiary mb-2">
           Tools listed here are NEVER loaded regardless of mode. Use for tools
           you never use or that are actively broken. Enter the exact tool name.
         </p>
@@ -386,13 +386,13 @@ export function AiSettingsPanel() {
             onKeyDown={(e) => e.key === "Enter" && addDisabledTool()}
             aria-label="Tool name to add to blocklist"
             placeholder="e.g. generateImage"
-            className="flex-1 h-8 px-2 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--gold)]/40 outline-none font-mono"
+            className="flex-1 h-8 px-2 rounded-control border border-edge-default bg-content text-[13px] text-fg placeholder:text-fg-tertiary focus:border-accent outline-none font-mono"
           />
           <button
             onClick={addDisabledTool}
-            className="px-3 h-8 rounded bg-[var(--gold)]/10 border border-[var(--gold)]/40 text-[10px] font-bold text-[var(--gold)] hover:bg-[var(--gold)]/20 transition-colors"
+            className="inline-flex items-center rounded-control border border-edge-default bg-content px-3 h-8 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
           >
-            DISABLE
+            Disable
           </button>
         </div>
         {(config.disabledTools?.length || 0) > 0 ? (
@@ -400,7 +400,7 @@ export function AiSettingsPanel() {
             {config.disabledTools!.map((t) => (
               <span
                 key={t}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/30 text-[10px] font-mono text-red-300"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/30 text-[11px] font-mono text-red-300"
               >
                 {t}
                 <button
@@ -414,7 +414,7 @@ export function AiSettingsPanel() {
             ))}
           </div>
         ) : (
-          <p className="text-[10px] text-[var(--text-tertiary)]">No tools disabled.</p>
+          <p className="text-[12px] text-fg-tertiary">No tools disabled.</p>
         )}
       </GlassCard>
     </div>
@@ -430,8 +430,8 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   // as a named group via aria-labelledby — every control inherits the name.
   const labelId = useId();
   return (
-    <div className="flex items-center justify-between py-2 border-b border-[var(--border-default)]/40 last:border-b-0">
-      <label id={labelId} className="text-[11px] text-[var(--text-secondary)]">{label}</label>
+    <div className="flex items-center justify-between py-2 border-b border-edge-subtle last:border-b-0">
+      <label id={labelId} className="text-[13px] text-fg-secondary">{label}</label>
       <div role="group" aria-labelledby={labelId} className="flex items-center gap-2">{children}</div>
     </div>
   );
@@ -439,11 +439,11 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-2.5 py-1.5">
-      <p className="text-[8px] font-bold uppercase tracking-wider text-[var(--text-tertiary)]">
+    <div className="rounded-control border border-edge-subtle bg-surface-raised px-2.5 py-1.5">
+      <p className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary">
         {label}
       </p>
-      <p className="text-[13px] font-bold tabular-nums text-[var(--text-primary)]">{value}</p>
+      <p className="text-[13px] font-semibold tabular-nums text-fg">{value}</p>
     </div>
   );
 }

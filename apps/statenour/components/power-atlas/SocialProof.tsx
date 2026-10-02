@@ -29,13 +29,12 @@ export default function SocialProof({ personId }: SocialProofProps) {
   if (isLoading) {
     return (
       <section
-        className="rounded-xl border bg-[var(--bg-raised)] p-4"
-        style={{ borderColor: "rgba(255,255,255,0.06)" }}
+        className="rounded-surface border border-edge-subtle bg-content p-4"
       >
-        <h2 className="font-serif text-lg tracking-tight text-[var(--text-primary)] mb-2">
+        <h2 className="text-[17px] font-semibold text-fg mb-2">
           Social proof
         </h2>
-        <p className="text-xs text-[var(--text-tertiary)]">Loading…</p>
+        <p className="text-xs text-fg-tertiary">Loading…</p>
       </section>
     );
   }
@@ -45,13 +44,12 @@ export default function SocialProof({ personId }: SocialProofProps) {
   if (mentions.length === 0) {
     return (
       <section
-        className="rounded-xl border bg-[var(--bg-raised)] p-4"
-        style={{ borderColor: "rgba(255,255,255,0.06)" }}
+        className="rounded-surface border border-edge-subtle bg-content p-4"
       >
-        <h2 className="font-serif text-lg tracking-tight text-[var(--text-primary)] mb-2">
+        <h2 className="text-[17px] font-semibold text-fg mb-2">
           Social proof
         </h2>
-        <p className="text-xs text-[var(--text-tertiary)]">
+        <p className="text-xs text-fg-tertiary">
           No cross-mentions yet. As you talk about this person alongside
           others in chat, this list builds the cluster map.
         </p>
@@ -61,14 +59,13 @@ export default function SocialProof({ personId }: SocialProofProps) {
 
   return (
     <section
-      className="rounded-xl border bg-[var(--bg-raised)] p-4"
-      style={{ borderColor: "rgba(255,255,255,0.06)" }}
+      className="rounded-surface border border-edge-subtle bg-content p-4"
     >
       <div className="flex items-baseline justify-between gap-3 mb-3">
-        <h2 className="font-serif text-lg tracking-tight text-[var(--text-primary)]">
+        <h2 className="text-[17px] font-semibold text-fg">
           Social proof
         </h2>
-        <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] tabular-nums">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
           {data?.totalCrossMentions ?? 0} cross-mentions
         </span>
       </div>
@@ -78,10 +75,10 @@ export default function SocialProof({ personId }: SocialProofProps) {
             key={m.personId}
             className="flex items-center justify-between gap-3 text-sm"
           >
-            <span className="text-[var(--text-secondary)] truncate">
+            <span className="text-fg-secondary truncate">
               {m.personName}
             </span>
-            <span className="font-mono tabular-nums text-[var(--text-tertiary)] text-xs">
+            <span className="font-mono tabular-nums text-fg-tertiary text-xs">
               {m.mentionCount}
             </span>
           </li>

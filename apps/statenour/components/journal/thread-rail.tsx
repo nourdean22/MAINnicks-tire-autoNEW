@@ -431,7 +431,7 @@ function NewThreadForm({
           }}
           placeholder="theme name (e.g. 'the pricing puzzle')"
           autoFocus
-          className="flex-1 min-h-[44px] px-3 rounded-control border border-edge-default bg-transparent text-sm text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-gold/60"
+          className="flex-1 min-h-[44px] px-3 rounded-control border border-edge-default bg-transparent text-sm text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent/60"
         />
         <button
           type="button"

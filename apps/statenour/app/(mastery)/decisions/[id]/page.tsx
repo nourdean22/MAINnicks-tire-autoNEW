@@ -196,7 +196,7 @@ export default function DecisionDetailPage() {
             <AlertCircle size={14} className="mt-0.5 text-rose-300/80" />
             <div>
               <p className="text-[12px] font-bold text-rose-300">load failed</p>
-              <p className="mt-0.5 font-mono text-[10px] text-rose-300/70">{error}</p>
+              <p className="mt-0.5 font-mono text-[11px] text-rose-300/70">{error}</p>
             </div>
           </div>
         </Panel>
@@ -306,12 +306,12 @@ export default function DecisionDetailPage() {
         <span className="inline-flex items-center gap-2">
           <span>Journal · decision · {d.date}</span>
           {d.domain && (
-            <span className="font-mono tracking-[0.18em] opacity-80">
+            <span className="font-mono tracking-[0.12em] opacity-80">
               {d.domain.slice(0, 4).toUpperCase()}
             </span>
           )}
           {d.stakes && (
-            <span className="rounded border border-[var(--gold)]/30 bg-[var(--gold)]/[0.05] px-1.5 py-0.5 text-[8px] uppercase tracking-wider text-[var(--gold)]/90 normal-case">
+            <span className="rounded-micro border border-edge-default bg-content px-1.5 py-0.5 font-mono text-[11px] text-fg-secondary normal-case">
               {d.stakes} stakes
             </span>
           )}
@@ -350,13 +350,13 @@ export default function DecisionDetailPage() {
                 setEditing(true);
               }}
               className={cn(
-                "rounded-lg border px-3 py-1.5 text-[11px] font-medium transition",
+                "inline-flex min-h-[44px] items-center rounded-control border px-4 py-2 transition-colors duration-[var(--motion-state)]",
                 editing
-                  ? "border-zinc-600 bg-zinc-800 text-zinc-200"
-                  : "border-[var(--gold)]/40 bg-[var(--gold)]/[0.08] text-[var(--gold)] hover:bg-[var(--gold)]/15",
+                  ? "border-edge-default bg-content text-[13px] font-medium text-fg-secondary hover:border-edge-strong hover:text-fg"
+                  : "border-transparent bg-accent text-[14px] font-semibold text-[var(--text-inverse)] hover:bg-accent-hover",
               )}
             >
-              {editing ? "× cancel" : timeline.isReviewed ? "edit" : "grade decision"}
+              {editing ? "× Cancel" : timeline.isReviewed ? "Edit" : "Grade decision"}
             </button>
           </div>
         }
@@ -418,7 +418,7 @@ export default function DecisionDetailPage() {
           <span className="inline-flex items-center gap-2">
             <span>predicted</span>
             {d.emotionalState && (
-              <span className="rounded bg-[var(--gold)]/[0.06] px-1.5 py-px text-[9px] tracking-wider text-[var(--gold)]/80 normal-case">
+              <span className="rounded-micro bg-surface-interactive px-1.5 py-px font-mono text-[11px] text-fg-tertiary normal-case">
                 {d.emotionalState}
               </span>
             )}
@@ -453,8 +453,8 @@ export default function DecisionDetailPage() {
           ) : !timeline.isReviewed ? (
             <p className="text-[11px] leading-relaxed text-[var(--text-tertiary)] italic">
               {timeline.reviewDueDays !== null && timeline.reviewDueDays >= 0
-                ? `Review opens in ${timeline.reviewDueDays}d. The page will let you grade then — or click "grade decision" above to log the outcome now.`
-                : "Click 'grade decision' above to record the actual outcome."}
+                ? `Review opens in ${timeline.reviewDueDays}d. The page will let you grade then — or click "Grade decision" above to log the outcome now.`
+                : "Click 'Grade decision' above to record the actual outcome."}
             </p>
           ) : null
         }
@@ -462,32 +462,32 @@ export default function DecisionDetailPage() {
 
       {/* ── Edit form · folds out below the spread ───────────────── */}
       {editing && (
-        <Panel className="border-[var(--gold)]/30 bg-[var(--gold)]/[0.03]">
+        <Panel className="border-edge-default bg-content">
           <div className="space-y-3 p-3">
-            <h3 className="text-sm font-semibold text-[var(--gold)]">
+            <h3 className="text-sm font-semibold text-fg">
               {timeline.isReviewed ? "Edit grade" : "Grade decision"}
             </h3>
             <div className="grid gap-3 md:grid-cols-2">
               <div className="md:col-span-2">
-                <label className="mb-1 block text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
-                  actual outcome
+                <label className="mb-1 block font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                  Actual outcome
                 </label>
                 <textarea
                   value={editOutcome}
                   onChange={(e) => setEditOutcome(e.target.value)}
                   rows={4}
                   placeholder="what actually happened — blunt, specific, with numbers when possible"
-                  className="w-full rounded-md border border-[var(--border-soft)] bg-[var(--bg-base)]/60 px-3 py-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--gold)]/60 focus:outline-none"
+                  className="w-full rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg placeholder:text-fg-tertiary focus:border-accent focus:outline-none"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
-                  grade
+                <label className="mb-1 block font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                  Grade
                 </label>
                 <select
                   value={editGrade}
                   onChange={(e) => setEditGrade(e.target.value)}
-                  className="w-full rounded-md border border-[var(--border-soft)] bg-[var(--bg-base)]/60 px-3 py-2 text-[12px] text-[var(--text-primary)] focus:border-[var(--gold)]/60 focus:outline-none"
+                  className="w-full min-h-[44px] rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg focus:border-accent focus:outline-none"
                 >
                   <option value="">— pick —</option>
                   <option value="A">A · prediction held + outcome was great</option>
@@ -498,30 +498,30 @@ export default function DecisionDetailPage() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
-                  next review date
+                <label className="mb-1 block font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                  Next review date
                 </label>
                 <input
                   type="date"
                   value={editReviewDate}
                   onChange={(e) => setEditReviewDate(e.target.value)}
-                  className="w-full rounded-md border border-[var(--border-soft)] bg-[var(--bg-base)]/60 px-3 py-2 text-[12px] text-[var(--text-primary)] focus:border-[var(--gold)]/60 focus:outline-none"
+                  className="w-full min-h-[44px] rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg focus:border-accent focus:outline-none"
                 />
               </div>
             </div>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setEditing(false)}
-                className="rounded-md border border-zinc-700 bg-zinc-800/60 px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700/60"
+                className="inline-flex min-h-[44px] items-center rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
               >
-                cancel
+                Cancel
               </button>
               <button
                 onClick={() => void save()}
                 disabled={saving || !editGrade || !editOutcome}
-                className="rounded-md border border-[var(--gold)]/40 bg-[var(--gold)]/[0.12] px-3 py-1.5 text-[11px] text-[var(--gold)] hover:bg-[var(--gold)]/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex min-h-[44px] items-center rounded-control bg-accent px-4 py-2 text-[14px] font-semibold text-[var(--text-inverse)] transition-colors duration-[var(--motion-state)] hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {saving ? "saving…" : "save grade"}
+                {saving ? "Saving…" : "Save grade"}
               </button>
             </div>
           </div>
@@ -532,7 +532,7 @@ export default function DecisionDetailPage() {
       {lineage.antiPatterns.length > 0 && (
         <section className="space-y-2">
           <header className="flex items-baseline justify-between">
-            <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               anti-patterns in {d.domain}
             </p>
             {/* "full library →" pointed at /system/quality?view=lessons, which
@@ -590,7 +590,7 @@ export default function DecisionDetailPage() {
       {lineage.siblings.length > 0 && (
         <section className="space-y-2">
           <header>
-            <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               domain scan · {d.domain ?? "all"}
             </p>
           </header>
@@ -609,7 +609,7 @@ export default function DecisionDetailPage() {
         <div className="grid gap-4 p-3 md:grid-cols-2">
           {d.context && (
             <div>
-              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] mb-1.5">
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1.5">
                 context
               </p>
               <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
@@ -619,7 +619,7 @@ export default function DecisionDetailPage() {
           )}
           {d.reasoning && (
             <div>
-              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] mb-1.5">
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1.5">
                 reasoning
               </p>
               <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
@@ -629,7 +629,7 @@ export default function DecisionDetailPage() {
           )}
           {d.optionsConsidered && (
             <div className="md:col-span-2">
-              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] mb-1.5">
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1.5">
                 options considered
               </p>
               <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">

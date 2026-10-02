@@ -77,9 +77,8 @@ export function MasterySectionLabel({
         role="heading"
         aria-level={2}
         className={cn(
-          // Mirrors `.eyebrow` (globals.css line 256-261):
-          // 0.625rem · weight 600 · uppercase · letter-spacing 0.14em
-          "text-[10px] font-semibold uppercase tracking-[0.14em] truncate m-0",
+          // Mirrors `.eyebrow` (base.css): Geist Mono 11px · uppercase · letter-spacing 0.12em
+          "font-mono text-[11px] font-medium uppercase tracking-[0.12em] truncate m-0",
           TONE_TEXT[tone],
         )}
       >
@@ -89,7 +88,7 @@ export function MasterySectionLabel({
         ) : null}
       </p>
       {action ? (
-        <div className="shrink-0 text-[10px] uppercase tracking-[0.14em]">
+        <div className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em]">
           {action}
         </div>
       ) : null}

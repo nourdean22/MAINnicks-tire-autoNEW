@@ -219,7 +219,7 @@ export default function FleetPage() {
 
           {truth.queues && (
             <Panel>
-              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-1">
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">
                 durable queues — rows, not just drains
               </p>
               <QueueRow
@@ -251,7 +251,7 @@ export default function FleetPage() {
           )}
 
           <Panel>
-            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-1">
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">
               delivery — shown vs acknowledged (7d)
             </p>
             {delivery.isLoading ? (
@@ -282,14 +282,14 @@ export default function FleetPage() {
           </Panel>
 
           <Panel>
-            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-1">statenour</p>
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">statenour</p>
             {truth.statenour.map((a) => (
               <ArtifactRow key={a.capability} a={a} />
             ))}
           </Panel>
 
           <Panel>
-            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-1">nickstire</p>
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">nickstire</p>
             {truth.nickstire.map((a) => (
               <ArtifactRow key={a.capability} a={a} />
             ))}

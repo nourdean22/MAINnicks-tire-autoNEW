@@ -475,18 +475,18 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
     const isSummaryVisible = showSummary || reviewTimeLeft === 0;
 
     return (
-      <div className="space-y-4 rounded-xl border border-amber-500/30 bg-zinc-950/80 backdrop-blur-md p-4 animate-fade-in max-w-md mx-auto" id="focus-review-panel">
+      <div className="space-y-4 rounded-surface border border-amber-500/30 bg-content p-4 animate-fade-in max-w-md mx-auto" id="focus-review-panel">
         {/* Status Bar */}
-        <div className="flex items-center justify-between pb-2 border-b border-white/5">
+        <div className="flex items-center justify-between pb-2 border-b border-edge-subtle">
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-            <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
+            <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-secondary">
               Focus Review ({activeReviewIdx + 1} of {dueReviews.length})
             </span>
           </div>
           <button
             onClick={() => setFocusReviewMode(false)}
-            className="text-[10px] font-mono text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="text-[11px] font-mono text-fg-tertiary hover:text-fg transition-colors"
           >
             Exit Focus
           </button>
@@ -494,16 +494,16 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
 
         {/* Ebbinghaus Countdown Timer */}
         <div className="space-y-1">
-          <div className="flex items-center justify-between text-[10px] font-mono">
-            <span className="text-zinc-500">Ebbinghaus Urgency Countdown</span>
+          <div className="flex items-center justify-between text-[11px] font-mono">
+            <span className="text-fg-tertiary">Ebbinghaus Urgency Countdown</span>
             <span className={cn(
-              "font-bold",
-              reviewTimeLeft <= 10 ? "text-red-400 animate-pulse" : "text-amber-400"
+              "font-semibold",
+              reviewTimeLeft <= 10 ? "text-red-400" : "text-amber-400"
             )}>
               0:{reviewTimeLeft.toString().padStart(2, "0")}
             </span>
           </div>
-          <div className="h-1.5 w-full bg-zinc-900 rounded-full overflow-hidden border border-white/5">
+          <div className="h-1.5 w-full bg-surface-interactive rounded-full overflow-hidden border border-edge-subtle">
             <div
               className={cn(
                 "h-full transition-all duration-1000 rounded-full",
@@ -516,7 +516,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
 
         {/* Card Content */}
         <div className="py-6 px-2 text-center space-y-4">
-          <h2 className="text-lg font-bold text-zinc-100 tracking-tight leading-snug">
+          <h2 className="text-lg font-semibold text-fg tracking-tight leading-snug">
             {currentReviewCard.topic}
           </h2>
 
@@ -529,8 +529,8 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
               Show Summary
             </Button>
           ) : (
-            <div className="p-3.5 rounded-lg border border-zinc-800 bg-zinc-900/40 text-left text-zinc-300 text-xs leading-relaxed whitespace-pre-wrap animate-fade-in">
-              <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+            <div className="p-3.5 rounded-lg border border-edge-default bg-content text-left text-fg-secondary text-xs leading-relaxed whitespace-pre-wrap animate-fade-in">
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">
                 Summary / Insight
               </p>
               {currentReviewCard.summary}
@@ -541,7 +541,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
         {/* Urgency warning on timer expiry */}
         {reviewTimeLeft === 0 && (
           <div className="p-2 rounded bg-red-500/10 border border-red-500/20 text-center animate-bounce">
-            <p className="text-[10px] font-bold text-red-400">
+            <p className="text-[12px] font-semibold text-red-400">
               ⏱️ Time's up! Don't overthink, pick an action below.
             </p>
           </div>
@@ -551,7 +551,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
         <div className="flex gap-2 pt-2">
           <button
             onClick={() => handleCompleteActiveReview(currentReviewCard.key)}
-            className="flex-1 min-h-[44px] rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500 hover:text-black text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+            className="flex-1 min-h-[44px] rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500 hover:text-black text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
             aria-label="Mark as remembered"
             id="got-it-focus-btn"
           >
@@ -559,7 +559,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
           </button>
           <button
             onClick={() => handleDeepDiveActiveReview(currentReviewCard.topic, currentReviewCard.key)}
-            className="flex-1 min-h-[44px] rounded-lg bg-violet-500/20 text-violet-300 border border-violet-500/30 hover:bg-violet-500 hover:text-black text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+            className="flex-1 min-h-[44px] rounded-lg bg-violet-500/20 text-violet-300 border border-violet-500/30 hover:bg-violet-500 hover:text-black text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
             aria-label="Deep dive on this topic"
             id="deep-dive-focus-btn"
           >
@@ -567,7 +567,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
           </button>
           <button
             onClick={handleSkipActiveReview}
-            className="min-h-[44px] px-3.5 rounded-lg bg-zinc-900/60 text-zinc-400 border border-zinc-800 hover:bg-zinc-800 hover:text-zinc-200 text-xs font-medium transition-all"
+            className="min-h-[44px] px-3.5 rounded-lg bg-content text-fg-secondary border border-edge-default hover:bg-surface-hover hover:text-fg text-xs font-medium transition-all"
             aria-label="Skip to next review card"
             id="skip-focus-btn"
           >
@@ -584,7 +584,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
       {dueReviews.length > 0 && !active && !focusReviewMode && (
         <div className="space-y-2 mb-4">
           <div className="flex items-center justify-between">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-amber-400/80 px-0.5">
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-400/80 px-0.5">
               Remember this? ({dueReviews.length} due)
             </p>
             <Button
@@ -596,7 +596,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
                 setReviewTimeLeft(45);
                 setShowSummary(false);
               }}
-              className="text-[10px] h-7 px-2.5 border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300 font-mono font-bold flex items-center gap-1.5 animate-pulse"
+              className="text-[11px] h-7 px-2.5 border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300 font-mono font-semibold flex items-center gap-1.5"
               id="adhd-focus-review-btn"
             >
               <Zap size={11} className="fill-amber-400/20" />
@@ -610,25 +610,25 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[12px] font-bold text-zinc-200">{rev.topic}</p>
-                  <p className="text-[10px] text-zinc-400 italic line-clamp-2 mt-0.5">
+                  <p className="text-[12px] font-semibold text-fg">{rev.topic}</p>
+                  <p className="text-[12px] text-fg-secondary italic line-clamp-2 mt-0.5">
                     {rev.summary}
                   </p>
                 </div>
-                <span className="text-[8px] text-amber-400/60 font-mono shrink-0">
+                <span className="text-[11px] text-amber-400/60 font-mono shrink-0">
                   day {rev.interval}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => run(rev.topic, "teach")}
-                  className="text-[9px] px-2 py-0.5 rounded bg-violet-500/15 text-violet-300 hover:bg-violet-500/30 border border-violet-500/20 font-bold"
+                  className="text-[11px] px-2 py-0.5 rounded bg-violet-500/15 text-violet-300 hover:bg-violet-500/30 border border-violet-500/20 font-semibold"
                 >
                   Deep dive
                 </button>
                 <button
                   onClick={() => completeReview(rev.key)}
-                  className="text-[9px] px-2 py-0.5 rounded text-amber-400/70 hover:text-amber-300 border border-amber-500/20"
+                  className="text-[11px] px-2 py-0.5 rounded text-amber-400/70 hover:text-amber-300 border border-amber-500/20"
                 >
                   Got it ✓
                 </button>
@@ -640,7 +640,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
 
       {/* ── Smart input ── */}
       <div className="space-y-2">
-        <p className="text-[13px] font-bold text-zinc-200 leading-snug">
+        <p className="text-[13px] font-semibold text-fg leading-snug">
           {active
             ? "Ask something else"
             : dueReviews.length > 0
@@ -657,13 +657,13 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && run()}
             disabled={loading}
-            className="h-9 bg-zinc-900/60 border-zinc-800/40 text-[13px] placeholder:text-zinc-600 focus:border-violet-500/30 transition-all"
+            className="h-9 bg-content border-edge-subtle text-[13px] placeholder:text-fg-tertiary focus:border-accent transition-all"
           />
           <Button
             size="sm"
             onClick={() => run()}
             disabled={loading || !query.trim()}
-            className="h-9 px-3 bg-violet-500/20 text-violet-200 hover:bg-violet-500 hover:text-black border border-violet-500/30 font-bold shrink-0"
+            className="h-9 px-3 bg-violet-500/20 text-violet-200 hover:bg-violet-500 hover:text-black border border-violet-500/30 font-semibold shrink-0"
           >
             {loading ? <Loader2 size={12} className="animate-spin" /> : <ArrowRight size={14} />}
           </Button>
@@ -671,7 +671,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
 
         {/* Route hint — shows what Nick will do */}
         {detectedTool && !loading && (
-          <div className="flex items-center gap-1.5 px-1 text-[9px]">
+          <div className="flex items-center gap-1.5 px-1 text-[11px]">
             {detectedTool === "research" ? (
               <>
                 <Globe size={9} className="text-cyan-400" />
@@ -690,7 +690,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
       {/* ── Decision-linked learning — "you're deciding X, learn about Y" ── */}
       {!active && activeDecisions.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-cyan-400/80 px-0.5">
+          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-cyan-400/80 px-0.5">
             Learn before you decide
           </p>
           {activeDecisions.map((dec, i) => (
@@ -702,14 +702,14 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
             >
               <Lightbulb size={12} className="text-cyan-500/60 group-hover:text-cyan-400 shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
-                <p className="text-[11px] text-zinc-300 group-hover:text-zinc-100">
+                <p className="text-[11px] text-fg-secondary group-hover:text-fg">
                   {dec.topic}
                 </p>
-                <p className="text-[8px] text-cyan-500/50 mt-0.5 uppercase tracking-wider">
+                <p className="font-mono text-[11px] text-cyan-500/50 mt-0.5 uppercase tracking-[0.12em]">
                   Active decision: {dec.title}
                 </p>
               </div>
-              <ArrowRight size={10} className="text-zinc-700 group-hover:text-cyan-400 shrink-0 mt-1 transition-colors" />
+              <ArrowRight size={10} className="text-fg-tertiary group-hover:text-cyan-400 shrink-0 mt-1 transition-colors" />
             </button>
           ))}
         </div>
@@ -718,7 +718,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
       {/* ── Suggested topics — never an empty page ── */}
       {!active && history.length < 3 && (
         <div className="space-y-1.5">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-600 px-0.5">
+          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary px-0.5">
             Suggested for you
           </p>
           <div className="grid grid-cols-1 gap-1">
@@ -731,7 +731,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
                 key={s.query}
                 onClick={() => run(s.query, s.tool)}
                 disabled={loading}
-                className="flex items-start gap-2.5 p-2.5 rounded-lg border border-zinc-800/30 bg-zinc-900/30 hover:bg-zinc-900/60 hover:border-zinc-700 text-left transition-all group"
+                className="flex items-start gap-2.5 p-2.5 rounded-lg border border-edge-subtle bg-content hover:bg-surface-hover hover:border-edge-strong text-left transition-all group"
               >
                 <div className="mt-0.5 shrink-0">
                   {s.tool === "research" ? (
@@ -741,16 +741,16 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[12px] text-zinc-300 group-hover:text-zinc-100 transition-colors">
+                  <p className="text-[12px] text-fg-secondary group-hover:text-fg transition-colors">
                     {s.query}
                   </p>
-                  <p className="text-[9px] text-zinc-700 uppercase tracking-wider mt-0.5">
+                  <p className="font-mono text-[11px] text-fg-tertiary uppercase tracking-[0.12em] mt-0.5">
                     {s.category}
                   </p>
                 </div>
                 <ArrowRight
                   size={11}
-                  className="text-zinc-700 group-hover:text-zinc-400 shrink-0 mt-1 transition-colors"
+                  className="text-fg-tertiary group-hover:text-fg-secondary shrink-0 mt-1 transition-colors"
                 />
               </button>
             ))}
@@ -762,10 +762,10 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
       {history.length > 0 && !active && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between px-0.5">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-600">
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               Your learning
             </p>
-            <div className="flex items-center gap-2 text-[9px] text-zinc-700 font-mono">
+            <div className="flex items-center gap-2 text-[11px] text-fg-tertiary font-mono">
               <span>{totalLearned} topics</span>
               {thisWeek > 0 && (
                 <span className="text-violet-400/70">{thisWeek} this week</span>
@@ -777,7 +777,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
               <button
                 key={i}
                 onClick={() => setActive(h)}
-                className="w-full flex items-start gap-2.5 p-2 rounded-lg hover:bg-zinc-900/40 text-left transition-colors group"
+                className="w-full flex items-start gap-2.5 p-2 rounded-lg hover:bg-surface-hover text-left transition-colors group"
               >
                 <div className="mt-0.5 shrink-0">
                   {h.tool === "teach" ? (
@@ -787,10 +787,10 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[12px] text-zinc-300 group-hover:text-zinc-100 truncate">
+                  <p className="text-[12px] text-fg-secondary group-hover:text-fg truncate">
                     {h.query}
                   </p>
-                  <div className="flex items-center gap-2 mt-0.5 text-[8px] text-zinc-700">
+                  <div className="flex items-center gap-2 mt-0.5 text-[11px] text-fg-tertiary">
                     <Clock size={8} />
                     <span>
                       {new Date(h.at).toLocaleDateString("en-US", {
@@ -798,7 +798,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
                         day: "numeric",
                       })}
                     </span>
-                    <span className="uppercase">{h.tool}</span>
+                    <span className="font-mono">{h.tool}</span>
                   </div>
                 </div>
               </button>
@@ -853,15 +853,15 @@ function TeachCard({
   const [expandedSection, setExpandedSection] = useState<string | null>("mvu");
 
   return (
-    <div className="space-y-2 rounded-xl border border-violet-500/20 bg-violet-500/[0.03] p-3">
+    <div className="space-y-2 rounded-surface border border-violet-500/20 bg-violet-500/[0.03] p-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <p className="text-[14px] font-bold text-zinc-100">
+          <p className="text-[14px] font-semibold text-fg">
             {data.title || data.topic}
           </p>
           {data.overview && (
-            <p className="text-[11px] text-zinc-400 italic mt-0.5 leading-relaxed">
+            <p className="text-[11px] text-fg-secondary italic mt-0.5 leading-relaxed">
               {data.overview}
             </p>
           )}
@@ -878,7 +878,7 @@ function TeachCard({
           )}
           <button
             onClick={onDismiss}
-            className="p-1.5 text-zinc-600 hover:text-zinc-300 rounded-lg hover:bg-zinc-800/50"
+            className="p-1.5 text-fg-tertiary hover:text-fg rounded-lg hover:bg-surface-hover"
           >
             &times;
           </button>
@@ -895,13 +895,13 @@ function TeachCard({
             "p-2.5 rounded-lg border transition-all",
             expandedSection === "mvu"
               ? "bg-violet-500/5 border-violet-500/20"
-              : "bg-zinc-900/40 border-zinc-800/30 hover:border-zinc-700"
+              : "bg-content border-edge-subtle hover:border-edge-strong"
           )}>
-            <p className="text-[9px] font-bold uppercase tracking-wider text-violet-400/70 mb-1">
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-violet-400/70 mb-1">
               The one thing to understand
             </p>
             <p className={cn(
-              "text-[11px] text-zinc-300 leading-relaxed whitespace-pre-wrap",
+              "text-[11px] text-fg-secondary leading-relaxed whitespace-pre-wrap",
               expandedSection !== "mvu" && "line-clamp-2"
             )}>
               {data.mvuRead}
@@ -920,13 +920,13 @@ function TeachCard({
             "p-2.5 rounded-lg border transition-all",
             expandedSection === "concepts"
               ? "bg-blue-500/5 border-blue-500/20"
-              : "bg-zinc-900/40 border-zinc-800/30 hover:border-zinc-700"
+              : "bg-content border-edge-subtle hover:border-edge-strong"
           )}>
             <div className="flex items-center justify-between">
-              <p className="text-[9px] font-bold uppercase tracking-wider text-blue-400/70">
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-blue-400/70">
                 Key concepts
               </p>
-              <Badge className="bg-zinc-800 text-zinc-500 text-[8px] h-3.5">
+              <Badge className="bg-surface-interactive text-fg-tertiary text-[11px] h-3.5">
                 {data.keyConcepts.length}
               </Badge>
             </div>
@@ -935,7 +935,7 @@ function TeachCard({
                 {data.keyConcepts.map((c, i) => (
                   <div key={i} className="flex items-start gap-2 text-[11px]">
                     <span className="text-blue-400/50 font-mono shrink-0 w-4 text-right">{i + 1}</span>
-                    <span className="text-zinc-300">{c}</span>
+                    <span className="text-fg-secondary">{c}</span>
                   </div>
                 ))}
               </div>
@@ -954,10 +954,10 @@ function TeachCard({
           <div className={cn(
             "p-2.5 rounded-lg border transition-all",
             expandedSection === "rules"
-              ? "bg-zinc-900/60 border-zinc-700"
-              : "bg-zinc-900/40 border-zinc-800/30 hover:border-zinc-700"
+              ? "bg-content border-edge-default"
+              : "bg-content border-edge-subtle hover:border-edge-strong"
           )}>
-            <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-500">
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               Rules &amp; pitfalls
             </p>
             {expandedSection === "rules" && (
@@ -965,9 +965,9 @@ function TeachCard({
                 {data.rulesOfThumb && data.rulesOfThumb.length > 0 && (
                   <div className="space-y-0.5">
                     {data.rulesOfThumb.map((r, i) => (
-                      <div key={i} className="flex items-start gap-2 text-[10px]">
+                      <div key={i} className="flex items-start gap-2 text-[12px]">
                         <Lightbulb size={9} className="text-amber-400/60 shrink-0 mt-0.5" />
-                        <span className="text-zinc-400">{r}</span>
+                        <span className="text-fg-secondary">{r}</span>
                       </div>
                     ))}
                   </div>
@@ -975,9 +975,9 @@ function TeachCard({
                 {data.commonMistakes && data.commonMistakes.length > 0 && (
                   <div className="space-y-0.5">
                     {data.commonMistakes.map((m, i) => (
-                      <div key={i} className="flex items-start gap-2 text-[10px]">
+                      <div key={i} className="flex items-start gap-2 text-[12px]">
                         <AlertTriangle size={9} className="text-red-400/60 shrink-0 mt-0.5" />
-                        <span className="text-zinc-400">{m}</span>
+                        <span className="text-fg-secondary">{m}</span>
                       </div>
                     ))}
                   </div>
@@ -993,15 +993,15 @@ function TeachCard({
         <div className="flex items-start gap-2 p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
           <Zap size={12} className="text-emerald-400 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-400/80 mb-0.5">
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-emerald-400/80 mb-0.5">
               Try today
             </p>
-            <p className="text-[12px] text-zinc-200">{data.tryToday}</p>
+            <p className="text-[12px] text-fg">{data.tryToday}</p>
           </div>
           <button
             onClick={() => onSpawn(data.tryToday!)}
             disabled={spawning}
-            className="shrink-0 px-2.5 py-1 rounded-md bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black text-[9px] font-bold border border-emerald-500/30 transition-all"
+            className="shrink-0 px-2.5 py-1 rounded-control bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black text-[11px] font-semibold border border-emerald-500/30 transition-all"
           >
             <Plus size={10} className="inline mr-0.5" />
             Loop it
@@ -1011,12 +1011,12 @@ function TeachCard({
 
       {/* Resources */}
       {data.resources && data.resources.length > 0 && (
-        <div className="space-y-0.5 pt-1 border-t border-zinc-800/30">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-600">
+        <div className="space-y-0.5 pt-1 border-t border-edge-subtle">
+          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             Go deeper
           </p>
           {data.resources.map((r, i) => (
-            <div key={i} className="flex items-start gap-2 text-[10px]">
+            <div key={i} className="flex items-start gap-2 text-[12px]">
               <ExternalLink size={9} className="text-cyan-400/50 shrink-0 mt-0.5" />
               {r.url ? (
                 <a
@@ -1028,7 +1028,7 @@ function TeachCard({
                   {r.title}
                 </a>
               ) : (
-                <span className="text-zinc-400">{r.title}</span>
+                <span className="text-fg-secondary">{r.title}</span>
               )}
             </div>
           ))}
@@ -1037,8 +1037,8 @@ function TeachCard({
 
       {/* Learning path chain — structured progression, not random follow-ups */}
       {data.learningPath && data.learningPath.length > 0 && (
-        <div className="pt-2 border-t border-zinc-800/30">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-violet-400/70 mb-1.5">
+        <div className="pt-2 border-t border-edge-subtle">
+          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-violet-400/70 mb-1.5">
             Your learning path
           </p>
           <div className="space-y-1">
@@ -1046,10 +1046,10 @@ function TeachCard({
               <button
                 key={i}
                 onClick={() => onFollowUp(step.topic)}
-                className="w-full flex items-start gap-2.5 p-2 rounded-lg border border-zinc-800/30 bg-zinc-900/30 hover:bg-zinc-900/60 hover:border-violet-500/20 text-left transition-all group"
+                className="w-full flex items-start gap-2.5 p-2 rounded-lg border border-edge-subtle bg-content hover:bg-surface-hover hover:border-violet-500/20 text-left transition-all group"
               >
                 <div className="flex flex-col items-center shrink-0 mt-0.5">
-                  <span className="w-5 h-5 rounded-full bg-violet-500/10 border border-violet-500/30 flex items-center justify-center text-[9px] font-bold text-violet-400">
+                  <span className="w-5 h-5 rounded-full bg-violet-500/10 border border-violet-500/30 flex items-center justify-center text-[11px] font-semibold text-violet-400">
                     {i + 1}
                   </span>
                   {i < (data.learningPath?.length ?? 0) - 1 && (
@@ -1057,12 +1057,12 @@ function TeachCard({
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] text-zinc-300 group-hover:text-zinc-100 font-medium">
+                  <p className="text-[11px] text-fg-secondary group-hover:text-fg font-medium">
                     {step.topic}
                   </p>
-                  <p className="text-[9px] text-zinc-600 mt-0.5">{step.why}</p>
+                  <p className="text-[11px] text-fg-tertiary mt-0.5">{step.why}</p>
                 </div>
-                <ArrowRight size={10} className="text-zinc-700 group-hover:text-violet-400 shrink-0 mt-1 transition-colors" />
+                <ArrowRight size={10} className="text-fg-tertiary group-hover:text-violet-400 shrink-0 mt-1 transition-colors" />
               </button>
             ))}
           </div>
@@ -1071,15 +1071,15 @@ function TeachCard({
 
       {/* Next questions — simpler follow-ups */}
       {data.nextQuestions && data.nextQuestions.length > 0 && !data.learningPath?.length && (
-        <div className="space-y-1 pt-1 border-t border-zinc-800/30">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-600">
+        <div className="space-y-1 pt-1 border-t border-edge-subtle">
+          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             Keep going
           </p>
           {data.nextQuestions.map((q, i) => (
             <button
               key={i}
               onClick={() => onFollowUp(q)}
-              className="w-full flex items-start gap-2 text-[10px] text-zinc-500 hover:text-zinc-300 p-1 rounded hover:bg-zinc-800/30 text-left transition-colors"
+              className="w-full flex items-start gap-2 text-[12px] text-fg-tertiary hover:text-fg p-1 rounded hover:bg-surface-hover text-left transition-colors"
             >
               <ArrowRight size={9} className="shrink-0 mt-0.5" />
               <span>{q}</span>
@@ -1106,12 +1106,12 @@ function ResearchCard({
 }) {
   const cites = data.citations && data.citations.length > 0 ? data.citations : [];
   return (
-    <div className="space-y-2 rounded-xl border border-cyan-500/20 bg-cyan-500/[0.03] p-3">
+    <div className="space-y-2 rounded-surface border border-cyan-500/20 bg-cyan-500/[0.03] p-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <Globe size={14} className="text-cyan-400 shrink-0" />
-          <p className="text-[14px] font-bold text-zinc-100 truncate">{data.query}</p>
+          <p className="text-[14px] font-semibold text-fg truncate">{data.query}</p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {data.content && (
@@ -1125,7 +1125,7 @@ function ResearchCard({
           )}
           <button
             onClick={onDismiss}
-            className="p-1.5 text-zinc-600 hover:text-zinc-300 rounded-lg hover:bg-zinc-800/50"
+            className="p-1.5 text-fg-tertiary hover:text-fg rounded-lg hover:bg-surface-hover"
           >
             &times;
           </button>
@@ -1134,22 +1134,22 @@ function ResearchCard({
 
       {/* Provider badge */}
       {data.provider && (
-        <Badge className="bg-zinc-800/50 text-zinc-500 text-[8px] h-3.5 uppercase tracking-wider">
+        <Badge className="bg-surface-interactive text-fg-tertiary font-mono text-[11px] h-3.5 uppercase tracking-[0.12em]">
           via {data.provider}
         </Badge>
       )}
 
       {/* Content */}
       {data.content && (
-        <p className="text-[11px] text-zinc-300 leading-relaxed whitespace-pre-wrap">
+        <p className="text-[11px] text-fg-secondary leading-relaxed whitespace-pre-wrap">
           {data.content}
         </p>
       )}
 
       {/* Citations */}
       {cites.length > 0 && (
-        <div className="space-y-0.5 pt-1.5 border-t border-zinc-800/30">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-cyan-400/60">
+        <div className="space-y-0.5 pt-1.5 border-t border-edge-subtle">
+          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-cyan-400/60">
             Sources ({cites.length})
           </p>
           {cites.map((c, i) => (
@@ -1158,7 +1158,7 @@ function ResearchCard({
               href={c}
               target="_blank"
               rel="noopener noreferrer"
-              className="block text-[9px] text-cyan-300 hover:text-cyan-200 underline truncate"
+              className="block text-[11px] text-cyan-300 hover:text-cyan-200 underline truncate"
             >
               {c}
             </a>

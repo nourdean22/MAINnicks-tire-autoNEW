@@ -245,8 +245,8 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
     <div className="flex flex-col gap-3">
       {/* Header · turn count + clear thread */}
       {turns.length > 0 && (
-        <div className="flex items-center justify-between gap-2 text-[10px] font-mono uppercase tracking-[0.18em]">
-          <span className="text-[var(--text-tertiary)]">
+        <div className="flex items-center justify-between gap-2 font-mono text-[11px] uppercase tracking-[0.12em]">
+          <span className="text-fg-tertiary">
             {turns.filter((t) => t.role === "user").length} turn
             {turns.filter((t) => t.role === "user").length === 1 ? "" : "s"}
           </span>
@@ -255,7 +255,7 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
             onClick={clear}
             disabled={streaming}
             aria-label="clear conversation"
-            className="inline-flex min-h-[36px] items-center gap-1.5 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40 rounded px-2 disabled:opacity-50"
+            className="inline-flex min-h-[36px] items-center gap-1.5 text-fg-tertiary hover:text-fg active:scale-95 transition-all focus-visible:outline-none rounded-control px-2 disabled:opacity-50"
           >
             <RotateCcw size={12} strokeWidth={1.75} />
             clear
@@ -266,8 +266,8 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
       {/* Thread · scroll-isolated · auto-bottom on new turn */}
       <div ref={scrollRef} className="flex flex-col gap-2.5 max-h-[60vh] overflow-y-auto pr-1">
         {turns.length === 0 && (
-          <div className="rounded-md border border-[var(--gold)]/20 bg-[var(--gold)]/[0.03] px-3 py-3">
-            <p className="text-[12px] text-[var(--text-secondary)] leading-snug">
+          <div className="rounded-surface border border-edge-subtle bg-content px-3 py-3">
+            <p className="text-[12px] text-fg-secondary leading-snug">
               Ask Nick about this {page}. Multi-turn · thread persists per device. Click a preset
               below or type a question.
             </p>
@@ -277,7 +277,7 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
           <ChatBubble key={`${turn.ts}-${i}`} turn={turn} />
         ))}
         {streaming && turns[turns.length - 1]?.role === "assistant" && !turns[turns.length - 1].content && (
-          <div className="inline-flex items-center gap-1.5 text-[10px] font-mono text-[var(--text-tertiary)] ml-7">
+          <div className="inline-flex items-center gap-1.5 text-[11px] font-mono text-fg-tertiary ml-7">
             <Loader2 size={10} className="animate-spin" strokeWidth={1.75} />
             thinking
           </div>
@@ -285,7 +285,7 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
       </div>
 
       {error && (
-        <div className="rounded-md border border-red-500/30 bg-red-500/[0.06] px-3 py-2 text-[11px] text-red-300/90">
+        <div className="rounded-control border border-red-500/30 bg-red-500/[0.06] px-3 py-2 text-[12px] text-red-300/90">
           {error}
         </div>
       )}
@@ -300,7 +300,7 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
               type="button"
               onClick={() => void send(preset)}
               disabled={streaming}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--gold)]/30 bg-[var(--gold)]/[0.05] px-3 py-1.5 text-[11px] text-[var(--gold)] hover:bg-[var(--gold)]/[0.10] disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+              className="inline-flex items-center gap-1.5 rounded-full border border-edge-default bg-content px-3 py-1.5 text-[12px] font-medium text-fg-secondary hover:border-edge-strong hover:text-fg disabled:opacity-50 transition-colors duration-[var(--motion-state)] focus-visible:outline-none"
             >
               {preset}
             </button>
@@ -319,7 +319,7 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
           onChange={(e) => setInput(e.target.value)}
           placeholder={turns.length === 0 ? "Ask Nick · type a question…" : "Follow up…"}
           disabled={streaming}
-          className="flex-1 min-h-[44px] rounded-md border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.08] px-3 py-1.5 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 focus:border-[var(--gold)]/40 focus:outline-none transition-colors disabled:opacity-50"
+          className="flex-1 min-h-[44px] rounded-control border border-edge-default bg-content px-3 py-1.5 text-[16px] text-fg placeholder:text-fg-tertiary focus:border-accent focus:outline-none transition-colors duration-[var(--motion-state)] disabled:opacity-50"
           aria-label="message"
           autoComplete="off"
           spellCheck
@@ -328,7 +328,7 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
           type="submit"
           disabled={!input.trim() || streaming}
           aria-label="send"
-          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-[var(--gold)]/50 bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/15 disabled:opacity-40 disabled:hover:bg-[var(--gold)]/10 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-control bg-accent text-[var(--text-inverse)] hover:bg-accent-hover disabled:opacity-40 disabled:hover:bg-accent transition-colors duration-[var(--motion-state)] focus-visible:outline-none"
         >
           {streaming ? (
             <Loader2 size={14} className="animate-spin" strokeWidth={1.75} />
@@ -351,18 +351,18 @@ function ChatBubble({ turn }: { turn: ChatTurn }) {
         className={cn(
           "flex h-5 w-5 shrink-0 items-center justify-center rounded-full",
           isUser
-            ? "bg-[var(--bg-raised)]/[0.2] text-[var(--text-secondary)]"
-            : "bg-[var(--gold)]/[0.15] text-[var(--gold)]",
+            ? "bg-surface-interactive text-fg-secondary"
+            : "bg-surface-interactive text-fg-tertiary",
         )}
       >
         {isUser ? <User size={10} strokeWidth={1.75} /> : <Brain size={10} strokeWidth={1.75} />}
       </div>
       <div
         className={cn(
-          "max-w-[calc(100%-28px)] rounded-md px-3 py-2 text-[12px] leading-snug whitespace-pre-wrap break-words",
+          "max-w-[calc(100%-28px)] rounded-surface px-3 py-2 text-[12px] leading-snug whitespace-pre-wrap break-words text-fg",
           isUser
-            ? "bg-[var(--bg-raised)]/[0.12] text-[var(--text-primary)]"
-            : "bg-[var(--gold)]/[0.04] text-[var(--text-primary)] border border-[var(--gold)]/15",
+            ? "bg-surface-interactive"
+            : "bg-transparent",
         )}
       >
         {turn.content || (turn.role === "assistant" ? "…" : "")}

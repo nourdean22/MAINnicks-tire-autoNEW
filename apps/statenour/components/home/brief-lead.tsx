@@ -27,8 +27,8 @@ import { useInspector } from "@/hooks/use-inspector";
 /** Section-kind accents — one semantic color per meaning, nothing else. */
 const KIND_TONE: Record<BriefLeadSection["kind"], string> = {
   error: "text-rose-300",
-  execute: "text-gold",
-  resume: "text-gold",
+  execute: "text-fg-secondary",
+  resume: "text-fg-secondary",
   decide: "text-rose-300",
   hygiene: "text-amber-300",
   triage: "text-amber-300",
@@ -153,11 +153,11 @@ export function BriefLead({
               <Link
                 href={alt.href}
                 className={cn(
-                  "group flex min-h-[52px] flex-col justify-center py-2 transition-colors duration-150 hover:text-gold",
+                  "group flex min-h-[52px] flex-col justify-center py-2 transition-colors duration-150",
                   FOCUS,
                 )}
               >
-                <span className="text-[15px] font-medium text-fg group-hover:text-gold">{alt.label}</span>
+                <span className="text-[15px] font-medium text-fg group-hover:underline group-hover:underline-offset-4">{alt.label}</span>
                 <span className="text-[12px] text-fg-tertiary">{alt.why}</span>
               </Link>
             </li>

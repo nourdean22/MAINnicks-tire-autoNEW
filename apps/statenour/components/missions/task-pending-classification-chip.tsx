@@ -48,12 +48,12 @@ export function TaskPendingClassificationChip({
       : null;
 
   return (
-    <div className="mt-1.5 flex flex-wrap items-center gap-2 rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/[0.06] px-2 py-1">
-      <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--gold)]">
+    <div className="mt-1.5 flex flex-wrap items-center gap-2 rounded-control border border-edge-default bg-surface-raised px-2 py-1">
+      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
         suggested mission{conf != null ? ` · ${conf}% (est.)` : " (hypothesis)"}
       </span>
       {pc.rationale && (
-        <span className="text-[10px] text-[var(--text-tertiary)] truncate max-w-[14rem]">
+        <span className="text-[11px] text-fg-tertiary truncate max-w-[14rem]">
           {pc.rationale}
         </span>
       )}
@@ -62,7 +62,7 @@ export function TaskPendingClassificationChip({
           type="button"
           disabled={busy}
           onClick={() => accept.mutate({ taskId })}
-          className="inline-flex min-h-[28px] items-center rounded px-2 text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--gold)] hover:bg-[var(--gold)]/10 disabled:opacity-50"
+          className="inline-flex min-h-[28px] items-center rounded-micro px-2 text-[12px] font-medium text-fg transition-colors duration-[var(--motion-state)] hover:bg-surface-hover disabled:opacity-50"
         >
           {accept.isPending ? "attaching…" : "attach"}
         </button>
@@ -70,7 +70,7 @@ export function TaskPendingClassificationChip({
           type="button"
           disabled={busy}
           onClick={() => dismiss.mutate({ taskId })}
-          className="inline-flex min-h-[28px] items-center rounded px-2 text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] disabled:opacity-50"
+          className="inline-flex min-h-[28px] items-center rounded-micro px-2 text-[12px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg disabled:opacity-50"
         >
           dismiss
         </button>

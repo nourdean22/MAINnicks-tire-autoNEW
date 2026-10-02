@@ -149,7 +149,7 @@ const TINT_CLASS: Record<Tint, string> = {
   emerald: "bg-emerald-500/15 text-emerald-300",
   amber: "bg-amber-500/15 text-amber-300",
   rose: "bg-rose-500/15 text-rose-300",
-  neutral: "text-zinc-500",
+  neutral: "text-fg-tertiary",
 };
 
 function formatCell(cell: MatrixCell): string {
@@ -261,14 +261,14 @@ export function ComparisonMatrix({
   return (
     <section
       className={cn(
-        "rounded-2xl border border-[var(--border-soft)] bg-[var(--bg-card)] overflow-hidden",
+        "rounded-surface border border-edge-subtle bg-content overflow-hidden",
         className,
       )}
     >
       {(title || caption) && (
-        <header className="px-4 sm:px-5 pt-4 pb-3 border-b border-[var(--border-soft)]">
+        <header className="px-4 sm:px-5 pt-4 pb-3 border-b border-edge-subtle">
           {title && (
-            <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
+            <h3 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               {title}
             </h3>
           )}
@@ -289,11 +289,11 @@ export function ComparisonMatrix({
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-[12px]">
-            <thead className="sticky top-0 z-10 bg-[var(--bg-card)]">
-              <tr className="border-b border-[var(--border-soft)]">
+            <thead className="sticky top-0 z-10 bg-content">
+              <tr className="border-b border-edge-subtle">
                 <th
                   scope="col"
-                  className="sticky left-0 z-20 bg-[var(--bg-card)] px-3 py-2 text-left text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] min-w-[160px] border-r border-[var(--border-soft)]"
+                  className="sticky left-0 z-20 bg-content px-3 py-2 text-left font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary min-w-[160px] border-r border-edge-subtle"
                 >
                   option
                 </th>
@@ -314,10 +314,10 @@ export function ComparisonMatrix({
                       onClick={() => toggleSort(crit.id)}
                       onKeyDown={(e) => handleHeaderKey(e, crit.id)}
                       className={cn(
-                        "px-3 py-2 text-left text-[10px] font-mono uppercase tracking-wider whitespace-nowrap cursor-pointer select-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/60",
+                        "px-3 py-2 text-left font-mono text-[11px] uppercase tracking-[0.12em] whitespace-nowrap cursor-pointer select-none transition-colors duration-[var(--motion-state)] focus:outline-none",
                         isActive
-                          ? "text-[var(--gold)]"
-                          : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
+                          ? "text-fg"
+                          : "text-fg-tertiary hover:text-fg-secondary",
                       )}
                       title={
                         crit.weight !== undefined
@@ -330,7 +330,7 @@ export function ComparisonMatrix({
                         <span
                           aria-hidden="true"
                           className={cn(
-                            "inline-block text-[9px] leading-none",
+                            "inline-block text-[11px] leading-none",
                             isActive ? "opacity-100" : "opacity-30",
                           )}
                         >
@@ -351,18 +351,18 @@ export function ComparisonMatrix({
                 <tr
                   key={opt.id}
                   className={cn(
-                    "border-b border-[var(--border-soft)]/50 hover:bg-[color-mix(in_oklab,var(--bg-card)_92%,var(--gold)_4%)] transition-colors",
+                    "border-b border-edge-subtle hover:bg-surface-hover transition-colors duration-[var(--motion-state)]",
                     rowIdx === sortedOptions.length - 1 && "border-b-0",
                   )}
                 >
                   <th
                     scope="row"
-                    className="sticky left-0 z-[5] bg-[var(--bg-card)] px-3 py-2 text-left text-[12px] font-medium text-[var(--text-primary)] min-w-[160px] border-r border-[var(--border-soft)] align-top"
+                    className="sticky left-0 z-[5] bg-content px-3 py-2 text-left text-[12px] font-medium text-fg min-w-[160px] border-r border-edge-subtle align-top"
                   >
                     {opt.href ? (
                       <Link
                         href={opt.href}
-                        className="hover:text-[var(--gold)] hover:underline transition-colors"
+                        className="hover:underline transition-colors"
                       >
                         {opt.label}
                       </Link>

@@ -53,9 +53,9 @@ export function PushNotificationToggle() {
     <div className="mt-10">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <BellRing size={14} className="text-[var(--gold)]" />
-          <span className="text-sm font-[var(--font-display)] font-bold uppercase tracking-wider text-[var(--text-primary)]">
-            push notifications
+          <BellRing size={14} className="text-fg-tertiary" />
+          <span className="text-[15px] font-semibold text-fg">
+            Push notifications
           </span>
         </div>
         <button
@@ -66,7 +66,7 @@ export function PushNotificationToggle() {
           aria-label={isSubscribed ? "disable push notifications" : "enable push notifications"}
           className={cn(
             "relative w-11 h-6 rounded-full transition-colors",
-            isSubscribed ? "bg-[var(--gold)]" : "bg-zinc-700",
+            isSubscribed ? "bg-accent" : "bg-edge-strong",
             loading && "opacity-50"
           )}
         >
@@ -76,7 +76,7 @@ export function PushNotificationToggle() {
           )} />
         </button>
       </div>
-      <p className="text-[10px] text-[var(--text-tertiary)]">
+      <p className="text-[12px] text-fg-tertiary">
         {isSubscribed
           ? "Enabled — you'll get alerts for leads, revenue milestones, drift detection, and score reminders."
           : permission === "denied"
@@ -84,7 +84,7 @@ export function PushNotificationToggle() {
             : "Enable to receive alerts even when the browser is closed."}
       </p>
       {errorMessage && (
-        <p role="alert" className="mt-2 rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[10px] text-rose-300">
+        <p role="alert" className="mt-2 rounded-control border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[12px] text-rose-300">
           ⚠ {errorMessage}
         </p>
       )}

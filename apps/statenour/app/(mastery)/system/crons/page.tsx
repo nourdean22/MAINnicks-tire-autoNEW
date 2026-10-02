@@ -531,7 +531,7 @@ function CronRowView({
             type="button"
             onClick={() => openInspector({ kind: "cron", id: row.name })}
             aria-label="inspect cron"
-            className="inline-flex min-h-[44px] min-w-[44px] flex-shrink-0 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:text-fg md:min-h-[28px] md:min-w-[28px]"
+            className="inline-flex min-h-[44px] min-w-[44px] flex-shrink-0 items-center justify-center rounded-control text-fg-tertiary transition-colors hover:text-fg md:min-h-[28px] md:min-w-[28px]"
           >
             <Eye size={12} strokeWidth={2} />
           </button>
@@ -609,9 +609,9 @@ function CronRowView({
           className={cn(
             "rounded px-2 py-1 text-[11px] transition focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
             canTrigger
-              ? "bg-surface-interactive text-fg hover:bg-white/[0.08]"
+              ? "bg-surface-interactive text-fg hover:bg-surface-hover"
               : "cursor-not-allowed bg-content text-fg-tertiary",
-            isRunning && "animate-pulse",
+            isRunning && "pulse-live",
           )}
           title={canTrigger ? "trigger this cron now" : "not runnable"}
         >

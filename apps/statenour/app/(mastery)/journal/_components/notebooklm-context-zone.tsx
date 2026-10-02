@@ -76,7 +76,7 @@ export function NotebookLMContextZone() {
             onChange={(e) => setMarkdown(e.target.value)}
             placeholder="Paste markdown here..."
             aria-label="NotebookLM markdown to ingest"
-            className="w-full h-32 rounded-control bg-surface-interactive border border-edge-default p-3 text-[12px] text-fg font-mono focus:border-gold/40 outline-none resize-none transition-colors"
+            className="w-full h-32 rounded-control bg-surface-interactive border border-edge-default p-3 text-[12px] text-fg font-mono focus:border-accent/40 outline-none resize-none transition-colors"
             disabled={status === "ingesting" || status === "success"}
           />
 

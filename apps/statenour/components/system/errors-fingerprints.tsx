@@ -206,7 +206,7 @@ export function ErrorsFingerprints() {
                 <span className="text-[11px] text-fg-tertiary">{timeAgo(g.lastSeen)}</span>
                 <button
                   onClick={() => openAsTask(g.message)}
-                  className="rounded bg-surface-interactive px-2 py-1 text-[11px] text-fg transition hover:bg-white/[0.08]"
+                  className="rounded bg-surface-interactive px-2 py-1 text-[11px] text-fg transition hover:bg-surface-hover"
                   title="open as task"
                 >
                   → task
@@ -273,7 +273,7 @@ export function ErrorsFingerprints() {
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => openAsTask(row.message)}
-                          className="rounded bg-surface-interactive px-2 py-1 text-[11px] text-fg transition hover:bg-white/[0.08]"
+                          className="rounded bg-surface-interactive px-2 py-1 text-[11px] text-fg transition hover:bg-surface-hover"
                         >
                           open as task
                         </button>

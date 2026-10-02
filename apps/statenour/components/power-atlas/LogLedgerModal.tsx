@@ -114,7 +114,7 @@ export default function LogLedgerModal({
         className="max-w-md pb-[max(1rem,env(safe-area-inset-bottom))]"
       >
         <DialogHeader>
-          <DialogTitle className="font-serif text-lg">
+          <DialogTitle className="text-[17px] font-semibold">
             Log ledger · {personName}
           </DialogTitle>
           <DialogDescription>
@@ -128,10 +128,10 @@ export default function LogLedgerModal({
           <button
             type="button"
             onClick={() => setDirection("deposit")}
-            className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+            className={`flex-1 rounded-control border px-3 py-2 text-[13px] font-medium transition-colors ${
               direction === "deposit"
                 ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
-                : "border-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] hover:border-emerald-500/30"
+                : "border-edge-default text-fg-secondary hover:border-emerald-500/30"
             }`}
           >
             + deposit
@@ -139,10 +139,10 @@ export default function LogLedgerModal({
           <button
             type="button"
             onClick={() => setDirection("withdraw")}
-            className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+            className={`flex-1 rounded-control border px-3 py-2 text-[13px] font-medium transition-colors ${
               direction === "withdraw"
                 ? "border-amber-500/40 bg-amber-500/[0.08] text-amber-200"
-                : "border-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] hover:border-amber-500/30"
+                : "border-edge-default text-fg-secondary hover:border-amber-500/30"
             }`}
           >
             − withdraw
@@ -157,7 +157,7 @@ export default function LogLedgerModal({
             mistake it for a 6th preset (the unlabeled 5 in the live
             screenshot triggered the confusion). */}
         <div className="space-y-1">
-          <label className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+          <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             Magnitude (1–100)
           </label>
           <div className="flex flex-wrap gap-2 items-end">
@@ -166,10 +166,10 @@ export default function LogLedgerModal({
                 key={n}
                 type="button"
                 onClick={() => setMagnitude(n)}
-                className={`flex-1 min-w-[44px] min-h-[44px] rounded-md border px-2 py-1.5 font-mono text-xs tabular-nums transition-colors ${
+                className={`flex-1 min-w-[44px] min-h-[44px] rounded-control border px-2 py-1.5 font-mono text-xs tabular-nums transition-colors ${
                   magnitude === n
-                    ? "border-[var(--gold)] text-[var(--gold)]"
-                    : "border-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] hover:border-[var(--gold)]/50"
+                    ? "border-accent text-fg"
+                    : "border-edge-default text-fg-secondary hover:border-edge-strong"
                 }`}
               >
                 {n}
@@ -178,9 +178,9 @@ export default function LogLedgerModal({
             <div className="flex flex-col items-center">
               <label
                 htmlFor="ledger-magnitude-custom"
-                className="text-[8px] uppercase tracking-wider text-[var(--text-tertiary)]/70 mb-0.5"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-0.5"
               >
-                custom
+                Custom
               </label>
               <input
                 id="ledger-magnitude-custom"
@@ -192,8 +192,7 @@ export default function LogLedgerModal({
                 onChange={(e) =>
                   setMagnitude(Math.max(1, Math.min(100, Number(e.target.value) || 1)))
                 }
-                className="w-16 min-h-[44px] rounded-md border bg-transparent px-2 py-1 text-center font-mono text-xs tabular-nums text-[var(--text-primary)] focus:border-[var(--gold)] focus:outline-none"
-                style={{ borderColor: "rgba(255,255,255,0.06)" }}
+                className="w-16 min-h-[44px] rounded-control border border-edge-default bg-transparent px-2 py-1 text-center font-mono text-xs tabular-nums text-fg focus:border-accent focus:outline-none"
                 aria-label="custom magnitude"
               />
             </div>
@@ -204,7 +203,7 @@ export default function LogLedgerModal({
         <div className="space-y-1">
           <label
             htmlFor="ledger-note"
-            className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]"
+            className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary"
           >
             Note (required)
           </label>
@@ -226,7 +225,7 @@ export default function LogLedgerModal({
 
         {/* Source */}
         <div className="space-y-1">
-          <label className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+          <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             Source
           </label>
           <div className="flex flex-wrap gap-1.5">
@@ -235,10 +234,10 @@ export default function LogLedgerModal({
                 key={s}
                 type="button"
                 onClick={() => setSource(s)}
-                className={`rounded-md border px-2 py-1 text-[10px] uppercase tracking-wider transition-colors ${
+                className={`rounded-control border px-2 py-1 text-[13px] font-medium transition-colors ${
                   source === s
-                    ? "border-[var(--gold)] text-[var(--gold)]"
-                    : "border-[rgba(255,255,255,0.06)] text-[var(--text-tertiary)] hover:border-[var(--gold)]/50"
+                    ? "border-accent text-fg"
+                    : "border-edge-default text-fg-tertiary hover:border-edge-strong"
                 }`}
               >
                 {s.replace(/_/g, " ")}
@@ -248,22 +247,21 @@ export default function LogLedgerModal({
         </div>
 
         {/* Preview */}
-        <div className="rounded-lg border bg-[var(--bg-default)]/40 px-3 py-2 text-xs"
-          style={{ borderColor: "rgba(255,255,255,0.06)" }}
+        <div className="rounded-control border border-edge-subtle bg-canvas/40 px-3 py-2 text-xs"
         >
-          <span className="text-[var(--text-tertiary)]">preview · </span>
+          <span className="text-fg-tertiary">preview · </span>
           <span
             className={`font-mono tabular-nums ${
               signed > 0
                 ? "text-emerald-300"
                 : signed < 0
                   ? "text-amber-300"
-                  : "text-[var(--text-secondary)]"
+                  : "text-fg-secondary"
             }`}
           >
             {signed > 0 ? `+${signed}` : signed}
           </span>{" "}
-          <span className="text-[var(--text-secondary)]">
+          <span className="text-fg-secondary">
             {note.trim() || "(note)"}
           </span>
         </div>

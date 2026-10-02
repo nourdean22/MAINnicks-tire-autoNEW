@@ -36,7 +36,7 @@ interface InsightPayload {
 }
 
 const SEVERITY_TONE: Record<BrainInsight["severity"], string> = {
-  info: "border-[var(--border-soft)] bg-[var(--bg-card)]",
+  info: "border-edge-subtle bg-content",
   warn: "border-amber-500/30 bg-amber-500/[0.04]",
   highlight: "border-edge-subtle bg-content",
 };

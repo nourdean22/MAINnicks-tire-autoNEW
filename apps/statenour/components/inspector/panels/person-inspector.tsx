@@ -93,16 +93,16 @@ export function PersonInspector({ entity }: InspectorPanelProps) {
     <div className="space-y-5" data-person-inspector={p.id}>
       <header className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded border border-edge px-1.5 py-px font-mono text-[10px] uppercase tracking-wide text-fg-tertiary">
+          <span className="rounded-micro border border-edge-default px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             {p.role.replace(/_/g, " ")}
           </span>
           {p.status && p.status !== "active" ? (
-            <span className="rounded border border-amber-500/30 px-1.5 py-px font-mono text-[10px] uppercase tracking-wide text-amber-300">
+            <span className="rounded-micro border border-amber-500/30 px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300">
               {p.status}
             </span>
           ) : null}
         </div>
-        <h2 className="font-display text-xl font-bold leading-tight text-fg">{p.name}</h2>
+        <h2 className="text-[17px] font-semibold leading-tight text-fg">{p.name}</h2>
         {p.relationship ? <p className="text-[13px] text-fg-secondary">{p.relationship}</p> : null}
       </header>
 
@@ -118,7 +118,7 @@ export function PersonInspector({ entity }: InspectorPanelProps) {
       />
 
       <section aria-label="Last interaction">
-        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-tertiary">last interaction</p>
+        <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">last interaction</p>
         {lastLedger ? (
           <p className="text-[13px] text-fg-secondary">
             <span className="font-mono text-[11px] text-fg-tertiary">
@@ -136,7 +136,7 @@ export function PersonInspector({ entity }: InspectorPanelProps) {
       </section>
 
       <section aria-label="Open promises">
-        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-tertiary">
+        <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           open promises · {promises.length}
         </p>
         {promises.length === 0 ? (
@@ -148,10 +148,10 @@ export function PersonInspector({ entity }: InspectorPanelProps) {
                 <button
                   type="button"
                   onClick={() => openInspector({ kind: "task", id: task.id })}
-                  className="text-left text-[13px] text-fg-secondary hover:text-gold"
+                  className="text-left text-[13px] text-fg-secondary hover:text-fg"
                 >
                   {task.title}
-                  <span className="ml-1 font-mono text-[10px] uppercase text-fg-tertiary">{task.status.toLowerCase()}</span>
+                  <span className="ml-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{task.status.toLowerCase()}</span>
                 </button>
               </li>
             ))}

@@ -39,8 +39,8 @@ const CATEGORY_META: Record<
   { icon: typeof Brain; label: string; color: string; href: string }
 > = {
   recall: { icon: MessagesSquare, label: "past chat", color: "text-blue-400", href: "/brain#recall" },
-  skills: { icon: Target, label: "skill", color: "text-[var(--gold)]", href: "/brain#skills" },
-  skill: { icon: Target, label: "skill", color: "text-[var(--gold)]", href: "/brain#skills" },
+  skills: { icon: Target, label: "skill", color: "text-fg-secondary", href: "/brain#skills" },
+  skill: { icon: Target, label: "skill", color: "text-fg-secondary", href: "/brain#skills" },
   identity: { icon: Compass, label: "identity", color: "text-emerald-400", href: "/brain#identity" },
   ghost: { icon: Ghost, label: "ghost Nick", color: "text-violet-400", href: "/brain#ghost" },
   qualitative: { icon: Eye, label: "qualitative", color: "text-amber-400", href: "/brain#qualitative" },
@@ -72,7 +72,7 @@ export function CitationPills({ citations }: { citations: Citation[] | undefined
             key={`${c.raw}-${i}`}
             href={meta.href}
             className={cn(
-              "inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] font-mono uppercase tracking-wider",
+              "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-micro border text-[11px] font-mono",
               "border-[var(--border-default)] bg-[var(--bg-raised)]",
               "hover:border-current transition-colors",
               meta.color,

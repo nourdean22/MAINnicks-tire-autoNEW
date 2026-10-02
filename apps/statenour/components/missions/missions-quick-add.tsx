@@ -72,7 +72,7 @@ export function MissionsQuickAdd({
             // zoomed in jarringly + reset the page layout.
             // 2026-09-16 · Visible Transformation: a ruled input line, not a box.
             "w-full min-h-[48px] border-0 border-b-2 border-edge bg-transparent px-0 py-2 text-[18px] text-fg placeholder:text-fg-tertiary transition-colors",
-            "focus:border-gold focus:outline-none",
+            "focus:border-accent focus:outline-none",
             "disabled:opacity-50",
           )}
           aria-label="mission or task input"
@@ -87,10 +87,10 @@ export function MissionsQuickAdd({
           disabled={busy}
           aria-label={voiceActive ? "stop recording" : "voice input"}
           className={cn(
-            "inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-md border transition-colors",
+            "inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-control border transition-colors duration-[var(--motion-state)]",
             voiceActive
-              ? "animate-pulse border-rose-500/50 bg-rose-500/10 text-rose-400"
-              : "border-edge text-fg-tertiary hover:border-edge-hover hover:text-gold",
+              ? "pulse-live border-rose-500/50 bg-rose-500/10 text-rose-400"
+              : "border-edge-default text-fg-tertiary hover:border-edge-strong hover:text-fg",
             "disabled:opacity-40",
           )}
         >
@@ -101,7 +101,7 @@ export function MissionsQuickAdd({
         type="submit"
         disabled={!text.trim() || busy}
         aria-label="submit"
-        className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-gold text-black transition-colors hover:bg-gold-dim disabled:opacity-40"
+        className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-control border border-edge-default bg-content text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-40"
       >
         {busy ? (
           <Loader2 size={16} className="animate-spin" strokeWidth={2} />

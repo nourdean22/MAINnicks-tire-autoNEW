@@ -254,31 +254,48 @@ the empty-state title 26px, the composer edge is the hairline, receipts sit on `
 `post-sliceA-*` (brain / system / stats at 1440 before and after the desktop type floor), and `post-sliceA-journal`
 / `post-sliceA-people` (surfaces that still carry the old component grammar on the new tokens).
 
-## 12 · PR 2 (2026-10-02) — the remaining surfaces
+## 12 · PR 2 (2026-10-02) — every remaining surface
 
-Branch `statenour/ui-v2-surfaces`, one commit, one squash merge, per the operator's "as few commits and merges
-as possible". Five parallel conversions with strict file scopes (journal 16 files · brain 31 · people + stats 6 ·
-system 34 · palette + ticker 4) plus the orchestrator's own: `page-tabs.tsx`, `home-brain-graph.tsx`,
-`page-nick.tsx`. Substitutions only — no handler, aria, role, id or data attribute changed; test-pinned strings
-left alone (one literal in `navigation-shell-contract` named the old tab size and was updated).
+Branch `statenour/ui-v2-surfaces`, one PR, one squash merge, per the operator's "as few commits and merges as
+possible". The first push converted journal · brain · people · stats · system · palette · ticker (five scoped
+agents + page-tabs, home-brain-graph, page-nick). The operator pointed out that was not all slices; a strict
+census agreed: ~1,990 legacy hits across 217 files remained, including chat and missions, which PR 1 had only
+partly converted. Eight more scoped agents covered chat + layout + hud + home · missions + goals · actions +
+operator + inspector + workset · ultron + power-atlas · settings + relationships + content + intelligence + 3d ·
+mastery + `components/ui` · the remaining route pages, and one hostile reviewer read the first push. Result:
+`git diff --stat 218e335c` 285 files, +4,969 / −4,747; census 0 unsanctioned.
 
-**What each surface keeps as gold:** the one primary (journal "log reflection", people "Add person", stats
-"Log Entry", /brain "Ask the brain", actions / inbox "Approve", camera "Simulate"), `border-accent` or
-`bg-accent-soft` on selected tabs / chips / rows, the focus ring, the notch on the selected palette row and the
-ticker sheet's active row, the chart `activeDot`, and the NEW-node arc on the brain canvas. Status hues
-(emerald / amber / rose / sky) and categorical hues on crons / logs / alerts rows are untouched.
+**What each surface keeps as gold:** the one primary (journal "log reflection", people "Add person", stats "Log
+Entry", /brain "Ask the brain", missions Start / Resume (Complete task in execution mode), actions / inbox
+"Approve", camera "Simulate", photo-improver "Run", decisions "grade decision", pins "Pin", links "Create link",
+outreach "Propose for approval", sign-in "Continue with Google", chat composer send, home command-line send,
+dialog owner actions), `border-accent` / `bg-accent-soft` on selected tabs / chips / rows, the focus ring, the
+notch (selected palette row, ticker sheet active row, inspector eyebrow, missions NOW section), the chart
+`activeDot`, the NEW-node arc on the brain canvas, slider thumbs. Status hues and categorical hues untouched.
 
-**Found, not planned:** the ⌘K Resolver was broken on `main` — `CommandDialog` mounts no cmdk root, and the
-palette rendered `CommandInput` inside it, so opening it threw `reading 'subscribe'`. It now owns its
-`CommandPrimitive` root behind an unstyled `DialogContent` (the styled one paints a solid modal step that would
-cancel the material). `tests/components/command-palette-cmdk-root.test.tsx` carries the positive control and the
-contract. The ticker pulsed at rest; it now pulses only while a feed refetches or a commitment resolve is in
-flight.
+**Not class-only, disclosed:** palette tree (`CommandDialog` → `Dialog` + unstyled `DialogContent` + owned
+`CommandPrimitive` root); ticker `live` flag + one `pulse-live` dot (an addition — the strip had no indicator
+before); people's "Add person" `<Button>` → `<button>`; at-rest pulses and emoji-in-labels removed; ~75 control
+labels in ~35 files sentence-cased; a case-sensitive grep of tests/ found no UI pin on any of them (the hits are
+enum/action strings such as `action: "cancel"`).
 
-**Receipts:** `tsc --noEmit` 0 · eslint 0 errors (94 changed files) · vitest 54 files / 528 tests + 2 ·
-anti-slop 0 · stale-docs strict 0 · `next build` (cleared cache) exit 0 (full route table, 2.4 min compile).
+**Found, not planned:** (1) the ⌘K Resolver throws on open at `218e335c` — FACT by positive control in
+`tests/components/command-palette-cmdk-root.test.tsx`; "broken in production since" is an inference (shallow
+clone, no Sentry receipt pulled). (2) Ten dead custom properties (`--bg-overlay`, `--bg-secondary`, `--text-muted`,
+`--border-soft`, `--bg-card`, `--bg-primary`, `--border-focus`, `--bg-default`, `--brand`, `--success`) were
+painting inputs, panels and chips transparent behind valid-looking class names; the grammar test now asserts every
+custom property a `.tsx` reads is defined, with a planted positive control. (3) The hostile reviewer's findings on
+the first push — emptied class on the open log row, text token used as chip fill (~3:1), invisible toggle track,
+double `min-h`, gold palette input prefix, `.ui-material` on the ticker (now sanctioned in SYSTEM.md §1.2 as
+bottom chrome), SYSTEM.md's overclaim about what the grammar test pins, "97 files", the ticker "fix" that was an
+addition — all corrected. (4) `Metric` lost `tabular-nums` under one agent; a sibling's test caught it.
+
+**Receipts (re-run after the second hostile review's fixes):** `tsc --noEmit` 0 · eslint 0 errors (210 changed files) · vitest 393 files / 5,067 passed, exit 0 ·
+anti-slop 0 · stale-docs strict 0 · parity OK · `next build` (cleared cache) exit 0 (full route table, 111 s compile).
 
 **Flagged for PR 3:** delete the `?ui=v1` lane (`lib/ui-version.ts`, the switch component, the v1 token block,
-the `data-ui` gates in `base.css`), delete `CommandDialog`, migrate the last `components/ui/card.tsx` importers
-(stats) to `GlassCard`, and lift the 24px inline edit buttons in brain's beliefs / contradiction / identity
-panels to the 44px floor.
+the `data-ui` gates in `base.css`), delete the unconsumed `Command` / `CommandDialog` / `CommandItem` /
+`CommandShortcut` wrappers in `components/ui/command.tsx`, migrate the last `components/ui/card.tsx` importers
+(stats) to `GlassCard`, lift the 24px inline edit buttons in brain's beliefs / contradiction / identity panels to
+the 44px floor, redesign (not substitute) the realtime voice orb, sweep `rounded-md` / bare `rounded` / `slate-*`
+on lines no agent touched, and capture after-screenshots on a machine with headroom for the dev server.

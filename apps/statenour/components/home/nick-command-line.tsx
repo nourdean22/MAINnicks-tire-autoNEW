@@ -259,7 +259,7 @@ export function NickCommandLine() {
 
       <form
         onSubmit={submit}
-        className="relative border-b-2 border-edge transition-colors duration-150 focus-within:border-gold"
+        className="relative border-b-2 border-edge transition-colors duration-150 focus-within:border-accent"
       >
         {slashMenu.length > 0 && (
           <ul aria-label="commands" className="border-b border-edge py-1.5">
@@ -273,7 +273,7 @@ export function NickCommandLine() {
                   }}
                   className="flex min-h-[36px] w-full items-baseline gap-3 rounded-md px-2 text-left transition-colors duration-150 hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
                 >
-                  <span className="font-mono text-[13px] text-gold">{c.token}</span>
+                  <span className="font-mono text-[13px] text-fg">{c.token}</span>
                   <span className="text-[12px] text-fg-tertiary">{c.hint}</span>
                 </button>
               </li>
@@ -303,7 +303,7 @@ export function NickCommandLine() {
         )}
 
         <div className="flex items-end gap-3 py-1">
-          <span aria-hidden className="pb-3 font-mono text-2xl leading-none text-gold">
+          <span aria-hidden className="pb-3 font-mono text-2xl leading-none text-fg-tertiary">
             ›
           </span>
           <label htmlFor="nick-line" className="sr-only">
@@ -335,9 +335,9 @@ export function NickCommandLine() {
               disabled={!canSend}
               aria-label="send"
               className={cn(
-                "inline-flex size-11 items-center justify-center rounded-lg transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold",
+                "inline-flex size-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold",
                 canSend
-                  ? "bg-gold text-black hover:bg-gold-dim"
+                  ? "bg-accent text-[var(--text-inverse)] hover:bg-accent-hover"
                   : "border border-edge bg-raised text-fg-tertiary",
               )}
             >

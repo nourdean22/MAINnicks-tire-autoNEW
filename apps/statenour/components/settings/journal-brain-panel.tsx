@@ -88,9 +88,9 @@ export function JournalBrainPanel() {
     return (
       <GlassCard>
         <div className="flex items-center gap-2 mb-3">
-          <BookOpen size={13} className="text-[var(--gold)]" />
-          <span className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-[var(--gold)]">
-            Journal Brain
+          <BookOpen size={13} className="text-fg-tertiary" />
+          <span className="text-[15px] font-semibold text-fg">
+            Journal brain
           </span>
         </div>
         <p className="text-[11px] text-[var(--text-tertiary)]">loading…</p>
@@ -101,12 +101,12 @@ export function JournalBrainPanel() {
   return (
     <GlassCard>
       <div className="flex items-center gap-2 mb-1">
-        <BookOpen size={13} className="text-[var(--gold)]" />
-        <span className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-[var(--gold)]">
-          Journal Brain
+        <BookOpen size={13} className="text-fg-tertiary" />
+        <span className="text-[15px] font-semibold text-fg">
+          Journal brain
         </span>
       </div>
-      <p className="text-[10px] text-[var(--text-tertiary)] mb-3">
+      <p className="text-[12px] text-fg-tertiary mb-3">
         Tune how the journal scores captures, grounds them to goals, and
         challenges you. Changes save the moment you make them.
       </p>
@@ -133,7 +133,7 @@ export function JournalBrainPanel() {
           disabled={!settings.baselineEnabled}
           onChange={(e) => patch({ baselineXp: parseFloat(e.target.value) })}
           aria-label="Baseline XP per qualifying entry"
-          className="w-32 accent-[var(--gold)] disabled:opacity-40"
+          className="w-32 accent-[var(--accent)] disabled:opacity-40"
         />
       </Row>
 
@@ -168,7 +168,7 @@ export function JournalBrainPanel() {
             patch({ groundedXpMultiplier: parseFloat(e.target.value) })
           }
           aria-label="Bonus multiplier when an entry is linked to a goal"
-          className="w-32 accent-[var(--gold)]"
+          className="w-32 accent-[var(--accent)]"
         />
       </Row>
 
@@ -187,7 +187,7 @@ export function JournalBrainPanel() {
             patch({ autoConfirmThreshold: parseFloat(e.target.value) })
           }
           aria-label="Auto-confirm a goal link at or above this confidence"
-          className="w-32 accent-[var(--gold)]"
+          className="w-32 accent-[var(--accent)]"
         />
       </Row>
 
@@ -217,7 +217,7 @@ export function JournalBrainPanel() {
       </Row>
 
       {updateMutation.isError && (
-        <p role="alert" className="mt-3 rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[10px] text-rose-300">
+        <p role="alert" className="mt-3 rounded-control border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[12px] text-rose-300">
           ⚠ Server rejected the change — reverted to the last saved value.
         </p>
       )}
@@ -243,13 +243,13 @@ function Row({
   // named group via aria-labelledby.
   const labelId = useId();
   return (
-    <div className="flex items-center justify-between gap-3 py-2 border-b border-[var(--border-default)]/40 last:border-b-0">
+    <div className="flex items-center justify-between gap-3 py-2 border-b border-edge-subtle last:border-b-0">
       <div className="min-w-0">
-        <label id={labelId} className="text-[11px] text-[var(--text-secondary)]">
+        <label id={labelId} className="text-[13px] text-fg-secondary">
           {label}
         </label>
         {hint && (
-          <p className="text-[9px] text-[var(--text-tertiary)] mt-0.5">{hint}</p>
+          <p className="text-[11px] text-fg-tertiary mt-0.5">{hint}</p>
         )}
       </div>
       <div
@@ -316,10 +316,10 @@ function NumberInput({
         onKeyDown={(e) => {
           if (e.key === "Enter") e.currentTarget.blur();
         }}
-        className="w-16 h-7 px-2 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] focus:border-[var(--gold)]/40 outline-none font-mono tabular-nums text-right"
+        className="w-16 h-7 px-2 rounded-control border border-edge-default bg-content text-[13px] text-fg focus:border-accent outline-none font-mono tabular-nums text-right"
       />
       {suffix && (
-        <span className="text-[9px] text-[var(--text-tertiary)]">{suffix}</span>
+        <span className="text-[11px] text-fg-tertiary">{suffix}</span>
       )}
     </div>
   );

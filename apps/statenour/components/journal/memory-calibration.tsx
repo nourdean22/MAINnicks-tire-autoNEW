@@ -211,7 +211,7 @@ export function MemoryCalibrationRitual({ onClose, autoLoad = true }: Calibratio
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     rows={3}
-                    className="w-full text-[11px] leading-snug rounded-control bg-surface-interactive border border-edge-default px-2 py-1.5 text-fg focus:border-gold/60 focus:outline-none"
+                    className="w-full text-[11px] leading-snug rounded-control bg-surface-interactive border border-edge-default px-2 py-1.5 text-fg focus:border-accent/60 focus:outline-none"
                   />
                   <div className="flex items-center gap-1.5 mt-1">
                     <button

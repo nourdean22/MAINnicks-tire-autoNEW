@@ -111,8 +111,8 @@ const KIND_META: Record<
 
 const SEVERITY_RING: Record<NickSuggestion["severity"], string> = {
   high: "border-rose-500/40 bg-rose-500/[0.04] hover:border-rose-500/60 hover:bg-rose-500/[0.08]",
-  med: "border-[var(--border-default)] bg-[var(--bg-raised)]/[0.04] hover:border-[var(--gold)]/40 hover:bg-[var(--gold)]/[0.06]",
-  low: "border-[var(--border-default)]/60 bg-transparent hover:border-[var(--gold)]/30",
+  med: "border-[var(--border-default)] bg-[var(--bg-raised)]/[0.04] hover:border-edge-strong hover:bg-surface-hover",
+  low: "border-[var(--border-default)]/60 bg-transparent hover:border-edge-strong",
 };
 
 export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
@@ -248,7 +248,7 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
       className="flex items-center gap-1.5 flex-nowrap overflow-x-auto sm:flex-wrap sm:overflow-visible px-3 py-2 max-w-3xl mx-auto"
     >
       <div className="inline-flex items-center gap-1 shrink-0">
-        <Sparkles size={11} className="text-[var(--gold)]" />
+        <Sparkles size={11} className="text-fg-tertiary" />
       </div>
       {visible.map((s) => {
         const meta = KIND_META[s.kind] ?? KIND_META["pattern"];
@@ -261,7 +261,7 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
             key={s.id}
             className={cn(
               "inline-flex items-center rounded-full border transition-colors shrink-0",
-              "focus-within:outline-none focus-within:ring-1 focus-within:ring-[var(--gold)]",
+              "focus-within:outline-none focus-within:ring-1 focus-within:ring-accent",
               SEVERITY_RING[s.severity],
             )}
           >
@@ -279,11 +279,11 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
                   meta.tone === "amber" && "text-amber-400",
                   meta.tone === "rose" && "text-rose-400",
                   meta.tone === "sky" && "text-sky-400",
-                  meta.tone === "zinc" && "text-zinc-400",
+                  meta.tone === "zinc" && "text-fg-tertiary",
                   meta.tone === "violet" && "text-violet-400",
                 )}
               />
-              <span className="text-[10px] font-mono text-[var(--text-primary)] max-w-[240px] truncate">
+              <span className="text-[11px] font-mono text-[var(--text-primary)] max-w-[240px] truncate">
                 {s.label}
               </span>
             </button>
@@ -314,9 +314,9 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
           aria-expanded={expanded}
           className={cn(
             "inline-flex items-center gap-1 rounded-full border border-[var(--border-default)]/60",
-            "bg-transparent hover:border-[var(--gold)]/30 hover:bg-[var(--gold)]/[0.04]",
+            "bg-transparent hover:border-edge-strong hover:bg-surface-hover",
             "min-h-11 px-2 py-1 transition-colors shrink-0 sm:min-h-8",
-            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]",
+            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent",
           )}
         >
           <ChevronDown
@@ -326,7 +326,7 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
               expanded && "rotate-180",
             )}
           />
-          <span className="text-[10px] font-mono text-[var(--text-tertiary)]">
+          <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
             {expanded ? "less" : `+${rest.length}`}
           </span>
         </button>

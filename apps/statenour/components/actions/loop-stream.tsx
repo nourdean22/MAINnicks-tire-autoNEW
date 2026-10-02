@@ -926,8 +926,8 @@ export function LoopStream({
 
   if (rows.length === 0) {
     return (
-      <div className="rounded-xl bg-zinc-900/30 border border-zinc-800/30 p-6 text-center">
-        <p className="text-[11px] text-zinc-500 italic">
+      <div className="rounded-surface bg-content border border-edge-subtle p-6 text-center">
+        <p className="text-[11px] text-fg-tertiary italic">
           No active routines. Clean slate — add your first move above.
         </p>
       </div>
@@ -970,7 +970,7 @@ export function LoopStream({
       {(liveSignals.capacityRemainingMin > 0 || liveSignals.allocatedMin > 0) && (
         <div
           className={cn(
-            "flex items-center gap-2 rounded-md px-2 py-1 text-[10px] font-mono",
+            "flex items-center gap-2 rounded-control px-2 py-1 text-[11px] font-mono",
             liveSignals.overcommitted
               ? "border border-amber-500/30 bg-amber-500/5 text-amber-300"
               : "border border-[var(--border-default)] bg-[var(--bg-void)]/40 text-[var(--text-tertiary)]",
@@ -981,7 +981,7 @@ export function LoopStream({
               : `${liveSignals.allocatedMin}m allocated · ${liveSignals.capacityRemainingMin}m left today`
           }
         >
-          <span className="font-bold uppercase tracking-wider">capacity</span>
+          <span className="font-medium uppercase tracking-[0.12em]">capacity</span>
           <span className="tabular-nums">
             {Math.floor(liveSignals.capacityRemainingMin / 60)}h{" "}
             {liveSignals.capacityRemainingMin % 60}m left today
@@ -1008,8 +1008,7 @@ export function LoopStream({
 
       {/* ── NEXT MOVE hero — the single smartest next action ── */}
       {nextMove && (
-        <div className="relative rounded-xl border border-[var(--gold)]/30 bg-gradient-to-br from-[var(--gold)]/10 via-zinc-900/60 to-zinc-900/40 p-3 overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(253,185,19,0.08),transparent_60%)] pointer-events-none" />
+        <div className="relative rounded-surface border border-edge-subtle bg-content p-3 overflow-hidden">
           <div className="relative flex items-start gap-2.5">
             <button
               onClick={() => void handleCompleteWithSpinner(nextMove.task.id)}
@@ -1018,7 +1017,7 @@ export function LoopStream({
                 "mt-0.5 shrink-0 transition-colors",
                 completingIds.has(nextMove.task.id)
                   ? "text-emerald-400"
-                  : "text-[var(--gold)]/60 hover:text-[var(--gold)]"
+                  : "text-fg-tertiary hover:text-emerald-400"
               )}
               aria-label="Complete"
             >
@@ -1030,17 +1029,17 @@ export function LoopStream({
             </button>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 mb-0.5">
-                <span className="text-[8px] font-bold uppercase tracking-[0.2em] text-[var(--gold)]/70">
+                <span className="notch mr-1 align-middle" aria-hidden /><span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                   Next move
                 </span>
                 <KindIcon kind={nextMove.kind} size={10} />
-                <span className="text-[8px] font-bold text-[var(--gold)]/70 uppercase">
+                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                   {nextMove.kind.toLowerCase()}
                 </span>
                 {/* Keyboard hint — only shown on the hero since that's
                     where the shortcuts act by default. Tiny + dim so
                     it doesn't dominate the gold headline. */}
-                <span className="ml-auto text-[7px] text-zinc-700 font-mono uppercase tracking-wider hidden sm:inline">
+                <span className="ml-auto text-[11px] text-fg-tertiary font-mono uppercase tracking-[0.12em] hidden sm:inline">
                   c complete · s start · ⇧d del
                 </span>
               </div>
@@ -1055,11 +1054,11 @@ export function LoopStream({
                 className="text-left w-full"
                 aria-expanded={expandedId === nextMove.task.id}
               >
-                <p className="text-[14px] font-bold text-zinc-100 leading-snug hover:text-white">
+                <p className="text-[14px] font-semibold text-fg leading-snug">
                   {nextMove.task.title}
                 </p>
                 {nextMove.task.nextPhysicalAction && nextMove.task.nextPhysicalAction !== nextMove.task.title && (
-                  <p className="text-[10px] text-zinc-400 mt-0.5">→ {nextMove.task.nextPhysicalAction}</p>
+                  <p className="text-[12px] text-fg-secondary mt-0.5">→ {nextMove.task.nextPhysicalAction}</p>
                 )}
               </button>
               {/* Apr 27 · GB5 — sharpened goal chip on hero too so
@@ -1068,7 +1067,7 @@ export function LoopStream({
               {nextMove.task.goalId && goalLineage?.get(nextMove.task.goalId) ? (
                 <div className="mt-0.5 flex items-center gap-1 flex-wrap">
                   <span
-                    className="inline-flex items-center gap-1 rounded border border-violet-500/30 bg-violet-500/5 px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider text-violet-300 max-w-full"
+                    className="inline-flex items-center gap-1 rounded border border-violet-500/30 bg-violet-500/5 px-1.5 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em] text-violet-300 max-w-full"
                     title="Completing this task auto-lifts this goal"
                   >
                     <Target size={9} className="shrink-0" />
@@ -1083,7 +1082,7 @@ export function LoopStream({
                   </span>
                 </div>
               ) : nextMove.task.mission?.title && nextMove.task.mission.title !== "Inbox" ? (
-                <p className="text-[9px] text-zinc-600 mt-0.5 truncate">
+                <p className="text-[11px] text-fg-tertiary mt-0.5 truncate">
                   ↳ {nextMove.task.mission.title}
                 </p>
               ) : null}
@@ -1101,22 +1100,22 @@ export function LoopStream({
                 });
                 if (!why) return null;
                 return (
-                  <p className="text-[10px] text-[var(--gold)]/80 mt-1 italic flex items-center gap-1.5">
-                    <span className="text-[var(--gold)]/50 font-mono uppercase tracking-wider text-[8px] not-italic">
+                  <p className="text-[12px] text-fg-secondary mt-1 italic flex items-center gap-1.5">
+                    <span className="text-fg-tertiary font-mono uppercase tracking-[0.12em] text-[11px] not-italic">
                       why
                     </span>
                     <span className="truncate">{why}</span>
                   </p>
                 );
               })()}
-              <div className="flex items-center gap-2 mt-1.5 text-[9px] flex-wrap">
+              <div className="flex items-center gap-2 mt-1.5 text-[11px] flex-wrap">
                 {nextMove.task.mission?.domain && (
-                  <Badge className={cn("h-3.5 text-[8px] border-0", domainClass(nextMove.task.mission.domain))}>
+                  <Badge className={cn("h-3.5 text-[11px] border-0", domainClass(nextMove.task.mission.domain))}>
                     {nextMove.task.mission.domain.toLowerCase()}
                   </Badge>
                 )}
                 {nextMove.task.effort && (
-                  <span className="text-zinc-500 font-mono">{EFF[nextMove.task.effort] || nextMove.task.effort}</span>
+                  <span className="text-fg-tertiary font-mono">{EFF[nextMove.task.effort] || nextMove.task.effort}</span>
                 )}
                 {nextMove.kind === "PROMISE" && nextMove.task.promiseTo && (
                   <span className="text-violet-300">@ {nextMove.task.promiseTo}</span>
@@ -1128,7 +1127,7 @@ export function LoopStream({
                         ? "text-red-400"
                         : nextMove.daysUntilDeadline <= 2
                           ? "text-amber-400"
-                          : "text-zinc-500"
+                          : "text-fg-tertiary"
                     )}
                   >
                     <Clock size={9} className="inline mr-0.5" />
@@ -1147,7 +1146,7 @@ export function LoopStream({
             {onStart && nextMove.task.status !== "DOING" && (
               <button
                 onClick={() => onStart(nextMove.task.id)}
-                className="shrink-0 text-zinc-500 hover:text-blue-400 transition-colors"
+                className="shrink-0 text-fg-tertiary hover:text-blue-400 transition-colors"
                 aria-label="Start"
                 title="Start"
               >
@@ -1161,16 +1160,16 @@ export function LoopStream({
       {/* Apr 26 · F8 — pinned band header. Renders only when there
           are pinned rows that aren't already the hero. */}
       {pinnedRows.length > 0 && pinnedRows.some((r) => r !== nextMove) && (
-        <div className="flex items-center gap-1.5 px-2 pt-1 pb-0.5 text-[8px] font-mono uppercase tracking-wider text-[var(--gold)]/70">
+        <div className="flex items-center gap-1.5 px-2 pt-1 pb-0.5 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
           <Pin size={8} />
           <span>pinned · {pinnedRows.length}</span>
-          <div className="flex-1 h-px bg-gradient-to-r from-[var(--gold)]/20 to-transparent" />
+          <div className="flex-1 h-px bg-edge-subtle" />
         </div>
       )}
 
       {/* v10.0.530 · BULK-SELECT toggle. Above the stream, gold when on. */}
       <div className="flex justify-end px-1">
-        <button type="button" onClick={toggleSelectMode} aria-pressed={selectMode} className={cn("text-[9px] font-mono uppercase tracking-wider px-2 py-1 rounded transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/60", selectMode ? "text-[var(--gold)] bg-[var(--gold)]/10" : "text-zinc-500 hover:text-zinc-300")}>
+        <button type="button" onClick={toggleSelectMode} aria-pressed={selectMode} className={cn("text-[13px] font-medium px-2 py-1 rounded-control transition-colors duration-[var(--motion-state)]", selectMode ? "text-fg bg-accent-soft" : "text-fg-tertiary hover:text-fg")}>
           {selectMode ? `selecting · ${selectedIds.size}` : "select"}
         </button>
       </div>
@@ -1253,7 +1252,7 @@ export function LoopStream({
           const sectionHeader = showKindHeader ? (
             <div
               key={`section-kind-${kind}-${idx}`}
-              className="sticky top-0 z-10 flex items-center gap-1.5 px-2 pt-2 pb-1 text-[8px] font-mono uppercase tracking-wider text-zinc-600 bg-[var(--bg-base)]/95 backdrop-blur-sm"
+              className="sticky top-0 z-10 flex items-center gap-1.5 px-2 pt-2 pb-1 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary bg-workspace"
               // 2026-05-24 · Wave U ux-F12 · pre-fix aria-hidden hid
               // real structural cue from VoiceOver · screen-reader
               // operator heard a flat list with no grouping. Now: role
@@ -1264,7 +1263,7 @@ export function LoopStream({
             >
               <KindIcon kind={kind} size={8} />
               <span>{kind === "DAILY" ? "daily · habits" : kind === "PROMISE" ? "promises" : "once · tasks"}</span>
-              <div className="flex-1 h-px bg-zinc-800/40" />
+              <div className="flex-1 h-px bg-surface-interactive" />
             </div>
           ) : showStatusHeader ? (
             // 2026-05-23 · task #20 · status section header · same
@@ -1273,7 +1272,7 @@ export function LoopStream({
             // have a clean glyph and a colored dot would noise the row.
             <div
               key={`section-status-${task.status}-${idx}`}
-              className="sticky top-0 z-10 flex items-center gap-1.5 px-2 pt-2 pb-1 text-[8px] font-mono uppercase tracking-wider text-zinc-600 bg-[var(--bg-base)]/95 backdrop-blur-sm"
+              className="sticky top-0 z-10 flex items-center gap-1.5 px-2 pt-2 pb-1 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary bg-workspace"
               // 2026-05-24 · Wave U ux-F12 · pre-fix aria-hidden hid
               // real structural cue from VoiceOver · screen-reader
               // operator heard a flat list with no grouping. Now: role
@@ -1285,7 +1284,7 @@ export function LoopStream({
               <span>
                 {STATUS_HEADER_LABEL[task.status] ?? task.status.toLowerCase()}
               </span>
-              <div className="flex-1 h-px bg-zinc-800/40" />
+              <div className="flex-1 h-px bg-surface-interactive" />
             </div>
           ) : null;
           const fit = classifyFit(task, liveSignals);
@@ -1378,7 +1377,7 @@ export function LoopStream({
             <div key={task.id}>{rowItem}</div>
           ) : (
             <div key={task.id} className="flex items-start gap-2">
-              <button type="button" role="checkbox" aria-checked={checked} aria-label={`Select ${task.title}`} onClick={() => toggleSelect(task.id)} className={cn("mt-2 shrink-0 w-7 h-7 grid place-items-center rounded border transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/60", checked ? "bg-[var(--gold)]/15 border-[var(--gold)]/60 text-[var(--gold)]" : "border-zinc-700/60 text-transparent hover:border-zinc-500")}>
+              <button type="button" role="checkbox" aria-checked={checked} aria-label={`Select ${task.title}`} onClick={() => toggleSelect(task.id)} className={cn("mt-2 shrink-0 w-7 h-7 grid place-items-center rounded-micro border transition-colors duration-[var(--motion-state)]", checked ? "bg-accent-soft border-accent text-fg" : "border-edge-subtle text-transparent hover:border-edge-strong")}>
                 <Check size={14} strokeWidth={3} />
               </button>
               <div className="flex-1 min-w-0">{rowItem}</div>
@@ -1395,15 +1394,15 @@ export function LoopStream({
       {/* v10.0.530 · BULK-SELECT sticky action bar. Sequential awaits
           on existing per-id handlers — no new bulk endpoints yet. */}
       {selectMode && selectedIds.size > 0 && (() => {
-        const btn = "text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded disabled:opacity-40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/60";
+        const btn = "text-[13px] font-medium px-2 py-1 rounded-control transition-colors duration-[var(--motion-state)] disabled:opacity-40";
         return (
-          <div role="toolbar" aria-label="Bulk actions" className="sticky bottom-2 z-20 flex items-center gap-1.5 rounded-lg border border-[var(--gold)]/40 bg-zinc-950/95 backdrop-blur px-2.5 py-1.5 shadow-lg">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--gold)] mr-1">{selectedIds.size}</span>
+          <div role="toolbar" aria-label="Bulk actions" className="sticky bottom-2 z-20 flex items-center gap-1.5 ui-material rounded-float border border-edge-default px-2.5 py-1.5 shadow-l2">
+            <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg mr-1">{selectedIds.size}</span>
             <button type="button" disabled={bulkBusy} onClick={() => void runBulk(onComplete)} className={cn(btn, "text-emerald-300 hover:bg-emerald-500/10")}>done</button>
-            <button type="button" disabled={bulkBusy} onClick={() => void bulkSnooze()} className={cn(btn, "text-zinc-300 hover:bg-zinc-800")}>snooze · tomorrow</button>
+            <button type="button" disabled={bulkBusy} onClick={() => void bulkSnooze()} className={cn(btn, "text-fg-secondary hover:bg-surface-hover")}>snooze · tomorrow</button>
             <button type="button" disabled={bulkBusy} onClick={() => void bulkDelete()} className={cn(btn, "text-red-400 hover:bg-red-500/10")}>delete</button>
-            <button type="button" disabled={bulkBusy} onClick={exitSelect} className={cn(btn, "ml-auto text-zinc-500 hover:text-zinc-300")}>cancel</button>
-            {bulkBusy && <Loader2 size={12} className="animate-spin text-[var(--gold)]" />}
+            <button type="button" disabled={bulkBusy} onClick={exitSelect} className={cn(btn, "ml-auto text-fg-tertiary hover:text-fg")}>cancel</button>
+            {bulkBusy && <Loader2 size={12} className="animate-spin text-fg-tertiary" />}
           </div>
         );
       })()}

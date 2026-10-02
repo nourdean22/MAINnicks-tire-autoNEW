@@ -264,7 +264,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                     onChange={(e) => setNoteText(e.target.value)}
                     placeholder="optional: explain the reversal"
                     rows={2}
-                    className="w-full px-2 py-1 bg-[var(--bg-overlay)] border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
+                    className="w-full px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
                   />
                   <div className="flex items-center gap-1.5">
                     <button

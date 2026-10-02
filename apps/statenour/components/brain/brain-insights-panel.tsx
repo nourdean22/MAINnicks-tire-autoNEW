@@ -88,7 +88,7 @@ export function BrainInsightsPanel() {
   if (!hasSignal) return null;
 
   return (
-    <div className="rounded-surface border border-[var(--border-default)] bg-[var(--bg-secondary)] p-4">
+    <div className="rounded-surface border border-[var(--border-default)] bg-content p-4">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
           brain insights
@@ -117,7 +117,7 @@ export function BrainInsightsPanel() {
 
 function CardShell({ title, count, accent, children }: { title: string; count: number; accent: string; children: React.ReactNode }) {
   return (
-    <div className="rounded border border-[var(--border-default)] bg-[var(--bg-primary)]/60 p-3">
+    <div className="rounded border border-[var(--border-default)] bg-content p-3">
       <div className="flex items-center justify-between mb-2">
         <span className={`text-[11px] font-mono ${accent}`}>
           {title}

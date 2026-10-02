@@ -45,8 +45,8 @@ export function AttachmentPreview({
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <div className="text-[10px] text-[var(--text-secondary)] truncate">{file.name}</div>
-        <div className="text-[9px] text-[var(--text-tertiary)]">
+        <div className="text-[12px] text-[var(--text-secondary)] truncate">{file.name}</div>
+        <div className="text-[11px] font-mono text-[var(--text-tertiary)]">
           {file.type || "application/octet-stream"}
           {file.size ? ` · ${Math.round(file.size / 1024)} KB` : ""}
         </div>

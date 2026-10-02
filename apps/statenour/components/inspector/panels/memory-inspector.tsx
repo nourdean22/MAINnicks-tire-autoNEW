@@ -30,7 +30,7 @@ function Fact({ label, value }: { label: string; value: string | null | undefine
   if (!value) return null;
   return (
     <div className="min-w-0">
-      <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-tertiary">{label}</dt>
+      <dt className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{label}</dt>
       <dd className="truncate font-mono text-[12px] text-fg-secondary">{value}</dd>
     </div>
   );
@@ -61,7 +61,7 @@ export function MemoryInspector({ entity }: InspectorPanelProps) {
     <div className="space-y-5" data-memory-inspector={m.id}>
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded border border-edge px-1.5 py-px font-mono text-[10px] uppercase tracking-wide text-fg-tertiary">
+          <span className="rounded-micro border border-edge-default px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             {m.category}
           </span>
           <EvidenceMark
@@ -79,7 +79,7 @@ export function MemoryInspector({ entity }: InspectorPanelProps) {
             now={now}
           />
           {m.discoveryVerdict ? (
-            <span className="rounded border border-edge px-1.5 py-px font-mono text-[10px] uppercase tracking-wide text-fg-tertiary">
+            <span className="rounded-micro border border-edge-default px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               verdict · {m.discoveryVerdict}
             </span>
           ) : null}
@@ -99,7 +99,7 @@ export function MemoryInspector({ entity }: InspectorPanelProps) {
       </section>
 
       <section aria-label="Proof">
-        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-tertiary">proof</p>
+        <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">proof</p>
         <EvidenceMark
           inline
           provenance={{ evidence: m.evidence, source: m.source, trustTier: m.trustTier, seenCount: m.seenCount, createdAt: m.createdAt, lastVerifiedAt: m.lastVerifiedAt }}
@@ -108,7 +108,7 @@ export function MemoryInspector({ entity }: InspectorPanelProps) {
       </section>
 
       <section aria-label="Time" data-memory-time={hasTime ? "present" : "absent"}>
-        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-tertiary">time</p>
+        <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">time</p>
         {hasTime ? (
           <ul className="space-y-1 font-mono text-[12px] text-fg-secondary">
             {m.validFrom ? <li>believed since {new Date(m.validFrom).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</li> : null}
@@ -118,7 +118,7 @@ export function MemoryInspector({ entity }: InspectorPanelProps) {
                 superseded by{" "}
                 <button
                   type="button"
-                  className="text-gold underline-offset-2 hover:underline"
+                  className="text-fg-secondary underline-offset-2 hover:text-fg hover:underline"
                   onClick={() => openInspector({ kind: "memory", id: m.supersededBy!.id })}
                 >
                   {m.supersededBy.content}
@@ -130,7 +130,7 @@ export function MemoryInspector({ entity }: InspectorPanelProps) {
                 supersedes{" "}
                 <button
                   type="button"
-                  className="text-gold underline-offset-2 hover:underline"
+                  className="text-fg-secondary underline-offset-2 hover:text-fg hover:underline"
                   onClick={() => openInspector({ kind: "memory", id: older.id })}
                 >
                   {older.content}

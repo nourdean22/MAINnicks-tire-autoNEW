@@ -87,10 +87,10 @@ export function RealtimeVoiceOverlay({ open, onClose, brainContext, operatorCont
   }[status];
 
   const orbTone = {
-    connecting: "from-zinc-700 to-zinc-900",
-    ready: "from-zinc-600 to-zinc-900",
+    connecting: "from-surface-interactive to-canvas",
+    ready: "from-surface-hover to-canvas",
     "you-speak": "from-rose-500/60 to-rose-900/40",
-    "nick-speak": "from-[var(--gold)]/60 to-amber-900/40",
+    "nick-speak": "from-accent/60 to-amber-900/40",
     error: "from-red-700 to-red-950",
   }[status];
 
@@ -104,7 +104,7 @@ export function RealtimeVoiceOverlay({ open, onClose, brainContext, operatorCont
       <DialogContent
         unstyled
         showCloseButton={false}
-        overlayClassName="z-[200] bg-[var(--bg-void)]/95 backdrop-blur-xl"
+        overlayClassName="z-[200] bg-[var(--bg-void)]/95"
         className="fixed inset-0 z-[201] flex flex-col bg-[var(--bg-void)]/95 outline-none"
       >
       {/* Hidden audio element — Nick's voice plays through this */}
@@ -168,7 +168,7 @@ export function RealtimeVoiceOverlay({ open, onClose, brainContext, operatorCont
                   status === "you-speak"
                     ? "text-rose-200 scale-110"
                     : status === "nick-speak"
-                      ? "text-[var(--gold)] scale-105"
+                      ? "text-accent scale-105"
                       : "text-[var(--text-secondary)]"
                 }`}
                 size={48}
@@ -206,7 +206,7 @@ export function RealtimeVoiceOverlay({ open, onClose, brainContext, operatorCont
       </main>
 
       {/* Footer · model + sub-500ms label */}
-      <footer className="px-4 py-3 border-t border-[var(--border-default)] flex items-center justify-between text-[10px] font-mono text-[var(--text-tertiary)] uppercase tracking-wider">
+      <footer className="px-4 py-3 border-t border-[var(--border-default)] flex items-center justify-between text-[11px] font-mono text-[var(--text-tertiary)]">
         <span>OpenAI Realtime · gpt-realtime · sub-500ms target</span>
         <span>{isConnected ? "● live" : "○ idle"}</span>
       </footer>

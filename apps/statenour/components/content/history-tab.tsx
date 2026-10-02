@@ -184,7 +184,7 @@ export function HistoryTab() {
       </p>
 
       {loading && !data && (
-        <div className="text-sm text-zinc-500 mb-4">loading content history…</div>
+        <div className="text-sm text-fg-tertiary mb-4">loading content history…</div>
       )}
 
       <div className="space-y-4">
@@ -192,20 +192,20 @@ export function HistoryTab() {
         <Panel>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <label className="text-[10px] uppercase tracking-wider text-zinc-500">search</label>
+              <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">search</label>
               <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-zinc-500" />
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-fg-tertiary" />
                 <input
                   type="text"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   placeholder="brake / oil / tire..."
-                  className="w-full rounded-md border border-white/10 bg-white/[0.02] pl-7 pr-2 py-1 text-xs text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-white/25"
+                  className="w-full rounded-control border border-edge-default bg-content pl-7 pr-2 py-1 text-[13px] text-fg placeholder:text-fg-tertiary outline-none focus:border-accent"
                 />
               </div>
             </div>
             <div>
-              <label className="text-[10px] uppercase tracking-wider text-zinc-500">
+              <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                 score: {minScore}-{maxScore}
               </label>
               <div className="flex gap-1 items-center">
@@ -228,17 +228,17 @@ export function HistoryTab() {
               </div>
             </div>
             <div>
-              <label className="text-[10px] uppercase tracking-wider text-zinc-500">days</label>
+              <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">days</label>
               <div className="flex gap-1 mt-0.5">
                 {[1, 7, 30, 90].map((d) => (
                   <button
                     key={d}
                     onClick={() => setDays(d)}
                     className={cn(
-                      "rounded-md px-2 py-1 text-[10px] font-mono",
+                      "rounded-control px-2 py-1 text-[12px] font-medium transition-colors duration-[var(--motion-state)]",
                       days === d
-                        ? "bg-white/10 text-white"
-                        : "bg-white/[0.02] text-zinc-500 hover:bg-white/[0.06]",
+                        ? "bg-accent-soft text-fg"
+                        : "bg-surface-interactive text-fg-tertiary hover:bg-surface-hover hover:text-fg-secondary",
                     )}
                   >
                     {d}d
@@ -247,15 +247,15 @@ export function HistoryTab() {
               </div>
             </div>
             <div>
-              <label className="text-[10px] uppercase tracking-wider text-zinc-500">filters</label>
+              <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">filters</label>
               <div className="flex gap-1 mt-0.5">
                 <button
                   onClick={() => setContentOnly((x) => !x)}
                   className={cn(
-                    "rounded-md px-2 py-1 text-[10px] font-mono",
+                    "rounded-control px-2 py-1 text-[12px] font-medium transition-colors duration-[var(--motion-state)]",
                     contentOnly
                       ? "bg-violet-500/15 text-violet-200"
-                      : "bg-white/[0.02] text-zinc-500 hover:bg-white/[0.06]",
+                      : "bg-surface-interactive text-fg-tertiary hover:bg-surface-hover hover:text-fg-secondary",
                   )}
                 >
                   content only
@@ -290,13 +290,13 @@ export function HistoryTab() {
               <Axis label="CTA" value={data.stats.avgCTA} trend={axisTrends?.CTA} />
               <Axis label="tags" value={data.stats.avgHashtag} trend={axisTrends?.tags} />
             </div>
-            <div className="mt-3 flex flex-wrap gap-3 text-[10px]">
-              <span className="text-zinc-400">
+            <div className="mt-3 flex flex-wrap gap-3 text-[11px] font-mono">
+              <span className="text-fg-secondary">
                 regen rate: <span className={data.stats.regenRate > 0.2 ? "text-rose-300" : "text-emerald-300"}>
                   {(data.stats.regenRate * 100).toFixed(0)}%
                 </span>
               </span>
-              <span className="text-zinc-400">
+              <span className="text-fg-secondary">
                 content mode: <span className="text-violet-300">{(data.stats.contentModeRate * 100).toFixed(0)}%</span>
               </span>
             </div>
@@ -313,7 +313,7 @@ export function HistoryTab() {
                   {winners.map((r) => (
                     <div
                       key={r.id}
-                      className="rounded px-2 py-1.5 hover:bg-white/[0.03] text-[10px] font-mono text-zinc-300"
+                      className="rounded-control px-2 py-1.5 hover:bg-surface-hover text-[11px] font-mono text-fg-secondary"
                     >
                       <span className={cn("font-bold mr-2", scoreTone(r.metadata.overall ?? 0))}>
                         {r.metadata.overall ?? "—"}
@@ -334,7 +334,7 @@ export function HistoryTab() {
                   {losers.map((r) => (
                     <div
                       key={r.id}
-                      className="rounded px-2 py-1.5 hover:bg-white/[0.03] text-[10px] font-mono text-zinc-300"
+                      className="rounded-control px-2 py-1.5 hover:bg-surface-hover text-[11px] font-mono text-fg-secondary"
                     >
                       <span className={cn("font-bold mr-2", scoreTone(r.metadata.overall ?? 0))}>
                         {r.metadata.overall ?? "—"}
@@ -383,7 +383,7 @@ export function HistoryTab() {
                 from sm: breakpoint up where there's actual room. */}
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead className="text-zinc-500">
+                <thead className="text-fg-tertiary">
                   <tr>
                     <th className="px-2 py-2 text-left font-medium">when</th>
                     <th className="px-2 py-2 text-right font-medium">overall</th>
@@ -410,26 +410,26 @@ export function HistoryTab() {
                         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
                     }
                   }).map((r) => (
-                    <tr key={r.id} className="border-t border-white/5 hover:bg-white/[0.02]">
-                      <td className="px-2 py-1.5 tabular-nums text-zinc-500">
+                    <tr key={r.id} className="border-t border-edge-subtle hover:bg-surface-hover">
+                      <td className="px-2 py-1.5 tabular-nums text-fg-tertiary">
                         {new Date(r.createdAt).toLocaleDateString()}
                       </td>
                       <td className={cn("px-2 py-1.5 text-right font-mono font-bold tabular-nums", scoreTone(r.metadata.overall ?? 0))}>
                         {r.metadata.overall ?? "—"}
                       </td>
-                      <td className="hidden sm:table-cell px-2 py-1.5 text-right font-mono tabular-nums text-zinc-400">
+                      <td className="hidden sm:table-cell px-2 py-1.5 text-right font-mono tabular-nums text-fg-secondary">
                         {r.metadata.specificity ?? "—"}
                       </td>
-                      <td className="hidden sm:table-cell px-2 py-1.5 text-right font-mono tabular-nums text-zinc-400">
+                      <td className="hidden sm:table-cell px-2 py-1.5 text-right font-mono tabular-nums text-fg-secondary">
                         {r.metadata.brandElement ?? "—"}
                       </td>
-                      <td className="hidden sm:table-cell px-2 py-1.5 text-right font-mono tabular-nums text-zinc-400">
+                      <td className="hidden sm:table-cell px-2 py-1.5 text-right font-mono tabular-nums text-fg-secondary">
                         {r.metadata.cta ?? "—"}
                       </td>
-                      <td className="hidden md:table-cell px-2 py-1.5 font-mono text-[10px] text-zinc-400">
+                      <td className="hidden md:table-cell px-2 py-1.5 font-mono text-[11px] text-fg-secondary">
                         {r.metadata.turnIntent ?? "—"}/{r.metadata.turnShape ?? "—"}
                       </td>
-                      <td className="hidden md:table-cell px-2 py-1.5 truncate max-w-md text-zinc-300">
+                      <td className="hidden md:table-cell px-2 py-1.5 truncate max-w-md text-fg-secondary">
                         {r.content.slice(0, 80)}
                       </td>
                     </tr>
@@ -442,13 +442,13 @@ export function HistoryTab() {
 
         {!loading && data && data.rows.length === 0 && (
           <Panel>
-            <p className="p-4 text-center text-sm text-zinc-500">
+            <p className="p-4 text-center text-sm text-fg-tertiary">
               No content scored in this window with these filters.
             </p>
           </Panel>
         )}
 
-        <p className="pt-2 text-center text-[10px] text-zinc-600">
+        <p className="pt-2 text-center text-[11px] font-mono text-fg-tertiary">
           source: brain_memory category=nick_quality · written post-stream by output-critic
         </p>
       </div>
@@ -468,8 +468,8 @@ function Axis({ label, value, trend }: { label: string; value: number; trend?: n
     ? "#7dd3fc"
     : (goingUp === upIsGood ? "#34d399" : last === first ? "#7dd3fc" : "#f87171");
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2 text-center">
-      <div className="text-[9px] uppercase tracking-wider text-zinc-500">{label}</div>
+    <div className="rounded-surface border border-edge-subtle bg-content p-2 text-center">
+      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{label}</div>
       <div className={cn("mt-0.5 font-mono text-lg font-bold tabular-nums", scoreTone(value))}>
         {value}
       </div>
