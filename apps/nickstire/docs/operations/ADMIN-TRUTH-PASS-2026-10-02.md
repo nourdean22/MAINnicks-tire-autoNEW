@@ -37,7 +37,15 @@ the PR body).
 4. **Stale callbacks carry evidence.** Today appends "Invoiced <date> ... likely served" or
    "Booked <date> ..." to an open callback card when the same phone was invoiced (same day
    or later) or booked after the request. Hint only; the operator closes it.
-5. **No green over broken cameras.** Shared `summarizeCameraFleet`; Settings -> Status
+5. **Financing clicks get an attribution ladder.** The same visitor session id is on leads,
+   bookings, callback requests, tire orders and click-to-call events; the panel now shows the
+   identity a click reached and any invoice for that phone on or after the click (applications
+   and approvals are not observable — the providers report nothing). A failed read shows
+   "unknown", no longer "No financing clicks recorded yet".
+6. **Approvals shows what happened after a decision** (invoice / booking / callback for the
+   proposal's phone), and the shop-state lot band reads the vehicle-truth camera's healthy
+   frames instead of any camera's heartbeat.
+7. **No green over broken cameras.** Shared `summarizeCameraFleet`; Settings -> Status
    gets a camera check (RULE 5) and Lot's header stops saying "Live" over a degraded
    fleet. Approvals copy scoped to its own queue.
 
