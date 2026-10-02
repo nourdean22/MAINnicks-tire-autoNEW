@@ -187,7 +187,7 @@ export function JudgmentQueue({
           type="button"
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
-          className="mt-1 inline-flex min-h-[44px] w-full items-center justify-center gap-1 font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary transition-colors duration-150 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+          className="mt-1 inline-flex min-h-[44px] w-full items-center justify-center gap-1 text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
         >
           {expanded ? (
             <>
@@ -229,7 +229,7 @@ function JudgmentRow({
   onFollowupVerdict: (id: string, verdict: "task" | "dismiss") => void;
 }) {
   const kindChip = (
-    <span className="w-24 shrink-0 pt-1 font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary">
+    <span className="w-24 shrink-0 pt-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
       {KIND_LABEL[item.kind]}
     </span>
   );
@@ -304,7 +304,7 @@ function JudgmentRow({
             disabled={busy}
             onClick={() => onCommitmentVerdict(item.id, "accept")}
             title="Accept — goes on the books as active"
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3 font-mono text-[11px] uppercase tracking-[0.12em] text-emerald-300 transition-colors duration-150 hover:bg-emerald-500/20 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-control border border-emerald-500/25 bg-emerald-500/10 px-3 text-[13px] font-medium text-emerald-300 transition-colors duration-[var(--motion-state)] hover:bg-emerald-500/20 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
           >
             <Check className="h-3 w-3" /> Accept
           </button>
@@ -334,7 +334,7 @@ function JudgmentRow({
           disabled={busy}
           onClick={() => onFollowupVerdict(item.id, "task")}
           title="Convert to task"
-          className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-edge px-3 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+          className="inline-flex min-h-[44px] items-center gap-1 rounded-control border border-edge-default px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
         >
           <Plus className="h-3 w-3" /> Task
         </button>

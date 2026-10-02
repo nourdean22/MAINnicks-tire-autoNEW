@@ -46,11 +46,10 @@ export default function ArcProjection({
 
   return (
     <section
-      className="rounded-xl border bg-[var(--bg-raised)] p-4"
-      style={{ borderColor: "rgba(255,255,255,0.06)" }}
+      className="rounded-surface border border-edge-subtle bg-content p-4"
     >
       <div className="flex items-baseline justify-between gap-3 mb-3">
-        <h2 className="font-serif text-lg tracking-tight text-[var(--text-primary)]">
+        <h2 className="text-[17px] font-semibold text-fg">
           5-year arc
         </h2>
         <button
@@ -62,7 +61,7 @@ export default function ArcProjection({
             }
           }}
           disabled={mutation.isPending}
-          className="text-[10px] uppercase tracking-wider text-amber-300/80 hover:text-amber-300 disabled:opacity-50"
+          className="text-[13px] font-medium text-amber-300/80 hover:text-amber-300 disabled:opacity-50"
         >
           {mutation.isPending
             ? "projecting…"
@@ -72,10 +71,10 @@ export default function ArcProjection({
         </button>
       </div>
       {projection ? (
-        <div className="space-y-3 text-xs text-[var(--text-secondary)]">
+        <div className="space-y-3 text-xs text-fg-secondary">
           {projection.do_nothing && (
             <p>
-              <span className="text-[var(--text-tertiary)] uppercase text-[10px] tracking-wider mr-2">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-2">
                 do nothing →
               </span>
               {projection.do_nothing}
@@ -83,7 +82,7 @@ export default function ArcProjection({
           )}
           {projection.double_effort && (
             <p>
-              <span className="text-[var(--text-tertiary)] uppercase text-[10px] tracking-wider mr-2">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-2">
                 2× effort →
               </span>
               {projection.double_effort}
@@ -91,7 +90,7 @@ export default function ArcProjection({
           )}
           {projection.blow_up && (
             <p>
-              <span className="text-[var(--text-tertiary)] uppercase text-[10px] tracking-wider mr-2">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-2">
                 sever →
               </span>
               {projection.blow_up}
@@ -99,15 +98,14 @@ export default function ArcProjection({
           )}
           {projection.recommendation && (
             <p
-              className="border-t pt-3 italic text-[var(--text-primary)]"
-              style={{ borderColor: "rgba(255,255,255,0.06)" }}
+              className="border-t border-edge-subtle pt-3 italic text-fg"
             >
               &ldquo;{projection.recommendation}&rdquo;
             </p>
           )}
         </div>
       ) : (
-        <p className="text-xs text-[var(--text-tertiary)]">
+        <p className="text-xs text-fg-tertiary">
           No projection cached. Hit project to generate a Greene-flavored
           5-year arc with do-nothing / 2× / sever scenarios.
         </p>

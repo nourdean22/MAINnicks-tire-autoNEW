@@ -81,8 +81,8 @@ export function DeployChip() {
           : `${info.shaShort} · ${info.branch} · deployed ${age}`
       }
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5",
-        "text-[10px] uppercase tracking-wide text-[var(--text-tertiary)] hover:border-white/20 hover:text-[var(--text-secondary)] transition-colors",
+        "inline-flex items-center gap-1.5 rounded-full border border-edge-default bg-content px-2 py-0.5",
+        "font-mono text-[11px] text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg-secondary",
       )}
     >
       <GitCommit className="h-3 w-3" />

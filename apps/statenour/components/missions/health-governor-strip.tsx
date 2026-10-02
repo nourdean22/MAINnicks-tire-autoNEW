@@ -13,7 +13,7 @@ export function HealthGovernorStrip() {
 
   if (isLoading) {
     return (
-      <div className="h-16 w-full animate-pulse rounded-lg bg-zinc-900/50 border border-zinc-800" />
+      <div className="h-16 w-full animate-pulse rounded-surface bg-content border border-edge-subtle" />
     );
   }
 
@@ -56,10 +56,10 @@ export function HealthGovernorStrip() {
       title: "Optimized State",
     },
     STABLE: {
-      bg: "bg-zinc-900/30 border-zinc-800",
-      text: "text-zinc-300",
-      accent: "bg-zinc-800 border-zinc-700 text-zinc-300",
-      barColor: "bg-zinc-500",
+      bg: "bg-content border-edge-subtle",
+      text: "text-fg-secondary",
+      accent: "bg-surface-interactive border-edge-default text-fg-secondary",
+      barColor: "bg-fg-tertiary",
       icon: CheckCircle2,
       title: "Stable Baseline State",
     },
@@ -71,29 +71,29 @@ export function HealthGovernorStrip() {
     <section
       aria-label="Health Governor Status"
       className={cn(
-        "rounded-lg border backdrop-blur-md px-4 py-3.5 transition-all duration-300",
+        "rounded-surface border px-4 py-3.5",
         config.bg
       )}
     >
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Left Side: Mode name, icon, reasons */}
         <div className="flex items-start gap-3">
-          <div className={cn("p-1.5 rounded-md border shrink-0 mt-0.5", config.accent)}>
+          <div className={cn("p-1.5 rounded-control border shrink-0 mt-0.5", config.accent)}>
             <ModeIcon size={16} strokeWidth={2} />
           </div>
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h2 className={cn("text-xs font-bold uppercase tracking-wider", config.text)}>
+              <h2 className={cn("text-[13px] font-semibold", config.text)}>
                 {config.title}
               </h2>
-              <span className="text-[10px] font-mono text-zinc-500">Readiness: {score}/100</span>
+              <span className="text-[11px] font-mono text-fg-tertiary">Readiness: {score}/100</span>
             </div>
             {reasons.length > 0 ? (
-              <p className="text-[11px] text-zinc-400 leading-relaxed font-mono">
+              <p className="text-[12px] text-fg-secondary leading-relaxed font-mono">
                 {reasons.join(" · ")}
               </p>
             ) : (
-              <p className="text-[11px] text-zinc-500 font-mono">All biometrics and focus levels are within baseline limits.</p>
+              <p className="text-[12px] text-fg-tertiary font-mono">All biometrics and focus levels are within baseline limits.</p>
             )}
           </div>
         </div>
@@ -102,7 +102,7 @@ export function HealthGovernorStrip() {
         <div className="flex items-center gap-4 justify-between md:justify-end shrink-0">
           {/* Progress Score Bar */}
           <div className="w-24 space-y-1 hidden sm:block">
-            <div className="h-1.5 w-full rounded-full bg-zinc-800 overflow-hidden">
+            <div className="h-1.5 w-full rounded-full bg-surface-interactive overflow-hidden">
               <div
                 className={cn("h-full rounded-full transition-all duration-500", config.barColor)}
                 style={{ width: `${score}%` }}
@@ -112,9 +112,9 @@ export function HealthGovernorStrip() {
 
           {/* Recommended Mode Command Badge */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">recommended:</span>
-            <div className="inline-flex items-center gap-1 px-2 py-1 rounded bg-black/40 border border-white/5 font-mono text-xs text-zinc-200 shadow-inner">
-              <Zap size={10} className="text-amber-400" />
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">recommended:</span>
+            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-micro bg-surface-interactive border border-edge-subtle font-mono text-[12px] text-fg">
+              <Zap size={10} className="text-fg-tertiary" />
               <span>{recommendedCommand}</span>
             </div>
           </div>

@@ -67,8 +67,8 @@ export function PeopleScoringPanel() {
     <div className="mt-10">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-[var(--font-display)] font-bold uppercase tracking-wider text-[var(--text-primary)]">
-            people scoring
+          <span className="text-[15px] font-semibold text-fg">
+            People scoring
           </span>
         </div>
         {/* Always in the DOM so the live region announces the transition to
@@ -76,18 +76,18 @@ export function PeopleScoringPanel() {
         <span
           role="status"
           aria-live="polite"
-          className="text-[10px] font-mono uppercase tracking-wider text-emerald-300"
+          className="font-mono text-[11px] uppercase tracking-[0.12em] text-emerald-300"
         >
           {savedAt && !dirty ? "saved" : ""}
         </span>
       </div>
       <p className="text-[11px] text-[var(--text-tertiary)] mb-4">
         How much mastery XP relationship work earns. Deposits credit{" "}
-        <span className="text-[var(--gold)]">Networking</span> /{" "}
-        <span className="text-[var(--gold)]">Relationships</span>; power-plays
-        credit <span className="text-[var(--gold)]">Persuasion</span> /{" "}
-        <span className="text-[var(--gold)]">Seduction</span> /{" "}
-        <span className="text-[var(--gold)]">Strategy</span>.
+        <span className="text-fg">Networking</span> /{" "}
+        <span className="text-fg">Relationships</span>; power-plays
+        credit <span className="text-fg">Persuasion</span> /{" "}
+        <span className="text-fg">Seduction</span> /{" "}
+        <span className="text-fg">Strategy</span>.
       </p>
 
       <GlassCard>
@@ -104,7 +104,7 @@ export function PeopleScoringPanel() {
                   <span className="block text-[11px] font-medium text-[var(--text-secondary)]">
                     {f.label}
                   </span>
-                  <span className="block text-[9px] text-[var(--text-tertiary)]">
+                  <span className="block text-[11px] text-fg-tertiary">
                     {f.hint}
                   </span>
                 </span>
@@ -121,18 +121,18 @@ export function PeopleScoringPanel() {
                       d ? { ...d, [f.key]: Number.isFinite(v) ? v : 0 } : d,
                     );
                   }}
-                  className="w-20 shrink-0 rounded-md border border-[var(--border-default)] bg-[var(--bg-void)] px-2 py-1.5 text-right text-[12px] font-mono tabular-nums text-[var(--text-primary)] focus:border-[var(--gold)]/40 focus:outline-none"
+                  className="w-20 shrink-0 rounded-control border border-edge-default bg-content px-2 py-1.5 text-right text-[13px] font-mono tabular-nums text-fg focus:border-accent focus:outline-none"
                 />
               </label>
             ))}
 
             <div className="flex items-center justify-between pt-1">
               {save.error ? (
-                <span role="alert" className="text-[10px] text-rose-300">
+                <span role="alert" className="text-[12px] text-rose-300">
                   {save.error.message}
                 </span>
               ) : (
-                <span className="text-[9px] text-[var(--text-tertiary)]">
+                <span className="text-[11px] text-fg-tertiary">
                   blank/invalid values fall back to engine defaults
                 </span>
               )}
@@ -142,13 +142,13 @@ export function PeopleScoringPanel() {
                 disabled={!dirty || save.isPending}
                 onClick={() => draft && save.mutate(draft)}
                 className={cn(
-                  "rounded-md border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider transition-colors",
+                  "rounded-control border px-3 py-1.5 text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
                   dirty && !save.isPending
-                    ? "border-[var(--gold)]/40 bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/20"
-                    : "border-[var(--border-default)] text-[var(--text-tertiary)] cursor-not-allowed",
+                    ? "border-edge-default bg-content text-fg-secondary hover:border-edge-strong hover:text-fg"
+                    : "border-edge-default text-fg-tertiary cursor-not-allowed",
                 )}
               >
-                {save.isPending ? "saving…" : "save"}
+                {save.isPending ? "Saving…" : "Save"}
               </button>
             </div>
           </div>

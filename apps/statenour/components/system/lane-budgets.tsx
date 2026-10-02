@@ -22,25 +22,25 @@ export function LaneBudgets() {
   const { data, isPending, isError } = trpc.system.aiLanes.useQuery(undefined, { refetchInterval: 60_000 });
 
   return (
-    <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
+    <Panel className="border-edge-default">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-white">lane budgets · today</h2>
-        <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
+        <h2 className="text-sm font-semibold text-fg">lane budgets · today</h2>
+        <span className="text-[11px] font-mono text-fg-tertiary">
           {data?.source === "setting" ? "caps from ai.laneBudgetCents" : data?.source === "env" ? "caps from AI_LANE_BUDGET_CENTS_JSON" : "no caps set"}
         </span>
       </div>
       {isError ? (
         <p className="text-xs text-amber-300">lane read failed — spend per lane is unknown, not zero.</p>
       ) : isPending ? (
-        <p className="text-xs text-zinc-500">loading lanes…</p>
+        <p className="text-xs text-fg-tertiary">loading lanes…</p>
       ) : !data || data.lanes.length === 0 ? (
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-fg-tertiary">
           Nothing recorded today. Set <code className="font-mono">ai.laneBudgetCents</code> to cap a lane, e.g.{" "}
           <code className="font-mono">{'{"chat": 500}'}</code> for $5.00/day on chat.
         </p>
       ) : (
         <table className="w-full text-xs">
-          <thead className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+              <thead className="text-[12px] font-medium text-fg-secondary">
             <tr>
               <th className="py-1 text-left">lane</th>
               <th className="py-1 text-right">spent</th>
@@ -50,11 +50,11 @@ export function LaneBudgets() {
           </thead>
           <tbody>
             {data.lanes.map((l) => (
-              <tr key={l.feature} className="border-t border-[var(--border-default)]/40">
+              <tr key={l.feature} className="border-t border-edge-default">
                 <td className="py-1.5 font-mono">{l.feature}</td>
                 <td className="py-1.5 text-right tabular-nums">{cents(l.spentCents)}</td>
                 <td className="py-1.5 text-right tabular-nums">{l.capCents == null ? "—" : cents(l.capCents)}</td>
-                <td className={`py-1.5 text-right font-mono ${l.over ? "text-rose-300" : l.capCents == null ? "text-[var(--text-tertiary)]" : "text-emerald-300"}`}>
+                <td className={`py-1.5 text-right font-mono ${l.over ? "text-rose-300" : l.capCents == null ? "text-fg-tertiary" : "text-emerald-300"}`}>
                   {l.over ? "STOPPED" : l.capCents == null ? "uncapped" : `${Math.round((l.spentCents / Math.max(1, l.capCents)) * 100)}%`}
                 </td>
               </tr>

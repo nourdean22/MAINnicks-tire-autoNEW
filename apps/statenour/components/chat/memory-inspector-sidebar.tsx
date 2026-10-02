@@ -69,7 +69,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
     <div className="fixed inset-y-0 right-0 z-50 w-80 md:w-96 bg-overlay border-l border-edge-default shadow-l1 flex flex-col animate-fadeSlideLeft">
       <div className="flex justify-between items-center p-4 border-b border-edge-subtle">
         <div className="flex items-center space-x-2">
-          <Brain className="w-4 h-4 text-gold" />
+          <Brain className="w-4 h-4 text-fg-tertiary" />
           <span className="text-[13px] font-semibold text-fg">
             Context &amp; Evidence
           </span>
@@ -82,10 +82,10 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
       {/* UI-2: the epistemics line — memory vs evidence is the
           distinction that keeps this panel honest. */}
       <div className="px-4 pt-3 pb-1">
-        <p className="text-[10px] text-fg-tertiary leading-relaxed">
+        <p className="text-[11px] text-fg-tertiary leading-relaxed">
           Memory is what Nick believes · evidence is why to trust this answer.
         </p>
-        <p className="text-[10px] font-mono text-fg-tertiary mt-0.5">{freshness}</p>
+        <p className="text-[11px] font-mono text-fg-tertiary mt-0.5">{freshness}</p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
@@ -95,7 +95,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
         <div>
           <div className="flex items-center space-x-1 text-sky-400 mb-3">
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span className="text-[10px] font-bold uppercase tracking-wider">
+            <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em]">
               This reply — quality verdicts
             </span>
           </div>
@@ -108,7 +108,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
             <div className="space-y-2 text-[11px]">
               {reply.gate && (
                 <div className="bg-surface/50 border border-edge-subtle p-2.5 rounded-lg">
-                  <div className="flex justify-between text-[9px] font-mono text-fg-tertiary mb-0.5">
+                  <div className="flex justify-between text-[11px] font-mono text-fg-tertiary mb-0.5">
                     <span>reply gate</span>
                     <span className={reply.gate.shouldRegen ? "text-amber-400" : "text-emerald-400"}>
                       {reply.gate.shouldRegen ? "FLAGGED FOR REGEN" : "passed"} · sev {reply.gate.severity ?? 0}
@@ -121,7 +121,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
               )}
               {reply.critic && (
                 <div className="bg-surface/50 border border-edge-subtle p-2.5 rounded-lg">
-                  <div className="flex justify-between text-[9px] font-mono text-fg-tertiary mb-0.5">
+                  <div className="flex justify-between text-[11px] font-mono text-fg-tertiary mb-0.5">
                     <span>output critic</span>
                     <span className={reply.critic.shouldRegen ? "text-amber-400" : "text-emerald-400"}>
                       {reply.critic.overall ?? "—"}/100{reply.critic.shouldRegen ? " · would regen" : ""}
@@ -140,7 +140,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
                       : "bg-surface/50 border-edge-subtle"
                   }`}
                 >
-                  <div className="flex justify-between text-[9px] font-mono text-fg-tertiary mb-0.5">
+                  <div className="flex justify-between text-[11px] font-mono text-fg-tertiary mb-0.5">
                     <span>action receipts</span>
                     <span className={reply.receipt.ok === false ? "text-rose-400" : "text-emerald-400"}>
                       {reply.receipt.ok === false
@@ -159,7 +159,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
               )}
               {reply.truth && (reply.truth.total ?? 0) > 0 && (
                 <div className="bg-amber-950/10 border border-amber-900/30 p-2.5 rounded-lg">
-                  <div className="text-[9px] font-mono text-amber-400 mb-0.5">
+                  <div className="text-[11px] font-mono text-amber-400 mb-0.5">
                     known-truth flags ({reply.truth.total})
                   </div>
                   <p className="text-fg-secondary">
@@ -172,7 +172,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
               )}
               {reply.factCheck && (
                 <div className="bg-surface/50 border border-edge-subtle p-2.5 rounded-lg">
-                  <div className="flex justify-between text-[9px] font-mono text-fg-tertiary">
+                  <div className="flex justify-between text-[11px] font-mono text-fg-tertiary">
                     <span>fact check</span>
                     <span className={(reply.factCheck.unverified ?? 0) > 0 ? "text-amber-400" : "text-emerald-400"}>
                       {reply.factCheck.unverified ?? 0}/{reply.factCheck.total ?? 0} unverified
@@ -191,9 +191,9 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
 
         {/* Memory Hits Section */}
         <div>
-          <div className="flex items-center space-x-1 text-gold mb-3">
+          <div className="flex items-center space-x-1 text-fg-tertiary mb-3">
             <Sparkles className="w-3.5 h-3.5" />
-            <span className="text-[10px] font-bold uppercase tracking-wider">
+            <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em]">
               Remembered — what Nick believes ({hits.length})
             </span>
           </div>
@@ -216,7 +216,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
               <p className="text-[11px] text-amber-300/90">
                 Degraded retrieval &mdash; these hits are real, but ranking is weaker than usual.
                 {recallProvenanceReason ? (
-                  <span className="block text-[10px] text-fg-tertiary mt-0.5">
+                  <span className="block text-[11px] text-fg-tertiary mt-0.5">
                     {recallProvenanceReason}
                   </span>
                 ) : null}
@@ -232,7 +232,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
                 <p className="text-[11px] text-amber-300/90">
                   Memory read failed &mdash; state unknown, not empty.
                   {recallProvenanceReason ? (
-                    <span className="block text-[10px] text-fg-tertiary mt-0.5">
+                    <span className="block text-[11px] text-fg-tertiary mt-0.5">
                       {recallProvenanceReason}
                     </span>
                   ) : null}
@@ -242,7 +242,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
               <p className="text-[11px] text-fg-tertiary italic">
                 Memory was not queried this turn.
                 {recallProvenanceReason ? (
-                  <span className="block text-[10px] text-fg-tertiary mt-0.5">
+                  <span className="block text-[11px] text-fg-tertiary mt-0.5">
                     {recallProvenanceReason}
                   </span>
                 ) : null}
@@ -262,7 +262,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
             <div className="space-y-3">
               {hits.map((hit) => (
                 <div key={hit.id} className="bg-surface/50 border border-edge-subtle p-3 rounded-lg">
-                  <div className="flex justify-between text-[9px] font-mono text-fg-tertiary mb-1">
+                  <div className="flex justify-between text-[11px] font-mono text-fg-tertiary mb-1">
                     <span>{hit.category}</span>
                     <span>{(hit.similarity * 100).toFixed(0)}% Match</span>
                   </div>
@@ -277,7 +277,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
         <div>
           <div className="flex items-center space-x-1 text-rose-400 mb-3">
             <AlertTriangle className="w-3.5 h-3.5" />
-            <span className="text-[10px] font-bold uppercase tracking-wider">
+            <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em]">
               Evidence check — contradictions ({contradictions.length})
             </span>
           </div>
@@ -287,16 +287,16 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
             <div className="space-y-3">
               {contradictions.map((c) => (
                 <div key={c.id} className="bg-rose-950/10 border border-rose-900/20 p-3 rounded-lg">
-                  <span className="text-[8px] font-bold uppercase tracking-wider text-rose-400 px-1.5 py-0.5 bg-rose-900/20 rounded">
+                  <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-rose-400 px-1.5 py-0.5 bg-rose-900/20 rounded">
                     {c.severity} Severity
                   </span>
                   <div className="mt-2 space-y-1.5 text-[11px]">
                     <div>
-                      <span className="text-fg-tertiary font-mono text-[9px]">Stated Claim:</span>
-                      <p className="text-fg-secondary font-serif italic">&ldquo;{c.claim}&rdquo;</p>
+                      <span className="text-fg-tertiary font-mono text-[11px]">Stated Claim:</span>
+                      <p className="text-fg-secondary italic">&ldquo;{c.claim}&rdquo;</p>
                     </div>
                     <div>
-                      <span className="text-fg-tertiary font-mono text-[9px]">Actual Reality:</span>
+                      <span className="text-fg-tertiary font-mono text-[11px]">Actual Reality:</span>
                       <p className="text-fg-secondary font-sans font-semibold">&ldquo;{c.reality}&rdquo;</p>
                     </div>
                   </div>

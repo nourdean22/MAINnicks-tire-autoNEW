@@ -23,7 +23,7 @@ export function DeckReadinessLine({ readiness }: { readiness: MissionsDeck["read
   return (
     <p
       role={readiness.state === "exception" ? "status" : undefined}
-      className={`border-l-2 py-1 pl-4 font-mono text-[12px] uppercase tracking-[0.14em] ${tone}`}
+      className={`border-l-2 py-1 pl-4 font-mono text-[12px] uppercase tracking-[0.12em] ${tone}`}
     >
       {readiness.line}
     </p>

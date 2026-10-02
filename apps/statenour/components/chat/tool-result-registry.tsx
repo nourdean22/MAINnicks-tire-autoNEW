@@ -709,18 +709,18 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
                 ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
                 : sev === "medium"
                 ? "bg-blue-500/20 text-blue-300 border-blue-500/40"
-                : "bg-zinc-500/20 text-zinc-300 border-zinc-500/40";
+                : "bg-surface-interactive text-fg-secondary border-edge-strong";
             return (
               <div key={i} className="flex items-start gap-2">
                 <span
                   className={cn(
-                    "text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shrink-0",
+                    "font-mono text-[11px] font-medium uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-micro border shrink-0",
                     sevColor
                   )}
                 >
                   {sev}
                 </span>
-                <p className="text-[10px] text-[var(--text-secondary)] leading-snug flex-1 min-w-0">
+                <p className="text-[12px] text-[var(--text-secondary)] leading-snug flex-1 min-w-0">
                   <span className="text-[var(--text-primary)] font-medium">
                     {s.title || s.category || "Blind spot"}
                   </span>
@@ -772,7 +772,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
             const isHot = b.label.includes("30");
             return (
               <div key={b.label} className="flex items-center gap-2">
-                <span className="text-[9px] font-mono text-[var(--text-tertiary)] w-10 shrink-0">
+                <span className="text-[11px] font-mono text-[var(--text-tertiary)] w-10 shrink-0">
                   {b.label}
                 </span>
                 <div className="flex-1 h-1.5 bg-[var(--bg-void)] rounded-full overflow-hidden">
@@ -784,7 +784,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <span className="text-[9px] font-mono text-[var(--text-secondary)] tabular-nums w-20 text-right shrink-0">
+                <span className="text-[11px] font-mono text-[var(--text-secondary)] tabular-nums w-20 text-right shrink-0">
                   ${b.totalValue.toLocaleString()} · {b.count}
                 </span>
               </div>
@@ -833,7 +833,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
             const pct = Math.min(100, ((c.lifetimeValue || 0) / maxLtv) * 100);
             return (
               <div key={i} className="flex items-center gap-2">
-                <span className="text-[10px] text-[var(--text-primary)] font-medium w-20 truncate shrink-0">
+                <span className="text-[12px] text-[var(--text-primary)] font-medium w-20 truncate shrink-0">
                   {c.name || "—"}
                 </span>
                 <div className="flex-1 h-1.5 bg-[var(--bg-void)] rounded-full overflow-hidden">
@@ -842,7 +842,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <span className="text-[9px] font-mono text-[var(--text-secondary)] tabular-nums w-24 text-right shrink-0">
+                <span className="text-[11px] font-mono text-[var(--text-secondary)] tabular-nums w-24 text-right shrink-0">
                   ${(c.lifetimeValue || 0).toLocaleString()}
                   {c.visitCount ? ` · ${c.visitCount}v` : ""}
                 </span>
@@ -1223,10 +1223,10 @@ export const COLORS: Record<
   { border: string; bg: string; icon: string; link: string }
 > = {
   gold: {
-    border: "border-l-[var(--gold)]",
-    bg: "bg-[var(--gold)]/5",
-    icon: "text-[var(--gold)]",
-    link: "text-[var(--gold)] hover:text-[var(--gold)]/80",
+    border: "border-l-edge-strong",
+    bg: "bg-surface-raised",
+    icon: "text-fg-tertiary",
+    link: "text-fg hover:text-fg-secondary",
   },
   emerald: {
     border: "border-l-emerald-500",

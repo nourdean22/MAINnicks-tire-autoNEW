@@ -115,9 +115,9 @@ export function EmailDraftCard({ draft: initial }: { draft: EmailDraft }) {
   };
 
   return (
-    <div className="my-3 rounded-xl border border-[var(--gold)]/20 bg-[var(--bg-raised)] overflow-hidden">
+    <div className="my-3 rounded-surface border border-edge-subtle bg-content overflow-hidden">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-[var(--border-default)] bg-[var(--bg-elevated)]">
-        <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--gold)]">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
           email draft
           {draft.tone && (
             <span className="ml-2 text-[var(--text-tertiary)] normal-case tracking-normal">
@@ -128,7 +128,7 @@ export function EmailDraftCard({ draft: initial }: { draft: EmailDraft }) {
         {state.kind === "idle" && (
           <button
             onClick={() => setEditing((v) => !v)}
-            className="flex min-h-11 items-center gap-1 px-2 text-[10px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] sm:min-h-8"
+            className="flex min-h-11 items-center gap-1 px-2 text-[12px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] sm:min-h-8"
           >
             {editing ? <X size={11} /> : <Pencil size={11} />}
             {editing ? "Done" : "Edit"}
@@ -162,14 +162,14 @@ export function EmailDraftCard({ draft: initial }: { draft: EmailDraft }) {
           onClick={onSendTap}
           disabled={state.kind === "sending" || state.kind === "sent"}
           className={cn(
-            "inline-flex min-h-[44px] items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all",
+            "inline-flex min-h-[44px] items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-control transition-colors duration-[var(--motion-state)]",
             state.kind === "sent"
               ? "bg-emerald-500/15 text-emerald-300 cursor-default"
               : state.kind === "sending"
-                ? "bg-[var(--gold)]/40 text-[var(--text-inverse)] cursor-wait"
+                ? "bg-surface-interactive text-fg-tertiary cursor-wait"
                 : armed
                   ? "bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/50"
-                  : "bg-[var(--gold)] text-[var(--text-inverse)] hover:bg-[var(--gold-dim)]",
+                  : "border border-edge-default bg-content text-fg hover:border-edge-strong",
           )}
         >
           {state.kind === "sending" ? (
@@ -195,34 +195,34 @@ export function EmailDraftCard({ draft: initial }: { draft: EmailDraft }) {
 function StateLabel({ state, apiResult }: { state: SendState; apiResult?: any }) {
   if (state.kind === "error") {
     return (
-      <span className="text-[10px] text-rose-300 font-mono truncate max-w-[60%]">
+      <span className="text-[11px] text-rose-300 font-mono truncate max-w-[60%]">
         ⚠ {state.message}
       </span>
     );
   }
   if (state.kind === "sent") {
     return (
-      <span className="text-[10px] text-emerald-300 font-mono">
+      <span className="text-[11px] text-emerald-300 font-mono">
         ✓ delivered{state.id ? ` · ${state.id.slice(0, 12)}` : ""}
       </span>
     );
   }
   if (apiResult && !apiResult.error && apiResult.draftId) {
     return (
-      <span className="text-[10px] text-cyan-300 font-mono">
+      <span className="text-[11px] text-cyan-300 font-mono">
         ✓ saved in Gmail drafts (ID: {apiResult.draftId.slice(0, 8)})
       </span>
     );
   }
   if (apiResult?.error) {
     return (
-      <span className="text-[10px] text-amber-300 font-mono truncate max-w-[60%]">
+      <span className="text-[11px] text-amber-300 font-mono truncate max-w-[60%]">
         ⚠ Gmail draft failed: {apiResult.error}
       </span>
     );
   }
   return (
-    <span className="text-[10px] text-[var(--text-tertiary)] font-mono">
+    <span className="text-[11px] text-[var(--text-tertiary)] font-mono">
       preview · review before sending
     </span>
   );
@@ -241,14 +241,14 @@ function Field({
 }) {
   return (
     <div className="flex items-baseline gap-2">
-      <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] w-12 shrink-0">
+      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)] w-12 shrink-0">
         {label}
       </span>
       {editable ? (
         <input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-1 bg-[var(--bg-void)] border border-[var(--border-default)] rounded px-2 py-1 text-[12px] text-[var(--text-primary)] focus:border-[var(--gold)]/40 outline-none"
+          className="flex-1 bg-[var(--bg-void)] border border-[var(--border-default)] rounded px-2 py-1 text-[12px] text-[var(--text-primary)] focus:border-accent outline-none"
         />
       ) : (
         <span className="flex-1 text-[12px] text-[var(--text-primary)] truncate">{value}</span>
@@ -268,7 +268,7 @@ function BodyField({
 }) {
   return (
     <div className="pt-1">
-      <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] block mb-1">
+      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)] block mb-1">
         Body
       </span>
       {editable ? (
@@ -276,7 +276,7 @@ function BodyField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           rows={Math.min(12, Math.max(4, value.split("\n").length + 1))}
-          className="w-full bg-[var(--bg-void)] border border-[var(--border-default)] rounded px-2 py-1.5 text-[12px] text-[var(--text-primary)] focus:border-[var(--gold)]/40 outline-none font-sans leading-relaxed resize-y"
+          className="w-full bg-[var(--bg-void)] border border-[var(--border-default)] rounded px-2 py-1.5 text-[12px] text-[var(--text-primary)] focus:border-accent outline-none font-sans leading-relaxed resize-y"
         />
       ) : (
         <pre className="text-[12px] text-[var(--text-secondary)] font-sans leading-relaxed whitespace-pre-wrap break-words">

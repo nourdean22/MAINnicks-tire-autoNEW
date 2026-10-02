@@ -18,7 +18,7 @@
  *       without a label.
  *
  *   No purple gradients · no Inter font · the section heading is the
- *   gold mono uppercase label that the rest of Ultron uses for zone
+ *   mono eyebrow label that the rest of Ultron uses for zone
  *   delineation (matches LensFireTicker + TodayPulseStrip rhythm).
  *
  *   Touch targets ≥ 44px — each GlassCard already lands ≥ 112px tall
@@ -45,7 +45,7 @@ export function ObservabilityRow() {
       aria-label="System observability — cost, voice latency, eval pass rate, OS drift"
       className="space-y-2"
     >
-      {/* Zone label — matches the gold mono uppercase rhythm used by
+      {/* Zone label — matches the mono eyebrow rhythm used by
           the other Ultron section delimiters. Stays subtle so the
           tiles carry the visual weight. */}
       <h2 className="vt-eyebrow border-b border-edge pb-3 text-fg-secondary">observability</h2>

@@ -14,9 +14,14 @@
  *     feed sheet is open.
  *   · a VISIBLE snooze (24h, not a permanent mute) — same shared dismissal hook
  *     as the top ticker, so a recurring personal signal returns tomorrow.
- * Ambient scale preserved (10px, ~h-5 desktop · 32px mobile tap zone): this is
+ * Ambient scale preserved (~h-5 desktop · 32px mobile tap zone): this is
  * the quiet personal strip, not the prominent top one — and keeping the height
  * means the layout's bottom reservation (chat safe-area + `pb`) is unchanged.
+ * 2026-10-02 · UI v2 (docs/design/ui-v2/SYSTEM.md): control chrome, so the
+ * strip is `.ui-material`; text is mono 12px sentence-case on tokens; the one
+ * gold mark is the notch on the sheet's active row; the one pulse is the amber
+ * `pulse-live` dot that renders only while a feed is refetching or a
+ * commitment resolve is in flight.
  *
  * Data source: trpc.operator.personalPulse (cached 90s, polled every 5 min).
  * a11y: role="region" + aria-label="System pulse" + aria-live="off" so screen
@@ -49,18 +54,20 @@ interface PulseItem {
   commitmentId?: number;
 }
 
+// Status hues (amber / emerald) are the sanctioned tiers; everything else is
+// neutral — gold is a selection signal, not a tone.
 const TONE_COLORS: Record<PulseItem["tone"], string> = {
-  info: "text-[var(--text-secondary)]",
+  info: "text-fg-secondary",
   warn: "text-amber-400",
   win:  "text-emerald-400",
-  mute: "text-[var(--text-tertiary)]",
+  mute: "text-fg-tertiary",
 };
 
 const LABEL_COLORS: Record<PulseItem["tone"], string> = {
-  info: "text-[var(--gold)]/80",
+  info: "text-fg-tertiary",
   warn: "text-amber-400",
   win:  "text-emerald-400",
-  mute: "text-[var(--text-tertiary)]",
+  mute: "text-fg-tertiary",
 };
 
 // Important-first: warn > win > info > mute. Highest-signal personal item leads.
@@ -72,11 +79,11 @@ const TONE_RANK: Record<PulseItem["tone"], number> = { warn: 0, win: 1, info: 2,
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
 
 export function BottomPulseTicker() {
-  const { data, refetch: refetchPulse } = trpc.operator.personalPulse.useQuery(undefined, {
+  const { data, refetch: refetchPulse, isFetching: pulseFetching } = trpc.operator.personalPulse.useQuery(undefined, {
     refetchInterval: 300_000,
     retry: false,
   });
-  const { data: topData } = trpc.operator.ticker.useQuery(undefined, {
+  const { data: topData, isFetching: tickerFetching } = trpc.operator.ticker.useQuery(undefined, {
     refetchInterval: 300_000,
     retry: false,
   });
@@ -177,6 +184,9 @@ export function BottomPulseTicker() {
 
   const safeIdx = idx % items.length;
   const current = items[safeIdx];
+  // The strip's ONE live indicator: amber + `pulse-live` only while something
+  // is actually updating (SYSTEM.md §9 — "working" is the only pulsing state).
+  const live = Boolean(pulseFetching || tickerFetching || resolveCommitment.isPending);
 
   // Section 5.8 (2026-09-08): this strip is bottom-chrome geometry (--bottom-chrome-h, the FAB
   // lane); its 32px controls are exempt from the 44px target audit until the chrome is resized
@@ -187,7 +197,7 @@ export function BottomPulseTicker() {
       aria-label="System pulse"
       aria-live="off"
       data-target-audit="exempt"
-      className="relative min-h-[32px] sm:h-5 border-t border-[var(--border-default)] bg-[var(--bg-void)]/60"
+      className="ui-material relative min-h-[32px] sm:h-5 border-t border-edge-subtle"
     >
       {/* gap-3: the snooze button uses the pulled-margin pattern (p-3 -m-3),
           so its hit box extends 12px past its footprint — at gap-2 it
@@ -197,10 +207,16 @@ export function BottomPulseTicker() {
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="flex-1 min-w-0 flex items-center h-full py-1 text-left outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40 rounded"
+          className="flex-1 min-w-0 flex items-center gap-2 h-full py-1 text-left rounded-control"
           aria-label={open ? "Close pulse feed" : "Open pulse feed"}
           aria-expanded={open}
         >
+          {live && (
+            <span
+              className="pulse-live h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400"
+              aria-hidden
+            />
+          )}
           {/* `flex` is load-bearing. PulseContent's root is an INLINE-flex
               box; in a non-flex span it sizes to its content, overflows, and
               -- since nothing clips here -- paints straight over the n/total
@@ -225,7 +241,7 @@ export function BottomPulseTicker() {
                aria-pressed announces "Resume rotation, pressed" when frozen,
                which states the opposite of the truth. */
             aria-label="Pause rotation"
-            className="shrink-0 inline-flex min-h-11 min-w-11 items-center justify-center rounded px-1 text-[9px] tabular-nums text-[var(--text-tertiary)] outline-none hover:text-[var(--text-secondary)] focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40 sm:min-h-8 sm:min-w-8"
+            className="shrink-0 inline-flex min-h-11 min-w-11 items-center justify-center rounded-control px-1 font-mono text-[11px] tabular-nums text-fg-tertiary hover:text-fg-secondary sm:min-h-8 sm:min-w-8"
           >
             {paused ? "⏸ " : ""}
             {safeIdx + 1}/{items.length}
@@ -275,15 +291,15 @@ export function BottomPulseTicker() {
   );
 }
 
-/** One pulse item's content — ambient scale (10px). Single-line in the strip,
- *  wrapping in the sheet (row). */
+/** One pulse item's content — mono 12px metadata scale. Single-line in the
+ *  strip, wrapping in the sheet (row). */
 function PulseContent({ item, row = false }: { item: PulseItem; row?: boolean }) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 min-w-0 text-[10px] font-mono", !row && "truncate")}>
+    <span className={cn("inline-flex items-center gap-1.5 min-w-0 font-mono text-[12px]", !row && "truncate")}>
       <span className="shrink-0 opacity-90" aria-hidden>{item.glyph}</span>
       <span
         className={cn(
-          "shrink-0 font-[var(--font-display)] font-bold uppercase tracking-[0.2em] text-[9px]",
+          "shrink-0 text-[11px] font-medium",
           LABEL_COLORS[item.tone],
         )}
       >
@@ -354,18 +370,18 @@ export function PulseFeedSheet({
           if (!open) setMounted(false);
         }}
         className={cn(
-          "absolute left-0 right-0 bottom-full z-50 max-h-[60vh] overflow-y-auto border-t border-[var(--border-default)] bg-[var(--bg-void)]/95 backdrop-blur-sm shadow-xl",
+          "absolute left-0 right-0 bottom-full z-50 max-h-[60vh] overflow-y-auto border-t border-edge-default bg-overlay",
           open ? PULSE_FEED_SHEET_ANIMATION.enter : PULSE_FEED_SHEET_ANIMATION.exit,
         )}
       >
-        <div className="sticky top-0 flex items-center justify-between px-3 py-2 border-b border-[var(--border-default)]/50 bg-[var(--bg-void)]/95">
-          <span className="text-[10px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
+        <div className="sticky top-0 flex items-center justify-between px-3 py-2 border-b border-edge-subtle bg-overlay">
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             Pulse · {items.length}
           </span>
           <button
             type="button"
             onClick={onClose}
-            className="text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] px-2 min-h-[36px]"
+            className="min-h-11 rounded-control px-2 font-mono text-[12px] text-fg-tertiary hover:text-fg sm:min-h-9"
           >
             Close
           </button>
@@ -375,14 +391,18 @@ export function PulseFeedSheet({
             <li
               key={it.id}
               className={cn(
-                "flex items-center gap-2 px-3 min-h-[44px] border-b border-[var(--border-default)]/25",
-                i === activeIdx && "bg-white/[0.03]",
+                "relative flex items-center gap-2 px-3 min-h-[44px] border-b border-edge-subtle",
+                i === activeIdx && "bg-surface-interactive",
               )}
             >
+              {/* The sheet's one gold mark: the notch on the row the strip is showing. */}
+              {i === activeIdx && (
+                <span className="notch absolute left-0 top-1/2 -translate-y-1/2" aria-hidden />
+              )}
               {it.href ? (
                 <a
                   href={it.href}
-                  className="flex-1 min-w-0 py-2 hover:brightness-150 transition-all"
+                  className="flex-1 min-w-0 py-2 rounded-control hover:bg-surface-hover transition-colors duration-[var(--motion-state)]"
                   aria-label={`${it.label}: ${it.text}`}
                   onClick={onClose}
                 >
@@ -446,7 +466,7 @@ function CommitmentResolveButtons({
           onResolve(commitmentId, "done");
         }}
         aria-label="Mark this promise done"
-        className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded px-2 text-[9px] font-mono uppercase tracking-wider text-emerald-400/80 hover:text-emerald-300 disabled:opacity-40 focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-control px-2 font-mono text-[11px] text-emerald-400/80 hover:text-emerald-300 disabled:opacity-40 sm:min-h-9 sm:min-w-9"
       >
         Done
       </button>
@@ -458,7 +478,7 @@ function CommitmentResolveButtons({
           onResolve(commitmentId, "drop");
         }}
         aria-label="Drop this promise — no longer doing it"
-        className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded px-2 text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-rose-400 disabled:opacity-40 focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-control px-2 font-mono text-[11px] text-fg-tertiary hover:text-rose-400 disabled:opacity-40 sm:min-h-9 sm:min-w-9"
       >
         Drop
       </button>

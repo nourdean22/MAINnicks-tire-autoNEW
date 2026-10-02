@@ -95,21 +95,21 @@ interface FeedResponse {
 }
 
 const CATEGORY_META: Record<Category, { label: string; tint: string; glow: string }> = {
-  compose: { label: "compose",   tint: "text-violet-300",  glow: "shadow-[0_0_12px_rgba(139,92,246,0.35)]" },
-  ingest:  { label: "ingest",    tint: "text-sky-300",     glow: "shadow-[0_0_12px_rgba(56,189,248,0.3)]" },
-  brain:   { label: "brain",     tint: "text-fuchsia-300", glow: "shadow-[0_0_12px_rgba(232,121,249,0.3)]" },
-  signals: { label: "signals",   tint: "text-amber-300",   glow: "shadow-[0_0_12px_rgba(251,191,36,0.3)]" },
-  hygiene: { label: "hygiene",   tint: "text-emerald-300", glow: "shadow-[0_0_12px_rgba(52,211,153,0.25)]" },
-  review:  { label: "review",    tint: "text-yellow-200",  glow: "shadow-[0_0_12px_rgba(250,204,21,0.25)]" },
-  device:  { label: "device",    tint: "text-cyan-300",    glow: "shadow-[0_0_12px_rgba(103,232,249,0.3)]" },
-  alert:   { label: "alert",     tint: "text-rose-300",    glow: "shadow-[0_0_12px_rgba(251,113,133,0.3)]" },
-  action:  { label: "action",    tint: "text-lime-300",    glow: "shadow-[0_0_12px_rgba(163,230,53,0.3)]" },
+  compose: { label: "compose",   tint: "text-violet-300",  glow: "" },
+  ingest:  { label: "ingest",    tint: "text-sky-300",     glow: "" },
+  brain:   { label: "brain",     tint: "text-fuchsia-300", glow: "" },
+  signals: { label: "signals",   tint: "text-amber-300",   glow: "" },
+  hygiene: { label: "hygiene",   tint: "text-emerald-300", glow: "" },
+  review:  { label: "review",    tint: "text-yellow-200",  glow: "" },
+  device:  { label: "device",    tint: "text-cyan-300",    glow: "" },
+  alert:   { label: "alert",     tint: "text-rose-300",    glow: "" },
+  action:  { label: "action",    tint: "text-lime-300",    glow: "" },
 };
 
 // Crash-proof fallback for any category value the manifest grows that
 // isn't yet mapped above — keeps the page rendering instead of throwing
 // "Cannot read properties of undefined (reading 'tint')".
-const FALLBACK_META = { label: "other", tint: "text-zinc-300", glow: "" };
+const FALLBACK_META = { label: "other", tint: "text-fg", glow: "" };
 
 function nextRunIn(iso: string | null, now: number): string {
   if (!iso) return "—";
@@ -141,7 +141,7 @@ function describeSchedule(expr: string | null): string {
 
 function Sparkline({ values, status }: { values: number[]; status: "success" | "partial" | "failed" | null }) {
   if (values.length === 0) {
-    return <div className="h-6 w-20 rounded bg-zinc-800/50" aria-label="no data" />;
+    return <div className="h-6 w-20 rounded bg-content" aria-label="no data" />;
   }
   const max = Math.max(...values, 100);
   const bars = values.slice(-20);
@@ -156,7 +156,7 @@ function Sparkline({ values, status }: { values: number[]; status: "success" | "
             : status === "partial"
               ? "bg-amber-400"
               : "bg-emerald-400"
-          : "bg-zinc-600";
+          : "bg-surface-interactive";
         return <span key={i} className={`w-[2px] rounded-sm ${color}`} style={{ height: `${h}px` }} />;
       })}
     </div>
@@ -165,24 +165,24 @@ function Sparkline({ values, status }: { values: number[]; status: "success" | "
 
 function StatusDot({ row }: { row: CronRow }) {
   if (row.mode === "retired") {
-    return <span className="inline-block h-2 w-2 rounded-full bg-zinc-500" />;
+    return <span className="inline-block h-2 w-2 rounded-full bg-fg-tertiary" />;
   }
   if (row.mode === "folded") {
     return <span className="inline-block h-2 w-2 rounded-full bg-indigo-400/50" />;
   }
   if (!row.enabled) {
-    return <span className="inline-block h-2 w-2 rounded-full bg-zinc-400" />;
+    return <span className="inline-block h-2 w-2 rounded-full bg-fg-tertiary" />;
   }
   if (row.lastStatus === "failed") {
-    return <span className="inline-block h-2 w-2 rounded-full bg-rose-400 animate-pulse" />;
+    return <span className="inline-block h-2 w-2 rounded-full bg-rose-400" />;
   }
   // A fan-out where SOME children failed. Distinct from a dead cron: it ran,
   // it did work, and re-running the whole slate is not the remedy.
   if (row.lastStatus === "partial") {
-    return <span className="inline-block h-2 w-2 rounded-full bg-amber-400 animate-pulse" />;
+    return <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />;
   }
   if (row.drift !== null && row.drift > 0) {
-    return <span className="inline-block h-2 w-2 rounded-full bg-amber-400 animate-pulse" />;
+    return <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />;
   }
   return <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />;
 }
@@ -356,7 +356,7 @@ export default function CronsPage() {
           <button
             onClick={load}
             disabled={loading}
-            className="rounded-lg border border-[var(--border-hover)] bg-[var(--bg-raised)]/5 px-4 py-2 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-[var(--bg-raised)]/10 disabled:opacity-50"
+            className="rounded-control border border-edge-strong bg-content px-4 py-2 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
           >
             {loading ? "refreshing…" : "refresh"}
           </button>
@@ -368,15 +368,15 @@ export default function CronsPage() {
 
       {/* Summary strip */}
       {summary && (
-        <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
+        <Panel className="border-edge-default">
           <div className="grid grid-cols-3 gap-3 text-center md:grid-cols-7">
             <SummaryCell label="active"      value={summary.active}      tint="text-emerald-400" />
-            <SummaryCell label="killed"      value={summary.disabled}    tint={summary.disabled > 0 ? "text-amber-400" : "text-zinc-500"} />
+            <SummaryCell label="killed"      value={summary.disabled}    tint={summary.disabled > 0 ? "text-amber-400" : "text-fg-tertiary"} />
             <SummaryCell label="folded"      value={summary.folded}      tint="text-indigo-300" />
-            <SummaryCell label="retired"     value={summary.retired}     tint="text-zinc-500" />
+            <SummaryCell label="retired"     value={summary.retired}     tint="text-fg-tertiary" />
             <SummaryCell label="runs/24h"    value={summary.runs24h}     tint="text-sky-300" />
-            <SummaryCell label="failures/24h" value={summary.failures24h} tint={summary.failures24h > 0 ? "text-rose-400 animate-pulse" : "text-zinc-500"} />
-            <SummaryCell label="drifted"     value={summary.drifted}     tint={summary.drifted > 0 ? "text-amber-400 animate-pulse" : "text-zinc-500"} />
+            <SummaryCell label="failures/24h" value={summary.failures24h} tint={summary.failures24h > 0 ? "text-rose-400" : "text-fg-tertiary"} />
+            <SummaryCell label="drifted"     value={summary.drifted}     tint={summary.drifted > 0 ? "text-amber-400" : "text-fg-tertiary"} />
           </div>
         </Panel>
       )}
@@ -392,10 +392,10 @@ export default function CronsPage() {
           aria-pressed={categoryFilter === "all"}
           aria-label="show all categories"
           className={cn(
-            "rounded-full px-3 py-1 text-xs transition focus-visible:ring-1 focus-visible:ring-[var(--gold)] focus-visible:outline-none",
+            "rounded-full px-3 py-1 text-xs transition focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
             categoryFilter === "all"
-              ? "bg-white/10 text-white"
-              : "bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800/60",
+              ? "bg-surface-interactive text-fg"
+              : "bg-content text-fg-secondary hover:bg-surface-hover",
           )}
         >
           all
@@ -407,16 +407,16 @@ export default function CronsPage() {
             aria-pressed={categoryFilter === c}
             aria-label={`filter to ${CATEGORY_META[c].label}`}
             className={cn(
-              "rounded-full px-3 py-1 text-xs transition focus-visible:ring-1 focus-visible:ring-[var(--gold)] focus-visible:outline-none",
+              "rounded-full px-3 py-1 text-xs transition focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
               categoryFilter === c
-                ? cn("bg-white/10", CATEGORY_META[c].tint)
-                : cn("bg-zinc-900/60 hover:bg-zinc-800/60", "text-zinc-400"),
+                ? cn("bg-surface-interactive", CATEGORY_META[c].tint)
+                : cn("bg-content hover:bg-surface-hover", "text-fg-secondary"),
             )}
           >
             {CATEGORY_META[c].label}
           </button>
         ))}
-        <div className="ml-auto flex items-center gap-2 text-xs text-zinc-400">
+        <div className="ml-auto flex items-center gap-2 text-xs text-fg-secondary">
           <input
             id="show-folded"
             type="checkbox"
@@ -449,8 +449,8 @@ export default function CronsPage() {
           const groupMeta = CATEGORY_META[category] ?? FALLBACK_META;
           return (
           <section key={category} className="space-y-2">
-            <h2 className={cn("text-xs font-semibold uppercase tracking-wider", groupMeta.tint)}>
-              {groupMeta.label} · <span className="text-zinc-500 font-normal normal-case">{list.length}</span>
+              <h2 className={cn("font-mono text-[11px] uppercase tracking-[0.12em]", groupMeta.tint)}>
+              {groupMeta.label} · <span className="text-fg-tertiary font-normal normal-case">{list.length}</span>
             </h2>
             <div className="space-y-1.5" data-selection-scope={`crons-${category}`}>
               {list.map((row) => (
@@ -470,7 +470,7 @@ export default function CronsPage() {
       </div>
 
       {feed && (
-        <p className="pt-2 text-center text-[10px] text-zinc-600">
+        <p className="pt-2 text-center text-[11px] text-fg-tertiary">
           generated {timeAgo(feed.generatedAt)} · auto-refresh 30s · {CRONS_LABEL}
         </p>
       )}
@@ -482,11 +482,11 @@ const CRONS_LABEL = "source: config/crons.ts · state: BrainMemory(cron_control)
 
 function SummaryCell({ label, value, tint }: { label: string; value: number; tint: string }) {
   return (
-    <div className="rounded-lg bg-[var(--bg-raised)]/[0.03] p-3">
+    <div className="rounded-surface bg-content/[0.03] p-3">
       <div className={cn("text-2xl font-bold tabular-nums", tint)}>
         <AnimatedCounter value={value} />
       </div>
-      <div className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</div>
+      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{label}</div>
     </div>
   );
 }
@@ -514,8 +514,8 @@ function CronRowView({
       data-entity={`cron:${row.name}`}
       data-entity-label={row.name}
       className={cn(
-        "group grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] items-center gap-3 rounded-lg border border-zinc-800/50 bg-[var(--bg-raised)]/[0.02] px-3 py-2.5 transition hover:border-zinc-700/60",
-        "data-[entity-focused=true]:border-[var(--gold)]/50 data-[entity-selected=true]:bg-[var(--gold)]/[0.06]",
+        "group grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] items-center gap-3 rounded-surface border border-edge-subtle px-3 py-2.5 transition hover:border-edge-default",
+        "data-[entity-focused=true]:border-edge-subtle data-[entity-selected=true]:bg-accent-soft",
         row.mode === "retired" && "opacity-40",
         !row.enabled && row.mode === "active" && "border-amber-500/20 bg-amber-500/[0.02]",
         isRunning && "chat-tool-shimmer",
@@ -524,40 +524,40 @@ function CronRowView({
       <StatusDot row={row} />
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className={cn("truncate font-mono text-sm", row.enabled ? "text-zinc-100" : "text-zinc-500 line-through")}>
+          <span className={cn("truncate font-mono text-sm", row.enabled ? "text-fg" : "text-fg-tertiary line-through")}>
             {row.name}
           </span>
           <button
             type="button"
             onClick={() => openInspector({ kind: "cron", id: row.name })}
             aria-label="inspect cron"
-            className="inline-flex min-h-[44px] min-w-[44px] flex-shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors hover:text-[var(--gold)] md:min-h-[28px] md:min-w-[28px]"
+            className="inline-flex min-h-[44px] min-w-[44px] flex-shrink-0 items-center justify-center rounded-control text-fg-tertiary transition-colors hover:text-fg md:min-h-[28px] md:min-w-[28px]"
           >
             <Eye size={12} strokeWidth={2} />
           </button>
-          <span className={cn("flex-shrink-0 rounded px-1.5 py-[1px] text-[9px] uppercase tracking-wider", meta.tint, "bg-white/[0.04]")}>
+          <span className={cn("flex-shrink-0 rounded px-1.5 py-[1px] text-[11px]", meta.tint, "bg-surface-interactive")}>
             {row.mode === "folded" ? `folded → ${row.foldedInto}` : row.mode === "retired" ? "retired" : meta.label}
           </span>
           {row.drift !== null && row.drift > 0 && (
-            <span className="flex-shrink-0 rounded bg-amber-500/10 px-1.5 py-[1px] text-[9px] uppercase tracking-wider text-amber-300">
+            <span className="flex-shrink-0 rounded bg-amber-500/10 px-1.5 py-[1px] text-[11px] text-amber-300">
               drifted {row.drift}m
             </span>
           )}
         </div>
-        <div className="truncate text-[11px] text-zinc-500">{row.description}</div>
+        <div className="truncate text-[11px] text-fg-tertiary">{row.description}</div>
       </div>
 
       <div className="hidden md:block text-right">
-        <div className="font-mono text-[10px] text-zinc-500">{describeSchedule(row.schedule)}</div>
+              <div className="font-mono text-[11px] text-fg-tertiary">{describeSchedule(row.schedule)}</div>
         {row.nextRunAt && row.enabled && (
-          <div className="font-mono text-[10px] tabular-nums text-zinc-400">
+          <div className="font-mono text-[11px] tabular-nums text-fg-secondary">
             next · <NextRunCountdown iso={row.nextRunAt} />
           </div>
         )}
       </div>
 
       <div className="hidden md:block text-right">
-        <div className="text-[10px] text-zinc-500">last</div>
+              <div className="text-[11px] text-fg-tertiary">last</div>
         <div
           className={cn(
             "font-mono text-[11px]",
@@ -565,10 +565,10 @@ function CronRowView({
               ? "text-rose-300"
               : row.lastStatus === "partial"
                 ? "text-amber-300"
-                : "text-zinc-300",
+                : "text-fg",
           )}
         >
-          {timeAgo(row.lastRunAt)} <span className="text-zinc-500">· {durationStr}</span>
+          {timeAgo(row.lastRunAt)} <span className="text-fg-tertiary">· {durationStr}</span>
         </div>
       </div>
 
@@ -581,7 +581,7 @@ function CronRowView({
         )}>
           {row.successRate}%
         </div>
-        <div className="text-[9px] uppercase text-zinc-500">14d</div>
+        <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">14d</div>
       </div>
 
       <div className="flex items-center gap-1.5">
@@ -591,7 +591,7 @@ function CronRowView({
             disabled={isToggling}
             aria-label={row.enabled ? `kill cron ${row.name}` : `re-enable cron ${row.name}`}
             className={cn(
-              "rounded px-2 py-1 text-[10px] transition focus-visible:ring-1 focus-visible:ring-[var(--gold)] focus-visible:outline-none",
+              "rounded px-2 py-1 text-[11px] transition focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
               row.enabled
                 ? "bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
                 : "bg-amber-500/10 text-amber-300 hover:bg-amber-500/20",
@@ -607,11 +607,11 @@ function CronRowView({
           disabled={!canTrigger || isRunning}
           aria-label={`run cron ${row.name} now`}
           className={cn(
-            "rounded px-2 py-1 text-[10px] transition focus-visible:ring-1 focus-visible:ring-[var(--gold)] focus-visible:outline-none",
+            "rounded px-2 py-1 text-[11px] transition focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
             canTrigger
-              ? "bg-white/[0.04] text-zinc-300 hover:bg-white/[0.08]"
-              : "cursor-not-allowed bg-zinc-900/40 text-zinc-600",
-            isRunning && "animate-pulse",
+              ? "bg-surface-interactive text-fg hover:bg-surface-hover"
+              : "cursor-not-allowed bg-content text-fg-tertiary",
+            isRunning && "pulse-live",
           )}
           title={canTrigger ? "trigger this cron now" : "not runnable"}
         >

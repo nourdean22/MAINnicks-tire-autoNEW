@@ -90,7 +90,7 @@ export function AntiPatternsPanel() {
     <section id="anti-patterns" className="scroll-mt-24 space-y-3" aria-label="anti-pattern library">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--gold)]/80">
+          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
             Learned failures
           </p>
           <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)]">Anti-patterns</h3>
@@ -99,7 +99,7 @@ export function AntiPatternsPanel() {
           </p>
         </div>
         {data ? (
-          <div className="flex gap-2 text-[10px] font-mono text-[var(--text-tertiary)]">
+          <div className="flex gap-2 text-[11px] font-mono text-[var(--text-tertiary)]">
             <span>{data.summary.total} total</span>
             <span>· {data.summary.bySeverity.critical} critical</span>
             <span>· {data.summary.bySeverity.warn} warn</span>
@@ -110,7 +110,7 @@ export function AntiPatternsPanel() {
       {query.isLoading ? (
         <div className="space-y-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="skeleton h-24 w-full rounded-lg" />
+            <div key={i} className="skeleton h-24 w-full rounded-surface" />
           ))}
         </div>
       ) : query.isError ? (
@@ -134,17 +134,17 @@ export function AntiPatternsPanel() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span
                       className={cn(
-                        "rounded border px-2 py-0.5 text-[9px] font-mono uppercase tracking-wider",
+                        "rounded border px-2 py-0.5 text-[11px] font-mono",
                         SEVERITY_TONE[item.severity],
                       )}
                     >
                       {item.severity}
                     </span>
-                    <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+                    <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
                       {item.domain}
                     </span>
                     {item.revisitCount > 0 ? (
-                      <span className="text-[9px] font-mono text-[var(--text-tertiary)]">
+                      <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
                         revisited {item.revisitCount}×
                       </span>
                     ) : null}
@@ -164,7 +164,7 @@ export function AntiPatternsPanel() {
                     type="button"
                     onClick={() => void markRevisited(item.key)}
                     disabled={revisit.isPending || remove.isPending}
-                    className="inline-flex min-h-[48px] items-center gap-1.5 rounded-lg border border-[var(--border-default)] px-3 text-[11px] text-[var(--text-secondary)] transition hover:border-[var(--gold)]/40 hover:text-[var(--gold)] disabled:opacity-50"
+                    className="inline-flex min-h-[48px] items-center gap-1.5 rounded-control border border-edge-default px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50"
                   >
                     <RotateCcw size={12} aria-hidden />
                     Revisit
@@ -173,7 +173,7 @@ export function AntiPatternsPanel() {
                     type="button"
                     onClick={() => void softRemove(item.key)}
                     disabled={revisit.isPending || remove.isPending}
-                    className="inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-lg border border-rose-500/20 text-rose-300/80 transition hover:bg-rose-500/10 disabled:opacity-50"
+                    className="inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-control border border-rose-500/20 text-rose-300/80 transition hover:bg-rose-500/10 disabled:opacity-50"
                     aria-label={`Remove anti-pattern ${item.key}`}
                     title="Soft-remove from active library"
                   >
@@ -188,7 +188,7 @@ export function AntiPatternsPanel() {
             <button
               type="button"
               onClick={() => setExpanded((value) => !value)}
-              className="min-h-[48px] w-full rounded-lg border border-[var(--border-default)] text-[11px] font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-hover)] hover:text-[var(--text-primary)]"
+              className="min-h-[48px] w-full rounded-control border border-[var(--border-default)] text-[11px] font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-hover)] hover:text-[var(--text-primary)]"
             >
               {expanded ? "Show fewer" : `Show all ${items.length}`}
             </button>
@@ -200,7 +200,7 @@ export function AntiPatternsPanel() {
         <button
           type="button"
           onClick={() => void query.refetch()}
-          className="inline-flex min-h-[48px] items-center gap-2 rounded-lg border border-[var(--border-default)] px-3 text-xs text-[var(--text-secondary)]"
+          className="inline-flex min-h-[48px] items-center gap-2 rounded-control border border-[var(--border-default)] px-3 text-xs text-[var(--text-secondary)]"
         >
           <AlertTriangle size={13} aria-hidden />
           Retry library read

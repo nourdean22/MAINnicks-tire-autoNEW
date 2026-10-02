@@ -1,5 +1,11 @@
 # Session ledger — statenour
 
+**Updated: 2026-10-02 ET** (UI v2 PR 2 · `statenour/ui-v2-surfaces` · every operator surface on the cockpit grammar)
+
+## 2026-10-02 · UI v2 PR 2 — every operator surface on the grammar
+
+285 files (+4,969 / −4,747) across 13 scoped parallel agents + orchestrator work; strict legacy census ~1,990 → 0 unsanctioned. Found: the ⌘K Resolver threw on open (no cmdk root; fixed + pinned by `tests/components/command-palette-cmdk-root.test.tsx`); ten dead custom properties painting elements transparent (fixed; grammar test now gates it with a positive control); a hostile review of the first push found an emptied class, two 3:1 chips, an invisible toggle track, gold on the palette input and five doc overclaims (all fixed). Receipts: tsc 0 · eslint 0 errors · vitest 393 files / 5,067 · anti-slop 0 · stale-docs 0 · parity OK · `next build` cleared-cache exit 0 (full route table, 111 s compile). One PR, one squash merge; deploy receipt on the PR. Lessons: an agent's "class-only" claim needs a reviewer; the bracket-syntax canary does not see dead vars; a label-casing sweep must skip bare JSX expressions (tsc caught three). Next: PR 3 deletes the v1 lane + `CommandDialog` wrappers; after-shots need a bigger box.
+
 **Updated: 2026-10-01 night ET** (UI v2 Precision Material Cockpit · #2871 MERGED `18bf9ebc` · Railway `754fae93` SUCCESS · LIVE + PROVEN on bdnick.info)
 
 ## 2026-10-01 · UI v2 cockpit — merged, deploy-verified

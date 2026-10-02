@@ -66,26 +66,26 @@ export function PWAInstallPrompt() {
   return (
     <div className={cn(
       "fixed bottom-[calc(64px+env(safe-area-inset-bottom))] md:bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-72 z-[90]",
-      "rounded-xl border border-[var(--gold)]/20 bg-[var(--bg-elevated)] shadow-2xl p-3",
+      "rounded-float border border-edge-default bg-surface-raised shadow-l1 p-3",
       "animate-fadeSlideUp"
     )}>
       <div className="flex items-start gap-3">
-        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--gold-ghost)] shrink-0">
-          <Download size={14} className="text-[var(--gold)]" />
+        <div className="flex items-center justify-center w-8 h-8 rounded-control bg-surface-interactive shrink-0">
+          <Download size={14} className="text-fg-tertiary" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-[var(--font-display)] font-bold text-[var(--text-primary)]">INSTALL NOUR OS</p>
-          <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5">Add to home screen for instant access</p>
+          <p className="text-[13px] font-semibold text-fg">Install NOUR OS</p>
+          <p className="text-[12px] text-[var(--text-tertiary)] mt-0.5">Add to home screen for instant access</p>
           <div className="flex items-center gap-2 mt-2">
             <button
               onClick={install}
-              className="px-3 py-1 min-h-[44px] min-w-[44px] rounded-lg bg-[var(--gold)] text-[var(--text-inverse)] text-[10px] font-bold uppercase tracking-wider hover:bg-[var(--gold-dim)] transition-colors"
+              className="px-3 py-1 min-h-[44px] min-w-[44px] rounded-control border border-edge-default bg-content text-[13px] font-medium text-fg hover:border-edge-strong transition-colors duration-[var(--motion-state)]"
             >
               Install
             </button>
             <button
               onClick={dismiss}
-              className="text-[10px] min-h-[44px] min-w-[44px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+              className="text-[13px] font-medium min-h-[44px] min-w-[44px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
             >
               Not now
             </button>

@@ -139,10 +139,10 @@ export function CompoundChain({
       {hasBackward ? (
         <div className="space-y-3">
           <header className="flex items-baseline justify-between gap-3">
-            <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
               {stats.window} · compounded
             </p>
-            <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] tabular-nums">
+            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
               {stats.totalTasks} task{stats.totalTasks === 1 ? "" : "s"} ·{" "}
               {stats.totalGoalsLifted} goal{stats.totalGoalsLifted === 1 ? "" : "s"} ·{" "}
               {stats.totalAxesMoved} ax{stats.totalAxesMoved === 1 ? "is" : "es"}
@@ -160,10 +160,10 @@ export function CompoundChain({
       {hasForward ? (
         <div className="space-y-3">
           <header className="flex items-baseline justify-between gap-3">
-            <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
               {hasBackward ? "next · potential" : "potential · ready"}
             </p>
-            <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] tabular-nums">
+            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
               {potential.reduce((s, p) => s + p.goals.reduce((g, g2) => g + g2.tasks.length, 0), 0)} open ·{" "}
               {potential.length} ax{potential.length === 1 ? "is" : "es"}
             </p>
@@ -185,15 +185,15 @@ export function CompoundChain({
       {hasOrphans ? (
         <Link
           href="/missions"
-          className="block rounded-sm transition hover:bg-white/[0.03] focus-visible:outline-none focus-visible:bg-white/[0.05]"
+          className="block rounded-sm transition hover:bg-surface-hover focus-visible:bg-surface-hover"
         >
           <div className="flex items-start gap-2.5 text-sm leading-snug">
             <span
               aria-hidden
-              className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--gold)] shadow-[0_0_0_2px_rgba(253,185,19,0.18)]"
+              className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400"
             />
             <span className="min-w-0 flex-1">
-              <span className="mr-2 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+              <span className="mr-2 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
                 gap
               </span>
               <span className="text-[var(--text-primary)]">
@@ -224,7 +224,7 @@ function AxisChainRow({
         : "flat";
   const deltaTone =
     delta > 0
-      ? "text-[var(--gold)]"
+      ? "text-emerald-300"
       : delta < 0
         ? "text-red-300"
         : "text-[var(--text-tertiary)]";
@@ -237,7 +237,7 @@ function AxisChainRow({
           aria-hidden
           className="inline-block h-2 w-px bg-[var(--text-tertiary)]/40"
         />
-        <span className="font-mono uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
           {axis.domain}
         </span>
         {axis.score != null ? (
@@ -250,13 +250,13 @@ function AxisChainRow({
           axis.scoreboard.href ? (
             <Link
               href={axis.scoreboard.href}
-              className="ml-auto text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+              className="ml-auto text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary hover:text-[var(--text-primary)]"
               title={`open ${axis.scoreboard.label}`}
             >
               → {axis.scoreboard.label}
             </Link>
           ) : (
-            <span className="ml-auto text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+            <span className="ml-auto text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
               → {axis.scoreboard.label}
             </span>
           )
@@ -264,7 +264,7 @@ function AxisChainRow({
       </div>
 
       {/* Goals + tasks · indented under the axis */}
-      <ul className="pl-4 space-y-1.5 border-l border-white/5">
+      <ul className="pl-4 space-y-1.5 border-l border-edge-subtle">
         {axis.goals.map((goal) => (
           <GoalChainRow key={goal.id} goal={goal} variant={variant} />
         ))}
@@ -287,11 +287,11 @@ function GoalChainRow({
         <span className="font-medium text-[var(--text-primary)] truncate">
           {goal.title}
         </span>
-        <span className="shrink-0 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] tabular-nums">
+        <span className="shrink-0 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
           {goal.progress.toFixed(0)}%
         </span>
       </div>
-      <ul className="mt-1 pl-3 space-y-0.5 border-l border-white/5">
+      <ul className="mt-1 pl-3 space-y-0.5 border-l border-edge-subtle">
         {goal.tasks.map((task) => (
           <li
             key={task.id}
@@ -305,7 +305,7 @@ function GoalChainRow({
             </span>
             <span className="truncate min-w-0 flex-1">{task.title}</span>
             {task.effort ? (
-              <span className="shrink-0 text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
+              <span className="shrink-0 text-[11px] font-mono tabular-nums text-fg-tertiary">
                 {task.effort}m
               </span>
             ) : null}

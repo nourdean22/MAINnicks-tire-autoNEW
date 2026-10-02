@@ -14,8 +14,8 @@
  * a single <MissionBreadcrumb /> mount once they thread missionId
  * into their data fetch.
  *
- * Visual contract is BYTE-IDENTICAL to the previous /tasks banner
- * (gold-accent border · uppercase tracking-wider clear chip). Once
+ * Visual contract mirrors the previous /tasks banner (UI v2 tokens:
+ * accent-soft fill = the active filter, neutral clear chip). Once
  * the mission resolves via trpc, the title replaces the id-prefix.
  */
 
@@ -33,14 +33,14 @@ export function MissionBreadcrumb() {
   const displayTitle = mission?.title ?? missionId.slice(0, 24);
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] px-4 py-2.5 text-sm">
-      <span className="text-white/80 truncate">
+    <div className="flex items-center justify-between gap-3 rounded-surface border border-edge-default bg-accent-soft px-4 py-2.5 text-sm">
+      <span className="text-fg-secondary truncate">
         Filtered ·{" "}
-        <span className="font-medium text-[var(--gold)]">
+        <span className="font-medium text-fg">
           mission · {displayTitle}
         </span>
         {mission?.openTaskCount != null && (
-          <span className="ml-2 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+          <span className="ml-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             · {mission.openTaskCount} open
           </span>
         )}
@@ -49,7 +49,7 @@ export function MissionBreadcrumb() {
         type="button"
         onClick={exit}
         aria-label="Clear mission filter"
-        className="inline-flex min-h-[44px] shrink-0 items-center rounded-full border border-white/15 px-3 text-xs uppercase tracking-wider text-white/60 hover:text-white/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+        className="inline-flex min-h-[44px] shrink-0 items-center rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary hover:border-edge-strong hover:text-fg transition-colors duration-[var(--motion-state)] focus-visible:outline-none"
       >
         clear
       </button>

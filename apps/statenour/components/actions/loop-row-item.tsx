@@ -454,7 +454,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
         // Apr 26 · F10 — drag visual states
         isDragging && "opacity-30",
         isDragOver && "ring-2 ring-amber-400/60 bg-amber-500/[0.05]",
-        !isDoing && !overdue && !isStale && "hover:bg-zinc-900/40"
+        !isDoing && !overdue && !isStale && "hover:bg-surface-hover"
       )}
     >
       {/* v10.0.529.19 · F12 swipe-direction hint edges. Gold = right (complete),
@@ -473,7 +473,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
           style={{ opacity: swipeOpacity }}
         >
           {Math.abs(swipeDx) >= 60 ? (
-            <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-950 font-semibold">done</span>
+            <span className="text-[12px] text-[var(--text-inverse)] font-semibold">done</span>
           ) : null}
         </div>
       )}
@@ -487,7 +487,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
           style={{ opacity: swipeOpacity }}
         >
           {Math.abs(swipeDx) >= 60 ? (
-            <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-950 font-semibold">snooze</span>
+            <span className="text-[12px] text-[var(--text-inverse)] font-semibold">snooze</span>
           ) : null}
         </div>
       )}
@@ -507,7 +507,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             ? "text-emerald-400"
             : doneToday
               ? "text-emerald-500/60"
-              : "text-zinc-600 hover:text-emerald-400"
+              : "text-fg-tertiary hover:text-emerald-400"
         )}
         aria-label="Complete"
       >
@@ -533,7 +533,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             on iPhone-14 width). Truncates so a long mission name
             never wraps and pushes the layout. */}
         {task.mission?.title && task.mission.title !== "Inbox" && (
-          <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-zinc-500 truncate leading-tight mb-0.5">
+          <div className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary truncate leading-tight mb-0.5">
             {task.mission.title.toLowerCase()}
           </div>
         )}
@@ -547,8 +547,8 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             type="button"
             onClick={() => onToggleExpand(task.id)}
             className={cn(
-              "text-[12px] text-zinc-200 flex-1 min-w-0 truncate text-left hover:text-amber-300 transition-colors cursor-pointer",
-              doneToday && "line-through text-zinc-600"
+              "text-[12px] text-fg flex-1 min-w-0 truncate text-left hover:text-amber-300 transition-colors cursor-pointer",
+              doneToday && "line-through text-fg-tertiary"
             )}
             aria-expanded={isExpanded}
             aria-label="Toggle task details"
@@ -564,7 +564,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
               e.stopPropagation();
               onOpenEditFromRow(task);
             }}
-            className="shrink-0 w-11 h-11 sm:w-6 sm:h-6 rounded sm:rounded-sm flex items-center justify-center text-zinc-600 hover:text-amber-400 hover:bg-zinc-800/50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+            className="shrink-0 w-11 h-11 sm:w-6 sm:h-6 rounded sm:rounded-sm flex items-center justify-center text-fg-tertiary hover:text-amber-400 hover:bg-surface-hover sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
             title="Rename task"
             aria-label="Rename task"
           >
@@ -590,7 +590,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
               targets. Desktop hover-affordance unchanged because the
               expansion is already 1 tap away. */}
           {kind === "DAILY" && (task.streakCount ?? 0) > 0 && (
-            <span className="text-[9px] text-amber-400 font-mono shrink-0">
+            <span className="text-[11px] text-amber-400 font-mono shrink-0">
               🔥{task.streakCount}
             </span>
           )}
@@ -611,7 +611,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             return (
               <span
                 className={cn(
-                  "text-[8px] font-mono shrink-0 uppercase tracking-wider",
+                  "text-[11px] font-mono shrink-0 uppercase tracking-[0.12em]",
                   critical ? "text-rose-300" : "text-amber-300/80",
                 )}
                 title={`Streak at risk · ${Math.round(hoursSince)}h since last completion · breaks at 36h`}
@@ -632,7 +632,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 }
               }}
               className={cn(
-                "text-[8px] font-mono shrink-0 uppercase tracking-wider transition-colors px-1.5 py-0.5 rounded border",
+                "text-[11px] font-mono shrink-0 uppercase tracking-[0.12em] transition-colors px-1.5 py-0.5 rounded border",
                 isDecideOpen
                   ? "text-amber-300 bg-amber-500/15 border-amber-500/40"
                   : "text-amber-500/80 border-amber-500/20 hover:bg-amber-500/10"
@@ -645,14 +645,14 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
           {kind === "PROMISE" && daysUntilDeadline !== null && (
             <span
               className={cn(
-                "text-[9px] font-mono shrink-0",
+                "text-[11px] font-mono shrink-0",
                 overdue
                   ? "text-red-400"
                   : daysUntilDeadline === 0
                     ? "text-amber-400"
                     : daysUntilDeadline <= 2
                       ? "text-amber-400"
-                      : "text-zinc-600"
+                      : "text-fg-tertiary"
               )}
             >
               {overdue
@@ -663,7 +663,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             </span>
           )}
           {task.effort && (
-            <span className="text-[8px] text-zinc-700 font-mono shrink-0">
+            <span className="text-[11px] text-fg-tertiary font-mono shrink-0">
               {EFF[task.effort] || task.effort}
             </span>
           )}
@@ -674,7 +674,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
           {fit === "fits-now" && !isDoing && !doneToday && (
             <span
               title="Energy + state match · short enough to fit"
-              className="text-[8px] text-emerald-400 font-mono shrink-0 px-1 rounded bg-emerald-500/10 border border-emerald-500/20"
+              className="text-[11px] text-emerald-400 font-mono shrink-0 px-1 rounded bg-emerald-500/10 border border-emerald-500/20"
             >
               now
             </span>
@@ -682,7 +682,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
           {fit === "save-morning" && !isDoing && !doneToday && (
             <span
               title="High energy demand or wouldn't fit remaining capacity — save for a fresher slot"
-              className="text-[8px] text-zinc-500 font-mono shrink-0 px-1 rounded bg-zinc-800/50 border border-zinc-700"
+              className="text-[11px] text-fg-tertiary font-mono shrink-0 px-1 rounded bg-surface-interactive border border-edge-default"
             >
               morning
             </span>
@@ -690,13 +690,13 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
           {fit === "wrong-moment" && !isDoing && !doneToday && (
             <span
               title="Heavy task while state is drifting — wrong moment"
-              className="text-[8px] text-rose-400/70 font-mono shrink-0 px-1 rounded bg-rose-500/5 border border-rose-500/20"
+              className="text-[11px] text-rose-400/70 font-mono shrink-0 px-1 rounded bg-rose-500/5 border border-rose-500/20"
             >
               wrong moment
             </span>
           )}
           {task.mission?.domain && (
-            <Badge className={cn("h-3 text-[7px] border-0 shrink-0", domainClass(task.mission.domain))}>
+            <Badge className={cn("h-3 text-[11px] border-0 shrink-0", domainClass(task.mission.domain))}>
               {task.mission.domain.toLowerCase().slice(0, 3)}
             </Badge>
           )}
@@ -708,15 +708,15 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             <span
               title={`${childCount} subtask${childCount === 1 ? "" : "s"} · ${doneChildCount} done`}
               className={cn(
-                "text-[8px] font-mono shrink-0 px-1 rounded border bg-zinc-800/30",
+                "text-[11px] font-mono shrink-0 px-1 rounded border bg-surface-interactive",
                 // 2026-05-24 · Wave U feature-mining #5 · color shifts
                 // emerald when 100% done · gold when 50%+ · zinc
                 // otherwise. Pure visual signal · no new affordance.
                 doneChildCount === childCount
                   ? "border-emerald-500/40 text-emerald-300 bg-emerald-500/[0.06]"
                   : doneChildCount >= Math.ceil(childCount / 2)
-                    ? "border-[var(--gold)]/30 text-[var(--gold)]/80 bg-[var(--gold)]/[0.04]"
-                    : "border-zinc-700 text-zinc-500",
+                    ? "border-amber-500/40 text-amber-300 bg-amber-500/[0.06]"
+                    : "border-edge-default text-fg-tertiary",
               )}
             >
               +{childCount} sub · {doneChildCount}/{childCount}
@@ -732,7 +732,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             return (
               <span
                 title={`Created via ${task.originSource}`}
-                className="text-[7px] uppercase tracking-wider font-mono shrink-0 px-1 rounded bg-zinc-800/40 text-zinc-500 border border-zinc-700/40"
+                className="text-[11px] uppercase tracking-[0.12em] font-mono shrink-0 px-1 rounded bg-surface-interactive text-fg-tertiary border border-edge-subtle"
               >
                 {label}
               </span>
@@ -740,10 +740,10 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
           })()}
         </div>
         {kind === "PROMISE" && task.promiseTo && (
-          <p className="text-[9px] text-violet-400/70 mt-0.5">promised to {task.promiseTo}</p>
+          <p className="text-[11px] text-violet-400/70 mt-0.5">promised to {task.promiseTo}</p>
         )}
         {kind === "ONCE" && task.nextPhysicalAction && task.nextPhysicalAction !== task.title && (
-          <p className="text-[9px] text-zinc-600 mt-0.5 truncate">→ {task.nextPhysicalAction}</p>
+          <p className="text-[11px] text-fg-tertiary mt-0.5 truncate">→ {task.nextPhysicalAction}</p>
         )}
 
         {/* Apr 26 · F3 — inline 3-button decide row when the
@@ -766,7 +766,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                     }
                   }}
                   placeholder="Smaller next action…"
-                  className="flex-1 rounded-md border border-zinc-800 bg-zinc-900 px-2 py-0.5 text-[11px] text-zinc-200 outline-none focus:border-amber-500/40"
+                  className="flex-1 rounded-control border border-edge-default bg-content px-2 py-0.5 text-[11px] text-fg outline-none focus:border-accent"
                 />
                 <button
                   onClick={() => {
@@ -774,7 +774,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                     onCommitReframe(task.id, reframeText.trim());
                   }}
                   disabled={!reframeText.trim() || isReviewBusy}
-                  className="rounded-md bg-amber-500 px-2 text-[10px] font-medium text-black hover:bg-amber-400 disabled:opacity-50"
+                  className="rounded-control bg-amber-500 px-2 text-[12px] font-medium text-black hover:bg-amber-400 disabled:opacity-50"
                 >
                   save
                 </button>
@@ -793,7 +793,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                     }
                   }}
                   placeholder="Waiting on…"
-                  className="flex-1 rounded-md border border-zinc-800 bg-zinc-900 px-2 py-0.5 text-[11px] text-zinc-200 outline-none focus:border-sky-500/40"
+                  className="flex-1 rounded-control border border-edge-default bg-content px-2 py-0.5 text-[11px] text-fg outline-none focus:border-accent"
                 />
                 <button
                   onClick={() => {
@@ -801,7 +801,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                     onCommitBlocker(task.id, blockerText.trim());
                   }}
                   disabled={!blockerText.trim() || isReviewBusy}
-                  className="rounded-md bg-sky-500 px-2 text-[10px] font-medium text-black hover:bg-sky-400 disabled:opacity-50"
+                  className="rounded-control bg-sky-500 px-2 text-[12px] font-medium text-black hover:bg-sky-400 disabled:opacity-50"
                 >
                   save
                 </button>
@@ -811,7 +811,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 <button
                   onClick={() => onCommitKill(task.id)}
                   disabled={isReviewBusy}
-                  className="inline-flex items-center gap-1 rounded-md border border-rose-500/30 px-2 py-0.5 text-[10px] font-medium text-rose-300 hover:bg-rose-500/10 disabled:opacity-50"
+                  className="inline-flex items-center gap-1 rounded-control border border-rose-500/30 px-2 py-0.5 text-[12px] font-medium text-rose-300 hover:bg-rose-500/10 disabled:opacity-50"
                 >
                   {isReviewBusy ? (
                     <Loader2 size={10} className="animate-spin" />
@@ -822,21 +822,21 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 </button>
                 <button
                   onClick={() => onSetDecideMode("reframe")}
-                  className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 px-2 py-0.5 text-[10px] font-medium text-amber-300 hover:bg-amber-500/10"
+                  className="inline-flex items-center gap-1 rounded-control border border-amber-500/30 px-2 py-0.5 text-[12px] font-medium text-amber-300 hover:bg-amber-500/10"
                 >
                   <Edit3 size={10} />
                   reframe
                 </button>
                 <button
                   onClick={() => onSetDecideMode("blocker")}
-                  className="inline-flex items-center gap-1 rounded-md border border-sky-500/30 px-2 py-0.5 text-[10px] font-medium text-sky-300 hover:bg-sky-500/10"
+                  className="inline-flex items-center gap-1 rounded-control border border-sky-500/30 px-2 py-0.5 text-[12px] font-medium text-sky-300 hover:bg-sky-500/10"
                 >
                   <Hourglass size={10} />
                   blocker
                 </button>
                 <button
                   onClick={onCancelDecide}
-                  className="inline-flex items-center gap-1 rounded-md border border-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-500 hover:bg-zinc-900"
+                  className="inline-flex items-center gap-1 rounded-control border border-edge-default px-2 py-0.5 text-[12px] font-medium text-fg-tertiary hover:bg-surface-hover"
                 >
                   cancel
                 </button>
@@ -854,7 +854,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
         {task.goalId && goalLineage?.get(task.goalId) ? (
           <div className="mt-0.5 flex items-center gap-1 flex-wrap">
             <span
-              className="inline-flex items-center gap-1 rounded border border-violet-500/30 bg-violet-500/5 px-1 py-0.5 text-[8px] font-mono uppercase tracking-wider text-violet-300 max-w-full"
+              className="inline-flex items-center gap-1 rounded border border-violet-500/30 bg-violet-500/5 px-1 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em] text-violet-300 max-w-full"
               title="Completing this task auto-lifts this goal"
             >
               <Target size={8} className="shrink-0" />
@@ -878,7 +878,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 return (
                   <span
                     title="Linked goal's deadline has passed unmet — completing this still logs progress"
-                    className="inline-flex items-center gap-1 rounded border border-rose-500/40 bg-rose-500/10 px-1 py-0.5 text-[8px] font-mono uppercase tracking-wider text-rose-300"
+                    className="inline-flex items-center gap-1 rounded border border-rose-500/40 bg-rose-500/10 px-1 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em] text-rose-300"
                   >
                     goal missed
                   </span>
@@ -888,7 +888,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 return (
                   <span
                     title="Linked goal is behind pace — finishing this lifts it"
-                    className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1 py-0.5 text-[8px] font-mono uppercase tracking-wider text-amber-300"
+                    className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em] text-amber-300"
                   >
                     goal behind
                   </span>
@@ -898,7 +898,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 return (
                   <span
                     title="Linked goal needs daily progress — finishing this lifts it"
-                    className="inline-flex items-center gap-1 rounded border border-sky-500/40 bg-sky-500/10 px-1 py-0.5 text-[8px] font-mono uppercase tracking-wider text-sky-300"
+                    className="inline-flex items-center gap-1 rounded border border-sky-500/40 bg-sky-500/10 px-1 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em] text-sky-300"
                   >
                     goal needs +1
                   </span>
@@ -919,7 +919,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             Nour feedback on how long things really take so
             his effort estimates calibrate over time. ── */}
         {(task.actualMinutes ?? 0) > 0 && (
-          <p className="text-[8px] text-zinc-700 mt-0.5 font-mono">
+          <p className="text-[11px] text-fg-tertiary mt-0.5 font-mono">
             ⏱ {task.actualMinutes}m actual
           </p>
         )}
@@ -929,39 +929,39 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             condition, the WHY line, all metadata in a tight
             grid, plus primary action buttons. */}
         {isExpanded && isEditing && (
-          <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/[0.03] p-2 space-y-2">
+          <div className="mt-2 rounded-control border border-amber-500/30 bg-amber-500/[0.03] p-2 space-y-2">
             <div className="flex items-center gap-2">
               <Edit3 size={11} className="text-amber-400 shrink-0" />
-              <span className="text-[9px] uppercase tracking-wider text-amber-400 font-mono">
+              <span className="text-[11px] uppercase tracking-[0.12em] text-amber-400 font-mono">
                 editing
               </span>
             </div>
             <div className="space-y-1.5">
               <label className="block">
-                <span className="block text-[8px] uppercase tracking-wider text-zinc-600 font-mono mb-0.5">title</span>
+                <span className="block text-[11px] uppercase tracking-[0.12em] text-fg-tertiary font-mono mb-0.5">title</span>
                 <input
                   autoFocus
                   value={editTitle}
                   onChange={(e) => onChangeEditTitle(e.target.value)}
-                  className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1 text-[12px] text-zinc-200 outline-none focus:border-amber-500/40"
+                  className="w-full rounded-control border border-edge-default bg-content px-2 py-1 text-[12px] text-fg outline-none focus:border-accent"
                 />
               </label>
               <label className="block">
-                <span className="block text-[8px] uppercase tracking-wider text-zinc-600 font-mono mb-0.5">next physical action</span>
+                <span className="block text-[11px] uppercase tracking-[0.12em] text-fg-tertiary font-mono mb-0.5">next physical action</span>
                 <input
                   value={editAction}
                   onChange={(e) => onChangeEditAction(e.target.value)}
-                  className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-300 outline-none focus:border-amber-500/40"
+                  className="w-full rounded-control border border-edge-default bg-content px-2 py-1 text-[11px] text-fg-secondary outline-none focus:border-accent"
                   placeholder="e.g. Call doctor, schedule blood draw"
                 />
               </label>
               <div className="grid grid-cols-2 gap-1.5">
                 <label className="block">
-                  <span className="block text-[8px] uppercase tracking-wider text-zinc-600 font-mono mb-0.5">effort</span>
+                  <span className="block text-[11px] uppercase tracking-[0.12em] text-fg-tertiary font-mono mb-0.5">effort</span>
                   <select
                     value={editEffort}
                     onChange={(e) => onChangeEditEffort(e.target.value)}
-                    className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-300 outline-none focus:border-amber-500/40"
+                    className="w-full rounded-control border border-edge-default bg-content px-2 py-1 text-[11px] text-fg-secondary outline-none focus:border-accent"
                   >
                     {(["M5", "M15", "M30", "H1", "H2PLUS"] as const).map((eff) => (
                       <option key={eff} value={eff}>{EFF[eff] || eff}</option>
@@ -969,22 +969,22 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                   </select>
                 </label>
                 <label className="block">
-                  <span className="block text-[8px] uppercase tracking-wider text-zinc-600 font-mono mb-0.5">due</span>
+                  <span className="block text-[11px] uppercase tracking-[0.12em] text-fg-tertiary font-mono mb-0.5">due</span>
                   <input
                     type="date"
                     value={editDueDate}
                     onChange={(e) => onChangeEditDueDate(e.target.value)}
-                    className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-300 outline-none focus:border-amber-500/40"
+                    className="w-full rounded-control border border-edge-default bg-content px-2 py-1 text-[11px] text-fg-secondary outline-none focus:border-accent"
                   />
                 </label>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 pt-1 border-t border-zinc-900">
+            <div className="flex items-center gap-1.5 pt-1 border-t border-edge-subtle">
               <button
                 type="button"
                 onClick={() => onSaveEdit(task)}
                 disabled={isReviewBusy || !editTitle.trim()}
-                className="inline-flex items-center gap-1 rounded-md bg-amber-500 px-3 py-1 text-[11px] font-medium text-black hover:bg-amber-400 disabled:opacity-50"
+                className="inline-flex items-center gap-1 rounded-control bg-amber-500 px-3 py-1 text-[11px] font-medium text-black hover:bg-amber-400 disabled:opacity-50"
               >
                 {isReviewBusy ? <Loader2 size={11} className="animate-spin" /> : null}
                 save
@@ -992,7 +992,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
               <button
                 type="button"
                 onClick={onCancelEdit}
-                className="inline-flex items-center gap-1 rounded-md border border-zinc-800 px-2 py-1 text-[11px] text-zinc-500 hover:text-zinc-300"
+                className="inline-flex items-center gap-1 rounded-control border border-edge-default px-2 py-1 text-[11px] text-fg-tertiary hover:text-fg"
               >
                 cancel
               </button>
@@ -1000,10 +1000,10 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
           </div>
         )}
         {isExpanded && !isEditing && (
-          <div className="mt-2 rounded-md border border-zinc-800/60 bg-zinc-950/40 p-2 space-y-2">
+          <div className="mt-2 rounded-control border border-edge-subtle bg-content p-2 space-y-2">
             {/* Full title (no truncate) */}
             {task.title.length > 50 && (
-              <p className="text-[12px] text-zinc-200 font-medium leading-snug">
+              <p className="text-[12px] text-fg font-medium leading-snug">
                 {task.title}
               </p>
             )}
@@ -1019,8 +1019,8 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
               });
               if (!why) return null;
               return (
-                <p className="text-[10px] text-amber-400/80 italic flex items-start gap-1.5">
-                  <span className="text-amber-500/50 font-mono uppercase tracking-wider text-[8px] not-italic shrink-0 mt-0.5">
+                <p className="text-[12px] text-amber-400/80 italic flex items-start gap-1.5">
+                  <span className="text-amber-500/50 font-mono uppercase tracking-[0.12em] text-[11px] not-italic shrink-0 mt-0.5">
                     why
                   </span>
                   <span>{why}</span>
@@ -1030,8 +1030,8 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
 
             {/* Next physical action — full text, not truncated */}
             {task.nextPhysicalAction && task.nextPhysicalAction !== task.title && (
-              <p className="text-[10px] text-zinc-400 leading-snug">
-                <span className="text-zinc-600 font-mono uppercase tracking-wider text-[8px] mr-1.5">
+              <p className="text-[12px] text-fg-secondary leading-snug">
+                <span className="text-fg-tertiary font-mono uppercase tracking-[0.12em] text-[11px] mr-1.5">
                   next
                 </span>
                 → {task.nextPhysicalAction}
@@ -1040,8 +1040,8 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
 
             {/* Finish condition */}
             {task.finishCondition && (
-              <p className="text-[10px] text-zinc-400 leading-snug">
-                <span className="text-zinc-600 font-mono uppercase tracking-wider text-[8px] mr-1.5">
+              <p className="text-[12px] text-fg-secondary leading-snug">
+                <span className="text-fg-tertiary font-mono uppercase tracking-[0.12em] text-[11px] mr-1.5">
                   done when
                 </span>
                 {task.finishCondition}
@@ -1050,8 +1050,8 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
 
             {/* Promise to (full, not truncated) */}
             {kind === "PROMISE" && task.promiseTo && (
-              <p className="text-[10px] text-violet-300">
-                <span className="text-violet-400/50 font-mono uppercase tracking-wider text-[8px] mr-1.5">
+              <p className="text-[12px] text-violet-300">
+                <span className="text-violet-400/50 font-mono uppercase tracking-[0.12em] text-[11px] mr-1.5">
                   promised to
                 </span>
                 {task.promiseTo}
@@ -1061,16 +1061,16 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             {/* Apr 26 · F6 — TaskEvent timeline. Lazy-fetched
                 when the panel opens. Shows the full lifecycle:
                 created → started → reframed → snoozed → … */}
-            <div className="pt-1 border-t border-zinc-900">
+            <div className="pt-1 border-t border-edge-subtle">
               <EventTimeline taskId={task.id} />
             </div>
 
             {/* Metadata grid */}
-            <div className="grid grid-cols-2 gap-1.5 text-[9px] pt-1 border-t border-zinc-900">
+            <div className="grid grid-cols-2 gap-1.5 text-[11px] pt-1 border-t border-edge-subtle">
               {task.mission?.title && (
                 <div>
-                  <div className="text-zinc-700 uppercase tracking-wider text-[8px] font-mono">mission</div>
-                  <div className="text-zinc-400 truncate">{task.mission.title}</div>
+                  <div className="text-fg-tertiary uppercase tracking-[0.12em] text-[11px] font-mono">mission</div>
+                  <div className="text-fg-secondary truncate">{task.mission.title}</div>
                 </div>
               )}
               {/* Apr 27 · DOMAIN-EDIT — tap to open inline
@@ -1081,7 +1081,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                   to a per-domain Inbox. */}
               {task.mission?.domain && (
                 <div className="col-span-1">
-                  <div className="text-zinc-700 uppercase tracking-wider text-[8px] font-mono">domain</div>
+                  <div className="text-fg-tertiary uppercase tracking-[0.12em] text-[11px] font-mono">domain</div>
                   {isDomainEditing ? (
                     <div className="flex flex-wrap gap-1 mt-0.5">
                       {(() => {
@@ -1107,10 +1107,10 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                                 onCommitDomainSwap(task.id, d);
                               }}
                               className={cn(
-                                "text-[8px] px-1.5 py-px rounded border uppercase tracking-wider transition-all",
+                                "text-[12px] px-1.5 py-px rounded-micro border transition-colors duration-[var(--motion-state)]",
                                 isCurrent
                                   ? "border-violet-500/50 bg-violet-500/15 text-violet-300"
-                                  : "border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:bg-zinc-800",
+                                  : "border-edge-default text-fg-secondary hover:border-edge-strong hover:bg-surface-hover",
                                 domainSwapBusy && "opacity-60",
                               )}
                             >
@@ -1122,7 +1122,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                       <button
                         type="button"
                         onClick={onCancelDomainEdit}
-                        className="text-[8px] text-zinc-600 hover:text-zinc-400 ml-1"
+                        className="text-[11px] text-fg-tertiary hover:text-fg-secondary ml-1"
                       >
                         cancel
                       </button>
@@ -1131,7 +1131,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                     <button
                       type="button"
                       onClick={() => onOpenDomainEdit(task.id)}
-                      className="text-zinc-400 hover:text-zinc-200 hover:underline decoration-dotted text-left"
+                      className="text-fg-secondary hover:text-fg hover:underline decoration-dotted text-left"
                       title="Tap to change domain"
                     >
                       {task.mission.domain}
@@ -1141,50 +1141,50 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
               )}
               {task.effort && (
                 <div>
-                  <div className="text-zinc-700 uppercase tracking-wider text-[8px] font-mono">effort</div>
-                  <div className="text-zinc-400 font-mono">{EFF[task.effort] || task.effort}</div>
+                  <div className="text-fg-tertiary uppercase tracking-[0.12em] text-[11px] font-mono">effort</div>
+                  <div className="text-fg-secondary font-mono">{EFF[task.effort] || task.effort}</div>
                 </div>
               )}
               {task.context && (
                 <div>
-                  <div className="text-zinc-700 uppercase tracking-wider text-[8px] font-mono">context</div>
-                  <div className="text-zinc-400">{task.context}</div>
+                  <div className="text-fg-tertiary uppercase tracking-[0.12em] text-[11px] font-mono">context</div>
+                  <div className="text-fg-secondary">{task.context}</div>
                 </div>
               )}
               {task.energyRequired && (
                 <div>
-                  <div className="text-zinc-700 uppercase tracking-wider text-[8px] font-mono">energy</div>
-                  <div className="text-zinc-400">
+                  <div className="text-fg-tertiary uppercase tracking-[0.12em] text-[11px] font-mono">energy</div>
+                  <div className="text-fg-secondary">
                     {task.energyRequired?.toLowerCase()}
                   </div>
                 </div>
               )}
               {task.autoPriority != null && (
                 <div>
-                  <div className="text-zinc-700 uppercase tracking-wider text-[8px] font-mono">priority</div>
-                  <div className="text-zinc-400 font-mono">
+                  <div className="text-fg-tertiary uppercase tracking-[0.12em] text-[11px] font-mono">priority</div>
+                  <div className="text-fg-secondary font-mono">
                     {task.autoPriority}
                   </div>
                 </div>
               )}
               {task.dueDate && (
                 <div>
-                  <div className="text-zinc-700 uppercase tracking-wider text-[8px] font-mono">due</div>
-                  <div className={cn("font-mono", overdue ? "text-red-400" : "text-zinc-400")}>
+                  <div className="text-fg-tertiary uppercase tracking-[0.12em] text-[11px] font-mono">due</div>
+                  <div className={cn("font-mono", overdue ? "text-red-400" : "text-fg-secondary")}>
                     {new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                   </div>
                 </div>
               )}
               {task.createdAt && (
                 <div>
-                  <div className="text-zinc-700 uppercase tracking-wider text-[8px] font-mono">created</div>
-                  <div className="text-zinc-400">{ag(task.createdAt)} ago</div>
+                  <div className="text-fg-tertiary uppercase tracking-[0.12em] text-[11px] font-mono">created</div>
+                  <div className="text-fg-secondary">{ag(task.createdAt)} ago</div>
                 </div>
               )}
               {task.originSource && (
                 <div>
-                  <div className="text-zinc-700 uppercase tracking-wider text-[8px] font-mono">source</div>
-                  <div className="text-zinc-400 font-mono truncate" title={task.originSource}>
+                  <div className="text-fg-tertiary uppercase tracking-[0.12em] text-[11px] font-mono">source</div>
+                  <div className="text-fg-secondary font-mono truncate" title={task.originSource}>
                     {originSourceLabel(task.originSource) ?? task.originSource}
                   </div>
                 </div>
@@ -1194,8 +1194,8 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             {/* Action row — F4 snooze popover takes over when
                 active; otherwise default verbs render. */}
             {isSnoozing ? (
-              <div className="flex items-center gap-1.5 pt-1 border-t border-zinc-900">
-                <span className="text-[9px] uppercase tracking-wider text-zinc-500 font-mono mr-1">
+              <div className="flex items-center gap-1.5 pt-1 border-t border-edge-subtle">
+                <span className="text-[11px] uppercase tracking-[0.12em] text-fg-tertiary font-mono mr-1">
                   push to
                 </span>
                 {([
@@ -1208,7 +1208,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                     type="button"
                     onClick={() => onCommitSnooze(task.id, opt.d)}
                     disabled={isReviewBusy}
-                    className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-[10px] font-medium text-amber-300 hover:bg-amber-500/15 disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded-control border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-[12px] font-medium text-amber-300 hover:bg-amber-500/15 disabled:opacity-50"
                   >
                     {isReviewBusy ? (
                       <Loader2 size={11} className="animate-spin" />
@@ -1221,18 +1221,18 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 <button
                   type="button"
                   onClick={onCancelSnooze}
-                  className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] text-zinc-500 hover:text-zinc-300"
+                  className="ml-auto inline-flex items-center gap-1 rounded-control px-2 py-1 text-[12px] text-fg-tertiary hover:text-fg"
                 >
                   cancel
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-1.5 pt-1 border-t border-zinc-900 flex-wrap">
+              <div className="flex items-center gap-1.5 pt-1 border-t border-edge-subtle flex-wrap">
                 {onStart && task.status !== "DOING" && (
                   <button
                     type="button"
                     onClick={() => onStart(task.id)}
-                    className="inline-flex items-center gap-1 rounded-md border border-blue-500/30 bg-blue-500/5 px-2 py-1 text-[10px] font-medium text-blue-300 hover:bg-blue-500/15"
+                    className="inline-flex items-center gap-1 rounded-control border border-blue-500/30 bg-blue-500/5 px-2 py-1 text-[12px] font-medium text-blue-300 hover:bg-blue-500/15"
                   >
                     <Zap size={11} />
                     start
@@ -1242,7 +1242,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 <button
                   type="button"
                   onClick={() => onOpenEditFromPanel(task)}
-                  className="inline-flex items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-[10px] font-medium text-zinc-300 hover:bg-zinc-800"
+                  className="inline-flex items-center gap-1 rounded-control border border-edge-default bg-content px-2 py-1 text-[12px] font-medium text-fg-secondary hover:bg-surface-hover"
                 >
                   <Edit3 size={11} />
                   edit
@@ -1256,7 +1256,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                   <button
                     type="button"
                     onClick={() => onAddSubtask(task)}
-                    className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 px-2 py-1 text-[10px] font-medium text-amber-300 hover:bg-amber-500/10"
+                    className="inline-flex items-center gap-1 rounded-control border border-amber-500/30 px-2 py-1 text-[12px] font-medium text-amber-300 hover:bg-amber-500/10"
                   >
                     <Plus size={11} />
                     subtask
@@ -1266,7 +1266,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 <button
                   type="button"
                   onClick={() => onOpenSnooze(task.id)}
-                  className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 px-2 py-1 text-[10px] font-medium text-amber-300 hover:bg-amber-500/10"
+                  className="inline-flex items-center gap-1 rounded-control border border-amber-500/30 px-2 py-1 text-[12px] font-medium text-amber-300 hover:bg-amber-500/10"
                 >
                   <Clock size={11} />
                   snooze
@@ -1283,10 +1283,10 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                     type="button"
                     onClick={() => onEditTaskGoal(task.id)}
                     className={cn(
-                      "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium",
+                      "inline-flex items-center gap-1 rounded-control border px-2 py-1 text-[12px] font-medium",
                       task.goalId
                         ? "border-violet-500/30 text-violet-300 hover:bg-violet-500/10"
-                        : "border-zinc-700 text-zinc-400 hover:bg-zinc-800",
+                        : "border-edge-default text-fg-secondary hover:bg-surface-hover",
                     )}
                     title={
                       task.goalId
@@ -1312,10 +1312,10 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                     type="button"
                     onClick={() => onEditTaskMission(task.id)}
                     className={cn(
-                      "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium",
+                      "inline-flex items-center gap-1 rounded-control border px-2 py-1 text-[12px] font-medium",
                       task.missionId
                         ? "border-blue-500/30 text-blue-300 hover:bg-blue-500/10"
-                        : "border-zinc-700 text-zinc-400 hover:bg-zinc-800",
+                        : "border-edge-default text-fg-secondary hover:bg-surface-hover",
                     )}
                     title={
                       task.missionId
@@ -1332,10 +1332,10 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                     type="button"
                     onClick={() => onPin(task.id)}
                     className={cn(
-                      "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium",
+                      "inline-flex items-center gap-1 rounded-control border px-2 py-1 text-[12px] font-medium",
                       isPinned
                         ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
-                        : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"
+                        : "border-edge-default text-fg-secondary hover:bg-surface-hover"
                     )}
                   >
                     <Pin size={11} />
@@ -1346,7 +1346,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                   <button
                     type="button"
                     onClick={() => onOpenBreakModal(task.id, task.title)}
-                    className="inline-flex items-center gap-1 rounded-md border border-rose-500/30 px-2 py-1 text-[10px] font-medium text-rose-300 hover:bg-rose-500/10"
+                    className="inline-flex items-center gap-1 rounded-control border border-rose-500/30 px-2 py-1 text-[12px] font-medium text-rose-300 hover:bg-rose-500/10"
                   >
                     <X size={11} />
                     break promise
@@ -1355,7 +1355,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 <button
                   type="button"
                   onClick={() => onDelete(task.id)}
-                  className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-[10px] font-medium text-zinc-500 hover:border-rose-500/30 hover:text-rose-300"
+                  className="inline-flex items-center gap-1 rounded-control border border-edge-default px-2 py-1 text-[12px] font-medium text-fg-tertiary hover:border-rose-500/30 hover:text-rose-300"
                 >
                   <Trash2 size={11} />
                   delete
@@ -1363,9 +1363,9 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 <button
                   type="button"
                   onClick={onCollapse}
-                  className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] text-zinc-500 hover:text-zinc-300"
+                  className="ml-auto inline-flex items-center gap-1 rounded-control px-2 py-1 text-[12px] text-fg-tertiary hover:text-fg"
                 >
-                  collapse
+                  Collapse
                 </button>
               </div>
             )}
@@ -1379,7 +1379,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             drag is wired; the row container itself owns the
             HTML5 drag listeners so any grab on the row works. */}
         <span
-          className="cursor-grab active:cursor-grabbing p-1 text-zinc-700 hover:text-zinc-400"
+          className="cursor-grab active:cursor-grabbing p-1 text-fg-tertiary hover:text-fg-secondary"
           title="Drag to reorder"
           aria-hidden
         >
@@ -1390,7 +1390,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             onClick={() => onPin(task.id)}
             className={cn(
               "p-1 rounded",
-              isPinned ? "text-[var(--gold)]" : "text-zinc-700 hover:text-[var(--gold)]"
+              isPinned ? "text-accent" : "text-fg-tertiary hover:text-fg"
             )}
             aria-label="Pin"
           >
@@ -1409,7 +1409,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 void onDelete(task.id);
               }
             }}
-            className="p-1 rounded text-zinc-700 hover:text-red-400"
+            className="p-1 rounded text-fg-tertiary hover:text-red-400"
             aria-label="Mark broken"
             title="Mark broken"
           >
@@ -1419,7 +1419,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
         {kind !== "PROMISE" && (
           <button
             onClick={() => onDelete(task.id)}
-            className="p-1 rounded text-zinc-700 hover:text-red-400"
+            className="p-1 rounded text-fg-tertiary hover:text-red-400"
             aria-label="Delete"
           >
             <Trash2 size={10} />

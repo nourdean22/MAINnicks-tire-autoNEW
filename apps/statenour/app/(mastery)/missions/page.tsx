@@ -274,7 +274,7 @@ function MissionsPageInner() {
 
             {/* 1 · NEXT MOVE — the one display line this page shouts */}
             {deckQuery.isLoading ? (
-              <ShimmerSkeleton className="h-40 rounded-2xl" />
+              <ShimmerSkeleton className="h-40 rounded-surface" />
             ) : deckQuery.isError ? (
               <p className="border-l-2 border-rose-500/60 py-1 pl-4 text-[13px] text-rose-300/90">
                 Deck unreadable — the read failed. State unknown, not empty.
@@ -477,7 +477,7 @@ function MissionsPageSkeleton() {
   return (
     <div className="mx-auto w-full max-w-5xl space-y-3">
       <ShimmerSkeleton className="h-12 rounded-lg" />
-      <ShimmerSkeleton className="h-40 rounded-2xl" />
+      <ShimmerSkeleton className="h-40 rounded-surface" />
       <ShimmerSkeleton className="h-24 rounded-lg" />
       <ShimmerSkeleton className="h-24 rounded-lg" />
     </div>

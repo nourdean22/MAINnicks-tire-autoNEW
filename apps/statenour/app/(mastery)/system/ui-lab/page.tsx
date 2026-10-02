@@ -117,7 +117,7 @@ function FixtureMemoryBody() {
         Shop closes 6 PM Mon–Sat, 4 PM Sunday. Nour said it directly in chat.
       </p>
       <div className="space-y-1">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-fg-tertiary">proof</p>
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">proof</p>
         <EvidenceMark inline now={FIXTURE_NOW} provenance={EVIDENCE_FIXTURES[0].provenance} />
       </div>
       <Metric
@@ -164,7 +164,7 @@ export default function UiLabPage() {
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
           {(["canvas", "workspace", "surface", "surface-raised", "surface-interactive", "surface-hover"] as const).map((name) => (
             <div key={name} className="rounded-surface border border-edge-subtle p-3" style={{ background: `var(--${name})` }}>
-              <p className="font-mono text-[10px] text-fg-tertiary">{name}</p>
+              <p className="font-mono text-[11px] text-fg-tertiary">{name}</p>
             </div>
           ))}
         </div>
@@ -194,7 +194,7 @@ export default function UiLabPage() {
       </Panel>
 
       <Panel>
-        <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-fg-secondary/70">
+        <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           Inspector — the four non-content states must never look alike
         </p>
         <div className="grid gap-3 md:grid-cols-2">
@@ -206,21 +206,21 @@ export default function UiLabPage() {
       </Panel>
 
       <Panel>
-        <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-fg-secondary/70">
+        <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           Inspector frame — sheet chrome, peek vs inspect
         </p>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setFrameOpen("peek")}
-            className="min-h-[44px] rounded-lg border border-glass px-3 py-2 text-[12px] text-fg-secondary hover:text-fg md:min-h-0"
+            className="min-h-[44px] rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg md:min-h-0"
           >
             Open — peek
           </button>
           <button
             type="button"
             onClick={() => setFrameOpen("inspect")}
-            className="min-h-[44px] rounded-lg border border-glass px-3 py-2 text-[12px] text-fg-secondary hover:text-fg md:min-h-0"
+            className="min-h-[44px] rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg md:min-h-0"
           >
             Open — inspect
           </button>
@@ -232,7 +232,7 @@ export default function UiLabPage() {
       </Panel>
 
       <Panel>
-        <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-fg-secondary/70">
+        <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           Metric — a number with its &quot;relative to what?&quot;
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -285,17 +285,17 @@ export default function UiLabPage() {
 
       <Panel>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-[11px] uppercase tracking-[0.16em] text-fg-secondary/70">Evidence mark — chip by default, inline in Reality Mode</p>
+          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Evidence mark — chip by default, inline in Reality Mode</p>
           <button
             type="button"
             onClick={() => setRealityMode(!realityMode)}
             aria-pressed={realityMode}
-            className="min-h-[44px] rounded-lg border border-glass px-3 py-2 font-mono text-[11px] text-fg-secondary hover:text-fg md:min-h-0"
+            className="min-h-[44px] rounded-control border border-edge-default bg-content px-3 py-2 font-mono text-[12px] text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg md:min-h-0"
           >
             reality mode · {realityMode ? "on" : "off"}
           </button>
         </div>
-        <ul className="divide-y divide-white/5">
+        <ul className="divide-y divide-edge-subtle">
           {EVIDENCE_FIXTURES.map((fx) => (
             <li key={fx.title} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2">
               <span className="text-[13px] text-fg-secondary">{fx.title}</span>
@@ -310,7 +310,7 @@ export default function UiLabPage() {
       </Panel>
 
       <Panel>
-        <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-fg-secondary/70">
+        <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           Selection grammar — fixture rows · j/k move · Space peeks · Enter opens · x selects · Esc unwinds
         </p>
         <ul className="space-y-1" data-selection-scope="ui-lab-fixtures">
@@ -322,7 +322,7 @@ export default function UiLabPage() {
               data-entity={`content:${r.id}`}
               data-entity-label={r.label}
               onClick={() => openInspector({ kind: "content", id: r.id })}
-              className="flex min-h-[44px] cursor-pointer items-center rounded-lg border border-glass px-3 text-[13px] text-fg-secondary transition-colors hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/50 data-[entity-focused=true]:border-[var(--gold)]/50 data-[entity-selected=true]:bg-[var(--gold)]/[0.06]"
+              className="flex min-h-[44px] cursor-pointer items-center rounded-control border border-edge-subtle px-3 text-[13px] text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent data-[entity-focused=true]:border-accent data-[entity-selected=true]:bg-accent-soft"
             >
               {r.label}
             </li>

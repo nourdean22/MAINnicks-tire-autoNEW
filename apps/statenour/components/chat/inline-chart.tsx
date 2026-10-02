@@ -101,7 +101,7 @@ export function InlineChart({ spec }: { spec: ChartSpec }) {
   return (
     <div className="my-3">
       {spec.title && (
-        <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--text-tertiary)] mb-1.5">
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)] mb-1.5">
           {spec.title}
         </p>
       )}

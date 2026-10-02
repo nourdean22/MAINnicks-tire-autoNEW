@@ -48,7 +48,7 @@ function levelTint(level: string): string {
   if (l === "fatal") return "text-rose-400 bg-rose-500/10 border-rose-500/20";
   if (l === "error") return "text-rose-300 bg-rose-500/5 border-rose-500/10";
   if (l === "warn")  return "text-amber-300 bg-amber-500/5 border-amber-500/10";
-  return "text-zinc-300 bg-zinc-500/5 border-zinc-500/10";
+  return "text-fg bg-fg-tertiary border-edge-default";
 }
 
 export function ErrorsFingerprints() {
@@ -138,8 +138,8 @@ export function ErrorsFingerprints() {
   return (
     <div className="space-y-4">
       {/* Summary line */}
-      <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.04] px-3 py-2">
-        <span className="text-xs text-[var(--text-secondary)]">
+      <div className="flex items-center justify-between gap-3 rounded-surface border border-edge-default bg-content/[0.04] px-3 py-2">
+              <span className="text-xs text-fg-secondary">
           {loading
             ? "loading…"
             : `${total} total · ${groups.length} unique fingerprints · ${fatalCount} fatal${
@@ -149,7 +149,7 @@ export function ErrorsFingerprints() {
         <button
           onClick={load}
           disabled={loading}
-          className="rounded-lg border border-[var(--border-hover)] bg-[var(--bg-raised)]/5 px-3 py-1 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-[var(--bg-raised)]/10 disabled:opacity-50"
+          className="rounded-control border border-edge-strong bg-content px-3 py-1 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
         >
           {loading ? "refreshing…" : "refresh"}
         </button>
@@ -165,48 +165,48 @@ export function ErrorsFingerprints() {
               "rounded-full px-3 py-1 text-xs transition",
               levelFilter === l
                 ? l === "all"
-                  ? "bg-white/10 text-white"
+                  ? "bg-surface-interactive text-fg"
                   : cn(levelTint(l), "border")
-                : "bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800/60",
+                : "bg-content text-fg-secondary hover:bg-surface-hover",
             )}
           >
             {l}
           </button>
         ))}
         {newSinceLast > 0 && (
-          <span className="ml-auto rounded-full bg-rose-500/10 px-3 py-1 text-xs text-rose-300 animate-pulse">
+          <span className="ml-auto rounded-full bg-rose-500/10 px-3 py-1 text-xs text-rose-300">
             {newSinceLast} new since last refresh
           </span>
         )}
       </div>
 
       {/* Fingerprints (groups) */}
-      <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
+      <Panel className="border-edge-default">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-white">Fingerprints · top 20</h2>
-          <span className="text-xs text-[var(--text-tertiary)]">grouped by message</span>
+          <h2 className="text-sm font-semibold text-fg">Fingerprints · top 20</h2>
+          <span className="text-xs text-fg-tertiary">grouped by message</span>
         </div>
         {groups.length === 0 ? (
-          <p className="text-xs text-[var(--text-tertiary)]">
-            {loading ? "loading…" : "✅ no errors in the selected window"}
+          <p className="text-xs text-fg-tertiary">
+              {loading ? "loading…" : "✓ no errors in the selected window"}
           </p>
         ) : (
           <div className="space-y-1">
             {groups.map((g, i) => (
               <div
                 key={i}
-                className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 rounded-lg border border-zinc-800/40 bg-[var(--bg-raised)]/[0.02] px-3 py-2 transition hover:border-zinc-700/60"
+                className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 rounded-surface border border-edge-subtle px-3 py-2 transition hover:border-edge-default"
               >
-                <span className="inline-flex h-6 min-w-[2rem] items-center justify-center rounded bg-rose-500/10 px-2 text-[10px] font-semibold text-rose-300 tabular-nums">
+                <span className="inline-flex h-6 min-w-[2rem] items-center justify-center rounded bg-rose-500/10 px-2 text-[11px] font-semibold text-rose-300 tabular-nums">
                   ×<AnimatedCounter value={g.count} duration={600} />
                 </span>
-                <span className="truncate font-mono text-xs text-zinc-300" title={g.message}>
+                <span className="truncate font-mono text-xs text-fg" title={g.message}>
                   {g.message}
                 </span>
-                <span className="text-[10px] text-zinc-500">{timeAgo(g.lastSeen)}</span>
+                <span className="text-[11px] text-fg-tertiary">{timeAgo(g.lastSeen)}</span>
                 <button
                   onClick={() => openAsTask(g.message)}
-                  className="rounded bg-white/[0.04] px-2 py-1 text-[10px] text-zinc-300 transition hover:bg-white/[0.08]"
+                  className="rounded bg-surface-interactive px-2 py-1 text-[11px] text-fg transition hover:bg-surface-hover"
                   title="open as task"
                 >
                   → task
@@ -218,14 +218,14 @@ export function ErrorsFingerprints() {
       </Panel>
 
       {/* Recent feed */}
-      <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
+      <Panel className="border-edge-default">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-white">Recent · last 50</h2>
-          <span className="text-xs text-[var(--text-tertiary)]">click to expand</span>
+          <h2 className="text-sm font-semibold text-fg">Recent · last 50</h2>
+          <span className="text-xs text-fg-tertiary">click to expand</span>
         </div>
         {recent.length === 0 ? (
-          <p className="text-xs text-[var(--text-tertiary)]">
-            {loading ? "loading…" : "✅ no recent errors"}
+          <p className="text-xs text-fg-tertiary">
+              {loading ? "loading…" : "✓ no recent errors"}
           </p>
         ) : (
           <div className="space-y-1">
@@ -237,7 +237,7 @@ export function ErrorsFingerprints() {
                 <div
                   key={row.id}
                   className={cn(
-                    "rounded-lg border px-3 py-2 transition",
+                    "rounded-surface border px-3 py-2 transition",
                     levelTint(row.level),
                     isOpen ? "border-opacity-60" : "border-opacity-20 hover:border-opacity-40",
                   )}
@@ -250,31 +250,30 @@ export function ErrorsFingerprints() {
                       className={cn(
                         "inline-block h-2 w-2 rounded-full",
                         row.level === "fatal" ? "bg-rose-400" : row.level === "warn" ? "bg-amber-400" : "bg-rose-300",
-                        isFresh && "animate-pulse",
                       )}
                     />
-                    <span className="rounded px-1.5 py-[1px] text-[9px] uppercase tracking-wider">
+                    <span className="rounded px-1.5 py-[1px] text-[11px]">
                       {row.level}
                     </span>
                     <span className="truncate font-mono text-xs">{row.message}</span>
-                    <span className="text-[10px] opacity-70">{timeAgo(row.createdAt)}</span>
+                    <span className="text-[11px] opacity-70">{timeAgo(row.createdAt)}</span>
                   </button>
                   {isOpen && (
-                    <div className="mt-2 space-y-2 border-t border-white/5 pt-2">
+                    <div className="mt-2 space-y-2 border-t border-edge-subtle pt-2">
                       {row.stack && (
-                        <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-black/40 p-2 text-[10px] text-zinc-400">
+                        <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-content p-2 text-[11px] text-fg-secondary">
                           {row.stack}
                         </pre>
                       )}
                       {row.context !== null && row.context !== undefined && (
-                        <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-black/30 p-2 text-[10px] text-zinc-500">
+                        <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-content p-2 text-[11px] text-fg-tertiary">
                           {JSON.stringify(row.context, null, 2)}
                         </pre>
                       )}
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => openAsTask(row.message)}
-                          className="rounded bg-white/[0.04] px-2 py-1 text-[10px] text-zinc-300 transition hover:bg-white/[0.08]"
+                          className="rounded bg-surface-interactive px-2 py-1 text-[11px] text-fg transition hover:bg-surface-hover"
                         >
                           open as task
                         </button>
@@ -288,7 +287,7 @@ export function ErrorsFingerprints() {
         )}
       </Panel>
 
-      <p className="pt-2 text-center text-[10px] text-zinc-600">
+      <p className="pt-2 text-center text-[11px] text-fg-tertiary">
         auto-refresh 30s · source: ErrorLog + /api/system/errors
       </p>
     </div>

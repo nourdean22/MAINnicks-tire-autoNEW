@@ -75,11 +75,11 @@ export function TimeTravelPanel() {
   }
 
   return (
-    <section id="time-travel" className="scroll-mt-24 rounded-lg border border-edge bg-surface/30 p-4">
+    <section id="time-travel" className="scroll-mt-24 rounded-surface border border-edge-subtle bg-content p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <CalendarDays size={14} className="text-gold" />
+            <CalendarDays size={14} className="text-fg-secondary" />
             <h3 className="text-sm font-semibold text-fg">Time travel</h3>
           </div>
           <p className="mt-1 max-w-2xl text-xs leading-5 text-fg-tertiary">
@@ -99,7 +99,7 @@ export function TimeTravelPanel() {
             type="button"
             onClick={loadSnapshot}
             disabled={!date || loading}
-            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-gold/30 bg-gold/10 px-3 text-xs font-semibold text-gold disabled:opacity-40"
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-40"
           >
             {loading ? <Loader2 size={14} className="animate-spin" /> : null}
             Load
@@ -145,12 +145,12 @@ export function TimeTravelSnapshot({ report }: { report: TimeTravelReport }) {
         {COUNT_LABELS.map(([key, label]) => (
           <div key={key} className="rounded-md border border-edge bg-void/50 p-2.5">
             <div className="font-mono text-lg tabular-nums text-fg">{failed.has(key) ? UNKNOWN : String(report.summary[key])}</div>
-            <div className="mt-1 text-[9px] uppercase tracking-wider text-fg-tertiary">{label}</div>
+            <div className="mt-1 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">{label}</div>
           </div>
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] text-fg-tertiary">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-fg-tertiary">
         <span>health {healthUnknown ? UNKNOWN : (report.summary.healthOverall ?? "unmeasured")}</span>
         <span>warnings {healthUnknown ? UNKNOWN : (report.summary.healthWarnings ?? UNKNOWN)}</span>
         <span>
@@ -164,12 +164,12 @@ export function TimeTravelSnapshot({ report }: { report: TimeTravelReport }) {
       </div>
       {report.memoriesByCategory.length > 0 ? (
         <div>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+          <p className="mb-2 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
             Memory categories
           </p>
           <div className="flex flex-wrap gap-2">
             {report.memoriesByCategory.map((item) => (
-              <span key={item.category} className="rounded border border-edge px-2 py-1 text-[10px] text-fg-secondary">
+              <span key={item.category} className="rounded border border-edge px-2 py-1 text-[11px] text-fg-secondary">
                 {item.category} · {item.count}
               </span>
             ))}
@@ -183,7 +183,7 @@ export function TimeTravelSnapshot({ report }: { report: TimeTravelReport }) {
         .slice(0, 8)
         .map((item) => (
           <div key={`${item.kind}:${item.id}`} className="rounded-md border border-edge bg-void/50 p-3">
-            <p className="font-mono text-[9px] uppercase tracking-wider text-fg-tertiary">{item.kind}</p>
+            <p className="font-mono text-[11px] text-fg-tertiary">{item.kind}</p>
             <p className="mt-1 text-xs leading-5 text-fg-secondary">{item.text}</p>
           </div>
         ))}

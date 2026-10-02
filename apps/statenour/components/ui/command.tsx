@@ -21,9 +21,10 @@ function Command({
     <CommandPrimitive
       data-slot="command"
       className={cn(
-        // 2026-09-16 · Visible Transformation · the Resolver is a flat
-        // elevated sheet with a gold top rule, not a glowing glass palette.
-        "flex size-full flex-col overflow-hidden rounded-xl! border border-edge bg-elevated p-0 text-popover-foreground shadow-[0_32px_80px_rgba(0,0,0,0.65)] [border-top:2px_solid_var(--gold)]",
+        // UI v2 (docs/design/ui-v2/SYSTEM.md): control chrome on the overlay
+        // step, L2 shadow, no gold rule. The Resolver itself owns its root in
+        // components/command-palette.tsx; this wrapper is for other consumers.
+        "flex size-full flex-col overflow-hidden rounded-overlay! border border-edge-default bg-overlay p-0 text-fg shadow-l2",
         className
       )}
       {...props}
@@ -53,7 +54,7 @@ function CommandDialog({
       </DialogHeader>
       <DialogContent
         className={cn(
-          "top-[10vh] translate-y-0 overflow-hidden rounded-xl! p-0 sm:max-w-2xl",
+          "top-[10vh] translate-y-0 overflow-hidden rounded-overlay! p-0 sm:max-w-2xl",
           className
         )}
         showCloseButton={showCloseButton}
@@ -73,7 +74,7 @@ function CommandInput({
       data-slot="command-input-wrapper"
       className="flex h-14 items-center gap-3 border-b border-edge px-4"
     >
-      <span aria-hidden className="shrink-0 font-mono text-xl leading-none text-gold">
+      <span aria-hidden className="shrink-0 font-mono text-xl leading-none text-fg-tertiary">
         ›
       </span>
       <CommandPrimitive.Input
@@ -84,7 +85,7 @@ function CommandInput({
         )}
         {...props}
       />
-      <kbd className="hidden shrink-0 rounded border border-edge px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-wider text-fg-tertiary sm:inline">
+      <kbd className="hidden shrink-0 rounded-micro border border-edge-default px-1.5 py-0.5 font-mono text-[11px] text-fg-tertiary sm:inline">
         esc
       </kbd>
     </div>
@@ -128,7 +129,7 @@ function CommandGroup({
     <CommandPrimitive.Group
       data-slot="command-group"
       className={cn(
-        "overflow-hidden p-1 text-foreground **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:pb-1.5 **:[[cmdk-group-heading]]:pt-3 **:[[cmdk-group-heading]]:font-mono **:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:uppercase **:[[cmdk-group-heading]]:tracking-[0.16em] **:[[cmdk-group-heading]]:text-fg-tertiary",
+        "overflow-hidden p-1 text-foreground **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:pb-1.5 **:[[cmdk-group-heading]]:pt-3 **:[[cmdk-group-heading]]:font-mono **:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:uppercase **:[[cmdk-group-heading]]:tracking-[0.12em] **:[[cmdk-group-heading]]:text-fg-tertiary",
         className
       )}
       {...props}
@@ -158,7 +159,7 @@ function CommandItem({
     <CommandPrimitive.Item
       data-slot="command-item"
       className={cn(
-        "group/command-item relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none transition-all duration-200 in-data-[slot=dialog-content]:rounded-lg! data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-selected:bg-primary/15 data-selected:shadow-[0_0_15px_rgba(253,185,19,0.15)] data-selected:text-primary [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-selected:*:[svg]:text-primary",
+        "group/command-item relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none transition-all duration-200 in-data-[slot=dialog-content]:rounded-control! data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-[selected=true]:bg-surface-interactive data-[selected=true]:text-fg [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-selected:*:[svg]:text-primary",
         className
       )}
       {...props}

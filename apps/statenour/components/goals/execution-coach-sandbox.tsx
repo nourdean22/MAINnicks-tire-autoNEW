@@ -528,7 +528,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
   const hasPhysicalDeficit = isLowSleep || isLowEnergy;
 
   return (
-    <div className="relative rounded-lg border border-zinc-800/40 bg-zinc-950/40 p-4 space-y-4 shadow-xl overflow-hidden">
+    <div className="relative rounded-surface border border-edge-subtle bg-content p-4 space-y-4 overflow-hidden">
       
       {/* Decorative gradient overlay */}
       <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -538,18 +538,18 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
         <div className="space-y-4 animate-fade-in">
           <header className="flex items-center gap-2">
             <Sparkles size={14} className="text-amber-400" />
-            <h4 className="text-[10px] font-mono uppercase tracking-[0.2em] text-amber-300">
+            <h4 className="text-[11px] font-mono uppercase tracking-[0.12em] text-amber-300">
               execution briefing
             </h4>
           </header>
 
           {/* Goal Why / Clarity Anchor */}
-          <div className="space-y-1.5 p-3 rounded-md bg-zinc-900/40 border border-zinc-800/40">
-            <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wide">
+          <div className="space-y-1.5 p-3 rounded-control bg-surface-raised border border-edge-subtle">
+            <span className="text-[11px] font-mono text-fg-tertiary uppercase tracking-[0.12em]">
               Clarity Anchor (Why it matters)
             </span>
             {goal.why ? (
-              <p className="text-[12px] text-zinc-200 italic leading-relaxed">
+              <p className="text-[12px] text-fg italic leading-relaxed">
                 &ldquo;{goal.why}&rdquo;
               </p>
             ) : (
@@ -562,13 +562,13 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                     placeholder="e.g. To secure financial sovereignty and ship our vision."
                     value={whyText}
                     onChange={(e) => setWhyText(e.target.value)}
-                    className="h-8 text-[11.5px] bg-zinc-950/40 border-zinc-800 focus:border-amber-500/30"
+                    className="h-8 text-[12px] bg-content border-edge-subtle focus:border-accent"
                   />
                   <Button
                     size="sm"
                     onClick={handleSaveWhy}
                     disabled={isSavingWhy || !whyText.trim()}
-                    className="h-8 px-3 text-[10px] font-mono bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                    className="h-8 px-3 text-[12px] font-medium bg-surface-interactive text-fg-secondary hover:bg-surface-hover"
                   >
                     {isSavingWhy ? <Loader2 size={10} className="animate-spin" /> : "Anchor"}
                   </Button>
@@ -579,10 +579,10 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
 
           {/* Physical Deficit Interceptor Alert */}
           {hasPhysicalDeficit && (
-            <div className="flex items-start gap-2.5 p-3 rounded-md bg-amber-500/[0.03] border border-amber-500/10 text-amber-400/90 text-[11px] leading-relaxed">
-              <ShieldAlert size={14} className="text-amber-400 mt-0.5 shrink-0 animate-pulse" />
+            <div className="flex items-start gap-2.5 p-3 rounded-control bg-amber-500/[0.03] border border-amber-500/10 text-amber-400/90 text-[11px] leading-relaxed">
+              <ShieldAlert size={14} className="text-amber-400 mt-0.5 shrink-0" />
               <div>
-                <p className="font-bold uppercase tracking-wider text-[9.5px] text-amber-300 mb-0.5">Physical deficit warning</p>
+                <p className="font-mono uppercase tracking-[0.12em] text-[11px] text-amber-300 mb-0.5">Physical deficit warning</p>
                 <p>
                   {isLowSleep && `Sleep is low (${latestBody?.sleepHours}h today). `}
                   {isLowEnergy && `Energy level is low (${latestBody?.energy}/5 today). `}
@@ -594,7 +594,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
 
           {/* Preemptive Alert */}
           {preemptiveAlert && (
-            <div className="flex items-start gap-2.5 p-2.5 rounded-md bg-rose-500/[0.03] border border-rose-500/10 text-rose-300/90 text-[10.5px]">
+            <div className="flex items-start gap-2.5 p-2.5 rounded-control bg-rose-500/[0.03] border border-rose-500/10 text-rose-300/90 text-[11px]">
               <ShieldAlert size={13} className="text-rose-400 mt-0.5 shrink-0" />
               <p>{preemptiveAlert}</p>
             </div>
@@ -602,7 +602,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
 
           {/* Singular Mission Definition */}
           <div className="space-y-1.5">
-            <label htmlFor="mission-step" className="text-[9px] font-mono text-zinc-500 uppercase tracking-wide">
+            <label htmlFor="mission-step" className="text-[11px] font-mono text-fg-tertiary uppercase tracking-[0.12em]">
               Today's singular physical step
             </label>
             <div className="flex gap-2">
@@ -611,7 +611,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 placeholder="What is the exact physical next step?"
                 value={missionTitle}
                 onChange={(e) => setMissionTitle(e.target.value)}
-                className="h-9 text-[12.5px] bg-zinc-900/60 border-zinc-800 focus:border-amber-500/40 font-medium text-zinc-100"
+                className="h-9 text-[13px] bg-content border-edge-subtle focus:border-accent font-medium text-fg"
               />
               <Button
                 type="button"
@@ -619,7 +619,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 size="sm"
                 onClick={handleDeconstruct}
                 disabled={isDeconstructing || !missionTitle.trim()}
-                className="h-9 px-3 text-[10px] font-mono bg-zinc-900 border-zinc-800 hover:bg-zinc-800 text-amber-400 hover:text-amber-300 gap-1.5 whitespace-nowrap shrink-0"
+                className="h-9 px-3 text-[12px] font-medium bg-content border-edge-subtle hover:bg-surface-hover text-amber-400 hover:text-amber-300 gap-1.5 whitespace-nowrap shrink-0"
               >
                 {isDeconstructing ? (
                   <Loader2 size={11} className="animate-spin" />
@@ -633,7 +633,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
               <button
                 type="button"
                 onClick={() => setMissionTitle(latestCoach.nextAction)}
-                className="text-[9px] text-zinc-500 hover:text-zinc-300 flex items-center gap-1 mt-1 transition-all"
+                className="text-[11px] text-fg-tertiary hover:text-fg flex items-center gap-1 mt-1 transition-all"
               >
                 <span>Suggest: &ldquo;{latestCoach.nextAction}&rdquo;</span>
                 <ArrowRight size={8} />
@@ -643,18 +643,18 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
 
           {/* AI Micro-steps Display */}
           {microSteps.length > 0 && (
-            <div className="space-y-2 p-3 rounded-md bg-zinc-900/50 border border-zinc-800/60">
-              <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wide flex justify-between items-center">
+            <div className="space-y-2 p-3 rounded-control bg-surface-raised border border-edge-subtle">
+              <span className="text-[11px] font-mono text-fg-tertiary uppercase tracking-[0.12em] flex justify-between items-center">
                 <span>AI Micro-Steps</span>
                 <button
                   type="button"
                   onClick={() => setMicroSteps([])}
-                  className="text-zinc-600 hover:text-zinc-400 text-[8px]"
+                  className="text-fg-tertiary hover:text-fg-secondary text-[11px]"
                 >
                   Clear
                 </button>
               </span>
-              <ol className="space-y-1.5 list-decimal list-inside text-[11.5px] text-zinc-300">
+              <ol className="space-y-1.5 list-decimal list-inside text-[12px] text-fg-secondary">
                 {microSteps.map((s, idx) => (
                   <li key={idx} className={cn("leading-relaxed", idx === activeMicroStepIdx && "text-amber-400 font-medium")}>
                     {s}
@@ -665,12 +665,12 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           )}
 
           {/* EF Focus Mode toggle */}
-          <div className="flex items-center justify-between p-3 rounded-md bg-zinc-900/40 border border-zinc-800/40">
+          <div className="flex items-center justify-between p-3 rounded-control bg-surface-raised border border-edge-subtle">
             <div className="space-y-0.5">
-              <span className="text-[11px] font-bold text-zinc-200">
+              <span className="text-[11px] font-semibold text-fg">
                 EF Rescue Focus
               </span>
-              <p className="text-[9.5px] text-zinc-500">
+              <p className="text-[11px] text-fg-tertiary">
                 Cap timer to 3m, open distraction-free fullscreen overlay, dump mental clutter.
               </p>
             </div>
@@ -689,12 +689,12 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
               }}
               className={cn(
                 "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
-                efMode ? "bg-amber-500" : "bg-zinc-700"
+                efMode ? "bg-amber-500" : "bg-surface-interactive"
               )}
             >
               <span
                 className={cn(
-                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-zinc-950 shadow ring-0 transition duration-200 ease-in-out",
+                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-content shadow ring-0 transition duration-200 ease-in-out",
                   efMode ? "translate-x-4" : "translate-x-0"
                 )}
               />
@@ -704,7 +704,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           {/* Working Memory Clutter Dump */}
           {efMode && (
             <div className="space-y-1.5 animate-fade-in">
-              <label htmlFor="clutter-dump" className="text-[9px] font-mono text-zinc-500 uppercase tracking-wide">
+              <label htmlFor="clutter-dump" className="text-[11px] font-mono text-fg-tertiary uppercase tracking-[0.12em]">
                 Mental Clutter Dump (Ephemeral)
               </label>
               <textarea
@@ -712,14 +712,14 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 placeholder="Dump whatever is distracting or cluttering your mind right now to free your attention..."
                 value={clutterDump}
                 onChange={(e) => setClutterDump(e.target.value)}
-                className="w-full min-h-[70px] p-2.5 rounded-md text-[11.5px] bg-zinc-900/60 border border-zinc-800 focus:border-amber-500/40 focus:ring-0 text-zinc-100 placeholder-zinc-600 resize-none leading-relaxed"
+                className="w-full min-h-[70px] p-2.5 rounded-control text-[12px] bg-content border border-edge-subtle focus:border-accent focus:ring-0 text-fg placeholder:text-fg-tertiary resize-none leading-relaxed"
               />
             </div>
           )}
 
           {/* Horizon Selection */}
           <div className="flex items-center gap-2 pt-1">
-            <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-wider">
+            <span className="text-[11px] font-mono text-fg-tertiary uppercase tracking-[0.12em]">
               Focus span:
             </span>
             {[
@@ -733,10 +733,10 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                   setTimeLeft(o.value);
                 }}
                 className={cn(
-                  "text-[8px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border transition-all",
+                  "text-[12px] font-medium px-2 py-0.5 rounded-control border transition-colors duration-[var(--motion-state)]",
                   timerDuration === o.value
                     ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
-                    : "border-zinc-800 text-zinc-600 hover:text-zinc-400"
+                    : "border-edge-subtle text-fg-tertiary hover:text-fg-secondary"
                 )}
               >
                 {o.label}
@@ -747,7 +747,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           <Button
             onClick={handleStartMission}
             disabled={isCreatingTask || !missionTitle.trim() || !whyText.trim()}
-            className="w-full h-10 text-[11px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500 hover:text-black transition-all flex items-center justify-center gap-2"
+            className="w-full h-10 text-[11px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500 hover:text-black transition-all flex items-center justify-center gap-2"
           >
             {isCreatingTask ? (
               <Loader2 size={13} className="animate-spin" />
@@ -762,18 +762,18 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
       {/* STEP 2: TIMER (ENGAGEMENT / FOCUS MODE) */}
       {/* Fullscreen distraction-free EF Rescue Mode Focus view */}
       {step === "TIMER" && efMode && (
-        <div className="fixed inset-0 z-50 bg-zinc-950/98 backdrop-blur-md flex flex-col justify-between p-8 text-center animate-fade-in">
+        <div className="fixed inset-0 z-50 bg-canvas flex flex-col justify-between p-8 text-center animate-fade-in">
           {/* Top header */}
-          <div className="flex justify-between items-center w-full max-w-2xl mx-auto border-b border-zinc-800/40 pb-4">
-            <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-amber-500 flex items-center gap-1.5">
-              <ShieldAlert size={14} className="text-amber-500 animate-pulse" />
+          <div className="flex justify-between items-center w-full max-w-2xl mx-auto border-b border-edge-subtle pb-4">
+            <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-amber-500 flex items-center gap-1.5">
+              <ShieldAlert size={14} className="text-amber-500" />
               EF Rescue Focus Mode
             </span>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setEfMode(false)}
-              className="text-[9px] font-mono text-zinc-500 hover:text-zinc-300 uppercase tracking-wider h-7 px-2 hover:bg-zinc-900"
+              className="text-[12px] font-medium text-fg-tertiary hover:text-fg h-7 px-2 hover:bg-surface-hover"
             >
               Exit Focus View
             </Button>
@@ -783,19 +783,19 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           <div className="flex-1 flex flex-col justify-center items-center max-w-2xl mx-auto space-y-8 py-8">
             {microSteps.length > 0 ? (
               <div className="space-y-4">
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono uppercase tracking-wider">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono uppercase tracking-[0.12em]">
                   Step {activeMicroStepIdx + 1} of {microSteps.length}
                 </span>
-                <h2 className="text-2xl md:text-4xl text-zinc-100 font-extrabold leading-normal select-none tracking-tight">
+                <h2 className="text-2xl md:text-4xl text-fg font-semibold leading-normal select-none tracking-tight">
                   {microSteps[activeMicroStepIdx]}
                 </h2>
               </div>
             ) : (
               <div className="space-y-4">
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono uppercase tracking-wider">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono uppercase tracking-[0.12em]">
                   Singular Action
                 </span>
-                <h2 className="text-2xl md:text-3xl text-zinc-100 font-extrabold leading-normal select-none tracking-tight">
+                <h2 className="text-2xl md:text-3xl text-fg font-semibold leading-normal select-none tracking-tight">
                   {missionTitle}
                 </h2>
               </div>
@@ -803,33 +803,33 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
 
             {/* Countdown Display */}
             <div className="space-y-2 select-none">
-              <div className="text-6xl md:text-8xl font-black font-mono text-zinc-100 tracking-tighter tabular-nums animate-pulse">
+              <div className="stat-number text-6xl md:text-8xl text-fg">
                 {formatTime(timeLeft)}
               </div>
-              <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-zinc-500">
+              <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
                 time remaining
               </span>
             </div>
 
-            <p className="text-[12px] text-zinc-400 italic max-w-md mx-auto leading-relaxed">
+            <p className="text-[12px] text-fg-secondary italic max-w-md mx-auto leading-relaxed">
               No distractions, Nour. Defend this focus window. One small move.
             </p>
           </div>
 
           {/* Bottom actions */}
-          <div className="w-full max-w-2xl mx-auto pt-4 border-t border-zinc-800/40 flex flex-col gap-3">
+          <div className="w-full max-w-2xl mx-auto pt-4 border-t border-edge-subtle flex flex-col gap-3">
             <div className="flex gap-3">
               {microSteps.length > 0 && activeMicroStepIdx < microSteps.length - 1 ? (
                 <Button
                   onClick={() => setActiveMicroStepIdx((prev) => prev + 1)}
-                  className="flex-1 h-12 text-[12px] font-bold uppercase tracking-wider bg-amber-500 text-black hover:bg-amber-400 transition-all shadow-lg shadow-amber-500/10"
+                  className="flex-1 h-12 text-[12px] font-medium bg-amber-500 text-black hover:bg-amber-400 transition-all"
                 >
                   Next Step (AI) →
                 </Button>
               ) : (
                 <Button
                   onClick={handleCompleteEarly}
-                  className="flex-1 h-12 text-[12px] font-bold uppercase tracking-wider bg-emerald-500 text-black hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/10"
+                  className="flex-1 h-12 text-[12px] font-medium bg-emerald-500 text-black hover:bg-emerald-400 transition-all"
                 >
                   Complete Mission ✓
                 </Button>
@@ -837,7 +837,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
 
               <Button
                 onClick={() => setStep("RESISTANCE")}
-                className="h-12 px-6 text-[11px] font-bold uppercase tracking-wider bg-rose-500/10 text-rose-300 border border-rose-500/20 hover:bg-rose-500/20 transition-all"
+                className="h-12 px-6 text-[11px] font-medium bg-rose-500/10 text-rose-300 border border-rose-500/20 hover:bg-rose-500/20 transition-all"
               >
                 Resistance
               </Button>
@@ -848,7 +848,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 setTimerActive(false);
                 setStep("BRIEFING");
               }}
-              className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 uppercase tracking-widest py-1 transition-all"
+              className="text-[12px] font-medium text-fg-tertiary hover:text-fg-secondary py-1"
             >
               Cancel Focus Session
             </button>
@@ -860,10 +860,10 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
       {step === "TIMER" && !efMode && (
         <div className="space-y-5 py-2 text-center animate-fade-in relative z-10">
           <div className="space-y-1">
-            <span className="text-[9px] font-mono uppercase tracking-[0.25em] text-zinc-500">
+            <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
               Focusing on step
             </span>
-            <p className="text-[14px] font-bold text-zinc-100 max-w-[280px] mx-auto leading-snug">
+            <p className="text-[14px] font-semibold text-fg max-w-[280px] mx-auto leading-snug">
               {missionTitle}
             </p>
           </div>
@@ -892,30 +892,30 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-[20px] font-bold font-mono text-zinc-100 tabular-nums leading-none">
+              <span className="text-[20px] font-semibold font-mono text-fg tabular-nums leading-none">
                 {formatTime(timeLeft)}
               </span>
-              <span className="text-[8px] font-mono uppercase tracking-widest text-zinc-500 mt-1">
+              <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mt-1">
                 remaining
               </span>
             </div>
           </div>
 
-          <p className="text-[10px] text-zinc-500 italic max-w-[240px] mx-auto leading-relaxed">
+          <p className="text-[11px] text-fg-tertiary italic max-w-[240px] mx-auto leading-relaxed">
             Nour, defend this window. Hiding interface distraction. Just run the loop.
           </p>
 
           <div className="flex gap-2">
             <Button
               onClick={handleCompleteEarly}
-              className="flex-1 h-9 text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500 hover:text-black transition-all"
+              className="flex-1 h-9 text-[11px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500 hover:text-black transition-all"
             >
               <Check size={11} className="mr-1" />
               Complete
             </Button>
             <Button
               onClick={() => setStep("RESISTANCE")}
-              className="h-9 px-3 text-[10px] font-bold uppercase tracking-wider bg-rose-500/15 text-rose-300 border border-rose-500/20 hover:bg-rose-500/25 hover:text-rose-200 transition-all"
+              className="h-9 px-3 text-[11px] font-medium bg-rose-500/15 text-rose-300 border border-rose-500/20 hover:bg-rose-500/25 hover:text-rose-200 transition-all"
             >
               Resistance
             </Button>
@@ -928,45 +928,45 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
         <div className="space-y-4 animate-fade-in">
           <header className="flex items-center gap-2">
             <AlertTriangle size={14} className="text-rose-400" />
-            <h4 className="text-[10px] font-mono uppercase tracking-[0.2em] text-rose-300">
+            <h4 className="text-[11px] font-mono uppercase tracking-[0.12em] text-rose-300">
               resistance protocol
             </h4>
           </header>
 
           <div className="space-y-1">
-            <p className="text-[12px] font-bold text-zinc-200 leading-snug">
+            <p className="text-[12px] font-semibold text-fg leading-snug">
               &ldquo;Relentless execution is about momentum, not scale.&rdquo;
             </p>
-            <p className="text-[10.5px] text-zinc-400 leading-relaxed">
+            <p className="text-[11px] text-fg-secondary leading-relaxed">
               If the task is blocking you, shrink it instantly until it's impossible to fail.
             </p>
           </div>
 
           <div className="space-y-1.5 pt-1">
-            <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-wider">
+            <span className="text-[11px] font-mono text-fg-tertiary uppercase tracking-[0.12em]">
               Choose micro action:
             </span>
             <div className="grid grid-cols-1 gap-2">
               <button
                 onClick={() => handleShrinkTask(120, `Do 2 mins on: ${missionTitle}`)}
-                className="w-full text-left p-2.5 rounded border border-zinc-800 bg-zinc-950/20 hover:bg-zinc-900 hover:border-zinc-700 transition-all flex justify-between items-center text-[11px]"
+                className="w-full text-left p-2.5 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-edge-strong transition-all flex justify-between items-center text-[11px]"
               >
                 <span>Just do 2 minutes</span>
-                <span className="text-[9px] font-mono text-zinc-500">120s</span>
+                <span className="text-[11px] font-mono text-fg-tertiary">120s</span>
               </button>
               <button
                 onClick={() => handleShrinkTask(60, `Just open the tool/document for: ${missionTitle}`)}
-                className="w-full text-left p-2.5 rounded border border-zinc-800 bg-zinc-950/20 hover:bg-zinc-900 hover:border-zinc-700 transition-all flex justify-between items-center text-[11px]"
+                className="w-full text-left p-2.5 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-edge-strong transition-all flex justify-between items-center text-[11px]"
               >
                 <span>Just open the document/tool</span>
-                <span className="text-[9px] font-mono text-zinc-500">60s</span>
+                <span className="text-[11px] font-mono text-fg-tertiary">60s</span>
               </button>
               <button
                 onClick={() => handleShrinkTask(60, `Write/execute one word or line for: ${missionTitle}`)}
-                className="w-full text-left p-2.5 rounded border border-zinc-800 bg-zinc-950/20 hover:bg-zinc-900 hover:border-zinc-700 transition-all flex justify-between items-center text-[11px]"
+                className="w-full text-left p-2.5 rounded-control border border-edge-subtle bg-content hover:bg-surface-hover hover:border-edge-strong transition-all flex justify-between items-center text-[11px]"
               >
                 <span>Write one word / line</span>
-                <span className="text-[9px] font-mono text-zinc-500">60s</span>
+                <span className="text-[11px] font-mono text-fg-tertiary">60s</span>
               </button>
             </div>
           </div>
@@ -974,13 +974,13 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           <div className="flex gap-2 pt-2">
             <Button
               onClick={() => setStep("TIMER")}
-              className="flex-1 h-8 text-[9px] font-mono uppercase bg-zinc-900 border border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-300"
+              className="flex-1 h-8 text-[12px] font-medium bg-content border border-edge-subtle text-fg-secondary hover:bg-surface-hover hover:text-fg"
             >
               Resume Focus
             </Button>
             <Button
               onClick={() => setStep("SURVEY")}
-              className="flex-1 h-8 text-[9px] font-mono uppercase bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20"
+              className="flex-1 h-8 text-[12px] font-medium bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20"
             >
               Exit Loop
             </Button>
@@ -993,13 +993,13 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
         <div className="space-y-4 animate-fade-in">
           <header className="flex items-center gap-2">
             <Timer size={14} className="text-violet-400" />
-            <h4 className="text-[10px] font-mono uppercase tracking-[0.2em] text-violet-300">
+            <h4 className="text-[11px] font-mono uppercase tracking-[0.12em] text-violet-300">
               friction survey
             </h4>
           </header>
 
           <div className="space-y-1">
-            <p className="text-[11.5px] text-zinc-300 leading-snug">
+            <p className="text-[12px] text-fg-secondary leading-snug">
               Nour, analyze the execution. What was the main source of resistance?
             </p>
           </div>
@@ -1012,10 +1012,10 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                   key={opt.key}
                   onClick={() => handleToggleFriction(opt.key)}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[10.5px] transition-all hover:scale-[1.02]",
+                    "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] transition-all hover:scale-[1.02]",
                     active
                       ? "border-violet-500/50 bg-violet-500/15 text-violet-300"
-                      : "border-zinc-800 bg-zinc-900/30 text-zinc-400"
+                      : "border-edge-subtle bg-content text-fg-secondary"
                   )}
                 >
                   <span aria-hidden>{opt.emoji}</span>
@@ -1028,7 +1028,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           <Button
             onClick={handleSubmitSurvey}
             disabled={selectedFrictions.size === 0}
-            className="w-full h-9 text-[10px] font-bold uppercase tracking-wider bg-violet-500/15 text-violet-300 border border-violet-500/30 hover:bg-violet-500 hover:text-black transition-all"
+            className="w-full h-9 text-[11px] font-medium bg-violet-500/15 text-violet-300 border border-violet-500/30 hover:bg-violet-500 hover:text-black transition-all"
           >
             Submit & Continue
           </Button>
@@ -1040,7 +1040,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
         <div className="space-y-4 animate-fade-in">
           <header className="flex items-center gap-2">
             <Sparkles size={14} className="text-emerald-400" />
-            <h4 className="text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-300">
+            <h4 className="text-[11px] font-mono uppercase tracking-[0.12em] text-emerald-300">
               reflection & logging
             </h4>
           </header>
@@ -1048,7 +1048,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           <div className="space-y-3">
             {/* Seed action */}
             <div className="space-y-1.5">
-              <label htmlFor="seed-action" className="text-[9.5px] font-mono text-zinc-500 uppercase tracking-wide">
+              <label htmlFor="seed-action" className="text-[11px] font-mono text-fg-tertiary uppercase tracking-[0.12em]">
                 Tomorrow's seed action
               </label>
               <Input
@@ -1056,14 +1056,14 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 placeholder="What is the singular starting move for tomorrow?"
                 value={seedAction}
                 onChange={(e) => setSeedAction(e.target.value)}
-                className="h-8.5 text-[12px] bg-zinc-900/60 border-zinc-800 focus:border-emerald-500/40"
+                className="h-8.5 text-[12px] bg-content border-edge-subtle focus:border-accent"
               />
             </div>
 
             {/* Goal Metric Delta */}
             {goal.targetValue > 0 && (
               <div className="space-y-1.5">
-                <label htmlFor="metric-delta" className="text-[9.5px] font-mono text-zinc-500 uppercase tracking-wide">
+                <label htmlFor="metric-delta" className="text-[11px] font-mono text-fg-tertiary uppercase tracking-[0.12em]">
                   Log progress ({goal.metric || "current"}: {goal.currentValue}/{goal.targetValue} {goal.unit})
                 </label>
                 <div className="flex gap-2">
@@ -1074,7 +1074,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                     placeholder={`+Value in ${goal.unit || "units"}`}
                     value={progressDelta}
                     onChange={(e) => setProgressDelta(e.target.value)}
-                    className="h-8.5 text-[12px] bg-zinc-900/60 border-zinc-800 focus:border-emerald-500/40"
+                    className="h-8.5 text-[12px] bg-content border-edge-subtle focus:border-accent"
                   />
                 </div>
               </div>
@@ -1082,13 +1082,13 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
 
             {/* Learning Spaced Repetition queueing option */}
             {(selectedFrictions.has("vague") || selectedFrictions.has("low-energy")) && (
-              <div className="p-3 rounded-md bg-zinc-900/40 border border-zinc-800/40 space-y-2">
+              <div className="p-3 rounded-control bg-surface-raised border border-edge-subtle space-y-2">
                 <div className="space-y-1">
-                  <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider flex items-center gap-1">
+                  <span className="text-[11px] font-mono text-fg-secondary uppercase tracking-[0.12em] flex items-center gap-1">
                     <BookOpen size={11} className="text-amber-400" />
                     Continuous Learning
                   </span>
-                  <p className="text-[11px] text-zinc-500 leading-normal">
+                  <p className="text-[11px] text-fg-tertiary leading-normal">
                     You flagged execution friction. Queue a spaced review card in the Learning tab to resolve this block.
                   </p>
                 </div>
@@ -1103,7 +1103,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                     size="sm"
                     onClick={handleQueueSpacedReview}
                     disabled={isQueueingReview}
-                    className="w-full h-8 text-[10.5px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium flex items-center justify-center gap-1.5"
+                    className="w-full h-8 text-[11px] bg-surface-interactive hover:bg-surface-hover text-fg-secondary font-medium flex items-center justify-center gap-1.5"
                   >
                     {isQueueingReview ? (
                       <Loader2 size={11} className="animate-spin" />
@@ -1122,7 +1122,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           <Button
             onClick={handleFinishLoop}
             disabled={isSubmitting}
-            className="w-full h-9 text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500 hover:text-black transition-all flex items-center justify-center gap-1"
+            className="w-full h-9 text-[11px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500 hover:text-black transition-all flex items-center justify-center gap-1"
           >
             {isSubmitting ? (
               <Loader2 size={11} className="animate-spin" />
@@ -1137,43 +1137,43 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
       {/* STEP 6: COMPLETED */}
       {step === "COMPLETED" && (
         <div className="space-y-4 py-3 text-center animate-fade-in">
-          <div className="w-12 h-12 rounded-full bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center mx-auto text-emerald-400 animate-pulse">
+          <div className="w-12 h-12 rounded-full bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center mx-auto text-emerald-400">
             <CheckCircle2 size={24} />
           </div>
 
           <div className="space-y-1">
-            <h4 className="text-[13px] font-bold text-zinc-100 uppercase tracking-wider">
+            <h4 className="text-[15px] font-semibold text-fg">
               Loop Closed
             </h4>
-            <p className="text-[11px] text-zinc-400">
+            <p className="text-[11px] text-fg-secondary">
               Momentum locked in. +{efMode ? "12.5" : "10"} XP credited to character sheet.
             </p>
           </div>
 
-          <div className="p-3 rounded-md bg-zinc-900/40 border border-zinc-800/40 text-left text-[11px] space-y-2 max-w-[280px] mx-auto">
+          <div className="p-3 rounded-control bg-surface-raised border border-edge-subtle text-left text-[11px] space-y-2 max-w-[280px] mx-auto">
             <div className="flex justify-between">
-              <span className="text-zinc-500 font-mono text-[9px] uppercase">Goal</span>
-              <span className="text-zinc-300 font-medium truncate max-w-[180px]">{goal.title}</span>
+              <span className="text-fg-tertiary font-mono text-[11px] uppercase tracking-[0.12em]">Goal</span>
+              <span className="text-fg-secondary font-medium truncate max-w-[180px]">{goal.title}</span>
             </div>
             
             {seedAction && (
-              <div className="flex flex-col gap-0.5 border-t border-zinc-800/60 pt-1.5">
-                <span className="text-zinc-500 font-mono text-[9px] uppercase">Tomorrow's Seed</span>
-                <span className="text-zinc-200 italic">&ldquo;{seedAction}&rdquo;</span>
+              <div className="flex flex-col gap-0.5 border-t border-edge-subtle pt-1.5">
+                <span className="text-fg-tertiary font-mono text-[11px] uppercase tracking-[0.12em]">Tomorrow's Seed</span>
+                <span className="text-fg italic">&ldquo;{seedAction}&rdquo;</span>
               </div>
             )}
 
             {progressDelta && (
-              <div className="flex justify-between border-t border-zinc-800/60 pt-1.5">
-                <span className="text-zinc-500 font-mono text-[9px] uppercase">Metric delta</span>
-                <span className="text-emerald-400 font-bold">+{progressDelta} {goal.unit}</span>
+              <div className="flex justify-between border-t border-edge-subtle pt-1.5">
+                <span className="text-fg-tertiary font-mono text-[11px] uppercase tracking-[0.12em]">Metric delta</span>
+                <span className="text-emerald-400 font-semibold">+{progressDelta} {goal.unit}</span>
               </div>
             )}
           </div>
 
           <Button
             onClick={handleReset}
-            className="w-full h-8 text-[9px] font-mono uppercase bg-zinc-900 border border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-300"
+            className="w-full h-8 text-[12px] font-medium bg-content border border-edge-subtle text-fg-secondary hover:bg-surface-hover hover:text-fg"
           >
             Run Another Loop
           </Button>

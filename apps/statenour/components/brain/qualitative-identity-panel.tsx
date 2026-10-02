@@ -51,7 +51,7 @@ const BUCKET_LABELS: Record<Bucket, string> = {
 const BUCKET_COLOR: Record<Bucket, string> = {
   values: "text-emerald-400",
   fears: "text-red-400",
-  operating_style: "text-[var(--gold)]",
+  operating_style: "text-fg-secondary",
   rhythms: "text-blue-400",
   red_lines: "text-violet-400",
 };
@@ -128,17 +128,17 @@ export function QualitativeIdentityPanel() {
     <GlassCard>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <Compass size={12} className="text-[var(--gold)]" />
+          <Compass size={12} className="text-fg-secondary" />
           <p className="section-label">Qualitative identity</p>
           <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void load()} />
-          <span className="text-[9px] font-mono text-[var(--text-tertiary)]">
+          <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
             · values / fears / style / rhythms / red lines
           </span>
         </div>
         <button
           onClick={() => void recompute()}
           disabled={recomputing}
-          className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-[var(--gold)]/30 text-[var(--gold)] hover:bg-[var(--gold)]/10 inline-flex items-center gap-1"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
         >
           {recomputing ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
           recompute
@@ -182,7 +182,7 @@ export function QualitativeIdentityPanel() {
         />
       )}
       {!loading && !identity && identityQuery.isError && (
-        <p className="mt-1 text-[9px] font-mono text-red-300/70 break-words text-center">
+        <p className="mt-1 text-[11px] font-mono text-red-300/70 break-words text-center">
           {identityQuery.error.message}
         </p>
       )}
@@ -192,12 +192,12 @@ export function QualitativeIdentityPanel() {
           {(Object.keys(BUCKET_LABELS) as Bucket[]).map((b) => (
             <div key={b}>
               <div className="flex items-center justify-between mb-1">
-                <p className={cn("text-[9px] font-mono uppercase tracking-wider", BUCKET_COLOR[b])}>
+                <p className={cn("text-[11px] font-mono", BUCKET_COLOR[b])}>
                   {BUCKET_LABELS[b]} ({identity[b].length})
                 </p>
                 <button
                   onClick={() => { setAdding(b); setAddText(""); }}
-                  className="h-5 w-5 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/30 inline-flex items-center justify-center"
+                  className="h-5 w-5 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-fg hover:border-edge-strong inline-flex items-center justify-center"
                   title="add manual entry"
                 >
                   <Plus size={9} />
@@ -211,12 +211,12 @@ export function QualitativeIdentityPanel() {
                     onChange={(e) => setAddText(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && void addEntry(b)}
                     placeholder={`add to ${BUCKET_LABELS[b].toLowerCase()}…`}
-                    className="flex-1 px-2 py-1 bg-[var(--bg-overlay)] border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--gold)]/30"
+                    className="flex-1 px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
                   />
                   <button
                     onClick={() => void addEntry(b)}
                     disabled={busy}
-                    className="h-6 px-2 rounded border border-emerald-500/30 text-emerald-400 text-[9px] font-mono uppercase"
+                    className="h-6 px-2 rounded border border-emerald-500/30 text-emerald-400 text-[11px] font-mono"
                   >
                     add
                   </button>
@@ -234,7 +234,7 @@ export function QualitativeIdentityPanel() {
                     key={e.text}
                     className="group flex items-center gap-2 px-2 py-1.5 rounded border border-[var(--border-default)] bg-[var(--bg-base)]"
                   >
-                    <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", e.manual ? "bg-[var(--gold)]" : "bg-[var(--text-tertiary)]/40")} />
+                    <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", e.manual ? "bg-fg-secondary" : "bg-[var(--text-tertiary)]/40")} />
                     <span className="flex-1 text-[11px] text-[var(--text-primary)]">{e.text}</span>
                     <DismissButton
                       onClick={() => void removeEntry(b, e.text)}
@@ -246,7 +246,7 @@ export function QualitativeIdentityPanel() {
                   </div>
                 ))}
                 {identity[b].length === 0 && (
-                  <p className="text-[10px] text-[var(--text-tertiary)] italic">(empty — add one or let reflection auto-extract)</p>
+                  <p className="text-[11px] text-[var(--text-tertiary)] italic">(empty — add one or let reflection auto-extract)</p>
                 )}
               </div>
             </div>
@@ -254,7 +254,7 @@ export function QualitativeIdentityPanel() {
         </div>
       )}
 
-      <p className="text-[9px] text-[var(--text-tertiary)] mt-3 leading-relaxed">
+      <p className="text-[11px] text-[var(--text-tertiary)] mt-3 leading-relaxed">
         Pulled from reflections + chat importance + beliefs over 60d. Manual entries
         (gold dot) always survive re-computes. Chat route injects this as "## Nour's
         qualitative identity" so Nick anchors in WHO you are, not a generic persona.

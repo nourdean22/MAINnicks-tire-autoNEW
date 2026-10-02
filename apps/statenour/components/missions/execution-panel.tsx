@@ -202,49 +202,47 @@ export function ExecutionPanel({
       {/* Header bar with focused title + Exit */}
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-          <h2 className="text-[11px] font-mono uppercase tracking-[0.2em] text-amber-400 font-bold">
+          <span className={cn("h-2 w-2 rounded-full bg-amber-400", isDoing && "pulse-live")} />
+          <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             Execution Mode · active task
           </h2>
         </div>
         <button
           onClick={onExit}
-          className="inline-flex items-center gap-1 rounded border border-zinc-800 bg-zinc-950 px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-zinc-400 hover:text-zinc-200 transition-colors"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
         >
           Exit Focus <X size={10} />
         </button>
       </div>
 
       {/* Focused Task Card */}
-      <div className="rounded-xl border border-[var(--gold)]/35 bg-[var(--gold)]/[0.04] p-6 shadow-[0_0_35px_rgba(253,185,19,0.06)] relative overflow-hidden space-y-4">
-        {/* Glow decoration */}
-        <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-[var(--gold)]/5 blur-3xl pointer-events-none" />
+      <div className="rounded-surface border border-edge-subtle bg-content p-6 relative overflow-hidden space-y-4">
 
         {/* Task Title */}
         <div className="space-y-1">
           {mission && (
-            <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/80">
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               {mission.title}
             </p>
           )}
-          <h1 className="text-[20px] font-bold text-[var(--text-primary)] leading-snug">
+          <h1 className="text-[20px] font-semibold text-fg leading-snug">
             {task.title}
           </h1>
           {task.finishCondition && (
-            <p className="text-xs text-[var(--text-secondary)] italic mt-1.5 leading-relaxed">
+            <p className="text-[13px] text-fg-secondary italic mt-1.5 leading-relaxed">
               Target: {task.finishCondition}
             </p>
           )}
         </div>
 
         {/* Current status info */}
-        <div className="flex items-center gap-2 flex-wrap text-[9px] font-mono uppercase tracking-[0.12em] text-[var(--text-tertiary)] bg-zinc-950/40 p-2 rounded-md border border-zinc-900/60">
-          <span className="text-zinc-500">Status:</span>
+        <div className="flex items-center gap-2 flex-wrap font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary bg-surface-raised p-2 rounded-control border border-edge-subtle">
+          <span className="text-fg-tertiary">Status:</span>
           <span
             className={cn(
-              "px-1.5 py-0.5 rounded text-[8px] font-bold",
+              "px-1.5 py-0.5 rounded-micro text-[11px] font-semibold",
               isDoing
-                ? "bg-amber-400/10 border border-amber-500/30 text-amber-300 animate-pulse"
+                ? "bg-amber-400/10 border border-amber-500/30 text-amber-300 pulse-live"
                 : "bg-blue-500/10 border border-blue-500/30 text-blue-300",
             )}
           >
@@ -252,13 +250,13 @@ export function ExecutionPanel({
           </span>
           {task.dueDate && (
             <>
-              <span className="text-zinc-700">·</span>
+              <span className="text-fg-tertiary">·</span>
               <span>due {new Date(task.dueDate).toLocaleDateString()}</span>
             </>
           )}
           {task.effort && (
             <>
-              <span className="text-zinc-700">·</span>
+              <span className="text-fg-tertiary">·</span>
               <span>effort: {task.effort}</span>
             </>
           )}
@@ -268,11 +266,11 @@ export function ExecutionPanel({
         {showParkForm && (
           <form
             onSubmit={handleParkSubmit}
-            className="p-3 bg-zinc-950/60 rounded-lg border border-[var(--gold)]/25 space-y-2.5 animate-slide-down"
+            className="p-3 bg-surface-raised rounded-surface border border-edge-default space-y-2.5 animate-slide-down"
           >
             <label
               htmlFor="park-note-input"
-              className="block text-[10px] font-mono uppercase tracking-wider text-[var(--gold)]/90"
+              className="block font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary"
             >
               Where did you stop? What&apos;s the next physical step?
             </label>
@@ -284,14 +282,14 @@ export function ExecutionPanel({
               value={parkNote}
               onChange={(e) => setParkNote(e.target.value)}
               placeholder="e.g. drywall cut — tape the seam next"
-              className="w-full rounded-md border border-[var(--gold)]/30 bg-zinc-900/40 px-3 py-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--gold)]/60 placeholder:text-zinc-600"
+              className="w-full rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg focus:outline-none focus:border-accent placeholder:text-fg-tertiary"
             />
             {/* U5 · resume record — what future-you needs after 48 h away */}
             <button
               type="button"
               onClick={() => setShowRecord((v) => !v)}
               aria-expanded={showRecord}
-              className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 hover:text-zinc-200 min-h-[44px]"
+              className="text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg min-h-[44px]"
             >
               {showRecord ? "hide resume record" : "add resume record (for parks that outlive today)"}
             </button>
@@ -306,25 +304,25 @@ export function ExecutionPanel({
                   ] as const
                 ).map(([key, label, hint]) => (
                   <label key={key} className="block">
-                    <span className="block text-[10px] font-mono uppercase tracking-wider text-zinc-500">{label}</span>
+                    <span className="block font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{label}</span>
                     <input
                       type="text"
                       maxLength={300}
                       value={record[key] ?? ""}
                       onChange={(e) => setRecord((r) => ({ ...r, [key]: e.target.value }))}
                       placeholder={hint}
-                      className="w-full rounded-md border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--gold)]/60 placeholder:text-zinc-600"
+                      className="w-full rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg focus:outline-none focus:border-accent placeholder:text-fg-tertiary"
                     />
                   </label>
                 ))}
                 <label className="block">
-                  <span className="block text-[10px] font-mono uppercase tracking-wider text-zinc-500">Evidence links, one per line, max {MAX_RESUME_LINKS}</span>
+                  <span className="block font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Evidence links, one per line, max {MAX_RESUME_LINKS}</span>
                   <textarea
                     rows={2}
                     value={evidenceText}
                     onChange={(e) => setEvidenceText(e.target.value)}
                     placeholder="https://... or /journal"
-                    className="w-full rounded-md border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--gold)]/60 placeholder:text-zinc-600"
+                    className="w-full rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg focus:outline-none focus:border-accent placeholder:text-fg-tertiary"
                   />
                 </label>
               </div>
@@ -333,14 +331,14 @@ export function ExecutionPanel({
               <button
                 type="button"
                 onClick={resetPark}
-                className="px-2.5 py-1.5 rounded border border-zinc-800 text-zinc-400 hover:text-zinc-200 min-h-[44px]"
+                className="px-3 py-1.5 rounded-control border border-edge-default text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg min-h-[44px]"
               >
                 Keep going
               </button>
               <button
                 type="submit"
                 disabled={submitting === "park"}
-                className="px-2.5 py-1.5 rounded bg-[var(--gold)] text-black font-medium hover:bg-[var(--gold)]/85 min-h-[44px]"
+                className="px-3 py-1.5 rounded-control border border-edge-default bg-content text-[13px] font-medium text-fg transition-colors duration-[var(--motion-state)] hover:border-edge-strong min-h-[44px]"
               >
                 {submitting === "park" ? "Parking…" : "Park task"}
               </button>
@@ -352,11 +350,11 @@ export function ExecutionPanel({
         {showBlockForm && (
           <form
             onSubmit={handleBlockSubmit}
-            className="p-3 bg-zinc-950/60 rounded-lg border border-violet-500/20 space-y-2.5 animate-slide-down"
+            className="p-3 bg-surface-raised rounded-surface border border-violet-500/20 space-y-2.5 animate-slide-down"
           >
             <label
               htmlFor="blocker-input"
-              className="block text-[10px] font-mono uppercase tracking-wider text-violet-300"
+              className="block font-mono text-[11px] uppercase tracking-[0.12em] text-violet-300"
             >
               What is blocking this task?
             </label>
@@ -368,7 +366,7 @@ export function ExecutionPanel({
               value={blockReason}
               onChange={(e) => setBlockReason(e.target.value)}
               placeholder="e.g. waiting on doctor's signature, parts delivery..."
-              className="w-full rounded-md border border-violet-500/30 bg-zinc-900/40 px-3 py-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-violet-500/60 placeholder:text-zinc-600"
+              className="w-full rounded-control border border-violet-500/30 bg-content px-3 py-2 text-[13px] text-fg focus:outline-none focus:border-violet-500/60 placeholder:text-fg-tertiary"
             />
             <div className="flex justify-end gap-2 text-xs">
               <button
@@ -377,14 +375,14 @@ export function ExecutionPanel({
                   setShowBlockForm(false);
                   setBlockReason("");
                 }}
-                className="px-2.5 py-1.5 rounded border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                className="min-h-[44px] px-3 py-1.5 rounded-control border border-edge-default text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={submitting === "block"}
-                className="px-2.5 py-1.5 rounded bg-violet-600/80 hover:bg-violet-600 text-white font-medium"
+                className="min-h-[44px] px-3 py-1.5 rounded-control bg-violet-600/80 hover:bg-violet-600 text-[13px] text-white font-medium transition-colors duration-[var(--motion-state)]"
               >
                 {submitting === "block" ? "Saving..." : "Mark Blocked"}
               </button>
@@ -394,8 +392,8 @@ export function ExecutionPanel({
 
         {/* Sub-form: Snooze options */}
         {showSnoozeOptions && (
-          <div className="p-3 bg-zinc-950/60 rounded-lg border border-violet-500/20 space-y-2 animate-slide-down">
-            <p className="text-[10px] font-mono uppercase tracking-wider text-violet-300">
+          <div className="p-3 bg-surface-raised rounded-surface border border-violet-500/20 space-y-2 animate-slide-down">
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-violet-300">
               Snooze / Defer Task Until
             </p>
             <div className="grid grid-cols-2 gap-2 text-xs">
@@ -403,7 +401,7 @@ export function ExecutionPanel({
                 type="button"
                 onClick={() => handleSnooze(tomorrow6am())}
                 disabled={submitting === "snooze"}
-                className="flex items-center justify-center gap-1.5 p-2 rounded border border-zinc-800 hover:bg-zinc-900/60 text-zinc-200"
+                className="flex min-h-[44px] items-center justify-center gap-1.5 p-2 rounded-control border border-edge-default text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
               >
                 <Clock size={12} /> Tomorrow 6am
               </button>
@@ -411,7 +409,7 @@ export function ExecutionPanel({
                 type="button"
                 onClick={() => handleSnooze(nextMonday6am())}
                 disabled={submitting === "snooze"}
-                className="flex items-center justify-center gap-1.5 p-2 rounded border border-zinc-800 hover:bg-zinc-900/60 text-zinc-200"
+                className="flex min-h-[44px] items-center justify-center gap-1.5 p-2 rounded-control border border-edge-default text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
               >
                 <Clock size={12} /> Next Mon 6am
               </button>
@@ -420,7 +418,7 @@ export function ExecutionPanel({
               <button
                 type="button"
                 onClick={() => setShowSnoozeOptions(false)}
-                className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 hover:text-zinc-300"
+                className="min-h-[44px] text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
               >
                 Cancel
               </button>
@@ -430,14 +428,14 @@ export function ExecutionPanel({
 
         {/* Sub-form: Abandon confirmation */}
         {showAbandonConfirm && (
-          <div className="p-3 bg-zinc-950/60 rounded-lg border border-rose-500/20 space-y-3 animate-slide-down">
+          <div className="p-3 bg-surface-raised rounded-surface border border-rose-500/20 space-y-3 animate-slide-down">
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
               <div className="space-y-1">
-                <p className="text-[11px] font-mono uppercase tracking-wider text-rose-300 font-semibold">
+                <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-rose-300">
                   Confirm Abandonment
                 </p>
-                <p className="text-xs text-zinc-400 leading-snug">
+                <p className="text-[13px] text-fg-secondary leading-snug">
                   Are you sure you want to abandon “{task.title}”? It will be archived and removed from execution.
                 </p>
               </div>
@@ -446,7 +444,7 @@ export function ExecutionPanel({
               <button
                 type="button"
                 onClick={() => setShowAbandonConfirm(false)}
-                className="px-2.5 py-1.5 rounded border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                className="min-h-[44px] px-3 py-1.5 rounded-control border border-edge-default text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
               >
                 Cancel
               </button>
@@ -454,7 +452,7 @@ export function ExecutionPanel({
                 type="button"
                 onClick={handleAbandon}
                 disabled={submitting === "abandon"}
-                className="px-2.5 py-1.5 rounded bg-rose-600/80 hover:bg-rose-600 text-white font-medium flex items-center gap-1"
+                className="min-h-[44px] px-3 py-1.5 rounded-control bg-rose-600/80 hover:bg-rose-600 text-[13px] text-white font-medium transition-colors duration-[var(--motion-state)] flex items-center gap-1"
               >
                 <Trash2 size={12} /> Yes, Abandon
               </button>
@@ -471,7 +469,7 @@ export function ExecutionPanel({
               onClick={handleStartPause}
               disabled={submitting != null}
               className={cn(
-                "flex items-center justify-center gap-2 rounded-lg py-3.5 border text-xs font-semibold uppercase tracking-wider transition-all active:scale-[0.98] disabled:opacity-50",
+                "flex min-h-[44px] items-center justify-center gap-2 rounded-control py-3.5 border text-[13px] font-medium transition-colors duration-[var(--motion-state)] active:scale-[0.98] disabled:opacity-50",
                 isDoing
                   ? "bg-amber-400/10 border-amber-500/40 text-amber-300 hover:bg-amber-400/20"
                   : "bg-emerald-500/10 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/20",
@@ -493,7 +491,7 @@ export function ExecutionPanel({
               type="button"
               onClick={handleComplete}
               disabled={submitting != null}
-              className="flex items-center justify-center gap-2 rounded-lg py-3.5 bg-[var(--gold)]/20 border border-[var(--gold)]/40 text-[var(--gold)] hover:bg-[var(--gold)]/30 text-xs font-semibold uppercase tracking-wider transition-all active:scale-[0.98] disabled:opacity-50"
+              className="flex min-h-[44px] items-center justify-center gap-2 rounded-control py-3.5 bg-accent px-4 text-[14px] font-semibold text-[var(--text-inverse)] hover:bg-accent-hover transition-colors duration-[var(--motion-state)] active:scale-[0.98] disabled:opacity-50"
             >
               <Check size={14} strokeWidth={3} /> Complete Task
             </button>
@@ -503,9 +501,9 @@ export function ExecutionPanel({
               type="button"
               onClick={() => setShowBlockForm(true)}
               disabled={submitting != null}
-              className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 border border-violet-500/20 bg-violet-500/5 text-violet-300 hover:bg-violet-500/10 text-xs font-medium uppercase tracking-wider transition-all active:scale-[0.98] disabled:opacity-50"
+              className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-control py-2.5 border border-violet-500/20 bg-violet-500/5 text-violet-300 hover:bg-violet-500/10 text-[13px] font-medium transition-colors duration-[var(--motion-state)] active:scale-[0.98] disabled:opacity-50"
             >
-              ⏸ Mark Blocked
+              Mark Blocked
             </button>
 
             {/* Snooze / Defer */}
@@ -513,7 +511,7 @@ export function ExecutionPanel({
               type="button"
               onClick={() => setShowSnoozeOptions(true)}
               disabled={submitting != null}
-              className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 border border-zinc-800 bg-zinc-950 text-zinc-300 hover:bg-zinc-900/60 text-xs font-medium uppercase tracking-wider transition-all active:scale-[0.98] disabled:opacity-50"
+              className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-control py-2.5 border border-edge-default bg-content text-fg-secondary hover:border-edge-strong hover:text-fg text-[13px] font-medium transition-colors duration-[var(--motion-state)] active:scale-[0.98] disabled:opacity-50"
             >
               <Clock size={12} /> Snooze / Defer
             </button>
@@ -523,7 +521,7 @@ export function ExecutionPanel({
               type="button"
               onClick={() => onEdit(task)}
               disabled={submitting != null}
-              className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 border border-zinc-800 bg-zinc-950 text-zinc-300 hover:bg-zinc-900/60 text-xs font-medium uppercase tracking-wider transition-all active:scale-[0.98] disabled:opacity-50"
+              className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-control py-2.5 border border-edge-default bg-content text-fg-secondary hover:border-edge-strong hover:text-fg text-[13px] font-medium transition-colors duration-[var(--motion-state)] active:scale-[0.98] disabled:opacity-50"
             >
               <Pencil size={12} /> Break / Edit
             </button>
@@ -533,7 +531,7 @@ export function ExecutionPanel({
               type="button"
               onClick={() => setShowAbandonConfirm(true)}
               disabled={submitting != null}
-              className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 border border-rose-500/20 bg-rose-500/5 text-rose-300 hover:bg-rose-500/10 text-xs font-medium uppercase tracking-wider transition-all active:scale-[0.98] disabled:opacity-50"
+              className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-control py-2.5 border border-rose-500/20 bg-rose-500/5 text-rose-300 hover:bg-rose-500/10 text-[13px] font-medium transition-colors duration-[var(--motion-state)] active:scale-[0.98] disabled:opacity-50"
             >
               <Trash2 size={12} /> Abandon Task
             </button>

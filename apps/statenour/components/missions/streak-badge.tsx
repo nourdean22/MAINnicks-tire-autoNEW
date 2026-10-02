@@ -33,7 +33,7 @@ export function StreakBadge({ streak }: StreakBadgeProps) {
           border-radius: 9999px;
           background: rgba(245, 158, 11, 0.1);
           border: 1px solid rgba(245, 158, 11, 0.2);
-          font-family: var(--font-mono, "JetBrains Mono", monospace);
+          font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
           font-size: 10px;
           font-weight: 600;
           color: rgb(245, 158, 11);

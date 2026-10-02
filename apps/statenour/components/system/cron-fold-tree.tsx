@@ -54,7 +54,7 @@ const ACTIVE_TINT: Record<string, string> = {
   compose: "bg-violet-500/15 text-violet-300 border-violet-500/30",
   ingest: "bg-blue-500/15 text-blue-300 border-blue-500/30",
   brain: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-  hygiene: "bg-zinc-500/15 text-zinc-300 border-zinc-500/30",
+  hygiene: "bg-surface-interactive text-fg-secondary border-edge-default",
   signals: "bg-amber-500/15 text-amber-300 border-amber-500/30",
   review: "bg-pink-500/15 text-pink-300 border-pink-500/30",
   device: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30",
@@ -84,7 +84,7 @@ export function CronFoldTree() {
   if (!data) {
     return (
       <GlassCard>
-        <p className="text-[11px] text-[var(--text-tertiary)]">loading cron lineage…</p>
+        <p className="text-[11px] text-fg-tertiary">loading cron lineage…</p>
       </GlassCard>
     );
   }
@@ -113,7 +113,7 @@ export function CronFoldTree() {
         <span className="section-label">Cron lineage</span>
         <span
           className={
-            "text-[10px] font-mono uppercase tracking-wider leading-tight " + headroomColor
+          "font-mono text-[11px] leading-tight " + headroomColor
           }
         >
           <AnimatedCounter value={active.length} /> active ·{" "}
@@ -125,7 +125,7 @@ export function CronFoldTree() {
 
       {/* Active standalone */}
       <section className="mb-4">
-        <h4 className="mb-1.5 text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+              <h4 className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           standalone schedules ({active.length})
         </h4>
         <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
@@ -139,10 +139,10 @@ export function CronFoldTree() {
             >
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[11px] font-mono">{c.name}</div>
-                <div className="text-[9px] opacity-70">{c.schedule}</div>
+                <div className="text-[11px] opacity-70">{c.schedule}</div>
               </div>
               {c.drift !== null && c.drift !== undefined && c.drift > 0 && (
-                <span className="text-[9px] text-rose-300 font-bold">drift +{c.drift}m</span>
+                <span className="text-[11px] text-rose-300 font-bold">drift +{c.drift}m</span>
               )}
             </div>
           ))}
@@ -152,24 +152,24 @@ export function CronFoldTree() {
       {/* Folded — grouped by fold target */}
       {byTarget.size > 0 && (
         <section className="mb-4">
-          <h4 className="mb-1.5 text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+              <h4 className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             folded ({folded.length})
           </h4>
           <div className="space-y-2">
             {[...byTarget.entries()].map(([target, list]) => (
               <div
                 key={target}
-                className="rounded border border-[var(--border-default)] bg-[var(--bg-elevated)]/30 p-2"
+                className="rounded border border-edge-default bg-surface-raised p-2"
               >
                 <div className="mb-1 flex items-center gap-1.5">
-                  <ChevronRight size={11} className="text-[var(--text-tertiary)]" />
-                  <span className="text-[10px] font-mono font-bold text-[var(--gold)]">
+              <ChevronRight size={11} className="text-fg-tertiary" />
+                  <span className="text-[11px] font-mono font-bold text-fg-secondary">
                     →
                   </span>
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-secondary)]">
+                  <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
                     {target}
                   </span>
-                  <span className="text-[10px] text-[var(--text-tertiary)]">
+                  <span className="text-[11px] text-fg-tertiary">
                     ({list.length})
                   </span>
                 </div>
@@ -177,12 +177,12 @@ export function CronFoldTree() {
                   {list.map((c) => (
                     <div
                       key={c.name}
-                      className="flex flex-wrap items-center gap-x-1.5 gap-y-0 text-[10px] text-[var(--text-secondary)]"
+                      className="flex flex-wrap items-center gap-x-1.5 gap-y-0 text-[11px] text-fg-secondary"
                       title={c.description}
                     >
                       <span className="font-mono break-all">{c.name}</span>
-                      <span className="text-[9px] opacity-50">·</span>
-                      <span className="text-[9px] opacity-60">{c.category}</span>
+                      <span className="text-[11px] opacity-50">·</span>
+                      <span className="text-[11px] opacity-60">{c.category}</span>
                     </div>
                   ))}
                 </div>
@@ -198,7 +198,7 @@ export function CronFoldTree() {
           <button
             type="button"
             onClick={() => setShowRetired((v) => !v)}
-            className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+            className="flex items-center gap-1 font-mono text-[11px] text-fg-tertiary hover:text-fg"
           >
             {showRetired ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
             retired ({retired.length})
@@ -208,14 +208,14 @@ export function CronFoldTree() {
               {retired.map((c) => (
                 <div
                   key={c.name}
-                  className="flex flex-wrap items-center gap-x-1.5 gap-y-0 text-[10px] text-[var(--text-tertiary)]"
+                  className="flex flex-wrap items-center gap-x-1.5 gap-y-0 text-[11px] text-fg-tertiary"
                   title={c.description}
                 >
                   <span className="font-mono opacity-60 line-through break-all">
                     {c.name}
                   </span>
                   {c.retireAfter && (
-                    <span className="text-[9px] opacity-50">
+                    <span className="text-[11px] opacity-50">
                       delete {c.retireAfter}
                     </span>
                   )}

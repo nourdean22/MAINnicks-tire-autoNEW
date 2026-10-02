@@ -6,8 +6,9 @@ rationale and the rules. When they disagree, the stylesheet wins and this file i
 ## 1 · Governing rules
 
 1. **Work is solid.** Content surfaces are opaque, warm near-black steps. No blur on anything that holds text you read.
-2. **Controls can float.** Translucent material (`--control-glass` + blur) is for the desktop spine, the phone tab bar,
-   the composer shell, the command palette, popovers, sheets and the inspector dock. Nothing else.
+2. **Controls can float.** Translucent material (`--control-glass` + blur) is for the desktop spine, the phone tab bar
+   and the bottom pulse strip (bottom chrome), the composer shell, the command palette, popovers, sheets and the
+   inspector dock. Nothing else.
 3. **Gold signals.** `#FDB913` means *selected · active · primary owner action · keyboard focus · milestone*. It is
    never a border by default, never a hover, never a scrollbar, never a heading colour, never `strong`.
 4. **Motion explains.** Every animation names one of four semantics: enter/exit, selection, completion, state change.
@@ -25,7 +26,10 @@ mechanism as the 2026-08-09 severity-tier block). New code uses the semantic rol
 of `--surface-interactive` (#1C1B17), not of the `--surface` role. The content-card role is reached with
 `bg-content` (registered as `--color-content: var(--surface)`); `border-edge-default` is registered too. A
 utility whose token is not in `@theme inline` emits zero CSS and fails silently — `tests/repo/ui-v2-grammar.test.ts`
-now pins every utility the v2 components use.
+pins the token registrations the v2 utilities depend on, the bracket syntax of every var() class the Tailwind scanner
+can reach, and (since 2026-10-02) that every custom property a `.tsx` reads is defined somewhere. It does not
+enumerate component utilities; Tailwind's default palette is not reset, so an off-grammar `rounded-md` or
+`text-zinc-400` still emits and must be caught by review.
 
 | Role | Token | Value | Legacy alias it feeds |
 |---|---|---|---|

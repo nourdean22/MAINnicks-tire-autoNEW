@@ -82,7 +82,7 @@ function PinControl({
   if (pinnedKind) {
     return (
       <span
-        className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/[0.08] text-amber-200"
+        className="font-mono text-[11px] uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-micro border border-amber-500/30 bg-amber-500/[0.08] text-amber-200"
         aria-label={`already pinned as ${pinnedKind}`}
       >
         pinned · {pinnedKind}
@@ -95,9 +95,9 @@ function PinControl({
       <button
         type="button"
         onClick={() => setOpening(true)}
-        className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] hover:text-amber-300 underline-offset-2 hover:underline transition-colors"
+        className="text-[13px] font-medium text-fg-tertiary hover:text-amber-300 underline-offset-2 hover:underline transition-colors"
       >
-        pin as alpha moment
+        Pin as alpha moment
       </button>
     );
   }
@@ -120,8 +120,7 @@ function PinControl({
         value={kind}
         onChange={(e) => setKind(e.target.value as AlphaKind)}
         disabled={mutation.isPending}
-        className="text-[10px] uppercase tracking-wider bg-transparent border rounded px-1.5 py-0.5 text-[var(--text-secondary)] focus:outline-none disabled:opacity-50"
-        style={{ borderColor: "rgba(255,255,255,0.06)" }}
+        className="text-[13px] font-medium bg-transparent border border-edge-default rounded-control px-1.5 py-0.5 text-fg-secondary focus:border-accent focus:outline-none disabled:opacity-50"
         aria-label="alpha moment kind"
       >
         <option value="peak">peak</option>
@@ -135,14 +134,13 @@ function PinControl({
         disabled={mutation.isPending}
         placeholder="one-line moment…"
         maxLength={1000}
-        className="flex-1 min-w-0 text-xs bg-transparent border rounded px-2 py-0.5 text-[var(--text-secondary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-amber-500/40 disabled:opacity-50"
-        style={{ borderColor: "rgba(255,255,255,0.06)" }}
+        className="flex-1 min-w-0 text-[13px] bg-transparent border border-edge-default rounded-control px-2 py-0.5 text-fg-secondary placeholder:text-fg-tertiary focus:outline-none focus:border-accent disabled:opacity-50"
         autoFocus
       />
       <button
         type="submit"
         disabled={mutation.isPending || !moment.trim()}
-        className="text-[10px] uppercase tracking-wider text-amber-300/80 hover:text-amber-300 disabled:opacity-50"
+        className="text-[13px] font-medium text-amber-300/80 hover:text-amber-300 disabled:opacity-50"
       >
         {mutation.isPending ? "pinning…" : "pin"}
       </button>
@@ -153,7 +151,7 @@ function PinControl({
           setMoment("");
         }}
         disabled={mutation.isPending}
-        className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] disabled:opacity-50"
+        className="text-[13px] font-medium text-fg-tertiary hover:text-fg-secondary disabled:opacity-50"
       >
         cancel
       </button>
@@ -210,20 +208,19 @@ export default function LedgerTimeline({
 
   return (
     <section
-      className="rounded-xl border bg-[var(--bg-raised)] p-4"
-      style={{ borderColor: "rgba(255,255,255,0.06)" }}
+      className="rounded-surface border border-edge-subtle bg-content p-4"
     >
       <div className="flex items-baseline justify-between gap-3 mb-3">
-        <h2 className="font-serif text-lg tracking-tight text-[var(--text-primary)]">
+        <h2 className="text-[17px] font-semibold text-fg">
           Ledger
         </h2>
-        <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] tabular-nums">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
           {entries.length} {entries.length === 1 ? "entry" : "entries"}
         </span>
       </div>
 
       {entries.length === 0 ? (
-        <p className="text-sm italic text-[var(--text-tertiary)]">
+        <p className="text-sm italic text-fg-tertiary">
           No ledger entries yet. Use Cmd+K or the deposit/withdraw buttons to
           log effort.
         </p>
@@ -236,7 +233,7 @@ export default function LedgerTimeline({
               ? "text-emerald-300"
               : negative
                 ? "text-amber-300"
-                : "text-[var(--text-tertiary)]";
+                : "text-fg-tertiary";
             const amountStr =
               entry.amount > 0
                 ? `+${entry.amount}`
@@ -245,8 +242,7 @@ export default function LedgerTimeline({
             return (
               <li
                 key={entry.id}
-                className="flex items-start gap-3 py-1.5 border-b last:border-b-0"
-                style={{ borderColor: "rgba(255,255,255,0.04)" }}
+                className="flex items-start gap-3 py-1.5 border-b border-edge-subtle last:border-b-0"
               >
                 <span
                   className={`font-mono text-sm tabular-nums w-12 shrink-0 ${amountColor}`}
@@ -254,13 +250,13 @@ export default function LedgerTimeline({
                   {amountStr}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-[var(--text-secondary)] leading-snug break-words">
+                  <p className="text-sm text-fg-secondary leading-snug break-words">
                     {entry.note}
                   </p>
-                  <div className="mt-0.5 flex items-center gap-2 text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] tabular-nums flex-wrap">
+                  <div className="mt-0.5 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums flex-wrap">
                     <span>{relativeTime(entry.createdAt)}</span>
                     <span>·</span>
-                    <span className="px-1.5 py-0.5 rounded border border-[rgba(255,255,255,0.06)]">
+                    <span className="px-1.5 py-0.5 rounded-micro border border-edge-subtle">
                       {sourceLabel(entry.source)}
                     </span>
                     <span>·</span>

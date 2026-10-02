@@ -51,7 +51,7 @@ const CATEGORY_COLOR: Record<string, string> = {
   insight:    "text-blue-400",
   preference: "text-emerald-400",
   feedback:   "text-amber-400",
-  wisdom:     "text-[var(--gold)]",
+  wisdom:     "text-orange-300",
   rule:       "text-pink-400",
   routine:    "text-cyan-400",
   identity:   "text-red-400",
@@ -128,24 +128,24 @@ export function MemoryCalibrationRitual({ onClose, autoLoad = true }: Calibratio
   // ── Render ──
   if (loading) {
     return (
-      <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-raised)] p-2 flex items-center gap-2">
+      <div className="rounded-control border border-edge-subtle bg-surface-raised p-2 flex items-center gap-2">
         <Loader2 size={12} className="animate-spin text-emerald-400" />
-        <span className="text-[10px] text-[var(--text-tertiary)]">pulling 3 aging beliefs…</span>
+        <span className="text-[11px] text-fg-tertiary">pulling 3 aging beliefs…</span>
       </div>
     );
   }
 
   if (samples.length === 0) {
     return (
-      <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-void)]/40 p-2 flex items-center gap-2">
+      <div className="rounded-control border border-edge-subtle bg-content p-2 flex items-center gap-2">
         <Check size={12} className="text-emerald-400" />
-        <span className="text-[10px] text-[var(--text-secondary)]">
+        <span className="text-[11px] text-fg-secondary">
           memory bank calibrated · nothing aging worth re-checking
         </span>
         {onClose && (
           <button
             onClick={onClose}
-            className="ml-auto text-[var(--text-tertiary)] hover:text-red-400"
+            className="ml-auto text-fg-tertiary hover:text-red-400"
             aria-label="close"
           >
             <XIcon size={11} />
@@ -156,18 +156,18 @@ export function MemoryCalibrationRitual({ onClose, autoLoad = true }: Calibratio
   }
 
   return (
-    <section className="rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-2.5 space-y-2">
+    <section className="rounded-surface border border-edge-subtle bg-content p-2.5 space-y-2">
       <div className="flex items-center gap-2">
-        <RotateCcw size={11} className="text-emerald-400" />
-        <span className="text-[9px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-emerald-400">
+        <RotateCcw size={11} className="text-fg-tertiary" />
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           calibrate memory
         </span>
-        <span className="text-[8px] font-mono text-[var(--text-tertiary)]">
+        <span className="text-[11px] font-mono text-fg-tertiary">
           {samples.length} aging
         </span>
         <button
           onClick={load}
-          className="ml-auto text-[9px] text-[var(--text-tertiary)] hover:text-emerald-400 flex items-center gap-0.5"
+          className="ml-auto text-[11px] text-fg-tertiary hover:text-fg flex items-center gap-0.5"
           title="reshuffle"
         >
           <RotateCcw size={9} /> reshuffle
@@ -175,7 +175,7 @@ export function MemoryCalibrationRitual({ onClose, autoLoad = true }: Calibratio
         {onClose && (
           <button
             onClick={onClose}
-            className="text-[var(--text-tertiary)] hover:text-red-400"
+            className="text-fg-tertiary hover:text-red-400"
             aria-label="close"
           >
             <XIcon size={11} />
@@ -187,20 +187,20 @@ export function MemoryCalibrationRitual({ onClose, autoLoad = true }: Calibratio
         {samples.map((m) => {
           const isEditing = editing === m.id;
           const isWorking = working === m.id;
-          const catColor = CATEGORY_COLOR[m.category] ?? "text-[var(--text-tertiary)]";
+          const catColor = CATEGORY_COLOR[m.category] ?? "text-fg-tertiary";
           return (
             <li
               key={m.id}
               className={cn(
-                "rounded-md border border-[var(--border-default)] bg-[var(--bg-raised)] p-2",
+                "rounded-control border border-edge-subtle bg-surface-interactive p-2",
                 isWorking && "opacity-50 pointer-events-none",
               )}
             >
               <div className="flex items-center gap-1.5 mb-1">
-                <span className={cn("text-[8px] font-bold uppercase tracking-wider", catColor)}>
+                <span className={cn("text-[11px] font-medium", catColor)}>
                   {m.category}
                 </span>
-                <span className="text-[8px] font-mono text-[var(--text-tertiary)]">
+                <span className="text-[11px] font-mono text-fg-tertiary">
                   · {m.ageDays}d old · {describeSeenCount(m.seenCount)}
                 </span>
               </div>
@@ -211,19 +211,19 @@ export function MemoryCalibrationRitual({ onClose, autoLoad = true }: Calibratio
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     rows={3}
-                    className="w-full text-[11px] leading-snug rounded-md bg-[var(--bg-void)] border border-emerald-500/30 px-2 py-1.5 text-[var(--text-primary)] focus:border-emerald-500/60 focus:outline-none"
+                    className="w-full text-[11px] leading-snug rounded-control bg-surface-interactive border border-edge-default px-2 py-1.5 text-fg focus:border-accent/60 focus:outline-none"
                   />
                   <div className="flex items-center gap-1.5 mt-1">
                     <button
                       onClick={() => act(m.id, "update", draft)}
                       disabled={!draft.trim()}
-                      className="flex items-center gap-1 px-2 py-0.5 rounded border border-emerald-500/40 bg-emerald-500/10 text-[9px] font-bold uppercase tracking-wider text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-40"
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-control border border-emerald-500/40 bg-emerald-500/10 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-40"
                     >
                       <Check size={9} /> save update
                     </button>
                     <button
                       onClick={cancelEdit}
-                      className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider text-[var(--text-tertiary)] hover:text-red-400"
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-control text-[11px] font-medium text-fg-tertiary hover:text-red-400"
                     >
                       <XIcon size={9} /> cancel
                     </button>
@@ -231,25 +231,25 @@ export function MemoryCalibrationRitual({ onClose, autoLoad = true }: Calibratio
                 </>
               ) : (
                 <>
-                  <p className="text-[11px] text-[var(--text-primary)] leading-snug mb-1.5">
+                  <p className="text-[12px] text-fg leading-snug mb-1.5">
                     {m.content}
                   </p>
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => act(m.id, "verify")}
-                      className="flex items-center gap-1 px-2 py-0.5 rounded border border-emerald-500/40 bg-emerald-500/10 text-[9px] font-bold uppercase tracking-wider text-emerald-400 hover:bg-emerald-500/20"
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-control border border-emerald-500/40 bg-emerald-500/10 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/20"
                     >
                       <Check size={9} /> still true
                     </button>
                     <button
                       onClick={() => beginEdit(m)}
-                      className="flex items-center gap-1 px-2 py-0.5 rounded border border-blue-500/40 bg-blue-500/10 text-[9px] font-bold uppercase tracking-wider text-blue-400 hover:bg-blue-500/20"
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-control border border-blue-500/40 bg-blue-500/10 text-[11px] font-medium text-blue-400 hover:bg-blue-500/20"
                     >
                       <Edit3 size={9} /> update
                     </button>
                     <button
                       onClick={() => act(m.id, "retire")}
-                      className="flex items-center gap-1 px-2 py-0.5 rounded border border-red-500/30 bg-red-500/5 text-[9px] font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/15"
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-control border border-red-500/30 bg-red-500/5 text-[11px] font-medium text-red-400 hover:bg-red-500/15"
                     >
                       <Trash2 size={9} /> retire
                     </button>
@@ -293,23 +293,23 @@ export function MemoryCalibrationCard() {
 
   if (!expanded) {
     return (
-      <section className="rounded-md border border-emerald-500/30 bg-emerald-500/5 px-3 py-1.5 flex items-center gap-2">
-        <RotateCcw size={10} className="text-emerald-400" />
-        <span className="text-[9px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-emerald-400">
+      <section className="rounded-control border border-edge-subtle bg-content px-3 py-1.5 flex items-center gap-2">
+        <RotateCcw size={10} className="text-fg-tertiary" />
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           calibrate memory
         </span>
-        <span className="text-[10px] text-[var(--text-secondary)] truncate">
+        <span className="text-[11px] text-fg-secondary truncate">
           3 aging beliefs · re-rule them in 30s
         </span>
         <button
           onClick={() => { setExpanded(true); markShown(); }}
-          className="ml-auto flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-400 hover:underline"
+          className="ml-auto flex items-center gap-0.5 text-[11px] font-medium text-fg-secondary hover:text-fg"
         >
           start <ArrowRight size={9} />
         </button>
         <button
           onClick={() => { setHidden(true); markShown(); }}
-          className="text-[var(--text-tertiary)] hover:text-red-400"
+          className="text-fg-tertiary hover:text-red-400"
           aria-label="dismiss for today"
         >
           <XIcon size={10} />

@@ -87,7 +87,7 @@ export function SystemOpsHub({ pulse }: { pulse: SystemPulseShape }) {
           label: "Errors",
           subtitle: "fingerprints grouped · stack traces · → task",
           count: pulse?.errors24h ?? 0,
-          countTint: (pulse?.errors24h ?? 0) > 0 ? "text-rose-300 bg-rose-500/15" : "text-zinc-500 bg-zinc-800",
+          countTint: (pulse?.errors24h ?? 0) > 0 ? "text-rose-300 bg-rose-500/15" : "text-fg-tertiary bg-surface-raised",
         },
       ],
     },
@@ -101,7 +101,7 @@ export function SystemOpsHub({ pulse }: { pulse: SystemPulseShape }) {
           label: "Crons",
           subtitle: "kill · run-now · sparklines · drift detector",
           count: (pulse?.cronsDrifted ?? 0) + (pulse?.cronFails24h ?? 0),
-          countTint: ((pulse?.cronsDrifted ?? 0) + (pulse?.cronFails24h ?? 0)) > 0 ? "text-rose-300 bg-rose-500/15 animate-pulse" : "text-zinc-500 bg-zinc-800",
+          countTint: ((pulse?.cronsDrifted ?? 0) + (pulse?.cronFails24h ?? 0)) > 0 ? "text-rose-300 bg-rose-500/15" : "text-fg-tertiary bg-surface-raised",
         },
         {
           href: "/system/actions",
@@ -109,7 +109,7 @@ export function SystemOpsHub({ pulse }: { pulse: SystemPulseShape }) {
           label: "Nick actions",
           subtitle: "autonomous action audit · rule leaderboard · rollback",
           count: pulse?.actionsPending ?? 0,
-          countTint: (pulse?.actionsPending ?? 0) > 0 ? "text-amber-300 bg-amber-500/15" : "text-zinc-500 bg-zinc-800",
+          countTint: (pulse?.actionsPending ?? 0) > 0 ? "text-amber-300 bg-amber-500/15" : "text-fg-tertiary bg-surface-raised",
         },
       ],
     },
@@ -164,8 +164,8 @@ export function SystemOpsHub({ pulse }: { pulse: SystemPulseShape }) {
         <p className="section-label">System ops</p>
         <span
           className={cn(
-            "text-[10px]",
-            freshness === "degraded" ? "text-amber-300/80" : "text-[var(--text-tertiary)]",
+            "text-[11px] font-mono",
+            freshness === "degraded" ? "text-amber-300/80" : "text-fg-tertiary",
           )}
         >
           {freshness === "degraded"
@@ -178,8 +178,8 @@ export function SystemOpsHub({ pulse }: { pulse: SystemPulseShape }) {
 
       <div className="grid gap-3 md:grid-cols-2">
         {groups.map((g) => (
-          <div key={g.heading} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-void)]/40 p-3">
-            <h3 className={cn("mb-2 text-[10px] font-semibold uppercase tracking-wider", g.tint)}>
+          <div key={g.heading} className="rounded-surface border border-edge-subtle bg-workspace p-3">
+            <h3 className={cn("mb-2 font-mono text-[11px] font-medium uppercase tracking-[0.12em]", g.tint)}>
               {g.heading}
             </h3>
             <div className="space-y-1">
@@ -190,24 +190,24 @@ export function SystemOpsHub({ pulse }: { pulse: SystemPulseShape }) {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "group grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded px-2 py-2 transition",
-                      "hover:bg-[var(--bg-raised)]"
+                      "group grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-control px-2 py-2 transition-colors duration-[var(--motion-state)]",
+                      "hover:bg-surface-hover"
                     )}
                   >
                     <Icon size={14} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]" />
                     <div className="min-w-0">
-                      <div className="text-[11px] font-medium text-[var(--text-primary)] group-hover:text-[var(--gold)]">
+                      <div className="text-[13px] font-medium text-fg">
                         {item.label}
                       </div>
-                      <div className="mt-0.5 truncate text-[10px] text-[var(--text-tertiary)]">
+                      <div className="mt-0.5 truncate text-[12px] text-fg-tertiary">
                         {item.subtitle}
                       </div>
                     </div>
                     {item.count !== undefined && (
                       <span
                         className={cn(
-                          "rounded-full px-1.5 py-[1px] text-[9px] font-mono tabular-nums",
-                          item.countTint ?? "text-zinc-500 bg-zinc-800",
+                          "rounded-full px-1.5 py-[1px] text-[11px] font-mono tabular-nums",
+                          item.countTint ?? "text-fg-tertiary bg-surface-raised",
                         )}
                       >
                         <AnimatedCounter value={item.count} duration={600} />

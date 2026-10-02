@@ -91,7 +91,7 @@ function StatusDot({ status }: { status: string }) {
         ? "bg-amber-400"
         : status === "failed" || status === "fail" || status === "OFFLINE"
           ? "bg-red-400"
-          : "bg-zinc-500";
+          : "bg-fg-tertiary";
   return <span className={`inline-block h-2 w-2 rounded-full ${color}`} />;
 }
 
@@ -218,7 +218,7 @@ export default function SystemPage() {
           <button
             onClick={refresh}
             disabled={loading}
-            className="inline-flex min-h-[44px] items-center rounded-lg border border-[var(--border-hover)] bg-[var(--bg-raised)]/5 px-4 py-2 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-[var(--bg-raised)]/10 disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center rounded-control border border-edge-strong bg-content px-4 py-2 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
           >
             {loading ? "Refreshing..." : "Refresh"}
           </button>
@@ -226,7 +226,7 @@ export default function SystemPage() {
       }
     >
       {refreshing && (
-        <div className="text-center text-xs text-[var(--text-tertiary)] animate-pulse">Refreshing...</div>
+        <div className="text-center text-xs text-fg-tertiary pulse-live">Refreshing...</div>
       )}
 
       {/* ── CONTROL TOWER (2026-09-16 · Visible Transformation) ──────────
@@ -249,7 +249,7 @@ export default function SystemPage() {
         )}
       >
         <h2 id="tower-heading" className="vt-eyebrow text-fg-secondary">
-          control tower
+          Control tower
         </h2>
         <p
           className={cn(
@@ -271,7 +271,7 @@ export default function SystemPage() {
                 {e.href && (
                   <Link
                     href={e.href}
-                    className="inline-flex min-h-[44px] shrink-0 items-center font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary hover:text-gold"
+                    className="inline-flex min-h-[44px] shrink-0 items-center font-mono text-[11px] text-fg-tertiary hover:text-fg"
                   >
                     open ↗
                   </Link>
@@ -280,7 +280,7 @@ export default function SystemPage() {
             ))}
           </ul>
         )}
-        <p className="mt-5 font-mono text-[12px] uppercase tracking-[0.14em] text-fg-tertiary">
+        <p className="mt-5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           db {d ? (d.db.connected ? `${d.db.latency_ms}ms` : "down") : "…"} · requests 24h{" "}
           {d ? d.kpis.requests_24h : "…"} · avg latency{" "}
           {d ? (d.kpis.latency_24h.avg_ms > 0 ? `${d.kpis.latency_24h.avg_ms}ms` : "no data") : "…"} · errors 24h{" "}
@@ -365,14 +365,14 @@ export default function SystemPage() {
       {/* ── SYSTEM DIGESTS (Wire 3) ────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Change Digest Card */}
-        <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02] p-5 flex flex-col gap-4">
-          <div className="flex items-center justify-between border-b border-zinc-800/60 pb-3">
+        <Panel className="border-edge-default p-5 flex flex-col gap-4">
+              <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
             <div>
-              <span className="text-[10px] font-mono uppercase tracking-wider text-amber-400">F2 · System Change Digest</span>
-              <h3 className="text-sm font-semibold text-white mt-0.5">Reconciliation Summary</h3>
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">F2 · System Change Digest</span>
+              <h3 className="text-sm font-semibold text-fg mt-0.5">Reconciliation Summary</h3>
             </div>
             {changeDigestQuery.data?.deployment.status && (
-              <span className="flex items-center gap-1.5 rounded-full bg-zinc-900 border border-zinc-800 px-2 py-0.5 text-[10px] font-mono text-zinc-400">
+              <span className="flex items-center gap-1.5 rounded-full bg-content border border-edge-subtle px-2 py-0.5 text-[11px] font-mono text-fg-secondary">
                 <StatusDot status={changeDigestQuery.data.deployment.status === "production" ? "ONLINE" : "degraded"} />
                 {changeDigestQuery.data.deployment.status}
               </span>
@@ -381,20 +381,20 @@ export default function SystemPage() {
 
           {changeDigestQuery.isLoading ? (
             <div className="space-y-2 py-4">
-              <div className="h-4 bg-zinc-900/50 rounded animate-pulse w-3/4" />
-              <div className="h-4 bg-zinc-900/50 rounded animate-pulse w-1/2" />
+              <div className="h-4 bg-content rounded animate-pulse w-3/4" />
+              <div className="h-4 bg-content rounded animate-pulse w-1/2" />
             </div>
           ) : changeDigestQuery.data ? (
             <div className="space-y-3.5 text-xs">
               {/* Latest Wave */}
               {changeDigestQuery.data.latestWave && (
                 <div className="space-y-1">
-                  <div className="text-zinc-500 font-medium">LATEST WAVE</div>
-                  <div className="text-zinc-200">
+              <div className="text-fg-tertiary font-medium">LATEST WAVE</div>
+                  <div className="text-fg">
                     {changeDigestQuery.data.latestWave.date} &middot; {changeDigestQuery.data.latestWave.title}
                   </div>
                   {changeDigestQuery.data.latestWave.verifyGate && (
-                    <div className="text-zinc-500 font-mono text-[11px]">
+                    <div className="text-fg-tertiary font-mono text-[11px]">
                       Verify: {changeDigestQuery.data.latestWave.verifyGate}
                     </div>
                   )}
@@ -402,28 +402,28 @@ export default function SystemPage() {
               )}
 
               {/* Deployment info */}
-              <div className="space-y-1 border-t border-zinc-800/60 pt-2.5">
-                <div className="text-zinc-500 font-medium">DEPLOYMENT</div>
-                <div className="text-zinc-300 flex items-center gap-2 flex-wrap">
-                  <span className="font-mono bg-zinc-900 px-1 rounded text-[11px]">
+              <div className="space-y-1 border-t border-edge-subtle pt-2.5">
+              <div className="text-fg-tertiary font-medium">DEPLOYMENT</div>
+                <div className="text-fg flex items-center gap-2 flex-wrap">
+              <span className="font-mono bg-content px-1 rounded text-[11px]">
                     {changeDigestQuery.data.deployment.sha?.slice(0, 7) || "unknown"}
                   </span>
                   <span>({changeDigestQuery.data.deployment.branch || "unknown"})</span>
-                  <span className="text-[11px] text-zinc-500 font-mono italic">
+                  <span className="text-[11px] text-fg-tertiary font-mono italic">
                     via {changeDigestQuery.data.deployment.source}
                   </span>
                 </div>
-                <div className="text-zinc-400 font-mono text-[10px] mt-0.5">
+                <div className="text-fg-secondary font-mono text-[11px] mt-0.5">
                   {changeDigestQuery.data.deployment.note}
                 </div>
               </div>
 
               {/* Truth details */}
-              <div className="space-y-1 border-t border-zinc-800/60 pt-2.5">
-                <div className="text-zinc-500 font-medium">TRUTH STALENESS</div>
-                <div className="flex items-center gap-4 text-zinc-300">
+              <div className="space-y-1 border-t border-edge-subtle pt-2.5">
+              <div className="text-fg-tertiary font-medium">TRUTH STALENESS</div>
+                <div className="flex items-center gap-4 text-fg">
                   <span className="flex items-center gap-1">
-                    <span className={changeDigestQuery.data.truth.staleCriticalInKeyDocs > 0 ? "text-red-400 font-bold" : "text-zinc-400"}>
+                    <span className={changeDigestQuery.data.truth.staleCriticalInKeyDocs > 0 ? "text-red-400 font-bold" : "text-fg-secondary"}>
                       {changeDigestQuery.data.truth.staleCriticalInKeyDocs}
                     </span>{" "}
                     Critical stale
@@ -432,16 +432,16 @@ export default function SystemPage() {
                     <span>{changeDigestQuery.data.truth.staleWarnInKeyDocs}</span> Warnings
                   </span>
                 </div>
-                <div className="text-[10px] text-zinc-500 mt-0.5">
+                <div className="text-[11px] text-fg-tertiary mt-0.5">
                   Runbooks: {changeDigestQuery.data.truth.runbooksActive} active
                 </div>
               </div>
 
               {/* Risks */}
               {changeDigestQuery.data.risks.length > 0 && (
-                <div className="space-y-1 border-t border-zinc-800/60 pt-2.5">
+                <div className="space-y-1 border-t border-edge-subtle pt-2.5">
                   <div className="text-red-400 font-medium">DEPLOY RISKS</div>
-                  <ul className="list-disc pl-4 space-y-0.5 text-zinc-400">
+                  <ul className="list-disc pl-4 space-y-0.5 text-fg-secondary">
                     {changeDigestQuery.data.risks.map((r, i) => (
                       <li key={i}>{r}</li>
                     ))}
@@ -450,19 +450,19 @@ export default function SystemPage() {
               )}
             </div>
           ) : (
-            <div className="text-zinc-500 text-xs py-4">No change digest available.</div>
+            <div className="text-fg-tertiary text-xs py-4">No change digest available.</div>
           )}
         </Panel>
 
         {/* Memory Evals Card */}
-        <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02] p-5 flex flex-col gap-4">
-          <div className="flex items-center justify-between border-b border-zinc-800/60 pb-3">
+        <Panel className="border-edge-default p-5 flex flex-col gap-4">
+              <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
             <div>
-              <span className="text-[10px] font-mono uppercase tracking-wider text-amber-400">P5 · Grounded Truth Evals</span>
-              <h3 className="text-sm font-semibold text-white mt-0.5">Scoreboard</h3>
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">P5 · Grounded Truth Evals</span>
+              <h3 className="text-sm font-semibold text-fg mt-0.5">Scoreboard</h3>
             </div>
             {memoryEvalsQuery.data && (
-              <span className="rounded-full bg-zinc-900 border border-zinc-800 px-2 py-0.5 text-[10px] font-mono text-zinc-400">
+              <span className="rounded-full bg-content border border-edge-subtle px-2 py-0.5 text-[11px] font-mono text-fg-secondary">
                 {memoryEvalsQuery.data.passed}/{memoryEvalsQuery.data.total} passed
               </span>
             )}
@@ -470,29 +470,29 @@ export default function SystemPage() {
 
           {memoryEvalsQuery.isLoading ? (
             <div className="space-y-2 py-4">
-              <div className="h-4 bg-zinc-900/50 rounded animate-pulse w-3/4" />
-              <div className="h-4 bg-zinc-900/50 rounded animate-pulse w-1/2" />
+              <div className="h-4 bg-content rounded animate-pulse w-3/4" />
+              <div className="h-4 bg-content rounded animate-pulse w-1/2" />
             </div>
           ) : memoryEvalsQuery.data ? (
             <div className="space-y-3 text-xs flex-1 flex flex-col">
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded bg-zinc-900/40 border border-zinc-800/40 p-1.5">
+                <div className="rounded bg-content border border-edge-subtle p-1.5">
                   <div className="text-emerald-400 text-sm font-bold">{memoryEvalsQuery.data.passed}</div>
-                  <div className="text-[9px] uppercase tracking-wider text-zinc-500">Passed</div>
+                  <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Passed</div>
                 </div>
-                <div className="rounded bg-zinc-900/40 border border-zinc-800/40 p-1.5">
+                <div className="rounded bg-content border border-edge-subtle p-1.5">
                   <div className="text-red-400 text-sm font-bold">{memoryEvalsQuery.data.failed}</div>
-                  <div className="text-[9px] uppercase tracking-wider text-zinc-500">Failed</div>
+                  <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Failed</div>
                 </div>
-                <div className="rounded bg-zinc-900/40 border border-zinc-800/40 p-1.5">
-                  <div className="text-zinc-400 text-sm font-bold">{memoryEvalsQuery.data.manual}</div>
-                  <div className="text-[9px] uppercase tracking-wider text-zinc-500">Manual</div>
+                <div className="rounded bg-content border border-edge-subtle p-1.5">
+              <div className="text-fg-secondary text-sm font-bold">{memoryEvalsQuery.data.manual}</div>
+                  <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Manual</div>
                 </div>
               </div>
 
               {/* Failures List */}
               <div className="flex-1 overflow-auto max-h-[160px] pr-1 space-y-1.5">
-                <div className="text-zinc-500 font-medium font-mono uppercase tracking-wider text-[10px]">Failures</div>
+              <div className="text-fg-tertiary font-mono text-[11px] uppercase tracking-[0.12em]">Failures</div>
                 {memoryEvalsQuery.data.failed === 0 ? (
                   <div className="text-emerald-400 text-[11px] font-mono">
                     ✓ All grounded truth evaluations are passing!
@@ -504,36 +504,36 @@ export default function SystemPage() {
                       .map((f) => (
                         <div key={f.id} className="border-l-2 border-red-500/40 pl-2 py-0.5">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[9px] uppercase tracking-wider font-mono text-red-400 bg-red-950/20 border border-red-900/35 px-1 rounded">
+                            <span className="text-[11px] font-mono text-red-400 bg-red-950/20 border border-red-900/35 px-1 rounded">
                               {f.severity}
                             </span>
-                            <span className="text-zinc-400 font-mono text-[10px]">{f.id}</span>
+                            <span className="text-fg-secondary font-mono text-[11px]">{f.id}</span>
                           </div>
-                          {f.note && <div className="text-[10px] text-zinc-500 leading-tight mt-0.5">{f.note}</div>}
+                          {f.note && <div className="text-[11px] text-fg-tertiary leading-tight mt-0.5">{f.note}</div>}
                         </div>
                       ))}
                   </div>
                 )}
               </div>
 
-              <div className="border-t border-zinc-800 pt-2 text-[10px] font-mono text-zinc-500 flex justify-between">
+              <div className="border-t border-edge-subtle pt-2 text-[11px] font-mono text-fg-tertiary flex justify-between">
                 <span>Docs Grounded: {memoryEvalsQuery.data.sourcesFound}/{memoryEvalsQuery.data.sourcesExpected}</span>
               </div>
             </div>
           ) : (
-            <div className="text-zinc-500 text-xs py-4">No evaluations available.</div>
+            <div className="text-fg-tertiary text-xs py-4">No evaluations available.</div>
           )}
         </Panel>
 
         {/* Action Receipt Feed Card */}
-        <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02] p-5 flex flex-col gap-4 md:col-span-2 lg:col-span-1">
-          <div className="flex items-center justify-between border-b border-zinc-800/60 pb-3">
+        <Panel className="border-edge-default p-5 flex flex-col gap-4 md:col-span-2 lg:col-span-1">
+              <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
             <div>
-              <span className="text-[10px] font-mono uppercase tracking-wider text-amber-400">F4 · Action Receipt Feed</span>
-              <h3 className="text-sm font-semibold text-white mt-0.5">Recent Activities</h3>
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">F4 · Action Receipt Feed</span>
+              <h3 className="text-sm font-semibold text-fg mt-0.5">Recent Activities</h3>
             </div>
             {receiptFeedQuery.data?.counts && (
-              <span className="rounded-full bg-zinc-900 border border-zinc-800 px-2 py-0.5 text-[10px] font-mono text-zinc-400">
+              <span className="rounded-full bg-content border border-edge-subtle px-2 py-0.5 text-[11px] font-mono text-fg-secondary">
                 {receiptFeedQuery.data.items.length} items
               </span>
             )}
@@ -541,15 +541,15 @@ export default function SystemPage() {
 
           {receiptFeedQuery.isLoading ? (
             <div className="space-y-2 py-4">
-              <div className="h-4 bg-zinc-900/50 rounded animate-pulse w-3/4" />
-              <div className="h-4 bg-zinc-900/50 rounded animate-pulse w-1/2" />
+              <div className="h-4 bg-content rounded animate-pulse w-3/4" />
+              <div className="h-4 bg-content rounded animate-pulse w-1/2" />
             </div>
           ) : receiptFeedQuery.data ? (
             <div className="flex-1 overflow-auto max-h-[220px] pr-1 space-y-2">
               {receiptFeedQuery.data.items.length === 0 ? (
-                <div className="text-zinc-600 text-xs text-center py-6">No recent actions recorded.</div>
+                <div className="text-fg-tertiary text-xs text-center py-6">No recent actions recorded.</div>
               ) : (
-                <div className="divide-y divide-zinc-900/50 space-y-2">
+                <div className="divide-y divide-edge-subtle space-y-2">
                   {receiptFeedQuery.data.items.map((r) => {
                     const statusDotColor =
                       r.status === "success"
@@ -558,7 +558,7 @@ export default function SystemPage() {
                           ? "bg-red-400"
                           : r.status === "needs_approval"
                             ? "bg-amber-400"
-                            : "bg-zinc-500";
+                            : "bg-fg-tertiary";
                     return (
                       <div key={r.receiptId} className="flex gap-2.5 pt-2 first:pt-0">
                         <div className="mt-1">
@@ -566,18 +566,18 @@ export default function SystemPage() {
                         </div>
                         <div className="flex-1 space-y-0.5">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
+                            <span className="text-fg-secondary font-mono text-[11px]">
                               {r.toolName}
                             </span>
-                            <span className="text-[10px] text-zinc-500 font-mono">
+                            <span className="text-[11px] text-fg-tertiary font-mono">
                               {timeAgo(r.createdAt)}
                             </span>
                           </div>
-                          <p className="text-zinc-200 text-xs leading-tight">
+                          <p className="text-fg text-xs leading-tight">
                             {r.userVisibleSummary}
                           </p>
                           {!!r.metadata?.actor && (
-                            <div className="text-[9px] text-zinc-500 font-mono">
+                            <div className="text-[11px] text-fg-tertiary font-mono">
                               by {String(r.metadata.actor)} {r.metadata.source ? `(${String(r.metadata.source)})` : ""}
                             </div>
                           )}
@@ -589,7 +589,7 @@ export default function SystemPage() {
               )}
             </div>
           ) : (
-            <div className="text-zinc-500 text-xs py-4">No recent receipts available.</div>
+            <div className="text-fg-tertiary text-xs py-4">No recent receipts available.</div>
           )}
         </Panel>
 

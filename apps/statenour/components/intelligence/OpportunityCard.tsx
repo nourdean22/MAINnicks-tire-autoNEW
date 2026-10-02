@@ -64,11 +64,11 @@ export function OpportunityCard({ opportunity, onStatusChange }: OpportunityCard
   const domainColor = domainColors[opportunity.domain] || "bg-slate-800/60 text-slate-200 border-slate-700";
 
   return (
-    <div className="relative rounded-xl border border-slate-800/60 bg-slate-900/40 p-5 backdrop-blur-md transition-all hover:border-slate-700/60">
+    <div className="relative rounded-surface border border-edge-subtle bg-content p-5 transition-colors duration-[var(--motion-state)] hover:border-edge-default">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`rounded-md border px-2 py-0.5 text-xs font-semibold uppercase tracking-wider ${domainColor}`}>
+          <span className={`rounded-micro border px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-[0.12em] ${domainColor}`}>
             {opportunity.domain}
           </span>
           <span className="flex items-center gap-1 rounded-md bg-slate-800/40 px-2 py-0.5 text-xs font-semibold text-slate-400">

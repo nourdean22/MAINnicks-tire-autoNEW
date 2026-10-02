@@ -71,7 +71,7 @@ export function SettingsConsole({ pulse }: { pulse: SettingsPulse }) {
     <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start w-full relative">
       {/* LEFT PANE: Navigation Matrix */}
       <aside className="w-full lg:w-64 shrink-0 flex flex-col gap-2 lg:sticky lg:top-6">
-        <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.2em] text-[var(--gold)]/70 px-2 pb-2">
+        <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary px-2 pb-2">
           Domains
         </h2>
         {/* Mobile: one compact wrapping row (the old stacked list spent a full
@@ -87,13 +87,13 @@ export function SettingsConsole({ pulse }: { pulse: SettingsPulse }) {
                 onClick={() => setActiveDomain(domain.id)}
                 aria-pressed={isActive}
                 className={cn(
-                  "flex min-h-[44px] items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-lg text-[13px] lg:text-sm text-left transition-all",
+                  "flex min-h-[44px] items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-control text-[13px] lg:text-sm text-left transition-colors duration-[var(--motion-state)]",
                   isActive
-                    ? "bg-[var(--gold)]/10 text-[var(--gold)] font-medium border border-[var(--gold)]/20"
-                    : "text-[var(--text-secondary)] hover:bg-[var(--surface-sunken)] hover:text-[var(--text-primary)] border border-transparent"
+                    ? "bg-accent-soft text-fg font-medium border border-transparent"
+                    : "text-fg-secondary hover:bg-surface-hover hover:text-fg border border-transparent"
                 )}
               >
-                <Icon className={cn("w-4 h-4", isActive ? "text-[var(--gold)]" : "opacity-70")} />
+                <Icon className={cn("w-4 h-4", isActive ? "text-fg" : "text-fg-tertiary")} />
                 {domain.label}
               </button>
             );
@@ -102,12 +102,12 @@ export function SettingsConsole({ pulse }: { pulse: SettingsPulse }) {
 
         {/* Pointer for Habits */}
         <div className="mt-3 lg:mt-8 px-2">
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)] mb-2">
+          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary mb-2">
             Links
           </p>
           <Link
             href="/missions"
-            className="flex items-center gap-2 text-xs text-[var(--text-secondary)] hover:text-[var(--gold)] transition-colors py-1"
+            className="flex items-center gap-2 text-xs text-fg-secondary hover:text-fg transition-colors duration-[var(--motion-state)] py-1"
           >
             Manage Habits ↗
           </Link>
@@ -124,10 +124,10 @@ export function SettingsConsole({ pulse }: { pulse: SettingsPulse }) {
         {activeConfig && (
           <div className="mb-2 pb-6 border-b border-[var(--border-default)]">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 rounded-md bg-[var(--gold)]/10 text-[var(--gold)]" aria-hidden="true">
+              <div className="p-2 rounded-control bg-surface-raised text-fg-tertiary" aria-hidden="true">
                 <activeConfig.icon className="w-5 h-5" />
               </div>
-              <h1 id={headingId} className="text-xl font-bold text-[var(--text-primary)]">
+              <h1 id={headingId} className="text-xl font-semibold text-fg">
                 {activeConfig.label}
               </h1>
             </div>

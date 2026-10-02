@@ -67,24 +67,24 @@ export function AssistantTab() {
       <div className="space-y-4 md:col-span-5">
         <Panel>
           <div className="flex items-center gap-2 mb-4">
-            <Sparkles className="w-4 h-4 text-amber-300" />
-            <h3 className="font-semibold text-sm">Agent Setup</h3>
+            <Sparkles className="w-4 h-4 text-fg-tertiary" />
+            <h3 className="font-semibold text-sm">Agent setup</h3>
           </div>
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
-                Select Specialist Persona
+              <label className="block text-[13px] font-medium text-fg-secondary mb-1.5">
+                Select specialist persona
               </label>
               {personasQuery.isLoading ? (
                 <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                  <Loader2 className="w-4 h-4 animate-spin text-[var(--brand)]" />
+                  <Loader2 className="w-4 h-4 animate-spin text-fg-tertiary" />
                   <span>Loading marketing agents...</span>
                 </div>
               ) : (
                 <select
                   value={selectedPersona}
                   onChange={(e) => setSelectedPersona(e.target.value)}
-                  className="w-full bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[var(--brand)]"
+                  className="w-full bg-content border border-edge-default rounded-control px-3 py-2 text-[13px] text-fg focus:outline-none focus:border-accent"
                 >
                   <option value="">-- Choose an Agent --</option>
                   {personas.map((p) => (
@@ -97,8 +97,8 @@ export function AssistantTab() {
             </div>
 
             {selectedPersonaMeta && (
-              <div className="p-3 rounded-md bg-zinc-500/[0.04] border border-[var(--border-primary)] space-y-1">
-                <span className="text-xs font-bold text-[var(--brand)] flex items-center gap-1.5">
+              <div className="p-3 rounded-control bg-surface-raised border border-edge-subtle space-y-1">
+                <span className="text-[13px] font-semibold text-fg flex items-center gap-1.5">
                   <span>{selectedPersonaMeta.emoji}</span>
                   <span>{selectedPersonaMeta.name}</span>
                 </span>
@@ -109,7 +109,7 @@ export function AssistantTab() {
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
+              <label className="block text-[13px] font-medium text-fg-secondary mb-1.5">
                 What should this agent draft?
               </label>
               <textarea
@@ -117,14 +117,14 @@ export function AssistantTab() {
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="e.g. Write an email sequence introducing winter tires for high performance cars, emphasizing safety and pricing..."
                 rows={6}
-                className="w-full bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[var(--brand)] resize-none"
+                className="w-full bg-content border border-edge-default rounded-control px-3 py-2 text-[13px] text-fg focus:outline-none focus:border-accent resize-none"
               />
             </div>
 
             <button
               onClick={handleGenerate}
               disabled={generateMutation.isPending}
-              className="w-full bg-[var(--brand)] hover:opacity-90 disabled:opacity-50 text-[var(--bg-page)] font-semibold text-sm py-2 px-4 rounded-md transition-all flex items-center justify-center gap-2"
+              className="w-full rounded-control bg-accent hover:bg-accent-hover disabled:opacity-50 text-[var(--text-inverse)] font-semibold text-[14px] py-2 px-4 transition-colors duration-[var(--motion-state)] flex items-center justify-center gap-2"
             >
               {generateMutation.isPending ? (
                 <>
@@ -134,7 +134,7 @@ export function AssistantTab() {
               ) : (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  <span>Generate Content</span>
+                  <span>Generate content</span>
                 </>
               )}
             </button>
@@ -146,32 +146,32 @@ export function AssistantTab() {
       <div className="space-y-4 md:col-span-7">
         <Panel>
           <div className="flex items-center gap-2 mb-4">
-            <Send className="w-4 h-4 text-emerald-300" />
-            <h3 className="font-semibold text-sm">Draft Output</h3>
+            <Send className="w-4 h-4 text-fg-tertiary" />
+            <h3 className="font-semibold text-sm">Draft output</h3>
           </div>
           {output ? (
             <div className="space-y-4">
-              <div className="p-4 rounded-md bg-[var(--bg-page)] border border-[var(--border-primary)] font-mono text-sm leading-relaxed overflow-auto max-h-[350px] whitespace-pre-wrap select-text">
+              <div className="p-4 rounded-control bg-canvas border border-edge-subtle font-mono text-sm leading-relaxed overflow-auto max-h-[350px] whitespace-pre-wrap select-text">
                 {output}
               </div>
 
               {providerInfo && (
                 <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
-                  <span>Generated by: <strong className="text-[var(--brand)]">{providerInfo}</strong></span>
+                  <span>Generated by: <strong className="text-fg">{providerInfo}</strong></span>
                 </div>
               )}
 
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={handleCopy}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-500/[0.1] hover:bg-zinc-500/[0.2] border border-[var(--border-primary)] text-sm rounded-md transition-all"
+                  className="inline-flex items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-1.5 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
                 >
                   <Copy className="w-4 h-4" />
                   <span>Copy</span>
                 </button>
                 <button
                   onClick={handleSendToPublish}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/[0.1] hover:bg-emerald-500/[0.2] border border-emerald-500/20 text-emerald-300 text-sm rounded-md transition-all"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/[0.1] hover:bg-emerald-500/[0.2] border border-emerald-500/20 text-emerald-300 text-[13px] font-medium rounded-control transition-colors duration-[var(--motion-state)]"
                 >
                   <span>Publish</span>
                   <ArrowRight className="w-4 h-4" />

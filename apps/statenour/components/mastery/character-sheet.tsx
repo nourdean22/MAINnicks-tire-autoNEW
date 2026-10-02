@@ -15,7 +15,7 @@
  * sheet.statLine). Schema-free · no new tables.
  *
  * Aesthetic: matches /scoreboard's editorial-minimalist Card contract
- * (border-white/10 · bg-white/[0.02] · text-[10px] uppercase labels ·
+ * (UI v2 tokens: edge-subtle border · bg-content · 11px mono eyebrow labels ·
  * tabular-nums). The only added color is each stat's own accent on its
  * progress bar — identity without noise.
  *
@@ -228,19 +228,17 @@ export function CharacterSheet() {
       {/* RPG Hero Card & Identity Build Card - Bento Layout */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* Card 1: Core Hero Sheet */}
-        <div className="md:col-span-2 rounded-xl border border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950/80 p-4 shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[140px]">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--gold)]/5 rounded-full blur-2xl pointer-events-none" />
-          
+        <div className="md:col-span-2 rounded-surface border border-edge-subtle bg-content p-4 relative overflow-hidden flex flex-col justify-between min-h-[140px]">
           <div className="flex items-start justify-between">
             <div className="space-y-0.5">
-              <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-[var(--gold)]/80">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                 character sheet
               </span>
-              <h3 className="text-lg font-bold uppercase tracking-wide text-white/90">
+              <h3 className="text-lg font-semibold text-fg">
                 {archetypeLabel}
               </h3>
             </div>
-            <span className="text-[10px] font-mono text-white/35 uppercase tracking-wider">
+            <span className="font-mono text-[11px] text-fg-tertiary">
               {archetypeDesc}
             </span>
           </div>
@@ -248,12 +246,12 @@ export function CharacterSheet() {
           <div className="mt-4 flex items-end justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-baseline gap-2">
-                <span className="text-[9px] font-mono uppercase text-white/40">total level</span>
-                <span className="text-3xl font-extrabold text-[var(--gold)] font-display tracking-tight leading-none">
+                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">total level</span>
+                <span className="stat-number text-3xl text-fg leading-none">
                   {totalLevel}
                 </span>
               </div>
-              <span className="block text-[10px] font-mono text-white/35">
+              <span className="block font-mono text-[11px] text-fg-tertiary">
                 {totalXp.toLocaleString()} TOTAL XP
               </span>
             </div>
@@ -266,10 +264,10 @@ export function CharacterSheet() {
                 return (
                   <div key={br.key} className="flex flex-col items-center gap-1" title={`${br.label}: Level ${brLvl}`}>
                     <span className="text-xs" aria-hidden>{br.icon}</span>
-                    <div className="h-8 w-1.5 rounded-full bg-white/5 overflow-hidden flex flex-col justify-end">
-                      <div className="w-full bg-[var(--gold)] rounded-full" style={{ height: `${brPct}%` }} />
+                    <div className="h-8 w-1.5 rounded-full bg-surface-interactive overflow-hidden flex flex-col justify-end">
+                      <div className="w-full bg-fg-secondary rounded-full" style={{ height: `${brPct}%` }} />
                     </div>
-                    <span className="text-[8px] font-mono text-white/40">{brLvl}</span>
+                    <span className="text-[11px] font-mono text-fg-tertiary">{brLvl}</span>
                   </div>
                 );
               })}
@@ -278,26 +276,26 @@ export function CharacterSheet() {
         </div>
 
         {/* Card 2: Next Rep & Neglected Stats */}
-        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 flex flex-col justify-between space-y-3">
+        <div className="rounded-surface border border-edge-subtle bg-content p-4 flex flex-col justify-between space-y-3">
           {nextRep ? (
             <div className="space-y-1">
-              <span className="text-[8px] font-mono uppercase tracking-wider text-white/45 block">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary block">
                 closest level up (next rep)
               </span>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1">
                   <span className="text-xs">{nextRep.icon}</span>
-                  <span className="text-[12px] font-semibold text-white/95">{nextRep.shortLabel || nextRep.label}</span>
+                  <span className="text-[12px] font-semibold text-fg">{nextRep.shortLabel || nextRep.label}</span>
                 </div>
                 <span className="text-[11px] font-mono font-semibold" style={{ color: nextRep.color }}>
                   Lvl {nextRep.level} → {nextRep.level + 1}
                 </span>
               </div>
               <div className="pt-1 flex items-center gap-1.5">
-                <div className="h-1 flex-1 rounded-full bg-white/5 overflow-hidden">
+                <div className="h-1 flex-1 rounded-full bg-surface-interactive overflow-hidden">
                   <div className="h-full rounded-full" style={{ width: `${nextRep.progressPct}%`, backgroundColor: nextRep.color }} />
                 </div>
-                <span className="text-[9px] font-mono text-white/50 shrink-0">
+                <span className="text-[11px] font-mono text-fg-tertiary shrink-0">
                   {Math.round(nextRep.xpForNext - nextRep.xpIntoLevel)} XP
                 </span>
               </div>
@@ -306,19 +304,19 @@ export function CharacterSheet() {
 
           {/* Neglected stat check */}
           {highestNeglected ? (
-            <div className="pt-2 border-t border-white/5 space-y-1">
-              <div className="flex items-center gap-1.5 text-amber-500">
+            <div className="pt-2 border-t border-edge-subtle space-y-1">
+              <div className="flex items-center gap-1.5 text-amber-300">
                 <ShieldAlert size={10} />
-                <span className="text-[8px] font-mono uppercase tracking-wider">
+                <span className="font-mono text-[11px] uppercase tracking-[0.12em]">
                   neglected stat (7d idle)
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-white/80 flex items-center gap-1">
+                <span className="text-[12px] font-medium text-fg flex items-center gap-1">
                   <span>{highestNeglected.icon}</span>
                   <span>{highestNeglected.shortLabel || highestNeglected.label}</span>
                 </span>
-                <span className="text-[10px] font-mono text-white/40">Lvl {highestNeglected.level}</span>
+                <span className="text-[11px] font-mono text-fg-tertiary">Lvl {highestNeglected.level}</span>
               </div>
             </div>
           ) : null}
@@ -343,15 +341,15 @@ export function CharacterSheet() {
               <span className="text-sm" aria-hidden>
                 {br.icon}
               </span>
-              <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
                 {br.label}
               </span>
-              <span className="truncate text-[10px] text-white/30">· {br.blurb}</span>
-              <span className="ml-auto shrink-0 text-[10px] tabular-nums text-white/30">
+              <span className="truncate text-[11px] text-fg-tertiary">· {br.blurb}</span>
+              <span className="ml-auto shrink-0 text-[11px] tabular-nums text-fg-tertiary">
                 {inBranch.length}
               </span>
               <span
-                className="shrink-0 w-3 text-center text-[11px] text-white/40"
+                className="shrink-0 w-3 text-center text-[11px] text-fg-tertiary"
                 aria-hidden
               >
                 {isCollapsed ? "▸" : "▾"}
@@ -376,7 +374,7 @@ function StatCard({ stat }: { stat: StatLevel }) {
   return (
     <div
       id={`axis-${stat.key}`}
-      className="scroll-mt-24 flex items-center gap-2.5 rounded-md border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 hover:bg-white/[0.04] transition-colors"
+      className="scroll-mt-24 flex items-center gap-2.5 rounded-control border border-edge-subtle bg-surface-interactive px-2.5 py-1.5 hover:bg-surface-hover transition-colors duration-[var(--motion-state)]"
       title={`${stat.tier} · ${Math.round(stat.xp).toLocaleString()} XP total · ${stat.xpIntoLevel}/${stat.xpForNext} to Lvl ${stat.level + 1}`}
     >
       <span className="text-base leading-none shrink-0" aria-hidden>
@@ -385,24 +383,24 @@ function StatCard({ stat }: { stat: StatLevel }) {
       <div className="min-w-0 flex-1">
         {/* line 1 · label + level + tier emoji */}
         <div className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-[11.5px] font-medium text-white/80">
+          <span className="truncate text-[12px] font-medium text-fg">
             {stat.shortLabel || stat.label}
           </span>
-          <span className="shrink-0 text-[11px] font-semibold tabular-nums text-white/90">
+          <span className="shrink-0 text-[11px] font-semibold tabular-nums text-fg">
             Lvl {stat.level}
-            <span className="ml-0.5 text-[10px]" aria-hidden>
+            <span className="ml-0.5 text-[11px]" aria-hidden>
               {stat.tierEmoji}
             </span>
           </span>
         </div>
         {/* line 2 · thin progress bar (stat color) + xp-into-level */}
         {stat.description ? (
-          <p className="mt-0.5 text-[10px] leading-snug text-white/35" title={stat.description}>
+          <p className="mt-0.5 text-[11px] leading-snug text-fg-tertiary" title={stat.description}>
             {stat.description}
           </p>
         ) : null}
         <div className="mt-1 flex items-center gap-1.5">
-          <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/[0.08]">
+          <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-hover">
             <div
               className="h-full rounded-full"
               style={{ width: `${pct}%`, backgroundColor: stat.color }}
@@ -410,7 +408,7 @@ function StatCard({ stat }: { stat: StatLevel }) {
           </div>
           {stat.rising7dXp > 0 ? (
             <span
-              className="shrink-0 text-[9px] font-semibold tabular-nums"
+              className="shrink-0 text-[11px] font-semibold tabular-nums"
               style={{ color: stat.color }}
               title={`+${stat.rising7dXp} XP this week`}
             >
@@ -424,7 +422,7 @@ function StatCard({ stat }: { stat: StatLevel }) {
             cards stay one-liner clean. */}
         {Array.isArray(stat.goals) && stat.goals.length > 0 ? (
           <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-            <span className="shrink-0 text-[8px] uppercase tracking-[0.16em] text-white/25">
+            <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               goals
             </span>
             {stat.goals.slice(0, 3).map((g) => (
@@ -432,13 +430,13 @@ function StatCard({ stat }: { stat: StatLevel }) {
                 key={g.id}
                 href={`/stats?tab=goals#goal-${g.id}`}
                 title={g.title}
-                className="max-w-[120px] truncate text-[9px] text-white/45 underline decoration-white/10 underline-offset-2 hover:text-white/75"
+                className="max-w-[120px] truncate text-[11px] text-fg-tertiary underline decoration-edge-strong underline-offset-2 hover:text-fg"
               >
                 {g.title}
               </a>
             ))}
             {stat.goals.length > 3 ? (
-              <span className="shrink-0 text-[9px] text-white/30">
+              <span className="shrink-0 text-[11px] text-fg-tertiary">
                 +{stat.goals.length - 3}
               </span>
             ) : null}

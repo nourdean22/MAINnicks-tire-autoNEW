@@ -74,8 +74,8 @@ export function SystemInfoCard() {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Shield size={14} className="text-[var(--text-tertiary)]" />
-          <span className="text-sm font-[var(--font-display)] font-bold uppercase tracking-wider text-[var(--text-primary)]">
-            system
+          <span className="text-[15px] font-semibold text-fg">
+            System
           </span>
         </div>
         {/* The dot was hardcoded green — it announced LIVE while both
@@ -84,12 +84,12 @@ export function SystemInfoCard() {
           {healthError ? (
             <>
               <span className="w-2 h-2 rounded-full bg-rose-400" />
-              <span className="text-[10px] text-rose-300 font-mono">STALE</span>
+              <span className="text-[11px] text-rose-300 font-mono">STALE</span>
             </>
           ) : (
             <>
               <span className="w-2 h-2 rounded-full bg-green-400 pulse-live" />
-              <span className="text-[10px] text-green-400 font-mono">LIVE</span>
+              <span className="text-[11px] text-green-400 font-mono">LIVE</span>
             </>
           )}
         </div>

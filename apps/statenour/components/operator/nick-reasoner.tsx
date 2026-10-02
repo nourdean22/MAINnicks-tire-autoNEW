@@ -91,7 +91,7 @@ const KIND_DOT: Record<ReasoningStepKind, string> = {
   tool_call: "bg-emerald-400",
   critique: "bg-amber-400",
   refine: "bg-amber-400",
-  deliver: "bg-[var(--gold)]",
+  deliver: "bg-emerald-300",
 };
 
 const TIER_OPTIONS: Array<{ value: ReasoningTier | "auto"; label: string; hint: string }> = [
@@ -284,19 +284,19 @@ export function NickReasoner({
     >
       <header className="space-y-1">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
             nick · reasoning engine
           </p>
           <div className="flex items-center gap-4">
             <a
               href="/reason/telemetry"
-              className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)] hover:text-[var(--gold)] transition"
+              className="text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
             >
               telemetry →
             </a>
             <a
               href="/reason/history"
-              className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)] hover:text-[var(--gold)] transition"
+              className="text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
             >
               history →
             </a>
@@ -321,7 +321,7 @@ export function NickReasoner({
           onKeyDown={onKeyDown}
           placeholder="What's the right move on the Q2 financial goal · given my current pace and the trailing axis?"
           rows={3}
-          className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-white/30 focus:outline-none focus:border-[var(--gold)]/60 resize-y min-h-[88px]"
+          className="w-full rounded-control border border-edge-default bg-content px-3 py-2.5 text-sm text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent resize-y min-h-[88px]"
         />
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -333,10 +333,10 @@ export function NickReasoner({
                 disabled={busy}
                 title={opt.hint}
                 className={[
-                  "text-[10px] font-mono uppercase tracking-[0.14em] px-2.5 py-1 rounded-full border transition",
+                  "text-[13px] font-medium px-2.5 py-1 rounded-full border transition-colors duration-[var(--motion-state)]",
                   tier === opt.value
-                    ? "border-[var(--gold)] bg-[var(--gold)]/10 text-[var(--gold)]"
-                    : "border-white/15 text-[var(--text-secondary)] hover:border-white/30 hover:text-[var(--text-primary)]",
+                    ? "border-accent bg-accent-soft text-fg"
+                    : "border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg",
                   busy ? "opacity-50 cursor-not-allowed" : "",
                 ].join(" ")}
               >
@@ -348,7 +348,7 @@ export function NickReasoner({
             type="button"
             onClick={() => void run()}
             disabled={busy || question.trim().length === 0}
-            className="text-xs font-mono uppercase tracking-[0.14em] px-4 min-h-[40px] rounded bg-[var(--gold)] text-black font-medium hover:bg-[var(--gold)]/90 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="text-[14px] font-semibold px-4 min-h-[40px] rounded-control bg-accent text-[var(--text-inverse)] hover:bg-accent-hover disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {busy ? "thinking..." : "ask nick"}
           </button>
@@ -364,17 +364,17 @@ export function NickReasoner({
         <div className="space-y-5">
           {result ? (
             <div className="space-y-1">
-              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+              <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
                 tier · {result.tier} · {result.classifierReason}
               </p>
-              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] tabular-nums">
+              <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
                 {totalSeconds}s · {result.trace.cost.calls} call
                 {result.trace.cost.calls === 1 ? "" : "s"} ·{" "}
                 ${result.trace.cost.usd.toFixed(3)} est
               </p>
             </div>
           ) : busy ? (
-            <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] animate-pulse">
+            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-amber-300 pulse-live">
               live trace · {liveSteps.length} step{liveSteps.length === 1 ? "" : "s"} done · current step in flight...
             </p>
           ) : null}
@@ -392,7 +392,7 @@ export function NickReasoner({
             }
             return (
               <div className="rounded-md border border-sky-400/20 bg-sky-400/[0.04] p-3 space-y-2">
-                <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-sky-300/90">
+                <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-sky-300/90">
                   nick&apos;s plan
                 </p>
                 <pre className="text-xs text-[var(--text-primary)] whitespace-pre-wrap font-sans leading-relaxed">
@@ -402,7 +402,7 @@ export function NickReasoner({
             );
           })()}
 
-          <ol className="space-y-2 border-l border-white/10 pl-4">
+          <ol className="space-y-2 border-l border-edge-default pl-4">
             {(result ? result.trace.steps : liveSteps).map((step, i) => (
               <li key={i} className="space-y-1">
                 <button
@@ -410,31 +410,31 @@ export function NickReasoner({
                   onClick={() =>
                     setExpandedStep(expandedStep === i ? null : i)
                   }
-                  className="w-full text-left flex items-start gap-2.5 text-sm leading-snug hover:bg-white/[0.03] rounded-sm px-1"
+                  className="w-full text-left flex items-start gap-2.5 text-sm leading-snug hover:bg-surface-hover rounded-sm px-1"
                 >
                   <span
                     aria-hidden
                     className={[
                       "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full",
-                      KIND_DOT[step.kind] ?? "bg-white/30",
+                      KIND_DOT[step.kind] ?? "bg-fg-tertiary",
                     ].join(" ")}
                   />
                   <span className="min-w-0 flex-1">
-                    <span className="mr-2 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+                    <span className="mr-2 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
                       {step.kind}
                     </span>
                     <span className="text-[var(--text-primary)]">
                       {step.label}
                     </span>
                   </span>
-                  <span className="shrink-0 text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
+                  <span className="shrink-0 text-[11px] font-mono tabular-nums text-fg-tertiary">
                     {step.durationMs >= 1000
                       ? `${(step.durationMs / 1000).toFixed(1)}s`
                       : `${step.durationMs}ms`}
                   </span>
                 </button>
                 {expandedStep === i && step.detail !== undefined && step.detail !== null ? (
-                  <pre className="ml-6 text-[11px] text-[var(--text-secondary)] whitespace-pre-wrap font-mono bg-white/[0.02] border border-white/5 rounded-sm p-2.5 max-h-64 overflow-auto">
+                  <pre className="ml-6 text-[11px] text-[var(--text-secondary)] whitespace-pre-wrap font-mono bg-content border border-edge-subtle rounded-control p-2.5 max-h-64 overflow-auto">
                     {typeof step.detail === "string"
                       ? step.detail
                       : JSON.stringify(step.detail, null, 2)}
@@ -446,15 +446,15 @@ export function NickReasoner({
 
           {/* Final answer block · only after result lands */}
           {result ? (
-            <div className="rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] p-4 space-y-3">
-              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
+            <div className="rounded-surface border border-edge-subtle bg-content p-4 space-y-3">
+              <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
                 nick · answer
               </p>
               <div className="text-sm text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
                 {result.trace.answer}
               </div>
               <div className="flex items-baseline justify-between gap-3 pt-1">
-                <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] italic">
+                <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary italic">
                   confidence {(result.trace.confidence * 100).toFixed(0)}%
                 </p>
                 {/* H.4.5 + H.6.3 · continue-in-chat handoff. Routes to
@@ -483,7 +483,7 @@ export function NickReasoner({
                       router.push(url);
                     }
                   }}
-                  className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-secondary)] hover:text-[var(--gold)] transition"
+                  className="text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg"
                   title="open in /chat with question + answer pre-seeded (kept out of URL)"
                 >
                   continue in chat →

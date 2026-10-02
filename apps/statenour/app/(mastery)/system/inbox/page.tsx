@@ -85,7 +85,7 @@ export default function MemoryInboxPage() {
           <button
             onClick={() => quarantinedQuery.refetch()}
             disabled={loading}
-            className="rounded-lg border border-[var(--border-hover)] bg-[var(--bg-raised)]/5 px-4 py-2 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-[var(--bg-raised)]/10 disabled:opacity-50"
+            className="rounded-control border border-edge-strong bg-content px-4 py-2 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
           >
             {loading ? "refreshing…" : "refresh"}
           </button>
@@ -93,18 +93,17 @@ export default function MemoryInboxPage() {
       }
     >
       {items.length === 0 ? (
-        <Panel className="border-zinc-800/80 bg-[var(--bg-raised)]/[0.02] flex flex-col items-center justify-center p-12 text-center">
-          <span className="text-4xl mb-4">🛡️</span>
-          <h3 className="text-lg font-semibold text-zinc-100 mb-1">Memory Queue Clear</h3>
-          <p className="text-xs text-zinc-500 max-w-sm">
-            All facts ingested from external sources are safe. Any contradiction or security warnings will quarantine items here.
+        <Panel className="border-edge-subtle flex flex-col items-center justify-center p-12 text-center">
+              <h3 className="text-lg font-semibold text-fg mb-1">Memory Queue Clear</h3>
+          <p className="text-xs text-fg-tertiary max-w-sm">
+              All facts ingested from external sources are safe. Any contradiction or security warnings will quarantine items here.
           </p>
         </Panel>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Sidebar list of quarantined items */}
           <div className="lg:col-span-5 space-y-3 max-h-[75vh] overflow-y-auto pr-1">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">
+              <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-2">
               Quarantined Items ({items.length})
             </h2>
             {items.map((item) => {
@@ -121,30 +120,30 @@ export default function MemoryInboxPage() {
                   key={item.id}
                   onClick={() => setSelectedItemId(item.id)}
                   className={cn(
-                    "w-full text-left rounded-lg p-3 border transition flex flex-col gap-2 bg-[var(--bg-raised)]/[0.02]",
+                    "w-full text-left rounded-control p-3 border transition flex flex-col gap-2",
                     active
-                      ? "border-[var(--gold)] bg-[var(--gold)]/[0.04]"
+                      ? "border-accent bg-accent-soft"
                       : isConflicting
                       ? "border-amber-500/30 hover:border-amber-500/50"
-                      : "border-zinc-800/80 hover:border-zinc-700/80"
+                      : "border-edge-subtle hover:border-edge-default"
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 bg-white/[0.04] px-1.5 py-0.5 rounded">
+              <span className="text-[11px] font-mono text-fg-secondary bg-surface-interactive px-1.5 py-0.5 rounded">
                       {item.sourceType}
                     </span>
-                    <span className="text-[10px] text-zinc-500">{timeAgo(item.createdAt)}</span>
+                    <span className="text-[11px] text-fg-tertiary">{timeAgo(item.createdAt)}</span>
                   </div>
-                  <p className="text-xs text-zinc-300 font-medium line-clamp-2">
+                  <p className="text-xs text-fg font-medium line-clamp-2">
                     {item.rawTextFenced}
                   </p>
                   <div className="flex items-center gap-3 mt-1">
-                    <span className="text-[10px] text-zinc-500 flex items-center gap-1">
-                      <span>📄</span> {claimCount} claim{claimCount !== 1 ? "s" : ""}
+              <span className="text-[11px] text-fg-tertiary flex items-center gap-1">
+                      {claimCount} claim{claimCount !== 1 ? "s" : ""}
                     </span>
                     {isConflicting && (
-                      <span className="text-[10px] text-amber-400 font-semibold flex items-center gap-1 animate-pulse">
-                        <span>⚠️</span> Contradiction Alert
+                      <span className="text-[11px] text-amber-400 font-semibold flex items-center gap-1">
+              Contradiction Alert
                       </span>
                     )}
                   </div>
@@ -156,25 +155,25 @@ export default function MemoryInboxPage() {
           {/* Main detail area */}
           {selectedItem && (
             <div className="lg:col-span-7 space-y-4">
-              <Panel className="border-zinc-800/80 bg-[var(--bg-raised)]/[0.02] p-6 space-y-4">
+              <Panel className="border-edge-subtle p-6 space-y-4">
                 {/* Header detail */}
-                <div className="flex items-start justify-between flex-wrap gap-4 border-b border-zinc-800/80 pb-4">
+                <div className="flex items-start justify-between flex-wrap gap-4 border-b border-edge-subtle pb-4">
                   <div>
-                    <h3 className="text-sm font-semibold text-zinc-100 flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-fg flex items-center gap-2">
                       <span>Memory Review</span>
-                      <span className="text-xs font-normal text-zinc-500">
+                      <span className="text-xs font-normal text-fg-tertiary">
                         ({selectedItem.id.slice(0, 8)})
                       </span>
                     </h3>
-                    <div className="text-xs text-zinc-500 mt-1 flex flex-col gap-1">
+                    <div className="text-xs text-fg-tertiary mt-1 flex flex-col gap-1">
                       <div>
-                        Source: <span className="font-mono text-zinc-400">{selectedItem.sourceType}</span>
+                        Source: <span className="font-mono text-fg-secondary">{selectedItem.sourceType}</span>
                         {selectedItem.sourceUrl && /^https?:\/\//.test(selectedItem.sourceUrl) ? (
                           <a
                             href={selectedItem.sourceUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-[var(--gold)] hover:underline ml-1"
+                            className="text-fg-secondary hover:underline ml-1"
                           >
                             [link]
                           </a>
@@ -182,11 +181,11 @@ export default function MemoryInboxPage() {
                           // 2026-09-02 · ingestion rows carry an identity like
                           // gmail://<messageId>, not a navigable URL — show it,
                           // don't link it.
-                          <span className="font-mono text-zinc-500 ml-1">{selectedItem.sourceUrl}</span>
+                          <span className="font-mono text-fg-tertiary ml-1">{selectedItem.sourceUrl}</span>
                         ) : null}
                       </div>
                       <div>
-                        Privacy: <span className="font-mono text-zinc-400">{selectedItem.privacyClass}</span>
+                        Privacy: <span className="font-mono text-fg-secondary">{selectedItem.privacyClass}</span>
                       </div>
                     </div>
                   </div>
@@ -196,7 +195,7 @@ export default function MemoryInboxPage() {
                     <button
                       onClick={() => handleResolve(selectedItem.id, "reject")}
                       disabled={resolveMutation.isPending}
-                      className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 disabled:opacity-50 transition"
+                      className="rounded-control border border-edge-subtle bg-content px-3 py-1.5 text-xs font-semibold text-fg hover:bg-surface-hover disabled:opacity-50 transition"
                     >
                       Reject
                     </button>
@@ -204,7 +203,7 @@ export default function MemoryInboxPage() {
                       <button
                         onClick={() => handleResolve(selectedItem.id, "overwrite")}
                         disabled={resolveMutation.isPending}
-                        className="rounded-lg bg-amber-500 hover:bg-amber-600 px-3 py-1.5 text-xs font-semibold text-black disabled:opacity-50 transition"
+                        className="rounded-control bg-amber-500 hover:bg-amber-600 px-3 py-1.5 text-xs font-semibold text-black disabled:opacity-50 transition"
                       >
                         Overwrite Conflicting
                       </button>
@@ -212,7 +211,7 @@ export default function MemoryInboxPage() {
                     <button
                       onClick={() => handleResolve(selectedItem.id, "coexist")}
                       disabled={resolveMutation.isPending}
-                      className="rounded-lg bg-[var(--gold)] hover:bg-[var(--gold)]/80 px-3 py-1.5 text-xs font-semibold text-black disabled:opacity-50 transition"
+                      className="rounded-control bg-accent hover:bg-accent-hover px-3 py-1.5 text-xs font-semibold text-[var(--text-inverse)] disabled:opacity-50 transition"
                     >
                       Coexist
                     </button>
@@ -221,11 +220,11 @@ export default function MemoryInboxPage() {
 
                 {/* Raw content fenced */}
                 <div className="space-y-1.5">
-                  <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                     Raw Ingested Text
                   </span>
-                  <div className="rounded bg-black/40 p-4 border border-zinc-800/60">
-                    <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs text-zinc-300 font-sans leading-relaxed">
+                  <div className="rounded bg-content p-4 border border-edge-subtle">
+              <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs text-fg font-sans leading-relaxed">
                       {selectedItem.rawTextFenced}
                     </pre>
                   </div>
@@ -233,7 +232,7 @@ export default function MemoryInboxPage() {
 
                 {/* Extracted claims */}
                 <div className="space-y-2">
-                  <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                     Extracted Claims
                   </span>
                   <div className="space-y-1.5">
@@ -253,19 +252,19 @@ export default function MemoryInboxPage() {
                       }
 
                       if (claims.length === 0) {
-                        return <p className="text-xs text-zinc-500 italic">No claims extracted</p>;
+                        return <p className="text-xs text-fg-tertiary italic">No claims extracted</p>;
                       }
 
                       return claims.map((claim, idx) => (
                         <div
                           key={idx}
-                          className="bg-zinc-900/60 border border-zinc-800 p-3 rounded-lg flex items-start justify-between gap-4"
+                          className="bg-content border border-edge-subtle p-3 rounded-surface flex items-start justify-between gap-4"
                         >
-                          <div className="text-xs text-zinc-300 font-sans leading-relaxed">
+                          <div className="text-xs text-fg font-sans leading-relaxed">
                             {claim.text}
                           </div>
                           {claim.confidence !== undefined && (
-                            <span className="text-[10px] font-mono text-zinc-500 bg-white/[0.02] px-1.5 py-0.5 rounded flex-shrink-0">
+                            <span className="text-[11px] font-mono text-fg-tertiary px-1.5 py-0.5 rounded flex-shrink-0">
                               conf: {Math.round(claim.confidence * 100)}%
                             </span>
                           )}
@@ -277,9 +276,9 @@ export default function MemoryInboxPage() {
 
                 {/* Contradiction comparison panel */}
                 {selectedItem.status === "conflicting" && (
-                  <div className="space-y-2 pt-2 border-t border-zinc-800/80">
-                    <span className="text-[10px] uppercase tracking-wider text-amber-400 font-semibold flex items-center gap-1">
-                      <span>⚠️</span> Semantic Conflicts Detected
+                  <div className="space-y-2 pt-2 border-t border-edge-subtle">
+              <span className="text-[13px] font-medium text-amber-300 flex items-center gap-1">
+                      Semantic Conflicts Detected
                     </span>
                     <div className="space-y-2">
                       {(() => {
@@ -296,7 +295,7 @@ export default function MemoryInboxPage() {
 
                         if (conflicts.length === 0) {
                           return (
-                            <p className="text-xs text-zinc-500 italic">
+                            <p className="text-xs text-fg-tertiary italic">
                               Contradicting records metadata missing
                             </p>
                           );
@@ -305,23 +304,23 @@ export default function MemoryInboxPage() {
                         return conflicts.map((conflict, idx) => (
                           <div
                             key={idx}
-                            className="bg-amber-500/[0.02] border border-amber-500/20 p-3 rounded-lg space-y-2"
+                            className="bg-amber-500/[0.02] border border-amber-500/20 p-3 rounded-surface space-y-2"
                           >
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-mono text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded">
+              <span className="text-[11px] font-mono text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded">
                                 Conflicting Memory
                               </span>
                               {conflict.similarity !== undefined && (
-                                <span className="text-[10px] font-mono text-amber-400/80">
+                                <span className="text-[11px] font-mono text-amber-400/80">
                                   Similarity: {Math.round(conflict.similarity * 100)}%
                                 </span>
                               )}
                             </div>
-                            <div className="text-xs text-zinc-300 leading-relaxed font-sans">
+                            <div className="text-xs text-fg leading-relaxed font-sans">
                               {conflict.content}
                             </div>
                             {conflict.createdAt && (
-                              <div className="text-[9px] text-zinc-500 font-mono">
+                              <div className="text-[11px] text-fg-tertiary font-mono">
                                 Saved: {new Date(conflict.createdAt).toLocaleString()}
                               </div>
                             )}

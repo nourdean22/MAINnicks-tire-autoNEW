@@ -42,7 +42,7 @@ export function EvidenceMark({ provenance, inline, now, className }: EvidenceMar
         className={cn("font-mono text-[11px] leading-relaxed text-fg-tertiary", className)}
       >
         {label ? (
-          <span className={cn("mr-1.5 rounded border px-1 py-px text-[10px] uppercase tracking-wide", label.cls)}>
+          <span className={cn("mr-1.5 rounded-micro border px-1 py-px text-[11px]", label.cls)}>
             {label.text}
           </span>
         ) : null}
@@ -61,7 +61,7 @@ export function EvidenceMark({ provenance, inline, now, className }: EvidenceMar
           <span
             data-evidence-mark="chip"
             className={cn(
-              "inline-flex cursor-help items-center rounded border px-1.5 py-px font-mono text-[10px] uppercase tracking-wide",
+              "inline-flex cursor-help items-center rounded-micro border px-1.5 py-px font-mono text-[11px]",
               chipCls,
               className,
             )}

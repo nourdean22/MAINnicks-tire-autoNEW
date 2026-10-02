@@ -64,26 +64,26 @@ import type {
 
 // Map severity → visual tokens
 const SEV_RING: Record<SituationSeverity, string> = {
-  critical: "border-red-500/50 bg-red-500/[0.04] shadow-[0_0_20px_rgba(239,68,68,0.08)]",
+  critical: "border-red-500/50 bg-red-500/[0.04]",
   high: "border-amber-500/50 bg-amber-500/[0.04]",
-  medium: "border-[var(--gold)]/45 bg-[var(--gold)]/[0.04]",
-  low: "border-[var(--border-hover)]/60 bg-[var(--bg-raised)]",
+  medium: "border-sky-500/40 bg-sky-500/[0.04]",
+  low: "border-edge-default bg-content",
   win: "border-emerald-500/45 bg-emerald-500/[0.04]",
 };
 
 const SEV_DOT: Record<SituationSeverity, string> = {
-  critical: "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]",
-  high: "bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.5)]",
-  medium: "bg-[var(--gold)]",
-  low: "bg-[var(--text-tertiary)]",
+  critical: "bg-red-500",
+  high: "bg-amber-400",
+  medium: "bg-sky-400",
+  low: "bg-fg-tertiary",
   win: "bg-emerald-400",
 };
 
 const SEV_TEXT: Record<SituationSeverity, string> = {
   critical: "text-red-400",
   high: "text-amber-400",
-  medium: "text-[var(--gold)]",
-  low: "text-[var(--text-secondary)]",
+  medium: "text-sky-300",
+  low: "text-fg-secondary",
   win: "text-emerald-400",
 };
 
@@ -117,11 +117,11 @@ const SOURCE_ICON: Record<SituationSource, typeof Zap> = {
 };
 
 const MONITOR_TONE: Record<"win" | "neutral" | "watch" | "warn" | "alert", string> = {
-  win: "text-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.4)]",
-  neutral: "text-[var(--text-tertiary)]",
-  watch: "text-[var(--gold)] shadow-[0_0_4px_rgba(253,185,19,0.3)]",
-  warn: "text-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.4)]",
-  alert: "text-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]",
+  win: "text-emerald-400",
+  neutral: "text-fg-tertiary",
+  watch: "text-sky-300",
+  warn: "text-amber-400",
+  alert: "text-red-400",
 };
 
 interface SituationCardProps {
@@ -166,10 +166,10 @@ export function SituationCard({ initial = null }: SituationCardProps) {
   // Pure-render fallback skeleton
   if (loading && !payload) {
     return (
-      <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] p-4 animate-pulse">
-        <div className="h-3 w-24 rounded bg-[var(--bg-elevated)] mb-2" />
-        <div className="h-4 w-3/4 rounded bg-[var(--bg-elevated)] mb-1.5" />
-        <div className="h-3 w-1/2 rounded bg-[var(--bg-elevated)]" />
+      <section className="rounded-surface border border-edge-subtle bg-content p-4 animate-pulse">
+        <div className="h-3 w-24 rounded bg-surface-raised mb-2" />
+        <div className="h-4 w-3/4 rounded bg-surface-raised mb-1.5" />
+        <div className="h-3 w-1/2 rounded bg-surface-raised" />
       </section>
     );
   }
@@ -181,23 +181,23 @@ export function SituationCard({ initial = null }: SituationCardProps) {
   // failures it existed for.
   if (error && !payload) {
     return (
-      <section className="rounded-lg border border-rose-500/30 bg-rose-500/[0.04] p-3">
+      <section className="rounded-surface border border-rose-500/30 bg-rose-500/[0.04] p-3">
         <div className="flex items-center gap-2 mb-1">
           <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-          <span className="text-[9px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-rose-400">
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-rose-400">
             situation
           </span>
-          <span className="ml-auto text-[9px] font-mono text-[var(--text-tertiary)]">
+          <span className="ml-auto font-mono text-[11px] text-fg-tertiary">
             unreadable
           </span>
         </div>
-        <p className="text-[12px] text-[var(--text-secondary)]">
+        <p className="text-[12px] text-fg-secondary">
           The signal feed could not be read — state is UNKNOWN, not clear.
         </p>
         <button
           type="button"
           onClick={load}
-          className="mt-2 text-[10px] font-mono uppercase tracking-wider text-rose-300/80 hover:text-rose-200 min-h-[44px] min-w-[44px] text-left"
+          className="mt-2 text-[13px] font-medium text-rose-300/80 hover:text-rose-200 min-h-[44px] min-w-[44px] text-left"
         >
           retry
         </button>
@@ -209,17 +209,17 @@ export function SituationCard({ initial = null }: SituationCardProps) {
     // Clean-state fallback — still show monitors so the surface
     // carries signal even when there's nothing critical.
     return (
-      <section className="rounded-lg border border-emerald-500/30 bg-emerald-500/[0.03] p-3">
+      <section className="rounded-surface border border-emerald-500/30 bg-emerald-500/[0.03] p-3">
         <div className="flex items-center gap-2 mb-1">
           <span className={cn("w-1.5 h-1.5 rounded-full", SEV_DOT.win)} />
-          <span className="text-[9px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-emerald-400">
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-emerald-400">
             situation
           </span>
-          <span className="ml-auto text-[9px] font-mono text-[var(--text-tertiary)]">
+          <span className="ml-auto font-mono text-[11px] text-fg-tertiary">
             clear
           </span>
         </div>
-        <p className="text-[12px] text-[var(--text-secondary)]">
+        <p className="text-[12px] text-fg-secondary">
           Nothing urgent in the feed right now. Use the space.
         </p>
         {payload?.monitors && payload.monitors.length > 0 && (
@@ -235,7 +235,7 @@ export function SituationCard({ initial = null }: SituationCardProps) {
   return (
     <section
       className={cn(
-        "rounded-lg border p-3 space-y-2 transition-all",
+        "rounded-surface border p-3 space-y-2 transition-all",
         primary ? SEV_RING[primary.severity] : SEV_RING.low
       )}
     >
@@ -245,18 +245,17 @@ export function SituationCard({ initial = null }: SituationCardProps) {
           <span
             className={cn(
               "w-1.5 h-1.5 rounded-full shrink-0",
-              SEV_DOT[primary.severity],
-              primary.severity === "critical" && "animate-pulse"
+              SEV_DOT[primary.severity]
             )}
           />
         )}
-        <span className="text-[9px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-[var(--text-primary)]">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
           situation
         </span>
         {primary && (
           <span
             className={cn(
-              "text-[9px] font-mono uppercase tracking-wider",
+              "font-mono text-[11px] uppercase tracking-[0.12em]",
               SEV_TEXT[primary.severity]
             )}
           >
@@ -265,7 +264,7 @@ export function SituationCard({ initial = null }: SituationCardProps) {
         )}
         {noiseReduced > 0 && (
           <span
-            className="text-[9px] font-mono text-[var(--text-tertiary)]"
+            className="font-mono text-[11px] text-fg-tertiary"
             title={`${noiseReduced} redundant signals folded into this single card`}
           >
             −{noiseReduced} noise
@@ -298,11 +297,11 @@ export function SituationCard({ initial = null }: SituationCardProps) {
 
       {/* Auto-resolved FYI — one inline line so Nour sees what cron did */}
       {autoResolved.length > 0 && (
-        <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-tertiary)] border-t border-[var(--border-default)]/50 pt-1.5">
+        <div className="flex items-center gap-1.5 text-[11px] text-fg-tertiary border-t border-edge-subtle pt-1.5">
           <Sparkles size={9} className="text-emerald-400/60" />
           <span className="truncate">{autoResolved[0].headline}</span>
           {autoResolved.length > 1 && (
-            <span className="text-[9px] font-mono">+{autoResolved.length - 1}</span>
+            <span className="font-mono text-[11px]">+{autoResolved.length - 1}</span>
           )}
         </div>
       )}
@@ -311,7 +310,7 @@ export function SituationCard({ initial = null }: SituationCardProps) {
       {hasExpandable && (
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="w-full flex items-center justify-center gap-1 min-h-[44px] sm:min-h-0 text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--text-primary)] pt-1 transition-colors"
+          className="w-full flex items-center justify-center gap-1 min-h-[44px] sm:min-h-0 text-[13px] font-medium text-fg-tertiary hover:text-fg pt-1 transition-colors"
         >
           {expanded ? (
             <>
@@ -328,7 +327,7 @@ export function SituationCard({ initial = null }: SituationCardProps) {
 
       {/* Expanded drawer */}
       {expanded && (
-        <div className="space-y-2 pt-1 border-t border-[var(--border-default)]/50">
+        <div className="space-y-2 pt-1 border-t border-edge-subtle">
           {secondaries.map((c, i) => (
             <CandidateRow key={`sec-${i}`} candidate={c} />
           ))}
@@ -338,40 +337,40 @@ export function SituationCard({ initial = null }: SituationCardProps) {
           {/* Rolled-up counts — animated on change (SituationSynthesizer
               polls every 120s, so number shifts are real state
               changes worth a 600ms tick-up). */}
-          <div className="grid grid-cols-3 gap-2 pt-1 text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+          <div className="grid grid-cols-3 gap-2 pt-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             <div>
-              <span className="text-[var(--text-tertiary)]">blind:</span>{" "}
-              <span className="text-[var(--text-primary)] tabular-nums">
+              <span className="text-fg-tertiary">blind:</span>{" "}
+              <span className="text-fg tabular-nums">
                 <AnimatedCounter value={counts.blindSpots} duration={600} />
               </span>
             </div>
             <div>
-              <span className="text-[var(--text-tertiary)]">bets:</span>{" "}
-              <span className="text-[var(--text-primary)] tabular-nums">
+              <span className="text-fg-tertiary">bets:</span>{" "}
+              <span className="text-fg tabular-nums">
                 <AnimatedCounter value={counts.activeBets} duration={600} />
               </span>
             </div>
             <div>
-              <span className="text-[var(--text-tertiary)]">beliefs:</span>{" "}
-              <span className="text-[var(--text-primary)] tabular-nums">
+              <span className="text-fg-tertiary">beliefs:</span>{" "}
+              <span className="text-fg tabular-nums">
                 <AnimatedCounter value={counts.agingBeliefs} duration={600} />
               </span>
             </div>
             <div>
-              <span className="text-[var(--text-tertiary)]">stale pins:</span>{" "}
-              <span className="text-[var(--text-primary)] tabular-nums">
+              <span className="text-fg-tertiary">stale pins:</span>{" "}
+              <span className="text-fg tabular-nums">
                 <AnimatedCounter value={counts.stalePins} duration={600} />
               </span>
             </div>
             <div>
-              <span className="text-[var(--text-tertiary)]">decisions:</span>{" "}
-              <span className="text-[var(--text-primary)] tabular-nums">
+              <span className="text-fg-tertiary">decisions:</span>{" "}
+              <span className="text-fg tabular-nums">
                 <AnimatedCounter value={counts.openRuminations} duration={600} />
               </span>
             </div>
             <div>
-              <span className="text-[var(--text-tertiary)]">reflects:</span>{" "}
-              <span className="text-[var(--text-primary)] tabular-nums">
+              <span className="text-fg-tertiary">reflects:</span>{" "}
+              <span className="text-fg tabular-nums">
                 <AnimatedCounter value={counts.reflectionsToday} duration={600} />
               </span>
             </div>
@@ -380,7 +379,7 @@ export function SituationCard({ initial = null }: SituationCardProps) {
       )}
 
       {error && (
-        <div className="text-[9px] text-red-400">
+        <div className="text-[11px] text-red-400">
           situation fetch: {error}
         </div>
       )}
@@ -411,14 +410,14 @@ function CandidateRow({
         <div className="flex-1 min-w-0">
           <p
             className={cn(
-              "leading-snug text-[var(--text-primary)]",
+              "leading-snug text-fg",
               primary ? "text-[13px] font-medium" : "text-[11.5px]"
             )}
           >
             {candidate.headline}
           </p>
           {candidate.body && (
-            <p className="mt-0.5 text-[11px] text-[var(--text-secondary)] leading-snug line-clamp-2">
+            <p className="mt-0.5 text-[11px] text-fg-secondary leading-snug line-clamp-2">
               {candidate.body}
             </p>
           )}
@@ -428,13 +427,11 @@ function CandidateRow({
         <Link
           href={candidate.action.href}
           className={cn(
-            "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border transition-all",
-            "border-[var(--gold)]/40 bg-[var(--gold)]/10 text-[var(--gold)]",
-            "hover:border-[var(--gold)]/60 hover:bg-[var(--gold)]/20"
+            "inline-flex items-center gap-1 px-2 py-0.5 rounded-control border border-edge-default bg-content text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
           )}
         >
           {candidate.actionLabel}
-          <span className="text-[9px]">↗</span>
+          <span className="text-[11px]">↗</span>
         </Link>
       )}
     </div>
@@ -447,7 +444,7 @@ function MonitorStrip({
   monitors: SituationPayload["monitors"];
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-mono uppercase tracking-wider border-t border-[var(--border-default)]/50 pt-1.5">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] uppercase tracking-[0.12em] border-t border-edge-subtle pt-1.5">
       {monitors.map((m) => {
         const content = (
           <>
@@ -457,7 +454,7 @@ function MonitorStrip({
                 MONITOR_TONE[m.tone].split(" ")[0].replace("text-", "bg-")
               )}
             />
-            <span className="text-[var(--text-tertiary)]">{m.label}</span>
+            <span className="text-fg-tertiary">{m.label}</span>
             <span className={cn(MONITOR_TONE[m.tone].split(" ")[0])}>{m.value}</span>
           </>
         );
@@ -509,27 +506,27 @@ function CalibrationOnboarding() {
   };
 
   return (
-    <div className="rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/5 px-2.5 py-2 flex items-start gap-2">
-      <Sparkles size={12} className="text-[var(--gold)] mt-0.5 shrink-0" />
-      <div className="flex-1 min-w-0 text-[10.5px] leading-relaxed">
-        <p className="font-bold text-[var(--gold)] tracking-wide mb-0.5">
+    <div className="rounded-control border border-edge-default bg-surface-raised px-2.5 py-2 flex items-start gap-2">
+      <Sparkles size={12} className="text-fg-tertiary mt-0.5 shrink-0" />
+      <div className="flex-1 min-w-0 text-[11px] leading-relaxed">
+        <p className="font-semibold text-fg mb-0.5">
           What&apos;s a bet?
         </p>
-        <p className="text-[var(--text-secondary)]">
+        <p className="text-fg-secondary">
           Nick predicts outcomes based on your patterns. When it resolves,
-          <span className="text-[var(--gold)] font-medium"> grade it</span>{" "}
+          <span className="text-fg font-medium"> grade it</span>{" "}
           — right or wrong.
           After ~10 grades, Nick has a calibration score and starts
           adjusting confidence to match reality.
         </p>
-        <p className="text-[9px] text-[var(--text-tertiary)] mt-1 font-mono">
+        <p className="font-mono text-[11px] text-fg-tertiary mt-1">
           Higher calibration → Nick&apos;s data points are weightier in decisions.
         </p>
       </div>
       <button
         onClick={dismiss}
         aria-label="Dismiss explainer"
-        className="shrink-0 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 w-5 h-5 rounded flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-raised)]"
+        className="shrink-0 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 w-5 h-5 rounded-control flex items-center justify-center text-fg-tertiary hover:text-fg hover:bg-surface-hover"
       >
         <X size={10} />
       </button>

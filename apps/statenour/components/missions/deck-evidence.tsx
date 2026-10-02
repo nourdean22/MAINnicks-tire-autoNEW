@@ -31,7 +31,7 @@ function tomorrow6amIso(): string {
 }
 
 const VERB =
-  "inline-flex min-h-[44px] items-center rounded-md border border-edge px-3 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary transition-colors hover:border-edge-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
+  "inline-flex min-h-[44px] items-center rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg";
 
 export function DeckEvidence({ evidence, tasks, onSnoozeTask }: Props) {
   const [closing, setClosing] = useState(false);
@@ -74,14 +74,14 @@ export function DeckEvidence({ evidence, tasks, onSnoozeTask }: Props) {
         <h2 id="evidence-heading" className="vt-eyebrow text-fg-secondary">
           done today
         </h2>
-        <span className="font-display text-2xl font-bold leading-none tabular-nums text-gold">{evidence.count}</span>
+        <span className="stat-number text-2xl leading-none text-fg">{evidence.count}</span>
       </div>
 
       {evidence.rows.length > 0 ? (
         <ul className="divide-y divide-edge">
           {evidence.rows.map((r) => (
             <li key={r.id} className="flex items-center gap-3 py-3 text-[15px]">
-              <span aria-hidden className="text-gold">✓</span>
+              <span aria-hidden className="text-emerald-300">✓</span>
               <span className="min-w-0 truncate text-fg-secondary">{r.title}</span>
               {r.missionTitle && (
                 <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
@@ -131,7 +131,7 @@ export function DeckEvidence({ evidence, tasks, onSnoozeTask }: Props) {
                   type="button"
                   disabled={busy}
                   onClick={rollAll}
-                  className="inline-flex min-h-[44px] items-center rounded-md bg-gold px-4 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-black transition-colors hover:bg-gold-dim disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+                  className="inline-flex min-h-[44px] items-center rounded-control border border-edge-default bg-content px-4 text-[13px] font-medium text-fg transition-colors duration-[var(--motion-state)] hover:border-edge-strong disabled:opacity-60"
                 >
                   {busy ? "rolling…" : "roll to tomorrow"}
                 </button>

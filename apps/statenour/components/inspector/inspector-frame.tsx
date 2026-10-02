@@ -114,11 +114,12 @@ export function InspectorFrame({ kind, mode, presentation, onClose, actions, chi
   }, [presentation]);
 
   const header = (
-    <div className="flex items-start justify-between gap-3 border-b border-glass px-4 pb-2 pt-3">
+    <div className="flex items-start justify-between gap-3 border-b border-edge-subtle px-4 pb-2 pt-3">
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-fg-tertiary">
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+          <span className="notch mr-2 align-middle" aria-hidden />
           {eyebrow}
-          {mode === "peek" ? <span className="ml-2 text-gold">peek</span> : null}
+          {mode === "peek" ? <span className="ml-2 text-fg-secondary">peek</span> : null}
         </p>
         {mode === "peek" ? (
           <p className="mt-0.5 text-[11px] text-fg-tertiary">
@@ -133,7 +134,7 @@ export function InspectorFrame({ kind, mode, presentation, onClose, actions, chi
         onClick={onClose}
         aria-label="Close inspector"
         className={cn(
-          "inline-flex shrink-0 items-center justify-center rounded-lg text-fg-tertiary transition-colors hover:text-fg",
+          "inline-flex shrink-0 items-center justify-center rounded-control text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg",
           presentation === "sheet" ? "min-h-[44px] min-w-[44px]" : "h-8 w-8",
         )}
       >
@@ -142,7 +143,7 @@ export function InspectorFrame({ kind, mode, presentation, onClose, actions, chi
     </div>
   );
 
-  const body = <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3">{children}</div>;
+  const body = <div className="flex-1 overflow-y-auto overscroll-contain bg-content px-4 py-3">{children}</div>;
 
   const footer = actions ? <div className="border-t border-glass px-4 py-3">{actions}</div> : null;
 
@@ -155,8 +156,8 @@ export function InspectorFrame({ kind, mode, presentation, onClose, actions, chi
         data-inspector-mode={mode}
         data-inspector-kind={kind ?? "unknown"}
         className={cn(
-          "fixed top-[env(safe-area-inset-top,0px)] z-[45] flex flex-col border-l border-glass bg-base-layer",
-          "bottom-[var(--bottom-chrome-h,6rem)] shadow-[-12px_0_40px_rgba(0,0,0,0.45)]",
+          "ui-material fixed top-[env(safe-area-inset-top,0px)] z-[45] flex flex-col border-l border-edge-default",
+          "bottom-[var(--bottom-chrome-h,6rem)] shadow-l1",
           className,
         )}
         style={{ width: INSPECTOR_PANEL_WIDTH, right: "var(--nick-pane-open-w, 0px)" }}
@@ -179,16 +180,16 @@ export function InspectorFrame({ kind, mode, presentation, onClose, actions, chi
       data-inspector-kind={kind ?? "unknown"}
     >
       {/* Scrim: tap-to-close, but not a second "Close inspector" in the tab order. */}
-      <button type="button" aria-hidden tabIndex={-1} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <button type="button" aria-hidden tabIndex={-1} className="absolute inset-0 bg-overlay/70" onClick={onClose} />
       <div
         ref={sheetRef}
         className={cn(
-          "relative z-[61] flex max-h-[85vh] min-h-[40vh] flex-col rounded-t-2xl border-t border-[var(--gold)]/30 bg-void",
-          "pb-[env(safe-area-inset-bottom,12px)] shadow-[0_-20px_60px_rgba(0,0,0,0.7),0_-1px_30px_rgba(253,185,19,0.06)] animate-fadeSlideUp",
+          "ui-material relative z-[61] flex max-h-[85vh] min-h-[40vh] flex-col rounded-t-float border-t border-edge-default",
+          "pb-[env(safe-area-inset-bottom,12px)] shadow-l2 animate-fadeSlideUp",
           className,
         )}
       >
-        <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-[var(--border-default)]" aria-hidden />
+        <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-edge-strong" aria-hidden />
         {header}
         {body}
         {footer}

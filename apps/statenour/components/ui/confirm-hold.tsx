@@ -102,10 +102,10 @@ export function ConfirmHold({
 
   const colorMap = {
     default: {
-      border: "border-[var(--border-default)]",
-      text: "text-[var(--text-secondary)]",
+      border: "border-edge-default",
+      text: "text-fg-secondary",
       ring: "stroke-[var(--text-secondary)]",
-      bg: "bg-[var(--bg-raised)]",
+      bg: "bg-content",
     },
     danger: {
       border: "border-red-500/40",
@@ -114,10 +114,10 @@ export function ConfirmHold({
       bg: "bg-red-500/10",
     },
     gold: {
-      border: "border-[var(--gold)]/40",
-      text: "text-[var(--gold)]",
-      ring: "stroke-[var(--gold)]",
-      bg: "bg-[var(--gold)]/10",
+      border: "border-accent/40",
+      text: "text-accent",
+      ring: "stroke-[var(--accent)]",
+      bg: "bg-accent-soft",
     },
   } as const;
 
@@ -134,7 +134,7 @@ export function ConfirmHold({
       onKeyDown={onKeyDown}
       disabled={disabled}
       className={cn(
-        "relative flex items-center gap-2 h-9 px-3 rounded-md border text-[11px] font-bold uppercase tracking-wider transition-all select-none touch-none",
+        "relative flex items-center gap-2 h-9 px-3 rounded-control border text-[13px] font-medium transition-colors duration-[var(--motion-state)] select-none touch-none",
         c.border,
         c.text,
         c.bg,

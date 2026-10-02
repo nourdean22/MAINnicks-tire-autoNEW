@@ -160,3 +160,60 @@ describe("Tailwind source scanning", () => {
     expect(offenders, "bracketed var() class reachable by the Tailwind scanner with a bad argument").toEqual([]);
   });
 });
+
+/**
+ * Every custom property a class or inline style reads must be DEFINED somewhere: in app/styles, or as a
+ * string literal in app/components/lib (the inline `style={{ "--x": … }}` definers), or on the short
+ * allowlist of library-owned names. A `var(--x)` with no definition resolves to nothing — the utility emits,
+ * the element paints transparent — and the bracket-syntax test above cannot see it (2026-10-02 hostile
+ * review: four brain inputs on `--bg-overlay`, a panel on `--bg-secondary`, labels on `--text-muted`).
+ */
+export function undefinedCustomProperties(sources: Record<string, string>, defined: Set<string>): string[] {
+  const use = /(?:var\(|[a-z-]+-\()(--[A-Za-z0-9_-]+)/g;
+  const out: string[] = [];
+  for (const [file, src] of Object.entries(sources)) {
+    for (const m of src.matchAll(use)) {
+      const name = m[1];
+      if (!defined.has(name)) out.push(`${file}: ${name}`);
+    }
+  }
+  return [...new Set(out)];
+}
+
+describe("custom properties read by the app are defined", () => {
+  const { execSync } = require("node:child_process") as typeof import("node:child_process");
+  const LIBRARY_OWNED = new Set([
+    "--font-geist-sans", "--font-geist-mono", // set on <html> by the geist package (app/layout.tsx)
+    "--transform-origin", "--radix-popover-content-transform-origin", "--anchor-width", "--available-height", "--available-width", "--positioner-width"]);
+  const defined = (): Set<string> => {
+    const set = new Set<string>(LIBRARY_OWNED);
+    const css = execSync("git ls-files -- 'app/styles/*.css' 'app/globals.css'", { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);
+    for (const f of css) {
+      // Only runtime-scoped definitions count: not the `?ui=v1` comparison lane, and not `@theme inline`
+      // (Tailwind v4 emits no custom property for an inline theme entry, so `var(--color-content)` is dead).
+      const runtime = read(f)
+        .split("UI v1 comparison lane")[0]
+        .replace(/@theme inline\s*\{[^}]*\}/g, "");
+      for (const m of runtime.matchAll(/(?:^|[{;])\s*(--[A-Za-z0-9_-]+)\s*:/gm)) set.add(m[1]);
+    }
+    const ts = execSync("git ls-files -- 'app/**/*.ts' 'app/**/*.tsx' 'components/**/*.tsx' 'lib/**/*.ts' 'lib/**/*.tsx'", { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);
+    // A string literal defines a property only as an object key (`"--x": …`), a named constant
+    // (`const X_VAR = "--x"`), or a setProperty target — a read (`getPropertyValue("--x")`) does not.
+    const definer = /(?:["'`](--[A-Za-z0-9_-]+)["'`]\s*:|_VAR\s*=\s*["'`](--[A-Za-z0-9_-]+)["'`]|setProperty\(\s*["'`](--[A-Za-z0-9_-]+)["'`])/g;
+    for (const f of ts) for (const m of read(f).matchAll(definer)) set.add(m[1] ?? m[2] ?? m[3]);
+    return set;
+  };
+
+  it("positive control: a planted undefined property is reported", () => {
+    const hits = undefinedCustomProperties({ "x.tsx": 'className="bg-[var(--definitely-not-defined)]"' }, defined());
+    expect(hits).toEqual(["x.tsx: --definitely-not-defined"]);
+    expect(undefinedCustomProperties({ "y.tsx": 'className="bg-[var(--canvas)] text-(--text-tertiary)"' }, defined())).toEqual([]);
+  });
+
+  it("no .tsx under app/ or components/ reads a custom property that nothing defines", () => {
+    const files = execSync("git ls-files -- 'app/**/*.tsx' 'components/**/*.tsx'", { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);
+    const sources: Record<string, string> = {};
+    for (const f of files) sources[f] = read(f);
+    expect(undefinedCustomProperties(sources, defined())).toEqual([]);
+  });
+});

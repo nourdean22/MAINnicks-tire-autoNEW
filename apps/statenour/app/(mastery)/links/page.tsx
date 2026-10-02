@@ -122,9 +122,9 @@ export default function LinksPage() {
   };
 
   const inputClass =
-    "w-full rounded border border-[var(--border-default)] bg-[var(--bg-base)] px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--gold)]";
+    "w-full min-h-[44px] rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg focus:outline-none focus:border-accent";
   const labelClass =
-    "block text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] mb-1";
+    "block font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1";
 
   return (
     <StandardPage
@@ -143,9 +143,9 @@ export default function LinksPage() {
             setShowForm(!showForm);
             setFormError(null);
           }}
-          className="text-[11px] font-mono uppercase tracking-wider"
+          className="min-h-[44px] text-[13px] font-medium"
         >
-          {showForm ? "Cancel" : "+ New Link"}
+          {showForm ? "Cancel" : "+ New link"}
         </Button>
       }
     >
@@ -158,13 +158,13 @@ export default function LinksPage() {
       {showForm && (
         <form
           onSubmit={handleCreate}
-          className="space-y-3 border-l-2 border-gold/60 py-1 pl-4 sm:pl-5"
+          className="space-y-3 border-l-2 border-edge-strong py-1 pl-4 sm:pl-5"
         >
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--gold)]">
-            Create Short Link
+          <h3 className="text-sm font-semibold text-fg">
+            Create short link
           </h3>
           {formError && (
-            <p className="text-xs text-rose-300 bg-rose-500/[0.05] border border-rose-500/20 rounded px-3 py-2">
+            <p className="text-xs text-rose-300 bg-rose-500/[0.05] border border-rose-500/20 rounded-control px-3 py-2">
               {formError}
             </p>
           )}
@@ -225,15 +225,15 @@ export default function LinksPage() {
           <Button
             type="submit"
             disabled={submitting}
-            className="text-xs uppercase tracking-wider bg-[var(--gold)] text-black hover:bg-[var(--gold)]/80"
+            className="min-h-[44px] rounded-control bg-accent px-4 text-[14px] font-semibold text-[var(--text-inverse)] hover:bg-accent-hover"
           >
-            {submitting ? "Creating..." : "Create Link"}
+            {submitting ? "Creating..." : "Create link"}
           </Button>
         </form>
       )}
 
       <div className="space-y-2">
-        <h2 className="text-xs font-mono uppercase tracking-widest text-[var(--text-tertiary)] px-1">
+        <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary px-1">
           Links ({links?.length || 0})
         </h2>
 
@@ -241,7 +241,7 @@ export default function LinksPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-[var(--border-default)] bg-zinc-950/40 text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] font-mono">
+                <tr className="border-b border-edge-default bg-content font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                   <th className="p-3">Code</th>
                   <th className="p-3">Destination</th>
                   <th className="p-3">UTM</th>
@@ -249,15 +249,15 @@ export default function LinksPage() {
                   <th className="p-3 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-900 text-xs">
+              <tbody className="divide-y divide-edge-subtle text-xs">
                 {links?.map((link) => (
-                  <tr key={link.id} className="hover:bg-zinc-900/20 transition-all align-top">
+                  <tr key={link.id} className="hover:bg-surface-hover transition-colors duration-[var(--motion-state)] align-top">
                     <td className="p-3">
                       <div className="font-semibold text-[var(--text-primary)] font-mono">{link.id}</div>
                       <button
                         type="button"
                         onClick={() => handleCopy(link.id)}
-                        className="mt-0.5 text-[10px] font-mono text-[var(--gold)] hover:underline"
+                        className="mt-0.5 min-h-[44px] text-[12px] font-mono text-fg-tertiary hover:text-fg hover:underline"
                       >
                         {copiedCode === link.id ? "Copied!" : "Copy link ↗"}
                       </button>
@@ -279,7 +279,7 @@ export default function LinksPage() {
                             .map((t) => (
                               <Badge
                                 key={t.k}
-                                className="bg-zinc-900 text-[9px] border border-zinc-800 text-[var(--text-secondary)]"
+                                className="bg-surface-interactive text-[11px] font-mono border border-edge-subtle text-fg-secondary"
                               >
                                 {t.k}:{t.v}
                               </Badge>
@@ -295,7 +295,7 @@ export default function LinksPage() {
                         type="button"
                         onClick={() => handleDelete(link.id)}
                         onMouseLeave={() => setConfirmDelete((c) => (c === link.id ? null : c))}
-                        className={`text-[10px] uppercase font-mono tracking-wider hover:underline ${
+                        className={`min-h-[44px] text-[13px] font-medium hover:underline ${
                           confirmDelete === link.id ? "text-rose-400" : "text-[var(--text-tertiary)]"
                         }`}
                       >

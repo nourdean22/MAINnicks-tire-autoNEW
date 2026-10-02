@@ -132,13 +132,13 @@ function CoachEventCard({
           <div className="flex items-center gap-2">
             <span
               className={[
-                "text-[9px] font-mono uppercase tracking-[0.18em]",
+                "font-mono text-[11px] uppercase tracking-[0.12em]",
                 tone.label,
               ].join(" ")}
             >
               {labelForKind(event)}
             </span>
-            <span className="text-[9px] font-mono tabular-nums text-[var(--text-tertiary)]">
+            <span className="font-mono text-[11px] tabular-nums text-fg-tertiary">
               · {event.priority}
             </span>
           </div>
@@ -167,7 +167,7 @@ function CoachEventCard({
   const wrapped = event.deepLink ? (
     <Link
       href={event.deepLink}
-      className="block focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40 rounded-lg"
+      className="block focus-visible:outline-none rounded-surface"
       aria-label={event.title}
     >
       {body}
@@ -194,11 +194,10 @@ function CoachEventCard({
           // mobile · keeps the visual at 7 on desktop (lg:h-7 lg:w-7)
           // since hover-discovery isn't an issue on cursor surfaces.
           "absolute top-1.5 right-1.5 inline-flex h-11 w-11 lg:h-7 lg:w-7 items-center justify-center",
-          "rounded-md border border-transparent",
-          "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
-          "hover:bg-[var(--bg-raised)]/[0.2] hover:border-[var(--border-default)]",
+          "rounded-control border border-transparent",
+          "text-fg-tertiary hover:text-fg",
+          "hover:bg-surface-hover hover:border-edge-default",
           "active:scale-90 transition-all focus-visible:outline-none",
-          "focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40",
           "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
           // Always visible on touch (no hover state on iOS PWA)
           "[@media(hover:none)]:opacity-100",
@@ -229,9 +228,9 @@ function toneForPriority(priority: CoachEventPriority): ToneClasses {
   if (priority === "P1") {
     return {
       container:
-        "border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] hover:bg-[var(--gold)]/[0.07]",
-      icon: "text-[var(--gold)]",
-      label: "text-[var(--gold)]",
+        "border-sky-500/30 bg-sky-500/[0.04] hover:bg-sky-500/[0.07]",
+      icon: "text-sky-300",
+      label: "text-sky-300",
     };
   }
   return {

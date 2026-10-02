@@ -122,13 +122,13 @@ export function BrainHealthView() {
               <p className="text-[11px] font-bold text-rose-300">
                 memory-health fetch failed
               </p>
-              <p className="text-[10px] text-rose-300/70 mt-0.5 break-words font-mono">
+              <p className="text-[11px] text-rose-300/70 mt-0.5 break-words font-mono">
                 {error}
               </p>
             </div>
             <button
               onClick={reload}
-              className="shrink-0 text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-rose-400/40 text-rose-300 hover:bg-rose-400/10"
+              className="shrink-0 text-[11px] font-mono px-2 py-1 rounded border border-rose-400/40 text-rose-300 hover:bg-rose-400/10"
             >
               retry
             </button>
@@ -141,7 +141,7 @@ export function BrainHealthView() {
           {/* ── Totals ── */}
           <GlassCard>
             <div className="flex items-center gap-2 mb-3">
-              <Activity size={13} className="text-[var(--gold)]" />
+              <Activity size={13} className="text-fg-secondary" />
               <span className="section-label">Totals</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -174,7 +174,7 @@ export function BrainHealthView() {
             <div className="flex items-center justify-between gap-3">
               <div className="flex-1 min-w-0">
                 <span className="section-label">Conversation compiler</span>
-                <p className="text-[10px] text-[var(--text-tertiary)] mt-1 font-mono">
+                <p className="text-[11px] text-[var(--text-tertiary)] mt-1 font-mono">
                   {compileStatusQ.data
                     ? `${compileStatusQ.data.liveSummaries} conversations compiled · ${
                         compileStatusQ.data.saturated
@@ -187,7 +187,7 @@ export function BrainHealthView() {
                 </p>
                 {compileMut.data && (
                   <p
-                    className={`text-[10px] mt-1 font-mono ${
+                    className={`text-[11px] mt-1 font-mono ${
                       compileMut.data.failed > 0 ? "text-amber-400" : "text-emerald-400"
                     }`}
                   >
@@ -195,7 +195,7 @@ export function BrainHealthView() {
                   </p>
                 )}
                 {compileMut.isError && (
-                  <p className="text-[10px] text-rose-400 mt-1 font-mono break-words">
+                  <p className="text-[11px] text-rose-400 mt-1 font-mono break-words">
                     batch failed · {compileMut.error.message.slice(0, 120)}
                   </p>
                 )}
@@ -203,7 +203,7 @@ export function BrainHealthView() {
               <button
                 onClick={runBackfill}
                 disabled={compileMut.isPending || compileStatusQ.data?.eligible === 0}
-                className="shrink-0 min-h-11 text-[10px] font-mono uppercase tracking-wider px-3 py-2 rounded border border-[var(--gold)]/40 text-[var(--gold)] hover:bg-[var(--gold)]/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="shrink-0 inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {compileMut.isPending ? "compiling…" : "compile next 10"}
               </button>
@@ -243,7 +243,7 @@ export function BrainHealthView() {
                       <span className="text-[11px] font-mono">
                         {f.category.replace(/_/g, " ")}
                       </span>
-                      <span className="text-[9px] font-mono uppercase tracking-wider">
+                      <span className="text-[11px] font-mono">
                         {meta.label}
                       </span>
                     </div>
@@ -265,7 +265,7 @@ export function BrainHealthView() {
           {/* ── Per-category table ── */}
           <GlassCard>
             <div className="flex items-center gap-2 mb-2">
-              <Database size={13} className="text-[var(--gold)]" />
+              <Database size={13} className="text-fg-secondary" />
               <span className="section-label">
                 Per category · {data.categories.length}
               </span>
@@ -277,7 +277,7 @@ export function BrainHealthView() {
             </div>
           </GlassCard>
 
-          <p className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] text-center">
+          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary text-center">
             generated · {new Date(data.generatedAt).toLocaleTimeString()}
           </p>
         </>
@@ -296,18 +296,18 @@ function Counter({
   tone: "gold" | "emerald" | "rose" | "violet" | "tertiary";
 }) {
   const colorMap = {
-    gold: "text-[var(--gold)]",
+    gold: "text-fg-secondary",
     emerald: "text-emerald-300",
     rose: "text-rose-300",
     violet: "text-violet-300",
     tertiary: "text-[var(--text-tertiary)]",
   };
   return (
-    <div className="rounded-lg bg-[var(--bg-base)]/40 border border-[var(--border-default)] px-2 py-2 text-center">
+    <div className="rounded-surface bg-[var(--bg-base)]/40 border border-[var(--border-default)] px-2 py-2 text-center">
       <div className={cn("text-lg font-bold tabular-nums", colorMap[tone])}>
         <AnimatedCounter value={value} />
       </div>
-      <p className="text-[9px] font-mono uppercase tracking-[0.16em] text-[var(--text-tertiary)] mt-0.5">
+      <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mt-0.5">
         {label}
       </p>
     </div>
@@ -326,13 +326,13 @@ function VectorizationBar({
   const tone = pct >= 95 ? "emerald" : pct >= 80 ? "gold" : pct >= 50 ? "amber" : "rose";
   const barColor = {
     emerald: "bg-emerald-400",
-    gold: "bg-[var(--gold)]",
+    gold: "bg-fg-secondary",
     amber: "bg-amber-400",
     rose: "bg-rose-400",
   }[tone];
   return (
     <div>
-      <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider mb-1">
+      <div className="flex items-center justify-between text-[11px] font-mono mb-1">
         {/* Named for the population it measures. "vectorization" beside a
             telemetry counter of 5,169 invited the reader to check the denominator
             against the wrong total and conclude rows were missing. */}
@@ -366,7 +366,7 @@ function CategoryRow({ c }: { c: CategoryHealth }) {
     tone === "hot"
       ? "text-emerald-300"
       : tone === "warm"
-        ? "text-[var(--gold)]"
+        ? "text-fg-secondary"
         : "text-[var(--text-tertiary)]";
 
   const stale = c.ageNewestHours !== null && c.ageNewestHours > 24 * 7;
@@ -400,11 +400,11 @@ function CategoryRow({ c }: { c: CategoryHealth }) {
         <span className="text-[11px] font-mono text-[var(--text-secondary)] flex-1 min-w-0 truncate">
           {c.category.replace(/_/g, " ")}
         </span>
-        <span className="text-[9px] font-mono tabular-nums text-[var(--gold)]">
+        <span className="text-[11px] font-mono tabular-nums text-fg-secondary">
           {c.count}
         </span>
       </div>
-      <div className="flex items-center gap-2 flex-wrap text-[9px] font-mono">
+      <div className="flex items-center gap-2 flex-wrap text-[11px] font-mono">
         <span className="text-[var(--text-tertiary)]">
           perm{" "}
           <span className="text-[var(--text-secondary)] tabular-nums">
@@ -425,7 +425,7 @@ function CategoryRow({ c }: { c: CategoryHealth }) {
               c.vectorizedPct >= 95
                 ? "text-emerald-300"
                 : c.vectorizedPct >= 80
-                  ? "text-[var(--gold)]"
+                  ? "text-fg-secondary"
                   : "text-rose-300",
             )}
           >

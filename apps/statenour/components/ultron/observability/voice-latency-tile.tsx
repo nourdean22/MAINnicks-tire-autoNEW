@@ -86,13 +86,13 @@ export function VoiceLatencyTile({ state }: Props) {
   return (
     <GlassCard ruled className={cn("min-h-[112px]", tierBorder)}>
       <div className="flex items-center justify-between mb-1">
-        <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
+        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           <Phone size={11} />
           voice · p50
         </span>
         <span
           className={cn(
-            "text-[9px] font-mono uppercase tracking-wider",
+            "font-mono text-[11px] uppercase tracking-[0.12em]",
             tierText,
           )}
         >
@@ -101,20 +101,20 @@ export function VoiceLatencyTile({ state }: Props) {
       </div>
 
       <div className="flex items-baseline gap-2">
-        <span className="text-[26px] font-[var(--font-display)] font-bold leading-none tabular-nums text-[var(--text-primary)]">
+        <span className="stat-number text-[26px] leading-none text-fg">
           {Math.round(p50)}
-          <span className="ml-1 text-[12px] font-mono text-[var(--text-tertiary)]">ms</span>
+          <span className="ml-1 text-[12px] font-mono text-fg-tertiary">ms</span>
         </span>
         {p95 > 0 && (
-          <span className="text-[10px] font-mono text-[var(--text-tertiary)] tabular-nums">
+          <span className="font-mono text-[11px] text-fg-tertiary tabular-nums">
             p95 {Math.round(p95)}ms
           </span>
         )}
       </div>
 
       {/* Sub-line: target band as plain text · color is decorative. */}
-      <p className="mt-1 text-[10px] font-mono text-[var(--text-secondary)]">
-        target &lt; <span className="text-[var(--text-primary)] tabular-nums">{amber}ms</span>
+      <p className="mt-1 font-mono text-[11px] text-fg-secondary">
+        target &lt; <span className="text-fg tabular-nums">{amber}ms</span>
       </p>
 
       {recent.length >= 2 && (
@@ -125,12 +125,12 @@ export function VoiceLatencyTile({ state }: Props) {
 
       {streak > 0 && (
         <div className={cn(
-          "mt-2 flex items-center gap-1.5 text-[10px] font-mono",
+          "mt-2 flex items-center gap-1.5 font-mono text-[11px]",
           streakIsAlarming ? "text-rose-300" : "text-amber-300",
         )}>
           {streakIsAlarming ? <AlertCircle size={11} /> : <Zap size={11} />}
           <span className="tabular-nums">{streak}</span>
-          <span className="text-[var(--text-tertiary)]">
+          <span className="text-fg-tertiary">
             in a row {streakIsAlarming ? "· investigate" : "near ceiling"}
           </span>
           {/* SR-only fuller text — color is supplementary. */}

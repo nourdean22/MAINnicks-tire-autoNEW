@@ -22,7 +22,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CommandGroup, CommandItem } from "@/components/ui/command";
+import { CommandGroup } from "@/components/ui/command";
+import { PALETTE_HINT, PaletteRow } from "@/components/command-palette/palette-row";
 import { trpcVanilla } from "@/lib/trpc/vanilla-client";
 import { parseLedgerQuery } from "@/lib/services/people/parse-ledger-query";
 
@@ -147,33 +148,33 @@ export default function RelationshipLogAction({ query, onLogged }: Props) {
   return (
     <CommandGroup heading={headingNote}>
       {candidates.length === 0 && !loading && (
-        <CommandItem disabled value="ledger-no-match">
-          <span className="text-[var(--text-tertiary)]">
+        <PaletteRow disabled value="ledger-no-match">
+          <span className="text-fg-tertiary">
             No PersonProfile matches that name · open /relationships first to
             create one.
           </span>
-        </CommandItem>
+        </PaletteRow>
       )}
       {candidates.map((p) => (
-        <CommandItem
+        <PaletteRow
           key={`ledger-${p.id}`}
           value={`ledger-${p.id}-${p.name}`}
           onSelect={() => void doLog(p)}
           disabled={submitting !== null}
         >
-          <span className="font-mono text-xs text-[var(--gold)] tabular-nums w-12">
+          <span className="w-12 font-mono text-[12px] tabular-nums text-fg-secondary">
             {sign}
           </span>
           <span>
             {submitting === p.id ? "logging…" : p.name}
-            <span className="ml-2 text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+            <span className="ml-2 font-mono text-[12px] text-fg-tertiary">
               {p.role}
             </span>
           </span>
-          <span className="ml-auto text-[10px] text-[var(--text-tertiary)] tabular-nums">
+          <span className={`${PALETTE_HINT} tabular-nums`}>
             match {Math.round(p.score * 100)}%
           </span>
-        </CommandItem>
+        </PaletteRow>
       ))}
     </CommandGroup>
   );

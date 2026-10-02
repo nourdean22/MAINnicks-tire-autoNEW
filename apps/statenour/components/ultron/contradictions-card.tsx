@@ -124,7 +124,7 @@ const RESOLVE_META: Record<
     label: "both",
     title: "context-dependent · both positions can be true",
     icon: Equal,
-    tone: "border-[var(--border-default)] bg-[var(--bg-raised)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--text-tertiary)]",
+    tone: "border-edge-default bg-content text-fg-secondary hover:text-fg hover:border-[var(--text-tertiary)]",
   },
   dismissed: {
     label: "dismiss",
@@ -135,13 +135,12 @@ const RESOLVE_META: Record<
 };
 
 // Signal-kind chips colored to match the SEVERITY of the polarity flip.
-// Compound (rare · two signals firing) is gold so it visually leads.
+// Compound (rare · two signals firing) is violet so it visually leads (gold is a selection signal, not a tone).
 // Antonym (explicit semantic opposite) is rose. Negation (you flipped a
 // "no longer" / "stop" / "never" word) is amber. Reversal (you said
 // "scratch that" / "actually") is emerald · operator-acknowledged.
 const SIGNAL_TONE: Record<SignalKind, string> = {
-  compound:
-    "border-[var(--gold)]/45 bg-[var(--gold)]/[0.08] text-[var(--gold)]",
+  compound: "border-violet-400/45 bg-violet-400/[0.08] text-violet-300",
   antonym: "border-rose-400/45 bg-rose-400/[0.08] text-rose-300",
   negation: "border-amber-400/45 bg-amber-400/[0.08] text-amber-300",
   reversal: "border-emerald-400/45 bg-emerald-400/[0.08] text-emerald-300",
@@ -323,20 +322,20 @@ export function ContradictionsCard() {
 
   return (
     <GlassCard
-      className="min-h-[96px] border-(--gold)/25 bg-(--gold)/3"
+      className="min-h-[96px]"
       data-testid="contradictions-card"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-(--gold)">
+        <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           positions · contradictions
           {unresolvedTotal > 0 && (
-            <span className="rounded-sm border border-(--gold)/30 px-1 py-px text-[9px] tabular-nums text-(--gold)">
+            <span className="rounded-micro border border-edge-default px-1 py-px text-[11px] tabular-nums text-fg-secondary">
               {unresolvedTotal} unresolved
             </span>
           )}
         </span>
         {recentResolved.length > 0 && (
-          <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-(--text-tertiary) tabular-nums">
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
             {recentResolved.length} resolved · 14d
           </span>
         )}
@@ -361,7 +360,7 @@ export function ContradictionsCard() {
                 key={c.key}
                 className={cn(
                   "relative pl-3 pr-1 py-1 -mx-1 rounded-sm transition-colors",
-                  isExpanded && "bg-(--gold)/4"
+                  isExpanded && "bg-accent-soft"
                 )}
               >
                 {/* LEFT-EDGE TENSION GRADIENT · 2px rule per row that
@@ -382,14 +381,14 @@ export function ContradictionsCard() {
                         excerpt to offload reasoning to Nick. */}
                     <Link
                       href={seedHref}
-                      className="block group/now -mx-0.5 px-0.5 rounded-sm transition-colors hover:bg-(--gold)/6 focus-visible:bg-(--gold)/6 focus-visible:outline-none"
+                      className="block group/now -mx-0.5 px-0.5 rounded-micro transition-colors hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none"
                       aria-label={`Reconcile this contradiction in chat · ${c.newExcerpt.slice(0, 60)}`}
                     >
                       <div className="flex items-baseline gap-2">
-                        <span className="shrink-0 text-[8.5px] font-mono uppercase tracking-[0.18em] text-(--gold)/70 tabular-nums">
+                        <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
                           now
                         </span>
-                        <span className="text-[12px] leading-[1.45] text-(--text-primary) font-medium">
+                        <span className="text-[12px] leading-[1.45] text-fg font-medium">
                           {trimText(c.newExcerpt, PREVIEW_CHARS)}
                         </span>
                       </div>
@@ -399,10 +398,10 @@ export function ContradictionsCard() {
                         fade reinforces "this is the prior position".
                         Same component, deliberately weaker treatment. */}
                     <div className="flex items-baseline gap-2">
-                      <span className="shrink-0 text-[8.5px] font-mono uppercase tracking-[0.18em] text-(--text-tertiary) tabular-nums">
+                      <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
                         {c.daysApart}d
                       </span>
-                      <span className="text-[12px] leading-[1.45] text-(--text-tertiary)">
+                      <span className="text-[12px] leading-[1.45] text-fg-tertiary">
                         {trimText(c.oldExcerpt, PREVIEW_CHARS)}
                       </span>
                     </div>
@@ -413,7 +412,7 @@ export function ContradictionsCard() {
                     <div className="pt-0.5">
                       <span
                         className={cn(
-                          "inline-block px-1.5 py-px rounded-sm border text-[9px] font-mono uppercase tracking-wide",
+                          "inline-block px-1.5 py-px rounded-micro border font-mono text-[11px] uppercase tracking-[0.12em]",
                           SIGNAL_TONE[c.signal]
                         )}
                         title={`polarity signal · ${c.signal}`}
@@ -440,8 +439,8 @@ export function ContradictionsCard() {
                       "shrink-0 -my-0.5 rounded transition-all",
                       "min-w-[44px] min-h-[44px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center",
                       isExpanded
-                        ? "bg-(--gold)/15 text-(--gold) scale-95"
-                        : "text-(--text-tertiary) hover:text-(--gold) hover:bg-(--gold)/8"
+                        ? "bg-accent-soft text-fg scale-95"
+                        : "text-fg-tertiary hover:text-fg hover:bg-surface-hover"
                     )}
                     title={isExpanded ? "close" : "weigh"}
                   >
@@ -455,9 +454,9 @@ export function ContradictionsCard() {
                     button · the action IS the save · matches the
                     operator's quick-decision flow. */}
                 {isExpanded && (
-                  <div className="mt-1.5 ml-0 border-l border-(--gold)/25 pl-2.5 py-1.5 space-y-1.5 animate-fade-in">
+                  <div className="mt-1.5 ml-0 border-l border-edge-default pl-2.5 py-1.5 space-y-1.5 animate-fade-in">
                     <div>
-                      <label className="block text-[8.5px] font-bold uppercase tracking-[0.18em] text-(--text-tertiary) mb-1">
+                      <label className="block font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary mb-1">
                         which holds up?
                       </label>
                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -479,7 +478,7 @@ export function ContradictionsCard() {
                               disabled={isSubmitting}
                               title={meta.title}
                               className={cn(
-                                "flex items-center gap-1.5 px-2 py-1 rounded-md border text-[10px] font-mono lowercase tracking-wide transition-all",
+                                "flex items-center gap-1.5 px-2 py-1 rounded-control border font-mono text-[12px] lowercase transition-all",
                                 "min-h-[44px] sm:min-h-[26px]",
                                 meta.tone,
                                 isSubmitting && "opacity-60 cursor-wait"
@@ -499,7 +498,7 @@ export function ContradictionsCard() {
                     </div>
 
                     <div>
-                      <label className="block text-[8.5px] font-bold uppercase tracking-[0.18em] text-(--text-tertiary) mb-0.5">
+                      <label className="block font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
                         why
                         <span className="opacity-60 normal-case ml-1 tracking-normal">
                           (optional · rides on the next resolve)
@@ -514,10 +513,10 @@ export function ContradictionsCard() {
                         rows={1}
                         disabled={isSubmitting}
                         className={cn(
-                          "w-full resize-y rounded-md bg-(--bg-raised) border border-(--border-default)",
-                          "text-[11px] leading-snug px-2 py-1.5 text-(--text-primary)",
-                          "placeholder:text-(--text-tertiary)",
-                          "focus:border-(--gold)/40 focus:outline-none transition-colors",
+                          "w-full resize-y rounded-md bg-content border border-edge-default",
+                          "text-[11px] leading-snug px-2 py-1.5 text-fg",
+                          "placeholder:text-fg-tertiary",
+                          "focus:border-accent focus:outline-none transition-colors",
                           "min-h-[28px]"
                         )}
                         aria-label="resolution note (optional)"
@@ -529,7 +528,7 @@ export function ContradictionsCard() {
             );
           })}
           {moreCount > 0 && (
-            <li className="text-[9px] font-mono uppercase tracking-[0.18em] text-(--text-tertiary) pl-3">
+            <li className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary pl-3">
               + {moreCount} more · {moreCount === 1 ? "is" : "are"} waiting
             </li>
           )}
@@ -541,27 +540,27 @@ export function ContradictionsCard() {
           Three cases · all-active · resolved-only · most-recent
           ages out gracefully. */}
       {mostRecentResolved && (
-        <p className="mt-2.5 border-t border-(--border-default)/30 pt-2 text-[10px] leading-relaxed text-(--text-tertiary)">
+        <p className="mt-2.5 border-t border-edge-subtle pt-2 text-[11px] leading-relaxed text-fg-tertiary">
           {shownUnresolved.length === 0 ? (
             <>
               <span className="text-emerald-400/80">clean board</span>
               {" · "}
-              <span className="not-italic text-(--text-secondary) tabular-nums">
+              <span className="not-italic text-fg-secondary tabular-nums">
                 {daysAgo(mostRecentResolved.resolvedAt!) ?? "—"}d ago
               </span>{" "}
               you resolved{" "}
-              <span className="not-italic text-(--text-secondary) lowercase">
+              <span className="not-italic text-fg-secondary lowercase">
                 {mostRecentResolved.status.replace("_", " ")}
               </span>
             </>
           ) : (
             <>
               last resolved{" "}
-              <span className="not-italic text-(--text-secondary) tabular-nums">
+              <span className="not-italic text-fg-secondary tabular-nums">
                 {daysAgo(mostRecentResolved.resolvedAt!) ?? "—"}d ago
               </span>{" "}
               ·{" "}
-              <span className="not-italic text-(--text-secondary) lowercase">
+              <span className="not-italic text-fg-secondary lowercase">
                 {mostRecentResolved.status.replace("_", " ")}
               </span>
             </>
@@ -569,7 +568,7 @@ export function ContradictionsCard() {
           {mostRecentResolved.resolutionNote && (
             <>
               {" · "}
-              <span className="italic text-(--text-tertiary)">
+              <span className="italic text-fg-tertiary">
                 “{trimText(mostRecentResolved.resolutionNote, 80)}”
               </span>
             </>

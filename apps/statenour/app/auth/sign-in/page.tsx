@@ -34,14 +34,14 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-[var(--nour-bg)] p-4">
+    <main className="min-h-screen flex items-center justify-center bg-canvas p-4">
       <GlassCard className="w-full max-w-sm p-8 text-center">
-        <div className="w-10 h-10 rounded-xl bg-[var(--nour-gold)] text-[var(--text-primary)] font-mono text-sm font-bold flex items-center justify-center mx-auto mb-6">
+        <div className="w-10 h-10 rounded-control border border-edge-default bg-surface-interactive text-fg font-mono text-sm font-bold flex items-center justify-center mx-auto mb-6">
           N
         </div>
-        <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--nour-gold)] mb-2">NOUR OS</p>
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-2">NOUR OS</p>
         <h1 className="text-xl font-semibold mb-2">Operator access</h1>
-        <p className="text-sm text-[var(--nour-text-secondary)] mb-6">
+        <p className="text-sm text-fg-secondary mb-6">
           {runtimeMode === "google"
             ? "Sign in with the approved Google account to open the control plane."
             : "Google auth is not configured. Running in local operator mode."}
@@ -56,14 +56,14 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           >
             <Button
               type="submit"
-              className="w-full bg-[var(--nour-gold)] text-[var(--text-primary)] hover:bg-[var(--nour-gold)]/90 font-medium"
+              className="w-full min-h-[44px]"
             >
               Continue with Google
             </Button>
           </form>
         ) : (
-          <div className="text-left bg-[var(--nour-bg)] rounded-lg p-3 text-xs text-[var(--nour-text-secondary)]">
-            <p className="font-medium text-[var(--nour-text)] mb-1">Local mode active</p>
+          <div className="text-left bg-surface-interactive rounded-control p-3 text-xs text-fg-secondary">
+            <p className="font-medium text-fg mb-1">Local mode active</p>
             <p>Set AUTH_SECRET, AUTH_GOOGLE_CLIENT_ID, AUTH_GOOGLE_CLIENT_SECRET, and AUTH_ALLOWED_EMAIL in your environment to enable production auth.</p>
           </div>
         )}

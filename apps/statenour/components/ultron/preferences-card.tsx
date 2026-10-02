@@ -118,7 +118,7 @@ function AxisSparkline({
   const lastValue = trace[trace.length - 1].vector[axis] ?? 0;
   const stroke =
     lastValue > 0.15
-      ? "var(--gold)"
+      ? "var(--text-primary)"
       : lastValue < -0.15
         ? "rgb(251 191 36)" // amber-400 · keeps the trend visible without leaving the palette
         : "var(--text-tertiary)";
@@ -291,19 +291,19 @@ export function PreferencesCard() {
 
   return (
     <GlassCard
-      className="min-h-[180px] border-[var(--gold)]/25 bg-[var(--gold)]/[0.03]"
+      className="min-h-[180px]"
       data-testid="preferences-card"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
+        <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           style · preferences
-          <span className="rounded-sm border border-[var(--gold)]/30 px-1 py-px text-[9px] tabular-nums text-[var(--gold)]">
+          <span className="rounded-micro border border-edge-default px-1 py-px text-[11px] tabular-nums text-fg-secondary">
             8 axis
           </span>
         </span>
         <div className="flex items-center gap-1.5">
           {lastTune && tuneAge !== null && (
-            <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] tabular-nums">
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
               tuned {tuneAge}d ago · n={lastTune.sampleSize}
             </span>
           )}
@@ -322,7 +322,7 @@ export function PreferencesCard() {
               "min-w-[44px] min-h-[44px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center",
               confirmReset
                 ? "bg-rose-400/15 text-rose-300 border border-rose-400/45"
-                : "text-[var(--text-tertiary)] hover:text-rose-300 hover:bg-rose-400/[0.08]",
+                : "text-fg-tertiary hover:text-rose-300 hover:bg-rose-400/[0.08]",
             )}
           >
             <RotateCcw size={11} />
@@ -342,12 +342,12 @@ export function PreferencesCard() {
             <div key={axis} className="space-y-0.5">
               <div className="flex items-baseline justify-between gap-2">
                 <span
-                  className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-secondary)]"
+                  className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary"
                   title={`${tell.left} (−1) ↔ ${tell.right} (+1)`}
                 >
                   {tell.label}
                 </span>
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-mono tabular-nums text-[var(--text-primary)]">
+                <span className="inline-flex items-center gap-1.5 font-mono text-[11px] tabular-nums text-fg">
                   {/* v529.39 · per-axis trace sparkline · last 12
                       weekly tunes plotted left-to-right · -1 to +1
                       normalized vertical · gold when current value
@@ -360,7 +360,7 @@ export function PreferencesCard() {
                   {driftHint && (
                     <span
                       className={cn(
-                        "text-[8.5px] tabular-nums",
+                        "text-[11px] tabular-nums",
                         delta > 0 ? "text-emerald-400/80" : "text-amber-400/80",
                       )}
                       title={`last tune: ${delta > 0 ? "+" : ""}${delta.toFixed(3)}`}
@@ -385,10 +385,10 @@ export function PreferencesCard() {
                   onChange={(e) => setAxis(axis, Number(e.target.value))}
                   className={cn(
                     "w-full h-3 appearance-none cursor-pointer bg-transparent",
-                    "[&::-webkit-slider-runnable-track]:h-[2px] [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-[var(--border-default)]",
-                    "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--gold)] [&::-webkit-slider-thumb]:-mt-[5px] [&::-webkit-slider-thumb]:shadow-[0_0_0_1px_var(--bg-void)]",
-                    "[&::-moz-range-track]:h-[2px] [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-[var(--border-default)]",
-                    "[&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--gold)] [&::-moz-range-thumb]:border-0",
+                    "[&::-webkit-slider-runnable-track]:h-[2px] [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-edge-default",
+                    "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:-mt-[5px] [&::-webkit-slider-thumb]:shadow-[0_0_0_1px_var(--bg-void)]",
+                    "[&::-moz-range-track]:h-[2px] [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-edge-default",
+                    "[&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-accent [&::-moz-range-thumb]:border-0",
                     saving && "opacity-50",
                   )}
                   aria-label={`${tell.label} · ${tell.left} to ${tell.right}`}
@@ -396,10 +396,10 @@ export function PreferencesCard() {
                 {/* Midline · the zero marker · helps the eye anchor */}
                 <span
                   aria-hidden="true"
-                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1px] h-[6px] bg-[var(--text-tertiary)]/40 pointer-events-none"
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1px] h-[6px] bg-fg-tertiary/40 pointer-events-none"
                 />
               </div>
-              <div className="flex justify-between text-[8.5px] font-mono text-[var(--text-tertiary)]/70">
+              <div className="flex justify-between font-mono text-[11px] text-fg-tertiary">
                 <span>{tell.left}</span>
                 <span>{tell.right}</span>
               </div>
@@ -413,7 +413,7 @@ export function PreferencesCard() {
         <button
           type="button"
           onClick={() => setShowAddendum((v) => !v)}
-          className="inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] hover:text-[var(--gold)] transition-colors"
+          className="inline-flex items-center gap-1 text-[13px] font-medium text-fg-tertiary hover:text-fg transition-colors"
           aria-expanded={showAddendum ? "true" : "false"}
         >
           {showAddendum ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
@@ -424,13 +424,13 @@ export function PreferencesCard() {
           onClick={handleSave}
           disabled={!isDirty || saving}
           className={cn(
-            "flex items-center gap-1.5 px-2.5 py-1 rounded border text-[10px] font-bold uppercase tracking-wider transition-colors",
+            "flex items-center gap-1.5 px-2.5 py-1 rounded-control border text-[13px] font-medium transition-colors",
             "min-h-[28px]",
             saving
-              ? "bg-[var(--bg-surface)] border-[var(--border-hover)] text-[var(--text-tertiary)]"
+              ? "bg-surface-interactive border-edge-strong text-fg-tertiary"
               : !isDirty
-                ? "bg-transparent border-[var(--border-default)] text-[var(--text-tertiary)] cursor-not-allowed"
-                : "bg-[var(--gold)]/15 border-[var(--gold)]/40 text-[var(--gold)] hover:bg-[var(--gold)]/25",
+                ? "bg-transparent border-edge-default text-fg-tertiary cursor-not-allowed"
+                : "bg-content border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg",
           )}
         >
           {saving ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />}
@@ -442,12 +442,12 @@ export function PreferencesCard() {
           prompt · transparency. When all axes are neutral the
           addendum is empty and we show nothing. */}
       {showAddendum && addendum.length > 0 && (
-        <div className="mt-2 pt-2 border-t border-[var(--border-default)]/30">
-          <div className="inline-flex items-center gap-1.5 text-[8.5px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/70 mb-1">
+        <div className="mt-2 pt-2 border-t border-edge-subtle">
+          <div className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">
             <Sparkles size={9} />
             system prompt addendum
           </div>
-          <pre className="text-[10.5px] leading-[1.5] text-[var(--text-tertiary)] whitespace-pre-wrap font-mono">
+          <pre className="text-[11px] leading-[1.5] text-fg-tertiary whitespace-pre-wrap font-mono">
             {addendum}
           </pre>
         </div>

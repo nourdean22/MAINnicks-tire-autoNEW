@@ -30,16 +30,28 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { trpcVanilla } from "@/lib/trpc/vanilla-client";
+import { Command as CommandPrimitive } from "cmdk";
 import {
-  CommandDialog,
   CommandInput,
   CommandList,
   CommandEmpty,
   CommandGroup,
-  CommandItem,
   CommandSeparator,
-  CommandShortcut,
 } from "@/components/ui/command";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+// 2026-10-02 · UI v2 · the Resolver's row grammar (notch-on-selected, no gold
+// glow) and its hint/kbd class literals live in one place.
+import {
+  PALETTE_HINT,
+  PALETTE_KBD,
+  PaletteRow,
+} from "@/components/command-palette/palette-row";
 // 2026-05-27 · Power Atlas Phase 1 Task 1.10 · cmdk log-anywhere.
 // Parses `<name> <+|-><number> [<note>]` and surfaces fuzzy-matched
 // PersonProfile candidates as a dedicated CommandGroup. Hidden when
@@ -711,8 +723,28 @@ export function CommandPalette() {
     }
   }, []);
 
+  // 2026-10-02 · UI v2 · control chrome, so the panel is `.ui-material` on an
+  // UNSTYLED DialogContent (the styled one paints a solid `.neural-glass-modal`
+  // step behind it, which would cancel the material). The sr-only title /
+  // description mirror what `CommandDialog` rendered. The explicit
+  // `CommandPrimitive` root is also what makes the palette WORK: `CommandDialog`
+  // never mounted one, and cmdk's Input throws without a root context
+  // ("Cannot read properties of undefined (reading 'subscribe')").
   return (
-    <CommandDialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        unstyled
+        showCloseButton={false}
+        className="fixed left-1/2 top-[10vh] z-[70] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 outline-none sm:max-w-2xl data-open:animate-fade-in-scale data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
+      >
+        <DialogHeader className="sr-only">
+          <DialogTitle>Command Palette</DialogTitle>
+          <DialogDescription>Search for a command to run...</DialogDescription>
+        </DialogHeader>
+        <CommandPrimitive
+          data-slot="command"
+          className="ui-material flex size-full flex-col overflow-hidden rounded-overlay border border-edge-default text-fg shadow-l2"
+        >
       <CommandInput
         placeholder="Type a command or search brain... (⌘K)"
         value={query}
@@ -736,7 +768,7 @@ export function CommandPalette() {
         {objectActions.length > 0 && (
           <CommandGroup heading={objectActions[0]!.group}>
             {objectActions.map((action) => (
-              <CommandItem
+              <PaletteRow
                 key={action.id}
                 value={`${action.label} ${action.keywords?.join(" ") ?? ""}`}
                 onSelect={() => runAction(action.id, action.action)}
@@ -744,24 +776,24 @@ export function CommandPalette() {
               >
                 {action.icon}
                 <span>{loading === action.id ? "Running..." : action.label}</span>
-              </CommandItem>
+              </PaletteRow>
             ))}
           </CommandGroup>
         )}
         {worksetActions.length > 0 && (
           <CommandGroup heading={`Workset · ${worksetActions.length}`}>
             {worksetActions.map((action) => (
-              <CommandItem
+              <PaletteRow
                 key={action.id}
                 value={`${action.label} ${action.keywords?.join(" ") ?? ""}`}
                 onSelect={() => runAction(action.id, action.action)}
               >
                 {action.icon}
                 <span>{action.label}</span>
-                <span className="ml-auto text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
+                <span className={PALETTE_HINT}>
                   {action.keywords?.[1]}
                 </span>
-              </CommandItem>
+              </PaletteRow>
             ))}
           </CommandGroup>
         )}
@@ -784,25 +816,25 @@ export function CommandPalette() {
             {semanticHits.map((hit) => {
               const preview = hit.content.slice(0, 140);
               return (
-                <CommandItem
+                <PaletteRow
                   key={`semantic-${hit.id}`}
                   value={`semantic-${hit.id}-${hit.content.slice(0, 80)}`}
                   onSelect={() => navigateToHit(hit)}
                 >
-                  <SearchIcon className="size-4 text-[var(--gold)]/70" />
+                  <SearchIcon className="size-4 text-fg-tertiary" />
                   <span className="truncate">{preview}</span>
-                  <span className="ml-auto text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+                  <span className={PALETTE_HINT}>
                     {hit.sourceType === "brain_memory" ? "memory" : "chat"}
                   </span>
-                </CommandItem>
+                </PaletteRow>
               );
             })}
             {!semanticLoading && semanticHits.length === 0 && (
-              <CommandItem disabled value="no-semantic-hits">
-                <span className="text-[var(--text-tertiary)]">
+              <PaletteRow disabled value="no-semantic-hits">
+                <span className="text-fg-tertiary">
                   No matches in brain · keep typing or scroll for actions
                 </span>
-              </CommandItem>
+              </PaletteRow>
             )}
           </CommandGroup>
         )}
@@ -811,7 +843,7 @@ export function CommandPalette() {
           <>
             <CommandGroup heading="Recently Used">
               {recentActions.map((action) => (
-                <CommandItem
+                <PaletteRow
                   key={`recent-${action.id}`}
                   value={`recent ${action.label} ${action.keywords?.join(" ") ?? ""}`}
                   onSelect={() => runAction(action.id, action.action)}
@@ -819,10 +851,10 @@ export function CommandPalette() {
                 >
                   {action.icon}
                   <span>{loading === action.id ? "Running..." : action.label}</span>
-                  <span className="ml-auto text-[10px] text-[var(--text-muted)] uppercase tracking-wide">
+                  <span className={PALETTE_HINT}>
                     {action.group}
                   </span>
-                </CommandItem>
+                </PaletteRow>
               ))}
             </CommandGroup>
             <CommandSeparator />
@@ -836,7 +868,7 @@ export function CommandPalette() {
               {actions
                 .filter((a) => a.group === group)
                 .map((action) => (
-                  <CommandItem
+                  <PaletteRow
                     key={action.id}
                     value={`${action.label} ${action.keywords?.join(" ") ?? ""}`}
                     onSelect={() => runAction(action.id, action.action)}
@@ -844,8 +876,8 @@ export function CommandPalette() {
                   >
                     {action.icon}
                     <span>{loading === action.id ? "Running..." : action.label}</span>
-                    {action.shortcut && <CommandShortcut>{action.shortcut}</CommandShortcut>}
-                  </CommandItem>
+                    {action.shortcut && <kbd className={PALETTE_KBD}>{action.shortcut}</kbd>}
+                  </PaletteRow>
                 ))}
             </CommandGroup>
           </div>
@@ -854,17 +886,19 @@ export function CommandPalette() {
         <CommandSeparator />
         <CommandGroup heading="Modes">
           {modeActions.map((action) => (
-            <CommandItem
+            <PaletteRow
               key={action.id}
               value={`${action.label} ${action.keywords?.join(" ") ?? ""}`}
               onSelect={() => runAction(action.id, action.action)}
             >
               {action.icon}
               <span>{action.label}</span>
-            </CommandItem>
+            </PaletteRow>
           ))}
         </CommandGroup>
       </CommandList>
-    </CommandDialog>
+        </CommandPrimitive>
+      </DialogContent>
+    </Dialog>
   );
 }

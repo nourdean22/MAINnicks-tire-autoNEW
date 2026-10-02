@@ -43,7 +43,7 @@ const SOURCE_META: Record<Nudge["source"], { label: string; tint: string }> = {
   contradiction: { label: "contradiction", tint: "text-amber-300" },
   ghost: { label: "ghost", tint: "text-violet-400" },
   skill: { label: "skill", tint: "text-emerald-300" },
-  pin_hygiene: { label: "pins", tint: "text-[var(--gold)]" },
+  pin_hygiene: { label: "pins", tint: "text-fg-secondary" },
   belief_refresh: { label: "belief", tint: "text-sky-300" },
   correlation: { label: "correlation", tint: "text-fuchsia-300" },
   decision_drift: { label: "decision drift", tint: "text-rose-300" },
@@ -138,7 +138,7 @@ export function NudgePanel() {
           <p className="section-label">Live nudges</p>
           <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void nudgesQuery.refetch()} />
         </div>
-        <span className="text-[9px] font-mono text-[var(--text-tertiary)]">
+        <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
           <AnimatedCounter value={nudges.filter((n) => n.severity === "high").length} /> high ·{" "}
           <AnimatedCounter value={nudges.filter((n) => n.severity === "medium").length} /> med ·{" "}
           <AnimatedCounter value={nudges.filter((n) => n.severity === "low").length} /> low
@@ -158,7 +158,7 @@ export function NudgePanel() {
               <span className="mt-0.5">{SEVERITY_GLYPH[n.severity]}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] text-[var(--text-primary)]">{n.text}</p>
-                <p className={cn("text-[9px] font-mono uppercase tracking-wider mt-0.5", SOURCE_META[n.source]?.tint ?? "text-[var(--text-tertiary)]")}>
+                <p className={cn("text-[11px] font-mono mt-0.5", SOURCE_META[n.source]?.tint ?? "text-fg-tertiary")}>
                   {SOURCE_META[n.source]?.label ?? n.source}
                 </p>
               </div>

@@ -296,7 +296,7 @@ export function DiscoverTab() {
         action={
           <button
             onClick={() => setShowRated((v) => !v)}
-            className="min-h-[48px] min-w-[48px] sm:min-h-[28px] rounded-md border border-glass px-3 text-[11px] font-mono uppercase tracking-wider text-fg-secondary transition hover:text-fg"
+            className="min-h-[48px] min-w-[48px] sm:min-h-[28px] rounded-control border border-edge-default px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
           >
             {showRated ? "unjudged only" : "include judged"}
           </button>
@@ -324,12 +324,12 @@ export function DiscoverTab() {
       {restoredHidden > 0 && !showRestored && (
         <button
           onClick={() => setShowRestored(true)}
-          className="min-h-[48px] w-full rounded-lg border border-glass bg-white/[0.02] px-3 text-left text-[11px] text-fg-secondary transition hover:text-fg"
+          className="min-h-[48px] w-full rounded-control border border-glass bg-content px-3 text-left text-[11px] text-fg-secondary transition hover:text-fg"
         >
           {/* EXACT, not a floor: restoredHidden is its own scoped SQL count and
               is unaffected by where the card scan stopped. Appending "+" here
               presented an exact 237 as a lower bound. */}
-          <span className="font-mono uppercase tracking-wider">{restoredHidden} hidden</span>{" "}
+          <span className="font-mono">{restoredHidden} hidden</span>{" "}
           — recovered by the 2026-08-16 embedding rescue, not found by an engine. Their dates are
           restore time, so they would sort as if they were new. Tap to include them.
         </button>
@@ -337,14 +337,14 @@ export function DiscoverTab() {
       {showRestored && (
         <button
           onClick={() => setShowRestored(false)}
-          className="min-h-[48px] w-full rounded-lg border border-glass bg-white/[0.02] px-3 text-left text-[11px] text-fg-secondary transition hover:text-fg"
+          className="min-h-[48px] w-full rounded-control border border-glass bg-content px-3 text-left text-[11px] text-fg-secondary transition hover:text-fg"
         >
           Showing recovered memories alongside engine findings. Tap to hide them again.
         </button>
       )}
 
       {suppressedSimilar > 0 && (
-        <p className="rounded-lg border border-glass bg-white/[0.02] px-3 py-2 text-[11px] text-fg-secondary">
+        <p className="rounded-control border border-glass bg-content px-3 py-2 text-[11px] text-fg-secondary">
           {/* The visible effect of a judgment (learning-loops wave 2026-08-28):
               an invisible suppression is indistinguishable from no effect. A
               floor when the card scan stopped early, same as the badge.
@@ -353,7 +353,7 @@ export function DiscoverTab() {
               landing here, so an escalation the recurrence policy performed on
               purpose was described to the operator as a duplicate, and the
               amber banner below could never render for it. */}
-          <span className="font-mono uppercase tracking-wider">
+          <span className="font-mono">
             {suppressedSimilar}
             {truncated ? "+" : ""} suppressed
           </span>{" "}
@@ -400,7 +400,7 @@ export function DiscoverTab() {
             const meta = KIND_META[d.category] ?? {
               label: d.category,
               claim: "INFERRED · machine-generated",
-              tone: "text-zinc-300 border-white/10",
+              tone: "text-fg-secondary border-edge-subtle",
             };
             const busy = pending === d.id;
             const copies = d.clusterIds.length;
@@ -410,13 +410,13 @@ export function DiscoverTab() {
                 <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={cn(
-                      "rounded border px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider",
+                      "rounded border px-2 py-0.5 text-[11px] font-mono",
                       meta.tone,
                     )}
                   >
                     {meta.label}
                   </span>
-                  <span className="text-[10px] font-mono text-fg-secondary">
+                  <span className="text-[11px] font-mono text-fg-secondary">
                     {ageLabel(d.lastSeen)}
                   </span>
                   {copies > 1 && (
@@ -424,12 +424,12 @@ export function DiscoverTab() {
                     // cluster membership at rate time and may reach copies this
                     // bounded scan never returned. Claiming an exact total here
                     // would be the same overstatement as the old badge.
-                    <span className="rounded border border-glass px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-fg-secondary">
+                    <span className="rounded border border-glass px-2 py-0.5 text-[11px] font-mono text-fg-secondary">
                       ×{copies} shown
                     </span>
                   )}
                   {d.verdict && (
-                    <span className="ml-auto rounded border border-glass px-2 py-0.5 text-[10px] font-mono uppercase text-fg-secondary">
+                    <span className="ml-auto rounded border border-glass px-2 py-0.5 text-[11px] font-mono text-fg-secondary">
                       {d.verdict}
                     </span>
                   )}
@@ -441,7 +441,7 @@ export function DiscoverTab() {
                   // A resurfaced card MUST explain itself. Re-asking a settled
                   // question without saying why is exactly the repeat alert
                   // that gets overridden 87.9% of the time (Ancker et al.).
-                  <p className="rounded border border-amber-400/30 px-2 py-1 text-[10px] leading-relaxed text-amber-300">
+                  <p className="rounded border border-amber-400/30 px-2 py-1 text-[11px] leading-relaxed text-amber-300">
                     You called this {history[history.length - 1].verdict}{" "}
                     {history.length === 1 ? "once" : `${history.length}×`} — it is back because
                     severity rose from {SEVERITY_WORD[history[history.length - 1].severityRank]} to{" "}
@@ -449,11 +449,11 @@ export function DiscoverTab() {
                   </p>
                 )}
 
-                <p className="text-[10px] font-mono uppercase tracking-wider text-fg-secondary">
+                <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
                   {meta.claim}
                 </p>
                 {d.provenance === "restored" && (
-                  <p className="text-[10px] font-mono uppercase tracking-wider text-fg-secondary">
+                  <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
                     {RESTORED_CLAIM}
                   </p>
                 )}
@@ -478,10 +478,10 @@ export function DiscoverTab() {
                           // min-h-[44px]. These are the primary verdict
                           // controls; a mis-tap writes the wrong signal into
                           // the ledger this feature exists to fill.
-                          "min-h-[48px] min-w-[48px] rounded-lg border px-4 text-xs font-medium transition disabled:opacity-50",
+                          "min-h-[48px] min-w-[48px] rounded-control border px-4 text-xs font-medium transition disabled:opacity-50",
                           v.key === "investigate"
-                            ? "border-[var(--gold)]/40 bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/15"
-                            : "border-glass bg-white/[0.02] text-fg-secondary hover:text-fg hover:bg-white/[0.05]",
+                            ? "border-edge-default bg-surface-interactive text-fg hover:bg-surface-hover"
+                            : "border-edge-default bg-content text-fg-secondary hover:text-fg hover:bg-surface-hover",
                         )}
                       >
                         {v.label}
@@ -495,7 +495,7 @@ export function DiscoverTab() {
         </div>
       )}
 
-      <p className="flex items-start gap-2 text-[10px] text-fg-secondary">
+      <p className="flex items-start gap-2 text-[11px] text-fg-secondary">
         <Lightbulb size={12} className="mt-0.5 shrink-0" />
         <span>
           &ldquo;Already knew&rdquo; and &ldquo;Noise&rdquo; both hide the whole cluster —

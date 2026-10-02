@@ -39,8 +39,8 @@ export function PriorityBreakdownView({ breakdown }: PriorityBreakdownViewProps)
                 {t.input}×{t.weight} = <span className="text-fg-secondary">{fmt(t.contribution)}</span>
               </span>
             </div>
-            <div className="h-1 overflow-hidden rounded-full bg-white/5" aria-hidden>
-              <div className="h-full rounded-full bg-[var(--gold)]/60" style={{ width: `${Math.round((t.contribution / max) * 100)}%` }} />
+            <div className="h-1 overflow-hidden rounded-full bg-surface-interactive" aria-hidden>
+              <div className="h-full rounded-full bg-accent" style={{ width: `${Math.round((t.contribution / max) * 100)}%` }} />
             </div>
           </li>
         ))}

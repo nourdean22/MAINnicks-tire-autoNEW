@@ -90,7 +90,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
       <DialogContent
         unstyled
         showCloseButton={false}
-        overlayClassName="z-[180] bg-[var(--bg-void)]/90 backdrop-blur-md"
+        overlayClassName="z-[180] bg-[var(--bg-void)]/85"
         className="fixed inset-y-8 left-1/2 z-[181] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 overflow-y-auto rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] outline-none"
       >
         {/* Header */}
@@ -101,7 +101,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
               Why Nick said that
             </DialogTitle>
             {data && (
-              <p className="text-[11px] font-mono text-[var(--text-tertiary)] mt-2 uppercase tracking-wider">
+              <p className="text-[11px] font-mono text-[var(--text-tertiary)] mt-2">
                 {data.recall.bdiChain || "no memories matched"} · scanned {data.recall.scanned} · {data.recall.durationMs}ms
                 {/* 2026-08-19 · memory-loop wave · provenance honesty:
                     receipt = what ACTUALLY fired on the turn (persisted at
@@ -201,7 +201,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
                                 : "text-rose-300";
                         return (
                           <div key={key} className="flex flex-col items-center">
-                            <span className="text-[var(--text-tertiary)] uppercase tracking-wider text-[9px]">
+                            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
                               {label}
                             </span>
                             <span className={`${tone} text-base`}>{v.toFixed(0)}</span>
@@ -235,7 +235,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
                   <p className="text-eyebrow flex items-center gap-2">
                     Counter-view
                     <span
-                      className={`text-[10px] font-mono uppercase tracking-wider ${
+                      className={`text-[11px] font-mono ${
                         data.feedback.objection.severity >= 3
                           ? "text-rose-300"
                           : data.feedback.objection.severity >= 2
@@ -286,7 +286,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
                             {hit.content.slice(0, 240)}
                             {hit.content.length > 240 ? "…" : ""}
                           </p>
-                          <p className="text-[10px] font-mono text-[var(--text-tertiary)] mt-2 uppercase tracking-wider flex flex-wrap items-center gap-x-3">
+                          <p className="text-[11px] font-mono text-[var(--text-tertiary)] mt-2 flex flex-wrap items-center gap-x-3">
                             <span>{hit.category}</span>
                             <span>·</span>
                             <span>{describeSeenCount(hit.seenCount)}</span>

@@ -16,7 +16,7 @@
  *   · sentence 2-3 · the open question · the stalled thread to revisit
  *
  * Self-hides on empty. Mirrors NicksGoalsBrief + NicksHomeBrief +
- * NicksRelationshipsBrief gold-eyebrow pattern · cohesive voice across
+ * NicksRelationshipsBrief mono-eyebrow pattern · cohesive voice across
  * the OS.
  */
 
@@ -51,19 +51,19 @@ export function NicksJournalBrief() {
   return (
     <section
       aria-label="nick's journal brief"
-      className="rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] px-4 py-3"
+      className="rounded-surface border border-edge-subtle bg-content px-4 py-3"
     >
       <div className="flex items-start gap-2">
         <Brain
           size={12}
-          className="text-[var(--gold)] mt-0.5 shrink-0"
+          className="text-fg-tertiary mt-0.5 shrink-0"
           strokeWidth={1.75}
         />
         <div className="flex-1 min-w-0">
-          <p className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/80">
+          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             nick · journal
           </p>
-          <p className="mt-1 text-[13px] text-[var(--text-primary)] leading-snug whitespace-pre-line">
+          <p className="mt-1 text-[13px] text-fg leading-snug whitespace-pre-line">
             {brief}
           </p>
         </div>

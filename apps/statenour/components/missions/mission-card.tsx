@@ -218,9 +218,9 @@ export function MissionCard({
       // parent divides missions with hairlines); an open mission is marked by
       // a gold left rule, never a glowing box.
       className={cn(
-        "scroll-mt-24 border-l-2 transition-colors duration-200",
-        expanded ? "border-l-gold" : "border-l-transparent",
-        isDraggedOver && "border-l-gold/60 bg-gold/[0.03]"
+        "scroll-mt-24 border-l-2 transition-colors duration-[var(--motion-state)]",
+        expanded ? "border-l-accent" : "border-l-transparent",
+        isDraggedOver && "border-l-accent/60 bg-accent-soft"
       )}
     >
       {/* Header · tap to toggle.
@@ -241,7 +241,7 @@ export function MissionCard({
         }}
         aria-expanded={expanded}
         aria-label={`${expanded ? "collapse" : "expand"} mission ${mission.title}`}
-        className="flex w-full cursor-pointer items-center gap-2 px-3 py-4 text-left transition-transform active:scale-[0.995] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold sm:px-4"
+        className="flex w-full cursor-pointer items-center gap-2 px-3 py-4 text-left transition-transform active:scale-[0.995] sm:px-4"
       >
         <div
           onMouseDown={(e) => {
@@ -255,7 +255,7 @@ export function MissionCard({
           onClick={(e) => {
             e.stopPropagation();
           }}
-          className="p-1 cursor-grab active:cursor-grabbing text-zinc-500 hover:text-[var(--gold)] transition-colors shrink-0"
+          className="p-1 cursor-grab active:cursor-grabbing text-fg-tertiary hover:text-fg transition-colors duration-[var(--motion-state)] shrink-0"
           aria-label="Drag to reorder mission"
         >
           <GripVertical size={14} />
@@ -263,19 +263,19 @@ export function MissionCard({
         {expanded ? (
           <ChevronDown
             size={14}
-            className="text-[var(--gold)] shrink-0"
+            className="text-fg-secondary shrink-0"
             strokeWidth={2}
           />
         ) : (
           <ChevronRight
             size={14}
-            className="text-[var(--text-tertiary)] shrink-0"
+            className="text-fg-tertiary shrink-0"
             strokeWidth={2}
           />
         )}
         <Flag
           size={11}
-          className="text-[var(--gold)] shrink-0"
+          className="text-fg-tertiary shrink-0"
           strokeWidth={2}
         />
         <h3 className="flex-1 truncate text-[17px] font-semibold leading-tight tracking-[-0.01em] text-fg sm:text-[18px]">
@@ -310,7 +310,7 @@ export function MissionCard({
               "shrink-0 font-mono text-[12px] uppercase tracking-[0.12em] tabular-nums",
               deadlineTone === "urgent" && "text-rose-400",
               deadlineTone === "soon" && "text-amber-400",
-              deadlineTone === "normal" && "text-[var(--text-tertiary)]",
+              deadlineTone === "normal" && "text-fg-tertiary",
             )}
           >
             {deadlineLabel}
@@ -328,7 +328,7 @@ export function MissionCard({
          *  didn't know reorder existed. Now they read as tappable at
          *  idle. Tightened to w-8 to free horizontal budget on mobile. */}
         {(canMoveUp || canMoveDown) && (
-          <span className="shrink-0 inline-flex rounded-md border border-[var(--border-default)]/60 bg-[var(--bg-raised)]/[0.06] overflow-hidden">
+          <span className="shrink-0 inline-flex rounded-control border border-edge-default bg-content overflow-hidden">
             <button
               type="button"
               onClick={(e) => {
@@ -341,15 +341,15 @@ export function MissionCard({
               className={cn(
                 "inline-flex h-11 w-11 items-center justify-center transition-transform active:scale-95",
                 canMoveUp
-                  ? "text-[var(--text-secondary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.08] cursor-pointer"
-                  : "text-[var(--text-tertiary)]/30 cursor-not-allowed",
+                  ? "text-fg-secondary hover:text-fg hover:bg-surface-hover cursor-pointer"
+                  : "text-fg-tertiary/30 cursor-not-allowed",
               )}
             >
               <ArrowUp size={14} strokeWidth={2} />
             </button>
             <span
               aria-hidden
-              className="w-px bg-[var(--border-default)]/60"
+              className="w-px bg-edge-default"
             />
             <button
               type="button"
@@ -363,8 +363,8 @@ export function MissionCard({
               className={cn(
                 "inline-flex h-11 w-11 items-center justify-center transition-transform active:scale-95",
                 canMoveDown
-                  ? "text-[var(--text-secondary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.08] cursor-pointer"
-                  : "text-[var(--text-tertiary)]/30 cursor-not-allowed",
+                  ? "text-fg-secondary hover:text-fg hover:bg-surface-hover cursor-pointer"
+                  : "text-fg-tertiary/30 cursor-not-allowed",
               )}
             >
               <ArrowDown size={14} strokeWidth={2} />
@@ -390,7 +390,7 @@ export function MissionCard({
             }
           }}
           aria-label={`edit mission ${mission.title}`}
-          className="shrink-0 inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.05] active:scale-95 transition-transform cursor-pointer"
+          className="shrink-0 inline-flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover active:scale-95 transition-transform cursor-pointer"
         >
           <Pencil size={14} strokeWidth={1.75} />
         </span>
@@ -406,7 +406,7 @@ export function MissionCard({
         <div className="px-3 pb-3 sm:px-4">
           <div className="h-px overflow-hidden bg-edge">
             <div
-              className="h-full bg-gold transition-all duration-500"
+              className="h-full bg-fg-secondary transition-all duration-500"
               style={{ width: `${progress}%` }}
               aria-hidden
             />
@@ -420,7 +420,7 @@ export function MissionCard({
           {/* Nick's pick rationale (Phase 2 · only shown when set) */}
           {nicksPickTaskId && nicksPickRationale && (
             <div className="border-b border-edge px-3 py-2 sm:px-4">
-              <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-gold/80">
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                 nick&apos;s pick
               </p>
               <p className="mt-0.5 text-[14px] leading-snug text-fg-secondary">
@@ -442,7 +442,7 @@ export function MissionCard({
                 <div
                   key={task.id}
                   className={cn(
-                    isNicksPick && "border-l-2 border-l-[var(--gold)]/70",
+                    isNicksPick && "border-l-2 border-l-edge-strong",
                   )}
                 >
                   <MissionTaskRow
@@ -463,7 +463,7 @@ export function MissionCard({
             })}
             {doneTasks.length > 0 && (
               <details className="px-2">
-                <summary className="flex min-h-[44px] cursor-pointer list-none items-center px-1 font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary hover:text-fg-secondary">
+                <summary className="flex min-h-[44px] cursor-pointer list-none items-center px-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary hover:text-fg-secondary">
                   ▸ {doneTasks.length} done
                 </summary>
                 <div>
@@ -495,13 +495,13 @@ export function MissionCard({
                   disabled={submitting}
                   // wave-AB.d-mobile · inline add input · bump to 44px
                   // tap target + 16px font (iOS no-zoom).
-                  className="min-h-[44px] flex-1 border-0 border-b border-edge bg-transparent px-1 py-2 text-[16px] text-fg placeholder:text-fg-tertiary transition-colors focus:border-gold focus:outline-none disabled:opacity-50"
+                  className="min-h-[44px] flex-1 border-0 border-b border-edge bg-transparent px-1 py-2 text-[16px] text-fg placeholder:text-fg-tertiary transition-colors duration-[var(--motion-state)] focus:border-accent focus:outline-none disabled:opacity-50"
                 />
                 <button
                   type="button"
                   onClick={handleAdd}
                   disabled={!newTaskTitle.trim() || submitting}
-                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-gold text-black transition-colors hover:bg-gold-dim disabled:opacity-40"
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-control border border-edge-default bg-content text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-40"
                   aria-label="add task"
                 >
                   <Plus size={14} strokeWidth={2} />
@@ -511,7 +511,7 @@ export function MissionCard({
               <button
                 type="button"
                 onClick={() => setAdding(true)}
-                className="inline-flex min-h-[44px] w-full items-center gap-2 px-1 text-left font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary transition-colors hover:text-gold"
+                className="inline-flex min-h-[44px] w-full items-center gap-2 px-1 text-left text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
               >
                 <Plus size={14} strokeWidth={1.75} />
                 add task to this mission
@@ -525,14 +525,14 @@ export function MissionCard({
               <button
                 type="button"
                 onClick={() => actions.handleCompleteMission(mission.id)}
-                className="inline-flex min-h-[44px] items-center font-mono text-[11px] uppercase tracking-[0.14em] text-gold hover:underline"
+                className="inline-flex min-h-[44px] items-center text-[13px] font-medium text-fg hover:underline"
               >
                 complete mission ↗
               </button>
               <button
                 type="button"
                 onClick={() => actions.handleArchiveMission(mission.id)}
-                className="inline-flex min-h-[44px] items-center font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary hover:text-fg-secondary"
+                className="inline-flex min-h-[44px] items-center text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
               >
                 archive
               </button>

@@ -43,7 +43,7 @@ function JournalPageInner() {
       description="Thinking, reasoning, insights, decisions, reflections."
       width="3xl"
       rhythm="loose"
-      className="min-h-screen text-zinc-100"
+      className="min-h-screen text-fg"
       rootProps={{ "data-no-deep-nudge": "" }}
     >
       <MissionBreadcrumb />

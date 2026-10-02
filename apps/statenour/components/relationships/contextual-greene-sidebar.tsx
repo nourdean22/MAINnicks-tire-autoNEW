@@ -78,14 +78,14 @@ export function ContextualGreeneSidebar({
 
   if (loading) {
     return (
-      <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-base)] px-3 py-3 text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+      <div className="rounded-control border border-edge-subtle bg-content px-3 py-3 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
         nick is choosing laws…
       </div>
     );
   }
   if (error) {
     return (
-      <div className="rounded-md border border-rose-500/30 bg-rose-500/[0.04] px-3 py-2 text-[11px] text-rose-300/90">
+      <div className="rounded-control border border-rose-500/30 bg-rose-500/[0.04] px-3 py-2 text-[12px] text-rose-300/90">
         could not load contextual laws · {error}
       </div>
     );
@@ -98,13 +98,13 @@ export function ContextualGreeneSidebar({
       className="space-y-2"
     >
       <header className="flex items-center gap-2 px-1">
-        <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/80">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           greene · applicable now
         </span>
-        <span className="text-[9px] font-mono text-[var(--text-tertiary)]/60">
+        <span className="text-[11px] font-mono text-fg-tertiary">
           ·
         </span>
-        <span className="text-[9px] font-mono text-[var(--text-tertiary)]">
+        <span className="text-[11px] font-mono text-fg-tertiary">
           {data.source === "cache" ? "cached today" : "fresh"}
         </span>
       </header>
@@ -113,13 +113,13 @@ export function ContextualGreeneSidebar({
         {data.laws.map((law) => (
           <article
             key={law.key}
-            className="rounded-md border border-[var(--gold)]/25 bg-[var(--bg-base)] p-3 space-y-2"
+            className="rounded-surface border border-edge-subtle bg-content p-3 space-y-2"
           >
             <div className="flex items-start gap-2">
-              <span className="shrink-0 inline-flex items-center rounded-md border border-[var(--gold)]/40 bg-[var(--gold)]/[0.06] px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-[0.15em] text-[var(--gold)]">
+              <span className="shrink-0 inline-flex items-center rounded-micro border border-edge-default bg-surface-raised px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
                 {BOOK_LABEL[law.book] ?? law.book}
               </span>
-              <h4 className="flex-1 text-[12px] font-bold uppercase tracking-[0.06em] text-[var(--text-primary)] truncate">
+              <h4 className="flex-1 text-[13px] font-semibold text-fg truncate">
                 {law.title}
               </h4>
             </div>
@@ -127,11 +127,11 @@ export function ContextualGreeneSidebar({
               {law.rationale}
             </p>
             {law.actions.length > 0 && (
-              <ul className="space-y-1 pl-2 border-l border-[var(--gold)]/20">
+              <ul className="space-y-1 pl-2 border-l border-edge-default">
                 {law.actions.map((action, i) => (
                   <li
                     key={i}
-                    className="text-[11px] text-[var(--text-primary)] leading-snug before:content-['▸'] before:text-[var(--gold)]/60 before:mr-1.5"
+                    className="text-[11px] text-[var(--text-primary)] leading-snug before:content-['▸'] before:text-fg-tertiary before:mr-1.5"
                   >
                     {action}
                   </li>

@@ -42,7 +42,7 @@ interface FilterChipBarProps<T extends string = string> {
 }
 
 const TONE_STYLES: Record<NonNullable<FilterChipOption["tone"]>, string> = {
-  default: "border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-[var(--gold)]/30",
+  default: "border-edge-default text-fg-tertiary hover:border-edge-strong hover:text-fg-secondary",
   warn: "border-amber-500/30 text-amber-300 hover:border-amber-500/50",
   ok: "border-emerald-500/30 text-emerald-300 hover:border-emerald-500/50",
   info: "border-sky-500/30 text-sky-300 hover:border-sky-500/50",
@@ -78,15 +78,15 @@ export function FilterChipBar<T extends string = string>({
             onClick={() => onChange(o.value)}
             title={o.hint}
             className={[
-              "text-[10px] font-mono uppercase tracking-wider px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded border transition-colors shrink-0",
+              "text-[13px] font-medium px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded-control border transition-colors duration-[var(--motion-state)] shrink-0",
               active
-                ? "border-[var(--gold)]/40 text-[var(--gold)] bg-[var(--gold)]/10"
+                ? "border-accent text-fg bg-accent-soft"
                 : tone,
             ].join(" ")}
           >
             {o.label}
             {typeof o.count === "number" && (
-              <span className={`ml-1 ${active ? "text-[var(--gold)]/70" : "text-[var(--text-tertiary)]"}`}>
+              <span className={`ml-1 ${active ? "text-fg-secondary" : "text-fg-tertiary"}`}>
                 ({o.count})
               </span>
             )}
@@ -126,13 +126,13 @@ export function ActiveFiltersStrip({
   if (filters.length === 0) return null;
   return (
     <div className={`flex items-center gap-1.5 flex-wrap ${className ?? ""}`}>
-      <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
         active:
       </span>
       {filters.map((f, i) => (
         <span
           key={i}
-          className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded border border-[var(--gold)]/30 bg-[var(--gold)]/5 text-[var(--text-primary)]"
+          className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded-micro border border-edge-default bg-surface-interactive text-fg-secondary"
         >
           {f.label}
           <button
@@ -149,9 +149,9 @@ export function ActiveFiltersStrip({
         <button
           type="button"
           onClick={onClearAll}
-          className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-rose-400 px-2 py-1 transition-colors"
+          className="text-[13px] font-medium text-fg-tertiary hover:text-rose-400 px-2 py-1 transition-colors duration-[var(--motion-state)]"
         >
-          clear all
+          Clear all
         </button>
       )}
     </div>

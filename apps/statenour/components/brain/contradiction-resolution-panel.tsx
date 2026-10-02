@@ -137,12 +137,12 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
           <AlertTriangle size={12} className="text-red-400" />
           <p className="section-label">Contradictions</p>
           {rows && (
-            <span className="rounded-full border border-red-500/30 bg-red-500/10 px-1.5 py-px text-[9px] font-mono text-red-300">
+            <span className="rounded-full border border-red-500/30 bg-red-500/10 px-1.5 py-px text-[11px] font-mono text-red-300">
               <AnimatedCounter value={visible.length} />
             </span>
           )}
           <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void load()} />
-          <span className="text-[9px] font-mono text-[var(--text-tertiary)]">
+          <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
             · drift against stated positions
           </span>
         </div>
@@ -152,7 +152,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
               key={t}
               onClick={() => setTab(t)}
               className={cn(
-                "text-[9px] font-mono uppercase tracking-wider px-2 py-1 rounded border transition-colors",
+                "text-[11px] font-mono px-2 py-1 rounded border transition-colors",
                 tab === t
                   ? "bg-red-500/10 text-red-400 border-red-500/30"
                   : "border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-primary)]",
@@ -184,11 +184,11 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                 c.status && c.status !== "unresolved"
                   ? "bg-[var(--bg-base)] border-[var(--border-default)] opacity-70"
                   : "bg-red-500/5 border-red-500/20",
-                focused && "ring-1 ring-[var(--gold)]/40",
+                focused && "ring-1 ring-accent",
                 rowBusy && "opacity-60",
               )}
             >
-              <div className="flex items-center gap-2 mb-1.5 text-[9px] font-mono uppercase tracking-wider">
+              <div className="flex items-center gap-2 mb-1.5 text-[11px] font-mono">
                 <span className="text-red-400">{c.signal === "near_duplicate" ? "similar wording · which is current?" : c.signal}</span>
                 <span className="text-[var(--text-tertiary)]">
                   {c.days_apart}d apart · sim {Math.round(c.similarity * 100)}%
@@ -200,14 +200,14 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
 
               <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-start">
                 <div className="min-w-0">
-                  <p className="text-[9px] font-mono uppercase tracking-wider text-[var(--gold)]">now</p>
+                  <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">now</p>
                   <p className="text-[11px] text-[var(--text-primary)] break-words">
                     "{c.new_excerpt}"
                   </p>
                 </div>
                 <Split size={12} className="text-[var(--text-tertiary)] mt-3" />
                 <div className="min-w-0">
-                  <p className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+                  <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
                     {c.days_apart}d ago
                   </p>
                   <p className="text-[11px] text-[var(--text-secondary)] break-words">
@@ -221,7 +221,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                   <button
                     onClick={() => beginResolve(c.key, "current_wins")}
                     disabled={rowBusy}
-                    className="h-6 px-2 rounded border border-[var(--gold)]/30 text-[var(--gold)] hover:bg-[var(--gold)]/10 text-[9px] font-mono uppercase tracking-wider inline-flex items-center gap-1"
+                    className="h-6 px-2 rounded border border-edge-subtle text-fg-secondary hover:bg-surface-hover text-[11px] font-mono inline-flex items-center gap-1"
                     title="lock in current position, deprecate old"
                   >
                     <Check size={9} />
@@ -230,7 +230,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                   <button
                     onClick={() => beginResolve(c.key, "old_wins")}
                     disabled={rowBusy}
-                    className="h-6 px-2 rounded border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--gold)]/30 text-[9px] font-mono uppercase tracking-wider inline-flex items-center gap-1"
+                    className="h-6 px-2 rounded border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-edge-strong text-[11px] font-mono inline-flex items-center gap-1"
                     title="hold old position, deprecate new"
                   >
                     old wins
@@ -238,7 +238,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                   <button
                     onClick={() => beginResolve(c.key, "both_valid")}
                     disabled={rowBusy}
-                    className="h-6 px-2 rounded border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-emerald-400 hover:border-emerald-500/30 text-[9px] font-mono uppercase tracking-wider"
+                    className="h-6 px-2 rounded border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-emerald-400 hover:border-emerald-500/30 text-[11px] font-mono"
                     title="context-dependent, both still true"
                   >
                     both valid
@@ -256,7 +256,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
 
               {notingKey === c.key && pendingResolve && (
                 <div className="mt-2 space-y-1.5">
-                  <p className="text-[9px] font-mono uppercase tracking-wider text-[var(--gold)]">
+                  <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
                     note (optional — why?) · applying: {pendingResolve.replace(/_/g, " ")}
                   </p>
                   <textarea
@@ -264,19 +264,19 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                     onChange={(e) => setNoteText(e.target.value)}
                     placeholder="optional: explain the reversal"
                     rows={2}
-                    className="w-full px-2 py-1 bg-[var(--bg-overlay)] border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--gold)]/30"
+                    className="w-full px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
                   />
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => resolve(c.key, pendingResolve, noteText.trim() || undefined)}
                       disabled={rowBusy}
-                      className="h-6 px-2 rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[9px] font-mono uppercase tracking-wider inline-flex items-center gap-1"
+                      className="h-6 px-2 rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[11px] font-mono inline-flex items-center gap-1"
                     >
                       <Check size={9} /> confirm
                     </button>
                     <button
                       onClick={() => { setNotingKey(null); setNoteText(""); setPendingResolve(null); }}
-                      className="h-6 px-2 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 text-[9px] font-mono uppercase tracking-wider inline-flex items-center gap-1"
+                      className="h-6 px-2 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 text-[11px] font-mono inline-flex items-center gap-1"
                     >
                       <X size={9} /> cancel
                     </button>
@@ -285,7 +285,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
               )}
 
               {c.resolution_note && (
-                <p className="text-[9px] text-[var(--text-tertiary)] mt-1">
+                <p className="text-[11px] text-[var(--text-tertiary)] mt-1">
                   note: {c.resolution_note}
                 </p>
               )}
@@ -326,7 +326,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
         )}
       </div>
 
-      <p className="text-[9px] text-[var(--text-tertiary)] mt-3 leading-relaxed">
+      <p className="text-[11px] text-[var(--text-tertiary)] mt-3 leading-relaxed">
         "current wins" drops confidence on the old memory to 0.1 (deprecated). "old wins"
         does the same to the new one. "both valid" or "dismissed" just closes the loop without
         touching the memory rows. Threshold: sim ≥ 0.78 · age ≥ 7d · negation / reversal / antonym.

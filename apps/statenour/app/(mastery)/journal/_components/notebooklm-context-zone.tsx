@@ -51,21 +51,21 @@ export function NotebookLMContextZone() {
   };
 
   return (
-    <details className="group rounded-xl border border-(--gold)/20 bg-linear-to-br from-(--gold)/5 to-transparent">
+    <details className="group rounded-surface border border-edge-subtle bg-content">
       <summary className="flex items-center gap-2 p-4 min-h-[44px] cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-        <BrainCircuit size={14} className="text-(--gold)" aria-hidden />
-        <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-(--gold)">
+        <BrainCircuit size={14} className="text-fg-tertiary" aria-hidden />
+        <h3 className="text-[15px] font-semibold text-fg">
           NotebookLM Context Zone
         </h3>
         <ChevronDown
           size={14}
           aria-hidden
-          className="ml-auto text-(--gold)/60 transition-transform group-open:rotate-180"
+          className="ml-auto text-fg-tertiary transition-transform group-open:rotate-180"
         />
       </summary>
 
       <div className="px-4 pb-4 space-y-4">
-        <p className="text-[11px] text-(--text-secondary) leading-relaxed">
+        <p className="text-[13px] text-fg-secondary leading-relaxed">
           Paste NotebookLM Briefing Docs, Study Guides, or Chat Summaries here.
           Statenour will parse the markdown and permanently store it into the Journal OS as an intelligence asset.
         </p>
@@ -76,7 +76,7 @@ export function NotebookLMContextZone() {
             onChange={(e) => setMarkdown(e.target.value)}
             placeholder="Paste markdown here..."
             aria-label="NotebookLM markdown to ingest"
-            className="w-full h-32 rounded-lg bg-zinc-900/50 border border-zinc-800 p-3 text-[12px] text-zinc-300 font-mono focus:border-(--gold)/40 outline-none resize-none transition-colors"
+            className="w-full h-32 rounded-control bg-surface-interactive border border-edge-default p-3 text-[12px] text-fg font-mono focus:border-accent/40 outline-none resize-none transition-colors"
             disabled={status === "ingesting" || status === "success"}
           />
 
@@ -95,7 +95,7 @@ export function NotebookLMContextZone() {
             <button
               onClick={handleIngest}
               disabled={!markdown.trim() || status === "ingesting" || status === "success"}
-              className="flex items-center gap-2 px-3 py-1.5 min-h-[44px] rounded bg-(--gold)/10 text-(--gold) border border-(--gold)/20 hover:bg-(--gold)/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-[11px] font-bold uppercase tracking-wider"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {status === "ingesting" ? (
                 <><Loader2 size={12} className="animate-spin" /> Ingesting</>

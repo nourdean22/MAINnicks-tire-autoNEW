@@ -35,7 +35,7 @@ export function ParentBackLink({ href, label, sub }: ParentBackLinkProps) {
     <Link
       href={href}
       aria-label={`back to ${label}`}
-      className="inline-flex items-center gap-1.5 text-[10px] font-mono lowercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--gold)] focus-visible:text-[var(--gold)] focus-visible:outline-none transition-colors -my-1"
+      className="inline-flex items-center gap-1.5 text-[11px] font-mono lowercase tracking-[0.12em] text-[var(--text-tertiary)] hover:text-fg focus-visible:text-fg focus-visible:outline-none transition-colors -my-1"
     >
       <ArrowLeft size={11} strokeWidth={1.75} />
       <span>{label}</span>

@@ -17,15 +17,15 @@ export function ToolGapPanel() {
 
   if (report.isLoading) {
     return (
-      <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] p-4">
-        <div className="h-16 animate-pulse rounded bg-white/[0.03]" />
+      <section className="rounded-surface border border-edge-default bg-content p-4">
+        <div className="h-16 animate-pulse rounded bg-surface-interactive" />
       </section>
     );
   }
 
   if (report.isError || !report.data) {
     return (
-      <section className="rounded-lg border border-red-500/20 bg-red-500/[0.04] p-4">
+      <section className="rounded-surface border border-red-500/20 bg-red-500/[0.04] p-4">
         <p className="flex items-center gap-2 text-xs text-red-300">
           <AlertCircle size={14} />
           Tool-gap telemetry unavailable — no gap conclusion is safe.
@@ -37,7 +37,7 @@ export function ToolGapPanel() {
   const lifecycleData = lifecycle.data;
   if (!data.available) {
     return (
-      <section className="rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-4">
+      <section className="rounded-surface border border-amber-500/20 bg-amber-500/[0.04] p-4">
         <p className="flex items-center gap-2 text-xs text-amber-300">
           <AlertCircle size={14} />
           {data.caveat}
@@ -49,18 +49,18 @@ export function ToolGapPanel() {
   return (
     <section
       aria-label="tool-gap-intelligence"
-      className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] overflow-hidden"
+      className="rounded-surface border border-edge-default bg-content overflow-hidden"
     >
-      <header className="flex items-center justify-between gap-3 border-b border-[var(--border-default)] px-4 py-3">
+      <header className="flex items-center justify-between gap-3 border-b border-edge-default px-4 py-3">
         <div>
-          <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--gold)]">
+          <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
             <Route size={13} /> Tool Gap Intelligence
           </p>
-          <p className="mt-1 text-[10px] text-[var(--text-tertiary)]">
+          <p className="mt-1 text-[11px] text-fg-tertiary">
             Existing recovery telemetry · 30-day window · no duplicate event store
           </p>
         </div>
-        <span className="text-[9px] font-mono text-[var(--text-tertiary)]">
+        <span className="text-[11px] font-mono text-fg-tertiary">
           {data.totalTurns} turns
         </span>
       </header>
@@ -71,24 +71,24 @@ export function ToolGapPanel() {
           ["Unresolved searches", data.unresolvedSearches],
           ["Semantic skipped", rate(data.semanticSkippedRatePct)],
         ].map(([label, value]) => (
-          <div key={String(label)} className="bg-[var(--bg-raised)] px-4 py-3">
-            <p className="text-[9px] uppercase tracking-wider text-[var(--text-tertiary)]">
+          <div key={String(label)} className="bg-content px-4 py-3">
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               {label}
             </p>
-            <p className="mt-1 font-mono text-lg text-white">{value}</p>
+            <p className="mt-1 font-mono text-lg text-fg">{value}</p>
           </div>
         ))}
       </div>
 
       <div className="p-4">
         {data.topGaps.length === 0 ? (
-          <p className="text-xs text-[var(--text-tertiary)]">
+          <p className="text-xs text-fg-tertiary">
             No recovery-search gaps were recorded in this window.
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-[10px]">
-              <thead className="text-[8px] uppercase tracking-wider text-[var(--text-tertiary)]">
+            <table className="w-full text-left text-[11px]">
+              <thead className="text-[12px] font-medium text-fg-secondary">
                 <tr>
                   <th className="pb-2 font-normal">Class</th>
                   <th className="pb-2 font-normal">Recovered capability</th>
@@ -100,14 +100,14 @@ export function ToolGapPanel() {
                 {data.topGaps.map((gap, index) => (
                   <tr key={`${gap.classification}:${gap.toolName ?? "unresolved"}`}>
                     <td className="py-2 pr-4 text-amber-300">{gap.classification}</td>
-                    <td className="py-2 pr-4 text-[var(--text-secondary)]">
+                    <td className="py-2 pr-4 text-fg-secondary">
                       {gap.toolName ?? "unresolved — investigate capability need"}
                     </td>
                     <td className="py-2 pr-4 text-sky-300">
                       {lifecycleData?.gapRecommendations[index]?.recommendedAction ??
                         "unmeasured"}
                     </td>
-                    <td className="py-2 text-right text-white">{gap.count}</td>
+                    <td className="py-2 text-right text-fg">{gap.count}</td>
                   </tr>
                 ))}
               </tbody>
@@ -115,7 +115,7 @@ export function ToolGapPanel() {
           </div>
         )}
         {lifecycleData && (
-          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[var(--border-default)] pt-3 md:grid-cols-4">
+          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-edge-default pt-3 md:grid-cols-4">
             {[
               ["Proposed", lifecycleData.counts.proposed],
               ["Approved", lifecycleData.counts.approved],
@@ -123,13 +123,13 @@ export function ToolGapPanel() {
               ["Verified", lifecycleData.counts.verified],
             ].map(([label, value]) => (
               <div key={String(label)}>
-                <p className="text-[8px] uppercase tracking-wider text-[var(--text-tertiary)]">{label}</p>
-                <p className="mt-1 font-mono text-sm text-white">{value}</p>
+                <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{label}</p>
+                <p className="mt-1 font-mono text-sm text-fg">{value}</p>
               </div>
             ))}
           </div>
         )}
-        <div className="mt-3 space-y-1 border-t border-[var(--border-default)] pt-3 text-[9px] leading-relaxed text-[var(--text-tertiary)]">
+        <div className="mt-3 space-y-1 border-t border-edge-default pt-3 text-[11px] leading-relaxed text-fg-tertiary">
           <p>
             {data.caveat} Budget-truncated {rate(data.budgetTruncatedRatePct)} ·
             semantic cold cache {rate(data.coldCacheRatePct)}.

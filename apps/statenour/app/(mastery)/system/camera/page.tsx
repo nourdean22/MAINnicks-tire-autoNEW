@@ -153,7 +153,7 @@ export default function CameraArrivalsPage() {
       case "FALSE_POSITIVE":
         return "bg-red-500/10 text-red-400 border border-red-500/20";
       case "LEFT":
-        return "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20";
+        return "bg-fg-tertiary text-fg-secondary border border-edge-default";
       default:
         return "bg-amber-500/10 text-amber-400 border border-amber-500/20";
     }
@@ -170,7 +170,7 @@ export default function CameraArrivalsPage() {
       case "REJECTED":
         return "bg-red-500/10 text-red-400 border border-red-500/20";
       default:
-        return "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20";
+        return "bg-fg-tertiary text-fg-secondary border border-edge-default";
     }
   };
 
@@ -181,7 +181,7 @@ export default function CameraArrivalsPage() {
       description="Real-time vehicle detection and automated license plate recognition fleet cockpit."
       width="2xl"
       rhythm="loose"
-      className="px-3 py-4 text-white sm:px-4 sm:py-6"
+      className="px-3 py-4 text-fg sm:px-4 sm:py-6"
       actions={
           <div className="flex items-center gap-2">
             <FreshnessChip
@@ -196,7 +196,7 @@ export default function CameraArrivalsPage() {
             <button
               onClick={() => arrivalsQuery.refetch()}
               disabled={loading}
-              className="flex items-center gap-1.5 rounded-lg border border-[var(--border-hover)] bg-[var(--bg-raised)]/5 px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-[var(--bg-raised)]/10 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-control border border-edge-strong bg-content px-3 py-1.5 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
             >
               <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
               Refresh
@@ -208,7 +208,7 @@ export default function CameraArrivalsPage() {
       {readFailed && (
         <div
           role="alert"
-          className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300"
+          className="flex items-start gap-2 rounded-surface border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300"
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
@@ -252,16 +252,16 @@ export default function CameraArrivalsPage() {
         {/* Sidebar Filters & Simulator */}
         <div className="space-y-6 lg:col-span-1">
           {/* Filters Card */}
-          <Panel className="space-y-4 border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Filters</h2>
+          <Panel className="space-y-4 border border-edge-default">
+              <h2 className="text-[15px] font-semibold text-fg-secondary">Filters</h2>
             
             <div className="space-y-3">
               <div>
-                <label className="block text-xs text-[var(--text-tertiary)] mb-1">Camera Source</label>
+                <label className="block text-xs text-fg-tertiary mb-1">Camera Source</label>
                 <select
                   value={selectedCamera}
                   onChange={(e) => setSelectedCamera(e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border-hover)] bg-[var(--bg-raised)]/10 px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  className="w-full rounded-control border border-edge-strong bg-content px-3 py-2 text-xs text-fg focus:outline-none"
                 >
                   <option value="all">All Cameras</option>
                   {data.cameras.map((c) => (
@@ -271,11 +271,11 @@ export default function CameraArrivalsPage() {
               </div>
 
               <div>
-                <label className="block text-xs text-[var(--text-tertiary)] mb-1">Event State</label>
+                <label className="block text-xs text-fg-tertiary mb-1">Event State</label>
                 <select
                   value={selectedState}
                   onChange={(e) => setSelectedState(e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border-hover)] bg-[var(--bg-raised)]/10 px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  className="w-full rounded-control border border-edge-strong bg-content px-3 py-2 text-xs text-fg focus:outline-none"
                 >
                   <option value="all">All States</option>
                   <option value="ENTERED_ZONE">ENTERED_ZONE</option>
@@ -287,46 +287,46 @@ export default function CameraArrivalsPage() {
               </div>
 
               <div>
-                <label className="block text-xs text-[var(--text-tertiary)] mb-1">Plate Search</label>
+                <label className="block text-xs text-fg-tertiary mb-1">Plate Search</label>
                 <div className="relative">
                   <input
                     type="text"
                     value={searchPlate}
                     onChange={(e) => setSearchPlate(e.target.value)}
                     placeholder="Enter plate text..."
-                    className="w-full rounded-lg border border-[var(--border-hover)] bg-[var(--bg-raised)]/10 pl-8 pr-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                    className="w-full rounded-control border border-edge-strong bg-content pl-8 pr-3 py-2 text-xs text-fg placeholder:text-fg-tertiary focus:outline-none"
                   />
-                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-zinc-500" />
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-fg-tertiary" />
                 </div>
               </div>
             </div>
           </Panel>
 
           {/* Simulator Card */}
-          <Panel className="space-y-4 border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)] flex items-center gap-1.5">
+          <Panel className="space-y-4 border border-edge-default">
+              <h2 className="text-[15px] font-semibold text-fg-secondary flex items-center gap-1.5">
               <ShieldAlert className="h-4 w-4 text-violet-400" />
               Simulate Arrival
             </h2>
             <form onSubmit={handleSimulate} className="space-y-3">
               <div>
-                <label className="block text-xs text-[var(--text-tertiary)] mb-1">Plate Candidate</label>
+                <label className="block text-xs text-fg-tertiary mb-1">Plate Candidate</label>
                 <input
                   type="text"
                   value={testPlate}
                   onChange={(e) => setTestPlate(e.target.value)}
                   placeholder="e.g. ABC1234"
                   maxLength={10}
-                  className="w-full rounded-lg border border-[var(--border-hover)] bg-[var(--bg-raised)]/10 px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-violet-500 font-mono"
+                  className="w-full rounded-control border border-edge-strong bg-content px-3 py-2 text-xs text-fg placeholder:text-fg-tertiary focus:outline-none font-mono"
                 />
               </div>
 
               <div>
-                <label className="block text-xs text-[var(--text-tertiary)] mb-1">Target State</label>
+                <label className="block text-xs text-fg-tertiary mb-1">Target State</label>
                 <select
                   value={testState}
                   onChange={(e) => setTestState(e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border-hover)] bg-[var(--bg-raised)]/10 px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  className="w-full rounded-control border border-edge-strong bg-content px-3 py-2 text-xs text-fg focus:outline-none"
                 >
                   <option value="ENTERED_ZONE">ENTERED_ZONE (Stage 1)</option>
                   <option value="CONFIRMED_ARRIVAL">CONFIRMED_ARRIVAL (Stage 2)</option>
@@ -336,13 +336,13 @@ export default function CameraArrivalsPage() {
               <button
                 type="submit"
                 disabled={simulating || data.cameras.length === 0}
-                className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-medium text-xs py-2 transition disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-1.5 rounded-control bg-accent hover:bg-accent-hover text-[var(--text-inverse)] font-semibold text-[13px] min-h-[44px] transition disabled:opacity-50"
               >
                 <Play className="h-3 w-3" />
                 {simulating ? "Simulating..." : "Trigger Simulation"}
               </button>
               {data.cameras.length === 0 && (
-                <p className="text-[10px] text-red-400 mt-1">Please register a device platform first.</p>
+                <p className="text-[11px] text-red-400 mt-1">Please register a device platform first.</p>
               )}
             </form>
           </Panel>
@@ -350,10 +350,10 @@ export default function CameraArrivalsPage() {
 
         {/* Arrivals Feed Table */}
         <div className="lg:col-span-3 space-y-4">
-          <Panel className="border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02] p-0 overflow-hidden">
-            <div className="p-4 border-b border-[var(--border-default)] flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-white">Recent Arrivals Feed</h2>
-              <span className="text-xs text-[var(--text-tertiary)]">Showing {filteredEvents.length} results</span>
+              <Panel className="border border-edge-default p-0 overflow-hidden">
+            <div className="p-4 border-b border-edge-default flex items-center justify-between">
+              <h2 className="text-[15px] font-semibold text-fg">Recent Arrivals Feed</h2>
+              <span className="text-xs text-fg-tertiary">Showing {filteredEvents.length} results</span>
             </div>
 
             {readFailed ? (
@@ -363,16 +363,16 @@ export default function CameraArrivalsPage() {
                 <p className="text-xs text-red-400/70">{readError}</p>
               </div>
             ) : filteredEvents.length === 0 ? (
-              <div className="p-12 text-center text-zinc-500 space-y-2">
-                <Car className="h-10 w-10 mx-auto text-zinc-600 stroke-[1.5]" />
+              <div className="p-12 text-center text-fg-tertiary space-y-2">
+              <Car className="h-10 w-10 mx-auto text-fg-tertiary stroke-[1.5]" />
                 <p className="text-sm">No vehicle events found matching criteria.</p>
-                <p className="text-xs text-zinc-600">Events are ingested from the camera-bridge or simulator.</p>
+                <p className="text-xs text-fg-tertiary">Events are ingested from the camera-bridge or simulator.</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-[var(--border-default)] bg-zinc-900/40 text-[var(--text-tertiary)]">
+                    <tr className="border-b border-edge-default bg-content text-fg-tertiary">
                       <th className="p-3 font-medium">Time / Camera</th>
                       <th className="p-3 font-medium">Vehicle / Conf</th>
                       <th className="p-3 font-medium">Dwell</th>
@@ -391,25 +391,25 @@ export default function CameraArrivalsPage() {
                       const isEditingPlate = editingEventId === e.id;
 
                       return (
-                        <tr key={e.id} className="border-b border-[var(--border-default)] hover:bg-zinc-800/10 transition">
+                        <tr key={e.id} className="border-b border-edge-default hover:bg-surface-hover transition">
                           <td className="p-3">
-                            <div className="font-semibold text-white">{formatTime(e.timestamp)}</div>
-                            <div className="text-[10px] text-[var(--text-tertiary)] flex items-center gap-1 mt-0.5">
-                              <Camera className="h-3 w-3 text-zinc-500" />
+                            <div className="font-semibold text-fg">{formatTime(e.timestamp)}</div>
+                            <div className="text-[11px] text-fg-tertiary flex items-center gap-1 mt-0.5">
+              <Camera className="h-3 w-3 text-fg-tertiary" />
                               {e.cameraName}
                             </div>
                           </td>
                           <td className="p-3">
-                            <span className="capitalize font-medium text-zinc-200">{label}</span>
-                            <div className="text-[10px] text-zinc-500 mt-0.5">
+              <span className="capitalize font-medium text-fg">{label}</span>
+                            <div className="text-[11px] text-fg-tertiary mt-0.5">
                               Conf: {Math.round(conf * 100)}%
                             </div>
                           </td>
-                          <td className="p-3 font-medium text-zinc-300">
+                          <td className="p-3 font-medium text-fg">
                             {getDwellDisplay(dwell)}
                           </td>
                           <td className="p-3">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase ${getStateBadgeClass(state)}`}>
+              <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${getStateBadgeClass(state)}`}>
                               {state}
                             </span>
                           </td>
@@ -420,30 +420,30 @@ export default function CameraArrivalsPage() {
                                   type="text"
                                   value={correctedPlateText}
                                   onChange={(e) => setCorrectedPlateText(e.target.value)}
-                                  className="w-24 rounded border border-violet-500 bg-zinc-950 px-2 py-0.5 text-xs text-white focus:outline-none font-mono uppercase"
+                                  className="w-24 rounded border border-edge-strong bg-canvas px-2 py-0.5 text-xs text-fg focus:outline-none font-mono"
                                 />
                                 <button
                                   onClick={() => handleSavePlate(e.id)}
-                                  className="rounded p-1 bg-emerald-600 hover:bg-emerald-500 text-white"
+                                  className="rounded p-1 bg-emerald-600 hover:bg-emerald-500 text-fg"
                                 >
                                   <Check className="h-3 w-3" />
                                 </button>
                                 <button
                                   onClick={() => setEditingEventId(null)}
-                                  className="rounded p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-400"
+                                  className="rounded p-1 bg-content hover:bg-surface-hover text-fg-secondary"
                                 >
                                   <X className="h-3 w-3" />
                                 </button>
                               </div>
                             ) : (
                               <div className="flex items-center gap-2">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${getPlateBadgeClass(plate.status)}`}>
+              <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${getPlateBadgeClass(plate.status)}`}>
                                   {plate.text ? plate.text : plate.status}
                                 </span>
                                 {plate.status !== "NONE" && (
                                   <button
                                     onClick={() => handleStartEditPlate(e.id, plate.text || "")}
-                                    className="p-1 rounded text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition"
+                                    className="p-1 rounded text-fg-tertiary hover:text-fg hover:bg-surface-hover transition"
                                     title="Edit plate"
                                   >
                                     <Edit3 className="h-3.5 w-3.5" />
@@ -458,13 +458,13 @@ export default function CameraArrivalsPage() {
                                 <>
                                   <button
                                     onClick={() => handleUpdateStatus(e.id, "ACKNOWLEDGED")}
-                                    className="px-2.5 py-1.5 rounded bg-violet-600 hover:bg-violet-500 text-white font-medium text-[10px] transition"
+                                    className="px-2.5 py-1.5 rounded-control border border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg font-medium text-[11px] transition"
                                   >
                                     Acknowledge
                                   </button>
                                   <button
                                     onClick={() => handleUpdateStatus(e.id, "FALSE_POSITIVE")}
-                                    className="px-2.5 py-1.5 rounded border border-red-500/40 bg-red-500/5 hover:bg-red-500/10 text-red-400 font-medium text-[10px] transition"
+                                    className="px-2.5 py-1.5 rounded border border-red-500/40 bg-red-500/5 hover:bg-red-500/10 text-red-400 font-medium text-[11px] transition"
                                     title="Mark false positive"
                                   >
                                     False Alarm
@@ -474,16 +474,16 @@ export default function CameraArrivalsPage() {
                               {state === "ACKNOWLEDGED" && (
                                 <button
                                   onClick={() => handleUpdateStatus(e.id, "LEFT")}
-                                  className="px-2.5 py-1.5 rounded border border-zinc-700 bg-zinc-800/10 hover:bg-zinc-800/30 text-zinc-400 font-medium text-[10px] transition"
+                                  className="px-2.5 py-1.5 rounded border border-edge-default bg-content hover:bg-surface-hover text-fg-secondary font-medium text-[11px] transition"
                                 >
                                   Mark Departed
                                 </button>
                               )}
                               {state === "LEFT" && (
-                                <span className="text-zinc-600 text-[10px] italic">Left scene</span>
+                                <span className="text-fg-tertiary text-[11px] italic">Left scene</span>
                               )}
                               {state === "FALSE_POSITIVE" && (
-                                <span className="text-red-500/60 text-[10px] italic">False alert</span>
+                                <span className="text-red-500/60 text-[11px] italic">False alert</span>
                               )}
                             </div>
                           </td>

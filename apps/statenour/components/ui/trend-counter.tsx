@@ -54,7 +54,7 @@ export interface TrendCounterProps {
 }
 
 const TONE_CLASS: Record<NonNullable<TrendCounterProps["tone"]>, string> = {
-  gold: "text-[var(--gold)]",
+  gold: "text-accent",
   emerald: "text-emerald-300",
   rose: "text-rose-300",
   amber: "text-amber-300",
@@ -106,22 +106,22 @@ export function TrendCounter({
 
   // Sparkline tone follows the headline tone (subtle alignment).
   const sparkColor =
-    resolvedTone === "emerald" ? "var(--success, #10b981)"
+    resolvedTone === "emerald" ? "var(--status-green)"
     : resolvedTone === "rose" ? "var(--danger, #f43f5e)"
-    : resolvedTone === "gold" ? "var(--gold)"
+    : resolvedTone === "gold" ? "var(--accent)"
     : resolvedTone === "amber" ? "var(--status-yellow, #f59e0b)"
     : "var(--text-tertiary)";
 
   return (
-    <div className={cn("rounded-lg border border-[var(--border-soft)] bg-[var(--bg-card)] px-3 py-2.5", className)}>
+    <div className={cn("rounded-surface border border-edge-subtle bg-content px-3 py-2.5", className)}>
       <div className="flex items-baseline justify-between gap-2">
-        <span className={cn("text-[22px] font-bold tabular-nums leading-none", TONE_CLASS[resolvedTone])}>
+        <span className={cn("stat-number text-[22px] leading-none", TONE_CLASS[resolvedTone])}>
           {format
             ? format(value)
             : <AnimatedCounter value={value} />}
         </span>
         {arrow && hasBaseline && (
-          <span className={cn("text-[10px] font-mono tabular-nums shrink-0", TONE_CLASS[resolvedTone])}>
+          <span className={cn("text-[11px] font-mono tabular-nums shrink-0", TONE_CLASS[resolvedTone])}>
             {arrow} {formatDelta(value, baseline)}
           </span>
         )}
@@ -141,11 +141,11 @@ export function TrendCounter({
       )}
 
       <div className="mt-1.5 flex items-baseline justify-between gap-2">
-        <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           {label}
         </span>
         {hasBaseline && (
-          <span className={cn("text-[9px] font-mono tabular-nums", DELTA_NEUTRAL)}>
+          <span className={cn("text-[11px] font-mono tabular-nums", DELTA_NEUTRAL)}>
             {baselineLabel ?? `vs ${baseline}`}
           </span>
         )}

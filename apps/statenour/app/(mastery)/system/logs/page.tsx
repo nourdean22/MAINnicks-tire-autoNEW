@@ -85,7 +85,7 @@ const LEVEL_DOT: Record<Level, string> = {
   warn:    "bg-amber-400",
   info:    "bg-sky-400",
   success: "bg-emerald-400",
-  metric:  "bg-zinc-500",
+  metric:  "bg-fg-tertiary",
 };
 
 const LEVEL_TEXT: Record<Level, string> = {
@@ -93,7 +93,7 @@ const LEVEL_TEXT: Record<Level, string> = {
   warn:    "text-amber-300",
   info:    "text-sky-300",
   success: "text-emerald-300",
-  metric:  "text-zinc-400",
+  metric:  "text-fg-secondary",
 };
 
 function timeAgo(iso: string): string {
@@ -255,14 +255,14 @@ function LogsPageInner() {
             {/* v10.0.306 · view-mode toggle · replaces stale /events
                 cross-link (deleted v10.0.304) and absorbs the deleted
                 /system/errors page as a GROUPED view */}
-            <div className="hidden sm:flex items-center gap-0 rounded-lg border border-white/10 bg-white/[0.02] overflow-hidden">
+            <div className="hidden sm:flex items-center gap-0 rounded-surface border border-edge-subtle overflow-hidden">
               <button
                 onClick={() => setView("stream")}
                 className={cn(
                   "px-2.5 py-1.5 text-xs font-medium transition",
                   view === "stream"
-                    ? "bg-white/[0.08] text-zinc-100"
-                    : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]",
+                    ? "bg-accent-soft text-fg"
+                    : "text-fg-secondary hover:text-fg hover:bg-surface-interactive",
                 )}
                 title="Chronological stream · 5 sources · windowed query"
               >
@@ -271,10 +271,10 @@ function LogsPageInner() {
               <button
                 onClick={() => setView("errors")}
                 className={cn(
-                  "px-2.5 py-1.5 text-xs font-medium transition border-l border-white/10",
+                  "px-2.5 py-1.5 text-xs font-medium transition border-l border-edge-subtle",
                   view === "errors"
                     ? "bg-rose-500/15 text-rose-200"
-                    : "text-zinc-400 hover:text-rose-200 hover:bg-rose-500/[0.06]",
+                    : "text-fg-secondary hover:text-rose-200 hover:bg-rose-500/[0.06]",
                 )}
                 title="Grouped error fingerprints · deduped · per-row open-as-task"
               >
@@ -289,10 +289,10 @@ function LogsPageInner() {
             <button
               onClick={() => setAutoRefresh((v) => !v)}
               className={cn(
-                "rounded-lg border px-3 py-2 text-xs font-medium transition",
+                "rounded-control border px-3 py-2 text-xs font-medium transition",
                 autoRefresh
                   ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
-                  : "border-zinc-700 bg-zinc-900/40 text-zinc-400",
+                  : "border-edge-default bg-content text-fg-secondary",
               )}
             >
               {autoRefresh ? "● auto 10s" : "○ paused"}
@@ -300,7 +300,7 @@ function LogsPageInner() {
             <button
               onClick={load}
               disabled={loading}
-              className="rounded-lg border border-[var(--border-hover)] bg-[var(--bg-raised)]/5 px-3 py-2 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-[var(--bg-raised)]/10 disabled:opacity-50"
+              className="rounded-control border border-edge-strong bg-content px-3 py-2 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
             >
               {loading ? "…" : "refresh"}
             </button>
@@ -323,18 +323,18 @@ function LogsPageInner() {
             onClick={() => setWin(w)}
             className={cn(
               "rounded-full px-3 py-1 text-xs transition",
-              win === w ? "bg-sky-500/15 text-sky-200" : "bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800/60",
+              win === w ? "bg-sky-500/15 text-sky-200" : "bg-content text-fg-secondary hover:bg-surface-hover",
             )}
           >
             {w}
           </button>
         ))}
-        <span className="text-xs text-zinc-600">·</span>
+        <span className="text-xs text-fg-tertiary">·</span>
         <button
           onClick={() => setLevelFilter("all")}
           className={cn(
             "rounded-full px-3 py-1 text-xs transition",
-            levelFilter === "all" ? "bg-white/10 text-white" : "bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800/60",
+            levelFilter === "all" ? "bg-surface-interactive text-fg" : "bg-content text-fg-secondary hover:bg-surface-hover",
           )}
         >
           all levels
@@ -345,15 +345,14 @@ function LogsPageInner() {
             onClick={() => setLevelFilter(l === levelFilter ? "all" : l)}
             className={cn(
               "rounded-full px-3 py-1 text-xs transition",
-              levelFilter === l ? "bg-white/10" : "bg-zinc-900/60 hover:bg-zinc-800/60",
+              levelFilter === l ? "bg-surface-interactive" : "bg-content hover:bg-surface-hover",
               LEVEL_TEXT[l],
-              newSince > 0 && l === "error" && summary.err > 0 && "animate-pulse",
             )}
           >
             {l} · <AnimatedCounter value={feed?.summary.byLevel[l] ?? 0} />
           </button>
         ))}
-        <span className="text-xs text-zinc-600">·</span>
+        <span className="text-xs text-fg-tertiary">·</span>
         {(["errors", "crons", "metrics", "actions", "requests"] as Source[]).map((s) => (
           <button
             key={s}
@@ -361,8 +360,8 @@ function LogsPageInner() {
             className={cn(
               "rounded-full px-3 py-1 text-xs transition",
               sourceFilter.has(s) || sourceFilter.size === 0
-                ? cn("bg-white/[0.04]", SOURCE_TINT[s])
-                : "bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800/60",
+                ? cn("bg-surface-interactive", SOURCE_TINT[s])
+                : "bg-content text-fg-secondary hover:bg-surface-hover",
             )}
           >
             {s} · <AnimatedCounter value={feed?.summary.bySource[s] ?? 0} />
@@ -387,9 +386,9 @@ function LogsPageInner() {
       </div>
 
       {/* Live tail */}
-      <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
+      <Panel className="border-edge-default">
         {!feed || feed.entries.length === 0 ? (
-          <p className="py-8 text-center text-xs text-zinc-500">
+          <p className="py-8 text-center text-xs text-fg-tertiary">
             {loading ? "tailing…" : `no entries in the last ${win} · bump window or clear filters`}
           </p>
         ) : (
@@ -402,34 +401,34 @@ function LogsPageInner() {
                   key={e.id}
                   className={cn(
                     "grid grid-cols-[auto_auto_auto_1fr_auto] items-center gap-3 px-3 py-2 transition",
-                    isFresh && "bg-emerald-500/[0.03] animate-pulse",
-                    isOpen && "bg-white/[0.02]",
+                    isFresh && "bg-emerald-500/[0.03]",
+                    isOpen && "bg-surface-interactive",
                   )}
                 >
                   <span className={cn("inline-block h-2 w-2 rounded-full flex-shrink-0", LEVEL_DOT[e.level])} />
-                  <span className={cn("font-mono text-[9px] uppercase tracking-wider w-16 flex-shrink-0", SOURCE_TINT[e.source])}>
+                  <span className={cn("font-mono text-[11px] w-16 flex-shrink-0", SOURCE_TINT[e.source])}>
                     {e.source}
                   </span>
-                  <span className={cn("font-mono text-[9px] uppercase tracking-wider w-14 flex-shrink-0", LEVEL_TEXT[e.level])}>
+                  <span className={cn("font-mono text-[11px] w-14 flex-shrink-0", LEVEL_TEXT[e.level])}>
                     {e.level}
                   </span>
                   <button
                     onClick={() => e.detail && toggleExpand(e.id)}
                     className={cn("min-w-0 text-left", e.detail && "hover:underline")}
                   >
-                    <div className="truncate font-mono text-[11px] text-zinc-200">{e.label}</div>
+                    <div className="truncate font-mono text-[11px] text-fg">{e.label}</div>
                     {isOpen && e.detail && (
-                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-black/40 p-2 text-[10px] text-zinc-400">
+                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-content p-2 text-[11px] text-fg-secondary">
                         {e.detail}
                       </pre>
                     )}
                     {isOpen && e.meta && Object.keys(e.meta).length > 0 && (
-                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-black/30 p-2 text-[9px] text-zinc-500">
+                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-content p-2 text-[11px] text-fg-tertiary">
                         {JSON.stringify(e.meta, null, 2)}
                       </pre>
                     )}
                   </button>
-                  <span className="flex-shrink-0 font-mono text-[10px] text-zinc-500">{timeAgo(e.ts)}</span>
+                  <span className="flex-shrink-0 font-mono text-[11px] text-fg-tertiary">{timeAgo(e.ts)}</span>
                 </div>
               );
             })}
@@ -437,7 +436,7 @@ function LogsPageInner() {
         )}
       </Panel>
 
-      <p className="pt-2 text-center text-[10px] text-zinc-600">
+      <p className="pt-2 text-center text-[11px] text-fg-tertiary">
         {autoRefresh ? "auto-refresh 10s · " : ""}source: ErrorLog + CronJobLog + SystemMetric + AutonomousAction + ApiRequestLog
       </p>
 

@@ -62,7 +62,7 @@ export function DesktopSpine() {
       <Link
         href="/"
         aria-label="NOUR OS home"
-        className="flex h-14 w-full shrink-0 items-center justify-center font-display text-xl font-bold tracking-tight text-gold"
+        className="flex h-14 w-full shrink-0 items-center justify-center text-xl font-semibold tracking-tight text-fg"
       >
         N
       </Link>

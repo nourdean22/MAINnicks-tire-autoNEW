@@ -64,7 +64,7 @@ export function HomeConsole() {
         />
 
         {refreshFailed && (
-          <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.14em] text-rose-300/80">
+          <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.12em] text-rose-300/80">
             refresh failed · showing last confirmed brief
           </p>
         )}
@@ -78,7 +78,7 @@ export function HomeConsole() {
             <button
               type="button"
               onClick={() => void briefQ.refetch()}
-              className="mt-4 inline-flex min-h-[44px] items-center rounded-md border border-edge px-4 font-mono text-[12px] uppercase tracking-[0.14em] text-fg-secondary transition-colors duration-150 hover:border-edge-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+              className="mt-4 inline-flex min-h-[44px] items-center rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
             >
               Retry
             </button>
