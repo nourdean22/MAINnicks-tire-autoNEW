@@ -290,3 +290,20 @@ Found while applying: `system.errorRateByRoute` (one of the three SystemDataCard
 its window was bound as text into `created_at >= $1` (SQLSTATE 42883) — so finding 8's "renders nothing on a failed read" had a
 fourth, permanent instance on this page: the Error-rate card showed its unmeasured line forever. Fixed with the move (service, REST
 twin, and the task-timing predictor that shared the bind); see RECONCILIATION.
+
+## Applied · full-circle wave 4 (2026-10-02, branch `statenour/full-circle-e-census-close`)
+
+The "not done here" list above, closed:
+
+- **Default Mode "auto" (finding 2) FIXED.** `aiConfigPatchSchema.defaultMode` accepts `null`; `aiConfigPatchToConfig` maps it to a
+  present `undefined` key so `updateAiConfig`'s merge clears the stored mode; the panel sends `null`. The REST twin now validates its
+  body with the same schema (it accepted any key/type before). Pinned: `tests/components/settings-census-close.test.ts`,
+  `tests/lib/validators/settings-schemas.test.ts`.
+- **Journal slider mins FIXED.** `JOURNAL_SETTING_BOUNDS` (`lib/validators/journal.ts`) feeds the router and all four controls.
+- **Dead `AUTOPILOT_DEFAULTS` keys DELETED.** Only `adhd_operating_rhythm` remains; unknown keys dropped on read and write. Pinned:
+  `tests/services/autopilot-flags-live-keys.test.ts` (including that every default key has a reader in `operating-rhythm.ts`).
+- **Stale copy FIXED.** Push toggle lists real senders; `pushLeadAlert` / `pushRevenueAlert` / `pushScoreReminder` /
+  `pushPipelineAging` (zero callers) deleted; ticker card names the bottom ticker only; flags-panel comment drops the 37 count.
+- **`NICK_MUTATION_LOCK` self-lockout FIXED, narrowly.** `isMutationLockRelease` exempts only `setFeatureFlagOverride` on that key with
+  `"false"` / `null`; red-teamed in both directions in `tests/trpc/mutation-gate.test.ts`.
+- **Still not done:** the ticker ack `AuditEvent` write with no reader (adjacent rot, recorded in §15) — no operator need found.

@@ -6,8 +6,9 @@
  * Extracted VERBATIM from app/(mastery)/settings/page.tsx (2026-06-02 ·
  * settings-shell redesign) · same behavior.
  *
- * May 02 · Both tickers (top + bottom) let Nour X-out individual items
- * (acknowledge + hide). This panel surfaces the count of dismissed
+ * May 02 · The ticker lets Nour X-out individual items (acknowledge +
+ * hide). Only the bottom ticker remains — GlobalTopTicker was deleted
+ * 2026-09-01 — so the copy names one ticker (settings census 2026-10-02). This panel surfaces the count of dismissed
  * IDs from localStorage and exposes a one-tap reset for when a stale
  * dismissal is masking a now-relevant signal.
  */
@@ -26,7 +27,7 @@ export function TickerDismissalReset() {
           <div className="flex-1">
             <p className="section-label mb-1">ticker dismissals</p>
             <p className="text-[11px] text-[var(--text-secondary)]">
-              No items dismissed yet. Hover any cell on the top or bottom ticker → tap × to acknowledge it (hides it across reloads).
+              No items dismissed yet. Tap × on any item in the bottom ticker to acknowledge it (hides it on this device across reloads).
             </p>
           </div>
         </div>

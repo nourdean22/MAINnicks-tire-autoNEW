@@ -294,5 +294,29 @@ cases 6/30 on 2026-08-28 (`docs/LEARNING-LOOPS-2026-08-28.md:45,127`); 0/200 on 
   `/system/fleet` renders it or says the harvest cron has not written one.
 - **E2 IMPLEMENTED.** `recordBriefShown` writes `handed-off-to-combine`; `sendBriefPush` returns the `ledgerId` and the standalone
   backstop sets the surface to `web-push` / `telegram-fallback` after it sends.
-- Still as listed: E5 (`prediction` resolver), E6 (`decision_surface` webhook), E11 (`suggestion_loop` outcome) — each needs a product
-  decision about what "resolved" means for that row kind. Section 7's queries A-H remain the way to put live numbers on any of them.
+- E5, E6 and E11 were left for an operator decision (what "resolved" means for that row kind) — taken the same day; see below.
+
+## Applied · full-circle wave 4 (2026-10-02, branch `statenour/full-circle-e-census-close`)
+
+Operator decisions: **E5 (a)** band hit · **E6 delete** · **E11 fold**.
+
+- **E5 IMPLEMENTED.** `resolveForecastPredictions` scores elapsed `cashflow-forecast` rows (actual from `revenue_range`, `outcomeUseful` =
+  band hit, `resultRef week:<start>:actual:<n>`); no number from the bridge leaves the row untouched with a named reason. The weekly
+  digest resolves before it writes, stores `projectedRevenue` (null for an empty projection) and prints the result line. Pinned:
+  `tests/services/cashflow-forecast-resolution.test.ts`.
+- **E6 IMPLEMENTED (deleted).** P8 is gone; `decision_surface` removed from `OutcomeKind`. Historical rows remain as strings.
+- **E11 IMPLEMENTED (folded).** Chips are ledgered in `buildNickSuggestions` and decided by `brain.recordSuggestionSignal` through
+  `recordDecisionFromEvidence` (resultRef from the row's own `evidenceRefs.taskId`). The `suggestion_loop` BrainMemory lane stays as the
+  suppression source and calibration input, now a projection of the same taps rather than the only record. Pinned:
+  `tests/services/nick-suggestions-ledger.test.ts`, `tests/services/outcome-ledger-evidence-decision.test.ts`.
+- **Found:** the harvest + odometer tap counter read `metadata.action`; the writer stores `metadata.event`. Fixed in both readers.
+- **E12 IMPLEMENTED (missed in the first close-out; caught on re-read).** The hand-off writer (`recordBriefShown`) and the never-firing
+  `telegram-fallback` step are deleted; `sendStandaloneIfUnconsumed` is the only morning-brief writer, so a morning is one row. The
+  backstop's Telegram fallback now carries `ratingTelegramButtons(ledgerId)`.
+- **§7 MEASURED (2026-10-02 ~14:45Z, read-only).** proactive_push 160 / 0 labelled · daily_brief 114 / 0 · suggestion 77 / 10 ·
+  prediction 13 / 0. E12 confirmed (59 `morning-brief` + 50 `intelligence-brief` rows); E2 confirmed (every `morning-brief` row
+  `web-push+home`); H answered: no `daily_brief` row has ever been rated.
+- **FOUND, open (operator):** zero Telegram webhook requests reached the app since at least 2026-09-25 (positive-controlled), so the
+  rating buttons this census wired cannot land. `/system/health` shows the registered webhook via `system.telegramWebhook`.
+- **The census is closed** for code: every row in §6 is IMPLEMENTED, resolved as a contract (E7), or deleted (E6). The loops cannot
+  prove themselves until the Telegram webhook question is answered and the surfaces are used.
