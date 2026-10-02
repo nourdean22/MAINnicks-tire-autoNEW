@@ -181,6 +181,24 @@ foreach ($taskName in @("V380Watchdog","NickEdgeProducer","NickEdgeProducerRight
 $ot = Get-ScheduledTask -TaskName $officeTask -ErrorAction SilentlyContinue
 if ($ot -and $ot.State -ne "Disabled") {
   $workDir = $ot.Actions | Select-Object -First 1 -ExpandProperty WorkingDirectory
+  # The task was commissioned from git worktrees twice; a worktree cleanup deleted its code and
+  # the worker failed at every boot from 2026-10-02 09:15. Repoint it once at the stable checkout
+  # (the same tree this supervisor runs from), then let the normal start path below run it.
+  if ($workDir -and $workDir -match '\\worktrees\\' -and (Test-Path (Join-Path $root "vision\officewake.py"))) {
+    try {
+      $action = $ot.Actions | Select-Object -First 1
+      $action.WorkingDirectory = $root
+      Set-ScheduledTask -TaskName $officeTask -Action $action -ErrorAction Stop | Out-Null
+      Stop-ScheduledTask -TaskName $officeTask -ErrorAction SilentlyContinue
+      Start-Sleep -Milliseconds 800
+      Start-ScheduledTask -TaskName $officeTask -ErrorAction SilentlyContinue
+      Record-Restart "office-worker" ("repointed from worktree {0} to {1}" -f $workDir,$root)
+      $ot = Get-ScheduledTask -TaskName $officeTask -ErrorAction SilentlyContinue
+      $workDir = $root
+    } catch {
+      Log ("WARN could not repoint office worker off worktree {0}: {1}" -f $workDir,$_.Exception.Message)
+    }
+  }
   if ($workDir -and -not (Test-Path (Join-Path $workDir "vision\officewake.py"))) {
     # Its code was once a git worktree that got cleaned up; the task then failed at every boot.
     $e = Get-Entry "office-code"
