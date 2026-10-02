@@ -89,17 +89,6 @@ export interface FeatureFlag {
 export const FLAG_REGISTRY: FeatureFlag[] = [
   // ── Auth bypasses ──────────────────────────────────────────────
   {
-    key: "STATENOUR_UI",
-    // 2026-10-01 · UI v2 (Precision Material Cockpit) migration lane. The
-    // root layout reads the raw env at render; a DB override never reaches it.
-    readOnly: true,
-    description: "Set to \"v1\" to render the pre-2026-10-01 visual grammar (condensed-uppercase type, ambient gold, glass cards) for comparison or rollback. Per-browser override: open any URL with ?ui=v1 or ?ui=v2 (cookie statenour_ui).",
-    status: "canary",
-    onValue: "v1",
-    defaultBehavior: "UI v2 cockpit grammar (docs/design/ui-v2/SYSTEM.md).",
-    ownerDoc: "docs/design/ui-v2/README.md",
-  },
-  {
     key: "AUTH_ALLOW_MOCK_IN_PROD",
     // 2026-09-01 audit: consumer reads raw process.env at module load —
     // a DB override never reaches it. readOnly keeps the board honest.

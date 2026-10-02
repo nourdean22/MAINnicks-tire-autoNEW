@@ -4,66 +4,6 @@ import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
 
 import { cn } from "@/lib/utils"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { CheckIcon } from "lucide-react"
-
-function Command({
-  className,
-  ...props
-}: React.ComponentProps<typeof CommandPrimitive>) {
-  return (
-    <CommandPrimitive
-      data-slot="command"
-      className={cn(
-        // UI v2 (docs/design/ui-v2/SYSTEM.md): control chrome on the overlay
-        // step, L2 shadow, no gold rule. The Resolver itself owns its root in
-        // components/command-palette.tsx; this wrapper is for other consumers.
-        "flex size-full flex-col overflow-hidden rounded-overlay! border border-edge-default bg-overlay p-0 text-fg shadow-l2",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function CommandDialog({
-  title = "Command Palette",
-  description = "Search for a command to run...",
-  children,
-  className,
-  showCloseButton = false,
-  ...props
-}: Omit<React.ComponentProps<typeof Dialog>, "children"> & {
-  title?: string
-  description?: string
-  className?: string
-  showCloseButton?: boolean
-  children: React.ReactNode
-}) {
-  return (
-    <Dialog {...props}>
-      <DialogHeader className="sr-only">
-        <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>{description}</DialogDescription>
-      </DialogHeader>
-      <DialogContent
-        className={cn(
-          "top-[10vh] translate-y-0 overflow-hidden rounded-overlay! p-0 sm:max-w-2xl",
-          className
-        )}
-        showCloseButton={showCloseButton}
-      >
-        {children}
-      </DialogContent>
-    </Dialog>
-  )
-}
 
 function CommandInput({
   className,
@@ -150,50 +90,10 @@ function CommandSeparator({
   )
 }
 
-function CommandItem({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<typeof CommandPrimitive.Item>) {
-  return (
-    <CommandPrimitive.Item
-      data-slot="command-item"
-      className={cn(
-        "group/command-item relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none transition-all duration-200 in-data-[slot=dialog-content]:rounded-control! data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-[selected=true]:bg-surface-interactive data-[selected=true]:text-fg [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-selected:*:[svg]:text-primary",
-        className
-      )}
-      {...props}
-    >
-      {children}
-      <CheckIcon className="ml-auto opacity-0 group-has-data-[slot=command-shortcut]/command-item:hidden group-data-[checked=true]/command-item:opacity-100" />
-    </CommandPrimitive.Item>
-  )
-}
-
-function CommandShortcut({
-  className,
-  ...props
-}: React.ComponentProps<"span">) {
-  return (
-    <span
-      data-slot="command-shortcut"
-      className={cn(
-        "ml-auto text-xs tracking-widest text-muted-foreground group-data-selected/command-item:text-foreground",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
 export {
-  Command,
-  CommandDialog,
   CommandInput,
   CommandList,
   CommandEmpty,
   CommandGroup,
-  CommandItem,
-  CommandShortcut,
   CommandSeparator,
 }

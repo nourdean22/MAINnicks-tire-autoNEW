@@ -1,5 +1,11 @@
 # Session ledger — statenour
 
+**Updated: 2026-10-02 ET** (UI v2 PR 3 · `statenour/ui-v2-delete-v1-lane` · `?ui=v1` lane, STATENOUR_UI flag, particle canvas and CommandDialog wrappers deleted)
+
+## 2026-10-02 · UI v2 PR 3 — the lane comes out
+
+9 files +29/−209: ui-version lib + test + switch, layout cookie/data-ui stamp, tokens/base v1 blocks, type-floor gate, STATENOUR_UI flag entry, neural-background canvas + mount, command.tsx wrappers. Grammar test flipped to "lane is gone" with a recorded positive control. Rollback = `git revert`. Receipts: tsc 0 · eslint 0 · vitest 38 files / 354 · anti-slop 0 · stale-docs 0 · parity OK · build exit 0 (full route table). Remaining UI v2 backlog (PLAN §13): card.tsx importers, 24px brain buttons, voice orb, rounded-md sweep, after-shots.
+
 **Updated: 2026-10-02 ET** (UI v2 PR 2 · `statenour/ui-v2-surfaces` · every operator surface on the cockpit grammar)
 
 ## 2026-10-02 · UI v2 PR 2 — every operator surface on the grammar
