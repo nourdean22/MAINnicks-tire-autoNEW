@@ -25,6 +25,7 @@
     "verify:affected": "turbo run check lint test --affected",
     "ci:affected": "turbo run check lint test build --affected",
     "agent:verify": "node scripts/agent-os/verify.mjs",
+    "agent:bootstrap": "node scripts/agent-os/bootstrap.mjs",
     "agent:parity": "node scripts/agent-os/check-adapters.mjs",
     "dev:doctor": "node scripts/dev/doctor.mjs",
     "dev:context": "node scripts/dev/context-pack.mjs",
