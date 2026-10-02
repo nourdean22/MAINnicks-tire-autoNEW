@@ -36,6 +36,7 @@ import {
 import { buildGoalsSnapshot } from "@/lib/services/goals-snapshot";
 import { HOME_SIGNAL_KINDS, recordHomeSignal } from "@/lib/observability/home-decision-metrics";
 import { buildOperatorBrief, buildBriefChanges } from "@/lib/home/operator-brief";
+import { buildWaitingSummary } from "@/lib/home/waiting-summary-data";
 import { buildMetaScoreboard } from "@/lib/services/meta-scoreboard";
 import { computeCharacterSheet } from "@/lib/mastery/character-sheet";
 import {
@@ -636,6 +637,13 @@ export const operatorRouter = router({
    * window · React Query's 5-min refetchInterval mirrors the legacy
    * setInterval. No input · the feed is operator-scoped.
    */
+  /**
+   * 2026-10-02 · full-circle Lane B. Who is waiting on whom — me / others / system —
+   * as one projection over approvals, action attempts, commitments, tasks with
+   * `waitingOn` and the Nick's Tire bridge. A failed read makes its buckets
+   * UNKNOWN (count null), never empty (lib/home/waiting-summary.ts).
+   */
+  waitingSummary: operatorProcedure.query(async () => buildWaitingSummary()),
   ticker: operatorProcedure.query(async () => buildTickerFeed()),
 
   /**

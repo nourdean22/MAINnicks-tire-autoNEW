@@ -38,6 +38,7 @@ const base: OwnerPanelInput = {
     lastDeadError: null,
   },
   actionAttempts: [],
+  capabilities: [],
   spend: { costCents: 500, calls: 10, unpricedCalls: 0 },
   tasksDone: 0,
   valueAttribution: {
