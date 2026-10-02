@@ -69,7 +69,9 @@ describe("recordOutcomeByResultRef", () => {
     expect(await recordOutcomeByResultRef("task:t-1", true)).toBe(1);
     expect(mocks.updateMany).toHaveBeenCalledOnce();
     const arg = mocks.updateMany.mock.calls[0][0] as { where: unknown; data: Record<string, unknown> };
-    expect(arg.where).toEqual({ resultRef: "task:t-1", outcomeAt: null });
+    // Accepted rows only: a dismissed row carrying the ref is never closed by
+    // the task's rating (bug-hunt 2026-10-02).
+    expect(arg.where).toEqual({ resultRef: "task:t-1", outcomeAt: null, decision: "accepted" });
     expect(arg.data.outcomeUseful).toBe(true);
     expect(arg.data.outcomeAt).toBeInstanceOf(Date);
     // A rating never writes a decision — the semantic contract.

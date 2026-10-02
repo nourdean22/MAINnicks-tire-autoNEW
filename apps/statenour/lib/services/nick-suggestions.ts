@@ -55,8 +55,11 @@ export interface NickSuggestion {
 }
 
 /** Ledger summary of a chip — prefixed so it never collides with a task title. */
-export function chipLedgerSummary(s: Pick<NickSuggestion, "label">): string {
-  return `chip: ${s.label.trim()}`;
+export function chipLedgerSummary(s: Pick<NickSuggestion, "id">): string {
+  // Keyed on the chip's stable id, not its label: labels carry live counts
+  // ("3 tasks overdue"), so every count change minted a new "shown" row for
+  // the same recommendation (bug-hunt 2026-10-02). The label rides in evidence.
+  return `chip: ${s.id.trim()}`;
 }
 
 /**
@@ -67,7 +70,10 @@ export function chipLedgerSummary(s: Pick<NickSuggestion, "label">): string {
  */
 export function chipTaskId(s: Pick<NickSuggestion, "kind" | "sourceContext">): string | null {
   const ctx = s.sourceContext ?? {};
-  if (s.kind === "broken-promise" && typeof ctx.taskId === "string") return ctx.taskId;
+  // A multi-promise chip ("N broken promises · top …") is a pile, not one task.
+  if (s.kind === "broken-promise" && typeof ctx.taskId === "string" && (ctx.count === undefined || ctx.count === 1)) {
+    return ctx.taskId;
+  }
   if (s.kind === "stuck-task" && Array.isArray(ctx.taskIds) && ctx.taskIds.length === 1 && typeof ctx.taskIds[0] === "string") {
     return ctx.taskIds[0];
   }
@@ -84,7 +90,7 @@ async function ledgerChips(chips: NickSuggestion[]): Promise<void> {
         sourceEngine: `nick-suggestions:${chip.kind}`,
         summary: chipLedgerSummary(chip),
         shownSurface: "chat-chips",
-        evidenceRefs: { suggestionId: chip.id, severity: chip.severity, ...(taskId ? { taskId } : {}) },
+        evidenceRefs: { suggestionId: chip.id, label: chip.label, severity: chip.severity, ...(taskId ? { taskId } : {}) },
       });
     }),
   );

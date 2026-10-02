@@ -133,10 +133,10 @@ function MissionsPageInner() {
   // durable learning row (docs/design/outcome-ledger-coverage-2026-10-02.md §5).
   const decideRecommendation = trpc.operator.recordRecommendationDecision.useMutation();
   const recordDeckDecision = useCallback(
-    (decision: "accepted" | "dismissed", taskId: string) => {
+    (decision: "accepted" | "dismissed", taskId: string | null) => {
       const ledgerId = deck?.nextMove?.ledgerId;
       if (!ledgerId) return;
-      decideRecommendation.mutate({ ledgerId, decision, resultRef: `task:${taskId}` });
+      decideRecommendation.mutate({ ledgerId, decision, ...(taskId ? { resultRef: `task:${taskId}` } : {}) });
     },
     [deck?.nextMove?.ledgerId, decideRecommendation],
   );
@@ -155,7 +155,10 @@ function MissionsPageInner() {
   const handlePickDifferent = useCallback(
     (taskId: string) => {
       telemetry.event("deckPickDifferent", { taskId });
-      recordDeckDecision("dismissed", taskId);
+      // No resultRef on a dismissal: `task:<alt>` on the HERO's row let the
+      // alternate's completion rating close the dismissed recommendation as
+      // useful (recordOutcomeByResultRef matches resultRef alone).
+      recordDeckDecision("dismissed", null);
       setQueuedTaskId(taskId);
       const alt = tasks.find((t) => t.id === taskId);
       toast.success(`“${alt?.title ?? "Task"}” is the move — start when ready.`);

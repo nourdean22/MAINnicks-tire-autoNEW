@@ -214,3 +214,12 @@ describe("recordCapabilityRecovery", () => {
     );
   });
 });
+
+describe("recordCapabilityRecovery · an operator-disabled row (bug-hunt 2026-10-02)", () => {
+  it("a success never rewrites a disabled capability to healthy", async () => {
+    mocks.findUnique.mockResolvedValue(row({ status: "degraded", consecutiveFailures: 4, enabled: false }));
+    await recordCapabilityRecovery("disabled-tool");
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+});
+

@@ -24,6 +24,22 @@ export type TelegramWebhookState =
   | "unconfigured" // no TELEGRAM_BOT_TOKEN on this service
   | "unreadable"; // the call failed or Telegram answered ok:false
 
+/**
+ * Telegram keeps `last_error_*` after later deliveries succeed, so an old
+ * error is history. It counts as a live failure only when recent, or when
+ * updates are piling up at Telegram (bug-hunt 2026-10-02).
+ */
+export const LIVE_ERROR_WINDOW_MS = 60 * 60_000;
+
+export function webhookErrorIsLive(
+  s: Pick<TelegramWebhookStatus, "lastErrorAt" | "pendingUpdates">,
+  now = Date.now(),
+): boolean {
+  if ((s.pendingUpdates ?? 0) > 0) return true;
+  if (!s.lastErrorAt) return false;
+  return now - new Date(s.lastErrorAt).getTime() < LIVE_ERROR_WINDOW_MS;
+}
+
 export interface TelegramWebhookStatus {
   state: TelegramWebhookState;
   /** host + path of the registered URL (never a query string). */

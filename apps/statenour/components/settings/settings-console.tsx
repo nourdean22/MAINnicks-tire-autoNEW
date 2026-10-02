@@ -71,7 +71,7 @@ const DOMAINS: DomainConfig[] = [
 const ELSEWHERE_LINKS: { href: string; label: string }[] = [
   { href: "/system", label: "System · health, errors, deploys" },
   { href: "/system/crons", label: "Crons · kill switch, run now, runbooks" },
-  { href: "/brain", label: "Brain · skill library, memory of the day" },
+  { href: "/brain?tab=memory", label: "Brain · skill library, memory of the day" },
   { href: "/missions", label: "Manage Habits" },
 ];
 

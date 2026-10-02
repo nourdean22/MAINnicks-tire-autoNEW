@@ -102,12 +102,18 @@ export async function predictBestHoursForTask(opts: {
          "effort"::text AS effort
        FROM "Task"
        WHERE status = 'DONE'
-         AND "deletedAt" IS NULL
+         AND deleted_at IS NULL
          AND "updatedAt" >= $1
        LIMIT 5000`,
       since,
     )
-    .catch(() => []);
+    // A failed read is logged, not reported as "no history" (bug-hunt
+    // 2026-10-02: the column was `deletedAt`, mapped to deleted_at, so every
+    // call failed with 42703 and this catch called it "have 0").
+    .catch((err: unknown) => {
+      console.info("[task-timing-predictor] completions read failed", err instanceof Error ? err.message.slice(0, 200) : String(err));
+      return [];
+    });
 
   if (completions.length < MIN_HISTORY) {
     return {

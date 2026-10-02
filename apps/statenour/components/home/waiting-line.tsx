@@ -126,7 +126,8 @@ export function WaitingLineView({ summary, status }: { summary: WaitingSummary |
 }
 
 export function WaitingLine() {
-  const q = trpc.operator.waitingSummary.useQuery(undefined, {
+  // Rail scope: only the reads that feed `others` / `system` (bug-hunt 2026-10-02).
+  const q = trpc.operator.waitingSummary.useQuery({ scope: "rail" }, {
     staleTime: 30_000,
     refetchInterval: 60_000,
     refetchOnWindowFocus: false,

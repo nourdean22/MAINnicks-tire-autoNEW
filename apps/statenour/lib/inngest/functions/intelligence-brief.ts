@@ -355,7 +355,10 @@ export const intelligenceDailyBrief = inngest.createFunction(
       const id = await recordShown({
         kind: "daily_brief",
         sourceEngine: "intelligence-brief",
-        summary: combinedText.split("\n").find((l: string) => l.trim().length > 0)?.slice(0, 500) ?? "daily brief",
+        // Dated (bug-hunt 2026-10-02): on combined days the first line was the
+        // constant "## 🌅 This Morning", so recordShown's 24h dedup could hand
+        // back YESTERDAY's row and today's 👍/👎 rated yesterday.
+        summary: `daily brief ${briefContent.date} · ${briefContent.text.split("\n").find((l: string) => l.trim().length > 0)?.slice(0, 480) ?? ""}`.trim(),
         shownSurface: "push+briefing_log",
       });
       return { ledgerId: id };

@@ -172,9 +172,12 @@ export async function recordCapabilityRecovery(toolName: string): Promise<void> 
   try {
     const existing = await prisma.integration.findUnique({
       where: { name: toolName },
-      select: { type: true, status: true, consecutiveFailures: true, metadata: true },
+      select: { type: true, status: true, consecutiveFailures: true, metadata: true, enabled: true },
     });
     if (!existing || existing.type !== CAPABILITY_INTEGRATION_TYPE) return;
+    // An operator-disabled row stays as the operator left it (bug-hunt
+    // 2026-10-02) — the failure path already respects `enabled`.
+    if (existing.enabled === false) return;
     if (existing.status === "healthy" && existing.consecutiveFailures === 0) {
       m.degraded = false;
       return;

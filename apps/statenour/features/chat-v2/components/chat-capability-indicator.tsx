@@ -42,7 +42,7 @@ export function ChatCapabilityIndicator() {
 
   return (
     <Link
-      href="/settings"
+      href="/system/health"
       title="Open provider and capability health"
       className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-2.5 font-mono text-[11px] transition ${
         degraded

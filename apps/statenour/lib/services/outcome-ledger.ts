@@ -197,6 +197,10 @@ export async function recordDecisionFromEvidence(
   decision: OutcomeDecision,
 ): Promise<boolean> {
   let resultRef: string | null = null;
+  // Only an ACCEPTED recommendation becomes the task it names. A dismissed row
+  // carrying task:<id> was closed by that task's completion rating as
+  // "useful" (bug-hunt 2026-10-02).
+  if (decision !== "accepted") return recordDecision({ id, decision, resultRef: null });
   try {
     const row = await prisma.intelligenceOutcome.findUnique({
       where: { id },
@@ -239,8 +243,13 @@ export async function recordDecisionByContent(
     if (!trimmed) return false;
     const contentHash = outcomeContentHash(trimmed);
     const since = new Date(Date.now() - 30 * 86_400_000);
+    // The NEWEST row for this text, decided or not (bug-hunt 2026-10-02). With
+    // `decision: null` in the filter, a second act on today's already-decided
+    // row silently decided YESTERDAY's — e.g. accept-then-dismiss on a nudge
+    // planted a false correction on a row the operator never dismissed.
+    // recordDecision's CAS then refuses an already-decided row.
     const row = await prisma.intelligenceOutcome.findFirst({
-      where: { contentHash, decision: null, shownAt: { gte: since } },
+      where: { contentHash, shownAt: { gte: since } },
       orderBy: { shownAt: "desc" },
       select: { id: true },
     });
@@ -277,8 +286,10 @@ export async function recordOutcomeByContent(
     if (!trimmed) return false;
     const contentHash = outcomeContentHash(trimmed);
     const since = new Date(Date.now() - 30 * 86_400_000);
+    // Newest row for this text, rated or not — same reason as
+    // recordDecisionByContent: never walk back onto an older surfacing.
     const row = await prisma.intelligenceOutcome.findFirst({
-      where: { contentHash, outcomeAt: null, shownAt: { gte: since } },
+      where: { contentHash, shownAt: { gte: since } },
       orderBy: { shownAt: "desc" },
       select: { id: true },
     });
@@ -332,7 +343,9 @@ export async function recordOutcomeByResultRef(resultRef: string, useful: boolea
   if (!trimmed) return 0;
   try {
     const res = await prisma.intelligenceOutcome.updateMany({
-      where: { resultRef: trimmed, outcomeAt: null },
+      // Accepted rows only: a resultRef on a dismissed/ignored row must never be
+      // closed by the task's rating (bug-hunt 2026-10-02).
+      where: { resultRef: trimmed, outcomeAt: null, decision: "accepted" },
       data: { outcomeUseful: useful, outcomeAt: new Date() },
     });
     return res.count;

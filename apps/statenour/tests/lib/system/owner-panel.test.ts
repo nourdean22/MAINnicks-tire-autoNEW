@@ -525,3 +525,23 @@ describe("cronExceptions · a DECLARED degraded run is paged; a plain fan-out pa
     expect(cronExceptions([run("mega-evening", "partial", 5)], now)).toEqual([]);
   });
 });
+
+describe("cronExceptions · a deliberate kill is not an exception (bug-hunt 2026-10-02)", () => {
+  it("a cron skipping every run because the operator killed it is not paged", () => {
+    expect(
+      cronExceptions(
+        [run("approval-sweeper", "success", 5, { skipReason: "disabled via settings" }), run("approval-sweeper", "success", 10, { skipReason: "disabled via settings" })],
+        now,
+      ),
+    ).toEqual([]);
+  });
+
+  it("control: the same streak for any other reason still pages", () => {
+    const out = cronExceptions(
+      [run("approval-sweeper", "success", 5, { skipReason: "gateway offline" }), run("approval-sweeper", "success", 10, { skipReason: "gateway offline" })],
+      now,
+    );
+    expect(out.map((e) => e.kind)).toEqual(["cron_skipping"]);
+  });
+});
+

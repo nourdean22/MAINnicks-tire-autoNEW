@@ -51,3 +51,27 @@ describe("buildErrorRateByRoute", () => {
     expect(hoursBack).toBeLessThan(24 * 7 + 0.1);
   });
 });
+
+describe("buildErrorRateByRoute · attribution (bug-hunt 2026-10-02)", () => {
+  it("errors land on their own method row, not on every method of the path; totals count each error once", async () => {
+    mocks.queryRawUnsafe
+      .mockResolvedValueOnce([
+        { path: "/api/x", method: "GET", requests: 100, errors: 0, p50_ms: 1, p95_ms: 2, max_ms: 3 },
+        { path: "/api/x", method: "POST", requests: 10, errors: 0, p50_ms: 1, p95_ms: 2, max_ms: 3 },
+      ])
+      .mockResolvedValueOnce([
+        { path: "/api/x", method: "POST", errors: 4 },
+        { path: "/api/x", method: null, errors: 1 },
+        { path: "/api/quiet", method: "GET", errors: 2 },
+      ]);
+    const out = await buildErrorRateByRoute("24h");
+    const get = out.worstByScore.find((r) => r.method === "GET")!;
+    const post = out.worstByScore.find((r) => r.method === "POST")!;
+    expect(post.errors).toBe(4);
+    expect(get.errors).toBe(1); // the method-less error goes to the busiest row, once
+    expect(out.summary.totalErrors).toBe(7); // includes the low-traffic route
+    expect(out.summary.attributedErrors).toBe(5);
+    expect(out.summary.overallErrorRate).toBe(Math.round((5 / 110) * 10000) / 100);
+  });
+});
+

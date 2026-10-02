@@ -191,7 +191,9 @@ describe("A8 · settings toggles expose switch role + state + name", () => {
     const src = readSource("app/(mastery)/system/crons/page.tsx");
     expect(src).toContain('role="switch"');
     expect(src).toContain("aria-checked={row.enabled}");
-    expect(src).toContain("aria-label={row.enabled ? `kill cron ${row.name}`");
+    // Stable, state-neutral name (bug-hunt 2026-10-02): an action label that
+    // flips with state read as "kill cron X, switch, on".
+    expect(src).toContain("aria-label={`cron ${row.name} enabled`}");
   });
 });
 

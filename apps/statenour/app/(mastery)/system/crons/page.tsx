@@ -611,7 +611,7 @@ function CronRowView({
             // (tests/components/mobile-a11y.test.tsx · A8).
             role="switch"
             aria-checked={row.enabled}
-            aria-label={row.enabled ? `kill cron ${row.name}` : `re-enable cron ${row.name}`}
+            aria-label={`cron ${row.name} enabled`}
             className={cn(
               "rounded-control px-2 py-1 text-[11px] transition focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
               row.enabled

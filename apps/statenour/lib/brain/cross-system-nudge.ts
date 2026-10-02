@@ -192,8 +192,8 @@ async function computeNudgesUncached(): Promise<Nudge[]> {
     nudges.push({
       severity: pendingSkills.length >= 10 ? "medium" : "low",
       source: "skill",
-      text: `${pendingSkills.length} unreviewed skill candidates · triage in /settings`,
-      link: "/settings",
+      text: `${pendingSkills.length} unreviewed skill candidates · triage in /brain`,
+      link: "/brain?tab=memory",
     });
   }
 
@@ -209,7 +209,7 @@ async function computeNudgesUncached(): Promise<Nudge[]> {
       severity: "low",
       source: "skill",
       text: `${stale.length} active skill${stale.length > 1 ? "s" : ""} stale (30d+) · drop or reinforce`,
-      link: "/settings",
+      link: "/brain?tab=memory",
     });
   }
 
@@ -468,7 +468,7 @@ export async function computeNudges(): Promise<Nudge[]> {
  *     ignoring the operator. Wire it only if late-arriving
  *     contradiction nudges ever become a real complaint.
  *   - skill / skill_pending · the nudge needs >= 5 pending candidates
- *     or a 30d-stale skill; a single triage in /settings cannot flip
+ *     or a 30d-stale skill; a single triage on /brain (memory tab) cannot flip
  *     either condition, so at worst a count reads one stale for 300s
  */
 export function invalidateNudgeCache(): void {
