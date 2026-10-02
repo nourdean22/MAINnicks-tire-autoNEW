@@ -1,14 +1,18 @@
 # Session ledger - nickstire
 
-**Updated: 2026-10-01** (Creative Intelligence OS #2865 merged as `54a36662`; FB reel cross-post armed in prod; deployment 015c1e73 **SUCCESS** at 17:48:57Z — container logged `[server:ready]` 17:48:52Z, `Schema guard: all critical tables present` (6 checked), `Tiered scheduler started: 5 tiers, 126 jobs`; `/api/health` at 17:50:31Z reported `status: healthy`, `deploy.commit 54a366629ba89867dcd5dbc916e37bee88f8e645`, `deploymentId 015c1e73…`, database up (6 ms), AI gateway up, self-healing score 100)
+**Updated: 2026-10-02** (admin closure wave #2885 `d5838402` + follow-up #2891 `62fb2271` merged and deployed; migrations 0127-0139 applied and recorded — see the first section below. The 2026-10-01 #2865 receipt is in its own section further down.)
 ## 2026-10-02 · Admin closure wave — MERGED (#2885, d5838402), DEPLOYED, MIGRATIONS APPLIED + RECORDED
 
 Deploy: Railway `5c5eec0d` SUCCESS 15:49:15Z, /api/health commit d5838402. Migrations: operator tap on the new
 container 15:53:21Z (176 steps, none failed); `record-migrations.mjs` run from NattyNour via Desktop Commander in an
 isolated worktree (`.worktrees/record-migrations`): 10 rows recorded after a 144-row ledger backup; `reconcile-migrations
---strict` exit 0, 0 UNRECORDED. Follow-up PR declares `review_requests.invoiceId` + parity test. Still to read: cron_log
-`orchestration-status-reconcile` "drafts closed N", `opportunity-queue-refresh` "collapsed". Holdout flags: precondition met
-(heldout in all 3 enums), still OFF — operator decision. Traps: quote `--only '0127,…'` in PowerShell (unquoted becomes
+--strict` exit 0, 0 UNRECORDED. #2891 (`62fb2271`) declares `review_requests.invoiceId` + a parity test; deployed as Railway
+`dd095678`, server:ready 17:12:10Z, no error lines. The NattyNour worktree was torn down afterwards (links verified, branch
+deleted, lease released). Still to read: cron_log `orchestration-status-reconcile` "drafts closed N",
+`opportunity-queue-refresh` "collapsed" (ledger claim expires 2026-10-16). `sms_review_requests` and `contact_holdout_*` are
+`feature_flags` TABLE rows, live values NOT read this wave; the holdout schema precondition (heldout in all 3 enums) is met —
+arming is an operator decision. A sibling session ("instagram nickstire", statenour branches) ran in parallel: no file or
+database overlap. Traps: quote `--only '0127,…'` in PowerShell (unquoted becomes
 127 128 …); worktree-setup.ps1 stalled >10 min on its repo-wide scans on NattyNour — junctioning root + app node_modules by
 hand was enough for these scripts, and `railway run` supplies the env.
 
