@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "chore/record-migrations-20261002",
-  "status": "active",
+  "status": "released",
   "sessionKind": "bridge",
   "sessionId": "manual-21584-1790959062274",
   "worktree": "C:\\Users\\nourd\\NOURCITY\\.worktrees\\record-migrations",
   "claimedBy": "worktree-setup.ps1",
   "claimedAt": "2026-10-02T16:37:43.094Z",
   "expiresAt": "2026-10-03T04:37:43.094Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-02T16:57:59.213Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "a966e7bdb5500db423f3f20297cd4ee1b7fdff49",
+  "releasedBy": "manual-21584-1790959062274",
+  "foreignReleaseReason": null
 }
