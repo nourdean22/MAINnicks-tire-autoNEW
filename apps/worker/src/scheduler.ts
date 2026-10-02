@@ -160,6 +160,15 @@ const HIGH_FREQ_JOBS: JobDef[] = [
     description: "Daily 13:00 UTC · out-of-band Inngest scheduler liveness (reads heartbeat self-row age)",
   },
   {
+    // 2026-10-02 · operator turned agent follow-ups on. Delivers the
+    // follow-ups Nick scheduled for himself (writes into the originating
+    // chat thread only). Still gated by NICK_AGENT_FOLLOWUPS=1 and the
+    // per-cron kill switch inside the route; daily + per-thread caps apply.
+    name: "agent-followups",
+    schedule: "*/15 * * * *",
+    description: "Every 15 min · deliver agent-scheduled follow-ups into their chat thread (gated by NICK_AGENT_FOLLOWUPS + kill switch)",
+  },
+  {
     // 2026-09-08 · ADR-0017. The camera bridge PATCHes a heartbeat per camera
     // every 60 s; this tick asks statenour to flip devices silent >20 min to
     // OFFLINE and page once per transition. Rides the same 15-min cadence as
