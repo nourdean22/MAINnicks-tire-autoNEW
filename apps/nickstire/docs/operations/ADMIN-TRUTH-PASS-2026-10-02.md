@@ -77,6 +77,16 @@ Exact sequence (after merge + deploy):
 4. Keep every `contact_holdout_*` flag OFF until step 3 shows `heldout` in the
    `winback_sends`, `sms_campaign_sends` and `review_requests` status enums.
 
+## Changed series (stated, not silent)
+
+- **Bridge `gsc_summary` (StateNour) now reports Google's official total** with `source`, falling
+  back to stored rows labelled `stored_query_rows_partial`. Any StateNour series built on it
+  (brain-intelligence actualScore = totalClicks) steps UP at this deploy because the basis
+  changed, not because search improved. Follow-up for the StateNour side: its `gsc_summary` tool
+  description still says "derived from raw click+impression sums".
+- **Traffic Funnel** clicks/impressions drop (Discover rows removed) and position changes
+  (impression-weighted) at this deploy, for the same reason.
+
 ## Still operator-gated (not done by this PR)
 
 | Item | Why gated | Exact next action |

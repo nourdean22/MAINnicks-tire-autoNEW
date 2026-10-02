@@ -123,3 +123,25 @@ describe("F5 — the Traffic Funnel reads web rows only, impression-weighted (20
     expect(c).toMatch(/SUM\(position \* impressions\) \/ NULLIF\(SUM\(impressions\), 0\)/);
   });
 });
+
+describe("F6 — the StateNour bridge gsc_summary prefers the official total and labels it (2026-10-02)", () => {
+  const BRIDGE = readFileSync(resolve(APP, "server/routes/nour-os-query.ts"), "utf8");
+  const handler = () => {
+    const c = code(BRIDGE);
+    const start = c.indexOf('"gsc_summary": async');
+    return c.slice(start, c.indexOf('"gsc_top_queries"', start));
+  };
+
+  it("calls getGscReport before falling back to the stored rows", () => {
+    const h = handler();
+    expect(h).toContain("getGscReport");
+    expect(h.indexOf("getGscReport({")).toBeLessThan(h.indexOf("getGscSummary({"));
+  });
+
+  it("both branches carry a source label, and the official CTR ratio becomes percent", () => {
+    const h = handler();
+    expect(h).toContain('source: "gsc_official_no_dimension"');
+    expect(h).toContain('source: "stored_query_rows_partial"');
+    expect(h).toMatch(/official\.summary\.ctr \* 100/);
+  });
+});

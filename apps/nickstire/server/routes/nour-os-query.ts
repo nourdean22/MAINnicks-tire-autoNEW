@@ -780,14 +780,36 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
   // bridge + admin-tRPC routes share a single source of truth.
   // Pipeline at server/pipelines/gsc-data.ts populates search_performance
   // nightly via Google Service Account.
+  // 2026-10-02 · prefers Google's official NO-DIMENSION total, exactly like admin
+  // market.summary. The stored rows come from a query-dimensioned request, from which
+  // Google drops anonymized queries, so their SUM is a strict subset (the operator's own
+  // truth pass read 50,246 impressions off the rows vs 76,966 official). The fallback stays
+  // but is LABELLED via `source`, so StateNour can never read "partial" as "the total".
   "gsc_summary": async (filters) => {
-    const { getGscSummary } = await import("../pipelines/gsc-data");
+    const { getGscSummary, getGscReport } = await import("../pipelines/gsc-data");
     const today = new Date().toISOString().slice(0, 10);
     const thirtyAgo = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
-    return getGscSummary({
-      startDate: String(filters.from || thirtyAgo),
-      endDate: String(filters.to || today),
-    });
+    const startDate = String(filters.from || thirtyAgo);
+    const endDate = String(filters.to || today);
+    try {
+      const official = await getGscReport({ startDate, endDate });
+      if (official) {
+        return {
+          from: startDate,
+          to: endDate,
+          totalClicks: official.summary.clicks,
+          totalImpressions: official.summary.impressions,
+          // Google returns a RATIO; this payload speaks percent (same as getGscSummary).
+          avgCtr: Number((official.summary.ctr * 100).toFixed(2)),
+          avgPosition: Number(official.summary.position.toFixed(2)),
+          source: "gsc_official_no_dimension" as const,
+        };
+      }
+    } catch {
+      // Fall through to the stored rows — the fallback reports its own provenance.
+    }
+    const stored = await getGscSummary({ startDate, endDate });
+    return { ...stored, source: "stored_query_rows_partial" as const };
   },
 
   "gsc_top_queries": async (filters) => {
