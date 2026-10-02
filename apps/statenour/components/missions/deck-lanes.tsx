@@ -76,7 +76,7 @@ export function DeckLanes({ lanes, tasks }: Props) {
                   rel="noopener noreferrer"
                   className="shrink-0 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg min-h-[44px] inline-flex items-center gap-1"
                 >
-                  shop admin ↗
+                  Shop admin ↗
                 </a>
               )}
             </div>

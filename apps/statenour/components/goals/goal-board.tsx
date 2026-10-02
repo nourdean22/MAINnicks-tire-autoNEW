@@ -756,7 +756,7 @@ export function GoalBoard() {
                   }}
                   className="text-[11px] text-fg-tertiary hover:text-fg px-2"
                 >
-                  cancel
+                  Cancel
                 </button>
                 <Button
                   size="sm"
@@ -1253,7 +1253,7 @@ export function GoalBoard() {
                                   : "border-amber-500/30 bg-amber-500/5 text-amber-400",
                               )}
                             >
-                              {isStale ? "stale · archive" : "decaying"}
+                              {isStale ? "Stale · archive" : "Decaying"}
                             </button>
                           );
                         })()}
@@ -1586,7 +1586,7 @@ export function GoalBoard() {
                         >
                           <Zap size={9} className="text-emerald-400 shrink-0" />
                           <span className="font-mono uppercase tracking-[0.12em] text-emerald-400/70 shrink-0">
-                            {g.nextMove.status === "DOING" ? "in flight:" : "next:"}
+                            {g.nextMove.status === "DOING" ? "In flight:" : "Next:"}
                           </span>
                           <span className="text-fg-secondary truncate">
                             {g.nextMove.title}
@@ -1615,7 +1615,7 @@ export function GoalBoard() {
                             title="Break this goal into 3-5 milestones with Nick — then spawn the mission"
                           >
                             <Brain size={8} />
-                            plan it
+                            Plan it
                           </button>
                         </div>
                       )}
@@ -1706,7 +1706,7 @@ export function GoalBoard() {
                                 disabled={coachingId === g.id}
                                 className="text-[12px] font-medium text-amber-400/50 hover:text-amber-400"
                               >
-                                {coachingId === g.id ? "thinking…" : "refresh"}
+                                {coachingId === g.id ? "Thinking…" : "Refresh"}
                               </button>
                             </div>
                             <p className="text-[11px] text-fg-secondary leading-relaxed">
@@ -1808,7 +1808,7 @@ export function GoalBoard() {
                             title="pauses the goal · history preserved · recoverable"
                           >
                             <Trash2 size={9} />
-                            archive
+                            Archive
                           </button>
                           <button
                             type="button"

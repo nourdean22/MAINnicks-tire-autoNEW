@@ -17,7 +17,7 @@ export function MetricCard({
         <p className="metric text-3xl font-semibold tracking-tight text-white">
           {typeof value === "number" ? <AnimatedCounter value={value} /> : value}
         </p>
-        {hint ? <p className="max-w-[15ch] text-right text-xs text-slate-400">{hint}</p> : null}
+        {hint ? <p className="max-w-[15ch] text-right text-xs text-fg-tertiary">{hint}</p> : null}
       </div>
     </Panel>
   );

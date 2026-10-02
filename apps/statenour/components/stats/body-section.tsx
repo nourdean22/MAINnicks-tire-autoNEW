@@ -19,7 +19,7 @@ import { logger as rootLogger } from "@/lib/logger";
 
 // v10.0.31 — structured logger for body-section errors.
 const log = rootLogger.withSurface("body/section");
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { GlassCard } from "@/components/ui/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -259,8 +259,8 @@ export function BodySection() {
 
       {/* Progress Summary */}
       {progress && (
-        <Card className="border-edge-subtle bg-content">
-          <CardContent className="flex flex-col gap-3 pt-4">
+        <GlassCard>
+          <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between text-xs text-[var(--text-tertiary)]">
               <span>Current</span>
               <span>Target: {progress.target} lbs</span>
@@ -281,19 +281,19 @@ export function BodySection() {
                 ~{progress.weeks_to_go}w &middot; est. {progress.projected_date}
               </span>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </GlassCard>
       )}
 
       {/* Weight Chart */}
       {chartData.length > 0 && (
-        <Card className="border-edge-subtle bg-content">
-          <CardHeader>
-            <CardTitle className="text-[15px] font-semibold text-fg">
+        <GlassCard>
+          <div className="mb-4">
+            <h3 className="text-[15px] font-semibold text-fg">
               Weight (90 days)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </h3>
+          </div>
+          <div>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={chartData}>
                 <CartesianGrid stroke="#1a1a1a" strokeDasharray="3 3" />
@@ -342,16 +342,16 @@ export function BodySection() {
                 />
               </LineChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
+          </div>
+        </GlassCard>
       )}
 
       <Separator className="bg-edge-subtle" />
 
       {/* Quick Entry Form */}
-      <Card className="border-edge-subtle bg-content">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-[15px] font-semibold text-fg">Quick Entry</CardTitle>
+      <GlassCard>
+        <div className="mb-4 flex flex-row items-center justify-between">
+          <h3 className="text-[15px] font-semibold text-fg">Quick Entry</h3>
           <Button
             variant="ghost"
             size="xs"
@@ -375,8 +375,8 @@ export function BodySection() {
           >
             {efLogMode ? "Normal Mode" : "EF Quick-Log"}
           </Button>
-        </CardHeader>
-        <CardContent>
+        </div>
+        <div>
           {efLogMode ? (
             <div className="space-y-4 animate-fade-in">
               {/* Sleep Taps */}
@@ -641,18 +641,18 @@ export function BodySection() {
           >
             {submitting ? "Logging…" : "Log Entry"}
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </GlassCard>
 
       {/* Recent Entries Table */}
       {entries.length > 0 && (
-        <Card className="border-edge-subtle bg-content">
-          <CardHeader>
-            <CardTitle className="text-[15px] font-semibold text-fg">
+        <GlassCard>
+          <div className="mb-4">
+            <h3 className="text-[15px] font-semibold text-fg">
               Recent Entries
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </h3>
+          </div>
+          <div>
             <div className="flex flex-col gap-0">
               {/* Table header */}
               <div className="grid grid-cols-4 gap-2 border-b border-edge-default pb-2 mb-2">
@@ -691,8 +691,8 @@ export function BodySection() {
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </GlassCard>
       )}
 
       {entries.length === 0 && (

@@ -258,7 +258,7 @@ export function HistoryTab() {
                       : "bg-surface-interactive text-fg-tertiary hover:bg-surface-hover hover:text-fg-secondary",
                   )}
                 >
-                  content only
+                  Content only
                 </button>
               </div>
             </div>

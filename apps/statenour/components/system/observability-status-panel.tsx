@@ -91,7 +91,7 @@ export function ObservabilityStatusPanel() {
               <span className="text-[11px] font-mono text-fg w-20 shrink-0">{name}</span>
               <span
                 className={cn(
-                  "text-[11px] font-mono border rounded px-1.5 py-px",
+                  "text-[11px] font-mono border rounded-micro px-1.5 py-px",
                   TONE_CLASSES[state.tone],
                 )}
               >

@@ -140,7 +140,7 @@ export function DeepModeNudge() {
         aria-hidden
         className="h-1.5 w-1.5 rounded-full bg-amber-400"
       />
-      deep mode · {verdict.tier} →
+      Deep mode · {verdict.tier} →
     </button>
   );
 }

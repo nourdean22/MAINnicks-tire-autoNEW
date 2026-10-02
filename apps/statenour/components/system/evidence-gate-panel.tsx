@@ -54,7 +54,7 @@ function Cohort({
 }) {
   const drivers = Object.entries(cohort.byDriver).filter(([, n]) => n > 0);
   return (
-    <div className="flex-1 min-w-0 rounded border border-edge-subtle p-2.5 space-y-1.5">
+    <div className="flex-1 min-w-0 rounded-micro border border-edge-subtle p-2.5 space-y-1.5">
               <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">{title}</p>
       <p className="text-[11px] font-mono text-fg-tertiary">{subtitle}</p>
       <p className="font-mono text-fg">
@@ -101,7 +101,7 @@ function BufferShadowBlock({ shadow }: { shadow: BufferShadow }) {
   return (
     <div
       data-testid="buffer-shadow"
-      className="rounded border border-edge-subtle p-2.5 space-y-1.5"
+      className="rounded-micro border border-edge-subtle p-2.5 space-y-1.5"
     >
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
               <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
@@ -160,8 +160,8 @@ export function EvidenceGatePanel() {
   if (q.isLoading) {
     return (
       <section aria-label="evidence-gate-calibration" className="rounded-surface border border-edge-subtle p-4 space-y-2">
-              <div className="h-3 w-44 rounded bg-surface-interactive animate-pulse" />
-        <div className="h-16 rounded bg-surface-interactive animate-pulse" />
+              <div className="h-3 w-44 rounded-micro bg-surface-interactive animate-pulse" />
+        <div className="h-16 rounded-micro bg-surface-interactive animate-pulse" />
       </section>
     );
   }
@@ -197,7 +197,7 @@ export function EvidenceGatePanel() {
         <span
           data-testid="gate-verdict"
           className={cn(
-            "text-[11px] font-mono rounded border px-1.5 py-px",
+            "text-[11px] font-mono rounded-micro border px-1.5 py-px",
             d.sufficient
               ? "border-emerald-400/25 text-emerald-300"
               : "border-amber-400/25 text-amber-300",
@@ -216,9 +216,9 @@ export function EvidenceGatePanel() {
             {after.turns} / {d.minSample} turns
           </span>
         </div>
-        <div className="h-1.5 rounded bg-surface-interactive overflow-hidden">
+        <div className="h-1.5 rounded-micro bg-surface-interactive overflow-hidden">
           <div
-            className={cn("h-full rounded", d.sufficient ? "bg-emerald-400/60" : "bg-amber-400/50")}
+            className={cn("h-full rounded-micro", d.sufficient ? "bg-emerald-400/60" : "bg-amber-400/50")}
             style={{ width: `${pct}%` }}
           />
         </div>

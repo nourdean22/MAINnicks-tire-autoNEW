@@ -87,7 +87,7 @@ export default function MemoryInboxPage() {
             disabled={loading}
             className="rounded-control border border-edge-strong bg-content px-4 py-2 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
           >
-            {loading ? "refreshing…" : "refresh"}
+            {loading ? "Refreshing…" : "Refresh"}
           </button>
         </div>
       }
@@ -129,7 +129,7 @@ export default function MemoryInboxPage() {
                   )}
                 >
                   <div className="flex items-center justify-between">
-              <span className="text-[11px] font-mono text-fg-secondary bg-surface-interactive px-1.5 py-0.5 rounded">
+              <span className="text-[11px] font-mono text-fg-secondary bg-surface-interactive px-1.5 py-0.5 rounded-micro">
                       {item.sourceType}
                     </span>
                     <span className="text-[11px] text-fg-tertiary">{timeAgo(item.createdAt)}</span>
@@ -223,7 +223,7 @@ export default function MemoryInboxPage() {
               <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                     Raw Ingested Text
                   </span>
-                  <div className="rounded bg-content p-4 border border-edge-subtle">
+                  <div className="rounded-micro bg-content p-4 border border-edge-subtle">
               <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs text-fg font-sans leading-relaxed">
                       {selectedItem.rawTextFenced}
                     </pre>
@@ -264,7 +264,7 @@ export default function MemoryInboxPage() {
                             {claim.text}
                           </div>
                           {claim.confidence !== undefined && (
-                            <span className="text-[11px] font-mono text-fg-tertiary px-1.5 py-0.5 rounded flex-shrink-0">
+                            <span className="text-[11px] font-mono text-fg-tertiary px-1.5 py-0.5 rounded-micro flex-shrink-0">
                               conf: {Math.round(claim.confidence * 100)}%
                             </span>
                           )}
@@ -307,7 +307,7 @@ export default function MemoryInboxPage() {
                             className="bg-amber-500/[0.02] border border-amber-500/20 p-3 rounded-surface space-y-2"
                           >
                             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-mono text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded">
+              <span className="text-[11px] font-mono text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded-micro">
                                 Conflicting Memory
                               </span>
                               {conflict.similarity !== undefined && (

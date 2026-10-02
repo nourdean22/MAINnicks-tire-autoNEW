@@ -130,7 +130,7 @@ export function WisdomPill({
           // "lean in and engage" feel without it ever screaming for
           // attention. Border is a hairline gold-tinted line · the
           // editorial-minimalist signature.
-          "group/wisdom flex items-start gap-2 rounded-lg",
+          "group/wisdom flex items-start gap-2 rounded-surface",
           "border border-edge-subtle bg-content",
           "px-2.5 py-1.5",
           "opacity-[0.55] focus-within:opacity-100 hover:opacity-100",
@@ -158,7 +158,7 @@ export function WisdomPill({
                 onClick={() => handleUse(s)}
                 onKeyDown={(e) => handleKeyDown(e, s)}
                 className={cn(
-                  "flex-1 min-w-0 text-left px-1.5 py-1 rounded",
+                  "flex-1 min-w-0 text-left px-1.5 py-1 rounded-control",
                   "text-[11.5px] sm:text-[12px] leading-[1.45]",
                   "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
                   "hover:bg-surface-hover",
@@ -181,7 +181,7 @@ export function WisdomPill({
                 type="button"
                 onClick={() => dismiss(s.id)}
                 className={cn(
-                  "shrink-0 mt-[2px] p-1 rounded",
+                  "shrink-0 mt-[2px] p-1 rounded-control",
                   "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]",
                   "hover:bg-[var(--bg-elevated)]",
                   "transition-colors duration-150",
@@ -206,7 +206,7 @@ export function WisdomPill({
                 setShowKillMenu(false);
               }}
               className={cn(
-                "px-1.5 py-0.5 rounded",
+                "px-1.5 py-0.5 rounded-micro",
                 "text-[11px] font-mono",
                 "text-red-400 hover:text-red-300",
                 "border border-red-400/30 hover:border-red-400/50",
@@ -214,7 +214,7 @@ export function WisdomPill({
               )}
               title="Stop showing wisdom suggestions permanently"
             >
-              kill
+              Kill
             </button>
           ) : (
             <button

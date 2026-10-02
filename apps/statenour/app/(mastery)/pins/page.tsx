@@ -359,14 +359,14 @@ export default function PinsPage() {
                         className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
                       >
                         <Save className="h-3 w-3 inline mr-1" />
-                        save
+                        Save
                       </button>
                       <button
                         onClick={cancelEdit}
                         className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control px-3 py-2 text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
                       >
                         <X className="h-3 w-3 inline mr-1" />
-                        cancel
+                        Cancel
                       </button>
                     </div>
                   </div>
@@ -395,14 +395,14 @@ export default function PinsPage() {
                         onClick={() => startEdit(p)}
                         className="text-[13px] font-medium text-fg-tertiary hover:text-fg inline-flex items-center gap-0.5 min-h-[44px] px-1 -mx-1"
                       >
-                        <Edit3 className="h-3 w-3" /> edit
+                        <Edit3 className="h-3 w-3" /> Edit
                       </button>
                       <span className="text-[11px] text-fg-tertiary">·</span>
                       <button
                         onClick={() => unpin(p.id)}
                         className="text-[13px] font-medium text-rose-400 hover:text-rose-200 inline-flex items-center gap-0.5 min-h-[44px] px-1 -mx-1"
                       >
-                        <PinOff className="h-3 w-3" /> unpin
+                        <PinOff className="h-3 w-3" /> Unpin
                       </button>
                     </div>
                   </div>

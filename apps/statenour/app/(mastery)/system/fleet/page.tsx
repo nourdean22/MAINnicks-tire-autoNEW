@@ -108,7 +108,7 @@ function QueueRow({
                   onRedrive();
                 }}
                 disabled={redriving}
-                className={`rounded px-2 py-0.5 text-[11px] border ${
+                className={`rounded-micro px-2 py-0.5 text-[11px] border ${
                   armed
                     ? "border-red-400 text-red-300"
                     : "border-edge-default text-fg-secondary"
@@ -182,7 +182,7 @@ export default function FleetPage() {
 
       {loading && (
         <Panel>
-          <div className="h-4 w-48 rounded bg-surface-interactive animate-pulse" />
+          <div className="h-4 w-48 rounded-micro bg-surface-interactive animate-pulse" />
         </Panel>
       )}
 
@@ -192,7 +192,7 @@ export default function FleetPage() {
             Fleet truth couldn&apos;t load ({error}) — state UNKNOWN, not healthy.
           </p>
           <button onClick={() => void load()} className="mt-2 text-[12px] text-fg-secondary underline">
-            retry
+            Retry
           </button>
         </Panel>
       )}
@@ -255,7 +255,7 @@ export default function FleetPage() {
               delivery — shown vs acknowledged (7d)
             </p>
             {delivery.isLoading ? (
-              <div className="h-4 w-40 rounded bg-surface-interactive animate-pulse" />
+              <div className="h-4 w-40 rounded-micro bg-surface-interactive animate-pulse" />
             ) : delivery.isError || !delivery.data?.stats ? (
               <p className="text-[12px] text-fg-secondary">
                 ledger unreadable — state UNKNOWN, not healthy

@@ -151,7 +151,7 @@ export function ErrorsFingerprints() {
           disabled={loading}
           className="rounded-control border border-edge-strong bg-content px-3 py-1 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
         >
-          {loading ? "refreshing…" : "refresh"}
+          {loading ? "Refreshing…" : "Refresh"}
         </button>
       </div>
 
@@ -197,7 +197,7 @@ export function ErrorsFingerprints() {
                 key={i}
                 className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 rounded-surface border border-edge-subtle px-3 py-2 transition hover:border-edge-default"
               >
-                <span className="inline-flex h-6 min-w-[2rem] items-center justify-center rounded bg-rose-500/10 px-2 text-[11px] font-semibold text-rose-300 tabular-nums">
+                <span className="inline-flex h-6 min-w-[2rem] items-center justify-center rounded-control bg-rose-500/10 px-2 text-[11px] font-semibold text-rose-300 tabular-nums">
                   ×<AnimatedCounter value={g.count} duration={600} />
                 </span>
                 <span className="truncate font-mono text-xs text-fg" title={g.message}>
@@ -206,7 +206,7 @@ export function ErrorsFingerprints() {
                 <span className="text-[11px] text-fg-tertiary">{timeAgo(g.lastSeen)}</span>
                 <button
                   onClick={() => openAsTask(g.message)}
-                  className="rounded bg-surface-interactive px-2 py-1 text-[11px] text-fg transition hover:bg-surface-hover"
+                  className="rounded-control bg-surface-interactive px-2 py-1 text-[11px] text-fg transition hover:bg-surface-hover"
                   title="open as task"
                 >
                   → task
@@ -252,7 +252,7 @@ export function ErrorsFingerprints() {
                         row.level === "fatal" ? "bg-rose-400" : row.level === "warn" ? "bg-amber-400" : "bg-rose-300",
                       )}
                     />
-                    <span className="rounded px-1.5 py-[1px] text-[11px]">
+                    <span className="rounded-micro px-1.5 py-[1px] text-[11px]">
                       {row.level}
                     </span>
                     <span className="truncate font-mono text-xs">{row.message}</span>
@@ -261,21 +261,21 @@ export function ErrorsFingerprints() {
                   {isOpen && (
                     <div className="mt-2 space-y-2 border-t border-edge-subtle pt-2">
                       {row.stack && (
-                        <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-content p-2 text-[11px] text-fg-secondary">
+                        <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-micro bg-content p-2 text-[11px] text-fg-secondary">
                           {row.stack}
                         </pre>
                       )}
                       {row.context !== null && row.context !== undefined && (
-                        <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-content p-2 text-[11px] text-fg-tertiary">
+                        <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-micro bg-content p-2 text-[11px] text-fg-tertiary">
                           {JSON.stringify(row.context, null, 2)}
                         </pre>
                       )}
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => openAsTask(row.message)}
-                          className="rounded bg-surface-interactive px-2 py-1 text-[11px] text-fg transition hover:bg-surface-hover"
+                          className="rounded-control bg-surface-interactive px-2 py-1 text-[11px] text-fg transition hover:bg-surface-hover"
                         >
-                          open as task
+                          Open as task
                         </button>
                       </div>
                     </div>

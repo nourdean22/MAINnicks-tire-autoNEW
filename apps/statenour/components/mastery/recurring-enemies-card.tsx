@@ -110,7 +110,7 @@ export function RecurringEnemiesCard() {
                   id={`revisit-enemy-${enemy.key}`}
                   onClick={() => handleRevisit(enemy.key)}
                   disabled={isPending}
-                  className="p-1 rounded-micro border border-edge-default bg-content text-fg-tertiary hover:text-fg hover:border-edge-strong transition-colors duration-[var(--motion-state)] disabled:opacity-40"
+                  className="p-1 rounded-control border border-edge-default bg-content text-fg-tertiary hover:text-fg hover:border-edge-strong transition-colors duration-[var(--motion-state)] disabled:opacity-40"
                   title="Log recurrence of this trap"
                 >
                   <RotateCcw className={cn("h-3 w-3", isPending && "animate-spin")} />

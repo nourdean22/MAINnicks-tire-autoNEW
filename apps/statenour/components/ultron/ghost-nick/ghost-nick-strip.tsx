@@ -156,7 +156,7 @@ export function GhostNickStrip() {
             className="text-[13px] font-medium text-fg-tertiary hover:text-violet-400 transition-colors inline-flex items-center gap-1"
           >
             {recomputing || loading ? <Loader2 size={9} className="animate-spin" /> : <RefreshCw size={9} />}
-            recompute
+            Recompute
           </button>
         </div>
       </div>

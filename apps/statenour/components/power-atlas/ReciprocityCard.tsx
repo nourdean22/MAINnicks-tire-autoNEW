@@ -87,7 +87,7 @@ export default function ReciprocityCard({ metadata }: ReciprocityCardProps) {
 
       {/* Horizontal split bar · amber accent on larger share */}
       <div
-        className="flex h-2 w-full overflow-hidden rounded"
+        className="flex h-2 w-full overflow-hidden rounded-micro"
         style={{ backgroundColor: "rgba(255,255,255,0.04)" }}
       >
         <div

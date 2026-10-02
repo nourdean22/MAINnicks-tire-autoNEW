@@ -107,11 +107,11 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
           ) : (
             <div className="space-y-2 text-[11px]">
               {reply.gate && (
-                <div className="bg-surface/50 border border-edge-subtle p-2.5 rounded-lg">
+                <div className="bg-surface/50 border border-edge-subtle p-2.5 rounded-surface">
                   <div className="flex justify-between text-[11px] font-mono text-fg-tertiary mb-0.5">
                     <span>reply gate</span>
                     <span className={reply.gate.shouldRegen ? "text-amber-400" : "text-emerald-400"}>
-                      {reply.gate.shouldRegen ? "FLAGGED FOR REGEN" : "passed"} · sev {reply.gate.severity ?? 0}
+                      {reply.gate.shouldRegen ? "Flagged for regen" : "Passed"} · sev {reply.gate.severity ?? 0}
                     </span>
                   </div>
                   {(reply.gate.reasons ?? []).length > 0 && (
@@ -120,7 +120,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
                 </div>
               )}
               {reply.critic && (
-                <div className="bg-surface/50 border border-edge-subtle p-2.5 rounded-lg">
+                <div className="bg-surface/50 border border-edge-subtle p-2.5 rounded-surface">
                   <div className="flex justify-between text-[11px] font-mono text-fg-tertiary mb-0.5">
                     <span>output critic</span>
                     <span className={reply.critic.shouldRegen ? "text-amber-400" : "text-emerald-400"}>
@@ -134,7 +134,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
               )}
               {reply.receipt && (
                 <div
-                  className={`border p-2.5 rounded-lg ${
+                  className={`border p-2.5 rounded-surface ${
                     reply.receipt.ok === false
                       ? "bg-rose-950/10 border-rose-900/30"
                       : "bg-surface/50 border-edge-subtle"
@@ -158,7 +158,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
                 </div>
               )}
               {reply.truth && (reply.truth.total ?? 0) > 0 && (
-                <div className="bg-amber-950/10 border border-amber-900/30 p-2.5 rounded-lg">
+                <div className="bg-amber-950/10 border border-amber-900/30 p-2.5 rounded-surface">
                   <div className="text-[11px] font-mono text-amber-400 mb-0.5">
                     known-truth flags ({reply.truth.total})
                   </div>
@@ -171,7 +171,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
                 </div>
               )}
               {reply.factCheck && (
-                <div className="bg-surface/50 border border-edge-subtle p-2.5 rounded-lg">
+                <div className="bg-surface/50 border border-edge-subtle p-2.5 rounded-surface">
                   <div className="flex justify-between text-[11px] font-mono text-fg-tertiary">
                     <span>fact check</span>
                     <span className={(reply.factCheck.unverified ?? 0) > 0 ? "text-amber-400" : "text-emerald-400"}>
@@ -261,7 +261,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
           ) : (
             <div className="space-y-3">
               {hits.map((hit) => (
-                <div key={hit.id} className="bg-surface/50 border border-edge-subtle p-3 rounded-lg">
+                <div key={hit.id} className="bg-surface/50 border border-edge-subtle p-3 rounded-surface">
                   <div className="flex justify-between text-[11px] font-mono text-fg-tertiary mb-1">
                     <span>{hit.category}</span>
                     <span>{(hit.similarity * 100).toFixed(0)}% Match</span>
@@ -286,8 +286,8 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
           ) : (
             <div className="space-y-3">
               {contradictions.map((c) => (
-                <div key={c.id} className="bg-rose-950/10 border border-rose-900/20 p-3 rounded-lg">
-                  <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-rose-400 px-1.5 py-0.5 bg-rose-900/20 rounded">
+                <div key={c.id} className="bg-rose-950/10 border border-rose-900/20 p-3 rounded-surface">
+                  <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-rose-400 px-1.5 py-0.5 bg-rose-900/20 rounded-micro">
                     {c.severity} Severity
                   </span>
                   <div className="mt-2 space-y-1.5 text-[11px]">

@@ -359,7 +359,7 @@ export function ContradictionsCard() {
               <li
                 key={c.key}
                 className={cn(
-                  "relative pl-3 pr-1 py-1 -mx-1 rounded-sm transition-colors",
+                  "relative pl-3 pr-1 py-1 -mx-1 rounded-micro transition-colors",
                   isExpanded && "bg-accent-soft"
                 )}
               >
@@ -381,12 +381,12 @@ export function ContradictionsCard() {
                         excerpt to offload reasoning to Nick. */}
                     <Link
                       href={seedHref}
-                      className="block group/now -mx-0.5 px-0.5 rounded-micro transition-colors hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none"
+                      className="block group/now -mx-0.5 px-0.5 rounded-control transition-colors hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none"
                       aria-label={`Reconcile this contradiction in chat · ${c.newExcerpt.slice(0, 60)}`}
                     >
                       <div className="flex items-baseline gap-2">
                         <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
-                          now
+                          Now
                         </span>
                         <span className="text-[12px] leading-[1.45] text-fg font-medium">
                           {trimText(c.newExcerpt, PREVIEW_CHARS)}
@@ -436,7 +436,7 @@ export function ContradictionsCard() {
                         : "weigh and resolve this contradiction"
                     }
                     className={cn(
-                      "shrink-0 -my-0.5 rounded transition-all",
+                      "shrink-0 -my-0.5 rounded-micro transition-all",
                       "min-w-[44px] min-h-[44px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center",
                       isExpanded
                         ? "bg-accent-soft text-fg scale-95"
@@ -513,7 +513,7 @@ export function ContradictionsCard() {
                         rows={1}
                         disabled={isSubmitting}
                         className={cn(
-                          "w-full resize-y rounded-md bg-content border border-edge-default",
+                          "w-full resize-y rounded-control bg-content border border-edge-default",
                           "text-[11px] leading-snug px-2 py-1.5 text-fg",
                           "placeholder:text-fg-tertiary",
                           "focus:border-accent focus:outline-none transition-colors",

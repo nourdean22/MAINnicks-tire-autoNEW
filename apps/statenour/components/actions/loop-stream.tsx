@@ -1067,7 +1067,7 @@ export function LoopStream({
               {nextMove.task.goalId && goalLineage?.get(nextMove.task.goalId) ? (
                 <div className="mt-0.5 flex items-center gap-1 flex-wrap">
                   <span
-                    className="inline-flex items-center gap-1 rounded border border-violet-500/30 bg-violet-500/5 px-1.5 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em] text-violet-300 max-w-full"
+                    className="inline-flex items-center gap-1 rounded-micro border border-violet-500/30 bg-violet-500/5 px-1.5 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em] text-violet-300 max-w-full"
                     title="Completing this task auto-lifts this goal"
                   >
                     <Target size={9} className="shrink-0" />
@@ -1399,9 +1399,9 @@ export function LoopStream({
           <div role="toolbar" aria-label="Bulk actions" className="sticky bottom-2 z-20 flex items-center gap-1.5 ui-material rounded-float border border-edge-default px-2.5 py-1.5 shadow-l2">
             <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg mr-1">{selectedIds.size}</span>
             <button type="button" disabled={bulkBusy} onClick={() => void runBulk(onComplete)} className={cn(btn, "text-emerald-300 hover:bg-emerald-500/10")}>done</button>
-            <button type="button" disabled={bulkBusy} onClick={() => void bulkSnooze()} className={cn(btn, "text-fg-secondary hover:bg-surface-hover")}>snooze · tomorrow</button>
-            <button type="button" disabled={bulkBusy} onClick={() => void bulkDelete()} className={cn(btn, "text-red-400 hover:bg-red-500/10")}>delete</button>
-            <button type="button" disabled={bulkBusy} onClick={exitSelect} className={cn(btn, "ml-auto text-fg-tertiary hover:text-fg")}>cancel</button>
+            <button type="button" disabled={bulkBusy} onClick={() => void bulkSnooze()} className={cn(btn, "text-fg-secondary hover:bg-surface-hover")}>Snooze · tomorrow</button>
+            <button type="button" disabled={bulkBusy} onClick={() => void bulkDelete()} className={cn(btn, "text-red-400 hover:bg-red-500/10")}>Delete</button>
+            <button type="button" disabled={bulkBusy} onClick={exitSelect} className={cn(btn, "ml-auto text-fg-tertiary hover:text-fg")}>Cancel</button>
             {bulkBusy && <Loader2 size={12} className="animate-spin text-fg-tertiary" />}
           </div>
         );

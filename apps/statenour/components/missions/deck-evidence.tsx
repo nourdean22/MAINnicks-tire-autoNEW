@@ -133,10 +133,10 @@ export function DeckEvidence({ evidence, tasks, onSnoozeTask }: Props) {
                   onClick={rollAll}
                   className="inline-flex min-h-[44px] items-center rounded-control border border-edge-default bg-content px-4 text-[13px] font-medium text-fg transition-colors duration-[var(--motion-state)] hover:border-edge-strong disabled:opacity-60"
                 >
-                  {busy ? "rolling…" : "roll to tomorrow"}
+                  {busy ? "Rolling…" : "Roll to tomorrow"}
                 </button>
                 <button type="button" onClick={() => setClosing(false)} className={VERB}>
-                  leave them
+                  Leave them
                 </button>
               </div>
             </>

@@ -278,7 +278,7 @@ function LogsPageInner() {
                 )}
                 title="Grouped error fingerprints · deduped · per-row open-as-task"
               >
-                grouped errors
+                Grouped errors
               </button>
             </div>
             <FreshnessChip
@@ -337,7 +337,7 @@ function LogsPageInner() {
             levelFilter === "all" ? "bg-surface-interactive text-fg" : "bg-content text-fg-secondary hover:bg-surface-hover",
           )}
         >
-          all levels
+          All levels
         </button>
         {(["error", "warn", "success", "info", "metric"] as Level[]).map((l) => (
           <button
@@ -418,12 +418,12 @@ function LogsPageInner() {
                   >
                     <div className="truncate font-mono text-[11px] text-fg">{e.label}</div>
                     {isOpen && e.detail && (
-                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-content p-2 text-[11px] text-fg-secondary">
+                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded-micro bg-content p-2 text-[11px] text-fg-secondary">
                         {e.detail}
                       </pre>
                     )}
                     {isOpen && e.meta && Object.keys(e.meta).length > 0 && (
-                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-content p-2 text-[11px] text-fg-tertiary">
+                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded-micro bg-content p-2 text-[11px] text-fg-tertiary">
                         {JSON.stringify(e.meta, null, 2)}
                       </pre>
                     )}

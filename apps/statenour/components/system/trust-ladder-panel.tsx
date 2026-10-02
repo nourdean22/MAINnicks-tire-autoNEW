@@ -23,8 +23,8 @@ export function TrustLadderPanel() {
   if (ladderQ.isLoading) {
     return (
       <section aria-label="trust-ladder" className="rounded-surface border border-edge-subtle p-4 space-y-2">
-              <div className="h-3 w-36 rounded bg-surface-interactive animate-pulse" />
-        <div className="h-16 rounded bg-surface-interactive animate-pulse" />
+              <div className="h-3 w-36 rounded-micro bg-surface-interactive animate-pulse" />
+        <div className="h-16 rounded-micro bg-surface-interactive animate-pulse" />
       </section>
     );
   }
@@ -61,7 +61,7 @@ export function TrustLadderPanel() {
         {rows.map((r) => (
           <li
             key={r.actionType}
-            className="flex items-center justify-between gap-3 p-2 rounded bg-surface-interactive border border-edge-subtle"
+            className="flex items-center justify-between gap-3 p-2 rounded-micro bg-surface-interactive border border-edge-subtle"
           >
             <div className="min-w-0">
               <p className="text-[11px] font-mono text-fg truncate">{r.actionType}</p>
@@ -78,7 +78,7 @@ export function TrustLadderPanel() {
             </div>
             <span
               className={cn(
-                "text-[11px] font-mono shrink-0 rounded px-1.5 py-0.5 border",
+                "text-[11px] font-mono shrink-0 rounded-micro px-1.5 py-0.5 border",
                 r.wouldAutoExecute
                   ? "text-emerald-300 border-emerald-500/30 bg-emerald-500/5"
                   : r.meetsBar

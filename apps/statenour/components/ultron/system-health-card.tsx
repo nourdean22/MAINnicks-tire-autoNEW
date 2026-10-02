@@ -324,7 +324,7 @@ export function SystemHealthCard() {
           href="/system/health"
           className="rounded-control border border-edge-default bg-content text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg px-2 py-1"
         >
-          diagnostics →
+          Diagnostics →
         </Link>
         <button
           type="button"

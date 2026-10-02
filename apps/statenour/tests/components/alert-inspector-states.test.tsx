@@ -88,9 +88,9 @@ describe("AlertInspector", () => {
     expect(html).toContain("correlation_alert");
     expect(html).toContain("30% drop in next-day revenue");
     expect(html).toContain('aria-pressed="false"');
-    expect(html).toContain(">resolve</button>");
-    expect(html).not.toContain("tap again");
-    expect(html).toContain(`mute correlation_alert · ${ALERT_MUTE_DAYS}d`);
+    expect(html).toContain(">Resolve</button>");
+    expect(html).not.toContain("Tap again");
+    expect(html).toContain(`Mute correlation_alert · ${ALERT_MUTE_DAYS}d`);
     expect(html).toContain("min-h-[44px]");
     expect(html).toContain('data-evidence-mark="chip"');
   });

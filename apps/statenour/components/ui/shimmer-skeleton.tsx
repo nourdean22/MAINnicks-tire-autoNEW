@@ -57,7 +57,7 @@ export function ShimmerSkeleton({ className, variant = "text" }: ShimmerSkeleton
     return (
       <div data-skeleton className={cn("grid grid-cols-2 gap-1.5", className)}>
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className={cn(base, "h-10 rounded-lg")} />
+          <div key={i} className={cn(base, "h-10 rounded-surface")} />
         ))}
       </div>
     );

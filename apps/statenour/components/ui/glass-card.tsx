@@ -56,7 +56,7 @@ export function GlassCard(props: GlassCardProps) {
   const classes = cn(
     props.ruled ? "border-l-2 border-edge py-1 pl-4 sm:pl-5" : "neural-glass",
     active && "neural-glass-active",
-    critical && "neural-glass-critical critical-glow",
+    critical && "neural-glass-critical",
     success && "border-emerald-500/50",
     (props.as === "a" || props.as === "button" || props.onClick) &&
       "cursor-pointer card-hover-lift glow-on-hover touch-feedback",

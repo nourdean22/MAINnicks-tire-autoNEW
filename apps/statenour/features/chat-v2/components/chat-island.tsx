@@ -249,7 +249,7 @@ export function ChatIsland() {
 
   return (
     <div ref={islandRef} className="relative flex h-full w-full flex-col overflow-hidden bg-void text-fg">
-      <header className="z-10 flex items-center justify-between gap-3 border-b border-edge-subtle bg-canvas/90 px-3 py-2 backdrop-blur-xl sm:px-4">
+      <header className="z-10 flex items-center justify-between gap-3 border-b border-edge-subtle bg-canvas px-3 py-2 sm:px-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2.5">
             <h1 className="font-mono text-[13px] font-semibold tracking-[0.08em] text-fg">NICK</h1>
@@ -260,16 +260,16 @@ export function ChatIsland() {
               nothing about current authority. Reads the same store the
               composer writes; gold = non-default. */}
           <p className="mt-0.5 font-mono text-[11px] text-fg-tertiary">
-            <span className={posture !== "auto" ? "text-gold" : undefined}>{posture === "auto" ? "auto posture" : posture}</span>
+            <span className={posture !== "auto" ? "text-accent" : undefined}>{posture === "auto" ? "auto posture" : posture}</span>
             {" · "}
-            <span className={depth !== "auto" ? "text-gold" : undefined}>{depth === "auto" ? "auto depth" : depth}</span>
+            <span className={depth !== "auto" ? "text-accent" : undefined}>{depth === "auto" ? "auto depth" : depth}</span>
             {/* No separator here: the PRIVATE span below carries its own. This
                 line used to read `depth` + " · " + <permission label>, and
                 removing the permission picker (#1589) left the delimiter behind
                 — the live header rendered "auto posture · auto depth ·" with
                 nothing after it, and "auto depth ·  · PRIVATE" when private
                 mode was on. Mine; caught on the deployed page, not in review. */}
-            {privateMode && <span className="text-gold"> · PRIVATE</span>}
+            {privateMode && <span className="text-accent"> · PRIVATE</span>}
           </p>
         </div>
         <div className="flex items-center gap-0.5">

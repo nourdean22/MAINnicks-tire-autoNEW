@@ -97,7 +97,7 @@ export default function SystemToolsPage() {
             />
             <button
               onClick={load}
-              className="p-1.5 rounded text-fg-tertiary hover:text-fg hover:bg-surface-hover transition-colors"
+              className="p-1.5 rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover transition-colors"
               aria-label="refresh"
               title="refresh"
             >
@@ -228,7 +228,7 @@ export default function SystemToolsPage() {
                           type="button"
                           onClick={() => openInspector({ kind: "tool", id: t.id })}
                           aria-label="inspect tool"
-                          className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:text-fg md:min-h-[28px] md:min-w-[28px]"
+                          className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-control text-fg-tertiary transition-colors hover:text-fg md:min-h-[28px] md:min-w-[28px]"
                         >
                           <Eye size={12} strokeWidth={2} />
                         </button>
@@ -246,7 +246,7 @@ export default function SystemToolsPage() {
 
                     {/* Health */}
                     <td className="px-3 py-2.5">
-              <span className={cn("inline-block px-1.5 py-0.5 rounded-sm text-[11px] font-bold", healthColor)}>
+              <span className={cn("inline-block px-1.5 py-0.5 rounded-micro text-[11px] font-bold", healthColor)}>
                         {t.health}
                       </span>
                     </td>

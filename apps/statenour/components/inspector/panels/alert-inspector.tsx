@@ -107,7 +107,7 @@ export function AlertInspector({ entity }: InspectorPanelProps) {
               : "border-accent bg-accent-soft text-fg hover:bg-accent-medium",
           )}
         >
-          {armed ? "tap again to resolve" : "resolve"}
+          {armed ? "Tap again to resolve" : "Resolve"}
         </button>
         <button
           type="button"
@@ -115,7 +115,7 @@ export function AlertInspector({ entity }: InspectorPanelProps) {
           onClick={() => mute.mutate({ category: m.category, days: ALERT_MUTE_DAYS })}
           className="inline-flex min-h-[44px] items-center rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg md:min-h-[36px]"
         >
-          mute {m.category} · {ALERT_MUTE_DAYS}d
+          Mute {m.category} · {ALERT_MUTE_DAYS}d
         </button>
       </div>
       <p className="font-mono text-[11px] text-fg-tertiary">

@@ -22,8 +22,8 @@ export function HomeDecisionPanel() {
   if (metricsQ.isLoading) {
     return (
       <section aria-label="home-decisions" className="rounded-surface border border-edge-subtle p-4 space-y-2">
-              <div className="h-3 w-36 rounded bg-surface-interactive animate-pulse" />
-        <div className="h-12 rounded bg-surface-interactive animate-pulse" />
+              <div className="h-3 w-36 rounded-micro bg-surface-interactive animate-pulse" />
+        <div className="h-12 rounded-control bg-surface-interactive animate-pulse" />
       </section>
     );
   }

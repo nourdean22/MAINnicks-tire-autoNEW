@@ -122,7 +122,7 @@ export function ThreadRail({
             onClick={() => void reload()}
             className="rounded-control border border-rose-500/40 px-2 py-0.5 font-mono hover:bg-rose-500/15"
           >
-            retry
+            Retry
           </button>
         </div>
       </section>
@@ -181,7 +181,7 @@ export function ThreadRail({
                 onClick={() => setShowDormant((s) => !s)}
                 className="text-fg-tertiary hover:text-fg"
               >
-                {showDormant ? "hide" : "show"} {dormant.length} dormant
+                {showDormant ? "Hide" : "Show"} {dormant.length} dormant
               </button>
             ) : null}
           </div>
@@ -320,7 +320,7 @@ function ThreadCard({
         <div className="text-right shrink-0">
           <p className="text-xs tabular-nums text-fg-secondary">
             {thread.memberCount}{" "}
-            {thread.memberCount === 1 ? "entry" : "entries"}
+            {thread.memberCount === 1 ? "Entry" : "Entries"}
           </p>
           <p className="text-[11px] font-mono text-fg-tertiary">
             {lastActivity}
@@ -379,7 +379,7 @@ function ThreadCard({
               href={`/journal?search=${encodeURIComponent(thread.name)}`}
               className="text-[13px] font-medium text-fg-secondary hover:text-fg min-h-[32px] inline-flex items-center"
             >
-              view in feed →
+              View in feed →
             </a>
             {thread.coherence != null ? (
               <p className="text-[11px] font-mono text-fg-tertiary">
@@ -447,7 +447,7 @@ function NewThreadForm({
           disabled={busy}
           className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control px-3 text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg disabled:opacity-30"
         >
-          cancel
+          Cancel
         </button>
       </div>
       {err ? (

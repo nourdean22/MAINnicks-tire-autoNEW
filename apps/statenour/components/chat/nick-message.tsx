@@ -345,7 +345,7 @@ export function NickMessage({
             hr: () => <hr className="border-[var(--edge-subtle)] my-4" />,
             // Task list items (GFM)
             input: ({ checked }: MDProps) => (
-              <span className={cn("inline-block w-3.5 h-3.5 rounded border mr-1.5 align-text-bottom", checked ? "bg-emerald-500/20 border-emerald-500/40" : "border-[var(--border-default)]")}>
+              <span className={cn("inline-block w-3.5 h-3.5 rounded-micro border mr-1.5 align-text-bottom", checked ? "bg-emerald-500/20 border-emerald-500/40" : "border-[var(--border-default)]")}>
                 {checked && <span className="text-emerald-400 text-[11px] flex items-center justify-center">✓</span>}
               </span>
             ),
@@ -366,7 +366,7 @@ export function NickMessage({
       )}
       {streaming && (
         <span
-          className="inline-block w-[6px] h-[13px] ml-0.5 -mb-0.5 bg-accent rounded-sm align-baseline"
+          className="inline-block w-[6px] h-[13px] ml-0.5 -mb-0.5 bg-accent rounded-micro align-baseline"
           style={{ animation: "pulse 1.2s ease-in-out infinite" }}
           aria-hidden="true"
         />

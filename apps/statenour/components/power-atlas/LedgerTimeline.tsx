@@ -142,7 +142,7 @@ function PinControl({
         disabled={mutation.isPending || !moment.trim()}
         className="text-[13px] font-medium text-amber-300/80 hover:text-amber-300 disabled:opacity-50"
       >
-        {mutation.isPending ? "pinning…" : "pin"}
+        {mutation.isPending ? "Pinning…" : "Pin"}
       </button>
       <button
         type="button"
@@ -153,7 +153,7 @@ function PinControl({
         disabled={mutation.isPending}
         className="text-[13px] font-medium text-fg-tertiary hover:text-fg-secondary disabled:opacity-50"
       >
-        cancel
+        Cancel
       </button>
     </form>
   );
@@ -274,7 +274,7 @@ export default function LedgerTimeline({
                       title="delete"
                       className="inline-flex min-h-[36px] items-center px-2 py-1.5 -my-1 text-rose-300/60 hover:text-rose-300 active:scale-95 transition-transform underline decoration-dotted disabled:opacity-50"
                     >
-                      delete
+                      Delete
                     </button>
                   </div>
                 </div>

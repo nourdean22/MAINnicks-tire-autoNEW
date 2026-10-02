@@ -198,7 +198,7 @@ export function LevelUpDirectiveCard() {
             className="shrink-0 max-w-[160px] truncate text-[11px] text-fg-tertiary underline decoration-edge-strong underline-offset-2 hover:text-fg"
             title={directive.goal!.title}
           >
-            goal: {directive.goal!.title}
+            Goal: {directive.goal!.title}
           </a>
         ) : null}
       </div>

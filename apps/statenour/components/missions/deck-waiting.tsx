@@ -63,17 +63,17 @@ export function DeckWaiting({ waiting, tasks, onEditTask, onUnblock }: Props) {
               </div>
               {w.delegatedToNick ? (
                 <button type="button" onClick={() => openNick(w.title)} className={VERB}>
-                  check in
+                  Check in
                 </button>
               ) : (
                 task && (
                   <button type="button" onClick={() => onEditTask(task)} className={VERB}>
-                    nudge
+                    Nudge
                   </button>
                 )
               )}
               <button type="button" onClick={() => onUnblock(w.id)} className={VERB}>
-                unblock
+                Unblock
               </button>
             </li>
           );
