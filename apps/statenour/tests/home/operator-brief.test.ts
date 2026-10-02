@@ -8,17 +8,23 @@
  * each rule is exercised with a fixture that would VIOLATE it if the code
  * regressed, not just a happy path.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+// 2026-10-02 · the lead is ledgered as a recommendation; the writer is mocked
+// so these stay pure-decision tests (no DB), and the call shape is pinned below.
+const ledger = vi.hoisted(() => ({ recordShownBounded: vi.fn(async () => "led-lead") }));
+vi.mock("@/lib/services/outcome-ledger", () => ({ recordShownBounded: ledger.recordShownBounded }));
 
 import {
   __testInternals,
   ATTENTION_CAP,
   JUDGMENT_VISIBLE_CAP,
+  leadLedgerSummary,
   type BriefLeadSection,
 } from "@/lib/home/operator-brief";
 import { deriveBriefing, type BriefingInputs } from "@/lib/home/derive-briefing";
 
-const { mapLead, composeStateSummary, buildHorizon, startOfEtDay } = __testInternals;
+const { mapLead, composeStateSummary, buildHorizon, startOfEtDay, ledgerLeadShown } = __testInternals;
 
 const baseInputs: BriefingInputs = {
   loading: false,
@@ -163,7 +169,7 @@ describe("horizon — one pointer per scope, deduped against the lead", () => {
   const end = new Date(start.getTime() + 86_400_000);
 
   const emptyLead: BriefLeadSection = {
-    kind: "suggestions", headline: "", body: "", cta: null, taskId: null, alternatives: [], reasoning: [],
+    kind: "suggestions", headline: "", body: "", cta: null, taskId: null, ledgerId: null, alternatives: [], reasoning: [],
   };
 
   it("MIT outranks calendar and due-tasks for the TODAY slot", () => {
@@ -216,6 +222,7 @@ describe("horizon — one pointer per scope, deduped against the lead", () => {
       body: "",
       cta: { label: "Start", href: "/missions#task-t1" },
       taskId: "t1",
+      ledgerId: null,
       alternatives: [],
       reasoning: [],
     };
@@ -249,5 +256,45 @@ describe("horizon — one pointer per scope, deduped against the lead", () => {
       startOfToday: start, endOfToday: end, measured: true,
     });
     expect(h.slots.find((s) => s.scope === "today")?.label).toContain("Standup");
+  });
+});
+
+describe("lead ledgering — Home records what it recommends (2026-10-02)", () => {
+  beforeEach(() => {
+    ledger.recordShownBounded.mockClear();
+    ledger.recordShownBounded.mockResolvedValue("led-lead");
+  });
+
+  it("the summary pairs the headline with the CTA label, so a repeating headline still dedups per task", () => {
+    expect(leadLedgerSummary({ headline: "Finish what's in motion", cta: { label: "Continue · Ship the homepage", href: "/x" } })).toBe(
+      "Finish what's in motion: Continue · Ship the homepage",
+    );
+    expect(leadLedgerSummary({ headline: "Quiet", cta: null })).toBe("Quiet");
+  });
+
+  it("a concrete lead is ledgered as a suggestion shown on home, with the task as evidence, and carries the row id", async () => {
+    const lead = leadFor({ criticalFew: CRITICAL });
+    const id = await ledgerLeadShown(lead);
+    expect(id).toBe("led-lead");
+    expect(ledger.recordShownBounded).toHaveBeenCalledOnce();
+    expect(ledger.recordShownBounded.mock.calls[0][0]).toMatchObject({
+      kind: "suggestion",
+      sourceEngine: "operator-brief:execute",
+      shownSurface: "home",
+      summary: leadLedgerSummary(lead),
+      evidenceRefs: { taskId: "t1", href: "/missions#task-t1", kind: "execute" },
+    });
+  });
+
+  it("an unreadable board is not a recommendation — never ledgered", async () => {
+    const lead = leadFor({ unreadable: true });
+    expect(lead.kind).toBe("error");
+    expect(await ledgerLeadShown(lead)).toBeNull();
+    expect(ledger.recordShownBounded).not.toHaveBeenCalled();
+  });
+
+  it("a bounded writer that answers null leaves the lead without an id — nothing to decide against, honestly", async () => {
+    ledger.recordShownBounded.mockResolvedValueOnce(null);
+    expect(await ledgerLeadShown(leadFor({ criticalFew: CRITICAL }))).toBeNull();
   });
 });

@@ -268,6 +268,12 @@ export default function FleetPage() {
                   <span className="text-emerald-300">{delivery.data.stats.accepted} accepted</span>
                   <span className="text-amber-300">{delivery.data.stats.dismissed} dismissed</span>
                   <span className="text-fg-secondary">{delivery.data.stats.undecided} undecided</span>
+                  <span
+                    className="text-fg-secondary"
+                    title="decision null AND outcome null — nothing is known about the row; undecided alone may still carry a rating"
+                  >
+                    {delivery.data.stats.unlabelled} unlabelled
+                  </span>
                 </div>
                 <p className="text-[11px] text-fg-secondary/50 mt-0.5">
                   producers writing rows:{" "}

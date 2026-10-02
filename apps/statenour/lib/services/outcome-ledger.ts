@@ -12,6 +12,22 @@
  *
  * Every write is fire-and-forget-safe: a ledger failure must never
  * break the surface that was recommending.
+ *
+ * ★ SEMANTIC CONTRACT (2026-10-02, full-circle wave 3). Two columns, two
+ * questions, never derived from each other:
+ *   · `decision`      — what the operator DID with the recommendation:
+ *                       accepted (acted on it) · dismissed (chose otherwise)
+ *                       · ignored (let it lapse). Written by the surface that
+ *                       saw the act (a CTA click, a verdict, a "different move").
+ *   · `outcomeUseful` — whether acting HELPED: a rating button, a completion
+ *                       rating, a discovery verdict. A 👍 is not an "accepted";
+ *                       a row can be useful-and-undecided (rated from a push the
+ *                       operator never clicked through) or decided-and-unrated.
+ * `outcomeStats` therefore reports `unlabelled` (both null) beside `undecided`
+ * (decision null): the first is "nothing is known", the second only "no act
+ * was recorded". Closure by `resultRef` (`task:<id>`) joins a recommendation to
+ * the task it became when the summary is not the task title (Home lead,
+ * Missions deck); closure by content joins when it is (Discover → investigate).
  */
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
@@ -105,6 +121,26 @@ export async function setShownSurface(id: string, shownSurface: string): Promise
   } catch (err) {
     logError("intel.outcome-ledger", err, { stage: "set-shown-surface", id }, "warn");
     return false;
+  }
+}
+
+/**
+ * `recordShown` under a time bound, for READ paths that ledger what they are
+ * about to render (the Home brief, the Missions deck). The ledger must never
+ * hold a page: past `ms` the surface renders without an id and simply cannot
+ * record a decision this time. The write itself still completes in the
+ * background and dedups on the next render.
+ */
+export async function recordShownBounded(input: RecordShownInput, ms = 400): Promise<string | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const bound = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), ms);
+    (timer as { unref?: () => void }).unref?.();
+  });
+  try {
+    return await Promise.race([recordShown(input), bound]);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
@@ -241,6 +277,27 @@ export async function recordOutcome(params: {
   }
 }
 
+/**
+ * Close a recommendation by the thing it BECAME. Used from the task completion
+ * path: a Home lead or deck pick that was accepted carries `resultRef =
+ * task:<id>`, and the task's completion rating is that recommendation's
+ * outcome. Same first-write-wins rule as `recordOutcome`.
+ */
+export async function recordOutcomeByResultRef(resultRef: string, useful: boolean): Promise<number> {
+  const trimmed = resultRef.trim();
+  if (!trimmed) return 0;
+  try {
+    const res = await prisma.intelligenceOutcome.updateMany({
+      where: { resultRef: trimmed, outcomeAt: null },
+      data: { outcomeUseful: useful, outcomeAt: new Date() },
+    });
+    return res.count;
+  } catch (err) {
+    logError("intel.outcome-ledger", err, { stage: "record-outcome-by-result-ref", resultRef: trimmed }, "warn");
+    return 0;
+  }
+}
+
 /** Raw counts, no invented rates — nulls stay visible as undecided/unmeasured. */
 export async function outcomeStats(windowDays = 30): Promise<{
   shown: number;
@@ -249,7 +306,10 @@ export async function outcomeStats(windowDays = 30): Promise<{
   dismissed: number;
   usefulTrue: number;
   usefulFalse: number;
+  /** decision null — no act was recorded (the row may still be rated). */
   undecided: number;
+  /** decision null AND outcomeUseful null — nothing is known about the row. */
+  unlabelled: number;
 } | null> {
   try {
     const since = new Date(Date.now() - windowDays * 86_400_000);
@@ -265,6 +325,7 @@ export async function outcomeStats(windowDays = 30): Promise<{
       usefulTrue: rows.filter((r) => r.outcomeUseful === true).length,
       usefulFalse: rows.filter((r) => r.outcomeUseful === false).length,
       undecided: rows.filter((r) => r.decision == null).length,
+      unlabelled: rows.filter((r) => r.decision == null && r.outcomeUseful == null).length,
     };
   } catch (err) {
     logError("intel.outcome-ledger", err, { stage: "stats" }, "warn");
