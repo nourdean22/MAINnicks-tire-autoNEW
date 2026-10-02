@@ -3391,27 +3391,23 @@
       "name": "Office camera watches as well as listens: still frames per counter-conversation episode, described by a vision model, stored as a 'Saw:' line beside the transcript summary",
       "owner": "operator",
       "codeState": "merged",
-      "operationalState": "unit_verified",
+      "operationalState": "live_verified",
       "exposure": "internal",
       "evidence": {
+        "deploymentId": "railway e146fe72-dce4-436a-9050-d9b9e5affc95 (main aa76a73, #2899, SUCCESS 2026-10-02T20:27:59Z)",
         "codeCommit": "PR #2898 branch nickstire/office-visual-watch: camera-bridge vision/officeframes.py (FrameSampler over the Eufy bridge /snapshot route, per-segment frame selection) + officewake wiring (on by default, OFFICE_VISUAL_ENABLED=0 opts out); nickstire services/officeVisual.ts (Ollama Cloud then Gemini, FAILED stored), vision-analyzer describeImagesOpenAiCompatible, /api/conversation-episodes frames[] + separate visual UPDATE, drizzle/0140 + runner statement, lot.conversations + LotSection 'Saw:' line. NicksMax supervisor restarts the office worker when its code changes.",
         "tests": [
           "server/services/officeVisual.test.ts (10): fenced/prose JSON, no-summary is FAILED, Ollama->Gemini fallback, no-key FAILED without a call, frame cap, readiness cache positive/negative TTL, failed check reads not-ready; mutation-checked",
           "server/routes/conversationRoutes.test.ts (+6): no frames = unchanged path; pre-0140 frames accepted but not analyzed and only the main INSERT runs; post-0140 only the description is written and raw frame bytes never reach the DB; FAILED stored; OFFICE_VISUAL_ANALYSIS=0; frame cap + size cap -> 400; readiness bypass mutation turns red",
           "camera-bridge vision/tests/test_officeframes.py (8) + test_officewake.py (+3): snapshot URL, sampler misses/closing frame/max, per-segment selection + thinning, OpenCV 1280->640 downscale, each episode carries its own frames, 120s post timeout with frames, capture failure stops the sampler; per-segment selection mutation turns red"
         ],
-        "liveRuns": "Pre-merge on NicksMax 2026-10-02: Eufy bridge /snapshot/T8410P5225154105 returned 200 image/jpeg 201,063 bytes; the supervisor's code-change rule restarted the office worker once at 14:16:15 ET and the worker reported CAPTURING with a fresh heartbeat."
+        "liveRuns": "Pre-merge on NicksMax 2026-10-02: Eufy bridge /snapshot/T8410P5225154105 returned 200 image/jpeg 201,063 bytes; the supervisor's code-change rule restarted the office worker once at 14:16:15 ET and the worker reported CAPTURING with a fresh heartbeat. Live 2026-10-02: migration 0140 applied via Admin -> Run migrations at 18:52-18:53Z; NicksMax worker status lastConversationFramesPosted=1 at 19:35:48Z matching a 200 on POST /api/conversation-episodes; after PR #2899 (aa76a73, deployment e146fe72 SUCCESS 20:27:59Z) added a per-episode outcome log, Railway deploy logs show 10 of 10 framed episodes 20:29:51Z-20:54:36Z logging 'office visual stored' visualStatus DONE, provider ollama, model gemma4:31b, latency 539-1184 ms, error null, and zero 'office visual not stored' lines."
       },
       "blockers": [
         {
-          "severity": "P1",
-          "description": "Migration 0140 (conversation_episodes.visual JSON NULL) is not applied: until Admin -> Run migrations runs it, frames are accepted and dropped unanalyzed (visualStatus NOT_STORED_VISUAL_COLUMN_UNAVAILABLE).",
-          "source": "2026-10-02 office watch"
-        },
-        {
-          "severity": "P2",
-          "description": "No production episode has carried frames through the vision model yet; the first visualStatus DONE reply and a 'Saw:' line in Admin -> Lot are the live confirmation.",
-          "source": "2026-10-02 office watch"
+          "severity": "P3",
+          "description": "The 'Saw:' line in Admin -> Lot is unit-tested but has not been viewed on the operator's device; DONE rows are proven stored, the rendered line is not yet screenshotted.",
+          "source": "2026-10-02 office watch live check"
         }
       ],
       "deferredScope": [
@@ -3419,7 +3415,8 @@
         "on-box person detection: no person model is fetched on NicksMax (fetch_models.py has vehicle-detection-0200 only)",
         "feeding the visual description into fact extraction (stored side by side for now)"
       ],
-      "lastVerifiedAt": "2026-10-02"
+      "lastVerifiedAt": "2026-10-02",
+      "verificationExpiresAt": "2026-11-02"
     }
   ],
   "axes": {
