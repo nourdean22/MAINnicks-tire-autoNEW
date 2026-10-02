@@ -1,5 +1,11 @@
 # Session ledger — statenour
 
+**Updated: 2026-10-02 ET** (full-circle wave 3 · `statenour/full-circle-d-ledger-joins` · Home lead + Missions deck ledgered · PR open · wave 2 #2884 MERGED `b008b801`)
+
+## 2026-10-02 · full-circle wave 3 — Lane D ledger joins
+
+Home lead and deck pick are ledgered (`recordShownBounded`, 400 ms) with `ledgerId` in both payloads; `operator.recordRecommendationDecision` (accepted on CTA/Start with `task:<id>`, dismissed on alternative/pick-different); `checkTask` closes by `resultRef` (`recordOutcomeByResultRef`); contract written in `outcome-ledger.ts`; `outcomeStats.unlabelled` on `/system/fleet`. Gates: tsc 0 · eslint 0 · vitest 68 files / 587 · static gates green. After deploy: one Home render → `operator-brief:*` row; one /missions render → `missions-deck:*` row; first CTA → `decision`. Wave 2 (#2884) merged `b008b801`; verify its deploy (settings 3 domains, /system/health digest line, /system/crons runbook links, errorRateByRoute 200) and record LIVE + VERIFIED.
+
 **Updated: 2026-10-02 ET** (full-circle wave 2 · `statenour/full-circle-c-settings-system` · Settings/System recomposition + Inngest kill switch + Home WaitingLine + rateable daily brief · PR #2884 open · wave 1 #2883 MERGED ba792990 + DEPLOYED 59bc223f, receipt path unproven until the next guardian failure)
 
 ## 2026-10-02 · full-circle wave 2 — Settings keeps configuration, System owns operations

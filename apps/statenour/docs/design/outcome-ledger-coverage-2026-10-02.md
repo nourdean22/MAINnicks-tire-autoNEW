@@ -267,3 +267,17 @@ cases 6/30 on 2026-08-28 (`docs/LEARNING-LOOPS-2026-08-28.md:45,127`); 0/200 on 
   count still reads those rows as undecided.
 - Findings 1-5, 8-9 and E1-E12 remain as listed; the FIX NOW on Home lead / Missions deck recording (finding 5) is the next
   Lane D slice and needs its own design (what a Home "decision" is when the CTA is a Link).
+
+## Applied · full-circle wave 3 (2026-10-02, branch `statenour/full-circle-d-ledger-joins`)
+
+- **E10 Home + Missions IMPLEMENTED.** `buildOperatorBrief` and `buildMissionsDeck` ledger their recommendation through
+  `recordShownBounded` (400 ms; a late answer leaves the surface without an id) and carry `ledgerId` in their payloads;
+  `operator.recordRecommendationDecision` writes `accepted` (CTA / Start, `resultRef task:<id>`) or `dismissed` (alternative /
+  pick-different); `checkTask` closes by `resultRef` via the new `recordOutcomeByResultRef`. Pinned: `tests/home/operator-brief.test.ts`
+  (ledger block), `tests/lib/missions/deck.test.ts` (ledger block), `tests/lib/services/task-actions-outcome-bridge.test.ts`,
+  `tests/services/outcome-ledger-resultref.test.ts`, `tests/home/recommendation-decision-wiring.test.ts`.
+- **E7 resolved as a CONTRACT, not a write.** The service header now states it: `decision` = what the operator did; `outcomeUseful` =
+  did it help; a rating never writes a decision. `outcomeStats` reports `unlabelled` (both null) beside `undecided`; `/system/fleet`
+  shows both. Finding 7's "undecided forever" rows are now visibly *rated-but-undecided*, which is what they are.
+- Still as listed: E2 (handed-off surface), E3 (duplicated correction predicates / `outcomesNeedingReview`), E4 (odometer row),
+  E5/E6/E8/E9/E11, E10 Journal. Section 7's queries A-H remain the way to put live numbers on any of them.
