@@ -3394,6 +3394,7 @@
       "operationalState": "live_verified",
       "exposure": "internal",
       "evidence": {
+        "deploymentId": "railway e146fe72-dce4-436a-9050-d9b9e5affc95 (main aa76a73, #2899, SUCCESS 2026-10-02T20:27:59Z)",
         "codeCommit": "PR #2898 branch nickstire/office-visual-watch: camera-bridge vision/officeframes.py (FrameSampler over the Eufy bridge /snapshot route, per-segment frame selection) + officewake wiring (on by default, OFFICE_VISUAL_ENABLED=0 opts out); nickstire services/officeVisual.ts (Ollama Cloud then Gemini, FAILED stored), vision-analyzer describeImagesOpenAiCompatible, /api/conversation-episodes frames[] + separate visual UPDATE, drizzle/0140 + runner statement, lot.conversations + LotSection 'Saw:' line. NicksMax supervisor restarts the office worker when its code changes.",
         "tests": [
           "server/services/officeVisual.test.ts (10): fenced/prose JSON, no-summary is FAILED, Ollama->Gemini fallback, no-key FAILED without a call, frame cap, readiness cache positive/negative TTL, failed check reads not-ready; mutation-checked",
@@ -3414,7 +3415,8 @@
         "on-box person detection: no person model is fetched on NicksMax (fetch_models.py has vehicle-detection-0200 only)",
         "feeding the visual description into fact extraction (stored side by side for now)"
       ],
-      "lastVerifiedAt": "2026-10-02"
+      "lastVerifiedAt": "2026-10-02",
+      "verificationExpiresAt": "2026-11-02"
     }
   ],
   "axes": {
