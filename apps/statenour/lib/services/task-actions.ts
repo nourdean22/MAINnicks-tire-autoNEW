@@ -556,8 +556,13 @@ export async function checkTask(args: {
       outcomeRating === OutcomeRating.OUTSTANDING ||
       outcomeRating === OutcomeRating.SATISFACTORY;
     void (async () => {
-      const { recordOutcomeByContent } = await import("@/lib/services/outcome-ledger");
+      const { recordOutcomeByContent, recordOutcomeByResultRef } =
+        await import("@/lib/services/outcome-ledger");
       await recordOutcomeByContent(task.title ?? "", ratingUseful, `task:${id}`);
+      // 2026-10-02 · the second join: a Home lead or Missions deck pick that
+      // was ACCEPTED carries resultRef task:<id> (recordRecommendationDecision);
+      // its summary is not the task title, so only this closes it.
+      await recordOutcomeByResultRef(`task:${id}`, ratingUseful);
     })().catch(() => {
       /* the completion already succeeded — never fail it on the ledger */
     });

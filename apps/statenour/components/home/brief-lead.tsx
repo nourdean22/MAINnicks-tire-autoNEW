@@ -23,6 +23,7 @@ import { ArrowRight, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import type { BriefLeadSection } from "@/lib/home/operator-brief";
 import { cn } from "@/lib/utils/cn";
 import { useInspector } from "@/hooks/use-inspector";
+import { trpc } from "@/lib/trpc/client";
 
 /** Section-kind accents — one semantic color per meaning, nothing else. */
 const KIND_TONE: Record<BriefLeadSection["kind"], string> = {
@@ -50,6 +51,16 @@ export function BriefLead({
   // place: the scorer's per-term breakdown, next action, definition of done —
   // without leaving Home. The CTA still goes to the board.
   const { openInspector } = useInspector();
+
+  // 2026-10-02 · the lead is a ledgered recommendation (operator-brief.ts
+  // ledgerLeadShown). Taking the CTA is `accepted`; picking an alternative is
+  // `dismissed`. Fire-and-forget beside the navigation — a ledger failure must
+  // never cost the operator the move. No id → nothing to decide against.
+  const decide = trpc.operator.recordRecommendationDecision.useMutation();
+  const recordDecision = (decision: "accepted" | "dismissed", resultRef: string | null) => {
+    if (!lead?.ledgerId) return;
+    decide.mutate({ ledgerId: lead.ledgerId, decision, ...(resultRef ? { resultRef } : {}) });
+  };
 
   if (loading) {
     return (
@@ -79,6 +90,8 @@ export function BriefLead({
         {lead.cta && (
           <Link
             href={lead.cta.href}
+            onClick={() => recordDecision("accepted", lead.taskId ? `task:${lead.taskId}` : lead.cta?.href ?? null)}
+            data-lead-decision="accepted"
             className={cn(
               "group inline-flex min-h-[48px] items-center gap-2 rounded-control bg-accent px-5 text-[15px] font-semibold text-[var(--text-inverse)] transition-colors duration-[var(--motion-state)] hover:bg-accent-hover",
               FOCUS,
@@ -152,6 +165,8 @@ export function BriefLead({
             <li key={alt.href + alt.label}>
               <Link
                 href={alt.href}
+                onClick={() => recordDecision("dismissed", alt.href)}
+                data-lead-decision="dismissed"
                 className={cn(
                   "group flex min-h-[52px] flex-col justify-center py-2 transition-colors duration-150",
                   FOCUS,

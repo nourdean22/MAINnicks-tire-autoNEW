@@ -584,6 +584,30 @@ export const journalRouter = router({
           /* malformed take · ignore */
         }
       }
+      // 2026-10-02 · the take's next action is a recommendation the operator is
+      // SHOWN; before this the journal recorded nothing in the outcome ledger
+      // (census §5). Fire-and-forget; recordShown dedups the same action within
+      // 24h, so a re-rendered receipt is not a second recommendation. Already-
+      // promoted actions are not re-offered, so they are not re-ledgered.
+      if (take?.nextAction && !take.nextAction.nextActionPromoted) {
+        const action = take.nextAction.action;
+        const domain = take.nextAction.domain;
+        void (async () => {
+          const [{ recordShown }, { journalNextActionSummary }] = await Promise.all([
+            import("@/lib/services/outcome-ledger"),
+            import("@/lib/services/journal-promote"),
+          ]);
+          await recordShown({
+            kind: "suggestion",
+            sourceEngine: "journal:next-action",
+            summary: journalNextActionSummary(action),
+            shownSurface: "journal",
+            evidenceRefs: { entryId: input.id, silo: input.silo, domain },
+          });
+        })().catch(() => {
+          /* ledger failure must never break the receipt */
+        });
+      }
       return {
         entryType: input.silo === "brain_dump" ? (row as { entryType?: string | null }).entryType ?? null : null,
         linkStatus: row.linkStatus,

@@ -268,7 +268,21 @@ export default function FleetPage() {
                   <span className="text-emerald-300">{delivery.data.stats.accepted} accepted</span>
                   <span className="text-amber-300">{delivery.data.stats.dismissed} dismissed</span>
                   <span className="text-fg-secondary">{delivery.data.stats.undecided} undecided</span>
+                  <span
+                    className="text-fg-secondary"
+                    title="decision null AND outcome null — nothing is known about the row; undecided alone may still carry a rating"
+                  >
+                    {delivery.data.stats.unlabelled} unlabelled
+                  </span>
                 </div>
+                {/* 2026-10-02 · the harvest cron's odometer (corrections vs the
+                    fine-tune trigger) finally has a reader. Absent row = the cron
+                    has not run, said as such — never an invented zero. */}
+                <p className="mt-1 text-[11px] text-fg-secondary/70" data-odometer={delivery.data.odometer ? "present" : "absent"}>
+                  {delivery.data.odometer
+                    ? `odometer · ${delivery.data.odometer.line} · as of ${new Date(delivery.data.odometer.asOf).toLocaleString()}`
+                    : "odometer · no eval_run:corpus-odometer row yet — the outcome-harvest cron has not written one"}
+                </p>
                 <p className="text-[11px] text-fg-secondary/50 mt-0.5">
                   producers writing rows:{" "}
                   {delivery.data.producers.length === 0

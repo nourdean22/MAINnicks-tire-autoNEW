@@ -35,7 +35,19 @@ vi.mock("@/lib/services/missions", () => ({
   resolveGeneralAnchorId: (d: unknown) => mockResolveAnchor(d),
 }));
 
-import { promoteJournalTake, JournalPromoteError } from "@/lib/services/journal-promote";
+// 2026-10-02 · promoting a next action records `accepted` in the outcome ledger
+// (fire-and-forget); mocked so the write is asserted rather than leaked.
+const mockRecordDecisionByContent = vi.fn(async () => true);
+vi.mock("@/lib/services/outcome-ledger", () => ({
+  recordDecisionByContent: (...a: unknown[]) => mockRecordDecisionByContent(...a),
+}));
+
+import { promoteJournalTake, JournalPromoteError, journalNextActionSummary } from "@/lib/services/journal-promote";
+
+const flush = async () => {
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+};
 
 const takeRow = (content: Record<string, unknown>) => ({
   id: "bm-1",
@@ -43,6 +55,7 @@ const takeRow = (content: Record<string, unknown>) => ({
 });
 
 beforeEach(() => {
+  mockRecordDecisionByContent.mockClear();
   mockFindUnique.mockReset();
   mockUpdate.mockReset();
   mockCreateTask.mockReset();
@@ -72,6 +85,15 @@ describe("promoteJournalTake", () => {
       (mockUpdate.mock.calls[0][0] as { data: { content: string } }).data.content,
     );
     expect(written.nextAction.nextActionPromoted).toBe(true);
+    // The promotion IS the acceptance: joined by the same prefixed summary the
+    // receipt ledgered, closed later by the task's rating via resultRef.
+    await flush();
+    expect(mockRecordDecisionByContent).toHaveBeenCalledWith(
+      journalNextActionSummary("Do the 10x10 outside"),
+      "accepted",
+      "task:task-1",
+    );
+    expect(journalNextActionSummary("  Do the 10x10 outside ")).toBe("next action: Do the 10x10 outside");
   });
 
   it("throws ALREADY_PROMOTED when the layer flag is already set", async () => {
@@ -91,6 +113,9 @@ describe("promoteJournalTake", () => {
     );
 
     const r = await promoteJournalTake("e-2", "idea");
+    await flush();
+    // Only the next action is a ledgered recommendation; ideas and challenges are not.
+    expect(mockRecordDecisionByContent).not.toHaveBeenCalled();
 
     expect(r.ok).toBe(true);
     expect(mockCreateTask).toHaveBeenCalledWith({

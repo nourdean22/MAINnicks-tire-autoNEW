@@ -159,23 +159,25 @@ export function pushBodyFromBrief(text: string): string {
  *  gets an IntelligenceOutcome row like every other delivery surface.
  *  recordShown dedups on content hash within 24h, so Inngest retries
  *  of this step can never double-count. */
-async function recordBriefShown(
-  brief: ComposedBrief,
-  push: { sent: number; failed: number },
-): Promise<{ id: string | null }> {
+async function recordBriefShown(brief: ComposedBrief): Promise<{ id: string | null }> {
   const { recordShown, setShownSurface } = await import("@/lib/services/outcome-ledger");
-  const surface = push.sent > 0 ? "web-push+home" : "home";
+  // 2026-10-02 · the surface used to be derived from the hand-off's SYNTHETIC
+  // `{ sent: 1 }` result, so every row read "web-push+home" whether or not a
+  // device ever got the brief (outcome-ledger census E2). At this step the
+  // truth is only that the highlight was handed to intelligence-brief; the
+  // combined push there is ledgered by its own producer, and the 35-min
+  // backstop (sendStandaloneIfUnconsumed) overwrites this with the real
+  // surface when it delivers standalone.
+  const surface = "handed-off-to-combine";
   const id = await recordShown({
     kind: "daily_brief",
     sourceEngine: "morning-brief",
     summary: brief.text,
     shownSurface: surface,
   });
-  // 2026-09-18 · sendBriefPush now ledgers FIRST, because the notification's
-  // rating button has to carry a row id that already exists. recordShown dedups
-  // on content hash and RETURNS the existing id without updating, so this step
-  // would otherwise leave the pre-send guess frozen in place. Correct it here,
-  // where the delivery outcome is finally known.
+  // recordShown dedups on content hash and RETURNS an existing id without
+  // updating it (an Inngest retry of this step, or a brief already ledgered by
+  // another path), so the surface is written explicitly rather than trusted.
   if (id) await setShownSurface(id, surface);
   return { id };
 }
@@ -204,6 +206,8 @@ async function briefTelegramFallback(
 async function sendBriefPush(brief: ComposedBrief): Promise<{
   sent: number;
   failed: number;
+  /** The ledger row the rating buttons point at; null when ledgering failed. */
+  ledgerId: string | null;
 }> {
   const { sendPush } = await import("@/lib/notifications/push");
   const { ratingPushActions } = await import("@/lib/services/outcome-rating-affordance");
@@ -227,7 +231,9 @@ async function sendBriefPush(brief: ComposedBrief): Promise<{
       kind: "daily_brief",
       sourceEngine: "morning-brief",
       summary: brief.text,
-      // Pre-send guess; recordBriefShown corrects it once delivery is known.
+      // Pre-send guess. On the standalone path recordShown's 24h dedup hands
+      // back the hand-off row ("handed-off-to-combine"), and
+      // sendStandaloneIfUnconsumed corrects it once delivery is known.
       shownSurface: "web-push",
     });
   } catch {
@@ -257,7 +263,7 @@ async function sendBriefPush(brief: ComposedBrief): Promise<{
       suggId: brief.date,
     },
   });
-  return result;
+  return { ...result, ledgerId };
 }
 
 /**
@@ -325,11 +331,19 @@ export async function sendStandaloneIfUnconsumed(brief: ComposedBrief): Promise<
 
   const push = await sendBriefPush(brief);
   await prisma.brainMemory.delete({ where: { id: pending.id } }).catch(() => null);
+  // 2026-10-02 · the row was ledgered at hand-off as "handed-off-to-combine"
+  // (recordBriefShown) and recordShown's 24h dedup returns that same id
+  // without updating it, so the REAL standalone surface has to be written
+  // here, where delivery is finally known (outcome-ledger census E2).
+  if (push.ledgerId) {
+    const { setShownSurface } = await import("@/lib/services/outcome-ledger");
+    await setShownSurface(push.ledgerId, push.sent > 0 ? "web-push" : "telegram-fallback");
+  }
   if (push.sent === 0) {
     await briefTelegramFallback(brief, push);
-    return { status: "standalone_failed", push };
+    return { status: "standalone_failed", push: { sent: push.sent, failed: push.failed } };
   }
-  return { status: "standalone_sent", push };
+  return { status: "standalone_sent", push: { sent: push.sent, failed: push.failed } };
 }
 
 /**
@@ -527,7 +541,7 @@ export const operatorMorningBrief = inngest.createFunction(
     // from handOffForCombine, so this fallback call always skips — the
     // REAL Telegram safety net for morning's content now lives inside
     // sendStandaloneIfUnconsumed, 35min below, keyed on the actual push.
-    const ledger = await step.run("outcome-ledger", () => recordBriefShown(brief, push));
+    const ledger = await step.run("outcome-ledger", () => recordBriefShown(brief));
     const fallback = await step.run("telegram-fallback", () => briefTelegramFallback(brief, push));
     const audio = await step.run("voice-file", () => generateBriefAudio(brief));
     // Phase A.3 · pin scoreboard picks for /scoreboard "as of 6am"

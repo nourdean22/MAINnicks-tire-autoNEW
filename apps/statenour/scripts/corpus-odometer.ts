@@ -24,13 +24,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { prisma } from "../lib/prisma";
+import { CORRECTION_WHERE } from "@/lib/services/outcome-ledger";
 
 const TRIGGER = 200;
 const LABELED_TRIGGER = 30;
 
 async function main() {
   const corrections = await prisma.intelligenceOutcome.count({
-    where: { OR: [{ decision: "dismissed" }, { outcomeUseful: false }] },
+    where: CORRECTION_WHERE,
   });
 
   const suggestionRows = await prisma.brainMemory.findMany({

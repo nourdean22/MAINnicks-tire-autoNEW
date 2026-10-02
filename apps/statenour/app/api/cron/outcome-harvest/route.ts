@@ -1,7 +1,7 @@
 import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
-import { outcomeStats } from "@/lib/services/outcome-ledger";
+import { CORRECTION_WHERE, outcomeStats } from "@/lib/services/outcome-ledger";
 export const maxDuration = 60;
 
 /**
@@ -42,7 +42,7 @@ export const GET = cronHandler(async () => {
   // The trigger metric — the count both UPSTREAMS WATCH rows (LoRA
   // fine-tune · Ax/DSPy) reopen on. All-time, matching the script.
   const corrections = await prisma.intelligenceOutcome.count({
-    where: { OR: [{ decision: "dismissed" }, { outcomeUseful: false }] },
+    where: CORRECTION_WHERE,
   });
 
   // Supplementary correction-shaped labels (same sources as the script).
