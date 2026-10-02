@@ -7,7 +7,7 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-10-01 · UI v2 Precision Material Cockpit · #2871 MERGED · `18bf9ebc` DEPLOY-VERIFIED (`754fae93`) · see RECONCILIATION + `docs/design/ui-v2/`.
+**Last refreshed:** 2026-10-01 · UI v2 cockpit · #2871 MERGED · `18bf9ebc` DEPLOY-VERIFIED · see RECONCILIATION + docs/design/ui-v2.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--
