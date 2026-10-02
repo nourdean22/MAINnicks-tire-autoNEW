@@ -87,7 +87,14 @@ These are current operational signals, not historical audit claims.
 - Decision Plane already exists and is merged.
 - Capability lifecycle already exists and is merged.
 - Tool-result/action approval UI primitives already exist.
-- RealityEvent is already the correct event/provenance substrate.
+- RealityEvent is already the correct event/provenance substrate, including `correlationId` + `causationId` fields and Episode adapters that propagate them.
+- Recommendation/outcome learning already has a canonical incumbent: `IntelligenceOutcome` + `lib/services/outcome-ledger.ts` record shown/decision/outcome state and the weekly `outcome-harvest` reads the correction corpus. Do not build a second recommendation ledger.
+- Memory admission already has a real lifecycle in `lib/brain/memory-manager.ts`: normal new memories enter a 24h probation, reinforcement promotes them toward persistence, one-shot record categories use category TTL, and expiry/decay are explicit. Extend/audit this instead of inventing a second memory-admission store.
+- Embedding health is already modeled in `lib/services/brain-health.ts`: per-category counts, embeddable/vectorized coverage, telemetry-vs-knowledge denominators, confidence/freshness and health flags. The missing work is current production measurement and repair where needed, not a new coverage system.
+- Missions already enforces `MISSION_WIP_CAP = 3` on active user projects. That is a real incumbent capacity control, though it is narrower than a full commitment-admission controller.
+- Push notifications already have levels, quiet-hour filtering, TTL/urgency, per-tag flood cooldowns, suppression receipts, deep-link/chat seeds and action buttons. The gap is a single cross-channel interruption/escalation policy plus post-notification usefulness/regret measurement, not a notification system from zero.
+- Snooze already has lifecycle semantics: `snoozedUntil`, WAITING→READY resurface, TaskEvent receipts, and one batched Telegram resurface notice. Repeated-snooze admission policy remains a gap.
+- The StateNour↔Nick's Tire cross-ring bridge already exists. `queryNickstire` exposes live `callbacks_pending`, `work_orders_active`, `attention_needed`, urgent leads and other business signals; the business sync route mirrors shop context without claiming ownership. Any Waiting/Attention model must reconcile this boundary instead of duplicating business truth.
 
 ### PARTIALLY FIXED
 
@@ -104,7 +111,7 @@ These are current operational signals, not historical audit claims.
 - Actual duplicate Journal ingest rate and how much it inflates downstream analytics.
 - Current canonical habit duplication rate.
 - Current task/mission child-count inflation.
-- Current embedding-coverage shape by category.
+- Current **production values** for embedding coverage/backlog by category and whether any eligible backlog is growing. The architecture/metrics already exist.
 - Whether each visible Settings control has a real runtime consumer.
 - Whether the current Proof route is independently valuable enough to remain top-level.
 
@@ -120,7 +127,13 @@ These are current operational signals, not historical audit claims.
 | System health | control tower, Owner Panel, diagnostics, System subpages | multiple status vocabularies possible | define one status lattice + freshness contract |
 | Evidence / Proof | RealityEvent/receipts; `/proof`; System evidence panels | epistemic truth vs machine health can blur | keep semantic distinction; census UI duplication |
 | Settings/Ops | SettingsConsole + System | direct ownership contradiction | supersede ADR-0016; migrate Ops out of Settings deliberately |
-| Memory quality | Brain panels + recall infrastructure | volume metrics can compete with utility/quality | prefer retrieval/duplicate/stale/contradiction/outcome signals |
+| Memory quality | Brain panels + memory-manager + brain-health + recall infrastructure | admission/coverage mechanisms exist, but operator usefulness and current prod backlog still need measurement | extend incumbent lifecycle/health; do not add another memory system |
+| Recommendation learning | IntelligenceOutcome + outcome-ledger + outcome-harvest + surface verdict bridges | base shown→decision→outcome loop exists; coverage and counterfactual interpretation are uneven | audit producer/decider/outcome coverage; extend incumbent |
+| Notification / interruption | push.ts + Telegram producers + due-reminder/resurface jobs | strong transport-level rules are distributed; no one cross-channel attention policy and no canonical notification-regret measure | centralize policy semantics over existing channels, not transport |
+| Commands | NAV-derived navigation + component-local CommandPalette actions | navigation is canonical, non-navigation commands remain hand-defined in command-palette and other surfaces can drift | create/reuse one typed command registry and migrate consumers |
+| Capacity / admission | Missions `MISSION_WIP_CAP=3` + commitment/task state | mission-level cap exists, but capture/proposals can still create commitment pressure outside it | generalize from incumbent WIP/capacity evidence before adding admission state |
+| Cross-ring attention | StateNour business sync + `queryNickstire` live reads | personal OS may need customer/callback/work-order urgency without owning shop truth | Attention/Waiting projections read canonical Nick's data through bridge with freshness/provenance |
+| Open loops | active tasks/commitments + many derived "open loop" consumers; historical OpenLoop persistence is retired | vocabulary survives after the model was retired, risking ontology resurrection | define OpenLoops as a projection only; do not revive retired persistence |
 
 ## E. Canonical ontology map
 
@@ -199,7 +212,15 @@ Reuse aggressively:
 - Decision Plane + Replay Lab;
 - durable mission execution + Inngest;
 - chat typed-tool/tool-result infrastructure;
-- existing fabrication defense and security gates.
+- existing fabrication defense and security gates;
+- `IntelligenceOutcome` recommendation/outcome ledger + automated harvest;
+- `memory-manager` probation/reinforcement/TTL admission lifecycle;
+- `brain-health` embedding coverage/freshness health;
+- `MISSION_WIP_CAP` mission-level WIP control;
+- push transport policy (severity, quiet hours, TTL, cooldown/suppression receipts);
+- task snooze/resurface lifecycle;
+- RealityEvent/Episode correlation + causation lineage;
+- StateNour↔Nick's Tire sync/query bridge for business-ring truth.
 
 ## J. Systems built but not fully live/proven
 
@@ -254,7 +275,7 @@ Create typed projections with explicit owner/source/freshness:
 - `TodayPlan`
 - `WaitingSummary`
 - `SystemVerdict`
-- `OpenLoops`
+- `OpenLoops` — **projection only** over current obligations/work; the historical OpenLoop persistence model is retired and must not be resurrected
 - `CommitmentPressure`
 - `ClosureDebt`
 
@@ -315,12 +336,69 @@ No UI. No schema unless proven necessary.
 This is where ADR-0024 becomes ACCEPTED if implementation validates it.
 
 ### PR D — learning/calibration + production proof
-- ignored/dismissed recommendation telemetry;
+- coverage audit and extension of the **existing** `IntelligenceOutcome` shown→decision→outcome ledger, including ignored/dismissed/edited paths;
+- notification usefulness/regret and repeated-snooze signals where they can be measured honestly;
 - outcome-value tracking;
 - Decision Plane representative shadow labels;
 - production scenario tests;
 - before/after action-path benchmarks;
 - update CURRENT-TRUTH/RECONCILIATION only after live receipts.
+
+## Q. Wave 0 self-audit corrections — what the first pass missed
+
+A second requirements-to-repo pass found material omissions in this report. These are recorded here rather than hidden in chat.
+
+### Missed incumbents — DO NOT REBUILD
+
+1. **Recommendation learning.** `IntelligenceOutcome` already records shown recommendations, operator decisions (`accepted|dismissed|edited|ignored`), result references and usefulness outcomes. `outcome-harvest` is an automated reader. The new job is coverage/calibration, not a new ledger.
+2. **Memory admission.** `memory-manager` already implements probation, reinforcement, TTL and decay semantics. Audit category behavior and usefulness before adding any new admission state.
+3. **Embedding coverage.** `brain-health` already has the honest denominator split and per-category freshness/coverage. Measure current prod values; do not build another coverage dashboard.
+4. **Capacity control.** Missions already has a hard WIP cap of 3 active user projects. A broader commitment admission controller must explain how it extends this incumbent rather than compete with it.
+5. **Notification plumbing and partial policy.** Push already has severity levels, quiet hours, TTLs, tag cooldowns and suppression receipts; task reminders and snooze resurfacing are durable. The missing layer is cross-channel policy/utility measurement.
+6. **Lineage.** RealityEvent/Episode already carries correlation and causation identifiers. Provenance work should improve propagation/coverage, not add a second lineage graph.
+7. **Cross-ring business truth.** StateNour already queries/mirrors Nick's Tire through a defined bridge. Customer/callback/work-order urgency belongs in attention projections through that bridge, not copied into a new StateNour business database.
+
+### Requirements under-audited in the first pass
+
+- notification/interruption and staged escalation policy;
+- notification regret / whether pushes changed behavior;
+- one command registry beyond the already-canonical NAV destinations;
+- commitment admission across proposals/captures, not only Mission WIP;
+- repeated snooze semantics;
+- plan realism (`plannedMinutes` vs `availableMinutes`) and duration calibration;
+- date semantics (due vs scheduled vs target vs reminder vs recurrence);
+- dependency graph / downstream-unlock count / bottleneck detection;
+- opportunity-cost presentation for genuinely competing choices;
+- closure debt across accepted-but-unresolved objects;
+- entity-resolution boundaries for habits, people, missions, incidents, captures and memories;
+- end-to-end provenance-chain coverage for generated objects;
+- stale-data TTL expectations by domain;
+- identity-model epistemics/sample-size requirements;
+- health/medical suggestion admission safety;
+- per-new-action-path security review (auth, owner gate, PII, prompt injection, SSRF, external-state leakage, logs/retention);
+- destructive-action/confirmation review;
+- StateNour performance/RUM budget: current search found design/audit plans for LCP/INP/CLS but no active StateNour RUM implementation, while Nick's Tire already has a native PerformanceObserver CWV collector that may be reusable as a pattern;
+- rollback verification as a first-class acceptance artifact;
+- authenticated production visual/interaction testing of Home/Missions/Chat/Journal/Settings/System/Proof/More;
+- actual route/command/deep-link usage before navigation deletion;
+- live data census for Journal duplication, habit duplication, child-count inflation and Settings writer/reader pairs.
+
+### Newly observed operational mismatch
+
+Production has `PERPLEXITY_API_KEY`, `TAVILY_API_KEY` and `FIRECRAWL_API_KEY` variable names configured, while Firecrawl is currently failing for insufficient credits. Generic HTTP ingestion in `lib/intelligence/ingest.ts` treats a configured Firecrawl failure as source failure and skips the source. Do **not** blindly substitute search providers for page scraping — they are different capabilities — but this should be classified as an integration-resilience/exception-coverage issue and surfaced honestly when it affects requested intelligence.
+
+### Corrected completion boundary
+
+Wave 0 is therefore **not a complete full-mission audit yet**. It is:
+
+- production/Git/substrate reconciliation: strong;
+- IA supersession diagnosis: strong;
+- semantic collision foundation: strong;
+- notification/capacity/learning/memory/cross-ring/performance/security deep census: incomplete;
+- authenticated UX proof: not yet performed;
+- production DB re-probe: blocked in this session by Neon project scoping.
+
+Do not mark the overall reconstruction audit VERIFIED until those gaps are closed.
 
 ## Immediate next implementation target
 
