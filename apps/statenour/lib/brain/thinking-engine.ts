@@ -87,14 +87,33 @@ Return [] if no contradictions found. Max 4.`,
   const contradictions = extracted.value;
   if (!Array.isArray(contradictions)) return { found: 0 };
 
+  // 2026-10-02 · runs nightly again (/api/cron/think). The model sees the same
+  // 14-day window each night, so without this it restates the same claim as a
+  // fresh row every run. Skip a claim still open from the last 14 days;
+  // memory-consolidation auto-resolves open rows after 30.
+  const open = await prisma.contradiction.findMany({
+    where: { deletedAt: null, resolved: false, createdAt: { gte: daysAgo(14) } },
+    select: { claim: true },
+  });
+  const openClaims = new Set(open.map((o) => normalizeClaim(o.claim)));
+
+  let created = 0;
   for (const c of contradictions.slice(0, 4)) {
+    if (typeof c?.claim !== "string" || openClaims.has(normalizeClaim(c.claim))) continue;
+    openClaims.add(normalizeClaim(c.claim));
+    created++;
     await prisma.contradiction.create({
       data: { date: today(), claim: c.claim, reality: c.reality, gap: c.gap, severity: c.severity || "moderate", category: c.category || "identity", claimSource: "ai_detected" },
     }).catch((err) => {
       logError("brain.thinking-engine", err, { fn: "detectContradictions.create" });
     });
   }
-  return { found: contradictions.length };
+  return { found: created };
+}
+
+/** Case/whitespace/punctuation-insensitive claim key for the open-claim dedupe. */
+export function normalizeClaim(claim: string): string {
+  return claim.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 // ─── L8: Identity Evolution ──────────────────────────────
