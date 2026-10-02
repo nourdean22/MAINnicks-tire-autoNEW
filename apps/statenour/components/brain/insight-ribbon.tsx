@@ -38,13 +38,13 @@ interface InsightPayload {
 const SEVERITY_TONE: Record<BrainInsight["severity"], string> = {
   info: "border-[var(--border-soft)] bg-[var(--bg-card)]",
   warn: "border-amber-500/30 bg-amber-500/[0.04]",
-  highlight: "border-[var(--gold)]/35 bg-[var(--gold)]/[0.05]",
+  highlight: "border-edge-subtle bg-content",
 };
 
 const HEADLINE_TONE: Record<BrainInsight["severity"], string> = {
   info: "text-[var(--text-primary)]",
   warn: "text-amber-300",
-  highlight: "text-[var(--gold)]",
+  highlight: "text-fg-secondary",
 };
 
 export function InsightRibbon() {
@@ -67,10 +67,10 @@ export function InsightRibbon() {
   return (
     <section className="space-y-2">
       <div className="flex items-baseline justify-between">
-        <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
+        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
           this week
         </p>
-        <p className="text-[9px] font-mono tracking-wider text-[var(--text-tertiary)]/70">
+        <p className="text-[11px] font-mono text-[var(--text-tertiary)]/70">
           {data.insights.length} pattern{data.insights.length === 1 ? "" : "s"}
         </p>
       </div>
@@ -93,17 +93,17 @@ function InsightCard({ insight }: { insight: BrainInsight }) {
   const inner = (
     <article
       className={cn(
-        "rounded-2xl border px-4 py-3 transition-colors h-full",
+        "rounded-surface border px-4 py-3 transition-colors h-full",
         SEVERITY_TONE[insight.severity],
-        insight.link && "hover:border-[var(--gold)]/40",
+        insight.link && "hover:border-edge-strong",
       )}
     >
-      <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-[var(--text-tertiary)] mb-1">
+      <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mb-1">
         {insight.eyebrow}
       </p>
       <h3
         className={cn(
-          "text-[18px] sm:text-[19px] font-[var(--font-display)] font-bold leading-tight tracking-tight",
+          "text-[18px] sm:text-[19px] font-bold leading-tight tracking-tight",
           HEADLINE_TONE[insight.severity],
         )}
       >

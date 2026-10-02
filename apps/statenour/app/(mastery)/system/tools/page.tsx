@@ -55,7 +55,7 @@ export default function SystemToolsPage() {
         width="2xl"
         className="px-3 py-4"
       >
-        <p className="text-[var(--text-tertiary)]">Tools capabilities catalog unavailable — registry state unknown.</p>
+        <p className="text-fg-tertiary">Tools capabilities catalog unavailable — registry state unknown.</p>
       </StandardPage>
     );
   }
@@ -97,7 +97,7 @@ export default function SystemToolsPage() {
             />
             <button
               onClick={load}
-              className="p-1.5 rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--bg-raised)] transition-colors"
+              className="p-1.5 rounded text-fg-tertiary hover:text-fg hover:bg-surface-hover transition-colors"
               aria-label="refresh"
               title="refresh"
             >
@@ -109,28 +109,28 @@ export default function SystemToolsPage() {
 
       {/* Security Warnings Panel */}
       <Panel className="border-l-4 border-amber-500/80 bg-amber-500/[0.03] p-4 space-y-2">
-        <div className="flex items-center gap-2 text-amber-400 font-semibold text-xs uppercase tracking-wider">
+              <div className="flex items-center gap-2 text-amber-400 font-mono text-[11px] uppercase tracking-[0.12em]">
           <ShieldAlert size={14} />
           <span>Security & Fencing Warnings</span>
         </div>
-        <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-[var(--text-secondary)] list-disc pl-4">
+        <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-fg-secondary list-disc pl-4">
           <li>
-            <strong className="text-white">Browser automation</strong> is <span className="text-zinc-400 font-semibold">intentionally parked</span> - the operator uses Claude-in-Chrome + computer-use instead.
+            <strong className="text-fg">Browser automation</strong> is <span className="text-fg-secondary font-semibold">intentionally parked</span> - the operator uses Claude-in-Chrome + computer-use instead.
           </li>
           <li>
-            <strong className="text-white">Local access</strong> (host filesystem and host shell execution) is strictly <span className="text-red-400 font-semibold">blocked</span>.
+            <strong className="text-fg">Local access</strong> (host filesystem and host shell execution) is strictly <span className="text-red-400 font-semibold">blocked</span>.
           </li>
           <li>
-            <strong className="text-white">Gmail & Calendar writes</strong> are restricted to card-draft/link-proposal format. Direct execution is prohibited.
+            <strong className="text-fg">Gmail & Calendar writes</strong> are restricted to card-draft/link-proposal format. Direct execution is prohibited.
           </li>
           <li>
-            <strong className="text-white">Untrusted content</strong> must undergo memory review checks before updating BrainMemory.
+            <strong className="text-fg">Untrusted content</strong> must undergo memory review checks before updating BrainMemory.
           </li>
           <li>
-            <strong className="text-white">External mutations</strong> (such as PRs, quotes, or communication) require explicit operator approval.
+            <strong className="text-fg">External mutations</strong> (such as PRs, quotes, or communication) require explicit operator approval.
           </li>
           <li>
-            <strong className="text-white">Secrets exposure</strong> is prevented. No API keys or tokens are rendered or logged.
+            <strong className="text-fg">Secrets exposure</strong> is prevented. No API keys or tokens are rendered or logged.
           </li>
         </ul>
       </Panel>
@@ -163,13 +163,13 @@ export default function SystemToolsPage() {
       <DecisionPlanePanel />
 
       {/* Capability Matrix */}
-      <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] overflow-hidden">
-        <header className="flex items-center gap-2 px-3 py-2 border-b border-[var(--border-default)]">
-          <Info size={12} className="text-[var(--gold)]" />
-          <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-[var(--gold)]">
+      <section className="rounded-surface border border-edge-default bg-content overflow-hidden">
+              <header className="flex items-center gap-2 px-3 py-2 border-b border-edge-default">
+          <Info size={12} className="text-fg-secondary" />
+          <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
             Capability Policy Matrix
           </h2>
-          <span className="text-[9px] font-mono text-[var(--text-tertiary)] ml-auto">
+          <span className="text-[11px] font-mono text-fg-tertiary ml-auto">
             {tools.length} capabilities loaded
           </span>
         </header>
@@ -177,7 +177,7 @@ export default function SystemToolsPage() {
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left">
             <thead>
-              <tr className="border-b border-[var(--border-default)]/60 text-[8px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] bg-[var(--bg-void)]/30">
+              <tr className="border-b border-edge-default text-[12px] font-medium text-fg-secondary bg-canvas">
                 <th className="px-3 py-2 font-normal">Tool / ID</th>
                 <th className="px-3 py-2 font-normal">Category</th>
                 <th className="px-3 py-2 font-normal">Status</th>
@@ -198,55 +198,55 @@ export default function SystemToolsPage() {
                   : t.status === "restricted_active" ? "text-sky-400"
                   : t.status === "inert" ? "text-amber-400"
                   : t.status === "blocked" ? "text-red-400 font-semibold"
-                  : "text-[var(--text-tertiary)]";
+                  : "text-fg-tertiary";
 
                 const healthColor =
                   t.health === "active" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
                   : t.health === "degraded" ? "bg-amber-500/10 text-amber-300 border border-amber-500/30"
                   : t.health === "missing_env" ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
-                  : t.health === "inert" ? "bg-zinc-500/10 text-zinc-400 border border-zinc-500/30"
+                  : t.health === "inert" ? "bg-fg-tertiary text-fg-secondary border border-edge-default"
                   : "bg-red-500/10 text-red-400 border border-red-500/30";
 
                 const riskColor =
-                  t.riskClass === "critical" ? "text-red-400 font-bold uppercase"
+                  t.riskClass === "critical" ? "text-red-400 font-bold"
                   : t.riskClass === "high" ? "text-amber-400 font-semibold"
                   : t.riskClass === "medium" ? "text-sky-300"
-                  : "text-[var(--text-tertiary)]";
+                  : "text-fg-tertiary";
 
                 return (
                   <tr
                     key={t.id}
                     data-entity={`tool:${t.id}`}
                     data-entity-label={t.label}
-                    className="hover:bg-[var(--bg-void)]/40 group data-[entity-focused=true]:bg-[var(--gold)]/[0.04] data-[entity-selected=true]:bg-[var(--gold)]/[0.08]"
+                    className="hover:bg-canvas group data-[entity-focused=true]:bg-surface-hover data-[entity-selected=true]:bg-accent-soft"
                   >
                     {/* Tool Info */}
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-1">
-                        <span className="font-semibold text-white group-hover:text-[var(--gold)] transition-colors">{t.label}</span>
+                        <span className="font-semibold text-fg group-hover:text-fg transition-colors">{t.label}</span>
                         <button
                           type="button"
                           onClick={() => openInspector({ kind: "tool", id: t.id })}
                           aria-label="inspect tool"
-                          className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors hover:text-[var(--gold)] md:min-h-[28px] md:min-w-[28px]"
+                          className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:text-fg md:min-h-[28px] md:min-w-[28px]"
                         >
                           <Eye size={12} strokeWidth={2} />
                         </button>
                       </div>
-                      <div className="text-[10px] text-[var(--text-tertiary)] max-w-xs truncate" title={t.description}>
+                      <div className="text-[11px] text-fg-tertiary max-w-xs truncate" title={t.description}>
                         {t.description}
                       </div>
                     </td>
 
                     {/* Category */}
-                    <td className="px-3 py-2.5 text-[var(--text-secondary)]">{t.category}</td>
+                    <td className="px-3 py-2.5 text-fg-secondary">{t.category}</td>
 
                     {/* Status */}
                     <td className={cn("px-3 py-2.5 font-semibold", statusColor)}>{t.status}</td>
 
                     {/* Health */}
                     <td className="px-3 py-2.5">
-                      <span className={cn("inline-block px-1.5 py-0.5 rounded-sm text-[9px] uppercase font-bold", healthColor)}>
+              <span className={cn("inline-block px-1.5 py-0.5 rounded-sm text-[11px] font-bold", healthColor)}>
                         {t.health}
                       </span>
                     </td>
@@ -256,23 +256,23 @@ export default function SystemToolsPage() {
 
                     {/* Access Flags */}
                     <td className="px-2 py-2.5 text-center">
-                      {t.readAccess ? <Eye size={12} className="inline text-emerald-400" /> : <span className="text-zinc-600">—</span>}
+              {t.readAccess ? <Eye size={12} className="inline text-emerald-400" /> : <span className="text-fg-tertiary">—</span>}
                     </td>
                     <td className="px-2 py-2.5 text-center">
-                      {t.writeAccess ? <Edit3 size={12} className="inline text-sky-400" /> : <span className="text-zinc-600">—</span>}
+              {t.writeAccess ? <Edit3 size={12} className="inline text-sky-400" /> : <span className="text-fg-tertiary">—</span>}
                     </td>
                     <td className="px-2 py-2.5 text-center">
-                      {t.externalMutation ? <ExternalLink size={12} className="inline text-amber-400" /> : <span className="text-zinc-600">—</span>}
+              {t.externalMutation ? <ExternalLink size={12} className="inline text-amber-400" /> : <span className="text-fg-tertiary">—</span>}
                     </td>
                     <td className="px-2 py-2.5 text-center">
-                      {t.memoryWriteAllowed ? <Brain size={12} className="inline text-purple-400" /> : <span className="text-zinc-600">—</span>}
+              {t.memoryWriteAllowed ? <Brain size={12} className="inline text-fg-secondary" /> : <span className="text-fg-tertiary">—</span>}
                     </td>
 
                     {/* Approval Policy */}
-                    <td className="px-3 py-2.5 text-[var(--text-secondary)] font-sans">{t.approvalPolicy}</td>
+                    <td className="px-3 py-2.5 text-fg-secondary font-sans">{t.approvalPolicy}</td>
 
                     {/* Missing Env */}
-                    <td className="px-3 py-2.5 text-[10px] text-amber-400/90 font-mono">
+                    <td className="px-3 py-2.5 text-[11px] text-amber-400/90 font-mono">
                       {t.missingEnv.length > 0 ? t.missingEnv.join(", ") : <span className="text-emerald-400">✓ None</span>}
                     </td>
                   </tr>

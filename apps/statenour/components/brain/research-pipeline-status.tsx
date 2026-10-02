@@ -54,14 +54,14 @@ interface PipelineStatus {
 export function PipelineQuietLine({ status }: { status: PipelineStatus }) {
   return (
     <div className="space-y-1">
-      <p className="text-[10px] font-mono text-(--text-tertiary)">
+      <p className="text-[11px] font-mono text-(--text-tertiary)">
         {status.totalClaims ?? "?"} claims ingested ·{" "}
         {status.promotableNow === null
           ? "promotable now: unread"
           : `${status.promotableNow} promotable now`}
       </p>
       {status.degraded.length > 0 && (
-        <p className="text-[9px] font-mono text-amber-400/80">
+        <p className="text-[11px] font-mono text-amber-400/80">
           degraded reads: {status.degraded.join(", ")}
         </p>
       )}
@@ -94,7 +94,7 @@ export function ResearchPipelineStatus() {
 
   if (state === "loading") {
     return (
-      <div className="flex items-center gap-2 text-[10px] font-mono text-(--text-tertiary)">
+      <div className="flex items-center gap-2 text-[11px] font-mono text-(--text-tertiary)">
         <Loader2 size={11} className="animate-spin" />
         reading pipeline status…
       </div>
@@ -104,7 +104,7 @@ export function ResearchPipelineStatus() {
   // A failed read is unknown, never "healthy".
   if (state === "error" || !status) {
     return (
-      <p className="text-[10px] font-mono text-amber-400">
+      <p className="text-[11px] font-mono text-amber-400">
         pipeline status unavailable — unknown, not zero
       </p>
     );
@@ -118,7 +118,7 @@ export function ResearchPipelineStatus() {
     <GlassCard className="border-amber-500/30 bg-amber-500/[0.06] p-3 space-y-2">
       <div className="flex items-center gap-2">
         <AlertTriangle size={13} className="text-amber-400 shrink-0" />
-        <h3 className="text-[10px] font-mono font-bold uppercase tracking-[0.16em] text-amber-300">
+        <h3 className="text-[11px] font-mono font-bold text-amber-300">
           this queue cannot fill
         </h3>
       </div>
@@ -145,7 +145,7 @@ export function ResearchPipelineStatus() {
           {status.statusCounts.map((s) => (
             <span
               key={s.status}
-              className="px-1.5 py-0.5 rounded border border-(--border-default) bg-black/30 text-[9px] font-mono text-(--text-tertiary)"
+              className="px-1.5 py-0.5 rounded border border-(--border-default) bg-content text-[11px] font-mono text-(--text-tertiary)"
             >
               {s.status.replaceAll("_", " ")} · {s.count}
             </span>
@@ -153,11 +153,11 @@ export function ResearchPipelineStatus() {
         </div>
       )}
 
-      <p className="text-[10px] leading-relaxed text-(--text-tertiary)">
+      <p className="text-[11px] leading-relaxed text-(--text-tertiary)">
         {status.gateMeaning}
       </p>
 
-      <p className="text-[10px] leading-relaxed text-(--text-tertiary) border-t border-amber-500/15 pt-2">
+      <p className="text-[11px] leading-relaxed text-(--text-tertiary) border-t border-amber-500/15 pt-2">
         Your call, not the system&apos;s: lower the gate, ground claims against
         something other than our own memory, or retire the lane. Until one of
         those happens this surface stays empty by construction — which is why
@@ -165,7 +165,7 @@ export function ResearchPipelineStatus() {
       </p>
 
       {status.degraded.length > 0 && (
-        <p className="text-[9px] font-mono text-amber-400/80">
+        <p className="text-[11px] font-mono text-amber-400/80">
           degraded reads: {status.degraded.join(", ")}
         </p>
       )}

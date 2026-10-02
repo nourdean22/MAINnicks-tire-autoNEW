@@ -63,8 +63,8 @@ import { JourneyPanel } from "@/components/stats/journey-panel";
 function SectionFallback() {
   return (
     <div className="space-y-3" aria-hidden>
-      <div className="h-24 rounded-lg border border-white/10 bg-white/[0.02] animate-pulse" />
-      <div className="h-40 rounded-lg border border-white/[0.07] bg-white/[0.02] animate-pulse" />
+      <div className="h-24 rounded-surface border border-edge-subtle bg-content animate-pulse" />
+      <div className="h-40 rounded-surface border border-edge-subtle bg-content animate-pulse" />
     </div>
   );
 }
@@ -85,17 +85,17 @@ const LearningLoop = dynamic(
 
 const IdentityArcCard = dynamic(
   () => import("@/components/mastery/identity-arc-card").then((m) => m.IdentityArcCard),
-  { ssr: false, loading: () => <div className="h-[200px] rounded-lg border border-white/10 bg-white/[0.02] animate-pulse" /> },
+  { ssr: false, loading: () => <div className="h-[200px] rounded-surface border border-edge-subtle bg-content animate-pulse" /> },
 );
 
 const RecurringEnemiesCard = dynamic(
   () => import("@/components/mastery/recurring-enemies-card").then((m) => m.RecurringEnemiesCard),
-  { ssr: false, loading: () => <div className="h-[210px] rounded-lg border border-white/10 bg-white/[0.02] animate-pulse" /> },
+  { ssr: false, loading: () => <div className="h-[210px] rounded-surface border border-edge-subtle bg-content animate-pulse" /> },
 );
 
 const GraduatedSkillsCard = dynamic(
   () => import("@/components/mastery/graduated-skills-card").then((m) => m.GraduatedSkillsCard),
-  { ssr: false, loading: () => <div className="h-[210px] rounded-lg border border-white/10 bg-white/[0.02] animate-pulse" /> },
+  { ssr: false, loading: () => <div className="h-[210px] rounded-surface border border-edge-subtle bg-content animate-pulse" /> },
 );
 
 const CalibrationSection = dynamic(
@@ -108,12 +108,12 @@ const CalibrationSection = dynamic(
 function StatsBodyFallback() {
   return (
     <div className="mt-6 space-y-3" aria-hidden>
-      <div className="h-16 rounded-lg border border-white/10 bg-white/[0.02] animate-pulse" />
+      <div className="h-16 rounded-surface border border-edge-subtle bg-content animate-pulse" />
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
         {Array.from({ length: 6 }).map((_, i) => (
           <div
             key={i}
-            className="h-10 rounded-md border border-white/[0.07] bg-white/[0.02] animate-pulse"
+            className="h-10 rounded-control border border-edge-subtle bg-content animate-pulse"
           />
         ))}
       </div>
@@ -143,11 +143,11 @@ function StatsContent() {
       {/* Tab bar · 2026-09-16 Visible Transformation: the glassmorphic pill
           bar (backdrop blur, white/[0.02] glass, a blue→indigo→purple accent
           that carried an anti-slop waiver) is replaced by the house underline
-          bar — mono labels, a gold rule under the active tab, no glass. */}
+          bar — Geist 13px labels, an accent rule under the selected tab, no glass. */}
       <div
         role="tablist"
         aria-label="Stats sections"
-        className="sticky top-0 z-20 -mx-4 flex gap-x-6 overflow-x-auto border-b border-edge bg-void px-4 sm:mx-0 sm:px-0"
+        className="sticky top-0 z-20 -mx-4 flex gap-x-6 overflow-x-auto border-b border-edge-subtle bg-canvas px-4 sm:mx-0 sm:px-0"
       >
         {STATS_TABS.map((tab) => {
           const isActive = activeTab === tab.id;
@@ -158,8 +158,8 @@ function StatsContent() {
               role="tab"
               aria-selected={isActive}
               onClick={() => handleTabChange(tab.id)}
-              className={`-mb-px inline-flex min-h-[48px] shrink-0 items-center border-b-2 px-1 font-mono text-[12px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gold/40 ${
-                isActive ? "border-gold text-gold" : "border-transparent text-fg-tertiary hover:text-fg-secondary"
+              className={`-mb-px inline-flex min-h-[48px] shrink-0 items-center border-b-2 px-1 text-[13px] font-medium transition-colors duration-[var(--motion-state)] ${
+                isActive ? "border-accent text-fg" : "border-transparent text-fg-tertiary hover:text-fg-secondary"
               }`}
             >
               {tab.label}
@@ -273,7 +273,7 @@ export default function StatsPage() {
       {/* Wave-6 (2026-07-29) · the Journey lens — months-scale becoming,
           the chronological view the 06-10 audit named as the moat. */}
       <div className="px-4 pb-6 max-w-2xl mx-auto">
-        <MasterySectionLabel label="JOURNEY" />
+        <MasterySectionLabel label="Journey" />
         <JourneyPanel />
       </div>
     </>

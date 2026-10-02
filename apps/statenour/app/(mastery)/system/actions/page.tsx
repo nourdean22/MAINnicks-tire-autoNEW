@@ -75,7 +75,7 @@ type Win = "24h" | "7d" | "30d";
 function resultTint(result: string | null): string {
   if (result === "success") return "text-emerald-400";
   if (result === "failed") return "text-rose-400";
-  if (result === "skipped") return "text-zinc-500";
+  if (result === "skipped") return "text-fg-tertiary";
   return "text-amber-400"; // in-flight / unknown
 }
 
@@ -86,7 +86,7 @@ function SuccessRing({ rate }: { rate: number }) {
   return (
     <div className="relative h-9 w-9">
       <svg className="-rotate-90 transform" viewBox="0 0 32 32" width={36} height={36}>
-        <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="3" fill="none" className="text-zinc-800" />
+        <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="3" fill="none" className="text-edge-default" />
         <circle
           cx="16"
           cy="16"
@@ -100,7 +100,7 @@ function SuccessRing({ rate }: { rate: number }) {
           className={color}
         />
       </svg>
-      <span className={cn("absolute inset-0 flex items-center justify-center font-mono text-[9px] tabular-nums", color)}>
+      <span className={cn("absolute inset-0 flex items-center justify-center font-mono text-[11px] tabular-nums", color)}>
         {rate}
       </span>
     </div>
@@ -232,7 +232,7 @@ export default function ActionsPage() {
           <button
             onClick={load}
             disabled={loading}
-            className="rounded-lg border border-[var(--border-hover)] bg-[var(--bg-raised)]/5 px-4 py-2 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-[var(--bg-raised)]/10 disabled:opacity-50"
+            className="rounded-control border border-edge-strong bg-content px-4 py-2 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
           >
             {loading ? "refreshing…" : "refresh"}
           </button>
@@ -240,14 +240,14 @@ export default function ActionsPage() {
       }
     >
       {/* Tab Selector */}
-      <div className="flex border-b border-zinc-800/80 mb-6">
+      <div className="flex border-b border-edge-subtle mb-6">
         <button
           onClick={() => setActiveTab("logs")}
           className={cn(
             "px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-[2px]",
             activeTab === "logs"
-              ? "border-[var(--gold)] text-[var(--gold)]"
-              : "border-transparent text-zinc-400 hover:text-zinc-200"
+              ? "border-accent text-fg"
+              : "border-transparent text-fg-secondary hover:text-fg"
           )}
         >
           Autonomous Log
@@ -257,13 +257,13 @@ export default function ActionsPage() {
           className={cn(
             "px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-[2px] flex items-center gap-2",
             activeTab === "approvals"
-              ? "border-[var(--gold)] text-[var(--gold)]"
-              : "border-transparent text-zinc-400 hover:text-zinc-200"
+              ? "border-accent text-fg"
+              : "border-transparent text-fg-secondary hover:text-fg"
           )}
         >
           Pending Approvals
           {pendingCount > 0 && (
-            <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-200 font-mono animate-pulse">
+            <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-200 font-mono">
               {pendingCount}
             </span>
           )}
@@ -280,13 +280,13 @@ export default function ActionsPage() {
                 onClick={() => setWin(w)}
                 className={cn(
                   "rounded-full px-3 py-1 text-xs transition",
-                  win === w ? "bg-[var(--gold)]/15 text-[var(--gold)]" : "bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800/60",
+                  win === w ? "bg-accent-soft text-fg" : "bg-content text-fg-secondary hover:bg-surface-hover",
                 )}
               >
                 {w}
               </button>
             ))}
-            <span className="text-xs text-zinc-600">·</span>
+            <span className="text-xs text-fg-tertiary">·</span>
             {(["auto", "pending", "approved", "rejected"] as const).map((a) => (
               <button
                 key={a}
@@ -299,7 +299,7 @@ export default function ActionsPage() {
                       : a === "rejected"
                         ? "bg-rose-500/20 text-rose-200"
                         : "bg-sky-500/20 text-sky-200"
-                    : "bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800/60",
+                    : "bg-content text-fg-secondary hover:bg-surface-hover",
                 )}
               >
                 {a} · <AnimatedCounter value={feed?.approvalBreakdown[a] ?? 0} />
@@ -316,13 +316,13 @@ export default function ActionsPage() {
           </div>
 
           {/* Rule leaderboard */}
-          <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
+          <Panel className="border-edge-default">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-white">rule leaderboard</h2>
-              <span className="text-xs text-[var(--text-tertiary)]">click to filter recent feed</span>
+              <h2 className="text-sm font-semibold text-fg">rule leaderboard</h2>
+              <span className="text-xs text-fg-tertiary">click to filter recent feed</span>
             </div>
             {feed && feed.rules.length === 0 ? (
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-fg-tertiary">
                 {loading ? "loading…" : "no autonomous actions in this window"}
               </p>
             ) : (
@@ -332,30 +332,30 @@ export default function ActionsPage() {
                     key={r.ruleName}
                     onClick={() => setRuleFilter(r.ruleName)}
                     className={cn(
-                      "grid w-full grid-cols-[auto_1fr_auto_auto_auto] items-center gap-3 rounded-lg border border-zinc-800/40 bg-[var(--bg-raised)]/[0.02] px-3 py-2 text-left transition hover:border-zinc-700/60 hover:bg-white/[0.03]",
-                      ruleFilter === r.ruleName && "border-[var(--gold)]/40 bg-[var(--gold)]/[0.04]",
+                      "grid w-full grid-cols-[auto_1fr_auto_auto_auto] items-center gap-3 rounded-control border border-edge-subtle px-3 py-2 text-left transition hover:border-edge-default hover:bg-surface-hover",
+                      ruleFilter === r.ruleName && "border-accent bg-accent-soft",
                     )}
                   >
                     <SuccessRing rate={r.successRate} />
                     <div className="min-w-0">
-                      <div className="truncate font-mono text-xs text-zinc-200">{r.ruleName}</div>
-                      <div className="text-[10px] text-zinc-500">
+              <div className="truncate font-mono text-xs text-fg">{r.ruleName}</div>
+                      <div className="text-[11px] text-fg-tertiary">
                         last fired {timeAgo(r.lastFiredAt)}
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-mono text-sm tabular-nums text-zinc-100"><AnimatedCounter value={r.total} /></div>
-                      <div className="text-[10px] uppercase text-zinc-500">total</div>
+              <div className="font-mono text-sm tabular-nums text-fg"><AnimatedCounter value={r.total} /></div>
+                      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">total</div>
                     </div>
                     <div className="hidden text-right sm:block">
                       <div className="font-mono text-xs tabular-nums text-emerald-400"><AnimatedCounter value={r.success} /></div>
-                      <div className="text-[10px] uppercase text-zinc-500">success</div>
+                      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">success</div>
                     </div>
                     <div className={cn("text-right", r.failed > 0 ? "" : "opacity-40")}>
-                      <div className={cn("font-mono text-xs tabular-nums", r.failed > 0 ? "text-rose-400" : "text-zinc-600")}>
+                      <div className={cn("font-mono text-xs tabular-nums", r.failed > 0 ? "text-rose-400" : "text-fg-tertiary")}>
                         <AnimatedCounter value={r.failed} />
                       </div>
-                      <div className="text-[10px] uppercase text-zinc-500">failed</div>
+                      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">failed</div>
                     </div>
                   </button>
                 ))}
@@ -364,9 +364,9 @@ export default function ActionsPage() {
           </Panel>
 
           {/* Recent feed */}
-          <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
+          <Panel className="border-edge-default">
             <div className="mb-3 flex items-center justify-between flex-wrap gap-2">
-              <h2 className="text-sm font-semibold text-white">recent · last 100</h2>
+              <h2 className="text-sm font-semibold text-fg">recent · last 100</h2>
               <div className="flex items-center gap-2">
                 <SortDropdown<ActionSort>
                   value={sortKey}
@@ -381,11 +381,11 @@ export default function ActionsPage() {
                     { value: "errors-first", label: "errors first" },
                   ]}
                 />
-                <span className="text-xs text-[var(--text-tertiary)] hidden sm:inline">click to expand payload</span>
+                <span className="text-xs text-fg-tertiary hidden sm:inline">click to expand payload</span>
               </div>
             </div>
             {feed && feed.recent.length === 0 ? (
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-fg-tertiary">
                 {loading ? "loading…" : "nothing matches the filters"}
               </p>
             ) : (
@@ -419,7 +419,7 @@ export default function ActionsPage() {
                     <div
                       key={a.id}
                       className={cn(
-                        "rounded-lg border border-zinc-800/40 bg-[var(--bg-raised)]/[0.02] transition hover:border-zinc-700/60",
+                        "rounded-surface border border-edge-subtle transition hover:border-edge-default",
                         a.approval === "pending" && "border-amber-500/30 bg-amber-500/[0.02]",
                         fresh && "border-emerald-500/30",
                       )}
@@ -431,48 +431,47 @@ export default function ActionsPage() {
                         <span className={cn(
                           "inline-block h-2 w-2 rounded-full",
                           a.result === "success" ? "bg-emerald-400" :
-                          a.result === "failed" ? "bg-rose-400 animate-pulse" :
-                          a.result === "skipped" ? "bg-zinc-500" : "bg-amber-400",
-                          fresh && "animate-pulse",
+                          a.result === "failed" ? "bg-rose-400" :
+                          a.result === "skipped" ? "bg-fg-tertiary" : "bg-amber-400",
                         )} />
-                        <span className="rounded bg-white/[0.04] px-1.5 py-[1px] text-[9px] uppercase tracking-wider text-zinc-400">
+                        <span className="rounded bg-surface-interactive px-1.5 py-[1px] text-[11px] text-fg-secondary">
                           {a.approval}
                         </span>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="truncate font-mono text-xs text-zinc-200">{a.ruleName}</span>
-                            <span className="flex-shrink-0 text-[10px] text-zinc-500">· {a.actionType}</span>
+                            <span className="truncate font-mono text-xs text-fg">{a.ruleName}</span>
+                            <span className="flex-shrink-0 text-[11px] text-fg-tertiary">· {a.actionType}</span>
                             {a.targetType && (
-                              <span className="flex-shrink-0 text-[10px] text-zinc-600">
+                              <span className="flex-shrink-0 text-[11px] text-fg-tertiary">
                                 → {a.targetType}{a.targetId ? ` #${a.targetId.slice(0, 8)}` : ""}
                               </span>
                             )}
                           </div>
-                          <div className="truncate text-[10px] text-zinc-500">{a.trigger}</div>
+                          <div className="truncate text-[11px] text-fg-tertiary">{a.trigger}</div>
                         </div>
-                        <span className={cn("font-mono text-[10px] tabular-nums", resultTint(a.result))}>
+                        <span className={cn("font-mono text-[11px] tabular-nums", resultTint(a.result))}>
                           {a.result ?? "—"}
                         </span>
-                        <span className="text-[10px] text-zinc-500">{timeAgo(a.createdAt)}</span>
-                        <span className="text-zinc-600">{isOpen ? "▼" : "▸"}</span>
+                        <span className="text-[11px] text-fg-tertiary">{timeAgo(a.createdAt)}</span>
+                        <span className="text-fg-tertiary">{isOpen ? "▼" : "▸"}</span>
                       </button>
                       {isOpen && (
-                        <div className="space-y-2 border-t border-white/5 px-3 pb-3 pt-2">
+                        <div className="space-y-2 border-t border-edge-subtle px-3 pb-3 pt-2">
                           {a.error && (
                             <div className="rounded bg-rose-500/10 p-2 text-[11px] text-rose-300">
-                              <div className="mb-1 text-[9px] uppercase tracking-wider text-rose-400/70">error</div>
+              <div className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-rose-400/70">error</div>
                               <pre className="overflow-x-auto whitespace-pre-wrap break-words">{a.error}</pre>
                             </div>
                           )}
                           {a.payload !== null && a.payload !== undefined && (
-                            <div className="rounded bg-black/30 p-2">
-                              <div className="mb-1 text-[9px] uppercase tracking-wider text-zinc-500">payload</div>
-                              <pre className="overflow-x-auto whitespace-pre-wrap break-words text-[10px] text-zinc-400">
+                            <div className="rounded bg-content p-2">
+              <div className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">payload</div>
+                              <pre className="overflow-x-auto whitespace-pre-wrap break-words text-[11px] text-fg-secondary">
                                 {JSON.stringify(a.payload, null, 2)}
                               </pre>
                             </div>
                           )}
-                          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-zinc-500">
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-fg-tertiary">
                             <div>createdAt: {a.createdAt}</div>
                             <div>executedAt: {a.executedAt ?? "—"}</div>
                             <div>approvedBy: {a.approvedBy ?? "—"}</div>
@@ -488,40 +487,40 @@ export default function ActionsPage() {
           </Panel>
         </>
       ) : (
-        <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
+        <Panel className="border-edge-default">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-white">pending action queue</h2>
-            <span className="text-xs text-[var(--text-tertiary)]">requires owner/operator approval</span>
+            <h2 className="text-sm font-semibold text-fg">pending action queue</h2>
+            <span className="text-xs text-fg-tertiary">requires owner/operator approval</span>
           </div>
 
           {/* 2026-09-08 · approval windows — the operator could not find them (they were code constants). */}
-          <div className="mb-4 rounded-lg border border-zinc-800/60 bg-zinc-950/40 p-3">
+          <div className="mb-4 rounded-surface border border-edge-subtle bg-canvas p-3">
             <div className="mb-1.5 flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-white">approval windows</h3>
-              <span className="text-[10px] font-mono text-[var(--text-tertiary)]">
+              <h3 className="text-xs font-semibold text-fg">approval windows</h3>
+              <span className="text-[11px] font-mono text-fg-tertiary">
                 {windowsQuery.data?.source === "env" ? "overridden by APPROVAL_FRESHNESS_DAYS" : "defaults · override with APPROVAL_FRESHNESS_DAYS (JSON)"}
               </span>
             </div>
             {windowsQuery.isError ? (
               <p className="text-xs text-amber-300">windows could not be read.</p>
             ) : !windowsQuery.data ? (
-              <p className="text-xs text-zinc-500">loading…</p>
+              <p className="text-xs text-fg-tertiary">loading…</p>
             ) : (
               <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
                 {windowsQuery.data.windows.map((w) => (
-                  <li key={w.actionType} className="font-mono text-zinc-300">
+                  <li key={w.actionType} className="font-mono text-fg">
                     {w.actionType} · {w.days} d{w.source === "env" ? " (env)" : ""}
                   </li>
                 ))}
-                <li className="font-mono text-zinc-500">anything else · {windowsQuery.data.defaultDays} d</li>
+                <li className="font-mono text-fg-tertiary">anything else · {windowsQuery.data.defaultDays} d</li>
               </ul>
             )}
-            <p className="mt-1.5 text-[11px] text-zinc-500">
+            <p className="mt-1.5 text-[11px] text-fg-tertiary">
               An approval past its window cannot be approved (the server refuses); it can be rejected, or the rule re-run.
             </p>
           </div>
           {approvals.length === 0 ? (
-            <p className="text-xs text-zinc-500 p-4">
+            <p className="text-xs text-fg-tertiary p-4">
               {loading ? "loading approvals…" : "no pending tool approvals"}
             </p>
           ) : (
@@ -537,26 +536,26 @@ export default function ActionsPage() {
                   <div
                     key={req.id}
                     className={cn(
-                      "rounded-lg border bg-[var(--bg-raised)]/[0.02] p-4 space-y-3 transition",
-                      isCritical ? "border-rose-500/30" : "border-zinc-800/60"
+                      "rounded-surface border p-4 space-y-3 transition",
+                      isCritical ? "border-rose-500/30" : "border-edge-subtle"
                     )}
                   >
                     <div className="flex items-start justify-between flex-wrap gap-2">
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-sm font-semibold text-zinc-200">
+              <span className="font-mono text-sm font-semibold text-fg">
                             {req.toolId}
                           </span>
                           <span className={cn(
-                            "rounded px-1.5 py-0.5 text-[10px] font-mono font-medium uppercase tracking-wider",
-                            isCritical ? "bg-rose-500/20 text-rose-300 animate-pulse" :
+                            "rounded px-1.5 py-0.5 text-[11px] font-mono font-medium",
+                            isCritical ? "bg-rose-500/20 text-rose-300" :
                             req.riskClass === "high" ? "bg-amber-500/20 text-amber-300" :
                             "bg-sky-500/20 text-sky-300"
                           )}>
                             {req.riskClass} risk
                           </span>
                         </div>
-                        <div className="text-xs text-zinc-400 mt-1">
+                        <div className="text-xs text-fg-secondary mt-1">
                           Requested by: <span className="font-mono">{req.requestedBy}</span> · reason: {req.reason}
                         </div>
                       </div>
@@ -564,7 +563,7 @@ export default function ActionsPage() {
                         <button
                           onClick={() => rejectMutation.mutate({ id: req.id })}
                           disabled={rejectMutation.isPending || approveMutation.isPending}
-                          className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 disabled:opacity-50 transition"
+                          className="rounded-control border border-edge-subtle bg-content px-3 py-1.5 text-xs font-semibold text-fg hover:bg-surface-hover disabled:opacity-50 transition"
                         >
                           Reject
                         </button>
@@ -572,8 +571,8 @@ export default function ActionsPage() {
                           onClick={() => approveMutation.mutate({ id: req.id })}
                           disabled={cannotApprove || rejectMutation.isPending || approveMutation.isPending}
                           className={cn(
-                            "rounded-lg px-3 py-1.5 text-xs font-semibold text-black transition disabled:opacity-40",
-                            isCritical ? "bg-rose-500 hover:bg-rose-600 disabled:bg-rose-800" : "bg-[var(--gold)] hover:bg-[var(--gold)]/80"
+                            "rounded-control px-3 py-1.5 text-xs font-semibold text-black transition disabled:opacity-40",
+                            isCritical ? "bg-rose-500 hover:bg-rose-600 disabled:bg-rose-800" : "bg-accent hover:bg-accent-hover"
                           )}
                           title={isExpired ? "Authorization expired — re-request or reject" : needsOwner ? "Requires owner privilege" : undefined}
                         >
@@ -582,9 +581,9 @@ export default function ActionsPage() {
                       </div>
                     </div>
 
-                    <div className="rounded bg-black/40 p-3 space-y-1">
+                    <div className="rounded bg-content p-3 space-y-1">
                       <div className="flex items-center justify-between">
-                        <div className="text-[10px] uppercase tracking-wider text-zinc-500">payload parameters</div>
+                        <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">payload parameters</div>
                         <button
                           onClick={() => {
                             if (editingId === req.id) {
@@ -594,7 +593,7 @@ export default function ActionsPage() {
                               setEditText(JSON.stringify(req.payload, null, 2));
                             }
                           }}
-                          className="min-h-[32px] rounded border border-zinc-800 px-2 text-[10px] font-mono uppercase tracking-wider text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition"
+                          className="min-h-[32px] rounded border border-edge-subtle px-2 text-[11px] font-mono text-fg-secondary hover:text-fg hover:bg-surface-hover transition"
                         >
                           {editingId === req.id ? "cancel edit" : "edit args"}
                         </button>
@@ -607,13 +606,13 @@ export default function ActionsPage() {
                             rows={Math.min(12, editText.split("\n").length + 1)}
                             spellCheck={false}
                             className={cn(
-                              "w-full rounded border bg-black/60 p-2 text-xs font-mono text-zinc-200 focus:outline-none",
-                              editParse.ok ? "border-zinc-700" : "border-rose-500/50",
+                              "w-full rounded border bg-content p-2 text-xs font-mono text-fg focus:outline-none",
+                              editParse.ok ? "border-edge-default" : "border-rose-500/50",
                             )}
                             aria-label="edited payload JSON"
                           />
                           <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <span className={cn("text-[10px] font-mono", editParse.ok ? "text-zinc-500" : "text-rose-400")}>
+              <span className={cn("text-[11px] font-mono", editParse.ok ? "text-fg-tertiary" : "text-rose-400")}>
                               {editParse.ok ? "valid JSON — approval executes with THESE args" : "invalid JSON"}
                             </span>
                             <button
@@ -623,7 +622,7 @@ export default function ActionsPage() {
                                 setEditingId(null);
                               }}
                               disabled={cannotApprove || !editParse.ok || rejectMutation.isPending || approveMutation.isPending}
-                              className="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-sky-400 disabled:opacity-40 transition"
+                              className="rounded-control bg-sky-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-sky-400 disabled:opacity-40 transition"
                               title={isExpired ? "Authorization expired — re-request or reject" : needsOwner ? "Requires owner privilege" : undefined}
                             >
                               Approve edited
@@ -631,7 +630,7 @@ export default function ActionsPage() {
                           </div>
                         </div>
                       ) : (
-                        <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs text-zinc-300 font-mono">
+                        <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs text-fg font-mono">
                           {JSON.stringify(req.payload, null, 2)}
                         </pre>
                       )}
@@ -644,7 +643,7 @@ export default function ActionsPage() {
                     )}
                     {needsOwner && (
                       <div className="text-xs text-rose-400 flex items-center gap-1.5">
-                        <span>⚠️</span> Owner privilege is required to approve this critical risk action.
+              Owner privilege is required to approve this critical risk action.
                       </div>
                     )}
                   </div>
@@ -654,29 +653,29 @@ export default function ActionsPage() {
           )}
 
           {/* 2026-09-08 · deferred automation (autonomous_actions awaiting a verdict) */}
-          <div className="mt-6 border-t border-zinc-800/60 pt-4">
+          <div className="mt-6 border-t border-edge-subtle pt-4">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white">deferred automation</h3>
-              <span className="text-xs text-[var(--text-tertiary)]">
+              <h3 className="text-sm font-semibold text-fg">deferred automation</h3>
+              <span className="text-xs text-fg-tertiary">
                 {autoQueue.data ? `${autoQueue.data.summary.live} live · ${autoQueue.data.summary.expired} expired` : autoQueue.isError ? "read failed — unknown, not zero" : "loading…"}
               </span>
             </div>
             {autoQueue.data && autoQueue.data.rows.length === 0 && (
-              <p className="text-xs text-zinc-500 p-2">no rule is waiting on you.</p>
+              <p className="text-xs text-fg-tertiary p-2">no rule is waiting on you.</p>
             )}
             <div className="space-y-3">
               {(autoQueue.data?.rows ?? []).map((row) => (
                 <div
                   key={row.id}
                   className={cn(
-                    "rounded-lg border bg-[var(--bg-raised)]/[0.02] p-3 space-y-2",
-                    row.expired ? "border-amber-500/30" : "border-zinc-800/60",
+                    "rounded-surface border p-3 space-y-2",
+                    row.expired ? "border-amber-500/30" : "border-edge-subtle",
                   )}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-sm text-white">{row.ruleName}</p>
-                      <p className="text-[11px] font-mono text-[var(--text-tertiary)]">
+                      <p className="text-sm text-fg">{row.ruleName}</p>
+                      <p className="text-[11px] font-mono text-fg-tertiary">
                         {row.actionType}
                         {row.targetType ? ` · ${row.targetType}${row.targetId ? ` ${row.targetId}` : ""}` : ""}
                         {" · "}
@@ -690,7 +689,7 @@ export default function ActionsPage() {
                         type="button"
                         onClick={() => decideAuto.mutate({ id: row.id, decision: "rejected" })}
                         disabled={decideAuto.isPending}
-                        className="min-h-[48px] min-w-[48px] rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:border-zinc-500 disabled:opacity-40"
+                        className="min-h-[48px] min-w-[48px] rounded-control border border-edge-default px-3 py-1.5 text-xs text-fg hover:border-edge-strong disabled:opacity-40"
                       >
                         Reject
                       </button>
@@ -706,12 +705,12 @@ export default function ActionsPage() {
                     </div>
                   </div>
                   {row.policyObjective && (
-                    <p className="text-[11px] text-zinc-400">{row.policyObjective}</p>
+                    <p className="text-[11px] text-fg-secondary">{row.policyObjective}</p>
                   )}
                   {row.payload != null && (
                     <details className="text-[11px]">
-                      <summary className="cursor-pointer text-[var(--text-tertiary)]">payload</summary>
-                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words font-mono text-zinc-300">{JSON.stringify(row.payload, null, 2)}</pre>
+              <summary className="cursor-pointer text-fg-tertiary">payload</summary>
+                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words font-mono text-fg">{JSON.stringify(row.payload, null, 2)}</pre>
                     </details>
                   )}
                   {row.expired && (
@@ -724,7 +723,7 @@ export default function ActionsPage() {
         </Panel>
       )}
 
-      <p className="pt-2 text-center text-[10px] text-zinc-600">
+      <p className="pt-2 text-center text-[11px] text-fg-tertiary">
         auto-refresh 30s · source: AutonomousAction / ApprovalRequest
       </p>
     </StandardPage>

@@ -52,11 +52,11 @@ export function RecallPreviewPanel() {
     }
   }
   return (
-    <section id="recall-preview" className="scroll-mt-24 rounded-lg border border-edge bg-surface/30 p-4">
+    <section id="recall-preview" className="scroll-mt-24 rounded-surface border border-edge-subtle bg-content p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <Brain size={14} className="text-gold" />
+            <Brain size={14} className="text-fg-secondary" />
             <h3 className="text-sm font-semibold text-fg">Recall preview</h3>
           </div>
           <p className="mt-1 max-w-2xl text-xs leading-5 text-fg-tertiary">
@@ -64,7 +64,7 @@ export function RecallPreviewPanel() {
           </p>
         </div>
         {report?.provenance ? (
-          <span className="rounded border border-edge px-2 py-1 font-mono text-[10px] text-fg-secondary">
+          <span className="rounded border border-edge px-2 py-1 font-mono text-[11px] text-fg-secondary">
             {report.provenance}
           </span>
         ) : null}
@@ -77,12 +77,12 @@ export function RecallPreviewPanel() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="What would Nick remember about…"
-          className="min-h-11 flex-1 rounded-md border border-edge bg-void px-3 text-sm text-fg outline-none focus:border-gold/50"
+          className="min-h-11 flex-1 rounded-control border border-edge bg-void px-3 text-sm text-fg outline-none focus:border-accent"
         />
         <button
           type="submit"
           disabled={!query.trim() || loading}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-gold/30 bg-gold/10 px-4 text-xs font-semibold text-gold disabled:opacity-40"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg justify-center disabled:opacity-40"
         >
           {loading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
           Preview
@@ -106,7 +106,7 @@ export function RecallPreviewPanel() {
 
       {report ? (
         <div className="mt-4 space-y-3">
-          <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] text-fg-tertiary">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-fg-tertiary">
             <span>{report.hits.length} hits</span>
             <span>{report.scanned} scanned</span>
             <span>{report.durationMs} ms</span>
@@ -120,7 +120,7 @@ export function RecallPreviewPanel() {
             <div className="space-y-2">
               {report.hits.map((hit) => (
                 <article key={hit.memoryId} className="rounded-md border border-edge bg-void/50 p-3">
-                  <div className="flex flex-wrap items-center gap-2 font-mono text-[9px] text-fg-tertiary">
+                  <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-fg-tertiary">
                     <span>{hit.category}</span>
                     <span>score {hit.finalScore.toFixed(3)}</span>
                     <span>fact age {hit.factAgeDays}d</span>
@@ -135,7 +135,7 @@ export function RecallPreviewPanel() {
           )}
 
           {includePrompt && report.promptBlock ? (
-            <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-void p-3 text-[10px] leading-4 text-fg-secondary">
+            <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-void p-3 text-[11px] leading-4 text-fg-secondary">
               {report.promptBlock}
             </pre>
           ) : null}

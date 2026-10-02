@@ -1,5 +1,11 @@
 # Session ledger — statenour
 
+**Updated: 2026-10-02 early ET** (UI v2 surfaces PR 2 · `statenour/ui-v2-surfaces` · journal / brain / people / stats / system / palette / ticker on the cockpit grammar)
+
+## 2026-10-02 · UI v2 PR 2 — every operator surface on the grammar
+
+97 files of class-level substitution (five scoped parallel conversions + page-tabs, home-brain-graph, page-nick by the orchestrator). Found on the way: the ⌘K Resolver was broken on main (`CommandDialog` has no cmdk root; opening threw `reading 'subscribe'`) — fixed by owning the `CommandPrimitive` root, pinned by `tests/components/command-palette-cmdk-root.test.tsx`. Ticker pulses only while working. Receipts: tsc 0 · eslint 0 errors · vitest 54 files / 528 + 2 · anti-slop 0 · stale-docs 0 · `next build` cleared-cache exit 0 (full route table, 2.4 min compile). One commit, one squash merge; deploy receipt posted on the PR. Next: PR 3 deletes the v1 lane + `CommandDialog`.
+
 **Updated: 2026-10-01 night ET** (UI v2 Precision Material Cockpit · #2871 MERGED `18bf9ebc` · Railway `754fae93` SUCCESS · LIVE + PROVEN on bdnick.info)
 
 ## 2026-10-01 · UI v2 cockpit — merged, deploy-verified

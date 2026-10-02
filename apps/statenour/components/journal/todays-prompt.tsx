@@ -71,29 +71,29 @@ export function TodaysPrompt() {
   return (
     <section
       aria-label="today's reflection prompt"
-      className="rounded-xl border border-[var(--gold)]/35 bg-[var(--gold)]/[0.04] p-5 shadow-[0_0_28px_rgba(253,185,19,0.04)]"
+      className="rounded-surface border border-edge-subtle bg-content p-5"
     >
       <div className="flex items-center gap-2 mb-3">
         <NotebookPen
           size={11}
-          className="text-[var(--gold)]"
-          strokeWidth={2}
+          className="text-fg-tertiary"
+          strokeWidth={1.75}
         />
-        <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           today's prompt
         </p>
       </div>
-      <p className="text-[18px] font-medium text-[var(--text-primary)] leading-snug italic">
+      <p className="text-[18px] font-medium text-fg leading-snug italic">
         {prompt}
       </p>
       <div className="mt-5 flex items-center justify-between gap-3">
-        <p className="text-[11px] text-[var(--text-tertiary)]">
+        <p className="text-[11px] text-fg-tertiary">
           3-5 sentences · ship it · no editing
         </p>
         <button
           type="button"
           onClick={focusComposer}
-          className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 min-h-[44px] text-[12px] font-medium uppercase tracking-[0.12em] bg-[var(--gold)]/15 text-[var(--gold)] hover:bg-[var(--gold)]/25 border border-[var(--gold)]/30 active:scale-95 transition-all"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
         >
           answer now
         </button>

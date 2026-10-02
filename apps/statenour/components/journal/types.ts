@@ -65,7 +65,7 @@ export const TYPE_META: Record<
   Exclude<TypeKey, "all">,
   { label: string; icon: IconComponent; color: string; bg: string; border: string }
 > = {
-  raw: { label: "Raw", icon: Circle, color: "text-zinc-400", bg: "bg-zinc-500/10", border: "border-zinc-500/30" },
+  raw: { label: "Raw", icon: Circle, color: "text-fg-tertiary", bg: "bg-surface-interactive", border: "border-edge-default" },
   thinking: { label: "Thinking", icon: Sparkles, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/30" },
   // v10.0.227 · purple → violet · the design system uses violet as
   // the "identity / cognition" accent across 10+ components (nudge
@@ -74,7 +74,7 @@ export const TYPE_META: Record<
   // and `planning` (cyan) so the row of pills is readable at a glance.
   reasoning: { label: "Reasoning", icon: Target, color: "text-violet-400", bg: "bg-violet-500/10", border: "border-violet-500/30" },
   insight: { label: "Insight", icon: Lightbulb, color: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/30" },
-  decision: { label: "Decision", icon: Flame, color: "text-[var(--gold)]", bg: "bg-[var(--gold)]/10", border: "border-[var(--gold)]/30" },
+  decision: { label: "Decision", icon: Flame, color: "text-orange-300", bg: "bg-orange-500/10", border: "border-orange-500/30" },
   reflection: { label: "Reflection", icon: Eye, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
   planning: { label: "Planning", icon: NotebookPen, color: "text-cyan-400", bg: "bg-cyan-500/10", border: "border-cyan-500/30" },
   // 2026-09-01 · venting was styled as a red ⚠ ALERT — raw feeling

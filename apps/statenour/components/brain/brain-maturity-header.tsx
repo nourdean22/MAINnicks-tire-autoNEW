@@ -141,11 +141,11 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <p className="text-[11px] text-rose-300">brain-maturity fetch failed</p>
-              <p className="text-[10px] text-rose-300/70 mt-0.5 break-words font-mono">{loadError}</p>
+              <p className="text-[11px] text-rose-300/70 mt-0.5 break-words font-mono">{loadError}</p>
             </div>
             <button
               onClick={reload}
-              className="shrink-0 text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-rose-400/40 text-rose-300 hover:bg-rose-400/10 transition-colors"
+              className="shrink-0 text-[11px] font-mono px-2 py-1 rounded border border-rose-400/40 text-rose-300 hover:bg-rose-400/10 transition-colors"
             >
               retry
             </button>
@@ -172,7 +172,7 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
   const scoreColor =
     score == null ? "text-amber-400" :
     score >= 75 ? "text-emerald-400" :
-    score >= 50 ? "text-[var(--gold)]" :
+    score >= 50 ? "text-fg-secondary" :
     score >= 30 ? "text-amber-400" : "text-red-400";
 
   const c = data.components;
@@ -189,7 +189,7 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
         <div className="flex items-center gap-2">
           <button
             onClick={() => void exportBrain()}
-            className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/30 inline-flex items-center gap-1"
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
             title="download full brain JSON"
           >
             <Download size={10} />
@@ -197,7 +197,7 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
           </button>
           <button
             onClick={() => void resetBrain()}
-            className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 inline-flex items-center gap-1"
+            className="text-[11px] font-mono px-2 py-1 rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 inline-flex items-center gap-1"
             title="nuke everything (double-confirm required)"
           >
             <RotateCcw size={10} />
@@ -226,12 +226,12 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
               <span className="text-[15px] text-[var(--text-tertiary)]">/{data.scoreMax}</span>
             )}
           </p>
-          <p className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mt-1">
+          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mt-1">
             {score == null ? "maturity unknown" : "brain maturity"}
           </p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 flex-1 text-[10px] font-mono">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 flex-1 text-[11px] font-mono">
           <Counter label="skills active" value={counterValue(c.skills.active)} />
           <Counter label="skills graduated" value={counterValue(c.skills.graduated)} color={dot("text-violet-400")} />
           <Counter label="skill candidates" value={counterValue(c.skills.pending)} color={dot("text-blue-400")} />
@@ -260,8 +260,8 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
         </div>
       </div>
       {degraded && (
-        <p className="mt-3 text-[10px] text-amber-300/90 leading-relaxed border border-amber-500/25 bg-amber-500/[0.05] rounded px-2 py-1.5">
-          <span className="font-mono uppercase tracking-wider text-amber-400">
+        <p className="mt-3 text-[11px] text-amber-300/90 leading-relaxed border border-amber-500/25 bg-amber-500/[0.05] rounded px-2 py-1.5">
+          <span className="font-mono text-amber-400">
             read failed — unknown, not zero
           </span>
           <br />
@@ -271,7 +271,7 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
           measured — none of them is a zero.
         </p>
       )}
-      <p className="text-[9px] text-[var(--text-tertiary)] mt-3">
+      <p className="text-[11px] text-[var(--text-tertiary)] mt-3">
         Rollup of all 7 brain subsystems. Refreshes when brain data changes. Higher score = the
         brain has more signal about who you are and how you operate.
       </p>

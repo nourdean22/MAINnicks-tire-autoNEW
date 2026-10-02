@@ -77,12 +77,12 @@ export function PatternCard() {
   return (
     <section
       aria-label="task patterns"
-      className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.03] p-4 space-y-3"
+      className="rounded-surface border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.03] p-4 space-y-3"
     >
       <header className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Sparkles size={14} className="text-[var(--gold)]" strokeWidth={1.75} />
-          <h3 className="text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--text-primary)]">
+          <Sparkles size={14} className="text-fg-secondary" strokeWidth={1.75} />
+          <h3 className="text-[15px] font-semibold text-fg">
             the system noticed
           </h3>
           <TipChip tip={PATTERN_TIP} title="patterns" size="xs" />
@@ -92,7 +92,7 @@ export function PatternCard() {
           onClick={regenerate}
           disabled={refreshing}
           aria-label="regenerate patterns"
-          className="text-[10px] font-mono text-[var(--text-tertiary)] hover:text-[var(--gold)] focus-visible:ring-1 focus-visible:ring-[var(--gold)] focus-visible:outline-none rounded px-1 transition-colors flex items-center gap-1"
+          className="text-[11px] font-mono text-[var(--text-tertiary)] hover:text-fg focus-visible:ring-1 focus-visible:ring-accent focus-visible:outline-none rounded px-1 transition-colors flex items-center gap-1"
         >
           <RefreshCw size={10} className={refreshing ? "animate-spin" : ""} />
           regen
@@ -105,10 +105,10 @@ export function PatternCard() {
             className="rounded-md border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.04] p-3 space-y-1.5"
           >
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--gold)]">
+              <span className="text-[11px] font-mono text-fg-secondary">
                 {p.axis.replace(/_/g, " ")}
               </span>
-              <span className="text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
+              <span className="text-[11px] font-mono tabular-nums text-[var(--text-tertiary)]">
                 · {p.memberCount} insights
               </span>
             </div>
@@ -123,7 +123,7 @@ export function PatternCard() {
               ))}
             </ul>
             {p.dominantWisdomQuery && (
-              <p className="text-[10px] italic text-[var(--text-tertiary)] mt-1">
+              <p className="text-[11px] italic text-[var(--text-tertiary)] mt-1">
                 thread to pull → {p.dominantWisdomQuery}
               </p>
             )}

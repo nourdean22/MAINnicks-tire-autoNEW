@@ -62,14 +62,14 @@ function TakeLifecycle({ status }: { status: string | null }) {
   const reached = status ? (STAGE[status] ?? 1) : 0;
 
   return (
-    <p className="text-[8px] font-mono tracking-wider text-zinc-600 mt-1 flex items-center gap-1 flex-wrap">
+    <p className="text-[11px] font-mono text-fg-tertiary mt-1 flex items-center gap-1 flex-wrap">
       {terminal ? (
         <>
-          <span className="text-zinc-400">captured</span>
+          <span className="text-fg-secondary">captured</span>
           <span>→</span>
-          <span className="text-zinc-400">proposed</span>
+          <span className="text-fg-secondary">proposed</span>
           <span>→</span>
-          <span className="text-zinc-500">× {terminal}</span>
+          <span className="text-fg-tertiary">× {terminal}</span>
         </>
       ) : (
         steps.map((step, i) => (
@@ -77,9 +77,9 @@ function TakeLifecycle({ status }: { status: string | null }) {
             {i > 0 && <span>→</span>}
             <span
               className={cn(
-                i < reached && "text-zinc-400",
+                i < reached && "text-fg-secondary",
                 i === reached && "text-emerald-400",
-                i > reached && "text-zinc-700",
+                i > reached && "text-fg-tertiary/60",
               )}
             >
               {step}
@@ -129,11 +129,11 @@ export function JournalInsightsPreview() {
 
   if (isLoading) {
     return (
-      <div className="rounded-xl border border-zinc-800/40 bg-zinc-900/30 p-4 space-y-3 animate-pulse">
-        <div className="h-4 w-40 bg-zinc-800 rounded" />
+      <div className="rounded-surface border border-edge-subtle bg-content p-4 space-y-3 animate-pulse">
+        <div className="h-4 w-40 bg-surface-interactive rounded-micro" />
         <div className="space-y-2">
-          <div className="h-12 bg-zinc-800/60 rounded" />
-          <div className="h-12 bg-zinc-800/60 rounded" />
+          <div className="h-12 bg-surface-interactive rounded-micro" />
+          <div className="h-12 bg-surface-interactive rounded-micro" />
         </div>
       </div>
     );
@@ -156,9 +156,9 @@ export function JournalInsightsPreview() {
         disabled={promoted || isPromoting}
         aria-label={promoted ? `${kind} already promoted` : `accept ${kind} as task`}
         className={cn(
-          "h-6 min-h-[28px] px-2 text-[9px] font-bold uppercase transition-all shrink-0 self-center",
+          "h-7 min-h-[28px] rounded-control px-2.5 text-[12px] font-medium transition-colors shrink-0 self-center",
           promoted
-            ? "bg-zinc-800 text-zinc-500 border border-zinc-700/50 hover:bg-zinc-800"
+            ? "bg-surface-interactive text-fg-tertiary border border-edge-subtle hover:bg-surface-interactive"
             : accent
         )}
       >
@@ -175,13 +175,13 @@ export function JournalInsightsPreview() {
   return (
     <section
       aria-label="journal takeaways preview"
-      className="rounded-xl border border-glass bg-zinc-950/40 p-4 space-y-3"
+      className="rounded-surface border border-edge-subtle bg-content p-4 space-y-3"
     >
       <header className="flex items-center gap-2">
-        <h3 className="text-[11px] font-mono uppercase tracking-[0.18em] text-fg-tertiary">
+        <h3 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           <span className="text-fg-secondary">NICK ·</span> extracted journal takes
         </h3>
-        <Badge variant="outline" className="ml-auto text-[8px] font-mono text-zinc-500 border-zinc-800 bg-zinc-900/30">
+        <Badge variant="outline" className="ml-auto rounded-micro text-[11px] font-mono text-fg-tertiary border-edge-subtle bg-transparent">
           local preview
         </Badge>
       </header>
@@ -200,7 +200,7 @@ export function JournalInsightsPreview() {
           />
         ))}
         {activeInsights.length > 3 && (
-          <p className="font-mono text-[9px] text-zinc-600">
+          <p className="font-mono text-[11px] text-fg-tertiary">
             +{activeInsights.length - 3} more entr{activeInsights.length - 3 === 1 ? "y" : "ies"} with takes — scroll the archive below.
           </p>
         )}
@@ -233,14 +233,14 @@ function InsightEntry({
 
   return (
           <div
-            className="rounded-lg border border-zinc-900 bg-zinc-950/20 p-3 space-y-2 transition-all hover:border-zinc-800"
+            className="rounded-control border border-edge-subtle bg-surface-interactive p-3 space-y-2 transition-colors hover:border-edge-default"
           >
             {/* Source entry title */}
             <div className="flex items-center gap-2">
-              <span className="text-[9px] font-mono text-zinc-500 truncate max-w-[280px]">
+              <span className="text-[11px] font-mono text-fg-tertiary truncate max-w-[280px]">
                 source: {item.entryTitle}
               </span>
-              <span className="text-[8px] font-mono text-zinc-600 ml-auto">
+              <span className="text-[11px] font-mono text-fg-tertiary ml-auto">
                 {new Date(item.updatedAt).toLocaleDateString(undefined, {
                   month: "short",
                   day: "numeric",
@@ -252,18 +252,18 @@ function InsightEntry({
             <div className="space-y-1.5 pt-0.5">
               {/* Next Move */}
               {item.nextAction && (showAll || primary === "nextAction") && (
-                <div className="flex items-start gap-2 p-2 rounded-md bg-emerald-500/[0.03] border border-emerald-500/10">
+                <div className="flex items-start gap-2 p-2 rounded-control bg-emerald-500/[0.03] border border-emerald-500/10">
                   <Zap size={11} className="text-emerald-400 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] uppercase font-mono tracking-wider text-emerald-400/80">
+                    <p className="text-[11px] font-mono text-emerald-400/80">
                       next action {item.nextAction.domain && `#${item.nextAction.domain}`}
                     </p>
-                    <p className="text-[11px] text-zinc-200 leading-snug mt-0.5">
+                    <p className="text-[12px] text-fg leading-snug mt-0.5">
                       {item.nextAction.action}
                     </p>
                     <TakeLifecycle status={item.commitmentStatus} />
                     {item.evidenceTier && (
-                      <p className="text-[8px] font-mono tracking-wider text-zinc-600 mt-0.5">
+                      <p className="text-[11px] font-mono text-fg-tertiary mt-0.5">
                         {item.evidenceTier.toLowerCase()}
                         {item.takeConfidence && ` · confidence ${item.takeConfidence.toLowerCase()}`}
                       </p>
@@ -273,20 +273,20 @@ function InsightEntry({
                     item,
                     "nextAction",
                     item.nextActionPromoted,
-                    "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500 hover:text-black"
+                    "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25"
                   )}
                 </div>
               )}
 
               {/* Bold Idea */}
               {item.idea && (showAll || primary === "idea") && (
-                <div className="flex items-start gap-2 p-2 rounded-md bg-amber-500/[0.03] border border-amber-500/15">
+                <div className="flex items-start gap-2 p-2 rounded-control bg-amber-500/[0.03] border border-amber-500/15">
                   <Lightbulb size={11} className="text-amber-400 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[11px] uppercase font-mono tracking-wider text-amber-400/80">
+                    <p className="text-[11px] font-mono text-amber-400/80">
                       bold idea
                     </p>
-                    <p className="text-[11.5px] text-zinc-300 leading-relaxed mt-0.5">
+                    <p className="text-[12px] text-fg-secondary leading-relaxed mt-0.5">
                       {item.idea}
                     </p>
                   </div>
@@ -294,20 +294,20 @@ function InsightEntry({
                     item,
                     "idea",
                     item.ideaPromoted,
-                    "border border-glass text-fg-secondary hover:bg-gold hover:text-black"
+                    "border border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg"
                   )}
                 </div>
               )}
 
               {/* Sharp Challenge */}
               {item.challenge && (showAll || primary === "challenge") && (
-                <div className="flex items-start gap-2 p-2 rounded-md bg-amber-500/[0.02] border border-amber-500/10">
+                <div className="flex items-start gap-2 p-2 rounded-control bg-amber-500/[0.02] border border-amber-500/10">
                   <Target size={11} className="text-amber-400 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] uppercase font-mono tracking-wider text-amber-400/80">
+                    <p className="text-[11px] font-mono text-amber-400/80">
                       challenge
                     </p>
-                    <p className="text-[11.5px] text-zinc-300 leading-relaxed mt-0.5">
+                    <p className="text-[12px] text-fg-secondary leading-relaxed mt-0.5">
                       {item.challenge}
                     </p>
                   </div>
@@ -315,7 +315,7 @@ function InsightEntry({
                     item,
                     "challenge",
                     item.challengePromoted,
-                    "bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500 hover:text-black"
+                    "bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25"
                   )}
                 </div>
               )}
@@ -323,7 +323,7 @@ function InsightEntry({
                 <button
                   type="button"
                   onClick={() => setShowAll(true)}
-                  className="min-h-[32px] rounded px-1.5 font-mono text-[9px] uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-300"
+                  className="min-h-[32px] rounded-control px-1.5 font-mono text-[11px] text-fg-tertiary transition-colors hover:text-fg"
                 >
                   +{hiddenCount} more take{hiddenCount === 1 ? "" : "s"} ▾
                 </button>

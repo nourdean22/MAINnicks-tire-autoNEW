@@ -141,14 +141,14 @@ export function ActiveAlertsCard() {
             <section key={category}>
               <div className="flex items-center gap-2 mb-1.5">
                 <Icon size={12} className="text-[var(--text-tertiary)]" />
-                <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+                <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
                   {meta.label} · {items.length}
                 </span>
                 <button
                   onClick={() => muteMutation.mutate({ category, days: 7 })}
                   disabled={muteMutation.isPending}
                   title="Mute this alert type for 7 days"
-                  className="ml-auto text-[9px] uppercase tracking-wider text-[var(--text-tertiary)] hover:text-amber-300 border border-white/8 rounded px-1.5 py-0.5"
+                  className="ml-auto text-[11px] text-[var(--text-tertiary)] hover:text-amber-300 border border-edge-subtle rounded px-1.5 py-0.5"
                 >
                   mute 7d
                 </button>
@@ -165,12 +165,12 @@ export function ActiveAlertsCard() {
                         onClick={() => resolveMutation.mutate({ id: alert.id })}
                         disabled={resolveMutation.isPending}
                         title="Resolve (removes this alert)"
-                        className="text-[10px] opacity-60 hover:opacity-100 border border-white/10 rounded px-1.5 py-0.5 shrink-0"
+                        className="text-[11px] opacity-60 hover:opacity-100 border border-edge-subtle rounded px-1.5 py-0.5 shrink-0"
                       >
                         resolve
                       </button>
                     </div>
-                    <p className="mt-1 text-[10px] opacity-70">{relTime(alert.createdAt)}</p>
+                    <p className="mt-1 text-[11px] opacity-70">{relTime(alert.createdAt)}</p>
                   </li>
                 ))}
               </ul>

@@ -212,19 +212,19 @@ export default function AlertsInspectorPage() {
             <div className="flex items-baseline gap-1.5">
               <AnimatedCounter
                 value={totalVisible}
-                className="text-xl font-bold text-[var(--text-primary)]"
+                className="text-xl font-bold text-fg"
               />
-              <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                 visible
               </span>
             </div>
-            <span className="text-[10px] text-[var(--text-tertiary)]">/</span>
+            <span className="text-[11px] text-fg-tertiary">/</span>
             <div className="flex items-baseline gap-1.5">
               <AnimatedCounter
                 value={totalAcrossAllCats}
-                className="text-base font-semibold text-[var(--text-secondary)]"
+                className="text-base font-semibold text-fg-secondary"
               />
-              <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                 total
               </span>
             </div>
@@ -238,7 +238,7 @@ export default function AlertsInspectorPage() {
 
         {/* Window selector */}
         <div className="mt-4 flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             window:
           </span>
           {SINCE_OPTIONS.map((opt) => (
@@ -247,16 +247,16 @@ export default function AlertsInspectorPage() {
               type="button"
               onClick={() => setSinceDays(opt.v)}
               className={
-                "rounded-full border px-2 py-0.5 text-[10px] font-mono transition-colors " +
+                "rounded-full border px-2 py-0.5 text-[11px] font-mono transition-colors " +
                 (sinceDays === opt.v
-                  ? "border-zinc-500 bg-zinc-700/50 text-zinc-100"
-                  : "border-zinc-800 bg-zinc-950 text-zinc-500 hover:text-zinc-200")
+                  ? "border-edge-strong bg-surface-interactive text-fg"
+                  : "border-edge-subtle bg-canvas text-fg-tertiary hover:text-fg")
               }
             >
               {opt.label}
             </button>
           ))}
-          <span className="ml-3 text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+          <span className="ml-3 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             sort:
           </span>
           {/* v10.0.437 · was a 2-mode toggle · now 4-mode SortDropdown */}
@@ -276,7 +276,7 @@ export default function AlertsInspectorPage() {
 
         {/* Category filter chips */}
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             categories:
           </span>
           {ALL_CATS.map((cat) => {
@@ -291,10 +291,10 @@ export default function AlertsInspectorPage() {
                 onDoubleClick={() => selectOnly(cat)}
                 title={`Click to toggle. Double-click to isolate.`}
                 className={
-                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-mono transition-colors " +
+                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-mono transition-colors " +
                   (active
                     ? meta.tint
-                    : "border-zinc-800 bg-zinc-950 text-zinc-500 hover:text-zinc-200")
+                    : "border-edge-subtle bg-canvas text-fg-tertiary hover:text-fg")
                 }
               >
                 <span>{meta.emoji}</span>
@@ -308,7 +308,7 @@ export default function AlertsInspectorPage() {
             <button
               type="button"
               onClick={selectAll}
-              className="ml-2 rounded-full border border-emerald-500/40 px-2 py-0.5 text-[10px] font-mono text-emerald-300 hover:bg-emerald-500/10"
+              className="ml-2 rounded-full border border-emerald-500/40 px-2 py-0.5 text-[11px] font-mono text-emerald-300 hover:bg-emerald-500/10"
             >
               show all
             </button>
@@ -324,21 +324,21 @@ export default function AlertsInspectorPage() {
         )}
 
         {loading && !payload && (
-          <p className="py-8 text-center text-xs text-zinc-500">
+          <p className="py-8 text-center text-xs text-fg-tertiary">
             Loading alerts…
           </p>
         )}
 
         {payload && totalVisible === 0 && (
           <div className="py-8 text-center">
-            <p className="text-sm text-zinc-300">
+              <p className="text-sm text-fg">
               {totalAcrossAllCats === 0
-                ? "✅ No alerts in the last "
+                ? "✓ No alerts in the last "
                 : "No alerts match the active filters in the last "}
               {sinceDays}d.
             </p>
             {totalAcrossAllCats > 0 && (
-              <p className="mt-1 text-[11px] text-zinc-500">
+              <p className="mt-1 text-[11px] text-fg-tertiary">
                 Toggle more categories above or expand the window to see them.
               </p>
             )}
@@ -355,11 +355,11 @@ export default function AlertsInspectorPage() {
                   data-entity={`alert:${alert.id}`}
                   data-entity-label={alert.content.slice(0, 80)}
                   className={
-                    "rounded-lg border p-3 data-[entity-focused=true]:ring-1 data-[entity-focused=true]:ring-[var(--gold)]/50 data-[entity-selected=true]:bg-[var(--gold)]/[0.06] " +
+                    "rounded-surface border p-3 data-[entity-focused=true]:ring-1 data-[entity-focused=true]:ring-edge-strong data-[entity-selected=true]:bg-accent-soft " +
                     (meta?.tint ?? "")
                   }
                 >
-                  <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-wider">
+                  <div className="mb-1.5 flex flex-wrap items-center gap-2 font-mono text-[11px] text-fg-secondary">
                     <span>
                       {meta?.emoji} {meta?.label ?? alert.category}
                     </span>

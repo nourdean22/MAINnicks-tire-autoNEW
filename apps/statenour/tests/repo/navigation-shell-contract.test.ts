@@ -44,7 +44,7 @@ describe("responsive navigation shell contract", () => {
 
   it("keeps classic PageTabs at the same 44px phone floor as lensed tabs", () => {
     const tabs = source("components/layout/page-tabs.tsx");
-    expect(tabs).toContain('"min-h-11 shrink-0 px-3 py-2 text-[11px]');
+    expect(tabs).toContain('"min-h-11 shrink-0 px-3 py-2 text-[13px] font-medium');
     expect(tabs).toContain('const SUB_ITEM =\n  "inline-flex min-h-[44px]');
   });
 

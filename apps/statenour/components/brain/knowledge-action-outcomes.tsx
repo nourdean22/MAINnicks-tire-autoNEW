@@ -116,13 +116,13 @@ export function KnowledgeActionOutcomes() {
             type="button"
             onClick={() => void load()}
             disabled={loading}
-            className="inline-flex items-center gap-2 rounded-lg border border-border bg-background/60 px-3 py-2 text-sm text-foreground transition hover:bg-muted disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-control border border-border bg-background/60 px-3 py-2 text-sm text-foreground transition hover:bg-muted disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </button>
         </div>
-        <div className="mt-4 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+        <div className="mt-4 text-[12px] font-mono text-fg-tertiary">
           {view.headline}
         </div>
       </GlassCard>
@@ -135,7 +135,7 @@ export function KnowledgeActionOutcomes() {
 
       {data.items.map((item) => (
         <GlassCard key={item.id} className="p-5">
-          <div className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+          <div className="text-[12px] font-mono text-fg-tertiary">
             {item.metadata.sourceType ?? "unknown source"}
           </div>
           <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground">{item.content}</p>
@@ -148,14 +148,14 @@ export function KnowledgeActionOutcomes() {
             maxLength={4_000}
             rows={2}
             placeholder="Optional evidence: what happened, what changed, or why the result was unclear"
-            className="mt-4 w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-foreground/40"
+            className="mt-4 w-full rounded-control border border-border bg-background/60 px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-foreground/40"
           />
           <div className="mt-4 flex flex-wrap justify-end gap-2">
             <button
               type="button"
               onClick={() => void record(item.id, "disproved")}
               disabled={actingId === item.id}
-              className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-foreground hover:bg-muted disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-control border border-border px-3 py-2 text-sm text-foreground hover:bg-muted disabled:opacity-50"
             >
               <XCircle className="h-4 w-4" /> Disproved
             </button>
@@ -163,7 +163,7 @@ export function KnowledgeActionOutcomes() {
               type="button"
               onClick={() => void record(item.id, "neutral")}
               disabled={actingId === item.id}
-              className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-foreground hover:bg-muted disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-control border border-border px-3 py-2 text-sm text-foreground hover:bg-muted disabled:opacity-50"
             >
               <CircleMinus className="h-4 w-4" /> Neutral
             </button>
@@ -171,7 +171,7 @@ export function KnowledgeActionOutcomes() {
               type="button"
               onClick={() => void record(item.id, "confirmed")}
               disabled={actingId === item.id}
-              className="inline-flex items-center gap-2 rounded-lg bg-foreground px-3 py-2 text-sm text-background hover:opacity-90 disabled:opacity-50"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50"
             >
               <CheckCircle2 className="h-4 w-4" /> Confirmed
             </button>

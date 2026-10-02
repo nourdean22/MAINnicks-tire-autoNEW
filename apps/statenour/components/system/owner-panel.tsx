@@ -50,9 +50,9 @@ function Row({ item }: { item: OwnerItem }) {
         {item.detail && <span className="block truncate text-[13px] text-fg-secondary">{item.detail}</span>}
         <span className="block truncate font-mono text-[11px] text-fg-tertiary">{item.evidence}</span>
       </span>
-      <span className="shrink-0 text-right font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary">
+      <span className="shrink-0 text-right font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
         {age(item.ageMin)}
-        {item.href && <span className="block text-fg-secondary group-hover:text-gold">open ↗</span>}
+        {item.href && <span className="block text-fg-secondary group-hover:text-fg">open ↗</span>}
       </span>
     </>
   );
@@ -120,7 +120,7 @@ export function OwnerPanel() {
         </ul>
       )}
 
-      <h3 className="mt-6 font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary">
+      <h3 className="mt-6 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
         decisions waiting · {decisionsUnknown ? "unknown" : p.decisions.length + p.decisionsHidden}
       </h3>
       {p.decisions.length > 0 ? (
@@ -130,7 +130,7 @@ export function OwnerPanel() {
           ))}
           {p.decisionsHidden > 0 && (
             <li>
-              <Link href="/system/actions" className="flex min-h-[48px] items-center text-[13px] text-fg-secondary hover:text-gold">
+              <Link href="/system/actions" className="flex min-h-[48px] items-center text-[13px] text-fg-secondary hover:text-fg">
                 {p.decisionsHidden} more in the approval queue ↗
               </Link>
             </li>
@@ -144,13 +144,13 @@ export function OwnerPanel() {
         </p>
       )}
 
-      <h3 className="mt-6 font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary">cost per outcome</h3>
+      <h3 className="mt-6 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">cost per outcome</h3>
       <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
         {p.cost.map((t) => (
           <div key={t.key} className="min-w-0">
             <dt className="flex items-baseline justify-between gap-2 text-[13px] text-fg-secondary">
               <span className="truncate">{t.label}</span>
-              <span className={cn("shrink-0 font-mono text-[10px] tracking-[0.14em]", PROVENANCE_TONE[t.provenance])}>
+              <span className={cn("shrink-0 font-mono text-[11px]", PROVENANCE_TONE[t.provenance])}>
                 {t.provenance}
               </span>
             </dt>

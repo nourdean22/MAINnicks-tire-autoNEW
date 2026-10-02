@@ -175,13 +175,13 @@ export function KnowledgeReviewTab() {
             type="button"
             onClick={() => void load()}
             disabled={loading}
-            className="inline-flex items-center gap-2 rounded-lg border border-border bg-background/60 px-3 py-2 text-sm text-foreground transition hover:bg-muted disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-control border border-border bg-background/60 px-3 py-2 text-sm text-foreground transition hover:bg-muted disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </button>
         </div>
-        <div className="mt-4 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+        <div className="mt-4 text-[12px] font-mono text-fg-tertiary">
           {view.headline}
         </div>
       </GlassCard>
@@ -199,7 +199,7 @@ export function KnowledgeReviewTab() {
           : "unknown";
         return (
           <GlassCard key={item.id} className="p-5">
-            <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.14em] text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2 text-[12px] font-mono text-fg-tertiary">
               <span>{metadata.sourceType ?? "unknown source"}</span>
               <span>·</span>
               <span>{metadata.kind ?? "observation"}</span>
@@ -244,7 +244,7 @@ export function KnowledgeReviewTab() {
                 type="button"
                 onClick={() => void review(item.id, "reject")}
                 disabled={actingId === item.id}
-                className="inline-flex items-center gap-2 rounded-lg border border-border bg-background/60 px-3 py-2 text-sm text-foreground transition hover:bg-muted disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-control border border-border bg-background/60 px-3 py-2 text-sm text-foreground transition hover:bg-muted disabled:opacity-50"
               >
                 <X className="h-4 w-4" /> Reject
               </button>
@@ -252,7 +252,7 @@ export function KnowledgeReviewTab() {
                 type="button"
                 onClick={() => void review(item.id, "accept")}
                 disabled={actingId === item.id}
-                className="inline-flex items-center gap-2 rounded-lg bg-foreground px-3 py-2 text-sm text-background transition hover:opacity-90 disabled:opacity-50"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50"
               >
                 <Check className="h-4 w-4" /> Approve
               </button>

@@ -82,13 +82,13 @@ export function JournalFeedView() {
             aria-label="Search journal archive"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-8 pr-8 py-2 min-h-[44px] sm:min-h-0 rounded-lg bg-(--bg-elevated) border border-(--border-default) text-[12px] text-(--text-primary) placeholder:text-(--text-tertiary) outline-none focus:border-(--gold)/40 transition-colors"
+            className="w-full pl-8 pr-8 py-2 min-h-[44px] sm:min-h-0 rounded-control bg-surface-interactive border border-edge-default text-[13px] text-fg placeholder:text-fg-tertiary outline-none focus:border-gold/40 transition-colors"
           />
           {search.length > 0 && (
             <button
               onClick={() => setSearch("")}
               aria-label="Clear search"
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 min-h-[28px] min-w-[28px] flex items-center justify-center rounded text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--bg-raised)"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 min-h-[28px] min-w-[28px] flex items-center justify-center rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover"
             >
               <XIcon size={12} />
             </button>
@@ -121,7 +121,7 @@ export function JournalFeedView() {
       />
 
       {error && (
-        <div className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-200 flex items-center justify-between gap-3">
+        <div className="mb-3 rounded-control border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-200 flex items-center justify-between gap-3">
           <span className="font-mono text-[11px]">{error}</span>
         </div>
       )}
@@ -130,7 +130,7 @@ export function JournalFeedView() {
           be swallowed silently, rendering a plausible-but-incomplete
           feed with zero signal. */}
       {degraded.length > 0 && (
-        <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] font-mono text-amber-200">
+        <div className="mb-3 rounded-control border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] font-mono text-amber-200">
           partial feed — failed source{degraded.length > 1 ? "s" : ""}: {degraded.join(", ")}
         </div>
       )}
@@ -141,24 +141,24 @@ export function JournalFeedView() {
             {isLoading && entries.length === 0 ? (
               <div className="space-y-2">
                 {[0, 1, 2].map((i) => (
-                  <ShimmerSkeleton key={i} className="h-20 rounded-xl border border-zinc-800/40" />
+                  <ShimmerSkeleton key={i} className="h-20 rounded-surface border border-edge-subtle" />
                 ))}
               </div>
             ) : filteredEntries.length === 0 ? (
-              <div className="text-center py-12 rounded-xl border border-(--gold)/20 bg-linear-to-b from-(--gold)/5 to-zinc-900/40">
-                <NotebookPen size={24} className="text-(--gold)/60 mx-auto mb-3" />
-                <p className="text-[13px] font-semibold text-(--text-secondary)">No thoughts captured yet in this filter.</p>
+              <div className="text-center py-12 rounded-surface border border-edge-subtle bg-content">
+                <NotebookPen size={24} className="text-fg-tertiary mx-auto mb-3" />
+                <p className="text-[13px] font-semibold text-fg-secondary">No thoughts captured yet in this filter.</p>
               </div>
             ) : (
               byDate.map(([date, dayEntries]) => (
                 <div key={date} className="animate-fade-in">
                   <div className="flex items-center gap-2 mb-2">
                     <Calendar size={11} className="text-(--text-tertiary)" />
-                    <span className="text-[10px] font-display font-bold uppercase tracking-[0.22em] text-(--text-tertiary)">
+                    <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                       {formatDay(date)}
                     </span>
-                    <div className="h-px flex-1 bg-zinc-800/50" />
-                    <span className="text-[9px] font-mono text-(--text-tertiary)">
+                    <div className="h-px flex-1 bg-edge-subtle" />
+                    <span className="font-mono text-[11px] text-fg-tertiary">
                       {dayEntries.length} {dayEntries.length === 1 ? "entry" : "entries"}
                     </span>
                   </div>
@@ -185,9 +185,9 @@ export function JournalFeedView() {
             <button
               onClick={loadMore}
               disabled={isFetchingMore}
-              className="px-4 py-2 min-h-[44px] text-[11px] font-mono tracking-wide rounded-md border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-60"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-60"
             >
-              {isFetchingMore ? "LOADING…" : "LOAD MORE ARCHIVES"}
+              {isFetchingMore ? "Loading…" : "Load more archives"}
             </button>
           </div>
         )}

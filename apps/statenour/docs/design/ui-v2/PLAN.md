@@ -253,3 +253,32 @@ Second-pass receipts in `shots/`: `after2-*` (v2 after the cascade repairs: the 
 the empty-state title 26px, the composer edge is the hairline, receipts sit on `--surface`), `pre-sliceA-*` →
 `post-sliceA-*` (brain / system / stats at 1440 before and after the desktop type floor), and `post-sliceA-journal`
 / `post-sliceA-people` (surfaces that still carry the old component grammar on the new tokens).
+
+## 12 · PR 2 (2026-10-02) — the remaining surfaces
+
+Branch `statenour/ui-v2-surfaces`, one commit, one squash merge, per the operator's "as few commits and merges
+as possible". Five parallel conversions with strict file scopes (journal 16 files · brain 31 · people + stats 6 ·
+system 34 · palette + ticker 4) plus the orchestrator's own: `page-tabs.tsx`, `home-brain-graph.tsx`,
+`page-nick.tsx`. Substitutions only — no handler, aria, role, id or data attribute changed; test-pinned strings
+left alone (one literal in `navigation-shell-contract` named the old tab size and was updated).
+
+**What each surface keeps as gold:** the one primary (journal "log reflection", people "Add person", stats
+"Log Entry", /brain "Ask the brain", actions / inbox "Approve", camera "Simulate"), `border-accent` or
+`bg-accent-soft` on selected tabs / chips / rows, the focus ring, the notch on the selected palette row and the
+ticker sheet's active row, the chart `activeDot`, and the NEW-node arc on the brain canvas. Status hues
+(emerald / amber / rose / sky) and categorical hues on crons / logs / alerts rows are untouched.
+
+**Found, not planned:** the ⌘K Resolver was broken on `main` — `CommandDialog` mounts no cmdk root, and the
+palette rendered `CommandInput` inside it, so opening it threw `reading 'subscribe'`. It now owns its
+`CommandPrimitive` root behind an unstyled `DialogContent` (the styled one paints a solid modal step that would
+cancel the material). `tests/components/command-palette-cmdk-root.test.tsx` carries the positive control and the
+contract. The ticker pulsed at rest; it now pulses only while a feed refetches or a commitment resolve is in
+flight.
+
+**Receipts:** `tsc --noEmit` 0 · eslint 0 errors (94 changed files) · vitest 54 files / 528 tests + 2 ·
+anti-slop 0 · stale-docs strict 0 · `next build` (cleared cache) exit 0 (full route table, 2.4 min compile).
+
+**Flagged for PR 3:** delete the `?ui=v1` lane (`lib/ui-version.ts`, the switch component, the v1 token block,
+the `data-ui` gates in `base.css`), delete `CommandDialog`, migrate the last `components/ui/card.tsx` importers
+(stats) to `GlassCard`, and lift the 24px inline edit buttons in brain's beliefs / contradiction / identity
+panels to the 44px floor.

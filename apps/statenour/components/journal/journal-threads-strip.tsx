@@ -9,9 +9,9 @@
  * how recently the operator wrote into it.
  *
  *   · emerald · alive    (last joined within 7 days · momentum)
- *   · gold    · cooling  (7-14 days · still active but slowing)
+ *   · amber   · cooling  (7-14 days · still active but slowing)
  *   · rose    · stalled  (>14 days · operator hasn't written here)
- *   · zinc    · dormant  (status="dormant" · auto-archived by cron)
+ *   · muted   · dormant  (status="dormant" · auto-archived by cron)
  *
  * Eyebrow count summary makes triage operator-grade: "N stalled · M
  * cooling · K alive." Hover tooltip surfaces full thread name +
@@ -66,8 +66,8 @@ const PACE_STYLE: Record<Pace, { dot: string; ring: string; label: string }> = {
     label: "active",
   },
   cooling: {
-    dot: "bg-[var(--gold)]",
-    ring: "ring-[var(--gold)]/40",
+    dot: "bg-amber-400",
+    ring: "ring-amber-400/40",
     label: "slowing",
   },
   stalled: {
@@ -76,8 +76,8 @@ const PACE_STYLE: Record<Pace, { dot: string; ring: string; label: string }> = {
     label: "stalled",
   },
   dormant: {
-    dot: "bg-zinc-600",
-    ring: "ring-zinc-700",
+    dot: "bg-edge-strong",
+    ring: "ring-edge-default",
     label: "dormant",
   },
 };
@@ -129,35 +129,35 @@ export function JournalThreadsStrip() {
   return (
     <section
       aria-label="journal threads strip"
-      className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] px-4 py-3"
+      className="rounded-surface border border-edge-subtle bg-content px-4 py-3"
     >
       <div className="flex items-center gap-2 flex-wrap">
         <NotebookPen
           size={11}
-          className="text-[var(--text-tertiary)]"
+          className="text-fg-tertiary"
           strokeWidth={1.75}
         />
-        <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
           threads · {chips.length}
         </span>
-        <span className="text-[var(--text-tertiary)]/30">·</span>
+        <span className="text-fg-tertiary/30">·</span>
         {counts.stalled > 0 && (
-          <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-rose-300">
+          <span className="text-[11px] font-mono text-rose-300">
             {counts.stalled} stalled
           </span>
         )}
         {counts.cooling > 0 && (
-          <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--gold)]">
+          <span className="text-[11px] font-mono text-amber-300">
             {counts.cooling} cooling
           </span>
         )}
         {counts.alive > 0 && (
-          <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-emerald-300">
+          <span className="text-[11px] font-mono text-emerald-300">
             {counts.alive} alive
           </span>
         )}
         {counts.dormant > 0 && (
-          <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-zinc-400">
+          <span className="text-[11px] font-mono text-fg-tertiary">
             {counts.dormant} dormant
           </span>
         )}
@@ -174,18 +174,18 @@ export function JournalThreadsStrip() {
             <span
               key={c.id}
               title={`${c.name} · ${c.memberCount} entries · ${subtitle}`}
-              className="group inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--bg-raised)]/[0.04]"
+              className="group inline-flex items-center gap-1.5 px-2 py-1 rounded-micro bg-surface-interactive"
               aria-label={`${c.name}: ${c.memberCount} entries, ${subtitle}`}
             >
               <span
                 className={cn(
-                  "h-2 w-2 rounded-full ring-2 ring-offset-1 ring-offset-[var(--bg-base)] shrink-0",
+                  "h-2 w-2 rounded-full ring-2 ring-offset-1 ring-offset-content shrink-0",
                   style.dot,
                   style.ring,
                 )}
                 aria-hidden
               />
-              <span className="text-[10px] font-mono text-[var(--text-tertiary)] truncate max-w-[140px]">
+              <span className="text-[11px] font-mono text-fg-tertiary truncate max-w-[140px]">
                 {c.name}
               </span>
             </span>

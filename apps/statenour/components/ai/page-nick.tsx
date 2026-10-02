@@ -203,8 +203,8 @@ export function PageNick({
     >
       {/* Trigger row */}
       <div className="flex items-center gap-1.5">
-        <Brain size={12} className="text-[var(--gold)] shrink-0" />
-        <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--gold)] shrink-0">
+        <Brain size={12} className="text-fg-tertiary shrink-0" />
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary shrink-0">
           Ask Nick
         </span>
         <div className="flex-1" />
@@ -214,10 +214,10 @@ export function PageNick({
               setOpen(true);
               haptic.tap();
             }}
-            className="flex items-center gap-1 px-2 h-6 rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/5 text-[10px] font-bold text-[var(--gold)] hover:bg-[var(--gold)]/15 transition-colors"
+            className="inline-flex min-h-[32px] items-center gap-1 rounded-control border border-edge-default bg-content px-2.5 text-[12px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
           >
-            <Sparkles size={10} />
-            ANALYZE
+            <Sparkles size={12} />
+            Analyze
           </button>
         )}
       </div>
@@ -233,19 +233,19 @@ export function PageNick({
                 if (e.key === "Enter") ask();
               }}
               placeholder={placeholder || `Ask about this ${page}...`}
-              className="flex-1 h-8 px-2.5 rounded-md bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--gold)]/40"
+              className="flex-1 h-9 px-2.5 rounded-control bg-content border border-edge-default text-[13px] text-fg placeholder:text-fg-tertiary outline-none transition-colors duration-[var(--motion-state)] focus:border-accent"
             />
             <button
               onClick={() => ask()}
               disabled={!question.trim() && !presets?.length}
-              className="flex items-center justify-center w-8 h-8 rounded-md bg-[var(--gold)] text-black hover:bg-[var(--gold)]/90 transition-colors disabled:opacity-40"
+              className="flex items-center justify-center w-9 h-9 rounded-control bg-accent text-[var(--text-inverse)] hover:bg-accent-hover transition-colors duration-[var(--motion-state)] disabled:opacity-40"
               aria-label="Send"
             >
               <Send size={12} />
             </button>
             <button
               onClick={dismiss}
-              className="flex items-center justify-center w-8 h-8 rounded-md text-[var(--text-tertiary)] hover:text-red-400 transition-colors"
+              className="flex items-center justify-center w-9 h-9 rounded-control text-fg-tertiary hover:text-fg transition-colors duration-[var(--motion-state)]"
               aria-label="Close"
             >
               <X size={12} />
@@ -259,7 +259,7 @@ export function PageNick({
                 <button
                   key={i}
                   onClick={() => ask(p)}
-                  className="inline-flex min-h-[32px] items-center border-b border-edge px-1 font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)] transition-colors hover:border-[var(--gold)]/60 hover:text-[var(--gold)]"
+                  className="inline-flex min-h-[32px] items-center border-b border-edge-subtle px-1 text-[12px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
                 >
                   {p}
                 </button>
@@ -271,20 +271,20 @@ export function PageNick({
 
       {/* Streaming / response state */}
       {(streaming || response || error) && (
-        <div className="rounded-md border border-[var(--gold)]/20 bg-[var(--bg-void)]/60 p-2.5 space-y-2 animate-fade-in-scale">
+        <div className="rounded-surface border border-edge-subtle bg-content p-2.5 space-y-2 animate-fade-in-scale">
           {streaming && !response && (
-            <div className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)]">
-              <Loader2 size={11} className="animate-spin text-[var(--gold)]" />
+            <div className="flex items-center gap-2 text-[12px] text-fg-tertiary">
+              <Loader2 size={11} className="animate-spin text-fg-secondary" />
               Nick is analyzing…
             </div>
           )}
 
           {response && (
-            <div className="text-[11px] leading-[1.55] text-[var(--text-primary)] whitespace-pre-wrap">
+            <div className="text-[13px] leading-[1.55] text-fg whitespace-pre-wrap">
               {response}
               {streaming && (
                 <span
-                  className="inline-block w-[5px] h-[11px] ml-0.5 bg-[var(--gold)] align-baseline"
+                  className="inline-block w-[5px] h-[11px] ml-0.5 bg-fg-secondary align-baseline"
                   style={{ animation: "pulse 1.2s ease-in-out infinite" }}
                 />
               )}
@@ -299,42 +299,42 @@ export function PageNick({
 
           {/* Actions */}
           {!streaming && (response || error) && (
-            <div className="flex items-center gap-1.5 pt-1 border-t border-[var(--border-default)]/40">
+            <div className="flex items-center gap-1.5 pt-1 border-t border-edge-subtle">
               {streaming ? (
                 <button
                   onClick={stop}
-                  className="text-[9px] px-2 h-6 rounded-md border border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 font-bold uppercase tracking-wider"
+                  className="inline-flex min-h-[32px] items-center rounded-control border border-red-500/40 bg-red-500/10 px-2.5 text-[12px] font-medium text-red-300 hover:bg-red-500/20"
                 >
-                  STOP
+                  Stop
                 </button>
               ) : (
                 <>
                   <button
                     onClick={openInChat}
-                    className="flex items-center gap-1 text-[9px] px-2 h-6 rounded-md border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/30 font-bold uppercase tracking-wider"
+                    className="inline-flex min-h-[32px] items-center gap-1 rounded-control border border-edge-default bg-content px-2.5 text-[12px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
                   >
-                    <MessageSquare size={10} />
-                    OPEN IN CHAT
+                    <MessageSquare size={12} />
+                    Open in chat
                   </button>
                   {response && (
                     <button
                       onClick={copy}
-                      className="flex items-center gap-1 text-[9px] px-2 h-6 rounded-md border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/30 font-bold uppercase tracking-wider"
+                      className="inline-flex min-h-[32px] items-center gap-1 rounded-control border border-edge-default bg-content px-2.5 text-[12px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
                     >
-                      <Copy size={10} />
-                      {copied ? "COPIED" : "COPY"}
+                      <Copy size={12} />
+                      {copied ? "Copied" : "Copy"}
                     </button>
                   )}
                   <button
                     onClick={() => ask(question || undefined)}
-                    className="flex items-center gap-1 text-[9px] px-2 h-6 rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/5 text-[var(--gold)] hover:bg-[var(--gold)]/15 font-bold uppercase tracking-wider ml-auto"
+                    className="inline-flex min-h-[32px] items-center gap-1 rounded-control border border-edge-default bg-content px-2.5 text-[12px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg ml-auto"
                   >
-                    <Sparkles size={10} />
-                    AGAIN
+                    <Sparkles size={12} />
+                    Again
                   </button>
                   <button
                     onClick={dismiss}
-                    className="flex items-center justify-center w-6 h-6 text-[var(--text-tertiary)] hover:text-red-400"
+                    className="flex items-center justify-center w-8 h-8 text-fg-tertiary hover:text-fg"
                     aria-label="Dismiss"
                   >
                     <X size={10} />

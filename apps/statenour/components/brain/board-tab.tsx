@@ -17,7 +17,7 @@
  * into one answer.
  *
  * Editorial-minimalist per docs/aesthetic-principles.md · gold-on-dark
- * · glass cards · 10-12px uppercase font-mono eyebrows · no purple.
+ * · glass cards · 10-12px font-mono eyebrows · no purple.
  */
 
 import { useState } from "react";
@@ -136,7 +136,7 @@ export function BoardTab() {
 
       {/* ── Board selector · row of chips ───────────────────────── */}
       <div>
-        <p className="mb-2 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+        <p className="mb-2 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
           board
         </p>
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -150,10 +150,10 @@ export function BoardTab() {
                 aria-pressed={isActive}
                 title={b.oneLiner}
                 className={
-                  "min-h-[36px] px-3 py-1.5 rounded-full text-[11px] font-mono uppercase tracking-[0.14em] border transition-colors " +
+                  "min-h-[36px] px-3 py-1.5 rounded-full text-[13px] font-medium border transition-colors duration-[var(--motion-state)] " +
                   (isActive
-                    ? "border-[var(--gold)]/60 bg-[var(--gold)]/10 text-[var(--gold)]"
-                    : "border-[var(--border-default)] bg-[var(--bg-raised)]/[0.03] text-[var(--text-secondary)] hover:border-[var(--gold)]/30 hover:text-[var(--gold)]")
+                    ? "border-accent bg-surface-interactive text-fg"
+                    : "border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg")
                 }
               >
                 {b.name}
@@ -161,14 +161,14 @@ export function BoardTab() {
             );
           })}
         </div>
-        <p className="mt-1.5 text-[10px] font-mono text-[var(--text-tertiary)]">
+        <p className="mt-1.5 text-[11px] font-mono text-[var(--text-tertiary)]">
           {BOARD_OPTIONS.find((b) => b.id === boardId)?.oneLiner}
         </p>
       </div>
 
       {/* ── Question + consult button ──────────────────────────── */}
       <div className="space-y-2 mt-5">
-        <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
           question
         </p>
         <textarea
@@ -176,11 +176,11 @@ export function BoardTab() {
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="should I push price up on brake jobs by $20?"
           rows={3}
-          className="w-full bg-[var(--bg-raised)]/[0.03] border border-[var(--border-default)] rounded-lg p-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--gold)]/40 hover:border-[var(--gold)]/30 transition-colors resize-y"
+          className="w-full bg-[var(--bg-raised)]/[0.03] border border-[var(--border-default)] rounded-control p-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent hover:border-edge-strong transition-colors resize-y"
           maxLength={4000}
         />
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <span className="text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
+          <span className="text-[11px] font-mono tabular-nums text-[var(--text-tertiary)]">
             {question.length}/4000 · need ≥8 chars
           </span>
           <button
@@ -188,10 +188,10 @@ export function BoardTab() {
             onClick={onConsult}
             disabled={!canConsult}
             className={
-              "min-h-[44px] px-4 py-2 rounded-full text-[11px] font-mono uppercase tracking-[0.16em] border transition-colors " +
+              "inline-flex min-h-[44px] items-center gap-1.5 rounded-control border px-4 text-[13px] font-medium transition-colors duration-[var(--motion-state)] " +
               (canConsult
-                ? "border-[var(--gold)]/60 bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/15"
-                : "border-[var(--border-default)] bg-[var(--bg-raised)]/[0.03] text-[var(--text-tertiary)] cursor-not-allowed")
+                ? "border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg"
+                : "border-edge-subtle text-fg-tertiary cursor-not-allowed")
             }
           >
             {consultMutation.isPending ? "consulting..." : "consult board"}
@@ -208,15 +208,15 @@ export function BoardTab() {
 
       {/* ── SYNTHESIS card · top of result · the operator's primary read ── */}
       {result && (
-        <div className="rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] p-4 space-y-3 mt-5">
+        <div className="rounded-surface border border-edge-subtle bg-content p-4 space-y-3 mt-5">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
+            <span className="text-[11px] font-mono text-fg-secondary">
               synthesis · {result.boardName.toLowerCase()}
             </span>
-            <span className="text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
+            <span className="text-[11px] font-mono tabular-nums text-[var(--text-tertiary)]">
               {Math.round(result.synthesis.confidence * 100)}% confidence
             </span>
-            <span className="ml-auto text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
+            <span className="ml-auto text-[11px] font-mono tabular-nums text-[var(--text-tertiary)]">
               {result.durationMs}ms ·{" "}
               {dropped.length > 0
                 ? `${result.takes.length} of ${boardSize} advisors`
@@ -231,7 +231,7 @@ export function BoardTab() {
               on a decision described as having compound consequences. */}
           {dropped.length > 0 && (
             <div className="border-t border-amber-400/20 pt-2.5">
-              <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-amber-400/80 mb-1">
+              <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-amber-400/80 mb-1">
                 lenses withheld ({dropped.length})
               </p>
               <p className="text-[12px] text-[var(--text-secondary)]">
@@ -242,7 +242,7 @@ export function BoardTab() {
                   {dropped.join(" · ")}
                 </span>
               </p>
-              <p className="mt-1 text-[10px] text-[var(--text-tertiary)]">
+              <p className="mt-1 text-[11px] text-[var(--text-tertiary)]">
                 they were never consulted · the synthesis above does not
                 speak for them
               </p>
@@ -256,8 +256,8 @@ export function BoardTab() {
 
           {/* Tension axis · only when present · the highest-signal divergence */}
           {result.synthesis.tension && (
-            <div className="border-t border-[var(--gold)]/20 pt-2.5">
-              <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-amber-400/80 mb-1">
+            <div className="border-t border-edge-subtle pt-2.5">
+              <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-amber-400/80 mb-1">
                 tension
               </p>
               <p className="text-[12px] text-[var(--text-secondary)]">
@@ -268,14 +268,14 @@ export function BoardTab() {
 
           {/* Consensus bullets */}
           {result.synthesis.consensus.length > 0 && (
-            <div className="border-t border-[var(--gold)]/20 pt-2.5">
-              <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] mb-1">
+            <div className="border-t border-edge-subtle pt-2.5">
+              <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mb-1">
                 consensus
               </p>
               <ul className="space-y-1 text-[12px] text-[var(--text-secondary)]">
                 {result.synthesis.consensus.map((c, i) => (
                   <li key={i} className="flex gap-2">
-                    <span className="text-[var(--gold)]/60">·</span>
+                    <span className="text-fg-secondary">·</span>
                     <span>{c}</span>
                   </li>
                 ))}
@@ -285,8 +285,8 @@ export function BoardTab() {
 
           {/* Divergences · where the board split */}
           {result.synthesis.divergences.length > 0 && (
-            <div className="border-t border-[var(--gold)]/20 pt-2.5">
-              <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-amber-400/80 mb-1">
+            <div className="border-t border-edge-subtle pt-2.5">
+              <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-amber-400/80 mb-1">
                 divergence
               </p>
               <ul className="space-y-1 text-[12px] text-[var(--text-secondary)]">
@@ -305,7 +305,7 @@ export function BoardTab() {
       {/* ── Advisor takes · one per board member · expandable ──── */}
       {result && result.takes.length > 0 && (
         <div className="space-y-2 mt-5">
-          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
             advisor takes ({result.takes.length}
             {dropped.length > 0 ? ` of ${boardSize}` : ""})
           </p>
@@ -316,7 +316,7 @@ export function BoardTab() {
               <div
                 key={take.advisorId}
                 className={
-                  "rounded-lg border bg-[var(--bg-raised)]/[0.03] p-3 space-y-2 " +
+                  "rounded-surface border bg-[var(--bg-raised)]/[0.03] p-3 space-y-2 " +
                   (isErrored
                     ? "border-red-500/20"
                     : "border-[var(--border-default)]")
@@ -328,24 +328,24 @@ export function BoardTab() {
                   aria-expanded={isExpanded}
                   className="w-full text-left flex items-start gap-2 flex-wrap"
                 >
-                  <span className="text-[11px] font-mono uppercase tracking-[0.14em] text-[var(--text-primary)]">
+                  <span className="text-[11px] font-mono text-[var(--text-primary)]">
                     {take.advisorName.toLowerCase()}
                   </span>
                   {isErrored ? (
-                    <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-red-400">
+                    <span className="text-[11px] font-mono text-red-400">
                       errored
                     </span>
                   ) : (
-                    <span className="text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
+                    <span className="text-[11px] font-mono tabular-nums text-[var(--text-tertiary)]">
                       {Math.round(take.confidence * 100)}%
                     </span>
                   )}
                   {take.divergenceFlag && (
-                    <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-amber-400/80">
+                    <span className="text-[11px] font-mono text-amber-400/80">
                       ⚡ divergence
                     </span>
                   )}
-                  <span className="ml-auto text-[10px] font-mono text-[var(--text-tertiary)]">
+                  <span className="ml-auto text-[11px] font-mono text-[var(--text-tertiary)]">
                     {isExpanded ? "−" : "+"}
                   </span>
                 </button>
@@ -365,7 +365,7 @@ export function BoardTab() {
                     ) : (
                       <>
                         <div>
-                          <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)] mb-0.5">
+                          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
                             insight
                           </p>
                           <p className="text-[12px] text-[var(--text-secondary)]">
@@ -373,7 +373,7 @@ export function BoardTab() {
                           </p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)] mb-0.5">
+                          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
                             recommendation
                           </p>
                           <p className="text-[12px] text-[var(--text-primary)]">
@@ -382,7 +382,7 @@ export function BoardTab() {
                         </div>
                         {take.divergenceFlag && (
                           <div>
-                            <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-amber-400/80 mb-0.5">
+                            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-amber-400/80 mb-0.5">
                               divergence flag
                             </p>
                             <p className="text-[12px] text-[var(--text-secondary)]">
@@ -416,7 +416,7 @@ export function BoardTab() {
           <button
             type="button"
             onClick={() => void recentQuery.refetch()}
-            className="mt-2 min-h-[44px] px-4 py-2 rounded-full text-[10px] font-mono uppercase tracking-[0.16em] border border-[var(--border-default)] text-[var(--text-secondary)] hover:border-[var(--gold)]/30 hover:text-[var(--gold)] transition-colors"
+            className="mt-2 inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
           >
             retry
           </button>
@@ -434,7 +434,7 @@ export function BoardTab() {
 
       {recents.length > 0 && (
         <div className="pt-4 border-t border-[var(--border-default)] space-y-2 mt-5">
-          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
             recent consultations ({recents.length})
           </p>
           <ul className="space-y-1.5">
@@ -444,14 +444,14 @@ export function BoardTab() {
                 className="rounded border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02] px-3 py-2 space-y-1"
               >
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--gold)]/80">
+                  <span className="text-[11px] font-mono text-fg-secondary">
                     {r.boardId}
                   </span>
-                  <span className="text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
+                  <span className="text-[11px] font-mono tabular-nums text-[var(--text-tertiary)]">
                     {Math.round(r.confidence * 100)}%
                   </span>
                   {r.divergenceCount > 0 && (
-                    <span className="text-[10px] font-mono text-amber-400/80">
+                    <span className="text-[11px] font-mono text-amber-400/80">
                       ⚡ {r.divergenceCount} div
                     </span>
                   )}
@@ -461,7 +461,7 @@ export function BoardTab() {
                       are missing from a decision they already made. */}
                   {r.droppedAdvisorIds.length > 0 && (
                     <span
-                      className="text-[10px] font-mono text-amber-400/80"
+                      className="text-[11px] font-mono text-amber-400/80"
                       title={
                         (r.moodAtConsult ? `mood ${r.moodAtConsult} · ` : "") +
                         `gated out: ${r.droppedAdvisorIds.join(", ")}`
@@ -473,11 +473,11 @@ export function BoardTab() {
                     </span>
                   )}
                   {r.droppedAdvisorIds.length === 0 && r.erroredCount > 0 && (
-                    <span className="text-[10px] font-mono text-red-400/80">
+                    <span className="text-[11px] font-mono text-red-400/80">
                       {r.erroredCount} errored
                     </span>
                   )}
-                  <span className="ml-auto text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
+                  <span className="ml-auto text-[11px] font-mono tabular-nums text-[var(--text-tertiary)]">
                     {formatRelative(r.createdAt)}
                   </span>
                 </div>

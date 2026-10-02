@@ -117,11 +117,11 @@ export function BrainContinuityView() {
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <p className="text-[11px] font-bold text-rose-300">continuity fetch failed</p>
-            <p className="text-[10px] text-rose-300/70 mt-0.5 break-words font-mono">{error}</p>
+            <p className="text-[11px] text-rose-300/70 mt-0.5 break-words font-mono">{error}</p>
           </div>
           <button
             onClick={reload}
-            className="shrink-0 text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-rose-400/40 text-rose-300 hover:bg-rose-400/10"
+            className="shrink-0 text-[11px] font-mono px-2 py-1 rounded border border-rose-400/40 text-rose-300 hover:bg-rose-400/10"
           >
             retry
           </button>
@@ -157,7 +157,7 @@ export function BrainContinuityView() {
       {/* ── Totals ── */}
       <GlassCard>
         <div className="flex items-center gap-2 mb-3">
-          <Brain size={14} className="text-[var(--gold)]" />
+          <Brain size={14} className="text-fg-secondary" />
           <span className="section-label">Memory totals</span>
         </div>
         <div className="grid grid-cols-3 gap-3">
@@ -171,7 +171,7 @@ export function BrainContinuityView() {
             the pruned line was the false one, so it read near-zero right
             after a healthy sweep. The labels now say which population
             each describes, and the second reads a real count. */}
-        <p className="mt-2 text-[10px] text-[var(--text-tertiary)] text-center leading-relaxed">
+        <p className="mt-2 text-[11px] text-[var(--text-tertiary)] text-center leading-relaxed">
           expired = past TTL, awaiting the nightly sweep ·{" "}
           <span className="text-[var(--text-secondary)] tabular-nums">
             {data.recent.prunedLast24h}
@@ -184,7 +184,7 @@ export function BrainContinuityView() {
       {data.categoryMovers.length > 0 && (
         <GlassCard>
           <div className="flex items-center gap-2 mb-2">
-            <TrendingUp size={13} className="text-[var(--gold)]" />
+            <TrendingUp size={13} className="text-fg-secondary" />
             <span className="section-label">Category movers · new rows, last 24h</span>
           </div>
           <div className="space-y-1">
@@ -199,17 +199,17 @@ export function BrainContinuityView() {
                   key={m.category}
                   className={cn(
                     "flex items-center gap-2 px-2 py-1.5 rounded border transition-colors",
-                    hot ? "border-[var(--gold)]/30 bg-[var(--gold)]/5" : "border-[var(--border-default)] bg-[var(--bg-base)]/50",
+                    hot ? "border-edge-subtle bg-surface-interactive" : "border-[var(--border-default)] bg-[var(--bg-base)]/50",
                   )}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] font-mono text-[var(--text-primary)] truncate">{m.category}</span>
-                      {hot && <Flame size={10} className="text-[var(--gold)]" />}
+                      {hot && <Flame size={10} className="text-fg-secondary" />}
                     </div>
                   </div>
-                  <div className="shrink-0 flex items-center gap-3 text-[9px] font-mono tabular-nums">
-                    <span className={hot ? "text-[var(--gold)]" : "text-[var(--text-secondary)]"}>+{m.created24h}<span className="text-[var(--text-tertiary)]">/24h</span></span>
+                  <div className="shrink-0 flex items-center gap-3 text-[11px] font-mono tabular-nums">
+                    <span className={hot ? "text-fg-secondary" : "text-[var(--text-secondary)]"}>+{m.created24h}<span className="text-[var(--text-tertiary)]">/24h</span></span>
                     <span className="text-[var(--text-tertiary)]">+{m.created7d}/7d</span>
                     <span className="text-[var(--text-tertiary)]">total {m.total}</span>
                   </div>
@@ -230,7 +230,7 @@ export function BrainContinuityView() {
         />
         <RecentColumn
           title="reinforced · 24h"
-          icon={<TrendingUp size={13} className="text-[var(--gold)]" />}
+          icon={<TrendingUp size={13} className="text-fg-secondary" />}
           memories={data.recent.reinforced}
           emptyMsg="no reinforcements in last 24h — idle"
         />
@@ -252,7 +252,7 @@ export function BrainContinuityView() {
       <div className="grid md:grid-cols-2 gap-3">
         <GlassCard>
           <div className="flex items-center gap-2 mb-2">
-            <TrendingUp size={13} className="text-[var(--gold)]" />
+            <TrendingUp size={13} className="text-fg-secondary" />
             <span className="section-label">Top reinforced · last 7d</span>
           </div>
           <MemoryList memories={data.topReinforced} emptyMsg="quiet week" highlight="seenCount" />
@@ -269,7 +269,7 @@ export function BrainContinuityView() {
               and most rows at that level were STAMPED there by a writer
               (output_critic 0.9, brain-bus 1.0), not re-sighted up to it —
               see the measured limit in lib/brain/attention-label.ts. */}
-          <p className="mt-2 text-[9px] text-[var(--text-tertiary)] leading-relaxed">
+          <p className="mt-2 text-[11px] text-[var(--text-tertiary)] leading-relaxed">
             ordered by the confidence column (a re-sighting counter, not a probability) — rows
             at 0.9/1.0 are usually writer-stamped, so the labels above report sightings instead
           </p>
@@ -280,13 +280,13 @@ export function BrainContinuityView() {
 }
 
 function TotalCell({ label, value, color }: { label: string; value: number; color: "gold" | "emerald" | "tertiary" }) {
-  const colorClass = color === "gold" ? "text-[var(--gold)]" : color === "emerald" ? "text-emerald-400" : "text-[var(--text-tertiary)]";
+  const colorClass = color === "gold" ? "text-fg-secondary" : color === "emerald" ? "text-emerald-400" : "text-[var(--text-tertiary)]";
   return (
     <div className="text-center">
-      <div className={cn("text-[24px] font-[var(--font-display)] font-bold tabular-nums leading-none", colorClass)}>
+      <div className={cn("text-[24px] font-bold tabular-nums leading-none", colorClass)}>
         <AnimatedCounter value={value} duration={900} />
       </div>
-      <div className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mt-1">{label}</div>
+      <div className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mt-1">{label}</div>
     </div>
   );
 }
@@ -314,12 +314,12 @@ function RecentColumn({
       <div className="flex items-center gap-2 mb-2">
         {icon}
         <span className="section-label">{title}</span>
-        <span className="ml-auto text-[9px] font-mono text-[var(--text-tertiary)] tabular-nums">
+        <span className="ml-auto text-[11px] font-mono text-[var(--text-tertiary)] tabular-nums">
           {memories.length}
         </span>
       </div>
       {memories.length === 0 ? (
-        <p className="text-[10px] text-[var(--text-tertiary)] italic text-center py-2">{emptyMsg}</p>
+        <p className="text-[11px] text-[var(--text-tertiary)] italic text-center py-2">{emptyMsg}</p>
       ) : (
         <>
           {/* data-selection-scope · 2026-09-15 · rows carry data-entity, so a
@@ -333,7 +333,7 @@ function RecentColumn({
           {memories.length > 5 && (
             <button
               onClick={() => setShowAll((v) => !v)}
-              className="mt-2 w-full flex items-center justify-center gap-1 text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--gold)]"
+              className="mt-2 w-full flex items-center justify-center gap-1 text-[11px] font-mono text-[var(--text-tertiary)] hover:text-fg"
             >
               {showAll ? "collapse" : `show ${memories.length - 5} more`}
               <ChevronDown size={10} className={cn("transition-transform", showAll && "rotate-180")} />
@@ -353,7 +353,7 @@ function MemoryRow({ m, now }: { m: Memory; now: number }) {
   const sightings = m.seenCount > 0 ? m.seenCount : sightingsFromConfidence(m.confidence);
   const tone = attentionTone(sightings);
   const confColor =
-    tone === "hot" ? "text-emerald-400" : tone === "warm" ? "text-[var(--gold)]" : "text-[var(--text-tertiary)]";
+    tone === "hot" ? "text-emerald-400" : tone === "warm" ? "text-fg-secondary" : "text-[var(--text-tertiary)]";
   const ageMs = now - new Date(m.lastSeen).getTime();
   const ageLabel = ageMs < 60_000 ? "just now" : ageMs < 3_600_000 ? `${Math.floor(ageMs / 60_000)}m` : ageMs < 86_400_000 ? `${Math.floor(ageMs / 3_600_000)}h` : `${Math.floor(ageMs / 86_400_000)}d`;
   // 2026-09-15 · tap opens the universal memory inspector (Enter/Space are
@@ -366,16 +366,16 @@ function MemoryRow({ m, now }: { m: Memory; now: number }) {
       data-entity={`memory:${m.id}`}
       data-entity-label={m.content.slice(0, 80)}
       onClick={() => openInspector({ kind: "memory", id: m.id })}
-      className="group min-h-[44px] cursor-pointer px-2 py-1.5 rounded bg-[var(--bg-base)]/50 border border-[var(--border-default)] hover:border-[var(--gold)]/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/50 data-[entity-focused=true]:border-[var(--gold)]/50 data-[entity-selected=true]:bg-[var(--gold)]/[0.06] transition-colors"
+      className="group min-h-[44px] cursor-pointer px-2 py-1.5 rounded bg-[var(--bg-base)]/50 border border-[var(--border-default)] hover:border-edge-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent data-[entity-focused=true]:border-accent data-[entity-selected=true]:bg-accent-soft transition-colors"
     >
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">{m.category}</span>
-            <span className={cn("text-[9px] font-mono tabular-nums", confColor)}>
+            <span className="text-[11px] font-mono text-[var(--text-tertiary)]">{m.category}</span>
+            <span className={cn("text-[11px] font-mono tabular-nums", confColor)}>
               {m.seenCount > 0 ? describeSeenCount(m.seenCount) : describeConfidenceAsAttention(m.confidence)}
             </span>
-            <span className="text-[9px] font-mono tabular-nums text-[var(--text-tertiary)] ml-auto">{ageLabel}</span>
+            <span className="text-[11px] font-mono tabular-nums text-[var(--text-tertiary)] ml-auto">{ageLabel}</span>
           </div>
           <p className="mt-0.5 text-[11px] text-[var(--text-secondary)] leading-snug line-clamp-2">{m.content}</p>
         </div>
@@ -391,17 +391,17 @@ function rowSightings(m: Memory): number {
 
 function MemoryList({ memories, emptyMsg, highlight }: { memories: Memory[]; emptyMsg: string; highlight: "seenCount" | "confidence" }) {
   if (memories.length === 0) {
-    return <p className="text-[10px] text-[var(--text-tertiary)] italic text-center py-2">{emptyMsg}</p>;
+    return <p className="text-[11px] text-[var(--text-tertiary)] italic text-center py-2">{emptyMsg}</p>;
   }
   return (
     <div className="space-y-1">
       {memories.map((m, i) => (
         <div key={m.id} className="flex items-start gap-2 px-2 py-1.5 rounded bg-[var(--bg-base)]/50 border border-[var(--border-default)]">
-          <span className="shrink-0 w-4 text-[9px] font-mono text-[var(--text-tertiary)] tabular-nums">#{i + 1}</span>
+          <span className="shrink-0 w-4 text-[11px] font-mono text-[var(--text-tertiary)] tabular-nums">#{i + 1}</span>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">{m.category}</span>
-              {highlight === "seenCount" && <span className="text-[9px] font-mono tabular-nums text-[var(--gold)]">×{m.seenCount}</span>}
+              <span className="text-[11px] font-mono text-[var(--text-tertiary)]">{m.category}</span>
+              {highlight === "seenCount" && <span className="text-[11px] font-mono tabular-nums text-fg-secondary">×{m.seenCount}</span>}
               {/* 2026-09-02 · this rendered `{Math.round(m.confidence * 100)}%`
                   — forty lines below MemoryRow's own comment saying the
                   percentage "was the lie" and had been removed. Same column,
@@ -411,7 +411,7 @@ function MemoryList({ memories, emptyMsg, highlight }: { memories: Memory[]; emp
                   lib/brain/attention-label.ts exists to make this
                   unrepeatable — "One helper, so this cannot drift back". */}
               {highlight === "confidence" && (
-                <span className="text-[9px] font-mono tabular-nums text-violet-400">
+                <span className="text-[11px] font-mono tabular-nums text-violet-400">
                   {m.seenCount > 0
                     ? describeSeenCount(m.seenCount)
                     : describeConfidenceAsAttention(m.confidence)}
@@ -425,9 +425,9 @@ function MemoryList({ memories, emptyMsg, highlight }: { memories: Memory[]; emp
       {/* Mini-sparkline: attention ladder. Plots the SAME quantity the
           badges above show — plotting raw confidence here would have
           re-stated the percentage claim in chart form. */}
-      <div className="mt-2 flex items-center gap-2 text-[9px] font-mono text-[var(--text-tertiary)]">
+      <div className="mt-2 flex items-center gap-2 text-[11px] font-mono text-[var(--text-tertiary)]">
         <span>ladder</span>
-        <Sparkline data={memories.map((m) => (highlight === "confidence" ? rowSightings(m) : m.seenCount))} width={120} height={18} color={highlight === "confidence" ? "#a78bfa" : "var(--gold)"} />
+        <Sparkline data={memories.map((m) => (highlight === "confidence" ? rowSightings(m) : m.seenCount))} width={120} height={18} color={highlight === "confidence" ? "#a78bfa" : "var(--text-secondary)"} />
       </div>
     </div>
   );

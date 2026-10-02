@@ -43,7 +43,7 @@ const STATE_STYLE: Record<Artifact["state"], { dot: string; label: string }> = {
   fresh: { dot: "bg-emerald-400", label: "fresh" },
   stale: { dot: "bg-amber-400", label: "STALE" },
   never_produced: { dot: "bg-red-400", label: "NEVER PRODUCED" },
-  unknown: { dot: "bg-zinc-500", label: "unknown" },
+  unknown: { dot: "bg-fg-tertiary", label: "unknown" },
 };
 
 /** WP-8 · row-state health for one durable queue. `dead > 0` is an
@@ -75,9 +75,9 @@ function QueueRow({
 
   if (!q) {
     return (
-      <div className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+      <div className="flex items-center justify-between py-2 border-b border-edge-subtle last:border-0">
         <span className="text-[13px] text-fg-secondary font-mono">{name}</span>
-        <span className="text-[12px] text-zinc-400">unknown — probe failed, NOT healthy</span>
+        <span className="text-[12px] text-fg-secondary">unknown — probe failed, NOT healthy</span>
       </div>
     );
   }
@@ -86,7 +86,7 @@ function QueueRow({
       ? Math.round(((new Date(asOf).getTime() - new Date(q.oldestDeadAt).getTime()) / 3_600_000) * 10) / 10
       : null;
   return (
-    <div className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+    <div className="flex items-center justify-between py-2 border-b border-edge-subtle last:border-0">
       <span className="text-[13px] text-fg-secondary font-mono">{name}</span>
       <span className="flex items-center gap-3 text-[12px] tabular-nums">
         <span className="text-fg-secondary/60">{q.pending} pending</span>
@@ -111,7 +111,7 @@ function QueueRow({
                 className={`rounded px-2 py-0.5 text-[11px] border ${
                   armed
                     ? "border-red-400 text-red-300"
-                    : "border-white/15 text-fg-secondary"
+                    : "border-edge-default text-fg-secondary"
                 } disabled:opacity-50`}
               >
                 {redriving ? "redriving…" : armed ? `tap again — redrive ${q.dead}` : "redrive"}
@@ -132,12 +132,12 @@ function QueueRow({
 function ArtifactRow({ a }: { a: Artifact }) {
   const s = STATE_STYLE[a.state];
   return (
-    <div className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+    <div className="flex items-center justify-between py-2 border-b border-edge-subtle last:border-0">
       <span className="text-[13px] text-fg-secondary font-mono">{a.capability}</span>
       <span className="flex items-center gap-2 text-[12px]">
         {a.ageH != null && <span className="text-fg-secondary/60 tabular-nums">{a.ageH}h</span>}
         <span className={`h-2 w-2 rounded-full ${s.dot}`} />
-        <span className={a.state === "fresh" ? "text-emerald-300" : a.state === "unknown" ? "text-zinc-400" : "text-amber-300"}>
+        <span className={a.state === "fresh" ? "text-emerald-300" : a.state === "unknown" ? "text-fg-secondary" : "text-amber-300"}>
           {s.label}
         </span>
       </span>
@@ -182,7 +182,7 @@ export default function FleetPage() {
 
       {loading && (
         <Panel>
-          <div className="h-4 w-48 rounded bg-white/5 animate-pulse" />
+          <div className="h-4 w-48 rounded bg-surface-interactive animate-pulse" />
         </Panel>
       )}
 
@@ -219,7 +219,7 @@ export default function FleetPage() {
 
           {truth.queues && (
             <Panel>
-              <p className="text-[11px] uppercase tracking-[0.16em] text-fg-secondary/70 mb-1">
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-1">
                 durable queues — rows, not just drains
               </p>
               <QueueRow
@@ -251,13 +251,13 @@ export default function FleetPage() {
           )}
 
           <Panel>
-            <p className="text-[11px] uppercase tracking-[0.16em] text-fg-secondary/70 mb-1">
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-1">
               delivery — shown vs acknowledged (7d)
             </p>
             {delivery.isLoading ? (
-              <div className="h-4 w-40 rounded bg-white/5 animate-pulse" />
+              <div className="h-4 w-40 rounded bg-surface-interactive animate-pulse" />
             ) : delivery.isError || !delivery.data?.stats ? (
-              <p className="text-[12px] text-zinc-400">
+              <p className="text-[12px] text-fg-secondary">
                 ledger unreadable — state UNKNOWN, not healthy
               </p>
             ) : (
@@ -267,9 +267,9 @@ export default function FleetPage() {
                   <span className="text-fg-secondary/70">{delivery.data.stats.decided} decided</span>
                   <span className="text-emerald-300">{delivery.data.stats.accepted} accepted</span>
                   <span className="text-amber-300">{delivery.data.stats.dismissed} dismissed</span>
-                  <span className="text-zinc-400">{delivery.data.stats.undecided} undecided</span>
+                  <span className="text-fg-secondary">{delivery.data.stats.undecided} undecided</span>
                 </div>
-                <p className="text-[10px] text-fg-secondary/50 mt-0.5">
+                <p className="text-[11px] text-fg-secondary/50 mt-0.5">
                   producers writing rows:{" "}
                   {delivery.data.producers.length === 0
                     ? "NONE — computed intelligence is not reaching the ledger"
@@ -282,14 +282,14 @@ export default function FleetPage() {
           </Panel>
 
           <Panel>
-            <p className="text-[11px] uppercase tracking-[0.16em] text-fg-secondary/70 mb-1">statenour</p>
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-1">statenour</p>
             {truth.statenour.map((a) => (
               <ArtifactRow key={a.capability} a={a} />
             ))}
           </Panel>
 
           <Panel>
-            <p className="text-[11px] uppercase tracking-[0.16em] text-fg-secondary/70 mb-1">nickstire</p>
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-1">nickstire</p>
             {truth.nickstire.map((a) => (
               <ArtifactRow key={a.capability} a={a} />
             ))}

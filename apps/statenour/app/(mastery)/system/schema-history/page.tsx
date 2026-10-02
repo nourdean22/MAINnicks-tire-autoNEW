@@ -48,7 +48,7 @@ function timeAgo(dateStr: string | null): string {
 
 export default function SchemaHistoryPage() {
   return (
-    <Suspense fallback={<div className="text-center text-xs text-[var(--text-tertiary)] animate-pulse py-8">Loading page...</div>}>
+    <Suspense fallback={<div className="text-center text-xs text-fg-tertiary animate-pulse py-8">Loading page...</div>}>
       <SchemaHistoryInner />
     </Suspense>
   );
@@ -135,7 +135,7 @@ function SchemaHistoryInner() {
             <button
               onClick={refresh}
               disabled={loading}
-              className="flex items-center gap-1.5 rounded-lg border border-[var(--border-hover)] bg-[var(--bg-raised)]/5 px-3 py-2 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-[var(--bg-raised)]/10 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-control border border-edge-strong bg-content px-3 py-2 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
             >
               <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} />
               {loading ? "Refreshing..." : "Refresh"}
@@ -163,19 +163,19 @@ function SchemaHistoryInner() {
       </div>
 
       {/* Filters & Control bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02] p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-surface border border-edge-default p-3">
         <div className="flex items-center gap-1.5">
-          <Layers className="h-4 w-4 text-[var(--text-tertiary)]" />
-          <span className="text-xs font-medium text-[var(--text-secondary)] mr-2">Environment:</span>
+          <Layers className="h-4 w-4 text-fg-tertiary" />
+          <span className="text-xs font-medium text-fg-secondary mr-2">Environment:</span>
           {(["all", "local", "preview", "production"] as EnvFilter[]).map((e) => (
             <button
               key={e}
               onClick={() => updateFilters(e, limit)}
               className={cn(
-                "rounded-lg px-3 py-1 text-xs font-medium transition",
+                "rounded-control px-3 py-1 text-xs font-medium transition",
                 env === e
-                  ? "bg-white/10 text-white border border-white/10"
-                  : "text-[var(--text-tertiary)] hover:text-white hover:bg-white/5"
+                  ? "bg-surface-interactive text-fg border border-edge-subtle"
+                  : "text-fg-tertiary hover:text-fg hover:bg-surface-hover"
               )}
             >
               {e}
@@ -184,12 +184,12 @@ function SchemaHistoryInner() {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-[var(--text-tertiary)]">Limit:</span>
+              <span className="text-xs text-fg-tertiary">Limit:</span>
           <select
             value={limit}
             onChange={(e) => updateFilters(env, parseInt(e.target.value, 10))}
             title="Limit entries count"
-            className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1 text-xs font-medium text-[var(--text-secondary)] focus:outline-none focus:ring-1 focus:ring-sky-500"
+            className="rounded-control border border-edge-default bg-content px-2 py-1 text-xs font-medium text-fg-secondary focus:outline-none focus:ring-1 focus:ring-sky-500"
           >
             {[25, 50, 100, 200].map((l) => (
               <option key={l} value={l}>
@@ -203,10 +203,10 @@ function SchemaHistoryInner() {
       {/* Ledger list */}
       <div className="space-y-4">
         {entries.length === 0 ? (
-          <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02] py-12 text-center">
+          <Panel className="border-edge-default py-12 text-center">
             <Database className="mx-auto h-8 w-8 text-[var(--text-muted)] opacity-50" />
-            <p className="mt-3 text-sm text-[var(--text-secondary)] font-medium">No ledger entries found</p>
-            <p className="mt-1 text-xs text-[var(--text-tertiary)]">
+            <p className="mt-3 text-sm text-fg-secondary font-medium">No ledger entries found</p>
+            <p className="mt-1 text-xs text-fg-tertiary">
               No schema changes recorded for the selected filters.
             </p>
           </Panel>
@@ -222,7 +222,7 @@ function SchemaHistoryInner() {
                 : entry.status === "planned"
                   ? { bg: "bg-sky-500/10 text-sky-300 border-sky-500/30", dot: "bg-sky-400" }
                   : entry.status === "failed"
-                    ? { bg: "bg-rose-500/10 text-rose-300 border-rose-500/30", dot: "bg-rose-400 animate-pulse" }
+                    ? { bg: "bg-rose-500/10 text-rose-300 border-rose-500/30", dot: "bg-rose-400" }
                     : { bg: "bg-amber-500/10 text-amber-300 border-amber-500/30", dot: "bg-amber-400" };
 
             // Compute environment tint
@@ -237,50 +237,50 @@ function SchemaHistoryInner() {
               <div
                 key={entry.id}
                 className={cn(
-                  "relative rounded-2xl border transition duration-200 overflow-hidden",
+                  "relative rounded-surface border transition duration-200 overflow-hidden",
                   isDestructive
                     ? "border-rose-500/30 bg-rose-500/[0.02] hover:bg-rose-500/[0.03]"
-                    : "border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02] hover:bg-[var(--bg-raised)]/[0.04]"
+                    : "border-edge-default hover:bg-surface-hover"
                 )}
               >
                 {/* Header Row */}
                 <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="space-y-1.5 max-w-3xl">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs font-semibold text-[var(--text-secondary)] bg-white/5 px-2 py-0.5 rounded border border-white/10">
+              <span className="font-mono text-xs font-semibold text-fg-secondary bg-surface-interactive px-2 py-0.5 rounded border border-edge-subtle">
                         {entry.changeKey}
                       </span>
-                      <span className={cn("text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full border", statusTheme.bg)}>
+                      <span className={cn("text-[11px] font-semibold px-2 py-0.5 rounded-full border", statusTheme.bg)}>
                         <span className={cn("inline-block h-1.5 w-1.5 rounded-full mr-1.5", statusTheme.dot)} />
                         {entry.status}
                       </span>
-                      <span className={cn("text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full border", envTint)}>
+                      <span className={cn("text-[11px] font-semibold px-2 py-0.5 rounded-full border", envTint)}>
                         {entry.environment}
                       </span>
-                      <span className="text-[10px] uppercase tracking-wider font-semibold text-zinc-400 border border-zinc-700 bg-zinc-800/40 px-2 py-0.5 rounded-full">
+                      <span className="text-[11px] font-semibold text-fg-secondary border border-edge-default bg-content px-2 py-0.5 rounded-full">
                         {entry.changeType}
                       </span>
                       {isDestructive && (
-                        <span className="text-[10px] uppercase tracking-wider font-bold text-rose-300 border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <span className="text-[11px] font-bold text-rose-300 border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
                           <AlertTriangle className="h-3 w-3 text-rose-400" />
                           Destructive
                         </span>
                       )}
                     </div>
-                    <h3 className="text-sm sm:text-base font-semibold text-white tracking-tight">
+                    <h3 className="text-sm sm:text-base font-semibold text-fg tracking-tight">
                       {entry.title}
                     </h3>
-                    <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                    <p className="text-xs text-fg-secondary leading-relaxed">
                       {entry.reason}
                     </p>
                   </div>
 
                   <div className="flex items-center gap-3 self-end md:self-auto shrink-0">
                     <div className="text-right hidden sm:block">
-                      <div className="text-xs font-medium text-[var(--text-secondary)]">
+                      <div className="text-xs font-medium text-fg-secondary">
                         {entry.appliedAt ? `Applied ${timeAgo(entry.appliedAt)}` : "Planned"}
                       </div>
-                      <div className="text-[10px] text-[var(--text-tertiary)]">
+                      <div className="text-[11px] text-fg-tertiary">
                         {entry.appliedAt
                           ? `by ${entry.appliedBy ?? "operator"} via ${entry.method}`
                           : `via ${entry.method}`}
@@ -288,7 +288,7 @@ function SchemaHistoryInner() {
                     </div>
                     <button
                       onClick={() => toggleExpand(entry.id)}
-                      className="rounded-lg border border-[var(--border-default)] p-2 hover:bg-white/5 transition text-[var(--text-secondary)]"
+                      className="rounded-control border border-edge-default p-2 hover:bg-surface-hover transition text-fg-secondary"
                     >
                       {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </button>
@@ -297,10 +297,10 @@ function SchemaHistoryInner() {
 
                 {/* Details Section */}
                 {isExpanded && (
-                  <div className="border-t border-[var(--border-default)] bg-black/20 p-4 sm:p-5 space-y-4">
+                  <div className="border-t border-edge-default bg-content p-4 sm:p-5 space-y-4">
                     {/* Destructive Warning Panel */}
                     {isDestructive && (
-                      <div className="flex gap-3 rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-xs">
+                      <div className="flex gap-3 rounded-surface border border-rose-500/20 bg-rose-500/5 p-4 text-xs">
                         <Shield className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" />
                         <div className="space-y-1">
                           <div className="font-semibold text-rose-300">Destructive Mutation Warning</div>
@@ -313,49 +313,49 @@ function SchemaHistoryInner() {
 
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
-                        <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)] flex items-center gap-1">
+                        <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary flex items-center gap-1">
                           <Terminal className="h-3.5 w-3.5" />
                           SQL Summary / Schema Detail
                         </div>
-                        <pre className="overflow-x-auto rounded-xl border border-[var(--border-default)] bg-black/40 p-3 font-mono text-xs leading-relaxed text-zinc-300 whitespace-pre-wrap max-h-60">
+                        <pre className="overflow-x-auto rounded-surface border border-edge-default bg-content p-3 font-mono text-xs leading-relaxed text-fg whitespace-pre-wrap max-h-60">
                           {entry.sqlSummary || "No SQL summary recorded."}
                         </pre>
                       </div>
 
                       <div className="space-y-1.5">
-                        <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)] flex items-center gap-1">
+              <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary flex items-center gap-1">
                           <FileCode className="h-3.5 w-3.5" />
                           Prisma Schema Diff
                         </div>
-                        <pre className="overflow-x-auto rounded-xl border border-[var(--border-default)] bg-black/40 p-3 font-mono text-xs leading-relaxed text-zinc-300 whitespace-pre-wrap max-h-60">
+                        <pre className="overflow-x-auto rounded-surface border border-edge-default bg-content p-3 font-mono text-xs leading-relaxed text-fg whitespace-pre-wrap max-h-60">
                           {entry.prismaDiff || "No schema diff recorded."}
                         </pre>
                       </div>
                     </div>
 
                     {/* Metadata & Rollback */}
-                    <div className="grid gap-4 sm:grid-cols-2 border-t border-white/5 pt-4 text-xs">
+                    <div className="grid gap-4 sm:grid-cols-2 border-t border-edge-subtle pt-4 text-xs">
                       <div>
-                        <span className="font-semibold text-[var(--text-secondary)]">Rollback Plan:</span>
-                        <p className="mt-1 text-[var(--text-tertiary)] leading-relaxed font-mono whitespace-pre-wrap">
+                        <span className="font-semibold text-fg-secondary">Rollback Plan:</span>
+                        <p className="mt-1 text-fg-tertiary leading-relaxed font-mono whitespace-pre-wrap">
                           {entry.rollbackPlan || "No rollback plan specified."}
                         </p>
                       </div>
 
                       <div className="sm:text-right space-y-1">
                         <div>
-                          <span className="font-semibold text-[var(--text-secondary)]">Audit Metadata:</span>
+                          <span className="font-semibold text-fg-secondary">Audit Metadata:</span>
                         </div>
-                        <div className="text-[var(--text-tertiary)]">
+                        <div className="text-fg-tertiary">
                           Created: {new Date(entry.createdAt).toLocaleString()}
                         </div>
                         {entry.appliedAt && (
-                          <div className="text-[var(--text-tertiary)]">
+                          <div className="text-fg-tertiary">
                             Applied: {new Date(entry.appliedAt).toLocaleString()} by {entry.appliedBy}
                           </div>
                         )}
                         {entry.approvedBy && (
-                          <div className="text-[var(--text-tertiary)]">
+                          <div className="text-fg-tertiary">
                             Approved: {entry.approvedBy}
                           </div>
                         )}

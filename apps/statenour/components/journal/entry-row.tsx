@@ -79,10 +79,10 @@ export function JournalEntryRow({
     <div
       id={`bd-${entry.id}`}
       className={cn(
-        "rounded-lg border transition-all stagger-in scroll-mt-24",
+        "rounded-surface border transition-colors stagger-in scroll-mt-24",
         meta.border,
         meta.bg,
-        "hover:border-[var(--text-tertiary)]"
+        "hover:border-edge-strong"
       )}
       style={{ animationDelay: `${delay}ms` }}
     >
@@ -93,7 +93,7 @@ export function JournalEntryRow({
         // screen readers announce open/closed state · focus-visible
         // ring matches the rest of the surface's keyboard nav.
         aria-expanded={isExpanded}
-        className="w-full flex items-start gap-3 px-3 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gold)]/40 focus-visible:ring-inset rounded"
+        className="w-full flex items-start gap-3 px-3 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/40 focus-visible:ring-inset rounded-control"
       >
         {/* Type icon */}
         <div className={cn("shrink-0 mt-0.5", meta.color)}>
@@ -105,7 +105,7 @@ export function JournalEntryRow({
           <div className="flex items-center gap-2 flex-wrap">
             <Badge
               className={cn(
-                "text-[8px] h-3.5 px-1.5 border",
+                "rounded-micro text-[11px] h-4 px-1.5 border",
                 meta.bg,
                 meta.border,
                 meta.color
@@ -113,16 +113,16 @@ export function JournalEntryRow({
             >
               {meta.label}
             </Badge>
-            <span className="text-[8px] font-mono text-[var(--text-tertiary)] flex items-center gap-0.5">
+            <span className="text-[11px] font-mono text-fg-tertiary flex items-center gap-0.5">
               <SourceIcon size={8} />
               {entry.source}
             </span>
             {entry.mood && (
-              <span className="text-[8px] italic text-[var(--text-tertiary)]">· {entry.mood}</span>
+              <span className="text-[11px] italic text-fg-tertiary">· {entry.mood}</span>
             )}
-            <span className="text-[8px] font-mono text-[var(--text-tertiary)] ml-auto">{time}</span>
+            <span className="text-[11px] font-mono text-fg-tertiary ml-auto">{time}</span>
           </div>
-          <p className="text-[12px] text-[var(--text-primary)] mt-1 line-clamp-2 leading-snug">
+          <p className="text-[13px] text-fg mt-1 line-clamp-2 leading-snug">
             {entry.title}
           </p>
           {entry.domains.length > 0 && (
@@ -130,18 +130,18 @@ export function JournalEntryRow({
               {entry.domains.slice(0, 4).map((d) => (
                 <span
                   key={d}
-                  className="text-[8px] uppercase tracking-wider text-[var(--text-tertiary)] font-mono"
+                  className="text-[11px] text-fg-tertiary font-mono"
                 >
                   #{d}
                 </span>
               ))}
               {entry.tasksCreated > 0 && (
-                <span className="text-[8px] font-mono text-emerald-400/80">
+                <span className="text-[11px] font-mono text-emerald-400/80">
                   +{entry.tasksCreated} task{entry.tasksCreated > 1 ? "s" : ""}
                 </span>
               )}
               {entry.acknowledged === false && entry.actionable && (
-                <span className="text-[8px] font-bold text-red-400">NEEDS REVIEW</span>
+                <span className="text-[11px] font-medium text-red-400">Needs review</span>
               )}
             </div>
           )}
@@ -150,7 +150,7 @@ export function JournalEntryRow({
         <ChevronRight
           size={12}
           className={cn(
-            "shrink-0 text-[var(--text-tertiary)] transition-transform mt-1",
+            "shrink-0 text-fg-tertiary transition-transform mt-1",
             isExpanded && "rotate-90"
           )}
         />
@@ -168,7 +168,7 @@ export function JournalEntryRow({
 
       {/* Expanded body */}
       {isExpanded && (
-        <div className="px-3 pb-3 space-y-2 border-t border-zinc-800/40 pt-2 ml-[calc(13px+12px)]">
+        <div className="px-3 pb-3 space-y-2 border-t border-edge-subtle pt-2 ml-[calc(13px+12px)]">
           {/* Journal Brain · impact receipt. Lazy-fetched (enabled only when
               expanded) so the list doesn't fire N receipt queries on load.
               Self-skips for retro (no silo). Empty receipts render an HONEST
@@ -183,34 +183,34 @@ export function JournalEntryRow({
           )}
           {entry.summary && (
             <div>
-              <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-tertiary)] mb-0.5">
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
                 Summary
               </p>
-              <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+              <p className="text-[12px] text-fg-secondary leading-relaxed">
                 {entry.summary}
               </p>
             </div>
           )}
           {entry.body && entry.body !== entry.title && (
             <div>
-              <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-tertiary)] mb-0.5">
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
                 Raw
               </p>
-              <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
+              <p className="text-[12px] text-fg-secondary leading-relaxed whitespace-pre-wrap">
                 {entry.body}
               </p>
             </div>
           )}
           {entry.linkedTopics.length > 0 && (
             <div>
-              <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-tertiary)] mb-0.5 flex items-center gap-1">
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-0.5 flex items-center gap-1">
                 <Link2 size={9} /> Linked
               </p>
               <div className="flex flex-wrap gap-1">
                 {entry.linkedTopics.map((t) => (
                   <Badge
                     key={t}
-                    className="text-[9px] bg-zinc-800/60 text-zinc-300 border border-zinc-700/40"
+                    className="rounded-micro text-[11px] bg-surface-interactive text-fg-secondary border border-edge-default"
                   >
                     {t}
                   </Badge>
@@ -219,7 +219,7 @@ export function JournalEntryRow({
             </div>
           )}
           {entry.confidence !== undefined && (
-            <p className="text-[9px] text-[var(--text-tertiary)] font-mono">
+            <p className="text-[11px] text-fg-tertiary font-mono">
               confidence {Math.round(entry.confidence * 100)}%
             </p>
           )}
@@ -251,7 +251,7 @@ export function JournalEntryRow({
           {entry.acknowledged === false &&
             entry.actionable &&
             process.env.NEXT_PUBLIC_JOURNAL_ACK === "1" && (
-              <span className="flex items-center gap-1 text-[10px] text-[var(--gold)]">
+              <span className="flex items-center gap-1 text-[11px] text-amber-300">
                 <CheckCircle2 size={10} /> needs acknowledgment
               </span>
             )}
@@ -277,8 +277,8 @@ function EntryContradictions({ brainMemoryId }: { brainMemoryId: string }) {
   );
   if (!data || data.length === 0) return null;
   return (
-    <div className="space-y-1.5 rounded-md border border-amber-500/20 bg-amber-500/[0.03] p-2">
-      <p className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-amber-300">
+    <div className="space-y-1.5 rounded-control border border-amber-500/20 bg-amber-500/[0.03] p-2">
+      <p className="flex items-center gap-1 text-[11px] font-medium text-amber-300">
         <AlertTriangle size={9} aria-hidden /> {data.length}{" "}
         contradiction{data.length === 1 ? "" : "s"}
       </p>
@@ -286,13 +286,13 @@ function EntryContradictions({ brainMemoryId }: { brainMemoryId: string }) {
         {data.map((c) => (
           <li
             key={c.key}
-            className="text-[10px] leading-snug text-[var(--text-secondary)]"
+            className="text-[11px] leading-snug text-fg-secondary"
           >
             <span className="font-mono text-amber-400/60 mr-1">
               {c.signal}
             </span>
             <span className="italic">&ldquo;{c.excerpt.slice(0, 140)}&rdquo;</span>
-            <span className="ml-1 font-mono text-[var(--text-tertiary)]">
+            <span className="ml-1 font-mono text-fg-tertiary">
               · {c.daysApart}d apart
             </span>
           </li>
@@ -320,7 +320,7 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
   const mutation = trpc.journal.savePrediction.useMutation();
   if (saved) {
     return (
-      <p className="flex items-center gap-1 text-[10px] text-emerald-300">
+      <p className="flex items-center gap-1 text-[11px] text-emerald-300">
         <Target size={10} aria-hidden /> prediction saved · grader will score
         on {date}
       </p>
@@ -331,7 +331,7 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex min-h-[44px] items-center gap-1 rounded border border-glass bg-elevated px-2 py-1 text-[11px] font-mono uppercase tracking-wider text-fg-secondary hover:text-fg hover:bg-raised transition-colors"
+        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
       >
         <Target size={10} aria-hidden /> predict outcome
       </button>
@@ -344,8 +344,8 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
     return d.toISOString().slice(0, 10);
   })();
   return (
-    <div className="space-y-1.5 rounded-md border border-glass bg-elevated p-2">
-      <p className="text-[11px] font-mono uppercase tracking-wider text-fg-tertiary">
+    <div className="space-y-1.5 rounded-control border border-edge-subtle bg-surface-raised p-2">
+      <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
         Predict outcome
       </p>
       <input
@@ -354,7 +354,7 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="What will happen by the target date?"
-        className="w-full rounded border border-glass bg-[var(--bg-void)] px-2 py-1 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-gold/60"
+        className="w-full rounded-control border border-edge-default bg-surface-interactive px-2 py-1 text-[13px] text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-gold/60"
         maxLength={500}
       />
       <div className="flex items-center gap-2">
@@ -362,7 +362,7 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
           type="date"
           value={date || defaultDate}
           onChange={(e) => setDate(e.target.value)}
-          className="rounded border border-glass bg-[var(--bg-void)] px-2 py-1 text-[11px] font-mono text-[var(--text-secondary)]"
+          className="rounded-control border border-edge-default bg-surface-interactive px-2 py-1 text-[12px] font-mono text-fg-secondary"
         />
         <button
           type="button"
@@ -379,7 +379,7 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
               toast.error("couldn't save prediction · retry?");
             }
           }}
-          className="rounded bg-gold px-2.5 py-1 min-h-[36px] text-[11px] font-mono uppercase tracking-wider text-black hover:bg-gold/85 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {mutation.isPending ? "saving…" : "save"}
         </button>
@@ -389,7 +389,7 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
             setOpen(false);
             setText("");
           }}
-          className="rounded border border-zinc-700 px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-zinc-400 hover:bg-zinc-800/40 transition-colors"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control px-3 text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
         >
           cancel
         </button>
@@ -405,7 +405,7 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
  * entry: "→ <goal>". Styled by linkStatus —
  *   · auto / confirmed → settled emerald (matches the +N-tasks / prediction-
  *     saved success token already used in this file)
- *   · proposed → pending gold + inline confirm (✓) / dismiss (✗) buttons
+ *   · proposed → pending amber + inline confirm (✓) / dismiss (✗) buttons
  *     that call confirmLink, then notify the "journal" bus so the page's
  *     load() re-pulls the feed (the page subscribes to ["any","journal"]).
  *   · rejected → renders nothing (caller still gates on goalId).
@@ -435,11 +435,11 @@ function LinkChip({ entry, silo }: { entry: FeedEntry; silo: JournalSilo }) {
 
   if (settled) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/[0.06] px-2 py-0.5 text-[10px] font-mono text-emerald-300/90 max-w-full">
+      <span className="inline-flex items-center gap-1 rounded-micro border border-emerald-500/30 bg-emerald-500/[0.06] px-2 py-0.5 text-[11px] font-mono text-emerald-300/90 max-w-full">
         <Target size={9} aria-hidden className="shrink-0" />
         <span className="truncate">→ {label}</span>
         {status === "auto" && (
-          <span className="text-[8px] uppercase tracking-wider text-emerald-400/50">auto</span>
+          <span className="text-[11px] text-emerald-400/50">auto</span>
         )}
       </span>
     );
@@ -447,7 +447,7 @@ function LinkChip({ entry, silo }: { entry: FeedEntry; silo: JournalSilo }) {
 
   // proposed
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/[0.06] px-2 py-0.5 text-[10px] font-mono text-[var(--gold)]/90 max-w-full">
+    <span className="inline-flex items-center gap-1.5 rounded-micro border border-amber-500/30 bg-amber-500/[0.06] px-2 py-0.5 text-[11px] font-mono text-amber-300/90 max-w-full">
       <Target size={9} aria-hidden className="shrink-0" />
       <span className="truncate">→ {label}?</span>
       {/* UI wave (audit 2026-07-15) · these are the feed row's primary
@@ -460,7 +460,7 @@ function LinkChip({ entry, silo }: { entry: FeedEntry; silo: JournalSilo }) {
         disabled={mutation.isPending}
         onClick={() => decide(true)}
         aria-label={`Confirm link to ${label}`}
-        className="shrink-0 rounded min-h-[44px] min-w-[44px] -my-3 flex items-center justify-center text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="shrink-0 rounded-control min-h-[44px] min-w-[44px] -my-3 flex items-center justify-center text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
         <Check size={13} aria-hidden />
       </button>
@@ -469,7 +469,7 @@ function LinkChip({ entry, silo }: { entry: FeedEntry; silo: JournalSilo }) {
         disabled={mutation.isPending}
         onClick={() => decide(false)}
         aria-label={`Dismiss link to ${label}`}
-        className="shrink-0 rounded min-h-[44px] min-w-[44px] -my-3 flex items-center justify-center text-zinc-400 hover:bg-zinc-700/40 hover:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="shrink-0 rounded-control min-h-[44px] min-w-[44px] -my-3 flex items-center justify-center text-fg-tertiary hover:bg-surface-hover hover:text-fg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
         <XIcon size={13} aria-hidden />
       </button>
@@ -519,20 +519,20 @@ function ImpactReceipt({
           : "Analyzing…"
         : "No grounded link found · no action extracted";
     return (
-      <p className="text-[9px] font-mono text-[var(--text-tertiary)] italic">
+      <p className="text-[11px] font-mono text-fg-tertiary italic">
         {state}
       </p>
     );
   }
   return (
-    <div className="space-y-1.5 rounded-md border border-[var(--gold)]/15 bg-[var(--gold)]/[0.03] p-2">
+    <div className="space-y-1.5 rounded-control border border-edge-subtle bg-surface-raised p-2">
       {data.xp.length > 0 && (
         <>
           <div className="flex items-baseline justify-between gap-2">
-            <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-[var(--gold)]/70">
+            <span className="flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               <Sparkles size={9} aria-hidden /> impact
             </span>
-            <span className="text-[12px] font-semibold tabular-nums text-[var(--gold)]">
+            <span className="text-[12px] font-semibold tabular-nums text-fg">
               +{data.totalXp} XP
             </span>
           </div>
@@ -542,10 +542,10 @@ function ImpactReceipt({
                 key={`${x.stat}-${i}`}
                 title={x.kind === "grounded" ? "grounded · goal-linked bonus" : "baseline"}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-mono tabular-nums border",
+                  "inline-flex items-center gap-1 rounded-micro px-1.5 py-0.5 text-[11px] font-mono tabular-nums border",
                   x.kind === "grounded"
-                    ? "border-[var(--gold)]/30 bg-[var(--gold)]/[0.07] text-[var(--gold)]/90"
-                    : "border-zinc-700/50 bg-zinc-800/40 text-[var(--text-secondary)]",
+                    ? "border-edge-strong bg-surface-interactive text-fg"
+                    : "border-edge-subtle bg-transparent text-fg-secondary",
                 )}
               >
                 {x.stat}
@@ -556,7 +556,7 @@ function ImpactReceipt({
         </>
       )}
       {(data.goal || data.mission) && (
-        <p className="flex items-center gap-1 text-[9px] font-mono text-[var(--text-tertiary)]">
+        <p className="flex items-center gap-1 text-[11px] font-mono text-fg-tertiary">
           <Target size={9} aria-hidden />
           {data.goal && <span className="truncate">{data.goal.title}</span>}
           {data.mission && (
@@ -569,25 +569,25 @@ function ImpactReceipt({
       )}
       {/* Phase 2 · Nick's take — the next move (the "Act" step) + bold idea + sharp challenge. */}
       {data.take && (data.take.idea || data.take.challenge || data.take.nextAction) && (
-        <div className="space-y-1 border-t border-[var(--gold)]/10 pt-1.5">
+        <div className="space-y-1 border-t border-edge-subtle pt-1.5">
           {data.take.nextAction && (
-            <p className="text-[10px] leading-snug text-[var(--gold)]">
-              <span className="font-mono uppercase tracking-wider text-[var(--gold)]/70">next move · </span>
-              <span className="text-[var(--text-primary)]">{data.take.nextAction.action}</span>
+            <p className="text-[11px] leading-snug text-fg">
+              <span className="font-mono text-fg-tertiary">next move · </span>
+              <span className="text-fg">{data.take.nextAction.action}</span>
               {data.take.nextAction.domain && (
-                <span className="ml-1 text-[8px] uppercase tracking-wider text-[var(--gold)]/50">#{data.take.nextAction.domain}</span>
+                <span className="ml-1 text-[11px] font-mono text-fg-tertiary">#{data.take.nextAction.domain}</span>
               )}
             </p>
           )}
           {data.take.idea && (
-            <p className="text-[10px] leading-snug text-[var(--text-secondary)]">
-              <span className="font-mono uppercase tracking-wider text-[var(--gold)]/60">idea · </span>
+            <p className="text-[11px] leading-snug text-fg-secondary">
+              <span className="font-mono text-fg-tertiary">idea · </span>
               {data.take.idea}
             </p>
           )}
           {data.take.challenge && (
-            <p className="text-[10px] leading-snug text-amber-200/80">
-              <span className="font-mono uppercase tracking-wider text-amber-400/60">challenge · </span>
+            <p className="text-[11px] leading-snug text-amber-200/80">
+              <span className="font-mono text-amber-400/60">challenge · </span>
               {data.take.challenge}
             </p>
           )}

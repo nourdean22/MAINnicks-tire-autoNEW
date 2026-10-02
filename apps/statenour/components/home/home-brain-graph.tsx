@@ -1067,7 +1067,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
             }}
             // 2026-09-16 · Visible Transformation: a ruled search line (16px —
             // the iOS no-zoom floor), not a boxed field.
-            className="min-h-[48px] w-full border-0 border-b-2 border-edge bg-transparent px-8 py-2 text-[16px] text-fg placeholder:text-fg-tertiary transition-colors focus:border-gold focus:outline-none"
+            className="min-h-[48px] w-full border-0 border-b-2 border-edge bg-transparent px-8 py-2 text-[16px] text-fg placeholder:text-fg-tertiary transition-colors duration-[var(--motion-state)] focus:border-accent focus:outline-none"
           />
         </div>
 
@@ -1083,10 +1083,10 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
                   : undefined
               }
               className={cn(
-                "px-3 py-2 text-[10px] font-mono uppercase tracking-wider rounded border transition-colors inline-flex items-center gap-1.5 min-h-[44px]",
+                "inline-flex min-h-[44px] items-center gap-1.5 rounded-control border bg-content px-3 py-2 text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
                 localOnlyApplied
-                  ? "bg-(--gold)/10 border-(--gold)/35 text-(--gold)"
-                  : "bg-(--bg-elevated) border-(--border-default) text-(--text-secondary) hover:border-(--gold)/20",
+                  ? "border-accent text-fg"
+                  : "border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg",
                 localOnlyPending && "border-dashed opacity-70",
               )}
             >
@@ -1100,9 +1100,9 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
                 setFocusId(null);
                 setLocalOnly(false);
               }}
-              className="px-3 py-2 text-[10px] font-mono uppercase tracking-wider rounded border bg-(--bg-elevated) border-(--border-default) text-(--text-secondary) hover:border-(--gold)/20 min-h-[44px]"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
             >
-              reset focus
+              Reset focus
             </button>
           </>
         )}
@@ -1111,20 +1111,20 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
           type="button"
           onClick={handleAskTheBrain}
           disabled={loadState.phase !== "ready"}
-          className="px-3 py-2 text-[10px] font-mono uppercase tracking-wider rounded border bg-(--bg-elevated) border-(--gold)/20 text-(--gold) hover:bg-(--gold)/5 min-h-[44px] inline-flex items-center gap-1.5 disabled:opacity-40"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control bg-accent px-4 py-2 text-[14px] font-semibold text-[var(--text-inverse)] transition-colors duration-[var(--motion-state)] hover:bg-accent-hover disabled:opacity-40"
         >
-          <Zap size={12} className="fill-(--gold)" />
-          ask the brain
+          <Zap size={14} />
+          Ask the brain
         </button>
 
         {variant === "home" && !isMobile && (
           <button
             type="button"
             onClick={() => router.push("/brain")}
-            className="px-3 py-2 text-[10px] font-mono uppercase tracking-wider rounded border bg-(--bg-elevated) border-(--border-default) text-(--text-secondary) hover:border-(--gold)/20 min-h-[44px] inline-flex items-center gap-1.5"
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
           >
             <Maximize2 size={11} />
-            fullscreen
+            Fullscreen
           </button>
         )}
       </div>
@@ -1139,12 +1139,12 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
               key={l.key}
               type="button"
               onClick={() => setLens(l.key)}
-              // Lens chips are underline items (mono, 11px), not pills — the
-              // same grammar as every other switch on the page.
+              // Lens chips are underline items (Geist 13px medium, accent
+              // underline when selected), the same grammar as PageTabs.
               className={cn(
-                "-mb-px inline-flex min-h-[44px] shrink-0 items-center border-b-2 px-1 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors",
+                "-mb-px inline-flex min-h-[44px] shrink-0 items-center border-b-2 px-1 text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
                 lens === l.key
-                  ? "border-gold text-gold"
+                  ? "border-accent text-fg"
                   : "border-transparent text-fg-tertiary hover:text-fg-secondary",
               )}
             >
@@ -1176,9 +1176,9 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
                 : undefined
             }
             className={cn(
-              "-mb-px inline-flex min-h-[44px] shrink-0 items-center border-b-2 px-1 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors",
+              "-mb-px inline-flex min-h-[44px] shrink-0 items-center border-b-2 px-1 text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
               activityApplied
-                ? "border-gold text-gold"
+                ? "border-accent text-fg"
                 : "border-transparent text-fg-tertiary hover:text-fg-secondary",
               activityPending && "border-dashed opacity-70",
             )}
@@ -1205,10 +1205,10 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
       >
         {/* USEFUL · DEGRADED · EMPTY · ERROR — never permanent uncertainty */}
         {showInitialSpinner && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#030303]/80 z-10">
-            <Loader2 size={24} className="animate-spin text-(--gold)" />
-            <span className="text-[9px] font-mono uppercase tracking-wider text-(--text-tertiary)">
-              loading brain · times out in {FETCH_TIMEOUT_MS / 1000}s
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-canvas/80 z-10">
+            <Loader2 size={24} className="animate-spin text-fg-secondary" />
+            <span className="font-mono text-[11px] text-fg-tertiary">
+              Loading brain · times out in {FETCH_TIMEOUT_MS / 1000}s
             </span>
           </div>
         )}
@@ -1220,7 +1220,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
             <button
               type="button"
               onClick={() => fetchGraphData()}
-              className="px-4 py-2 text-[10px] font-mono uppercase tracking-wider rounded border border-(--gold)/30 text-(--gold) hover:bg-(--gold)/10 min-h-[48px] inline-flex items-center gap-1.5"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg min-h-[48px]"
             >
               <RefreshCw size={12} />
               retry
@@ -1248,7 +1248,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
                 <p className="text-xs text-(--text-secondary) font-mono">
                   {emptyStateCopy(true).headline}
                 </p>
-                <p className="text-[10px] text-(--text-tertiary) font-mono max-w-xs">
+                <p className="font-mono text-[11px] text-fg-tertiary max-w-xs">
                   {emptyStateCopy(true).body}
                 </p>
                 <button
@@ -1257,7 +1257,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
                     setFocusId(null);
                     setLocalOnly(false);
                   }}
-                  className="mt-1 px-4 py-2 text-[10px] font-mono uppercase tracking-wider rounded border border-(--gold)/30 text-(--gold) hover:bg-(--gold)/10 min-h-[48px]"
+                  className="mt-1 inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg min-h-[48px]"
                 >
                   back to the full map
                 </button>
@@ -1267,13 +1267,13 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
                 <p className="text-xs text-(--text-secondary) font-mono">
                   {emptyStateCopy(false).headline}
                 </p>
-                <p className="text-[10px] text-(--text-tertiary) font-mono max-w-xs">
+                <p className="font-mono text-[11px] text-fg-tertiary max-w-xs">
                   {emptyStateCopy(false).body}
                 </p>
                 <button
                   type="button"
                   onClick={() => fetchGraphData()}
-                  className="mt-1 px-4 py-2 text-[10px] font-mono uppercase tracking-wider rounded border border-(--gold)/30 text-(--gold) hover:bg-(--gold)/10 min-h-[48px] inline-flex items-center gap-1.5"
+                  className="mt-1 inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg min-h-[48px]"
                 >
                   <RefreshCw size={12} />
                   retry
@@ -1288,7 +1288,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
             why there is nothing to look at. Gating this on "ready" hid the
             one piece of evidence that answers the question. */}
         {degraded.length > 0 && (loadState.phase === "ready" || loadState.phase === "empty") && (
-          <div className="absolute top-3 left-3 z-10 px-2 py-1 rounded bg-amber-500/10 border border-amber-500/30 text-[8px] font-mono uppercase tracking-wider text-amber-300">
+          <div className="absolute top-3 left-3 z-10 px-2 py-1 rounded-micro bg-amber-500/10 border border-amber-500/30 font-mono text-[11px] text-amber-300">
             degraded · missing: {degraded.join(", ")}
           </div>
         )}
@@ -1300,16 +1300,16 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
         {staleError && !showRefreshChip && (
           <div className="absolute bottom-3 left-3 right-3 z-10 flex flex-wrap items-center gap-2 rounded border border-amber-500/30 bg-amber-500/10 px-2.5 py-2">
             <AlertTriangle size={11} className="text-amber-300 shrink-0" />
-            <span className="text-[9px] font-mono uppercase tracking-wider text-amber-300">
+            <span className="font-mono text-[11px] text-amber-300">
               refresh failed · showing the last graph that loaded
             </span>
-            <span className="text-[9px] font-mono text-amber-200/70 basis-full sm:basis-auto">
+            <span className="font-mono text-[11px] text-amber-200/70 basis-full sm:basis-auto">
               {staleError}
             </span>
             <button
               type="button"
               onClick={() => fetchGraphData()}
-              className="ml-auto inline-flex min-h-11 items-center gap-1 rounded border border-amber-400/40 px-2.5 py-1 font-mono text-[9px] uppercase tracking-wider text-amber-200 hover:bg-amber-400/10 sm:min-h-8"
+              className="ml-auto inline-flex min-h-11 items-center gap-1 rounded-control border border-amber-400/40 px-2.5 py-1 text-[13px] font-medium text-amber-200 hover:bg-amber-400/10 sm:min-h-8"
             >
               <RefreshCw size={10} />
               retry
@@ -1318,15 +1318,15 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
         )}
 
         {showRefreshChip && (
-          <div className="absolute top-3 right-3 z-10 px-2 py-1 rounded bg-black/60 border border-(--border-default) text-[8px] font-mono uppercase tracking-wider text-(--text-tertiary) inline-flex items-center gap-1">
+          <div className="absolute top-3 right-3 z-10 px-2 py-1 rounded-micro bg-content border border-edge-default font-mono text-[11px] text-fg-tertiary inline-flex items-center gap-1">
             <Loader2 size={9} className="animate-spin" />
             refreshing
           </div>
         )}
 
         {isMobile && variant === "home" && (
-          <div className="absolute top-3 left-3 z-10 px-2 py-0.5 rounded bg-black/60 border border-(--gold)/25 text-[8px] font-mono uppercase tracking-wider text-(--gold)">
-            TAP TO EXPLORE FULL GRAPH
+          <div className="absolute top-3 left-3 z-10 px-2 py-0.5 rounded-micro bg-content border border-edge-default font-mono text-[11px] text-fg-secondary">
+            Tap to explore the full graph
           </div>
         )}
 
@@ -1348,9 +1348,9 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
 
         {!isMobile && (
           <div className="absolute bottom-3 right-3 flex flex-col gap-1 z-10">
-            <button onClick={() => zoomBy(0.2)} className="w-8 h-8 rounded bg-black/60 border border-(--border-default) hover:border-(--gold)/40 hover:text-(--gold) text-xs font-mono font-bold flex items-center justify-center" title="Zoom In">+</button>
-            <button onClick={() => zoomBy(-0.2)} className="w-8 h-8 rounded bg-black/60 border border-(--border-default) hover:border-(--gold)/40 hover:text-(--gold) text-xs font-mono font-bold flex items-center justify-center" title="Zoom Out">-</button>
-            <button onClick={zoomReset} className="w-8 h-8 rounded bg-black/60 border border-(--border-default) hover:border-(--gold)/40 hover:text-(--gold) text-xs flex items-center justify-center" title="Reset View"><Expand size={12} /></button>
+            <button onClick={() => zoomBy(0.2)} className="w-8 h-8 rounded-control bg-content border border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg text-xs font-mono font-bold flex items-center justify-center" title="Zoom In">+</button>
+            <button onClick={() => zoomBy(-0.2)} className="w-8 h-8 rounded-control bg-content border border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg text-xs font-mono font-bold flex items-center justify-center" title="Zoom Out">-</button>
+            <button onClick={zoomReset} className="w-8 h-8 rounded-control bg-content border border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg text-xs flex items-center justify-center" title="Reset View"><Expand size={12} /></button>
           </div>
         )}
       </div>
@@ -1371,12 +1371,12 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
             type="button"
             aria-expanded={unlinkedOpen}
             onClick={() => setUnlinkedOpen((v) => !v)}
-            className="flex min-h-11 w-full items-center justify-between gap-2 rounded border border-(--border-default) bg-(--bg-elevated) px-3 py-2 font-mono text-[10px] uppercase tracking-wider text-(--text-tertiary) hover:text-(--text-secondary) sm:min-h-10"
+            className="flex min-h-11 w-full items-center justify-between gap-2 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary hover:text-fg sm:min-h-10"
           >
             <span>
-              UNLINKED ({unlinked.length})
+              Unlinked ({unlinked.length})
             </span>
-            <span className="text-[9px] normal-case tracking-normal text-(--text-tertiary)/70">
+            <span className="font-mono text-[11px] font-normal text-fg-tertiary">
               ingested, never connected
             </span>
           </button>
@@ -1394,7 +1394,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
                     className="flex min-h-11 w-full items-center gap-2 px-3 py-2 text-left hover:bg-(--bg-raised) sm:min-h-10"
                     title={n.fullLabel ?? n.label}
                   >
-                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[8px] font-mono uppercase tracking-wider border border-(--border-default) text-(--text-tertiary)">
+                    <span className="shrink-0 px-1.5 py-0.5 rounded-micro font-mono text-[11px] border border-edge-default text-fg-tertiary">
                       {n.type}
                     </span>
                     <span className="truncate text-[11px] text-(--text-secondary)">
