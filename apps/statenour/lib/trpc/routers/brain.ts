@@ -190,6 +190,9 @@ import {
 } from "@/lib/services/board-consult-record";
 import { BOARD_IDS } from "@/lib/ai/board/boards";
 
+/** identityDelta: a snapshot older than this is not "yesterday -> today". */
+export const IDENTITY_DELTA_MAX_AGE_MS = 48 * 60 * 60 * 1000;
+
 export const brainRouter = router({
   /**
    * Phase UU · owner-only · /brain/wisdom dashboard feed · all
@@ -1853,6 +1856,13 @@ export const brainRouter = router({
       select: { deltaFromLast: true, createdAt: true, date: true },
     });
     if (!row || !row.deltaFromLast || row.deltaFromLast.trim().length === 0) {
+      return null;
+    }
+    // The panel labels this "yesterday -> today". The writer (the thinking
+    // engine's identity tracker) went unscheduled from 2026-05-28 until
+    // /api/cron/think revived it, and the panel showed a May delta as today's
+    // (connection census 2026-10-02). A snapshot older than two days is not today's change.
+    if (Date.now() - row.createdAt.getTime() > IDENTITY_DELTA_MAX_AGE_MS) {
       return null;
     }
     return {
