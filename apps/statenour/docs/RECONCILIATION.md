@@ -1,5 +1,51 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-02 · connection census wave (#2892 · #2894 · #2896) · agent follow-ups on, thinking engine revived, stale-read guards, proof workflow fails loud, NicksMax camera self-heal
+>
+> **Census.** Measured every statenour table's last write against its writer (prod Neon, read-only). Fixed the broken links that had a clear owner:
+> - Frozen since the Wave-AE prune (2026-05-28): `contradictions`, `identity_snapshots`, `causal_chains`.
+> - Readers serving frozen rows as current: identityDelta, the shop-brief causal chains, and the voice tile copy.
+> - A proof workflow reporting SUCCESS over ledger 500s.
+>
+> Parked as findings, not fixed: `pattern_detections` (no writer), `goal_stats` (no writer), `mission_links` + `content_studio_projects` (unreachable), `prompt_versions` (no writer), `tool_telemetry` stale 50h (alternate chat paths skip `recordToolInvocation`, unconfirmed), `bridge_call_logs` (rejections not persisted), and the mastery 0-10 vs 0-100 scale clash.
+>
+> **Agent follow-ups (#2892, `b2e8563`).** All three switches are now on:
+> - manifest `mode: active`;
+> - worker `HIGH_FREQ_JOBS` every 15 min;
+> - `NICK_AGENT_FOLLOWUPS=1` on statenour-web, set with the operator's yes.
+>
+> Receipts: the 17:30Z run (old container) still logged the skip reason. The 17:45Z run had no skip reason, status success.
+>
+> **Thinking engine (#2894, `917aac4`).** `/api/cron/think` is folded into mega-evening as a DETACHED child (a retry would duplicate rows). It runs L7 contradictions first, because L8 and L10 read its output, then L8 identity evolution and L10 causal chains in parallel. Each layer is fail-soft. Changes:
+> - `scanEnvironment` is excluded because it writes nothing.
+> - `detectContradictions` skips claims still open from the last 14 days.
+> - `identityDelta` returns null when the snapshot is older than 48h.
+> - Shop intelligence reads causal chains seen in the last 30 days only.
+> - The voice tile says latency is "measured in the shop admin". The domain-boundary gate caught the first wording, which named the shop.
+>
+> Also: `post-run-evidence.mjs` exits 1 when the ledger refuses rows (`ledgerFailure`).
+>
+> Gates: tsc 0 · eslint 0 · check:crons clean · get-auth 176/176 · related vitest 148 files / 1,446 · CI node + e2e green. Positive controls: 4 guard mutations went red.
+>
+> **NicksMax camera (#2896, `1b43781`; operator: "switch whatever to make it work").** Three faults found:
+> 1. NicksMax was 158 commits behind on a feature branch. Moved to `main`; local notes saved to `backups\nicksmax-remember-20261002.patch`.
+> 2. Two supervisor loops (SYSTEM + user) fought over the V380 relay after the 09:15 reboot. The user task is disabled.
+> 3. The office conversation worker had been down since that reboot. Its SYSTEM task ran from a git worktree whose code was cleaned up 09-30, and nothing restarted it.
+>
+> The supervisor is now single-source in `camera-bridge/scripts/nicksmax/`. The `data\` copy on the box is a shim that falls back to the last good copy. It now heals:
+> - the office worker: start if stopped, restart if its heartbeat is stale for more than 10 min, repoint off a worktree, ESCALATE if its code is missing;
+> - the Eufy bridge/agent: start if stopped, restart on two consecutive closed-port ticks;
+> - and it ledgers restarts, logging ESCALATE above 6/h.
+>
+> Live receipts, 13:49-13:51 ET:
+> - ESCALATE for the missing worktree code;
+> - office worker restarted, then repointed to `NOURCITY\camera-bridge`, now READY with a fresh heartbeat;
+> - the shim fallback fired once during a partial-clone checkout.
+>
+> The sign producer has run without an rc=3 exit since 11:20.
+>
+> **Open:** office "watch" (vision) is not built; it waits on the operator's choice between cloud VLM stills and on-box detection only. The first `/api/cron/think` rows land on the next mega-evening.
+>
 > ## 2026-10-02 · brain graph Unlinked tray + Obsidian bridge restored (#2890) · out-of-window FK anchors, dangling-link requeue, Obsidian status reaches prod, export overwrite loop ended · NattyNour bridge repaired live
 >
 > **Graph.** The Home "Unlinked" tray listed grounded entries: Home loads 10 ACTIVE missions / 8 active goals, so an entry linked to anything else had no second end. `getBrainGraph` loads those anchors by id (cap 20, deadline-guarded, `anchor_missions`/`anchor_goals` in `degraded` on failure). Deleting a goal/mission SET NULLs the FK but left `link_status` claiming a link (prod: 10 of 17 `auto` decision_replays had no FK); `backfillJournalBrain` (mastery-xp cron) now runs `requeueDanglingLinks` first so the same sweep re-grounds them (`rejected` untouched).

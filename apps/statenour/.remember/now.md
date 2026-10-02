@@ -1,5 +1,25 @@
 # Session ledger — statenour
 
+**Updated: 2026-10-02 ET** (connection census wave · #2892 `b2e8563` DEPLOYED · #2894 `917aac4` + #2896 `1b43781` MERGED)
+
+## 2026-10-02 · connection census — follow-ups on, thinking engine revived, camera self-heal
+
+**Verify next:**
+- the first mega-evening run of `/api/cron/think`: a cron_job_logs row, plus new rows in `contradictions` / `identity_snapshots` / `causal_chains`;
+- the first delivered agent follow-up (an assistant message in its origin thread);
+- that #2894 deployed (`/api/version` ancestry).
+
+**NicksMax** is on `main` (clean). The supervisor runs from `camera-bridge/scripts/nicksmax/` through the `data\` shim; its ledger is `data\.nicksmax-supervisor-state.json`; its log is `logs\nicksmax-camera-supervisor.log` (grep ESCALATE). The office worker task now has WorkingDirectory = `NOURCITY\camera-bridge`.
+
+**Pending operator decision:** office "watch" - A (cloud VLM stills, own switch) or B (on-box detection only).
+
+**Findings not fixed:**
+- `tool_telemetry` stale 50h: suspect the alternate chat paths skip `recordToolInvocation`;
+- `bridge_call_logs`: rejections are not persisted;
+- `device_events` `frigate` `vehicle_detected`: last row 10-01 14:43Z, at a normal volume of 1-6 rows/day; trace the edge's posting path if it stays silent;
+- owner panel `action_attempts` can show a false clear when RAILWAY_WEBHOOK_TOKEN is unset;
+- dead tables: `pattern_detections`, `goal_stats`, `mission_links`, `content_studio_projects`, `prompt_versions` (ask before deleting).
+
 **Updated: 2026-10-02 ET** (full-circle bug hunt #2888 · MERGED `f3051532` · DEPLOYED Railway `c84db7d0` 16:03Z · prod DDL applied with operator yes: result_ref index + reality_event_envelope)
 
 ## 2026-10-02 · bug hunt — 20 fixes + the reality ledger restored

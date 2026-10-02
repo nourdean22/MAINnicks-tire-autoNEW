@@ -2,6 +2,15 @@
 
 
 
+## 2026-10-02 - Agent follow-ups deliver; the thinking engine runs nightly again; NicksMax cameras self-heal (#2892, #2894, #2896)
+
+- **Agent follow-ups: LIVE + PROVEN.** All three switches are on, and the 17:45Z run went through with no skip.
+- **Thinking engine: BUILT + WIRED, waiting on its first mega-evening run.** `/api/cron/think` (mega-evening, detached) writes `contradictions`, `identity_snapshots` and `causal_chains` again. identityDelta and the shop brief now age-gate those reads.
+- **NicksMax supervisor: LIVE.** It restarts the office conversation worker and the Eufy bridge/agent, and logs ESCALATE when restarts do not converge.
+- **Office camera:** listens (audio to transcript); does not watch.
+
+Ship record: `docs/RECONCILIATION.md` top entry.
+
 ## 2026-10-02 - Brain graph links grounded entries to out-of-window anchors; the Obsidian bridge reports to production again (#2890)
 
 **BUILT + TESTED (PR #2890); the Obsidian half is LIVE on NattyNour (the branch's exact files are checked out there until a `main` pull replaces them).** The Home graph loads a grounded entry's mission/goal even outside the top-N window, and the mastery-xp sweep re-grounds rows whose goal/mission was deleted (the status no longer claims a link that does not exist). The local Obsidian engine writes its status row to prod (`local_sync_log` module `obsidian_engine`: health `healthy`, 0 issues at 16:34Z), the watch daemon no longer crashes on start, and the export no longer loops on same-second reflections. Ship record: `docs/RECONCILIATION.md` top entry.
