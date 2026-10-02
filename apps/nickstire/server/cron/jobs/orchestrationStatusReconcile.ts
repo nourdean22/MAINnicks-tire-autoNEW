@@ -137,7 +137,12 @@ const STALE_DRAFT_BATCH = 500;
 
 interface DraftCandidate {
   id: number;
-  /** The linked sms_response_jobs row reached a terminal state (answered, no-reply-needed, …). */
+  /**
+   * The linked sms_response_jobs row reached an outcome that CLOSES the obligation: answered
+   * (responded / human_replied), deliberately not answered (no_reply_required), or suppressed.
+   * failed / dead are terminal for the JOB but nobody answered the customer — those drafts
+   * stay open until the age rule, never "obligation_closed".
+   */
   jobClosed: number | string | boolean | null;
   /** A linked job is still open (pending / processing / human_pending). */
   jobOpen: number | string | boolean | null;
@@ -169,7 +174,7 @@ async function selectDraftCandidates(d: Executor, maxAgeDays: number): Promise<D
   const result = await d.execute(sql`
     SELECT o.id AS id,
            EXISTS (SELECT 1 FROM sms_response_jobs j WHERE j.orchestrationId = o.id
-                   AND j.status IN ('responded', 'suppressed', 'failed', 'dead', 'human_replied', 'no_reply_required')) AS jobClosed,
+                   AND j.status IN ('responded', 'suppressed', 'human_replied', 'no_reply_required')) AS jobClosed,
            EXISTS (SELECT 1 FROM sms_response_jobs j WHERE j.orchestrationId = o.id
                    AND j.status IN ('pending', 'processing', 'human_pending')) AS jobOpen,
            (o.event_type = 'inbound_sms' AND o.related_conversation_id IS NOT NULL AND EXISTS (

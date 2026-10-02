@@ -160,6 +160,9 @@ describe("reconcileStaleHumanReviewDrafts", () => {
     expect(select.text).toContain("m.createdAt > o.createdAt AND m.direction = 'inbound'");
     expect(select.text).not.toMatch(/m\.status <> 'failed'/);
     expect(select.text).toContain("j.orchestrationId = o.id");
+    // A failed/dead job means nobody answered — it must never count as a closed obligation.
+    expect(select.text).toContain("j.status IN ('responded', 'suppressed', 'human_replied', 'no_reply_required')) AS jobClosed");
+    expect(select.text).not.toMatch(/'dead'[^)]*\)\) AS jobClosed/);
     expect(select.params).toEqual([7, 500]);
     expect(STALE_DRAFT_MAX_AGE_DAYS).toBe(7);
   });
