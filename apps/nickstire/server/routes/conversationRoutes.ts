@@ -28,6 +28,9 @@ import { z } from "zod";
 import { sql } from "drizzle-orm";
 
 import { extractConversationFacts, type TranscriptSegment } from "../services/conversationFacts";
+import {
+  analyzeOfficeFrames, officeVisualColumnReady, OFFICE_VISUAL_MAX_FRAMES, type OfficeVisual,
+} from "../services/officeVisual";
 
 function safeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -82,6 +85,18 @@ const episodeSchema = z.object({
    */
   coveredSeconds: z.number().min(0),
   totalSeconds: z.number().min(0),
+  /**
+   * 2026-10-02 · office "watch". Still frames grabbed by the producer during the capture window
+   * (OFFICE_VISUAL_ENABLED on NicksMax). Optional: producers without it post exactly what they
+   * did before. The frames are sent to the vision model and then DROPPED: only the resulting
+   * description is stored (services/officeVisual.ts). ~400 KB base64 cap per frame keeps a full
+   * set well under the 2 MB global body limit.
+   */
+  frames: z.array(z.object({
+    at: z.union([z.string(), z.number()]).optional(),
+    mime: z.enum(["image/jpeg", "image/png"]).default("image/jpeg"),
+    base64: z.string().min(100).max(400_000),
+  })).max(OFFICE_VISUAL_MAX_FRAMES).optional(),
 });
 
 export function registerConversationEpisodeRoute(app: Express): void {
@@ -102,13 +117,36 @@ export function registerConversationEpisodeRoute(app: Express): void {
       index: s.index, start: s.start, end: s.end, text: s.text, speaker: s.speaker,
     }));
 
+    // Visual analysis is only worth a vision call when there is somewhere to keep the result:
+    // until migration 0140 adds the column (or while the column check itself cannot run), frames
+    // are accepted and dropped unanalyzed, and the reply says so (visualStatus) rather than
+    // pretending the camera saw nothing.
+    const frames = e.frames ?? [];
+    let visualReady = false;
+    if (frames.length > 0 && process.env.OFFICE_VISUAL_ANALYSIS !== "0") {
+      try {
+        const { getDb } = await import("../db");
+        const d0 = await getDb();
+        visualReady = d0 ? await officeVisualColumnReady(d0) : false;
+      } catch {
+        visualReady = false;
+      }
+    }
+
     // Extraction runs BEFORE the write so the row lands complete. A two-step write would
     // leave a PENDING row behind whenever extraction failed, and nothing reaps those.
-    const extracted = await extractConversationFacts(segments, {
-      meanVolumeDb: e.meanVolumeDb ?? null,
-      coveredSeconds: e.coveredSeconds,
-      totalSeconds: e.totalSeconds,
-    });
+    // The vision call runs alongside it: independent inputs, and the slower of the two bounds
+    // the request instead of their sum.
+    const [extracted, visual] = await Promise.all([
+      extractConversationFacts(segments, {
+        meanVolumeDb: e.meanVolumeDb ?? null,
+        coveredSeconds: e.coveredSeconds,
+        totalSeconds: e.totalSeconds,
+      }),
+      visualReady
+        ? analyzeOfficeFrames(frames.map((f) => ({ mime: f.mime, base64: f.base64 })))
+        : Promise.resolve<OfficeVisual | null>(null),
+    ]);
 
     // FAILED covers BOTH failures that can reach here, and it outranks everything: the
     // producer could not transcribe, or extraction could not run. Neither is "no facts found".
@@ -161,6 +199,13 @@ export function registerConversationEpisodeRoute(app: Express): void {
           meanVolumeDb     = COALESCE(VALUES(meanVolumeDb), meanVolumeDb),
           audioRef         = VALUES(audioRef)
       `);
+      // Separate statement, written only when the column exists (visual is non-null only then),
+      // so the main INSERT above stays byte-identical for every database state.
+      if (visual) {
+        await d.execute(sql`
+          UPDATE conversation_episodes SET visual = ${JSON.stringify(visual)} WHERE episodeId = ${e.episodeId}
+        `);
+      }
     } catch (err) {
       return res.status(500).json({
         error: "write failed",
@@ -181,6 +226,12 @@ export function registerConversationEpisodeRoute(app: Express): void {
       coverage: e.totalSeconds > 0 ? Number((e.coveredSeconds / e.totalSeconds).toFixed(3)) : null,
       engine: extracted.engine,
       speakerCount: e.speakerCount ?? null,
+      framesReceived: frames.length,
+      visualStatus: frames.length === 0 ? null
+        : visual ? visual.status
+        : process.env.OFFICE_VISUAL_ANALYSIS === "0" ? "DISABLED"
+        : "NOT_STORED_VISUAL_COLUMN_UNAVAILABLE",
+      visualError: visual?.error ?? null,
     });
   });
 }
