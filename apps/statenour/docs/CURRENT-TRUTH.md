@@ -2,6 +2,10 @@
 
 
 
+## 2026-10-02 - Brain graph links grounded entries to out-of-window anchors; the Obsidian bridge reports to production again (#2890)
+
+**BUILT + TESTED (PR #2890); the Obsidian half is LIVE on NattyNour (the branch's exact files are checked out there until a `main` pull replaces them).** The Home graph loads a grounded entry's mission/goal even outside the top-N window, and the mastery-xp sweep re-grounds rows whose goal/mission was deleted (the status no longer claims a link that does not exist). The local Obsidian engine writes its status row to prod (`local_sync_log` module `obsidian_engine`: health `healthy`, 0 issues at 16:34Z), the watch daemon no longer crashes on start, and the export no longer loops on same-second reflections. Ship record: `docs/RECONCILIATION.md` top entry.
+
 ## 2026-10-02 - Bug hunt over the full-circle waves; the reality ledger takes writes again (#2888 DEPLOYED)
 
 **DEPLOYED 2026-10-02 16:03Z (#2888 squash-merged as `f3051532`; Railway `statenour-web` `c84db7d0` SUCCESS; `/api/version` serves that commit).** Chat output caps never fall below 6,000 tokens on a shaped turn (empty "factual" answers were the thinking model starved). Ledger: brief and push summaries are dated; decide-by-content takes the newest row; dismissals carry no `resultRef` and the closer closes accepted rows only; chip rows key on chip id; the forecast window is 6 days; `recordShown` inserts under a per-hash advisory lock, so two tabs write one row. `intelligence_outcomes_result_ref_idx` exists in prod. **`reality_events` had been unwritable since 2026-09-29** (migration `20260929123500_reality_event_envelope` was committed but never applied; `/api/sync/evidence` failed 38 times on `event_version`). Applied 2026-10-02 15:54Z with operator approval and recorded in `_prisma_migrations`; LIVE + UNPROVEN until the next evidence sync writes row 333. Every repo migration is now in the prod ledger. **Correction:** the Telegram webhook is registered and receiving; the wave 4 "zero webhook requests" finding was a log-filter error. Ship record: `docs/RECONCILIATION.md` top entry.
