@@ -644,7 +644,9 @@ export const operatorRouter = router({
    * `waitingOn` and the Nick's Tire bridge. A failed read makes its buckets
    * UNKNOWN (count null), never empty (lib/home/waiting-summary.ts).
    */
-  waitingSummary: operatorProcedure.query(async () => buildWaitingSummary()),
+  waitingSummary: operatorProcedure
+    .input(z.object({ scope: z.enum(["full", "rail"]).optional() }).optional())
+    .query(async ({ input }) => buildWaitingSummary(new Date(), { scope: input?.scope ?? "full" })),
   ticker: operatorProcedure.query(async () => buildTickerFeed()),
 
   /**

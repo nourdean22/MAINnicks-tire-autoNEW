@@ -93,7 +93,7 @@ export async function runSemanticLinker(
     LIMIT $3
     `,
     EDGE_CATEGORY,
-    since7d.toISOString(),
+    since7d,
     batch,
     quarantined,
   );

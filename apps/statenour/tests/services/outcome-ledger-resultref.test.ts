@@ -15,21 +15,31 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   updateMany: vi.fn(),
   findMany: vi.fn(),
+  queryRaw: vi.fn(),
 }));
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+vi.mock("@/lib/prisma", () => {
+  const client = {
     intelligenceOutcome: {
       findFirst: (...a: unknown[]) => mocks.findFirst(...a),
       create: (...a: unknown[]) => mocks.create(...a),
       updateMany: (...a: unknown[]) => mocks.updateMany(...a),
       findMany: (...a: unknown[]) => mocks.findMany(...a),
     },
-  },
-}));
+    $queryRaw: (...a: unknown[]) => mocks.queryRaw(...a),
+    // The interactive transaction hands the callback the same model surface.
+    $transaction: (fn: (tx: unknown) => unknown) => fn(client),
+  };
+  return { prisma: client };
+});
 vi.mock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
 
-import { outcomeStats, recordOutcomeByResultRef, recordShownBounded } from "@/lib/services/outcome-ledger";
+import {
+  outcomeStats,
+  recordOutcomeByResultRef,
+  recordShown,
+  recordShownBounded,
+} from "@/lib/services/outcome-ledger";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -63,13 +73,43 @@ describe("recordShownBounded", () => {
   });
 });
 
+describe("recordShown · two tabs cannot both insert", () => {
+  const input = { kind: "suggestion" as const, sourceEngine: "home", summary: "same card", shownSurface: "home" };
+
+  it("a miss takes the per-hash advisory lock before re-checking and inserting", async () => {
+    mocks.findFirst.mockResolvedValue(null);
+    mocks.create.mockResolvedValue({ id: "led-new" });
+    expect(await recordShown(input)).toBe("led-new");
+    expect(mocks.queryRaw).toHaveBeenCalledOnce();
+    const sql = (mocks.queryRaw.mock.calls[0][0] as TemplateStringsArray).join("?");
+    expect(sql).toContain("pg_advisory_xact_lock");
+    // fast-path read + the re-check under the lock
+    expect(mocks.findFirst).toHaveBeenCalledTimes(2);
+    expect(mocks.queryRaw.mock.invocationCallOrder[0]).toBeLessThan(mocks.create.mock.invocationCallOrder[0]);
+  });
+
+  it("the tab that loses the race returns the winner's row instead of a second one", async () => {
+    mocks.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "led-winner" });
+    expect(await recordShown(input)).toBe("led-winner");
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it("a fast-path hit never opens a transaction", async () => {
+    mocks.findFirst.mockResolvedValue({ id: "led-old" });
+    expect(await recordShown(input)).toBe("led-old");
+    expect(mocks.queryRaw).not.toHaveBeenCalled();
+  });
+});
+
 describe("recordOutcomeByResultRef", () => {
   it("closes only rows that became THIS result and are still open (first write wins)", async () => {
     mocks.updateMany.mockResolvedValue({ count: 1 });
     expect(await recordOutcomeByResultRef("task:t-1", true)).toBe(1);
     expect(mocks.updateMany).toHaveBeenCalledOnce();
     const arg = mocks.updateMany.mock.calls[0][0] as { where: unknown; data: Record<string, unknown> };
-    expect(arg.where).toEqual({ resultRef: "task:t-1", outcomeAt: null });
+    // Accepted rows only: a dismissed row carrying the ref is never closed by
+    // the task's rating (bug-hunt 2026-10-02).
+    expect(arg.where).toEqual({ resultRef: "task:t-1", outcomeAt: null, decision: "accepted" });
     expect(arg.data.outcomeUseful).toBe(true);
     expect(arg.data.outcomeAt).toBeInstanceOf(Date);
     // A rating never writes a decision — the semantic contract.

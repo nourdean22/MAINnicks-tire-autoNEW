@@ -149,7 +149,9 @@ export function SystemHealthCard() {
       </p>
     );
   }
-  if (data.overall === "healthy") {
+  // A stale fallback (recompute failed, old row served) is checked BEFORE the
+  // healthy branch: an old "healthy" must never read as current (bug-hunt).
+  if (data.overall === "healthy" && !data.staleFallback) {
     const ageHealthy = hoursSince(data.generatedAt ?? new Date().toISOString());
     return (
       <p
@@ -258,8 +260,9 @@ export function SystemHealthCard() {
     const label = critical ? "critical" : "degraded";
     topHighlights.push({
       severity: critical ? "critical" : "warning",
-      headline: `System ${label} — open diagnostics for details`,
-      link: "/system/health",
+      headline: `System ${label} — open the error log for details`,
+      // Was /system/health — the page this card is on (bug-hunt 2026-10-02).
+      link: "/system/logs?view=errors",
     });
   }
 
@@ -345,10 +348,10 @@ export function SystemHealthCard() {
           </span>
         )}
         <Link
-          href="/system/health"
+          href="/system/logs?view=errors"
           className="rounded-control border border-edge-default bg-content text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg px-2 py-1"
         >
-          Diagnostics →
+          Errors →
         </Link>
         <button
           type="button"

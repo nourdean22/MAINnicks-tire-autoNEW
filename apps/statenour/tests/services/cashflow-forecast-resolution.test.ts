@@ -122,7 +122,8 @@ describe("resolveForecastPredictions", () => {
     await resolveForecastPredictions(now);
     const where = findMany.mock.calls[0][0].where;
     expect(where).toMatchObject({ kind: "prediction", sourceEngine: "cashflow-forecast", outcomeAt: null, NOT: { summary: { contains: "UNAVAILABLE" } } });
-    expect(where.shownAt.lte.toISOString()).toBe("2026-09-27T10:00:00.000Z");
+    // 6 days: last week's row is written seconds after that run's `now`.
+    expect(where.shownAt.lte.toISOString()).toBe("2026-09-28T10:00:00.000Z");
   });
 
   it("a failed ledger read is an empty result, never a throw into the digest", async () => {

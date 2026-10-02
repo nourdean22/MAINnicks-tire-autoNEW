@@ -189,28 +189,44 @@ export async function buildErrorRateByRoute(range = "24h", minRequests = 5) {
       since,
       minReq,
     ),
-    prisma.$queryRawUnsafe<Array<{ path: string; errors: number }>>(
+    prisma.$queryRawUnsafe<Array<{ path: string; method: string | null; errors: number }>>(
       `
         SELECT
           (context->>'path')::text AS path,
+          (context->>'method')::text AS method,
           COUNT(*)::int AS errors
         FROM error_logs
         WHERE created_at >= $1
           AND context->>'path' IS NOT NULL
-        GROUP BY context->>'path'
+        GROUP BY context->>'path', context->>'method'
       `,
       since,
     ),
   ]);
 
-  const errorByPath = new Map<string, number>();
+  // 2026-10-02 bug-hunt · errors were joined by PATH only, so every method
+  // row of a path got the path's full error count and the totals counted it
+  // once per method. They are now keyed by method+path (http.ts writes both);
+  // an error with no method goes to the busiest row of its path, once.
+  const errorByKey = new Map<string, number>();
+  const methodlessByPath = new Map<string, number>();
+  let allErrors = 0;
   for (const r of errorRows) {
-    errorByPath.set(r.path, r.errors);
+    allErrors += r.errors;
+    if (r.method) errorByKey.set(`${r.method.toUpperCase()} ${r.path}`, (errorByKey.get(`${r.method.toUpperCase()} ${r.path}`) ?? 0) + r.errors);
+    else methodlessByPath.set(r.path, (methodlessByPath.get(r.path) ?? 0) + r.errors);
+  }
+  const busiestRowByPath = new Map<string, RouteRow>();
+  for (const r of routeRows) {
+    const cur = busiestRowByPath.get(r.path);
+    if (!cur || r.requests > cur.requests) busiestRowByPath.set(r.path, r);
   }
 
   const routes = routeRows
     .map((r) => {
-      const errors = errorByPath.get(r.path) ?? 0;
+      const errors =
+        (errorByKey.get(`${String(r.method).toUpperCase()} ${r.path}`) ?? 0) +
+        (busiestRowByPath.get(r.path) === r ? methodlessByPath.get(r.path) ?? 0 : 0);
       const errorRate = r.requests === 0 ? 0 : errors / r.requests;
       const score =
         Math.round(errorRate * 1000 * Math.log10(Math.max(2, r.requests))) /
@@ -230,7 +246,10 @@ export async function buildErrorRateByRoute(range = "24h", minRequests = 5) {
     .sort((a, b) => b.score - a.score);
 
   const totalRequests = routes.reduce((s, r) => s + r.requests, 0);
-  const totalErrors = routes.reduce((s, r) => s + r.errors, 0);
+  const attributedErrors = routes.reduce((s, r) => s + r.errors, 0);
+  // Every error in the window, including routes below `minRequests` — the card
+  // collapsed to nothing when all errors sat on low-traffic routes.
+  const totalErrors = allErrors;
 
   return {
     window: { range, hours, since: since.toISOString() },
@@ -238,10 +257,12 @@ export async function buildErrorRateByRoute(range = "24h", minRequests = 5) {
       totalRoutes: routes.length,
       totalRequests,
       totalErrors,
+      /** Errors on routes above the request floor — the numerator of the rate. */
+      attributedErrors,
       overallErrorRate:
         totalRequests === 0
           ? 0
-          : Math.round((totalErrors / totalRequests) * 10000) / 100,
+          : Math.round((attributedErrors / totalRequests) * 10000) / 100,
     },
     worstByScore: routes.slice(0, 20),
     worstByCount: [...routes].sort((a, b) => b.errors - a.errors).slice(0, 20),

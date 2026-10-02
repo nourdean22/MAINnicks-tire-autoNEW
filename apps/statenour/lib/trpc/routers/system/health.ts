@@ -91,7 +91,8 @@ export const healthProcedures = {
             where: { category_key: { category: "eval_run", key: "eval_run:corpus-odometer" } },
             select: { content: true, updatedAt: true },
           })
-          .catch(() => null),
+          .then((row) => ({ row, failed: false as const }))
+          .catch(() => ({ row: null, failed: true as const })),
       ]);
       return {
         windowDays,
@@ -101,9 +102,11 @@ export const healthProcedures = {
           kind: e.kind,
           rows: e._count._all,
         })),
-        odometer: odometerRow
-          ? { line: odometerRow.content, asOf: odometerRow.updatedAt.toISOString() }
+        odometer: odometerRow.row
+          ? { line: odometerRow.row.content, asOf: odometerRow.row.updatedAt.toISOString() }
           : null,
+        // A failed read is not "the cron never wrote one" (bug-hunt 2026-10-02).
+        odometerUnreadable: odometerRow.failed,
       };
     }),
 

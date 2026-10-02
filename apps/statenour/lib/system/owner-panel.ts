@@ -32,6 +32,7 @@
  * Canary: tests/lib/system/owner-panel.test.ts.
  */
 
+import { KILL_SWITCH_SKIP_REASON } from "@/lib/inngest/cron-lifecycle";
 import { declaredDegradationReason, isDeclaredDegradation, isHardFailure } from "@/lib/services/cron-status";
 import { endOfDayET } from "@/lib/utils/datetime";
 
@@ -298,6 +299,9 @@ export function cronExceptions(rows: CronRow[], now: Date): OwnerItem[] {
       );
       continue;
     }
+    // A kill the operator set on /system/crons is a decision, not an exception
+    // (bug-hunt 2026-10-02): those skips never page.
+    if (list.every((r) => r.skipReason === KILL_SWITCH_SKIP_REASON)) continue;
     const skipped = list.filter((r) => r.skipReason);
     if (skipped.length === list.length && list.length >= SKIP_STREAK_MIN) {
       out.push(

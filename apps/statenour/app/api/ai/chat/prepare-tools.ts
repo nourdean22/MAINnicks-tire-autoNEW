@@ -24,6 +24,7 @@ import { logError } from "@/lib/utils/error-log";
 import { instrumentScope } from "@/lib/observability/instrument-scope";
 import { buildCapabilityPlan, type CapabilityPlan } from "@/lib/ai/chat/turn-control-plane";
 import type { detectQueryShape } from "@/lib/ai/query-shape";
+import { deriveMaxOutputTokens } from "@/lib/ai/chat-output-budget";
 import type { getAiConfig } from "@/lib/settings/ai-config";
 import type { detectActionIntent } from "@/lib/ai/chat/action-intent-detector";
 import type { logger as rootLogger } from "@/lib/logger";
@@ -369,12 +370,18 @@ export async function prepareTools(args: {
   // longer trace on harder questions. Output tokens on the funded Ollama Cloud
   // lane are flat-rate, so the ceiling costs nothing; query-shape still clamps
   // casual and yes/no turns to 80-150, so short questions stay short and fast.
-  const modeDefaultTokens = mode === "deep" ? 10000 : 6000;
-  const maxOutputTokens = researchCompilerMode
-    ? 8000
-    : queryShape.tokenBudget > 0
-      ? queryShape.tokenBudget
-      : modeDefaultTokens;
+  //
+  // 2026-10-02 · the shape budget used to REPLACE this default, which undid the
+  // raise above for every shaped turn (casual 300, yes/no 500, factual 800,
+  // plan 2800): production had empty "factual" answers at finishReason
+  // "length". The rule now lives in lib/ai/chat-output-budget.ts and floors a
+  // shaped cap at THINKING_OUTPUT_FLOOR; brevity stays with the response
+  // contract built from the same shape.
+  const { maxOutputTokens, modeDefaultTokens } = deriveMaxOutputTokens({
+    mode,
+    researchCompilerMode,
+    shapeBudget: queryShape.tokenBudget,
+  });
   log.info("query_shape", {
     shape: queryShape.shape,
     maxOutputTokens,

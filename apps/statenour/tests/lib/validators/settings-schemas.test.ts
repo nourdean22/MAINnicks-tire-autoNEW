@@ -228,22 +228,8 @@ describe("settings scalar-input procedures · call-site payload contract", () =>
     ).toThrow();
   });
 
-  // system.triggerCron — CronControlPanel.trigger(path, jobName).
-  const triggerCronInput = z.object({ path: z.string().min(1).max(200) });
-
-  it("triggerCron accepts a /api/cron/* path payload", () => {
-    expect(() =>
-      triggerCronInput.parse({ path: "/api/cron/drift-check" }),
-    ).not.toThrow();
-    // mega-fanout crons carry a query string — still within max(200)
-    expect(() =>
-      triggerCronInput.parse({ path: "/api/cron/mega?slot=morning" }),
-    ).not.toThrow();
-  });
-
-  it("triggerCron rejects an empty path", () => {
-    expect(() => triggerCronInput.parse({ path: "" })).toThrow();
-  });
+  // system.triggerCron was deleted 2026-10-02 (runCron resolves through the
+  // manifest); its locally-defined schema test could never fail and is gone.
 
   // system.setCronEnabled — CronControlPanel.toggle(jobName, nextEnabled).
   const setCronEnabledInput = z.object({

@@ -73,8 +73,9 @@ import { deriveSkipReason } from "@/lib/services/cron-skip-reason";
 import { DECLARED_DEGRADATION_PREFIX } from "@/lib/services/cron-status";
 
 /**
- * Statuses this module writes. `partial` is deliberately ABSENT: it remains
- * valid for other producers (mega-fanout) and this module must never write it.
+ * Statuses this module writes. `partial` is written ONLY for a declared
+ * degradation (deriveDegradation, 2026-10-02 — `degraded · <reason>`); other
+ * partials still belong to their own producers (mega-fanout).
  */
 export const CRON_STATUS = {
   started: "started",
@@ -159,6 +160,34 @@ function jobNameOf(fn: unknown): string | null {
     }
   }
   return null;
+}
+
+/**
+ * Inngest function id → cron manifest name, where they differ. The kill switch
+ * is written under the manifest name (/system/crons), so the two mega slots
+ * never matched (bug-hunt 2026-10-02).
+ */
+export const INNGEST_ID_TO_CRON_NAME: Readonly<Record<string, string>> = {
+  "mega-fanout-morning": "mega",
+  "mega-fanout-evening": "mega-evening",
+};
+
+export function killSwitchNameOf(fn: unknown): string | null {
+  const id = jobNameOf(fn);
+  return id ? (INNGEST_ID_TO_CRON_NAME[id] ?? id) : null;
+}
+
+/**
+ * The kill decision is made once per RUN, on its first request, and held: a
+ * run with steps spans several requests, and re-deciding on each let a kill
+ * landing mid-run stop the rest of the steps and still record a clean skip
+ * (bug-hunt 2026-10-02). In-process memo; a restart re-decides.
+ */
+const runKillDecision = new Map<string, { killed: boolean; at: number }>();
+const RUN_DECISION_TTL_MS = 6 * 3_600_000;
+
+export function __resetRunKillDecisions(): void {
+  runKillDecision.clear();
 }
 
 function runIdOf(ctx: unknown): string | null {
@@ -472,8 +501,9 @@ async function warn(stage: string, meta: Record<string, unknown>, e: unknown): P
  * handler: it owns `next()`. (Throwing from an `on*` hook cannot stop a run —
  * the SDK try/catches those; see the NEVER THROWS note.) A killed cron returns
  * the fleet's own skip shape, `{ skipped: true, reason }`, so `onRunComplete`
- * settles it as a terminal-ok row with `skipReason = "disabled via settings"`,
- * exactly what `cronHandler` produces for a killed route cron.
+ * settles it as a terminal-ok row with `skipReason = "disabled via settings"`.
+ * (Unlike a killed route cron, which `cronHandler` returns from before
+ * logging, this does write rows — the owner panel ignores them.)
  *
  * ⚠ The hook runs once per REQUEST, and a run with N steps is N+ requests, so
  * the read is cached per process for KILL_SWITCH_TTL_MS: a kill takes effect
@@ -528,8 +558,21 @@ export class CronLifecycleMiddleware extends Middleware.BaseMiddleware {
     next: () => Promise<unknown>;
   }): Promise<unknown> {
     if (isCronTriggered(args.fn)) {
-      const jobName = jobNameOf(args.fn);
-      if (jobName && (await isCronKilled(jobName))) {
+      const jobName = killSwitchNameOf(args.fn);
+      const runId = runIdOf(args.ctx);
+      const now = Date.now();
+      const held = runId ? runKillDecision.get(runId) : undefined;
+      let killed: boolean;
+      if (held && now - held.at < RUN_DECISION_TTL_MS) {
+        killed = held.killed;
+      } else {
+        killed = jobName ? await isCronKilled(jobName) : false;
+        if (runId) runKillDecision.set(runId, { killed, at: now });
+        if (runKillDecision.size > 500) {
+          for (const [k, v] of runKillDecision) if (now - v.at >= RUN_DECISION_TTL_MS) runKillDecision.delete(k);
+        }
+      }
+      if (killed) {
         return { skipped: true, reason: KILL_SWITCH_SKIP_REASON, jobName };
       }
     }

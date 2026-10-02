@@ -35,7 +35,8 @@ describe("Home lead → decision", () => {
   it("the CTA records accepted with the task as resultRef; an alternative records dismissed", () => {
     expect(lead).toContain("trpc.operator.recordRecommendationDecision.useMutation()");
     expect(lead).toContain('recordDecision("accepted", lead.taskId ? `task:${lead.taskId}` : lead.cta?.href ?? null)');
-    expect(lead).toContain('recordDecision("dismissed", alt.href)');
+    // A dismissal carries no resultRef (bug-hunt 2026-10-02).
+    expect(lead).toContain('recordDecision("dismissed", null)');
     expect(lead).toContain('data-lead-decision="accepted"');
     expect(lead).toContain('data-lead-decision="dismissed"');
   });
@@ -51,8 +52,11 @@ describe("Missions deck → decision", () => {
   it("Start on the hero records accepted; pick-different records dismissed; both carry task:<id>", () => {
     expect(page).toContain("trpc.operator.recordRecommendationDecision.useMutation()");
     expect(page).toContain('if (taskId === deck?.nextMove?.task.id) recordDeckDecision("accepted", taskId);');
-    expect(page).toContain('recordDeckDecision("dismissed", taskId);');
-    expect(page).toContain("resultRef: `task:${taskId}`");
+    // Pick-different dismisses the HERO with no resultRef: `task:<alternate>`
+    // on the hero's row let the alternate's rating close it as useful.
+    expect(page).toContain('recordDeckDecision("dismissed", null);');
+    expect(page).not.toContain('recordDeckDecision("dismissed", taskId);');
+    expect(page).toContain("...(taskId ? { resultRef: `task:${taskId}` } : {})");
     expect(page).toContain("if (!ledgerId) return;");
   });
 });

@@ -46,7 +46,9 @@ describe("recordDecisionByContent", () => {
     const where = mocks.intelligenceOutcome.findFirst.mock.calls[0][0].where;
     expect(where.contentHash).toBe(outcomeContentHash("You have 3 stale estimates"));
     // Only rows that have NOT already been decided.
-    expect(where.decision).toBeNull();
+    // Newest row for the text, decided or not — never walk back onto an older
+    // undecided row (bug-hunt 2026-10-02). The CAS in recordDecision guards it.
+    expect(where).not.toHaveProperty("decision");
     const update = mocks.intelligenceOutcome.updateMany.mock.calls[0][0];
     expect(update.data.decision).toBe("dismissed");
     expect(update.data.decidedAt).toBeInstanceOf(Date);

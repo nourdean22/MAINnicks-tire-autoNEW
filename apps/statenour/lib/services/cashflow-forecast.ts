@@ -213,7 +213,11 @@ export async function resolveForecastPredictions(
         kind: "prediction",
         sourceEngine: "cashflow-forecast",
         outcomeAt: null,
-        shownAt: { lte: new Date(now.getTime() - WEEK_MS) },
+        // 6 days, not 7: last Sunday's row was written seconds AFTER that run's
+        // `now`, so an exact 7-day bound excluded it every week unless this run
+        // started later (bug-hunt 2026-10-02). `weekEnd <= now` below still
+        // keeps a running week out.
+        shownAt: { lte: new Date(now.getTime() - 6 * 86_400_000) },
         NOT: { summary: { contains: "UNAVAILABLE" } },
       },
       orderBy: { shownAt: "desc" },

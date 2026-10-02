@@ -56,9 +56,8 @@ async function readBridge(): Promise<WaitingInput["bridge"]> {
   };
 }
 
-export async function buildWaitingSummary(now = new Date()): Promise<WaitingSummary> {
-  const [tasks, approvalRequests, pendingActions, commitments, actionAttempts, bridge] = await Promise.all([
-    guarded(
+function readTasks() {
+  return guarded(
       "tasks",
       prisma.task.findMany({
         where: {
@@ -70,7 +69,52 @@ export async function buildWaitingSummary(now = new Date()): Promise<WaitingSumm
         orderBy: { updatedAt: "asc" },
         take: ROW_CAP,
       }),
-    ),
+    );
+}
+
+function readActionAttempts() {
+  return guarded(
+      "action attempts",
+      prisma.actionAttempt.findMany({
+        where: { state: { in: ["WAITING_APPROVAL", "EXECUTING"] } },
+        select: { id: true, tool: true, operationKey: true, state: true, reason: true, startedAt: true },
+        orderBy: { startedAt: "asc" },
+        take: ROW_CAP,
+      }),
+    );
+}
+
+/**
+ * `scope: "rail"` (Home's WaitingLine) reads only what feeds `others` and
+ * `system` — tasks and action attempts. The full read also hit the Nick's Tire
+ * bridge (up to 6 s) and shipped customer names to the browser for a `me`
+ * bucket the rail never renders (bug-hunt 2026-10-02). In rail scope `me` is
+ * returned as unknown-not-read (count null) and its sources are not listed as
+ * failed, because they were not asked.
+ */
+export async function buildWaitingSummary(
+  now = new Date(),
+  opts: { scope?: "full" | "rail" } = {},
+): Promise<WaitingSummary> {
+  if (opts.scope === "rail") {
+    const [tasks, actionAttempts] = await Promise.all([readTasks(), readActionAttempts()]);
+    const s = composeWaitingSummary({
+      now,
+      todayYmd: today(),
+      tasks,
+      approvalRequests: [],
+      pendingActions: [],
+      commitments: [],
+      actionAttempts,
+      bridge: {
+        callbacks: { ok: true, rows: [], timestamp: now.toISOString() },
+        urgentLeads: { ok: true, rows: [], timestamp: now.toISOString() },
+      },
+    });
+    return { ...s, scope: "rail", me: { items: [], count: null } };
+  }
+  const [tasks, approvalRequests, pendingActions, commitments, actionAttempts, bridge] = await Promise.all([
+    readTasks(),
     guarded(
       "approvals",
       prisma.approvalRequest.findMany({
@@ -90,15 +134,7 @@ export async function buildWaitingSummary(now = new Date()): Promise<WaitingSumm
         take: ROW_CAP,
       }),
     ),
-    guarded(
-      "action attempts",
-      prisma.actionAttempt.findMany({
-        where: { state: { in: ["WAITING_APPROVAL", "EXECUTING"] } },
-        select: { id: true, tool: true, operationKey: true, state: true, reason: true, startedAt: true },
-        orderBy: { startedAt: "asc" },
-        take: ROW_CAP,
-      }),
-    ),
+    readActionAttempts(),
     readBridge(),
   ]);
 

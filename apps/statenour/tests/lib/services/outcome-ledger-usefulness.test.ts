@@ -58,7 +58,10 @@ describe("recordOutcomeByContent", () => {
     // the update-level `outcomeAt: null` is the atomic first-write-wins
     // guard, mirroring recordDecision's `decision: null` pattern.
     await recordOutcomeByContent("anything", false);
-    expect(mocks.intelligenceOutcome.findFirst.mock.calls[0][0].where.outcomeAt).toBeNull();
+    // The FIND takes the newest row for the text, rated or not (bug-hunt
+    // 2026-10-02: filtering outcomeAt:null walked back onto an older row once
+    // today's was rated). The guard is the UPDATE's CAS.
+    expect(mocks.intelligenceOutcome.findFirst.mock.calls[0][0].where).not.toHaveProperty("outcomeAt");
     expect(mocks.intelligenceOutcome.updateMany.mock.calls[0][0].where.outcomeAt).toBeNull();
   });
 

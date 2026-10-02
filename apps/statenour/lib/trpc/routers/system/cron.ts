@@ -43,7 +43,18 @@ export const cronProcedures = {
     // vercel.json catalog (`listScheduledCrons`, a file deleted with the
     // Vercel deploy) and so answered "unknown jobName" for every cron but a
     // stale hardcoded mega-fanout list. The manifest is the catalog.
-    .mutation(async ({ input }) => runManifestCron(input.jobName)),
+    .mutation(async ({ input }) => {
+      // Same ServiceError mapping as runManifestCron below: an unknown, retired
+      // or Inngest-only job is NOT_FOUND / BAD_REQUEST, not a 500.
+      try {
+        return await runManifestCron(input.jobName);
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({ code: err.status === 404 ? "NOT_FOUND" : "BAD_REQUEST", message: err.message });
+        }
+        throw err;
+      }
+    }),
 
   /**
    * Phase NN · owner-only · toggle a cron's enabled flag (kill-switch

@@ -23,6 +23,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { UnmeasuredLine } from "@/components/ui/unmeasured-line";
 import { Activity, AlertTriangle, Gauge } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
+import { webhookErrorIsLive } from "@/lib/services/telegram-webhook-status";
 
 // ── Health trend (7-day sparkline) ────────────────────────────
 // Phase UU.2 (2026-05-22) · REST→tRPC · the 7-day trend is a typed query
@@ -271,10 +272,12 @@ function TelegramWebhookLine() {
   if (q.isError) return <UnmeasuredLine label="Telegram webhook" />;
   if (q.isPending || !q.data) return null;
   const d = q.data;
-  if (d.state === "registered" && !d.lastError) {
+  const liveError = d.lastError != null && webhookErrorIsLive(d);
+  if (d.state === "registered" && !liveError) {
     return (
-      <p className="px-1 text-[11px] font-mono text-fg-tertiary" data-telegram-webhook="registered">
-        telegram webhook · {d.url} · {d.pendingUpdates ?? 0} pending
+      <p className="px-1 text-[11px] font-mono text-fg-tertiary break-all" data-telegram-webhook="registered">
+        telegram webhook · {d.url} · {d.pendingUpdates === null ? "pending unknown" : `${d.pendingUpdates} pending`}
+        {d.lastError && d.lastErrorAt ? ` · last error ${new Date(d.lastErrorAt).toLocaleString()} (since recovered)` : ""}
       </p>
     );
   }
@@ -282,7 +285,7 @@ function TelegramWebhookLine() {
     registered: `registered, but Telegram's last delivery failed${d.lastErrorAt ? ` at ${new Date(d.lastErrorAt).toLocaleString()}` : ""}: ${d.lastError ?? ""}`,
     elsewhere: `points at ${d.url}, not ${d.expected}`,
     unregistered: "no webhook is registered",
-    unconfigured: d.reason ?? "no bot token on this service",
+    unconfigured: `cannot be checked: ${d.reason ?? "no bot token on this service"}`,
     unreadable: `could not be read — ${d.reason ?? "unknown"}`,
   };
   return (
@@ -292,7 +295,7 @@ function TelegramWebhookLine() {
       className="flex items-start gap-1.5 rounded-control border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[12px] text-amber-200"
     >
       <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-      <span>
+      <span className="min-w-0 break-all">
         Telegram webhook {what[d.state]}. Rating buttons and messages to the bot do not reach this app
         {d.pendingUpdates ? ` (${d.pendingUpdates} updates waiting at Telegram)` : ""}.
       </span>

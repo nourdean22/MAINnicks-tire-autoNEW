@@ -65,12 +65,13 @@ describe("buildNickSuggestions · ledger", () => {
     expect(recordShownBounded).toHaveBeenCalledTimes(2);
     expect(callFor("nick-suggestions:overdue")).toMatchObject({
       kind: "suggestion",
-      summary: "chip: 3 tasks overdue · stacking up",
+      summary: "chip: overdue-pile",
       shownSurface: "chat-chips",
       evidenceRefs: { suggestionId: "overdue-pile", severity: "med" },
     });
     expect(callFor("nick-suggestions:overdue").evidenceRefs).not.toHaveProperty("taskId");
-    expect(callFor("nick-suggestions:broken-promise").evidenceRefs).toMatchObject({ suggestionId: "broken-promise-t9", taskId: "t9" });
+    expect(callFor("nick-suggestions:broken-promise").evidenceRefs).toMatchObject({ suggestionId: "broken-promise-t9", taskId: "t9", label: expect.stringContaining("broken promise") });
+    expect(callFor("nick-suggestions:overdue").evidenceRefs).toMatchObject({ label: "3 tasks overdue · stacking up" });
     expect(callFor("nick-suggestions:broken-promise").summary).toMatch(/^chip: /);
   });
 
@@ -83,12 +84,15 @@ describe("buildNickSuggestions · ledger", () => {
 });
 
 describe("chip helpers", () => {
-  it("the summary is prefixed so it never collides with a task title", () => {
-    expect(chipLedgerSummary({ label: "  Finish the brake quote " })).toBe("chip: Finish the brake quote");
+  it("the summary is the chip's stable id, so a live count in the label never mints a new row", () => {
+    expect(chipLedgerSummary({ id: " overdue-pile " })).toBe("chip: overdue-pile");
   });
 
   it("the evidence task is the one task a chip is about, never a pile", () => {
     expect(chipTaskId({ kind: "broken-promise", sourceContext: { taskId: "t9" } })).toBe("t9");
+    expect(chipTaskId({ kind: "broken-promise", sourceContext: { taskId: "t9", count: 1 } })).toBe("t9");
+    // "N broken promises · top …" is a pile; its top task must not close it.
+    expect(chipTaskId({ kind: "broken-promise", sourceContext: { taskId: "t9", count: 3 } })).toBeNull();
     expect(chipTaskId({ kind: "stuck-task", sourceContext: { taskIds: ["t1"] } })).toBe("t1");
     expect(chipTaskId({ kind: "stuck-task", sourceContext: { taskIds: ["t1", "t2"] } })).toBeNull();
     expect(chipTaskId({ kind: "overdue", sourceContext: { count: 4 } })).toBeNull();

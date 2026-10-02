@@ -165,7 +165,7 @@ export function BriefLead({
             <li key={alt.href + alt.label}>
               <Link
                 href={alt.href}
-                onClick={() => recordDecision("dismissed", alt.href)}
+                onClick={() => recordDecision("dismissed", null)}
                 data-lead-decision="dismissed"
                 className={cn(
                   "group flex min-h-[52px] flex-col justify-center py-2 transition-colors duration-150",

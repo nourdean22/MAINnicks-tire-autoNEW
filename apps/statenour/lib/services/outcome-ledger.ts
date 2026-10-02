@@ -90,26 +90,42 @@ export async function recordShown(input: RecordShownInput): Promise<string | nul
   try {
     const contentHash = outcomeContentHash(input.summary);
     const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // Fast path, no lock: a re-show inside the dedup window (the 60 s polls of
+    // Home, the deck and the chips) is one indexed read.
     const existing = await prisma.intelligenceOutcome.findFirst({
       where: { contentHash, shownAt: { gte: dayAgo } },
       select: { id: true },
     });
     if (existing) return existing.id;
-    const row = await prisma.intelligenceOutcome.create({
-      data: {
-        kind: input.kind,
-        sourceEngine: input.sourceEngine,
-        contentHash,
-        summary: input.summary.slice(0, 2000),
-        shownSurface: input.shownSurface,
-        evidenceRefs: (input.evidenceRefs ?? undefined) as never,
-        confidence: input.confidence ?? undefined,
-        conversationId: input.conversationId ?? undefined,
-        traceId: input.traceId ?? undefined,
-      },
-      select: { id: true },
+    // Miss: check-then-create under a transaction-scoped advisory lock keyed
+    // on the content hash (2026-10-02). Without it, two tabs or devices
+    // polling the same surface both missed and both created a row; the
+    // operator's decision then landed on one and the twin stayed undecided
+    // forever. The lock serialises only writers of the SAME text, is released
+    // at commit, and needs no schema change.
+    return await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`intelligence_outcome:${contentHash}`}))`;
+      const again = await tx.intelligenceOutcome.findFirst({
+        where: { contentHash, shownAt: { gte: dayAgo } },
+        select: { id: true },
+      });
+      if (again) return again.id;
+      const row = await tx.intelligenceOutcome.create({
+        data: {
+          kind: input.kind,
+          sourceEngine: input.sourceEngine,
+          contentHash,
+          summary: input.summary.slice(0, 2000),
+          shownSurface: input.shownSurface,
+          evidenceRefs: (input.evidenceRefs ?? undefined) as never,
+          confidence: input.confidence ?? undefined,
+          conversationId: input.conversationId ?? undefined,
+          traceId: input.traceId ?? undefined,
+        },
+        select: { id: true },
+      });
+      return row.id;
     });
-    return row.id;
   } catch (err) {
     logError("intel.outcome-ledger", err, { stage: "record-shown", kind: input.kind }, "warn");
     return null;
@@ -197,6 +213,10 @@ export async function recordDecisionFromEvidence(
   decision: OutcomeDecision,
 ): Promise<boolean> {
   let resultRef: string | null = null;
+  // Only an ACCEPTED recommendation becomes the task it names. A dismissed row
+  // carrying task:<id> was closed by that task's completion rating as
+  // "useful" (bug-hunt 2026-10-02).
+  if (decision !== "accepted") return recordDecision({ id, decision, resultRef: null });
   try {
     const row = await prisma.intelligenceOutcome.findUnique({
       where: { id },
@@ -239,8 +259,13 @@ export async function recordDecisionByContent(
     if (!trimmed) return false;
     const contentHash = outcomeContentHash(trimmed);
     const since = new Date(Date.now() - 30 * 86_400_000);
+    // The NEWEST row for this text, decided or not (bug-hunt 2026-10-02). With
+    // `decision: null` in the filter, a second act on today's already-decided
+    // row silently decided YESTERDAY's — e.g. accept-then-dismiss on a nudge
+    // planted a false correction on a row the operator never dismissed.
+    // recordDecision's CAS then refuses an already-decided row.
     const row = await prisma.intelligenceOutcome.findFirst({
-      where: { contentHash, decision: null, shownAt: { gte: since } },
+      where: { contentHash, shownAt: { gte: since } },
       orderBy: { shownAt: "desc" },
       select: { id: true },
     });
@@ -277,8 +302,10 @@ export async function recordOutcomeByContent(
     if (!trimmed) return false;
     const contentHash = outcomeContentHash(trimmed);
     const since = new Date(Date.now() - 30 * 86_400_000);
+    // Newest row for this text, rated or not — same reason as
+    // recordDecisionByContent: never walk back onto an older surfacing.
     const row = await prisma.intelligenceOutcome.findFirst({
-      where: { contentHash, outcomeAt: null, shownAt: { gte: since } },
+      where: { contentHash, shownAt: { gte: since } },
       orderBy: { shownAt: "desc" },
       select: { id: true },
     });
@@ -332,7 +359,9 @@ export async function recordOutcomeByResultRef(resultRef: string, useful: boolea
   if (!trimmed) return 0;
   try {
     const res = await prisma.intelligenceOutcome.updateMany({
-      where: { resultRef: trimmed, outcomeAt: null },
+      // Accepted rows only: a resultRef on a dismissed/ignored row must never be
+      // closed by the task's rating (bug-hunt 2026-10-02).
+      where: { resultRef: trimmed, outcomeAt: null, decision: "accepted" },
       data: { outcomeUseful: useful, outcomeAt: new Date() },
     });
     return res.count;

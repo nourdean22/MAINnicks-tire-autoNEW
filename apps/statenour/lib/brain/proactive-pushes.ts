@@ -66,7 +66,9 @@ async function sendRatablePush(slot: string, text: string): Promise<boolean> {
     ledgerId = await recordShown({
       kind: "proactive_push",
       sourceEngine: `proactive-${slot}`,
-      summary: text,
+      // Dated (bug-hunt 2026-10-02): the evening text is constant, so the 24h
+      // content dedup could reuse yesterday's row and its rating buttons.
+      summary: `${new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" })} · ${text}`,
       shownSurface: "telegram",
     });
   } catch {

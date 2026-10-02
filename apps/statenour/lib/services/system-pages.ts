@@ -164,6 +164,9 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
         _count: { id: true },
       }),
       prisma.integration.findMany({
+        // Guardian capability receipts share this table (type "capability",
+        // 2026-10-02); they are not integrations with a sync time.
+        where: { type: { not: "capability" } },
         select: { name: true, status: true, lastSyncAt: true, enabled: true },
       }),
     ]);

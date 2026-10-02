@@ -3605,6 +3605,8 @@ model IntelligenceOutcome {
 
   @@index([kind, shownAt])
   @@index([contentHash])
+  /// recordOutcomeByResultRef closes accepted rows by resultRef on every rated task completion (2026-10-02).
+  @@index([resultRef])
   @@map("intelligence_outcomes")
 }
 

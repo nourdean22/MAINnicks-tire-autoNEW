@@ -262,7 +262,7 @@ export default function FleetPage() {
               </p>
             ) : (
               <>
-                <div className="flex items-center gap-4 text-[12px] tabular-nums py-1">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] tabular-nums py-1">
                   <span className="text-fg-secondary/70">{delivery.data.stats.shown} shown</span>
                   <span className="text-fg-secondary/70">{delivery.data.stats.decided} decided</span>
                   <span className="text-emerald-300">{delivery.data.stats.accepted} accepted</span>
@@ -278,10 +278,15 @@ export default function FleetPage() {
                 {/* 2026-10-02 · the harvest cron's odometer (corrections vs the
                     fine-tune trigger) finally has a reader. Absent row = the cron
                     has not run, said as such — never an invented zero. */}
-                <p className="mt-1 text-[11px] text-fg-secondary/70" data-odometer={delivery.data.odometer ? "present" : "absent"}>
+                <p
+                  className="mt-1 text-[11px] text-fg-secondary/70"
+                  data-odometer={delivery.data.odometer ? "present" : delivery.data.odometerUnreadable ? "unreadable" : "absent"}
+                >
                   {delivery.data.odometer
                     ? `odometer · ${delivery.data.odometer.line} · as of ${new Date(delivery.data.odometer.asOf).toLocaleString()}`
-                    : "odometer · no eval_run:corpus-odometer row yet — the outcome-harvest cron has not written one"}
+                    : delivery.data.odometerUnreadable
+                      ? "odometer · unreadable — the read failed (state unknown)"
+                      : "odometer · no eval_run:corpus-odometer row yet — the outcome-harvest cron has not written one"}
                 </p>
                 <p className="text-[11px] text-fg-secondary/50 mt-0.5">
                   producers writing rows:{" "}

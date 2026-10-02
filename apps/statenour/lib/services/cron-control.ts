@@ -318,6 +318,11 @@ export async function runManifestCron(
   if (def.mode === "retired") {
     throw new ServiceError(`cron ${jobName} is retired`, 410);
   }
+  // Inngest-scheduled crons have no /api/cron/<name> route; a manual run
+  // posted there and came back 404 (bug-hunt 2026-10-02). Say so instead.
+  if (!def.path && def.inngest) {
+    throw new ServiceError(`cron ${jobName} is Inngest-scheduled and has no manual HTTP run path — trigger it from the Inngest dashboard`, 409);
+  }
   const path = def.path ?? `/api/cron/${jobName}`;
   const result = await triggerCronByPath(path);
   return { jobName, ...result };
