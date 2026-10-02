@@ -170,12 +170,12 @@ export default function CalibrationPage() {
       }
     >
       {error ? (
-        <GlassCard className="p-6">
+        <GlassCard>
           <div className="text-sm text-rose-300">failed to load · {error.message}</div>
         </GlassCard>
       ) : null}
 
-      <GlassCard className="p-6">
+      <GlassCard>
         <div className="flex items-center gap-2">
           <Grid3x3 size={16} className="text-fg-secondary" aria-hidden />
           <h2 className="text-[15px] font-semibold text-fg-secondary">
@@ -315,7 +315,7 @@ export default function CalibrationPage() {
                           key={kindCol.kind}
                           style={tone.bgStyle}
                           className={cn(
-                            "rounded border px-2 py-1.5 text-center font-mono text-[11px] tabular-nums transition-colors",
+                            "rounded-micro border px-2 py-1.5 text-center font-mono text-[11px] tabular-nums transition-colors",
                             tone.border,
                             tone.text,
                           )}
@@ -332,7 +332,7 @@ export default function CalibrationPage() {
                     <td
                       style={rowTone.bgStyle}
                       className={cn(
-                        "rounded border px-2 py-1.5 text-center font-mono text-[11px] tabular-nums",
+                        "rounded-micro border px-2 py-1.5 text-center font-mono text-[11px] tabular-nums",
                         rowTone.border,
                         rowTone.text,
                       )}
@@ -354,7 +354,7 @@ export default function CalibrationPage() {
                       key={k.kind}
                       style={tone.bgStyle}
                       className={cn(
-                        "rounded border px-2 py-1.5 text-center font-mono text-[11px] tabular-nums",
+                        "rounded-micro border px-2 py-1.5 text-center font-mono text-[11px] tabular-nums",
                         tone.border,
                         tone.text,
                       )}
@@ -372,7 +372,7 @@ export default function CalibrationPage() {
         </div>
       </GlassCard>
 
-      <GlassCard className="p-6">
+      <GlassCard>
         <div className="flex items-center gap-2">
           <Award size={16} className="text-fg-secondary" aria-hidden />
           <h2 className="text-[15px] font-semibold text-fg-secondary">
@@ -394,7 +394,7 @@ export default function CalibrationPage() {
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[11px] text-fg-tertiary">Verdict:</span>
                   <span className={cn(
-                    "text-xs font-semibold px-2 py-0.5 rounded border",
+                    "text-xs font-semibold px-2 py-0.5 rounded-micro border",
                     judgeData.verdict === "well-calibrated" && "bg-emerald-500/10 border-emerald-500/30 text-emerald-300",
                     judgeData.verdict === "moderate" && "bg-amber-500/10 border-amber-500/30 text-amber-300",
                     judgeData.verdict === "miscalibrated" && "bg-rose-500/10 border-rose-500/30 text-rose-300",
@@ -428,26 +428,26 @@ export default function CalibrationPage() {
                     <thead>
                       <tr>
                         <th className="text-[11px] font-mono text-fg-tertiary text-left">Judge ↓ / Human →</th>
-                        <th className="text-[11px] font-mono text-emerald-400 py-0.5 bg-emerald-500/5 rounded border border-emerald-500/10">+1 Thumbs Up</th>
-                        <th className="text-[11px] font-mono text-rose-400 py-0.5 bg-rose-500/5 rounded border border-rose-500/10">-1 Thumbs Down</th>
+                        <th className="text-[11px] font-mono text-emerald-400 py-0.5 bg-emerald-500/5 rounded-micro border border-emerald-500/10">+1 Thumbs Up</th>
+                        <th className="text-[11px] font-mono text-rose-400 py-0.5 bg-rose-500/5 rounded-micro border border-rose-500/10">-1 Thumbs Down</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr>
                         <td className="text-[11px] font-semibold text-fg text-left font-mono">Preferred V2</td>
-                        <td className="bg-emerald-500/10 text-emerald-300 text-xs font-mono py-1.5 rounded border border-emerald-500/20" title="Agreement: Judge picked V2, Human liked V2">
+                        <td className="bg-emerald-500/10 text-emerald-300 text-xs font-mono py-1.5 rounded-micro border border-emerald-500/20" title="Agreement: Judge picked V2, Human liked V2">
                           {judgeData.matrix.find(c => c.judge === "v2" && c.human === "thumbs_up")?.count ?? 0}
                         </td>
-                        <td className="bg-rose-500/10 text-rose-300 text-xs font-mono py-1.5 rounded border border-rose-500/20" title="Disagree: Judge picked V2, Human disliked V2 (False Positive)">
+                        <td className="bg-rose-500/10 text-rose-300 text-xs font-mono py-1.5 rounded-micro border border-rose-500/20" title="Disagree: Judge picked V2, Human disliked V2 (False Positive)">
                           {judgeData.matrix.find(c => c.judge === "v2" && c.human === "thumbs_down")?.count ?? 0}
                         </td>
                       </tr>
                       <tr>
                         <td className="text-[11px] font-semibold text-fg text-left font-mono">Preferred V1</td>
-                        <td className="bg-rose-500/10 text-rose-300 text-xs font-mono py-1.5 rounded border border-rose-500/20" title="Disagree: Judge picked V1, Human liked V2 (False Negative)">
+                        <td className="bg-rose-500/10 text-rose-300 text-xs font-mono py-1.5 rounded-micro border border-rose-500/20" title="Disagree: Judge picked V1, Human liked V2 (False Negative)">
                           {judgeData.matrix.find(c => c.judge === "v1" && c.human === "thumbs_up")?.count ?? 0}
                         </td>
-                        <td className="bg-emerald-500/10 text-emerald-300 text-xs font-mono py-1.5 rounded border border-emerald-500/20" title="Agreement: Judge picked V1, Human disliked V2">
+                        <td className="bg-emerald-500/10 text-emerald-300 text-xs font-mono py-1.5 rounded-micro border border-emerald-500/20" title="Agreement: Judge picked V1, Human disliked V2">
                           {judgeData.matrix.find(c => c.judge === "v1" && c.human === "thumbs_down")?.count ?? 0}
                         </td>
                       </tr>

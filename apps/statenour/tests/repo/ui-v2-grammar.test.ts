@@ -210,8 +210,8 @@ describe("custom properties read by the app are defined", () => {
     expect(undefinedCustomProperties({ "y.tsx": 'className="bg-[var(--canvas)] text-(--text-tertiary)"' }, defined())).toEqual([]);
   });
 
-  it("no .tsx under app/ or components/ reads a custom property that nothing defines", () => {
-    const files = execSync("git ls-files -- 'app/**/*.tsx' 'components/**/*.tsx'", { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);
+  it("no .tsx under app/, components/, features/, hooks/ or lib/ reads a custom property that nothing defines", () => {
+    const files = execSync("git ls-files -- 'app/**/*.tsx' 'components/**/*.tsx' 'features/**/*.tsx' 'hooks/**/*.tsx' 'lib/**/*.tsx'", { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);
     const sources: Record<string, string> = {};
     for (const f of files) sources[f] = read(f);
     expect(undefinedCustomProperties(sources, defined())).toEqual([]);

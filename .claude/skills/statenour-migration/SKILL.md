@@ -44,6 +44,12 @@ needs a deliberate, prod-verified apply.
 4. Record it: `prisma migrate resolve --applied <name>`.
 5. Confirm: `prisma migrate status` shows clean.
 6. `pnpm typecheck` — the generated client changed.
+7. Add the directory name to `lib/db/migration-manifest.ts`
+   (`tests/lib/system/owner-panel-migrations.test.ts` fails until you do).
+   The Owner Panel pages `migration_unapplied` for any manifest name prod's
+   `_prisma_migrations` lacks — **committing a migration is not applying it**:
+   `20260929123500_reality_event_envelope` sat committed-but-unapplied for
+   three days (2026-09-29..10-02) while every `reality_events` write failed.
 
 ## When NOT to use
 

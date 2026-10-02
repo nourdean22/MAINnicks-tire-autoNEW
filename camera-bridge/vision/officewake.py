@@ -73,6 +73,8 @@ class CaptureResult:
     summaries_stored: int = 0
     stt_latency_ms: Optional[int] = None
     coverages: Optional[list[Optional[float]]] = None
+    frames_captured: int = 0
+    frames_posted: int = 0
 
 
 @dataclass
@@ -108,6 +110,11 @@ class OfficeWakeConfig:
     audio_activity_mean_db: float = -50.0
     audio_activity_max_db: float = -34.0
     audio_fallback_cooldown_seconds: float = 180.0
+    # 2026-10-02 · office "watch": still frames ride along with each episode (officeframes.py).
+    # Operator decision: ON (recording signs are posted); OFFICE_VISUAL_ENABLED=0 turns it off.
+    visual_enabled: bool = False
+    visual_interval_seconds: float = 30.0
+    visual_max_frames: int = 6
 
     def startup_blockers(self) -> list[str]:
         blockers: list[str] = []
@@ -444,8 +451,9 @@ def run_capture_once(
     transcribe_fn: Optional[Callable[..., Any]] = None,
     post_fn: Optional[Callable[..., dict[str, Any]]] = None,
     clock: Callable[[], float] = time.time,
+    frame_sampler: Optional[Any] = None,
 ) -> CaptureResult:
-    from . import officeaudio, officepost
+    from . import officeaudio, officeframes, officepost
 
     capture_fn = capture_fn or officeaudio.capture_window
     transcribe_fn = transcribe_fn or officepost.transcribe
@@ -470,6 +478,20 @@ def run_capture_once(
             )
         capture_seconds = min(capture_seconds, remaining)
 
+    # The sampler runs BESIDE the audio capture and never blocks it: a dead camera feed costs the
+    # episode its frames, not its audio.
+    if frame_sampler is None and config.visual_enabled and config.bridge_url and config.office_serial:
+        frame_sampler = officeframes.FrameSampler(
+            officeframes.snapshot_url(config.bridge_url, config.office_serial),
+            interval_s=config.visual_interval_seconds,
+            max_frames=config.visual_max_frames,
+        )
+    if frame_sampler is not None:
+        try:
+            frame_sampler.start()
+        except Exception:  # noqa: BLE001
+            frame_sampler = None
+
     try:
         segments = capture_fn(
             config.source_url,
@@ -480,11 +502,19 @@ def run_capture_once(
             **kwargs,
         )
     except Exception as exc:  # noqa: BLE001
+        if frame_sampler is not None:
+            frame_sampler.stop(final_grab=False)
         return CaptureResult(
             "capture_failed",
             f"{type(exc).__name__}: {exc}"[:500],
             _trigger_payload(trigger),
         )
+    frames: list[dict[str, Any]] = []
+    if frame_sampler is not None:
+        try:
+            frames = frame_sampler.stop()
+        except Exception:  # noqa: BLE001
+            frames = []
 
     if not segments:
         return CaptureResult(
@@ -499,6 +529,7 @@ def run_capture_once(
     failed = 0
     facts_stored = 0
     summaries_stored = 0
+    frames_posted = 0
     stt_latencies: list[int] = []
     coverages: list[Optional[float]] = []
     errors: list[str] = []
@@ -526,6 +557,13 @@ def run_capture_once(
             trigger_type=trigger.event,
             triggered_at=trigger.received_at,
         )
+        seg_frames = officeframes.frames_for_segment(
+            frames,
+            float(getattr(segment, "started_at", 0.0) or 0.0),
+            float(getattr(segment, "duration_s", 0.0) or 0.0),
+        )
+        if seg_frames:
+            payload["frames"] = seg_frames
         prepared += 1
         total = float(payload.get("totalSeconds") or 0.0)
         covered = float(payload.get("coveredSeconds") or 0.0)
@@ -534,7 +572,12 @@ def run_capture_once(
             continue
 
         try:
-            result = post_fn(payload, endpoint=config.endpoint)
+            # An episode with frames waits on a server-side vision call as well as fact
+            # extraction; the default 30s would read a stored episode as a failed post.
+            if seg_frames:
+                result = post_fn(payload, endpoint=config.endpoint, timeout=120.0)
+            else:
+                result = post_fn(payload, endpoint=config.endpoint)
         except Exception as exc:  # noqa: BLE001
             failed += 1
             errors.append(f"post: {type(exc).__name__}: {exc}"[:300])
@@ -542,6 +585,7 @@ def run_capture_once(
 
         if result.get("posted"):
             posted += 1
+            frames_posted += len(seg_frames)
             reply = result.get("reply") if isinstance(result.get("reply"), dict) else {}
             facts_stored += int(reply.get("factsStored") or 0)
             summaries_stored += 1 if reply.get("summaryStored") else 0
@@ -564,6 +608,8 @@ def run_capture_once(
         summaries_stored=summaries_stored,
         stt_latency_ms=max(stt_latencies) if stt_latencies else None,
         coverages=coverages,
+        frames_captured=len(frames),
+        frames_posted=frames_posted,
     )
 
 
@@ -703,6 +749,11 @@ class OfficeWakeDaemon:
                 }
                 if measured_coverages:
                     common["lastConversationCoverage"] = round(min(measured_coverages), 4)
+                if self.config.visual_enabled:
+                    # Visible to the Eufy agent's heartbeat: a camera that stops yielding frames
+                    # shows up as 0 here instead of disappearing silently.
+                    common["lastConversationFramesCaptured"] = result.frames_captured
+                    common["lastConversationFramesPosted"] = result.frames_posted
                 if result.episodes_transcribed > 0:
                     common["lastConversationSttAt"] = _iso_utc(finished_at)
                 if result.episodes_posted > 0:
@@ -1059,6 +1110,9 @@ def config_from_args(args: argparse.Namespace) -> OfficeWakeConfig:
         audio_activity_mean_db=float(args.audio_activity_mean_db),
         audio_activity_max_db=float(args.audio_activity_max_db),
         audio_fallback_cooldown_seconds=max(0.0, float(args.audio_fallback_cooldown_seconds)),
+        visual_enabled=bool(args.visual),
+        visual_interval_seconds=max(5.0, float(args.visual_interval_seconds)),
+        visual_max_frames=max(1, min(12, int(args.visual_max_frames))),
     )
 
 
@@ -1115,6 +1169,15 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--audio-activity-mean-db", type=float, default=float(os.environ.get("OFFICE_AUDIO_ACTIVITY_MEAN_DB", "-50")))
     parser.add_argument("--audio-activity-max-db", type=float, default=float(os.environ.get("OFFICE_AUDIO_ACTIVITY_MAX_DB", "-34")))
     parser.add_argument("--audio-fallback-cooldown-seconds", type=float, default=float(os.environ.get("OFFICE_AUDIO_FALLBACK_COOLDOWN_SECONDS", "180")))
+    parser.add_argument(
+        "--visual",
+        action=argparse.BooleanOptionalAction,
+        # Default ON (operator decision 2026-10-02: recording signs posted). OFFICE_VISUAL_ENABLED=0 opts out.
+        default=os.environ.get("OFFICE_VISUAL_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"},
+        help="attach still frames from the Eufy bridge to each episode (server describes them)",
+    )
+    parser.add_argument("--visual-interval-seconds", type=float, default=float(os.environ.get("OFFICE_VISUAL_INTERVAL_SECONDS", "30")))
+    parser.add_argument("--visual-max-frames", type=int, default=int(os.environ.get("OFFICE_VISUAL_MAX_FRAMES", "6")))
     parser.add_argument("--retention-hours", type=float, default=float(os.environ.get("OFFICE_RAW_AUDIO_RETENTION_HOURS", "6")))
     parser.add_argument("--retention-max-mb", type=float, default=float(os.environ.get("OFFICE_RAW_AUDIO_MAX_MB", "256")))
     parser.add_argument("--min-free-mb", type=float, default=float(os.environ.get("OFFICE_MIN_FREE_MB", "768")))

@@ -78,7 +78,7 @@ export function PushNotificationToggle() {
       </div>
       <p className="text-[12px] text-fg-tertiary">
         {isSubscribed
-          ? "Enabled — you'll get alerts for leads, revenue milestones, drift detection, and score reminders."
+          ? "Enabled — you'll get the daily brief, task due-time reminders, finished deep research, coaching nudges, drift alerts, and camera alerts (vehicle arrivals, a silent camera bridge)."
           : permission === "denied"
             ? "Blocked by browser. Enable in browser settings → Site permissions → Notifications."
             : "Enable to receive alerts even when the browser is closed."}

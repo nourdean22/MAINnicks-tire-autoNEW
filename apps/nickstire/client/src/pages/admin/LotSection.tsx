@@ -38,6 +38,7 @@
 import { useEffect, useState } from "react";
 
 import { trpc } from "@/lib/trpc";
+import { summarizeCameraFleet } from "@shared/cameraFleetHealth";
 import { PageHeader, StatCard, Panel, MetricGrid, EmptyState } from "./shared";
 // Durations live in shared/format.ts, with the "these take SQL-computed MINUTES,
 // never timestamps" contract documented next to them.
@@ -176,6 +177,16 @@ type ConversationRow = {
   candidateVehicleVisitId: string | null;
   candidateWorkOrderId: string | null;
   linkConfidence: number | null;
+  /** What the office camera saw (migration 0140). Absent on older servers, null when no frames were sent. */
+  visual?: {
+    status: "DONE" | "FAILED";
+    summary: string | null;
+    peopleCount: number | null;
+    activities: string[];
+    waitingUnattended: boolean | null;
+    frameCount: number;
+    error: string | null;
+  } | null;
 };
 
 type CameraFacets = {
@@ -1009,6 +1020,22 @@ function ConversationPanel({
                       <div className="mt-1 text-[13px] text-foreground/85">
                         {summaryText}
                       </div>
+                      {row.visual?.status === "DONE" && row.visual.summary && (
+                        <div className="mt-1 text-[12px] text-foreground/70">
+                          <span className="font-medium text-foreground/55">Saw: </span>
+                          {row.visual.summary}
+                          {row.visual.waitingUnattended && (
+                            <span className="ml-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300">
+                              customer waiting unattended
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {row.visual?.status === "FAILED" && (
+                        <div className="mt-1 text-[11px] text-foreground/45">
+                          Saw: unavailable. {row.visual.frameCount} frame{row.visual.frameCount === 1 ? "" : "s"} arrived but the vision model could not describe them.
+                        </div>
+                      )}
                     </div>
                     <span
                       className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${statusTone}`}
@@ -1031,6 +1058,11 @@ function ConversationPanel({
                     )}
                     {row.meanVolumeDb !== null && (
                       <span>{row.meanVolumeDb.toFixed(1)} dBFS</span>
+                    )}
+                    {row.visual?.status === "DONE" && row.visual.peopleCount !== null && (
+                      <span>
+                        {row.visual.peopleCount} {row.visual.peopleCount === 1 ? "person" : "people"} seen
+                      </span>
                     )}
                     {row.sttEngine && <span>{row.sttEngine}</span>}
                     {row.sttModel && <span>{row.sttModel}</span>}
@@ -1108,6 +1140,12 @@ export default function LotSection() {
   const freshnessUnknown = n?.ok === true && n.staleSeconds === null && !n.neverIngested;
   const stale = n?.ok === true && n.staleSeconds !== null && n.staleSeconds > 300;
 
+  const fleet = summarizeCameraFleet(
+    health.isError
+      ? { ok: false, reason: health.error?.message }
+      : (health.data as Parameters<typeof summarizeCameraFleet>[0]),
+  );
+
   const badge: { label: string; variant: "success" | "warning" | "danger" | "neutral" } =
     nowFailed
       ? { label: "Unavailable", variant: "danger" }
@@ -1119,7 +1157,13 @@ export default function LotSection() {
             ? { label: "Freshness unknown", variant: "warning" }
             : stale
               ? { label: `Stale ${Math.round((n!.staleSeconds ?? 0) / 60)}m`, variant: "warning" }
-              : { label: "Live", variant: "success" };
+              : fleet.state === "DEGRADED"
+                ? // Fresh visits from one camera do not make the fleet healthy: before
+                  // 2026-10-02 this said "Live" while sign was CAMERA_OFFLINE.
+                  { label: `Live · ${fleet.problems.length} camera issue${fleet.problems.length === 1 ? "" : "s"}`, variant: "warning" }
+                : fleet.state === "UNKNOWN" && !health.isPending
+                  ? { label: "Live · camera health unknown", variant: "warning" }
+                  : { label: "Live", variant: "success" };
 
   const allRows: VisitRow[] =
     visits.data?.ok === true ? (visits.data.rows as unknown as VisitRow[]) : [];

@@ -21,12 +21,24 @@ interface FinancingClickRow {
   leadId: number | null;
   leadName: string | null;
   leadPhone: string | null;
+  /** Server: services/financingAttribution.ts — click -> identity -> invoice. */
+  attribution: {
+    identifiedVia: "lead" | "booking" | "callback" | "tire_order" | null;
+    identifiedId: number | null;
+    calledShop: boolean;
+    invoicedOn: string | null;
+  } | null;
+  /** The enrichment read failed — attribution is UNKNOWN for this row, not "unidentified". */
+  attributionUnavailable?: boolean;
 }
 
+const VIA_LABEL = { lead: "lead", booking: "booking", callback: "callback request", tire_order: "tire order" } as const;
+
 export function FinancingAttribution() {
-  const { data, isLoading } = trpc.financing.recentClicks.useQuery({ limit: 50 });
+  const { data, isLoading, isError, error } = trpc.financing.recentClicks.useQuery({ limit: 50 });
   const rows = (data ?? []) as FinancingClickRow[];
-  const matched = rows.filter((r) => r.leadId != null).length;
+  const matched = rows.filter((r) => r.attribution?.identifiedVia != null).length;
+  const invoiced = rows.filter((r) => r.attribution?.invoicedOn != null).length;
 
   return (
     <div className="bg-card border border-border/30 rounded-lg p-4 mt-6">
@@ -35,15 +47,21 @@ export function FinancingAttribution() {
         <h3 className="font-bold text-sm tracking-wide text-foreground">Financing Attribution</h3>
       </div>
       <p className="text-[11px] text-foreground/50 mb-3">
-        Provider "Apply Now" clicks joined to the originating lead by session.
+        Provider "Apply Now" clicks joined by visitor session to a lead, booking, callback or tire
+        order, then to an invoice for that phone on or after the click. Applications and approvals
+        are not visible: the providers report nothing back.
         {rows.length > 0 && (
           <span className="ml-1 text-foreground/40">
-            {matched}/{rows.length} matched to a lead.
+            {matched}/{rows.length} identified · {invoiced}/{rows.length} invoiced after the click.
           </span>
         )}
       </p>
 
-      {isLoading ? (
+      {isError ? (
+        <p className="text-[12px] text-amber-500 py-2">
+          Could not read financing clicks — unknown, not zero. {error?.message}
+        </p>
+      ) : isLoading ? (
         <div className="flex items-center gap-2 text-[12px] text-foreground/40 py-4">
           <Loader2 className="w-4 h-4 animate-spin" /> Loading…
         </div>
@@ -59,6 +77,7 @@ export function FinancingAttribution() {
                 <th className="text-left font-bold py-1.5 pr-3">Provider</th>
                 <th className="text-left font-bold py-1.5 pr-3">Source</th>
                 <th className="text-left font-bold py-1.5 pr-3">Attributed lead</th>
+                <th className="text-left font-bold py-1.5 pr-3">Who / outcome</th>
                 <th className="text-right font-bold py-1.5">When</th>
               </tr>
             </thead>
@@ -78,6 +97,24 @@ export function FinancingAttribution() {
                       <span className="inline-flex items-center gap-1 text-foreground/30">
                         <HelpCircle className="w-3 h-3 shrink-0" /> unattributed
                       </span>
+                    )}
+                  </td>
+                  <td className="py-1.5 pr-3">
+                    {r.attribution?.identifiedVia ? (
+                      <span className="text-foreground/70">
+                        {VIA_LABEL[r.attribution.identifiedVia]} #{r.attribution.identifiedId}
+                        {r.attribution.invoicedOn ? (
+                          <span className="text-emerald-400"> · invoiced {r.attribution.invoicedOn}</span>
+                        ) : (
+                          <span className="text-foreground/40"> · no invoice yet</span>
+                        )}
+                      </span>
+                    ) : r.attributionUnavailable ? (
+                      <span className="text-amber-500">attribution unknown (read failed)</span>
+                    ) : r.attribution?.calledShop ? (
+                      <span className="text-foreground/50">called the shop (no identity)</span>
+                    ) : (
+                      <span className="text-foreground/30">unidentified</span>
                     )}
                   </td>
                   <td className="py-1.5 text-right text-foreground/30 whitespace-nowrap">

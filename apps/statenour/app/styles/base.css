@@ -56,10 +56,13 @@ body {
 /* ═══════════════════════════════════════════════════════
    MATERIAL — control chrome only. Content never gets backdrop-filter (SYSTEM.md §11).
    ═══════════════════════════════════════════════════════ */
+/* @layer components so a caller's own bg-/border- utility wins over the material defaults (PR 4). */
+@layer components {
 .ui-material {
   background: var(--control-glass);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(115%);
   backdrop-filter: blur(var(--glass-blur)) saturate(115%);
+}
 }
 
 /* The signal notch — the one gold mark that appears without the operator acting.

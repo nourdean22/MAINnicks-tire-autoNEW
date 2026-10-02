@@ -45,7 +45,7 @@ export function SuggestionTelemetryPanel() {
 
   if (!stats && !statsQuery.isError) {
     return (
-      <GlassCard className="p-4">
+      <GlassCard>
         <div className="text-[11px] text-[var(--text-tertiary)]">
           Suggestion telemetry — loading…
         </div>
@@ -55,7 +55,7 @@ export function SuggestionTelemetryPanel() {
 
   if (statsQuery.isError && !stats) {
     return (
-      <GlassCard className="p-4">
+      <GlassCard>
         <div className="flex items-center gap-2 text-[11px] text-red-400">
           <AlertCircle size={12} /> telemetry load failed:{" "}
           {statsQuery.error.message}
@@ -74,7 +74,7 @@ export function SuggestionTelemetryPanel() {
     stats.requests > 0 ? Math.round((stats.heuristic / stats.requests) * 100) : 0;
 
   return (
-    <GlassCard className="p-4 space-y-3">
+    <GlassCard className="space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
         <Sparkles size={14} className="text-fg-secondary" />
         <h2 className="text-[15px] font-semibold text-fg">

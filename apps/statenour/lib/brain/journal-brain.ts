@@ -500,6 +500,36 @@ export interface JournalBackfillResult {
   silo: JournalSilo;
   candidates: number;
   enriched: number;
+  /** Rows whose goal/mission was deleted, reset for re-grounding this run. */
+  requeued: number;
+}
+
+/** link_status values that assert a live goal/mission link. */
+export const LINK_CLAIMING_STATUSES = ["auto", "proposed", "confirmed"] as const;
+
+/** Reset rows whose link status claims a goal/mission that no longer exists.
+ *  Returns the count reset; a failed write is logged and counts 0. */
+export async function requeueDanglingLinks(silo: JournalSilo): Promise<number> {
+  const where = {
+    goalId: null,
+    missionId: null,
+    linkStatus: { in: [...LINK_CLAIMING_STATUSES] },
+  };
+  const data = { linkStatus: null, linkConfidence: null, enrichedAt: null };
+  try {
+    const r =
+      silo === "brain_dump"
+        ? await prisma.brainDump.updateMany({ where, data })
+        : silo === "reflection"
+          ? await prisma.reflection.updateMany({ where, data })
+          : silo === "situation_log"
+            ? await prisma.situationLog.updateMany({ where, data })
+            : await prisma.decisionReplay.updateMany({ where, data });
+    return r.count;
+  } catch (err) {
+    log.warn("journal_requeue_dangling_failed", { silo, error: err instanceof Error ? err.message : String(err) });
+    return 0;
+  }
 }
 
 /**
@@ -519,6 +549,14 @@ export async function backfillJournalBrain(
   const results: JournalBackfillResult[] = [];
 
   for (const silo of silos) {
+    // Dangling links first (2026-10-02). Deleting a goal/mission SET NULLs the
+    // FK on every silo row that pointed at it but leaves link_status saying
+    // "auto"/"proposed"/"confirmed" — a link that claims to exist and does not
+    // (prod: 10 of 17 "auto" decision_replays had no FK). Clear the status and
+    // the enrichedAt stamp so the sweep below re-grounds the entry. "rejected"
+    // rows have null FKs on purpose and are left alone.
+    const requeued = opts.dryRun ? 0 : await requeueDanglingLinks(silo);
+
     let rows: { id: string; text: string }[] = [];
     if (silo === "brain_dump") {
       // deletedAt filter (audit 2026-07-15) — without it the backfill
@@ -551,7 +589,7 @@ export async function backfillJournalBrain(
         enriched++;
       }
     }
-    results.push({ silo, candidates: rows.length, enriched });
+    results.push({ silo, candidates: rows.length, enriched, requeued });
   }
   return results;
 }

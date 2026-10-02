@@ -101,7 +101,7 @@ export class ErrorBoundary extends Component<Props, State> {
             className="shrink-0 text-[13px] font-medium px-2 py-1 rounded-control border border-rose-400/40 text-rose-300 hover:bg-rose-400/10 transition-colors duration-[var(--motion-state)] inline-flex items-center gap-1"
           >
             <RotateCcw size={10} />
-            retry
+            Retry
           </button>
         </div>
       </GlassCard>

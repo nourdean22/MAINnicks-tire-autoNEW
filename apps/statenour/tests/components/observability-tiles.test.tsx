@@ -105,10 +105,13 @@ describe("VoiceLatencyTile", () => {
     expect(norm(html)).toMatch(/investigate/i);
   });
 
-  it("renders empty state with no-calls hint", () => {
+  it("renders empty state pointing at the shop admin", () => {
+    // 2026-10-02 · voice runs on nickstire; statenour's table has no writer,
+    // so "no calls" read as "no traffic" when the phone line was busy.
     const html = renderToString(<VoiceLatencyTile state={{ kind: "empty" }} />);
     expect(html).toMatch(/voice latency/i);
-    expect(html).toMatch(/no calls/i);
+    expect(html).toMatch(/measured in the shop admin/i);
+    expect(html).not.toMatch(/no calls/i);
     expect(html).toMatch(/endpoint quiet/i);
   });
 });

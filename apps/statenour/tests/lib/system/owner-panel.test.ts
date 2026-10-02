@@ -13,6 +13,7 @@ import {
   composeOwnerPanel,
   cronExceptions,
   describePage,
+  type CapabilityLite,
   type CronRow,
   type OwnerPanelInput,
 } from "@/lib/system/owner-panel";
@@ -39,6 +40,7 @@ const clean: OwnerPanelInput = {
     lastDeadError: null,
   },
   actionAttempts: [],
+  capabilities: [],
   spend: { costCents: 1234, calls: 40, unpricedCalls: 0 },
   tasksDone: 4,
   valueAttribution: {
@@ -442,3 +444,104 @@ describe("cost per outcome · never a zero for an unknown", () => {
     expect(p.state).toBe("unknown");
   });
 });
+
+describe("capabilities · a degraded guarded capability is an exception; an unreadable read is not a clear (2026-10-02)", () => {
+  const degraded = (over: Partial<CapabilityLite> = {}): CapabilityLite => ({
+    name: "firecrawl-scrape",
+    status: "degraded",
+    consecutiveFailures: 9,
+    errorCount: 9,
+    metadata: {
+      source: "guardian",
+      lastCategory: "unknown",
+      lastError: "Insufficient credits to perform this request.",
+      firstFailureAt: ago(600).toISOString(),
+      lastFailureAt: ago(5).toISOString(),
+    },
+    updatedAt: ago(5),
+    ...over,
+  });
+
+  it("names the read as unreadable when it failed — never a clear", () => {
+    const p = composeOwnerPanel({ ...clean, capabilities: null });
+    expect(p.state).toBe("unknown");
+    expect(p.unreadable).toContain("capabilities");
+  });
+
+  it("surfaces a degraded capability with its error, its age since the first failure, and the row it rests on", () => {
+    const p = composeOwnerPanel({ ...clean, capabilities: [degraded()] });
+    expect(p.state).toBe("attention");
+    const [e] = p.exceptions;
+    expect(e.kind).toBe("capability_degraded");
+    expect(e.tone).toBe("amber");
+    expect(e.title).toBe("capability firecrawl-scrape degraded · 9 consecutive failures");
+    expect(e.detail).toBe("Insufficient credits to perform this request.");
+    expect(e.ageMin).toBe(600);
+    expect(e.href).toBe("/system/tools");
+    expect(e.evidence).toBe("integrations name=firecrawl-scrape");
+  });
+
+  it("a failed capability is rose", () => {
+    const [e] = composeOwnerPanel({ ...clean, capabilities: [degraded({ status: "failed" })] }).exceptions;
+    expect(e.tone).toBe("rose");
+  });
+
+  it("falls back to the failure class, then to an honest 'no error text', when metadata is thin", () => {
+    const [a] = composeOwnerPanel({ ...clean, capabilities: [degraded({ metadata: { lastCategory: "api_timeout" } })] }).exceptions;
+    expect(a.detail).toBe("last failure class: api_timeout");
+    expect(a.ageMin).toBe(5); // no firstFailureAt → the row's own update time
+    const [b] = composeOwnerPanel({ ...clean, capabilities: [degraded({ metadata: null })] }).exceptions;
+    expect(b.detail).toBe("no error text recorded");
+  });
+
+  it("a row nothing has touched for a week is history, not a live exception", () => {
+    expect(composeOwnerPanel({ ...clean, capabilities: [degraded({ updatedAt: ago(8 * 24 * 60) })] }).exceptions).toEqual([]);
+  });
+});
+
+describe("cronExceptions · a DECLARED degraded run is paged; a plain fan-out partial is not (2026-10-02)", () => {
+  const declared = "degraded · brief compose degraded: compose timed out after 90s";
+
+  it("surfaces the latest declared-degraded run with the job's own reason, amber", () => {
+    const [e] = cronExceptions([run("intelligence-daily-brief", "partial", 10, { error: declared })], now);
+    expect(e.kind).toBe("cron_degraded");
+    expect(e.tone).toBe("amber");
+    expect(e.title).toBe("cron intelligence-daily-brief ran degraded");
+    expect(e.detail).toBe("brief compose degraded: compose timed out after 90s");
+    expect(e.ageMin).toBe(10);
+    expect(e.href).toBe("/system/crons");
+    expect(e.evidence).toBe("cron_job_logs intelligence-daily-brief-10");
+  });
+
+  it("fades when the next run succeeds, and after an earlier failed run it is degraded, not a failure streak", () => {
+    expect(cronExceptions([run("j", "success", 5), run("j", "partial", 60, { error: declared })], now)).toEqual([]);
+    const out = cronExceptions([run("j", "partial", 5, { error: declared }), run("j", "failed", 60)], now);
+    expect(out).toHaveLength(1);
+    expect(out[0].kind).toBe("cron_degraded");
+  });
+
+  it("a plain partial (fan-out children failed) is NOT paged — chronic partial belongs to diagnose-cron-failure", () => {
+    expect(cronExceptions([run("mega-evening", "partial", 5, { error: "3 of 40 children failed: a, b, c" })], now)).toEqual([]);
+    expect(cronExceptions([run("mega-evening", "partial", 5)], now)).toEqual([]);
+  });
+});
+
+describe("cronExceptions · a deliberate kill is not an exception (bug-hunt 2026-10-02)", () => {
+  it("a cron skipping every run because the operator killed it is not paged", () => {
+    expect(
+      cronExceptions(
+        [run("approval-sweeper", "success", 5, { skipReason: "disabled via settings" }), run("approval-sweeper", "success", 10, { skipReason: "disabled via settings" })],
+        now,
+      ),
+    ).toEqual([]);
+  });
+
+  it("control: the same streak for any other reason still pages", () => {
+    const out = cronExceptions(
+      [run("approval-sweeper", "success", 5, { skipReason: "gateway offline" }), run("approval-sweeper", "success", 10, { skipReason: "gateway offline" })],
+      now,
+    );
+    expect(out.map((e) => e.kind)).toEqual(["cron_skipping"]);
+  });
+});
+

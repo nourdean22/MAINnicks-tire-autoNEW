@@ -185,12 +185,15 @@ describe("A8 · settings toggles expose switch role + state + name", () => {
   });
 
   it("cron kill-switch is a role=switch with aria-checked + aria-label", () => {
-    // State was conveyed by colour + knob position only. The decorative
-    // Power icon + knob are now aria-hidden.
-    const src = readSource("components/settings/cron-control-panel.tsx");
+    // State was conveyed by colour only. The contract lived on the Settings
+    // cron panel until 2026-10-02; /system/crons owns the kill switch now
+    // (docs/design/settings-census-2026-10-02.md), so it is pinned there.
+    const src = readSource("app/(mastery)/system/crons/page.tsx");
     expect(src).toContain('role="switch"');
-    expect(src).toContain("aria-checked={r.enabled}");
-    expect(src).toContain("aria-label={`${r.jobName} cron");
+    expect(src).toContain("aria-checked={row.enabled}");
+    // Stable, state-neutral name (bug-hunt 2026-10-02): an action label that
+    // flips with state read as "kill cron X, switch, on".
+    expect(src).toContain("aria-label={`cron ${row.name} enabled`}");
   });
 });
 
@@ -228,7 +231,8 @@ describe("A9 · settings selector/filter groups expose aria-pressed", () => {
     const flags = readSource("components/settings/intelligence-flags-panel.tsx");
     expect(flags).toContain("aria-pressed={statusFilter === s}");
     expect(flags).toContain('aria-pressed={overrideState === "ENV"}');
-    expect(readSource("components/settings/cron-control-panel.tsx")).toContain("aria-pressed={showDisabledOnly}");
+    // cron-control-panel.tsx (its "disabled only" filter) was deleted 2026-10-02:
+    // /system/crons owns the kill switch (docs/design/settings-census-2026-10-02.md).
   });
 
   it("operating-rhythm toggle is a role=switch with aria-checked", () => {
@@ -245,7 +249,8 @@ describe("A9 · settings icon-only buttons have accessible names", () => {
     const skill = readSource("components/settings/skill-library-panel.tsx");
     expect(skill).toContain('aria-label="Drop skill"');
     expect(skill).toContain('aria-label="Edit trigger and action"');
-    expect(readSource("components/settings/cron-control-panel.tsx")).toContain("aria-label={`fire ${r.jobName} now`}");
+    // The cron "fire" button lives on /system/crons since 2026-10-02 (the Settings panel was deleted).
+    expect(readSource("app/(mastery)/system/crons/page.tsx")).toContain("aria-label={`run cron ${row.name} now`}");
     expect(readSource("components/settings/identity-panel.tsx")).toContain("override`}");
     expect(readSource("components/settings/intelligence-flags-panel.tsx")).toContain('aria-label="Search feature flags"');
   });
@@ -266,9 +271,10 @@ describe("A9 · ultron cards bind to a defined text token", () => {
   it("system-health / hq-errors / deploy-chip no longer reference the undefined --text-muted", () => {
     // --text-muted is defined nowhere in globals.css, so the arbitrary
     // value resolved to an invalid colour. All swapped to --text-tertiary.
+    // hq-errors-card.tsx deleted 2026-10-02 (duplicate of the /system control
+    // tower's errors line + /system/logs?view=errors).
     for (const f of [
       "components/ultron/system-health-card.tsx",
-      "components/ultron/hq-errors-card.tsx",
       "components/ultron/deploy-chip.tsx",
     ]) {
       expect(readSource(f)).not.toContain("var(--text-muted)");
@@ -322,7 +328,8 @@ describe("A11 · ultron diagnostics bind neutral colours to tokens", () => {
   const NEUTRAL_RAW = /\b(?:bg|text|border)-(?:zinc|slate|gray|neutral)-\d{2,3}\b/;
   it("fully-tokenized ultron files contain no raw neutral-palette classes", () => {
     for (const f of [
-      "components/ultron/command-spine-pulse.tsx",
+      // command-spine-pulse.tsx deleted 2026-10-02 (it linked to /system from
+      // the page that became /system; Home's brief carries its data).
       "components/ultron/decision-replay-card.tsx",
       "components/ultron/preferences-card.tsx",
       // situation-card + hq-status-chips dropped 2026-09-01 (audit W-3):

@@ -213,7 +213,7 @@ export function MilestonesFlow({
   };
 
   return (
-    <div className="rounded-lg border border-blue-500/30 bg-blue-500/[0.04] p-3 space-y-3">
+    <div className="rounded-surface border border-blue-500/30 bg-blue-500/[0.04] p-3 space-y-3">
       <div className="flex items-start gap-2">
         <Sparkles size={12} className="text-blue-400 mt-0.5 shrink-0" />
         <div className="flex-1 min-w-0">
@@ -260,7 +260,7 @@ export function MilestonesFlow({
                   onChange={(e) => updateMilestone(i, e.target.value)}
                   rows={1}
                   placeholder="What's the checkpoint here?"
-                  className="flex-1 rounded border border-edge-default bg-content px-2 py-1 text-[11px] text-fg placeholder:text-fg-tertiary outline-none focus:border-accent resize-none leading-snug"
+                  className="flex-1 rounded-control border border-edge-default bg-content px-2 py-1 text-[11px] text-fg placeholder:text-fg-tertiary outline-none focus:border-accent resize-none leading-snug"
                   disabled={phase === "generating"}
                 />
                 <button
@@ -280,7 +280,7 @@ export function MilestonesFlow({
                 className="text-[12px] text-blue-300/70 hover:text-blue-300 inline-flex items-center gap-1 ml-6 disabled:opacity-50"
               >
                 <Plus size={10} />
-                add milestone
+                Add milestone
               </button>
             )}
           </div>
@@ -304,7 +304,7 @@ export function MilestonesFlow({
               ) : (
                 <Brain size={11} />
               )}
-              {phase === "generating" ? "planning…" : "spin up project"}
+              {phase === "generating" ? "Planning…" : "Spin up project"}
             </button>
           </div>
         </>

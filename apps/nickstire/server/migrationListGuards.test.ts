@@ -70,3 +70,41 @@ describe("the re-runnable migration list never rewrites live data", () => {
     expect(statements.filter((s) => /\bALTER TABLE vehicles\b/i.test(s))).toEqual([]);
   });
 });
+
+/**
+ * 2026-10-02 · A `MODIFY COLUMN … ENUM(...)` in this list is not idempotent the way
+ * `IF NOT EXISTS` is: it RE-ASSERTS the enum on every run. If a later migration appends a
+ * value and this entry is not updated, the next tap shrinks the live enum — and TiDB strict
+ * mode then rejects (loses) every row written with the dropped value. So every such entry
+ * must equal the schema.ts enum, value for value, in order.
+ */
+describe("re-asserted ENUMs in the list match drizzle/schema.ts exactly", () => {
+  const SCHEMA = readFileSync(path.resolve(__dirname, "../drizzle/schema.ts"), "utf8");
+  const enumModifies = migrationStatements()
+    .map((s) => /^ALTER TABLE `?(\w+)`? MODIFY COLUMN `?(\w+)`? ENUM\(([^)]*)\)/i.exec(s))
+    .filter((m): m is RegExpExecArray => m !== null);
+
+  /** Values of mysqlEnum("<column>", [...]) inside mysqlTable("<table>", ...) in schema.ts. */
+  function schemaEnum(table: string, column: string): string[] | null {
+    const start = SCHEMA.indexOf(`mysqlTable("${table}"`);
+    if (start === -1) return null;
+    const next = SCHEMA.indexOf("mysqlTable(", start + 10);
+    const block = SCHEMA.slice(start, next === -1 ? undefined : next);
+    const m = new RegExp(`mysqlEnum\\("${column}",\\s*\\[([^\\]]*)\\]`).exec(block);
+    return m ? [...m[1].matchAll(/"([^"]*)"/g)].map((v) => v[1]) : null;
+  }
+
+  it("canary: the 0136 heldout re-assertions are found (an empty scan would pass vacuously)", () => {
+    expect(enumModifies.map((m) => m[1]).sort()).toEqual(
+      expect.arrayContaining(["review_requests", "sms_campaign_sends", "winback_sends"]),
+    );
+  });
+
+  it("each re-asserted ENUM equals its schema.ts enum", () => {
+    for (const [, table, column, list] of enumModifies) {
+      const listed = [...list.matchAll(/'([^']*)'/g)].map((v) => v[1]);
+      expect(schemaEnum(table, column), `${table}.${column} has no schema.ts enum`).not.toBeNull();
+      expect(listed, `${table}.${column}: list entry would re-assert a different enum`).toEqual(schemaEnum(table, column));
+    }
+  });
+});

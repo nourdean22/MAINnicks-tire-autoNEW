@@ -93,7 +93,7 @@ export function TimeTravelPanel() {
             type="date"
             value={date}
             onChange={(event) => setDate(event.target.value)}
-            className="min-h-11 rounded-md border border-edge bg-void px-3 text-xs text-fg"
+            className="min-h-11 rounded-control border border-edge bg-void px-3 text-xs text-fg"
           />
           <button
             type="button"
@@ -108,7 +108,7 @@ export function TimeTravelPanel() {
       </div>
 
       {error ? (
-        <p className="mt-3 rounded-md border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-300">
+        <p className="mt-3 rounded-control border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-300">
           {error} — state unknown, not empty.
         </p>
       ) : null}
@@ -131,7 +131,7 @@ export function TimeTravelSnapshot({ report }: { report: TimeTravelReport }) {
       {failed.size > 0 ? (
         <p
           role="status"
-          className="flex items-start gap-2 rounded-md border border-amber-500/25 bg-amber-500/[0.04] px-3 py-2 text-xs text-amber-200"
+          className="flex items-start gap-2 rounded-control border border-amber-500/25 bg-amber-500/[0.04] px-3 py-2 text-xs text-amber-200"
         >
           <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden />
           <span>
@@ -143,7 +143,7 @@ export function TimeTravelSnapshot({ report }: { report: TimeTravelReport }) {
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
         {COUNT_LABELS.map(([key, label]) => (
-          <div key={key} className="rounded-md border border-edge bg-void/50 p-2.5">
+          <div key={key} className="rounded-control border border-edge bg-void/50 p-2.5">
             <div className="font-mono text-lg tabular-nums text-fg">{failed.has(key) ? UNKNOWN : String(report.summary[key])}</div>
             <div className="mt-1 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">{label}</div>
           </div>
@@ -169,7 +169,7 @@ export function TimeTravelSnapshot({ report }: { report: TimeTravelReport }) {
           </p>
           <div className="flex flex-wrap gap-2">
             {report.memoriesByCategory.map((item) => (
-              <span key={item.category} className="rounded border border-edge px-2 py-1 text-[11px] text-fg-secondary">
+              <span key={item.category} className="rounded-micro border border-edge px-2 py-1 text-[11px] text-fg-secondary">
                 {item.category} · {item.count}
               </span>
             ))}
@@ -182,7 +182,7 @@ export function TimeTravelSnapshot({ report }: { report: TimeTravelReport }) {
         ...report.brainDumps.map((item) => ({ id: item.id, kind: "brain dump", text: item.text }))]
         .slice(0, 8)
         .map((item) => (
-          <div key={`${item.kind}:${item.id}`} className="rounded-md border border-edge bg-void/50 p-3">
+          <div key={`${item.kind}:${item.id}`} className="rounded-control border border-edge bg-void/50 p-3">
             <p className="font-mono text-[11px] text-fg-tertiary">{item.kind}</p>
             <p className="mt-1 text-xs leading-5 text-fg-secondary">{item.text}</p>
           </div>

@@ -36,6 +36,7 @@ import {
 import { buildGoalsSnapshot } from "@/lib/services/goals-snapshot";
 import { HOME_SIGNAL_KINDS, recordHomeSignal } from "@/lib/observability/home-decision-metrics";
 import { buildOperatorBrief, buildBriefChanges } from "@/lib/home/operator-brief";
+import { buildWaitingSummary } from "@/lib/home/waiting-summary-data";
 import { buildMetaScoreboard } from "@/lib/services/meta-scoreboard";
 import { computeCharacterSheet } from "@/lib/mastery/character-sheet";
 import {
@@ -75,6 +76,7 @@ import {
 } from "@/lib/feature-flags";
 import {
   aiConfigPatchSchema,
+  aiConfigPatchToConfig,
   skillCurationSchema,
 } from "@/lib/validators/settings";
 import { buildTickerFeed } from "@/lib/services/ultron-ticker";
@@ -477,7 +479,7 @@ export const operatorRouter = router({
    */
   updateAiConfig: operatorProcedure
     .input(aiConfigPatchSchema)
-    .mutation(async ({ input }) => updateAiConfig(input, "settings_ui")),
+    .mutation(async ({ input }) => updateAiConfig(aiConfigPatchToConfig(input), "settings_ui")),
 
   /**
    * Phase UU.2 · owner-only · reset the AI config to defaults (the
@@ -636,6 +638,15 @@ export const operatorRouter = router({
    * window · React Query's 5-min refetchInterval mirrors the legacy
    * setInterval. No input · the feed is operator-scoped.
    */
+  /**
+   * 2026-10-02 · full-circle Lane B. Who is waiting on whom — me / others / system —
+   * as one projection over approvals, action attempts, commitments, tasks with
+   * `waitingOn` and the Nick's Tire bridge. A failed read makes its buckets
+   * UNKNOWN (count null), never empty (lib/home/waiting-summary.ts).
+   */
+  waitingSummary: operatorProcedure
+    .input(z.object({ scope: z.enum(["full", "rail"]).optional() }).optional())
+    .query(async ({ input }) => buildWaitingSummary(new Date(), { scope: input?.scope ?? "full" })),
   ticker: operatorProcedure.query(async () => buildTickerFeed()),
 
   /**
@@ -1739,6 +1750,34 @@ export const operatorRouter = router({
     .mutation(async ({ input }) => {
       await recordHomeSignal(input.kind);
       return { ok: true };
+    }),
+
+  /**
+   * 2026-10-02 · the operator's DECISION on a ledgered recommendation (the Home
+   * lead, the Missions deck pick): accepted = acted on it, dismissed = chose a
+   * different move. Keyed by the row id the read model handed the client, so a
+   * decision can never land on a look-alike row; `recordDecision` is
+   * first-write-wins and returns false on a second tap. `resultRef`
+   * (`task:<id>`) is what lets the task's completion rating close the row
+   * later (lib/services/task-actions.ts). Fire-and-forget on the client — the
+   * navigation it accompanies never waits on it.
+   */
+  recordRecommendationDecision: operatorProcedure
+    .input(
+      z.object({
+        ledgerId: z.string().min(1).max(64),
+        decision: z.enum(["accepted", "dismissed"]),
+        resultRef: z.string().min(1).max(200).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const { recordDecision } = await import("@/lib/services/outcome-ledger");
+      const recorded = await recordDecision({
+        id: input.ledgerId,
+        decision: input.decision,
+        resultRef: input.resultRef ?? null,
+      });
+      return { ok: true, recorded };
     }),
 
   nickRemembersContext: operatorProcedure.query(async () => {

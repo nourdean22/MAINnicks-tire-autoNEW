@@ -32,6 +32,7 @@ import { haptic } from "@/lib/ui/haptic";
 import { SegmentedSelect, Toggle } from "./settings-controls";
 
 import { trpc } from "@/lib/trpc/client";
+import { JOURNAL_SETTING_BOUNDS as B } from "@/lib/validators/journal";
 
 // Mirrors JournalSettingsValues in lib/journal/settings.ts (the getSettings
 // return + the updateSettings input keys). Kept local so the panel owns the
@@ -126,9 +127,9 @@ export function JournalBrainPanel() {
       >
         <input
           type="range"
-          min={0}
-          max={5}
-          step={0.1}
+          min={B.baselineXp.min}
+          max={B.baselineXp.max}
+          step={B.baselineXp.step}
           value={settings.baselineXp}
           disabled={!settings.baselineEnabled}
           onChange={(e) => patch({ baselineXp: parseFloat(e.target.value) })}
@@ -144,9 +145,9 @@ export function JournalBrainPanel() {
       >
         <NumberInput
           value={settings.qualityFloorChars}
-          min={0}
-          max={2000}
-          step={10}
+          min={B.qualityFloorChars.min}
+          max={B.qualityFloorChars.max}
+          step={B.qualityFloorChars.step}
           suffix="chars"
           onCommit={(n) => patch({ qualityFloorChars: n })}
           ariaLabel="Min characters to earn baseline XP"
@@ -160,9 +161,9 @@ export function JournalBrainPanel() {
       >
         <input
           type="range"
-          min={0}
-          max={5}
-          step={0.1}
+          min={B.groundedXpMultiplier.min}
+          max={B.groundedXpMultiplier.max}
+          step={B.groundedXpMultiplier.step}
           value={settings.groundedXpMultiplier}
           onChange={(e) =>
             patch({ groundedXpMultiplier: parseFloat(e.target.value) })
@@ -179,9 +180,9 @@ export function JournalBrainPanel() {
       >
         <input
           type="range"
-          min={0}
-          max={1}
-          step={0.05}
+          min={B.autoConfirmThreshold.min}
+          max={B.autoConfirmThreshold.max}
+          step={B.autoConfirmThreshold.step}
           value={settings.autoConfirmThreshold}
           onChange={(e) =>
             patch({ autoConfirmThreshold: parseFloat(e.target.value) })

@@ -21,6 +21,17 @@ non-obvious and two of them silently lie if run carelessly.
 
 ## Traps
 
+- **A script that loads env in its body must not statically import
+  `lib/prisma` (directly or transitively).** ES imports are hoisted above a
+  `process.loadEnvFile(...)` call, and `lib/prisma` reads only
+  `apps/statenour/.env*`, so the client is built with no `DATABASE_URL`
+  ("No database host"). Import Prisma inside the function that needs it and
+  pin it with a test that the module loads without loading Prisma
+  (`tests/lib/obsidian-engine-status-lazy-prisma.test.ts`). Witnessed
+  2026-10-02: the Obsidian engine never wrote a status row to prod.
+- **Windows paths in `.env` use forward slashes.** Inside double quotes
+  Node's `loadEnvFile` expands `\n`, so `"C:\Users\nourd\..."` loads as
+  `C:\Users` plus a newline (witnessed 2026-10-02 on `OBSIDIAN_VAULT_PATH`).
 - **A typecheck error inside `.next/types/**` is a STALE LOCAL ARTIFACT,
   not your diff.** Symptom: `tsc --noEmit` fails on
   `.next/types/validator.ts` — `Cannot find module '../../app/api/<x>/

@@ -60,3 +60,16 @@ export const calibrationRulingSchema = z.object({
 });
 
 export type CalibrationRulingInput = z.infer<typeof calibrationRulingSchema>;
+
+/**
+ * Journal Brain settings bounds — ONE source for the server validator
+ * (`journal.updateSettings`) and the settings sliders. The sliders used to
+ * allow 0 where the server requires 0.1 / 1, so a value the operator could
+ * pick reverted with a red banner (settings census 2026-10-02).
+ */
+export const JOURNAL_SETTING_BOUNDS = {
+  baselineXp: { min: 0.1, max: 5, step: 0.1 },
+  qualityFloorChars: { min: 0, max: 2000, step: 10 },
+  groundedXpMultiplier: { min: 1, max: 5, step: 0.1 },
+  autoConfirmThreshold: { min: 0, max: 1, step: 0.05 },
+} as const;

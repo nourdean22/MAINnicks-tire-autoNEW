@@ -25,6 +25,7 @@ import { today as todayET } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { getDismissedSuggestionIds } from "@/lib/brain/suggestion-loop";
 import { getUrgentLeads } from "@/lib/services/leads";
+import { recordShownBounded } from "@/lib/services/outcome-ledger";
 
 export interface NickSuggestion {
   id: string;
@@ -45,6 +46,54 @@ export interface NickSuggestion {
   seedPrompt: string;
   actionHint?: string;
   sourceContext?: Record<string, unknown>;
+  /**
+   * 2026-10-02 · the IntelligenceOutcome row this chip was ledgered as
+   * (outcome-ledger census E11, folded in). null when the ledger did not
+   * answer in time — then a tap records nothing, honestly.
+   */
+  ledgerId: string | null;
+}
+
+/** Ledger summary of a chip — prefixed so it never collides with a task title. */
+export function chipLedgerSummary(s: Pick<NickSuggestion, "id">): string {
+  // Keyed on the chip's stable id, not its label: labels carry live counts
+  // ("3 tasks overdue"), so every count change minted a new "shown" row for
+  // the same recommendation (bug-hunt 2026-10-02). The label rides in evidence.
+  return `chip: ${s.id.trim()}`;
+}
+
+/**
+ * The one task a chip is about, when it is about exactly one — carried as
+ * `evidenceRefs.taskId` so the task's completion rating can close the row
+ * (recordDecisionFromEvidence → resultRef task:<id>). A pile of tasks is not
+ * one task, so `stuck-task` with several ids and `overdue` return null.
+ */
+export function chipTaskId(s: Pick<NickSuggestion, "kind" | "sourceContext">): string | null {
+  const ctx = s.sourceContext ?? {};
+  // A multi-promise chip ("N broken promises · top …") is a pile, not one task.
+  if (s.kind === "broken-promise" && typeof ctx.taskId === "string" && (ctx.count === undefined || ctx.count === 1)) {
+    return ctx.taskId;
+  }
+  if (s.kind === "stuck-task" && Array.isArray(ctx.taskIds) && ctx.taskIds.length === 1 && typeof ctx.taskIds[0] === "string") {
+    return ctx.taskIds[0];
+  }
+  return null;
+}
+
+/** Ledger every chip the operator will see; a late ledger leaves `ledgerId` null. */
+async function ledgerChips(chips: NickSuggestion[]): Promise<void> {
+  await Promise.all(
+    chips.map(async (chip) => {
+      const taskId = chipTaskId(chip);
+      chip.ledgerId = await recordShownBounded({
+        kind: "suggestion",
+        sourceEngine: `nick-suggestions:${chip.kind}`,
+        summary: chipLedgerSummary(chip),
+        shownSurface: "chat-chips",
+        evidenceRefs: { suggestionId: chip.id, label: chip.label, severity: chip.severity, ...(taskId ? { taskId } : {}) },
+      });
+    }),
+  );
 }
 
 export interface NickSuggestionsView {
@@ -268,6 +317,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
     if (weakest && weakest[1].score < 50) {
       suggestions.push({
         id: `weak-axis-${weakest[0]}`,
+        ledgerId: null,
         kind: "weak-axis",
         severity: weakest[1].score < 30 ? "high" : "med",
         label: `lift ${weakest[0]} axis · biggest growth lever today`,
@@ -287,6 +337,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
       .join(" · ");
     suggestions.push({
       id: "stuck-doing",
+      ledgerId: null,
       kind: "stuck-task",
       severity: stuckTasks.length >= 3 ? "high" : "med",
       label:
@@ -309,6 +360,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
   if (overdueTasks.length >= 3) {
     suggestions.push({
       id: "overdue-pile",
+      ledgerId: null,
       kind: "overdue",
       severity: overdueTasks.length >= 5 ? "high" : "med",
       label: `${overdueTasks.length} tasks overdue · stacking up`,
@@ -323,6 +375,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
     const top = stalledGoals[0]!;
     suggestions.push({
       id: `stalled-goal-${top.id}`,
+      ledgerId: null,
       kind: "stalled-goal",
       severity: "med",
       label: `"${top.title.slice(0, 50)}" hasn't moved in 7+ days`,
@@ -350,6 +403,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
     if (meta?.axis && meta?.memberCount && meta.memberCount >= 3) {
       suggestions.push({
         id: `pattern-${meta.axis}`,
+        ledgerId: null,
         kind: "pattern",
         severity: "med",
         label: `${meta.memberCount} ${meta.axis} insights this week · pattern detected`,
@@ -368,6 +422,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
     if (meta?.orphanCount && meta.orphanCount >= 3) {
       suggestions.push({
         id: "orphan-nudge",
+        ledgerId: null,
         kind: "orphan-nudge",
         severity: "low",
         label: `${meta.orphanCount} tasks today aren't tagged · auto-learn loop leaks`,
@@ -382,6 +437,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
   if (contradictions > 0) {
     suggestions.push({
       id: "contradictions",
+      ledgerId: null,
       kind: "contradiction",
       severity: "low",
       label: `${contradictions} unresolved contradiction${contradictions === 1 ? "" : "s"}`,
@@ -396,6 +452,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
     const top = unresolvedReflections[0]!;
     suggestions.push({
       id: `unresolved-reflection-${top.id}`,
+      ledgerId: null,
       kind: "unresolved-reflection",
       severity: unresolvedReflections.length >= 3 ? "med" : "low",
       label:
@@ -425,6 +482,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
     const promiseToLabel = top.promiseTo ? `to ${top.promiseTo}` : "to yourself";
     suggestions.push({
       id: `broken-promise-${top.id}`,
+      ledgerId: null,
       kind: "broken-promise",
       severity: "high",
       label:
@@ -453,6 +511,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
     );
     suggestions.push({
       id: `stale-pin-${top.id}`,
+      ledgerId: null,
       kind: "stale-pin",
       severity: "low",
       label:
@@ -474,8 +533,14 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
 
   // Sort by severity then by id for stability, cap at 5.
   gated.sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity]);
+  const shown = gated.slice(0, 5);
+  // 2026-10-02 · census E11: the chips were the only daily recommendation
+  // surface with no row in the ledger (a parallel BrainMemory lane recorded
+  // taps with nothing to join them to). recordShown dedups the same label
+  // within 24h, so the 60s poll costs one findFirst per chip, not a row.
+  await ledgerChips(shown);
   return {
-    suggestions: gated.slice(0, 5),
+    suggestions: shown,
     generatedAt: now.toISOString(),
     date: todayET(),
   };

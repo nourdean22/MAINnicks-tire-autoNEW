@@ -124,15 +124,15 @@ function FileCard({
 }) {
   const downloadable = isRenderableUrl(part.url);
   return (
-    <div className="mt-2 flex items-center gap-2.5 rounded-lg border border-glass bg-elevated px-3 py-2">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-glass text-fg-tertiary">
+    <div className="mt-2 flex items-center gap-2.5 rounded-surface border border-edge-subtle bg-content px-3 py-2">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control border border-edge-subtle text-fg-tertiary">
         <KindIcon kind={kind} />
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[11px] text-fg-secondary">
           {part.filename || `${humanKind(kind)} attachment`}
         </div>
-        <div className="text-[9px] text-fg-tertiary">
+        <div className="text-[11px] text-fg-tertiary">
           {reason ?? part.mediaType ?? "unknown type"}
         </div>
       </div>
@@ -142,7 +142,7 @@ function FileCard({
           target="_blank"
           rel="noopener noreferrer"
           download={part.filename}
-          className="flex h-12 min-w-12 items-center justify-center rounded px-2 text-fg-tertiary transition-colors hover:text-fg"
+          className="flex h-12 min-w-12 items-center justify-center rounded-control px-2 text-fg-tertiary transition-colors hover:text-fg"
           aria-label={`Open ${part.filename || "attachment"}`}
           title="Open in a new tab"
         >
@@ -244,7 +244,7 @@ export function ChatMediaPart({ part, id }: { part: ChatFilePart; id?: string })
           handOffPosition();
           dock(asDocked());
         }}
-        className="inline-flex h-12 min-w-12 items-center gap-1.5 rounded-md px-2.5 text-[10px] text-fg-tertiary transition-colors hover:text-fg"
+        className="inline-flex h-12 min-w-12 items-center gap-1.5 rounded-control px-2.5 text-[12px] font-medium text-fg-tertiary transition-colors hover:text-fg"
         aria-label="Keep playing while you chat"
         title="Pop out to the player dock"
       >
@@ -256,7 +256,7 @@ export function ChatMediaPart({ part, id }: { part: ChatFilePart; id?: string })
             handOffPosition();
             enqueue(asDocked());
           }}
-          className="inline-flex h-12 min-w-12 items-center gap-1.5 rounded-md px-2.5 text-[10px] text-fg-tertiary transition-colors hover:text-fg"
+          className="inline-flex h-12 min-w-12 items-center gap-1.5 rounded-control px-2.5 text-[12px] font-medium text-fg-tertiary transition-colors hover:text-fg"
           aria-label="Add to the player queue"
           title="Play after the current item"
         >
@@ -278,7 +278,7 @@ export function ChatMediaPart({ part, id }: { part: ChatFilePart; id?: string })
       <img
         src={part.url}
         alt={label}
-        className="mt-2 max-h-64 rounded-lg border border-glass"
+        className="mt-2 max-h-64 rounded-surface border border-edge-subtle"
       />
     );
   }
@@ -292,7 +292,7 @@ export function ChatMediaPart({ part, id }: { part: ChatFilePart; id?: string })
           controls
           preload="metadata"
           playsInline
-          className="mt-2 max-h-80 w-full rounded-lg border border-glass bg-black"
+          className="mt-2 max-h-80 w-full rounded-surface border border-edge-subtle bg-black"
           aria-label={label}
         >
           {/* Native fallback for a codec the browser cannot decode. */}
@@ -306,8 +306,8 @@ export function ChatMediaPart({ part, id }: { part: ChatFilePart; id?: string })
 
   if (kind === "audio") {
     return (
-      <div className="mt-2 rounded-lg border border-glass bg-elevated px-3 py-2">
-        <div className="mb-1.5 flex items-center gap-1.5 text-[10px] text-fg-tertiary">
+      <div className="mt-2 rounded-surface border border-edge-subtle bg-content px-3 py-2">
+        <div className="mb-1.5 flex items-center gap-1.5 text-[11px] text-fg-tertiary">
           <Music size={12} />
           <span className="truncate">{label}</span>
         </div>

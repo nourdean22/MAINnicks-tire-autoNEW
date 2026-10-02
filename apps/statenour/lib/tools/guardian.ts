@@ -29,6 +29,14 @@ import { prisma } from "@/lib/prisma";
 import { APPROVAL_DEDUPE_WINDOW_MS, samePayload } from "@/lib/tools/approval-match";
 import { isApprovalRequestExpired } from "@/lib/automation/approval-freshness";
 import { AsyncLocalStorage } from "async_hooks";
+import { recordCapabilityFailure, recordCapabilityRecovery } from "@/lib/system/capability-health";
+
+/**
+ * How long a terminal failure waits for its durable receipt to land before the
+ * error propagates. A database slower than this finishes the write in the
+ * background; the caller is never held hostage to the receipt.
+ */
+export const CAPABILITY_RECEIPT_WAIT_MS = 750;
 
 const log = rootLogger.withSurface("tools/guardian");
 
@@ -651,6 +659,12 @@ export function withGuardian<T, A extends unknown[]>(
           });
         }
         if (circuitBreaker) recordBreakerSuccess(toolName);
+        // 2026-10-02 · durable capability receipt (lib/system/capability-health.ts):
+        // a Set lookup on the hot path, one write after a streak. Fire-and-forget so a
+        // slow database never delays a successful call; never the caller's error.
+        void recordCapabilityRecovery(toolName).catch(() => {
+          /* receipts never mask the result they record */
+        });
         return result;
       } catch (err) {
         lastError = err;
@@ -683,6 +697,24 @@ export function withGuardian<T, A extends unknown[]>(
     if (circuitBreaker) {
       recordBreakerFailure(toolName, lastCategory, breakerThreshold, breakerCooldownMs);
     }
+
+    // 2026-10-02 · the failure boundary writes its receipt BEFORE the throw so the
+    // Owner Panel has a row to read (`capability_degraded`); the log line below it
+    // cannot be projected. Bounded: the receipt gets CAPABILITY_RECEIPT_WAIT_MS to
+    // land, then the failure propagates whether or not the database answered.
+    await Promise.race([
+      recordCapabilityFailure({
+        toolName,
+        category: lastCategory,
+        error: String((lastError as { message?: string })?.message ?? lastError ?? "unknown"),
+      }).catch(() => {
+        /* receipts never mask the failure they record */
+      }),
+      new Promise<void>((resolve) => {
+        const t = setTimeout(resolve, CAPABILITY_RECEIPT_WAIT_MS);
+        (t as { unref?: () => void }).unref?.();
+      }),
+    ]);
 
     throw new GuardianError(
       toolName,

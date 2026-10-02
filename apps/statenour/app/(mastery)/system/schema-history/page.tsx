@@ -247,7 +247,7 @@ function SchemaHistoryInner() {
                 <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="space-y-1.5 max-w-3xl">
                     <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-xs font-semibold text-fg-secondary bg-surface-interactive px-2 py-0.5 rounded border border-edge-subtle">
+              <span className="font-mono text-xs font-semibold text-fg-secondary bg-surface-interactive px-2 py-0.5 rounded-micro border border-edge-subtle">
                         {entry.changeKey}
                       </span>
                       <span className={cn("text-[11px] font-semibold px-2 py-0.5 rounded-full border", statusTheme.bg)}>

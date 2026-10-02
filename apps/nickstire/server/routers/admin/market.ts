@@ -82,8 +82,9 @@ export const marketAdminRouter = router({
     const startDate = input?.startDate ?? w.startDate;
 
     try {
-      const official = await getGscReport({ startDate, endDate: w.endDate });
-      if (official) {
+      const official = await getGscReport({ startDate, endDate: w.endDate }, { totalsOnly: true });
+      // No total row (inside GSC's data lag) is NOT an official zero -> fall back, labelled.
+      if (official?.summaryHasData) {
         return {
           from: startDate,
           to: w.endDate,

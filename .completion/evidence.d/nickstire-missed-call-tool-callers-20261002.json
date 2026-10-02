@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "THIS DIFF touches the missed-call-recovery cron (server/cron/jobs/missedCallRecovery.ts). Its catch used to RETURN { recordsProcessed: 0, shadow: true, candidates: 0 }, a swallow cronNoSwallowedFailure.test.ts cannot see (no details string), so a broken run on a live SMS lane read as a completed shadow run. It now logs and RE-THROWS, so the scheduler records the run as failed. Proof: server/__tests__/missedCallRecovery.test.ts 'a failed run THROWS (cron_log records failed), never a completed shadow zero' (mutation-checked: restoring the return fails it). The new capture-evidence read fails CLOSED per call (a failed read skips that caller; it never texts on unknown), pinned by the same file's wiring test (read-failed call not texted). cronNoSwallowedFailure.test.ts still passes."
+    }
+  }
+}

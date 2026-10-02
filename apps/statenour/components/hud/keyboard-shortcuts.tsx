@@ -148,7 +148,7 @@ export function KeyboardShortcuts() {
             type="button"
             onClick={() => setOpen(false)}
             aria-label="Close keyboard shortcuts"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-raised)] hover:text-[var(--text-primary)]"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-control text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-raised)] hover:text-[var(--text-primary)]"
           >
             <X size={16} />
           </button>
@@ -163,7 +163,7 @@ export function KeyboardShortcuts() {
                     <span className="text-xs text-[var(--text-secondary)]">{s.action}</span>
                     <div className="flex items-center gap-1">
                       {s.keys.map(k => (
-                        <kbd key={k} className="inline-flex items-center justify-center min-w-[24px] h-5 px-1.5 rounded border border-[var(--border-default)] bg-[var(--bg-raised)] text-[11px] font-mono text-[var(--text-secondary)]">
+                        <kbd key={k} className="inline-flex items-center justify-center min-w-[24px] h-5 px-1.5 rounded-micro border border-[var(--border-default)] bg-[var(--bg-raised)] text-[11px] font-mono text-[var(--text-secondary)]">
                           {k}
                         </kbd>
                       ))}
@@ -175,7 +175,7 @@ export function KeyboardShortcuts() {
           ))}
         </div>
         <div className="px-4 py-2 border-t border-[var(--border-default)] text-center">
-          <span className="text-[11px] text-[var(--text-tertiary)]">Press <kbd className="inline px-1 py-0.5 rounded border border-[var(--border-default)] bg-[var(--bg-raised)] text-[11px] font-mono">?</kbd> to toggle</span>
+          <span className="text-[11px] text-[var(--text-tertiary)]">Press <kbd className="inline px-1 py-0.5 rounded-micro border border-[var(--border-default)] bg-[var(--bg-raised)] text-[11px] font-mono">?</kbd> to toggle</span>
         </div>
         </DialogContent>
       </Dialog>

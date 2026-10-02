@@ -128,7 +128,7 @@ export function BeliefsPanel() {
       <div
         key={b.key}
         className={cn(
-          "p-2 rounded border transition-colors",
+          "p-2 rounded-micro border transition-colors",
           kind === "belief"
             ? "bg-[var(--bg-base)] border-[var(--border-default)]"
             : "bg-blue-500/5 border-blue-500/20",
@@ -141,21 +141,21 @@ export function BeliefsPanel() {
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
               rows={2}
-              className="w-full px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-accent"
+              className="w-full px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded-control text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-accent"
             />
             <div className="flex items-center gap-1.5">
               <button
                 onClick={() => void saveEdit(b.key, kind)}
                 disabled={rowBusy}
-                className="h-6 px-2 rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[11px] font-mono inline-flex items-center gap-1"
+                className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[11px] font-mono gap-1"
               >
-                <Check size={9} /> save
+                <Check size={9} /> Save
               </button>
               <button
                 onClick={() => { setEditKey(null); setEditText(""); }}
-                className="h-6 px-2 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 text-[11px] font-mono inline-flex items-center gap-1"
+                className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 text-[11px] font-mono gap-1"
               >
-                <X size={9} /> cancel
+                <X size={9} /> Cancel
               </button>
             </div>
           </div>
@@ -173,7 +173,7 @@ export function BeliefsPanel() {
                 {b.theme_tokens.length > 0 && (
                   <div className="mt-1 flex items-center gap-1 flex-wrap">
                     {b.theme_tokens.slice(0, 5).map((t) => (
-                      <span key={t} className="text-[11px] font-mono px-1 py-0.5 rounded bg-surface-interactive text-[var(--text-tertiary)]">
+                      <span key={t} className="text-[11px] font-mono px-1 py-0.5 rounded-micro bg-surface-interactive text-[var(--text-tertiary)]">
                         {t}
                       </span>
                     ))}
@@ -185,7 +185,7 @@ export function BeliefsPanel() {
                   onClick={() => { setEditKey(b.key); setEditText(text); }}
                   disabled={rowBusy}
                   title="rewrite"
-                  className="h-6 w-6 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-fg hover:border-edge-strong inline-flex items-center justify-center"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-control sm:min-h-6 sm:min-w-6 border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-fg hover:border-edge-strong justify-center"
                 >
                   <Pencil size={10} />
                 </button>
@@ -194,7 +194,7 @@ export function BeliefsPanel() {
                     onClick={() => void act(b.key, "promote")}
                     disabled={rowBusy}
                     title="promote to active belief"
-                    className="h-6 px-2 rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[11px] font-mono inline-flex items-center gap-1"
+                    className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[11px] font-mono gap-1"
                   >
                     <ArrowUp size={9} /> promote
                   </button>
@@ -203,7 +203,7 @@ export function BeliefsPanel() {
                   onClick={() => void act(b.key, "drop", kind)}
                   disabled={rowBusy}
                   title="drop"
-                  className="h-6 w-6 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 hover:border-red-400/30 inline-flex items-center justify-center"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-control sm:min-h-6 sm:min-w-6 border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 hover:border-red-400/30 justify-center"
                 >
                   <Trash2 size={10} />
                 </button>
@@ -232,7 +232,7 @@ export function BeliefsPanel() {
           className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
         >
           {harvesting ? <Loader2 size={10} className="animate-spin" /> : <Play size={10} />}
-          harvest now
+          Harvest now
         </button>
       </div>
 

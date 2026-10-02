@@ -157,7 +157,7 @@ type BridgeOp = {
 const BRIDGE_OPS: BridgeOp[] = [
   { method: "get", path: "/api/bridge/health", id: "bridge_health", summary: "Bridge + DB health and sync counters." },
   { method: "get", path: "/api/bridge/shop-snapshot", id: "bridge_shop_snapshot", summary: "Live shop snapshot: work orders, bookings, leads, revenue signals." },
-  { method: "get", path: "/api/bridge/analytics", id: "bridge_analytics", summary: "Traffic + funnel analytics rollup." },
+  { method: "get", path: "/api/bridge/analytics", id: "bridge_analytics", summary: "Paid-invoice revenue rollup (all-time stats, monthly trend, payment methods) plus customer counts. Money fields are US DOLLARS." },
   { method: "get", path: "/api/bridge/intelligence", id: "bridge_intelligence", summary: "Aggregated business intelligence brief." },
   { method: "get", path: "/api/bridge/cron-status", id: "bridge_cron_status", summary: "Status of scheduled cron jobs." },
   { method: "get", path: "/api/bridge/probe-alg", id: "bridge_probe_alg", summary: "Probe the ALG invoice integration." },
@@ -868,10 +868,19 @@ export function registerBridgeRoutes(app: Express): void {
         FROM customers
       `);
 
+      // invoices.* money columns are integer CENTS. This payload went out raw under
+      // dollar-looking names (totalRevenue, avgTicket, revenue) to a ChatGPT action, while
+      // the sibling /api/bridge/intelligence sends the SAME names in dollars — so an
+      // all-time sum like 42,297,797 cents read as "$42.3M". Converted here, at the boundary,
+      // and the unit is stated in the payload (2026-10-02).
+      const usd = (v: unknown) => (v == null ? null : Math.round(Number(v)) / 100);
+      const withUsd = (row: Record<string, unknown> | undefined, keys: string[]) =>
+        row ? { ...row, ...Object.fromEntries(keys.map((k) => [k, usd(row[k])])) } : row;
       res.json({
-        invoiceStats: (stats as Record<string, unknown>[])?.[0],
-        monthlyTrend: monthly,
-        paymentBreakdown: payments,
+        moneyUnit: "USD dollars",
+        invoiceStats: withUsd((stats as Record<string, unknown>[])?.[0], ["totalRevenue", "totalLabor", "totalParts", "totalTax", "avgTicket"]),
+        monthlyTrend: (monthly as unknown as Record<string, unknown>[]).map((m) => withUsd(m, ["revenue", "labor", "parts"])),
+        paymentBreakdown: (payments as unknown as Record<string, unknown>[]).map((p) => withUsd(p, ["revenue"])),
         customerStats: (custStats as Record<string, unknown>[])?.[0],
         timestamp: new Date().toISOString(),
       });

@@ -21,7 +21,13 @@
  *     and sends NOTHING, until env MISSED_CALL_RECOVERY_SEND=1 flips it live.
  *   - Conservative eligibility: real conversations only (>=15s), recent
  *     (last 24h, older than 45min so the shop's own callback goes first),
- *     unconverted, opt-outs excluded, hard daily/run cap.
+ *     nothing captured, opt-outs excluded, hard daily/run cap.
+ *   - "Reached a tool" (convertedToLead=1) callers are included ONLY when a
+ *     successful read proves the call captured nothing (operator decision
+ *     2026-10-02, reversing the 2026-09-23 skip: ~101 calls/week reached a
+ *     tool — e.g. a tire-price lookup — and saved no lead, callback or
+ *     arrival, so nobody followed up). A failed evidence read skips the call:
+ *     unknown is never "nothing captured" on a customer-contact lane.
  */
 import { createLogger } from "../../lib/logger";
 import { BUSINESS } from "@shared/business";
@@ -43,6 +49,12 @@ export interface MissedCallRow {
   callbackId: number | null;
   recoveryAlreadyStamped: boolean;
   createdAtMs: number;
+  /**
+   * Only meaningful when convertedToLead === 1: true iff a SUCCESSFUL read of
+   * the call's capture evidence found no lead, callback, callback request or
+   * expected arrival. Undefined (not read, or the read failed) never qualifies.
+   */
+  capturedNothing?: boolean;
 }
 
 /**
@@ -54,8 +66,9 @@ export function isMissedCallEligible(row: MissedCallRow, nowMs: number): boolean
   if (!row.phoneNumber) return false;
   // convertedToLead means a capture/confirm tool fired on the call ("reached a
   // tool"), not that a lead row exists: a tireInquiry-only caller has it set
-  // with nothing saved. Kept as a skip by operator decision, 2026-09-23 (C).
-  if (row.convertedToLead === 1) return false;
+  // with nothing saved. Eligible only when the call is PROVEN to have captured
+  // nothing (operator decision 2026-10-02); unproven stays a skip.
+  if (row.convertedToLead === 1 && row.capturedNothing !== true) return false;
   if (row.leadId != null || row.callbackId != null) return false; // already captured
   if (row.recoveryAlreadyStamped) return false; // one-shot
   if (row.durationSeconds < MIN_DURATION_SECONDS) return false; // not a real conversation
@@ -91,6 +104,7 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
     const { vapiCallLogs, customers } = await import("../../../drizzle/schema");
     const { and, eq, gte, lte, isNull, isNotNull, sql, desc } = await import("drizzle-orm");
     const { normalizePhone } = await import("../../lib/phone");
+    const { loadCallCaptureEvidence } = await import("../../services/vapiActionExtraction");
 
     const now = Date.now();
     const windowStart = new Date(now - WINDOW_MAX_AGE_MS);
@@ -109,7 +123,6 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
     })
       .from(vapiCallLogs)
       .where(and(
-        eq(vapiCallLogs.convertedToLead, 0),
         isNotNull(vapiCallLogs.phoneNumber),
         isNull(vapiCallLogs.leadId),
         isNull(vapiCallLogs.callbackId),
@@ -143,6 +156,16 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
         recoveryAlreadyStamped: !!(meta && meta.recoverySmsAt),
         createdAtMs: new Date(r.createdAt as unknown as string | number | Date).getTime(),
       };
+      // A tool-reaching call needs proof it captured nothing (one bounded read
+      // per such call; ~15/day). Every other rule runs first, so the read only
+      // happens for calls that would otherwise qualify.
+      if (row.convertedToLead === 1 && isMissedCallEligible({ ...row, capturedNothing: true }, now)) {
+        const ev = await loadCallCaptureEvidence(row.vapiCallId);
+        row.capturedNothing =
+          ev.reachedTool !== undefined && // undefined = the read failed → unknown → skip
+          ev.leadId == null && ev.callbackId == null &&
+          !ev.existingCallbackForCall && !ev.hasExpectedArrival;
+      }
       if (!isMissedCallEligible(row, now)) continue;
       const np = normalizePhone(row.phoneNumber);
       if (np && optOuts.has(np)) continue;
@@ -203,7 +226,11 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
     }
     return { recordsProcessed: processed, shadow: false, candidates };
   } catch (err) {
+    // Re-throw (2026-10-02): this used to return { recordsProcessed: 0, shadow: true }, so a
+    // broken run on a LIVE customer-texting lane was filed in cron_log as a completed shadow
+    // run — the observer's failure-streak alert never saw it (cronNoSwallowedFailure.test.ts
+    // explains why a return is a swallow). The scheduler records a throw as `failed`.
     log.error("Missed-call recovery failed", { error: err instanceof Error ? err.message : String(err) });
-    return { recordsProcessed: 0, shadow: true, candidates: 0 };
+    throw err;
   }
 }

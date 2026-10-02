@@ -86,7 +86,7 @@ export function QueueBody({
 }) {
   if (body === "unknown") {
     return (
-      <GlassCard className="p-6">
+      <GlassCard>
         <p className="text-sm text-amber-300">
           This queue couldn&apos;t load — state unknown, not empty.
         </p>
@@ -98,7 +98,7 @@ export function QueueBody({
   }
   if (body === "empty") {
     return (
-      <GlassCard className="p-8 text-center text-sm text-muted-foreground">{emptyLabel}</GlassCard>
+      <GlassCard className="text-center text-sm text-muted-foreground">{emptyLabel}</GlassCard>
     );
   }
   return null;
@@ -160,7 +160,7 @@ export function KnowledgeReviewTab() {
 
   return (
     <div className="space-y-4">
-      <GlassCard className="p-5">
+      <GlassCard>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -198,7 +198,7 @@ export function KnowledgeReviewTab() {
           ? `${Math.round(metadata.confidence * 100)}%`
           : "unknown";
         return (
-          <GlassCard key={item.id} className="p-5">
+          <GlassCard key={item.id} className="">
             <div className="flex flex-wrap items-center gap-2 text-[12px] font-mono text-fg-tertiary">
               <span>{metadata.sourceType ?? "unknown source"}</span>
               <span>·</span>

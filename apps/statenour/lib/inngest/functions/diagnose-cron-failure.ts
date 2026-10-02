@@ -1,6 +1,7 @@
 import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { logger as rootLogger } from "@/lib/logger";
+import { DECLARED_DEGRADATION_PREFIX } from "@/lib/services/cron-status";
 
 const log = rootLogger.withSurface("inngest/diagnose-cron-failure");
 const inngest = getInngest();
@@ -148,7 +149,13 @@ export const diagnoseCronFailure = inngest.createFunction(
 
       const grouped = await prisma.cronJobLog.groupBy({
         by: ["jobName", "status"],
-        where: { createdAt: { gte: sevenDaysAgo } },
+        // A declared degradation (`degraded · …`, e.g. the brief's compose
+        // fallback) is the owner panel's cron_degraded, not a fan-out with
+        // failing children (bug-hunt 2026-10-02).
+        where: {
+          createdAt: { gte: sevenDaysAgo },
+          NOT: { AND: [{ status: "partial" }, { error: { startsWith: DECLARED_DEGRADATION_PREFIX } }] },
+        },
         _count: { id: true },
       });
       const byJob = new Map<string, { success: number; partial: number }>();
@@ -168,6 +175,7 @@ export const diagnoseCronFailure = inngest.createFunction(
           jobName: { in: chronicNames },
           status: "partial",
           createdAt: { gte: sevenDaysAgo },
+          NOT: { error: { startsWith: DECLARED_DEGRADATION_PREFIX } },
         },
         orderBy: { createdAt: "desc" },
         take: 50,

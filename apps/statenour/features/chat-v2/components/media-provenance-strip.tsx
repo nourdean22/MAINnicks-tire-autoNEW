@@ -34,7 +34,7 @@ export function MediaProvenanceStrip({ input }: { input: MediaProvenanceInput })
         {view.states.map((s) => (
           <span
             key={s}
-            className="rounded border border-glass px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-fg-secondary"
+            className="rounded-micro border border-edge-default px-1.5 py-0.5 font-mono text-[11px] text-fg-secondary"
           >
             {s}
           </span>
@@ -42,14 +42,14 @@ export function MediaProvenanceStrip({ input }: { input: MediaProvenanceInput })
         {view.missing.map((s) => (
           <span
             key={s}
-            className="rounded border border-dashed border-glass px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-fg-tertiary opacity-50"
+            className="rounded-micro border border-dashed border-edge-default px-1.5 py-0.5 font-mono text-[11px] text-fg-tertiary opacity-50"
             title={`Not ${s} — not attempted, not failed`}
           >
             {s}
           </span>
         ))}
         <span
-          className="ml-0.5 inline-flex items-center gap-1 text-[9px] text-fg-tertiary"
+          className="ml-0.5 inline-flex items-center gap-1 font-mono text-[11px] text-fg-tertiary"
           title={`Evidence class: ${view.evidenceClass}`}
         >
           {view.trust === "TRUSTED" ? <ShieldCheck size={10} /> : <AlertTriangle size={10} />}
@@ -60,7 +60,7 @@ export function MediaProvenanceStrip({ input }: { input: MediaProvenanceInput })
       {view.caveats.length > 0 ? (
         <ul className="space-y-0.5">
           {view.caveats.map((c) => (
-            <li key={c} className="text-[9px] leading-snug text-fg-tertiary">
+            <li key={c} className="text-[11px] leading-snug text-fg-tertiary">
               {c}
             </li>
           ))}

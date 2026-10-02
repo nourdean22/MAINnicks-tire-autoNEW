@@ -113,10 +113,10 @@ function MessageActionButton({
       // a comment asserting a rule the code does not meet is worse than
       // either number.
       className={
-        "flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md px-2 text-[11px] transition " +
+        "flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-control px-2 text-[11px] transition " +
         (active
           ? "text-sky-300"
-          : "text-fg-tertiary hover:bg-white/[0.05] hover:text-fg-secondary")
+          : "text-fg-tertiary hover:bg-surface-interactive hover:text-fg-secondary")
       }
     >
       {icon ?? text}
@@ -287,7 +287,7 @@ function InterruptedTurnCard({ message, onRetry }: { message: UIMessage; onRetry
           <span className="text-[13px] font-semibold">Response interrupted</span>
         </div>
         <p className="mt-1 text-[11px] text-red-300/60">{partialText ? "The reply was cut off." : "This turn failed before any reply."}</p>
-        {onRetry && <button onClick={onRetry} className="mt-3 min-h-11 rounded-lg bg-red-500/15 px-5 py-2 text-[12px] font-semibold text-red-300">Retry</button>}
+        {onRetry && <button onClick={onRetry} className="mt-3 min-h-11 rounded-control bg-red-500/15 px-5 py-2 text-[12px] font-semibold text-red-300">Retry</button>}
       </div>
     </div>
   );
@@ -379,7 +379,7 @@ export function ChatMessageList({
 
   if (messages.length === 0 && pending.length === 0 && !diagnosticReport) {
     if (isLoadingConvo) {
-      return <div className="flex h-full items-center justify-center p-8 text-xs font-semibold uppercase tracking-widest text-fg-tertiary">Loading conversation…</div>;
+      return <div className="flex h-full items-center justify-center p-8 text-[13px] text-fg-tertiary">Loading conversation…</div>;
     }
     return (
       <div className="mx-auto flex h-full w-full max-w-3xl flex-col justify-center p-5 sm:p-8">
@@ -497,8 +497,8 @@ export function ChatMessageList({
                             "4:12" would flicker a control that then moves. */}
                         {!(isLoading && isLatestAssistant) && <MediaTimestampBar text={part.text} />}
                       </AssistantMessageShell>
-                      {isTruncatedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-md border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300 sm:min-h-8"><AlertTriangle size={12} /> Response cut off — regenerate</button>}
-                      {isRefusedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-md border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300 sm:min-h-8"><AlertTriangle size={12} /> Model refused — retry may route differently</button>}
+                      {isTruncatedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-control border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300 sm:min-h-8"><AlertTriangle size={12} /> Response cut off — regenerate</button>}
+                      {isRefusedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-control border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300 sm:min-h-8"><AlertTriangle size={12} /> Model refused — retry may route differently</button>}
                     </div>
                   );
                 }

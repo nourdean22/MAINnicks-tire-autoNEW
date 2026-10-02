@@ -171,6 +171,9 @@ export default function OverviewSection() {
   const bookings = (bundle?.bookings ?? []) as BookingItem[];
   const leads = (bundle?.leads ?? []) as LeadItem[];
   const callbacks = (bundle?.callbacks ?? []) as CallbackItem[];
+  // callbackId -> "invoiced/booked since the request" hint. Never closes a callback by
+  // itself (the enum has no honest "served elsewhere"); the operator taps Done.
+  const callbackServed = (bundle?.callbackServed ?? {}) as Record<number, { label: string }>;
   const owedTexts = (bundle?.owedTexts ?? []) as OwedTextItem[];
 
   /**
@@ -261,7 +264,9 @@ export default function OverviewSection() {
         entityId: callback.id,
         type: "callback",
         name: callback.name || "Callback customer",
-        detail: callback.reason || "Callback requested",
+        detail: callbackServed[callback.id]
+          ? `${callback.reason || "Callback requested"} · ${callbackServed[callback.id].label}`
+          : callback.reason || "Callback requested",
         phone: callback.phone,
         urgency: 4,
         createdAt: callback.createdAt,
@@ -302,7 +307,7 @@ export default function OverviewSection() {
       });
     }
     return items.sort((a, b) => b.urgency - a.urgency || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-  }, [bookings, callbacks, currentWorkOrders, leads, owedTexts]);
+  }, [bookings, callbacks, callbackServed, currentWorkOrders, leads, owedTexts]);
 
   const filteredQueue = filter === "all" ? queue : queue.filter((item) => item.type === filter);
   const todaysBookings = bookings.filter(

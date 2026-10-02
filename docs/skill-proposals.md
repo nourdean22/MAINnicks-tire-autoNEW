@@ -2014,3 +2014,118 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Status:** applied (operator-approved 2026-09-23, PR #2589)
 
 (Applied directly this session with operator approval, not proposals: two nickstire-verify Traps — never text-match a DB error; a test near its timeout fails in shuffled orders, compare like-for-like file sets.)
+
+## 2026-10-02 · full-circle bug hunt (#2888), reality ledger + Obsidian bridge restored (#2890)
+
+### P1 · statenour-migration · "committed" is not "applied"
+- **Trigger (witnessed):** `20260929123500_reality_event_envelope` sat in `prisma/migrations/` beside the schema change that needed it, never applied. `/api/sync/evidence` failed 38 times on `event_version does not exist` over three days; nothing paged.
+- **Cost:** three days of lost reality-ledger writes (last row 2026-09-29 03:10Z).
+- **Proposed edit:** add a step "after any merge that adds a migration dir: diff `ls prisma/migrations` against `SELECT migration_name FROM _prisma_migrations` on prod and apply/record the difference, or say it is pending" — and a cron/health probe that does the same diff and pages on any repo migration missing from the prod ledger.
+- **Confidence:** high (reproduced against prod)
+- **Status:** applied (operator-approved 2026-10-02, PR #2889)
+
+### P2 · statenour-verify · CLI scripts build Prisma before they load env
+- **Trigger (witnessed):** `obsidian-engine-runner.ts` calls `process.loadEnvFile(<repo-root>/.env)` in its body, but ES imports are hoisted, so `lib/obsidian/engine-config.ts` (static `import { prisma }`) built the client first with no `DATABASE_URL` ("No database host"; watch daemon crashed). `lib/prisma.ts` only reads `apps/statenour/.env*`.
+- **Proposed edit:** trap line: "a script that loads env in its body must not statically import `lib/prisma` (directly or transitively) — import it inside the function that needs it; canary = a test asserting the module loads without loading Prisma."
+- **Confidence:** high (fixed in #2890 with that canary)
+- **Status:** applied (operator-approved 2026-10-02, PR #2889)
+
+### P3 · statenour-verify · `loadEnvFile` and Windows paths
+- **Trigger (witnessed):** `OBSIDIAN_VAULT_PATH="C:\Users\nourd\..."` in a double-quoted `.env` value: Node's `loadEnvFile` expands `\n` in `\nourd` to a newline, so the doctor read the vault as `C:\Users` and failed.
+- **Proposed edit:** trap line: "write Windows paths in `.env` with forward slashes (or single quotes); never backslashes inside double quotes."
+- **Confidence:** high
+- **Status:** applied (operator-approved 2026-10-02, PR #2889)
+
+### P4 · repo docs · the agent-memory path in AGENTS.md does not exist
+- **Trigger (witnessed):** `~/.claude/projects/C--Users-nourd-NOURCITY/memory/MEMORY.md` is absent on both online machines (NattyNour: empty dir; nicksmax: no dir).
+- **Proposed edit:** operator decision — recreate the index, or retire the AGENTS.md "Memory / handoff" pointer in favour of `apps/<app>/.remember/` which sessions actually maintain.
+- **Resolution:** kept the pointer (the hook script records the index existed and was compacted 2026-08-19/23, so it likely lives on a machine not online today) and marked it machine-local in AGENTS.md, naming `.remember/` as the copy every checkout has.
+- **Confidence:** high (checked both devices 2026-10-02)
+- **Status:** applied (operator-approved 2026-10-02, PR #2889)
+
+## 2026-10-02 · nickstire admin closure wave (#2885, #2891) — migrations applied from a cloud session via the operator's PC
+
+### P1 · `nickstire-tidb-ddl` § Applying — read the live commit before the one-tap migration runner
+- **Trigger (witnessed):** #2885 merged at 15:43:44Z. The operator tapped Admin → Apply built-in migrations at
+  15:46:20Z, while Railway deployment `5c5eec0d` (the merge) was still BUILDING. The tap ran on the previous container
+  (`/api/health` deploy.commit `62087aa2`), i.e. the OLD migration list: logged "Operator ran DB migrations", no error,
+  nothing new applied. The second tap at 15:53:21Z, on `d5838402`, did the work (176 steps, none failed).
+- **Cost:** one wasted operator action and a near-false "it worked". The screen reads the same either way.
+- **Proposed edit:** under "Applying", add: "When the DDL ships INSIDE `handleRunMigrations`, the one-tap runner only
+  knows the list of the container that serves the tap. Before tapping, `GET /api/health` must report `deploy.commit`
+  = the merge SHA. Then compare the result's `total` with the new list's length: a stale container reports
+  'none failed' too."
+- **Confidence:** medium (once, unambiguous)
+- **Status:** proposed
+
+### P2 · `prod-db-guard` § Running it from an agent session — PowerShell eats comma lists
+- **Trigger (witnessed):** on NattyNour (via Desktop Commander, PowerShell),
+  `node scripts/record-migrations.mjs --only 0127,0128,…` reached node as `127 128 …` (PowerShell parsed an int
+  array). The script refused ("no drizzle/127 128 …_*.sql") and wrote nothing. Quoting (`--only '0127,0128,…'`) fixed it.
+- **Cost:** one extra prod round-trip. Benign only because the script refuses unmatched prefixes. A script that
+  treated an unmatched list as "everything" would have been a sweep.
+- **Proposed edit:** add: "On a Windows/PowerShell device, single-quote every comma-separated argument (`--only`,
+  ids). Unquoted, PowerShell converts it to an array of NUMBERS: leading zeros vanish and the commas become spaces."
+  Also put the quoted form in the `scripts/record-migrations.mjs` usage comment.
+- **Confidence:** medium (once)
+- **Status:** proposed
+
+### P3 · `prod-db-guard` — a scripts-only prod run from the operator PC does not need full worktree-setup
+- **Trigger (witnessed):** `scripts/worktree-setup.ps1` on NattyNour sat >10 min in its repo-wide
+  `Get-ChildItem -Recurse` scans (env-file copy / node_modules discovery across every worktree + node_modules) and
+  had copied nothing. For a run that needs only `scripts/` + `drizzle/` + `mysql2`, junctioning exactly root
+  `node_modules` and `apps/nickstire/node_modules` (both mklink /j), plus `railway run` for the env, was sufficient.
+  Teardown via `worktree-teardown.ps1` then refused (lease guard: branch never pushed). After proving 0 commits beyond
+  origin/main and 0 changes, `-ForceDirtyRelease` released it; the junction targets were verified unchanged (75→75, 11→11).
+- **Cost:** ~15 min of stalled setup.
+- **Proposed edit:** add a short "scripts-only run on the operator PC" recipe:
+  1. `git worktree add -b <tmp> <dir> origin/main`;
+  2. two `mklink /j` for root + app `node_modules`;
+  3. `railway run --service … -- node scripts/<x>.mjs` (dry run first);
+  4. tear down with `worktree-teardown.ps1`, adding `-ForceDirtyRelease` only after `git rev-list --count
+     origin/main..<tmp>` = 0 and a clean status.
+- **Confidence:** medium (once)
+- **Status:** proposed
+
+### P4 · `nickstire-verify` — fake timers around a REAL short sleep reached through dynamic imports
+- **Trigger (witnessed):** `server/postInvoiceFollowUp.test.ts` "control: a phone NOT on cooldown is still texted"
+  used `vi.useFakeTimers({ shouldAdvanceTime: true })` + `advanceTimersByTimeAsync(2000)` around a code path that
+  `await import()`s modules and then sleeps 1.1 s between sends. It passed locally and timed out at 30 s in CI node
+  on `0144ffec`: the advance can run before the dynamic imports reach the `setTimeout`. Real timers (one 1.1 s
+  sleep, per-test timeout 10 s) fixed it in `faa36e64`; CI green.
+- **Cost:** one red CI cycle on a PR the operator was waiting to merge.
+- **Proposed edit:** Traps: "Do not fake timers around a sub-2 s real sleep that sits behind `await import()`. The
+  advance can race the import and the sleep never fires, and local speed hides it. Use real timers with an explicit
+  per-test timeout, or inject the sleep."
+- **Confidence:** medium (once; local-green/CI-red makes it costly)
+- **Status:** proposed
+
+### P5 · `nickstire-verify` — run the fail-open-slice gate locally when adding a source-assertion test
+- **Trigger (witnessed, recurring):** 2026-10-01 (#2865, recorded as a trap in `.remember/now.md`) and again
+  2026-10-02. CI node on `0144ffec` failed `server/failOpenSliceGate.test.ts`: new raw `c.slice(start, c.indexOf(…))`
+  in `server/__tests__/currencyBoundaries.test.ts` and `server/gscAggregationSemantics.test.ts`. Fixed with
+  `sliceBlock()` from `server/testUtils/sourceBlock.ts`.
+- **Cost:** one red CI cycle each time. The trap was already written down, just not where a pre-push check reads it.
+- **Proposed edit:** add to the pre-push sequence: "If the diff adds or edits a test that slices source text, run
+  `pnpm exec vitest run server/failOpenSliceGate.test.ts` (3 ms) and use `sliceBlock()`, never `slice(indexOf…)`."
+- **Confidence:** high (recurred ≥2×)
+- **Status:** proposed
+
+### P6 · production truth — the "what is ARMED" probe cannot see `feature_flags` table switches
+- **Trigger (witnessed):** in this wave's docs I first wrote "`contact_holdout_*` flags still OFF" and "sends only
+  while `sms_review_requests` is on" as current fact. Both are `feature_flags` DB rows (`server/services/featureFlags.ts`).
+  `apps/nickstire/scripts/probe-live-send-flags.mjs` reads env only and says so in its header. I never read the
+  rows. Self-caught and reworded in `truth_os.md`, CURRENT-TRUTH and ADMIN-TRUTH-PASS before commit.
+- **Cost:** a near-shipped unverified claim in the rank-4 truth docs, the exact defect class `truth_os.md` warns about.
+- **Proposed edit:** extend the probe (or add a sibling, read-only) to also print the side-effect `feature_flags` rows
+  (`sms_review_requests`, `contact_holdouts_enabled`, `contact_holdout_*`, `review_reminder_drafts`, …) with their
+  live values. Then `truth_os.md` § "What is ARMED" can list DB switches beside env ones instead of being silent on them.
+- **Confidence:** medium
+- **Status:** proposed
+
+### Recurrence note on 2026-09 P6 (`stranded-branch-rescue` restart recipe — placement still undecided)
+- Witnessed twice more this session (#2885→#2891, and #2891→the docs follow-up). The force-push hook blocked
+  `--force-with-lease` as designed. I used a default merge, then resolved every conflict to this branch's side, then
+  checked `git rev-parse HEAD^{tree}` = the pre-merge commit's tree. P6's `git merge -s ours` does the same with no
+  conflict resolution: prefer it. Adding a trailer to the merge commit by amending, before the first push, was not
+  blocked. No new proposal; this raises P6's confidence and its placement question still stands.

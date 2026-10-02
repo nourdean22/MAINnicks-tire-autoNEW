@@ -35,8 +35,8 @@
  *     `functions: Object.values(functions)`), so an inngest-native cron
  *     cannot be parked or revived there at all.
  *     ⚠ "dormant" means NOT SCHEDULED, not unreachable — the operator
- *     surface can still fire any cron by hand
- *     (POST /api/settings/crons/trigger), which is why a dormant cron can
+ *     surface can still fire any cron by hand (/system/crons Run →
+ *     systemAutomation.runManifestCron), which is why a dormant cron can
  *     legitimately show a single run on a single day.
  *     Added 2026-05-30 to stop the manifest claiming
  *     Wave-AE orphans were "active" when they never actually fired.
@@ -557,17 +557,17 @@ export const CRONS: CronDef[] = [
     // first-claimant-wins, so both dispatch paths coexist safely.
     name: "agent-followups",
     schedule: "*/15 * * * *",
-    // DORMANT, not active: this cron is the only thing that can deliver
-    // an unprompted message, so it ships NOT wired to fire (the repo's
-    // own definition: route + code exist and work, operator parked it).
-    // Reviving it means adding it to lib/inngest/jobs.ts AND setting
-    // NICK_AGENT_FOLLOWUPS=1 AND leaving the per-cron kill switch on —
-    // three independent decisions, deliberately.
-    mode: "dormant",
+    // ACTIVE since 2026-10-02 (operator: "turn that on"). This cron is the
+    // only thing that can deliver an unprompted message, so it still sits
+    // behind two more independent switches: NICK_AGENT_FOLLOWUPS=1 on the
+    // web service, and the per-cron kill switch at /system/crons. The
+    // worker fires it every 15 min (apps/worker/src/scheduler.ts
+    // HIGH_FREQ_JOBS); claimDueFollowUps is first-claimant-wins.
+    mode: "active",
     category: "hygiene",
     worker: true,
     description:
-      "Delivers follow-ups the agent scheduled for itself (post_turn_outbox kind=agent-followup). DORMANT · needs jobs.ts wiring + NICK_AGENT_FOLLOWUPS=1 + kill switch on.",
+      "Delivers follow-ups the agent scheduled for itself (post_turn_outbox kind=agent-followup). Worker every 15 min; also gated by NICK_AGENT_FOLLOWUPS=1 + the kill switch.",
     memory: 512,
     maxDuration: 300,
   },
@@ -747,6 +747,17 @@ export const CRONS: CronDef[] = [
     description: "FOLDED into mega-evening · rolls the 8-axis identity snapshot (BrainMemory identity_snapshot/current + daily history row) so nudges + pulse read fresh axes.",
     memory: 512,
     maxDuration: 120,
+  },
+  {
+    name: "think",
+    schedule: null,
+    mode: "folded",
+    category: "brain",
+    foldedInto: "mega-evening",
+    addedAt: "2026-10-02",
+    description: "FOLDED into mega-evening (detached) · thinking engine L7/L8/L10: contradictions, identity_snapshots, causal_chains. Resurrected 2026-10-02 after a 4-month freeze.",
+    memory: 512,
+    maxDuration: 300,
   },
   {
     name: "xp-decay",

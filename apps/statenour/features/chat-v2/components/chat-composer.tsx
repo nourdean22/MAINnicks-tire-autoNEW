@@ -333,7 +333,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           cancellable — an invisible armed cascade-delete would be a
           destructive surprise. */}
       {editingMessageId && (
-        <div className="flex items-center justify-between gap-2 rounded-control border border-accent/40 bg-accent-soft px-3 py-1.5 text-[12px] text-gold">
+        <div className="flex items-center justify-between gap-2 rounded-control border border-accent/40 bg-accent-soft px-3 py-1.5 text-[12px] text-accent">
           <span className="min-w-0 truncate">
             Editing a sent message — sending replaces it and everything after
           </span>

@@ -22,7 +22,7 @@ export function DecisionPlanePanel() {
   if (report.isLoading || replay.isLoading) {
     return (
       <section className="rounded-surface border border-edge-default bg-content p-4">
-        <div className="h-20 animate-pulse rounded bg-surface-interactive" />
+        <div className="h-20 animate-pulse rounded-micro bg-surface-interactive" />
       </section>
     );
   }
@@ -81,7 +81,7 @@ export function DecisionPlanePanel() {
           {data.backends.map((backend) => (
             <div
               key={backend.id}
-              className="rounded border border-edge-default px-3 py-2"
+              className="rounded-micro border border-edge-default px-3 py-2"
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-[11px] text-fg">{backend.id}</span>

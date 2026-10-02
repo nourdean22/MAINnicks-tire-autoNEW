@@ -324,3 +324,57 @@ stale-docs strict 0 · parity OK · `next build` (cleared cache) exit 0 (full ro
 **Still flagged (not this PR):** migrate the last `components/ui/card.tsx` importers (stats) to `GlassCard`,
 lift the 24px inline edit buttons in brain's beliefs / contradiction / identity panels to 44px, redesign the
 realtime voice orb, sweep `rounded-md` / bare `rounded` / `slate-*` on untouched lines, after-screenshots.
+
+## 14 · PR 4 (2026-10-02) — the rest of the backlog
+
+Branch `statenour/ui-v2-backlog`, four commits (the third corrects one receipt sentence, the fourth reverts seven mid-sentence capitalisations), one squash merge. Everything §13 left flagged, plus two things
+found on the way.
+
+- **`components/ui/card.tsx` deleted.** Its two importers (`components/stats/calibration-section.tsx`,
+  `body-section.tsx`) now use `GlassCard` with plain `div` / `h3` / `p` slots. Doing that exposed a cascade
+  trap: `.neural-glass` was unlayered, so every utility a caller passed (`border-l-[3px] border-l-sky-500/40`,
+  `bg-rose-500/5` on an error card, `hover:bg-surface-hover`) was silently beaten by the class defaults at
+  eight GlassCard call sites. `.neural-glass*` and `.ui-material` now sit in `@layer components`.
+- **`cn` knows the v2 scales.** `lib/utils.ts` builds `cn` with `extendTailwindMerge` so `rounded-micro |
+  control | surface | float | overlay` and `shadow-l1 | l2` merge last-wins (both PR 2 reviewers flagged the
+  footgun). `tests/lib/cn-v2-tokens.test.ts` carries the positive control: the stock merger keeps
+  `rounded-control rounded-full` as two classes.
+- **Brain inline edit buttons** (beliefs / contradiction / identity panels): `h-6` → `min-h-11` on touch,
+  `sm:min-h-6` from the tablet breakpoint so the dense desktop rows keep their height.
+- **Voice overlay:** the gradient orb with `animate-ping` is gone (§13 "NO orb"). A solid `bg-surface-raised`
+  disc carries the state as an edge hue + glyph (rose listening, amber Nick speaking, rose error); the only
+  motion is one `pulse-live` ring while a voice is working. The serif status line became Geist 17/20px.
+- **Radius + raw-neutral sweep** across `app/` and `components/` (not comments, not tests): `rounded-md` →
+  `rounded-control`, `rounded-sm` → `rounded-micro`, `rounded-lg` → `rounded-control` on controls else
+  `rounded-surface`, bare `rounded` → `rounded-control` on controls else `rounded-micro`, every `slate-*` →
+  fg / edge / surface tokens. Control vs. surface was decided by the element (button / a / input / role) or a
+  control-height class in the same string; skeletons are surfaces, ≤16px squares are micro.
+- **`features/chat-v2` converted** (14 files): the conversation drawer, typed tool cards and media dock /
+  focus / provenance had been outside every earlier scope and still carried ~75 legacy hits incl. gold fills.
+- **After-screenshots** captured on the hermetic dev server (12 GB heap, two server lives of four routes each): `shots/after4-{home,chat,missions,brain,journal,people,stats,system}-{1440x900,390x844}.png`, 16 files. Brain exposed the last uppercase data labels on the graph lens chips; sentence-cased in the same commit.
+
+**Receipts:** `tsc --noEmit` exit 0 · eslint 0 errors on the 130 changed TS/TSX files · vitest 136 files / 1,587 passed, exit 0 (every test referencing a changed file + grammar, nav-shell, anti-slop, mobile-a11y, mount-graph, palette-root, modal contracts) · `tests/lib/cn-v2-tokens.test.ts` 4/4 with the stock-merger positive control · anti-slop 0 · stale-docs strict 0 · parity 142/0 · `next build` with `.next/cache` cleared exit 0 (full route table). Hostile review of the orchestrator diff found and this commit fixes: every styled Dialog about to paint a gold hairline + 40px glow once `.neural-glass-modal` was layered (the class carries the look now), 23 GlassCard call sites whose dead `p-*` would have started painting (stripped: one card, one padding), six inputs/textareas on the wrong radius tier, `critical-glow` still animating behind a "no glow" comment (removed with its keyframe), a 20px `+` button left off the floor, a 7px radius on a 400px image, chip/panel tier drift, one `slate-400` leftover, lost card rhythm. Code diff 139 files, +708 / −660 before the 16 screenshots; one commit.
+
+**Second commit — self-audit of the first (same PR).** Re-reading the diff and the 16 shots as a hostile reviewer found four things.
+(1) The journal and brain shots still showed lowercase 11px mono control labels, so a brace-aware label scanner sentence-cased the
+first text node of every `button` / `Link` / `a` and every `{cond ? "a" : "b"}` label: 243 labels in 90 files, 33 strings skipped
+because a test pins them. It also caught two non-labels (`"Text-fg-secondary"`, `"CurrentColor"`), both reverted; `alert-inspector`
+moved to sentence case together with its test pins; the seven mixed-case ternaries the scanner could not reach were fixed by hand
+(`Pinned` / `Done` / `Create` / `Edit` / `Accept` / `Tie` / `Passed` + `Flagged for regen`). A second scan of the
+diff found seven count/unit text nodes that follow an expression and had been capitalised mid-sentence (`3 Claims`, `12D`,
+`3 More in the approval queue`); reverted, with the two leading hide/show ternaries capitalised instead. (2) Five row and icon buttons the radius
+sweep had tiered `rounded-micro` because its lookback stopped short of the element (`recurring-enemies-card`, `compound-chain`,
+`nick-reasoner`, `contradictions-card`, `decision-replay-card`) → `rounded-control`. (3) The voice overlay still carried legacy
+aliases (`bg-canvas/95`, `text-fg*` variants) → canonical tokens. (4) The dead-custom-property gate only read `app/` and
+`components/`; it now reads `features/`, `hooks/` and `lib/` too. Accepted and recorded, not changed: ~60 11px `font-mono`
+micro-controls inside dense data panels stay mono — they are readouts, not labels.
+**Receipts, second commit:** `tsc --noEmit` exit 0 · eslint 0 errors / 49 pre-existing warnings on the 95 changed TS/TSX files ·
+vitest 142 files / 1,639 passed, exit 0 (same referencing-test rule, plus grammar, nav-shell, alert-inspector and cn-token contracts) ·
+anti-slop 0 · stale-docs strict 0 (222 files) · parity 142/0. Cleared-cache `next build` on this
+commit: compiled in 72 s, 210 static pages, full route table, exit 0. No git hooks are installed in the cloud container, so
+lefthook's pre-push build never ran on these pushes; every gate above was run by hand and CI's turbo-affected verify is the
+remote build gate.
+
+**Open:** the `.glass-card` legacy class in base.css still carries `!important` on its state variants (47
+adopters, not touched); tailwind-merge now merges radius/shadow but a consumer that passes `bg-*` to
+`GlassCard` relies on the new layering, not on merging.

@@ -71,6 +71,26 @@ export const GET = cronHandler(async () => {
   // a silent omission. The artifact lands in the outcome ledger as a
   // `prediction` row so the resolution loop can score it against actuals.
   let forecastLine = "Revenue-side forecast: UNAVAILABLE (forecast step failed).";
+  // 2026-10-02 · outcome-ledger census E5: score last week's forecast BEFORE
+  // writing this week's, so the row this run writes is never its own
+  // candidate. A bridge that cannot give the actual leaves the row unscored
+  // and the line says so — never a miss by default.
+  let resolutionLine = "Last week's forecast: not scored (resolution step failed).";
+  try {
+    const { resolveForecastPredictions, forecastResolutionLine } = await import(
+      "@/lib/services/cashflow-forecast"
+    );
+    const resolutions = await resolveForecastPredictions();
+    resolutionLine = forecastResolutionLine(resolutions);
+    log.info("cashflow_forecast_resolved", {
+      scored: resolutions.filter((r) => r.hit !== null).length,
+      unscored: resolutions.filter((r) => r.hit === null).length,
+    });
+  } catch (err) {
+    log.warn("cashflow_forecast_resolution_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
   try {
     const { buildCashflowForecast, forecastDigestLine } = await import(
       "@/lib/services/cashflow-forecast"
@@ -86,6 +106,9 @@ export const GET = cronHandler(async () => {
       confidence: forecast.confidence,
       evidenceRefs: {
         weekStart: forecast.weekStart,
+        // The band the resolver scores against; older rows are parsed from the
+        // line. An empty projection stores none — it is not a $0–$0 forecast.
+        projectedRevenue: forecast.basis.trailingWeeks.length > 0 ? forecast.projectedRevenue : null,
         basis: forecast.basis,
         dataGaps: forecast.dataGaps,
         freshness: forecast.freshness,
@@ -393,7 +416,8 @@ export const GET = cronHandler(async () => {
     <div class="section">
       <div class="section-title">Shop Revenue Forecast (revenue-side only)</div>
       <div class="review-box">
-        ${forecastLine}
+        ${forecastLine}<br/>
+        ${resolutionLine}
       </div>
     </div>
 

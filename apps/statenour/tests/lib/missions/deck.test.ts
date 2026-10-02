@@ -28,8 +28,12 @@ vi.mock("@/lib/prisma", () => ({ prisma: mocks }));
 vi.mock("@/lib/services/task-rescue", () => ({
   buildTaskRescue: vi.fn(async () => ({ findings: [], scannedCount: 0 })),
 }));
+// 2026-10-02 · the pick is ledgered as a recommendation; mocked so the deck
+// tests stay DB-free, and the call shape is pinned in its own block below.
+const ledger = vi.hoisted(() => ({ recordShownBounded: vi.fn(async () => "led-deck") }));
+vi.mock("@/lib/services/outcome-ledger", () => ({ recordShownBounded: ledger.recordShownBounded }));
 
-import { buildMissionsDeck, MISSION_WIP_CAP } from "@/lib/missions/deck";
+import { buildMissionsDeck, MISSION_WIP_CAP, nextMoveLedgerSummary } from "@/lib/missions/deck";
 import { buildTaskRescue } from "@/lib/services/task-rescue";
 
 const NOW = new Date("2026-09-01T15:00:00Z"); // 11:00 ET
@@ -100,6 +104,7 @@ function task(overrides: Record<string, unknown>) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  ledger.recordShownBounded.mockResolvedValue("led-deck");
   mocks.mission.findMany.mockResolvedValue([shopAnchor, homeAnchor, project]);
   mocks.taskEvent.findMany.mockResolvedValue([]);
   mocks.taskEvent.findFirst.mockResolvedValue(null);
@@ -295,5 +300,50 @@ describe("deck · guarded sources fail loud, not silent", () => {
     mocks.captureInboxItem.findMany.mockRejectedValue(new Error("boom"));
     const deck = await buildMissionsDeck(NOW);
     expect(deck.unmeasured).toContain("captures");
+  });
+});
+
+describe("deck · the pick is ledgered as a recommendation (2026-10-02)", () => {
+  it("a fresh pick is ledgered as `next move: <title>` on missions, with the task as evidence, and carries the id", async () => {
+    mocks.task.findMany.mockResolvedValue([
+      task({ id: "t-home", title: "Fix the bathroom ceiling", missionId: "m-bathroom" }),
+    ]);
+    const deck = await buildMissionsDeck(NOW);
+    expect(deck.nextMove?.ledgerId).toBe("led-deck");
+    expect(ledger.recordShownBounded).toHaveBeenCalledOnce();
+    expect(ledger.recordShownBounded.mock.calls[0][0]).toMatchObject({
+      kind: "suggestion",
+      sourceEngine: "missions-deck:start",
+      shownSurface: "missions",
+      summary: "next move: Fix the bathroom ceiling",
+      evidenceRefs: { taskId: "t-home", missionId: "m-bathroom" },
+    });
+  });
+
+  it("a resumed DOING task is ledgered as `resume: <title>` — the prefix keeps it off the verbatim-title bridge", async () => {
+    mocks.task.findMany.mockResolvedValue([
+      task({ id: "t-doing", title: "Half-done drywall", status: "DOING", startedAt: new Date(NOW.getTime() - 3600e3) }),
+    ]);
+    const deck = await buildMissionsDeck(NOW);
+    expect(deck.nextMove?.kind).toBe("resume");
+    expect(ledger.recordShownBounded.mock.calls[0][0]).toMatchObject({
+      sourceEngine: "missions-deck:resume",
+      summary: "resume: Half-done drywall",
+    });
+    expect(nextMoveLedgerSummary({ kind: "resume", task: { title: "X" } })).toBe("resume: X");
+    expect(nextMoveLedgerSummary({ kind: "start", task: { title: "X" } })).toBe("next move: X");
+  });
+
+  it("no eligible pick → nothing is ledgered; a writer that answers null leaves the pick without an id", async () => {
+    mocks.task.findMany.mockResolvedValue([]);
+    const empty = await buildMissionsDeck(NOW);
+    expect(empty.nextMove).toBeNull();
+    expect(ledger.recordShownBounded).not.toHaveBeenCalled();
+
+    ledger.recordShownBounded.mockResolvedValueOnce(null);
+    mocks.task.findMany.mockResolvedValue([task({ id: "t-home", title: "Fix the bathroom ceiling", missionId: "m-bathroom" })]);
+    const deck = await buildMissionsDeck(NOW);
+    expect(deck.nextMove?.task.id).toBe("t-home");
+    expect(deck.nextMove?.ledgerId).toBeNull();
   });
 });

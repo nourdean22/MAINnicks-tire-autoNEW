@@ -140,8 +140,12 @@ describe("the push payload carries the affordance", () => {
   });
 
   it("sends WITHOUT buttons when ledgering failed, rather than not sending", () => {
-    // The brief is the product; the ledger is bookkeeping.
-    expect(brief).toMatch(/\.\.\.\(ledgerId/);
+    // The brief is the product; the ledger is bookkeeping. Since 2026-10-02 the
+    // affordance has one owner: spread `ratingPushActions(ledgerId)`, which is
+    // `{}` for a null id (behaviour pinned in
+    // tests/inngest/intelligence-brief-ratable.test.ts), so a failed ledger
+    // write still sends — just unrateable.
+    expect(brief).toContain("...ratingPushActions(ledgerId)");
   });
 
   it("no longer points the brief at the retired /command route", () => {

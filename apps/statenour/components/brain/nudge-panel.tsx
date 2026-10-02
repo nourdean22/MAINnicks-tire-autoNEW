@@ -6,6 +6,7 @@
  */
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -61,6 +62,10 @@ export function NudgePanel() {
   const utils = trpc.useUtils();
   const nudgesQuery = trpc.brain.nudges.useQuery(undefined);
   const dismissMutation = trpc.brain.dismissNudge.useMutation();
+  // 2026-10-02 · following a nudge's link is accepting it (the dismiss side has
+  // written `dismissed` since 2026-08-16; this lane was dismiss-only). Fire-
+  // and-forget beside the navigation.
+  const acceptMutation = trpc.brain.acceptNudge.useMutation();
   // WAS A FALSE ALL-CLEAR. This previously read `isError ? [] : (...)`, so a
   // FAILED query fell into the same branch as a genuinely empty one and the
   // panel rendered a green "In rhythm · all subsystems stable" across nine
@@ -149,7 +154,7 @@ export function NudgePanel() {
           const inner = (
             <div
               className={cn(
-                "group flex items-start gap-2 px-2 py-1.5 rounded border transition-colors",
+                "group flex items-start gap-2 px-2 py-1.5 rounded-micro border transition-colors",
                 n.severity === "high" ? "border-red-500/30 bg-red-500/5"
                   : n.severity === "medium" ? "border-amber-500/30 bg-amber-500/5"
                   : "border-[var(--border-default)] bg-[var(--bg-base)]",
@@ -190,9 +195,17 @@ export function NudgePanel() {
             </div>
           );
           return n.link ? (
-            <a key={`${n.source}-${i}`} href={n.link} className="block hover:brightness-110">
+            // next/link, not <a>: every nudge link is an in-app path, and a full
+            // document navigation would abort the fire-and-forget accept below.
+            <Link
+              key={`${n.source}-${i}`}
+              href={n.link}
+              onClick={() => acceptMutation.mutate({ source: n.source, text: n.text })}
+              data-nudge-decision="accepted"
+              className="block hover:brightness-110"
+            >
               {inner}
-            </a>
+            </Link>
           ) : (
             <div key={`${n.source}-${i}`}>{inner}</div>
           );

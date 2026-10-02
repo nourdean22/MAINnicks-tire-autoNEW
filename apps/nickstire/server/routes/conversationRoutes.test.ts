@@ -12,6 +12,12 @@ vi.mock("../services/conversationFacts", () => ({
   extractConversationFacts: vi.fn(),
 }));
 
+vi.mock("../services/officeVisual", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../services/officeVisual")>()),
+  analyzeOfficeFrames: vi.fn(),
+  officeVisualColumnReady: vi.fn(),
+}));
+
 vi.mock("../db", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../db")>()),
   getDb: vi.fn(),
@@ -19,10 +25,13 @@ vi.mock("../db", async (importOriginal) => ({
 
 import { extractConversationFacts } from "../services/conversationFacts";
 import { getDb } from "../db";
+import { analyzeOfficeFrames, officeVisualColumnReady } from "../services/officeVisual";
 import { registerConversationEpisodeRoute } from "./conversationRoutes";
 
 const extract = extractConversationFacts as unknown as ReturnType<typeof vi.fn>;
 const db = getDb as unknown as ReturnType<typeof vi.fn>;
+const analyzeFrames = analyzeOfficeFrames as unknown as ReturnType<typeof vi.fn>;
+const visualReady = officeVisualColumnReady as unknown as ReturnType<typeof vi.fn>;
 
 const KEY = "test-ingest-key";
 
@@ -70,6 +79,8 @@ beforeEach(() => {
   delete process.env.STATENOUR_SYNC_KEY;
   extract.mockResolvedValue(okExtract);
   db.mockResolvedValue({ execute: vi.fn().mockResolvedValue(undefined) });
+  visualReady.mockResolvedValue(false);
+  delete process.env.OFFICE_VISUAL_ANALYSIS;
 });
 
 describe("conversation ingest — auth fails CLOSED", () => {
@@ -251,5 +262,93 @@ describe("conversation ingest — the reply reports what was DROPPED", () => {
     expect(b.factsStored).toBe(0);
     expect(b.dropped[0].reason).toContain("coverage");
     expect(b.coverage).toBeCloseTo(0.416, 3);
+  });
+});
+
+// 2026-10-02 · office "watch": frames ride along with the episode; only the description is kept.
+describe("conversation ingest — office visual frames", () => {
+  const FRAME = { mime: "image/jpeg", base64: "A".repeat(200) };
+  const DONE = {
+    status: "DONE", summary: "Customer at the counter talking with staff.", peopleCount: 2,
+    activities: ["customer at counter"], waitingUnattended: false, frameCount: 2,
+    provider: "ollama", model: "m", latencyMs: 5, error: null,
+  };
+
+  it("an episode without frames is unchanged: no readiness check, no vision call, visualStatus null", async () => {
+    const h = mount();
+    const { res, out } = fakeRes();
+    await h({ headers: { "x-sync-key": KEY }, body: body() }, res);
+    expect(out.code).toBe(200);
+    expect(visualReady).not.toHaveBeenCalled();
+    expect(analyzeFrames).not.toHaveBeenCalled();
+    expect((out.body as { visualStatus: unknown }).visualStatus).toBeNull();
+  });
+
+  it("before migration 0140: frames are accepted but NOT analyzed, and the reply says why", async () => {
+    visualReady.mockResolvedValue(false);
+    const execute = vi.fn().mockResolvedValue(undefined);
+    db.mockResolvedValue({ execute });
+    const h = mount();
+    const { res, out } = fakeRes();
+    await h({ headers: { "x-sync-key": KEY }, body: body({ frames: [FRAME, FRAME] }) }, res);
+    expect(out.code).toBe(200);
+    expect(analyzeFrames).not.toHaveBeenCalled();
+    expect(out.body).toMatchObject({ framesReceived: 2, visualStatus: "NOT_STORED_VISUAL_COLUMN_UNAVAILABLE" });
+    // Only the main INSERT ran: no statement names the visual column on an unmigrated database.
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("after migration 0140: frames are described and ONLY the description is stored", async () => {
+    visualReady.mockResolvedValue(true);
+    analyzeFrames.mockResolvedValue(DONE);
+    const execute = vi.fn().mockResolvedValue(undefined);
+    db.mockResolvedValue({ execute });
+    const h = mount();
+    const { res, out } = fakeRes();
+    await h({ headers: { "x-sync-key": KEY }, body: body({ frames: [FRAME, FRAME] }) }, res);
+    expect(out.code).toBe(200);
+    expect(analyzeFrames).toHaveBeenCalledWith([
+      { mime: "image/jpeg", base64: FRAME.base64 }, { mime: "image/jpeg", base64: FRAME.base64 },
+    ]);
+    expect(out.body).toMatchObject({ framesReceived: 2, visualStatus: "DONE", visualError: null });
+    expect(execute).toHaveBeenCalledTimes(2);
+    const update = JSON.stringify(execute.mock.calls[1][0]);
+    expect(update).toContain("UPDATE conversation_episodes SET visual");
+    expect(update).toContain("Customer at the counter");
+    // The raw frame bytes never reach the database.
+    for (const call of execute.mock.calls) expect(JSON.stringify(call[0])).not.toContain(FRAME.base64);
+  });
+
+  it("a FAILED vision call is still stored (could-not-look is not saw-nothing)", async () => {
+    visualReady.mockResolvedValue(true);
+    analyzeFrames.mockResolvedValue({ ...DONE, status: "FAILED", summary: null, error: "ollama: 503" });
+    const execute = vi.fn().mockResolvedValue(undefined);
+    db.mockResolvedValue({ execute });
+    const h = mount();
+    const { res, out } = fakeRes();
+    await h({ headers: { "x-sync-key": KEY }, body: body({ frames: [FRAME] }) }, res);
+    expect(out.body).toMatchObject({ visualStatus: "FAILED", visualError: "ollama: 503" });
+    expect(JSON.stringify(execute.mock.calls[1][0])).toContain("FAILED");
+  });
+
+  it("OFFICE_VISUAL_ANALYSIS=0 switches analysis off without touching the database", async () => {
+    process.env.OFFICE_VISUAL_ANALYSIS = "0";
+    visualReady.mockResolvedValue(true);
+    const h = mount();
+    const { res, out } = fakeRes();
+    await h({ headers: { "x-sync-key": KEY }, body: body({ frames: [FRAME] }) }, res);
+    expect(visualReady).not.toHaveBeenCalled();
+    expect(analyzeFrames).not.toHaveBeenCalled();
+    expect(out.body).toMatchObject({ visualStatus: "DISABLED" });
+  });
+
+  it("rejects more frames than the cap, and oversized frames", async () => {
+    const h = mount();
+    const a = fakeRes();
+    await h({ headers: { "x-sync-key": KEY }, body: body({ frames: Array(7).fill(FRAME) }) }, a.res);
+    expect(a.out.code).toBe(400);
+    const b = fakeRes();
+    await h({ headers: { "x-sync-key": KEY }, body: body({ frames: [{ mime: "image/jpeg", base64: "A".repeat(400_001) }] }) }, b.res);
+    expect(b.out.code).toBe(400);
   });
 });

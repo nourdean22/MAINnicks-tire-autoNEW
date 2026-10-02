@@ -27,6 +27,7 @@ import { desc } from "drizzle-orm";
 import { getDashboardStats, getSiteHealth } from "../admin-stats";
 import { getBookings, getCallbackRequests } from "../db";
 import { listWaitingConversations } from "./smsResponseJobs";
+import { getCallbackServedEvidence } from "./callbackServedEvidence";
 import { leads as leadsTable } from "../../drizzle/schema";
 import { db } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
@@ -112,7 +113,7 @@ export async function getOverviewMediumBundle() {
   // instead of throwing. Cheap: getDb() is pooled.
   const dbDown = !(await db());
 
-  const [stats, bookings, leads, callbacks, health, owedTexts] = await Promise.allSettled([
+  const [stats, bookings, leads, callbacks, health, owedTexts, callbackServed] = await Promise.allSettled([
     getDashboardStats(),
     getBookings(),
     listLeads(),
@@ -121,6 +122,9 @@ export async function getOverviewMediumBundle() {
     // Customers waiting on a human text reply: the ROS-058 obligation, the
     // same reduction as the Outreach badge and the morning brief (audit I).
     listWaitingConversations(),
+    // Open callbacks whose customer has since been invoiced or booked — a hint for the
+    // operator, never an auto-close (callbackServedEvidence.ts). Cached 5 min.
+    getCallbackServedEvidence(),
   ]);
 
   const slices = {
@@ -130,6 +134,7 @@ export async function getOverviewMediumBundle() {
     callbacks: sliceStatus(callbacks, dbDown),
     health: sliceStatus(health, dbDown),
     owedTexts: sliceStatus(owedTexts, dbDown),
+    callbackServed: sliceStatus(callbackServed, dbDown),
   };
 
   const failed = Object.entries(slices).filter(([, s]) => !s.available).map(([k]) => k);
@@ -144,6 +149,7 @@ export async function getOverviewMediumBundle() {
     callbacks: settled(callbacks),
     health: settled(health),
     owedTexts: settled(owedTexts),
+    callbackServed: settled(callbackServed),
     /** Which reads actually succeeded. An empty list is only real when its slice is available. */
     slices,
     /** True when ANY slice failed — the one flag a screen needs to stop saying "All clear". */

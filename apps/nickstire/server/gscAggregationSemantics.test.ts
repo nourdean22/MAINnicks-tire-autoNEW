@@ -10,6 +10,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { sliceBlock } from "./testUtils/sourceBlock";
 import { resolve } from "node:path";
 
 const APP = process.cwd();
@@ -101,5 +102,68 @@ describe("F4 — the tire-size KPI can actually match a row", () => {
       new RegExp("^" + pat.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*") + "$").test(v);
     expect(like("https://nickstire.org/tires/205-55r16", "%/tires/%")).toBe(true);
     expect(like("https://nickstire.org/tires/205-55r16", "/tires/%")).toBe(false);
+  });
+});
+
+describe("F5 — the Traffic Funnel reads web rows only, impression-weighted (2026-10-02)", () => {
+  const FUNNEL = readFileSync(resolve(APP, "server/routers/trafficFunnel.ts"), "utf8");
+
+  it("every search_performance read filters searchType = 'web'", () => {
+    // Discover rows carry query='' and no position meaning; summing them into the
+    // funnel inflated clicks/impressions and added a blank top-query bucket.
+    const c = code(FUNNEL);
+    const reads = c.split("FROM search_performance").length - 1;
+    const filtered = c.split("FROM search_performance").slice(1).filter((tail) => /^[\s\S]{0,200}searchType = 'web'/.test(tail)).length;
+    expect(reads).toBeGreaterThan(0);
+    expect(filtered).toBe(reads);
+  });
+
+  it("no unweighted AVG(position) remains in the funnel", () => {
+    const c = code(FUNNEL);
+    expect(c).not.toMatch(/AVG\(\s*position\s*\)/i);
+    expect(c).toMatch(/SUM\(position \* impressions\) \/ NULLIF\(SUM\(impressions\), 0\)/);
+  });
+});
+
+describe("F6 — the StateNour bridge gsc_summary prefers the official total and labels it (2026-10-02)", () => {
+  const BRIDGE = readFileSync(resolve(APP, "server/routes/nour-os-query.ts"), "utf8");
+  const handler = () => {
+    return sliceBlock(code(BRIDGE), '"gsc_summary": async', '"gsc_top_queries"', { label: "nour-os-query.ts" });
+  };
+
+  it("calls getGscReport before falling back to the stored rows", () => {
+    const h = handler();
+    expect(h).toContain("getGscReport");
+    expect(h.indexOf("getGscReport({")).toBeLessThan(h.indexOf("getGscSummary({"));
+  });
+
+  it("both branches carry a source label, and the official CTR ratio becomes percent", () => {
+    const h = handler();
+    expect(h).toContain('source: "gsc_official_no_dimension"');
+    expect(h).toContain('source: "stored_query_rows_partial"');
+    expect(h).toMatch(/official\.summary\.ctr \* 100/);
+  });
+});
+
+describe("F7 — an empty official response is not an official zero (2026-10-02)", () => {
+  const GSC_SRC = code(GSC);
+  it("getGscReport reports summaryHasData from the presence of the total row", () => {
+    expect(GSC_SRC).toMatch(/summaryHasData: totalRows\.length > 0/);
+  });
+  it("every summary-only caller asks for totals only and gates on summaryHasData", () => {
+    for (const f of ["server/routers/admin/market.ts", "server/routes/nour-os-query.ts"]) {
+      const c = code(readFileSync(resolve(APP, f), "utf8"));
+      expect(c, f).toMatch(/getGscReport\([^)]*\{ totalsOnly: true \}\)/);
+      expect(c, f).toContain("official?.summaryHasData");
+    }
+    const rev = code(readFileSync(resolve(APP, "server/routers/revenueOps.ts"), "utf8"));
+    expect(rev).toContain("officialResult.value.summaryHasData");
+  });
+});
+
+describe("F8 — statenourMetrics refuses an empty official window instead of sending a labelled zero", () => {
+  it("throws PRECONDITION_FAILED when summaryHasData is false", () => {
+    const c = code(readFileSync(resolve(APP, "server/routers/statenourMetrics.ts"), "utf8"));
+    expect(c).toMatch(/if \(!report\.summaryHasData\) \{\s*throw new TRPCError\(\{\s*code: "PRECONDITION_FAILED"/);
   });
 });

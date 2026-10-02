@@ -92,7 +92,7 @@ export function PatternCard() {
           onClick={regenerate}
           disabled={refreshing}
           aria-label="regenerate patterns"
-          className="text-[11px] font-mono text-[var(--text-tertiary)] hover:text-fg focus-visible:ring-1 focus-visible:ring-accent focus-visible:outline-none rounded px-1 transition-colors flex items-center gap-1"
+          className="text-[11px] font-mono text-[var(--text-tertiary)] hover:text-fg focus-visible:ring-1 focus-visible:ring-accent focus-visible:outline-none rounded-control px-1 transition-colors flex items-center gap-1"
         >
           <RefreshCw size={10} className={refreshing ? "animate-spin" : ""} />
           regen
@@ -102,7 +102,7 @@ export function PatternCard() {
         {patterns.map((p) => (
           <li
             key={p.axis}
-            className="rounded-md border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.04] p-3 space-y-1.5"
+            className="rounded-control border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.04] p-3 space-y-1.5"
           >
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[11px] font-mono text-fg-secondary">

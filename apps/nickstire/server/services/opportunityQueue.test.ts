@@ -39,7 +39,8 @@ describe("state machine · roadmap Wave-4 vocabulary", () => {
    * `dismissed` says only what is true: a human looked and judged it not
    * actionable. Its neutrality is asserted in server/neutralDismissal.test.ts.
    *
-   * `duplicate` remains in the vocabulary and remains unwritten by any code.
+   * `duplicate` remains in the vocabulary; since 2026-10-02 the missed-call
+   * reconciler (step 3a) writes it — see server/opportunityMissedCallClosure.test.ts.
    */
   it("uses exactly the roadmap's 12 states, plus `dismissed`", () => {
     expect([...OPPORTUNITY_STATES].sort()).toEqual([

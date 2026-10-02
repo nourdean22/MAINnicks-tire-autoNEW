@@ -409,7 +409,7 @@ export default function CameraArrivalsPage() {
                             {getDwellDisplay(dwell)}
                           </td>
                           <td className="p-3">
-              <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${getStateBadgeClass(state)}`}>
+              <span className={`px-2 py-0.5 rounded-micro text-[11px] font-semibold ${getStateBadgeClass(state)}`}>
                               {state}
                             </span>
                           </td>
@@ -420,30 +420,30 @@ export default function CameraArrivalsPage() {
                                   type="text"
                                   value={correctedPlateText}
                                   onChange={(e) => setCorrectedPlateText(e.target.value)}
-                                  className="w-24 rounded border border-edge-strong bg-canvas px-2 py-0.5 text-xs text-fg focus:outline-none font-mono"
+                                  className="w-24 rounded-control border border-edge-strong bg-canvas px-2 py-0.5 text-xs text-fg focus:outline-none font-mono"
                                 />
                                 <button
                                   onClick={() => handleSavePlate(e.id)}
-                                  className="rounded p-1 bg-emerald-600 hover:bg-emerald-500 text-fg"
+                                  className="rounded-control p-1 bg-emerald-600 hover:bg-emerald-500 text-fg"
                                 >
                                   <Check className="h-3 w-3" />
                                 </button>
                                 <button
                                   onClick={() => setEditingEventId(null)}
-                                  className="rounded p-1 bg-content hover:bg-surface-hover text-fg-secondary"
+                                  className="rounded-control p-1 bg-content hover:bg-surface-hover text-fg-secondary"
                                 >
                                   <X className="h-3 w-3" />
                                 </button>
                               </div>
                             ) : (
                               <div className="flex items-center gap-2">
-              <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${getPlateBadgeClass(plate.status)}`}>
+              <span className={`px-2 py-0.5 rounded-micro text-[11px] font-semibold ${getPlateBadgeClass(plate.status)}`}>
                                   {plate.text ? plate.text : plate.status}
                                 </span>
                                 {plate.status !== "NONE" && (
                                   <button
                                     onClick={() => handleStartEditPlate(e.id, plate.text || "")}
-                                    className="p-1 rounded text-fg-tertiary hover:text-fg hover:bg-surface-hover transition"
+                                    className="p-1 rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover transition"
                                     title="Edit plate"
                                   >
                                     <Edit3 className="h-3.5 w-3.5" />
@@ -464,7 +464,7 @@ export default function CameraArrivalsPage() {
                                   </button>
                                   <button
                                     onClick={() => handleUpdateStatus(e.id, "FALSE_POSITIVE")}
-                                    className="px-2.5 py-1.5 rounded border border-red-500/40 bg-red-500/5 hover:bg-red-500/10 text-red-400 font-medium text-[11px] transition"
+                                    className="px-2.5 py-1.5 rounded-control border border-red-500/40 bg-red-500/5 hover:bg-red-500/10 text-red-400 font-medium text-[11px] transition"
                                     title="Mark false positive"
                                   >
                                     False Alarm
@@ -474,7 +474,7 @@ export default function CameraArrivalsPage() {
                               {state === "ACKNOWLEDGED" && (
                                 <button
                                   onClick={() => handleUpdateStatus(e.id, "LEFT")}
-                                  className="px-2.5 py-1.5 rounded border border-edge-default bg-content hover:bg-surface-hover text-fg-secondary font-medium text-[11px] transition"
+                                  className="px-2.5 py-1.5 rounded-control border border-edge-default bg-content hover:bg-surface-hover text-fg-secondary font-medium text-[11px] transition"
                                 >
                                   Mark Departed
                                 </button>

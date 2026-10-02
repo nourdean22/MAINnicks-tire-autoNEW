@@ -104,7 +104,7 @@ export function KnowledgeActionOutcomes() {
 
   return (
     <div className="space-y-4">
-      <GlassCard className="p-5">
+      <GlassCard>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-sm font-semibold text-foreground">Approved actions awaiting reality</h2>
@@ -134,7 +134,7 @@ export function KnowledgeActionOutcomes() {
       />
 
       {data.items.map((item) => (
-        <GlassCard key={item.id} className="p-5">
+        <GlassCard key={item.id} className="">
           <div className="text-[12px] font-mono text-fg-tertiary">
             {item.metadata.sourceType ?? "unknown source"}
           </div>

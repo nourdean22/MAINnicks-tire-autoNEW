@@ -18,6 +18,8 @@
  * resolution loop shows this baseline failing.
  */
 import { queryNick } from "@/lib/nickstire/query";
+import { prisma } from "@/lib/prisma";
+import { recordOutcome } from "@/lib/services/outcome-ledger";
 
 export interface CashflowForecast {
   kind: "revenue_side_forecast";
@@ -144,4 +146,150 @@ export function forecastDigestLine(f: CashflowForecast): string {
     `$${f.projectedRevenue.low}–$${f.projectedRevenue.high} next week ` +
     `(mid $${f.projectedRevenue.mid}, confidence ${f.confidence}, data ${f.freshness}${gapNote}).`
   );
+}
+
+// ─── Resolution · score last week's forecast against actuals ────────────────
+//
+// 2026-10-02 · outcome-ledger census E5. Every weekly digest wrote a
+// `prediction` row and promised "the resolution loop can score it against
+// actuals"; no such loop existed, so every row stayed undecided and
+// outcome-null forever. Operator decision (a): a forecast is CORRECT when the
+// week's actual revenue lands inside its low–high band. Actuals come from the
+// same `revenue_range` bridge query the forecast was built from.
+
+export interface ForecastBand {
+  low: number;
+  high: number;
+}
+
+export interface ForecastResolution {
+  weekStart: string;
+  band: ForecastBand | null;
+  actual: number | null;
+  /** null when the row could not be scored; `reason` says why. */
+  hit: boolean | null;
+  reason?: string;
+}
+
+/** Band hit = actual inside [low, high], inclusive. Pure; exported for tests. */
+export function forecastBandHit(actual: number, band: ForecastBand): boolean {
+  return Number.isFinite(actual) && actual >= band.low && actual <= band.high;
+}
+
+/**
+ * Recover the band from a digest line written before `projectedRevenue` was
+ * stored on the row (`$800–$1200 next week`, en dash or hyphen). Null when the
+ * line is the UNAVAILABLE shape or carries no band.
+ */
+export function parseForecastBand(summary: string): ForecastBand | null {
+  const m = /\$(\d+)\s*[–-]\s*\$(\d+)/.exec(summary);
+  if (!m) return null;
+  const low = Number(m[1]);
+  const high = Number(m[2]);
+  if (!Number.isFinite(low) || !Number.isFinite(high) || high < low || high <= 0) return null;
+  return { low, high };
+}
+
+const WEEK_MS = 7 * 86_400_000;
+
+/**
+ * Score every unresolved cashflow-forecast row whose week has fully elapsed.
+ * Writes `outcomeUseful` (band hit) and `resultRef week:<start>:actual:<n>` on
+ * each scored row; a row whose actual the bridge cannot give is left untouched
+ * and reported with its reason — never scored as a miss. Bounded to `limit`
+ * rows per run so a long backlog drains over a few Sundays.
+ */
+export async function resolveForecastPredictions(
+  now = new Date(),
+  limit = 8,
+): Promise<ForecastResolution[]> {
+  // Only rows whose forecast week has fully elapsed, and never an UNAVAILABLE
+  // forecast — without both filters, the current week's row and every
+  // unscorable row would sit in the `limit` window forever and starve the
+  // rows that can be scored.
+  const rows = await prisma.intelligenceOutcome
+    .findMany({
+      where: {
+        kind: "prediction",
+        sourceEngine: "cashflow-forecast",
+        outcomeAt: null,
+        // 6 days, not 7: last Sunday's row was written seconds AFTER that run's
+        // `now`, so an exact 7-day bound excluded it every week unless this run
+        // started later (bug-hunt 2026-10-02). `weekEnd <= now` below still
+        // keeps a running week out.
+        shownAt: { lte: new Date(now.getTime() - 6 * 86_400_000) },
+        NOT: { summary: { contains: "UNAVAILABLE" } },
+      },
+      orderBy: { shownAt: "desc" },
+      take: limit,
+      select: { id: true, summary: true, evidenceRefs: true, shownAt: true },
+    })
+    .catch(() => []);
+
+  const out: ForecastResolution[] = [];
+  for (const row of rows) {
+    const ev = (row.evidenceRefs ?? {}) as {
+      weekStart?: unknown;
+      projectedRevenue?: { low?: unknown; high?: unknown } | null;
+    };
+    const weekStart = typeof ev.weekStart === "string" ? ev.weekStart : toDate(row.shownAt);
+    const weekEnd = new Date(new Date(`${weekStart}T00:00:00Z`).getTime() + WEEK_MS);
+    if (!(weekEnd.getTime() <= now.getTime())) continue; // week still running — not scorable yet
+
+    const stored = ev.projectedRevenue;
+    // A {0,0,0} band is what an empty projection stores; it is "no forecast",
+    // never a band that every positive actual misses.
+    const band: ForecastBand | null =
+      stored && typeof stored.low === "number" && typeof stored.high === "number" && stored.high > 0
+        ? { low: stored.low, high: stored.high }
+        : parseForecastBand(row.summary);
+    if (!band) {
+      out.push({ weekStart, band: null, actual: null, hit: null, reason: "no band on the row (forecast was UNAVAILABLE)" });
+      continue;
+    }
+
+    let actual: number | null = null;
+    try {
+      const r = (await queryNick("revenue_range", { from: weekStart, to: toDate(weekEnd) })) as
+        | { total?: number; totalRevenue?: number }
+        | null;
+      const total = r?.total ?? r?.totalRevenue;
+      if (typeof total === "number" && Number.isFinite(total)) actual = total;
+    } catch {
+      actual = null;
+    }
+    if (actual === null) {
+      out.push({ weekStart, band, actual: null, hit: null, reason: "actual unavailable (bridge gave no numeric total)" });
+      continue;
+    }
+
+    const hit = forecastBandHit(actual, band);
+    const written = await recordOutcome({
+      id: row.id,
+      useful: hit,
+      resultRef: `week:${weekStart}:actual:${Math.round(actual)}`,
+    });
+    out.push({
+      weekStart,
+      band,
+      actual,
+      hit,
+      ...(written ? {} : { reason: "outcome write did not land (row already resolved or write failed)" }),
+    });
+  }
+  return out;
+}
+
+/** One digest line for the most recent scored week; names the gap when nothing could be scored. */
+export function forecastResolutionLine(results: ForecastResolution[]): string {
+  if (results.length === 0) return "Last week's forecast: nothing to score yet (no elapsed, unscored forecast on the ledger).";
+  const scored = results.find((r) => r.hit !== null);
+  if (scored && scored.band && scored.actual !== null) {
+    return (
+      `Last week's forecast (week of ${scored.weekStart}): $${scored.band.low}–$${scored.band.high} · ` +
+      `actual $${Math.round(scored.actual)} · ${scored.hit ? "HIT" : "MISS"}.`
+    );
+  }
+  const first = results[0];
+  return `Last week's forecast (week of ${first.weekStart}): not scored — ${first.reason ?? "unknown reason"}.`;
 }

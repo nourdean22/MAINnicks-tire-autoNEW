@@ -177,7 +177,7 @@ export default function PhotoImproverPage() {
                 }}
                 className="min-h-[44px] px-2 text-[13px] font-medium text-fg-tertiary hover:text-fg"
               >
-                replace
+                Replace
               </button>
             </div>
           ) : (
@@ -221,7 +221,7 @@ export default function PhotoImproverPage() {
                         : "border-edge-default bg-content text-fg-tertiary hover:border-edge-strong hover:text-fg-secondary",
                     )}
                   >
-                    {m === "analyze" ? "analyze only" : m === "rebrand" ? "rebrand only" : "analyze + rebrand"}
+                    {m === "analyze" ? "analyze only" : m === "rebrand" ? "Rebrand only" : "Analyze + rebrand"}
                   </button>
                 ))}
               </div>
@@ -239,7 +239,7 @@ export default function PhotoImproverPage() {
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  {mode === "both" ? "analyzing + rebranding…" : mode === "rebrand" ? "rebranding…" : "analyzing…"}
+                  {mode === "both" ? "analyzing + rebranding…" : mode === "rebrand" ? "Rebranding…" : "Analyzing…"}
                 </span>
               ) : (
                 <span className="flex items-center justify-center gap-2">

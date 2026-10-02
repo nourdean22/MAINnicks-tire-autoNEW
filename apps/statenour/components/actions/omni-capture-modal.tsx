@@ -180,7 +180,7 @@ export function OmniCaptureModal({
               disabled={!text.trim() || submitting}
               className="inline-flex min-h-11 items-center gap-1.5 rounded-control bg-accent px-4 py-1.5 text-[14px] font-semibold text-[var(--text-inverse)] hover:bg-accent-hover disabled:opacity-40 disabled:hover:bg-accent transition-colors duration-[var(--motion-state)]"
             >
-              {submitting ? "capturing…" : "capture"}
+              {submitting ? "Capturing…" : "Capture"}
             </button>
           </div>
         </form>

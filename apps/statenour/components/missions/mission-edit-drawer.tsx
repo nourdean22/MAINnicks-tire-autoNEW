@@ -180,7 +180,7 @@ function MissionEditDrawerBody({
               {isCreate ? "new mission" : "edit mission"}
             </p>
             <DialogTitle className="mt-0.5 truncate text-[15px] font-semibold text-fg">
-              {isCreate ? "create" : initial?.title ?? "edit"}
+              {isCreate ? "Create" : initial?.title ?? "Edit"}
             </DialogTitle>
           </div>
           <button
@@ -263,7 +263,7 @@ function MissionEditDrawerBody({
               className="inline-flex min-h-11 items-center gap-1.5 px-2 text-[13px] font-medium text-rose-300/80 transition-colors duration-[var(--motion-state)] hover:text-rose-300 disabled:opacity-50"
             >
               <Trash2 size={11} strokeWidth={1.75} />
-              delete
+              Delete
             </button>
           )}
           <button
@@ -272,7 +272,7 @@ function MissionEditDrawerBody({
             disabled={submitting}
             className="ml-auto min-h-11 px-2 text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg disabled:opacity-50"
           >
-            cancel
+            Cancel
           </button>
           <button
             type="button"
@@ -284,7 +284,7 @@ function MissionEditDrawerBody({
             )}
           >
             {submitting && <Loader2 size={12} className="animate-spin" strokeWidth={2} />}
-            {isCreate ? "create" : "save"}
+            {isCreate ? "Create" : "Save"}
           </button>
         </footer>
         {/* iOS-PWA-safe confirm mount · renders null when idle. */}

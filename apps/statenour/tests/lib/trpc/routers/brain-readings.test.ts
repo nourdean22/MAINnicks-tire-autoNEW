@@ -51,6 +51,7 @@ vi.mock("@/lib/brain/learning-velocity", () => ({
 }));
 
 import { appRouter } from "@/lib/trpc/root";
+import { IDENTITY_DELTA_MAX_AGE_MS } from "@/lib/trpc/routers/brain";
 
 type Caller = ReturnType<typeof appRouter.createCaller>;
 
@@ -193,14 +194,26 @@ describe("brain.identityDelta · a failed read is not a missing delta", () => {
   it("PLANTED POSITIVE · a real delta comes back mapped", async () => {
     // Without this, a procedure returning null unconditionally would satisfy
     // both null tests above while deleting the reading entirely.
+    // Fresh row: the 2026-10-02 age guard nulls anything older than 48h.
     mocks.identitySnapshotFindFirst.mockResolvedValue({
       deltaFromLast: "focus up, tempo down",
-      createdAt: new Date("2026-09-01T12:00:00Z"),
+      createdAt: new Date(Date.now() - 60 * 60 * 1000),
       date: "2026-09-01",
     });
     await expect(operatorCaller(DEAD_DB).brain.identityDelta()).resolves.toMatchObject({
       delta: "focus up, tempo down",
       date: "2026-09-01",
     });
+  });
+
+  it("a delta older than IDENTITY_DELTA_MAX_AGE_MS is not today's change", async () => {
+    // 2026-10-02 connection census: the writer froze on 2026-05-28 and the
+    // panel kept labelling the May delta "yesterday -> today".
+    mocks.identitySnapshotFindFirst.mockResolvedValue({
+      deltaFromLast: "focus up, tempo down",
+      createdAt: new Date(Date.now() - IDENTITY_DELTA_MAX_AGE_MS - 60_000),
+      date: "2026-05-28",
+    });
+    await expect(operatorCaller(DEAD_DB).brain.identityDelta()).resolves.toBeNull();
   });
 });

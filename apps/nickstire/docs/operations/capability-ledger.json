@@ -3341,6 +3341,85 @@
         "Post-merge SMS sample review and outcome measurement; the committed audit contains aggregates only, not raw customer PII or full transcripts."
       ],
       "lastVerifiedAt": "2026-10-01"
+    },
+    {
+      "capabilityId": "admin-closure-wave-20261002",
+      "name": "Admin queues close their loops: stale SMS review drafts expire/supersede, missed calls close on service and collapse per phone, Nick's draft proposals are capture-aware, open callbacks show served evidence, parents cannot be green over broken cameras",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "deployed",
+      "exposure": "internal",
+      "evidence": {
+        "deploymentId": "Railway deployment 5c5eec0d-6745-4a53-8966-efc88ec5b606 (main auto-deploy of #2885 squash d5838402, SUCCESS 2026-10-02T15:49Z)",
+        "codeCommit": "PR #2885 branch claude/happy-maxwell-cp2gox: orchestrationStatusReconcile.reconcileStaleHumanReviewDrafts (+ CAS-guarded actionHumanReview, obligation linkage in resolveHumanPendingForConversation); opportunityQueue reconcile step 3a + collectMissedCalls collapse; vapiActionExtraction capture-aware gate + scheduleCallback trail link; callbackServedEvidence bundle slice; shared/cameraFleetHealth in Settings Status + Lot header; Market GSC source label; Traffic Funnel web-only weighted position. Truth-pass corrections: docs/operations/ADMIN-TRUTH-PASS-2026-10-02.md.",
+        "tests": [
+          "server/__tests__/smsDraftClosure.test.ts (16): every reconciler rule + precedence + CAS SQL, lost race, stale-send refusal, claim-before-send, obligation closure; mutation-proven (4 plants)",
+          "server/opportunityMissedCallClosure.test.ts (13): served by callback/invoice->won, keep-newest collapse, evidence before the call never closes, worked rows never collapse; mutation-proven (4 plants)",
+          "server/services/vapiActionExtraction.test.ts + server/voiceLeadLinkage.test.ts (49): already-captured call -> no extraction, owned kinds dropped, prompt states today, past dates dropped, scheduleCallback records callbackId",
+          "server/services/callbackServedEvidence.test.ts (5): invoice beats booking, read-only, cached, failed read throws (never an empty 'nobody served' map)",
+          "shared/cameraFleetHealth.test.ts (6) + client/src/__tests__/gateway-unknown-readers-q23.test.tsx (camera arms): the 2026-10-02 production shape is DEGRADED; unreadable is UNKNOWN; offline camera blocks 'All clear'",
+          "server/gscAggregationSemantics.test.ts F5: funnel web-only and impression-weighted",
+          "server/services/invoiceReviewRequests.test.ts (8) + ros083ReviewQueue cron arms + postInvoiceFollowUp cross-lane dedupe (mutation-proven); server/migrationListGuards.test.ts re-asserted ENUMs == schema.ts (mutation-proven)"
+        ],
+        "liveRuns": [
+          "PR #2885 squash d5838402 deployed: Railway deployment 5c5eec0d SUCCESS, server:ready 2026-10-02T15:49:15Z, /api/health healthy with deploy.commit d5838402",
+          "Admin -> Apply built-in migrations on the d5838402 container at 2026-10-02T15:53:21Z: 176 steps checked, 41 already in place, none failed (audit trail 'Operator ran DB migrations')",
+          "cron_log orchestration-status-reconcile 2026-10-02T16:04:17Z: drafts closed 366 (obligation_closed 52, superseded 7, expired 307, left open 0); later runs 0",
+          "cron_log review-requests 2026-10-02T17:13:18Z: invoice rows created 8 of 8 (cooldown 0, dup 0) — first invoice-sourced review rows",
+          "feature_flags read live 2026-10-02: sms_review_requests on; contact_holdouts_enabled + 5 contact_holdout_* lanes ARMED 17:25:10Z on operator instruction (server log 'Feature flag toggled' x6, read back true)"
+        ],
+        "databaseAssertions": [
+          "record-migrations.mjs dry run (railway run, prod TiDB fingerprint 9486234786e5): 0127-0130, 0132, 0133, 0136-0139 all UNRECORDED_BUT_EXACT_MATCH, i.e. the live schema matches each file exactly",
+          "record-migrations.mjs --execute: ledger backup __drizzle_migrations_bak_20261002_record (144 rows), 10 rows inserted, every hash read back, exit 0",
+          "reconcile-migrations.mjs --strict: exit 0, no blocking drift; 153 files / 154 recorded / 125 RECORDED_AND_MATCHED / 0 UNRECORDED (28 pre-existing advisory mismatches, not gated)"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Merged and deployed (d5838402); migrations applied and recorded; drafts closed 366 and 8 invoice review rows observed in cron_log. Still unobserved: opportunity-queue-refresh details 'collapsed' (once per shop day; first run on the new code is the next shop day)."
+        }
+      ],
+      "deferredScope": [
+        "convertedToLead=0 gate on missed-call recovery texts excludes ~101 calls/week that persisted nothing: widening it is a customer-contact decision (operator: on hold)."
+      ],
+      "verificationExpiresAt": "2026-10-16",
+      "lastVerifiedAt": "2026-10-02"
+    },
+    {
+      "capabilityId": "office-visual-watch-20261002",
+      "name": "Office camera watches as well as listens: still frames per counter-conversation episode, described by a vision model, stored as a 'Saw:' line beside the transcript summary",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "PR #2898 branch nickstire/office-visual-watch: camera-bridge vision/officeframes.py (FrameSampler over the Eufy bridge /snapshot route, per-segment frame selection) + officewake wiring (on by default, OFFICE_VISUAL_ENABLED=0 opts out); nickstire services/officeVisual.ts (Ollama Cloud then Gemini, FAILED stored), vision-analyzer describeImagesOpenAiCompatible, /api/conversation-episodes frames[] + separate visual UPDATE, drizzle/0140 + runner statement, lot.conversations + LotSection 'Saw:' line. NicksMax supervisor restarts the office worker when its code changes.",
+        "tests": [
+          "server/services/officeVisual.test.ts (10): fenced/prose JSON, no-summary is FAILED, Ollama->Gemini fallback, no-key FAILED without a call, frame cap, readiness cache positive/negative TTL, failed check reads not-ready; mutation-checked",
+          "server/routes/conversationRoutes.test.ts (+6): no frames = unchanged path; pre-0140 frames accepted but not analyzed and only the main INSERT runs; post-0140 only the description is written and raw frame bytes never reach the DB; FAILED stored; OFFICE_VISUAL_ANALYSIS=0; frame cap + size cap -> 400; readiness bypass mutation turns red",
+          "camera-bridge vision/tests/test_officeframes.py (8) + test_officewake.py (+3): snapshot URL, sampler misses/closing frame/max, per-segment selection + thinning, OpenCV 1280->640 downscale, each episode carries its own frames, 120s post timeout with frames, capture failure stops the sampler; per-segment selection mutation turns red"
+        ],
+        "liveRuns": "Pre-merge on NicksMax 2026-10-02: Eufy bridge /snapshot/T8410P5225154105 returned 200 image/jpeg 201,063 bytes; the supervisor's code-change rule restarted the office worker once at 14:16:15 ET and the worker reported CAPTURING with a fresh heartbeat."
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "Migration 0140 (conversation_episodes.visual JSON NULL) is not applied: until Admin -> Run migrations runs it, frames are accepted and dropped unanalyzed (visualStatus NOT_STORED_VISUAL_COLUMN_UNAVAILABLE).",
+          "source": "2026-10-02 office watch"
+        },
+        {
+          "severity": "P2",
+          "description": "No production episode has carried frames through the vision model yet; the first visualStatus DONE reply and a 'Saw:' line in Admin -> Lot are the live confirmation.",
+          "source": "2026-10-02 office watch"
+        }
+      ],
+      "deferredScope": [
+        "self-learning: operator-confirmed hard cases and threshold tuning (next PR)",
+        "on-box person detection: no person model is fetched on NicksMax (fetch_models.py has vehicle-detection-0200 only)",
+        "feeding the visual description into fact extraction (stored side by side for now)"
+      ],
+      "lastVerifiedAt": "2026-10-02"
     }
   ],
   "axes": {

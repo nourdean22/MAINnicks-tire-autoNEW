@@ -53,9 +53,10 @@ export function OperatingRhythmToggle() {
     // service merges what it receives over AUTOPILOT_DEFAULTS (not over
     // the stored row), so a single-key payload would reset every other
     // stored flag back to its default. Spreading the live map first keeps
-    // every other stored value untouched and flips only this flag. (None
-    // of the other keys drive a worker today — this is belt-and-braces so
-    // the write can never have a surprise side effect.)
+    // every other stored value untouched and flips only this flag. (Since
+    // 2026-10-02 this is the only key the service keeps — the nine dead
+    // auto_* keys are dropped server-side — so the spread is belt-and-braces
+    // for any key added later.)
     const map = { ...(query.data?.flags ?? {}), [FLAG_KEY]: next };
     setFlags.mutate(
       { flags: map },

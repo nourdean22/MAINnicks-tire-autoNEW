@@ -58,6 +58,7 @@ import { isUserProject } from "@/lib/services/mission-helpers";
 import type { Task } from "@/components/actions/shared";
 import { useCustomDomains } from "@/hooks/use-custom-domains";
 
+import { trpc } from "@/lib/trpc/client";
 import { useMissionsData } from "./hooks/use-missions-data";
 import { useMissionFilters } from "./hooks/use-mission-filters";
 import { useExecutionFocus } from "./hooks/use-execution-focus";
@@ -125,24 +126,44 @@ function MissionsPageInner() {
     deck?.nextMove?.task.id ?? null,
   );
 
+  // 2026-10-02 · the deck's pick is a ledgered recommendation (lib/missions/
+  // deck.ts ledgerNextMoveShown). Starting the hero is `accepted`; picking an
+  // alternate is `dismissed`. Fire-and-forget beside the action — the 2-week
+  // client telemetry below stays as the surface-usage instrument; this is the
+  // durable learning row (docs/design/outcome-ledger-coverage-2026-10-02.md §5).
+  const decideRecommendation = trpc.operator.recordRecommendationDecision.useMutation();
+  const recordDeckDecision = useCallback(
+    (decision: "accepted" | "dismissed", taskId: string | null) => {
+      const ledgerId = deck?.nextMove?.ledgerId;
+      if (!ledgerId) return;
+      decideRecommendation.mutate({ ledgerId, decision, ...(taskId ? { resultRef: `task:${taskId}` } : {}) });
+    },
+    [deck?.nextMove?.ledgerId, decideRecommendation],
+  );
+
   const handleStartMove = useCallback(
     async (taskId: string) => {
       telemetry.event("deckStartMove", { taskId });
+      if (taskId === deck?.nextMove?.task.id) recordDeckDecision("accepted", taskId);
       setQueuedTaskId(taskId);
       await actions.handleStartTask(taskId);
       setExecutionModeActive(true);
     },
-    [actions, setQueuedTaskId, setExecutionModeActive, telemetry],
+    [actions, setQueuedTaskId, setExecutionModeActive, telemetry, deck?.nextMove?.task.id, recordDeckDecision],
   );
 
   const handlePickDifferent = useCallback(
     (taskId: string) => {
       telemetry.event("deckPickDifferent", { taskId });
+      // No resultRef on a dismissal: `task:<alt>` on the HERO's row let the
+      // alternate's completion rating close the dismissed recommendation as
+      // useful (recordOutcomeByResultRef matches resultRef alone).
+      recordDeckDecision("dismissed", null);
       setQueuedTaskId(taskId);
       const alt = tasks.find((t) => t.id === taskId);
       toast.success(`“${alt?.title ?? "Task"}” is the move — start when ready.`);
     },
-    [tasks, setQueuedTaskId, telemetry],
+    [tasks, setQueuedTaskId, telemetry, recordDeckDecision],
   );
 
   const handleUnblock = useCallback(
@@ -476,10 +497,10 @@ function MissionsPageSkeleton() {
   // layout visibly jump on hydrate.
   return (
     <div className="mx-auto w-full max-w-5xl space-y-3">
-      <ShimmerSkeleton className="h-12 rounded-lg" />
+      <ShimmerSkeleton className="h-12 rounded-surface" />
       <ShimmerSkeleton className="h-40 rounded-surface" />
-      <ShimmerSkeleton className="h-24 rounded-lg" />
-      <ShimmerSkeleton className="h-24 rounded-lg" />
+      <ShimmerSkeleton className="h-24 rounded-surface" />
+      <ShimmerSkeleton className="h-24 rounded-surface" />
     </div>
   );
 }

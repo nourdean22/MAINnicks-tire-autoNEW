@@ -247,7 +247,7 @@ export default function PowerPlaysModal({
         className="w-full"
         onClick={() => setOpen(true)}
       >
-        power plays
+        Power plays
       </Button>
       <Dialog
         open={open}

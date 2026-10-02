@@ -328,26 +328,6 @@ button:active, [role="button"]:active {
    Intentionally subtler than the loud pulse-live — continuous,
    slow breath so the brain registers 'this is alive and bad'
    without being annoying. */
-/* v10.0.468 · critical-glow · box-shadow → opacity-on-pseudo. */
-@keyframes critical-glow {
-  0%, 100% { opacity: 0.5; }
-  50%      { opacity: 1; }
-}
-.critical-glow {
-  position: relative;
-  isolation: isolate;
-}
-.critical-glow::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.45), 0 0 28px rgba(239, 68, 68, 0.22);
-  z-index: -1;
-  animation: critical-glow 3s ease-in-out infinite;
-}
-
 /* Stagger-in — section children fade up with a small delay cascade.
    Attach to each child with an inline style delay: 0ms, 60ms,
    120ms, etc.
@@ -447,6 +427,11 @@ button:active, [role="button"]:active {
    Multi-layered glass with reactive neon accents
    ═══════════════════════════════════════════════════════ */
 
+/* @layer components ON PURPOSE (PR 4, 2026-10-02): unlayered, these rules beat every Tailwind utility a
+   consumer passes through className — `border-l-[3px] border-l-sky-500/40`, `bg-rose-500/5` on an
+   error card, `hover:bg-surface-hover` — so eight GlassCard call sites were asking for tints that never
+   painted. Layered (components < utilities), the class carries the defaults and the caller wins. */
+@layer components {
 /* The canonical card (GlassCard · 43 importers). UI v2: a SOLID content surface with a hairline —
    no gradient, no gold edge, no gold top line, no glow. State colours it (-active / -critical). */
 .neural-glass {
@@ -487,10 +472,10 @@ button:active, [role="button"]:active {
   border-color: rgba(253, 185, 19, 0.25);
 }
 
-/* Critical neural alert — red neon edge */
+/* Critical card: the red edge, no glow (SYSTEM.md §13 · no permanent glow). */
 .neural-glass-critical {
   border-color: rgba(239, 68, 68, 0.3);
-  box-shadow: 0 0 30px rgba(239, 68, 68, 0.08), inset 0 0 20px rgba(239, 68, 68, 0.02);
+}
 }
 
 /* Neural pulse — breathing neon glow */

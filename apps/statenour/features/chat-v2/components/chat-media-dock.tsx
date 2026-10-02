@@ -54,20 +54,20 @@ export function ChatMediaDock() {
   return (
     <section
       aria-label={`Media player — ${item.title}`}
-      className="relative z-10 border-t border-edge bg-void/95 backdrop-blur-xl"
+      className="ui-material relative z-10 border-t border-edge-subtle"
     >
       <div className="flex items-center gap-2 px-3 pt-2 sm:px-4">
         <div className="min-w-0 flex-1">
           <div className="truncate text-[11px] text-fg-secondary">{item.title}</div>
           {queue.length > 0 ? (
-            <div className="text-[9px] text-fg-tertiary">{queue.length} queued</div>
+            <div className="text-[11px] text-fg-tertiary">{queue.length} queued</div>
           ) : null}
         </div>
 
         {queue.length > 0 ? (
           <button
             onClick={playNext}
-            className="flex h-12 w-12 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:text-fg"
+            className="flex h-12 w-12 items-center justify-center rounded-control text-fg-tertiary transition-colors hover:text-fg"
             aria-label="Play next in queue"
             title="Next"
           >
@@ -83,7 +83,7 @@ export function ChatMediaDock() {
             answer and this control simply does not exist there. */}
         <button
           onClick={() => setFocused(true)}
-          className="hidden h-12 w-12 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:text-fg md:flex"
+          className="hidden h-12 w-12 items-center justify-center rounded-control text-fg-tertiary transition-colors hover:text-fg md:flex"
           aria-label="Open in the focus panel"
           title="Focus panel"
         >
@@ -93,7 +93,7 @@ export function ChatMediaDock() {
         {isVideo ? (
           <button
             onClick={toggleExpanded}
-            className="flex h-12 w-12 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:text-fg"
+            className="flex h-12 w-12 items-center justify-center rounded-control text-fg-tertiary transition-colors hover:text-fg"
             aria-label={expanded ? "Collapse player" : "Expand player"}
             aria-expanded={expanded}
             title={expanded ? "Collapse" : "Expand"}
@@ -104,7 +104,7 @@ export function ChatMediaDock() {
 
         <button
           onClick={close}
-          className="flex h-12 w-12 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:text-red-400"
+          className="flex h-12 w-12 items-center justify-center rounded-control text-fg-tertiary transition-colors hover:text-red-400"
           aria-label="Close player"
           title="Close"
         >
@@ -114,7 +114,7 @@ export function ChatMediaDock() {
 
       <div className="px-3 pb-2 sm:px-4">
         <MediaPlayerSurface
-          className={`w-full rounded-lg border border-glass bg-black transition-[max-height] duration-200 ${
+          className={`w-full rounded-surface border border-edge-subtle bg-black transition-[max-height] duration-200 ${
             expanded ? "max-h-[60vh]" : "max-h-40"
           }`}
         />

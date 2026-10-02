@@ -29,6 +29,7 @@ import { isGeneralAnchor, isUserProject } from "@/lib/services/mission-helpers";
 import { buildTaskRescue } from "@/lib/services/task-rescue";
 import { getLatestGovernorDecision } from "@/lib/health-governor/health-governor-guardrails";
 import { startOfDayET, toDateString } from "@/lib/utils/datetime";
+import { recordShownBounded } from "@/lib/services/outcome-ledger";
 
 export const EFFORT_MINUTES: Record<string, number> = {
   M5: 5,
@@ -76,6 +77,13 @@ export type DeckNextMove = {
   resumeRecord: ResumeRecord | null;
   /** When the hero was parked (ISO) — the reader weighs freshness before acting. */
   parkedAt: string | null;
+  /**
+   * The IntelligenceOutcome row this pick was ledgered as (2026-10-02), so
+   * Start / "pick different" can record a decision against it and the task's
+   * completion rating can close it (resultRef task:<id>). Null when the
+   * bounded ledger write did not answer in time — nothing is recorded then.
+   */
+  ledgerId: string | null;
 } | null;
 
 export type DeckTriageRow = {
@@ -149,6 +157,20 @@ export type MissionsDeck = {
 };
 
 const DAY_MS = 86_400_000;
+
+export function nextMoveLedgerSummary(move: { kind: "resume" | "start"; task: { title: string } }): string {
+  return `${move.kind === "resume" ? "resume" : "next move"}: ${move.task.title}`;
+}
+
+async function ledgerNextMoveShown(move: NonNullable<DeckNextMove>): Promise<string | null> {
+  return recordShownBounded({
+    kind: "suggestion",
+    sourceEngine: `missions-deck:${move.kind}`,
+    summary: nextMoveLedgerSummary(move),
+    shownSurface: "missions",
+    evidenceRefs: { taskId: move.task.id, missionId: move.task.missionId, score: move.task.score },
+  });
+}
 
 function daysBetween(from: Date | string | null | undefined, now: Date): number | null {
   if (!from) return null;
@@ -307,8 +329,14 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
         resumeNote,
         resumeRecord,
         parkedAt,
+        ledgerId: null,
       }
     : null;
+  // 2026-10-02 · the pick is a recommendation the operator is SHOWN; the deck
+  // used to record it only in 2-week client telemetry
+  // (docs/design/outcome-ledger-coverage-2026-10-02.md §5). The summary is
+  // prefixed so it never collides with the verbatim-title bridge Discover uses.
+  if (nextMove) nextMove.ledgerId = await ledgerNextMoveShown(nextMove);
 
   // ── capacity — the chosen set, honestly summed (§10.3) ─────────────
   const dueToday = (t: ScoredTask) =>

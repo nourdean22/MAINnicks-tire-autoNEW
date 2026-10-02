@@ -35,8 +35,8 @@ export function WiringCensusPanel() {
   if (censusQ.isLoading) {
     return (
       <section aria-label="wiring-census" className="rounded-surface border border-edge-subtle p-4 space-y-2">
-              <div className="h-3 w-40 rounded bg-surface-interactive animate-pulse" />
-        <div className="h-20 rounded bg-surface-interactive animate-pulse" />
+              <div className="h-3 w-40 rounded-micro bg-surface-interactive animate-pulse" />
+        <div className="h-20 rounded-micro bg-surface-interactive animate-pulse" />
       </section>
     );
   }
@@ -78,7 +78,7 @@ export function WiringCensusPanel() {
             return (
               <li
                 key={`${lane.laneClass}:${lane.id}`}
-                className="flex items-start gap-2 p-2 rounded bg-surface-interactive border border-edge-subtle"
+                className="flex items-start gap-2 p-2 rounded-micro bg-surface-interactive border border-edge-subtle"
               >
                 <span aria-hidden className={cn("mt-1.5 inline-block h-1.5 w-1.5 rounded-full shrink-0", s.dot)} />
                 <div className="min-w-0 flex-1">
@@ -87,7 +87,7 @@ export function WiringCensusPanel() {
                     <span className={cn("font-mono text-[11px]", s.text)}>
                       {lane.status}
                     </span>
-                    <span className="text-[11px] font-mono text-fg-tertiary border border-edge-subtle rounded px-1 py-px">
+                    <span className="text-[11px] font-mono text-fg-tertiary border border-edge-subtle rounded-micro px-1 py-px">
                       {lane.laneClass}
                     </span>
                   </div>

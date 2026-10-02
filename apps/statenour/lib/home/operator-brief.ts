@@ -48,6 +48,7 @@ import { isApprovalRequestExpired } from "@/lib/automation/approval-freshness";
 import { loadRecentContradictions } from "@/lib/brain/contradiction-surfacer";
 import { listProposed } from "@/lib/services/commitments";
 import { getMit } from "@/lib/services/mit";
+import { recordShownBounded } from "@/lib/services/outcome-ledger";
 import { HABIT_LOOPS } from "@/lib/scoring/task-priority";
 
 // ── Contracts ───────────────────────────────────────────────────────────
@@ -87,6 +88,13 @@ export interface BriefLeadSection {
   cta: { label: string; href: string } | null;
   /** Deep-link id when the lead is a concrete task. */
   taskId: string | null;
+  /**
+   * The IntelligenceOutcome row this lead was ledgered as (2026-10-02), so the
+   * CTA and "different move" can record a decision against it. Null when the
+   * lead is not a recommendation (kind "error", no CTA) or the bounded ledger
+   * write did not answer in time — then nothing is recorded, honestly.
+   */
+  ledgerId: string | null;
   /** ≤ 2 quiet alternatives — real ranked candidates, never filler. */
   alternatives: BriefAlternative[];
   /** "Why this?" — the receipts. Real strings from the scorer/arms only. */
@@ -370,6 +378,10 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
     nextMove,
     pendingDecisions,
   });
+  // 2026-10-02 · the lead is a recommendation the operator is SHOWN; without
+  // this row Home was the highest-frequency surface recording nothing in the
+  // outcome ledger (docs/design/outcome-ledger-coverage-2026-10-02.md §5).
+  lead.ledgerId = await ledgerLeadShown(lead);
 
   // ── Judgment queue ────────────────────────────────────────────────────
 
@@ -510,6 +522,27 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
 
 // ── Lead mapping ────────────────────────────────────────────────────────
 
+/**
+ * Ledger what the lead recommends. The summary pairs the headline with the CTA
+ * label because headlines repeat day to day ("Finish what's in motion") while
+ * the task behind them changes — the 24 h content dedup must see the task.
+ * Not a recommendation: an unreadable board ("error") or a lead with no CTA.
+ */
+export function leadLedgerSummary(lead: Pick<BriefLeadSection, "headline" | "cta">): string {
+  return lead.cta ? `${lead.headline}: ${lead.cta.label}` : lead.headline;
+}
+
+async function ledgerLeadShown(lead: BriefLeadSection): Promise<string | null> {
+  if (lead.kind === "error" || !lead.cta) return null;
+  return recordShownBounded({
+    kind: "suggestion",
+    sourceEngine: `operator-brief:${lead.kind}`,
+    summary: leadLedgerSummary(lead),
+    shownSurface: "home",
+    evidenceRefs: { taskId: lead.taskId, href: lead.cta.href, kind: lead.kind },
+  });
+}
+
 function mapLead(
   b: Briefing,
   ctx: {
@@ -546,6 +579,7 @@ function mapLead(
         body: b.message,
         cta: { label: "Open system", href: "/system" },
         taskId: null,
+        ledgerId: null,
         alternatives: [],
         reasoning: ["One or more core reads failed — the chain refuses to recommend off an unreadable board."],
       };
@@ -561,6 +595,7 @@ function mapLead(
           body: b.message,
           cta: { label: `Continue · ${t.title}`, href: `/missions#task-${t.id}` },
           taskId: t.id,
+          ledgerId: null,
           alternatives: altFromCritical(t.title, 2),
           reasoning,
         };
@@ -574,6 +609,7 @@ function mapLead(
           body: b.message,
           cta: { label: "Start", href: `/missions#task-${top.id}` },
           taskId: top.id,
+          ledgerId: null,
           alternatives: altFromCritical(top.title, 2),
           reasoning,
         };
@@ -584,6 +620,7 @@ function mapLead(
         body: b.message,
         cta: { label: "Open missions", href: "/missions" },
         taskId: null,
+        ledgerId: null,
         alternatives: [],
         reasoning,
       };
@@ -601,6 +638,7 @@ function mapLead(
           ? { label: `Resume · ${t.title}`, href: `/missions#task-${t.id}` }
           : { label: "Open missions", href: "/missions" },
         taskId: t?.id ?? null,
+        ledgerId: null,
         alternatives: altFromCritical(t?.title ?? null, 2),
         reasoning,
       };
@@ -615,6 +653,7 @@ function mapLead(
         body: b.message,
         cta: { label: "Review approvals", href: "/system/actions" },
         taskId: null,
+        ledgerId: null,
         alternatives: altFromCritical(null, 1),
         reasoning,
       };
@@ -626,6 +665,7 @@ function mapLead(
         body: b.message,
         cta: { label: "Open missions", href: "/missions" },
         taskId: null,
+        ledgerId: null,
         alternatives: altFromCritical(null, 1),
         reasoning,
       };
@@ -637,6 +677,7 @@ function mapLead(
         body: b.message,
         cta: { label: "Triage inbox", href: "/missions" },
         taskId: null,
+        ledgerId: null,
         alternatives: altFromCritical(null, 1),
         reasoning,
       };
@@ -650,6 +691,7 @@ function mapLead(
         body: b.message,
         cta: { label: "Open missions", href: "/missions" },
         taskId: null,
+        ledgerId: null,
         alternatives: s.slice(0, 2).map((x) => ({
           label: x.title,
           why: x.reason,
@@ -777,7 +819,7 @@ function buildHorizon(i: {
 /** Pure internals pinned by tests/home/operator-brief.test.ts — the house
  *  precedent (operator-state.ts __testInternals): decisions you cannot
  *  import without side effects are decisions you cannot canary. */
-export const __testInternals = { mapLead, composeStateSummary, buildHorizon, startOfEtDay };
+export const __testInternals = { mapLead, composeStateSummary, buildHorizon, startOfEtDay, ledgerLeadShown };
 
 function firstCalendarEventToday(
   rows: Array<{ content: string; metadata: unknown }>,

@@ -108,7 +108,7 @@ function QueueRow({
                   onRedrive();
                 }}
                 disabled={redriving}
-                className={`rounded px-2 py-0.5 text-[11px] border ${
+                className={`rounded-micro px-2 py-0.5 text-[11px] border ${
                   armed
                     ? "border-red-400 text-red-300"
                     : "border-edge-default text-fg-secondary"
@@ -182,7 +182,7 @@ export default function FleetPage() {
 
       {loading && (
         <Panel>
-          <div className="h-4 w-48 rounded bg-surface-interactive animate-pulse" />
+          <div className="h-4 w-48 rounded-micro bg-surface-interactive animate-pulse" />
         </Panel>
       )}
 
@@ -192,7 +192,7 @@ export default function FleetPage() {
             Fleet truth couldn&apos;t load ({error}) — state UNKNOWN, not healthy.
           </p>
           <button onClick={() => void load()} className="mt-2 text-[12px] text-fg-secondary underline">
-            retry
+            Retry
           </button>
         </Panel>
       )}
@@ -255,20 +255,39 @@ export default function FleetPage() {
               delivery — shown vs acknowledged (7d)
             </p>
             {delivery.isLoading ? (
-              <div className="h-4 w-40 rounded bg-surface-interactive animate-pulse" />
+              <div className="h-4 w-40 rounded-micro bg-surface-interactive animate-pulse" />
             ) : delivery.isError || !delivery.data?.stats ? (
               <p className="text-[12px] text-fg-secondary">
                 ledger unreadable — state UNKNOWN, not healthy
               </p>
             ) : (
               <>
-                <div className="flex items-center gap-4 text-[12px] tabular-nums py-1">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] tabular-nums py-1">
                   <span className="text-fg-secondary/70">{delivery.data.stats.shown} shown</span>
                   <span className="text-fg-secondary/70">{delivery.data.stats.decided} decided</span>
                   <span className="text-emerald-300">{delivery.data.stats.accepted} accepted</span>
                   <span className="text-amber-300">{delivery.data.stats.dismissed} dismissed</span>
                   <span className="text-fg-secondary">{delivery.data.stats.undecided} undecided</span>
+                  <span
+                    className="text-fg-secondary"
+                    title="decision null AND outcome null — nothing is known about the row; undecided alone may still carry a rating"
+                  >
+                    {delivery.data.stats.unlabelled} unlabelled
+                  </span>
                 </div>
+                {/* 2026-10-02 · the harvest cron's odometer (corrections vs the
+                    fine-tune trigger) finally has a reader. Absent row = the cron
+                    has not run, said as such — never an invented zero. */}
+                <p
+                  className="mt-1 text-[11px] text-fg-secondary/70"
+                  data-odometer={delivery.data.odometer ? "present" : delivery.data.odometerUnreadable ? "unreadable" : "absent"}
+                >
+                  {delivery.data.odometer
+                    ? `odometer · ${delivery.data.odometer.line} · as of ${new Date(delivery.data.odometer.asOf).toLocaleString()}`
+                    : delivery.data.odometerUnreadable
+                      ? "odometer · unreadable — the read failed (state unknown)"
+                      : "odometer · no eval_run:corpus-odometer row yet — the outcome-harvest cron has not written one"}
+                </p>
                 <p className="text-[11px] text-fg-secondary/50 mt-0.5">
                   producers writing rows:{" "}
                   {delivery.data.producers.length === 0

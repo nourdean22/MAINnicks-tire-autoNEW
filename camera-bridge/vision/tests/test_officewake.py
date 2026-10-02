@@ -613,3 +613,98 @@ def test_retention_prunes_only_expired_audio_artifacts(tmp_path):
     assert not old_json.exists()
     assert fresh.exists()
     assert keep.exists()
+
+
+class FakeSampler:
+    def __init__(self, frames):
+        self._frames = frames
+        self.started = False
+        self.stopped_with_final = None
+
+    def start(self):
+        self.started = True
+        return self
+
+    def stop(self, *, final_grab=True):
+        self.stopped_with_final = final_grab
+        return list(self._frames)
+
+
+def _live_cfg(tmp_path):
+    return config(
+        capture_mode=True,
+        capture_enabled=True,
+        policy_acknowledged=True,
+        source_url="rtsp://verified-media-source",
+        dry_run=False,
+        ingest_key_present=True,
+        out_dir=str(tmp_path),
+    )
+
+
+def _segment(tmp_path, name, started_at, duration_s):
+    seg = SimpleNamespace(
+        episode_id=name, source="eufy-office", path=str(tmp_path / f"{name}.wav"),
+        started_at=started_at, duration_s=duration_s, mean_volume_db=-24.0, measured=True,
+    )
+    Path(seg.path).write_bytes(b"x")
+    return seg
+
+
+def test_capture_attaches_each_segments_own_frames(tmp_path):
+    seg_a = _segment(tmp_path, "a", MONDAY_10AM, 20.0)
+    seg_b = _segment(tmp_path, "b", MONDAY_10AM + 90, 20.0)
+    frames = [
+        {"at": MONDAY_10AM + 5, "mime": "image/jpeg", "base64": "A"},
+        {"at": MONDAY_10AM + 95, "mime": "image/jpeg", "base64": "B"},
+    ]
+    sampler = FakeSampler(frames)
+    posted = []
+    result = run_capture_once(
+        _live_cfg(tmp_path),
+        Trigger(MONDAY_10AM, "personDetected", OFFICE),
+        capture_fn=lambda *a, **k: [seg_a, seg_b],
+        transcribe_fn=lambda *a, **k: Transcript(segments=[{"index": 0, "start": 0.0, "end": 4.0, "text": "hi"}], engine="fake"),
+        post_fn=lambda payload, endpoint, **k: posted.append((payload, k)) or {"posted": True, "status": 200},
+        clock=lambda: MONDAY_10AM,
+        frame_sampler=sampler,
+    )
+    assert sampler.started and sampler.stopped_with_final is True
+    assert [f["base64"] for f in posted[0][0]["frames"]] == ["A"]
+    assert [f["base64"] for f in posted[1][0]["frames"]] == ["B"]
+    # an episode carrying frames waits for the server's vision call
+    assert posted[0][1] == {"timeout": 120.0}
+    assert result.frames_captured == 2
+    assert result.frames_posted == 2
+
+
+def test_capture_without_frames_posts_the_unchanged_payload(tmp_path):
+    seg = _segment(tmp_path, "a", MONDAY_10AM, 20.0)
+    posted = []
+    run_capture_once(
+        _live_cfg(tmp_path),
+        Trigger(MONDAY_10AM, "personDetected", OFFICE),
+        capture_fn=lambda *a, **k: [seg],
+        transcribe_fn=lambda *a, **k: Transcript(segments=[], engine="fake"),
+        post_fn=lambda payload, endpoint: posted.append(payload) or {"posted": True, "status": 200},
+        clock=lambda: MONDAY_10AM,
+        frame_sampler=FakeSampler([]),
+    )
+    assert "frames" not in posted[0]
+
+
+def test_capture_failure_stops_the_sampler_without_a_closing_grab(tmp_path):
+    sampler = FakeSampler([])
+
+    def boom(*a, **k):
+        raise RuntimeError("ffmpeg died")
+
+    result = run_capture_once(
+        _live_cfg(tmp_path),
+        Trigger(MONDAY_10AM, "personDetected", OFFICE),
+        capture_fn=boom,
+        clock=lambda: MONDAY_10AM,
+        frame_sampler=sampler,
+    )
+    assert result.status == "capture_failed"
+    assert sampler.stopped_with_final is False

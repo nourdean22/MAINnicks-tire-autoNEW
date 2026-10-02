@@ -44,8 +44,11 @@ describe("aiConfigPatchSchema · AiSettingsPanel patch contract", () => {
     expect(r.defaultProvider).toBe("gemini");
   });
 
-  it("accepts a mode-cleared patch (the 'auto' branch sends the field absent)", () => {
-    // patch({ defaultMode: undefined }) — an absent key, not a wrong type
+  it("accepts the 'auto' patch as an explicit null (an absent key never reaches the server)", () => {
+    // 2026-10-02 · settings census finding 2: the panel used to send
+    // { defaultMode: undefined }, which JSON drops, so "auto" could never
+    // clear a stored mode. It now sends null; the schema must take it.
+    expect(aiConfigPatchSchema.parse({ defaultMode: null }).defaultMode).toBeNull();
     expect(() => aiConfigPatchSchema.parse({})).not.toThrow();
   });
 
@@ -225,22 +228,8 @@ describe("settings scalar-input procedures · call-site payload contract", () =>
     ).toThrow();
   });
 
-  // system.triggerCron — CronControlPanel.trigger(path, jobName).
-  const triggerCronInput = z.object({ path: z.string().min(1).max(200) });
-
-  it("triggerCron accepts a /api/cron/* path payload", () => {
-    expect(() =>
-      triggerCronInput.parse({ path: "/api/cron/drift-check" }),
-    ).not.toThrow();
-    // mega-fanout crons carry a query string — still within max(200)
-    expect(() =>
-      triggerCronInput.parse({ path: "/api/cron/mega?slot=morning" }),
-    ).not.toThrow();
-  });
-
-  it("triggerCron rejects an empty path", () => {
-    expect(() => triggerCronInput.parse({ path: "" })).toThrow();
-  });
+  // system.triggerCron was deleted 2026-10-02 (runCron resolves through the
+  // manifest); its locally-defined schema test could never fail and is gone.
 
   // system.setCronEnabled — CronControlPanel.toggle(jobName, nextEnabled).
   const setCronEnabledInput = z.object({

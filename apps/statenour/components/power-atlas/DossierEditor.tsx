@@ -70,7 +70,7 @@ export default function DossierEditor({
               onClick={() => setEditing(true)}
               className="text-[13px] font-medium text-fg-secondary hover:text-fg transition-colors"
             >
-              edit
+              Edit
             </button>
           )}
         </div>
@@ -113,7 +113,7 @@ export default function DossierEditor({
                 }}
                 disabled={updateDossier.isPending}
               >
-                cancel
+                Cancel
               </Button>
               <Button
                 variant="default"
@@ -123,7 +123,7 @@ export default function DossierEditor({
                 }
                 disabled={updateDossier.isPending || draft === initialDossier}
               >
-                {updateDossier.isPending ? "saving…" : "save"}
+                {updateDossier.isPending ? "Saving…" : "Save"}
               </Button>
             </div>
           </div>

@@ -111,7 +111,7 @@ export function SaveMomentButton() {
           setJustSaved(false);
           setOpen(true);
         }}
-        className="flex h-12 w-12 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:text-fg"
+        className="flex h-12 w-12 items-center justify-center rounded-control text-fg-tertiary transition-colors hover:text-fg"
         aria-label={`Save this moment at ${stamp}`}
         title={`Save ${stamp} to brain`}
       >
@@ -122,7 +122,7 @@ export function SaveMomentButton() {
 
   return (
     <div className="flex items-center gap-1.5">
-      <span className="font-mono text-[10px] text-fg-tertiary">{stamp}</span>
+      <span className="font-mono text-[11px] text-fg-tertiary">{stamp}</span>
       <input
         autoFocus
         value={note}
@@ -133,19 +133,19 @@ export function SaveMomentButton() {
         }}
         placeholder="why this moment (optional)"
         aria-label="Note for this moment"
-        className="h-12 min-w-0 flex-1 rounded-md border border-glass bg-transparent px-2 text-[11px] text-fg placeholder:text-fg-tertiary"
+        className="h-12 min-w-0 flex-1 rounded-control border border-edge-default bg-transparent px-2 text-[11px] text-fg placeholder:text-fg-tertiary"
       />
       <button
         onClick={save}
         disabled={record.isPending}
-        className="flex h-12 min-w-12 items-center justify-center rounded-md px-2 text-[11px] text-fg-secondary transition-colors hover:text-fg disabled:opacity-50"
+        className="flex h-12 min-w-12 items-center justify-center rounded-control px-2 text-[11px] text-fg-secondary transition-colors hover:text-fg disabled:opacity-50"
         aria-label="Save moment"
       >
         {record.isPending ? "…" : "Save"}
       </button>
       <button
         onClick={() => setOpen(false)}
-        className="flex h-12 min-w-12 items-center justify-center rounded-md px-2 text-[11px] text-fg-tertiary transition-colors hover:text-fg"
+        className="flex h-12 min-w-12 items-center justify-center rounded-control px-2 text-[11px] text-fg-tertiary transition-colors hover:text-fg"
         aria-label="Cancel"
       >
         Cancel

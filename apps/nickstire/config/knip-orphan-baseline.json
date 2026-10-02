@@ -5825,6 +5825,56 @@
       "file": "apps/nickstire/server/services/contentExperimentStore.ts",
       "symbol": "experimentEpisodeKey",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The one derivation of an episode's experiment key (brief id when the enqueue site has it, reel_job_<id> fallback), consumed internally by assignEpisodeToActiveExperiment; exported so server/contentExperimentArmKey.test.ts pins that the RECORDED arm is derived from the same key generation resolves on — the 2026-10-01 mismatch that mis-recorded ~half of all episodes."
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "phone10",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Last-10-digit phone key for missed-call served-closure and same-phone collapse; runtime consumers are collectMissedCalls and reconcile step 3a in this module (7 call sites). server/opportunityMissedCallClosure.test.ts pins that short/unparseable numbers never match. Tests are excluded from knip project globs by design, which is why a test-only importer reads as an orphan. Added 2026-10-02 (admin closure wave)."
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "decideMissedCallServed",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Pure decision for reconcile step 3a: evidence strictly after the CALL time (invoice on/after) closes a live missed_call. Runtime consumer: reconcileOpportunities step 3a in this module. opportunityMissedCallClosure.test.ts drives it directly (evidence before/at the call must not close; mutation-proven with > -> >=). Tests are excluded from knip project globs by design, which is why a test-only importer reads as an orphan. Added 2026-10-02 (admin closure wave)."
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "missedCallServedNote",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Receipt text naming the exact record that served the customer; runtime consumer is reconcile step 3a in this module. Test pins the receipt so a closure is always auditable. Tests are excluded from knip project globs by design, which is why a test-only importer reads as an orphan. Added 2026-10-02 (admin closure wave)."
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "servedCloseState",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. duplicate from new/assigned, lost from worked states (transition-table legality); runtime consumer is reconcile step 3a in this module. Test pins the legality mapping. Tests are excluded from knip project globs by design, which is why a test-only importer reads as an orphan. Added 2026-10-02 (admin closure wave)."
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "planMissedCallCollapse",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Same-phone collapse plan: keep the newest live row, never collapse a worked row; runtime consumer is reconcile step 3a in this module. Test pins keep-newest (mutation-proven). Tests are excluded from knip project globs by design, which is why a test-only importer reads as an orphan. Added 2026-10-02 (admin closure wave)."
+    },
+    {
+      "file": "apps/nickstire/server/services/vapiActionExtraction.ts",
+      "symbol": "shopToday",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Shop-time (America/New_York) date fed to the extraction prompt and the past-date drop; runtime consumer is maybeProposeCallActions in this module. vapiActionExtraction.test.ts pins the ET-vs-UTC boundary. Tests are excluded from knip project globs by design, which is why a test-only importer reads as an orphan. Added 2026-10-02 (admin closure wave)."
+    },
+    {
+      "file": "apps/nickstire/server/services/vapiActionExtraction.ts",
+      "symbol": "dropAlreadyOwned",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Drops a callback draft when a callback row names the call and a booking draft when bookSlot recorded a walk-in; runtime consumer is maybeProposeCallActions in this module. vapiActionExtraction.test.ts pins both drops. Tests are excluded from knip project globs by design, which is why a test-only importer reads as an orphan. Added 2026-10-02 (admin closure wave)."
+    },
+    {
+      "file": "apps/nickstire/package.json",
+      "symbol": "migrations:record",
+      "reason": "OPERATOR-INVOKED, KNOWN (2026-10-02). Run only by a human with the production env injected (railway run --service MAINnicks-tire-auto -- …) after handleRunMigrations has applied DDL: it records verified migrations in __drizzle_migrations, which the in-app runner never writes. Dry run by default, --only required, records only what reconcile-migrations classifies UNRECORDED_BUT_EXACT_MATCH. Nothing in CI or the server may invoke it — a production ledger write is an operator action."
+    },
+    {
+      "file": "apps/nickstire/server/services/officeVisual.ts",
+      "symbol": "parseVisualReply",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Normalizes a vision model's reply into the stored OfficeVisual shape; a reply without a summary must become FAILED, never an empty DONE. Runtime consumer is analyzeOfficeFrames in this module. officeVisual.test.ts pins fenced/prose JSON and the no-summary rule (mutation-checked). Tests are excluded from knip project globs by design. Added 2026-10-02 (office watch)."
+    },
+    {
+      "file": "apps/nickstire/server/services/officeVisual.ts",
+      "symbol": "__resetOfficeVisualReadyCache",
+      "reason": "TEST SEAM, KNOWN. Clears the module-level cache of the migration-0140 readiness check so officeVisual.test.ts can pin both the positive cache and the negative re-check TTL. No runtime caller by design: production must keep the cache. Added 2026-10-02 (office watch)."
     }
   ]
 }

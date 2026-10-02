@@ -177,6 +177,18 @@ describe("both ends are actually wired", () => {
     expect(s).toMatch(/recordCallState\(\{[\s\S]{0,240}callbackId: Number\(insertedCallback\.insertId\)/);
   });
 
+  it("the scheduleCallback tool records callbackId on the trail too", async () => {
+    // scheduleCallback inserted callback_requests but never linked it: prod
+    // showed ~101 converted calls/week against ONE vapi_call_logs.callbackId.
+    const s = await read("./routers/voiceAgent.ts");
+    const start = s.indexOf("scheduleCallback: voiceAgentInternalProcedure");
+    expect(start).toBeGreaterThan(-1);
+    const block = s.slice(start, start + 4000);
+    expect(block).toMatch(
+      /recordCallState\(\{[\s\S]{0,240}tool: "scheduleCallback", callbackId: Number\(insertedCallback\.insertId\)/,
+    );
+  });
+
   it("the webhook extracts BOTH ids and writes them at INSERT", async () => {
     const s = await read("./routes/webhooks/vapi.ts");
     expect(s).toMatch(/leadId: trailLeadId/);

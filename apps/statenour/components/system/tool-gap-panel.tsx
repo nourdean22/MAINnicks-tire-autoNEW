@@ -18,7 +18,7 @@ export function ToolGapPanel() {
   if (report.isLoading) {
     return (
       <section className="rounded-surface border border-edge-default bg-content p-4">
-        <div className="h-16 animate-pulse rounded bg-surface-interactive" />
+        <div className="h-16 animate-pulse rounded-micro bg-surface-interactive" />
       </section>
     );
   }

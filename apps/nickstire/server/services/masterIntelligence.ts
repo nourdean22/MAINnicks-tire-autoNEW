@@ -335,8 +335,15 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
   // 0, falling back to `|| 1`, which made the AR-drag check fire for ANY
   // outstanding balance >= $0.15. Switched to a proper nested read.
   if (cashFlow) {
-    const next7 = num(cashFlow, "next7days", "projectedCash");
-    const next30 = num(cashFlow, "next30days", "projectedCash");
+    // Same defect class as the pacing read above: next7days / next30days are OBJECTS
+    // ({ expectedRevenue, pendingCollections, projectedCash } — engines/revenue.ts), so
+    // num(cashFlow, "next7days", "projectedCash") returned 0 and this factor never fired.
+    const projected = (key: string): number => {
+      const v = (cashFlow as Record<string, unknown>)[key] as { projectedCash?: unknown } | undefined;
+      return typeof v?.projectedCash === "number" ? v.projectedCash : 0;
+    };
+    const next7 = projected("next7days");
+    const next30 = projected("next30days");
     const outstandingAR = num(cashFlow, "outstandingAR");
     const pacingMonthObj = (pacing as any)?.month as Record<string, unknown> | undefined;
     const monthSoFar = typeof pacingMonthObj?.soFar === "number" ? pacingMonthObj.soFar : 0;

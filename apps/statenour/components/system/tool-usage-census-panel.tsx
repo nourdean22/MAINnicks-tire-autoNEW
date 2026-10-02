@@ -44,8 +44,8 @@ export function ToolUsageCensusPanel() {
   if (censusQ.isLoading) {
     return (
       <section aria-label="tool-usage-census" className="rounded-surface border border-edge-subtle p-4 space-y-2">
-              <div className="h-3 w-40 rounded bg-surface-interactive animate-pulse" />
-        <div className="h-20 rounded bg-surface-interactive animate-pulse" />
+              <div className="h-3 w-40 rounded-micro bg-surface-interactive animate-pulse" />
+        <div className="h-20 rounded-micro bg-surface-interactive animate-pulse" />
       </section>
     );
   }
@@ -95,7 +95,7 @@ export function ToolUsageCensusPanel() {
       {failing.length > 0 && (
         <p
           data-testid="instrument-failures"
-          className="flex items-start gap-1.5 rounded border border-rose-400/20 bg-rose-400/[0.04] px-2 py-1.5 text-[11px] font-mono text-rose-200"
+          className="flex items-start gap-1.5 rounded-micro border border-rose-400/20 bg-rose-400/[0.04] px-2 py-1.5 text-[11px] font-mono text-rose-200"
         >
           <AlertCircle className="mt-[1px] h-3 w-3 shrink-0" />
           <span>
@@ -115,7 +115,7 @@ export function ToolUsageCensusPanel() {
       {silent.length > 0 && (
         <p
           data-testid="instrument-attention"
-          className="flex items-start gap-1.5 rounded border border-amber-400/20 bg-amber-400/[0.04] px-2 py-1.5 text-[11px] font-mono text-amber-200"
+          className="flex items-start gap-1.5 rounded-micro border border-amber-400/20 bg-amber-400/[0.04] px-2 py-1.5 text-[11px] font-mono text-amber-200"
         >
           <AlertCircle className="mt-[1px] h-3 w-3 shrink-0" />
           <span>
@@ -139,7 +139,7 @@ export function ToolUsageCensusPanel() {
             aria-selected={bucket === b.key}
             onClick={() => setBucket(b.key)}
             className={cn(
-              "min-h-[32px] px-2.5 rounded border text-[11px] font-mono",
+              "min-h-[32px] px-2.5 rounded-control border text-[11px] font-mono",
               bucket === b.key
                 ? "border-edge-default bg-surface-interactive text-fg"
                 : "border-edge-subtle text-fg-tertiary hover:text-fg",
@@ -155,11 +155,11 @@ export function ToolUsageCensusPanel() {
       ) : (
         <ul className="space-y-1.5 max-h-[300px] overflow-y-auto scrollbar-thin">
           {rows.map((t) => (
-            <li key={t.name} className="flex items-start gap-2 p-2 rounded bg-surface-interactive border border-edge-subtle">
+            <li key={t.name} className="flex items-start gap-2 p-2 rounded-micro bg-surface-interactive border border-edge-subtle">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[11px] font-mono text-fg truncate">{t.name}</span>
-                  <span className="text-[11px] font-mono text-fg-tertiary border border-edge-subtle rounded px-1 py-px">
+                  <span className="text-[11px] font-mono text-fg-tertiary border border-edge-subtle rounded-micro px-1 py-px">
                     {t.category}
                   </span>
                   {t.successRatePct !== null && (

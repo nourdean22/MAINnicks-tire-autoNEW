@@ -35,7 +35,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-canvas p-4">
-      <GlassCard className="w-full max-w-sm p-8 text-center">
+      <GlassCard className="w-full max-w-sm text-center">
         <div className="w-10 h-10 rounded-control border border-edge-default bg-surface-interactive text-fg font-mono text-sm font-bold flex items-center justify-center mx-auto mb-6">
           N
         </div>

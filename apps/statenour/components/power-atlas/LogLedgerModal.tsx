@@ -276,7 +276,7 @@ export default function LogLedgerModal({
             onClick={() => onOpenChange(false)}
             disabled={logLedger.isPending}
           >
-            cancel
+            Cancel
           </Button>
           <Button
             variant="default"
@@ -290,7 +290,7 @@ export default function LogLedgerModal({
             }
             disabled={!valid || logLedger.isPending}
           >
-            {logLedger.isPending ? "logging…" : "log entry"}
+            {logLedger.isPending ? "Logging…" : "Log entry"}
           </Button>
         </DialogFooter>
       </DialogContent>

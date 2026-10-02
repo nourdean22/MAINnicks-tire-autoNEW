@@ -21,10 +21,11 @@
  * correct. The builder calls are the ones that get missed, because they read
  * like they return a plain object.
  *
- * The read-side analogue is `rowsFromExecute()` in cron/jobs/vapiCallEval.ts,
- * added for the same reason (#1121). Worth consolidating the two here
- * eventually; not moved in this change because it is exported and tested where
- * it sits.
+ * The read-side analogue is `readRows()` below (2026-10-02). Older copies —
+ * `rowsFromExecute()` in cron/jobs/vapiCallEval.ts (#1121) and
+ * services/opportunityQueue.ts, `extractRows()` in services/engines/shared.ts —
+ * predate it and stay where they are tested; new code imports this one, which,
+ * unlike engines/shared, pulls in no database module.
  */
 
 /** mysql2's ResultSetHeader, narrowed to the fields anything here reads. */
@@ -67,4 +68,13 @@ export function affectedRows(result: unknown): number | null {
   if (raw == null) return null;
   const n = Number(raw);
   return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * The row array from a raw `db.execute(sql\`SELECT …\`)`, whether it arrives as the
+ * mysql2 `[rows, fields]` tuple or already unwrapped. Anything else is no rows.
+ */
+export function readRows(result: unknown): Array<Record<string, unknown>> {
+  const r = Array.isArray(result) && Array.isArray(result[0]) ? result[0] : result;
+  return Array.isArray(r) ? (r as Array<Record<string, unknown>>) : [];
 }

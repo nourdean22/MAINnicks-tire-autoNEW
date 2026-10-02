@@ -310,7 +310,7 @@ export default function AlertsInspectorPage() {
               onClick={selectAll}
               className="ml-2 rounded-full border border-emerald-500/40 px-2 py-0.5 text-[11px] font-mono text-emerald-300 hover:bg-emerald-500/10"
             >
-              show all
+              Show all
             </button>
           )}
         </div>
@@ -318,7 +318,7 @@ export default function AlertsInspectorPage() {
 
       <Panel className="mt-4">
         {error && (
-          <div className="rounded-md border border-rose-800 bg-rose-950/40 p-3 text-sm text-rose-200">
+          <div className="rounded-control border border-rose-800 bg-rose-950/40 p-3 text-sm text-rose-200">
             {error}
           </div>
         )}
@@ -369,7 +369,7 @@ export default function AlertsInspectorPage() {
                       type="button"
                       onClick={() => openInspector({ kind: "alert", id: alert.id })}
                       aria-label="inspect alert"
-                      className="ml-auto inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 md:min-h-[28px] md:min-w-[28px]"
+                      className="ml-auto inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control opacity-70 transition-opacity hover:opacity-100 md:min-h-[28px] md:min-w-[28px]"
                     >
                       <Eye size={13} strokeWidth={2} />
                     </button>

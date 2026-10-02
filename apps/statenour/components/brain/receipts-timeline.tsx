@@ -55,8 +55,8 @@ export function ReceiptsTimeline({ limit = 30 }: { limit?: number }) {
   if (feedQ.isLoading) {
     return (
       <section aria-label="receipts-timeline" className="rounded-surface border border-edge-subtle p-4 space-y-2">
-        <div className="h-3 w-44 rounded bg-surface-interactive animate-pulse" />
-        <div className="h-24 rounded bg-surface-interactive animate-pulse" />
+        <div className="h-3 w-44 rounded-micro bg-surface-interactive animate-pulse" />
+        <div className="h-24 rounded-micro bg-surface-interactive animate-pulse" />
       </section>
     );
   }
@@ -124,7 +124,7 @@ export function ReceiptsTimeline({ limit = 30 }: { limit?: number }) {
           {filtered.map((r) => (
             <li
               key={r.receiptId}
-              className="flex items-start gap-2 p-2 rounded bg-content border border-edge-subtle"
+              className="flex items-start gap-2 p-2 rounded-micro bg-content border border-edge-subtle"
             >
               <span
                 aria-hidden
@@ -136,7 +136,7 @@ export function ReceiptsTimeline({ limit = 30 }: { limit?: number }) {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[11px] font-mono text-fg-secondary truncate">{r.toolName}</span>
-                  <span className="text-[11px] font-mono text-fg-tertiary border border-edge-subtle rounded px-1 py-px">
+                  <span className="text-[11px] font-mono text-fg-tertiary border border-edge-subtle rounded-micro px-1 py-px">
                     {r.category}
                   </span>
                   <span className="text-[11px] font-mono text-fg-tertiary ml-auto shrink-0">

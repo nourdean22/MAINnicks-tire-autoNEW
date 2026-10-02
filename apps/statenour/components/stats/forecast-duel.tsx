@@ -58,7 +58,7 @@ export function ForecastDuel() {
     question.trim().length >= 8 && criteria.trim().length >= 8 && /^\d{4}-\d{2}-\d{2}$/.test(targetDate) && !create.isPending;
 
   return (
-    <GlassCard className="p-4 space-y-4">
+    <GlassCard className="space-y-4">
       <div>
         <div className="text-[15px] font-semibold text-fg">Forecast duel · you vs Nick</div>
         <div className="text-[13px] text-fg-tertiary">

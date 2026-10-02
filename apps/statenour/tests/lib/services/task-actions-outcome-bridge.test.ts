@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   brainMemory: { findMany: vi.fn(), upsert: vi.fn() },
   runAutoLearn: vi.fn(async () => null),
   recordOutcomeByContent: vi.fn(async () => true),
+  recordOutcomeByResultRef: vi.fn(async () => 1),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -72,6 +73,7 @@ vi.mock("@/lib/runtime", () => ({ isDemoMode: false }));
 
 vi.mock("@/lib/services/outcome-ledger", () => ({
   recordOutcomeByContent: mocks.recordOutcomeByContent,
+  recordOutcomeByResultRef: mocks.recordOutcomeByResultRef,
 }));
 
 import { checkTask } from "@/lib/services/task-actions";
@@ -140,6 +142,9 @@ describe("checkTask · rating → outcome-ledger bridge (ONCE)", () => {
       useful,
       "task:t-1",
     );
+    // 2026-10-02 · the second join: an ACCEPTED Home lead / deck pick carries
+    // resultRef task:<id>, and its summary is not the title, so only this closes it.
+    expect(mocks.recordOutcomeByResultRef).toHaveBeenCalledWith("task:t-1", useful);
   });
 
   it("no rating → the ledger is never touched (unrated ≠ not useful)", async () => {
@@ -147,6 +152,7 @@ describe("checkTask · rating → outcome-ledger bridge (ONCE)", () => {
     await checkTask({ id: "t-1", action: "complete" });
     await flush();
     expect(mocks.recordOutcomeByContent).not.toHaveBeenCalled();
+    expect(mocks.recordOutcomeByResultRef).not.toHaveBeenCalled();
   });
 });
 

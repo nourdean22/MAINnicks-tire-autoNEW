@@ -40,6 +40,8 @@ import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { TrendCounter } from "@/components/ui/trend-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { SchemaDriftCard } from "@/components/system/schema-drift-card";
+import { SystemHealthDataCards } from "@/components/system/health-data-cards";
+import { SystemHealthCard } from "@/components/ultron/system-health-card";
 import { trpc } from "@/lib/trpc/client";
 import type { HealthReport } from "@/lib/services/system-health";
 
@@ -123,7 +125,7 @@ export default function SystemHealthPage() {
               source="health-report"
               onReload={load}
             />
-            <div className="inline-flex rounded-md border border-edge-default overflow-hidden">
+            <div className="inline-flex rounded-control border border-edge-default overflow-hidden">
               {(["24h", "7d", "30d"] as const).map((r) => (
                 <button
                   key={r}
@@ -141,7 +143,7 @@ export default function SystemHealthPage() {
             </div>
             <button
               onClick={load}
-              className="p-1.5 rounded text-fg-tertiary hover:text-fg hover:bg-surface-hover"
+              className="p-1.5 rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover"
               aria-label="refresh"
               title="refresh"
             >
@@ -156,6 +158,14 @@ export default function SystemHealthPage() {
           dimensions that broke in prod (revenue $0 · evals 0/75 · bridge
           down) but weren't surfaced here. Loud (red) only when wrong. */}
       <OperationalStatus report={data} />
+
+      {/* 2026-10-02 · full-circle wave 2 · the nightly health digest (push
+          card) and the three data cards (7d trend · 24h error rate by route ·
+          integration quotas) moved here from Settings > Diagnostics: they
+          read machine health, and machine operations are /system's
+          (docs/design/settings-census-2026-10-02.md). */}
+      <SystemHealthCard />
+      <SystemHealthDataCards />
 
       {/* v8.2 BATCH 12 — schema-drift sentinel surface. Loud only when
           something's off; silent (✓ all expectations met) otherwise. */}
@@ -419,7 +429,7 @@ export default function SystemHealthPage() {
               href="/system/calibration"
               className="ml-auto text-[11px] font-mono text-emerald-400/80 hover:text-emerald-300"
             >
-              full →
+              Full →
             </Link>
           </header>
           <dl className="px-3 pb-2 text-[11px] font-mono space-y-0.5">
@@ -571,7 +581,7 @@ function OperationalStatus({ report }: { report: HealthReport }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <Link
           href="/system/calibration"
-          className="block rounded-md border border-edge-default px-3 py-2 hover:bg-canvas"
+          className="block rounded-control border border-edge-default px-3 py-2 hover:bg-canvas"
         >
           <div className="flex items-center justify-between mb-0.5">
               <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
@@ -597,7 +607,7 @@ function OperationalStatus({ report }: { report: HealthReport }) {
             <div className="text-sm text-fg-tertiary">no eval run yet</div>
           )}
         </Link>
-        <div className="block rounded-md border border-edge-default px-3 py-2">
+        <div className="block rounded-control border border-edge-default px-3 py-2">
           {/* Label said "bridge · data sources" but the number counts ALL
               probes regardless of kind — only 2 of the 6 are the nickstire
               bridge, and `bridgeFailing` was computed and never rendered. */}
@@ -711,7 +721,7 @@ function KVRow({
   );
   if (href) {
     return (
-      <Link href={href} className="block hover:bg-canvas -mx-1 px-1 py-0.5 rounded">
+      <Link href={href} className="block hover:bg-canvas -mx-1 px-1 py-0.5 rounded-control">
         {body}
       </Link>
     );

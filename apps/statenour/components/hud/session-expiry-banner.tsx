@@ -198,7 +198,7 @@ export function SessionExpiryBanner() {
           type="button"
           onClick={refresh}
           className={cn(
-            "inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
+            "inline-flex shrink-0 items-center gap-1 rounded-control border px-2 py-1 text-xs font-medium transition-colors",
             urgent
               ? "border-rose-400/50 bg-rose-500/20 hover:bg-rose-500/30"
               : "border-amber-400/40 bg-amber-500/20 hover:bg-amber-500/30",

@@ -49,6 +49,7 @@ import { trpc } from "@/lib/trpc/client";
 // 2026-09-15 · UI workbench: a cron row is an inspectable object (run history
 // + schedule in the universal inspector; run-now / kill stay on the row).
 import { Eye } from "lucide-react";
+import { cronRunbookHref } from "@/lib/system/cron-runbooks";
 import { useInspector } from "@/hooks/use-inspector";
 
 type CronMode = "active" | "folded" | "retired" | "dormant";
@@ -141,7 +142,7 @@ function describeSchedule(expr: string | null): string {
 
 function Sparkline({ values, status }: { values: number[]; status: "success" | "partial" | "failed" | null }) {
   if (values.length === 0) {
-    return <div className="h-6 w-20 rounded bg-content" aria-label="no data" />;
+    return <div className="h-6 w-20 rounded-control bg-content" aria-label="no data" />;
   }
   const max = Math.max(...values, 100);
   const bars = values.slice(-20);
@@ -157,7 +158,7 @@ function Sparkline({ values, status }: { values: number[]; status: "success" | "
               ? "bg-amber-400"
               : "bg-emerald-400"
           : "bg-surface-interactive";
-        return <span key={i} className={`w-[2px] rounded-sm ${color}`} style={{ height: `${h}px` }} />;
+        return <span key={i} className={`w-[2px] rounded-micro ${color}`} style={{ height: `${h}px` }} />;
       })}
     </div>
   );
@@ -358,7 +359,7 @@ export default function CronsPage() {
             disabled={loading}
             className="rounded-control border border-edge-strong bg-content px-4 py-2 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
           >
-            {loading ? "refreshing…" : "refresh"}
+            {loading ? "Refreshing…" : "Refresh"}
           </button>
         </div>
       }
@@ -398,7 +399,7 @@ export default function CronsPage() {
               : "bg-content text-fg-secondary hover:bg-surface-hover",
           )}
         >
-          all
+          All
         </button>
         {(Object.keys(CATEGORY_META) as Category[]).map((c) => (
           <button
@@ -422,7 +423,7 @@ export default function CronsPage() {
             type="checkbox"
             checked={showFolded}
             onChange={(e) => setShowFolded(e.target.checked)}
-            className="h-3.5 w-3.5 rounded"
+            className="h-3.5 w-3.5 rounded-micro"
           />
           <label htmlFor="show-folded" className="cursor-pointer select-none">show folded + retired</label>
           {/* v10.0.437 · sort dropdown · 6 modes within each category */}
@@ -535,16 +536,32 @@ function CronRowView({
           >
             <Eye size={12} strokeWidth={2} />
           </button>
-          <span className={cn("flex-shrink-0 rounded px-1.5 py-[1px] text-[11px]", meta.tint, "bg-surface-interactive")}>
+          <span className={cn("flex-shrink-0 rounded-micro px-1.5 py-[1px] text-[11px]", meta.tint, "bg-surface-interactive")}>
             {row.mode === "folded" ? `folded → ${row.foldedInto}` : row.mode === "retired" ? "retired" : meta.label}
           </span>
           {row.drift !== null && row.drift > 0 && (
-            <span className="flex-shrink-0 rounded bg-amber-500/10 px-1.5 py-[1px] text-[11px] text-amber-300">
+            <span className="flex-shrink-0 rounded-micro bg-amber-500/10 px-1.5 py-[1px] text-[11px] text-amber-300">
               drifted {row.drift}m
             </span>
           )}
         </div>
-        <div className="truncate text-[11px] text-fg-tertiary">{row.description}</div>
+        <div className="flex items-center gap-2 truncate text-[11px] text-fg-tertiary">
+          <span className="truncate">{row.description}</span>
+          {cronRunbookHref(row.name) && (
+            // Ported from the deleted Settings cron panel (2026-10-02): the one
+            // affordance it had that this page lacked. Only mapped crons get a
+            // link; lib/system/cron-runbooks.ts is pinned to the files that exist.
+            <a
+              href={cronRunbookHref(row.name) ?? undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-[44px] shrink-0 items-center font-mono text-[11px] text-fg-tertiary hover:text-fg hover:underline md:min-h-0"
+              title="open the runbook for this cron"
+            >
+              [runbook]
+            </a>
+          )}
+        </div>
       </div>
 
       <div className="hidden md:block text-right">
@@ -589,9 +606,14 @@ function CronRowView({
           <button
             onClick={() => toggle(!row.enabled)}
             disabled={isToggling}
-            aria-label={row.enabled ? `kill cron ${row.name}` : `re-enable cron ${row.name}`}
+            // role=switch + aria-checked: state was colour-only before. The
+            // contract moved here from the deleted Settings cron panel
+            // (tests/components/mobile-a11y.test.tsx · A8).
+            role="switch"
+            aria-checked={row.enabled}
+            aria-label={`cron ${row.name} enabled`}
             className={cn(
-              "rounded px-2 py-1 text-[11px] transition focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
+              "rounded-control px-2 py-1 text-[11px] transition focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
               row.enabled
                 ? "bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
                 : "bg-amber-500/10 text-amber-300 hover:bg-amber-500/20",
@@ -599,7 +621,7 @@ function CronRowView({
             )}
             title={row.enabled ? "click to kill this cron" : "click to re-enable"}
           >
-            {row.enabled ? "on" : "off"}
+            {row.enabled ? "On" : "Off"}
           </button>
         )}
         <button
@@ -607,7 +629,7 @@ function CronRowView({
           disabled={!canTrigger || isRunning}
           aria-label={`run cron ${row.name} now`}
           className={cn(
-            "rounded px-2 py-1 text-[11px] transition focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
+            "rounded-control px-2 py-1 text-[11px] transition focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",
             canTrigger
               ? "bg-surface-interactive text-fg hover:bg-surface-hover"
               : "cursor-not-allowed bg-content text-fg-tertiary",
@@ -615,7 +637,7 @@ function CronRowView({
           )}
           title={canTrigger ? "trigger this cron now" : "not runnable"}
         >
-          {isRunning ? "running…" : "run"}
+          {isRunning ? "Running…" : "Run"}
         </button>
       </div>
     </div>

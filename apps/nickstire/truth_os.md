@@ -96,6 +96,55 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-10-02 — Admin closure wave (#2885, #2891): queues close their loops, migrations 0127–0139 applied AND recorded
+
+Merged as `d583840268129c2115d44e08c0c80f7b6240ca4c` (#2885, squash of 20 commits) and
+`62fb22719e4156d8be9348e1d79c144640b1c033` (#2891). Corrections to the operator's audit, the full change list and
+every receipt: `docs/operations/ADMIN-TRUTH-PASS-2026-10-02.md`.
+
+**Runtime receipts.**
+- #2885 deployed as Railway `5c5eec0d`: `server:ready` 15:49:15Z.
+- #2891 deployed as Railway `dd095678`: `server:ready` 17:12:10Z, schema guard green, 26 column checks passed, no
+  error lines. `/api/health` healthy on `62fb22719`.
+- Migrations: operator one-tap on the d5838402 container (176 steps, none failed); `record-migrations.mjs` recorded
+  0127–0130, 0132, 0133, 0136–0139 as exact schema matches; `reconcile-migrations --strict` exit 0, 0 UNRECORDED.
+
+**What production does differently now** (all LIVE + UNPROVEN until the first cron_log receipt says otherwise):
+- **SMS human-review drafts close.** `orchestration-status-reconcile` cancels a draft whose obligation closed or that
+  the customer superseded, and expires drafts older than 7 days. Approving a draft closes its obligation. A stale
+  draft cannot be sent verbatim, and a double tap cannot double-send. Never sends. First receipt to read:
+  "drafts closed N" (the ~366 backlog should fall to ~7 days).
+- **Missed calls close.** One live card per phone. A PAID invoice on a later shop day → `won` (via `recordOutcome`).
+  A later callback / lead / booking / captured call, or a same-day paid invoice → `duplicate`, with a receipt. Only
+  untouched `new` cards are auto-closed. First receipt: `opportunity-queue-refresh` "collapsed".
+- **Missed-call recovery reaches tool-reaching callers** (follow-up PR): a call that reached a tool (`convertedToLead=1`)
+  gets the recovery text only when a successful read proves it saved nothing (no lead, callback, callback request or
+  walk-in arrival). A failed read skips the call. Operator decision 2026-10-02, reversing the 2026-09-23 skip.
+- **Nick's call drafts are capture-aware.** No booking/callback draft for what a tool already captured; the
+  extractor knows today's date. `scheduleCallback` links its callback to the call.
+- **Operator truth surfaces:** Approvals shows what happened after a decision; Today hints "likely served" on stale
+  callbacks; financing clicks show who and whether they were invoiced; Settings → Status and Lot cannot be green over
+  an offline camera; GSC numbers name their source. Money leaving nickstire is converted or labelled.
+
+**`feature_flags` TABLE switches, read live 2026-10-02 via `GET /api/admin/flags` (the env probe above cannot see
+these):**
+- `sms_review_requests` = **on**: the review-request cron created its first 8 invoice-sourced rows at 17:13Z
+  (`cron_log`: "invoice rows created 8 of 8"); they send after the 24 h delay, through every existing gate.
+- `contact_holdouts_enabled` + `contact_holdout_retention|winback|weather|review_requests|campaigns` = **ARMED
+  2026-10-02 17:25:10Z** on operator instruction (server log "Feature flag toggled … ENABLED" ×6). 15% of eligible
+  customers per lane now get a recorded no-contact control (`heldout`) instead of the text; a failed assignment read
+  sends normally. `review_reminder_drafts` stays OFF (a separate experiment that adds review-queue drafts).
+- `missed_call_recovery` = on and env `MISSED_CALL_RECOVERY_SEND="1"`: recovery texts were already live (6 sent at
+  17:13Z).
+
+**First outcome receipts (`cron_log`):** `orchestration-status-reconcile` at 16:04:17Z — **drafts closed 366**
+(obligation closed 52 · superseded 7 · expired 307 · left open 0); later runs 0. `opportunity-queue-refresh` runs once
+per shop day and had already run before the deploy, so its first "collapsed" receipt is the next shop day.
+
+**Still open:**
+`__drizzle_migrations_bak_20261002_record` can be dropped later; the ledger claim `admin-closure-wave-20261002`
+expires 2026-10-16 without the cron receipts above.
+
 ## 2026-10-01 — Creative Intelligence OS (#2865): the visual critic can say UNKNOWN, ads read the SSOT, Facebook gets the video
 
 Merged as `54a366629ba89867dcd5dbc916e37bee88f8e645` (squash of 8 commits; blueprint, evidence book, prompt pack and example

@@ -153,9 +153,9 @@ them lives in the same file's `prefers-reduced-motion` block.
 
 ### `<GlassCard />` (`components/ui/glass-card.tsx`) — the canonical card
 
-Every card surface uses GlassCard (`.neural-glass`: layered gradient + backdrop blur + gold hairline). Props: `active` / `critical` / `success` state styling, polymorphic `as="a" | "button"` with correct keyboard/ARIA semantics.
+Every card surface uses GlassCard (`.neural-glass`: a solid `--surface` step with an `--edge-subtle` hairline, in `@layer components` so className utilities win). Props: `active` / `critical` / `success` state styling, polymorphic `as="a" | "button"` with correct keyboard/ARIA semantics.
 
-`components/ui/card.tsx` (shadcn Card) is **@deprecated** — kept only for the structured CardHeader/Content API still used by `components/stats/body-section.tsx` + `calibration-section.tsx`. Never import it in new code. (Those two screens migrate deliberately with visual verification, not by blind restyle — `.neural-glass` hand-CSS padding beats Tailwind slot utilities at equal specificity.)
+`components/ui/card.tsx` (shadcn Card) was deleted in UI v2 PR 4 (2026-10-02); its two stats importers use GlassCard with plain `div` / `h3` / `p` slots.
 
 ### `<DecisionSpread />` (`components/ui/decision-spread.tsx`)
 

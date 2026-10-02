@@ -1,23 +1,26 @@
 "use client";
 
 /**
- * SystemHealthCard — morning health digest surfaced on HQ.
+ * SystemHealthCard — the nightly health digest, on /system/health.
  *
  * Reads the latest persisted digest from BrainMemory(category=
  * "system_health_digest") via /api/ultron/health-digest. The digest is
- * written nightly at 4am ET by /api/cron/health-digest. This card
- * closes the "push, not pull" loop: silent degradation now surfaces
- * WITHOUT Nour having to remember to open /system/diagnostics.
+ * written nightly at 4am ET by /api/cron/health-digest. Mounted under
+ * Settings > Diagnostics until the full-circle wave 2 recomposition
+ * (2026-10-02); it reads machine health, so it lives on /system/health now
+ * (docs/design/settings-census-2026-10-02.md).
  *
- * Render policy — deliberately SUBTLE when everything is healthy:
- *   • overall = "healthy" → card self-hides (no clutter)
+ * Render policy — honest in every state (2026-10-02; it used to render
+ * NOTHING for "healthy", for "not loaded yet" and for "the read failed",
+ * three states one pixel apart):
+ *   • read failed / 401 swallowed → one amber line: digest unreadable
+ *   • overall = "healthy" → one quiet line with the digest's age
  *   • overall = "warning" → amber strip, one-line summary, expandable
- *   • overall = "critical" → red card with pulse, top 3 highlights inline
+ *   • overall = "critical" → red card, top 3 highlights inline
  *   • digest >36h old → "stale" badge (nightly cron missed — itself a signal)
  *
  * Click any headline to deep-link into the matching detail page. Click
- * the rightmost chevron to collapse/expand. The header chip always
- * links to /system/diagnostics for the full probe grid.
+ * the rightmost chevron to collapse/expand.
  */
 
 import { useState, useCallback } from "react";
@@ -104,7 +107,7 @@ function signedNum(n: number): string {
 }
 
 export function SystemHealthCard() {
-  const { data, refetch } = useUltronFetch<HealthDigest>("/api/ultron/health-digest", {
+  const { data, loading, refetch } = useUltronFetch<HealthDigest>("/api/ultron/health-digest", {
     // Digest refreshes once a day. A 15-min HQ-local cache is ample —
     // no need to hammer the endpoint.
     ttlMs: 900_000,
@@ -133,10 +136,33 @@ export function SystemHealthCard() {
     }
   }, [refetch, refreshDigest]);
 
-  // Silent when healthy — the whole point of the "push" digest is
-  // to flag problems, not to congratulate on a clean run.
-  if (!data) return null;
-  if (data.overall === "healthy") return null;
+  if (loading) return null;
+  if (!data) {
+    // useUltronFetch swallows a 401 and a thrown fetch into data:null; on
+    // this page that is "unknown", and unknown is never rendered as clean.
+    return (
+      <p
+        aria-label="System health digest (unreadable)"
+        className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300/90"
+      >
+        Health digest: unreadable — the read failed (not healthy).
+      </p>
+    );
+  }
+  // A stale fallback (recompute failed, old row served) is checked BEFORE the
+  // healthy branch: an old "healthy" must never read as current (bug-hunt).
+  if (data.overall === "healthy" && !data.staleFallback) {
+    const ageHealthy = hoursSince(data.generatedAt ?? new Date().toISOString());
+    return (
+      <p
+        aria-label="System health digest (healthy)"
+        className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary"
+      >
+        Health digest: healthy · generated {Math.round(ageHealthy)}h ago
+        {ageHealthy > 36 ? " · stale, the nightly cron missed" : ""}
+      </p>
+    );
+  }
 
   // ── Stale-fallback render path ──
   // Apr 26 · "I don't want to see any old information presented to me
@@ -234,8 +260,9 @@ export function SystemHealthCard() {
     const label = critical ? "critical" : "degraded";
     topHighlights.push({
       severity: critical ? "critical" : "warning",
-      headline: `System ${label} — open diagnostics for details`,
-      link: "/system/health",
+      headline: `System ${label} — open the error log for details`,
+      // Was /system/health — the page this card is on (bug-hunt 2026-10-02).
+      link: "/system/logs?view=errors",
     });
   }
 
@@ -321,10 +348,10 @@ export function SystemHealthCard() {
           </span>
         )}
         <Link
-          href="/system/health"
+          href="/system/logs?view=errors"
           className="rounded-control border border-edge-default bg-content text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg px-2 py-1"
         >
-          diagnostics →
+          Errors →
         </Link>
         <button
           type="button"

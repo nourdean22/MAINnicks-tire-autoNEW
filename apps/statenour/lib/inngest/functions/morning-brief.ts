@@ -155,57 +155,43 @@ export function pushBodyFromBrief(text: string): string {
  * with the brief pre-quoted · "walk me through this" works out of
  * the box.
  */
-/** Wave-3 (2026-07-29) · the brief is a computed recommendation — it
- *  gets an IntelligenceOutcome row like every other delivery surface.
- *  recordShown dedups on content hash within 24h, so Inngest retries
- *  of this step can never double-count. */
-async function recordBriefShown(
-  brief: ComposedBrief,
-  push: { sent: number; failed: number },
-): Promise<{ id: string | null }> {
-  const { recordShown, setShownSurface } = await import("@/lib/services/outcome-ledger");
-  const surface = push.sent > 0 ? "web-push+home" : "home";
-  const id = await recordShown({
-    kind: "daily_brief",
-    sourceEngine: "morning-brief",
-    summary: brief.text,
-    shownSurface: surface,
-  });
-  // 2026-09-18 · sendBriefPush now ledgers FIRST, because the notification's
-  // rating button has to carry a row id that already exists. recordShown dedups
-  // on content hash and RETURNS the existing id without updating, so this step
-  // would otherwise leave the pre-send guess frozen in place. Correct it here,
-  // where the delivery outcome is finally known.
-  if (id) await setShownSurface(id, surface);
-  return { id };
-}
-
 /** Wave-3 (2026-07-29) · when web push reached zero devices, the brief
  *  still MUST reach the phone — Telegram is the confirmed-working lane.
  *  The message names the cause so the operator can re-enable push. */
 async function briefTelegramFallback(
   brief: ComposedBrief,
   push: { sent: number; failed: number },
+  ledgerId: string | null,
 ): Promise<{ status: "skipped_push_ok" | "sent" | "failed" }> {
   if (push.sent > 0) return { status: "skipped_push_ok" };
-  const { sendTelegram } = await import("@/lib/services/telegram");
+  const { sendTelegram, sendTelegramWithButtons } = await import("@/lib/services/telegram");
+  const { ratingTelegramButtons } = await import("@/lib/services/outcome-rating-affordance");
   const reason =
     push.failed > 0
       ? "web push failed on every registered device"
       : "no live web-push subscription";
-  const ok = await sendTelegram(
+  const text =
     `🌅 Morning brief (${brief.date}) — delivered via Telegram because ${reason}. ` +
-      `Re-enable push in Settings → Notifications.\n\n${pushBodyFromBrief(brief.text)}\n\n` +
-      `Full brief: https://bdnick.info/intelligence/brief`,
-  ).catch(() => false);
+    `Re-enable push in Settings → Notifications.\n\n${pushBodyFromBrief(brief.text)}\n\n` +
+    `Full brief: https://bdnick.info/intelligence/brief`;
+  // 2026-10-02 · this is the path the brief takes when push reaches no device,
+  // and it was the one delivery of a ledgered brief with no way to rate it.
+  // Same owner as every other rateable push: ratingTelegramButtons.
+  const buttons = ratingTelegramButtons(ledgerId);
+  const ok = buttons
+    ? await sendTelegramWithButtons(text, buttons).then((r) => r.ok).catch(() => false)
+    : await sendTelegram(text).catch(() => false);
   return { status: ok ? "sent" : "failed" };
 }
 
 async function sendBriefPush(brief: ComposedBrief): Promise<{
   sent: number;
   failed: number;
+  /** The ledger row the rating buttons point at; null when ledgering failed. */
+  ledgerId: string | null;
 }> {
   const { sendPush } = await import("@/lib/notifications/push");
+  const { ratingPushActions } = await import("@/lib/services/outcome-rating-affordance");
 
   // LEDGER FIRST, THEN SEND (2026-09-18). The button has to carry a ledger id,
   // so the row must exist before the notification does — the same order
@@ -226,7 +212,8 @@ async function sendBriefPush(brief: ComposedBrief): Promise<{
       kind: "daily_brief",
       sourceEngine: "morning-brief",
       summary: brief.text,
-      // Pre-send guess; recordBriefShown corrects it once delivery is known.
+      // Pre-send guess; sendStandaloneIfUnconsumed corrects it once delivery
+      // is known (web-push, or telegram-fallback when no device was reached).
       shownSurface: "web-push",
     });
   } catch {
@@ -249,22 +236,14 @@ async function sendBriefPush(brief: ComposedBrief): Promise<{
     // worker routes an `oc_*` action to POST /api/outcomes/rate and
     // deliberately does NOT navigate — opening the app on a 👍 would punish the
     // operator for answering.
-    ...(ledgerId
-      ? {
-          data: { ledgerId },
-          actions: [
-            { action: "oc_useful", title: "👍 Useful" },
-            { action: "oc_not_useful", title: "👎 Not useful" },
-          ],
-        }
-      : {}),
+    ...ratingPushActions(ledgerId),
     chatSeed: {
       prompt: `morning brief for ${brief.date} just landed · walk me through the highest-leverage item and what to do about it today`,
       suggKind: "morning-brief",
       suggId: brief.date,
     },
   });
-  return result;
+  return { ...result, ledgerId };
 }
 
 /**
@@ -283,9 +262,9 @@ async function sendBriefPush(brief: ComposedBrief): Promise<{
  * time, same as it already does for its own text.
  *
  * Returns {sent:1} rather than a real push result — the content WILL
- * reach the device, either combined or via the backstop — so the
- * ledger + telegram-fallback steps below correctly treat this as
- * delivered rather than lost.
+ * reach the device, either combined or via the backstop. Nothing ledgers
+ * or falls back on this synthetic value (census E12); the backstop does
+ * both on the real one.
  */
 export async function handOffForCombine(brief: ComposedBrief): Promise<{
   sent: number;
@@ -332,11 +311,21 @@ export async function sendStandaloneIfUnconsumed(brief: ComposedBrief): Promise<
 
   const push = await sendBriefPush(brief);
   await prisma.brainMemory.delete({ where: { id: pending.id } }).catch(() => null);
-  if (push.sent === 0) {
-    await briefTelegramFallback(brief, push);
-    return { status: "standalone_failed", push };
+  // 2026-10-02 · census E2 + E12: this is the ONLY morning-brief ledger
+  // writer. The hand-off used to ledger a second row for the same morning
+  // (the combined push ledgers its own in intelligence-brief), so one brief
+  // made two rows; now a morning is one row — the combined push's, or this
+  // one when the combine never happened. sendBriefPush wrote the row with a
+  // pre-send guess; the real surface is written here, where it is known.
+  if (push.ledgerId) {
+    const { setShownSurface } = await import("@/lib/services/outcome-ledger");
+    await setShownSurface(push.ledgerId, push.sent > 0 ? "web-push" : "telegram-fallback");
   }
-  return { status: "standalone_sent", push };
+  if (push.sent === 0) {
+    await briefTelegramFallback(brief, push, push.ledgerId);
+    return { status: "standalone_failed", push: { sent: push.sent, failed: push.failed } };
+  }
+  return { status: "standalone_sent", push: { sent: push.sent, failed: push.failed } };
 }
 
 /**
@@ -525,17 +514,13 @@ export const operatorMorningBrief = inngest.createFunction(
   async ({ step }) => {
     const brief = await step.run("compose", composeBrief);
     const push = await step.run("hand-off-for-combine", () => handOffForCombine(brief));
-    // Wave-3 (2026-07-29) · delivery truth: the brief joins the outcome
-    // ledger (coverage + acknowledgement become measurable), and a
-    // Telegram fallback fires when web push reached ZERO devices — the
-    // operator confirmed pushes were not arriving; Telegram is the
-    // proven P0 lane (heartbeat + liveness + proactive slots all use it).
-    // 2026-08-21 · post-combine, `push` here is the synthetic {sent:1}
-    // from handOffForCombine, so this fallback call always skips — the
-    // REAL Telegram safety net for morning's content now lives inside
-    // sendStandaloneIfUnconsumed, 35min below, keyed on the actual push.
-    const ledger = await step.run("outcome-ledger", () => recordBriefShown(brief, push));
-    const fallback = await step.run("telegram-fallback", () => briefTelegramFallback(brief, push));
+    // 2026-10-02 · census E12: the "outcome-ledger" and "telegram-fallback"
+    // steps that stood here are gone. The first ledgered a second row for a
+    // morning the combined push already ledgers (one brief, two rows, two
+    // hashes); the second was keyed on handOffForCombine's synthetic
+    // {sent:1} and could never fire. Delivery, its ledger row and its
+    // Telegram fallback all live in sendStandaloneIfUnconsumed below, keyed
+    // on the real push result.
     const audio = await step.run("voice-file", () => generateBriefAudio(brief));
     // Phase A.3 · pin scoreboard picks for /scoreboard "as of 6am"
     const pinned = await step.run("pin-scoreboard", () =>
@@ -557,8 +542,6 @@ export const operatorMorningBrief = inngest.createFunction(
       sectionCount: brief.sectionCount,
       pushSent: push.sent,
       pushFailed: push.failed,
-      ledgerId: ledger.id,
-      telegramFallback: fallback.status,
       audioStatus: audio.status,
       audioBytes: audio.bytes ?? null,
       audioReason: audio.reason ?? null,
