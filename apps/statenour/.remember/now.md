@@ -1,5 +1,11 @@
 # Session ledger — statenour
 
+**Updated: 2026-10-02 ET** (full-circle wave 2 · `statenour/full-circle-c-settings-system` · Settings/System recomposition + Inngest kill switch + Home WaitingLine + rateable daily brief · PR #2884 open · wave 1 #2883 MERGED ba792990 + DEPLOYED 59bc223f, receipt path unproven until the next guardian failure)
+
+## 2026-10-02 · full-circle wave 2 — Settings keeps configuration, System owns operations
+
+Two censuses (settings controls; outcome ledger) are in `docs/design/*-2026-10-02.md` with an "Applied" section each. Settings: 17 blocks → 8 (3 domains); SystemOpsHub / HQErrorsCard / SystemInfoCard / CommandSpinePulse deleted as duplicates; health digest + data cards → `/system/health`; DeployChip → `/system` header (monorepo link, `build · unknown` on failure); memory of the day → `/brain`; cron panel deleted, runbook links + `role=switch` ported to `/system/crons`; Speed Ribbon toggle + orphan hook deleted; `/api/settings/crons*` + `listScheduledCrons` + `triggerCronByName` deleted (`system.runCron` → manifest). Kill switch now gates Inngest crons in `CronLifecycleMiddleware.wrapFunctionHandler` (skip shape, 30 s cache, fail-open). Home rail: `WaitingLine` over `operator.waitingSummary`. Lane D: `intelligence-brief` keeps the ledger id; push + Telegram fallback carry the rating affordance (`lib/services/outcome-rating-affordance.ts`, also consumed by morning-brief + proactive-pushes). Gates: tsc 0 · eslint 0 err · vitest 86 files / 691 · anti-slop, stale-docs strict, crons, get-auth, raw-sql, mutations, runbooks, parity all green · build in PR body. After deploy: check `/settings` (3 domains), `/system/health` (digest line present), `/system/crons` (runbook links), Home rail; review the killed-cron list once (killed Inngest crons now stop).
+
 **Updated: 2026-10-02 ET** (full-circle wave 1 · `statenour/full-circle-a-exception-coverage` · Lane A owner-exception coverage + Lane B WaitingSummary · PR #2883 open)
 
 ## 2026-10-02 · full-circle wave 1 — the Owner Panel can see a failing capability and a degraded brief; WaitingSummary says who waits on whom

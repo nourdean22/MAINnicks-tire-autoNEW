@@ -268,8 +268,12 @@ lib/utils/http.ts → cronHandler(handler)
 
 /system/crons       → live deck w/ kill-switch + run-now + sparkline
                       (tRPC systemAutomation.cronDeck / setCronEnabled / runManifestCron)
-PATCH /api/settings/crons         → flip kill switch (writes BrainMemory).
-POST  /api/settings/crons/trigger → fire a cron on demand.
+systemAutomation.setCronEnabled   → flip kill switch (writes BrainMemory cron_control; honoured by
+                                    cronHandler for route crons and by the Inngest lifecycle
+                                    middleware for Inngest-native crons since 2026-10-02).
+systemAutomation.runManifestCron  → fire a cron on demand from the config/crons.ts manifest.
+(The /api/settings/crons REST twins were deleted 2026-10-02 — they read a vercel.json that
+no longer exists and returned an empty catalog.)
 ```
 
 Each cron is `active` (own schedule), `folded` (runs inside a parent

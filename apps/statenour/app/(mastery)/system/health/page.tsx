@@ -40,6 +40,8 @@ import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { TrendCounter } from "@/components/ui/trend-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { SchemaDriftCard } from "@/components/system/schema-drift-card";
+import { SystemHealthDataCards } from "@/components/system/health-data-cards";
+import { SystemHealthCard } from "@/components/ultron/system-health-card";
 import { trpc } from "@/lib/trpc/client";
 import type { HealthReport } from "@/lib/services/system-health";
 
@@ -156,6 +158,14 @@ export default function SystemHealthPage() {
           dimensions that broke in prod (revenue $0 · evals 0/75 · bridge
           down) but weren't surfaced here. Loud (red) only when wrong. */}
       <OperationalStatus report={data} />
+
+      {/* 2026-10-02 · full-circle wave 2 · the nightly health digest (push
+          card) and the three data cards (7d trend · 24h error rate by route ·
+          integration quotas) moved here from Settings > Diagnostics: they
+          read machine health, and machine operations are /system's
+          (docs/design/settings-census-2026-10-02.md). */}
+      <SystemHealthCard />
+      <SystemHealthDataCards />
 
       {/* v8.2 BATCH 12 — schema-drift sentinel surface. Loud only when
           something's off; silent (✓ all expectations met) otherwise. */}

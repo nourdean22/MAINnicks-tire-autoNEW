@@ -194,7 +194,7 @@ export function collectDiagnoses(ctx: DiagnosisContext): CronDiagnosis[] {
       severity: "critical",
       headline: "pauseAllCrons is TRUE — every cron is manually killed",
       detail:
-        "The power-panel kill switch is flipped. Crons fire but /api/settings/crons/trigger checks the enabled flag and refuses.",
+        "The power-panel kill switch is flipped. Crons are scheduled but the kill switch (cronHandler for route crons, the Inngest lifecycle middleware for Inngest-native crons) skips every run.",
       fix: "Go to /system/power → toggle 'Pause all crons' off. Or POST /api/system/power with { key: 'pauseAllCrons', value: false }.",
     });
   }
@@ -204,7 +204,7 @@ export function collectDiagnoses(ctx: DiagnosisContext): CronDiagnosis[] {
       severity: "warning",
       headline: `${ctx.killedIndividually.length} cron${ctx.killedIndividually.length === 1 ? "" : "s"} individually disabled`,
       detail: `Per-cron kill switches set: ${ctx.killedIndividually.map((c) => c.jobName).join(", ")}`,
-      fix: "Re-enable from /system/crons (flip each green) or via POST /api/settings/crons with { jobName, enabled: true }.",
+      fix: "Re-enable from /system/crons (flip each green) · systemAutomation.setCronEnabled({ jobName, enabled: true }).",
     });
   }
 

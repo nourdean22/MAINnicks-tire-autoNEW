@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { SkillLibraryPanel } from "@/components/settings/skill-library-panel";
 import { IdentityPanel } from "@/components/settings/identity-panel";
+import { MemoryOfDayCard } from "@/components/brain/memory-of-day-card";
 import { QualitativeIdentityPanel } from "@/components/brain/qualitative-identity-panel";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
@@ -208,6 +209,9 @@ export function MemoryTab() {
             <div id="persona-drift" className="scroll-mt-24">
               <PersonaDriftCard />
             </div>
+            {/* 2026-10-02 · moved from Settings > Diagnostics: brain content,
+                not machine health (docs/design/settings-census-2026-10-02.md). */}
+            <MemoryOfDayCard />
             <SkillLibraryPanel />
             <IdentityPanel />
             <QualitativeIdentityPanel />

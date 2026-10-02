@@ -1,28 +1,26 @@
 "use client";
 
 /**
- * Settings — the operator's live ops console.
+ * Settings — durable operator configuration.
  *
- * 2026-07-02 · Elite 200 IQ Split-Pane Redesign.
- * Replaced the massive vertical stack with `SettingsConsole`, separating
- * identity, cognitive settings, automations, and diagnostics into distinct domains.
+ * 2026-07-02 · split-pane redesign (`SettingsConsole`).
+ * 2026-10-02 · full-circle wave 2: the Diagnostics domain and the cron
+ * panel left for /system (docs/design/settings-census-2026-10-02.md); this
+ * page no longer reads the system pulse. Machine operations are /system's.
  */
 
 import { StandardPage } from "@/components/layout/standard-page";
-import { useSystemPulse } from "@/lib/hooks/use-system-pulse";
 import { SettingsConsole } from "@/components/settings/settings-console";
 
 export default function SettingsPage() {
-  const pulse = useSystemPulse();
-
   return (
     <StandardPage
       eyebrow="Mastery"
       title="settings"
-      description="system ops · automation · ai · scoring · preferences"
+      description="identity · scoring · ai · flags · notifications"
       rhythm="loose"
     >
-      <SettingsConsole pulse={pulse} />
+      <SettingsConsole />
     </StandardPage>
   );
 }

@@ -35,8 +35,8 @@
  *     `functions: Object.values(functions)`), so an inngest-native cron
  *     cannot be parked or revived there at all.
  *     ⚠ "dormant" means NOT SCHEDULED, not unreachable — the operator
- *     surface can still fire any cron by hand
- *     (POST /api/settings/crons/trigger), which is why a dormant cron can
+ *     surface can still fire any cron by hand (/system/crons Run →
+ *     systemAutomation.runManifestCron), which is why a dormant cron can
  *     legitimately show a single run on a single day.
  *     Added 2026-05-30 to stop the manifest claiming
  *     Wave-AE orphans were "active" when they never actually fired.

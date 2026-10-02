@@ -1,20 +1,24 @@
 /**
- * Cron Control — kill switches + manual triggers for every scheduled
- * cron in vercel.json. Apr 18.
+ * Cron Control — kill switches + manual triggers for every cron in the
+ * config/crons.ts manifest. Apr 18 (vercel.json era); manifest-keyed since
+ * 2026-06-02, and the vercel.json catalog reader was deleted 2026-10-02.
  *
  * Storage: BrainMemory rows with category="cron_control", key=<jobName>.
  * Content = JSON { enabled: boolean, updatedAt: ISO string, note?: string }.
  * Using BrainMemory avoids a dedicated settings table — the same retention
  * + backup story already applies, and the row shape is tiny.
  *
- * Runtime check: `isCronEnabled(jobName)` — used by cron routes to bail out
- * gracefully when killed. Default is ENABLED (absence = enabled). This means
- * a fresh install runs every cron automatically; the kill switch is an
- * opt-in disable.
+ * Runtime check: `isCronEnabled(jobName)` — consulted by `cronHandler`
+ * (lib/utils/http.ts) for /api/cron/* routes and, since 2026-10-02, by
+ * `CronLifecycleMiddleware.wrapFunctionHandler` (lib/inngest/cron-lifecycle.ts)
+ * for Inngest-native crons, so one switch covers both dispatch paths. Default
+ * is ENABLED (absence = enabled): a fresh install runs every cron; the kill
+ * switch is an opt-in disable.
  *
- * Manual trigger: `triggerCronByName(jobName)` fires the route via fetch.
- * Returns {ok, status, durationMs}. Uses CRON_SECRET so the target route
- * accepts it as a legitimate cron call.
+ * Manual trigger: `runManifestCron(jobName)` resolves the path from the
+ * manifest and fires it via `triggerCronByPath`. Returns {ok, status,
+ * durationMs}. Uses CRON_SECRET so the target route accepts it as a
+ * legitimate cron call.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -119,48 +123,6 @@ function baseUrl(): string {
 }
 
 /**
- * Phase NN (2026-05-19 AM) · derive path from jobName and trigger.
- *
- * The legacy `/api/settings/crons/trigger` REST endpoint takes `{path}`
- * which was an operator-hostile shape — the UI knows `jobName`, not
- * the path-with-query-string. The cron-diagnostics page was actually
- * shipping the wrong body shape (sending `{jobName}` to a `{path}`-
- * expecting handler) so the "run now" button was broken in prod
- * since at least wave-181.4.
- *
- * The new tRPC mutation `system.runCron({jobName})` calls this
- * helper · derives path from the scheduled-cron catalog · falls back
- * to `/api/cron/${jobName}` for mega-fanout virtual crons (which
- * don't have catalog rows). Drift-proof against the catalog logic
- * already in `app/api/settings/crons/route.ts`.
- */
-const MEGA_FANOUT_JOBS = new Set([
-  "device-sync", "learn", "stale-tasks", "device-health", "brain-cycle",
-  "notification-sender", "journal-checkin", "embed-backfill",
-  "reflect", "predict", "think", "consolidate", "drift-check",
-  "data-cleanup", "intelligence",
-]);
-
-export async function triggerCronByName(
-  jobName: string,
-): Promise<CronTriggerResult> {
-  const scheduled = await listScheduledCrons();
-  const found = scheduled.find((c) => c.jobName === jobName);
-  if (found) {
-    return triggerCronByPath(found.path);
-  }
-  if (MEGA_FANOUT_JOBS.has(jobName)) {
-    return triggerCronByPath(`/api/cron/${jobName}`);
-  }
-  return {
-    ok: false,
-    status: 0,
-    durationMs: 0,
-    body: `unknown jobName: ${jobName}`,
-  };
-}
-
-/**
  * Manually fire a cron by its path (e.g. "/api/cron/drift-check" or
  * "/api/cron/mega?slot=morning"). Passes CRON_SECRET so the target
  * route authorizes the call. Returns timing + status for UI feedback.
@@ -203,43 +165,6 @@ export async function triggerCronByPath(path: string): Promise<CronTriggerResult
       durationMs: Date.now() - start,
       error: err instanceof Error ? err.message : String(err),
     };
-  }
-}
-
-// ── vercel.json catalog ─────────────────────────────────────────────────
-
-export interface ScheduledCron {
-  jobName: string;
-  path: string;
-  schedule: string;
-}
-
-/**
- * Parse vercel.json crons into a stable catalog. Uses fs — only works
- * on the server. The file ships with the deployment so this is safe in
- * a Vercel lambda and in local dev.
- */
-export async function listScheduledCrons(): Promise<ScheduledCron[]> {
-  const fs = await import("fs");
-  const path = await import("path");
-  try {
-    const raw = fs.readFileSync(path.join(process.cwd(), "vercel.json"), "utf8");
-    const parsed = JSON.parse(raw) as {
-      crons?: Array<{ path: string; schedule: string }>;
-    };
-    return (parsed.crons ?? []).map((c) => {
-      const match = c.path.match(/\/api\/cron\/([^/?]+)/);
-      const baseName = match ? match[1] : c.path;
-      // v11 fix · jobs like mega?slot=morning + mega?slot=evening share
-      // the same base name but represent different scheduled runs. Keep
-      // them distinct by suffixing the query slot so React keys stay
-      // unique and stats maps don't collide.
-      const slotMatch = c.path.match(/[?&]slot=([^&]+)/);
-      const jobName = slotMatch ? `${baseName}-${slotMatch[1]}` : baseName;
-      return { jobName, path: c.path, schedule: c.schedule };
-    });
-  } catch {
-    return [];
   }
 }
 
@@ -299,9 +224,9 @@ export async function getCronStats(): Promise<
  * the new `system.runManifestCron` tRPC procedure call the SAME
  * function · drift between consumers structurally impossible.
  *
- * Distinct from `triggerCronByName` (NN · vercel.json catalog) — this
- * is the `/system/crons` + `/system/cron-runs` deck path which checks
- * the typed CronDef manifest and rejects retired jobs.
+ * The `/system/crons` + `/system/cron-runs` deck path and, since
+ * 2026-10-02, the only manual-trigger path: it checks the typed CronDef
+ * manifest and rejects retired jobs.
  *
  * Throws ServiceError(404) for an unknown job, ServiceError(410) for a
  * retired one — both transports reject identically.
