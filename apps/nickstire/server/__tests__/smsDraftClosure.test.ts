@@ -160,12 +160,14 @@ describe("reconcileStaleHumanReviewDrafts", () => {
     await reconcileStaleHumanReviewDrafts(db, 7);
     const select = issued[0];
     expect(select.text).toContain("WHERE o.status = 'drafted' AND o.requires_human_approval = 1");
-    expect(select.text).toContain("m.conversationId = o.related_conversation_id AND m.createdAt > o.createdAt");
+    expect(select.text).toContain("n.related_conversation_id = o.related_conversation_id AND n.event_type = 'inbound_sms' AND n.id > o.id");
     expect(select.text).toContain("o.event_type = 'inbound_sms'");
-    // Only the CUSTOMER texting again supersedes; an automated outbound (reminder) must not
-    // close a draft that still answers an unanswered question.
-    expect(select.text).toContain("m.createdAt > o.createdAt AND m.direction = 'inbound'");
-    expect(select.text).not.toMatch(/m\.status <> 'failed'/);
+    // Superseded only when the customer's NEWER text got its own draft/reply — a bare "ok"
+    // classified no-reply (skipped) must not cancel the draft answering the real question,
+    // and outbound reminders never count.
+    expect(select.text).toContain("n.status IN ('drafted', 'approved', 'queued', 'sending', 'sent', 'delivered', 'replied')");
+    expect(select.text).not.toContain("'skipped'");
+    expect(select.text).not.toContain("FROM sms_messages");
     expect(select.text).toContain("j.orchestrationId = o.id");
     // A failed/dead job means nobody answered — it must never count as a closed obligation.
     expect(select.text).toContain("j.status IN ('responded', 'suppressed', 'human_replied', 'no_reply_required')) AS jobClosed");

@@ -39,6 +39,8 @@ let invoiceById: Record<number, Record<string, unknown>> = {};
 let vapiSelectRows: Array<Record<string, unknown>> = [];
 let livePhoneRows: Array<Record<string, unknown>> = [];
 let inserts: string[] = [];
+/** When true, the upsert reports an existing row (ON DUPLICATE KEY -> affectedRows 2 = "refreshed"). */
+let refreshNext = false;
 
 const flat = (q: unknown) => JSON.stringify(q).replace(/\\n/g, " ").replace(/\s+/g, " ");
 
@@ -53,7 +55,7 @@ const fakeDb = {
     if (text.includes("UPDATE revenue_opportunities")) return [{ affectedRows: 1 }];
     if (text.includes("INSERT INTO revenue_opportunities")) {
       inserts.push(text);
-      return [{ affectedRows: 1 }];
+      return [{ affectedRows: refreshNext ? 2 : 1 }];
     }
     if (text.includes("SELECT id, source_id, state, customer_phone FROM revenue_opportunities")) return [livePhoneRows];
     if (text.includes("source_type = 'missed_call'") && text.includes("ORDER BY created_at DESC")) return [liveMissed];
@@ -90,6 +92,7 @@ beforeEach(() => {
   vapiSelectRows = [];
   livePhoneRows = [];
   inserts = [];
+  refreshNext = false;
 });
 
 const HOUR = 3_600_000;
@@ -304,7 +307,19 @@ describe("collectMissedCalls · one live card per phone", () => {
     const collapseUpd = captured.find((t) => t.includes("UPDATE revenue_opportunities") && t.includes("collapsed into newer missed call"));
     expect(collapseUpd, "the older live card must be closed into the newer call").toBeTruthy();
     expect(collapseUpd).toContain("duplicate");
-    expect(stats.collapsed).toBe(3); // op-old closed + 2 older calls not carded
+    expect(stats.collapsed).toBe(1); // cards CLOSED (op-old) — older calls merely not carded are not counted
+  });
+
+  it("a refreshed call whose card is no longer live (dismissed) never closes the phone's live card", async () => {
+    // op-live is the only live card; call-new's card exists but was dismissed, so it is not in livePhoneRows.
+    livePhoneRows = [{ id: "op-live", source_id: "call-old", state: "new", customer_phone: "2165550142" }];
+    oppRows["op-live"] = { id: "op-live", state: "new", source_type: "missed_call" };
+    refreshNext = true;
+    vapiSelectRows = [call("call-new", "2165550142", 60)];
+    const { collectMissedCalls } = await import("./services/opportunityQueue");
+    const stats = await collectMissedCalls();
+    expect(captured.some((t) => t.includes("UPDATE revenue_opportunities") && t.includes("collapsed into"))).toBe(false);
+    expect(stats.collapsed).toBe(0);
   });
 
   it("an older card someone is already WORKING is never collapsed by a new call", async () => {

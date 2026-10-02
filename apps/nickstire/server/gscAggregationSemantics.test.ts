@@ -161,3 +161,10 @@ describe("F7 — an empty official response is not an official zero (2026-10-02)
     expect(rev).toContain("officialResult.value.summaryHasData");
   });
 });
+
+describe("F8 — statenourMetrics refuses an empty official window instead of sending a labelled zero", () => {
+  it("throws PRECONDITION_FAILED when summaryHasData is false", () => {
+    const c = code(readFileSync(resolve(APP, "server/routers/statenourMetrics.ts"), "utf8"));
+    expect(c).toMatch(/if \(!report\.summaryHasData\) \{\s*throw new TRPCError\(\{\s*code: "PRECONDITION_FAILED"/);
+  });
+});

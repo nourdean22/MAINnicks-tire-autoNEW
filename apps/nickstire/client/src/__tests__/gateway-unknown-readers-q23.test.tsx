@@ -208,6 +208,18 @@ describe("useSettingsStatus", () => {
     expect(cams.map((i) => [i.key, i.severity])).toEqual([["camera-sign", "alert"]]);
   });
 
+  it("a readable payload with nothing judgeable (no commissioned camera) is UNKNOWN, not 'cameras healthy'", () => {
+    set("lot.health", { ok: true, cameras: [{ camera: "inside", label: "Inside", state: "NEVER_INGESTED", commissioned: false, registered: true, conversation: null }] });
+    const { result } = renderHook(() => useSettingsStatus());
+    expect(result.current.failedChecks).toContain("camera health");
+  });
+
+  it("control: a healthy commissioned fleet is not a failed check", () => {
+    set("lot.health", { ok: true, cameras: [{ camera: "sign", label: "Sign", state: "HEALTHY", commissioned: true, registered: true, conversation: null }] });
+    const { result } = renderHook(() => useSettingsStatus());
+    expect(result.current.failedChecks).not.toContain("camera health");
+  });
+
   it("an unreadable camera health is a check that could not run, never 'cameras fine'", () => {
     set("lot.health", { ok: false, reason: "camera_runtime health read failed" });
     const { result } = renderHook(() => useSettingsStatus());

@@ -147,10 +147,12 @@ interface DraftCandidate {
   /** A linked job is still open (pending / processing / human_pending). */
   jobOpen: number | string | boolean | null;
   /**
-   * inbound_sms only: the CUSTOMER texted again after this draft (that message gets its own
-   * draft/reply). Outbound rows deliberately do not count: sms_messages cannot tell a
-   * human answer from an automated reminder, and a reminder does not answer the customer.
-   * A human answer closes the draft via resolveHumanPendingForConversation instead.
+   * inbound_sms only: the customer texted again AND that newer text got its own draft or
+   * reply (a newer inbound_sms orchestration in the conversation that was drafted or sent).
+   * A bare newer message is not enough: "ok" / "thanks" is often classified no-reply, and
+   * cancelling on it would drop the only draft answering the real question. Outbound
+   * messages never count — a reminder does not answer the customer; a human answer closes
+   * the draft via resolveHumanPendingForConversation instead.
    */
   newerActivity: number | string | boolean | null;
   /** created more than STALE_DRAFT_MAX_AGE_DAYS ago. */
@@ -187,8 +189,9 @@ async function selectDraftCandidates(d: Executor, maxAgeDays: number): Promise<D
            EXISTS (SELECT 1 FROM sms_response_jobs j WHERE j.orchestrationId = o.id
                    AND j.status IN ('pending', 'processing', 'human_pending')) AS jobOpen,
            (o.event_type = 'inbound_sms' AND o.related_conversation_id IS NOT NULL AND EXISTS (
-              SELECT 1 FROM sms_messages m WHERE m.conversationId = o.related_conversation_id
-                AND m.createdAt > o.createdAt AND m.direction = 'inbound')) AS newerActivity,
+              SELECT 1 FROM sms_orchestrations n WHERE n.related_conversation_id = o.related_conversation_id
+                AND n.event_type = 'inbound_sms' AND n.id > o.id
+                AND n.status IN ('drafted', 'approved', 'queued', 'sending', 'sent', 'delivered', 'replied'))) AS newerActivity,
            (o.createdAt < NOW() - INTERVAL ${maxAgeDays} DAY) AS stale
     FROM sms_orchestrations o
     WHERE o.status = 'drafted' AND o.requires_human_approval = 1

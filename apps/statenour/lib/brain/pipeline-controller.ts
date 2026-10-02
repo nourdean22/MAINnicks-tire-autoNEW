@@ -211,7 +211,7 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
         await brainMemory.remember(
           "insight",
           `repeat_customer_${nameHash}_${today()}`,
-          `REPEAT CUSTOMER (${existingCustomer.totalVisits} visits, ${spendTier}-spend, segment: ${existingCustomer.segment}). High-value — prioritize.`,
+          `REPEAT CUSTOMER (${existingCustomer.totalVisits} visits, ${spendTier}-spend, segment: ${existingCustomer.segment}).${spendTier === "high" ? " High-value — prioritize." : ""}`,
           "pipeline_analysis"
         );
         actions.push("insight.repeat_customer");

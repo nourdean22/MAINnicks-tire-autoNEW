@@ -28,6 +28,8 @@ interface FinancingClickRow {
     calledShop: boolean;
     invoicedOn: string | null;
   } | null;
+  /** The enrichment read failed — attribution is UNKNOWN for this row, not "unidentified". */
+  attributionUnavailable?: boolean;
 }
 
 const VIA_LABEL = { lead: "lead", booking: "booking", callback: "callback request", tire_order: "tire order" } as const;
@@ -107,6 +109,8 @@ export function FinancingAttribution() {
                           <span className="text-foreground/40"> · no invoice yet</span>
                         )}
                       </span>
+                    ) : r.attributionUnavailable ? (
+                      <span className="text-amber-500">attribution unknown (read failed)</span>
                     ) : r.attribution?.calledShop ? (
                       <span className="text-foreground/50">called the shop (no identity)</span>
                     ) : (

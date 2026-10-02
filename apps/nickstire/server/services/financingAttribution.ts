@@ -19,6 +19,7 @@
  */
 import { sql } from "drizzle-orm";
 import { db } from "../lib/db-helper";
+import { normalizePhone } from "./revenueAttribution";
 
 interface Attribution {
   identifiedVia: "lead" | "booking" | "callback" | "tire_order" | null;
@@ -31,10 +32,8 @@ const rowsOf = (result: unknown): Array<Record<string, unknown>> => {
   const r = Array.isArray(result) && Array.isArray(result[0]) ? result[0] : result;
   return Array.isArray(r) ? (r as Array<Record<string, unknown>>) : [];
 };
-const phone10 = (v: unknown): string | null => {
-  const d = typeof v === "string" ? v.replace(/\D/g, "").slice(-10) : "";
-  return d.length === 10 ? d : null;
-};
+/** Last 10 digits, or null — the repo's one phone key (revenueAttribution.normalizePhone). */
+const phone10 = (v: unknown): string | null => normalizePhone(typeof v === "string" ? v : null);
 const day = (v: unknown): string | null => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
 
 /** Attribution per click id. Throws on a failed read — the caller reports it, never "unattributed". */

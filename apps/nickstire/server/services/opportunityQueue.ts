@@ -1200,7 +1200,7 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
   let inserted = 0;
   let refreshed = 0;
   let collapsed = 0;
-  /** Phones that got their (newest) card in this run. */
+  /** Phones that got their (newest) card in this run. `collapsed` counts only cards CLOSED into it. */
   const cardedThisRun = new Set<string>();
   for (const r of rows) {
     const meta = (r.metadata ?? null) as Record<string, unknown> | null;
@@ -1221,10 +1221,7 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
     const livePhone = p10 ? liveByPhone.get(p10) : undefined;
     // A call OLDER than one already carded this run (rows are newest-first) is
     // the redial's predecessor: it collapses into the newer card, not inserted.
-    if (p10 && cardedThisRun.has(p10)) {
-      collapsed++;
-      continue;
-    }
+    if (p10 && cardedThisRun.has(p10)) continue;
 
     const ageMin = Math.round((now - new Date(r.createdAt).getTime()) / 60_000);
     const res = await upsertOpportunity({
@@ -1246,7 +1243,10 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
     if (res === "inserted" || res === "refreshed") {
       if (res === "inserted") inserted++;
       else refreshed++;
-      if (p10) {
+      // Collapse only into a LIVE card: a refresh of a call whose card an operator
+      // dismissed (or that was closed) must not close the phone's remaining live card into it.
+      const cardIsLive = res === "inserted" || (livePhone ?? []).some((l) => l.sourceId === r.vapiCallId);
+      if (p10 && cardIsLive) {
         cardedThisRun.add(p10);
         // Older live cards for this phone collapse into this newer call.
         for (const older of livePhone ?? []) {

@@ -76,5 +76,17 @@ describe("repeat-customer spend tier reads totalSpent as CENTS (2026-10-02)", ()
     expect(await tierFor(60_000)).toBe("mid");
     expect(await tierFor("250000")).toBe("high");
   });
+
+  it("only a high-spend customer is stored as 'High-value — prioritize'", async () => {
+    const line = async (totalSpent: number) => {
+      queryNick.mockResolvedValue({ data: { customers: [{ totalVisits: 3, totalSpent, segment: "loyal" }] } });
+      await processShopEvent({ type: "lead", data: fixtureData("nickstire:lead") });
+      const l = remember.mock.calls.map(c => String(c[2])).find(c => c.startsWith("REPEAT CUSTOMER"));
+      remember.mockClear();
+      return l ?? "";
+    };
+    expect(await line(3_000)).not.toContain("High-value");
+    expect(await line(300_000)).toContain("High-value — prioritize.");
+  });
 });
 

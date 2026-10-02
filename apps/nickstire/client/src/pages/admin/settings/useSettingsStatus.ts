@@ -63,8 +63,16 @@ export function useSettingsStatus() {
     isSmsStatusError && "SMS status",
     isVapiError && "voice (VAPI) status",
     isCronError && "cron health",
-    // A camera read that failed is a check that did not run — never "cameras fine".
-    (isLotHealthError || (lotHealth !== undefined && lotHealth.ok !== true)) && "camera health",
+    // A camera read that failed — or answered but left nothing judgeable (no commissioned
+    // camera, unreadable payload: fleet UNKNOWN) — is a check that did not run, never
+    // "cameras healthy".
+    (isLotHealthError ||
+      (lotHealth !== undefined &&
+        summarizeCameraFleet(
+          lotHealth.ok === true
+            ? { ok: true, cameras: lotHealth.cameras as unknown as CameraFleetInputCamera[] }
+            : { ok: false },
+        ).state === "UNKNOWN")) && "camera health",
   ].filter((name): name is string => Boolean(name));
 
   // 3. Compose open-issues stack (moved from view layer to state controller)

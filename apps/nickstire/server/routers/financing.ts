@@ -256,8 +256,21 @@ export const financingRouter = router({
         .limit(input.limit);
       // 2026-10-02 · the session id is also on bookings, callbacks, tire orders and
       // click-to-call events; leads alone (3 rows in prod) identified 0 of 16 clicks.
+      // An enrichment failure must not hide clicks that DID load: the rows still render,
+      // each marked attributionUnavailable (the panel says "unknown", never "unidentified").
       const { financingAttributionFor } = await import("../services/financingAttribution");
-      const ladder = await financingAttributionFor(rows.map((r: { id: number }) => r.id));
-      return rows.map((r: { id: number } & Record<string, unknown>) => ({ ...r, attribution: ladder.get(r.id) ?? null }));
+      let ladder: Awaited<ReturnType<typeof financingAttributionFor>> | null = null;
+      try {
+        ladder = await financingAttributionFor(rows.map((r: { id: number }) => r.id));
+      } catch (err) {
+        log.warn("financing attribution enrichment failed — clicks shown without it", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+      return rows.map((r: { id: number } & Record<string, unknown>) => ({
+        ...r,
+        attribution: ladder?.get(r.id) ?? null,
+        attributionUnavailable: ladder === null,
+      }));
     }),
 });
