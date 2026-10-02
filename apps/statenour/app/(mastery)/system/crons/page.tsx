@@ -49,6 +49,7 @@ import { trpc } from "@/lib/trpc/client";
 // 2026-09-15 · UI workbench: a cron row is an inspectable object (run history
 // + schedule in the universal inspector; run-now / kill stay on the row).
 import { Eye } from "lucide-react";
+import { cronRunbookHref } from "@/lib/system/cron-runbooks";
 import { useInspector } from "@/hooks/use-inspector";
 
 type CronMode = "active" | "folded" | "retired" | "dormant";
@@ -544,7 +545,23 @@ function CronRowView({
             </span>
           )}
         </div>
-        <div className="truncate text-[11px] text-fg-tertiary">{row.description}</div>
+        <div className="flex items-center gap-2 truncate text-[11px] text-fg-tertiary">
+          <span className="truncate">{row.description}</span>
+          {cronRunbookHref(row.name) && (
+            // Ported from the deleted Settings cron panel (2026-10-02): the one
+            // affordance it had that this page lacked. Only mapped crons get a
+            // link; lib/system/cron-runbooks.ts is pinned to the files that exist.
+            <a
+              href={cronRunbookHref(row.name) ?? undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-[44px] shrink-0 items-center font-mono text-[11px] text-fg-tertiary hover:text-fg hover:underline md:min-h-0"
+              title="open the runbook for this cron"
+            >
+              [runbook]
+            </a>
+          )}
+        </div>
       </div>
 
       <div className="hidden md:block text-right">
@@ -589,6 +606,11 @@ function CronRowView({
           <button
             onClick={() => toggle(!row.enabled)}
             disabled={isToggling}
+            // role=switch + aria-checked: state was colour-only before. The
+            // contract moved here from the deleted Settings cron panel
+            // (tests/components/mobile-a11y.test.tsx · A8).
+            role="switch"
+            aria-checked={row.enabled}
             aria-label={row.enabled ? `kill cron ${row.name}` : `re-enable cron ${row.name}`}
             className={cn(
               "rounded-control px-2 py-1 text-[11px] transition focus-visible:ring-1 focus-visible:ring-edge-strong focus-visible:outline-none",

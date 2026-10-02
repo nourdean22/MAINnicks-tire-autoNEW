@@ -332,7 +332,7 @@ export const intelligenceDailyBrief = inngest.createFunction(
     const combinedText = combineBriefText(morningHighlight, briefContent.text);
 
     // 4. Save Brief to BriefingLog
-    await step.run("save-brief-log", async () => {
+    const { ledgerId } = await step.run("save-brief-log", async () => {
       const { prisma } = await import("@/lib/prisma");
       await prisma.briefingLog.create({
         data: {
@@ -344,25 +344,37 @@ export const intelligenceDailyBrief = inngest.createFunction(
       // the operator is SHOWN — record it so acceptance/usefulness can
       // ever be measured. First line = the headline recommendation;
       // dedup + failure-safety live in the ledger service.
+      //
+      // 2026-10-02 · THE ID IS KEPT. It was discarded here, so the combined
+      // push below carried no rating buttons and the brief was rateable only
+      // on the 35-minute backstop path (morning-brief.ts sendBriefPush):
+      // docs/design/outcome-ledger-coverage-2026-10-02.md, finding 6.
+      // recordShown never throws (it logs and returns null), so a ledger
+      // failure means "no buttons", never "no brief".
       const { recordShown } = await import("@/lib/services/outcome-ledger");
-      await recordShown({
+      const id = await recordShown({
         kind: "daily_brief",
         sourceEngine: "intelligence-brief",
         summary: combinedText.split("\n").find((l: string) => l.trim().length > 0)?.slice(0, 500) ?? "daily brief",
         shownSurface: "push+briefing_log",
       });
+      return { ledgerId: id };
     });
 
     // 5. Dispatch Web Push Notification — ONE push covering both briefs
     // when morning's highlight was there to combine.
     const pushReport = await step.run("dispatch-push", async () => {
       const { sendPush } = await import("@/lib/notifications/push");
+      const { ratingPushActions } = await import("@/lib/services/outcome-rating-affordance");
       const result = await sendPush({
         title: combinedBriefTitle(morningHighlight),
         body: combinedPushBody(morningHighlight, briefContent.text),
         level: "high",
         url: "/intelligence/brief",
         tag: `daily-brief-${briefContent.date}`,
+        // 👍 / 👎 land on the ledger row saved above; the service worker
+        // posts the verdict to /api/outcomes/rate without opening the app.
+        ...ratingPushActions(ledgerId),
         // 2026-08-21 · NO chatSeed here on purpose. chatSeed ALWAYS wins
         // over `url` in sendPush's click routing, and chat only PREFILLS
         // the composer — it never auto-sends ($0-incremental doctrine,
@@ -383,17 +395,25 @@ export const intelligenceDailyBrief = inngest.createFunction(
     // existing fallback (lib/inngest/functions/morning-brief.ts).
     const telegramFallback = await step.run("telegram-fallback", async () => {
       if (pushReport.sent > 0) return { status: "skipped_push_ok" as const };
-      const { sendTelegram } = await import("@/lib/services/telegram");
+      const { sendTelegram, sendTelegramWithButtons } = await import("@/lib/services/telegram");
+      const { ratingTelegramButtons } = await import("@/lib/services/outcome-rating-affordance");
       const reason =
         pushReport.failed > 0
           ? "web push failed on every registered device"
           : "no live web-push subscription";
       const title = combinedBriefTitle(morningHighlight);
-      const ok = await sendTelegram(
+      const text =
         `📊 ${title} (${briefContent.date}) — delivered via Telegram because ${reason}. ` +
-          `Re-enable push in Settings → Notifications.\n\n${pushBodyFromBrief(combinedText)}\n\n` +
-          `Full brief: https://bdnick.info/intelligence/brief`,
-      ).catch(() => false);
+        `Re-enable push in Settings → Notifications.\n\n${pushBodyFromBrief(combinedText)}\n\n` +
+        `Full brief: https://bdnick.info/intelligence/brief`;
+      // Same rating affordance as the push path (2026-10-02): the fallback
+      // surface must not be the one where the brief cannot be rated.
+      const buttons = ratingTelegramButtons(ledgerId);
+      const ok = buttons
+        ? await sendTelegramWithButtons(text, buttons)
+            .then((r) => r.ok)
+            .catch(() => false)
+        : await sendTelegram(text).catch(() => false);
       return { status: ok ? ("sent" as const) : ("failed" as const) };
     });
 

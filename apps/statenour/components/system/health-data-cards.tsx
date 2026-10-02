@@ -1,46 +1,47 @@
 "use client";
 
 /**
- * SystemDataCards · v10.0.94 · 2026-05-02.
+ * SystemHealthDataCards · 7-day health trend · 24h error rate by route ·
+ * integration quotas.
  *
- * UI surface for the data already produced by /api/system/health-
- * trend, /api/system/error-rate-by-route, and /api/system/integration
- * -quotas. Three GlassCards stacked, each silent-when-empty so they
- * don't clutter /settings until there's signal to surface.
+ * Born as components/settings/system-data-cards.tsx (v10.0.94, 2026-05-02),
+ * mounted under Settings > Diagnostics; moved to /system/health in the
+ * full-circle wave 2 recomposition (2026-10-02): these read machine health,
+ * and the ownership test (docs/design/settings-census-2026-10-02.md) puts
+ * machine operations on /system. The memory-of-the-day card that shipped
+ * beside them is brain content and moved to /brain (components/brain/
+ * memory-of-day-card.tsx). Pure rendering — the three tRPC procedures
+ * (system.healthTrend · system.errorRateByRoute · system.integrationQuotas)
+ * have no other consumer, so this file is what keeps them wired.
  *
- * Why 3 cards: the underlying endpoints already exist + return JSON
- * the operator can't see. This is pure rendering — no new API
- * surfaces. The Karpathy lens applied: turn DORMANT-but-shipped
- * data into LIVE-and-readable.
+ * Failure vocabulary: a failed read renders UnmeasuredLine; a measured quiet
+ * (0 errors · no metered providers) renders nothing; a health trend with NO
+ * digest rows in 7 days is a signal about the nightly digest cron and says so.
  */
 
 import { GlassCard } from "@/components/ui/glass-card";
-import { Activity, AlertTriangle, Gauge, Sparkles } from "lucide-react";
+import { UnmeasuredLine } from "@/components/ui/unmeasured-line";
+import { Activity, AlertTriangle, Gauge } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 
-/** Truth discipline (2026-09-01): a FAILED read must never render like a
- *  measured quiet. Each card stays silent on genuine emptiness but names
- *  itself unmeasured when its query errors. */
-function UnmeasuredLine({ label }: { label: string }) {
-  return (
-    <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-      {label}: unmeasured — the read failed (not zero).
-    </p>
-  );
-}
-
 // ── Health trend (7-day sparkline) ────────────────────────────
-// Phase UU.2 (2026-05-22) · REST→tRPC · the 7-day trend is now a typed
-// query (system.healthTrend). The legacy route wrapped its report in
-// `{ data }`; the tRPC procedure returns it unwrapped, so `data` here
-// is the report object directly. Silent-when-empty is preserved: the
-// card returns null while loading and when the series is empty.
+// Phase UU.2 (2026-05-22) · REST→tRPC · the 7-day trend is a typed query
+// (system.healthTrend); the procedure returns the report unwrapped.
 function HealthTrendCard() {
   const trendQuery = trpc.system.healthTrend.useQuery({ range: "7d" });
   const data = trendQuery.data ?? null;
 
   if (trendQuery.isError) return <UnmeasuredLine label="Health trend" />;
-  if (trendQuery.isPending || !data || data.series.length === 0) return null;
+  if (trendQuery.isPending || !data) return null;
+  if (data.series.length === 0) {
+    // Not "quiet": the nightly health-digest cron writes one row a day, so an
+    // empty 7-day series means the writer has not run. /system/crons has it.
+    return (
+      <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300/90">
+        Health trend: no digest rows in 7 days — the nightly health-digest cron has not written.
+      </p>
+    );
+  }
 
   const max = Math.max(
     1,
@@ -140,17 +141,14 @@ interface ErrorRow {
 }
 
 function ErrorRateCard() {
-  // Phase UU.2 (2026-05-22) · REST→tRPC · system.errorRateByRoute. The
-  // legacy route wrapped its payload in `{ data }`; the tRPC procedure
-  // returns it unwrapped. Loading + no-errors both collapse the card
-  // (silent-when-empty), matching the prior behaviour exactly.
+  // Phase UU.2 (2026-05-22) · REST→tRPC · system.errorRateByRoute. Loading
+  // and a measured 0 errors both collapse the card (silent-when-empty).
   const errorQuery = trpc.system.errorRateByRoute.useQuery({ range: "24h" });
   const summary = errorQuery.data?.summary ?? null;
   const worst: ErrorRow[] = (errorQuery.data?.worstByScore ?? [])
     .filter((r) => r.errors > 0)
     .slice(0, 5);
 
-  // Silent when loading or no errors — don't clutter
   if (errorQuery.isError) return <UnmeasuredLine label="Error rate" />;
   if (errorQuery.isPending || !summary || summary.totalErrors === 0)
     return null;
@@ -206,9 +204,7 @@ interface QuotaProbe {
 }
 
 function IntegrationQuotasCard() {
-  // Phase UU.2 (2026-05-22) · REST→tRPC · system.integrationQuotas. The
-  // legacy route wrapped its payload in `{ data }`; the tRPC procedure
-  // returns it unwrapped. Silent-when-empty preserved.
+  // Phase UU.2 (2026-05-22) · REST→tRPC · system.integrationQuotas.
   const quotasQuery = trpc.system.integrationQuotas.useQuery();
   const probes: QuotaProbe[] = quotasQuery.data?.probes ?? [];
   const summary = quotasQuery.data?.summary ?? null;
@@ -263,54 +259,10 @@ function IntegrationQuotasCard() {
   );
 }
 
-// ── Memory of the day (curated daily pick) ────────────────────
-// The MotdMemory / MotdData shapes are now inferred from the
-// brain.memoryOfTheDay tRPC procedure return type — no hand-mirrored
-// interfaces needed (Phase UU.2).
-function MemoryOfDayCard() {
-  // Phase UU.2 (2026-05-22) · REST→tRPC · brain.memoryOfTheDay. The
-  // legacy route wrapped its payload in `{ data }`; the tRPC procedure
-  // returns it unwrapped. Silent-when-empty preserved.
-  const motdQuery = trpc.brain.memoryOfTheDay.useQuery();
-  const data = motdQuery.data ?? null;
-
-  if (motdQuery.isError) return <UnmeasuredLine label="Memory of the day" />;
-  if (motdQuery.isPending || !data?.memory) return null;
-  const m = data.memory;
-  const ageStr =
-    m.ageDays === 0 ? "today" : m.ageDays === 1 ? "yesterday" : `${m.ageDays}d ago`;
-
-  return (
-    <GlassCard>
-      <div className="flex items-center gap-2 mb-2">
-        <Sparkles size={14} className="text-fg-tertiary" />
-        <p className="section-label">Memory of the day</p>
-        <span className="ml-auto text-[11px] font-mono text-fg-tertiary">
-          {data.dayKey}
-        </span>
-      </div>
-      <div className="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-2">
-        {m.content.slice(0, 360)}
-        {m.content.length > 360 ? "…" : ""}
-      </div>
-      <div className="flex items-center gap-3 text-[11px] font-mono text-fg-tertiary">
-        <span className="uppercase tracking-[0.12em] text-fg-secondary">
-          {m.category.replace(/_/g, " ")}
-        </span>
-        <span>·</span>
-        <span>conf {m.confidence.toFixed(2)}</span>
-        <span>·</span>
-        <span>{ageStr}</span>
-      </div>
-    </GlassCard>
-  );
-}
-
 // ── Composed surface ──────────────────────────────────────────
-export function SystemDataCards() {
+export function SystemHealthDataCards() {
   return (
     <div className="space-y-3">
-      <MemoryOfDayCard />
       <HealthTrendCard />
       <ErrorRateCard />
       <IntegrationQuotasCard />
