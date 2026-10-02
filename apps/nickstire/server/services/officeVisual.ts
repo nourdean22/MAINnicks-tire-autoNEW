@@ -177,35 +177,47 @@ export async function analyzeOfficeFrames(
   return failed(frames.length, errors.join(" | "));
 }
 
-let readyCache: { ok: boolean; at: number } | null = null;
+const readyCache = new Map<string, { ok: boolean; at: number }>();
 const READY_TTL_MS = 10 * 60 * 1000;
 
 /**
- * Has 0140 been applied? A positive answer is cached (a column does not un-apply); a negative
- * answer is re-checked after the TTL so applying the migration takes effect without a deploy.
- * A failed check reads as NOT ready — the safe direction for both the writer and the reader.
+ * Does `conversation_episodes.<column>` exist yet? Hand-applied migrations (0140 visual, 0141
+ * gist) mean the code ships first. A positive answer is cached (a column does not un-apply); a
+ * negative answer is re-checked after the TTL so applying the migration takes effect without a
+ * deploy. A failed check reads as NOT ready: the safe direction for every writer and reader.
  */
-export async function officeVisualColumnReady(
+export async function conversationEpisodeColumnReady(
   d: { execute: (q: SQL) => Promise<unknown> },
+  column: "visual" | "gist",
   now = Date.now(),
 ): Promise<boolean> {
-  if (readyCache && (readyCache.ok || now - readyCache.at < READY_TTL_MS)) return readyCache.ok;
+  const cached = readyCache.get(column);
+  if (cached && (cached.ok || now - cached.at < READY_TTL_MS)) return cached.ok;
+  let ok = false;
   try {
     const [row] = readRows(await d.execute(sql`
       SELECT COUNT(*) AS n FROM information_schema.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'conversation_episodes' AND COLUMN_NAME = 'visual'
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'conversation_episodes' AND COLUMN_NAME = ${column}
     `));
-    readyCache = { ok: Number(row?.n) === 1, at: now };
+    ok = Number(row?.n) === 1;
   } catch (err) {
-    log.warn("office visual readiness check failed", { error: err instanceof Error ? err.message : String(err) });
-    readyCache = { ok: false, at: now };
+    log.warn("conversation_episodes column readiness check failed", { column, error: err instanceof Error ? err.message : String(err) });
   }
-  return readyCache.ok;
+  readyCache.set(column, { ok, at: now });
+  return ok;
 }
 
-/** Test seam: forget the cached readiness answer. */
+/** Has 0140 been applied? */
+export function officeVisualColumnReady(
+  d: { execute: (q: SQL) => Promise<unknown> },
+  now = Date.now(),
+): Promise<boolean> {
+  return conversationEpisodeColumnReady(d, "visual", now);
+}
+
+/** Test seam: forget every cached readiness answer. */
 export function __resetOfficeVisualReadyCache(): void {
-  readyCache = null;
+  readyCache.clear();
 }
 
 /** Read a stored `visual` value back into the UI shape; null for absent/garbled values. */

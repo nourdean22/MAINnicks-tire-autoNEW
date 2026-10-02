@@ -282,3 +282,34 @@ describe("conversation facts — camera context (office watch)", () => {
     expect(user).not.toContain("Camera context");
   });
 });
+
+describe("conversation facts — gist (what the conversation was about)", () => {
+  it("returns a gist that cites a real segment, even with no actionable facts", async () => {
+    replyWith({ facts: [], gist: "Customer asking when their car will be ready", gistSegments: [0] });
+    const r = await extractConversationFacts(SEGMENTS, { coveredSeconds: 85, totalSeconds: 90 });
+    expect(r.facts).toEqual([]);
+    expect(r.summary).toBeNull();
+    expect(r.gist).toBe("Customer asking when their car will be ready");
+  });
+
+  it("withholds a gist that cites no existing segment (invented provenance)", async () => {
+    replyWith({ facts: [], gist: "Customer asking about tires", gistSegments: [99] });
+    const r = await extractConversationFacts(SEGMENTS, { coveredSeconds: 85, totalSeconds: 90 });
+    expect(r.gist).toBeNull();
+    expect(r.dropped).toContainEqual({ reason: "gist withheld (no existing segment cited)", count: 1 });
+  });
+
+  it("withholds a gist when transcript coverage is too low", async () => {
+    replyWith({ facts: [], gist: "Customer asking about tires", gistSegments: [0] });
+    const r = await extractConversationFacts(SEGMENTS, { coveredSeconds: 37.4, totalSeconds: 90 });
+    expect(r.gist).toBeNull();
+    expect(r.dropped).toContainEqual({ reason: "gist withheld (transcript coverage too low)", count: 1 });
+  });
+
+  it("a model that says it cannot tell (null gist) yields null, not an error", async () => {
+    replyWith({ facts: [], gist: null, gistSegments: [] });
+    const r = await extractConversationFacts(SEGMENTS, { coveredSeconds: 85, totalSeconds: 90 });
+    expect(r.ok).toBe(true);
+    expect(r.gist).toBeNull();
+  });
+});

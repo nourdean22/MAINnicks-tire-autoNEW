@@ -177,6 +177,8 @@ type ConversationRow = {
   candidateVehicleVisitId: string | null;
   candidateWorkOrderId: string | null;
   linkConfidence: number | null;
+  /** One sentence on what the conversation was about (migration 0141). Absent on older servers. */
+  gist?: string | null;
   /** What the office camera saw (migration 0140). Absent on older servers, null when no frames were sent. */
   visual?: {
     status: "DONE" | "FAILED";
@@ -1122,7 +1124,13 @@ function ConversationPanel({
                         {row.source}
                         {row.triggerType ? ` ┬╖ ${row.triggerType}` : ""}
                       </div>
-                      <div className="mt-1 text-[13px] text-foreground/85">
+                      {row.gist && (
+                        <div className="mt-1 text-[13px] text-foreground/85">
+                          <span className="font-medium text-foreground/55">Heard: </span>
+                          {row.gist}
+                        </div>
+                      )}
+                      <div className={row.gist && !row.summary ? "mt-1 text-[11px] text-foreground/45" : "mt-1 text-[13px] text-foreground/85"}>
                         {summaryText}
                       </div>
                       {row.visual?.status === "DONE" && row.visual.summary && (

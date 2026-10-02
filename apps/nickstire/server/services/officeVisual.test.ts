@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   parseVisualReply, analyzeOfficeFrames, officeVisualColumnReady, storedVisual,
   __resetOfficeVisualReadyCache, OFFICE_VISUAL_MAX_FRAMES,
-  buildPrompt, calibrationNote, loadVisualCalibration, __resetOfficeVisualCalibration, type OfficeVisual,
+  buildPrompt, calibrationNote, conversationEpisodeColumnReady, loadVisualCalibration, __resetOfficeVisualCalibration, type OfficeVisual,
 } from "./officeVisual";
 
 const META = { frameCount: 2, provider: "ollama", model: "m", latencyMs: 9 };
@@ -158,5 +158,20 @@ describe("office visual — learning loop and on-box people", () => {
     const v = storedVisual(JSON.stringify({ ...base, onBoxPeople: 2, review: { verdict: "wrong", note: "n", at: "t" } }));
     expect(v).toMatchObject({ onBoxPeople: 2, review: { verdict: "wrong", note: "n" } });
     expect(storedVisual(JSON.stringify(base))).toMatchObject({ onBoxPeople: null, review: null });
+  });
+});
+
+describe("conversationEpisodeColumnReady (0140 visual, 0141 gist)", () => {
+  beforeEach(() => __resetOfficeVisualReadyCache());
+
+  it("checks the named column and caches each column separately", async () => {
+    const execute = vi.fn().mockImplementation(async (q: unknown) =>
+      [[{ n: JSON.stringify(q).includes("gist") ? 0 : 1 }]]);
+    expect(await conversationEpisodeColumnReady({ execute }, "visual", 0)).toBe(true);
+    expect(await conversationEpisodeColumnReady({ execute }, "gist", 0)).toBe(false);
+    // visual's positive answer is cached; gist's negative answer is not re-read inside the TTL.
+    await conversationEpisodeColumnReady({ execute }, "visual", 1_000);
+    await conversationEpisodeColumnReady({ execute }, "gist", 1_000);
+    expect(execute).toHaveBeenCalledTimes(2);
   });
 });

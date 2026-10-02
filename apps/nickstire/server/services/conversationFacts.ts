@@ -120,6 +120,15 @@ export type ExtractionResult = {
   /** NULL when extraction did not run at all. Distinct from an empty fact list. */
   ok: boolean;
   error: string | null;
+  /**
+   * One plain sentence on what the conversation was ABOUT ("customer asking when the brakes will
+   * be done", "staff small talk, not about a vehicle"). Unlike `summary` it does not need an
+   * actionable fact, so a real conversation with nothing to act on still says what it was. It
+   * must cite segments that exist, and it is withheld on the same coverage / level gates as
+   * facts: a gist of a gappy transcript is the fluent-and-wrong summary this file exists to stop.
+   * Optional so callers and fixtures that predate it keep compiling; absent = not produced.
+   */
+  gist?: string | null;
 };
 
 /**
@@ -186,6 +195,11 @@ RULES, in order of importance:
    segment looks garbled, score low. Do not round up.
 5. Do not add uncited prose. The server builds the operator summary later from facts that
    survive provenance and confidence validation.
+6. ALSO return "gist": ONE plain sentence saying what the conversation is about, even when it
+   holds no actionable fact (e.g. "Customer asking when their car will be ready", "Staff
+   discussing a parts order", "Small talk, not about a vehicle"). No names, no phone numbers,
+   no numbers you would not quote exactly. Put the segment indices it rests on in
+   "gistSegments". If the transcript is too garbled to tell what it is about, set gist to null.
 
 Fact kinds: CUSTOMER_CONCERN (what is wrong), REQUESTED_WORK (what they asked for), QUOTE (a
 price discussed), PROMISE (a commitment about time or outcome), APPROVAL (customer agreed),
@@ -216,6 +230,8 @@ const OUTPUT_SCHEMA: JsonSchema = {
         required: ["kind", "value", "evidenceSegment", "confidence"],
       },
     },
+    gist: { type: ["string", "null"] },
+    gistSegments: { type: "array", items: { type: "integer" } },
   },
   required: ["facts"],
   },
@@ -300,7 +316,7 @@ export async function extractConversationFacts(
   }
 
   const latencyMs = Date.now() - started;
-  const parsed = (raw ?? {}) as { facts?: unknown[] };
+  const parsed = (raw ?? {}) as { facts?: unknown[]; gist?: unknown; gistSegments?: unknown };
   const byIndex = new Map(segments.map((s) => [s.index, s]));
   const quiet = typeof opts.meanVolumeDb === "number" && opts.meanVolumeDb < LOW_LEVEL_DB;
 
@@ -354,5 +370,19 @@ export async function extractConversationFacts(
 
   const summary = evidenceBackedSummary(facts);
 
-  return { facts, summary, dropped, engine, latencyMs, ok: true, error: null };
+  // The gist rides the same gates as facts. A gist with no real cited segment is invented
+  // provenance; a gist of a gappy or inaudible capture is fluent and probably wrong.
+  let gist: string | null = null;
+  const rawGist = typeof parsed.gist === "string" ? parsed.gist.trim() : "";
+  if (rawGist) {
+    const cited = Array.isArray(parsed.gistSegments)
+      ? parsed.gistSegments.filter((i) => byIndex.has(Number(i)))
+      : [];
+    if (!cited.length) bump("gist withheld (no existing segment cited)");
+    else if (gappy) bump("gist withheld (transcript coverage too low)");
+    else if (quiet) bump("gist withheld (inaudible capture)");
+    else gist = rawGist.slice(0, 300);
+  }
+
+  return { facts, summary, dropped, engine, latencyMs, ok: true, error: null, gist };
 }

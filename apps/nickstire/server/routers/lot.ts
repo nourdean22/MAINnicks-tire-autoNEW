@@ -56,7 +56,7 @@ import { isDuplicateKeyError } from "../lib/dbErrors";
 import { writeResult } from "../lib/dbResult";
 import { createLogger } from "../lib/logger";
 import { jsonArray, transcriptCoverage } from "../lib/conversationQuality";
-import { officeVisualColumnReady, storedVisual, __resetOfficeVisualCalibration } from "../services/officeVisual";
+import { conversationEpisodeColumnReady, officeVisualColumnReady, storedVisual, __resetOfficeVisualCalibration } from "../services/officeVisual";
 
 const log = createLogger("routers:lot");
 
@@ -377,6 +377,7 @@ export const lotRouter = router({
         // `visual` (migration 0140) is selected only once the column exists, so this read keeps
         // working on a database where the migration has not been applied yet.
         const visualReady = await officeVisualColumnReady(d);
+        const gistReady = await conversationEpisodeColumnReady(d, "gist");
         const rows = rowsOf(await d.execute(sql`
           SELECT episodeId, source, cameraSerial, captureHost, triggerType,
                  ROUND(UNIX_TIMESTAMP(triggeredAt) * 1000) AS triggeredAtMs,
@@ -387,6 +388,7 @@ export const lotRouter = router({
                  facts, summary,
                  vehicleVisitId, workOrderId, linkConfidence
                  ${visualReady ? sql`, visual` : sql``}
+                 ${gistReady ? sql`, gist` : sql``}
             FROM conversation_episodes
            WHERE ${where}
            ORDER BY COALESCE(startedAt, createdAt) DESC
@@ -418,6 +420,7 @@ export const lotRouter = router({
             candidateWorkOrderId: r.workOrderId == null ? null : String(r.workOrderId),
             linkConfidence: numOrNull(r.linkConfidence),
             visual: storedVisual(r.visual),
+            gist: r.gist == null ? null : String(r.gist),
           })),
           visualAvailable: visualReady,
         };
