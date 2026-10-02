@@ -4,6 +4,8 @@
 
 ## 2026-10-02 - UI v2 PR 4: backlog closed (card.tsx gone, GlassCard + ui-material layered, cn merges v2 scales, orb gone, radius/slate sweep, chat-v2 converted)
 
+**LIVE + VERIFIED 2026-10-02 12:10Z.** #2880 squash-merged as `f93469b7`; Railway `statenour-web` deployment `388b693f` SUCCESS; `GET /api/version` reports that commit and `git merge-base --is-ancestor` confirms it; the served stylesheet has `.neural-glass` inside `@layer components` and zero occurrences of the dialog's gold glow. One `.rounded-md` rule remained in the bundle from `components/brain-dump-modal.tsx`, converted in the full-circle wave 1 PR.
+
 `components/ui/card.tsx` is deleted; `GlassCard` is the only card and its `.neural-glass*` rules (and `.ui-material`) sit in `@layer components`, so className utilities a caller passes now apply. `cn` (`lib/utils.ts`) extends tailwind-merge with the v2 radius / shadow scales. The realtime voice overlay renders a solid state disc with one `pulse-live` ring while working. `rounded-md|lg|sm`, bare `rounded` and `slate-*` are swept onto the v2 names/tokens across `app/`, `components/` and `features/chat-v2` (the last unconverted slice). Brain inline edit buttons meet the 44px touch floor below `sm`. Ship record: `docs/RECONCILIATION.md` top entry.
 
 ## 2026-10-02 - UI v2 PR 3: the `?ui=v1` comparison lane and the CommandDialog wrappers are deleted
