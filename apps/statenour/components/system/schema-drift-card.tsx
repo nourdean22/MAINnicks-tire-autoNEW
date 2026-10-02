@@ -128,7 +128,7 @@ export function SchemaDriftCard() {
             onClick={() => setExpanded((v) => !v)}
             className="mt-1 font-mono text-[11px] text-fg-tertiary hover:text-fg"
           >
-            {expanded ? "hide" : "show"} findings
+            {expanded ? "hide" : "show"} Findings
           </button>
           {expanded && (
             <ul className="mt-2 space-y-1.5">

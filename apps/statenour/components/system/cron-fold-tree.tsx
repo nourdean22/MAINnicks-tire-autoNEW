@@ -201,7 +201,7 @@ export function CronFoldTree() {
             className="flex items-center gap-1 font-mono text-[11px] text-fg-tertiary hover:text-fg"
           >
             {showRetired ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-            retired ({retired.length})
+            Retired ({retired.length})
           </button>
           {showRetired && (
             <div className="mt-1.5 grid grid-cols-1 gap-0.5 sm:grid-cols-2">

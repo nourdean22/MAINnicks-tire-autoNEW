@@ -1091,7 +1091,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
               )}
             >
               <Compass size={12} />
-              {localOnlyApplied ? "local neighborhood" : "all nodes"}
+              {localOnlyApplied ? "Local neighborhood" : "All nodes"}
               {localOnlyPending && <span className="opacity-70">· pending</span>}
             </button>
             <button

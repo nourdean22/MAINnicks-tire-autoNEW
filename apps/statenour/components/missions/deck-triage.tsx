@@ -68,7 +68,7 @@ export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTa
 
               {row.kind === "capture" && (
                 <Link href="/system/inbox" className={VERB}>
-                  open inbox ↗
+                  Open inbox ↗
                 </Link>
               )}
 
@@ -82,10 +82,10 @@ export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTa
               {(row.kind === "unattached" || row.kind === "rescue") && task && (
                 <div className="flex shrink-0 items-center gap-2">
                   <button type="button" onClick={() => onEditTask(task)} className={VERB}>
-                    file it
+                    File it
                   </button>
                   <button type="button" onClick={() => onSnoozeTask(task.id, nextWeekIso())} className={VERB}>
-                    later
+                    Later
                   </button>
                   {confirmDelete === task.id ? (
                     <button
@@ -96,7 +96,7 @@ export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTa
                       }}
                       className="inline-flex min-h-[44px] items-center rounded-control border border-rose-500/50 bg-rose-500/10 px-3 text-[13px] font-medium text-rose-300"
                     >
-                      confirm ✕
+                      Confirm ✕
                     </button>
                   ) : (
                     <button

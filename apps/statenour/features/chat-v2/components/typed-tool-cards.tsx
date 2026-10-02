@@ -68,7 +68,7 @@ function FleetTruthCard({ output }: { output: FleetTruthOutput }) {
         ))}
       </div>
       <Link href="/system/fleet" className="mt-2 inline-block text-[12px] font-medium text-fg-secondary hover:text-fg hover:underline">
-        open fleet page
+        Open fleet page
       </Link>
     </div>
   );

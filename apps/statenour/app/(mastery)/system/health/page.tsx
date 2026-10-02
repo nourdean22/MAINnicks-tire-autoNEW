@@ -419,7 +419,7 @@ export default function SystemHealthPage() {
               href="/system/calibration"
               className="ml-auto text-[11px] font-mono text-emerald-400/80 hover:text-emerald-300"
             >
-              full →
+              Full →
             </Link>
           </header>
           <dl className="px-3 pb-2 text-[11px] font-mono space-y-0.5">

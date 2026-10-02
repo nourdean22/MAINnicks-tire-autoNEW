@@ -214,7 +214,7 @@ export function WisdomPill({
               )}
               title="Stop showing wisdom suggestions permanently"
             >
-              kill
+              Kill
             </button>
           ) : (
             <button

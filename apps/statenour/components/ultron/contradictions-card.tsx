@@ -381,12 +381,12 @@ export function ContradictionsCard() {
                         excerpt to offload reasoning to Nick. */}
                     <Link
                       href={seedHref}
-                      className="block group/now -mx-0.5 px-0.5 rounded-micro transition-colors hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none"
+                      className="block group/now -mx-0.5 px-0.5 rounded-control transition-colors hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none"
                       aria-label={`Reconcile this contradiction in chat · ${c.newExcerpt.slice(0, 60)}`}
                     >
                       <div className="flex items-baseline gap-2">
                         <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
-                          now
+                          Now
                         </span>
                         <span className="text-[12px] leading-[1.45] text-fg font-medium">
                           {trimText(c.newExcerpt, PREVIEW_CHARS)}

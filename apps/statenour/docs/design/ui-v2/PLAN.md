@@ -327,7 +327,7 @@ realtime voice orb, sweep `rounded-md` / bare `rounded` / `slate-*` on untouched
 
 ## 14 · PR 4 (2026-10-02) — the rest of the backlog
 
-Branch `statenour/ui-v2-backlog`, one commit, one squash merge. Everything §13 left flagged, plus two things
+Branch `statenour/ui-v2-backlog`, two commits, one squash merge. Everything §13 left flagged, plus two things
 found on the way.
 
 - **`components/ui/card.tsx` deleted.** Its two importers (`components/stats/calibration-section.tsx`,
@@ -354,6 +354,22 @@ found on the way.
 - **After-screenshots** captured on the hermetic dev server (12 GB heap, two server lives of four routes each): `shots/after4-{home,chat,missions,brain,journal,people,stats,system}-{1440x900,390x844}.png`, 16 files. Brain exposed the last uppercase data labels on the graph lens chips; sentence-cased in the same commit.
 
 **Receipts:** `tsc --noEmit` exit 0 · eslint 0 errors on the 130 changed TS/TSX files · vitest 136 files / 1,587 passed, exit 0 (every test referencing a changed file + grammar, nav-shell, anti-slop, mobile-a11y, mount-graph, palette-root, modal contracts) · `tests/lib/cn-v2-tokens.test.ts` 4/4 with the stock-merger positive control · anti-slop 0 · stale-docs strict 0 · parity 142/0 · `next build` with `.next/cache` cleared exit 0 (full route table). Hostile review of the orchestrator diff found and this commit fixes: every styled Dialog about to paint a gold hairline + 40px glow once `.neural-glass-modal` was layered (the class carries the look now), 23 GlassCard call sites whose dead `p-*` would have started painting (stripped: one card, one padding), six inputs/textareas on the wrong radius tier, `critical-glow` still animating behind a "no glow" comment (removed with its keyframe), a 20px `+` button left off the floor, a 7px radius on a 400px image, chip/panel tier drift, one `slate-400` leftover, lost card rhythm. Code diff 139 files, +708 / −660 before the 16 screenshots; one commit.
+
+**Second commit — self-audit of the first (same PR).** Re-reading the diff and the 16 shots as a hostile reviewer found four things.
+(1) The journal and brain shots still showed lowercase 11px mono control labels, so a brace-aware label scanner sentence-cased the
+first text node of every `button` / `Link` / `a` and every `{cond ? "a" : "b"}` label: 243 labels in 90 files, 33 strings skipped
+because a test pins them. It also caught two non-labels (`"Text-fg-secondary"`, `"CurrentColor"`), both reverted; `alert-inspector`
+moved to sentence case together with its test pins; the seven mixed-case ternaries the scanner could not reach were fixed by hand
+(`Pinned` / `Done` / `Create` / `Edit` / `Accept` / `Tie` / `Passed` + `Flagged for regen`). (2) Five row and icon buttons the radius
+sweep had tiered `rounded-micro` because its lookback stopped short of the element (`recurring-enemies-card`, `compound-chain`,
+`nick-reasoner`, `contradictions-card`, `decision-replay-card`) → `rounded-control`. (3) The voice overlay still carried legacy
+aliases (`bg-canvas/95`, `text-fg*` variants) → canonical tokens. (4) The dead-custom-property gate only read `app/` and
+`components/`; it now reads `features/`, `hooks/` and `lib/` too. Accepted and recorded, not changed: ~60 11px `font-mono`
+micro-controls inside dense data panels stay mono — they are readouts, not labels.
+**Receipts, second commit:** `tsc --noEmit` exit 0 · eslint 0 errors / 49 pre-existing warnings on the 95 changed TS/TSX files ·
+vitest 142 files / 1,639 passed, exit 0 (same referencing-test rule, plus grammar, nav-shell, alert-inspector and cn-token contracts) ·
+anti-slop 0 · stale-docs strict 0 (222 files) · parity 142/0. The first commit's cleared-cache `next build` exit 0 covers the
+structure; this commit changes literals, radius classes and one repo test, and lands only through the pre-push `build:affected` hook.
 
 **Open:** the `.glass-card` legacy class in base.css still carries `!important` on its state variants (47
 adopters, not touched); tailwind-merge now merges radius/shadow but a consumer that passes `bg-*` to

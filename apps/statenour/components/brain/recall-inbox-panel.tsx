@@ -87,7 +87,7 @@ function SourceGroup({
             href={href}
             className="text-[11px] font-mono text-[var(--text-tertiary)] hover:text-fg"
           >
-            see all →
+            See all →
           </Link>
         )}
       </div>

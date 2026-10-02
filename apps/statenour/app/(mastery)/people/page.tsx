@@ -383,16 +383,16 @@ function RelationshipsPageInner() {
           </p>
           <div className="mt-4 flex flex-wrap gap-x-6 gap-y-0 font-mono text-[12px] text-fg-tertiary">
             <button type="button" onClick={() => revealBrowse()} className="min-h-[44px] transition-colors hover:text-fg">
-              <span className="text-fg tabular-nums">{data.totals.total}</span> people
+              <span className="text-fg tabular-nums">{data.totals.total}</span> People
             </button>
             <button type="button" onClick={() => revealBrowse("neglect")} className="min-h-[44px] transition-colors hover:text-fg">
-              <span className={cn("tabular-nums", data.totals.neglected > 0 ? "text-amber-300" : "text-fg")}>{data.totals.neglected}</span> neglected
+              <span className={cn("tabular-nums", data.totals.neglected > 0 ? "text-amber-300" : "text-fg")}>{data.totals.neglected}</span> Neglected
             </button>
             <button type="button" onClick={() => revealBrowse("trust")} className="min-h-[44px] transition-colors hover:text-fg">
-              <span className="text-emerald-300 tabular-nums">{data.totals.high_trust}</span> high trust
+              <span className="text-emerald-300 tabular-nums">{data.totals.high_trust}</span> High trust
             </button>
             <button type="button" onClick={() => revealBrowse()} className="min-h-[44px] transition-colors hover:text-fg">
-              <span className={cn("tabular-nums", data.totals.sparse > 5 ? "text-amber-300" : "text-fg")}>{data.totals.sparse}</span> needs info
+              <span className={cn("tabular-nums", data.totals.sparse > 5 ? "text-amber-300" : "text-fg")}>{data.totals.sparse}</span> Needs info
             </button>
           </div>
         </section>
@@ -934,7 +934,7 @@ function DetailPanel({
               onClick={onOpenBlowUp}
               disabled={blownUp}
             >
-              {blownUp ? "blown up" : "blow up"}
+              {blownUp ? "Blown up" : "Blow up"}
             </Button>
           </section>
         </div>

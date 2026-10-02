@@ -64,7 +64,7 @@ export function TaskPendingClassificationChip({
           onClick={() => accept.mutate({ taskId })}
           className="inline-flex min-h-[28px] items-center rounded-micro px-2 text-[12px] font-medium text-fg transition-colors duration-[var(--motion-state)] hover:bg-surface-hover disabled:opacity-50"
         >
-          {accept.isPending ? "attaching…" : "attach"}
+          {accept.isPending ? "Attaching…" : "Attach"}
         </button>
         <button
           type="button"

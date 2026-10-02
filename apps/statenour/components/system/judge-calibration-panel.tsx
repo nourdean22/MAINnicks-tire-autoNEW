@@ -100,7 +100,7 @@ export function JudgeCalibrationPanel() {
             onClick={() => setExpanded(expanded === next.id ? null : next.id)}
             className="text-[11px] text-fg-secondary underline mb-2"
           >
-            {expanded === next.id ? "hide replies" : "show replies A/B"}
+            {expanded === next.id ? "Hide replies" : "Show replies A/B"}
           </button>
           {expanded === next.id && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2 text-[11px]">
@@ -122,7 +122,7 @@ export function JudgeCalibrationPanel() {
                 onClick={() => label.mutate({ id: next.id, winner: w })}
                 className="rounded-control px-3 py-1 text-[11px] border border-edge-default text-fg-secondary hover:text-fg disabled:opacity-50"
               >
-                {w === "v1" ? "A is better" : w === "v2" ? "B is better" : "tie"}
+                {w === "v1" ? "A is better" : w === "v2" ? "B is better" : "Tie"}
               </button>
             ))}
             <span className="text-[11px] text-fg-tertiary">{unlabeled.length} waiting</span>

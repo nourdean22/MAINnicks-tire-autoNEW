@@ -225,7 +225,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                     title="lock in current position, deprecate old"
                   >
                     <Check size={9} />
-                    current wins
+                    Current wins
                   </button>
                   <button
                     onClick={() => beginResolve(c.key, "old_wins")}
@@ -233,7 +233,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                     className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-edge-strong text-[11px] font-mono gap-1"
                     title="hold old position, deprecate new"
                   >
-                    old wins
+                    Old wins
                   </button>
                   <button
                     onClick={() => beginResolve(c.key, "both_valid")}
@@ -241,7 +241,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                     className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-emerald-400 hover:border-emerald-500/30 text-[11px] font-mono"
                     title="context-dependent, both still true"
                   >
-                    both valid
+                    Both valid
                   </button>
                   <button
                     onClick={() => resolve(c.key, "dismissed")}
@@ -278,7 +278,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
                       onClick={() => { setNotingKey(null); setNoteText(""); setPendingResolve(null); }}
                       className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 text-[11px] font-mono gap-1"
                     >
-                      <X size={9} /> cancel
+                      <X size={9} /> Cancel
                     </button>
                   </div>
                 </div>

@@ -123,7 +123,7 @@ export function BrainContinuityView() {
             onClick={reload}
             className="shrink-0 text-[11px] font-mono px-2 py-1 rounded-control border border-rose-400/40 text-rose-300 hover:bg-rose-400/10"
           >
-            retry
+            Retry
           </button>
         </div>
       </GlassCard>

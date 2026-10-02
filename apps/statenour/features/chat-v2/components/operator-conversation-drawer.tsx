@@ -91,7 +91,7 @@ export function OperatorConversationDrawer({
           <div key={conversation.id} className={`group mb-1 rounded-control border p-2 transition ${activeId === conversation.id ? "border-accent/40 bg-accent-soft" : "border-transparent hover:border-edge-default hover:bg-raised"}`}>
             <button onClick={() => onSelect(conversation.id)} className="w-full text-left">
               <p className="truncate text-xs font-medium text-fg">{conversation.title || "Untitled conversation"}</p>
-              <p className="mt-1 text-[11px] text-fg-tertiary">{conversation._count.messages} messages · {new Date(conversation.createdAt).toLocaleDateString()}</p>
+              <p className="mt-1 text-[11px] text-fg-tertiary">{conversation._count.messages} Messages · {new Date(conversation.createdAt).toLocaleDateString()}</p>
             </button>
             <div className="mt-2 flex items-center gap-1 opacity-70 transition group-hover:opacity-100">
               <button onClick={() => onTogglePin(conversation.id)} title={pinnedIds.has(conversation.id) ? "Unpin" : "Pin"} aria-label={pinnedIds.has(conversation.id) ? "Unpin conversation" : "Pin conversation"} className="flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary hover:bg-elevated hover:text-fg sm:h-8 sm:w-8"><Pin size={12} fill={pinnedIds.has(conversation.id) ? "currentColor" : "none"} /></button>

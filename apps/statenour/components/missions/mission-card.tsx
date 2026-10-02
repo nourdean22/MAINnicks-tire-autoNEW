@@ -514,7 +514,7 @@ export function MissionCard({
                 className="inline-flex min-h-[44px] w-full items-center gap-2 px-1 text-left text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
               >
                 <Plus size={14} strokeWidth={1.75} />
-                add task to this mission
+                Add task to this mission
               </button>
             )}
           </div>
@@ -527,14 +527,14 @@ export function MissionCard({
                 onClick={() => actions.handleCompleteMission(mission.id)}
                 className="inline-flex min-h-[44px] items-center text-[13px] font-medium text-fg hover:underline"
               >
-                complete mission ↗
+                Complete mission ↗
               </button>
               <button
                 type="button"
                 onClick={() => actions.handleArchiveMission(mission.id)}
                 className="inline-flex min-h-[44px] items-center text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
               >
-                archive
+                Archive
               </button>
             </div>
           )}

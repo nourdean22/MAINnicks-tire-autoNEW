@@ -107,8 +107,8 @@ export function RealtimeVoiceOverlay({ open, onClose, brainContext, operatorCont
       <DialogContent
         unstyled
         showCloseButton={false}
-        overlayClassName="z-[200] bg-[var(--bg-void)]/95"
-        className="fixed inset-0 z-[201] flex flex-col bg-[var(--bg-void)]/95 outline-none"
+        overlayClassName="z-[200] bg-canvas/95"
+        className="fixed inset-0 z-[201] flex flex-col bg-canvas/95 outline-none"
       >
       {/* Hidden audio element — Nick's voice plays through this */}
       <audio
@@ -125,7 +125,7 @@ export function RealtimeVoiceOverlay({ open, onClose, brainContext, operatorCont
       </div>
 
       {/* Top bar */}
-      <header className="flex items-center justify-between p-4 border-b border-[var(--border-default)]">
+      <header className="flex items-center justify-between p-4 border-b border-edge-default">
         <div>
           <p className="text-eyebrow">Voice mode</p>
           <DialogTitle className="page-title text-lg">
@@ -134,7 +134,7 @@ export function RealtimeVoiceOverlay({ open, onClose, brainContext, operatorCont
         </div>
         <button
           onClick={onClose}
-          className="w-11 h-11 md:w-10 md:h-10 rounded-control flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-all active:scale-90"
+          className="w-11 h-11 md:w-10 md:h-10 rounded-control flex items-center justify-center text-fg-tertiary hover:text-fg hover:bg-surface-interactive transition-all active:scale-90"
           aria-label="Close voice mode"
         >
           <X size={20} className="md:!w-[18px] md:!h-[18px]" />
@@ -182,11 +182,11 @@ export function RealtimeVoiceOverlay({ open, onClose, brainContext, operatorCont
         {/* Live transcript · low-key, editorial */}
         {transcript && (
           <div
-            className="mt-12 px-6 py-4 rounded-surface border border-[var(--border-default)] bg-[var(--bg-raised)]/60 max-h-40 overflow-y-auto"
+            className="mt-12 px-6 py-4 rounded-surface border border-edge-default bg-content max-h-40 overflow-y-auto"
             style={{ maxWidth: "60ch" }}
           >
             <p className="text-eyebrow mb-2">Transcript</p>
-            <p className="text-[var(--text-secondary)] text-sm leading-relaxed whitespace-pre-line">
+            <p className="text-fg-secondary text-sm leading-relaxed whitespace-pre-line">
               {transcript}
             </p>
           </div>
@@ -194,7 +194,7 @@ export function RealtimeVoiceOverlay({ open, onClose, brainContext, operatorCont
       </main>
 
       {/* Footer · model + sub-500ms label */}
-      <footer className="px-4 py-3 border-t border-[var(--border-default)] flex items-center justify-between text-[11px] font-mono text-[var(--text-tertiary)]">
+      <footer className="px-4 py-3 border-t border-edge-default flex items-center justify-between text-[11px] font-mono text-fg-tertiary">
         <span>OpenAI Realtime · gpt-realtime · sub-500ms target</span>
         <span>{isConnected ? "● live" : "○ idle"}</span>
       </footer>

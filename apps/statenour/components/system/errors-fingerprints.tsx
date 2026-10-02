@@ -151,7 +151,7 @@ export function ErrorsFingerprints() {
           disabled={loading}
           className="rounded-control border border-edge-strong bg-content px-3 py-1 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
         >
-          {loading ? "refreshing…" : "refresh"}
+          {loading ? "Refreshing…" : "Refresh"}
         </button>
       </div>
 
@@ -275,7 +275,7 @@ export function ErrorsFingerprints() {
                           onClick={() => openAsTask(row.message)}
                           className="rounded-control bg-surface-interactive px-2 py-1 text-[11px] text-fg transition hover:bg-surface-hover"
                         >
-                          open as task
+                          Open as task
                         </button>
                       </div>
                     </div>

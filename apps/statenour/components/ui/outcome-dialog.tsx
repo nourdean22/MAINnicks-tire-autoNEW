@@ -171,7 +171,7 @@ export function useOutcomeDialog(): {
             onClick={() => submit(null)}
             className="w-full"
           >
-            just done
+            Just done
           </Button>
         </div>
       </DialogContent>

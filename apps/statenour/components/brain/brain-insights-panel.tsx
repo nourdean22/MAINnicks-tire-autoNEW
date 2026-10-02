@@ -188,7 +188,7 @@ function EvolutionCard({ stale, redundant, lowTrust }: { stale: EvolutionStale[]
         href="/brain?tab=wisdom&evolution=1"
         className="block text-[11px] font-mono text-fg-secondary hover:underline mt-1 py-2 sm:py-0"
       >
-        review all →
+        Review all →
       </a>
     </CardShell>
   );

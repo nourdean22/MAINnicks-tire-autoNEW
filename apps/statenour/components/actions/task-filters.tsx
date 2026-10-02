@@ -234,7 +234,7 @@ export function TaskFilters({
                       : "text-fg-tertiary border-edge-subtle hover:text-fg-secondary"
                   )}
                 >
-                  all
+                  All
                 </button>
                 {[...anchorEntries, ...customEntries, ...otherDomains].map((d) => {
                   const removable = d.isCustom; // anchors + auto-derived not removable
@@ -329,7 +329,7 @@ export function TaskFilters({
                       }}
                       className="text-[11px] text-fg-tertiary hover:text-fg"
                     >
-                      cancel
+                      Cancel
                     </button>
                   </span>
                 ) : (
@@ -357,7 +357,7 @@ export function TaskFilters({
                         : "Show × to remove custom domains"
                     }
                   >
-                    {filterEditMode ? "done" : "edit"}
+                    {filterEditMode ? "Done" : "Edit"}
                   </button>
                 )}
               </div>

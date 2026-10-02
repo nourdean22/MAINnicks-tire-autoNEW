@@ -147,7 +147,7 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
               onClick={reload}
               className="shrink-0 text-[11px] font-mono px-2 py-1 rounded-control border border-rose-400/40 text-rose-300 hover:bg-rose-400/10 transition-colors"
             >
-              retry
+              Retry
             </button>
           </div>
         </GlassCard>
@@ -193,7 +193,7 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
             title="download full brain JSON"
           >
             <Download size={10} />
-            export
+            Export
           </button>
           <button
             onClick={() => void resetBrain()}
@@ -201,7 +201,7 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
             title="nuke everything (double-confirm required)"
           >
             <RotateCcw size={10} />
-            reset
+            Reset
           </button>
         </div>
         {/* v8.2 D5 — every data card shows freshness + source */}

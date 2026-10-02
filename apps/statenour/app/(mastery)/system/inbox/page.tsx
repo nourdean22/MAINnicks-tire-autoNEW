@@ -87,7 +87,7 @@ export default function MemoryInboxPage() {
             disabled={loading}
             className="rounded-control border border-edge-strong bg-content px-4 py-2 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
           >
-            {loading ? "refreshing…" : "refresh"}
+            {loading ? "Refreshing…" : "Refresh"}
           </button>
         </div>
       }
@@ -139,7 +139,7 @@ export default function MemoryInboxPage() {
                   </p>
                   <div className="flex items-center gap-3 mt-1">
               <span className="text-[11px] text-fg-tertiary flex items-center gap-1">
-                      {claimCount} claim{claimCount !== 1 ? "s" : ""}
+                      {claimCount} Claim{claimCount !== 1 ? "s" : ""}
                     </span>
                     {isConflicting && (
                       <span className="text-[11px] text-amber-400 font-semibold flex items-center gap-1">

@@ -185,7 +185,7 @@ export function CompoundChain({
       {hasOrphans ? (
         <Link
           href="/missions"
-          className="block rounded-micro transition hover:bg-surface-hover focus-visible:bg-surface-hover"
+          className="block rounded-control transition hover:bg-surface-hover focus-visible:bg-surface-hover"
         >
           <div className="flex items-start gap-2.5 text-sm leading-snug">
             <span

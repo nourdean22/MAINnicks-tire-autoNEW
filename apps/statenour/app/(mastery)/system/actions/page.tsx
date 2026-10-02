@@ -234,7 +234,7 @@ export default function ActionsPage() {
             disabled={loading}
             className="rounded-control border border-edge-strong bg-content px-4 py-2 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
           >
-            {loading ? "refreshing…" : "refresh"}
+            {loading ? "Refreshing…" : "Refresh"}
           </button>
         </div>
       }
@@ -310,7 +310,7 @@ export default function ActionsPage() {
                 onClick={() => setRuleFilter(null)}
                 className="ml-auto rounded-full bg-rose-500/10 px-3 py-1 text-xs text-rose-300 hover:bg-rose-500/20"
               >
-                clear rule filter: {ruleFilter} ×
+                Clear rule filter: {ruleFilter} ×
               </button>
             )}
           </div>
@@ -340,7 +340,7 @@ export default function ActionsPage() {
                     <div className="min-w-0">
               <div className="truncate font-mono text-xs text-fg">{r.ruleName}</div>
                       <div className="text-[11px] text-fg-tertiary">
-                        last fired {timeAgo(r.lastFiredAt)}
+                        Last fired {timeAgo(r.lastFiredAt)}
                       </div>
                     </div>
                     <div className="text-right">
@@ -595,7 +595,7 @@ export default function ActionsPage() {
                           }}
                           className="min-h-[32px] rounded-control border border-edge-subtle px-2 text-[11px] font-mono text-fg-secondary hover:text-fg hover:bg-surface-hover transition"
                         >
-                          {editingId === req.id ? "cancel edit" : "edit args"}
+                          {editingId === req.id ? "Cancel edit" : "Edit args"}
                         </button>
                       </div>
                       {editingId === req.id ? (

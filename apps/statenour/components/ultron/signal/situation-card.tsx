@@ -199,7 +199,7 @@ export function SituationCard({ initial = null }: SituationCardProps) {
           onClick={load}
           className="mt-2 text-[13px] font-medium text-rose-300/80 hover:text-rose-200 min-h-[44px] min-w-[44px] text-left"
         >
-          retry
+          Retry
         </button>
       </section>
     );

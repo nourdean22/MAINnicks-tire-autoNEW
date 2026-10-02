@@ -298,7 +298,7 @@ export function DiscoverTab() {
             onClick={() => setShowRated((v) => !v)}
             className="min-h-[48px] min-w-[48px] sm:min-h-[28px] rounded-control border border-edge-default px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
           >
-            {showRated ? "unjudged only" : "include judged"}
+            {showRated ? "Unjudged only" : "Include judged"}
           </button>
         }
       />
@@ -329,7 +329,7 @@ export function DiscoverTab() {
           {/* EXACT, not a floor: restoredHidden is its own scoped SQL count and
               is unaffected by where the card scan stopped. Appending "+" here
               presented an exact 237 as a lower bound. */}
-          <span className="font-mono">{restoredHidden} hidden</span>{" "}
+          <span className="font-mono">{restoredHidden} Hidden</span>{" "}
           — recovered by the 2026-08-16 embedding rescue, not found by an engine. Their dates are
           restore time, so they would sort as if they were new. Tap to include them.
         </button>

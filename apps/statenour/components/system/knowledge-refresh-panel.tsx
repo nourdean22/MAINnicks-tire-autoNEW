@@ -69,7 +69,7 @@ export function KnowledgeRefreshPanel() {
               : "border-edge-subtle bg-content text-fg-secondary hover:bg-surface-hover",
           )}
         >
-          {refreshing ? "refreshing…" : "refresh now"}
+          {refreshing ? "Refreshing…" : "Refresh now"}
         </button>
       </div>
       <p className="text-[11px] text-fg-tertiary mb-2">

@@ -92,7 +92,7 @@ export function PendingClassificationBanner({
             onClick={() => accept.mutate({ personId })}
             className="h-7 text-[13px] font-medium"
           >
-            {accept.isPending ? "applying…" : "accept"}
+            {accept.isPending ? "Applying…" : "Accept"}
           </Button>
           <Button
             type="button"

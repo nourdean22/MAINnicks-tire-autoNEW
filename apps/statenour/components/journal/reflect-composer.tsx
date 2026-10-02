@@ -335,7 +335,7 @@ export function ReflectComposer() {
             className="flex items-center gap-1 text-[11px] font-mono text-fg-tertiary hover:text-fg"
             aria-label="switch template"
           >
-            switch <ChevronDown size={10} />
+            Switch <ChevronDown size={10} />
           </button>
           {showPicker && (
             <div className="absolute right-0 top-full mt-1 z-30 w-64 rounded-float border border-edge-default bg-overlay shadow-l2 overflow-hidden">
@@ -435,7 +435,7 @@ export function ReflectComposer() {
           title={extractIntelligence ? "extraction on · action items + commitments will be derived" : "extraction off · reflection saves as a Reflection row only"}
         >
           <Sparkles size={9} />
-          extract action items
+          Extract action items
         </button>
         <button
           type="button"
@@ -475,7 +475,7 @@ export function ReflectComposer() {
           )}
         >
           {submitting ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
-          {submitting ? "logging…" : "log reflection"}
+          {submitting ? "Logging…" : "Log reflection"}
         </button>
       </div>
 
@@ -507,7 +507,7 @@ export function ReflectComposer() {
               className="inline-flex min-h-[44px] items-center gap-1 text-[13px] font-medium text-fg-secondary hover:text-fg"
             >
               <RotateCcw size={10} />
-              calibrate memories
+              Calibrate memories
               <ArrowRight size={10} />
             </button>
           )}
@@ -517,7 +517,7 @@ export function ReflectComposer() {
               className="inline-flex min-h-[44px] items-center gap-1 text-[13px] font-medium text-fg-secondary hover:text-fg"
             >
               <Target size={10} />
-              log this as a bet
+              Log this as a bet
               <ArrowRight size={10} />
             </Link>
           )}
@@ -526,7 +526,7 @@ export function ReflectComposer() {
             className="ml-auto flex items-center gap-0.5 text-[11px] text-fg-tertiary hover:text-fg"
             title="clear and start a new reflection"
           >
-            <XIcon size={9} /> new
+            <XIcon size={9} /> New
           </button>
         </div>
       )}

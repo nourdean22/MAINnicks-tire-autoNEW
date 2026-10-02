@@ -467,14 +467,14 @@ export function PinnedContextPanel() {
                 }}
                 className="px-2 py-1 text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
               >
-                cancel
+                Cancel
               </button>
               <button
                 onClick={addPin}
                 disabled={!newContent.trim()}
                 className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                pin
+                Pin
               </button>
             </div>
           </div>
@@ -498,7 +498,7 @@ export function PinnedContextPanel() {
             onClick={load}
             className="ml-auto px-2 py-0.5 rounded-control border border-red-500/30 hover:bg-red-500/10"
           >
-            retry
+            Retry
           </button>
         </div>
       )}

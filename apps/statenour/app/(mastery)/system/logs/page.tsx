@@ -278,7 +278,7 @@ function LogsPageInner() {
                 )}
                 title="Grouped error fingerprints · deduped · per-row open-as-task"
               >
-                grouped errors
+                Grouped errors
               </button>
             </div>
             <FreshnessChip
@@ -337,7 +337,7 @@ function LogsPageInner() {
             levelFilter === "all" ? "bg-surface-interactive text-fg" : "bg-content text-fg-secondary hover:bg-surface-hover",
           )}
         >
-          all levels
+          All levels
         </button>
         {(["error", "warn", "success", "info", "metric"] as Level[]).map((l) => (
           <button

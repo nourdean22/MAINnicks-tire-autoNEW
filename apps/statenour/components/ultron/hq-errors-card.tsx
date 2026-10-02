@@ -106,7 +106,7 @@ export function HQErrorsCard() {
           href="/system/logs?view=errors"
           className="ml-auto inline-flex items-center gap-1 rounded-control border border-edge-default bg-content text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg px-2 py-1"
         >
-          <span>view all</span>
+          <span>View all</span>
           <ArrowRight className="h-3 w-3" />
         </Link>
       </header>

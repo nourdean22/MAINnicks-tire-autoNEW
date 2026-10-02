@@ -434,7 +434,7 @@ export function PreferencesCard() {
           )}
         >
           {saving ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />}
-          {saving ? "saving…" : "save"}
+          {saving ? "Saving…" : "Save"}
         </button>
       </div>
 

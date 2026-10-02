@@ -280,7 +280,7 @@ export function MilestonesFlow({
                 className="text-[12px] text-blue-300/70 hover:text-blue-300 inline-flex items-center gap-1 ml-6 disabled:opacity-50"
               >
                 <Plus size={10} />
-                add milestone
+                Add milestone
               </button>
             )}
           </div>
@@ -304,7 +304,7 @@ export function MilestonesFlow({
               ) : (
                 <Brain size={11} />
               )}
-              {phase === "generating" ? "planning…" : "spin up project"}
+              {phase === "generating" ? "Planning…" : "Spin up project"}
             </button>
           </div>
         </>

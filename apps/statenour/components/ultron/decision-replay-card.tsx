@@ -251,7 +251,7 @@ export function DecisionReplayCard() {
                     aria-expanded={isExpanded}
                     aria-label={isExpanded ? "close lesson form" : "log lesson inline"}
                     className={cn(
-                      "shrink-0 -my-0.5 p-1 rounded-micro transition-colors",
+                      "shrink-0 -my-0.5 p-1 rounded-control transition-colors",
                       "min-w-[44px] min-h-[44px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center",
                       isExpanded
                         ? "bg-accent-soft text-fg"
@@ -351,7 +351,7 @@ export function DecisionReplayCard() {
                           disabled={submitting}
                           className="px-2 py-1 rounded-control text-[13px] font-medium text-fg-tertiary hover:text-fg transition-colors"
                         >
-                          cancel
+                          Cancel
                         </button>
                         <button
                           type="button"
@@ -369,7 +369,7 @@ export function DecisionReplayCard() {
                           aria-label="log lesson"
                         >
                           {submitting ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
-                          {submitting ? "logging…" : "log"}
+                          {submitting ? "Logging…" : "Log"}
                         </button>
                       </div>
                     </div>

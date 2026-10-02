@@ -358,7 +358,7 @@ export default function CronsPage() {
             disabled={loading}
             className="rounded-control border border-edge-strong bg-content px-4 py-2 text-xs font-medium text-fg-secondary transition hover:bg-surface-hover disabled:opacity-50"
           >
-            {loading ? "refreshing…" : "refresh"}
+            {loading ? "Refreshing…" : "Refresh"}
           </button>
         </div>
       }
@@ -398,7 +398,7 @@ export default function CronsPage() {
               : "bg-content text-fg-secondary hover:bg-surface-hover",
           )}
         >
-          all
+          All
         </button>
         {(Object.keys(CATEGORY_META) as Category[]).map((c) => (
           <button
@@ -599,7 +599,7 @@ function CronRowView({
             )}
             title={row.enabled ? "click to kill this cron" : "click to re-enable"}
           >
-            {row.enabled ? "on" : "off"}
+            {row.enabled ? "On" : "Off"}
           </button>
         )}
         <button
@@ -615,7 +615,7 @@ function CronRowView({
           )}
           title={canTrigger ? "trigger this cron now" : "not runnable"}
         >
-          {isRunning ? "running…" : "run"}
+          {isRunning ? "Running…" : "Run"}
         </button>
       </div>
     </div>

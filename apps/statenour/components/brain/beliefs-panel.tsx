@@ -149,13 +149,13 @@ export function BeliefsPanel() {
                 disabled={rowBusy}
                 className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[11px] font-mono gap-1"
               >
-                <Check size={9} /> save
+                <Check size={9} /> Save
               </button>
               <button
                 onClick={() => { setEditKey(null); setEditText(""); }}
                 className="inline-flex min-h-11 items-center rounded-control px-2.5 sm:min-h-6 sm:px-2 border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 text-[11px] font-mono gap-1"
               >
-                <X size={9} /> cancel
+                <X size={9} /> Cancel
               </button>
             </div>
           </div>
@@ -232,7 +232,7 @@ export function BeliefsPanel() {
           className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
         >
           {harvesting ? <Loader2 size={10} className="animate-spin" /> : <Play size={10} />}
-          harvest now
+          Harvest now
         </button>
       </div>
 

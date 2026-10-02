@@ -776,7 +776,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                   disabled={!reframeText.trim() || isReviewBusy}
                   className="rounded-control bg-amber-500 px-2 text-[12px] font-medium text-black hover:bg-amber-400 disabled:opacity-50"
                 >
-                  save
+                  Save
                 </button>
               </div>
             ) : decidePendingMode === "blocker" ? (
@@ -803,7 +803,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                   disabled={!blockerText.trim() || isReviewBusy}
                   className="rounded-control bg-sky-500 px-2 text-[12px] font-medium text-black hover:bg-sky-400 disabled:opacity-50"
                 >
-                  save
+                  Save
                 </button>
               </div>
             ) : (
@@ -818,27 +818,27 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                   ) : (
                     <Skull size={10} />
                   )}
-                  kill
+                  Kill
                 </button>
                 <button
                   onClick={() => onSetDecideMode("reframe")}
                   className="inline-flex items-center gap-1 rounded-control border border-amber-500/30 px-2 py-0.5 text-[12px] font-medium text-amber-300 hover:bg-amber-500/10"
                 >
                   <Edit3 size={10} />
-                  reframe
+                  Reframe
                 </button>
                 <button
                   onClick={() => onSetDecideMode("blocker")}
                   className="inline-flex items-center gap-1 rounded-control border border-sky-500/30 px-2 py-0.5 text-[12px] font-medium text-sky-300 hover:bg-sky-500/10"
                 >
                   <Hourglass size={10} />
-                  blocker
+                  Blocker
                 </button>
                 <button
                   onClick={onCancelDecide}
                   className="inline-flex items-center gap-1 rounded-control border border-edge-default px-2 py-0.5 text-[12px] font-medium text-fg-tertiary hover:bg-surface-hover"
                 >
-                  cancel
+                  Cancel
                 </button>
               </div>
             )}
@@ -987,14 +987,14 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 className="inline-flex items-center gap-1 rounded-control bg-amber-500 px-3 py-1 text-[11px] font-medium text-black hover:bg-amber-400 disabled:opacity-50"
               >
                 {isReviewBusy ? <Loader2 size={11} className="animate-spin" /> : null}
-                save
+                Save
               </button>
               <button
                 type="button"
                 onClick={onCancelEdit}
                 className="inline-flex items-center gap-1 rounded-control border border-edge-default px-2 py-1 text-[11px] text-fg-tertiary hover:text-fg"
               >
-                cancel
+                Cancel
               </button>
             </div>
           </div>
@@ -1124,7 +1124,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                         onClick={onCancelDomainEdit}
                         className="text-[11px] text-fg-tertiary hover:text-fg-secondary ml-1"
                       >
-                        cancel
+                        Cancel
                       </button>
                     </div>
                   ) : (
@@ -1223,7 +1223,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                   onClick={onCancelSnooze}
                   className="ml-auto inline-flex items-center gap-1 rounded-control px-2 py-1 text-[12px] text-fg-tertiary hover:text-fg"
                 >
-                  cancel
+                  Cancel
                 </button>
               </div>
             ) : (
@@ -1245,7 +1245,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                   className="inline-flex items-center gap-1 rounded-control border border-edge-default bg-content px-2 py-1 text-[12px] font-medium text-fg-secondary hover:bg-surface-hover"
                 >
                   <Edit3 size={11} />
-                  edit
+                  Edit
                 </button>
                 {/* 2026-05-24 · Wave U ux-F7 · "+ subtask" relocated
                     from the collapsed row to here · prevents the
@@ -1259,7 +1259,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                     className="inline-flex items-center gap-1 rounded-control border border-amber-500/30 px-2 py-1 text-[12px] font-medium text-amber-300 hover:bg-amber-500/10"
                   >
                     <Plus size={11} />
-                    subtask
+                    Subtask
                   </button>
                 )}
                 {/* F4 · snooze — flips the row into snooze mode. */}
@@ -1269,7 +1269,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                   className="inline-flex items-center gap-1 rounded-control border border-amber-500/30 px-2 py-1 text-[12px] font-medium text-amber-300 hover:bg-amber-500/10"
                 >
                   <Clock size={11} />
-                  snooze
+                  Snooze
                 </button>
                 {/* Apr 27 · GOAL-EDIT — change or unlink the
                     goal this task is bound to. Parent owns the
@@ -1295,7 +1295,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                     }
                   >
                     <Target size={11} />
-                    {task.goalId ? "change goal" : "link goal"}
+                    {task.goalId ? "Change goal" : "Link goal"}
                   </button>
                 )}
                 {/* May 02 · v10.0.146 · PROJECT-EDIT — single
@@ -1324,7 +1324,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                     }
                   >
                     <Briefcase size={11} />
-                    {task.missionId ? "change project" : "link project"}
+                    {task.missionId ? "Change project" : "Link project"}
                   </button>
                 )}
                 {onPin && (
@@ -1339,7 +1339,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                     )}
                   >
                     <Pin size={11} />
-                    {isPinned ? "pinned" : "pin"}
+                    {isPinned ? "Pinned" : "Pin"}
                   </button>
                 )}
                 {kind === "PROMISE" && onBreakPromise && (
@@ -1349,7 +1349,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                     className="inline-flex items-center gap-1 rounded-control border border-rose-500/30 px-2 py-1 text-[12px] font-medium text-rose-300 hover:bg-rose-500/10"
                   >
                     <X size={11} />
-                    break promise
+                    Break promise
                   </button>
                 )}
                 <button
@@ -1358,7 +1358,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                   className="inline-flex items-center gap-1 rounded-control border border-edge-default px-2 py-1 text-[12px] font-medium text-fg-tertiary hover:border-rose-500/30 hover:text-rose-300"
                 >
                   <Trash2 size={11} />
-                  delete
+                  Delete
                 </button>
                 <button
                   type="button"

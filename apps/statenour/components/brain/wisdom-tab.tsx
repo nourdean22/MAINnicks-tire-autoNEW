@@ -489,7 +489,7 @@ export function WisdomTab() {
                   filter, and what that yields is the loaded page. The
                   origin chips beside it sum to exactly this number
                   (`groupings.origin` is counted over `entries`). */}
-              all ({loaded})
+              All ({loaded})
             </button>
             {Object.entries(data.groupings.origin)
               .sort((a, b) => b[1] - a[1])
@@ -521,7 +521,7 @@ export function WisdomTab() {
                   : "border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
               }`}
             >
-              all ({topicCounts.all})
+              All ({topicCounts.all})
             </button>
             {(["money", "people", "strategy", "execution", "ops", "brand", "self", "body", "time", "power"] as const).map((t) => {
               const count = topicCounts[t];

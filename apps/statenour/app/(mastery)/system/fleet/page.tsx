@@ -192,7 +192,7 @@ export default function FleetPage() {
             Fleet truth couldn&apos;t load ({error}) — state UNKNOWN, not healthy.
           </p>
           <button onClick={() => void load()} className="mt-2 text-[12px] text-fg-secondary underline">
-            retry
+            Retry
           </button>
         </Panel>
       )}

@@ -442,7 +442,7 @@ export function PublishTab() {
                         scheduleMode === m ? "bg-accent-soft text-fg" : "bg-surface-interactive text-fg-tertiary hover:bg-surface-hover hover:text-fg-secondary",
                       )}
                     >
-                      {m === "now" ? "post now" : m === "next-slot" ? "next slot" : "specific time"}
+                      {m === "now" ? "post now" : m === "next-slot" ? "Next slot" : "Specific time"}
                     </button>
                   ))}
                 </div>
@@ -537,7 +537,7 @@ export function PublishTab() {
                   <span className="font-mono text-[11px] uppercase tracking-[0.12em]">{r.platform}</span>
                   {r.ok && r.permalink ? (
                     <a href={r.permalink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:underline">
-                      <Globe className="h-3 w-3" /> view post
+                      <Globe className="h-3 w-3" /> View post
                     </a>
                   ) : (
                     <span className="font-mono text-[11px]">{r.error ?? r.postId ?? "—"}</span>

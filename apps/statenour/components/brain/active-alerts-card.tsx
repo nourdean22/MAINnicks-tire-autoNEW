@@ -107,7 +107,7 @@ export function ActiveAlertsCard() {
         <p className="text-[12px] text-red-400 flex items-center gap-2">
           <AlertTriangle size={13} />
           Alerts couldn&apos;t load — state unknown, not empty.
-          <button onClick={() => void alertsQuery.refetch()} className="underline text-[11px]">retry</button>
+          <button onClick={() => void alertsQuery.refetch()} className="underline text-[11px]">Retry</button>
         </p>
       </GlassCard>
     );
@@ -150,7 +150,7 @@ export function ActiveAlertsCard() {
                   title="Mute this alert type for 7 days"
                   className="ml-auto text-[11px] text-[var(--text-tertiary)] hover:text-amber-300 border border-edge-subtle rounded-control px-1.5 py-0.5"
                 >
-                  mute 7d
+                  Mute 7d
                 </button>
               </div>
               <ul className="space-y-1.5">

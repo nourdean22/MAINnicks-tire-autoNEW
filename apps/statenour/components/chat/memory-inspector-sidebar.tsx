@@ -111,7 +111,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
                   <div className="flex justify-between text-[11px] font-mono text-fg-tertiary mb-0.5">
                     <span>reply gate</span>
                     <span className={reply.gate.shouldRegen ? "text-amber-400" : "text-emerald-400"}>
-                      {reply.gate.shouldRegen ? "FLAGGED FOR REGEN" : "passed"} · sev {reply.gate.severity ?? 0}
+                      {reply.gate.shouldRegen ? "Flagged for regen" : "Passed"} · sev {reply.gate.severity ?? 0}
                     </span>
                   </div>
                   {(reply.gate.reasons ?? []).length > 0 && (

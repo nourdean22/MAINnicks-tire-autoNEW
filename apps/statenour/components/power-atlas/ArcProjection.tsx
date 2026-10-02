@@ -66,8 +66,8 @@ export default function ArcProjection({
           {mutation.isPending
             ? "projecting…"
             : projection
-              ? "re-project"
-              : "project"}
+              ? "Re-project"
+              : "Project"}
         </button>
       </div>
       {projection ? (

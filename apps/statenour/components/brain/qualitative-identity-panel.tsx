@@ -141,7 +141,7 @@ export function QualitativeIdentityPanel() {
           className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
         >
           {recomputing ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
-          recompute
+          Recompute
         </button>
       </div>
 

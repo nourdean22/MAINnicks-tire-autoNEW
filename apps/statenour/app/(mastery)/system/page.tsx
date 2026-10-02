@@ -273,7 +273,7 @@ export default function SystemPage() {
                     href={e.href}
                     className="inline-flex min-h-[44px] shrink-0 items-center font-mono text-[11px] text-fg-tertiary hover:text-fg"
                   >
-                    open ↗
+                    Open ↗
                   </Link>
                 )}
               </li>

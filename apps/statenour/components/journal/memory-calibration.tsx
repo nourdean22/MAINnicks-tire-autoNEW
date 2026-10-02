@@ -170,7 +170,7 @@ export function MemoryCalibrationRitual({ onClose, autoLoad = true }: Calibratio
           className="ml-auto text-[11px] text-fg-tertiary hover:text-fg flex items-center gap-0.5"
           title="reshuffle"
         >
-          <RotateCcw size={9} /> reshuffle
+          <RotateCcw size={9} /> Reshuffle
         </button>
         {onClose && (
           <button
@@ -219,13 +219,13 @@ export function MemoryCalibrationRitual({ onClose, autoLoad = true }: Calibratio
                       disabled={!draft.trim()}
                       className="flex items-center gap-1 px-2 py-0.5 rounded-control border border-emerald-500/40 bg-emerald-500/10 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-40"
                     >
-                      <Check size={9} /> save update
+                      <Check size={9} /> Save update
                     </button>
                     <button
                       onClick={cancelEdit}
                       className="flex items-center gap-1 px-2 py-0.5 rounded-control text-[11px] font-medium text-fg-tertiary hover:text-red-400"
                     >
-                      <XIcon size={9} /> cancel
+                      <XIcon size={9} /> Cancel
                     </button>
                   </div>
                 </>
@@ -239,7 +239,7 @@ export function MemoryCalibrationRitual({ onClose, autoLoad = true }: Calibratio
                       onClick={() => act(m.id, "verify")}
                       className="flex items-center gap-1 px-2 py-0.5 rounded-control border border-emerald-500/40 bg-emerald-500/10 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/20"
                     >
-                      <Check size={9} /> still true
+                      <Check size={9} /> Still true
                     </button>
                     <button
                       onClick={() => beginEdit(m)}
@@ -251,7 +251,7 @@ export function MemoryCalibrationRitual({ onClose, autoLoad = true }: Calibratio
                       onClick={() => act(m.id, "retire")}
                       className="flex items-center gap-1 px-2 py-0.5 rounded-control border border-red-500/30 bg-red-500/5 text-[11px] font-medium text-red-400 hover:bg-red-500/15"
                     >
-                      <Trash2 size={9} /> retire
+                      <Trash2 size={9} /> Retire
                     </button>
                   </div>
                 </>

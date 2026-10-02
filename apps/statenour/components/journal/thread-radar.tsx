@@ -123,7 +123,7 @@ export function ThreadRadar({
             className="text-[13px] font-medium text-fg-secondary hover:text-fg transition-colors min-h-[32px] inline-flex items-center"
             title="run the convergence scan now · normally fires nightly at 22:00 UTC"
           >
-            scan radar now →
+            Scan radar now →
           </button>
         </section>
       );
@@ -139,7 +139,7 @@ export function ThreadRadar({
               disabled={scanState.busy}
               className="text-fg-tertiary hover:text-fg disabled:opacity-50"
             >
-              {scanState.busy ? "scanning..." : "scan again"}
+              {scanState.busy ? "Scanning..." : "Scan again"}
             </button>
           }
         />
@@ -178,7 +178,7 @@ export function ThreadRadar({
             className="text-fg-tertiary hover:text-fg disabled:opacity-50"
             title="re-run the convergence scan"
           >
-            {scanState.busy ? "scanning..." : "rescan"}
+            {scanState.busy ? "Scanning..." : "Rescan"}
           </button>
         }
       />

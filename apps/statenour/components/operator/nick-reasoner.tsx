@@ -292,13 +292,13 @@ export function NickReasoner({
               href="/reason/telemetry"
               className="text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
             >
-              telemetry →
+              Telemetry →
             </a>
             <a
               href="/reason/history"
               className="text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
             >
-              history →
+              History →
             </a>
           </div>
         </div>
@@ -350,7 +350,7 @@ export function NickReasoner({
             disabled={busy || question.trim().length === 0}
             className="text-[14px] font-semibold px-4 min-h-[40px] rounded-control bg-accent text-[var(--text-inverse)] hover:bg-accent-hover disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            {busy ? "thinking..." : "ask nick"}
+            {busy ? "Thinking..." : "Ask nick"}
           </button>
         </div>
       </div>
@@ -410,7 +410,7 @@ export function NickReasoner({
                   onClick={() =>
                     setExpandedStep(expandedStep === i ? null : i)
                   }
-                  className="w-full text-left flex items-start gap-2.5 text-sm leading-snug hover:bg-surface-hover rounded-micro px-1"
+                  className="w-full text-left flex items-start gap-2.5 text-sm leading-snug hover:bg-surface-hover rounded-control px-1"
                 >
                   <span
                     aria-hidden
@@ -486,7 +486,7 @@ export function NickReasoner({
                   className="text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg"
                   title="open in /chat with question + answer pre-seeded (kept out of URL)"
                 >
-                  continue in chat →
+                  Continue in chat →
                 </button>
               </div>
             </div>

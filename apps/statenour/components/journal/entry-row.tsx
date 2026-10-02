@@ -333,7 +333,7 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
         onClick={() => setOpen(true)}
         className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
       >
-        <Target size={10} aria-hidden /> predict outcome
+        <Target size={10} aria-hidden /> Predict outcome
       </button>
     );
   }
@@ -381,7 +381,7 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
           }}
           className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {mutation.isPending ? "saving…" : "save"}
+          {mutation.isPending ? "Saving…" : "Save"}
         </button>
         <button
           type="button"
@@ -391,7 +391,7 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
           }}
           className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control px-3 text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
         >
-          cancel
+          Cancel
         </button>
       </div>
     </div>

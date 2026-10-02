@@ -271,7 +271,7 @@ function JudgmentRow({
           {kindChip}
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[15px] leading-snug text-fg">
-              now · {item.nowExcerpt}
+              Now · {item.nowExcerpt}
             </span>
             <span className="block truncate text-[13px] leading-snug text-fg-tertiary">
               before · {item.beforeExcerpt}
