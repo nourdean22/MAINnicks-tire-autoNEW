@@ -10,8 +10,10 @@
  *     real-customer path is broken, which is exactly what the Night Shift
  *     prompt reads first.
  *
- * Best-effort: exits 0 on any ledger error so it never masks the suite's
- * own verdict. Needs STATENOUR_SYNC_URL + a ledger key — EVIDENCE_LEDGER_KEY
+ * Exits 1 when the ledger refuses the post (non-2xx, unreachable, or any
+ * rejected row): 2026-09-29..10-02 every post 500'd while every run stayed
+ * green. The workflow runs this step with always(), so the suite's own
+ * verdict is still recorded either way; a missing key still exits 0. Needs STATENOUR_SYNC_URL + a ledger key — EVIDENCE_LEDGER_KEY
  * (scoped to /api/sync/evidence; what CI should hold) or, as a fallback,
  * STATENOUR_SYNC_KEY (the whole bridge). RUN_URL and OUTCOME come from the
  * workflow.
@@ -20,6 +22,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { holdoutEvent, summarizeHoldout } from "./holdout-summary.mjs";
+import { ledgerFailure } from "./ledger-response.mjs";
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const RESULTS = join(APP, "test-results");
@@ -156,6 +159,7 @@ function safePath(u) {
 
 events.push(holdout);
 
+let failed = null;
 try {
   const res = await fetch(`${base}/api/sync/evidence`, {
     method: "POST",
@@ -163,7 +167,13 @@ try {
     body: JSON.stringify({ events, claims, sentAt: now, sender: "nickstire-proof" }),
     signal: AbortSignal.timeout(10_000),
   });
+  const json = await res.json().catch(() => null);
   console.log(`evidence: ${res.status} — ${events.length} event(s), ${claims.length} claim(s), holdout ${holdout.payload.outcome}`);
+  failed = ledgerFailure(res.status, json);
 } catch (err) {
-  console.log(`evidence: unreachable (${err.message}) — skipped`);
+  failed = `unreachable (${err.message})`;
+}
+if (failed) {
+  console.log(`::error title=evidence ledger::${failed}`);
+  process.exit(1);
 }

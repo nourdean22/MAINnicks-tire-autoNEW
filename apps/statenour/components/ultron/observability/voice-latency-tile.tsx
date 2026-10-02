@@ -40,7 +40,7 @@ export function VoiceLatencyTile({ state }: Props) {
     return <ShimmerSkeleton variant="card" className="min-h-[112px]" />;
   }
   if (state.kind === "empty") {
-    return <EmptyTile label="voice latency" hint="no calls in window" icon={<Phone size={14} />} />;
+    return <EmptyTile label="voice latency" hint="measured in the shop admin, not here" icon={<Phone size={14} />} />;
   }
   if (state.kind === "error") {
     return <ErrorTile label="voice latency" message={state.message} />;

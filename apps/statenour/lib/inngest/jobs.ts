@@ -180,6 +180,11 @@ export const EVENING_JOBS: readonly string[] = [
   // ("social battery 20") as current. Nightly roll matches the axes'
   // 14-30d data windows.
   "/api/cron/refresh-identity",
+  // 2026-10-02 · resurrected, same story again. The thinking engine's writing
+  // layers (contradictions / identity_snapshots / causal_chains) lost their
+  // only scheduled caller in the 2026-05-28 prune; all three tables froze.
+  // Detached in mega-fanout (multi-call LLM run, see DETACHED_CHILDREN).
+  "/api/cron/think",
   // 2026-08-06 · resurrected, same story as refresh-identity above. Deleted in
   // the Wave-AE prune (2026-05-28) and never re-wired, which killed the whole
   // session-distill lane: `chat_summary` stopped at 34 rows, and

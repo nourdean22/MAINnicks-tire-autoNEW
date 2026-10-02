@@ -40,6 +40,9 @@ import { hourFrameMeta } from "@/lib/brain/hour-frame";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { sanitizeDeadline } from "@/lib/services/commitments";
 
+/** Causal chains not re-seen in this window are history, not current context. */
+const CAUSAL_CHAIN_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
 // ─── INBOUND: Process events from nickstire.org ──────────
 
 export interface ShopEvent {
@@ -566,7 +569,10 @@ export async function generateShopIntelligence(): Promise<{ brief: string; actio
       select: { claim: true, reality: true },
     }),
     prisma.causalChain.findMany({
-      where: { broken: false },
+      // Recent only: the chain analyser went unscheduled 2026-05-28 (revived
+      // 2026-10-02 as /api/cron/think) and its frozen chains were fed into
+      // shop intelligence as current. A future freeze ages out instead.
+      where: { broken: false, lastSeen: { gte: new Date(Date.now() - CAUSAL_CHAIN_MAX_AGE_MS) } },
       orderBy: { frequency: "desc" },
       take: 3,
       select: { effect: true, rootCause: true, intervention: true },

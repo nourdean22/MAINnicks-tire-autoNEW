@@ -749,6 +749,17 @@ export const CRONS: CronDef[] = [
     maxDuration: 120,
   },
   {
+    name: "think",
+    schedule: null,
+    mode: "folded",
+    category: "brain",
+    foldedInto: "mega-evening",
+    addedAt: "2026-10-02",
+    description: "FOLDED into mega-evening (detached) · thinking engine L7/L8/L10: contradictions, identity_snapshots, causal_chains. Resurrected 2026-10-02 after a 4-month freeze.",
+    memory: 512,
+    maxDuration: 300,
+  },
+  {
     name: "xp-decay",
     schedule: null,
     mode: "folded",
