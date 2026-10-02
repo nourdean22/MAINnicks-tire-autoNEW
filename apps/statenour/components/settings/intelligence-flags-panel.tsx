@@ -32,7 +32,7 @@ export function IntelligenceFlagsPanel() {
   const [applyNotice, setApplyNotice] = useState<string | null>(null);
 
   // Flags change on operator action, not by themselves — 10s polling was
-  // a 37-flag payload every tick for nothing. 60s + focus refetch.
+  // the whole registry's payload every tick for nothing. 60s + focus refetch.
   const { data, isLoading, refetch } = trpc.operator.featureFlags.useQuery(undefined, {
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,

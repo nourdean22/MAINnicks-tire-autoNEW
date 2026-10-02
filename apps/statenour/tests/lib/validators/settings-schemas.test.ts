@@ -44,8 +44,11 @@ describe("aiConfigPatchSchema · AiSettingsPanel patch contract", () => {
     expect(r.defaultProvider).toBe("gemini");
   });
 
-  it("accepts a mode-cleared patch (the 'auto' branch sends the field absent)", () => {
-    // patch({ defaultMode: undefined }) — an absent key, not a wrong type
+  it("accepts the 'auto' patch as an explicit null (an absent key never reaches the server)", () => {
+    // 2026-10-02 · settings census finding 2: the panel used to send
+    // { defaultMode: undefined }, which JSON drops, so "auto" could never
+    // clear a stored mode. It now sends null; the schema must take it.
+    expect(aiConfigPatchSchema.parse({ defaultMode: null }).defaultMode).toBeNull();
     expect(() => aiConfigPatchSchema.parse({})).not.toThrow();
   });
 

@@ -260,9 +260,50 @@ function IntegrationQuotasCard() {
 }
 
 // ── Composed surface ──────────────────────────────────────────
+/**
+ * 2026-10-02 · Telegram is the lane every rating button and bot reply comes
+ * back on. When its webhook points anywhere but this app, the bot keeps
+ * SENDING (so nothing looks broken) while every tap is lost. Healthy = one
+ * quiet line; anything else = an amber line that says what it costs.
+ */
+function TelegramWebhookLine() {
+  const q = trpc.system.telegramWebhook.useQuery(undefined, { staleTime: 5 * 60_000 });
+  if (q.isError) return <UnmeasuredLine label="Telegram webhook" />;
+  if (q.isPending || !q.data) return null;
+  const d = q.data;
+  if (d.state === "registered" && !d.lastError) {
+    return (
+      <p className="px-1 text-[11px] font-mono text-fg-tertiary" data-telegram-webhook="registered">
+        telegram webhook · {d.url} · {d.pendingUpdates ?? 0} pending
+      </p>
+    );
+  }
+  const what: Record<typeof d.state, string> = {
+    registered: `registered, but Telegram's last delivery failed${d.lastErrorAt ? ` at ${new Date(d.lastErrorAt).toLocaleString()}` : ""}: ${d.lastError ?? ""}`,
+    elsewhere: `points at ${d.url}, not ${d.expected}`,
+    unregistered: "no webhook is registered",
+    unconfigured: d.reason ?? "no bot token on this service",
+    unreadable: `could not be read — ${d.reason ?? "unknown"}`,
+  };
+  return (
+    <p
+      role="status"
+      data-telegram-webhook={d.state}
+      className="flex items-start gap-1.5 rounded-control border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[12px] text-amber-200"
+    >
+      <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+      <span>
+        Telegram webhook {what[d.state]}. Rating buttons and messages to the bot do not reach this app
+        {d.pendingUpdates ? ` (${d.pendingUpdates} updates waiting at Telegram)` : ""}.
+      </span>
+    </p>
+  );
+}
+
 export function SystemHealthDataCards() {
   return (
     <div className="space-y-3">
+      <TelegramWebhookLine />
       <HealthTrendCard />
       <ErrorRateCard />
       <IntegrationQuotasCard />

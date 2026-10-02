@@ -93,16 +93,61 @@ describe("the rest of the census joins (same slice)", () => {
     expect(fleet).toContain("no eval_run:corpus-odometer row yet");
   });
 
-  it("the morning brief's surface is no longer derived from the synthetic hand-off result; the backstop writes the real one", () => {
+  it("one morning is one ledger row (E12): no hand-off writer, no fallback keyed on the synthetic hand-off; the backstop writes the real surface and rateable fallback", () => {
     const brief = read("lib/inngest/functions/morning-brief.ts");
-    expect(brief).toContain('const surface = "handed-off-to-combine";');
+    expect(brief).not.toContain("recordBriefShown");
+    expect(brief).not.toContain('step.run("outcome-ledger"');
+    expect(brief).not.toContain('step.run("telegram-fallback"');
     expect(brief).not.toMatch(/const surface = push\.sent > 0/);
     expect(brief).toContain('setShownSurface(push.ledgerId, push.sent > 0 ? "web-push" : "telegram-fallback")');
+    expect(brief).toContain("briefTelegramFallback(brief, push, push.ledgerId)");
+    expect(brief).toContain("ratingTelegramButtons(ledgerId)");
+    // the only daily_brief writer in this file is sendBriefPush
+    expect(brief.match(/kind: "daily_brief"/g)?.length).toBe(1);
   });
 
   it("`edited` is gone from the decision vocabulary (declared for a year, never written)", () => {
     const ledger = read("lib/services/outcome-ledger.ts");
     expect(ledger).toContain('export type OutcomeDecision = "accepted" | "dismissed" | "ignored";');
     expect(read("prisma/schema.prisma")).not.toContain("set by sweep after TTL");
+  });
+});
+
+describe("the census closes (wave 4: E5 scored, E6 deleted, E11 folded)", () => {
+  it("E6 · the chat decision-surface producer is gone and the kind is no longer writable", () => {
+    const tool = read("lib/ai/tools/system.ts");
+    expect(tool).not.toContain('kind: "decision_surface"');
+    expect(tool).not.toContain('import("@/lib/services/outcome-ledger")');
+    const ledger = read("lib/services/outcome-ledger.ts");
+    expect(ledger).not.toMatch(/\|\s*"decision_surface"/);
+  });
+
+  it("E5 · the weekly digest scores last week's forecast before writing this week's, and stores the band it will be scored against", () => {
+    const digest = read("app/api/cron/weekly-digest/route.ts");
+    const resolveAt = digest.indexOf("resolveForecastPredictions()");
+    const writeAt = digest.indexOf('kind: "prediction"');
+    expect(resolveAt).toBeGreaterThan(0);
+    expect(writeAt).toBeGreaterThan(resolveAt);
+    expect(digest).toContain("projectedRevenue: forecast.basis.trailingWeeks.length > 0 ? forecast.projectedRevenue : null");
+    expect(digest).toContain("${resolutionLine}");
+  });
+
+  it("E11 · the chip tap decides the chip's own ledger row; the component passes the id on tap and on dismiss", () => {
+    const router = read("lib/trpc/routers/brain.ts");
+    expect(router).toContain("ledgerId: z.string().min(1).max(64).optional()");
+    expect(router).toContain("recordDecisionFromEvidence(ledgerId, decision)");
+    const chips = read("components/chat/nick-suggestions.tsx");
+    expect(chips).toContain("handleSeed(s.seedPrompt, { kind: s.kind, id: s.id, ledgerId: s.ledgerId })");
+    expect(chips).toContain("recordDismiss({ kind: s.kind, id: s.id, ledgerId: s.ledgerId })");
+    const producer = read("lib/services/nick-suggestions.ts");
+    expect(producer).toContain("await ledgerChips(shown)");
+  });
+
+  it("the harvest tap counter reads the key the writer actually stores (`event`), in both readers", () => {
+    for (const f of ["app/api/cron/outcome-harvest/route.ts", "scripts/corpus-odometer.ts"]) {
+      const src = read(f);
+      expect(src).toContain("meta?.event ?? meta?.action");
+    }
+    expect(read("lib/brain/suggestion-loop.ts")).toContain("event: parsed.event,");
   });
 });

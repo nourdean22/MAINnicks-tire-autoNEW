@@ -1333,6 +1333,8 @@ export const brainRouter = router({
           suggestionId: z.string().min(1).max(128),
           suggestionKind: SuggestionKind,
           event: ActionEvent,
+          /** 2026-10-02 · the chip's IntelligenceOutcome row (census E11). */
+          ledgerId: z.string().min(1).max(64).optional(),
           delaySeconds: z
             .number()
             .int()
@@ -1359,6 +1361,21 @@ export const brainRouter = router({
     )
     .mutation(async ({ input }) => {
       if (input.type === "action") {
+        // 2026-10-02 · census E11 fold: the tap also decides the chip's row in
+        // the main ledger. acted/modified = accepted, dismissed = dismissed,
+        // deferred = no decision yet. Fire-and-forget beside the BrainMemory
+        // write, which stays the 7d suppression source and the calibration
+        // readers' input.
+        const decision = input.event === "dismissed" ? "dismissed" : input.event === "deferred" ? null : "accepted";
+        if (input.ledgerId && decision) {
+          const ledgerId = input.ledgerId;
+          void (async () => {
+            const { recordDecisionFromEvidence } = await import("@/lib/services/outcome-ledger");
+            await recordDecisionFromEvidence(ledgerId, decision);
+          })().catch(() => {
+            /* ledger failure never fails the tap */
+          });
+        }
         return trackSuggestionAction({
           suggestionId: input.suggestionId,
           suggestionKind: input.suggestionKind,

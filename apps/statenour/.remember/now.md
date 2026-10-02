@@ -1,5 +1,11 @@
 # Session ledger — statenour
 
+**Updated: 2026-10-02 ET** (full-circle wave 4 · `statenour/full-circle-e-census-close` · both censuses closed for code: E5/E6/E11/E12 + five settings items · prod measured · FOUND Telegram webhook silent since ≥09-25 · PR open · wave 3 #2886 DEPLOYED `1bcffea6` / Railway `6f46ff0c`, no rows yet)
+
+## 2026-10-02 · full-circle wave 4 — the outcome-ledger census closes
+
+Operator decisions: E5 (a) band hit, E6 delete, E11 fold. `resolveForecastPredictions` runs in the weekly digest before the new forecast is written; `projectedRevenue` stored on the row (null when empty); digest prints HIT / MISS / not-scored-because. `getTopDecisions` writes no ledger row; `decision_surface` out of `OutcomeKind`. Chips ledgered (`nick-suggestions:<kind>`, `chip: <label>`, `chat-chips`) with `ledgerId`; `recordSuggestionSignal` decides via `recordDecisionFromEvidence`. Found: harvest/odometer tap counter read `action`, writer stores `event` — fixed. Self-review caught a $0–$0 band MISS and window starvation — fixed + pinned. Gates: tsc 0 · eslint 0 · vitest 267 files / 3,233 + 33 after fixes · static gates all 0. Second pass (operator: "are you sure"): E12 fixed (one morning row; hand-off writer + dead fallback step deleted; backstop Telegram fallback rateable); settings: auto Default Mode via null, AI-config REST twin validated, Journal bounds shared, autopilot map = adhd_operating_rhythm only, stale push/ticker copy + 4 dead push helpers, mutation lock liftable (red-teamed). Prod (read-only): push 160/0 labelled, brief 114/0, suggestion 77/10, prediction 13/0; zero /api/telegram/webhook requests since ≥09-25 (positive control /api/version) — operator must check /system/health's Telegram line after deploy and re-register the webhook if it points elsewhere. After deploy: verify #2886 rows (`operator-brief:*`, `missions-deck:*`, `journal:next-action`) and wave 4 rows (`nick-suggestions:*`); first scored forecast on the next Sunday digest.
+
 **Updated: 2026-10-02 ET** (full-circle wave 3 · `statenour/full-circle-d-ledger-joins` · Home lead + Missions deck + Journal next action + nudge ledgered · CORRECTION_WHERE single owner · odometer read · brief surface truthful · PR #2886 open, 2 code commits · wave 2 #2884 MERGED `b008b801` DEPLOYED `9c6bee2e`)
 
 ## 2026-10-02 · full-circle wave 3 — Lane D ledger joins

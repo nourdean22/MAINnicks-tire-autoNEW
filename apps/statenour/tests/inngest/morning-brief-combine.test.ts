@@ -17,6 +17,9 @@ const h = vi.hoisted(() => ({
   delete: vi.fn(),
   sendPush: vi.fn(),
   sendTelegram: vi.fn(),
+  sendTelegramWithButtons: vi.fn(),
+  recordShown: vi.fn(),
+  setShownSurface: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -33,6 +36,11 @@ vi.mock("@/lib/notifications/push", () => ({
 }));
 vi.mock("@/lib/services/telegram", () => ({
   sendTelegram: h.sendTelegram,
+  sendTelegramWithButtons: h.sendTelegramWithButtons,
+}));
+vi.mock("@/lib/services/outcome-ledger", () => ({
+  recordShown: h.recordShown,
+  setShownSurface: h.setShownSurface,
 }));
 
 import { handOffForCombine, sendStandaloneIfUnconsumed } from "@/lib/inngest/functions/morning-brief";
@@ -46,6 +54,9 @@ beforeEach(() => {
   h.delete.mockResolvedValue({ id: "row-1" });
   h.sendPush.mockResolvedValue({ sent: 1, failed: 0 });
   h.sendTelegram.mockResolvedValue(true);
+  h.sendTelegramWithButtons.mockResolvedValue({ ok: true, messageId: 1 });
+  h.recordShown.mockResolvedValue(null);
+  h.setShownSurface.mockResolvedValue(true);
 });
 
 describe("handOffForCombine", () => {
@@ -105,6 +116,33 @@ describe("sendStandaloneIfUnconsumed", () => {
     expect(h.delete).toHaveBeenCalledWith({ where: { id: "row-1" } });
     expect(h.sendTelegram).toHaveBeenCalledTimes(1);
     expect(result.status).toBe("standalone_failed");
+  });
+
+  it("2026-10-02 · a ledgered brief that reaches no device falls back to Telegram WITH the rating buttons, and the row's surface says so", async () => {
+    h.findUnique.mockResolvedValue({ id: "row-1" });
+    h.recordShown.mockResolvedValue("led-9");
+    h.sendPush.mockResolvedValue({ sent: 0, failed: 0 });
+
+    const result = await sendStandaloneIfUnconsumed(BRIEF);
+
+    expect(result.status).toBe("standalone_failed");
+    expect(h.sendTelegram).not.toHaveBeenCalled();
+    expect(h.sendTelegramWithButtons).toHaveBeenCalledTimes(1);
+    const buttons = h.sendTelegramWithButtons.mock.calls[0][1] as Array<Array<{ callback_data: string }>>;
+    expect(buttons.flat().map((b) => b.callback_data)).toEqual(["oc:u:led-9", "oc:n:led-9"]);
+    expect(h.setShownSurface).toHaveBeenCalledWith("led-9", "telegram-fallback");
+  });
+
+  it("a brief that reached a device is surfaced as web-push and never falls back", async () => {
+    h.findUnique.mockResolvedValue({ id: "row-1" });
+    h.recordShown.mockResolvedValue("led-10");
+    h.sendPush.mockResolvedValue({ sent: 2, failed: 0 });
+
+    await sendStandaloneIfUnconsumed(BRIEF);
+
+    expect(h.setShownSurface).toHaveBeenCalledWith("led-10", "web-push");
+    expect(h.sendTelegram).not.toHaveBeenCalled();
+    expect(h.sendTelegramWithButtons).not.toHaveBeenCalled();
   });
 
   it("clears the row on a failed backstop delete without throwing — best-effort cleanup", async () => {

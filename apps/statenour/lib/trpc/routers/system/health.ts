@@ -350,6 +350,17 @@ export const healthProcedures = {
     buildIntegrationQuotas(),
   ),
 
+  /**
+   * 2026-10-02 · where Telegram sends the bot's updates (getWebhookInfo,
+   * read-only, token stays server-side). Zero webhook requests reached this
+   * app for a week while the bot kept sending — every rating button tap went
+   * elsewhere. See lib/services/telegram-webhook-status.ts.
+   */
+  telegramWebhook: operatorProcedure.query(async () => {
+    const { getTelegramWebhookStatus } = await import("@/lib/services/telegram-webhook-status");
+    return getTelegramWebhookStatus();
+  }),
+
   // ════════════════ Phase VV · system dashboard widgets ════════════════
 
   /**

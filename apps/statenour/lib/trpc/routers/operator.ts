@@ -76,6 +76,7 @@ import {
 } from "@/lib/feature-flags";
 import {
   aiConfigPatchSchema,
+  aiConfigPatchToConfig,
   skillCurationSchema,
 } from "@/lib/validators/settings";
 import { buildTickerFeed } from "@/lib/services/ultron-ticker";
@@ -478,7 +479,7 @@ export const operatorRouter = router({
    */
   updateAiConfig: operatorProcedure
     .input(aiConfigPatchSchema)
-    .mutation(async ({ input }) => updateAiConfig(input, "settings_ui")),
+    .mutation(async ({ input }) => updateAiConfig(aiConfigPatchToConfig(input), "settings_ui")),
 
   /**
    * Phase UU.2 · owner-only · reset the AI config to defaults (the

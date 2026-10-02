@@ -43,7 +43,8 @@ import { onDataChanged } from "@/lib/events/data-change";
 // guard at the call-site type level.
 interface AiConfig {
   defaultProvider?: "gemini" | "ollama" | "openai" | "anthropic" | "openrouter" | "emergency";
-  defaultMode?: "standard" | "deep";
+  /** null = "auto" — the explicit clear the server maps to "no stored mode". */
+  defaultMode?: "standard" | "deep" | null;
   defaultTaskType?:
     | "fast"
     | "reason"
@@ -324,8 +325,10 @@ export function AiSettingsPanel() {
             options={["auto", "standard", "deep"]}
             onChange={(v) =>
               patch({
-                defaultMode:
-                  v === "auto" ? undefined : (v as "standard" | "deep"),
+                // null, not undefined: an absent key never reaches the
+                // server (no tRPC transformer), so "auto" could not clear a
+                // stored mode (settings census finding 2).
+                defaultMode: v === "auto" ? null : (v as "standard" | "deep"),
               })
             }
           />

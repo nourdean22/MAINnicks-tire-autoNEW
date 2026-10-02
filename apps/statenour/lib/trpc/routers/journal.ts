@@ -67,6 +67,7 @@ import {
 } from "@/lib/services/journal-calibrate";
 import { ServiceError } from "@/lib/utils/service-error";
 import {
+  JOURNAL_SETTING_BOUNDS,
   calibrationRulingSchema,
   reflectSubmitSchema,
 } from "@/lib/validators/journal";
@@ -781,11 +782,24 @@ export const journalRouter = router({
   updateSettings: operatorProcedure
     .input(
       z.object({
-        baselineXp: z.number().min(0.1).max(5).optional(),
+        baselineXp: z.number().min(JOURNAL_SETTING_BOUNDS.baselineXp.min).max(JOURNAL_SETTING_BOUNDS.baselineXp.max).optional(),
         baselineEnabled: z.boolean().optional(),
-        qualityFloorChars: z.number().int().min(0).max(2000).optional(),
-        groundedXpMultiplier: z.number().min(1).max(5).optional(),
-        autoConfirmThreshold: z.number().min(0).max(1).optional(),
+        qualityFloorChars: z
+          .number()
+          .int()
+          .min(JOURNAL_SETTING_BOUNDS.qualityFloorChars.min)
+          .max(JOURNAL_SETTING_BOUNDS.qualityFloorChars.max)
+          .optional(),
+        groundedXpMultiplier: z
+          .number()
+          .min(JOURNAL_SETTING_BOUNDS.groundedXpMultiplier.min)
+          .max(JOURNAL_SETTING_BOUNDS.groundedXpMultiplier.max)
+          .optional(),
+        autoConfirmThreshold: z
+          .number()
+          .min(JOURNAL_SETTING_BOUNDS.autoConfirmThreshold.min)
+          .max(JOURNAL_SETTING_BOUNDS.autoConfirmThreshold.max)
+          .optional(),
         challengeCadence: z.enum(["every", "daily", "off"]).optional(),
         creativeIntensity: z.enum(["bold", "balanced", "off"]).optional(),
       }),

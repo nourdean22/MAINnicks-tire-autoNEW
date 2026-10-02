@@ -364,40 +364,11 @@ function hashEndpoint(endpoint: string): string {
 }
 
 // ── Convenience senders ──
-
-export async function pushLeadAlert(leadName: string, service: string, urgency: number): Promise<void> {
-  await sendPush({
-    title: urgency >= 4 ? "🔴 URGENT LEAD" : "📱 New Lead",
-    body: `${leadName} — ${service}`,
-    level: urgency >= 4 ? "critical" : "high",
-    url: "/admin?tab=leads",
-    tag: "lead",
-    // Revenue exception: two leads in ten minutes are two separate pages.
-    // Flood control exists for machine loops, not customers.
-    cooldownMs: 0,
-  });
-}
-
-export async function pushRevenueAlert(amount: number, target: number): Promise<void> {
-  const pct = Math.round((amount / target) * 100);
-  if (pct >= 100) {
-    await sendPush({
-      title: "🎯 TARGET HIT",
-      body: `$${amount.toLocaleString()} — target exceeded!`,
-      level: "high",
-      url: "/",
-      tag: "revenue",
-    });
-  } else if (pct >= 80) {
-    await sendPush({
-      title: "📈 Almost There",
-      body: `$${amount.toLocaleString()} (${pct}% of target)`,
-      level: "medium",
-      url: "/",
-      tag: "revenue",
-    });
-  }
-}
+//
+// 2026-10-02 · settings census: pushLeadAlert, pushRevenueAlert,
+// pushScoreReminder and pushPipelineAging had zero callers in lib/ or app/ —
+// alerts the Settings copy promised and nothing ever sent. Deleted; the
+// copy now lists what actually pushes. pushDriftAlert is live (drift-detector).
 
 export async function pushDriftAlert(message: string): Promise<void> {
   // v10.0.529.96 · Wave 40 · chatSeed · operator tapping a drift alert
@@ -414,30 +385,5 @@ export async function pushDriftAlert(message: string): Promise<void> {
       prompt: `drift alert just fired · "${message.slice(0, 200)}" · walk me through what's actually happening and what to do about it`,
       suggKind: "drift",
     },
-  });
-}
-
-export async function pushScoreReminder(): Promise<void> {
-  // v10.0.529.96 · Wave 40 · chatSeed · tap → chat already primed to
-  // capture score conversationally instead of bouncing to a form.
-  await sendPush({
-    title: "📝 Log Your Score",
-    body: "The system can't help what it can't see. 30 seconds.",
-    level: "medium",
-    url: "/#score",
-    tag: "score",
-    chatSeed: {
-      prompt: `let's log today's score · ask me one quick question at a time (overall · energy · discipline · workout · mood) and updateMasteryScore as we go`,
-    },
-  });
-}
-
-export async function pushPipelineAging(critical: number, value: number): Promise<void> {
-  await sendPush({
-    title: "💰 Pipeline Aging",
-    body: `${critical} critical items — $${Math.round(value).toLocaleString()} at risk`,
-    level: critical >= 3 ? "critical" : "high",
-    url: "/admin?tab=revenue",
-    tag: "pipeline",
   });
 }

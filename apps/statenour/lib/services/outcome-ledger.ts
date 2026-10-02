@@ -34,9 +34,14 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/utils/error-log";
 
+/**
+ * Row kinds a writer may create. `decision_surface` rows exist historically
+ * (chat's getTopDecisions wrote one per surfacing until 2026-10-02) but the
+ * producer is gone — the decision happened in nickstire, so the row could never
+ * be decided here. Readers still see the old rows as plain strings.
+ */
 export type OutcomeKind =
   | "daily_brief"
-  | "decision_surface"
   | "proactive_push"
   | "suggestion"
   | "prediction";
@@ -178,6 +183,31 @@ export async function recordDecision(params: {
     logError("intel.outcome-ledger", err, { stage: "record-decision", id: params.id }, "warn");
     return false;
   }
+}
+
+/**
+ * Decide a row by id and, when its evidence names the task it is about
+ * (`evidenceRefs.taskId`), carry that as `resultRef task:<id>` so the task's
+ * completion rating can close it (recordOutcomeByResultRef). Used where the
+ * decider only holds the row id — a chat chip tap — and the producer, not the
+ * client, knows which task the recommendation was about.
+ */
+export async function recordDecisionFromEvidence(
+  id: string,
+  decision: OutcomeDecision,
+): Promise<boolean> {
+  let resultRef: string | null = null;
+  try {
+    const row = await prisma.intelligenceOutcome.findUnique({
+      where: { id },
+      select: { evidenceRefs: true },
+    });
+    const taskId = (row?.evidenceRefs as { taskId?: unknown } | null)?.taskId;
+    if (typeof taskId === "string" && taskId.length > 0) resultRef = `task:${taskId}`;
+  } catch (err) {
+    logError("intel.outcome-ledger", err, { stage: "record-decision-from-evidence", id }, "warn");
+  }
+  return recordDecision({ id, decision, resultRef });
 }
 
 /**
