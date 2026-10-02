@@ -18,6 +18,9 @@ vi.mock("../services/officeVisual", async (importOriginal) => ({
   officeVisualColumnReady: vi.fn(),
 }));
 
+const logSpy = vi.hoisted(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }));
+vi.mock("../lib/logger", () => ({ createLogger: () => logSpy }));
+
 vi.mock("../db", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../db")>()),
   getDb: vi.fn(),
@@ -329,6 +332,35 @@ describe("conversation ingest — office visual frames", () => {
     await h({ headers: { "x-sync-key": KEY }, body: body({ frames: [FRAME] }) }, res);
     expect(out.body).toMatchObject({ visualStatus: "FAILED", visualError: "ollama: 503" });
     expect(JSON.stringify(execute.mock.calls[1][0])).toContain("FAILED");
+  });
+
+  it("logs one line per framed episode: info when stored, warn with the reason when not", async () => {
+    logSpy.info.mockClear(); logSpy.warn.mockClear();
+    const execute = vi.fn().mockResolvedValue(undefined);
+    db.mockResolvedValue({ execute });
+
+    visualReady.mockResolvedValue(true);
+    analyzeFrames.mockResolvedValue(DONE);
+    await mount()({ headers: { "x-sync-key": KEY }, body: body({ frames: [FRAME] }) }, fakeRes().res);
+    expect(logSpy.info).toHaveBeenCalledWith("office visual stored",
+      expect.objectContaining({ visualStatus: "DONE", provider: "ollama", frames: 1 }));
+
+    analyzeFrames.mockResolvedValue({ ...DONE, status: "FAILED", summary: null, error: "gemini: 400" });
+    await mount()({ headers: { "x-sync-key": KEY }, body: body({ frames: [FRAME] }) }, fakeRes().res);
+    expect(logSpy.warn).toHaveBeenCalledWith("office visual not stored",
+      expect.objectContaining({ visualStatus: "FAILED", error: "gemini: 400" }));
+
+    visualReady.mockResolvedValue(false);
+    logSpy.warn.mockClear();
+    await mount()({ headers: { "x-sync-key": KEY }, body: body({ frames: [FRAME] }) }, fakeRes().res);
+    expect(logSpy.warn).toHaveBeenCalledWith("office visual not stored",
+      expect.objectContaining({ visualStatus: "NOT_STORED_VISUAL_COLUMN_UNAVAILABLE" }));
+
+    // No frames, no line: ordinary audio-only episodes stay quiet.
+    logSpy.info.mockClear(); logSpy.warn.mockClear();
+    await mount()({ headers: { "x-sync-key": KEY }, body: body() }, fakeRes().res);
+    expect(logSpy.info).not.toHaveBeenCalledWith("office visual stored", expect.anything());
+    expect(logSpy.warn).not.toHaveBeenCalledWith("office visual not stored", expect.anything());
   });
 
   it("OFFICE_VISUAL_ANALYSIS=0 switches analysis off without touching the database", async () => {
