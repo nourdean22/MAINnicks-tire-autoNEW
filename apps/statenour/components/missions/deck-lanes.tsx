@@ -63,7 +63,7 @@ export function DeckLanes({ lanes, tasks }: Props) {
                   {lane.isShop ? "Shop — needs your judgment" : lane.title}
                 </span>
                 <span className="shrink-0 font-mono text-[11px] tabular-nums text-fg-tertiary">
-                  {lane.openCount} Open
+                  {lane.openCount} open
                   {lane.oldestOpenDays !== null && lane.oldestOpenDays >= 3
                     ? ` · oldest ${lane.oldestOpenDays}d`
                     : ""}

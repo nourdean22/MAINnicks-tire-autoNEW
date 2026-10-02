@@ -139,7 +139,7 @@ export default function MemoryInboxPage() {
                   </p>
                   <div className="flex items-center gap-3 mt-1">
               <span className="text-[11px] text-fg-tertiary flex items-center gap-1">
-                      {claimCount} Claim{claimCount !== 1 ? "s" : ""}
+                      {claimCount} claim{claimCount !== 1 ? "s" : ""}
                     </span>
                     {isConflicting && (
                       <span className="text-[11px] text-amber-400 font-semibold flex items-center gap-1">

@@ -241,7 +241,7 @@ export function HistoryTab() {
                         : "bg-surface-interactive text-fg-tertiary hover:bg-surface-hover hover:text-fg-secondary",
                     )}
                   >
-                    {d}D
+                    {d}d
                   </button>
                 ))}
               </div>

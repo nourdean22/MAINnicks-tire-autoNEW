@@ -327,7 +327,7 @@ realtime voice orb, sweep `rounded-md` / bare `rounded` / `slate-*` on untouched
 
 ## 14 · PR 4 (2026-10-02) — the rest of the backlog
 
-Branch `statenour/ui-v2-backlog`, three commits (the third corrects one receipt sentence), one squash merge. Everything §13 left flagged, plus two things
+Branch `statenour/ui-v2-backlog`, four commits (the third corrects one receipt sentence, the fourth reverts seven mid-sentence capitalisations), one squash merge. Everything §13 left flagged, plus two things
 found on the way.
 
 - **`components/ui/card.tsx` deleted.** Its two importers (`components/stats/calibration-section.tsx`,
@@ -360,7 +360,9 @@ found on the way.
 first text node of every `button` / `Link` / `a` and every `{cond ? "a" : "b"}` label: 243 labels in 90 files, 33 strings skipped
 because a test pins them. It also caught two non-labels (`"Text-fg-secondary"`, `"CurrentColor"`), both reverted; `alert-inspector`
 moved to sentence case together with its test pins; the seven mixed-case ternaries the scanner could not reach were fixed by hand
-(`Pinned` / `Done` / `Create` / `Edit` / `Accept` / `Tie` / `Passed` + `Flagged for regen`). (2) Five row and icon buttons the radius
+(`Pinned` / `Done` / `Create` / `Edit` / `Accept` / `Tie` / `Passed` + `Flagged for regen`). A second scan of the
+diff found seven count/unit text nodes that follow an expression and had been capitalised mid-sentence (`3 Claims`, `12D`,
+`3 More in the approval queue`); reverted, with the two leading hide/show ternaries capitalised instead. (2) Five row and icon buttons the radius
 sweep had tiered `rounded-micro` because its lookback stopped short of the element (`recurring-enemies-card`, `compound-chain`,
 `nick-reasoner`, `contradictions-card`, `decision-replay-card`) → `rounded-control`. (3) The voice overlay still carried legacy
 aliases (`bg-canvas/95`, `text-fg*` variants) → canonical tokens. (4) The dead-custom-property gate only read `app/` and

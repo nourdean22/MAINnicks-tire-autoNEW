@@ -181,7 +181,7 @@ export function ThreadRail({
                 onClick={() => setShowDormant((s) => !s)}
                 className="text-fg-tertiary hover:text-fg"
               >
-                {showDormant ? "hide" : "show"} {dormant.length} Dormant
+                {showDormant ? "Hide" : "Show"} {dormant.length} dormant
               </button>
             ) : null}
           </div>
