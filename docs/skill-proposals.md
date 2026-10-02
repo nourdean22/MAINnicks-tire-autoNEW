@@ -2022,22 +2022,23 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Cost:** three days of lost reality-ledger writes (last row 2026-09-29 03:10Z).
 - **Proposed edit:** add a step "after any merge that adds a migration dir: diff `ls prisma/migrations` against `SELECT migration_name FROM _prisma_migrations` on prod and apply/record the difference, or say it is pending" — and a cron/health probe that does the same diff and pages on any repo migration missing from the prod ledger.
 - **Confidence:** high (reproduced against prod)
-- **Status:** proposed
+- **Status:** applied (operator-approved 2026-10-02, PR #2889)
 
 ### P2 · statenour-verify · CLI scripts build Prisma before they load env
 - **Trigger (witnessed):** `obsidian-engine-runner.ts` calls `process.loadEnvFile(<repo-root>/.env)` in its body, but ES imports are hoisted, so `lib/obsidian/engine-config.ts` (static `import { prisma }`) built the client first with no `DATABASE_URL` ("No database host"; watch daemon crashed). `lib/prisma.ts` only reads `apps/statenour/.env*`.
 - **Proposed edit:** trap line: "a script that loads env in its body must not statically import `lib/prisma` (directly or transitively) — import it inside the function that needs it; canary = a test asserting the module loads without loading Prisma."
 - **Confidence:** high (fixed in #2890 with that canary)
-- **Status:** proposed
+- **Status:** applied (operator-approved 2026-10-02, PR #2889)
 
 ### P3 · statenour-verify · `loadEnvFile` and Windows paths
 - **Trigger (witnessed):** `OBSIDIAN_VAULT_PATH="C:\Users\nourd\..."` in a double-quoted `.env` value: Node's `loadEnvFile` expands `\n` in `\nourd` to a newline, so the doctor read the vault as `C:\Users` and failed.
 - **Proposed edit:** trap line: "write Windows paths in `.env` with forward slashes (or single quotes); never backslashes inside double quotes."
 - **Confidence:** high
-- **Status:** proposed
+- **Status:** applied (operator-approved 2026-10-02, PR #2889)
 
 ### P4 · repo docs · the agent-memory path in AGENTS.md does not exist
 - **Trigger (witnessed):** `~/.claude/projects/C--Users-nourd-NOURCITY/memory/MEMORY.md` is absent on both online machines (NattyNour: empty dir; nicksmax: no dir).
 - **Proposed edit:** operator decision — recreate the index, or retire the AGENTS.md "Memory / handoff" pointer in favour of `apps/<app>/.remember/` which sessions actually maintain.
+- **Resolution:** kept the pointer (the hook script records the index existed and was compacted 2026-08-19/23, so it likely lives on a machine not online today) and marked it machine-local in AGENTS.md, naming `.remember/` as the copy every checkout has.
 - **Confidence:** high (checked both devices 2026-10-02)
-- **Status:** proposed
+- **Status:** applied (operator-approved 2026-10-02, PR #2889)

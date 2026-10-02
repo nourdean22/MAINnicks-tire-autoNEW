@@ -185,8 +185,8 @@ loads nothing while still passing a substring check. Registry + design notes:
 
 ## Memory / handoff
 
-- Cross-session agent memory: `~/.claude/projects/C--Users-nourd-NOURCITY/memory/MEMORY.md` (index + topic
-  files) — **concurrently edited by sibling sessions; re-read before editing.** Per-app handoff: `apps/<app>/.remember/`.
+- Agent memory `~/.claude/projects/C--Users-nourd-NOURCITY/memory/MEMORY.md` is machine-local (absent on NattyNour +
+  nicksmax 2026-10-02) and sibling-edited: re-read first. Durable handoff goes in `apps/<app>/.remember/` (every checkout).
 - statenour's own "brain" (BrainMemory + pgvector recall) is a PRODUCT feature, separate from agent memory; do not conflate.
 <!-- Do NOT delete this section without checking who points at it (deleted once 2026-08-21; docs/agent-audit/AUDIT-2026-08-21.md). -->
 

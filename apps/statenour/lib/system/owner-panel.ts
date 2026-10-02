@@ -68,7 +68,8 @@ export interface OwnerItem {
     | "action_stalled"
     | "approval"
     | "cron_degraded"
-    | "capability_degraded";
+    | "capability_degraded"
+    | "migration_unapplied";
   tone: "rose" | "amber" | "neutral";
   title: string;
   detail: string | null;
@@ -221,6 +222,9 @@ export interface OwnerPanelInput {
   valueAttribution: ValueAttributionLite | null;
   /** Guarded capabilities currently degraded or failed. null = that read FAILED. */
   capabilities: CapabilityLite[] | null;
+  /** Repo migrations missing from prod `_prisma_migrations`. null = that read FAILED;
+   *  undefined = not wired by this caller (fixtures). */
+  unappliedMigrations?: string[] | null;
 }
 
 const clip = (s: string | null | undefined, n = 140): string | null => {
@@ -589,6 +593,26 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
           since: parseIso(meta.firstFailureAt) ?? c.updatedAt,
           href: "/system/tools",
           evidence: `integrations name=${c.name}`,
+        }),
+      );
+    }
+
+  // A migration in the repo that prod never recorded means the deployed schema
+  // expects columns the database lacks: every read/write of that model fails.
+  // 2026-09-29..10-02 reality_events was unwritable this way and nothing paged.
+  if (input.unappliedMigrations === null) unreadable.push("migrations");
+  else
+    for (const name of input.unappliedMigrations ?? []) {
+      exceptions.push(
+        item(now, {
+          key: `migration:${name}`,
+          kind: "migration_unapplied",
+          tone: "rose",
+          title: `migration ${name} is not applied in production`,
+          detail: "the deployed schema expects it; reads and writes of the models it changes fail until it is applied and recorded",
+          since: null,
+          href: null,
+          evidence: `prisma/migrations/${name} vs _prisma_migrations`,
         }),
       );
     }

@@ -8,6 +8,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { REPO_MIGRATIONS } from "@/lib/db/migration-manifest";
 import { logger as rootLogger } from "@/lib/logger";
 import { listPendingActions } from "@/lib/automation/approval-queue";
 import { listLaneStatus } from "@/lib/ai/budget";
@@ -57,6 +58,7 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
     tasksDone,
     valueAttribution,
     capabilities,
+    unappliedMigrations,
   ] = await Promise.all([
       guarded(
         "cron runs",
@@ -169,6 +171,16 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
           take: 50,
         }),
       ),
+      guarded(
+        "migrations",
+        prisma.$queryRaw<{ migration_name: string }[]>`
+          SELECT migration_name FROM _prisma_migrations
+          WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
+        `.then((rows) => {
+          const applied = new Set(rows.map((r) => r.migration_name));
+          return REPO_MIGRATIONS.filter((name) => !applied.has(name));
+        }),
+      ),
     ]);
 
   const spend =
@@ -192,5 +204,6 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
     tasksDone,
     valueAttribution,
     capabilities,
+    unappliedMigrations,
   });
 }
