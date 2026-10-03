@@ -277,7 +277,7 @@ $relayReady = (Port-Open 8554) -and (Port-Open 8080)
 # A refused V380 cloud login is not a crash a restart can heal. Witnessed 2026-10-02/03: the
 # relay exited "login failed result: 1002" and this loop re-tried the cloud login ~120x/hour
 # for 11+ hours, which risks locking the account. On a login refusal, retry once per 30 min
-# and escalate it as a credential problem.
+# and escalate it. 1002 has followed a dropped stream (camera offline), not only a bad password.
 $relayErr = Join-Path (Split-Path $relayLauncher) $(if ($isSystem) { "relay-system.stderr.log" } else { "relay.stderr.log" })
 $relayAuthFailed = (Test-Path $relayErr) -and (Select-String -Path $relayErr -Pattern 'login failed' -SimpleMatch -Quiet)
 $relayAuthHold = (-not $relayReady) -and $relayAuthFailed -and ((Restarts-InLastMinutes "sign-relay" 30) -gt 0)
@@ -285,7 +285,7 @@ if ($relayAuthHold) {
   $e = Get-Entry "sign-relay"
   if ($e.escalatedAt -lt ($nowEpoch - 3600)) {
     $e.escalatedAt = $nowEpoch
-    Log "ESCALATE sign-relay V380 cloud login refused; holding retries to 1 per 30 min -- check the shop-sign camera credential"
+    Log "ESCALATE sign-relay V380 cloud login refused; holding retries to 1 per 30 min -- check the shop-sign camera is online (power/Wi-Fi) in the V380 app, then its credential"
   }
 }
 if (-not $relayReady -and -not $relayAuthHold -and (Test-Path $relaySecret) -and (Test-Path $relayLauncher)) {
