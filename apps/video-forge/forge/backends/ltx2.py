@@ -9,7 +9,7 @@ Command shape verified against the upstream README + utils/args.py on
         --video-vae-path    vae/ltx-2.5-video-vae-bf16.safetensors
         --audio-vae-path    vae/ltx-2.5-audio-vae-bf16.safetensors
         --spatial-upsampler-path latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors
-        [--detailing-lora loras/ltx-2.5-22b-ic-lora-pixel-spatial-upscaler-x2-1.0.safetensors]   # DFR only
+        [--detailing-lora <LTX-2.5-22b-IC-LoRA-Pixel-Spatial-Upscaler repo>/ltx-2.5-22b-ic-lora-pixel-spatial-upscaler-x2-1.0.safetensors]   # DFR only
         --num-frames 8k+1 --height H --width W --frame-rate F --seed S
         [--image PATH FRAME_IDX STRENGTH] --output-path out.mp4 --prompt "..."
 
@@ -34,7 +34,9 @@ COMPONENTS = {
     "--audio-vae-path": "vae/ltx-2.5-audio-vae-bf16.safetensors",
     "--spatial-upsampler-path": "latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors",
 }
-DFR_LORA = "loras/ltx-2.5-22b-ic-lora-pixel-spatial-upscaler-x2-1.0.safetensors"
+# The DFR detailing IC-LoRA lives in its OWN Hugging Face repo, not under LTX-2.5/loras/
+# (upstream README, 2026-10-03). scripts/fetch_models.sh puts it beside the main weights.
+DFR_LORA_DEFAULT = "/models/LTX-2.5-22b-IC-LoRA-Pixel-Spatial-Upscaler/ltx-2.5-22b-ic-lora-pixel-spatial-upscaler-x2-1.0.safetensors"
 MODULES = {"distilled": "ltx_pipelines.distilled", "dfr": "ltx_pipelines.dfr_pipeline"}
 
 
@@ -48,7 +50,7 @@ def build_argv(profile: dict[str, Any], req: dict[str, Any], out_path: str, star
     for flag, rel in COMPONENTS.items():
         argv += [flag, os.path.join(models, rel)]
     if profile["pipeline"] == "dfr":
-        argv += ["--detailing-lora", os.path.join(models, DFR_LORA)]
+        argv += ["--detailing-lora", os.environ.get("FORGE_LTX_DFR_LORA", DFR_LORA_DEFAULT)]
     argv += [
         "--num-frames", str(frames), "--height", str(req["height"]), "--width", str(req["width"]),
         "--frame-rate", str(req["fps"]), "--seed", str(_seed(req)),
