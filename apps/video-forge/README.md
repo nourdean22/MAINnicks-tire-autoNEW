@@ -51,11 +51,27 @@ FORGE_SECRET=dev FORGE_DATA_DIR=/tmp/forge FORGE_ALLOW_UNAPPROVED_FOR_TESTS=1 FO
 cd ../nickstire && VIDEO_FORGE_URL=http://127.0.0.1:8787 VIDEO_FORGE_SECRET=dev npx tsx scripts/video-forge-e2e.ts
 ```
 
+## No-spend canary preflight
+
+Before allocating a GPU, validate the exact backend build plan locally:
+
+```bash
+cd apps/video-forge
+FORGE_INSTALL_LTX=0 FORGE_INSTALL_WAN=1 \
+WAN22_REF=<pinned Wan2.2 code commit> FORGE_MODAL_GPU=A100 \
+python scripts/canary_preflight.py --profile wan2.2-ti2v-5b
+```
+
+After `fetch_wan_5b` has populated the model volume, run the same preflight with
+`--model-dir /models/Wan2.2-TI2V-5B`. It then requires `SHA256SUMS` plus
+`MANIFEST.json` with the pinned Hugging Face revision. The preflight never
+allocates a GPU, downloads weights, or changes production state.
+
 ## GPU canary (operator action, needs spend approval)
 
-1. Rent one 80 GB GPU (A100/H100) on RunPod **or** deploy `modal_app.py`. Use 80 GB first so FP8 and offload don't muddy the quality result.
-2. Run `scripts/fetch_models.sh` with pinned `LTX25_REV` and `WAN22_REV`. Copy the sha256s into `forge/profiles.json` and `apps/nickstire/shared/mediaModelRegistry.ts`.
-3. Start the worker without `FORGE_ALLOW_UNAPPROVED_FOR_TESTS` or `FORGE_BACKEND_OVERRIDE`. Fix `FORGE_LTX_CMD` / `FORGE_WAN_CMD` if the upstream CLIs differ from the templates.
+1. Lowest-risk first proof: Wan 2.2 TI2V-5B only, with `FORGE_INSTALL_LTX=0`. A 40 GB A100 can exercise this path without pulling LTX's gated dependencies. Use 80 GB for the later LTX quality comparison.
+2. Fetch only the weights being tested. Modal: run `fetch_wan_5b`. RunPod: use `FETCH_LTX=0 FETCH_WAN=1 WAN22_REV=<pinned HF revision> scripts/fetch_models.sh`. Preserve the generated revision manifest + sha256s, then copy the accepted checkpoint hashes into `forge/profiles.json` and `apps/nickstire/shared/mediaModelRegistry.ts`.
+3. Start the worker without `FORGE_ALLOW_UNAPPROVED_FOR_TESTS` or `FORGE_BACKEND_OVERRIDE`. The Docker build verifies the pinned FlashAttention wheel hash before installing it.
 4. Run `scripts/video-forge-e2e.ts` against it. That gives the first real receipt.
 5. Run the bake-off: `bench/run_bench.py` on the 48-case corpus × profiles × arms (`text`, `hero`). Then send the clips through nickstire's rendered QA, run `bench/make_pairwise.py`, and do the blind human review.
 6. Only after that: move the profile's `rollout` to `operator_selectable` (in both files), then pin `REEL_VIDEO_PROVIDER=self_hosted` on a limited cadence.
