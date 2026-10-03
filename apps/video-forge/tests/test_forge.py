@@ -14,7 +14,7 @@ import tempfile
 import time
 import unittest
 
-SECRET = "test-secret-0123456789abcdef0123456789"  # >= MIN_SECRET_LEN
+SECRET = "t" * 40  # >= MIN_SECRET_LEN; zero-entropy so secret scanners know it is fake
 
 
 def signed(client, method: str, path: str, body: dict | None = None, secret: str = SECRET, ts: int | None = None):
