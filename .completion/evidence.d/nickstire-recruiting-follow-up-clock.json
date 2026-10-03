@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Recruiting follow-up clock (2026-10-03, branch nickstire/recruiting-follow-up-clock). What the operator sees on Admin > Leads > Candidates: (1) a sky-blue 'N follow-up(s) due' badge in the panel header, visible even while the panel is collapsed (same rule as the 48h SLA badge), shown only when at least one candidate's nextFollowUpAt has arrived; (2) inside the panel, a 'N candidates are due a check-in' block listing name, status, position, 'due today' / 'Nd overdue', Text and Call links, a 48px 'Snooze 30d' button, and for a non-apply intent the existing intent instruction (e.g. 'contact DISCREETLY' for a confidential lead); (3) if drizzle/0129 is missing, a one-line amber notice instead of silence. Behaviour behind it: changing a candidate's status now schedules the next check-in (talent_network 60d, not_now 90d, no_show 2d, contact_attempted 1d, offer 2d) or clears it; accepted/started/hired/declined/withdrew can never carry one. Nothing is sent automatically. Proof is a jsdom render plus router tests, not a live admin session: client/src/__tests__/admin-leads-panels-outage.test.tsx (+3) and server/candidateFollowUpClock.test.ts (16); mutations (router never writes, terminal not cleared, panel hidden) each go red. Not yet seen by the operator on the installed PWA; the production promotion condition is recorded on careers-candidate-intake in the capability ledger."
+    }
+  }
+}

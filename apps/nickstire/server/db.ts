@@ -1,5 +1,10 @@
-import { eq, desc, and, gte, lte, sql, inArray } from "drizzle-orm";
-import { CANDIDATE_SLA_OPEN_STATUSES, CANDIDATE_SOURCE_HONEYPOT, type CandidateStatus } from "@shared/candidateLifecycle";
+import { eq, desc, and, gte, lte, sql, inArray, notInArray } from "drizzle-orm";
+import {
+  CANDIDATE_FOLLOW_UP_NEVER,
+  CANDIDATE_SLA_OPEN_STATUSES,
+  CANDIDATE_SOURCE_HONEYPOT,
+  type CandidateStatus,
+} from "@shared/candidateLifecycle";
 import { drizzle, type MySql2Database } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import {
@@ -1072,24 +1077,112 @@ export async function updateCandidateStatus(
     contactedAt?: Date;
     contactedBy?: string;
     notes?: string;
+    /**
+     * The follow-up clock (shared/candidateLifecycle.ts followUpDaysFor):
+     * a day count schedules nextFollowUpAt that many days from NOW(), null
+     * clears it, undefined leaves it alone. Computed in SQL on purpose: the
+     * due-list compares against NOW(), and a JS Date written through the
+     * driver lands shifted (the +4h Eastern skew getCandidateSlaBreaches
+     * documents), so both sides must use the database's own clock.
+     */
+    followUpInDays?: number | null;
   },
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const { contactedAt, ...rest } = updates;
-  await db
-    .update(candidates)
-    .set({
-      ...rest,
-      // First contact is a fact about the past: keep the earliest stamp.
-      // Moving a candidate from "contacted" to "offer" must not reset the
-      // time-to-first-contact metric to today.
-      ...(contactedAt
-        ? { contactedAt: sql`COALESCE(${candidates.contactedAt}, ${sql.param(contactedAt, candidates.contactedAt)})` }
-        : {}),
-    })
-    .where(eq(candidates.id, id));
-  return { success: true };
+  const { contactedAt, followUpInDays, ...rest } = updates;
+  const base = {
+    ...rest,
+    // First contact is a fact about the past: keep the earliest stamp.
+    // Moving a candidate from "contacted" to "offer" must not reset the
+    // time-to-first-contact metric to today.
+    ...(contactedAt
+      ? { contactedAt: sql`COALESCE(${candidates.contactedAt}, ${sql.param(contactedAt, candidates.contactedAt)})` }
+      : {}),
+  };
+  const followUp =
+    followUpInDays === undefined
+      ? {}
+      : {
+          nextFollowUpAt:
+            followUpInDays === null
+              ? null
+              : sql`DATE_ADD(NOW(), INTERVAL ${sql.raw(String(Math.trunc(followUpInDays)))} DAY)`,
+        };
+  try {
+    await db
+      .update(candidates)
+      .set({ ...base, ...followUp })
+      .where(eq(candidates.id, id));
+  } catch (err) {
+    // 0129 not applied: the status change is the operator's real action and
+    // must still land; only the follow-up clock is lost, and we say so.
+    if (followUpInDays === undefined || !isUnknownColumnError(err)) throw err;
+    log.warn("[updateCandidateStatus] nextFollowUpAt missing (0129 pending) — status saved without follow-up");
+    await db.update(candidates).set(base).where(eq(candidates.id, id));
+    return { success: true, followUpSaved: false as const };
+  }
+  return { success: true, followUpSaved: followUpInDays !== undefined };
+}
+
+/**
+ * Candidates whose follow-up date has arrived — the CONSUMER of
+ * nextFollowUpAt. Surfaced in the admin Candidates panel; nothing sends.
+ *
+ * available:false, never an empty list, when the read cannot happen (no DB,
+ * no table, or 0129's column missing): "nobody is due" is the reassuring
+ * answer, and a dead read must not fabricate it. Never returns a status in
+ * CANDIDATE_FOLLOW_UP_NEVER even if an old row still carries a date, and
+ * never a honeypot row.
+ */
+export async function getCandidateFollowUpsDue() {
+  const db = await getDb();
+  type Row = {
+    id: number;
+    name: string;
+    phone: string;
+    status: string;
+    intent: string | null;
+    positionTitle: string | null;
+    daysOverdue: number | null;
+  };
+  if (!db) return { available: false as const, reason: "db_unavailable" as const, rows: [] as Row[] };
+  try {
+    const rows = await db
+      .select({
+        id: candidates.id,
+        name: candidates.name,
+        phone: candidates.phone,
+        status: candidates.status,
+        intent: candidates.intent,
+        positionTitle: candidates.positionTitle,
+        // Age in SQL against the same NOW() the writer used (see above).
+        daysOverdue: sql<number | null>`TIMESTAMPDIFF(DAY, ${candidates.nextFollowUpAt}, NOW())`,
+      })
+      .from(candidates)
+      .where(
+        and(
+          sql`${candidates.nextFollowUpAt} IS NOT NULL`,
+          sql`${candidates.nextFollowUpAt} <= NOW()`,
+          notInArray(candidates.status, [...CANDIDATE_FOLLOW_UP_NEVER]),
+          ne(candidates.source, CANDIDATE_SOURCE_HONEYPOT),
+        ),
+      )
+      .orderBy(candidates.nextFollowUpAt)
+      .limit(100);
+    return {
+      available: true as const,
+      reason: null,
+      rows: (rows as Row[]).map((r) => ({
+        ...r,
+        daysOverdue: r.daysOverdue == null ? null : Number(r.daysOverdue),
+      })),
+    };
+  } catch (err) {
+    if (isMissingTableError(err)) return { available: false as const, reason: "table_missing" as const, rows: [] as Row[] };
+    if (isUnknownColumnError(err)) return { available: false as const, reason: "migration_0129_pending" as const, rows: [] as Row[] };
+    throw err;
+  }
 }
 
 // ─── MECHANIC Q&A QUERIES ─────────────────────────────

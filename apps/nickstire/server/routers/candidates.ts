@@ -17,6 +17,7 @@ import {
   getCandidateSlaBreaches,
   findCandidatesByPhoneE164,
   getCandidateSendBudget,
+  getCandidateFollowUpsDue,
 } from "../db";
 import { JOB_OPENINGS } from "@shared/jobOpenings";
 import {
@@ -29,6 +30,8 @@ import {
   normalizeRefCode,
   refCodeFromLandingPage,
   CANDIDATE_SOURCE_HONEYPOT,
+  CANDIDATE_FOLLOW_UP_MAX_DAYS,
+  followUpDaysFor,
 } from "@shared/candidateLifecycle";
 import { normalizePhone } from "../lib/phone";
 import { runCandidateIntake } from "../services/candidateIntake";
@@ -246,16 +249,22 @@ export const candidatesRouter = router({
         id: z.number(),
         status: z.enum(CANDIDATE_STATUSES),
         notes: z.string().max(2000).nullish(),
+        /** Admin snooze: next follow-up in N days instead of the status default. */
+        followUpInDays: z.number().int().min(1).max(CANDIDATE_FOLLOW_UP_MAX_DAYS).nullish(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      await updateCandidateStatus(input.id, {
+      // The follow-up clock is a function of the NEW status (null clears it),
+      // so a hired / declined / withdrawn person can never stay on the list.
+      const followUpInDays = followUpDaysFor(input.status, input.followUpInDays ?? null);
+      const result = await updateCandidateStatus(input.id, {
         status: input.status,
         // Any status that means a human really reached the person stamps
         // contactedAt — the SLA alarm keys off it. updateCandidateStatus keeps
         // an earlier stamp rather than overwriting it.
         contactedAt: CANDIDATE_CONTACT_IMPLIED_STATUSES.includes(input.status) ? new Date() : undefined,
         notes: input.notes ?? undefined,
+        followUpInDays,
       });
       logAdminAction({
         // Without this auditTrail stamps "admin" for everyone, so the row
@@ -264,10 +273,21 @@ export const candidatesRouter = router({
         action: "candidate.status_changed",
         entityType: "candidate",
         entityId: input.id,
-        details: `Status changed to ${input.status}`,
+        details:
+          `Status changed to ${input.status}` +
+          (followUpInDays == null ? "; follow-up cleared" : `; follow-up in ${followUpInDays}d`),
       }).catch((e) => {
         log.warn("[candidates.updateStatus] audit log failed:", e);
       });
-      return { success: true };
+      return { success: true, followUpInDays, followUpSaved: result.followUpSaved };
     }),
+
+  /**
+   * Candidates whose nextFollowUpAt has arrived (talent network, not-now,
+   * no-show, unanswered call, open offer). The consumer of the follow-up
+   * clock; surfaced in the admin panel, never sent automatically.
+   */
+  followUpsDue: adminProcedure.query(async () => {
+    return getCandidateFollowUpsDue();
+  }),
 });

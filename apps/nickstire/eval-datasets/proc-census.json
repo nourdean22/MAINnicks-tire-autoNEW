@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-02T21:14:22.450Z",
-  "count": 772,
+  "generatedAt": "2026-10-03T14:50:01.518Z",
+  "count": 773,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -399,6 +399,7 @@
     "query.campaigns.preview",
     "query.campaigns.recentSends",
     "query.campaigns.stats",
+    "query.candidates.followUpsDue",
     "query.candidates.list",
     "query.candidates.slaBreaches",
     "query.chat.sessions",
