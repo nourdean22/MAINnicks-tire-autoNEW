@@ -16,7 +16,7 @@ Design notes:
   network volume is not a proven combination. The canary must test a forced
   container restart mid-render; if recovery fails, keep the DB on local disk
   and checkpoint it, or move the store to Postgres.
-- 80GB GPU first (quality proof without FP8/offload confounders).
+- First canary pins the 40GB A100 + upstream offload path; later LTX quality proof uses 80GB.
 """
 import modal
 
@@ -29,6 +29,17 @@ import os as _os
 LTX_CODE_REF = _os.environ.get("LTX2_REF", "UNPINNED")
 WAN_CODE_REF = _os.environ.get("WAN22_REF", "UNPINNED")
 WAN_5B_REVISION = "921dbaf3f1674a56f47e83fb80a34bac8a8f203e"
+INSTALL_LTX = _os.environ.get("FORGE_INSTALL_LTX", "1")
+INSTALL_WAN = _os.environ.get("FORGE_INSTALL_WAN", "1")
+ENABLED_PROFILES = _os.environ.get("FORGE_ENABLED_PROFILES", "wan2.2-ti2v-5b")
+
+_enabled = {p.strip() for p in ENABLED_PROFILES.split(",") if p.strip()}
+if not _enabled:
+    raise ValueError("FORGE_ENABLED_PROFILES must name at least one profile")
+if any(p.startswith("ltx-") for p in _enabled) and INSTALL_LTX != "1":
+    raise ValueError("LTX profile enabled but FORGE_INSTALL_LTX is not 1")
+if any(p.startswith("wan2.2-") for p in _enabled) and INSTALL_WAN != "1":
+    raise ValueError("Wan profile enabled but FORGE_INSTALL_WAN is not 1")
 
 image = modal.Image.from_dockerfile(
     "apps/video-forge/Dockerfile",
@@ -37,9 +48,10 @@ image = modal.Image.from_dockerfile(
         "LTX2_REF": LTX_CODE_REF,
         "WAN22_REF": WAN_CODE_REF,
         "WAN22_WEIGHT_REV": WAN_5B_REVISION,
-        # Build only what is being served (FORGE_INSTALL_LTX=0 for a Wan-only canary).
-        "INSTALL_LTX": _os.environ.get("FORGE_INSTALL_LTX", "1"),
-        "INSTALL_WAN": _os.environ.get("FORGE_INSTALL_WAN", "1"),
+        # Build and expose only what this deployment is prepared to serve.
+        "INSTALL_LTX": INSTALL_LTX,
+        "INSTALL_WAN": INSTALL_WAN,
+        "ENABLED_PROFILES": ENABLED_PROFILES,
     },
 )
 models = modal.Volume.from_name("video-forge-models", create_if_missing=True)
@@ -100,8 +112,11 @@ def fetch_wan_5b() -> dict:
 
 
 @app.function(
-    # Modal calls its 40 GB A100 class "A100"; use A100-80GB for the later LTX quality baseline.
-    gpu=_os.environ.get("FORGE_MODAL_GPU", "A100"),
+    # Pin the exact 40 GB SKU for reproducible first-canary behavior. Modal also accepts "A100".
+    gpu=_os.environ.get("FORGE_MODAL_GPU", "A100-40GB"),
+    # Wan 5B's low-VRAM path offloads the model/T5 to host RAM; reserve it explicitly.
+    cpu=float(_os.environ.get("FORGE_MODAL_CPU", "4")),
+    memory=int(_os.environ.get("FORGE_MODAL_MEMORY_MB", "98304")),
     volumes={"/models": models, "/data": data},
     secrets=[modal.Secret.from_name("video-forge")],
     max_containers=1,
@@ -115,9 +130,11 @@ def forge():
 
     sys.path.insert(0, "/srv")
     os.environ.setdefault("FORGE_DATA_DIR", "/data/forge")
+    os.environ.setdefault("FORGE_ENABLED_PROFILES", ENABLED_PROFILES)
+    os.environ.setdefault("FORGE_REQUIRE_VERIFIED_MODELS", "1")
+    os.environ.setdefault("FORGE_WAN_5B_EXPECTED_REV", WAN_5B["revision"])
     if WAN_CODE_REF != "UNPINNED":
         os.environ.setdefault("FORGE_WAN22_CODE_REV", WAN_CODE_REF)
-        os.environ.setdefault("FORGE_WAN_REV", WAN_5B["revision"])
     if LTX_CODE_REF != "UNPINNED":
         os.environ.setdefault("FORGE_LTX2_CODE_REV", LTX_CODE_REF)
     from forge.app import create_app

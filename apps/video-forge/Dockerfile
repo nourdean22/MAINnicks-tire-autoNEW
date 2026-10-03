@@ -26,10 +26,11 @@ ARG WAN22_WEIGHT_REV=UNPINNED
 ARG ALLOW_UNPINNED=0
 ARG INSTALL_LTX=1
 ARG INSTALL_WAN=1
+ARG ENABLED_PROFILES=wan2.2-ti2v-5b
 RUN if [ "$ALLOW_UNPINNED" != "1" ] && { { [ "$INSTALL_LTX" = "1" ] && [ "$LTX2_REF" = "UNPINNED" ]; } || \
       { [ "$INSTALL_WAN" = "1" ] && { [ "$WAN22_REF" = "UNPINNED" ] || [ "$WAN22_WEIGHT_REV" = "UNPINNED" ]; }; }; }; then \
       echo "pin LTX2_REF plus WAN22_REF/WAN22_WEIGHT_REV for each installed backend (or pass ALLOW_UNPINNED=1)" >&2; exit 1; fi
-ENV FORGE_WAN22_CODE_REV=$WAN22_REF FORGE_WAN_REV=$WAN22_WEIGHT_REV FORGE_LTX2_CODE_REV=$LTX2_REF
+ENV FORGE_WAN22_CODE_REV=$WAN22_REF FORGE_WAN_5B_EXPECTED_REV=$WAN22_WEIGHT_REV FORGE_LTX2_CODE_REV=$LTX2_REF FORGE_REQUIRE_VERIFIED_MODELS=1 FORGE_ENABLED_PROFILES=$ENABLED_PROFILES
 # LTX-2 is a uv workspace (root pyproject has no [project]); `pip install -e .` at the
 # root does not install ltx_pipelines. uv sync builds the workspace env uv run uses.
 RUN if [ "$INSTALL_LTX" = "1" ]; then \

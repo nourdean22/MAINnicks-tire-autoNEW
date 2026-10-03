@@ -7,8 +7,13 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 : "${MODELS_DIR:=/models}"
 : "${LTX25_REPO:=Lightricks/LTX-2.5}"
 : "${FETCH_LTX:=1}"
+: "${FETCH_LTX_DFR:=0}"
 : "${FETCH_WAN:=1}"
 
+if [ "$FETCH_LTX_DFR" = "1" ] && [ "$FETCH_LTX" != "1" ]; then
+  echo "FETCH_LTX_DFR=1 requires FETCH_LTX=1" >&2
+  exit 2
+fi
 if [ "$FETCH_LTX" != "1" ] && [ "$FETCH_WAN" != "1" ]; then
   echo "refusing no-op fetch: enable FETCH_LTX=1 and/or FETCH_WAN=1" >&2
   exit 2
@@ -20,10 +25,14 @@ if [ "$FETCH_LTX" = "1" ]; then
   : "${LTX25_REV:?pin LTX25_REV when FETCH_LTX=1}"
   huggingface-cli download "$LTX25_REPO" --revision "$LTX25_REV" --local-dir "$MODELS_DIR/LTX-2.5"
   python3 "$SCRIPT_DIR/write_model_manifest.py" --model-dir "$MODELS_DIR/LTX-2.5" --repo "$LTX25_REPO" --revision "$LTX25_REV"
-  # DFR's detailing IC-LoRA is a separate repo (needed only by the ltx-2.5-dfr profile).
-  if [ -n "${LTX25_DFR_LORA_REV:-}" ]; then
+  # DFR is explicit: it cannot be prepared without its separately pinned detailing LoRA.
+  if [ "$FETCH_LTX_DFR" = "1" ]; then
+    : "${LTX25_DFR_LORA_REV:?pin LTX25_DFR_LORA_REV when FETCH_LTX_DFR=1}"
     huggingface-cli download Lightricks/LTX-2.5-22b-IC-LoRA-Pixel-Spatial-Upscaler --revision "$LTX25_DFR_LORA_REV" \
       --local-dir "$MODELS_DIR/LTX-2.5-22b-IC-LoRA-Pixel-Spatial-Upscaler"
+    python3 "$SCRIPT_DIR/write_model_manifest.py" \
+      --model-dir "$MODELS_DIR/LTX-2.5-22b-IC-LoRA-Pixel-Spatial-Upscaler" \
+      --repo Lightricks/LTX-2.5-22b-IC-LoRA-Pixel-Spatial-Upscaler --revision "$LTX25_DFR_LORA_REV"
   fi
 fi
 

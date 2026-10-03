@@ -6,13 +6,18 @@ downloads weights, or mutates production state.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from forge.model_manifest import ModelManifestError, verify_model_manifest
+
 PROFILES = ROOT / "forge" / "profiles.json"
 WAN_5B_PROFILE = "wan2.2-ti2v-5b"
 WAN_5B_CODE_REF = "1ea34ff48f87168174e12956e200b1d908b1c5ff"
@@ -45,8 +50,13 @@ def validate(profile_id: str, env: dict[str, str] | None = None, model_dir: Path
     wan_weight_rev = env.get("WAN22_WEIGHT_REV", WAN_5B_REVISION if profile_id == WAN_5B_PROFILE else "UNPINNED")
     gpu = env.get("FORGE_MODAL_GPU", "A100")
 
-    if gpu == "A100-40GB":
-        errors.append('use Modal GPU identifier "A100" for its 40 GB A100 class')
+    if gpu not in {"A100", "A100-40GB", "A100-80GB"}:
+        errors.append("FORGE_MODAL_GPU must be A100, A100-40GB, or A100-80GB for this canary")
+    if profile_id != WAN_5B_PROFILE:
+        errors.append(
+            f"profile {profile_id} is not verified by this canary preflight; "
+            f"only {WAN_5B_PROFILE} has exact code + weight pins"
+        )
     if profile["backend"] == "wan22" and not install_wan:
         errors.append("selected Wan profile but FORGE_INSTALL_WAN is not 1")
     if profile["backend"] == "ltx2" and not install_ltx:
@@ -72,45 +82,14 @@ def validate(profile_id: str, env: dict[str, str] | None = None, model_dir: Path
 
     model = None
     if model_dir is not None:
-        sums = model_dir / "SHA256SUMS"
-        manifest = model_dir / "MANIFEST.json"
-        if not sums.is_file():
-            errors.append(f"missing weight checksum file: {sums}")
-        if not manifest.is_file():
-            errors.append(f"missing weight manifest: {manifest}")
-        else:
-            model = json.loads(manifest.read_text(encoding="utf-8"))
-            if profile_id == WAN_5B_PROFILE and model.get("revision") != WAN_5B_REVISION:
-                errors.append("weight manifest revision does not match the pinned Wan 5B revision")
-            files = model.get("files")
-            if not isinstance(files, dict) or not files:
-                errors.append("weight manifest contains no hashed model files")
-            else:
-                root = model_dir.resolve()
-                for rel, expected in files.items():
-                    candidate = (model_dir / rel).resolve()
-                    try:
-                        candidate.relative_to(root)
-                    except ValueError:
-                        errors.append(f"weight manifest path escapes model directory: {rel}")
-                        continue
-                    if not candidate.is_file():
-                        errors.append(f"weight file missing: {rel}")
-                        continue
-                    digest = hashlib.sha256()
-                    with candidate.open("rb") as fh:
-                        for chunk in iter(lambda: fh.read(1 << 24), b""):
-                            digest.update(chunk)
-                    if digest.hexdigest() != expected:
-                        errors.append(f"weight sha256 mismatch: {rel}")
-                if sums.is_file():
-                    parsed: dict[str, str] = {}
-                    for line in sums.read_text(encoding="utf-8").splitlines():
-                        parts = line.strip().split(maxsplit=1)
-                        if len(parts) == 2:
-                            parsed[parts[1].lstrip("*")] = parts[0]
-                    if parsed != files:
-                        errors.append("SHA256SUMS does not match MANIFEST.json")
+        try:
+            model = verify_model_manifest(
+                model_dir,
+                expected_repo="Wan-AI/Wan2.2-TI2V-5B" if profile_id == WAN_5B_PROFILE else None,
+                expected_revision=WAN_5B_REVISION if profile_id == WAN_5B_PROFILE else None,
+            )
+        except ModelManifestError as exc:
+            errors.append(str(exc))
 
     return {
         "ok": not errors,

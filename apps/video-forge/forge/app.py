@@ -35,6 +35,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 from .backends import BackendError, get_backend
+from .model_manifest import ModelManifestError, verify_model_manifest
 from .store import IdempotencyConflict, JobStore, view
 
 PROFILES_PATH = Path(__file__).with_name("profiles.json")
@@ -124,6 +125,43 @@ def ffprobe(path: str) -> dict[str, Any]:
     return {"codec": s.get("codec_name"), "width": s.get("width"), "height": s.get("height"), "fps": fps, "duration": float(j.get("format", {}).get("duration", 0))}
 
 
+def _verify_enabled_model_artifacts(
+    profiles: dict[str, dict[str, Any]],
+    enabled: set[str],
+) -> None:
+    """Fail closed before serving paid backends unless mounted bytes prove provenance."""
+    if os.environ.get("FORGE_REQUIRE_VERIFIED_MODELS") != "1":
+        return
+    for profile_id in enabled:
+        profile = profiles.get(profile_id)
+        if not profile or profile.get("backend") not in {"wan22", "ltx2"}:
+            continue
+        if profile_id != "wan2.2-ti2v-5b":
+            raise RuntimeError(
+                f"profile {profile_id} has no verified runtime artifact contract; disable it until exact pins are added"
+            )
+        expected = os.environ.get("FORGE_WAN_5B_EXPECTED_REV", "")
+        if not expected:
+            raise RuntimeError("FORGE_WAN_5B_EXPECTED_REV is required for verified Wan 5B runtime")
+        task = profile["pipeline"].replace("-", "_").upper()
+        model_dir = Path(
+            os.environ.get(
+                f"FORGE_WAN_CKPT_{task}",
+                f"/models/{profile['checkpoint'].split('/')[-1]}",
+            )
+        )
+        try:
+            manifest = verify_model_manifest(
+                model_dir,
+                expected_repo=profile["checkpoint"],
+                expected_revision=expected,
+            )
+        except ModelManifestError as exc:
+            raise RuntimeError(f"verified model startup failed for {profile_id}: {exc}") from exc
+        # Attribution is derived from verified mounted bytes, never a build argument alone.
+        os.environ["FORGE_WAN_REV"] = str(manifest["revision"])
+
+
 class Forge:
     def __init__(self) -> None:
         self.secret = os.environ.get("FORGE_SECRET", "")
@@ -137,7 +175,8 @@ class Forge:
         self.profiles = load_profiles()
         self.allow_unapproved = os.environ.get("FORGE_ALLOW_UNAPPROVED_FOR_TESTS") == "1"
         enabled = os.environ.get("FORGE_ENABLED_PROFILES")
-        self.enabled = set(enabled.split(",")) if enabled else set(self.profiles)
+        self.enabled = {p.strip() for p in enabled.split(",") if p.strip()} if enabled else set(self.profiles)
+        _verify_enabled_model_artifacts(self.profiles, self.enabled)
         self.gpu_type = os.environ.get("FORGE_GPU_TYPE") or _detect_gpu() or "UNKNOWN"
         self.recovered = self.store.recover_after_restart()
         self._stop = threading.Event()
