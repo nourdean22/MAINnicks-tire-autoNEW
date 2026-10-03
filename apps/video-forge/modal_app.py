@@ -25,6 +25,7 @@ import modal
 # "No module named ltx_pipelines" / "generate.py not found". Pin the model code:
 #   LTX2_REF=<sha> WAN22_REF=<sha> modal deploy apps/video-forge/modal_app.py
 import os as _os
+from pathlib import Path as _Path
 
 from scripts.canary_config import load_profile_registry, validate_enabled_profiles
 
@@ -61,7 +62,16 @@ data = modal.Volume.from_name("video-forge-data", create_if_missing=True)
 app = modal.App("nour-video-forge", image=image)
 
 # Weights fetch runs on a tiny CPU image — never on the GPU image or a GPU.
-fetch_image = modal.Image.debian_slim(python_version="3.12").pip_install("huggingface_hub>=0.24,<1")
+# Modal 1.x no longer automounts arbitrary sibling packages into custom images,
+# so include only the local source this CPU function imports.
+_LOCAL_ROOT = _Path(__file__).resolve().parent
+_FETCH_SOURCE_ROOT = "/root/video_forge_src"
+fetch_image = (
+    modal.Image.debian_slim(python_version="3.12")
+    .pip_install("huggingface_hub>=0.24,<1")
+    .add_local_dir(_LOCAL_ROOT / "scripts", f"{_FETCH_SOURCE_ROOT}/scripts")
+    .add_local_dir(_LOCAL_ROOT / "forge", f"{_FETCH_SOURCE_ROOT}/forge")
+)
 
 # Wan 2.2 TI2V-5B: Apache-2.0, ungated. Revision pinned (HF commit) so a canary is reproducible.
 WAN_5B = {"repo": "Wan-AI/Wan2.2-TI2V-5B", "revision": WAN_5B_REVISION, "dir": "/models/Wan2.2-TI2V-5B"}
@@ -69,48 +79,31 @@ WAN_5B = {"repo": "Wan-AI/Wan2.2-TI2V-5B", "revision": WAN_5B_REVISION, "dir": "
 
 @app.function(image=fetch_image, volumes={"/models": models}, timeout=2 * 60 * 60, cpu=2.0, memory=4096)
 def fetch_wan_5b() -> dict:
-    """Download the pinned Wan 5B weights into the models volume and record sha256s.
+    """Download the pinned Wan 5B checkpoint and hash every inference-visible artifact.
 
-    Skips the repo's docs/example images. Idempotent: hf_hub skips files already present.
+    Skips upstream docs/example images and Hugging Face's local transport cache.
+    Idempotent: hf_hub skips files already present.
     """
-    import hashlib
-    import json
     import pathlib
+    import sys
 
     from huggingface_hub import snapshot_download
+
+    sys.path.insert(0, _FETCH_SOURCE_ROOT)
+    from scripts.write_model_manifest import write_manifest
 
     root = pathlib.Path(WAN_5B["dir"])
     snapshot_download(
         WAN_5B["repo"], revision=WAN_5B["revision"], local_dir=str(root),
         ignore_patterns=["assets/*", "examples/*", "*.md", ".msc", ".mv"],
     )
-    sums = {}
-    total_bytes = 0
-    for f in sorted(root.rglob("*")):
-        if f.is_file() and f.suffix in (".safetensors", ".pth"):
-            h = hashlib.sha256()
-            with open(f, "rb") as fh:
-                for chunk in iter(lambda: fh.read(1 << 24), b""):
-                    h.update(chunk)
-            rel = f.relative_to(root).as_posix()
-            sums[rel] = h.hexdigest()
-            total_bytes += f.stat().st_size
-    (root / "SHA256SUMS").write_text("".join(f"{v}  {k}\n" for k, v in sums.items()), encoding="utf-8")
-    (root / "MANIFEST.json").write_text(
-        json.dumps(
-            {
-                "repo": WAN_5B["repo"],
-                "revision": WAN_5B["revision"],
-                "files": sums,
-                "total_bytes": total_bytes,
-            },
-            indent=2,
-            sort_keys=True,
-        ) + "\n",
-        encoding="utf-8",
-    )
+    manifest = write_manifest(root, WAN_5B["repo"], WAN_5B["revision"])
     models.commit()
-    return {"files": len(sums), "bytes": total_bytes, "revision": WAN_5B["revision"]}
+    return {
+        "files": len(manifest["files"]),
+        "bytes": manifest["total_bytes"],
+        "revision": WAN_5B["revision"],
+    }
 
 
 @app.function(
@@ -132,6 +125,10 @@ def forge():
 
     sys.path.insert(0, "/srv")
     os.environ.setdefault("FORGE_DATA_DIR", "/data/forge")
+    # This module owns ASGI construction on Modal. Prevent forge.app from also
+    # creating its module-level app during the factory import (which would hash
+    # the full mounted checkpoint and open the job store a second time).
+    os.environ["FORGE_FACTORY_ONLY"] = "1"
     os.environ.setdefault("FORGE_ENABLED_PROFILES", ENABLED_PROFILES)
     os.environ.setdefault("FORGE_REQUIRE_VERIFIED_MODELS", "1")
     os.environ.setdefault("FORGE_WAN_5B_EXPECTED_REV", WAN_5B["revision"])

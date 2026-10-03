@@ -57,11 +57,13 @@ class CanaryPreflightTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "FORGE_INSTALL_WAN=1"):
             validate_enabled_profiles("wan2.2-ti2v-5b", "0", "0", profiles)
 
-    def test_weight_fetch_writes_revision_manifest(self):
+    def test_weight_fetch_uses_shared_runtime_artifact_manifest_writer(self):
         source = (Path(__file__).resolve().parents[1] / "modal_app.py").read_text(encoding="utf-8")
-        self.assertIn('"MANIFEST.json"', source)
-        self.assertIn('"revision": WAN_5B["revision"]', source)
-        self.assertIn('f.relative_to(root).as_posix()', source)
+        self.assertIn("from scripts.write_model_manifest import write_manifest", source)
+        self.assertIn('write_manifest(root, WAN_5B["repo"], WAN_5B["revision"])', source)
+        self.assertIn('.add_local_dir(_LOCAL_ROOT / "scripts"', source)
+        self.assertIn('.add_local_dir(_LOCAL_ROOT / "forge"', source)
+        self.assertIn("sys.path.insert(0, _FETCH_SOURCE_ROOT)", source)
 
     def test_runpod_fetch_writes_model_manifests(self):
         source = (Path(__file__).resolve().parents[1] / "scripts" / "fetch_models.sh").read_text(encoding="utf-8")
@@ -212,6 +214,11 @@ class CanaryPreflightTests(unittest.TestCase):
 
     def test_readme_runpod_canary_disables_ltx_fetch(self):
         source = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+        self.assertIn("--build-arg INSTALL_LTX=0", source)
+        self.assertIn("--build-arg INSTALL_WAN=1", source)
+        self.assertIn("--build-arg ENABLED_PROFILES=wan2.2-ti2v-5b", source)
+        self.assertIn("--build-arg WAN22_REF=1ea34ff48f87168174e12956e200b1d908b1c5ff", source)
+        self.assertIn("--build-arg WAN22_WEIGHT_REV=921dbaf3f1674a56f47e83fb80a34bac8a8f203e", source)
         self.assertIn("FETCH_LTX=0 FETCH_WAN=1 WAN22_REV=", source)
         self.assertIn("FETCH_LTX=1 FETCH_LTX_DFR=1", source)
 

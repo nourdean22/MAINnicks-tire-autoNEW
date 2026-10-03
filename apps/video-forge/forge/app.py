@@ -454,4 +454,11 @@ def create_app(start_worker: bool = True) -> FastAPI:
     return app
 
 
-app = create_app(start_worker=os.environ.get("FORGE_START_WORKER", "1") == "1") if os.environ.get("FORGE_SECRET") else None
+# Modal imports this module as a factory, then calls create_app() itself. In that
+# path FORGE_FACTORY_ONLY=1 prevents import-time construction of a second Forge
+# (and a second full mounted-checkpoint verification) on every cold start.
+app = (
+    create_app(start_worker=os.environ.get("FORGE_START_WORKER", "1") == "1")
+    if os.environ.get("FORGE_SECRET") and os.environ.get("FORGE_FACTORY_ONLY") != "1"
+    else None
+)
