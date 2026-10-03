@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "render-spend-trajectory": {
+      "ref": "No spend-path change: reelPipeline.ts is not modified. higgsfieldStudio.ts changes only how a FAILED keepalive row is read (vendor outage -> healthy null instead of false). The only behavioural effect on spend is that a reel batch is no longer cancelled by a vendor blip; renders still go through the unchanged content-governor reservation and generateReelClipVideo. Pinned by reelGenerationPreflight.test.ts + reelApiLaneNotBlockedBySession.test.ts (unchanged, passing)."
+    },
+    "cron-fail-closed": {
+      "ref": "higgsfield-session-keepalive still THROWS on every non-valid health result, outage included, so cron_log records status='failed' and cron-failure-observer alerts on 2+ consecutive failures. Only the message wording and log level change. higgsfieldKeepalivePromoted.test.ts ('an invalid session THROWS ... never returns completed', cache cleared before throw) passes unchanged: 6 files / 77 tests."
+    },
+    "capability-ledger-updated": {
+      "ref": "UPDATED in this diff: apps/nickstire/docs/operations/capability-ledger.json 'higgsfield-keepalive' gains a P3 blocker describing the 503-as-revoked misreport and its fix (unit-proven; live proof = next outage). REALITY-LEDGER.md re-rendered."
+    }
+  }
+}

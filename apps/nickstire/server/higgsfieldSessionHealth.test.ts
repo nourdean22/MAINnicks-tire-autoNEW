@@ -122,3 +122,31 @@ describe("higgsfieldSessionHealth · refuses to answer rather than guess", () =>
     expect((await health()).healthy).toBeNull();
   });
 });
+
+// 2026-10-03 00:50Z: Higgsfield answered HTTP 503, the keepalive reported
+// "refresh token revoked; re-login required", and reel-pipeline cancelled its
+// batch. An outage proves nothing about the session.
+describe("higgsfieldSessionHealth · a vendor outage is not a dead session", () => {
+  const PROD_RAW = "Error: Higgsfield API error (HTTP 503). request failed with status 503 Service Unavailable";
+
+  it("classifies the production 503 as an outage, and a real auth failure as not", async () => {
+    const { isHiggsfieldVendorOutage } = await import("./services/higgsfieldStudio");
+    expect(isHiggsfieldVendorOutage(PROD_RAW)).toBe(true);
+    expect(isHiggsfieldVendorOutage("connect ETIMEDOUT 1.2.3.4:443")).toBe(true);
+    expect(isHiggsfieldVendorOutage("Session expired. Run `hf auth login`.")).toBe(false);
+    expect(isHiggsfieldVendorOutage("HTTP 401 Unauthorized")).toBe(false);
+  });
+
+  it("reports UNKNOWN, not unhealthy, when the last keepalive failed on an outage", async () => {
+    mockKeepaliveRow({
+      status: "failed",
+      startedAt: new Date(Date.now() - 5 * MINUTE),
+      errorMessage: `Higgsfield keepalive inconclusive — vendor unavailable, session not proven dead. ${PROD_RAW}`,
+    });
+
+    const result = await health();
+
+    expect(result.healthy).toBeNull();
+    expect(result.reason).toContain("vendor unavailable");
+  });
+});

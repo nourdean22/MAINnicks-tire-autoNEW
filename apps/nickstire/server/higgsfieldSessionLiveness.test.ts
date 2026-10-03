@@ -53,6 +53,13 @@ describe("higgsfieldSessionLiveness reads the keepalive verdict, not the blob", 
     expect(r.reason).toMatch(/revoked/i);
   });
 
+  it("a keepalive that failed because Higgsfield was DOWN is unknown, not dead (2026-10-03)", async () => {
+    mockRows([{ status: "failed", details: null, errorMessage: "Higgsfield keepalive inconclusive — vendor unavailable, session not proven dead. Error: Higgsfield API error (HTTP 503).", startedAt: new Date(), ageMinutes: 2 }]);
+    const r = await load();
+    expect(r.live).toBeNull();
+    expect(r.reason).toMatch(/unreachable/i);
+  });
+
   it("a fresh REFRESH receipt with credentials present is live:true, and parses the balance", async () => {
     // The balance is the only account credit figure this app can read - the API
     // lane has no balance endpoint (every GET returns 405).

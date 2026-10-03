@@ -959,6 +959,10 @@
           "severity": "P2",
           "description": "Keepalive maintains and rotates an already-valid session but cannot bootstrap a fully revoked refresh token; operator browser login remains the recovery path after full revocation.",
           "source": "2026-09-27 live recovery closeout"
+        },
+        {
+          "severity": "P3",
+          "description": "2026-10-03: an HTTP 503 from Higgsfield (00:50Z) was logged as 'refresh token revoked; re-login required' and the reel preflight cancelled its batch. Keepalive now words vendor outages (5xx/429/network) as 'inconclusive - vendor unavailable' (still thrown, still alerts) and both health readers treat them as UNKNOWN, not dead. Unit-proven with the production error string; the live proof is the next Higgsfield outage logging the new wording without a cancelled reel batch."
         }
       ]
     },
