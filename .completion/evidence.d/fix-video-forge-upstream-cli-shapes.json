@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json reel-video-forge-self-hosted: test evidence updated (videoForgeClient.test.ts 19; apps/video-forge test_forge.py 27 incl. LTX/Wan argv built against upstream CLI sources). operationalState stays unit_verified, exposure disabled, P1 'no GPU canary' unchanged — no GPU was run. REALITY-LEDGER.md re-rendered."
+    }
+  }
+}
