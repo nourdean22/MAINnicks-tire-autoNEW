@@ -294,6 +294,30 @@ class CanaryPreflightTests(unittest.TestCase):
         self.assertIn("LTX25_DFR_LORA_REV", result.stderr)
         self.assertEqual(log, "", "invalid DFR fetch plan performed external work before failing")
 
+    def test_fetch_models_missing_ltx_pin_fails_before_external_work(self):
+        result, log = _run_fetch_models(
+            {
+                "FETCH_LTX": "1",
+                "FETCH_LTX_DFR": "0",
+                "FETCH_WAN": "0",
+            }
+        )
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("LTX25_REV", result.stderr)
+        self.assertEqual(log, "", "missing LTX pin performed external work before failing")
+
+    def test_fetch_models_missing_wan_pin_fails_before_external_work(self):
+        result, log = _run_fetch_models(
+            {
+                "FETCH_LTX": "0",
+                "FETCH_LTX_DFR": "0",
+                "FETCH_WAN": "1",
+            }
+        )
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("WAN22_REV", result.stderr)
+        self.assertEqual(log, "", "missing Wan pin performed external work before failing")
+
     def test_fetch_models_wan_only_never_touches_ltx(self):
         result, log = _run_fetch_models(
             {
