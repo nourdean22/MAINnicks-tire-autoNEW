@@ -2208,6 +2208,11 @@
         {
           "severity": "P2",
           "description": "A row cannot say whether the CUSTOMER committed or the ASSISTANT recorded a lead: bookSlot is the only voice writer and it fires for inquiries, transfers and tows alike, with preferredDay hardcoded to today in two prompt scripts. whenText is the only customer-stated signal and it is absent on 66 of 89 expired rows. Any rate built on status = no_show is a lead-conversion rate wearing a no-show costume. A provenance column (customer_stated vs assistant_directed), or a prompt change that reserves bookSlot for an explicit commitment, would make the number mean what it says; neither is attempted here."
+        },
+        {
+          "severity": "P3",
+          "description": "bookSlot now files a short spoken number under the VAPI caller ID, logs why recordExpectedArrival refused a row, and returns not_recorded so the assistant re-asks for the number (2026-10-03: one 12:33Z call left no row and no log). Unit-proven only; live proof is the next voice call whose spoken number came through short.",
+          "source": "branch nickstire/voice-arrival-and-facts"
         }
       ],
       "deferredScope": [
@@ -2695,6 +2700,11 @@
           "severity": "P2",
           "description": "Diarization metadata is contract-ready but no live WhisperX/pyannote producer has been commissioned on the shop capture runtime. speakerCount and speaker labels may remain NULL/absent until that happens.",
           "source": "2026-09-26 camera workstream"
+        },
+        {
+          "severity": "P2",
+          "description": "Transcription quality, not extraction, is the binding constraint. Measured 2026-10-03: 15 office episodes, 0 facts, 0 dropped facts; the two substantial transcripts were incoherent whisper output (ggml-base.en-q5_1 on the shop PC's i5-5350U) and a repetition loop that scored 0.855 coverage and published a gist. This branch refuses looped transcripts server-side and adds -mc 0 to the bridge transcriber; the bridge change is unproven until NicksMax runs the updated officepost.py. Ollama Cloud cannot transcribe (gemma4:cloud and gemma4:31b-cloud are text+image only; Gemma 4 audio exists only in the local E2B/E4B edge models, checked 2026-10-03). Benchmarked on NicksMax on one real 15s clip with -mc 0: base.en 9s, small.en 26s, medium.en ~76s, large-v3-turbo-q5_0 ~82s; turbo was the most coherent, but all four disagreed, so the distant Eufy camera mic is itself a limit. All three models are downloaded to the WhisperCpp dir; switching OFFICE_WHISPER_MODEL needs an elevated shell plus a restart of StateNour-OfficeIntelligence-NicksMax.",
+          "source": "2026-10-03 NicksMax transcript audit + branch nickstire/voice-arrival-and-facts"
         }
       ],
       "deferredScope": [

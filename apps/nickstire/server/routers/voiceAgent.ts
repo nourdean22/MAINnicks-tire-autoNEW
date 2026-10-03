@@ -49,6 +49,19 @@ const RECAP_HANDED_OFF_STATUSES: ReadonlySet<string> = new Set(["queued", "sendi
 const WEEK = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
 
 /** "18:00" -> "6", "08:30" -> "8:30": a clock time as it is said aloud. */
+/**
+ * The phone an expected arrival is filed under. The model's spoken capture wins
+ * when it is a full 10 digits (the caller may give a different callback number);
+ * otherwise fall back to the caller ID VAPI connected. A short capture used to
+ * drop the arrival silently while the tool reported success (2026-10-03).
+ */
+function pickArrivalPhone(spoken: string | undefined, callerNumber: string | undefined): string {
+  const said = (spoken ?? "").replace(/\D/g, "");
+  if (said.length >= 10) return spoken as string;
+  const callerId = (callerNumber ?? "").replace(/\D/g, "");
+  return callerId.length >= 10 ? (callerNumber as string) : (spoken ?? "");
+}
+
 function spokenClock(hhmm: string): string {
   const [h, m] = hhmm.split(":").map(Number);
   const hour = h % 12 || 12;
@@ -332,10 +345,12 @@ export const voiceAgentRouter = router({
       service: z.string().max(200),
       preferredDay: z.string().max(20).optional(),
       callId: z.string().max(100).optional(),
+      /** The number VAPI connected (caller ID), injected by the webhook — never by the model. */
+      callerNumber: z.string().max(30).optional(),
     }))
     .mutation(async ({ input }) => {
       try {
-        log.info("Voice agent bookSlot called (bypassing DB bookings table)", { nameGiven: Boolean(input.name), service: input.service });
+        log.info("Voice agent bookSlot called (expected arrival, not a booking)", { nameGiven: Boolean(input.name), service: input.service });
 
         // wave-fix-2026-05-25 (audit #107) · mark this call as converted
         // so VAPI eval scoring + conversion-rate dashboards count it.
@@ -363,10 +378,12 @@ export const voiceAgentRouter = router({
         // coming" record the shop can plan around and later reconcile to a paid
         // invoice; it also makes the bookSlot/scheduleDropoff "phantom" real, so
         // agenticAuditor can verify a dropoff was persisted. Best-effort.
+        const arrivalPhone = pickArrivalPhone(input.phone, input.callerNumber);
+        let recorded: { id: number; created: boolean } | null = null;
         try {
           const { recordExpectedArrival } = await import("../services/expectedArrivals");
-          await recordExpectedArrival({
-            phone: input.phone,
+          recorded = await recordExpectedArrival({
+            phone: arrivalPhone,
             name: input.name,
             vehicle: input.vehicle,
             service: input.service,
@@ -379,6 +396,21 @@ export const voiceAgentRouter = router({
         }
 
         // PII projection — never echo caller name/service in returned text; AI has them in context.
+        if (!recorded) {
+          // Nothing reached the Today board. Telling the model "success" here is
+          // how a walk-in vanished with no trace. Only a short number is the
+          // caller's to fix; a storage failure must not send the model into a
+          // re-ask-and-retry loop with someone who gave a perfectly good number.
+          const shortNumber = arrivalPhone.replace(/\D/g, "").length < 10;
+          return {
+            success: false,
+            reference: "WALKIN-INFO",
+            status: shortNumber ? "not_recorded_phone" : "not_recorded",
+            message: shortNumber
+              ? "Their visit was NOT saved — the phone number came through incomplete. Ask once for their full 10-digit number, then call bookSlot again with it. Either way, Nick's is first come, first served: they can walk in or drop off during business hours."
+              : "Their visit could not be saved right now. Do NOT ask them to repeat anything and do not call bookSlot again. Nick's is first come, first served: they can walk in or drop off during business hours.",
+          };
+        }
         return {
           success: true,
           reference: "WALKIN-INFO",

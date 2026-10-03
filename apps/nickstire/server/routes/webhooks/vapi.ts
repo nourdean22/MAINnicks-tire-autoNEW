@@ -284,6 +284,9 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string, custom
   // LLM never supplies callId, so without this the conversion attribution is
   // silently dead. Only set when the tool didn't already provide one.
   if (phoneCallId && args.callId == null) args.callId = phoneCallId;
+  // bookSlot only: the connected caller ID, so a number the model heard short
+  // can still file the expected arrival. Overwrites — the model never owns it.
+  if (call.function.name === "bookSlot" && customerNumber) args.callerNumber = customerNumber;
 
   log.info("Vapi tool call", { ...toolCallLogFields(call.function.name, args) });
 
@@ -362,7 +365,7 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string, custom
 
       // ─── booking actions ─────────────────────────────────
       case "bookSlot":
-        output = await caller.bookSlot(args as { name: string; phone: string; service: string; vehicle?: string; preferredDay?: string; callId?: string });
+        output = await caller.bookSlot(args as { name: string; phone: string; service: string; vehicle?: string; preferredDay?: string; callId?: string; callerNumber?: string });
         break;
       // wave-179: tire-inquiry tagging. Since 2026-06-05 an ordinary inquiry
       // writes no admin lead (the call record is the record); only the legacy

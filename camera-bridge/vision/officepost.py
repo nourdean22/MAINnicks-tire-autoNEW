@@ -96,7 +96,11 @@ def transcribe(path: str, binary: str = "whisper-cli", model: Optional[str] = No
     """
     import time
 
-    cmd = [binary, "-f", path, "--output-json", "--no-prints"]
+    # "-mc 0": no text context carried between decode windows. With context on, the small
+    # models feed their own last line back in and loop on noise -- measured 2026-10-03, one
+    # short question emitted four times across a 19s office clip. The server also refuses a
+    # looped transcript (conversationFacts.isTranscriberLoop); this stops it at the source.
+    cmd = [binary, "-f", path, "--output-json", "--no-prints", "-mc", "0"]
     if model:
         cmd[1:1] = ["-m", model]
     engine_name = os.path.basename(binary) or binary

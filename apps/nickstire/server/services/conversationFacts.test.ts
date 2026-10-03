@@ -313,3 +313,30 @@ describe("conversation facts — gist (what the conversation was about)", () => 
     expect(r.gist).toBeNull();
   });
 });
+
+describe("conversation facts — a transcriber repetition loop is not speech", () => {
+  // Shape measured live 2026-10-03: one short line, four segments, timestamps tiling the clip.
+  const LOOP: TranscriptSegment[] = [0, 1, 2, 3].map((i) => ({
+    index: i, start: i * 5, end: i * 5 + 5, text: i % 2 ? " What else do you have?" : "What else do you have",
+  }));
+
+  it("extracts nothing, publishes no gist, names the reason, and never calls the model", async () => {
+    replyWith({ facts: [{ kind: "REQUESTED_WORK", value: "browsing", evidenceSegment: 0, confidence: 0.9 }], gist: "Customer asking what else is available", gistSegments: [0, 1] });
+    const r = await extractConversationFacts(LOOP, { coveredSeconds: 20, totalSeconds: 20 });
+    expect(r.ok).toBe(true);
+    expect(r.facts).toHaveLength(0);
+    expect(r.gist ?? null).toBeNull();
+    expect(r.dropped).toContainEqual({ reason: "transcript is a transcriber repetition loop", count: 1 });
+    expect(invokeLLM).not.toHaveBeenCalled();
+  });
+
+  it("a real conversation with one repeated word-for-word line is NOT a loop", async () => {
+    // Positive control: people do repeat themselves ("thirty five dollars" twice) — one repeat
+    // among distinct lines must still reach the model.
+    replyWith({ facts: [], gist: "Tire repair discussion", gistSegments: [0] });
+    const segs = [...SEGMENTS, { index: 3, start: 14, end: 16, text: "We can patch that, thirty five dollars." }];
+    const r = await extractConversationFacts(segs, { coveredSeconds: 16, totalSeconds: 16 });
+    expect(invokeLLM).toHaveBeenCalledTimes(1);
+    expect(r.gist).toBe("Tire repair discussion");
+  });
+});

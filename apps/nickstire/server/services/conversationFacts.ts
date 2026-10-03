@@ -171,6 +171,31 @@ const LOW_LEVEL_DB = -55;
  */
 const MIN_TRANSCRIPT_COVERAGE = 0.65;
 
+/**
+ * A TRANSCRIBER LOOP IS NOT SPEECH. whisper.cpp's small models fall into repetition loops on
+ * noise: the same line emitted segment after segment, timestamps marching on. Measured live
+ * 2026-10-03 (office episode 345c5030): one short question, four times, 19s, 4 segments. Its
+ * spans tile the clip, so coverage read 0.855 and the extractor PUBLISHED a gist from it — a
+ * fluent sentence grounded on nothing anyone said. Coverage measures timing, not content, so
+ * this is checked separately: if one normalized line fills at least half of 3+ segments, the
+ * transcript is treated as a loop and nothing is extracted from it.
+ */
+const LOOP_MIN_SEGMENTS = 3;
+const LOOP_DOMINANCE = 0.5;
+
+/** True when the transcript is a repetition loop. */
+function isTranscriberLoop(segments: TranscriptSegment[]): boolean {
+  if (segments.length < LOOP_MIN_SEGMENTS) return false;
+  const counts = new Map<string, number>();
+  for (const s of segments) {
+    const k = s.text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (!k) continue;
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  const top = Math.max(0, ...counts.values());
+  return top >= LOOP_MIN_SEGMENTS && top / segments.length >= LOOP_DOMINANCE;
+}
+
 /** Models wrap JSON in ```json fences often enough that not handling it is a self-inflicted
  *  extraction failure. Returns the body unchanged when there is no fence. */
 function stripFence(text: string): string {
@@ -274,6 +299,13 @@ export async function extractConversationFacts(
     // Not an error: a genuinely silent capture. `ok: true` with no facts says "we looked and
     // there was nothing", which is a different claim from "we could not look".
     return { facts: [], summary: null, dropped, engine: null, latencyMs: null, ok: true, error: null };
+  }
+
+  if (isTranscriberLoop(segments)) {
+    // Not an extraction failure (ok:true) and not silence: we looked, and what came back was
+    // the transcriber repeating itself. No LLM call — there is nothing in it to spend on.
+    bump("transcript is a transcriber repetition loop");
+    return { facts: [], summary: null, dropped, engine: null, latencyMs: null, ok: true, error: null, gist: null };
   }
 
   const numbered = segments

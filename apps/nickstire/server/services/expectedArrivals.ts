@@ -109,12 +109,21 @@ export interface RecordExpectedArrivalInput {
  */
 export async function recordExpectedArrival(input: RecordExpectedArrivalInput): Promise<{ id: number; created: boolean } | null> {
   const phone = (input.phone || "").replace(/\D/g, "").slice(-10);
-  if (phone.length < 10) return null;
+  // Both early returns used to be SILENT: a voice call whose spoken number came
+  // through short (2026-10-03, 12:33Z) left no row and no log line, while the
+  // tool still reported success. Say why, with no digits beyond a count.
+  if (phone.length < 10) {
+    log.warn("expected arrival NOT recorded — phone unusable", { digits: phone.length, source: input.source, sourceRef: input.sourceRef ?? null });
+    return null;
+  }
   try {
     const { getDb } = await import("../db");
     const { sql } = await import("drizzle-orm");
     const db = await getDb();
-    if (!db) return null;
+    if (!db) {
+      log.warn("expected arrival NOT recorded — no database handle", { source: input.source, sourceRef: input.sourceRef ?? null });
+      return null;
+    }
     const expectedDate = parseExpectedDate(input.preferredDay ?? undefined);
 
     const [existingRows] = await db.execute(sql`
