@@ -6,8 +6,33 @@ import { daysAgo } from "@/lib/utils/datetime";
 import { markOllamaQuotaExhausted } from "@/lib/ai/provider";
 import { WorkItemStatus, TaskStatus, Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
+import { EVENING_JOBS, WEEKLY_JOBS } from "@/lib/inngest/jobs";
 
 const log = logger.withSurface("services/autonomic-orchestrator");
+
+/** "/api/cron/x?slot=y" -> "/api/cron/x". The fan-out lists carry query strings. */
+function routeOf(path: string): string {
+  const q = path.indexOf("?");
+  return q === -1 ? path : path.slice(0, q);
+}
+
+/**
+ * Routes the healer must never fire, because the fan-out that RUNS the healer
+ * is dispatching them in the same slot.
+ *
+ * 2026-10-03 · measured. cron-healer is an EVENING_JOBS child, so it executes
+ * while every sibling is still in flight — and a sibling's CronJobLog row only
+ * lands when it FINISHES. A brand-new sibling therefore always reads
+ * "never_run" to the healer on its first night, and a sibling whose last run
+ * failed always reads "failing". Either way the healer started a second copy
+ * alongside the fan-out's own: `think` (added 10-02) logged two success rows on
+ * 10-03, both started at 03:02:44 — prod log `trigger_healing {jobName:"think",
+ * reason:"never_run"}` at 03:02:44.588. For a sibling there is nothing to
+ * rescue: the fan-out is already running it, and runs it again tomorrow.
+ */
+const FANOUT_SIBLING_ROUTES: ReadonlySet<string> = new Set(
+  [...EVENING_JOBS, ...WEEKLY_JOBS].map(routeOf),
+);
 
 export interface AutonomicOrchestratorResult {
   healedCrons: string[];
@@ -67,6 +92,21 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
       // Exact route (+ optional query) — a bare prefix would also skip a
       // future unrelated cron that merely starts with "mega".
       if (targetPath === "/api/cron/mega" || targetPath.startsWith("/api/cron/mega?")) {
+        continue;
+      }
+
+      // 2026-10-03 · "dormant" = operator-parked, deliberately NOT scheduled
+      // (config/crons.ts). A parked cron never runs, so after 14 days it always
+      // looks "never_run" and the healer revived it: relationship-digest (dormant,
+      // sends a Telegram) ran on 09-03, 09-18 and 10-03 — exactly every time its
+      // last row aged out of the 14d window. Parking is the operator's call.
+      if (row.mode === "dormant") {
+        continue;
+      }
+
+      // A sibling in the healer's own fan-out is in flight right now — see
+      // FANOUT_SIBLING_ROUTES. Healing it is a duplicate run, not a rescue.
+      if (FANOUT_SIBLING_ROUTES.has(routeOf(targetPath))) {
         continue;
       }
 
