@@ -30,7 +30,7 @@
  *     "do 2/3 sources agree on the headline fact?".
  */
 
-import { askPerplexity, type PerplexityResponse } from "@/lib/integrations/perplexity";
+import { searchPerplexity, type PerplexitySearchResponse } from "@/lib/integrations/perplexity";
 import { askTavily, type TavilyResponse } from "@/lib/integrations/tavily";
 import { askExa, type ExaResponse } from "@/lib/integrations/exa";
 import { askGoogleSearch } from "@/lib/integrations/google-search";
@@ -248,8 +248,8 @@ export async function multiSourceSearch(
     };
 
     if (name === "perplexity") {
-      const r: PerplexityResponse = await withTimeout(
-        askPerplexity(query, baseOpts),
+      const r: PerplexitySearchResponse = await withTimeout(
+        searchPerplexity(query, baseOpts),
         timeoutMs,
         "perplexity",
       );
