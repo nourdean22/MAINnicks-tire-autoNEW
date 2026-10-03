@@ -5905,6 +5905,31 @@
       "file": "apps/nickstire/client/src/pages/admin/outreach/SmsSection.tsx",
       "symbol": "ThreadView",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Rendered in-module by SmsSection; exported so sms-suggest-draft-no-loop.test.tsx can mount one thread and prove suggestDraft fires once, not every render (Sentry NICKSTIRE-2)."
+    },
+    {
+      "file": "apps/nickstire/server/services/videoForgeClient.ts",
+      "symbol": "forgeErrorMessage",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Maps every Video Forge error code to message text that shared/providerErrors.ts classifies into the right recovery action (capacity → RATE_LIMIT no attempt, license → PROVIDER_CONFIG_BLOCKED, oom/hard_ceiling → REMOTE_FAILED). videoForgeClient.test.ts pins each mapping. Runtime consumer: readJob/awaitForgeJob/renderSelfHostedBeat in the same module, reached from reelPipeline + selectiveRepair self_hosted branches — live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/videoForgeClient.ts",
+      "symbol": "submitForgeJob",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The idempotent submit; videoForgeClient.test.ts drives it directly to set up hard-ceiling and stale-heartbeat jobs. Runtime consumer: renderSelfHostedBeat in the same module (self_hosted reel + repair lanes)."
+    },
+    {
+      "file": "apps/nickstire/server/services/videoForgeClient.ts",
+      "symbol": "awaitForgeJob",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Per-profile poll window / hard ceiling / stale-heartbeat semantics (a healthy long render must RESUME, a dead one must not be immortal); videoForgeClient.test.ts pins all three with an injected clock. Runtime consumer: renderSelfHostedBeat in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/videoForgeClient.ts",
+      "symbol": "verifyForgeOutput",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. sha256 / byte-count / mp4-container / crop-aspect verification before a GPU output becomes canonical; videoForgeClient.test.ts pins the storage-fault vs terminal-failure split. Runtime consumer: fetchAndRehostForgeOutput in the same module."
+    },
+    {
+      "file": "apps/nickstire/shared/mediaModelRegistry.ts",
+      "symbol": "MEDIA_MODEL_PROFILES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. mediaModelRegistry.test.ts iterates it to enforce the license gate (UNKNOWN never production) and parity with apps/video-forge/forge/profiles.json, the runtime copy the GPU worker enforces — the parity check is the reason it must stay enumerable. Runtime consumer: getMediaProfile in the same module (generationLedger pricing, videoForgeClient profile resolution)."
     }
   ]
 }

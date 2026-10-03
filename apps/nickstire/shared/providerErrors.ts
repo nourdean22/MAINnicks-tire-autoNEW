@@ -24,6 +24,14 @@ export type ProviderErrorClass =
   | "RATE_LIMIT"
   /** 401/403, expired or revoked key. No retry will fix this. */
   | "AUTH_INVALID"
+  /**
+   * The provider is reachable and authenticated but REFUSES this model/config:
+   * a self-hosted profile whose license gate or rollout state forbids
+   * production, or a worker missing its model. Distinct from AUTH_INVALID on
+   * purpose — the 2026-10-03 Higgsfield fix (#2905) exists because an outage
+   * was reported as a revoked login; a license gate is neither.
+   */
+  | "PROVIDER_CONFIG_BLOCKED"
   /** Credits or billing quota exhausted. Operator must top up. */
   | "QUOTA_OR_CREDIT"
   /** Malformed request — unsupported param, bad aspect ratio, bad duration. */
@@ -85,6 +93,7 @@ export interface ClassifyContext {
 const PATTERNS: Array<{ cls: ProviderErrorClass; re: RegExp }> = [
   // Google RAI / Veo policy, Higgsfield moderation, OpenAI-style refusals.
   { cls: "SAFETY_POLICY_PERMANENT", re: /\b(safety|content[_ ]policy|policy[_ ]violation|blocked by|responsible ?ai|rai[_ ]?filter|moderation|prohibited[_ ]content|violates)\b/i },
+  { cls: "PROVIDER_CONFIG_BLOCKED", re: /(license[_ ]blocked|config[_ ]unavailable)/i },
   { cls: "AUTH_INVALID", re: /\b(401|403|unauthori[sz]ed|forbidden|invalid[_ ]api[_ ]key|api[_ ]key[_ ]not[_ ]valid|permission[_ ]denied|expired[_ ]token|authentication[_ ]failed|hf auth login)\b/i },
   // A PLAN-TIER wall belongs here, not in RATE_LIMIT, and the difference is
   // money. Observed in prod 2026-08-04, reel job #1380001:
@@ -125,6 +134,8 @@ const POLICY: Record<ProviderErrorClass, Omit<ProviderErrorVerdict, "errorClass"
   // deserves to eat the budget that exists for real failures.
   RATE_LIMIT: { action: "RETRY_WITHOUT_CONSUMING_ATTEMPT", consumesAttempt: false, mayDoubleSpend: false },
   AUTH_INVALID: { action: "PAUSE_PROVIDER", consumesAttempt: true, mayDoubleSpend: false },
+  // Nothing ran, nothing billed; a human must change config or license state.
+  PROVIDER_CONFIG_BLOCKED: { action: "PAUSE_PROVIDER", consumesAttempt: false, mayDoubleSpend: false },
   QUOTA_OR_CREDIT: { action: "PAUSE_PROVIDER", consumesAttempt: true, mayDoubleSpend: false },
   PROMPT_INVALID: { action: "REGENERATE_PROMPT", consumesAttempt: true, mayDoubleSpend: false },
   // Regenerate the WORDING, never the claim. Same prompt again = same rejection.
@@ -140,6 +151,7 @@ const POLICY: Record<ProviderErrorClass, Omit<ProviderErrorVerdict, "errorClass"
 const REASONS: Record<ProviderErrorClass, string> = {
   TRANSIENT_NETWORK: "network blip — retry with backoff",
   RATE_LIMIT: "provider rate-limited the request; it never ran, so this does not spend a retry",
+  PROVIDER_CONFIG_BLOCKED: "provider refused this model/config (license gate, rollout state, or missing model) — fix configuration; this is not a credential or outage problem",
   AUTH_INVALID: "credentials rejected — no retry can fix this, pause the provider and alert the operator",
   QUOTA_OR_CREDIT: "provider credits or billing quota exhausted — operator must top up",
   PROMPT_INVALID: "the request itself was rejected as malformed — patch it, do not repeat it unchanged",

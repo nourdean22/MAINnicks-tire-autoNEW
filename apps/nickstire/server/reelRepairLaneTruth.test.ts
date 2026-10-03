@@ -75,7 +75,13 @@ describe("repair reserves, settles and gates on the ACTIVE provider", () => {
   it("reserves and settles the SAME figure — a mismatch is how a ledger drifts", () => {
     expect(REPAIR).toMatch(/const repairCostUsd = reelClipCostUsd\(repairProvider\);/);
     expect(REPAIR).toMatch(/estimatedCostUsd: repairCostUsd,/);
-    expect(REPAIR).toMatch(/await settle\(reservationId, repairCostUsd\);/);
+    // Settles the reserved figure for every lane EXCEPT self_hosted, which
+    // settles the MEASURED compute from the Video Forge receipt (gpu_seconds ×
+    // rate) — an actual, which is what settle()'s second argument means.
+    expect(REPAIR).toMatch(/let settleUsd = repairCostUsd;/);
+    expect(REPAIR).toMatch(/await settle\(reservationId, settleUsd\);/);
+    expect(REPAIR.match(/settleUsd = /g)?.length).toBe(2); // the default + the self_hosted receipt
+    expect(REPAIR).toMatch(/settleUsd = r\.receipt\.computeUsd;/);
   });
 
   it("prices the policy gate on the active lane too, not on a constant", () => {

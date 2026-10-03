@@ -3439,6 +3439,44 @@
       ],
       "lastVerifiedAt": "2026-10-02",
       "verificationExpiresAt": "2026-11-02"
+    },
+    {
+      "capabilityId": "reel-video-forge-self-hosted",
+      "name": "NOUR Video Forge — self_hosted reel video provider (open-weight models on our own GPU)",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "feat/video-forge-self-hosted-provider (this PR): reelPipeline/selectiveRepair self_hosted branches, videoForgeClient, mediaModelRegistry + license gate, reelClipCostPolicy (requiresSpendApproval separated from cost > 0), PROVIDER_CONFIG_BLOCKED, apps/video-forge service",
+        "tests": [
+          "server/videoForgeClient.test.ts (18): key persisted BEFORE submit; local timeout RESUMES the same job (1 submit, 1 render); lost submit response dedupes on the key; terminal failure advances the key; hard ceiling + stale heartbeat cancel (no zombies); license/rollout/capability refusals before any GPU call; sha256/mp4/aspect output verification",
+          "server/mediaModelRegistry.test.ts: UNKNOWN never production; MiniMax H3 TERRITORY_BLOCKED; registry ↔ apps/video-forge/forge/profiles.json parity; self_hosted never auto-selected; prompt compiler never mutates the canonical spec",
+          "server/reelSelfHostedSpendTrajectory.test.ts (8): persisted reservation is GPU compute not Seedance; pre-authorized pool removes the tap NOT the daily ceiling; settle books measured compute; repair routing follows the POLICY; veo/higgsfield/template_stock routing unchanged",
+          "apps/video-forge/tests/test_forge.py (22): HMAC auth, idempotency + 409, restart recovery bound, cancel-beats-late-success, reclaim, OOM classification, license gate, image validation",
+          "scripts/video-forge-e2e.ts against a real Forge process (CPU mock backend, 2026-10-03): forced local timeout → resume returned the SAME job; one job in the Forge DB; output verified + re-hosted"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "NO GPU CANARY. The LTX-2.5 and Wan 2.2 backends have never executed on a GPU (no compute spend authorized 2026-10-03). Model quality, latency and real cost are UNKNOWN. Unblock: operator authorizes one 80GB GPU + cap, then apps/video-forge/README.md 'GPU canary'."
+        },
+        {
+          "severity": "P2",
+          "description": "LTX-2.x Community License requires the entity to be under USD 10M annual revenue (affiliates included) and forbids offering a competing generation service; operator must confirm before any LTX profile leaves 'built'. Wan 2.2 (Apache-2.0) has no such condition."
+        },
+        {
+          "severity": "P2",
+          "description": "Image generation (Visual World reference frames, carousel, IG single image) and routers/content.ts generateReelVideo still call Higgsfield directly; no self-hosted image backend exists yet. See docs/operations/VIDEO-FORGE.md dependency graph."
+        }
+      ],
+      "deferredScope": [
+        "48-case bake-off (apps/video-forge/bench) against Higgsfield baseline + LTX distilled/DFR + Wan 5B, text vs hero-frame arms, rendered QA + blind pairwise review — cost per ACCEPTED clip",
+        "presigned direct-to-S3 upload from the GPU worker (current design: nickstire pulls over the authenticated channel and re-hosts; the GPU never holds a storage credential)",
+        "owned-GPU purchase decision — only after measured duty cycle"
+      ],
+      "lastVerifiedAt": "2026-10-03",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
     }
   ],
   "axes": {

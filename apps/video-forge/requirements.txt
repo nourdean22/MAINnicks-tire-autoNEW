@@ -1,0 +1,5 @@
+# Control plane only. Model runtimes (torch, LTX-2 / Wan2.2 code) are installed in
+# the GPU image (Dockerfile / modal_app.py), never in nickstire.
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+pydantic>=2.7,<3
