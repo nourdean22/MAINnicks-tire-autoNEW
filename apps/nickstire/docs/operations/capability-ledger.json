@@ -2459,7 +2459,8 @@
           "server/candidateIntake.test.ts 31 passed (13 red against the pre-audit service): order, confidential text anonymity, follow_up/no push, replyTo, subjects, HTML, greeting, brakes, stamping, GSM-7.",
           "server/smsQueueInternalReplay.test.ts 2 passed, drives the REAL drain timer: 2 red on the old sms.ts (guard refused the replay; 2 AM owner alert held).",
           "server/candidatesSilentLoss.test.ts 11 passed: clipped attribution saves, positionTitle whitelist, two-number phone saves without phoneE164, PII-free failure log, last-touch ref code; server/emailNotifyHtmlReplyTo.test.ts 3 passed (2 red on the old email-notify).",
-          "server/publicFormBoundsMatchSchema.test.ts extended for clipped(N); mutation clipped(600) on a 500 column fails it."
+          "server/publicFormBoundsMatchSchema.test.ts extended for clipped(N); mutation clipped(600) on a 500 column fails it.",
+          "2026-10-03 follow-up clock: server/candidateFollowUpClock.test.ts (16: policy table incl. every status accounted for, terminal statuses cleared even with a snooze, snooze bounds, router hands the computed days to the writer, unavailable read passed through, writer/reader share NOW()) + client/src/__tests__/admin-leads-panels-outage.test.tsx (+3: due row paints with the discreet-contact line and a 48px snooze; quiet positive control; 0129-missing notice). Mutations: router never writes -> 3 red; terminal statuses not cleared -> 2 red; panel block hidden -> 1 red."
         ]
       },
       "blockers": [
@@ -2470,12 +2471,15 @@
         {
           "severity": "P2",
           "description": "This PR's intake changes are unit-verified; they get one live run on the post-merge deploy (non-confidential test, fresh test number so the same-phone brake does not skip the text)."
+        },
+        {
+          "severity": "P2",
+          "description": "FOLLOW-UP CLOCK (2026-10-03, branch nickstire/recruiting-follow-up-clock) is unit-verified only. candidates.updateStatus now writes nextFollowUpAt as a function of the new status (talent_network 60d, not_now 90d, no_show 2d, contact_attempted 1d, offer 2d; every other status clears it; accepted/started/hired/declined/withdrew can never carry one) via DATE_ADD(NOW(), INTERVAL N DAY), and candidates.followUpsDue + the admin panel badge read it against the same NOW(). Nothing sends. PROMOTION: one production status change to talent_network whose row reads nextFollowUpAt ~60 days after the change, and a due row appearing in the panel. Also open: the last production read (2026-09-23) found 0 real applications; current counts are unmeasured."
         }
       ],
       "deferredScope": [
         "resume upload (S3, type/size check; no parser)",
         "SLA reminder cron (the instant text covers first response)",
-        "nextFollowUpAt has no writer yet (column exists since 0129)",
         "A2P 10DLC recruiting campaign before any text to an applicant"
       ]
     },

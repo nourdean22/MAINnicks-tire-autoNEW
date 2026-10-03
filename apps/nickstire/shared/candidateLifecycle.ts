@@ -182,3 +182,66 @@ export function slugifyRefCode(input: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 64);
 }
+
+/**
+ * The follow-up clock — what writes candidates.nextFollowUpAt.
+ *
+ * WHY (2026-10-03 recruiting audit): drizzle/0129 added nextFollowUpAt "for a
+ * not-now / talent-network candidate due another contact", and nothing ever
+ * wrote or read it. A technician who said "not yet" was recorded and then
+ * forgotten, which throws away the one advantage a small shop has over a
+ * job board: being the first call when that tech finally decides to leave.
+ *
+ * The date is a FUNCTION OF STATUS, set every time the status changes:
+ *  - a status in this map schedules the next touch N days out;
+ *  - every other status CLEARS it (an active conversation does not need a
+ *    nudge, and a hired / declined / withdrawn person must never be chased).
+ * The admin can override the day count (snooze) for any non-terminal status.
+ *
+ * Surfaced only: nothing here sends a message. The owner reaches out by hand,
+ * and applicant texts still wait on a consent checkbox + A2P 10DLC campaign.
+ * Day counts are PROVISIONAL operating choices, not measured truths.
+ */
+export const CANDIDATE_FOLLOW_UP_DAYS: Partial<Record<CandidateStatus, number>> = {
+  /** Called, no answer: try again tomorrow. */
+  contact_attempted: 1,
+  /** Missed a tour or interview: one friendly second chance, not a dead file. */
+  no_show: 2,
+  /** Offer is out: check in before another shop's offer lands. */
+  offer: 2,
+  /** "Keep me in mind": a light check-in about every two months. */
+  talent_network: 60,
+  /** Timing is wrong (bonus, raise review, vacation): check back in a quarter. */
+  not_now: 90,
+};
+
+/** Statuses that must never carry a follow-up: the person is ours or gone. */
+export const CANDIDATE_FOLLOW_UP_NEVER: readonly CandidateStatus[] = [
+  "accepted",
+  "started",
+  "hired",
+  "declined",
+  "withdrew",
+];
+
+/** Snooze bounds an admin may pick (days). */
+export const CANDIDATE_FOLLOW_UP_MAX_DAYS = 365;
+
+/**
+ * Days until the next follow-up for a status change, or null to clear it.
+ * `overrideDays` (an admin snooze) wins for any status not in
+ * CANDIDATE_FOLLOW_UP_NEVER; out-of-range overrides are ignored, not clamped,
+ * so a bad value falls back to the status default rather than inventing one.
+ */
+export function followUpDaysFor(status: CandidateStatus, overrideDays?: number | null): number | null {
+  if (CANDIDATE_FOLLOW_UP_NEVER.includes(status)) return null;
+  if (
+    typeof overrideDays === "number" &&
+    Number.isInteger(overrideDays) &&
+    overrideDays >= 1 &&
+    overrideDays <= CANDIDATE_FOLLOW_UP_MAX_DAYS
+  ) {
+    return overrideDays;
+  }
+  return CANDIDATE_FOLLOW_UP_DAYS[status] ?? null;
+}

@@ -11,9 +11,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2, ChevronRight, Briefcase, Phone, Mail, AlertTriangle, QrCode, MessageSquare } from "lucide-react";
+import { Loader2, ChevronRight, Briefcase, Phone, Mail, AlertTriangle, QrCode, MessageSquare, CalendarClock } from "lucide-react";
 import { SITE_URL } from "@shared/business";
 import {
+  CANDIDATE_FOLLOW_UP_DAYS,
+  CANDIDATE_INTENT_ACTION,
   CANDIDATE_INTENT_LABELS,
   CANDIDATE_SOURCE_HONEYPOT,
   CANDIDATE_STATUSES,
@@ -63,6 +65,12 @@ const LIST_LIMIT = 500;
 
 // One list for the router's zod enum and this dropdown (shared/candidateLifecycle.ts).
 const STATUS_OPTIONS = CANDIDATE_STATUSES;
+
+/** "talent_network 60d, not_now 90d, …" — read from the one policy map so the
+ *  help text cannot drift from what updateStatus actually schedules. */
+const FOLLOW_UP_SUMMARY = Object.entries(CANDIDATE_FOLLOW_UP_DAYS)
+  .map(([status, days]) => `${status} ${days}d`)
+  .join(", ");
 
 /** Statuses that count as "we got this person" in the by-source rollup. */
 const WON: readonly string[] = ["accepted", "started", "hired"];
@@ -171,6 +179,10 @@ export function CandidatesPanel() {
   // rebuild the gap in a new place. This query runs on mount and its badge
   // renders in the header, visible while the panel is shut.
   const sla = trpc.candidates.slaBreaches.useQuery();
+  // Same rule as the SLA alarm: not gated on `open`. A "not now" technician
+  // whose check-in date has arrived is exactly the person a collapsed panel
+  // would let us forget (nextFollowUpAt had no reader before this).
+  const followUps = trpc.candidates.followUpsDue.useQuery();
 
   const updateStatus = trpc.candidates.updateStatus.useMutation({
     onSuccess: () => {
@@ -180,11 +192,15 @@ export function CandidatesPanel() {
       // clock. Without this the badge keeps counting a candidate who was just
       // called, and the operator learns to ignore it.
       utils.candidates.slaBreaches.invalidate();
+      // A status change re-sets or clears the follow-up clock.
+      utils.candidates.followUpsDue.invalidate();
     },
     onError: () => toast.error("Couldn't update this candidate."),
   });
 
   const rows = data?.rows ?? [];
+  type FollowUpRow = NonNullable<typeof followUps.data>["rows"][number];
+  const followUpRows: FollowUpRow[] = followUps.data?.available ? followUps.data.rows : [];
   type SlaRow = NonNullable<typeof sla.data>["rows"][number];
   const slaRows: SlaRow[] = sla.data?.available ? sla.data.rows : [];
   const worstBand = slaRows.reduce<SlaRow["band"]>(
@@ -212,6 +228,12 @@ export function CandidatesPanel() {
             >
               <AlertTriangle className="w-3 h-3" />
               {slaRows.length} awaiting reply
+            </span>
+          )}
+          {followUpRows.length > 0 && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-sky-500/40 bg-sky-500/10 text-sky-300 font-bold uppercase tracking-wider text-[10px]">
+              <CalendarClock className="w-3 h-3" />
+              {followUpRows.length} follow-up{followUpRows.length === 1 ? "" : "s"} due
             </span>
           )}
           {sla.data?.available === false && (
@@ -251,6 +273,57 @@ export function CandidatesPanel() {
                 &ldquo;contacted&rdquo; below stops their clock.
               </p>
             </div>
+          )}
+          {followUpRows.length > 0 && (
+            <div className="mb-3 rounded-lg border border-sky-500/40 bg-sky-500/10 p-3 text-sky-200">
+              <p className="flex items-center gap-1.5 text-[12px] font-semibold">
+                <CalendarClock className="w-3.5 h-3.5" />
+                {followUpRows.length === 1 ? "1 candidate is" : `${followUpRows.length} candidates are`} due a check-in
+              </p>
+              <ul className="mt-2 space-y-1.5">
+                {followUpRows.map((r) => (
+                  <li key={r.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
+                    <span className="font-semibold">{r.name}</span>
+                    <span className="uppercase tracking-wider text-[10px] font-bold opacity-70">{r.status}</span>
+                    {r.positionTitle && <span className="opacity-70">{r.positionTitle}</span>}
+                    <span className="opacity-80">
+                      {r.daysOverdue == null ? "due" : r.daysOverdue <= 0 ? "due today" : `${r.daysOverdue}d overdue`}
+                    </span>
+                    <a href={`sms:${r.phone}`} className="inline-flex min-h-[48px] items-center gap-1 text-primary hover:opacity-80">
+                      <MessageSquare className="w-3 h-3" /> Text
+                    </a>
+                    <a href={`tel:${r.phone}`} className="inline-flex min-h-[48px] items-center gap-1 text-primary hover:opacity-80">
+                      <Phone className="w-3 h-3" /> Call
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateStatus.mutate({ id: r.id, status: r.status as CandidateStatus, followUpInDays: 30 })
+                      }
+                      disabled={updateStatus.isPending}
+                      className="ml-auto min-h-[48px] px-2 rounded border border-sky-500/40 text-[11px] hover:bg-sky-500/10"
+                      title="Keep the status, check in again in 30 days"
+                    >
+                      Snooze 30d
+                    </button>
+                    {r.intent && r.intent !== "apply" && (
+                      <span className="basis-full text-[11px] opacity-70">
+                        {CANDIDATE_INTENT_ACTION[r.intent as CandidateIntent] ?? ""}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[11px] opacity-70">
+                Reach out by hand; nothing is sent automatically. Changing the status below
+                re-sets the date ({FOLLOW_UP_SUMMARY}) or clears it.
+              </p>
+            </div>
+          )}
+          {followUps.data?.available === false && followUps.data.reason === "migration_0129_pending" && (
+            <p className="mb-3 text-[11px] text-amber-400">
+              Follow-up dates need drizzle/0129 on this database; until then nobody can be scheduled.
+            </p>
           )}
           {isLoading ? (
             <div className="flex items-center gap-2 text-[12px] text-foreground/40">

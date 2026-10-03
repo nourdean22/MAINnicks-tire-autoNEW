@@ -31,6 +31,7 @@ const h = vi.hoisted(() => ({
   // way of the outage assertions; the tests that care set it explicitly.
   slaBreaches: { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null } as QueryResult,
   history: { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null } as QueryResult,
+  followUpsDue: { data: { available: true, reason: null, rows: [] }, isLoading: false, isError: false, error: null } as QueryResult,
   disqualifyCalls: [] as Array<{ id: number; reason: string }>,
 }));
 
@@ -48,12 +49,13 @@ vi.mock("@/lib/trpc", () => {
       // onError line, not the missing key. Add the entry whenever a panel
       // gains a call.
       useUtils: () => ({
-        candidates: { list: { invalidate: () => {} }, slaBreaches: { invalidate: () => {} } },
+        candidates: { list: { invalidate: () => {} }, slaBreaches: { invalidate: () => {} }, followUpsDue: { invalidate: () => {} } },
         technicianReferrals: { list: { invalidate: () => {} } },
       }),
       candidates: {
         list: { useQuery: () => h.candidates },
         slaBreaches: { useQuery: () => h.slaBreaches },
+        followUpsDue: { useQuery: () => h.followUpsDue },
         updateStatus: { useMutation: stub },
       },
       technicianReferrals: {
@@ -96,6 +98,7 @@ beforeEach(() => {
   h.referrals = { data: undefined, isLoading: false, isError: false, error: null };
   h.slaBreaches = { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null };
   h.history = { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null };
+  h.followUpsDue = { data: { available: true, reason: null, rows: [] }, isLoading: false, isError: false, error: null };
   h.disqualifyCalls = [];
 });
 
@@ -438,5 +441,40 @@ describe("TechnicianReferralsPanel - the reason chips are actually tappable", ()
 
     const el = screen.getByRole("button", { name: /^Quit before 90 days$/ });
     expect(el.className).toContain("min-h-[48px]");
+  });
+});
+
+describe("CandidatesPanel · follow-ups due actually paint (nextFollowUpAt consumer)", () => {
+  const due = (rows: unknown[]) => ({ available: true, reason: null, rows });
+
+  it("shows a due talent-network tech with the discreet-contact instruction and a snooze", () => {
+    h.candidates = { data: ok([]), isLoading: false, isError: false, error: null };
+    h.followUpsDue = {
+      data: due([{ id: 4, name: "Lee Park", phone: "2165550199", status: "talent_network", intent: "confidential", positionTitle: "Automotive Technician", daysOverdue: 3 }]),
+      isLoading: false,
+      isError: false,
+      error: null,
+    };
+    render(<CandidatesPanel />);
+
+    expect(screen.getByText(/1 follow-up due/i)).toBeTruthy();
+    expect(screen.getByText(/due a check-in/i)).toBeTruthy();
+    expect(screen.getByText(/3d overdue/)).toBeTruthy();
+    expect(screen.getByText(/contact DISCREETLY/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Snooze 30d/ }).className).toContain("min-h-[48px]");
+  });
+
+  it("stays quiet when nobody is due — the positive control", () => {
+    h.candidates = { data: ok([]), isLoading: false, isError: false, error: null };
+    h.followUpsDue = { data: due([]), isLoading: false, isError: false, error: null };
+    render(<CandidatesPanel />);
+    expect(screen.queryByText(/follow-up(s)? due/i)).toBeNull();
+  });
+
+  it("says follow-ups need 0129 instead of implying nobody is due when the column is missing", () => {
+    h.candidates = { data: ok([]), isLoading: false, isError: false, error: null };
+    h.followUpsDue = { data: { available: false, reason: "migration_0129_pending", rows: [] }, isLoading: false, isError: false, error: null };
+    render(<CandidatesPanel />);
+    expect(screen.getByText(/Follow-up dates need drizzle\/0129/)).toBeTruthy();
   });
 });
