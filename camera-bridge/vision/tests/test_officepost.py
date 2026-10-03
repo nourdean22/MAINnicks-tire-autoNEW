@@ -176,3 +176,19 @@ def test_posting_without_the_key_FAILS_LOUD_rather_than_401ing_silently(monkeypa
     monkeypatch.delenv("CAMERA_INGEST_KEY", raising=False)
     r = post_episode({"episodeId": "e"})
     assert r["posted"] is False and "CAMERA_INGEST_KEY" in r["error"]
+
+
+def test_the_transcriber_runs_with_NO_carried_context(monkeypatch):
+    """`-mc 0` is the source-side guard against whisper repetition loops (2026-10-03: one line
+    emitted four times scored 0.855 coverage and published a gist). Dropping the flag must fail."""
+    seen = {}
+
+    def run(cmd, *a, **k):
+        seen["cmd"] = cmd
+        return _Proc(rc=2, stderr="stop here")
+
+    monkeypatch.setattr("vision.officepost.subprocess.run", run)
+    transcribe("x.wav", model="m.bin")
+    cmd = seen["cmd"]
+    assert "-mc" in cmd and cmd[cmd.index("-mc") + 1] == "0"
+    assert cmd[1:3] == ["-m", "m.bin"]
