@@ -15,6 +15,7 @@ import { alertNewLead } from "../services/telegram";
 import { BUSINESS } from "@shared/business";
 
 import { db } from "../lib/db-helper";
+import { serializeTranscript } from "../lib/chatTranscript";
 
 import { createLogger } from "../lib/logger";
 
@@ -729,16 +730,26 @@ export const chatRouter = router({
       const vehicleInfo = extractedInfo?.vehicle ? extractedInfo.vehicle.slice(0, 255) : null;
       let persisted = false;
       if (d) {
+        // messagesJson is MEDIUMTEXT (0142); STRICT rejects an over-width write and the whole
+        // transcript is lost. Over the limit, drop the oldest messages rather than fail.
+        const transcript = serializeTranscript(sessionMessages);
+        if (transcript.droppedMessages > 0 || transcript.truncatedNewest) {
+          log.warn("[Chat] Transcript over messagesJson limit — oldest messages dropped from storage", {
+            sessionId: sessionId ?? null,
+            droppedMessages: transcript.droppedMessages,
+            truncatedNewest: transcript.truncatedNewest,
+          });
+        }
         try {
           if (sessionId) {
             await d.update(chatSessions).set({
-              messagesJson: JSON.stringify(sessionMessages),
+              messagesJson: transcript.json,
               vehicleInfo: vehicleInfo || undefined,
               problemSummary: extractedInfo?.problem || undefined,
             }).where(eq(chatSessions.id, sessionId));
           } else {
             const result = await d.insert(chatSessions).values({
-              messagesJson: JSON.stringify(sessionMessages),
+              messagesJson: transcript.json,
               vehicleInfo,
               problemSummary: extractedInfo?.problem || null,
             });
