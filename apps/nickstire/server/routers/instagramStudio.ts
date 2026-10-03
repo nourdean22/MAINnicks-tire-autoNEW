@@ -762,7 +762,25 @@ export const instagramStudioRouter = router({
         ...input,
         quality: evaluateInstagramDraft({ ...evalArgs(input), recentConceptKeys: await recentKeysSafe() }),
       };
-      const imageUrls = await renderInstagramStudioAssets(evaluated);
+      let imageUrls: string[];
+      try {
+        imageUrls = await renderInstagramStudioAssets(evaluated);
+      } catch (err) {
+        // No Chrome on the box is an ENVIRONMENT block, not a draft defect
+        // (NICKSTIRE-C). Record it on the run so the spine says why it stalled,
+        // and answer with a typed precondition instead of a generic 500.
+        if ((err as { code?: string } | null)?.code !== "RENDERER_UNAVAILABLE") throw err;
+        const message = err instanceof Error ? err.message : String(err);
+        if (input.runId) {
+          const { advanceContentRun, RUN_STAGE } = await import("../services/contentRun");
+          await advanceContentRun(input.runId, {
+            stage: RUN_STAGE.held,
+            failureReason: "renderer_unavailable",
+            evidence: { at: new Date().toISOString(), what: message.slice(0, 300) },
+          });
+        }
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message, cause: err });
+      }
       if (input.runId) {
         const { advanceContentRun, RUN_STAGE, IMPLEMENTATION_STATE } = await import("../services/contentRun");
         const { COST_ESTIMATES_USD } = await import("../services/generationLedger");

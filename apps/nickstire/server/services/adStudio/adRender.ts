@@ -6,6 +6,7 @@
  * IG can fetch). Reuses the prod-proven puppeteer launch flags from
  * scripts/prerender.mjs. No new deps; deterministic; no external font fetch.
  */
+import { existsSync } from "node:fs";
 import { storagePut } from "../../storage";
 import { createLogger } from "../../lib/logger";
 import { buildSlideHtml, AD_SLIDE_ORDER, type AdCopy, type RenderSlide } from "./adTemplate";
@@ -25,17 +26,83 @@ const FONT_CSS =
 const HERO_URI = `data:image/jpeg;base64,${TIRE_HERO_JPG_B64}`;
 const TREAD_URI = `data:image/jpeg;base64,${TREAD_MACRO_JPG_B64}`;
 
+/**
+ * Typed "no headless Chrome on this box" outcome. Callers catch THIS (by class
+ * or by `code`) and record it as an environment block instead of letting
+ * puppeteer's generic "Could not find Chrome" escape as an unhandled 500.
+ */
+export class RendererUnavailableError extends Error {
+  readonly code = "RENDERER_UNAVAILABLE" as const;
+  constructor(readonly tried: string[]) {
+    super(
+      "Image renderer unavailable: no Chrome/Chromium executable on this server " +
+        `(checked: ${tried.join(", ") || "nothing"}). ` +
+        "Install chromium in the deploy image or set PUPPETEER_EXECUTABLE_PATH.",
+    );
+    this.name = "RendererUnavailableError";
+  }
+}
+
+/** Where a distro package or a Chrome install lands on Linux (Debian/Ubuntu). */
+export const SYSTEM_CHROME_CANDIDATES = [
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
+  "/usr/bin/google-chrome-stable",
+  "/usr/bin/google-chrome",
+] as const;
+
+/**
+ * Resolve a Chrome executable that EXISTS ON DISK, or throw
+ * RendererUnavailableError.
+ *
+ * Production (NICKSTIRE-C, 2026-09-30) proved puppeteer's default lookup is not
+ * enough: it only knows its own download cache (/root/.cache/puppeteer), and
+ * that download never happens on Railway — pnpm 10 skips puppeteer's
+ * postinstall ("Ignored build scripts: ... puppeteer"). An explicit env path,
+ * the bundled cache, then the distro locations are tried in that order.
+ */
+export function resolveChromeExecutable(deps: {
+  env?: NodeJS.ProcessEnv;
+  exists?: (path: string) => boolean;
+  bundledPath?: () => string | undefined;
+} = {}): string {
+  const env = deps.env ?? process.env;
+  const exists = deps.exists ?? existsSync;
+  const candidates: string[] = [];
+  for (const key of ["PUPPETEER_EXECUTABLE_PATH", "CHROME_PATH"] as const) {
+    const value = env[key]?.trim();
+    if (value) candidates.push(value);
+  }
+  try {
+    const bundled = deps.bundledPath?.();
+    if (bundled) candidates.push(bundled);
+  } catch {
+    /* puppeteer could not compute its cache path — fall through to the system paths */
+  }
+  candidates.push(...SYSTEM_CHROME_CANDIDATES);
+  const found = candidates.find((p) => exists(p));
+  if (!found) throw new RendererUnavailableError(candidates);
+  return found;
+}
+
+/** One launch path for every renderer in this module. */
+async function launchRenderBrowser() {
+  const puppeteer = (await import("puppeteer")).default;
+  const executablePath = resolveChromeExecutable({ bundledPath: () => puppeteer.executablePath() });
+  return puppeteer.launch({
+    headless: true,
+    executablePath,
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"],
+  });
+}
+
 export interface RenderedAd {
   slideUrls: string[]; // 5 public JPEG URLs in running order
 }
 
 /** Render + host the 5 ad slides. Returns public URLs (hook,value,offer,proof,cta). */
 export async function renderAdSlides(copy: AdCopy): Promise<RenderedAd> {
-  const puppeteer = (await import("puppeteer")).default;
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"],
-  });
+  const browser = await launchRenderBrowser();
   const slideUrls: string[] = [];
   const stamp = Date.now();
   try {
@@ -66,11 +133,7 @@ export async function renderAdSlides(copy: AdCopy): Promise<RenderedAd> {
  * carousel path above. Same prod-proven puppeteer launch flags.
  */
 export async function renderHtmlToJpeg(html: string, width = 1080, height = 1080): Promise<Buffer> {
-  const puppeteer = (await import("puppeteer")).default;
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"],
-  });
+  const browser = await launchRenderBrowser();
   try {
     const page = await browser.newPage();
     await page.setViewport({ width, height, deviceScaleFactor: 1 });
