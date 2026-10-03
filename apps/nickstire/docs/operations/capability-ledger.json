@@ -3464,14 +3464,14 @@
           "server/videoForgeClient.test.ts (19): key persisted BEFORE submit; local timeout RESUMES the same job (1 submit, 1 render); lost submit response dedupes on the key; terminal failure advances the key; hard ceiling + stale heartbeat cancel (no zombies); license/rollout/capability refusals before any GPU call; sha256/mp4/aspect output verification",
           "server/mediaModelRegistry.test.ts: UNKNOWN never production; MiniMax H3 TERRITORY_BLOCKED; registry ↔ apps/video-forge/forge/profiles.json parity; self_hosted never auto-selected; prompt compiler never mutates the canonical spec",
           "server/reelSelfHostedSpendTrajectory.test.ts (8): persisted reservation is GPU compute not Seedance; pre-authorized pool removes the tap NOT the daily ceiling; settle books measured compute; repair routing follows the POLICY; veo/higgsfield/template_stock routing unchanged",
-          "apps/video-forge/tests/test_forge.py (27, incl. LTX/Wan argv built to the upstream-verified CLIs): HMAC auth, idempotency + 409, restart recovery bound, cancel-beats-late-success, reclaim, OOM classification, license gate, image validation",
+          "apps/video-forge tests (54): HMAC auth; same-second idempotent submit retries; replay refusal for non-idempotent POSTs; restart recovery; cancel-beats-late-success; reclaim; cross-platform OOM classification; license gate; image validation; LTX/Wan argv; no-spend canary preflight; exact verified Wan code revision; current Modal A100 identifier guard; pinned FlashAttention wheel integrity; separate Wan code/weight provenance; deterministic Modal + RunPod model manifests; wrong weight revision refusal; byte-level weight hash verification; SHA256SUMS/manifest consistency",
           "scripts/video-forge-e2e.ts against a real Forge process (CPU mock backend, 2026-10-03): forced local timeout → resume returned the SAME job; one job in the Forge DB; output verified + re-hosted"
         ]
       },
       "blockers": [
         {
           "severity": "P1",
-          "description": "NO GPU CANARY. The LTX-2.5 and Wan 2.2 backends have never executed on a GPU (no compute spend authorized 2026-10-03). Model quality, latency and real cost are UNKNOWN. Unblock: operator authorizes one 80GB GPU + cap, then apps/video-forge/README.md 'GPU canary'."
+          "description": "NO GPU CANARY. The LTX-2.5 and Wan 2.2 backends have never executed on a GPU (no compute spend authorized 2026-10-03). Model quality, latency and real cost are UNKNOWN. The canary path is hardened but still unproven: no-spend preflight, selective backend install, exact verified Wan code revision 1ea34ff48f87168174e12956e200b1d908b1c5ff, pinned Wan weight revision 921dbaf3f1674a56f47e83fb80a34bac8a8f203e, current Modal A100 identifier guard, FlashAttention wheel hash verification, and deterministic model manifests are unit-verified. Unblock: operator authorizes GPU spend; run the README Wan-only canary first, then the broader quality comparison."
         },
         {
           "severity": "P2",

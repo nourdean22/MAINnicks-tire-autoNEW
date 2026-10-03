@@ -164,10 +164,12 @@ class Forge:
         expect = hmac.new(self.secret.encode(), f"{ts}.{method}.{path}.{hashlib.sha256(body).hexdigest()}".encode(), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(expect, sig):
             raise HTTPException(401, "bad signature")
-        # Replay: a captured signed request (a cancel, a submit) was valid for the whole
-        # 300s skew window. Remember POST signatures seen inside the window; reject repeats.
+        # Replay: reject duplicate signatures for non-idempotent POST actions.
+        # POST /v1/jobs is deliberately exempt: its idempotency_key + request fingerprint
+        # are the replay guard, and honest network retries can produce the same HMAC inside
+        # one second. Blocking those here defeats the endpoint's retry contract.
         # GETs are read-only, and two honest identical GETs in one second sign identically.
-        if method != "POST":
+        if method != "POST" or path == "/v1/jobs":
             return
         now = time.time()
         with self._seen_lock:

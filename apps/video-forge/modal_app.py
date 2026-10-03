@@ -26,12 +26,17 @@ import modal
 #   LTX2_REF=<sha> WAN22_REF=<sha> modal deploy apps/video-forge/modal_app.py
 import os as _os
 
+LTX_CODE_REF = _os.environ.get("LTX2_REF", "UNPINNED")
+WAN_CODE_REF = _os.environ.get("WAN22_REF", "UNPINNED")
+WAN_5B_REVISION = "921dbaf3f1674a56f47e83fb80a34bac8a8f203e"
+
 image = modal.Image.from_dockerfile(
     "apps/video-forge/Dockerfile",
     context_dir="apps/video-forge",
     build_args={
-        "LTX2_REF": _os.environ.get("LTX2_REF", "UNPINNED"),
-        "WAN22_REF": _os.environ.get("WAN22_REF", "UNPINNED"),
+        "LTX2_REF": LTX_CODE_REF,
+        "WAN22_REF": WAN_CODE_REF,
+        "WAN22_WEIGHT_REV": WAN_5B_REVISION,
         # Build only what is being served (FORGE_INSTALL_LTX=0 for a Wan-only canary).
         "INSTALL_LTX": _os.environ.get("FORGE_INSTALL_LTX", "1"),
         "INSTALL_WAN": _os.environ.get("FORGE_INSTALL_WAN", "1"),
@@ -45,7 +50,7 @@ app = modal.App("nour-video-forge", image=image)
 fetch_image = modal.Image.debian_slim(python_version="3.12").pip_install("huggingface_hub>=0.24,<1")
 
 # Wan 2.2 TI2V-5B: Apache-2.0, ungated. Revision pinned (HF commit) so a canary is reproducible.
-WAN_5B = {"repo": "Wan-AI/Wan2.2-TI2V-5B", "revision": "921dbaf3f1674a56f47e83fb80a34bac8a8f203e", "dir": "/models/Wan2.2-TI2V-5B"}
+WAN_5B = {"repo": "Wan-AI/Wan2.2-TI2V-5B", "revision": WAN_5B_REVISION, "dir": "/models/Wan2.2-TI2V-5B"}
 
 
 @app.function(image=fetch_image, volumes={"/models": models}, timeout=2 * 60 * 60, cpu=2.0, memory=4096)
@@ -55,30 +60,48 @@ def fetch_wan_5b() -> dict:
     Skips the repo's docs/example images. Idempotent: hf_hub skips files already present.
     """
     import hashlib
+    import json
     import pathlib
 
     from huggingface_hub import snapshot_download
 
+    root = pathlib.Path(WAN_5B["dir"])
     snapshot_download(
-        WAN_5B["repo"], revision=WAN_5B["revision"], local_dir=WAN_5B["dir"],
+        WAN_5B["repo"], revision=WAN_5B["revision"], local_dir=str(root),
         ignore_patterns=["assets/*", "examples/*", "*.md", ".msc", ".mv"],
     )
     sums = {}
-    for f in sorted(pathlib.Path(WAN_5B["dir"]).rglob("*")):
+    total_bytes = 0
+    for f in sorted(root.rglob("*")):
         if f.is_file() and f.suffix in (".safetensors", ".pth"):
             h = hashlib.sha256()
             with open(f, "rb") as fh:
                 for chunk in iter(lambda: fh.read(1 << 24), b""):
                     h.update(chunk)
-            sums[str(f)] = h.hexdigest()
-    pathlib.Path(WAN_5B["dir"], "SHA256SUMS").write_text("".join(f"{v}  {k}\n" for k, v in sums.items()))
+            rel = f.relative_to(root).as_posix()
+            sums[rel] = h.hexdigest()
+            total_bytes += f.stat().st_size
+    (root / "SHA256SUMS").write_text("".join(f"{v}  {k}\n" for k, v in sums.items()), encoding="utf-8")
+    (root / "MANIFEST.json").write_text(
+        json.dumps(
+            {
+                "repo": WAN_5B["repo"],
+                "revision": WAN_5B["revision"],
+                "files": sums,
+                "total_bytes": total_bytes,
+            },
+            indent=2,
+            sort_keys=True,
+        ) + "\n",
+        encoding="utf-8",
+    )
     models.commit()
-    return {"files": len(sums), "bytes": sum(pathlib.Path(k).stat().st_size for k in sums)}
+    return {"files": len(sums), "bytes": total_bytes, "revision": WAN_5B["revision"]}
 
 
 @app.function(
-    # 80GB is the LTX quality baseline; a Wan 5B canary fits a 40GB card (FORGE_MODAL_GPU=A100-40GB).
-    gpu=_os.environ.get("FORGE_MODAL_GPU", "A100-80GB"),
+    # Modal calls its 40 GB A100 class "A100"; use A100-80GB for the later LTX quality baseline.
+    gpu=_os.environ.get("FORGE_MODAL_GPU", "A100"),
     volumes={"/models": models, "/data": data},
     secrets=[modal.Secret.from_name("video-forge")],
     max_containers=1,
@@ -92,6 +115,11 @@ def forge():
 
     sys.path.insert(0, "/srv")
     os.environ.setdefault("FORGE_DATA_DIR", "/data/forge")
+    if WAN_CODE_REF != "UNPINNED":
+        os.environ.setdefault("FORGE_WAN22_CODE_REV", WAN_CODE_REF)
+        os.environ.setdefault("FORGE_WAN_REV", WAN_5B["revision"])
+    if LTX_CODE_REF != "UNPINNED":
+        os.environ.setdefault("FORGE_LTX2_CODE_REV", LTX_CODE_REF)
     from forge.app import create_app
 
     return create_app(start_worker=True)

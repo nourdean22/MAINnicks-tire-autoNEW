@@ -22,12 +22,14 @@ RUN pip install "uv>=0.4,<1"
 # weights are license-gated on Hugging Face, Wan 2.2 (Apache-2.0) is not.
 ARG LTX2_REF=UNPINNED
 ARG WAN22_REF=UNPINNED
+ARG WAN22_WEIGHT_REV=UNPINNED
 ARG ALLOW_UNPINNED=0
 ARG INSTALL_LTX=1
 ARG INSTALL_WAN=1
 RUN if [ "$ALLOW_UNPINNED" != "1" ] && { { [ "$INSTALL_LTX" = "1" ] && [ "$LTX2_REF" = "UNPINNED" ]; } || \
-      { [ "$INSTALL_WAN" = "1" ] && [ "$WAN22_REF" = "UNPINNED" ]; }; }; then \
-      echo "pin LTX2_REF / WAN22_REF for each installed backend (or pass ALLOW_UNPINNED=1)" >&2; exit 1; fi
+      { [ "$INSTALL_WAN" = "1" ] && { [ "$WAN22_REF" = "UNPINNED" ] || [ "$WAN22_WEIGHT_REV" = "UNPINNED" ]; }; }; }; then \
+      echo "pin LTX2_REF plus WAN22_REF/WAN22_WEIGHT_REV for each installed backend (or pass ALLOW_UNPINNED=1)" >&2; exit 1; fi
+ENV FORGE_WAN22_CODE_REV=$WAN22_REF FORGE_WAN_REV=$WAN22_WEIGHT_REV FORGE_LTX2_CODE_REV=$LTX2_REF
 # LTX-2 is a uv workspace (root pyproject has no [project]); `pip install -e .` at the
 # root does not install ltx_pipelines. uv sync builds the workspace env uv run uses.
 RUN if [ "$INSTALL_LTX" = "1" ]; then \
@@ -38,12 +40,15 @@ RUN if [ "$INSTALL_LTX" = "1" ]; then \
 # cp312 / cxx11abi, verified 2026-10-03). `pip install flash_attn` otherwise compiles
 # from source for hours. Wan's model calls flash_attention directly (no SDPA fallback).
 ARG FLASH_ATTN_WHEEL=https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
+ARG FLASH_ATTN_SHA256=f25da18657a87fc83dc1bfb8b7751b82246e9db355510226b674fd437c34b5fb
 RUN if [ "$INSTALL_WAN" = "1" ]; then \
       git clone https://github.com/Wan-Video/Wan2.2 /opt/Wan2.2 && cd /opt/Wan2.2 && \
       { [ "$WAN22_REF" = "UNPINNED" ] || git checkout "$WAN22_REF"; } && \
       pip install "torch==2.8.0" "torchvision==0.23.0" "torchaudio==2.8.0" && \
       grep -v '^flash_attn' requirements.txt > /tmp/wan-req.txt && pip install -r /tmp/wan-req.txt && \
-      pip install "$FLASH_ATTN_WHEEL"; fi
+      curl -fsSL "$FLASH_ATTN_WHEEL" -o /tmp/flash_attn.whl && \
+      echo "$FLASH_ATTN_SHA256  /tmp/flash_attn.whl" | sha256sum -c - && \
+      pip install /tmp/flash_attn.whl && rm /tmp/flash_attn.whl; fi
 
 WORKDIR /srv
 COPY requirements.txt .

@@ -1,0 +1,8 @@
+{
+  "evidence": {
+    "video-forge-canary-recovery": {
+      "state": "built_unit_verified_gpu_unproven",
+      "ref": "Recovered Claude commit b03e855663492551662175539b4f820106e75c2b onto current origin/main, then hardened before any GPU spend. Added selective Wan-only canary build, pinned FlashAttention wheel SHA256 verification, separate Wan code-vs-weight revision provenance in receipts, deterministic model manifests for Modal and RunPod fetch paths, zero-spend canary preflight, idempotent submit retry compatibility with replay protection preserved for non-idempotent POSTs, and cross-platform OOM-classifier coverage. apps/video-forge: 54 tests passed on NattyNour in a disposable venv; preflight-specific suite 16/16; Git Bash syntax, current Modal SDK import, and Python compile checks succeeded; capability ledger and REALITY-LEDGER were reconciled. NO GPU CANARY was run and capability state remains unit-verified/disabled."
+    }
+  }
+}

@@ -10,6 +10,7 @@ import hmac
 import json
 import os
 import shutil
+import sys
 import tempfile
 import time
 import unittest
@@ -81,9 +82,12 @@ class IdempotencyTests(ForgeTestBase):
         self.assertEqual(r.status_code, 409)
 
     def test_resubmit_after_success_returns_completed_output(self):
-        jid = signed(self.client, "POST", "/v1/jobs", job_body()).json()["job"]["id"]
+        # Pin the same second/signature on purpose: submit retries are protected by
+        # the idempotency key + request fingerprint, not the generic POST replay cache.
+        ts = int(time.time())
+        jid = signed(self.client, "POST", "/v1/jobs", job_body(), ts=ts).json()["job"]["id"]
         self.assertTrue(self.forge.run_one())
-        again = signed(self.client, "POST", "/v1/jobs", job_body()).json()["job"]
+        again = signed(self.client, "POST", "/v1/jobs", job_body(), ts=ts).json()["job"]
         self.assertEqual(again["id"], jid)
         self.assertEqual(again["status"], "succeeded")
 
@@ -197,7 +201,13 @@ class LifecycleTests(ForgeTestBase):
         self.assertEqual(st.get(b)["error_code"], "hard_ceiling")
 
     def test_backend_failure_is_classified_not_crashing(self):
-        os.environ["FORGE_LTX_RUNNER"] = "python3 -c \"import sys; sys.stderr.write('torch.OutOfMemoryError: CUDA out of memory'); sys.exit(1)\""
+        # Use a script file rather than a nested -c command: the runner string is
+        # shlex-parsed again, and nested quoting made this test exercise Windows
+        # command parsing instead of the subprocess error classifier.
+        fail_script = os.path.join(self.dir, "emit_oom.py")
+        with open(fail_script, "w", encoding="utf-8") as fh:
+            fh.write("import sys\nsys.stderr.write('torch.OutOfMemoryError: CUDA out of memory')\nsys.exit(1)\n")
+        os.environ["FORGE_LTX_RUNNER"] = f'"{sys.executable}" "{fail_script}"'
         try:
             self.forge.profiles["ltx-2.5-distilled"]["license_state"] = "APPROVED_WITH_CONDITIONS"
             jid = signed(self.client, "POST", "/v1/jobs", job_body(profile="ltx-2.5-distilled")).json()["job"]["id"]
@@ -386,11 +396,12 @@ class ShortSecretTests(unittest.TestCase):
 
 
 class ReplayTests(ForgeTestBase):
-    def test_same_signed_post_twice_is_refused(self):
+    def test_same_signed_non_idempotent_post_twice_is_refused(self):
+        jid = signed(self.client, "POST", "/v1/jobs", job_body(key="replay-key-0001")).json()["job"]["id"]
+        path = f"/v1/jobs/{jid}/cancel"
         ts = int(time.time())
-        body = job_body(key="replay-key-0001")
-        self.assertIn(signed(self.client, "POST", "/v1/jobs", body, ts=ts).status_code, (200, 202))
-        self.assertEqual(signed(self.client, "POST", "/v1/jobs", body, ts=ts).status_code, 401)
+        self.assertEqual(signed(self.client, "POST", path, {}, ts=ts).status_code, 200)
+        self.assertEqual(signed(self.client, "POST", path, {}, ts=ts).status_code, 401)
 
     def test_identical_gets_in_one_second_both_pass(self):
         ts = int(time.time())
