@@ -113,3 +113,26 @@ describe("buildChatResponse · intent.classified honesty", () => {
     expect(ev).toEqual(classification);
   });
 });
+
+// Sentry JAVASCRIPT-REACT-13 (2026-10-01): Headers.set throws on any char > 0xFF,
+// and the blocked-escalation reason is free text with an em-dash, so every
+// keyless "deep" turn 500'd before streaming.
+describe("buildChatResponse · header values are ByteStrings", () => {
+  it("a blocked escalation whose reason has an em-dash does not throw", async () => {
+    const res = buildChatResponse(
+      makeInput({
+        escalation: {
+          tier: "deep",
+          escalated: false,
+          blockedBy: "no-api-key",
+          reason: "deep requested · no ANTHROPIC_API_KEY — set it → Railway",
+        },
+        lane: { provider: "ollama", modelId: "gemma4:31b" } as BuildChatResponseInput["lane"],
+      }),
+    );
+    expect(res.headers.get("X-Escalation-Reason")).toBe(
+      "deep requested · no ANTHROPIC_API_KEY - set it -> Railway",
+    );
+    await drain(res);
+  });
+});
