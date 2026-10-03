@@ -19,6 +19,7 @@
 import { randomUUID } from "crypto";
 import { createLogger } from "../lib/logger";
 import { clevelandDayStart } from "./autonomyControl";
+import { computeSourceFromEnv, costClassForComputeSource, getMediaProfile, type MediaCostClass } from "../../shared/mediaModelRegistry";
 
 const log = createLogger("services:generation-ledger");
 
@@ -69,12 +70,74 @@ export function reelClipCostUsd(provider: string, env: NodeJS.ProcessEnv = proce
   // renders that cost nothing, and would corrupt every provider-comparison
   // figure the paragraph above exists to protect.
   if (provider === "template_stock") return COST_ESTIMATES_USD.template_stock_clip;
+  // Self-hosted (NOUR Video Forge): GPU compute, not vendor credits. Priced from
+  // the active profile's expected GPU-seconds × the configured $/GPU-hour; the
+  // reel settles at MEASURED gpu_seconds from each job receipt. Owned/existing
+  // GPUs price at the operator's marginal rate (power), never a fake Seedance
+  // figure — and never literally "free" unless the operator sets that rate.
+  if (provider === "self_hosted") return selfHostedClipEstimateUsd(env);
   if (provider !== "veo") return COST_ESTIMATES_USD.seedance_clip;
   // Number(undefined) and Number("abc") are NaN, Number("") is 0 — all falsy,
   // so a missing or malformed override falls back rather than booking a zero.
   const seconds = Number(env.REEL_VEO_DURATION) || VEO_DEFAULT_CLIP_SECONDS;
   const perSecond = Number(env.REEL_VEO_USD_PER_SECOND) || COST_ESTIMATES_USD.veo_second_720p;
   return seconds * perSecond;
+}
+
+function selfHostedClipEstimateUsd(env: NodeJS.ProcessEnv): number {
+  const profile = getMediaProfile(env.VIDEO_FORGE_PROFILE || "ltx-2.5-distilled");
+  if (!profile) return COST_ESTIMATES_USD.seedance_clip; // unknown profile: never under-price
+  const src = computeSourceFromEnv(env);
+  const rate =
+    src === "rented_gpu"
+      ? Number(env.VIDEO_FORGE_USD_PER_GPU_HOUR) || profile.cost.referenceUsdPerGpuHour
+      : Number(env.VIDEO_FORGE_MARGINAL_USD_PER_GPU_HOUR) || 0;
+  return (profile.cost.expectedGpuSeconds / 3600) * rate;
+}
+
+/**
+ * Cost POLICY, separate from cost AMOUNT.
+ *
+ * `reelClipCostUsd(p) > 0` was being used as "this regen needs an operator's
+ * spend authorization" (qualityGate → repairRouter). That proxy is wrong in
+ * both directions once a self-hosted lane exists: a pre-authorized rented GPU
+ * pool has a real, non-zero cost yet should run selective repairs inside the
+ * daily budget without a human tap each time; and an owned GPU priced at $0
+ * vendor cost is still not "free" for capacity planning. So the question
+ * "must a human approve this spend?" is answered HERE, explicitly:
+ *
+ *   template_stock → no approval (local ffmpeg)
+ *   self_hosted    → no approval ONLY when VIDEO_FORGE_POOL_PREAUTHORIZED=true
+ *                    or the GPU is owned/existing infra; otherwise approval
+ *   veo/higgsfield → approval (metered vendor spend)
+ *
+ * Budget ceilings (maxGenerationCostPerDayUsd) still apply to every lane via
+ * reserve(); pre-authorization removes the per-repair human tap, not the cap.
+ */
+export interface ReelClipCostPolicy {
+  provider: string;
+  costClass: MediaCostClass;
+  vendorApiCostUsd: number;
+  estimatedComputeCostUsd: number;
+  requiresSpendApproval: boolean;
+}
+
+export function reelClipCostPolicy(provider: string, env: NodeJS.ProcessEnv = process.env): ReelClipCostPolicy {
+  if (provider === "template_stock") {
+    return { provider, costClass: "LOCAL_FREE", vendorApiCostUsd: 0, estimatedComputeCostUsd: 0, requiresSpendApproval: false };
+  }
+  if (provider === "self_hosted") {
+    const src = computeSourceFromEnv(env);
+    const est = selfHostedClipEstimateUsd(env);
+    return {
+      provider,
+      costClass: costClassForComputeSource(src),
+      vendorApiCostUsd: 0,
+      estimatedComputeCostUsd: est,
+      requiresSpendApproval: !(src !== "rented_gpu" || env.VIDEO_FORGE_POOL_PREAUTHORIZED === "true"),
+    };
+  }
+  return { provider, costClass: "METERED_PAID", vendorApiCostUsd: reelClipCostUsd(provider, env), estimatedComputeCostUsd: 0, requiresSpendApproval: true };
 }
 
 export interface ReserveInput {

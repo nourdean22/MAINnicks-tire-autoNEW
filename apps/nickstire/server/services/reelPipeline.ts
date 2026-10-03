@@ -79,13 +79,16 @@ export function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promis
  * no key but Higgsfield does, use Higgsfield. So "Higgsfield loaded, Gemini key
  * dead" generates today with zero config.
  */
-export type ReelVideoProvider = "veo" | "higgsfield" | "template_stock";
+export type ReelVideoProvider = "veo" | "higgsfield" | "template_stock" | "self_hosted";
 
 /** What each provider is recorded as in generation_reservations.model. */
 const PROVIDER_LEDGER_MODEL: Record<ReelVideoProvider, () => string> = {
   veo: () => process.env.REEL_VEO_MODEL || "veo-3.1-fast-generate-preview",
   higgsfield: () => "seedance1_5",
   template_stock: () => "ffmpeg_local",
+  // Provider identity stays "self_hosted"; the open-weight MODEL is a profile
+  // beneath it, recorded here so cost-per-reel comparisons can split by model.
+  self_hosted: () => `video_forge:${process.env.VIDEO_FORGE_PROFILE || "ltx-2.5-distilled"}`,
 };
 
 /**
@@ -107,7 +110,10 @@ export async function selectReelVideoProvider(): Promise<ReelVideoProvider> {
   // needs no credentials, so auto-detect would happily prefer it over a funded
   // paid provider and quietly change what the shop publishes. The prod pin
   // (higgsfield, a deliberate cost decision) must also survive this lane.
-  if (explicit === "veo" || explicit === "higgsfield" || explicit === "template_stock") {
+  // self_hosted (NOUR Video Forge) is EXPLICIT-PIN ONLY during rollout, like
+  // template_stock: auto-selecting a lane that has not cleared its benchmark
+  // would change what the shop publishes without an operator decision.
+  if (explicit === "veo" || explicit === "higgsfield" || explicit === "template_stock" || explicit === "self_hosted") {
     // The pin still wins — that is its job, and the tests pin that contract.
     // But it is announced when the pinned provider has no credentials at all,
     // because this selector is how prod ended up generating into a dead provider:
@@ -185,6 +191,10 @@ export async function reelProviderCredentialsPresent(provider: ReelVideoProvider
   // it is always "present" — otherwise pinning it would log the no-credentials
   // warning on every selection for a provider that is working correctly.
   if (provider === "template_stock") return true;
+  if (provider === "self_hosted") {
+    const { videoForgeConfigured } = await import("./videoForgeClient");
+    return videoForgeConfigured();
+  }
   if (provider === "veo") {
     const { veoCredentialsPresent } = await import("./veoStudio");
     return veoCredentialsPresent();
@@ -237,6 +247,12 @@ export interface ReelJobBrief {
     audioCue?: string;
     /** Higgsfield API request already submitted; resume polling, never resubmit. */
     higgsfieldRequestId?: string;
+    /** Video Forge idempotency key, persisted BEFORE submit (Forge dedupes on it). */
+    selfHostedIdempotencyKey?: string;
+    /** Video Forge job id — resume polling, never resubmit. */
+    selfHostedJobId?: string;
+    /** Profile the in-flight job was submitted with; a resume must not switch models. */
+    selfHostedProfile?: string;
     /**
      * APPEND-ONLY history of every provider operation this beat ever submitted.
      *
@@ -254,12 +270,14 @@ export interface ReelJobBrief {
      * resubmit, and the active-handle fields are unchanged.
      */
     providerOps?: Array<{
-      provider: "higgsfield" | "veo";
+      provider: "higgsfield" | "veo" | "self_hosted";
       /** The provider's own operation/request id — the paid handle. */
       opId: string;
       /** ISO timestamp of when this outcome was recorded. */
       at: string;
       outcome: "succeeded" | "failed" | "abandoned";
+      /** self_hosted only: measured GPU seconds, model version, output hash. */
+      receipt?: import("./videoForgeClient").SelfHostedReceipt;
     }>;
   }>;
   promptPack?: Array<{ beatNumber: number; prompt: string; negativePrompt?: string }>;
@@ -299,7 +317,7 @@ export interface ReelJobBrief {
  * retry loop cannot grow `payload` (MEDIUMTEXT) without limit.
  */
 function recordProviderOp(
-  beat: { providerOps?: Array<{ provider: "higgsfield" | "veo"; opId: string; at: string; outcome: "succeeded" | "failed" | "abandoned" }> },
+  beat: { providerOps?: Array<{ provider: "higgsfield" | "veo" | "self_hosted"; opId: string; at: string; outcome: "succeeded" | "failed" | "abandoned" }> },
   provider: "higgsfield" | "veo",
   opId: string | undefined | null,
   outcome: "succeeded" | "failed" | "abandoned",
@@ -985,6 +1003,11 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
     // counter a degraded reel settles every clip at the paid provider's rate,
     // which is the exact ledger lie the flat-Seedance settle used to tell.
     let freeLaneClips = 0;
+    // self_hosted settles at MEASURED compute (receipt gpu_seconds × rate) for
+    // clips rendered this run; clips resumed from an earlier run fall back to
+    // the profile estimate. Both flagged estimates until a GPU billing feed exists.
+    let selfHostedMeasuredUsd = 0;
+    let selfHostedMeasuredClips = 0;
 
     // The durable-storage precondition only applies to providers that RE-HOST
     // through our storage (Veo → storagePut → ephemeral local disk without S3,
@@ -996,7 +1019,7 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
     // local disk first), so it carries the same precondition — without durable
     // storage the clip lands on ephemeral disk and a redeploy destroys it.
     // Higgsfield is the only provider that returns its own durable CDN URL.
-    if (videoProvider === "veo" || videoProvider === "template_stock") {
+    if (videoProvider === "veo" || videoProvider === "template_stock" || videoProvider === "self_hosted") {
       assertDurableStorageForGeneration(`reel job ${job.id} ${videoProvider} clip generation`);
     }
 
@@ -1160,6 +1183,44 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
         continue;
       }
 
+      if (activeProvider === "self_hosted") {
+        // NOUR Video Forge: open-weight model on a GPU we control. Same
+        // per-beat contract as the other lanes — one URL, persisted at once —
+        // plus the resume rules in videoForgeClient (key persisted before
+        // submit, job id after, a local window that RESUMES instead of
+        // resubmitting, per-profile hard ceilings).
+        const { renderSelfHostedBeat } = await import("./videoForgeClient");
+        const hero = brief.visualWorld?.heroFrameUrl;
+        // Same gate as the Higgsfield lane: condition on the operator-approved
+        // hero frame only when REEL_IMAGE_CONDITIONING is on. The bake-off
+        // decides whether it becomes the default.
+        const startImageUrl =
+          process.env.REEL_IMAGE_CONDITIONING === "true" && hero && /\.(jpe?g|png|webp)([?#]|$)/i.test(hero) ? hero : undefined;
+        const persist = async () => {
+          await d.update(reelJobs).set({ payload: JSON.stringify(brief), updatedAt: new Date() }).where(eq(reelJobs.id, job.id));
+        };
+        const { url, receipt } = await renderSelfHostedBeat({
+          beat,
+          idempotencyBase: `nickstire-reel-${job.id}-b${beat.beatNumber}`,
+          prompt,
+          negativePrompt,
+          startImageUrl,
+          persist,
+          heartbeat: async () => {
+            await d.update(reelJobs).set({ updatedAt: new Date() }).where(eq(reelJobs.id, job.id));
+          },
+          metadata: { reel_job_id: job.id, beat_number: beat.beatNumber },
+        });
+        clipUrls[i] = url;
+        selfHostedMeasuredUsd += receipt.computeUsd;
+        selfHostedMeasuredClips += 1;
+        await d.update(reelJobs)
+          .set({ clipUrlsJson: JSON.stringify(clipUrls), payload: JSON.stringify(brief), updatedAt: new Date() })
+          .where(eq(reelJobs.id, job.id));
+        log.info("reel clip generated (self_hosted) and saved progressively", { jobId: job.id, beat: beat.beatNumber, of: beats.length, profile: receipt.profile, gpuSeconds: receipt.gpuSeconds });
+        continue;
+      }
+
       // Veo is the LAST branch, and it is reached only by elimination. That was
       // an implicit else for two providers: widening the union does not make
       // this a compile error, so an unhandled provider silently ran Veo and
@@ -1256,10 +1317,11 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
       // When no flip happened freeLaneClips is 0 and this is the original
       // expression unchanged.
       const paidClips = Math.max(0, clipUrls.length - freeLaneClips);
-      await settle(
-        `reel_job_${job.id}`,
-        paidClips * reelClipCostUsd(videoProvider) + freeLaneClips * reelClipCostUsd("template_stock"),
-      );
+      const settledUsd =
+        videoProvider === "self_hosted"
+          ? selfHostedMeasuredUsd + Math.max(0, paidClips - selfHostedMeasuredClips) * reelClipCostUsd("self_hosted")
+          : paidClips * reelClipCostUsd(videoProvider) + freeLaneClips * reelClipCostUsd("template_stock");
+      await settle(`reel_job_${job.id}`, settledUsd);
     } catch { /* ledger degraded — reservation's estimate stands */ }
     log.info("reel job assets_ready", { jobId: job.id, clips: clipUrls.length });
     return { processed: true, jobId: job.id, status: "assets_ready" };
@@ -1285,10 +1347,14 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
         .where(eq(reelJobs.id, job.id))
         .limit(1);
       freshPayload = fresh?.payload;
-      const parsed = JSON.parse(fresh?.payload ?? "{}") as { storyboardBeats?: Array<{ veoOperationName?: string; higgsfieldRequestId?: string }> };
+      const parsed = JSON.parse(fresh?.payload ?? "{}") as { storyboardBeats?: Array<{ veoOperationName?: string; higgsfieldRequestId?: string; selfHostedJobId?: string; selfHostedIdempotencyKey?: string }> };
+      // A persisted Video Forge KEY counts as a handle too: Forge dedupes on
+      // it, so "submit sent, response lost" is resumable, not ambiguous.
       hasRemoteOperationId = (parsed.storyboardBeats ?? []).some(
         (b) => (typeof b?.veoOperationName === "string" && b.veoOperationName.length > 0) ||
-          (typeof b?.higgsfieldRequestId === "string" && b.higgsfieldRequestId.length > 0),
+          (typeof b?.higgsfieldRequestId === "string" && b.higgsfieldRequestId.length > 0) ||
+          (typeof b?.selfHostedJobId === "string" && b.selfHostedJobId.length > 0) ||
+          (typeof b?.selfHostedIdempotencyKey === "string" && b.selfHostedIdempotencyKey.length > 0),
       );
     } catch { /* unreadable payload — treat as no handle, i.e. the cautious branch */ }
 

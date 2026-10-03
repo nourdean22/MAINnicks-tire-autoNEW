@@ -69,6 +69,12 @@ export interface RepairQueueEntry {
   attempts: ProviderAttempt[];
   previousClipUrl: string | null;
   newClipUrl?: string;
+  /**
+   * self_hosted only: the Video Forge key/job for THIS logical repair. Lives on
+   * the entry (persisted in payload) so a local timeout resumes the same GPU
+   * job on the next pulse instead of buying a second render.
+   */
+  selfHosted?: import("./videoForgeClient").SelfHostedBeatState;
 }
 
 export interface RepairRequestResult {
@@ -329,9 +335,34 @@ export async function processNextRepairJob(): Promise<{ processed: boolean; jobI
     outcome: "failed",
   };
 
+  let settleUsd = repairCostUsd;
   try {
     let newClipUrl: string;
-    if (repairProvider === "template_stock") {
+    if (repairProvider === "self_hosted") {
+      const { assertDurableStorageForGeneration } = await import("../storage");
+      assertDurableStorageForGeneration(`reel job ${job.id} self_hosted beat repair`);
+      const { renderSelfHostedBeat } = await import("./videoForgeClient");
+      entry.selfHosted ??= { beatNumber: entry.beatNumber };
+      const persist = async () => {
+        await d.update(reelJobs).set({ payload: JSON.stringify(payload), updatedAt: new Date() }).where(eq(reelJobs.id, job.id));
+      };
+      const hero = payload.visualWorld?.heroFrameUrl as string | undefined;
+      const r = await renderSelfHostedBeat({
+        beat: entry.selfHosted,
+        idempotencyBase: `nickstire-repair-${entry.logicalRepairId}`,
+        prompt: buildRepairPrompt(beatPrompt.prompt, entry.instruction),
+        negativePrompt: beatPrompt.negativePrompt,
+        startImageUrl:
+          process.env.REEL_IMAGE_CONDITIONING === "true" && hero && /\.(jpe?g|png|webp)([?#]|$)/i.test(hero) ? hero : undefined,
+        persist,
+        heartbeat: async () => {
+          await d.update(reelJobs).set({ updatedAt: new Date() }).where(eq(reelJobs.id, job.id));
+        },
+        metadata: { reel_job_id: job.id, beat_number: entry.beatNumber, repair: entry.logicalRepairId },
+      });
+      newClipUrl = r.url;
+      settleUsd = r.receipt.computeUsd; // measured, not the estimate
+    } else if (repairProvider === "template_stock") {
       // Local ffmpeg re-render. It writes to disk first and re-hosts through
       // storagePut, exactly like the generation path — so it carries the same
       // durable-storage precondition. Without it the repaired clip lands on
@@ -364,7 +395,7 @@ export async function processNextRepairJob(): Promise<{ processed: boolean; jobI
         `beat repair has no branch for REEL_VIDEO_PROVIDER "${repairProvider}" — it must not fall through to another provider`,
       );
     }
-    await settle(reservationId, repairCostUsd);
+    await settle(reservationId, settleUsd);
     attempt.outcome = "succeeded";
     entry.attempts.push(attempt);
 
@@ -386,6 +417,20 @@ export async function processNextRepairJob(): Promise<{ processed: boolean; jobI
     log.info("beat repair rendered — job handed to assembly", { jobId: job.id, beat: entry.beatNumber, attempt: attemptNumber });
     return { processed: true, jobId: job.id, status: "assets_ready" };
   } catch (err) {
+    // A LOCAL timeout on a self-hosted render is not a failed attempt: the GPU
+    // job is alive and its key/id are on the entry. Keep the reservation open
+    // (the compute IS being spent), do not consume an attempt, and let the
+    // next pulse resume the SAME job. Failing it here and retrying under a new
+    // attempt number is exactly how a timeout buys a duplicate render.
+    if (repairProvider === "self_hosted" && (err as { isLocalTimeout?: boolean })?.isLocalTimeout === true) {
+      entry.state = "queued";
+      await d
+        .update(reelJobs)
+        .set({ status: "repair_queued", queueState: queueStateForReelStatus("repair_queued"), payload: JSON.stringify(payload), updatedAt: new Date() })
+        .where(eq(reelJobs.id, job.id));
+      log.info("self-hosted repair still rendering — resume same Video Forge job next pulse", { jobId: job.id, beat: entry.beatNumber });
+      return { processed: true, jobId: job.id, status: "repair_queued" };
+    }
     await failReservation(reservationId);
     attempt.error = err instanceof Error ? err.message.slice(0, 300) : String(err);
     entry.attempts.push(attempt);

@@ -244,8 +244,11 @@ export async function evaluateReelPublishGate(
   let beatRegenCostsCredits = true;
   try {
     const { selectReelVideoProvider } = await import("./reelPipeline");
-    const { reelClipCostUsd } = await import("./generationLedger");
-    beatRegenCostsCredits = reelClipCostUsd(await selectReelVideoProvider()) > 0;
+    // The POLICY answers "does this need a human's spend authorization", not
+    // `cost > 0`: a pre-authorized self-hosted GPU pool costs real money yet
+    // may repair inside the daily cap without a tap (generationLedger docs).
+    const { reelClipCostPolicy } = await import("./generationLedger");
+    beatRegenCostsCredits = reelClipCostPolicy(await selectReelVideoProvider()).requiresSpendApproval;
   } catch { /* unknown provider/cost → conservative: treat regen as paid */ }
 
   const { orchestratePostQa } = await import("./postQaOrchestrator");

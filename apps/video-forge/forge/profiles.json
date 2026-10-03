@@ -1,0 +1,100 @@
+{
+  "_doc": "Runtime copy of apps/nickstire/shared/mediaModelRegistry.ts. CI (mediaModelRegistry.test.ts) fails if ids/license_state/rollout drift. The worker refuses any profile whose license_state is not APPROVED_* unless FORGE_ALLOW_UNAPPROVED_FOR_TESTS=1 (CI mock only).",
+  "profiles": {
+    "ltx-2.5-dfr": {
+      "backend": "ltx2",
+      "pipeline": "dfr",
+      "license_state": "APPROVED_WITH_CONDITIONS",
+      "rollout": "built",
+      "i2v": true,
+      "first_last": true,
+      "durations": [
+        4,
+        5,
+        6,
+        8
+      ],
+      "max_long": 1920,
+      "max_short": 1080,
+      "fps": 24,
+      "hard_ceiling_s": 2400,
+      "stale_heartbeat_s": 180,
+      "checkpoint": "Lightricks/LTX-2.5"
+    },
+    "ltx-2.5-distilled": {
+      "backend": "ltx2",
+      "pipeline": "distilled",
+      "license_state": "APPROVED_WITH_CONDITIONS",
+      "rollout": "built",
+      "i2v": true,
+      "first_last": true,
+      "durations": [
+        4,
+        5,
+        6,
+        8
+      ],
+      "max_long": 1920,
+      "max_short": 1080,
+      "fps": 24,
+      "hard_ceiling_s": 900,
+      "stale_heartbeat_s": 120,
+      "checkpoint": "Lightricks/LTX-2.5"
+    },
+    "wan2.2-ti2v-5b": {
+      "backend": "wan22",
+      "pipeline": "ti2v-5B",
+      "license_state": "APPROVED_COMMERCIAL",
+      "rollout": "built",
+      "i2v": true,
+      "first_last": false,
+      "durations": [
+        4,
+        5
+      ],
+      "max_long": 1280,
+      "max_short": 720,
+      "fps": 24,
+      "hard_ceiling_s": 1800,
+      "stale_heartbeat_s": 180,
+      "checkpoint": "Wan-AI/Wan2.2-TI2V-5B"
+    },
+    "minimax-h3": {
+      "backend": "none",
+      "pipeline": "none",
+      "license_state": "TERRITORY_BLOCKED",
+      "rollout": "built",
+      "i2v": true,
+      "first_last": false,
+      "durations": [
+        6
+      ],
+      "max_long": 1920,
+      "max_short": 1080,
+      "fps": 24,
+      "hard_ceiling_s": 2700,
+      "stale_heartbeat_s": 180,
+      "checkpoint": "MiniMaxAI/MiniMax-H3"
+    },
+    "mock-testpattern": {
+      "backend": "mock",
+      "pipeline": "testsrc2",
+      "license_state": "UNKNOWN",
+      "rollout": "built",
+      "i2v": true,
+      "first_last": true,
+      "durations": [
+        4,
+        5,
+        6,
+        8
+      ],
+      "max_long": 1280,
+      "max_short": 720,
+      "fps": 24,
+      "hard_ceiling_s": 300,
+      "stale_heartbeat_s": 60,
+      "checkpoint": "none"
+    }
+  }
+}

@@ -1,0 +1,55 @@
+# Contract gate for NOUR Video Forge (apps/video-forge), the self-hosted GPU
+# generation service behind nickstire's `self_hosted` reel provider. Runs the
+# CPU mock backend only — no GPU, no model weights, no spend. Narrow by path
+# so ordinary web changes do not pay this cost.
+name: video-forge · contract
+
+on:
+  pull_request:
+    paths:
+      - 'apps/video-forge/**'
+      - '.github/workflows/video-forge.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/video-forge/**'
+      - '.github/workflows/video-forge.yml'
+
+concurrency:
+  group: video-forge-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || 'pr' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  python-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install ffmpeg (mock backend + ffprobe output validation)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Create isolated Python environment
+        working-directory: apps/video-forge
+        run: |
+          python3 --version
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check --quiet -r requirements-test.txt
+
+      - name: Syntax-check
+        working-directory: apps/video-forge
+        run: .venv/bin/python -m compileall -q forge bench
+
+      - name: Run contract tests
+        working-directory: apps/video-forge
+        run: .venv/bin/python -m unittest discover -v -s tests
+
+      - name: Corpus is reproducible from the committed reel packs
+        working-directory: apps/video-forge
+        run: |
+          .venv/bin/python bench/build_corpus.py > /dev/null
+          git diff --exit-code -- bench/corpus.v1.jsonl
