@@ -133,13 +133,16 @@ class JobStore:
             return self.get(row["id"])
 
     def heartbeat(self, job_id: str, progress: float | None = None) -> bool:
-        """Returns False when cancellation was requested (the backend should stop)."""
+        """Returns False when the backend should stop: cancellation was requested, OR
+        the job is no longer 'running' (reclaimed by the sweep as stale/over-ceiling).
+        Checking only cancel_requested let a reclaimed job keep the single GPU busy
+        for up to another hard ceiling, then have its success write ignored."""
         self._db.execute(
             "UPDATE jobs SET heartbeat_at=?, progress=COALESCE(?, progress) WHERE id=? AND status='running'",
             (_now(), progress, job_id),
         )
-        row = self._db.execute("SELECT cancel_requested FROM jobs WHERE id=?", (job_id,)).fetchone()
-        return not (row and row["cancel_requested"])
+        row = self._db.execute("SELECT status, cancel_requested FROM jobs WHERE id=?", (job_id,)).fetchone()
+        return bool(row) and row["status"] == "running" and not row["cancel_requested"]
 
     def succeed(self, job_id: str, output: dict[str, Any], gpu_seconds: float, gpu_type: str, model_version: str, workflow_version: str, seed: int | None) -> None:
         self._db.execute(
@@ -187,14 +190,24 @@ class JobStore:
                     )
         return n
 
-    def reclaim_stale(self, stale_after_s: dict[str, float], hard_ceiling_s: dict[str, float]) -> list[str]:
-        """Live-process sweep: silent or over-ceiling running jobs become failed (never zombies)."""
+    def reclaim_stale(self, stale_after_s: dict[str, float], hard_ceiling_s: dict[str, float], queue_ttl_s: float = 4 * 3600) -> list[str]:
+        """Live-process sweep: silent or over-ceiling running jobs become failed (never zombies).
+
+        The render ceiling runs from STARTED_AT, never created_at: with one worker and
+        ~9-minute Wan renders, measuring from submit failed the later beats of a reel
+        with `hard_ceiling` before they ever reached the GPU. Queued rows get their own,
+        longer TTL so an abandoned queue still drains."""
         t = _now()
         out = []
-        for row in self._db.execute("SELECT id, profile, created_at, heartbeat_at FROM jobs WHERE status IN ('running','queued')").fetchall():
+        for row in self._db.execute("SELECT id, profile, status, created_at, started_at, heartbeat_at FROM jobs WHERE status IN ('running','queued')").fetchall():
             ceiling = hard_ceiling_s.get(row["profile"], 1800)
             stale = stale_after_s.get(row["profile"], 180)
-            if t - row["created_at"] > ceiling:
+            if row["status"] == "queued":
+                if t - row["created_at"] > queue_ttl_s:
+                    self.fail(row["id"], "queue_timeout", f"queued longer than {int(queue_ttl_s)}s")
+                    out.append(row["id"])
+                continue
+            if row["started_at"] is not None and t - row["started_at"] > ceiling:
                 self.fail(row["id"], "hard_ceiling", f"exceeded {int(ceiling)}s")
                 out.append(row["id"])
             elif row["heartbeat_at"] is not None and t - row["heartbeat_at"] > stale:

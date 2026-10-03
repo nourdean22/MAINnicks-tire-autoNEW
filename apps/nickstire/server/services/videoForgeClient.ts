@@ -177,13 +177,47 @@ async function forgeFetch(
   });
 }
 
+/** Forge's own refusals carry `{error_code, detail}`; plain-HTTP errors carry `{detail}`. */
+async function readForgeError(res: Response): Promise<{ error_code?: string; detail?: string }> {
+  const text = await res.text().catch(() => "");
+  try {
+    const j = JSON.parse(text) as { error_code?: string; detail?: unknown };
+    return { error_code: j.error_code, detail: typeof j.detail === "string" ? j.detail : text.slice(0, 200) };
+  } catch {
+    return { detail: text.slice(0, 200) };
+  }
+}
+
+/** Codes that mean "this worker will never do this as configured" — pause the lane, never retry. */
+const CONFIG_REFUSALS = new Set(["license_blocked", "config_unavailable"]);
+
 async function readJob(res: Response, context: string): Promise<ForgeJobView> {
   if (res.status === 401 || res.status === 403) {
+    // A 403 license refusal is NOT a bad signature. Reading it as one classified a
+    // license gate as AUTH_INVALID — the exact confusion PROVIDER_CONFIG_BLOCKED exists for.
+    const e = await readForgeError(res);
+    if (e.error_code && CONFIG_REFUSALS.has(e.error_code)) {
+      throw new VideoForgeTerminalError(e.error_code, forgeErrorMessage(e.error_code, e.detail || context));
+    }
     throw new Error(`${res.status} unauthorized: video forge rejected the signature (${context})`);
   }
-  if (res.status === 429 || res.status === 503) {
+  if (res.status === 503) {
+    // 503 is either "busy" or "refusing everything" (no / too-short FORGE_SECRET).
+    // The second never clears on its own, so it must not retry as capacity forever.
+    const e = await readForgeError(res);
+    if ((e.error_code && CONFIG_REFUSALS.has(e.error_code)) || /FORGE_SECRET/.test(e.detail ?? "")) {
+      throw new VideoForgeTerminalError("config_unavailable", forgeErrorMessage("config_unavailable", `${context}: ${e.detail ?? "HTTP 503"}`));
+    }
+    throw new Error(forgeErrorMessage("capacity_unavailable", `${context}: HTTP 503 ${e.detail ?? ""}`));
+  }
+  if (res.status === 429) {
     const text = await res.text().catch(() => "");
-    throw new Error(forgeErrorMessage("capacity_unavailable", `${context}: HTTP ${res.status} ${text.slice(0, 200)}`));
+    throw new Error(forgeErrorMessage("capacity_unavailable", `${context}: HTTP 429 ${text.slice(0, 200)}`));
+  }
+  if (res.status === 404 && context === "poll") {
+    // The worker no longer knows this job (store lost, container replaced). Re-polling
+    // a dead id until attempts run out never recovers; terminal lets the key advance.
+    throw new VideoForgeTerminalError("worker_restart_lost", forgeErrorMessage("worker_restart_lost", "video forge has no record of this job (404)"));
   }
   if (res.status === 409) {
     throw new VideoForgeTerminalError("invalid_input", forgeErrorMessage("invalid_input", `${context}: idempotency key reused with a different request`));
@@ -286,14 +320,43 @@ function looksLikeMp4(buf: Buffer): boolean {
   return buf.length > 12 && buf.subarray(4, 8).toString("latin1") === "ftyp";
 }
 
+/** Hard cap when a receipt has no byte count (it always should). */
+const MAX_OUTPUT_BYTES = 200 * 1024 * 1024;
+
+/**
+ * Why a hero-frame URL may not be fetched server-side, or null when it may.
+ * https only; no IP-literal or localhost hosts; optionally a host allowlist
+ * (VIDEO_FORGE_HERO_HOSTS, comma-separated) for when the storage host is fixed.
+ */
+function heroUrlRefusal(raw: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return "hero frame URL is not a URL";
+  }
+  if (u.protocol !== "https:") return "hero frame URL must be https";
+  const host = u.hostname.toLowerCase();
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".internal") || host.endsWith(".local")) {
+    return "hero frame URL points at an internal host";
+  }
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.startsWith("[")) return "hero frame URL must use a hostname, not an IP";
+  const allow = (env.VIDEO_FORGE_HERO_HOSTS || "").split(",").map((h) => h.trim().toLowerCase()).filter(Boolean);
+  if (allow.length && !allow.some((h) => host === h || host.endsWith(`.${h}`))) return `hero frame host ${host} is not allowed`;
+  return null;
+}
+
 /** Verify the output against the job's own receipt before it becomes canonical. */
 export function verifyForgeOutput(job: ForgeJobView, buf: Buffer, expect: { width: number; height: number }): void {
   const o = job.output;
   if (!o) throw new VideoForgeTerminalError("output_validation_failure", forgeErrorMessage("output_validation_failure", "succeeded job has no output receipt"), job.id);
-  if (buf.length < MIN_CLIP_BYTES) throw new VideoForgeTerminalError("output_validation_failure", forgeErrorMessage("output_validation_failure", `clip suspiciously small (${buf.length} bytes)`), job.id);
+  // Transport checks FIRST: a truncated download is retryable (re-download, same
+  // job). Checked after the size floor, a short truncation read as a terminal bad
+  // clip and bought a new GPU render instead.
   if (buf.length !== o.bytes) throw new Error(`truncated download: video forge output ${buf.length} bytes, receipt says ${o.bytes}`);
   const sha = createHash("sha256").update(buf).digest("hex");
   if (sha !== o.sha256) throw new Error(`truncated download: video forge output sha256 mismatch (${sha.slice(0, 12)} vs ${o.sha256.slice(0, 12)})`);
+  if (buf.length < MIN_CLIP_BYTES) throw new VideoForgeTerminalError("output_validation_failure", forgeErrorMessage("output_validation_failure", `clip suspiciously small (${buf.length} bytes)`), job.id);
   if (!looksLikeMp4(buf) || !/^video\/mp4$/i.test(o.mime)) throw new VideoForgeTerminalError("output_validation_failure", forgeErrorMessage("output_validation_failure", `not an mp4 (${o.mime})`), job.id);
   if (o.width !== expect.width || o.height !== expect.height) {
     throw new VideoForgeTerminalError("output_validation_failure", forgeErrorMessage("output_validation_failure", `crop/aspect mismatch ${o.width}x${o.height} != ${expect.width}x${expect.height}`), job.id);
@@ -303,7 +366,15 @@ export function verifyForgeOutput(job: ForgeJobView, buf: Buffer, expect: { widt
 /** Pull, verify, re-host. Deterministic key → a retried re-host overwrites, never duplicates. */
 async function fetchAndRehostForgeOutput(job: ForgeJobView, expect: { width: number; height: number }, deps: ForgeDeps = {}): Promise<string> {
   const res = await forgeFetch("GET", `/v1/jobs/${encodeURIComponent(job.id)}/output`, undefined, deps, 120_000);
+  if (res.status === 404) {
+    // Succeeded but the file is gone: re-fetching cannot recover it; let the key advance.
+    throw new VideoForgeTerminalError("worker_restart_lost", forgeErrorMessage("worker_restart_lost", `output for ${job.id} is missing on the worker`), job.id);
+  }
   if (!res.ok) throw new Error(`fetch failed: video forge output HTTP ${res.status}`);
+  // Refuse before buffering: the receipt says how big the clip is.
+  const declared = Number(res.headers.get("content-length"));
+  const cap = (job.output?.bytes ?? MAX_OUTPUT_BYTES) + 1024;
+  if (Number.isFinite(declared) && declared > cap) throw new Error(`video forge output ${declared} bytes exceeds receipt (${cap})`);
   const buf = Buffer.from(await res.arrayBuffer());
   verifyForgeOutput(job, buf, expect);
   const { storagePut } = await import("../storage");
@@ -313,9 +384,21 @@ async function fetchAndRehostForgeOutput(job: ForgeJobView, expect: { width: num
 
 /** Read an approved hero frame from our own storage as base64, bounded. */
 async function loadReferenceImageB64(url: string, deps: ForgeDeps = {}): Promise<string> {
+  // heroFrameUrl is admin-supplied text. Fetching it server-side without a check is a
+  // blind SSRF into the Railway network (e.g. a link-local metadata address).
+  const refusal = heroUrlRefusal(url, deps.env ?? process.env);
+  if (refusal) throw new VideoForgeTerminalError("invalid_reference_image", forgeErrorMessage("invalid_reference_image", refusal));
   const f = deps.fetchImpl ?? fetch;
-  const res = await f(url, { signal: AbortSignal.timeout(30_000) });
+  const res = await f(url, { signal: AbortSignal.timeout(30_000), redirect: "error" });
+  if (res.status >= 500 || res.status === 429) {
+    // Storage outage, not a bad prompt: retryable, no attempt burned as PROMPT_INVALID.
+    throw new Error(`fetch failed: hero frame HTTP ${res.status}`);
+  }
   if (!res.ok) throw new VideoForgeTerminalError("invalid_reference_image", forgeErrorMessage("invalid_reference_image", `hero frame HTTP ${res.status}`));
+  const declared = Number(res.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_IMAGE_BYTES) {
+    throw new VideoForgeTerminalError("invalid_reference_image", forgeErrorMessage("invalid_reference_image", `hero frame ${declared} bytes (max ${MAX_IMAGE_BYTES})`));
+  }
   const buf = Buffer.from(await res.arrayBuffer());
   if (buf.length === 0 || buf.length > MAX_IMAGE_BYTES) {
     throw new VideoForgeTerminalError("invalid_reference_image", forgeErrorMessage("invalid_reference_image", `hero frame ${buf.length} bytes (max ${MAX_IMAGE_BYTES})`));

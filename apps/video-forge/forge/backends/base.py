@@ -40,6 +40,12 @@ def classify_stderr(stderr: str) -> str:
     return "inference_failure"
 
 
+def _seed(req: dict[str, Any]) -> int:
+    """`seed or 42` turned a requested seed of 0 into 42; only a MISSING seed defaults."""
+    seed = req.get("seed")
+    return 42 if seed is None else int(seed)
+
+
 def run_supervised(cmd: list[str], heartbeat: Heartbeat, timeout_s: float, env: dict[str, str] | None = None, cwd: str | None = None) -> None:
     """Run a generator subprocess, heartbeating every few seconds; kill on cancel/timeout."""
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, cwd=cwd if cwd and os.path.isdir(cwd) else None)

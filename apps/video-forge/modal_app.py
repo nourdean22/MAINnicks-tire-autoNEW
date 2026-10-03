@@ -20,11 +20,19 @@ Design notes:
 """
 import modal
 
-image = (
-    modal.Image.from_registry("nvidia/cuda:12.8.0-cudnn-runtime-ubuntu24.04", add_python="3.12")
-    .apt_install("git", "ffmpeg")
-    .pip_install("fastapi>=0.115,<1", "uvicorn>=0.30,<1", "pydantic>=2.7,<3")
-    .add_local_dir("apps/video-forge/forge", "/srv/forge")
+# Built FROM THE SAME Dockerfile as the RunPod image. The first version installed
+# only fastapi/uvicorn/pydantic, so every LTX/Wan job would have died with
+# "No module named ltx_pipelines" / "generate.py not found". Pin the model code:
+#   LTX2_REF=<sha> WAN22_REF=<sha> modal deploy apps/video-forge/modal_app.py
+import os as _os
+
+image = modal.Image.from_dockerfile(
+    "apps/video-forge/Dockerfile",
+    context_dir="apps/video-forge",
+    build_args={
+        "LTX2_REF": _os.environ.get("LTX2_REF", "UNPINNED"),
+        "WAN22_REF": _os.environ.get("WAN22_REF", "UNPINNED"),
+    },
 )
 models = modal.Volume.from_name("video-forge-models", create_if_missing=True)
 data = modal.Volume.from_name("video-forge-data", create_if_missing=True)
