@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -19,6 +22,156 @@ from scripts.write_model_manifest import write_manifest
 WAN_CODE_SHA = WAN_5B_CODE_REF
 WAN_REPO = "Wan-AI/Wan2.2-TI2V-5B"
 LTX_CODE_SHA = "b" * 40
+
+
+def _fake_modal_module() -> tuple[types.ModuleType, list[tuple[str, object]]]:
+    calls: list[tuple[str, object]] = []
+    module = types.ModuleType("modal")
+
+    class FakeImage:
+        @classmethod
+        def from_dockerfile(cls, *args, **kwargs):
+            calls.append(("from_dockerfile", {"args": args, "kwargs": kwargs}))
+            return cls()
+
+        @classmethod
+        def debian_slim(cls, *args, **kwargs):
+            calls.append(("debian_slim", {"args": args, "kwargs": kwargs}))
+            return cls()
+
+        def pip_install(self, *args, **kwargs):
+            calls.append(("pip_install", {"args": args, "kwargs": kwargs}))
+            return self
+
+        def add_local_python_source(self, *modules, **kwargs):
+            calls.append(("add_local_python_source", {"modules": modules, "kwargs": kwargs}))
+            return self
+
+    class FakeVolume:
+        @classmethod
+        def from_name(cls, *args, **kwargs):
+            calls.append(("volume_from_name", {"args": args, "kwargs": kwargs}))
+            return cls()
+
+        def commit(self):
+            calls.append(("volume_commit", {}))
+
+    class FakeSecret:
+        @classmethod
+        def from_name(cls, *args, **kwargs):
+            calls.append(("secret_from_name", {"args": args, "kwargs": kwargs}))
+            return cls()
+
+    class FakeApp:
+        def __init__(self, *args, **kwargs):
+            calls.append(("app_init", {"args": args, "kwargs": kwargs}))
+
+        def function(self, *args, **kwargs):
+            calls.append(("function_decorator", {"args": args, "kwargs": kwargs}))
+            return lambda fn: fn
+
+    def asgi_app(*args, **kwargs):
+        calls.append(("asgi_app", {"args": args, "kwargs": kwargs}))
+        return lambda fn: fn
+
+    module.Image = FakeImage
+    module.Volume = FakeVolume
+    module.Secret = FakeSecret
+    module.App = FakeApp
+    module.asgi_app = asgi_app
+    return module, calls
+
+
+def _exec_modal_app(enabled_profiles: str):
+    root = Path(__file__).resolve().parents[1]
+    stub, calls = _fake_modal_module()
+    name = f"_video_forge_modal_probe_{abs(hash((enabled_profiles, id(calls))))}"
+    spec = importlib.util.spec_from_file_location(name, root / "modal_app.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    env = {
+        "FORGE_INSTALL_LTX": "0",
+        "FORGE_INSTALL_WAN": "1",
+        "FORGE_ENABLED_PROFILES": enabled_profiles,
+        "WAN22_REF": WAN_CODE_SHA,
+        "LTX2_REF": "UNPINNED",
+        "FORGE_MODAL_GPU": "A100-40GB",
+    }
+    error: BaseException | None = None
+    with patch.dict(os.environ, env, clear=False), patch.dict(sys.modules, {"modal": stub}):
+        sys.modules[name] = module
+        try:
+            spec.loader.exec_module(module)
+        except BaseException as exc:  # returned to tests so they can inspect pre-image failures
+            error = exc
+        finally:
+            sys.modules.pop(name, None)
+    return module, calls, error
+
+
+def _find_working_bash() -> str | None:
+    candidates: list[str] = []
+    if os.name == "nt":
+        candidates.extend([
+            r"C:\Program Files\Git\bin\bash.exe",
+            r"C:\Program Files\Git\usr\bin\bash.exe",
+        ])
+    discovered = shutil.which("bash")
+    if discovered:
+        candidates.append(discovered)
+    for candidate in candidates:
+        if not candidate or not Path(candidate).is_file():
+            continue
+        probe = subprocess.run([candidate, "--version"], capture_output=True, text=True, check=False)
+        if probe.returncode == 0:
+            return candidate
+    return None
+
+
+def _run_fetch_models(extra_env: dict[str, str]):
+    root = Path(__file__).resolve().parents[1]
+    bash = _find_working_bash()
+    if not bash:
+        raise unittest.SkipTest("bash is unavailable")
+    with tempfile.TemporaryDirectory() as td:
+        temp_root = Path(td)
+        log = temp_root / "mock.log"
+        models = temp_root / "models"
+        models.mkdir()
+        env = os.environ.copy()
+        for key in (
+            "LTX25_REV",
+            "LTX25_DFR_LORA_REV",
+            "WAN22_REV",
+            "WAN22_A14B_REV",
+            "FETCH_LTX",
+            "FETCH_LTX_DFR",
+            "FETCH_WAN",
+        ):
+            env.pop(key, None)
+        env.update(extra_env)
+        # Git Bash understands drive-letter paths with forward slashes.
+        env["FETCH_SCRIPT"] = str(root / "scripts" / "fetch_models.sh").replace("\\", "/")
+        env["MOCK_LOG"] = str(log).replace("\\", "/")
+        env["MODELS_DIR"] = str(models).replace("\\", "/")
+        wrapper = r"""
+pip() { printf 'pip %s\n' "$*" >> "$MOCK_LOG"; }
+huggingface-cli() { printf 'huggingface-cli %s\n' "$*" >> "$MOCK_LOG"; }
+python3() { printf 'python3 %s\n' "$*" >> "$MOCK_LOG"; }
+find() { return 0; }
+xargs() { cat >/dev/null; return 0; }
+tee() { cat >/dev/null; return 0; }
+source "$FETCH_SCRIPT"
+"""
+        result = subprocess.run(
+            [bash, "-c", wrapper],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        log_text = log.read_text(encoding="utf-8") if log.exists() else ""
+        return result, log_text
 
 
 class CanaryPreflightTests(unittest.TestCase):
@@ -57,24 +210,121 @@ class CanaryPreflightTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "FORGE_INSTALL_WAN=1"):
             validate_enabled_profiles("wan2.2-ti2v-5b", "0", "0", profiles)
 
-    def test_weight_fetch_writes_revision_manifest(self):
-        source = (Path(__file__).resolve().parents[1] / "modal_app.py").read_text(encoding="utf-8")
-        self.assertIn('"MANIFEST.json"', source)
-        self.assertIn('"revision": WAN_5B["revision"]', source)
-        self.assertIn('f.relative_to(root).as_posix()', source)
+    def test_modal_module_rejects_typo_before_image_declaration(self):
+        _module, calls, error = _exec_modal_app("wan2.2-ti2v-5B")
+        self.assertIsInstance(error, ValueError)
+        self.assertIn("unknown FORGE_ENABLED_PROFILES", str(error))
+        self.assertFalse(any(name == "from_dockerfile" for name, _payload in calls), calls)
 
-    def test_runpod_fetch_writes_model_manifests(self):
-        source = (Path(__file__).resolve().parents[1] / "scripts" / "fetch_models.sh").read_text(encoding="utf-8")
-        self.assertIn("write_model_manifest.py", source)
-        self.assertIn('Wan2.2-TI2V-5B" --repo Wan-AI/Wan2.2-TI2V-5B', source)
-        # The first Wan canary must not require or fetch gated LTX weights.
-        self.assertIn(': "${FETCH_LTX:=1}"', source)
-        self.assertIn(': "${FETCH_LTX_DFR:=0}"', source)
-        self.assertIn('if [ "$FETCH_LTX" = "1" ]; then', source)
-        self.assertIn('if [ "$FETCH_WAN" = "1" ]; then', source)
-        self.assertIn('pin LTX25_REV when FETCH_LTX=1', source)
-        self.assertIn('pin LTX25_DFR_LORA_REV when FETCH_LTX_DFR=1', source)
-        self.assertIn('pin WAN22_REV when FETCH_WAN=1', source)
+    def test_modal_module_valid_profile_reaches_image_declaration(self):
+        module, calls, error = _exec_modal_app("wan2.2-ti2v-5b")
+        self.assertIsNone(error, error)
+        image_calls = [payload for name, payload in calls if name == "from_dockerfile"]
+        self.assertEqual(len(image_calls), 1)
+        self.assertEqual(
+            image_calls[0]["kwargs"]["build_args"]["ENABLED_PROFILES"],
+            "wan2.2-ti2v-5b",
+        )
+        self.assertEqual(image_calls[0]["kwargs"]["build_args"]["INSTALL_LTX"], "0")
+        self.assertEqual(image_calls[0]["kwargs"]["build_args"]["INSTALL_WAN"], "1")
+        self.assertTrue(callable(module.forge))
+
+    def test_modal_factory_import_constructs_one_forge_and_no_global_app(self):
+        root = Path(__file__).resolve().parents[1]
+        env = os.environ.copy()
+        env.update(
+            {
+                "FORGE_SECRET": "x" * 32,
+                "FORGE_FACTORY_ONLY": "1",
+                "FORGE_REQUIRE_VERIFIED_MODELS": "0",
+            }
+        )
+        probe = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import forge.app as module; assert module.app is None; print('factory-only-ok')",
+            ],
+            cwd=root,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(probe.returncode, 0, probe.stdout + probe.stderr)
+        self.assertIn("factory-only-ok", probe.stdout)
+
+        module, _calls, error = _exec_modal_app("wan2.2-ti2v-5b")
+        self.assertIsNone(error, error)
+        created: list[bool] = []
+
+        def fake_create_app(*, start_worker: bool = True):
+            self.assertEqual(os.environ.get("FORGE_FACTORY_ONLY"), "1")
+            created.append(start_worker)
+            return object()
+
+        original_path = list(sys.path)
+        try:
+            with patch("forge.app.create_app", side_effect=fake_create_app):
+                with patch.dict(os.environ, {"FORGE_FACTORY_ONLY": "0"}, clear=False):
+                    module.forge()
+        finally:
+            sys.path[:] = original_path
+        self.assertEqual(created, [True])
+
+    def test_modal_fetch_image_packages_shared_manifest_writer(self):
+        module, calls, error = _exec_modal_app("wan2.2-ti2v-5b")
+        self.assertIsNone(error, error)
+        packaged = [payload for name, payload in calls if name == "add_local_python_source"]
+        self.assertEqual(len(packaged), 1)
+        self.assertIn("scripts.write_model_manifest", packaged[0]["modules"])
+        self.assertIn("forge.model_manifest", packaged[0]["modules"])
+        self.assertTrue(callable(module.fetch_wan_5b))
+
+    def test_fetch_models_dfr_without_separate_pin_fails(self):
+        result, log = _run_fetch_models(
+            {
+                "FETCH_LTX": "1",
+                "FETCH_LTX_DFR": "1",
+                "FETCH_WAN": "0",
+                "LTX25_REV": "ltx-rev",
+            }
+        )
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("LTX25_DFR_LORA_REV", result.stderr)
+        self.assertIn("Lightricks/LTX-2.5", log)
+        self.assertNotIn("LTX-2.5-22b-IC-LoRA-Pixel-Spatial-Upscaler", log)
+
+    def test_fetch_models_wan_only_never_touches_ltx(self):
+        result, log = _run_fetch_models(
+            {
+                "FETCH_LTX": "0",
+                "FETCH_LTX_DFR": "0",
+                "FETCH_WAN": "1",
+                "WAN22_REV": WAN_5B_REVISION,
+            }
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Wan-AI/Wan2.2-TI2V-5B", log)
+        self.assertIn("write_model_manifest.py", log)
+        self.assertNotIn("Lightricks/LTX-2.5", log)
+        self.assertNotIn("IC-LoRA", log)
+
+    def test_fetch_models_valid_dfr_selection_reaches_expected_commands(self):
+        result, log = _run_fetch_models(
+            {
+                "FETCH_LTX": "1",
+                "FETCH_LTX_DFR": "1",
+                "FETCH_WAN": "0",
+                "LTX25_REV": "ltx-rev",
+                "LTX25_DFR_LORA_REV": "dfr-rev",
+            }
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Lightricks/LTX-2.5 --revision ltx-rev", log)
+        self.assertIn("LTX-2.5-22b-IC-LoRA-Pixel-Spatial-Upscaler --revision dfr-rev", log)
+        self.assertGreaterEqual(log.count("write_model_manifest.py"), 2)
+        self.assertNotIn("Wan-AI/Wan2.2", log)
 
     def test_docker_receipt_provenance_is_verified_at_runtime(self):
         dockerfile = (Path(__file__).resolve().parents[1] / "Dockerfile").read_text(encoding="utf-8")
@@ -85,23 +335,48 @@ class CanaryPreflightTests(unittest.TestCase):
         self.assertIn("FORGE_ENABLED_PROFILES=$ENABLED_PROFILES", dockerfile)
         self.assertNotIn("FORGE_WAN_REV=$WAN22_WEIGHT_REV", dockerfile)
 
-    def test_manifest_writer_hashes_relative_weight_paths(self):
+    def test_manifest_writer_hashes_all_runtime_artifacts_and_ignores_cache(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             nested = root / "nested"
+            tokenizer = root / "tokenizer"
+            cache = root / ".cache" / "huggingface"
             nested.mkdir()
-            weight = nested / "weights.safetensors"
-            weight.write_bytes(b"abc")
+            tokenizer.mkdir()
+            cache.mkdir(parents=True)
+            (nested / "weights.safetensors").write_bytes(b"abc")
+            (root / "config.json").write_bytes(b'{"model":"wan"}')
+            (tokenizer / "tokenizer.json").write_bytes(b'{"tokens":["a"]}')
+            (tokenizer / "MANIFEST.json").write_bytes(b'{"runtime":"nested"}')
+            (cache / "download.lock").write_bytes(b"transport-metadata")
             manifest = write_manifest(root, "Wan-AI/test", WAN_5B_REVISION)
             saved = json.loads((root / "MANIFEST.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest, saved)
             self.assertEqual(saved["revision"], WAN_5B_REVISION)
-            self.assertEqual(saved["total_bytes"], 3)
+            self.assertEqual(
+                set(saved["files"]),
+                {
+                    "nested/weights.safetensors",
+                    "config.json",
+                    "tokenizer/tokenizer.json",
+                    "tokenizer/MANIFEST.json",
+                },
+            )
+            self.assertEqual(
+                saved["total_bytes"],
+                len(b"abc")
+                + len(b'{"model":"wan"}')
+                + len(b'{"tokens":["a"]}')
+                + len(b'{"runtime":"nested"}'),
+            )
             self.assertEqual(
                 saved["files"]["nested/weights.safetensors"],
                 "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
             )
-            self.assertIn("nested/weights.safetensors", (root / "SHA256SUMS").read_text(encoding="utf-8"))
+            sums = (root / "SHA256SUMS").read_text(encoding="utf-8")
+            self.assertIn("config.json", sums)
+            self.assertIn("tokenizer/tokenizer.json", sums)
+            self.assertNotIn(".cache", sums)
 
     def test_wrong_weight_env_revision_is_refused(self):
         result = validate(
@@ -210,9 +485,14 @@ class CanaryPreflightTests(unittest.TestCase):
         self.assertIn('cpu=float(_os.environ.get("FORGE_MODAL_CPU", "4"))', source)
         self.assertIn('os.environ.setdefault("FORGE_REQUIRE_VERIFIED_MODELS", "1")', source)
 
-    def test_readme_runpod_canary_disables_ltx_fetch(self):
+    def test_readme_runpod_canary_disables_ltx_fetch_and_build(self):
         source = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
         self.assertIn("FETCH_LTX=0 FETCH_WAN=1 WAN22_REV=", source)
+        self.assertIn("--build-arg INSTALL_LTX=0", source)
+        self.assertIn("--build-arg INSTALL_WAN=1", source)
+        self.assertIn("--build-arg ENABLED_PROFILES=wan2.2-ti2v-5b", source)
+        self.assertIn("--build-arg WAN22_REF=" + WAN_CODE_SHA, source)
+        self.assertIn("--build-arg WAN22_WEIGHT_REV=" + WAN_5B_REVISION, source)
         self.assertIn("FETCH_LTX=1 FETCH_LTX_DFR=1", source)
 
     def test_runtime_derives_receipt_revision_from_verified_manifest(self):
@@ -306,6 +586,38 @@ class CanaryPreflightTests(unittest.TestCase):
             )
         self.assertFalse(result["ok"])
         self.assertTrue(any("sha256 mismatch" in e for e in result["errors"]))
+
+    def test_corrupted_config_or_tokenizer_artifact_is_refused(self):
+        for rel in ("config.json", "tokenizer/tokenizer.json"):
+            with self.subTest(rel=rel), tempfile.TemporaryDirectory() as td:
+                d = Path(td)
+                target = d / rel
+                target.parent.mkdir(parents=True, exist_ok=True)
+                (d / "weights.safetensors").write_bytes(b"weights")
+                target.write_bytes(b"before")
+                write_manifest(d, WAN_REPO, WAN_5B_REVISION)
+                target.write_bytes(b"after")
+                result = validate(
+                    "wan2.2-ti2v-5b",
+                    {"FORGE_INSTALL_LTX": "0", "FORGE_INSTALL_WAN": "1", "WAN22_REF": WAN_CODE_SHA},
+                    d,
+                )
+                self.assertFalse(result["ok"])
+                self.assertTrue(any("sha256 mismatch" in e for e in result["errors"]), result)
+
+    def test_new_unmanifested_runtime_artifact_is_refused(self):
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            (d / "weights.safetensors").write_bytes(b"weights")
+            write_manifest(d, WAN_REPO, WAN_5B_REVISION)
+            (d / "tokenizer_config.json").write_text('{"added":"later"}', encoding="utf-8")
+            result = validate(
+                "wan2.2-ti2v-5b",
+                {"FORGE_INSTALL_LTX": "0", "FORGE_INSTALL_WAN": "1", "WAN22_REF": WAN_CODE_SHA},
+                d,
+            )
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("unverified runtime artifacts" in e for e in result["errors"]), result)
 
     def test_checksum_file_must_match_manifest(self):
         with tempfile.TemporaryDirectory() as td:

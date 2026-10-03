@@ -81,17 +81,19 @@ research-only and FLUX dev is non-commercial; both are rejected.
 | Wan 2.5/2.6/3.0 | — | — | REJECTED (no downloadable weights) | — |
 
 Evidence for these states comes from the Model Council reports for this
-mission, which cite the license files directly. Checkpoint sha256s are
-`UNPINNED` until the canary pins them.
+mission, which cite the license files directly. The first Wan5B code/checkpoint
+revisions are pinned above; per-file artifact sha256s remain unmeasured until
+the pinned checkpoint is fetched and its full manifest is written.
 
 ## Operator actions remaining
 
-1. Authorize GPU spend and a cap for the canary. Use one 80 GB GPU on RunPod or Modal.
-2. Confirm Nick's is under the $10M LTX revenue threshold. If not, use Wan 2.2 only.
-3. Deploy the worker, pin model revisions and sha256s, and run `scripts/video-forge-e2e.ts`.
-   - Build with `LTX2_REF=<sha> WAN22_REF=<sha>`. An unpinned build is refused unless `ALLOW_UNPINNED=1` is passed on purpose. Modal builds from the same Dockerfile.
+1. Authorize GPU spend and a cap for the canary. The **first** proof is Wan 2.2 TI2V-5B on Modal's exact `A100-40GB` (or an equivalent 40 GB RunPod A100); use 80 GB only for the later LTX quality comparison.
+2. Confirm Nick's is under the $10M LTX revenue threshold before any LTX canary. If not, keep LTX disabled and use Wan 2.2 only.
+3. Deploy only the verified Wan5B worker and run `scripts/video-forge-e2e.ts`.
+   - Pin Wan code to `1ea34ff48f87168174e12956e200b1d908b1c5ff` and checkpoint revision to `921dbaf3f1674a56f47e83fb80a34bac8a8f203e`.
+   - A direct RunPod Docker build must pass `--build-arg INSTALL_LTX=0 --build-arg INSTALL_WAN=1 --build-arg ENABLED_PROFILES=wan2.2-ti2v-5b` plus the two Wan revision build args shown in `apps/video-forge/README.md`. Runtime `FORGE_*` variables do not replace Docker build args.
    - `FORGE_SECRET` must be at least 32 characters; a shorter one refuses every request.
-   - After the first fetch, commit the printed sums as `apps/video-forge/forge/SHA256SUMS.expected`. Later fetches then verify against it.
+   - Each fetched checkpoint writes its own full-artifact `MANIFEST.json` + `SHA256SUMS`; those are authoritative. No global tensor-only checksum file is used.
    - Optional: `FORGE_GPU_VRAM_GB` (otherwise read from `nvidia-smi`; unknown means Wan's low-memory flags), and `VIDEO_FORGE_HERO_HOSTS` to restrict hero-frame hosts.
 4. Run the bake-off: 48 cases × {Higgsfield baseline, LTX distilled, LTX DFR, Wan 5B, Wan A14B} × {text, hero}. Wan A14B runs the hero arm only. Then rendered QA and blind pairwise review. Decide on cost per **accepted** clip.
 5. Only then: set `rollout: operator_selectable` in both registries, set `REEL_VIDEO_PROVIDER=self_hosted` on a limited cadence, and keep Higgsfield as the fallback.

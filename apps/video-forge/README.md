@@ -66,18 +66,30 @@ python scripts/canary_preflight.py --profile wan2.2-ti2v-5b
 
 This preflight intentionally supports **only** `wan2.2-ti2v-5b`; A14B and LTX
 remain blocked until they get their own exact code + weight pins and regression tests.
-After weights are populated locally/RunPod, run the same preflight with
-`--model-dir /models/Wan2.2-TI2V-5B`. It re-hashes every recorded weight and
-requires `SHA256SUMS` plus `MANIFEST.json` with the exact repo/revision. The
-runtime repeats that verification before serving the profile, and derives the
-receipt's weight revision from the verified manifest. The preflight never
+After the checkpoint is populated locally/RunPod, run the same preflight with
+`--model-dir /models/Wan2.2-TI2V-5B`. It re-hashes every inference-visible
+checkpoint artifact (weights, configs, tokenizer files, etc.) while excluding
+only known local cache/generated provenance metadata, and requires `SHA256SUMS`
+plus `MANIFEST.json` with the exact repo/revision. The runtime repeats that
+verification before serving the profile, and derives the receipt's checkpoint
+revision from the verified manifest. The preflight never
 allocates a GPU, downloads weights, or changes production state.
 
 ## GPU canary (operator action, needs spend approval)
 
 1. Lowest-risk first proof: Wan 2.2 TI2V-5B only, with `FORGE_INSTALL_LTX=0` and `FORGE_ENABLED_PROFILES=wan2.2-ti2v-5b`. On Modal use `FORGE_MODAL_GPU=A100-40GB` for an exact 40 GB card; the Function reserves 4 CPU cores + 96 GiB host RAM for the upstream offload/T5-on-CPU path. `A100` is also valid but Modal may upgrade it to 80 GB.
-2. Fetch only Wan. On Modal run `fetch_wan_5b`. On RunPod use: `FETCH_LTX=0 FETCH_WAN=1 WAN22_REV=921dbaf3f1674a56f47e83fb80a34bac8a8f203e scripts/fetch_models.sh`. Preserve the generated revision manifest + sha256s, then copy accepted checkpoint hashes into `forge/profiles.json` and `apps/nickstire/shared/mediaModelRegistry.ts`.
-3. Start the worker without `FORGE_ALLOW_UNAPPROVED_FOR_TESTS` or `FORGE_BACKEND_OVERRIDE`. It refuses unverified mounted Wan bytes before accepting work, and the Docker build verifies the pinned FlashAttention wheel hash before installing it.
+2. Fetch only Wan. On Modal run `fetch_wan_5b`. On RunPod use: `FETCH_LTX=0 FETCH_WAN=1 WAN22_REV=921dbaf3f1674a56f47e83fb80a34bac8a8f203e scripts/fetch_models.sh`. Preserve the generated full-checkpoint manifest + sha256s, then copy accepted checkpoint hashes into `forge/profiles.json` and `apps/nickstire/shared/mediaModelRegistry.ts`.
+3. For a direct RunPod Docker build, pass the Docker **build args** explicitly; the `FORGE_*` runtime environment variables do not set Docker `ARG` values:
+   ```bash
+   docker build -t nour-video-forge:wan5b \
+     --build-arg INSTALL_LTX=0 \
+     --build-arg INSTALL_WAN=1 \
+     --build-arg ENABLED_PROFILES=wan2.2-ti2v-5b \
+     --build-arg WAN22_REF=1ea34ff48f87168174e12956e200b1d908b1c5ff \
+     --build-arg WAN22_WEIGHT_REV=921dbaf3f1674a56f47e83fb80a34bac8a8f203e \
+     .
+   ```
+   Start the worker with `FORGE_ENABLED_PROFILES=wan2.2-ti2v-5b`, without `FORGE_ALLOW_UNAPPROVED_FOR_TESTS` or `FORGE_BACKEND_OVERRIDE`. It refuses unverified mounted Wan bytes before accepting work, and the Docker build verifies the pinned FlashAttention wheel hash before installing it.
 4. Run `scripts/video-forge-e2e.ts` against it. That gives the first real receipt.
 5. Run the bake-off: `bench/run_bench.py` on the 48-case corpus × profiles × arms (`text`, `hero`). Then send the clips through nickstire's rendered QA, run `bench/make_pairwise.py`, and do the blind human review.
 6. Only after that: move the profile's `rollout` to `operator_selectable` (in both files), then pin `REEL_VIDEO_PROVIDER=self_hosted` on a limited cadence.

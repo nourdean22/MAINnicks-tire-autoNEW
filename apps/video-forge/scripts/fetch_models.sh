@@ -46,13 +46,8 @@ if [ "$FETCH_WAN" = "1" ]; then
   fi
 fi
 
-# A future committed global checksum file can verify the complete model set.
-# A selective canary intentionally does not require unrelated models to exist;
-# each fetched model directory already carries its own MANIFEST.json + SHA256SUMS.
-EXPECTED="$SCRIPT_DIR/../forge/SHA256SUMS.expected"
-if [ "$FETCH_LTX" = "1" ] && [ "$FETCH_WAN" = "1" ] && [ -f "$EXPECTED" ]; then
-  (cd / && sha256sum -c "$EXPECTED")
-elif [ ! -f "$EXPECTED" ]; then
-  find "$MODELS_DIR" -name '*.safetensors' -print0 | xargs -0 sha256sum | tee "$MODELS_DIR/SHA256SUMS"
-  echo "NOTE: no forge/SHA256SUMS.expected yet - per-model manifests are authoritative for this canary" >&2
-fi
+# Each fetched checkpoint directory carries its own full-artifact
+# MANIFEST.json + SHA256SUMS. Those per-checkpoint files are authoritative:
+# selective canaries must not depend on unrelated models or a weaker global
+# tensor-only checksum list.
+echo "per-checkpoint MANIFEST.json + SHA256SUMS written; no global checksum file is used" >&2
