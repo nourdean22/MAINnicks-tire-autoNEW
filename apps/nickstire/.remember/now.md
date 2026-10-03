@@ -1,6 +1,29 @@
 # Session ledger - nickstire
 
-**Updated: 2026-10-02** (admin closure wave #2885 `d5838402` + follow-up #2891 `62fb2271` merged and deployed; migrations 0127-0139 applied and recorded — see the first section below. The 2026-10-01 #2865 receipt is in its own section further down.)
+**Updated: 2026-10-03** (Sentry sweep + cron audit: #2903 Heard gist, #2904, #2905, #2906 merged + deployed — see first section.)
+
+## 2026-10-03 · Sentry sweep, Chrome in image, Higgsfield outage wording, DB pool race, chat column
+
+**Merged + deployed:** #2903 `cc020ed` (office "Heard:" gist; migration 0141 applied by operator 01:24Z), #2904 `91fd5fb` (Railway 0ff3519a SUCCESS), #2905 `8c36dcf` (Railway 235ba6be SUCCESS 10:52Z), #2906 `eb36d6d` (deploy check pending at write time).
+- #2904: specials.getActive dead catch (missing await) -> SERVICE_UNAVAILABLE; chat.message still replies when the chat_sessions persist fails; SMS thread suggestDraft render loop (157/183 NICKSTIRE-2 events; a paid AI draft per render with a live session); Studio renderer typed RENDERER_UNAVAILABLE; draft maxTokens 24576; reel-brief topic capped not refused.
+- Railway env (operator-authorized 2026-10-03): `RAILPACK_DEPLOY_APT_PACKAGES=... ffmpeg fonts-dejavu-core chromium`. Build 0ff3519a installs chromium + puppeteer libs. NOTE: builder is Railpack, not Nixpacks; `nixpacks.toml` is never read.
+- #2905: a Higgsfield 5xx/429/network failure is "inconclusive — vendor unavailable", not "refresh token revoked"; reel preflight treats it as unknown (00:50Z 10-03 a 503 cancelled a reel batch).
+- #2906: `server/db.ts` resetDbConnection swaps the pool and ends the old one after 60s (was immediate end() -> "Pool is closed" on in-flight requests; operator-approved protected-core edit). Migration **0142** `chat_sessions.messagesJson MEDIUMTEXT NOT NULL` + `serializeTranscript` cap.
+
+**Operator-pending:**
+1. Admin -> Run migrations for **0142**.
+2. Resend: nickstire.org "domain is not verified" — every email failed 04:00Z 10-03, email-gmail circuit breaker opened.
+3. SMS gateway phone (Samsung F25e) drops offline >30 min repeatedly overnight.
+4. One Instagram Studio Render to prove chromium works -> then resolve Sentry NICKSTIRE-C.
+5. TiDB Cloud usage quota: cluster restricted 2026-09-27 16:39–18:15 ET; caused NICKSTIRE-6/7/8/5 + JAVASCRIPT-REACT-H/8.
+
+**Verify next:** 15:30Z 10-03 check: first office "conversation extracted" lines (facts/dropped reasons/gist true) and a "Heard:" line; sign camera back after sunrise.
+
+**Sentry:** 13 issues resolved with comments 10-03. Still open: NICKSTIRE-C (until a render), NICKSTIRE-3/JAVASCRIPT-REACT-D/NICKSTIRE-4 (manual probes/curl, not code), NICKSTIRE-6/5, JAVASCRIPT-REACT-H/8 (quota outage).
+
+**NicksMax:** pulled to origin/main 10:42Z (`3e72562e`) so the camera supervisor gets the V380 login-refusal backoff; sign-relay restarts stopped. The shop-sign camera is SOLAR — "login failed 1002" overnight = dead battery, not a credential.
+
+
 ## 2026-10-02 · Admin closure wave — MERGED (#2885, d5838402), DEPLOYED, MIGRATIONS APPLIED + RECORDED
 
 Deploy: Railway `5c5eec0d` SUCCESS 15:49:15Z, /api/health commit d5838402. Migrations: operator tap on the new

@@ -1,6 +1,19 @@
 # Session ledger — statenour
 
-**Updated: 2026-10-02 ET** (connection census wave · #2892 `b2e8563` DEPLOYED · #2894 `917aac4` + #2896 `1b43781` MERGED)
+**Updated: 2026-10-03 ET** (Sentry sweep + cron hygiene · #2904 `91fd5fb` + #2906 `eb36d6d` merged)
+
+## 2026-10-03 · chat em-dash 500, duplicate cron runs, brief compose bound
+
+- Thinking engine first run VERIFIED: `think` success 03:04Z 10-03; 8 contradictions, 4 causal_chains, 1 identity_snapshot; #2894 live on bdnick.info.
+- #2904: `toHeaderValue` in response-shape.ts (Sentry JAVASCRIPT-REACT-13).
+- #2906: fan-out ceiling = 202 not retry; healer skips fan-out siblings + dormant crons; daily-brief narrative bounded per lane (100s reason, 25s fast), step 140s.
+- Cron audit 48h: 67 jobs, 0 failures; 34 active crons all on schedule.
+- **Not bugs:** morning brief 35 min = deliberate combine-window sleep; ollama-model-liveness 5x on 09-28 = one healer re-run + 4 hand checks during the retired-model repair.
+
+**Verify next:** after #2906 deploys: no duplicate `think`/dossier/brain-intelligence rows on the next nights; no `brief_compose_failed_degrading`.
+**Flagged:** `morning_brief_audio` never saved (CARTESIA_API_KEY likely unset); no daily brief 09-29; Langfuse unswept (no connector).
+
+
 
 ## 2026-10-02 · connection census — follow-ups on, thinking engine revived, camera self-heal
 

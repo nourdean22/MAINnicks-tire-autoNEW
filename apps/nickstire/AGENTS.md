@@ -16,7 +16,8 @@ Nick's Tire & Auto — deploys to **nickstire.org** via Railway from `main`.
 
 - **Client:** Vite 7 + React 19 + TypeScript + Tailwind 4 — an installed iOS PWA, not a browser tab
 - **Server:** Express 4 + tRPC 11 · **DB:** Drizzle ORM -> MySQL (TiDB Cloud)
-- **External:** VAPI (voice) · Twilio (SMS) · Stripe · Railway (Nixpacks) · pnpm 10 · Node 24 · Vitest
+- **External:** VAPI (voice) · Twilio (SMS) · Stripe · Railway (Railpack; `nixpacks.toml` is not read) ·
+  pnpm 10 · Node 24 · Vitest
 
 Work lands in four places: `client/src/pages/admin/` (admin UI) · `server/routers|services|cron/` ·
 `shared/` (cross-boundary types + `routes.ts`) · `drizzle/schema.ts` (**DB source of truth**).

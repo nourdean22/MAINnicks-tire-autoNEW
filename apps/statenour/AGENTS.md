@@ -7,7 +7,7 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-10-02 · UI v2 PR 4 (backlog closed) · `statenour/ui-v2-backlog` · see RECONCILIATION.
+**Last refreshed:** 2026-10-03 · Sentry sweep + cron hygiene (#2904 · #2906) · see RECONCILIATION.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--
