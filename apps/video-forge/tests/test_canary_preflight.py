@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from forge.app import _verify_enabled_model_artifacts, load_profiles
+from scripts.canary_config import load_profile_registry, validate_enabled_profiles
 from scripts.canary_preflight import WAN_5B_CODE_REF, WAN_5B_REVISION, validate
 from scripts.write_model_manifest import write_manifest
 
@@ -18,10 +22,40 @@ LTX_CODE_SHA = "b" * 40
 
 
 class CanaryPreflightTests(unittest.TestCase):
-    def test_flash_attn_wheel_is_integrity_pinned(self):
-        dockerfile = (Path(__file__).resolve().parents[1] / "Dockerfile").read_text(encoding="utf-8")
+    def test_flash_attn_wheel_guard_rejects_bad_digest_and_accepts_good_digest(self):
+        root = Path(__file__).resolve().parents[1]
+        dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
+        verifier = root / "scripts" / "verify_sha256.py"
         self.assertIn("FLASH_ATTN_SHA256=f25da18657a87fc83dc1bfb8b7751b82246e9db355510226b674fd437c34b5fb", dockerfile)
-        self.assertIn('sha256sum -c -', dockerfile)
+        self.assertIn("python3 /usr/local/bin/verify_sha256.py /tmp/flash_attn.whl", dockerfile)
+        with tempfile.TemporaryDirectory() as td:
+            artifact = Path(td) / "flash_attn.whl"
+            artifact.write_bytes(b"known-wheel-bytes")
+            good = hashlib.sha256(artifact.read_bytes()).hexdigest()
+            bad = "0" * 64
+            failed = subprocess.run(
+                [sys.executable, str(verifier), str(artifact), bad],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            passed = subprocess.run(
+                [sys.executable, str(verifier), str(artifact), good],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        self.assertNotEqual(failed.returncode, 0, failed.stdout + failed.stderr)
+        self.assertEqual(passed.returncode, 0, passed.stdout + passed.stderr)
+
+    def test_enabled_profile_registry_rejects_typos_and_checks_installed_backend(self):
+        profiles = load_profile_registry()
+        enabled = validate_enabled_profiles("wan2.2-ti2v-5b", "0", "1", profiles)
+        self.assertEqual(enabled, {"wan2.2-ti2v-5b"})
+        with self.assertRaisesRegex(ValueError, "unknown FORGE_ENABLED_PROFILES"):
+            validate_enabled_profiles("wan2.2-ti2v-5B", "0", "1", profiles)
+        with self.assertRaisesRegex(ValueError, "FORGE_INSTALL_WAN=1"):
+            validate_enabled_profiles("wan2.2-ti2v-5b", "0", "0", profiles)
 
     def test_weight_fetch_writes_revision_manifest(self):
         source = (Path(__file__).resolve().parents[1] / "modal_app.py").read_text(encoding="utf-8")
@@ -169,6 +203,8 @@ class CanaryPreflightTests(unittest.TestCase):
     def test_modal_canary_reserves_host_resources_and_limits_profiles(self):
         source = (Path(__file__).resolve().parents[1] / "modal_app.py").read_text(encoding="utf-8")
         self.assertIn('ENABLED_PROFILES = _os.environ.get("FORGE_ENABLED_PROFILES", "wan2.2-ti2v-5b")', source)
+        self.assertIn("_enabled = validate_enabled_profiles(", source)
+        self.assertLess(source.index("_enabled = validate_enabled_profiles("), source.index("image = modal.Image.from_dockerfile("))
         self.assertIn('gpu=_os.environ.get("FORGE_MODAL_GPU", "A100-40GB")', source)
         self.assertIn('memory=int(_os.environ.get("FORGE_MODAL_MEMORY_MB", "98304"))', source)
         self.assertIn('cpu=float(_os.environ.get("FORGE_MODAL_CPU", "4"))', source)

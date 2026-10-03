@@ -42,13 +42,14 @@ RUN if [ "$INSTALL_LTX" = "1" ]; then \
 # from source for hours. Wan's model calls flash_attention directly (no SDPA fallback).
 ARG FLASH_ATTN_WHEEL=https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
 ARG FLASH_ATTN_SHA256=f25da18657a87fc83dc1bfb8b7751b82246e9db355510226b674fd437c34b5fb
+COPY scripts/verify_sha256.py /usr/local/bin/verify_sha256.py
 RUN if [ "$INSTALL_WAN" = "1" ]; then \
       git clone https://github.com/Wan-Video/Wan2.2 /opt/Wan2.2 && cd /opt/Wan2.2 && \
       { [ "$WAN22_REF" = "UNPINNED" ] || git checkout "$WAN22_REF"; } && \
       pip install "torch==2.8.0" "torchvision==0.23.0" "torchaudio==2.8.0" && \
       grep -v '^flash_attn' requirements.txt > /tmp/wan-req.txt && pip install -r /tmp/wan-req.txt && \
       curl -fsSL "$FLASH_ATTN_WHEEL" -o /tmp/flash_attn.whl && \
-      echo "$FLASH_ATTN_SHA256  /tmp/flash_attn.whl" | sha256sum -c - && \
+      python3 /usr/local/bin/verify_sha256.py /tmp/flash_attn.whl "$FLASH_ATTN_SHA256" && \
       pip install /tmp/flash_attn.whl && rm /tmp/flash_attn.whl; fi
 
 WORKDIR /srv

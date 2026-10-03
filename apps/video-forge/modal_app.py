@@ -26,6 +26,8 @@ import modal
 #   LTX2_REF=<sha> WAN22_REF=<sha> modal deploy apps/video-forge/modal_app.py
 import os as _os
 
+from scripts.canary_config import load_profile_registry, validate_enabled_profiles
+
 LTX_CODE_REF = _os.environ.get("LTX2_REF", "UNPINNED")
 WAN_CODE_REF = _os.environ.get("WAN22_REF", "UNPINNED")
 WAN_5B_REVISION = "921dbaf3f1674a56f47e83fb80a34bac8a8f203e"
@@ -33,13 +35,13 @@ INSTALL_LTX = _os.environ.get("FORGE_INSTALL_LTX", "1")
 INSTALL_WAN = _os.environ.get("FORGE_INSTALL_WAN", "1")
 ENABLED_PROFILES = _os.environ.get("FORGE_ENABLED_PROFILES", "wan2.2-ti2v-5b")
 
-_enabled = {p.strip() for p in ENABLED_PROFILES.split(",") if p.strip()}
-if not _enabled:
-    raise ValueError("FORGE_ENABLED_PROFILES must name at least one profile")
-if any(p.startswith("ltx-") for p in _enabled) and INSTALL_LTX != "1":
-    raise ValueError("LTX profile enabled but FORGE_INSTALL_LTX is not 1")
-if any(p.startswith("wan2.2-") for p in _enabled) and INSTALL_WAN != "1":
-    raise ValueError("Wan profile enabled but FORGE_INSTALL_WAN is not 1")
+_profile_registry = load_profile_registry()
+_enabled = validate_enabled_profiles(
+    ENABLED_PROFILES,
+    INSTALL_LTX,
+    INSTALL_WAN,
+    profiles=_profile_registry,
+)
 
 image = modal.Image.from_dockerfile(
     "apps/video-forge/Dockerfile",
