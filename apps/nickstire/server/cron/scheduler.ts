@@ -1016,11 +1016,20 @@ function buildTiers(): void {
         // the promotion and the loud-failure shape.
         name: "higgsfield-session-keepalive",
         handler: async () => {
-          const { getHiggsfieldCredentialsJson, getHiggsfieldAccountHealth } = await import("../services/higgsfieldStudio");
+          const { getHiggsfieldCredentialsJson, getHiggsfieldAccountHealth, isHiggsfieldVendorOutage, HIGGSFIELD_VENDOR_UNAVAILABLE } = await import("../services/higgsfieldStudio");
           if (!(await getHiggsfieldCredentialsJson())) return { recordsProcessed: 0, details: "no higgsfield creds — skip" };
           const health = await getHiggsfieldAccountHealth();
           if (!health.credsValid) {
-            log.error("Higgsfield session keepalive FAILED — refresh token likely revoked; re-login required", { raw: health.raw.slice(0, 200) });
+            // 2026-10-03: an HTTP 503 from Higgsfield was reported as "refresh
+            // token revoked; re-login required" and the reel batch was
+            // cancelled. An outage proves nothing about the session, so it is
+            // named as an outage. Still THROWN: a long outage should alert too.
+            const outage = isHiggsfieldVendorOutage(health.raw);
+            if (outage) {
+              log.warn("Higgsfield unreachable during keepalive — session NOT proven dead; next pulse retries", { raw: health.raw.slice(0, 200) });
+            } else {
+              log.error("Higgsfield session keepalive FAILED — refresh token likely revoked; re-login required", { raw: health.raw.slice(0, 200) });
+            }
             // Drop the in-process credential cache so the NEXT pulse re-reads
             // app_secret_kv. `getHiggsfieldCredentialsJson` latches
             // `credentialsLoadAttempted` on first read and never consults the DB
@@ -1046,7 +1055,9 @@ function buildTiers(): void {
             // the catch that logs status='failed', so the alert fires in ~30
             // minutes instead of never.
             throw new Error(
-              `Higgsfield keepalive FAILED — re-login required (refresh token revoked). ${health.raw.slice(0, 160)}`,
+              outage
+                ? `Higgsfield keepalive inconclusive — ${HIGGSFIELD_VENDOR_UNAVAILABLE}, session not proven dead. ${health.raw.slice(0, 160)}`
+                : `Higgsfield keepalive FAILED — re-login required (refresh token revoked). ${health.raw.slice(0, 160)}`,
             );
           }
           return { recordsProcessed: 1, details: `session refreshed${health.balanceCredits != null ? `, ${health.balanceCredits} credits` : ""}` };

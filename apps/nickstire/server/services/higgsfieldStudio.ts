@@ -25,6 +25,18 @@ export function clearRuntimeHiggsfieldCache(): void {
 const KEEPALIVE_FRESH_WINDOW_MS = 60 * 60 * 1000;
 const KEEPALIVE_JOB = "higgsfield-session-keepalive";
 
+/** Written into the keepalive's failure message when Higgsfield itself was down. */
+export const HIGGSFIELD_VENDOR_UNAVAILABLE = "vendor unavailable";
+
+/**
+ * True when a failed `hf account status` says Higgsfield was unreachable
+ * (5xx, 429, network error) rather than that the session is invalid. Only a
+ * session failure means re-login; an outage clears on its own.
+ */
+export function isHiggsfieldVendorOutage(raw: string): boolean {
+  return /HTTP (5\d\d|429)\b|\b(Service Unavailable|Bad Gateway|Gateway Time-?out|Too Many Requests)\b|\b(ETIMEDOUT|ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN)\b|socket hang up/i.test(raw);
+}
+
 /**
  * Is the stored Higgsfield session actually WORKING — as opposed to merely
  * present?
@@ -80,6 +92,12 @@ export async function higgsfieldSessionHealth(): Promise<{
       };
     }
 
+    if (last.status === "failed" && last.errorMessage?.includes(HIGGSFIELD_VENDOR_UNAVAILABLE)) {
+      // The keepalive could not REACH Higgsfield, so it proved nothing about
+      // the session. Unknown, not dead: a vendor blip must not cancel a reel
+      // batch the way a revoked login does (2026-10-03, HTTP 503 at 00:50Z).
+      return { healthy: null, reason: last.errorMessage.slice(0, 200), checkedAt: startedAt };
+    }
     if (last.status === "failed") {
       return {
         healthy: false,
@@ -707,6 +725,16 @@ export async function higgsfieldSessionLiveness(): Promise<HiggsfieldSessionLive
     // "session refreshed"), and credentials still present NOW - a blob deleted
     // after the last successful tick must not inherit that tick's verdict.
     const detail = row.details ?? "";
+    if (row.status === "failed" && `${row.errorMessage ?? ""}${row.details ?? ""}`.includes(HIGGSFIELD_VENDOR_UNAVAILABLE)) {
+      // Higgsfield was unreachable - the session was not tested (2026-10-03).
+      return {
+        credsPresent,
+        balanceCredits,
+        checkedAt,
+        live: null,
+        reason: "Higgsfield was unreachable at the last keepalive - UNKNOWN, not dead",
+      };
+    }
     if (row.status === "failed") {
       return {
         credsPresent,
