@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "render-spend-trajectory": {
+      "ref": "reelPipeline.ts IS on the spend path in this diff: a new opt-in provider (self_hosted, explicit REEL_VIDEO_PROVIDER pin only; never auto-selected, prod pin unchanged) whose reservation is priced from GPU-seconds and whose settle uses MEASURED compute from Video Forge receipts. Trajectory through the service boundary: server/reelSelfHostedSpendTrajectory.test.ts (8) drives cost -> reserve() -> daily-ceiling guard -> persisted row (provider/model/amount, NOT the Seedance estimate), settle() -> actual + isEstimate:false, and cost POLICY -> repairRouter routing (pre-authorized pool removes the per-repair tap but BUDGET_DAILY_EXCEEDED still trips). No-duplicate-spend trajectory: server/videoForgeClient.test.ts (18) — key persisted before submit, local timeout resumes the same job (1 submit / 1 render), lost submit response dedupes on the key. veo/higgsfield/template_stock: reelClipCost.test.ts, reelRepairLaneTruth.test.ts, reelVideoProvider.test.ts, reelPipeline.test.ts green; their requiresSpendApproval equals the old cost>0 decision (asserted). Real HTTP wire proof against a running Forge (CPU mock): scripts/video-forge-e2e.ts. No GPU or paid provider was called (no spend authorized)."
+    },
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json: new capability reel-video-forge-self-hosted at codeState merged / operationalState unit_verified / exposure disabled, with a P1 blocker (no GPU canary) and P2 blockers (LTX revenue-threshold confirmation; image path + content.ts generateReelVideo still Higgsfield). REALITY-LEDGER.md re-rendered."
+    }
+  }
+}
