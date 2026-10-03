@@ -89,5 +89,9 @@ mission, which cite the license files directly. Checkpoint sha256s are
 1. Authorize GPU spend and a cap for the canary. Use one 80 GB GPU on RunPod or Modal.
 2. Confirm Nick's is under the $10M LTX revenue threshold. If not, use Wan 2.2 only.
 3. Deploy the worker, pin model revisions and sha256s, and run `scripts/video-forge-e2e.ts`.
+   - Build with `LTX2_REF=<sha> WAN22_REF=<sha>`. An unpinned build is refused unless `ALLOW_UNPINNED=1` is passed on purpose. Modal builds from the same Dockerfile.
+   - `FORGE_SECRET` must be at least 32 characters; a shorter one refuses every request.
+   - After the first fetch, commit the printed sums as `apps/video-forge/forge/SHA256SUMS.expected`. Later fetches then verify against it.
+   - Optional: `FORGE_GPU_VRAM_GB` (otherwise read from `nvidia-smi`; unknown means Wan's low-memory flags), and `VIDEO_FORGE_HERO_HOSTS` to restrict hero-frame hosts.
 4. Run the bake-off: 48 cases × {Higgsfield baseline, LTX distilled, LTX DFR, Wan 5B, Wan A14B} × {text, hero}. Wan A14B runs the hero arm only. Then rendered QA and blind pairwise review. Decide on cost per **accepted** clip.
 5. Only then: set `rollout: operator_selectable` in both registries, set `REEL_VIDEO_PROVIDER=self_hosted` on a limited cadence, and keep Higgsfield as the fallback.

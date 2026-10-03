@@ -14,7 +14,7 @@ import tempfile
 import time
 import unittest
 
-SECRET = "test-secret"
+SECRET = "t" * 40  # >= MIN_SECRET_LEN; zero-entropy so secret scanners know it is fake
 
 
 def signed(client, method: str, path: str, body: dict | None = None, secret: str = SECRET, ts: int | None = None):
@@ -122,7 +122,7 @@ class RenderTests(ForgeTestBase):
         self.assertEqual(signed(self.client, "POST", "/v1/jobs", job_body(width=720)).json()["error_code"], "unsupported_resolution")
 
     def test_i2v_only_profile_requires_start_image(self):
-        r = signed(self.client, "POST", "/v1/jobs", job_body(profile="wan2.2-i2v-a14b", duration_seconds=5, width=704, fps=16))
+        r = signed(self.client, "POST", "/v1/jobs", job_body(profile="wan2.2-i2v-a14b", duration_seconds=5, width=720, fps=16))
         self.assertEqual(r.status_code, 400)
         self.assertEqual(r.json()["error_code"], "capability_mismatch")
 
@@ -188,8 +188,10 @@ class LifecycleTests(ForgeTestBase):
         b = signed(self.client, "POST", "/v1/jobs", job_body(key="nickstire-reel-1-b9-mock-a0")).json()["job"]["id"]
         st = self.forge.store
         st.claim_next()
+        st.claim_next()
         st._db.execute("UPDATE jobs SET heartbeat_at = heartbeat_at - 10000 WHERE id = ?", (a,))
-        st._db.execute("UPDATE jobs SET created_at = created_at - 100000 WHERE id = ?", (b,))
+        # The ceiling runs from STARTED_AT (render time), not created_at (queue wait).
+        st._db.execute("UPDATE jobs SET started_at = started_at - 100000 WHERE id = ?", (b,))
         self.forge.sweep()
         self.assertEqual(st.get(a)["error_code"], "stale_heartbeat")
         self.assertEqual(st.get(b)["error_code"], "hard_ceiling")
@@ -240,7 +242,9 @@ class WanArgvTests(unittest.TestCase):
         self.assertEqual(a[a.index("--task") + 1], "ti2v-5B")
         self.assertEqual(a[a.index("--size") + 1], "704*1280")
         self.assertEqual(a[a.index("--frame_num") + 1], "121")
-        self.assertNotIn("--offload_model", a)  # 80GB default: no offload
+        # No nvidia-smi on CI and no FORGE_GPU_VRAM_GB: UNKNOWN VRAM takes the
+        # low-memory path (an assumed 80GB card OOMs a 24GB rental on render one).
+        self.assertIn("--offload_model", a)
         self.assertEqual(a[-1], "x; y")
 
     def test_a14b_native_16fps_81_frames_and_requires_image(self):
@@ -275,3 +279,118 @@ class ProfileParityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HardeningTests(unittest.TestCase):
+    """2026-10-03 review of #2908/#2910: each test breaks without its fix."""
+
+    def setUp(self):
+        self.td = tempfile.mkdtemp()
+        from forge.store import JobStore
+        self.store = JobStore(os.path.join(self.td, "t.db"), max_restarts=2)
+
+    def _job(self, key="k1", profile="mock-testpattern"):
+        job, _ = self.store.submit({"idempotency_key": key, "profile": profile, "prompt": "p"})
+        return job
+
+    def test_reclaimed_job_tells_backend_to_stop(self):
+        job = self._job()
+        self.store.claim_next()
+        self.assertTrue(self.store.heartbeat(job["id"]))
+        self.store.fail(job["id"], "stale_heartbeat", "reclaimed")
+        self.assertFalse(self.store.heartbeat(job["id"]))  # was True: GPU kept rendering
+
+    def test_ceiling_counts_from_start_not_submit(self):
+        import forge.store as st
+        job = self._job()
+        real = st._now
+        try:
+            st._now = lambda: real() + 1000  # 1000s queued
+            self.store.claim_next()
+            st._now = lambda: real() + 1100  # 100s into the render
+            self.store.heartbeat(job["id"])
+            out = self.store.reclaim_stale({"mock-testpattern": 180}, {"mock-testpattern": 300})
+            self.assertEqual(out, [])  # was failed `hard_ceiling` before it rendered 300s
+            st._now = lambda: real() + 1000 + 301
+            self.store.heartbeat(job["id"])
+            self.assertEqual(self.store.reclaim_stale({"mock-testpattern": 1e9}, {"mock-testpattern": 300}), [job["id"]])
+        finally:
+            st._now = real
+
+    def test_queued_job_has_its_own_ttl(self):
+        import forge.store as st
+        job = self._job()
+        real = st._now
+        try:
+            st._now = lambda: real() + 3600
+            self.assertEqual(self.store.reclaim_stale({}, {"mock-testpattern": 300}, queue_ttl_s=7200), [])
+            st._now = lambda: real() + 7300
+            self.assertEqual(self.store.reclaim_stale({}, {"mock-testpattern": 300}, queue_ttl_s=7200), [job["id"]])
+        finally:
+            st._now = real
+
+    def test_size_rule_is_per_backend(self):
+        from forge.app import _size_problem, load_profiles
+        p = load_profiles()
+        self.assertIsNone(_size_problem(p["wan2.2-i2v-a14b"], 720, 1280))  # 720 % 32 != 0, still valid
+        self.assertIsNotNone(_size_problem(p["wan2.2-i2v-a14b"], 704, 1280))
+        self.assertIsNone(_size_problem(p["ltx-2.5-distilled"], 704, 1280))
+        self.assertIsNotNone(_size_problem(p["ltx-2.5-distilled"], 736, 1280))  # %32 ok, %64 not
+
+    def test_seed_zero_is_kept(self):
+        from forge.backends.base import _seed
+        self.assertEqual(_seed({"seed": 0}), 0)
+        self.assertEqual(_seed({}), 42)
+
+
+class ServiceHardeningTests(unittest.TestCase):
+    def setUp(self):
+        self.td = tempfile.mkdtemp()
+        os.environ.update({"FORGE_SECRET": SECRET, "FORGE_DATA_DIR": self.td})
+        from fastapi.testclient import TestClient
+        from forge.app import create_app
+        self.client = TestClient(create_app(start_worker=False))
+
+    def tearDown(self):
+        os.environ.pop("FORGE_ALLOW_UNAPPROVED_FOR_TESTS", None)
+
+    def test_livez_is_unauthenticated(self):
+        self.assertEqual(self.client.get("/livez").status_code, 200)
+
+    def test_unsigned_oversized_body_is_refused_before_reading(self):
+        r = self.client.post("/v1/jobs", content=b"x" * 10, headers={"content-length": str(10**9)})
+        self.assertEqual(r.status_code, 401)
+
+    def test_territory_block_survives_the_test_flag(self):
+        os.environ["FORGE_ALLOW_UNAPPROVED_FOR_TESTS"] = "1"
+        from forge.app import create_app
+        from fastapi.testclient import TestClient
+        c = TestClient(create_app(start_worker=False))
+        r = signed(c, "POST", "/v1/jobs", job_body(profile="minimax-h3", duration_seconds=6, width=720, height=1280))
+        self.assertEqual(r.status_code, 403)
+
+
+class ShortSecretTests(unittest.TestCase):
+    def test_short_secret_refuses_every_request(self):
+        td = tempfile.mkdtemp()
+        os.environ.update({"FORGE_SECRET": "short", "FORGE_DATA_DIR": td})
+        try:
+            from fastapi.testclient import TestClient
+            from forge.app import create_app
+            c = TestClient(create_app(start_worker=False))
+            self.assertEqual(signed(c, "GET", "/health", secret="short").status_code, 503)
+        finally:
+            os.environ["FORGE_SECRET"] = SECRET
+
+
+class ReplayTests(ForgeTestBase):
+    def test_same_signed_post_twice_is_refused(self):
+        ts = int(time.time())
+        body = job_body(key="replay-key-0001")
+        self.assertIn(signed(self.client, "POST", "/v1/jobs", body, ts=ts).status_code, (200, 202))
+        self.assertEqual(signed(self.client, "POST", "/v1/jobs", body, ts=ts).status_code, 401)
+
+    def test_identical_gets_in_one_second_both_pass(self):
+        ts = int(time.time())
+        self.assertEqual(signed(self.client, "GET", "/health", ts=ts).status_code, 200)
+        self.assertEqual(signed(self.client, "GET", "/health", ts=ts).status_code, 200)

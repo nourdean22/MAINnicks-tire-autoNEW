@@ -36,3 +36,7 @@
 # secret as a single high-entropy string constant on line 21 (a test fixture, never a credential).
 # The test now builds the value at runtime; this line clears the historical commit for the range gate.
 2b136b3f27f002dbde9a9f6bace9ccf052f20f58:apps/nickstire/server/__tests__/vapiCreateAssistantSecret.test.ts:generic-api-key:21
+
+# 2026-10-03 · #2911: a fake 40-char test FORGE_SECRET in the first commit, replaced by
+# a zero-entropy value in the next commit. Pinned to that one commit/line.
+f43f0d254f633ebc88b74e47f16b0fbfbd490443:apps/video-forge/tests/test_forge.py:generic-api-key:17

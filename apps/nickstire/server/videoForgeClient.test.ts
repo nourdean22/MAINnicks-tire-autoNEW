@@ -299,3 +299,83 @@ describe("output verification", () => {
     expect(() => verifyForgeOutput(base, fakeMp4(), { width: 704, height: 1280 })).toThrow(/no output receipt/);
   });
 });
+
+describe("2026-10-03 review fixes: each failure lands in the right class", () => {
+  const profile = getMediaProfile("ltx-2.5-dfr")!;
+  const respond = (status: number, body: unknown) => (async () => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
+
+  it("a 403 LICENSE refusal is PROVIDER_CONFIG_BLOCKED, not a bad signature", async () => {
+    const env = forgeEnv();
+    const err = await awaitForgeJob("vf_x", profile, { pollWindowMs: 1 }, { env, fetchImpl: respond(403, { error_code: "license_blocked", detail: "TERRITORY_BLOCKED" }) }).catch((e) => e);
+    expect(err.forgeTerminal).toBe(true);
+    expect(err.code).toBe("license_blocked");
+    expect(classifyProviderError(err).errorClass).toBe("PROVIDER_CONFIG_BLOCKED");
+  });
+
+  it("a bare 401 is still a signature problem", async () => {
+    const err = await awaitForgeJob("vf_x", profile, { pollWindowMs: 1 }, { env: forgeEnv(), fetchImpl: respond(401, { detail: "bad signature" }) }).catch((e) => e);
+    expect(String(err.message)).toMatch(/rejected the signature/);
+  });
+
+  it("a 404 on poll is terminal (the job is gone) instead of retried until attempts run out", async () => {
+    const err = await awaitForgeJob("vf_gone", profile, { pollWindowMs: 1 }, { env: forgeEnv(), fetchImpl: respond(404, { detail: "not found" }) }).catch((e) => e);
+    expect(err.forgeTerminal).toBe(true);
+    expect(err.code).toBe("worker_restart_lost");
+  });
+
+  it("a 503 'FORGE_SECRET not configured' pauses the lane; a plain 503 stays capacity", async () => {
+    const cfg = await awaitForgeJob("vf_x", profile, { pollWindowMs: 1 }, { env: forgeEnv(), fetchImpl: respond(503, { detail: "FORGE_SECRET not configured — refusing all requests" }) }).catch((e) => e);
+    expect(cfg.code).toBe("config_unavailable");
+    const busy = await awaitForgeJob("vf_x", profile, { pollWindowMs: 1 }, { env: forgeEnv(), fetchImpl: respond(503, { detail: "busy" }) }).catch((e) => e);
+    expect(busy.forgeTerminal).toBeUndefined();
+    expect(classifyProviderError(busy).errorClass).toBe("RATE_LIMIT");
+  });
+
+  it("a SHORT truncated download is a re-download, not a terminal bad clip", () => {
+    const clip = fakeMp4();
+    const sha = createHash("sha256").update(clip).digest("hex");
+    const job: ForgeJobView = { id: "j", idempotency_key: "k", profile: "p", status: "succeeded", created_at: new Date().toISOString(), output: { sha256: sha, bytes: clip.length, mime: "video/mp4", width: 704, height: 1280, fps: 24, duration_seconds: 5 } };
+    const err = (() => { try { verifyForgeOutput(job, clip.subarray(0, 1000), { width: 704, height: 1280 }); } catch (e) { return e as { forgeTerminal?: boolean; message: string }; } })()!;
+    expect(err.forgeTerminal).toBeUndefined();
+    expect(err.message).toMatch(/truncated download/);
+  });
+});
+
+describe("hero frame URL guard (server-side fetch of admin input)", () => {
+  /** Runs a real beat render with this hero URL; returns the error and every URL fetched. */
+  async function renderWithHero(heroUrl: string, extraEnv: Record<string, string> = {}) {
+    const forge = fakeForge();
+    const fetched: string[] = [];
+    const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64)]);
+    const fetchImpl = (async (url: string, init?: RequestInit) => {
+      fetched.push(url);
+      if (!url.startsWith("https://forge.internal")) return new Response(png, { status: 200 });
+      return forge.fetchImpl(url, init);
+    }) as unknown as typeof fetch;
+    const err = await renderSelfHostedBeat(
+      { beat: { beatNumber: 1 }, idempotencyBase: "nickstire-reel-7-b1", prompt: "SUBJECT: tire", startImageUrl: heroUrl, persist: async () => {} },
+      { env: forgeEnv(extraEnv), fetchImpl, sleep: noSleep },
+    ).then(() => null, (e) => e);
+    return { err, fetched };
+  }
+
+  it("a normal https storage URL is fetched and the render proceeds", async () => {
+    const { err, fetched } = await renderWithHero("https://cdn.example.com/hero.png");
+    expect(err).toBeNull();
+    expect(fetched).toContain("https://cdn.example.com/hero.png");
+  });
+
+  it("http, IP literals, metadata and internal hosts are refused WITHOUT being fetched", async () => {
+    for (const u of ["http://cdn.example.com/a.png", "https://169.254.169.254/x.png", "https://[::1]/x.png", "https://localhost/x.png", "https://db.railway.internal/x.png"]) {
+      const { err, fetched } = await renderWithHero(u);
+      expect(err?.code, u).toBe("invalid_reference_image");
+      expect(fetched, u).not.toContain(u);
+    }
+  });
+
+  it("an explicit host allowlist is honoured", async () => {
+    const env = { VIDEO_FORGE_HERO_HOSTS: "cdn.example.com" };
+    expect((await renderWithHero("https://img.cdn.example.com/a.png", env)).err).toBeNull();
+    expect((await renderWithHero("https://evil.example.net/a.png", env)).err?.code).toBe("invalid_reference_image");
+  });
+});

@@ -25,7 +25,7 @@ import os
 import shlex
 from typing import Any
 
-from .base import Backend, BackendError, Heartbeat, RenderResult, run_supervised
+from .base import Backend, BackendError, Heartbeat, RenderResult, _seed, run_supervised
 
 COMPONENTS = {
     "--transformer-path": "diffusion_models/ltx-2.5-22b-distilled-transformer-bf16.safetensors",
@@ -39,7 +39,7 @@ MODULES = {"distilled": "ltx_pipelines.distilled", "dfr": "ltx_pipelines.dfr_pip
 
 
 def build_argv(profile: dict[str, Any], req: dict[str, Any], out_path: str, start_image: str | None) -> list[str]:
-    models = os.environ.get("FORGE_LTX_MODELS", "/models/ltx-2.5")
+    models = os.environ.get("FORGE_LTX_MODELS", "/models/LTX-2.5")  # where scripts/fetch_models.sh puts it
     runner = shlex.split(os.environ.get("FORGE_LTX_RUNNER", "uv run --project /opt/LTX-2 python"))
     if req["width"] % 64 or req["height"] % 64:
         raise BackendError("unsupported_resolution", "LTX two-stage output must be divisible by 64")
@@ -51,7 +51,7 @@ def build_argv(profile: dict[str, Any], req: dict[str, Any], out_path: str, star
         argv += ["--detailing-lora", os.path.join(models, DFR_LORA)]
     argv += [
         "--num-frames", str(frames), "--height", str(req["height"]), "--width", str(req["width"]),
-        "--frame-rate", str(req["fps"]), "--seed", str(int(req.get("seed") or 42)),
+        "--frame-rate", str(req["fps"]), "--seed", str(_seed(req)),
     ]
     if start_image:
         argv += ["--image", start_image, "0", os.environ.get("FORGE_LTX_IMAGE_STRENGTH", "1.0")]
@@ -69,7 +69,7 @@ class Ltx2Backend(Backend):
         if not os.path.exists(out_path):
             raise BackendError("output_validation_failure", "pipeline exited 0 but wrote no file")
         return RenderResult(
-            seed=int(req.get("seed") or 42),
+            seed=_seed(req),
             model_version=f"{profile['checkpoint']}@{os.environ.get('FORGE_LTX_REV', 'unpinned')}:{profile['pipeline']}",
             workflow_version=f"ltx_pipelines.{profile['pipeline']}@{os.environ.get('FORGE_LTX2_CODE_REV', 'unpinned')}",
         )

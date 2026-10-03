@@ -3476,6 +3476,11 @@
         {
           "severity": "P2",
           "description": "Image generation (Visual World reference frames, carousel, IG single image) and routers/content.ts generateReelVideo still call Higgsfield directly; no self-hosted image backend exists yet. See docs/operations/VIDEO-FORGE.md dependency graph."
+        },
+        {
+          "severity": "P2",
+          "description": "2026-10-03 review of #2908/#2910 (two independent reviewers + read). Fixed in branch nickstire/video-forge-hardening, unit-proven only. Worker: a reclaimed job now stops the GPU (heartbeat checks status); the render ceiling runs from started_at, so a reel's later beats are no longer failed for queue wait (separate queue TTL); per-backend size rule (Wan A14B 720x1280 was rejected by a global x32 rule; LTX needs x64); end frames refused until a backend consumes them; unsigned/oversized bodies refused before buffering; replayed signatures refused; FORGE_SECRET >= 32 chars; TERRITORY_BLOCKED never lifted by the test flag; worker loop survives exceptions; /livez; seed 0 kept; unknown VRAM takes Wan's low-memory path. Build: Modal image now FROM the Dockerfile (it had no model runtime); Dockerfile uses cudnn-devel + torch-first so flash_attn builds, installs uv, uv-syncs the LTX workspace, refuses unpinned model code; LTX weight path matches fetch_models.sh; fetch verifies committed SHA256SUMS.expected when present. Client: a 403 license refusal is PROVIDER_CONFIG_BLOCKED (was AUTH_INVALID); 404 on poll/output is terminal; 503 secret refusal pauses the lane; truncation is re-downloaded before the size floor; size caps before buffering; hero-frame URL SSRF guard (https, no IP/internal hosts, optional VIDEO_FORGE_HERO_HOSTS, no redirects); a hero 5xx is retryable; an in-flight self_hosted repair stays on its lane. NOT fixed: failed rented-GPU renders are still not settled to the cost ledger; Wan negative prompt is dropped; Modal scale-to-zero mid-render and SQLite on a Modal Volume remain unproven until the GPU canary.",
+          "source": "branch nickstire/video-forge-hardening"
         }
       ],
       "deferredScope": [

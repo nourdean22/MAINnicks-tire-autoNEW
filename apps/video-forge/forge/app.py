@@ -40,6 +40,25 @@ from .store import IdempotencyConflict, JobStore, view
 PROFILES_PATH = Path(__file__).with_name("profiles.json")
 APPROVED = {"APPROVED_COMMERCIAL", "APPROVED_WITH_CONDITIONS"}
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
+# Two base64 images at the cap (4/3 expansion) plus JSON headroom.
+MAX_BODY_BYTES = 2 * (MAX_IMAGE_BYTES * 4 // 3 + 4) + 64 * 1024
+MIN_SECRET_LEN = 32
+# Backends that actually pass an end frame to the model. None do yet.
+END_FRAME_BACKENDS: frozenset[str] = frozenset()
+
+
+def _size_problem(p: dict[str, Any], width: int, height: int) -> str | None:
+    """Per-backend size rule, checked at submit so a bad size never claims the GPU.
+
+    A global multiple-of-32 rule rejected Wan i2v-A14B's only portrait size
+    (720*1280: 720 % 32 == 16) while letting LTX sizes through that its two-stage
+    pipeline refuses (it needs multiples of 64)."""
+    if p["backend"] == "wan22":
+        from .backends.wan22 import SIZES
+        allowed = SIZES.get(p["pipeline"], set())
+        return None if (width, height) in allowed else f"{p['pipeline']} supports {sorted(allowed)}"
+    step = 64 if p["backend"] == "ltx2" else 32
+    return None if not (width % step or height % step) else f"width/height must be multiples of {step}"
 KEY_RE = re.compile(r"^[A-Za-z0-9._:-]{8,200}$")
 
 
@@ -108,6 +127,8 @@ def ffprobe(path: str) -> dict[str, Any]:
 class Forge:
     def __init__(self) -> None:
         self.secret = os.environ.get("FORGE_SECRET", "")
+        # A short shared secret is a guessable one. Refuse to serve rather than accept it.
+        self.secret_too_short = 0 < len(self.secret) < MIN_SECRET_LEN
         data = Path(os.environ.get("FORGE_DATA_DIR", "/data/forge"))
         (data / "outputs").mkdir(parents=True, exist_ok=True)
         (data / "inputs").mkdir(parents=True, exist_ok=True)
@@ -122,11 +143,16 @@ class Forge:
         self._stop = threading.Event()
         self.worker_alive_at: float | None = None
         self.loaded_backends: set[str] = set()
+        self.last_loop_error: str | None = None
+        self._seen: dict[str, float] = {}
+        self._seen_lock = threading.Lock()
 
     # ── auth ─────────────────────────────────────────────────────────────
     def verify(self, method: str, path: str, ts: str | None, sig: str | None, body: bytes) -> None:
         if not self.secret:
             raise HTTPException(503, "FORGE_SECRET not configured — refusing all requests")
+        if self.secret_too_short:
+            raise HTTPException(503, f"FORGE_SECRET shorter than {MIN_SECRET_LEN} chars — refusing all requests")
         if not ts or not sig:
             raise HTTPException(401, "missing signature")
         try:
@@ -138,13 +164,27 @@ class Forge:
         expect = hmac.new(self.secret.encode(), f"{ts}.{method}.{path}.{hashlib.sha256(body).hexdigest()}".encode(), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(expect, sig):
             raise HTTPException(401, "bad signature")
+        # Replay: a captured signed request (a cancel, a submit) was valid for the whole
+        # 300s skew window. Remember POST signatures seen inside the window; reject repeats.
+        # GETs are read-only, and two honest identical GETs in one second sign identically.
+        if method != "POST":
+            return
+        now = time.time()
+        with self._seen_lock:
+            for old_sig, at in list(self._seen.items()):
+                if now - at > 600:
+                    del self._seen[old_sig]
+            if sig in self._seen:
+                raise HTTPException(401, "replayed signature")
+            self._seen[sig] = now
 
     # ── submit ───────────────────────────────────────────────────────────
     def submit(self, body: SubmitBody) -> tuple[dict[str, Any], bool]:
         p = self.profiles.get(body.profile)
         if not p or body.profile not in self.enabled:
             raise _bad("config_unavailable", f"profile {body.profile} not available on this worker")
-        if p["license_state"] not in APPROVED and not self.allow_unapproved:
+        # TERRITORY_BLOCKED is a legal fact, not a rollout state: no test flag lifts it.
+        if p["license_state"] == "TERRITORY_BLOCKED" or (p["license_state"] not in APPROVED and not self.allow_unapproved):
             raise _bad("license_blocked", f"profile {body.profile} license_state={p['license_state']}", status=403)
         if body.duration_seconds not in p["durations"]:
             raise _bad("unsupported_duration", f"{body.duration_seconds}s not in {p['durations']}")
@@ -152,14 +192,19 @@ class Forge:
             raise _bad("unsupported_resolution", f"{body.width}x{body.height}")
         if p.get("fixed_fps") and body.fps != p["native"]["fps"]:
             raise _bad("unsupported_fps", f"{body.profile} renders at {p['native']['fps']} fps only")
-        if body.width % 32 or body.height % 32:
-            raise _bad("unsupported_resolution", "width/height must be multiples of 32")
+        size_problem = _size_problem(p, body.width, body.height)
+        if size_problem:
+            raise _bad("unsupported_resolution", size_problem)
         if not body.start_image_b64 and not p.get("t2v", True):
             raise _bad("capability_mismatch", "profile is image-to-video only; start_image_b64 is required")
         if body.start_image_b64 and not p["i2v"]:
             raise _bad("capability_mismatch", "profile has no image-to-video")
         if body.end_image_b64 and not p["first_last"]:
             raise _bad("capability_mismatch", "profile has no first+last frame conditioning")
+        if body.end_image_b64 and p["backend"] not in END_FRAME_BACKENDS:
+            # The model may support it, but no backend passes the end frame through yet:
+            # accepting it would render a clip that ignores it and still report success.
+            raise _bad("capability_mismatch", f"end-frame conditioning is not wired for backend {p['backend']}")
         req = body.model_dump()
         for field in ("start_image_b64", "end_image_b64"):
             b64 = req.pop(field)
@@ -184,8 +229,12 @@ class Forge:
         job = self.store.claim_next()
         if not job:
             return False
-        req = self.store.get_request(job["id"])
-        p = self.profiles[job["profile"]]
+        try:
+            req = self.store.get_request(job["id"])
+            p = self.profiles[job["profile"]]
+        except Exception as e:  # noqa: BLE001 — a bad row must fail the job, not kill the worker thread
+            self.store.fail(job["id"], "config_unavailable", f"cannot load job: {type(e).__name__}: {e}")
+            return True
         start_image = str(self.data / "inputs" / req["start_image_sha256"]) if req.get("start_image_sha256") else None
         t0 = time.time()
         tmp = tempfile.mkdtemp(prefix="forge-")
@@ -236,14 +285,21 @@ class Forge:
         )
 
     def loop(self) -> None:
+        # The worker is a daemon thread: an uncaught exception kills it silently, the
+        # job it held stays 'running', and the sweep that would reclaim it lived in the
+        # same dead loop. Every iteration is guarded; health reports a stuck worker.
         last_sweep = 0.0
         while not self._stop.is_set():
             self.worker_alive_at = time.time()
-            if time.time() - last_sweep > 30:
-                self.sweep()
-                last_sweep = time.time()
-            if not self.run_one():
-                self._stop.wait(1.0)
+            try:
+                if time.time() - last_sweep > 30:
+                    last_sweep = time.time()
+                    self.sweep()
+                if not self.run_one():
+                    self._stop.wait(1.0)
+            except Exception as e:  # noqa: BLE001
+                self.last_loop_error = f"{type(e).__name__}: {e}"[:300]
+                self._stop.wait(5.0)
 
     def health(self) -> dict[str, Any]:
         counts = self.store.counts()
@@ -262,6 +318,7 @@ class Forge:
             "p50_latency_s": statistics.median(lat) if lat else "UNKNOWN",
             "p95_latency_s": (sorted(lat)[max(0, int(len(lat) * 0.95) - 1)] if lat else "UNKNOWN"),
             "recovered_on_boot": self.recovered,
+            "last_loop_error": self.last_loop_error,
             "profiles": {k: {"license_state": v["license_state"], "rollout": v["rollout"], "enabled": k in self.enabled} for k, v in self.profiles.items()},
         }
 
@@ -289,7 +346,22 @@ def create_app(start_worker: bool = True) -> FastAPI:
 
     @app.middleware("http")
     async def auth(request: Request, call_next):
+        if request.url.path == "/livez":
+            # Unauthenticated liveness for container probes: says nothing but "process up".
+            return JSONResponse({"ok": True})
+        # Reject BEFORE buffering the body: an unsigned request must not be able to
+        # make the server read gigabytes into memory.
+        if not request.headers.get("x-forge-signature") or not request.headers.get("x-forge-timestamp"):
+            return JSONResponse({"detail": "missing signature"}, status_code=401)
+        try:
+            declared = int(request.headers.get("content-length") or 0)
+        except ValueError:
+            return JSONResponse({"detail": "bad content-length"}, status_code=400)
+        if declared > MAX_BODY_BYTES:
+            return JSONResponse({"detail": "body too large"}, status_code=413)
         body = await request.body()
+        if len(body) > MAX_BODY_BYTES:
+            return JSONResponse({"detail": "body too large"}, status_code=413)
         try:
             forge.verify(request.method, request.url.path, request.headers.get("x-forge-timestamp"), request.headers.get("x-forge-signature"), body)
         except HTTPException as e:

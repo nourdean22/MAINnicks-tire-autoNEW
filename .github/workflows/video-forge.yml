@@ -9,11 +9,13 @@ on:
     paths:
       - 'apps/video-forge/**'
       - '.github/workflows/video-forge.yml'
+      - 'apps/nickstire/docs/reel-packs/**'
   push:
     branches: [main]
     paths:
       - 'apps/video-forge/**'
       - '.github/workflows/video-forge.yml'
+      - 'apps/nickstire/docs/reel-packs/**'
 
 concurrency:
   group: video-forge-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || 'pr' }}

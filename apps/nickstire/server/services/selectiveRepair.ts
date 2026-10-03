@@ -300,7 +300,9 @@ export async function processNextRepairJob(): Promise<{ processed: boolean; jobI
   // The generation pipeline already selects per run and already fails loudly on
   // a provider it has no branch for (reelPipeline.ts). Repair now does both.
   const { selectReelVideoProvider, reelLedgerModel } = await import("./reelPipeline");
-  const repairProvider = await selectReelVideoProvider();
+  // A self-hosted repair already holding a Forge job STAYS on that lane: switching the
+  // pin mid-render would orphan a GPU job that keeps running (and, rented, billing).
+  const repairProvider = entry.selfHosted?.selfHostedJobId ? "self_hosted" : await selectReelVideoProvider();
 
   // P2: fresh, immutable, per-attempt reservation — failed attempts remain
   // failed spend on the ledger and are never reused.
