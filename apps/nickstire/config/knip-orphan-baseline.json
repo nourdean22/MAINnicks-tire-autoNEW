@@ -5885,6 +5885,26 @@
       "file": "apps/nickstire/server/services/officeVisual.ts",
       "symbol": "calibrationNote",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Turns one operator review (Right / Wrong + correction) into a calibration line; an unreviewed description yields none. Runtime consumer is loadVisualCalibration in this module, which feeds the route's vision call. officeVisual.test.ts pins confirmed vs corrected vs unreviewed. Added 2026-10-02 (office self-learning)."
+    },
+    {
+      "file": "apps/nickstire/server/services/adStudio/adRender.ts",
+      "symbol": "RendererUnavailableError",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Typed 'no Chrome on this box' error; routers match it by code RENDERER_UNAVAILABLE (instagramStudio.render), the class export is what server/rendererUnavailable.test.ts asserts against (Sentry NICKSTIRE-C)."
+    },
+    {
+      "file": "apps/nickstire/server/services/adStudio/adRender.ts",
+      "symbol": "SYSTEM_CHROME_CANDIDATES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The ordered distro Chrome paths resolveChromeExecutable probes; exported so rendererUnavailable.test.ts pins that /usr/bin/chromium (Debian apt chromium) is searched."
+    },
+    {
+      "file": "apps/nickstire/server/services/adStudio/adRender.ts",
+      "symbol": "resolveChromeExecutable",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Consumed in-module by launchRenderBrowser; exported so rendererUnavailable.test.ts can prove env/cache/distro resolution order without launching a browser."
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/outreach/SmsSection.tsx",
+      "symbol": "ThreadView",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Rendered in-module by SmsSection; exported so sms-suggest-draft-no-loop.test.tsx can mount one thread and prove suggestDraft fires once, not every render (Sentry NICKSTIRE-2)."
     }
   ]
 }

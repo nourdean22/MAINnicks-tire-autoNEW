@@ -720,25 +720,45 @@ export const chatRouter = router({
 
       sessionMessages.push({ role: "assistant", content: finalReply });
 
+      // The reply already exists — a failed persist must not discard it
+      // (Sentry NICKSTIRE-8: TiDB quota restriction threw here and the visitor
+      // got an error instead of their answer). Log loudly, still reply, and
+      // hand out no session id/token for a row that was never written.
+      // vehicleInfo is varchar(255) and LLM-extracted: clamp it so STRICT mode
+      // cannot reject the row over width.
+      const vehicleInfo = extractedInfo?.vehicle ? extractedInfo.vehicle.slice(0, 255) : null;
+      let persisted = false;
       if (d) {
-        if (sessionId) {
-          await d.update(chatSessions).set({
-            messagesJson: JSON.stringify(sessionMessages),
-            vehicleInfo: extractedInfo?.vehicle || undefined,
-            problemSummary: extractedInfo?.problem || undefined,
-          }).where(eq(chatSessions.id, sessionId));
-        } else {
-          const result = await d.insert(chatSessions).values({
-            messagesJson: JSON.stringify(sessionMessages),
-            vehicleInfo: extractedInfo?.vehicle || null,
-            problemSummary: extractedInfo?.problem || null,
+        try {
+          if (sessionId) {
+            await d.update(chatSessions).set({
+              messagesJson: JSON.stringify(sessionMessages),
+              vehicleInfo: vehicleInfo || undefined,
+              problemSummary: extractedInfo?.problem || undefined,
+            }).where(eq(chatSessions.id, sessionId));
+          } else {
+            const result = await d.insert(chatSessions).values({
+              messagesJson: JSON.stringify(sessionMessages),
+              vehicleInfo,
+              problemSummary: extractedInfo?.problem || null,
+            });
+            sessionId = Number(result[0].insertId);
+          }
+          persisted = true;
+        } catch (err) {
+          // DrizzleQueryError.message embeds the bound params (the visitor's
+          // transcript) — log only the driver's cause so no PII reaches logs.
+          const cause = err instanceof Error ? (err as Error & { cause?: unknown }).cause : undefined;
+          log.error("[Chat] Failed to persist chat turn — reply still returned, transcript NOT saved:", {
+            sessionId: sessionId ?? null,
+            turns: sessionMessages.length,
+            error: cause instanceof Error ? cause.message : err instanceof Error ? err.name : "unknown",
           });
-          sessionId = Number(result[0].insertId);
         }
       }
 
       // Fire-and-forget: auto-create lead when booking intent detected
-      if (extractedInfo?.wantsAppointment && d && sessionId) {
+      if (extractedInfo?.wantsAppointment && d && sessionId && persisted) {
         // Check if this session already converted (don't create duplicate leads)
         const session = await d.select({ converted: chatSessions.converted })
           .from(chatSessions).where(eq(chatSessions.id, sessionId)).limit(1);

@@ -64,6 +64,21 @@ export interface BuildChatResponseInput {
   onFinishPromise?: Promise<void>;
 }
 
+/**
+ * HTTP header values must be ByteStrings (every char <= 0xFF). Headers.set
+ * THROWS otherwise, and because it runs before the stream is returned the
+ * whole chat turn 500s. Witnessed 2026-10-01 (Sentry JAVASCRIPT-REACT-13):
+ * an escalation `reason` carrying an em-dash killed POST /api/ai/chat.
+ * Any value built from free text goes through here.
+ */
+export function toHeaderValue(value: string): string {
+  return value
+    .replace(/[–—]/g, "-")
+    .replace(/→/g, "->")
+    .replace(/[\r\n]+/g, " ")
+    .replace(/[^\x00-\xFF]/g, "?");
+}
+
 export function buildChatResponse(input: BuildChatResponseInput): Response {
   const {
     streamResponse,
@@ -128,20 +143,20 @@ export function buildChatResponse(input: BuildChatResponseInput): Response {
   }
   // Apr 19 · Emit the inferred persona so the client can render a
   // tiny persona hint without needing tabs.
-  headers.set("X-Persona", personality);
+  headers.set("X-Persona", toHeaderValue(personality));
   // 2026-08-28 · lane provenance. Nineteen headers existed and NONE named
   // the provider, model, lane or effort — so five gates could silently
   // change which brain answered with no way for the operator to tell.
-  if (lane?.provider) headers.set("X-Lane-Provider", lane.provider);
-  if (lane?.modelId) headers.set("X-Lane-Model", lane.modelId);
+  if (lane?.provider) headers.set("X-Lane-Provider", toHeaderValue(lane.provider));
+  if (lane?.modelId) headers.set("X-Lane-Model", toHeaderValue(lane.modelId));
   if (escalation && escalation.tier !== "none") {
     headers.set("X-Escalation-Tier", escalation.tier);
     headers.set("X-Escalation-Applied", escalation.escalated ? "1" : "0");
     // The load-bearing one: depth was requested and refused. Without it a
     // keyless/capped escalation is indistinguishable from never asking.
     if (escalation.blockedBy) {
-      headers.set("X-Escalation-Blocked", escalation.blockedBy);
-      headers.set("X-Escalation-Reason", escalation.reason.slice(0, 200));
+      headers.set("X-Escalation-Blocked", toHeaderValue(escalation.blockedBy));
+      headers.set("X-Escalation-Reason", toHeaderValue(escalation.reason).slice(0, 200));
     }
   }
   // Apr 19 · Turn-signal telemetry. Client uses these to render the

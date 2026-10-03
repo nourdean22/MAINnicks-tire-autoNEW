@@ -274,7 +274,21 @@ foreach ($et in $eufyTasks) {
 # Listener health is authoritative here. An elevated/System relay can hide its command line
 # from this token, so command-line discovery alone causes duplicate restart attempts.
 $relayReady = (Port-Open 8554) -and (Port-Open 8080)
-if (-not $relayReady -and (Test-Path $relaySecret) -and (Test-Path $relayLauncher)) {
+# A refused V380 cloud login is not a crash a restart can heal. Witnessed 2026-10-02/03: the
+# relay exited "login failed result: 1002" and this loop re-tried the cloud login ~120x/hour
+# for 11+ hours, which risks locking the account. On a login refusal, retry once per 30 min
+# and escalate it. 1002 follows a dropped stream: the sign camera is solar and goes offline when its battery runs out.
+$relayErr = Join-Path (Split-Path $relayLauncher) $(if ($isSystem) { "relay-system.stderr.log" } else { "relay.stderr.log" })
+$relayAuthFailed = (Test-Path $relayErr) -and (Select-String -Path $relayErr -Pattern 'login failed' -SimpleMatch -Quiet)
+$relayAuthHold = (-not $relayReady) -and $relayAuthFailed -and ((Restarts-InLastMinutes "sign-relay" 30) -gt 0)
+if ($relayAuthHold) {
+  $e = Get-Entry "sign-relay"
+  if ($e.escalatedAt -lt ($nowEpoch - 3600)) {
+    $e.escalatedAt = $nowEpoch
+    Log "ESCALATE sign-relay V380 cloud login refused; holding retries to 1 per 30 min -- the solar shop-sign camera is likely out of battery (expected overnight); if it persists in daylight, check it is online in the V380 app"
+  }
+}
+if (-not $relayReady -and -not $relayAuthHold -and (Test-Path $relaySecret) -and (Test-Path $relayLauncher)) {
   Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @("-NoProfile","-ExecutionPolicy","Bypass","-File",$relayLauncher)
   Record-Restart "sign-relay" "ports 8554/8080 not listening"
   Start-Sleep -Milliseconds 900

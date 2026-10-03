@@ -146,7 +146,7 @@ function initialsFor(name: string | null, phone: string): string {
 // (hoisted in Outreach Hub Phase 2 so every tab in the hub can show it).
 
 // ─── Day-grouped messages ───────────────────────────────
-function ThreadView({
+export function ThreadView({
   conversation,
   onBack,
   initialBody,
@@ -165,7 +165,11 @@ function ThreadView({
     { refetchInterval: 15_000 },
   );
 
-  const suggestDraft = trpc.smsConversations.suggestDraft.useMutation();
+  // Depend on the STABLE `mutate`, never the mutation object: TanStack returns
+  // a new object on every state change, which re-created handleSuggestDraft,
+  // re-fired the auto-suggest effect below and looped suggestDraft forever
+  // (Sentry NICKSTIRE-2: one batched POST of suggestDraft x N, 157 events).
+  const { mutate: suggestDraftMutate } = trpc.smsConversations.suggestDraft.useMutation();
   const saveFeedback = trpc.smsConversations.saveFeedback.useMutation();
 
   const [suggestedDraft, setSuggestedDraft] = useState<{
@@ -186,7 +190,7 @@ function ThreadView({
 
   const handleSuggestDraft = useCallback(() => {
     setIsDraftLoading(true);
-    suggestDraft.mutate(
+    suggestDraftMutate(
       {
         phone: conversation.customerPhone,
         conversationId: conversation.id,
@@ -209,7 +213,7 @@ function ThreadView({
         },
       }
     );
-  }, [conversation.customerPhone, conversation.id, suggestDraft]);
+  }, [conversation.customerPhone, conversation.id, suggestDraftMutate]);
 
   // Automatically suggest a draft when the last message is inbound
   useEffect(() => {

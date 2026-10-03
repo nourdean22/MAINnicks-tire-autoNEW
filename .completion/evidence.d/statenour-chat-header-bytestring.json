@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "deferred": "WHAT THE OPERATOR SEES after this diff: Admin -> Outreach -> SMS: opening a thread whose newest message is inbound asks for ONE suggested draft, instead of re-requesting it on every render (Sentry NICKSTIRE-2: 157 permission-10002 events with an expired session; a paid AI draft per render with a live one). Admin -> Instagram Studio: a long source detail no longer refuses 'Generate reel brief'; if the server has no Chrome, Render shows 'renderer unavailable' and the run is marked held instead of a generic error. Public site: a website chat visitor still gets the reply when the transcript save fails. Live walkthrough DEFERRED until deploy: no production admin session exists in this cloud container."
+    },
+    "capability-ledger-updated": {
+      "ref": "UPDATED in this diff: apps/nickstire/docs/operations/capability-ledger.json 'admin-gateway-one-rule-q23' gains a P3 blocker (SMS suggestDraft loop fix, unit-proven only) and 'instagram-capi-growth-wave-20261001' gains a P2 blocker (typed renderer-unavailable, draft budget, topic cap; chromium apt package set on Railway 2026-10-03, render unproven until a deploy shows images). REALITY-LEDGER.md re-rendered."
+    }
+  }
+}

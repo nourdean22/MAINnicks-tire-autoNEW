@@ -489,13 +489,28 @@ Return only JSON matching the schema.`;
       { role: "system", content: system },
       { role: "user", content: "Generate the strongest truthful draft now." },
     ],
-    maxTokens: 4096,
-    timeoutMs: 90_000,
+    // Reasoning models (the funded lane's default, and gemini-2.5-flash) spend
+    // their hidden thinking from this SAME budget. NICKSTIRE-9 (2026-09-30):
+    // 40.9s, then empty content — the shape of thinking exhausting a 4096 cap
+    // (finish_reason was not recorded then; it is named below now). Same
+    // headroom carouselBriefGen/reelBriefGen already needed for this class.
+    maxTokens: 24_576,
+    timeoutMs: 120_000,
     outputSchema: OUTPUT_SCHEMA,
   });
 
-  const raw = result.choices?.[0]?.message?.content;
-  if (typeof raw !== "string" || !raw.trim()) throw new Error("The content model returned an empty draft.");
+  const choice = result.choices?.[0];
+  const raw = choice?.message?.content;
+  if (typeof raw !== "string" || !raw.trim()) {
+    // Name WHY it was empty: "length" is a budget truncation, anything else is
+    // the provider. Both used to read as the same opaque sentence.
+    const reason = choice?.finish_reason ?? "unknown";
+    throw new Error(
+      reason === "length"
+        ? "The content model ran out of output budget before writing the draft (finish_reason=length)."
+        : `The content model returned an empty draft (finish_reason=${reason}).`,
+    );
+  }
   const parsed = normalizeGeneratedInstagramDraft(JSON.parse(raw));
 
   const carouselSlides: InstagramCarouselSlide[] = input.format === "carousel"

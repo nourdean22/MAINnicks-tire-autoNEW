@@ -2316,7 +2316,11 @@ export const contentAdminRouter = router({
    *  prompt + the funded Gemini. Generation only — no video render, no posting. */
   generateReelBrief: adminProcedure
     .input(z.object({
-      topic: z.string().max(300).optional(),
+      // The Studio sends its source detail (up to 1000 chars, see sourceDetail
+      // below) as the topic steer. A hard max(300) refused every long detail
+      // before generation ran (NICKSTIRE-A, 2026-09-30). The full text still
+      // reaches the generator via sourceDetail; the steer is capped, not refused.
+      topic: z.string().max(1000).optional().transform((t) => (t === undefined ? t : t.trim().slice(0, 300))),
       campaignKeyword: z.string().max(40).optional(),
       factBucket: z.string().max(40).optional(),
       archetype: z.string().max(40).optional(),

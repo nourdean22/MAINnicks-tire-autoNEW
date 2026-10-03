@@ -3246,13 +3246,17 @@
         {
           "severity": "P3",
           "description": "Not deployed: none of the changed surfaces has been seen on the installed admin PWA with a failed gateway refetch."
+        },
+        {
+          "severity": "P3",
+          "description": "2026-10-03 (Sentry NICKSTIRE-2): SmsSection auto-suggest now depends on the stable suggestDraft.mutate, not the mutation object, so it stops re-firing suggestDraft every render (157 of 183 permission-10002 events; a paid AI draft per render with a live session). Unit-proven only; not yet observed on the installed admin PWA."
         }
       ],
       "deferredScope": [
         "Q-23 remaining: the lane-health strip (phase 11, claimed separately).",
         "SmsSection's subtitle said texts route 'with Twilio fallback': taken off by Q-23 phase 13 (branch nickstire/q23-phase13-sms-subtitle), pinned by client/src/__tests__/sms-section-no-twilio-q23.test.tsx."
       ],
-      "lastVerifiedAt": "2026-10-01"
+      "lastVerifiedAt": "2026-10-03"
     },
     {
       "capabilityId": "admin-lane-health-q23",
@@ -3304,12 +3308,16 @@
         {
           "severity": "P3",
           "description": "Not yet production-verified; this entry is intentionally unit_verified until the merged deployment is observed."
+        },
+        {
+          "severity": "P2",
+          "description": "2026-10-03 (Sentry NICKSTIRE-C/9/A): Studio render now fails typed (RENDERER_UNAVAILABLE -> run held, PRECONDITION_FAILED) when no Chrome exists; draft maxTokens 24576; long reel topics capped not refused. RAILPACK_DEPLOY_APT_PACKAGES set to '... ffmpeg fonts-dejavu-core chromium' on 2026-10-03 (operator-authorized). Rendering is unproven until a deploy shows chromium in the image and a Studio render returns images."
         }
       ],
       "deferredScope": [
         "Production conversion delivery/read-back remains a post-merge operational verification."
       ],
-      "lastVerifiedAt": "2026-10-01"
+      "lastVerifiedAt": "2026-10-03"
     },
     {
       "capabilityId": "customer-conversation-tuning-20261001",

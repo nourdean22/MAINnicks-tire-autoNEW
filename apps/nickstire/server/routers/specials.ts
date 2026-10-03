@@ -2,6 +2,7 @@
  * Specials/Promotions Router — CRUD for active deals
  */
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { desc, eq } from "drizzle-orm";
 import { router, publicProcedure, adminProcedure } from "../_core/trpc";
 import { randomUUID } from "crypto";
@@ -13,7 +14,9 @@ export const specialsRouter = router({
   getActive: publicProcedure.query(async () => {
     try {
       const { cached } = await import("../lib/cache");
-      return cached("specials:active", 300, async () => {
+      // `await` is load-bearing: without it the rejection escaped this try and
+      // the catch below was dead code (Sentry NICKSTIRE-7).
+      return await cached("specials:active", 300, async () => {
         const { getDb } = await import("../db");
         const { specials } = await import("../../drizzle/schema");
         const db = await getDb();
@@ -26,7 +29,12 @@ export const specialsRouter = router({
       });
     } catch (err) {
       log.error("[Specials] Failed to fetch specials:", err instanceof Error ? err.message : err);
-      return [];
+      // Same contract as content.activeNotifications: a failed read is not
+      // "no specials". The client renders nothing on error either way.
+      throw new TRPCError({
+        code: "SERVICE_UNAVAILABLE",
+        message: "Specials store unavailable — this is a read failure, not an absence of specials.",
+      });
     }
   }),
 
