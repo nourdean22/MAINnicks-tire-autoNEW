@@ -9,6 +9,11 @@ set -euo pipefail
 : "${WAN22_REV:?pin a revision}"
 pip install -q "huggingface_hub[cli]>=0.24,<1"
 huggingface-cli download "$LTX25_REPO" --revision "$LTX25_REV" --local-dir "$MODELS_DIR/LTX-2.5"
+# DFR's detailing IC-LoRA is a separate repo (needed only by the ltx-2.5-dfr profile).
+if [ -n "${LTX25_DFR_LORA_REV:-}" ]; then
+  huggingface-cli download Lightricks/LTX-2.5-22b-IC-LoRA-Pixel-Spatial-Upscaler --revision "$LTX25_DFR_LORA_REV" \
+    --local-dir "$MODELS_DIR/LTX-2.5-22b-IC-LoRA-Pixel-Spatial-Upscaler"
+fi
 huggingface-cli download Wan-AI/Wan2.2-TI2V-5B --revision "$WAN22_REV" --local-dir "$MODELS_DIR/Wan2.2-TI2V-5B"
 if [ -n "${WAN22_A14B_REV:-}" ]; then
   huggingface-cli download Wan-AI/Wan2.2-I2V-A14B --revision "$WAN22_A14B_REV" --local-dir "$MODELS_DIR/Wan2.2-I2V-A14B"

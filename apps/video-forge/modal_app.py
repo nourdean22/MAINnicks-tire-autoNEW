@@ -32,15 +32,53 @@ image = modal.Image.from_dockerfile(
     build_args={
         "LTX2_REF": _os.environ.get("LTX2_REF", "UNPINNED"),
         "WAN22_REF": _os.environ.get("WAN22_REF", "UNPINNED"),
+        # Build only what is being served (FORGE_INSTALL_LTX=0 for a Wan-only canary).
+        "INSTALL_LTX": _os.environ.get("FORGE_INSTALL_LTX", "1"),
+        "INSTALL_WAN": _os.environ.get("FORGE_INSTALL_WAN", "1"),
     },
 )
 models = modal.Volume.from_name("video-forge-models", create_if_missing=True)
 data = modal.Volume.from_name("video-forge-data", create_if_missing=True)
 app = modal.App("nour-video-forge", image=image)
 
+# Weights fetch runs on a tiny CPU image — never on the GPU image or a GPU.
+fetch_image = modal.Image.debian_slim(python_version="3.12").pip_install("huggingface_hub>=0.24,<1")
+
+# Wan 2.2 TI2V-5B: Apache-2.0, ungated. Revision pinned (HF commit) so a canary is reproducible.
+WAN_5B = {"repo": "Wan-AI/Wan2.2-TI2V-5B", "revision": "921dbaf3f1674a56f47e83fb80a34bac8a8f203e", "dir": "/models/Wan2.2-TI2V-5B"}
+
+
+@app.function(image=fetch_image, volumes={"/models": models}, timeout=2 * 60 * 60, cpu=2.0, memory=4096)
+def fetch_wan_5b() -> dict:
+    """Download the pinned Wan 5B weights into the models volume and record sha256s.
+
+    Skips the repo's docs/example images. Idempotent: hf_hub skips files already present.
+    """
+    import hashlib
+    import pathlib
+
+    from huggingface_hub import snapshot_download
+
+    snapshot_download(
+        WAN_5B["repo"], revision=WAN_5B["revision"], local_dir=WAN_5B["dir"],
+        ignore_patterns=["assets/*", "examples/*", "*.md", ".msc", ".mv"],
+    )
+    sums = {}
+    for f in sorted(pathlib.Path(WAN_5B["dir"]).rglob("*")):
+        if f.is_file() and f.suffix in (".safetensors", ".pth"):
+            h = hashlib.sha256()
+            with open(f, "rb") as fh:
+                for chunk in iter(lambda: fh.read(1 << 24), b""):
+                    h.update(chunk)
+            sums[str(f)] = h.hexdigest()
+    pathlib.Path(WAN_5B["dir"], "SHA256SUMS").write_text("".join(f"{v}  {k}\n" for k, v in sums.items()))
+    models.commit()
+    return {"files": len(sums), "bytes": sum(pathlib.Path(k).stat().st_size for k in sums)}
+
 
 @app.function(
-    gpu="A100-80GB",
+    # 80GB is the LTX quality baseline; a Wan 5B canary fits a 40GB card (FORGE_MODAL_GPU=A100-40GB).
+    gpu=_os.environ.get("FORGE_MODAL_GPU", "A100-80GB"),
     volumes={"/models": models, "/data": data},
     secrets=[modal.Secret.from_name("video-forge")],
     max_containers=1,
