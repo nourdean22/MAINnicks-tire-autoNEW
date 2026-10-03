@@ -140,6 +140,89 @@ async function loadWeatherSignal(): Promise<WeatherSignal | null> {
   }
 }
 
+/**
+ * 2026-10-03 · per-attempt budgets for the narrative call, and the step budget
+ * that must contain them.
+ *
+ * THE INCIDENT. 2026-10-02 10:19:09Z the daily brief went out DEGRADED: the
+ * compose step's 90s Promise.race fired ("compose timed out after 90s"). The
+ * call it was waiting on was this file's bare `generateText(getModel("reason"))`
+ * with NO abort signal — so the race abandoned it (the request kept running and
+ * billing) and the caller's fallback replaced the WHOLE brief, including the
+ * deterministic Awaiting-You / capacity / attention blocks this file computes
+ * before the model and promises are undroppable. Railway logs for that run show
+ * nothing between content-alpha finishing (10:17:38.6) and the timeout — the
+ * gatherers are DB reads; the wait was the model.
+ *
+ * MEASURED compose time (briefing_logs.created_at minus the content-alpha log
+ * line) 09-27..10-03: 19s, 89s, 18s, 55s, 76s, >90s (10-02). 09-28 completed one
+ * second inside the old budget. The reason lane is legitimately long-tailed
+ * (8192 max tokens, hidden reasoning on Ollama) — 100s is the same per-attempt
+ * budget aiChat already gives "reason" (provider.ts PROVIDER_TIMEOUT).
+ *
+ * THE FIX. Each attempt now carries its own abort: reason gets REASON_ATTEMPT_MS,
+ * then the fast lane gets FAST_ATTEMPT_MS, then the caller's catch below keeps
+ * the deterministic blocks. The step-level backstop is raised only to CONTAIN
+ * those two attempts plus gather time, so the fallback actually gets to run
+ * instead of being pre-empted by an outer timer that is shorter than the call.
+ */
+export const REASON_ATTEMPT_MS = 100_000;
+export const FAST_ATTEMPT_MS = 25_000;
+/** Outer backstop in intelligence-brief.ts; must exceed both attempts + gather. */
+export const COMPOSE_STEP_TIMEOUT_MS = 140_000;
+
+const BRIEF_TELEMETRY = {
+  functionId: "daily-executive-brief",
+  tags: ["intelligence"],
+  metadata: { source: "intelligence" },
+};
+
+/**
+ * The narrative call: reason lane, then fast lane, each hard-bounded by an
+ * AbortSignal so a hung provider is CANCELLED (not orphaned) and the next lane
+ * still fits inside COMPOSE_STEP_TIMEOUT_MS. Throws only when both lanes fail;
+ * the caller turns that into "Narrative unavailable" with the queue preserved.
+ */
+export async function generateBriefNarrative(prompt: string): Promise<string> {
+  const lanes = [
+    { lane: "reason" as const, ms: REASON_ATTEMPT_MS },
+    { lane: "fast" as const, ms: FAST_ATTEMPT_MS },
+  ];
+  let lastErr: unknown = null;
+  for (const { lane, ms } of lanes) {
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(new Error(`${lane} lane exceeded ${ms / 1000}s`)),
+      ms,
+    );
+    try {
+      const result = await generateText({
+        model: getModel(lane),
+        abortSignal: controller.signal,
+        // See extraction.ts for why tags + metadata.source are load-bearing:
+        // an empty trace name makes them the ONLY identity a trace carries.
+        experimental_telemetry: langfuseTelemetry({
+          ...BRIEF_TELEMETRY,
+          metadata: { ...BRIEF_TELEMETRY.metadata, lane },
+        }),
+        system: SYSTEM_PROMPT,
+        prompt,
+      });
+      if (lane !== "reason") log.warn("brief_narrative_fell_back", { lane });
+      return result.text || "No briefing content compiled for today.";
+    } catch (err) {
+      lastErr = controller.signal.aborted ? controller.signal.reason ?? err : err;
+      log.warn("brief_narrative_lane_failed", {
+        lane,
+        error: (lastErr instanceof Error ? lastErr.message : String(lastErr)).slice(0, 200),
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
+
 export async function composeDailyExecutiveBrief(): Promise<{ date: string; text: string }> {
   // High-scoring pending opportunities (score >= 75)
   const opportunities = await prisma.opportunityLog.findMany({
@@ -263,19 +346,7 @@ ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\
   // worthless if the return path can still discard it.
   let body: string;
   try {
-    const result = await generateText({
-      model: getModel("reason"),
-      // See extraction.ts for why tags + metadata.source are load-bearing:
-      // an empty trace name makes them the ONLY identity a trace carries.
-      experimental_telemetry: langfuseTelemetry({
-        functionId: "daily-executive-brief",
-        tags: ["intelligence"],
-        metadata: { source: "intelligence" },
-      }),
-      system: SYSTEM_PROMPT,
-      prompt: `${promptText}\n\nCompose the brief now.`,
-    });
-    body = result.text || "No briefing content compiled for today.";
+    body = await generateBriefNarrative(`${promptText}\n\nCompose the brief now.`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log.error("brief_generation_failed_queue_preserved", { error: msg.slice(0, 200) });

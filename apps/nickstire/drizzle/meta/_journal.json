@@ -1086,6 +1086,13 @@
       "when": 1790992100000,
       "tag": "0141_conversation_episodes_gist",
       "breakpoints": true
+    },
+    {
+      "idx": 155,
+      "version": "5",
+      "when": 1790992200000,
+      "tag": "0142_chat_sessions_messages_mediumtext",
+      "breakpoints": true
     }
   ]
 }

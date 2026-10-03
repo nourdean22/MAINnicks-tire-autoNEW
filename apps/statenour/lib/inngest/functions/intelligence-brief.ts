@@ -276,8 +276,12 @@ export const intelligenceDailyBrief = inngest.createFunction(
     // losing the whole run: briefing_logs ALWAYS gains its row, the
     // push still fires, and the failure is LOUD in the text itself.
     const briefContent = await step.run("compose-brief-text", async () => {
-      const { composeDailyExecutiveBrief } = await import("@/lib/intelligence/compose-daily-brief");
-      const COMPOSE_TIMEOUT_MS = 90_000;
+      // 2026-10-03 · the backstop lives beside the per-lane budgets it must
+      // contain (compose-daily-brief.ts). It was 90s while the model call
+      // inside had no bound at all, so on 10-02 this timer won the race and
+      // discarded the whole brief instead of letting a fallback lane run.
+      const { composeDailyExecutiveBrief, COMPOSE_STEP_TIMEOUT_MS: COMPOSE_TIMEOUT_MS } =
+        await import("@/lib/intelligence/compose-daily-brief");
       try {
         return await Promise.race([
           composeDailyExecutiveBrief(),

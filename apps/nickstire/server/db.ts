@@ -28,11 +28,32 @@ export type DB = MySql2Database<Record<string, never>>;
 let _db: any = null;
 let _pool: mysql.Pool | null = null;
 
-/** Reset the cached DB connection — used by self-healing to force reconnection */
+/**
+ * How long a retired pool stays open after resetDbConnection() swaps it out.
+ * Requests that already hold the old drizzle handle (`const db = await getDb()`
+ * then several queries) keep working through it until then.
+ */
+const RETIRED_POOL_GRACE_MS = 60_000;
+
+/**
+ * Reset the cached DB connection — used by self-healing to force reconnection.
+ *
+ * The NEXT getDb() builds a fresh pool; the old one is ended only after
+ * RETIRED_POOL_GRACE_MS. mysql2's pool.end() is not graceful for callers that
+ * still hold the pool: it rejects queued and later getConnection() calls with
+ * "Pool is closed." and quits every connection, in-use ones included. Ending it
+ * immediately (the old behaviour) turned one health-check reset into "Pool is
+ * closed" / "Connection lost" errors on unrelated in-flight requests.
+ */
 export function resetDbConnection(): void {
-  _pool?.end().catch((e) => { log.warn("[db] fire-and-forget failed:", e); });
+  const retired = _pool;
   _pool = null;
   _db = null;
+  if (!retired) return;
+  const timer = setTimeout(() => {
+    retired.end().catch((e) => { log.warn("[db] retired pool end failed:", e); });
+  }, RETIRED_POOL_GRACE_MS);
+  timer.unref?.();
 }
 
 /**

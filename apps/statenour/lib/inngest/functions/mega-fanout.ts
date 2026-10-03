@@ -222,11 +222,44 @@ export async function dispatchChild(path: string, cronSecret: string): Promise<{
     };
   }
 
-  const res = await fetch(`${baseUrl}${path}`, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${cronSecret}` },
-    signal: AbortSignal.timeout(CHILD_TIMEOUT_MS[path] ?? DEFAULT_CHILD_TIMEOUT_MS),
-  });
+  // 2026-10-03 · A CEILING HIT IS "STILL RUNNING", NOT A FAILURE.
+  //
+  // Measured over 14 days of cron_job_logs: every bounded child that crossed
+  // the 90s ceiling ran AGAIN, because the abort threw -> the step failed ->
+  // `retries: 3` re-dispatched it while the first run was still finishing
+  // server-side (aborting the client never stops the handler — see
+  // DETACHED_CHILDREN). brain-intelligence ran 2-3x on 7 of 14 nights
+  // (durations 93-160s, then a final <90s run that ended the retries);
+  // dossier-autodraft drafted dossiers 3x on Monday 09-28 (107s, 115s, 75s);
+  // distill-sessions and cron-healer each doubled on 10-03. Every one of those
+  // rows says `success` — the work was real and repeated, LLM spend included.
+  //
+  // So on a ceiling hit we stop waiting and report 202 (accepted, outcome in
+  // the child's own CronJobLog row) — the same contract DETACHED_CHILDREN
+  // already uses. A non-2xx response or a refused connection still throws,
+  // because a child that never ran is worth retrying.
+  //
+  // A controller + setTimeout (not AbortSignal.timeout) so the ceiling is
+  // driven by the same timers a test can control.
+  const ceilingMs = CHILD_TIMEOUT_MS[path] ?? DEFAULT_CHILD_TIMEOUT_MS;
+  const controller = new AbortController();
+  const ceiling = setTimeout(() => controller.abort(), ceilingMs);
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}${path}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${cronSecret}` },
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (controller.signal.aborted) {
+      log.warn("mega_child_ceiling_reached_still_running", { path, ceilingMs });
+      return { path, status: 202, durationMs: Date.now() - start };
+    }
+    throw err;
+  } finally {
+    clearTimeout(ceiling);
+  }
   const durationMs = Date.now() - start;
   if (!res.ok) {
     throw new Error(

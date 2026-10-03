@@ -89,6 +89,57 @@ describe("dispatchChild · detached long-running children", () => {
     await expect(dispatchChild(CONSOLIDATE, SECRET)).rejects.toThrow(/500/);
   });
 
+  it("a bounded child past its ceiling is 'still running' (202), never a step failure that Inngest re-runs", async () => {
+    // Prod 2026-09-28: dossier-autodraft took 107s against the 90s ceiling, the
+    // abort threw, the step retried, and the Monday dossier batch ran 3 times
+    // (107s, 115s, 75s — all `success`). A throw here IS the re-run.
+    const fetchMock = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(Object.assign(new Error("The operation was aborted"), { name: "AbortError" })),
+          );
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const pending = dispatchChild("/api/cron/dossier-autodraft", SECRET);
+    const settled = pending.then(
+      (v) => ({ ok: true as const, v }),
+      (e: unknown) => ({ ok: false as const, e }),
+    );
+    await vi.advanceTimersByTimeAsync(90_000);
+
+    const out = await settled;
+    expect(out.ok).toBe(true);
+    if (out.ok) expect(out.v.status).toBe(202);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a bounded child that never answers within a short window is not aborted early", async () => {
+    let aborted = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, init?: RequestInit) => {
+        init?.signal?.addEventListener("abort", () => { aborted = true; });
+        return new Promise<Response>(() => {});
+      }),
+    );
+    void dispatchChild(BOUNDED, SECRET);
+    await vi.advanceTimersByTimeAsync(89_000);
+    expect(aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(aborted).toBe(true);
+  });
+
+  it("a bounded child that FAILS fast still throws (so the step retries a run that never happened)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.reject(new Error("ECONNREFUSED"))),
+    );
+    await expect(dispatchChild(BOUNDED, SECRET)).rejects.toThrow(/ECONNREFUSED/);
+  });
+
   it("leaves bounded children on the original abort path", async () => {
     const fetchMock = vi.fn(() => Promise.resolve({ ok: true, status: 200 } as Response));
     vi.stubGlobal("fetch", fetchMock);

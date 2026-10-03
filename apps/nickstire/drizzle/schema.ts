@@ -167,8 +167,8 @@ export const chatSessions = mysqlTable("chat_sessions", {
   id: int("id").autoincrement().primaryKey(),
   /** Link to lead if contact info was captured */
   leadId: int("leadId"),
-  /** JSON array of messages: [{ role, content, timestamp }] */
-  messagesJson: text("messagesJson").notNull(),
+  /** JSON array of messages: [{ role, content, timestamp }]. MEDIUMTEXT since 0142 (TEXT overflowed). */
+  messagesJson: mediumtext("messagesJson").notNull(),
   /** AI-extracted vehicle info */
   vehicleInfo: varchar("vehicleInfo", { length: 255 }),
   /** AI-extracted problem summary */

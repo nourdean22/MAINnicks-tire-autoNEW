@@ -245,6 +245,46 @@ describe("services/autonomic-orchestrator", () => {
     expect(res.healedCrons).toEqual([]);
   });
 
+  it("Phase 1: never heals a sibling the healer's own evening fan-out is running (2026-10-03 think double-fire)", async () => {
+    // Prod 10-03: think was added 10-02, so at 03:02:44 it had no row yet — the
+    // healer read "never_run" and fired it while mega-evening was ALSO running
+    // it. Two success rows, both started 03:02:44. Same shape for a sibling
+    // whose previous night failed.
+    mocks.buildCronCommandDeck.mockResolvedValue({
+      rows: [
+        { name: "think", enabled: true, mode: "folded", lastStatus: null, success14d: 0, partial14d: 0, fail14d: 0, lastRunAt: null },
+        { name: "journal-checkin", path: "/api/cron/journal-checkin?slot=evening", enabled: true, mode: "active", lastStatus: "failed", success14d: 0, partial14d: 0, fail14d: 2, lastRunAt: "2026-10-02T03:02:00Z" },
+        // A morning-slot child is NOT running now — still a legitimate rescue.
+        { name: "ingest-gmail", enabled: true, mode: "active", lastStatus: "failed", success14d: 3, partial14d: 0, fail14d: 1, lastRunAt: "2026-10-02T09:01:00Z" },
+      ],
+    });
+    mocks.runManifestCron.mockResolvedValue({ ok: true, status: 200, durationMs: 150 });
+
+    const res = await runAutonomicOrchestrator();
+
+    expect(mocks.runManifestCron).not.toHaveBeenCalledWith("think");
+    expect(mocks.runManifestCron).not.toHaveBeenCalledWith("journal-checkin");
+    expect(mocks.runManifestCron).toHaveBeenCalledWith("ingest-gmail");
+    expect(res.healedCrons).toEqual(["ingest-gmail"]);
+  });
+
+  it("Phase 1: never revives an operator-parked (dormant) cron", async () => {
+    // relationship-digest is dormant and sends a Telegram; the healer fired it
+    // as "never_run" on 09-03, 09-18 and 10-03 — each time its last row aged
+    // out of the 14d window.
+    mocks.buildCronCommandDeck.mockResolvedValue({
+      rows: [
+        { name: "relationship-digest", enabled: true, mode: "dormant", lastStatus: null, success14d: 0, partial14d: 0, fail14d: 0, lastRunAt: null },
+      ],
+    });
+    mocks.runManifestCron.mockResolvedValue({ ok: true, status: 200, durationMs: 150 });
+
+    const res = await runAutonomicOrchestrator();
+
+    expect(mocks.runManifestCron).not.toHaveBeenCalled();
+    expect(res.healedCrons).toEqual([]);
+  });
+
   it("Phase 1: a partial-only cron is not mistaken for never-run", async () => {
     // Same defect, non-mega job so the fan-out guard cannot be what saves it:
     // `partial` counted toward neither success14d nor fail14d, so a job that

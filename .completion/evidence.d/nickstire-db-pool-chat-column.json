@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "migration-evidence": {
+      "deferred": "Operator-pending: drizzle/0142_chat_sessions_messages_mediumtext.sql (ALTER TABLE chat_sessions MODIFY COLUMN messagesJson MEDIUMTEXT NOT NULL) is NOT applied by this PR. It is a widening-only MODIFY (TEXT -> MEDIUMTEXT, nullability NOT NULL and no default preserved exactly as schema.ts and 0003 declare), so re-running is a no-op; the idempotent apply path is the hand-applied runner, server/routers/nick/intelligence.ts handleRunMigrations, which carries the same statement right after the 0141 entry (Admin -> Run migrations). Until it is applied the column stays TEXT (65,535 bytes) and a transcript between 64 KB and 16 MB still fails its persist (caught in chat.ts, reply still returned). Live proof after apply: information_schema.COLUMNS shows chat_sessions.messagesJson DATA_TYPE = 'mediumtext', IS_NULLABLE = 'NO'. Code-side proof: server/chatTranscriptCap.test.ts (persisted messagesJson <= 16,777,215 bytes, red 16777306 > 16777215 on the old chat.ts) and server/__tests__/migration-journal.test.ts (0142 journaled at idx 155)."
+    }
+  }
+}
