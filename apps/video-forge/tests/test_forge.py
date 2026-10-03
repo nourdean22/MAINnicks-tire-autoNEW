@@ -218,6 +218,8 @@ class LtxArgvTests(unittest.TestCase):
         a = build_argv(p["ltx-2.5-dfr"], req, "/tmp/o.mp4", "/tmp/h.png")
         self.assertIn("ltx_pipelines.dfr_pipeline", a)
         self.assertIn("--detailing-lora", a)
+        # The IC-LoRA is its own HF repo, not LTX-2.5/loras/ (that path 404s upstream).
+        self.assertIn("LTX-2.5-22b-IC-LoRA-Pixel-Spatial-Upscaler", a[a.index("--detailing-lora") + 1])
         self.assertEqual(a[a.index("--num-frames") + 1], "121")
         self.assertEqual(a[a.index("--image") + 1: a.index("--image") + 4], ["/tmp/h.png", "0", "1.0"])
         self.assertEqual(a[-1], "a tire; rm -rf /")  # one argv element, never shell-parsed
