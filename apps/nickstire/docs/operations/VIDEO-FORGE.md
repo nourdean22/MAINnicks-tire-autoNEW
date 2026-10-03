@@ -21,7 +21,7 @@ Its capability, timing, cost and license data live in
 | `PROVIDER_CONFIG_BLOCKED` error class (a license or config refusal is not an auth failure) | `shared/providerErrors.ts` | BUILT + WIRED |
 | Provider-specific prompt compiler (canonical spec is never mutated) | `shared/forgePromptAdapter.ts` | BUILT + WIRED |
 | GPU service: job store, auth, worker, mock backend | `apps/video-forge/forge/*` | BUILT + TESTED on CPU |
-| LTX-2.5 / Wan 2.2 backends | `apps/video-forge/forge/backends/{ltx2,wan22}.py` | BUILT-UNWIRED (never executed on a GPU) |
+| LTX-2.5 / Wan 2.2 backends | `apps/video-forge/forge/backends/{ltx2,wan22}.py` | BUILT-UNWIRED (never executed on a GPU). Argv checked 2026-10-03 against the upstream CLI sources: LTX `ltx_pipelines.distilled` / `dfr_pipeline` (DFR uses the distilled transformer plus the detailing IC-LoRA; dimensions in multiples of 64; `--image PATH 0 1.0`); Wan `generate.py` (ti2v-5B 704×1280 @24fps / 121 frames; i2v-A14B 720×1280 @16fps / 81 frames). Each profile is requested at its native shape, and assembly rescales to 1080×1920 @30fps. |
 | RunPod image / Modal app | `apps/video-forge/{Dockerfile,modal_app.py}` | BUILT, NOT DEPLOYED |
 | Benchmark corpus (48 real beats) + runner + blind pairwise sheet | `apps/video-forge/bench/*` | BUILT; exercised only against the mock |
 | GPU canary, bake-off, quality result | — | DEFERRED (no spend authorized) |

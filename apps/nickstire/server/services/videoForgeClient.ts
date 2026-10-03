@@ -127,6 +127,7 @@ export function forgeErrorMessage(code: string | null | undefined, detail: strin
     case "invalid_reference_image":
     case "unsupported_aspect":
     case "unsupported_duration":
+    case "unsupported_fps":
     case "unsupported_resolution":
     case "capability_mismatch":
       return `400 invalid request (${c}): ${d}`;
@@ -396,12 +397,15 @@ function recordOp(beat: SelfHostedBeatState, opId: string, outcome: "succeeded" 
 /** 704x1280: LTX and Wan both need multiples of 32. Assembly scales to the reel canvas. */
 const DEFAULT_CLIP = { width: 704, height: 1280, durationSeconds: 5, fps: 24 } as const;
 
-function clipShapeFromEnv(env: NodeJS.ProcessEnv = process.env) {
+function clipShapeFromEnv(env: NodeJS.ProcessEnv = process.env, profile?: MediaModelProfile) {
+  // Profile-native first (upstream-verified sizes/fps); env overrides only for
+  // deliberate experiments. A global 24fps default broke Wan A14B (16fps native).
+  const n = profile?.native;
   return {
-    width: Number(env.VIDEO_FORGE_WIDTH) || DEFAULT_CLIP.width,
-    height: Number(env.VIDEO_FORGE_HEIGHT) || DEFAULT_CLIP.height,
-    durationSeconds: Number(env.VIDEO_FORGE_DURATION_SECONDS) || DEFAULT_CLIP.durationSeconds,
-    fps: Number(env.VIDEO_FORGE_FPS) || DEFAULT_CLIP.fps,
+    width: Number(env.VIDEO_FORGE_WIDTH) || n?.width || DEFAULT_CLIP.width,
+    height: Number(env.VIDEO_FORGE_HEIGHT) || n?.height || DEFAULT_CLIP.height,
+    durationSeconds: Number(env.VIDEO_FORGE_DURATION_SECONDS) || n?.durationSeconds || DEFAULT_CLIP.durationSeconds,
+    fps: Number(env.VIDEO_FORGE_FPS) || n?.fps || DEFAULT_CLIP.fps,
   };
 }
 
@@ -421,7 +425,7 @@ export async function renderSelfHostedBeat(input: RenderSelfHostedInput, deps: F
       forgeErrorMessage("license_blocked", `profile ${beat.selfHostedProfile || env.VIDEO_FORGE_PROFILE || "(default)"} not eligible: ${elig.reasons.join(",")}`),
     );
   }
-  const shape = clipShapeFromEnv(env);
+  const shape = clipShapeFromEnv(env, profile);
   // Capability mismatch is decided HERE, before a key exists or a GPU is
   // touched: an unsupported duration/resolution/conditioning is a config
   // problem, and submitting it would only buy a 400 (or worse, a bad render).

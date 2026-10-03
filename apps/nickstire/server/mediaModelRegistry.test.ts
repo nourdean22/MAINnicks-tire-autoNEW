@@ -50,6 +50,14 @@ describe("registry ↔ apps/video-forge/forge/profiles.json parity", () => {
   it("same ids", () => {
     expect(Object.keys(worker).sort()).toEqual(MEDIA_MODEL_PROFILES.map((p) => p.id).sort());
   });
+  it("same native shape (size + fps) — a mismatch fails worker output validation", () => {
+    const w = worker as unknown as Record<string, { native: { width: number; height: number; fps: number } }>;
+    for (const p of MEDIA_MODEL_PROFILES) {
+      expect(w[p.id].native, p.id).toEqual({ width: p.native.width, height: p.native.height, fps: p.native.fps });
+      expect(p.native.fps, p.id).toBe(p.capabilities.fps);
+      expect(p.capabilities.durationsSeconds, p.id).toContain(p.native.durationSeconds);
+    }
+  });
   it("same license state, rollout state and durations", () => {
     for (const p of MEDIA_MODEL_PROFILES) {
       expect(worker[p.id].license_state, p.id).toBe(p.license.state);
@@ -63,8 +71,9 @@ describe("capability mismatch is decided before a GPU is touched", () => {
   it("an image-to-video-only QUALITY candidate refuses a text-only request", () => {
     const a14b = getMediaProfile("wan2.2-i2v-a14b")!;
     expect(a14b.license.state).toBe("APPROVED_COMMERCIAL");
-    expect(capabilityMismatches(a14b, { width: 704, height: 1280, durationSeconds: 5, startImage: false, endImage: false })).toEqual(["text_to_video_unsupported"]);
-    expect(capabilityMismatches(a14b, { width: 704, height: 1280, durationSeconds: 5, startImage: true, endImage: false })).toEqual([]);
+    expect(capabilityMismatches(a14b, { width: 720, height: 1280, durationSeconds: 5, startImage: false, endImage: false })).toEqual(["text_to_video_unsupported"]);
+    expect(capabilityMismatches(a14b, { width: 720, height: 1280, durationSeconds: 5, startImage: true, endImage: false })).toEqual([]);
+    expect(a14b.native).toEqual({ width: 720, height: 1280, fps: 16, durationSeconds: 5 });
   });
   it("Wan has no first+last frame and no 1080p", () => {
     const wan = getMediaProfile("wan2.2-ti2v-5b")!;

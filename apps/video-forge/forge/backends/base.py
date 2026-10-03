@@ -6,6 +6,7 @@ model) is a backend change only.
 """
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from dataclasses import dataclass
@@ -39,9 +40,9 @@ def classify_stderr(stderr: str) -> str:
     return "inference_failure"
 
 
-def run_supervised(cmd: list[str], heartbeat: Heartbeat, timeout_s: float, env: dict[str, str] | None = None) -> None:
+def run_supervised(cmd: list[str], heartbeat: Heartbeat, timeout_s: float, env: dict[str, str] | None = None, cwd: str | None = None) -> None:
     """Run a generator subprocess, heartbeating every few seconds; kill on cancel/timeout."""
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, cwd=cwd if cwd and os.path.isdir(cwd) else None)
     waited = 0.0
     while True:
         try:

@@ -1,51 +1,75 @@
-"""LTX-2.5 backend (Lightricks official pipelines) — UNVERIFIED until a GPU canary.
+"""LTX-2.5 backend (Lightricks official ltx_pipelines CLIs).
 
-STATUS: BUILT-UNWIRED to hardware. No GPU spend was authorized when this was
-written (2026-10-03), so the exact CLI below has not been executed. The command is
-a template read from FORGE_LTX_CMD so the canary can correct it without a code
-change; the default follows the upstream repo's documented pipeline modules
-(https://github.com/Lightricks/LTX-2). Verify on an 80GB GPU first (no FP8 /
-offload) so precision is not a confounder, then pin the checkpoint sha256 in
-profiles.json + mediaModelRegistry.ts.
+Command shape verified against the upstream README + utils/args.py on
+2026-10-03 (https://github.com/Lightricks/LTX-2):
 
-Placeholders: {pipeline} {prompt_file} {negative_file} {image} {width} {height}
-{frames} {fps} {seed} {out}
+    uv run python -m ltx_pipelines.distilled | ltx_pipelines.dfr_pipeline
+        --transformer-path  diffusion_models/ltx-2.5-22b-distilled-transformer-bf16.safetensors
+        --text-encoder-path text_encoders/gemma4-12b-with-proj-ltx-2.5-bf16.safetensors
+        --video-vae-path    vae/ltx-2.5-video-vae-bf16.safetensors
+        --audio-vae-path    vae/ltx-2.5-audio-vae-bf16.safetensors
+        --spatial-upsampler-path latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors
+        [--detailing-lora loras/ltx-2.5-22b-ic-lora-pixel-spatial-upscaler-x2-1.0.safetensors]   # DFR only
+        --num-frames 8k+1 --height H --width W --frame-rate F --seed S
+        [--image PATH FRAME_IDX STRENGTH] --output-path out.mp4 --prompt "..."
+
+DFR uses the SAME distilled transformer plus the detailing IC-LoRA (upstream:
+"Do not pass the full (dev) transformer"). Neither pipeline is guided, so no
+negative prompt is passed. Two-stage output dims must be divisible by 64.
+FORGE_LTX_EXTRA appends flags (e.g. "--quantization fp8-cast --offload cpu" for
+<80GB cards). Argv is built as a list — no shell, prompt text is never parsed.
 """
 from __future__ import annotations
 
 import os
 import shlex
-import tempfile
-from pathlib import Path
 from typing import Any
 
 from .base import Backend, BackendError, Heartbeat, RenderResult, run_supervised
 
-DEFAULT_CMD = (
-    "python -m ltx_pipelines.{pipeline} --prompt-file {prompt_file} --negative-prompt-file {negative_file} "
-    "{image_flag} --width {width} --height {height} --num-frames {frames} --frame-rate {fps} --seed {seed} --output {out}"
-)
+COMPONENTS = {
+    "--transformer-path": "diffusion_models/ltx-2.5-22b-distilled-transformer-bf16.safetensors",
+    "--text-encoder-path": "text_encoders/gemma4-12b-with-proj-ltx-2.5-bf16.safetensors",
+    "--video-vae-path": "vae/ltx-2.5-video-vae-bf16.safetensors",
+    "--audio-vae-path": "vae/ltx-2.5-audio-vae-bf16.safetensors",
+    "--spatial-upsampler-path": "latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors",
+}
+DFR_LORA = "loras/ltx-2.5-22b-ic-lora-pixel-spatial-upscaler-x2-1.0.safetensors"
+MODULES = {"distilled": "ltx_pipelines.distilled", "dfr": "ltx_pipelines.dfr_pipeline"}
+
+
+def build_argv(profile: dict[str, Any], req: dict[str, Any], out_path: str, start_image: str | None) -> list[str]:
+    models = os.environ.get("FORGE_LTX_MODELS", "/models/ltx-2.5")
+    runner = shlex.split(os.environ.get("FORGE_LTX_RUNNER", "uv run --project /opt/LTX-2 python"))
+    if req["width"] % 64 or req["height"] % 64:
+        raise BackendError("unsupported_resolution", "LTX two-stage output must be divisible by 64")
+    frames = (int(req["duration_seconds"] * req["fps"]) // 8) * 8 + 1
+    argv = [*runner, "-m", MODULES[profile["pipeline"]]]
+    for flag, rel in COMPONENTS.items():
+        argv += [flag, os.path.join(models, rel)]
+    if profile["pipeline"] == "dfr":
+        argv += ["--detailing-lora", os.path.join(models, DFR_LORA)]
+    argv += [
+        "--num-frames", str(frames), "--height", str(req["height"]), "--width", str(req["width"]),
+        "--frame-rate", str(req["fps"]), "--seed", str(int(req.get("seed") or 42)),
+    ]
+    if start_image:
+        argv += ["--image", start_image, "0", os.environ.get("FORGE_LTX_IMAGE_STRENGTH", "1.0")]
+    argv += shlex.split(os.environ.get("FORGE_LTX_EXTRA", ""))
+    argv += ["--output-path", out_path, "--prompt", req["prompt"]]
+    return argv
 
 
 class Ltx2Backend(Backend):
     name = "ltx2"
 
     def render(self, profile: dict[str, Any], req: dict[str, Any], out_path: str, start_image: str | None, heartbeat: Heartbeat) -> RenderResult:
-        template = os.environ.get("FORGE_LTX_CMD", DEFAULT_CMD)
-        seed = int(req.get("seed") or 42)
-        # LTX frame counts are 8k+1.
-        frames = (int(req["duration_seconds"] * req["fps"]) // 8) * 8 + 1
-        with tempfile.TemporaryDirectory() as td:
-            pf = os.path.join(td, "prompt.txt")
-            nf = os.path.join(td, "negative.txt")
-            Path(pf).write_text(req["prompt"])
-            Path(nf).write_text(req.get("negative_prompt") or "")
-            cmd = template.format(
-                pipeline=profile["pipeline"], prompt_file=shlex.quote(pf), negative_file=shlex.quote(nf),
-                image_flag=f"--image {shlex.quote(start_image)}" if start_image else "",
-                width=req["width"], height=req["height"], frames=frames, fps=req["fps"], seed=seed, out=shlex.quote(out_path),
-            )
-            run_supervised(shlex.split(cmd), heartbeat, timeout_s=profile["hard_ceiling_s"])
+        argv = build_argv(profile, req, out_path, start_image)
+        run_supervised(argv, heartbeat, timeout_s=profile["hard_ceiling_s"], cwd=os.environ.get("FORGE_LTX_DIR", "/opt/LTX-2"))
         if not os.path.exists(out_path):
             raise BackendError("output_validation_failure", "pipeline exited 0 but wrote no file")
-        return RenderResult(seed=seed, model_version=f"{profile['checkpoint']}:{profile['pipeline']}", workflow_version=os.environ.get("FORGE_LTX_WORKFLOW_VERSION", "ltx2-cli@unverified"))
+        return RenderResult(
+            seed=int(req.get("seed") or 42),
+            model_version=f"{profile['checkpoint']}@{os.environ.get('FORGE_LTX_REV', 'unpinned')}:{profile['pipeline']}",
+            workflow_version=f"ltx_pipelines.{profile['pipeline']}@{os.environ.get('FORGE_LTX2_CODE_REV', 'unpinned')}",
+        )

@@ -244,6 +244,20 @@ describe("renderSelfHostedBeat — idempotency and resume", () => {
     expect(forge.stats().submits).toBe(0);
   });
 
+  it("requests each profile at its NATIVE shape (Wan A14B: 720x1280 @16fps), not a global default", async () => {
+    const seen: Array<Record<string, unknown>> = [];
+    const forge = fakeForge();
+    const spy = (async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST" && url.endsWith("/v1/jobs")) seen.push(JSON.parse(String(init.body)));
+      return forge.fetchImpl(url, init);
+    }) as unknown as typeof fetch;
+    await renderSelfHostedBeat(
+      { beat: { beatNumber: 9 }, idempotencyBase: "n", prompt: "x", startImageUrl: undefined, persist: async () => undefined },
+      { env: forgeEnv({ VIDEO_FORGE_PROFILE: "wan2.2-i2v-a14b" }), fetchImpl: spy, sleep: noSleep },
+    ).catch(() => undefined); // A14B with no hero is refused before submit
+    expect(seen).toHaveLength(0);
+  });
+
   it("refuses a pre-production profile unless the canary flag is set", async () => {
     const forge = fakeForge();
     const env = forgeEnv();
