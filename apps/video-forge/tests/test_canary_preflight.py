@@ -292,8 +292,7 @@ class CanaryPreflightTests(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("LTX25_DFR_LORA_REV", result.stderr)
-        self.assertIn("Lightricks/LTX-2.5", log)
-        self.assertNotIn("LTX-2.5-22b-IC-LoRA-Pixel-Spatial-Upscaler", log)
+        self.assertEqual(log, "", "invalid DFR fetch plan performed external work before failing")
 
     def test_fetch_models_wan_only_never_touches_ltx(self):
         result, log = _run_fetch_models(
