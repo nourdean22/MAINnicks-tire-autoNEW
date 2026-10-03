@@ -122,9 +122,14 @@ class RenderTests(ForgeTestBase):
         self.assertEqual(signed(self.client, "POST", "/v1/jobs", job_body(width=720)).json()["error_code"], "unsupported_resolution")
 
     def test_i2v_only_profile_requires_start_image(self):
-        r = signed(self.client, "POST", "/v1/jobs", job_body(profile="wan2.2-i2v-a14b"))
+        r = signed(self.client, "POST", "/v1/jobs", job_body(profile="wan2.2-i2v-a14b", duration_seconds=5, width=704, fps=16))
         self.assertEqual(r.status_code, 400)
         self.assertEqual(r.json()["error_code"], "capability_mismatch")
+
+    def test_fixed_fps_profile_refuses_wrong_fps_before_any_gpu_time(self):
+        r = signed(self.client, "POST", "/v1/jobs", job_body(profile="wan2.2-ti2v-5b", duration_seconds=5, fps=16))
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.json()["error_code"], "unsupported_fps")
 
     def test_unknown_or_disabled_profile(self):
         r = signed(self.client, "POST", "/v1/jobs", job_body(profile="does-not-exist"))
@@ -190,7 +195,7 @@ class LifecycleTests(ForgeTestBase):
         self.assertEqual(st.get(b)["error_code"], "hard_ceiling")
 
     def test_backend_failure_is_classified_not_crashing(self):
-        os.environ["FORGE_LTX_CMD"] = "python -c \"import sys; sys.stderr.write('torch.OutOfMemoryError: CUDA out of memory'); sys.exit(1)\""
+        os.environ["FORGE_LTX_RUNNER"] = "python3 -c \"import sys; sys.stderr.write('torch.OutOfMemoryError: CUDA out of memory'); sys.exit(1)\""
         try:
             self.forge.profiles["ltx-2.5-distilled"]["license_state"] = "APPROVED_WITH_CONDITIONS"
             jid = signed(self.client, "POST", "/v1/jobs", job_body(profile="ltx-2.5-distilled")).json()["job"]["id"]
@@ -199,7 +204,65 @@ class LifecycleTests(ForgeTestBase):
             self.assertEqual(job["status"], "failed")
             self.assertEqual(job["error_code"], "oom")
         finally:
-            os.environ.pop("FORGE_LTX_CMD", None)
+            os.environ.pop("FORGE_LTX_RUNNER", None)
+
+
+class LtxArgvTests(unittest.TestCase):
+    def test_argv_matches_upstream_cli(self):
+        from forge.backends.ltx2 import build_argv
+        from forge.app import load_profiles
+        p = load_profiles()
+        req = {"width": 704, "height": 1280, "duration_seconds": 5, "fps": 24, "seed": 7, "prompt": "a tire; rm -rf /"}
+        a = build_argv(p["ltx-2.5-dfr"], req, "/tmp/o.mp4", "/tmp/h.png")
+        self.assertIn("ltx_pipelines.dfr_pipeline", a)
+        self.assertIn("--detailing-lora", a)
+        self.assertEqual(a[a.index("--num-frames") + 1], "121")
+        self.assertEqual(a[a.index("--image") + 1: a.index("--image") + 4], ["/tmp/h.png", "0", "1.0"])
+        self.assertEqual(a[-1], "a tire; rm -rf /")  # one argv element, never shell-parsed
+        self.assertTrue(any(x.endswith("ltx-2.5-22b-distilled-transformer-bf16.safetensors") for x in a))  # DFR uses distilled, not dev
+        d = build_argv(p["ltx-2.5-distilled"], req, "/tmp/o.mp4", None)
+        self.assertIn("ltx_pipelines.distilled", d)
+        self.assertNotIn("--detailing-lora", d)
+        self.assertNotIn("--image", d)
+
+
+class WanArgvTests(unittest.TestCase):
+    def setUp(self):
+        from forge.app import load_profiles
+        self.p = load_profiles()
+
+    def tearDown(self):
+        os.environ.pop("FORGE_GPU_VRAM_GB", None)
+
+    def test_ti2v_5b_portrait_and_frames(self):
+        from forge.backends.wan22 import build_argv
+        a = build_argv(self.p["wan2.2-ti2v-5b"], {"width": 704, "height": 1280, "duration_seconds": 5, "fps": 24, "seed": 3, "prompt": "x; y"}, "/o.mp4", None)
+        self.assertEqual(a[a.index("--task") + 1], "ti2v-5B")
+        self.assertEqual(a[a.index("--size") + 1], "704*1280")
+        self.assertEqual(a[a.index("--frame_num") + 1], "121")
+        self.assertNotIn("--offload_model", a)  # 80GB default: no offload
+        self.assertEqual(a[-1], "x; y")
+
+    def test_a14b_native_16fps_81_frames_and_requires_image(self):
+        from forge.backends.wan22 import build_argv
+        from forge.backends import BackendError
+        req = {"width": 720, "height": 1280, "duration_seconds": 5, "fps": 16, "seed": 3, "prompt": "x"}
+        a = build_argv(self.p["wan2.2-i2v-a14b"], req, "/o.mp4", "/h.png")
+        self.assertEqual(a[a.index("--size") + 1], "720*1280")
+        self.assertEqual(a[a.index("--frame_num") + 1], "81")
+        with self.assertRaises(BackendError):
+            build_argv(self.p["wan2.2-i2v-a14b"], req, "/o.mp4", None)
+        with self.assertRaises(BackendError):
+            build_argv(self.p["wan2.2-i2v-a14b"], {**req, "width": 704}, "/o.mp4", "/h.png")
+
+    def test_low_vram_adds_offload_flags(self):
+        from forge.backends.wan22 import build_argv
+        os.environ["FORGE_GPU_VRAM_GB"] = "24"
+        a = build_argv(self.p["wan2.2-ti2v-5b"], {"width": 704, "height": 1280, "duration_seconds": 5, "fps": 24, "prompt": "x"}, "/o.mp4", None)
+        self.assertIn("--t5_cpu", a)
+        os.environ["FORGE_GPU_VRAM_GB"] = "141"
+        b = build_argv(self.p["wan2.2-ti2v-5b"], {"width": 704, "height": 1280, "duration_seconds": 5, "fps": 24, "prompt": "x"}, "/o.mp4", None)
+        self.assertNotIn("--t5_cpu", b)  # numeric compare, not string
 
 
 class ProfileParityTests(unittest.TestCase):

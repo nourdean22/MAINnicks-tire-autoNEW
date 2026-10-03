@@ -150,6 +150,8 @@ class Forge:
             raise _bad("unsupported_duration", f"{body.duration_seconds}s not in {p['durations']}")
         if max(body.width, body.height) > p["max_long"] or min(body.width, body.height) > p["max_short"]:
             raise _bad("unsupported_resolution", f"{body.width}x{body.height}")
+        if p.get("fixed_fps") and body.fps != p["native"]["fps"]:
+            raise _bad("unsupported_fps", f"{body.profile} renders at {p['native']['fps']} fps only")
         if body.width % 32 or body.height % 32:
             raise _bad("unsupported_resolution", "width/height must be multiples of 32")
         if not body.start_image_b64 and not p.get("t2v", True):

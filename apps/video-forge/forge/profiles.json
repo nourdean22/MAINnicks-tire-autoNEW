@@ -19,7 +19,12 @@
       "fps": 24,
       "hard_ceiling_s": 2400,
       "stale_heartbeat_s": 180,
-      "checkpoint": "Lightricks/LTX-2.5"
+      "checkpoint": "Lightricks/LTX-2.5",
+      "native": {
+        "width": 704,
+        "height": 1280,
+        "fps": 24
+      }
     },
     "ltx-2.5-distilled": {
       "backend": "ltx2",
@@ -39,7 +44,12 @@
       "fps": 24,
       "hard_ceiling_s": 900,
       "stale_heartbeat_s": 120,
-      "checkpoint": "Lightricks/LTX-2.5"
+      "checkpoint": "Lightricks/LTX-2.5",
+      "native": {
+        "width": 704,
+        "height": 1280,
+        "fps": 24
+      }
     },
     "wan2.2-ti2v-5b": {
       "backend": "wan22",
@@ -57,7 +67,13 @@
       "fps": 24,
       "hard_ceiling_s": 1800,
       "stale_heartbeat_s": 180,
-      "checkpoint": "Wan-AI/Wan2.2-TI2V-5B"
+      "checkpoint": "Wan-AI/Wan2.2-TI2V-5B",
+      "native": {
+        "width": 704,
+        "height": 1280,
+        "fps": 24
+      },
+      "fixed_fps": true
     },
     "wan2.2-i2v-a14b": {
       "backend": "wan22",
@@ -67,16 +83,21 @@
       "i2v": true,
       "first_last": false,
       "durations": [
-        4,
         5
       ],
       "max_long": 1280,
-      "max_short": 704,
-      "fps": 24,
+      "max_short": 720,
+      "fps": 16,
       "hard_ceiling_s": 2700,
       "stale_heartbeat_s": 180,
       "checkpoint": "Wan-AI/Wan2.2-I2V-A14B",
-      "t2v": false
+      "t2v": false,
+      "native": {
+        "width": 720,
+        "height": 1280,
+        "fps": 16
+      },
+      "fixed_fps": true
     },
     "minimax-h3": {
       "backend": "none",
@@ -93,7 +114,12 @@
       "fps": 24,
       "hard_ceiling_s": 2700,
       "stale_heartbeat_s": 180,
-      "checkpoint": "MiniMaxAI/MiniMax-H3"
+      "checkpoint": "MiniMaxAI/MiniMax-H3",
+      "native": {
+        "width": 720,
+        "height": 1280,
+        "fps": 24
+      }
     },
     "mock-testpattern": {
       "backend": "mock",
@@ -113,7 +139,12 @@
       "fps": 24,
       "hard_ceiling_s": 300,
       "stale_heartbeat_s": 60,
-      "checkpoint": "none"
+      "checkpoint": "none",
+      "native": {
+        "width": 704,
+        "height": 1280,
+        "fps": 24
+      }
     }
   }
 }

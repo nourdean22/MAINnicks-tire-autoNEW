@@ -72,6 +72,14 @@ export interface MediaModelProfile {
     retake: boolean;
     negativePrompt: boolean;
   };
+  /**
+   * The shape this model natively renders a 9:16 beat at. Upstream-verified
+   * 2026-10-03: LTX two-stage needs /64 dims; Wan ti2v-5B supports only
+   * 704*1280 @24fps; Wan i2v-A14B supports 720*1280 @16fps (81 frames = 5 s).
+   * Assembly rescales every clip to 1080x1920 @30fps, so native is the honest
+   * request — forcing 24fps on A14B would fail output validation.
+   */
+  native: { width: number; height: number; fps: number; durationSeconds: number };
   hardware: { minVramGb: number; recommendedVramGb: number; referenceGpu: string };
   /** Timing is PER PROFILE — a healthy 15-minute DFR render is not a dead 6-minute provider. */
   timing: {
@@ -120,6 +128,7 @@ export const MEDIA_MODEL_PROFILES: readonly MediaModelProfile[] = [
       portrait9x16: true, maxWidth: 1080, maxHeight: 1920, durationsSeconds: [4, 5, 6, 8], fps: 24,
       deterministicSeed: true, nativeAudio: true, retake: true, negativePrompt: true,
     },
+    native: { width: 704, height: 1280, fps: 24, durationSeconds: 5 },
     hardware: { minVramGb: 32, recommendedVramGb: 80, referenceGpu: "A100-80GB / H100-80GB" },
     // ESTIMATE (no DFR measurement found): distilled is documented 3-5x faster than dev;
     // ~27 s for distilled on a 5090 → dev/DFR multi-stage budgeted at ~6 min on 80GB.
@@ -149,6 +158,7 @@ export const MEDIA_MODEL_PROFILES: readonly MediaModelProfile[] = [
       portrait9x16: true, maxWidth: 1080, maxHeight: 1920, durationsSeconds: [4, 5, 6, 8], fps: 24,
       deterministicSeed: true, nativeAudio: true, retake: false, negativePrompt: true,
     },
+    native: { width: 704, height: 1280, fps: 24, durationSeconds: 5 },
     hardware: { minVramGb: 24, recommendedVramGb: 80, referenceGpu: "A100-80GB / H100-80GB" },
     // Community-measured: 121 frames @1280x704 ≈ 27 s warm on one RTX 5090, +27 s on a
     // prompt change (encoder/transformer swap) — budget 2 min incl. load until benchmarked.
@@ -178,6 +188,7 @@ export const MEDIA_MODEL_PROFILES: readonly MediaModelProfile[] = [
       portrait9x16: true, ...PORTRAIT_720, durationsSeconds: [4, 5], fps: 24,
       deterministicSeed: true, nativeAudio: false, retake: false, negativePrompt: true,
     },
+    native: { width: 704, height: 1280, fps: 24, durationSeconds: 5 },
     hardware: { minVramGb: 24, recommendedVramGb: 48, referenceGpu: "RTX 4090 24GB (upstream reference)" },
     // Upstream reports < 9 min for 5 s 720p on one consumer GPU, unoptimized.
     // Community-measured 667 s for 5 s 720p on a 4090 (50 steps).
@@ -207,9 +218,10 @@ export const MEDIA_MODEL_PROFILES: readonly MediaModelProfile[] = [
     source: "https://huggingface.co/Wan-AI/Wan2.2-I2V-A14B",
     capabilities: {
       textToVideo: false, imageToVideo: true, firstLastFrame: false, referenceImages: false,
-      portrait9x16: true, ...PORTRAIT_720, durationsSeconds: [4, 5], fps: 24,
+      portrait9x16: true, maxWidth: 720, maxHeight: 1280, durationsSeconds: [5], fps: 16,
       deterministicSeed: true, nativeAudio: false, retake: false, negativePrompt: true,
     },
+    native: { width: 720, height: 1280, fps: 16, durationSeconds: 5 },
     hardware: { minVramGb: 80, recommendedVramGb: 80, referenceGpu: "A100/H100 80GB (upstream single-GPU example)" },
     // UNKNOWN until benchmarked — budgeted generously so a healthy render is never reaped.
     timing: { expectedRenderMs: 15 * 60_000, hardCeilingMs: 45 * 60_000, staleHeartbeatMs: 3 * 60_000 },
@@ -238,6 +250,7 @@ export const MEDIA_MODEL_PROFILES: readonly MediaModelProfile[] = [
       portrait9x16: true, maxWidth: 1080, maxHeight: 1920, durationsSeconds: [6], fps: 24,
       deterministicSeed: true, nativeAudio: false, retake: false, negativePrompt: false,
     },
+    native: { width: 720, height: 1280, fps: 24, durationSeconds: 6 },
     hardware: { minVramGb: 80, recommendedVramGb: 80, referenceGpu: "H100-80GB" },
     timing: { expectedRenderMs: 15 * 60_000, hardCeilingMs: 45 * 60_000, staleHeartbeatMs: 3 * 60_000 },
     cost: { expectedGpuSeconds: 900, referenceUsdPerGpuHour: 2.5 },
@@ -266,6 +279,7 @@ export const MEDIA_MODEL_PROFILES: readonly MediaModelProfile[] = [
       portrait9x16: true, ...PORTRAIT_720, durationsSeconds: [4, 5, 6, 8], fps: 24,
       deterministicSeed: true, nativeAudio: false, retake: false, negativePrompt: true,
     },
+    native: { width: 704, height: 1280, fps: 24, durationSeconds: 5 },
     hardware: { minVramGb: 0, recommendedVramGb: 0, referenceGpu: "CPU" },
     timing: { expectedRenderMs: 10_000, hardCeilingMs: 5 * 60_000, staleHeartbeatMs: 60_000 },
     cost: { expectedGpuSeconds: 0, referenceUsdPerGpuHour: 0 },
