@@ -2,7 +2,7 @@
 
 Private, provider-neutral GPU generation service. nickstire's Reel Factory reaches
 it as the `self_hosted` reel video provider; the open-weight model is a **profile**
-underneath (`ltx-2.5-dfr`, `ltx-2.5-distilled`, `wan2.2-ti2v-5b`). Reel jobs,
+underneath (`ltx-2.5-dfr`, `ltx-2.5-distilled`, `wan2.2-i2v-a14b`, `wan2.2-ti2v-5b`). Reel jobs,
 storyboard beats, Visual World, assembly, rendered QA, selective repair, the
 generation ledger and Meta publishing stay canonical in nickstire. This service
 renders one clip per request.

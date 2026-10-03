@@ -75,6 +75,7 @@ research-only and FLUX dev is non-commercial; both are rejected.
 |---|---|---|---|---|
 | `ltx-2.5-dfr` / `ltx-2.5-distilled` | `Lightricks/LTX-2.5` | LTX-2.x Community License | APPROVED_WITH_CONDITIONS | Entities at or above $10M annual revenue (affiliates included) need a paid license. No offering of a competing generation service. Provenance/disclosure features must stay on, and AI generation must be disclosed. Derivatives stay under the same license. **Operator must confirm revenue is under $10M.** |
 | `wan2.2-ti2v-5b` | `Wan-AI/Wan2.2-TI2V-5B` | Apache-2.0 (code + weights) | APPROVED_COMMERCIAL | Keep the NOTICE |
+| `wan2.2-i2v-a14b` | `Wan-AI/Wan2.2-I2V-A14B` | Apache-2.0 (code + weights) | APPROVED_COMMERCIAL | Keep the NOTICE. Image-to-video only (needs an approved hero frame). This is the QUALITY candidate with no revenue gate and no competition clause; the bake-off decides whether it or LTX DFR holds QUALITY. |
 | `minimax-h3` | `MiniMaxAI/MiniMax-H3` | MiniMax community license | TERRITORY_BLOCKED | The US is an excluded territory for the model and its outputs |
 | `mock-testpattern` | — | — | UNKNOWN | CI only; can never be production |
 | Wan 2.5/2.6/3.0 | — | — | REJECTED (no downloadable weights) | — |
@@ -88,5 +89,5 @@ mission, which cite the license files directly. Checkpoint sha256s are
 1. Authorize GPU spend and a cap for the canary. Use one 80 GB GPU on RunPod or Modal.
 2. Confirm Nick's is under the $10M LTX revenue threshold. If not, use Wan 2.2 only.
 3. Deploy the worker, pin model revisions and sha256s, and run `scripts/video-forge-e2e.ts`.
-4. Run the bake-off: 48 cases × {Higgsfield baseline, LTX distilled, LTX DFR, Wan 5B} × {text, hero}. Then rendered QA and blind pairwise review. Decide on cost per **accepted** clip.
+4. Run the bake-off: 48 cases × {Higgsfield baseline, LTX distilled, LTX DFR, Wan 5B, Wan A14B} × {text, hero}. Wan A14B runs the hero arm only. Then rendered QA and blind pairwise review. Decide on cost per **accepted** clip.
 5. Only then: set `rollout: operator_selectable` in both registries, set `REEL_VIDEO_PROVIDER=self_hosted` on a limited cadence, and keep Higgsfield as the fallback.

@@ -152,6 +152,8 @@ class Forge:
             raise _bad("unsupported_resolution", f"{body.width}x{body.height}")
         if body.width % 32 or body.height % 32:
             raise _bad("unsupported_resolution", "width/height must be multiples of 32")
+        if not body.start_image_b64 and not p.get("t2v", True):
+            raise _bad("capability_mismatch", "profile is image-to-video only; start_image_b64 is required")
         if body.start_image_b64 and not p["i2v"]:
             raise _bad("capability_mismatch", "profile has no image-to-video")
         if body.end_image_b64 and not p["first_last"]:

@@ -3450,7 +3450,7 @@
           "server/videoForgeClient.test.ts (18): key persisted BEFORE submit; local timeout RESUMES the same job (1 submit, 1 render); lost submit response dedupes on the key; terminal failure advances the key; hard ceiling + stale heartbeat cancel (no zombies); license/rollout/capability refusals before any GPU call; sha256/mp4/aspect output verification",
           "server/mediaModelRegistry.test.ts: UNKNOWN never production; MiniMax H3 TERRITORY_BLOCKED; registry ↔ apps/video-forge/forge/profiles.json parity; self_hosted never auto-selected; prompt compiler never mutates the canonical spec",
           "server/reelSelfHostedSpendTrajectory.test.ts (8): persisted reservation is GPU compute not Seedance; pre-authorized pool removes the tap NOT the daily ceiling; settle books measured compute; repair routing follows the POLICY; veo/higgsfield/template_stock routing unchanged",
-          "apps/video-forge/tests/test_forge.py (21): HMAC auth, idempotency + 409, restart recovery bound, cancel-beats-late-success, reclaim, OOM classification, license gate, image validation",
+          "apps/video-forge/tests/test_forge.py (22): HMAC auth, idempotency + 409, restart recovery bound, cancel-beats-late-success, reclaim, OOM classification, license gate, image validation",
           "scripts/video-forge-e2e.ts against a real Forge process (CPU mock backend, 2026-10-03): forced local timeout → resume returned the SAME job; one job in the Forge DB; output verified + re-hosted"
         ]
       },

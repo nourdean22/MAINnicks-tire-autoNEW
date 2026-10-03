@@ -53,11 +53,30 @@
         5
       ],
       "max_long": 1280,
-      "max_short": 720,
+      "max_short": 704,
       "fps": 24,
       "hard_ceiling_s": 1800,
       "stale_heartbeat_s": 180,
       "checkpoint": "Wan-AI/Wan2.2-TI2V-5B"
+    },
+    "wan2.2-i2v-a14b": {
+      "backend": "wan22",
+      "pipeline": "i2v-A14B",
+      "license_state": "APPROVED_COMMERCIAL",
+      "rollout": "built",
+      "i2v": true,
+      "first_last": false,
+      "durations": [
+        4,
+        5
+      ],
+      "max_long": 1280,
+      "max_short": 704,
+      "fps": 24,
+      "hard_ceiling_s": 2700,
+      "stale_heartbeat_s": 180,
+      "checkpoint": "Wan-AI/Wan2.2-I2V-A14B",
+      "t2v": false
     },
     "minimax-h3": {
       "backend": "none",
@@ -90,7 +109,7 @@
         8
       ],
       "max_long": 1280,
-      "max_short": 720,
+      "max_short": 704,
       "fps": 24,
       "hard_ceiling_s": 300,
       "stale_heartbeat_s": 60,

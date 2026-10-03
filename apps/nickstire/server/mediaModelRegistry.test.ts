@@ -60,6 +60,12 @@ describe("registry ↔ apps/video-forge/forge/profiles.json parity", () => {
 });
 
 describe("capability mismatch is decided before a GPU is touched", () => {
+  it("an image-to-video-only QUALITY candidate refuses a text-only request", () => {
+    const a14b = getMediaProfile("wan2.2-i2v-a14b")!;
+    expect(a14b.license.state).toBe("APPROVED_COMMERCIAL");
+    expect(capabilityMismatches(a14b, { width: 704, height: 1280, durationSeconds: 5, startImage: false, endImage: false })).toEqual(["text_to_video_unsupported"]);
+    expect(capabilityMismatches(a14b, { width: 704, height: 1280, durationSeconds: 5, startImage: true, endImage: false })).toEqual([]);
+  });
   it("Wan has no first+last frame and no 1080p", () => {
     const wan = getMediaProfile("wan2.2-ti2v-5b")!;
     expect(capabilityMismatches(wan, { width: 704, height: 1280, durationSeconds: 5, startImage: true, endImage: true })).toEqual(["first_last_frame_unsupported"]);

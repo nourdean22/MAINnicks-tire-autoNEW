@@ -121,6 +121,11 @@ class RenderTests(ForgeTestBase):
         self.assertEqual(signed(self.client, "POST", "/v1/jobs", job_body(width=1080, height=1920)).json()["error_code"], "unsupported_resolution")
         self.assertEqual(signed(self.client, "POST", "/v1/jobs", job_body(width=720)).json()["error_code"], "unsupported_resolution")
 
+    def test_i2v_only_profile_requires_start_image(self):
+        r = signed(self.client, "POST", "/v1/jobs", job_body(profile="wan2.2-i2v-a14b"))
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.json()["error_code"], "capability_mismatch")
+
     def test_unknown_or_disabled_profile(self):
         r = signed(self.client, "POST", "/v1/jobs", job_body(profile="does-not-exist"))
         self.assertEqual(r.json()["error_code"], "config_unavailable")

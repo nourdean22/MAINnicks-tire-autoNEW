@@ -196,6 +196,37 @@ export const MEDIA_MODEL_PROFILES: readonly MediaModelProfile[] = [
     rollout: "built",
   },
   {
+    // Apache-2.0 QUALITY candidate (Model Council: GPT 6.1 Sol). Bake-off decides
+    // whether it or LTX-2.5 DFR holds the QUALITY tier — LTX carries a revenue gate
+    // AND a competing-service clause; this one carries neither.
+    id: "wan2.2-i2v-a14b",
+    tier: "QUALITY",
+    family: "Wan 2.2 (Alibaba Wan-AI)",
+    checkpoint: "Wan-AI/Wan2.2-I2V-A14B",
+    checkpointSha256: "UNPINNED",
+    source: "https://huggingface.co/Wan-AI/Wan2.2-I2V-A14B",
+    capabilities: {
+      textToVideo: false, imageToVideo: true, firstLastFrame: false, referenceImages: false,
+      portrait9x16: true, ...PORTRAIT_720, durationsSeconds: [4, 5], fps: 24,
+      deterministicSeed: true, nativeAudio: false, retake: false, negativePrompt: true,
+    },
+    hardware: { minVramGb: 80, recommendedVramGb: 80, referenceGpu: "A100/H100 80GB (upstream single-GPU example)" },
+    // UNKNOWN until benchmarked — budgeted generously so a healthy render is never reaped.
+    timing: { expectedRenderMs: 15 * 60_000, hardCeilingMs: 45 * 60_000, staleHeartbeatMs: 3 * 60_000 },
+    cost: { expectedGpuSeconds: 900, referenceUsdPerGpuHour: 2.5 },
+    license: {
+      state: "APPROVED_COMMERCIAL",
+      upstreamLicense: "Apache-2.0 (code and weights)",
+      conditions: "Apache-2.0 notice retention.",
+      territorialRestrictions: "none",
+      revenueThreshold: "none",
+      attribution: "Apache-2.0 NOTICE",
+      reviewedAt: "2026-10-03",
+      evidence: ["https://github.com/Wan-Video/Wan2.2", "https://huggingface.co/Wan-AI/Wan2.2-I2V-A14B"],
+    },
+    rollout: "built",
+  },
+  {
     id: "minimax-h3",
     tier: "QUALITY",
     family: "MiniMax H3",
@@ -300,6 +331,7 @@ export function capabilityMismatches(profile: MediaModelProfile, req: ClipReques
   if (longEdge > Math.max(c.maxWidth, c.maxHeight) || shortEdge > Math.min(c.maxWidth, c.maxHeight)) out.push("resolution_unsupported");
   if (!c.durationsSeconds.includes(req.durationSeconds)) out.push("duration_unsupported");
   if (req.startImage && !c.imageToVideo) out.push("image_to_video_unsupported");
+  if (!req.startImage && !c.textToVideo) out.push("text_to_video_unsupported");
   if (req.endImage && !c.firstLastFrame) out.push("first_last_frame_unsupported");
   return out;
 }
