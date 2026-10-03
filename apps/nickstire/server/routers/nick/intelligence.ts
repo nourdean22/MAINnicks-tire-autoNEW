@@ -618,6 +618,9 @@ export async function handleRunMigrations() {
       // 2026-10-02 · drizzle/0140_conversation_episodes_visual.sql: office "watch" description.
       // conversationRoutes + lot.conversations check information_schema and stay inert until applied.
       `ALTER TABLE conversation_episodes ADD COLUMN IF NOT EXISTS visual JSON NULL`,
+      // 2026-10-02 · drizzle/0141_conversation_episodes_gist.sql: one-sentence topic per conversation.
+      // conversationRoutes + lot.conversations check information_schema and stay inert until applied.
+      `ALTER TABLE conversation_episodes ADD COLUMN IF NOT EXISTS gist TEXT NULL`,
       // 2026-07-21 · nickgpt_training_examples.edit_categories_json — training-loop edit taxonomy (matches drizzle/0095 + schema.ts)
       `ALTER TABLE nickgpt_training_examples ADD COLUMN IF NOT EXISTS edit_categories_json TEXT NULL`,
       `CREATE TABLE IF NOT EXISTS chat_analytics (id int AUTO_INCREMENT PRIMARY KEY, sessionId int, hourOfDay int NOT NULL, dayOfWeek int NOT NULL, month int NOT NULL, messageCount int NOT NULL DEFAULT 0, converted int NOT NULL DEFAULT 0, leadScore int, duration int, createdAt timestamp NOT NULL DEFAULT (now()))`,

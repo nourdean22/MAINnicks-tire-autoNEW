@@ -16,6 +16,7 @@ vi.mock("../services/officeVisual", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../services/officeVisual")>()),
   analyzeOfficeFrames: vi.fn(),
   officeVisualColumnReady: vi.fn(),
+  conversationEpisodeColumnReady: vi.fn().mockResolvedValue(false),
   loadVisualCalibration: vi.fn().mockResolvedValue([]),
 }));
 
@@ -29,7 +30,7 @@ vi.mock("../db", async (importOriginal) => ({
 
 import { extractConversationFacts } from "../services/conversationFacts";
 import { getDb } from "../db";
-import { analyzeOfficeFrames, officeVisualColumnReady } from "../services/officeVisual";
+import { analyzeOfficeFrames, conversationEpisodeColumnReady, officeVisualColumnReady } from "../services/officeVisual";
 import { registerConversationEpisodeRoute } from "./conversationRoutes";
 
 const extract = extractConversationFacts as unknown as ReturnType<typeof vi.fn>;
@@ -424,6 +425,31 @@ describe("conversation ingest — office visual frames", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("gist: written by its own UPDATE only once 0141 exists; logged as a flag, never as text", async () => {
+    const colReady = conversationEpisodeColumnReady as unknown as ReturnType<typeof vi.fn>;
+    const execute = vi.fn().mockResolvedValue(undefined);
+    db.mockResolvedValue({ execute });
+    extract.mockResolvedValue({ ...okExtract, gist: "Customer asking when the car will be ready" });
+
+    colReady.mockResolvedValue(false);
+    const a = fakeRes();
+    await mount()({ headers: { "x-sync-key": KEY }, body: body() }, a.res);
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(a.out.body).toMatchObject({ gistStored: true });
+
+    colReady.mockResolvedValue(true);
+    logSpy.info.mockClear();
+    execute.mockClear();
+    await mount()({ headers: { "x-sync-key": KEY }, body: body() }, fakeRes().res);
+    expect(execute).toHaveBeenCalledTimes(2);
+    const upd = JSON.stringify(execute.mock.calls[1][0]);
+    expect(upd).toContain("UPDATE conversation_episodes SET gist");
+    expect(upd).toContain("Customer asking when the car will be ready");
+    const line = logSpy.info.mock.calls.find((c) => c[0] === "conversation extracted");
+    expect(line?.[1]).toMatchObject({ facts: 0, gist: true });
+    expect(JSON.stringify(line)).not.toContain("Customer asking");
   });
 
   it("OFFICE_VISUAL_ANALYSIS=0 switches analysis off without touching the database", async () => {

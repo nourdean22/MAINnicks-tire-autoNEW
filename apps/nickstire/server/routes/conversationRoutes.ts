@@ -29,7 +29,8 @@ import { sql } from "drizzle-orm";
 
 import { extractConversationFacts, type TranscriptSegment } from "../services/conversationFacts";
 import {
-  analyzeOfficeFrames, loadVisualCalibration, officeVisualColumnReady, OFFICE_VISUAL_MAX_FRAMES,
+  analyzeOfficeFrames, conversationEpisodeColumnReady, loadVisualCalibration, officeVisualColumnReady,
+  OFFICE_VISUAL_MAX_FRAMES,
   type OfficeVisual,
 } from "../services/officeVisual";
 import { createLogger } from "../lib/logger";
@@ -248,12 +249,29 @@ export function registerConversationEpisodeRoute(app: Express): void {
           UPDATE conversation_episodes SET visual = ${JSON.stringify(visual)} WHERE episodeId = ${e.episodeId}
         `);
       }
+      // 0141 · the one-sentence topic. Separate statement, only once the column exists, so the
+      // main INSERT stays byte-identical on an unmigrated database. A NULL write clears a stale
+      // gist when a re-post of the same episode no longer supports one.
+      if (extracted.gist !== undefined && await conversationEpisodeColumnReady(d, "gist")) {
+        await d.execute(sql`
+          UPDATE conversation_episodes SET gist = ${extracted.gist ?? null} WHERE episodeId = ${e.episodeId}
+        `);
+      }
     } catch (err) {
       return res.status(500).json({
         error: "write failed",
         detail: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
       });
     }
+
+    // What extraction produced and why it dropped things: counts and reasons only, never the
+    // transcript or the gist text (customer speech stays out of logs).
+    log.info("conversation extracted", {
+      episodeId: e.episodeId, transcriptStatus: status, segments: segments.length,
+      coverage: e.totalSeconds > 0 ? Number((e.coveredSeconds / e.totalSeconds).toFixed(3)) : null,
+      facts: extracted.facts.length, summary: Boolean(extracted.summary), gist: Boolean(extracted.gist),
+      dropped: extracted.dropped, engine: extracted.engine, error: storedError,
+    });
 
     const visualStatus = frames.length === 0 ? null
       : visual ? visual.status
@@ -281,6 +299,7 @@ export function registerConversationEpisodeRoute(app: Express): void {
       transcriptError: storedError,
       factsStored: extracted.facts.length,
       summaryStored: Boolean(extracted.summary),
+      gistStored: Boolean(extracted.gist),
       dropped: extracted.dropped,
       coverage: e.totalSeconds > 0 ? Number((e.coveredSeconds / e.totalSeconds).toFixed(3)) : null,
       engine: extracted.engine,
