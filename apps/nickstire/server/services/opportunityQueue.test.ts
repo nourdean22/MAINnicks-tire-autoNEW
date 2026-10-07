@@ -169,6 +169,15 @@ describe("summarizeInspectionForQueue · DVI deferral semantics", () => {
     expect(s.openFlagged).toBe(0);
     expect(s.valueCents).toBe(0);
   });
+
+  it("0143 · a verified item is completed work, not a deferral, whatever its decision", () => {
+    const s = summarizeInspectionForQueue([
+      { condition: "red", decision: null, estimatedCost: 500, verifiedAt: "2026-10-05 12:00:00" },
+      { condition: "yellow", decision: "declined", estimatedCost: 100, verifiedAt: new Date("2026-10-05T12:00:00Z") },
+    ]);
+    expect(s.openFlagged).toBe(0);
+    expect(s.valueCents).toBe(0);
+  });
 });
 
 

@@ -30,6 +30,7 @@
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
 import { useReviewStats } from "@/hooks/useReviewStats";
 import { BUSINESS } from "@shared/business";
+import { getRouteByPath } from "@shared/routes";
 import { Car, Wrench, Activity } from "lucide-react";
 
 // A FUNCTION, not a module constant: the rating and review count are live
@@ -38,7 +39,9 @@ import { Car, Wrench, Activity } from "lucide-react";
 const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServicePageConfig => ({
   canonicalPath: "/wheel-alignment-cleveland",
   heroImage: "/photos/busy-shop-action-mechanics.webp",
-  title: "Wheel Alignment Cleveland · Free Pull-Check · No Pay Til Yes | Nick's",
+  // 2026-10-07 · from the registry, not a literal: the literal here matched
+  // AlignmentPage's exactly, so /alignment and this page shared one <title>.
+  title: getRouteByPath("/wheel-alignment-cleveland")?.title ?? "",
   description: `Cleveland wheel alignment on Euclid Ave. Hunter rack, free pull-check first, written quote before any wrench moves. You don't pay until you say yes. ${reviewRating}★ from ${reviewCountDisplay} drivers.`,
   eyebrow: "WHEEL ALIGNMENT CLEVELAND · WALK-IN 7 DAYS",
   h1: "WHEEL ALIGNMENT CLEVELAND.\nFREE PULL-CHECK · YOU DON'T PAY UNTIL YOU SAY YES.",

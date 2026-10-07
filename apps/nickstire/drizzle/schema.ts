@@ -530,6 +530,22 @@ export const inspectionItems = mysqlTable("inspection_items", {
   decision: varchar("decision", { length: 16 }),
   decisionAt: timestamp("decisionAt"),
   customerNote: varchar("customerNote", { length: 500 }),
+  /** DVI measurements (migration 0143): InspectionMeasurement[] from
+   *  shared/inspectionMeasurements.ts — tread in 32nds per position, pad mm,
+   *  rotor mm with its minimum spec, battery V / CCA, fluid condition. */
+  measurementsJson: json("measurementsJson"),
+  /** Every photo for the finding (0143). photoUrl above mirrors the FIRST
+   *  one so pre-0143 readers (opportunity queue evidence class) keep working. */
+  photoUrlsJson: json("photoUrlsJson"),
+  /** Post-work verification (0143): the AFTER evidence that the approved
+   *  repair was done — who, when, a note, after-photos, after-measurements.
+   *  NULL verifiedAt = not verified. A verified item is complete: the
+   *  opportunity queue stops counting it as an open deferral. */
+  verifiedAt: timestamp("verifiedAt"),
+  verifiedBy: varchar("verifiedBy", { length: 255 }),
+  verificationNote: varchar("verificationNote", { length: 500 }),
+  verificationPhotoUrlsJson: json("verificationPhotoUrlsJson"),
+  verificationMeasurementsJson: json("verificationMeasurementsJson"),
   /** Sort order within inspection */
   sortOrder: int("sortOrder").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

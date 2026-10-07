@@ -1526,8 +1526,12 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   },
   {
     slug: "spring-car-maintenance-checklist-cleveland",
-    title: "Spring Car Maintenance Checklist for Cleveland Drivers",
-    metaTitle: "Spring Car Maintenance Checklist | Cleveland Auto Repair | Nick's Tire & Auto",
+    // 2026-10-07 · retitled. This article and spring-car-maintenance-checklist
+    // carried byte-identical title + metaTitle and competed for one query. The
+    // body here is the post-winter RECOVERY list (underbody salt wash, rust
+    // check, alignment after potholes), so the title now says that.
+    title: "Post-Winter Car Recovery Checklist for Cleveland Drivers",
+    metaTitle: "Post-Winter Car Recovery Checklist Cleveland | Nick's Tire & Auto",
     metaDescription: "Cleveland winters destroy cars. Use this spring maintenance checklist to recover from road salt, potholes, and freezing temps. Nick's Tire & Auto — Euclid.",
     category: "Seasonal Maintenance",
     publishDate: "2026-04-03",

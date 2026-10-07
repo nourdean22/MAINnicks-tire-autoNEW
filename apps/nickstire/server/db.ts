@@ -1288,12 +1288,17 @@ import {
   callbackRequests, InsertCallbackRequest,
   servicePricing, InsertServicePricing,
   vehicleInspections, InsertVehicleInspection,
-  inspectionItems, InsertInspectionItem,
+  inspectionItems, InsertInspectionItem, InspectionItem,
   loyaltyRewards, InsertLoyaltyReward,
   loyaltyTransactions,
   reviewRequests, InsertReviewRequest,
   reviewSettings,
 } from "../drizzle/schema";
+import {
+  normalizeMeasurements,
+  normalizePhotoUrls,
+  type InspectionMeasurement,
+} from "@shared/inspectionMeasurements";
 
 export async function createCallbackRequest(data: InsertCallbackRequest) {
   const db = await getDb();
@@ -1507,14 +1512,113 @@ export async function createInspection(data: Omit<InsertVehicleInspection, "shar
   return { success: true, id: Number(result[0].insertId), shareToken };
 }
 
+/**
+ * Migration 0143 adds seven columns to inspection_items (measurements, the
+ * photo list, post-work verification). The DDL is applied by hand, so this
+ * code runs against databases on BOTH sides of it. A bare `select()` names
+ * every column schema.ts declares and would 500 on a pre-0143 database
+ * (.claude/skills/nickstire-tidb-ddl), so the item read retries with the
+ * pre-0143 column set when the database reports an unknown column.
+ *
+ * Built on demand, not at import: five test files mock `../drizzle/schema`
+ * with a partial factory, and a module-level `inspectionItems.id` would throw
+ * on import in every one of them (the rest of this file only touches schema
+ * tables inside functions, for the same reason).
+ */
+function inspectionItemPre0143Columns() {
+  return {
+    id: inspectionItems.id,
+    inspectionId: inspectionItems.inspectionId,
+    component: inspectionItems.component,
+    category: inspectionItems.category,
+    condition: inspectionItems.condition,
+    notes: inspectionItems.notes,
+    photoUrl: inspectionItems.photoUrl,
+    recommendedAction: inspectionItems.recommendedAction,
+    estimatedCost: inspectionItems.estimatedCost,
+    decision: inspectionItems.decision,
+    decisionAt: inspectionItems.decisionAt,
+    customerNote: inspectionItems.customerNote,
+    sortOrder: inspectionItems.sortOrder,
+    createdAt: inspectionItems.createdAt,
+  };
+}
+
+const NO_0143_COLUMNS = {
+  measurementsJson: null,
+  photoUrlsJson: null,
+  verifiedAt: null,
+  verifiedBy: null,
+  verificationNote: null,
+  verificationPhotoUrlsJson: null,
+  verificationMeasurementsJson: null,
+} as const;
+
+interface InspectionItemVerification {
+  verifiedAt: Date;
+  verifiedBy: string | null;
+  note: string | null;
+  /** AFTER photos — the repair as done. */
+  photoUrls: string[];
+  /** AFTER measurements — e.g. new pads at 11 mm against the 3 mm found. */
+  measurements: InspectionMeasurement[];
+}
+
+/** What the API returns for an item: the row plus the decoded 0143 fields. */
+type InspectionItemView = InspectionItem & {
+  measurements: InspectionMeasurement[];
+  photoUrls: string[];
+  verification: InspectionItemVerification | null;
+};
+
+/** Pure; exported for tests. Decodes the JSON columns tolerantly — a row written before 0143 renders as "no measurements", never as a crash. */
+export function viewInspectionItem(row: InspectionItem): InspectionItemView {
+  const rawVerifiedAt = row.verifiedAt as unknown;
+  const verifiedAt =
+    rawVerifiedAt instanceof Date ? rawVerifiedAt
+    : typeof rawVerifiedAt === "string" && rawVerifiedAt ? new Date(rawVerifiedAt)
+    : null;
+  return {
+    ...row,
+    measurements: normalizeMeasurements(row.measurementsJson),
+    photoUrls: normalizePhotoUrls(row.photoUrl, row.photoUrlsJson),
+    verification:
+      verifiedAt && !Number.isNaN(verifiedAt.getTime())
+        ? {
+            verifiedAt,
+            verifiedBy: row.verifiedBy ?? null,
+            note: row.verificationNote ?? null,
+            photoUrls: normalizePhotoUrls(null, row.verificationPhotoUrlsJson),
+            measurements: normalizeMeasurements(row.verificationMeasurementsJson),
+          }
+        : null,
+  };
+}
+
+async function selectInspectionItems(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  inspectionId: number,
+): Promise<InspectionItemView[]> {
+  try {
+    const rows = await db.select().from(inspectionItems)
+      .where(eq(inspectionItems.inspectionId, inspectionId))
+      .orderBy(inspectionItems.sortOrder);
+    return rows.map(viewInspectionItem);
+  } catch (err) {
+    if (!isUnknownColumnError(err)) throw err;
+    const rows = await db.select(inspectionItemPre0143Columns()).from(inspectionItems)
+      .where(eq(inspectionItems.inspectionId, inspectionId))
+      .orderBy(inspectionItems.sortOrder);
+    return rows.map((r: Record<string, unknown>) => viewInspectionItem({ ...r, ...NO_0143_COLUMNS } as unknown as InspectionItem));
+  }
+}
+
 export async function getInspection(id: number) {
   const db = await getDb();
   if (!db) return null;
   const [inspection] = await db.select().from(vehicleInspections).where(eq(vehicleInspections.id, id)).limit(1);
   if (!inspection) return null;
-  const items = await db.select().from(inspectionItems)
-    .where(eq(inspectionItems.inspectionId, id))
-    .orderBy(inspectionItems.sortOrder);
+  const items = await selectInspectionItems(db, id);
   return { ...inspection, items };
 }
 
@@ -1525,9 +1629,7 @@ export async function getInspectionByToken(token: string) {
     .where(and(eq(vehicleInspections.shareToken, token), eq(vehicleInspections.isPublished, 1)))
     .limit(1);
   if (!inspection) return null;
-  const items = await db.select().from(inspectionItems)
-    .where(eq(inspectionItems.inspectionId, inspection.id))
-    .orderBy(inspectionItems.sortOrder);
+  const items = await selectInspectionItems(db, inspection.id);
   return { ...inspection, items };
 }
 
@@ -1728,18 +1830,102 @@ async function notifyInspectionDecision(
   );
 }
 
-export async function addInspectionItem(data: InsertInspectionItem) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const result = await db.insert(inspectionItems).values(data);
-  return { success: true, id: Number(result[0].insertId) };
+/** Admin write shape for an item: the row fields plus the 0143 lists, typed. */
+type InspectionItemWrite = Omit<InsertInspectionItem, "measurementsJson" | "photoUrlsJson"> & {
+  measurements?: InspectionMeasurement[];
+  photoUrls?: string[];
+};
+
+/**
+ * Pure; exported for tests. The 0143 keys are attached ONLY when the caller
+ * supplied them, so every pre-0143 call site emits byte-identical SQL (the
+ * rule in .claude/skills/nickstire-tidb-ddl). The first photo is mirrored into
+ * photoUrl so readers that predate photoUrlsJson (the customer page before
+ * this change, the opportunity queue's evidence class) still see a photo.
+ */
+export function buildInspectionItemValues(input: Partial<InspectionItemWrite>): Partial<InsertInspectionItem> {
+  const { measurements, photoUrls, ...rest } = input;
+  const values: Partial<InsertInspectionItem> = { ...rest };
+  if (photoUrls && photoUrls.length > 0) {
+    values.photoUrlsJson = photoUrls;
+    if (!values.photoUrl) values.photoUrl = photoUrls[0];
+  }
+  if (measurements && measurements.length > 0) values.measurementsJson = measurements;
+  return values;
 }
 
-export async function updateInspectionItem(id: number, data: Partial<InsertInspectionItem>) {
+type InspectionWriteDegradation = "measurements_unavailable";
+
+function uses0143Columns(values: Partial<InsertInspectionItem>): boolean {
+  return "measurementsJson" in values || "photoUrlsJson" in values;
+}
+
+function without0143Columns(values: Partial<InsertInspectionItem>): Partial<InsertInspectionItem> {
+  const { measurementsJson: _m, photoUrlsJson: _p, ...legacy } = values;
+  return legacy;
+}
+
+export async function addInspectionItem(data: InspectionItemWrite) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(inspectionItems).set(data).where(eq(inspectionItems.id, id));
-  return { success: true };
+  const values = buildInspectionItemValues(data) as InsertInspectionItem;
+  try {
+    const result = await db.insert(inspectionItems).values(values);
+    return { success: true, id: Number(result[0].insertId), degraded: null as InspectionWriteDegradation | null };
+  } catch (err) {
+    // Pre-0143 database: keep the finding, drop only what the table cannot
+    // hold yet, and SAY so — the panel tells the tech the numbers were not stored.
+    if (!isUnknownColumnError(err) || !uses0143Columns(values)) throw err;
+    const result = await db.insert(inspectionItems).values(without0143Columns(values) as InsertInspectionItem);
+    return { success: true, id: Number(result[0].insertId), degraded: "measurements_unavailable" as InspectionWriteDegradation | null };
+  }
+}
+
+export async function updateInspectionItem(id: number, data: Partial<InspectionItemWrite>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const values = buildInspectionItemValues(data);
+  try {
+    await db.update(inspectionItems).set(values).where(eq(inspectionItems.id, id));
+    return { success: true, degraded: null as InspectionWriteDegradation | null };
+  } catch (err) {
+    if (!isUnknownColumnError(err) || !uses0143Columns(values)) throw err;
+    const legacy = without0143Columns(values);
+    if (Object.keys(legacy).length > 0) await db.update(inspectionItems).set(legacy).where(eq(inspectionItems.id, id));
+    return { success: true, degraded: "measurements_unavailable" as InspectionWriteDegradation | null };
+  }
+}
+
+/**
+ * Post-work verification (0143): the technician records the AFTER evidence
+ * once the approved repair is done. Verification IS the new columns, so it
+ * cannot degrade — on a pre-0143 database it reports exactly what is missing
+ * instead of pretending the work was recorded.
+ */
+export async function verifyInspectionItem(input: {
+  id: number;
+  verifiedBy: string;
+  note?: string | null;
+  photoUrls?: string[];
+  measurements?: InspectionMeasurement[];
+}): Promise<{ success: true } | { success: false; reason: "not_found" | "migration_0143_not_applied" }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [existing] = await db.select({ id: inspectionItems.id }).from(inspectionItems).where(eq(inspectionItems.id, input.id)).limit(1);
+  if (!existing) return { success: false, reason: "not_found" };
+  try {
+    await db.update(inspectionItems).set({
+      verifiedAt: new Date(),
+      verifiedBy: input.verifiedBy,
+      verificationNote: input.note ?? null,
+      verificationPhotoUrlsJson: input.photoUrls && input.photoUrls.length > 0 ? input.photoUrls : null,
+      verificationMeasurementsJson: input.measurements && input.measurements.length > 0 ? input.measurements : null,
+    }).where(eq(inspectionItems.id, input.id));
+    return { success: true };
+  } catch (err) {
+    if (isUnknownColumnError(err)) return { success: false, reason: "migration_0143_not_applied" };
+    throw err;
+  }
 }
 
 export async function deleteInspectionItem(id: number) {
