@@ -128,6 +128,7 @@ export async function handleArsenalDeepResearch(params: ActionParams, type: stri
       plan: report.plan,
       roundCount: report.rounds.length,
       synthesis: report.synthesis.slice(0, 4000),
+      synthesisStatus: report.synthesisStatus,
       citations: report.allCitations.slice(0, 20),
       durationMs: report.durationMs,
     },

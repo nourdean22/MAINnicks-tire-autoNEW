@@ -785,6 +785,9 @@ export const systemTools = {
         roundCount: report.rounds.length,
         // forensic-audit MEDIUM · fence the web-derived synthesis (injection).
         synthesis: fenceContent("arsenalDeepResearch", "external_web", report.synthesis.slice(0, 4000)),
+        // "synth_failed" = the searches worked and only the write-up failed:
+        // say so instead of reporting "no results".
+        synthesisStatus: report.synthesisStatus,
         citations: report.allCitations.slice(0, 20),
         durationMs: report.durationMs,
         source: "arsenal/deep-research",
