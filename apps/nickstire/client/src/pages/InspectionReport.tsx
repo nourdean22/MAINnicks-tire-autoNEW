@@ -10,6 +10,27 @@ import {
 import { BUSINESS } from "@shared/business";
 import { QueryError } from "@/components/QueryState";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
+import { formatMeasurement, gradeMeasurement, type InspectionMeasurement } from "@shared/inspectionMeasurements";
+
+const GRADE_DOT: Record<string, string> = { green: "bg-nick-teal", yellow: "bg-primary", red: "bg-red-400" };
+
+/** Measurement chips with the grade dot; `tone` dims the "before" list once the work is verified. */
+function MeasurementChips({ measurements, tone = "normal" }: { measurements: InspectionMeasurement[]; tone?: "normal" | "muted" }) {
+  if (!measurements.length) return null;
+  return (
+    <ul className="flex flex-wrap gap-1.5" aria-label="Measurements">
+      {measurements.map((m, i) => {
+        const g = gradeMeasurement(m);
+        return (
+          <li key={i} className={`inline-flex items-center gap-1.5 text-[12px] rounded-full border border-border/30 px-2.5 py-1 ${tone === "muted" ? "text-foreground/50" : "text-foreground/80"}`}>
+            {g && <span className={`w-2 h-2 rounded-full ${GRADE_DOT[g]}`} aria-hidden="true" />}
+            {formatMeasurement(m)}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 const CONDITION_CONFIG = {
   green: { label: "Good", color: "text-nick-teal", bg: "bg-nick-teal/20", border: "border-nick-teal/30", icon: <CheckCircle className="w-5 h-5" /> },
@@ -74,7 +95,7 @@ export default function InspectionReport() {
   };
 
   const summary = useMemo(() => {
-    if (!inspection?.items) return { green: 0, yellow: 0, red: 0, totalCost: 0, approvedCount: 0, approvedCost: 0 };
+    if (!inspection?.items) return { green: 0, yellow: 0, red: 0, totalCost: 0, approvedCount: 0, approvedCost: 0, verifiedCount: 0 };
     const approved = inspection.items.filter((i: any) => i.decision === "approved");
     return {
       green: inspection.items.filter((i: any) => i.condition === "green").length,
@@ -83,6 +104,8 @@ export default function InspectionReport() {
       totalCost: inspection.items.reduce((sum: number, i: any) => sum + (i.estimatedCost || 0), 0),
       approvedCount: approved.length,
       approvedCost: approved.reduce((sum: number, i: any) => sum + (i.estimatedCost || 0), 0),
+      // 0143 · completed work with after-evidence recorded by the shop
+      verifiedCount: inspection.items.filter((i: any) => i.verification).length,
     };
   }, [inspection]);
 
@@ -224,9 +247,51 @@ export default function InspectionReport() {
                   <p className="text-foreground/70 text-sm mb-3 pl-11">{item.notes}</p>
                 )}
 
-                {item.photoUrl && (
+                {/* 0143 · what the tech measured, graded by the shop bands */}
+                {Array.isArray(item.measurements) && item.measurements.length > 0 && (
                   <div className="pl-11 mb-3">
-                    <img loading="lazy" src={item.photoUrl} alt={item.component} className="w-full max-w-sm rounded-md border border-border/30 object-contain" />
+                    <MeasurementChips measurements={item.measurements} tone={item.verification ? "muted" : "normal"} />
+                  </div>
+                )}
+
+                {/* every photo of the finding (0143), falling back to the single legacy photo */}
+                {(() => {
+                  const photos: string[] = Array.isArray(item.photoUrls) && item.photoUrls.length > 0 ? item.photoUrls : item.photoUrl ? [item.photoUrl] : [];
+                  if (photos.length === 0) return null;
+                  return (
+                    <div className={`pl-11 mb-3 ${photos.length > 1 ? "grid grid-cols-2 gap-2 max-w-md" : ""}`}>
+                      {photos.map((url: string, idx: number) => (
+                        <img key={url + idx} loading="lazy" src={url} alt={photos.length > 1 ? `${item.component} photo ${idx + 1}` : item.component}
+                          className={`rounded-md border border-border/30 object-contain ${photos.length > 1 ? "w-full" : "w-full max-w-sm"}`} />
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {/* 0143 · post-work verification: the proof the repair was done */}
+                {item.verification && (
+                  <div className="pl-11 mb-3">
+                    <div className="rounded-xl border border-nick-teal/30 bg-nick-teal/10 p-4 space-y-3" data-testid="verification">
+                      <p className="inline-flex items-center gap-2 text-nick-teal font-bold text-sm">
+                        <CheckCircle className="w-4 h-4" />
+                        Completed and verified{item.verification.verifiedBy ? ` by ${item.verification.verifiedBy}` : ""} on {new Date(item.verification.verifiedAt).toLocaleDateString()}
+                      </p>
+                      {item.verification.note && <p className="text-foreground/70 text-sm">{item.verification.note}</p>}
+                      {item.verification.measurements?.length > 0 && (
+                        <div>
+                          <p className="text-[11px] uppercase tracking-wide text-foreground/40 mb-1">After repair</p>
+                          <MeasurementChips measurements={item.verification.measurements} />
+                        </div>
+                      )}
+                      {item.verification.photoUrls?.length > 0 && (
+                        <div className={item.verification.photoUrls.length > 1 ? "grid grid-cols-2 gap-2 max-w-md" : ""}>
+                          {item.verification.photoUrls.map((url: string, idx: number) => (
+                            <img key={url + idx} loading="lazy" src={url} alt={`${item.component} after repair ${idx + 1}`}
+                              className={`rounded-md border border-nick-teal/30 object-contain ${item.verification.photoUrls.length > 1 ? "w-full" : "w-full max-w-sm"}`} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -248,8 +313,9 @@ export default function InspectionReport() {
 
                 {/* DVI decision row — yellow/red items only. The customer
                     decides per item; green items need no decision. Their
-                    choice is re-decidable (people change their minds). */}
-                {item.condition !== "green" && (
+                    choice is re-decidable (people change their minds). A
+                    verified item (0143) is done — no decision to make. */}
+                {item.condition !== "green" && !item.verification && (
                   <div className="pl-11 mt-3 pt-3 border-t border-border/20">
                     {item.decision ? (
                       <div className="flex flex-wrap items-center gap-2 text-[13px]">
@@ -357,6 +423,11 @@ export default function InspectionReport() {
                 <p className="text-nick-teal font-bold text-sm mt-2">
                   You've approved {summary.approvedCount} {summary.approvedCount === 1 ? "fix" : "fixes"}
                   {summary.approvedCost > 0 ? ` · $${summary.approvedCost.toLocaleString()} est.` : ""}
+                </p>
+              )}
+              {summary.verifiedCount > 0 && (
+                <p className="text-nick-teal text-sm mt-1">
+                  {summary.verifiedCount} {summary.verifiedCount === 1 ? "repair" : "repairs"} completed and verified with after-photos or measurements
                 </p>
               )}
               <p className="text-foreground/50 text-sm mt-2">Final number lands after you say yes. No work starts without your OK.</p>
