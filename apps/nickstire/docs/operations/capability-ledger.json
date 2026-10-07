@@ -3513,6 +3513,7 @@
       "exposure": "operator_only",
       "evidence": {
         "codeCommit": "Branch nickstire/dvi-measurements, commit b0414737 (2026-10-07) plus its completion commit; squash-merges via its PR. shared/inspectionMeasurements.ts is the ONE vocabulary: metric, unit, positions (tire corners as in tireTin, front/rear for brakes, fluid names), the grading bands (tread >=6 / 3-5 / <=2 of 32nds; pads >=7 / 4-6 / <=3 mm; rotor margin over minimum spec; battery >=12.4 / 12.0-12.39 / <12.0 V; CCA >=80% / 60-79% / <60% of rated; fluid good/fair/replace), zod schemas and the tolerant JSON decoders. drizzle/schema.ts + 0143 add measurementsJson, photoUrlsJson, verifiedAt, verifiedBy, verificationNote, verificationPhotoUrlsJson, verificationMeasurementsJson to inspection_items (nullable, no ENUM, one ALTER each). server/db.ts: selectInspectionItems retries with the pre-0143 column list on an unknown-column error; buildInspectionItemValues attaches the new keys only when supplied and mirrors the first photo into photoUrl; add/update report degraded='measurements_unavailable' when the table cannot hold the new keys; verifyInspectionItem refuses on a pre-0143 database. server/routers/services.ts: addItem/updateItem accept measurements + photoUrls through the shared schemas; verifyItem (admin) maps the refusal to PRECONDITION_FAILED. server/services/opportunityQueue.ts: summarizeInspectionForQueue excludes verified items; the collector's fallback chain drops verifiedAt then decision; the deferral reconciler tries the verifiedAt clause first. server/services/evidenceEngine.ts: the bare select() on inspection_items is pinned to explicit columns. client InspectionCapturePanel: Measurements block, multi-photo strip, Verify work mode. client InspectionReport: measurement chips, photo grid, Completed-and-verified block, decision buttons hidden for a verified item. No sends.",
+        "deploymentId": "railway main auto-deploy (#2921 squash 4ec2e338, live 2026-10-07 20:07 UTC); migration 0143 applied by the apply script as a one-off pre-deploy command on deployment 27df548b (commit 9b276127, 2026-10-07 22:17 UTC), command removed afterwards",
         "tests": [
           "shared/inspectionMeasurements.test.ts: every grading band pinned on both sides of its boundary; formatting per metric; schema rejects out-of-range, wrong-type and unknown metrics; metricsForCategory; tolerant decode of garbage JSON; photo list fallback and cap.",
           "server/inspectionMeasurementsWiring.test.ts: value builder attaches 0143 keys only when supplied and mirrors the first photo; row decoder on a pre-0143 row, a verified row and garbage; verifyItem registered and validating; addItem rejects 40/32 tread and a ninth photo; a verified red item with no decision is not an open deferral.",
@@ -3525,6 +3526,7 @@
         ]
       },
       "lastVerifiedAt": "2026-10-07",
+      "verificationExpiresAt": "2027-01-07",
       "blockers": [
         {
           "severity": "P3",
