@@ -32,6 +32,16 @@ const portIdx = args.indexOf("--port");
 if (portIdx !== -1 && args[portIdx + 1]) {
   externalPort = parseInt(args[portIdx + 1], 10);
 }
+// --only <regex> · render just the routes whose path matches, for backfilling
+// one route family (2026-10-07: the 40 /guides/* pages that sat in the sitemap
+// for four weeks with no artifact) without a full ~400-route regen. Output
+// still lands in dist/prerendered/; copy the subtree you rendered into
+// prerendered/ by hand. The weekly refresh never passes this flag.
+let onlyPattern = null;
+const onlyIdx = args.indexOf("--only");
+if (onlyIdx !== -1 && args[onlyIdx + 1]) {
+  onlyPattern = new RegExp(args[onlyIdx + 1]);
+}
 
 // ─── Import route registry ──────────────────────────────
 // Load all routes for prerender. The 2026-05-05 audit caught two silent
@@ -162,6 +172,36 @@ process.exit(0);
     console.error("[prerender] Continuing without blog routes — but the verify-prerender CI workflow will catch the resulting drift on PR.");
   }
 
+  // ── Guide leaf pages (shared/guides.ts). The sitemap has advertised every
+  //    /guides/:slug since 2026-09-11, but nothing here rendered them, so for
+  //    four weeks Googlebot was handed the SPA shell for 40 long-form pages:
+  //    homepage <title>, no <h1>, no body. check-prerender.mjs did not know
+  //    about them either, so the gate that exists for exactly this stayed
+  //    green. Same shape as the blog loader above: separate try, loud floor.
+  //    GUIDES has 40 entries today; a result under 30 means the loader broke,
+  //    not that someone trimmed the guides.
+  try {
+    const result = execSync(
+      `node --import tsx -e "import { GUIDES } from './shared/guides.ts'; import { isRedirectedPath } from './server/_core/redirects.ts'; const out = []; for (const g of GUIDES) { if (isRedirectedPath('/guides/' + g.slug)) continue; out.push({ path: '/guides/' + g.slug, title: g.title, description: g.description }); } console.log(JSON.stringify(out));"`,
+      { cwd: ROOT, encoding: "utf-8", timeout: 15000 }
+    );
+    const guideRoutes = JSON.parse(result.trim());
+    if (guideRoutes.length < 30) {
+      throw new Error(
+        `[prerender] FATAL: guide loader returned only ${guideRoutes.length} routes ` +
+        `(expected 30+ from GUIDES in shared/guides.ts).`
+      );
+    }
+    const existing = new Set(routes.map(r => typeof r === "string" ? r : r.path));
+    for (const g of guideRoutes) {
+      if (!existing.has(g.path)) routes.push(g);
+    }
+    console.log(`[prerender] Added ${guideRoutes.length} guide routes with per-page SEO metadata`);
+  } catch (err) {
+    if (err.message.startsWith("[prerender] FATAL:")) throw err;
+    throw new Error(`[prerender] FATAL: guide loader failed: ${err.message}`);
+  }
+
   return routes;
 }
 
@@ -215,7 +255,11 @@ function startServer() {
 // ─── Main prerender loop ─────────────────────────────────
 async function main() {
   console.log("[prerender] Loading route registry...");
-  const routeData = await loadRoutes();
+  let routeData = await loadRoutes();
+  if (onlyPattern) {
+    routeData = routeData.filter(r => onlyPattern.test(typeof r === "string" ? r : r.path));
+    console.log(`[prerender] --only ${onlyPattern}: ${routeData.length} routes selected`);
+  }
   // routeData is either [{path, title, description}] or ["/path1", "/path2"] (fallback)
   const routes = routeData.map(r => typeof r === "string" ? r : r.path);
   const routeMap = new Map();

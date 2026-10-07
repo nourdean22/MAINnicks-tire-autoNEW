@@ -31,12 +31,20 @@ if (!fs.existsSync(PRERENDER_DIR)) {
 // Compute the expected set AND the sitemap subset from ONE tsx call. A second
 // nested -e string would be a second place for the two lists to drift apart.
 //
+// Guide leaf pages are in here too (2026-10-07). server/_core/index.ts put
+// every /guides/:slug into sitemap.xml on 2026-09-11, but this list was built
+// from the route registry alone and GUIDES is not a registry group — so the
+// "a missing artifact for a SITEMAP route is never tolerable" rule below could
+// not see 40 advertised URLs that had no artifact at all. The sitemap is what
+// Google reads; the expected set has to follow the sitemap's sources, not the
+// registry's. A redirected guide is skipped exactly as the sitemap skips it.
+//
 // NO ARROW FUNCTIONS in this payload. It is a double-quoted shell string, and
 // Windows reads the ">" in "=>" as a redirect — which surfaces as
 // "SyntaxError: Invalid or unexpected token" with nothing pointing at the
 // real cause. Use function declarations and for-loops here.
 const expectedJson = execSync(
-  `node --import tsx -e "import { PRERENDER_ROUTES, BLOG_SLUGS, SITEMAP_ROUTES } from './shared/routes.ts'; function f(p){ return p === '/' ? 'index.html' : p.replace(/^\\//, '') + '/index.html'; } const e = []; for (const r of PRERENDER_ROUTES) e.push(f(r.path)); for (const s of BLOG_SLUGS) e.push('blog/' + s + '/index.html'); const m = []; for (const r of SITEMAP_ROUTES) m.push(f(r.path)); console.log(JSON.stringify({ e: e, m: m }));"`,
+  `node --import tsx -e "import { PRERENDER_ROUTES, BLOG_SLUGS, SITEMAP_ROUTES } from './shared/routes.ts'; import { GUIDES } from './shared/guides.ts'; import { isRedirectedPath } from './server/_core/redirects.ts'; function f(p){ return p === '/' ? 'index.html' : p.replace(/^\\//, '') + '/index.html'; } const e = []; for (const r of PRERENDER_ROUTES) e.push(f(r.path)); for (const s of BLOG_SLUGS) e.push('blog/' + s + '/index.html'); const m = []; for (const r of SITEMAP_ROUTES) m.push(f(r.path)); for (const g of GUIDES) { if (isRedirectedPath('/guides/' + g.slug)) continue; e.push('guides/' + g.slug + '/index.html'); m.push('guides/' + g.slug + '/index.html'); } console.log(JSON.stringify({ e: e, m: m }));"`,
   { cwd: ROOT, encoding: "utf-8", timeout: 15000 }
 );
 const parsed = JSON.parse(expectedJson);
