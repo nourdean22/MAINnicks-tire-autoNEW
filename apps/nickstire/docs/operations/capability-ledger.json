@@ -3509,8 +3509,8 @@
       "name": "DVI findings carry structured measurements graded by shop-guidance bands, up to 8 photos, and post-work verification (after-photos + after-measurements) that the customer page shows and the opportunity queue treats as completed work",
       "owner": "operator",
       "codeState": "merged",
-      "operationalState": "unit_verified",
-      "exposure": "disabled",
+      "operationalState": "deployed",
+      "exposure": "operator_only",
       "evidence": {
         "codeCommit": "Branch nickstire/dvi-measurements, commit b0414737 (2026-10-07) plus its completion commit; squash-merges via its PR. shared/inspectionMeasurements.ts is the ONE vocabulary: metric, unit, positions (tire corners as in tireTin, front/rear for brakes, fluid names), the grading bands (tread >=6 / 3-5 / <=2 of 32nds; pads >=7 / 4-6 / <=3 mm; rotor margin over minimum spec; battery >=12.4 / 12.0-12.39 / <12.0 V; CCA >=80% / 60-79% / <60% of rated; fluid good/fair/replace), zod schemas and the tolerant JSON decoders. drizzle/schema.ts + 0143 add measurementsJson, photoUrlsJson, verifiedAt, verifiedBy, verificationNote, verificationPhotoUrlsJson, verificationMeasurementsJson to inspection_items (nullable, no ENUM, one ALTER each). server/db.ts: selectInspectionItems retries with the pre-0143 column list on an unknown-column error; buildInspectionItemValues attaches the new keys only when supplied and mirrors the first photo into photoUrl; add/update report degraded='measurements_unavailable' when the table cannot hold the new keys; verifyInspectionItem refuses on a pre-0143 database. server/routers/services.ts: addItem/updateItem accept measurements + photoUrls through the shared schemas; verifyItem (admin) maps the refusal to PRECONDITION_FAILED. server/services/opportunityQueue.ts: summarizeInspectionForQueue excludes verified items; the collector's fallback chain drops verifiedAt then decision; the deferral reconciler tries the verifiedAt clause first. server/services/evidenceEngine.ts: the bare select() on inspection_items is pinned to explicit columns. client InspectionCapturePanel: Measurements block, multi-photo strip, Verify work mode. client InspectionReport: measurement chips, photo grid, Completed-and-verified block, decision buttons hidden for a verified item. No sends.",
         "tests": [
@@ -3520,17 +3520,15 @@
           "client/src/__tests__/inspection-report-verification.test.tsx: measurements, every photo and the verified block render; decision buttons gone for a verified item; an unverified item keeps them and shows the legacy single photo. Red on origin/main (2 of 2).",
           "Neighbouring suites green on the new code: inspectionDecisionReceipt, inspectionDecisionReceiptLedger, publicServiceReadsFailClosed, trpc-auth-tier, migration-journal, admin (section matrix renders the rewritten panel), smoke — 11 files, 463 passed, 2026-10-07."
         ],
-        "liveRuns": []
+        "liveRuns": [
+          "2026-10-07 22:17:01 UTC — migration 0143 applied to production TiDB: scripts/migrations/apply-dvi-measurements.ts ran as a Railway pre-deploy command on deployment 27df548b (commit 9b276127, the prerender-refresh commit after the #2921 merge). Deploy-log receipt: '0143_dvi_measurements_verification: 7 columns added, 0 already present — all 7 verified'. The credential never left Railway (the session had no Railway CLI or DATABASE_URL; two plain redeploys skipped the pre-deploy hook, confirmed in their logs). The pre-deploy command was removed from the service afterwards. PR #2921 squash-merged as 4ec2e338 (CI 13 passed, 2 skipped by design) and live since 20:07 UTC."
+        ]
       },
       "lastVerifiedAt": "2026-10-07",
       "blockers": [
         {
-          "severity": "P1",
-          "description": "Migration 0143 is NOT applied to production. Until it is, no finding can carry a measurement or a verification: reads fall back to the pre-0143 columns, a finding saved with measurements keeps the finding and warns that the numbers were not stored, and verifyItem refuses with PRECONDITION_FAILED. Apply from a machine with the Railway CLI: railway run --service MAINnicks-tire-auto -- pnpm exec tsx scripts/migrations/apply-dvi-measurements.ts (idempotent; expected '7 columns added, 0 already present — all 7 verified'). Then record one finding with a tread or pad measurement and verify one approved item to move this to live_verified."
-        },
-        {
           "severity": "P3",
-          "description": "Not yet seen on the installed admin PWA or on a customer's phone; rendering is pinned by tests only."
+          "description": "Not yet exercised on production: no finding has carried a measurement and no item has been verified since 0143 landed (2026-10-07 22:17 UTC); rendering is pinned by tests only, not yet seen on the installed admin PWA or a customer's phone. The first real finding with a tread or pad measurement plus one verified approved item moves this to live_verified."
         }
       ],
       "deferredScope": [
