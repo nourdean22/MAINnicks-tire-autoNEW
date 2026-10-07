@@ -4893,7 +4893,7 @@ export const cameraRuntime = mysqlTable("camera_runtime", {
   stitchedTotal: int("stitchedTotal"),
   stitchRefusedAmbiguous: int("stitchRefusedAmbiguous"),
   /**
-   * Rolling-window plausibility counters (migration 0143). `lastInferenceAt` says the
+   * Rolling-window plausibility counters (migration 0144). `lastInferenceAt` says the
    * detector RAN; these say what it SAW. Frames fine + detections zero for an hour inside
    * business hours is DEGRADED_VISION, and before these existed that day rendered "steady"
    * (2026-10-05: the sign lane counted 4 arrivals on a 40-car day). NULL = this producer
@@ -4902,7 +4902,7 @@ export const cameraRuntime = mysqlTable("camera_runtime", {
   detectionsLast10m: int("detectionsLast10m"),
   portalCrossingsLast60m: int("portalCrossingsLast60m"),
   /**
-   * Office worker listening truth over the last hour (migration 0143), from officewake.py's
+   * Office worker listening truth over the last hour (migration 0144), from officewake.py's
    * local receipt via the Eufy agent. Coverage is capture seconds over schedule-eligible
    * seconds (NULL under five eligible minutes: a worker that just started has not failed).
    * "Alive and heard nothing" and "deaf" used to be the same READY.

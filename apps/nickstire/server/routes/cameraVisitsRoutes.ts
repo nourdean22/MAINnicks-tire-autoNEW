@@ -433,7 +433,7 @@ const heartbeatSchema = z.object({
   lastConversationCoverage: z.number().min(0).max(1).nullish(),
   conversationFailuresToday: z.number().int().min(0).nullish(),
   conversationLastError: z.string().max(500).nullish(),
-  // Office listening truth over the last hour (0143). NULL = the worker receipt predates
+  // Office listening truth over the last hour (0144). NULL = the worker receipt predates
   // these, or under five eligible minutes to judge. Never a guess.
   conversationListeningCoverage60m: z.number().min(0).max(1).nullish(),
   conversationCaptureSecondsLast60m: z.number().min(0).nullish(),
@@ -465,7 +465,7 @@ const heartbeatSchema = z.object({
   stitchedTotal: z.number().int().nullish(),
   stitchRefusedAmbiguous: z.number().int().nullish(),
   /**
-   * Rolling-window plausibility counters (0143). `lastInferenceAt` says the detector RAN;
+   * Rolling-window plausibility counters (0144). `lastInferenceAt` says the detector RAN;
    * these say what it SAW. `nullish`, never defaulted: a producer that does not keep the
    * window has not measured zero.
    */
@@ -496,7 +496,7 @@ export const HEARTBEAT_COLUMNS = [
   // still be dropped here, silently, because the write names these columns and nothing
   // else. Adding to the schema without adding here is a writer with no reader.
   "arrivalsAfterStitch", "stitchedTotal", "stitchRefusedAmbiguous",
-  // 0143 rolling windows: what the detector saw, and what the office worker heard.
+  // 0144 rolling windows: what the detector saw, and what the office worker heard.
   "detectionsLast10m", "portalCrossingsLast60m",
   "conversationListeningCoverage60m", "conversationCaptureSecondsLast60m",
   "conversationCapturesLast60m", "conversationCaptureFailuresLast60m",

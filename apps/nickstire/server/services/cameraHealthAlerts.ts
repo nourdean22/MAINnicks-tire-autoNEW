@@ -18,7 +18,7 @@
  * - HEALTHY sends a recovery only when the latest prior camera alert was degraded, and
  *   not when a blind camera merely stopped being judged because the shop closed.
  * - no new alert table: cron_alerts_fired already survives pod restarts + multi-pod.
- * - the 0143 plausibility columns are read only once production has them
+ * - the 0144 plausibility columns are read only once production has them
  *   (cameraRuntimeHasColumns); a hand-applied migration must not red this job.
  */
 

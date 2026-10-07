@@ -56,7 +56,7 @@ import { sql } from "drizzle-orm";
 import { router, adminProcedure } from "../_core/trpc";
 import { dbTyped } from "../lib/db-helper";
 import { deriveCameraState, HEALTH_THRESHOLDS, shopOpenAt } from "../lib/cameraHealth";
-import { CAMERA_RUNTIME_WINDOW_COLUMNS_0143, cameraRuntimeHasColumns } from "../lib/heartbeatStorableColumns";
+import { CAMERA_RUNTIME_WINDOW_COLUMNS_0144, cameraRuntimeHasColumns } from "../lib/heartbeatStorableColumns";
 import {
   assessEdgeQuiescence, buildCommissioningReport, EDGE_SETTLE_MS, estimateClockOffset,
   machineEventsFromVisit, QUIESCENCE_HEARTBEAT_MAX_AGE_S, TRUTH_EVENTS,
@@ -862,10 +862,10 @@ export const lotRouter = router({
     if (!d) return { ok: false as const, reason: "database unavailable" };
 
     try {
-      // The 0143 rolling-window columns are selected only once production has them, the
+      // The 0144 rolling-window columns are selected only once production has them, the
       // way `conversations` treats `visual` and `gist`: a hand-applied migration that lags
       // the deploy must cost eight NULLs on the cards, not the whole Lot page.
-      const windowColumnsStored = await cameraRuntimeHasColumns(d, CAMERA_RUNTIME_WINDOW_COLUMNS_0143);
+      const windowColumnsStored = await cameraRuntimeHasColumns(d, CAMERA_RUNTIME_WINDOW_COLUMNS_0144);
       const shopOpen = shopOpenAt();
       const runtime = rowsOf(await d.execute(sql`
         SELECT r.camera, r.producerInstanceId, r.producerVersion, r.gitSha, r.heartbeatSeq,
@@ -1047,7 +1047,7 @@ export const lotRouter = router({
                 lastCoverage: numOrNull(r.lastConversationCoverage),
                 failuresToday: numOrNull(r.conversationFailuresToday),
                 lastError: str(r.conversationLastError),
-                // Listening coverage over the last hour (0143). "How much of the hour did
+                // Listening coverage over the last hour (0144). "How much of the hour did
                 // the mic actually record" is the number the Office lane was missing: on
                 // 2026-10-03 to 10-05 it listened about 8% of the day while every state
                 // string said READY. NULL until the migration is applied and the worker
@@ -1091,7 +1091,7 @@ export const lotRouter = router({
         ok: true as const,
         asOf: new Date().toISOString(),
         thresholds: HEALTH_THRESHOLDS,
-        /** False until drizzle/0143 is applied: the window fields above are then NULL by absence, not by measurement. */
+        /** False until drizzle/0144 is applied: the window fields above are then NULL by absence, not by measurement. */
         windowColumnsStored,
         shopOpen,
         cameras,

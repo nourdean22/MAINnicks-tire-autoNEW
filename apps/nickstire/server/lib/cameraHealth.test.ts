@@ -31,7 +31,7 @@ const fixedFacets = {
   frames: "fresh",
   pose: "ok",
   calibration: "valid",
-  // `healthy()` reports no detection window (a pre-0143 edge): unknown, and never a block.
+  // `healthy()` reports no detection window (a pre-0144 edge): unknown, and never a block.
   vision: "unknown",
   auth: "not_required",
   events: "not_required",
@@ -313,7 +313,7 @@ describe("camera health lattice — plausibility canary", () => {
   });
 
   it("a producer that reports no window is unknown, and unknown does NOT block HEALTHY", () => {
-    // Every edge that predates 0143 reports nothing here. Blocking HEALTHY on it would turn
+    // Every edge that predates 0144 reports nothing here. Blocking HEALTHY on it would turn
     // this deploy into an UNVERIFIED_CAPABILITIES page for a camera that is watching fine.
     const v = deriveCameraState(healthy());
     expect(v.facets.vision).toBe("unknown");

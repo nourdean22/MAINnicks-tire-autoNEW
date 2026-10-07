@@ -85,7 +85,7 @@ describe("camera health alert episodes", () => {
     const prior = "camera_health:sign:e1759830000:DEGRADED_VISION";
     expect(cameraAlertDecision("HEALTHY", prior, { vision: "quiet" })).toEqual({ notify: false, recovery: false, held: false });
     expect(cameraAlertDecision("HEALTHY", prior, { vision: "seeing" })).toEqual({ notify: true, recovery: true, held: false });
-    // A pre-0143 producer reports no window; its DEGRADED_VISION was a frozen capture and HEALTHY is real.
+    // A pre-0144 producer reports no window; its DEGRADED_VISION was a frozen capture and HEALTHY is real.
     expect(cameraAlertDecision("HEALTHY", prior, { vision: "unknown" })).toEqual({ notify: true, recovery: true, held: false });
     // Quiet after any OTHER degradation is still a recovery.
     expect(cameraAlertDecision("HEALTHY", "camera_health:sign:e1759830000:CAMERA_OFFLINE", { vision: "quiet" })).toEqual({ notify: true, recovery: true, held: false });
@@ -460,7 +460,7 @@ describe("camera health alert wiring", () => {
     expect(service).not.toContain("notification_messages");
   });
 
-  it("claims per EPISODE with the cooldown, keys a recovery on the episode it closes, and reads the 0143 columns only when production has them", () => {
+  it("claims per EPISODE with the cooldown, keys a recovery on the episode it closes, and reads the 0144 columns only when production has them", () => {
     expect(service).toContain("UNIX_TIMESTAMP(stateSince) AS stateSinceEpoch");
     expect(service).toContain("cameraAlertEpisode(");
     expect(service).toContain("cameraAlertClaim(");

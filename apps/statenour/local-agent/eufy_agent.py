@@ -152,7 +152,7 @@ INTERACTION_HEARTBEAT_FIELDS = (
     "conversationFailuresToday",
     "conversationLastError",
     # 2026-10-07 - what the last hour of LISTENING looked like (officewake.py window counters,
-    # nickstire migration 0143). Forwarded only when present, so an older worker receipt sends
+    # nickstire migration 0144). Forwarded only when present, so an older worker receipt sends
     # nothing and the shop stores NULL ("not reported"), never a confident zero.
     "conversationListeningCoverage60m",
     "conversationCaptureSecondsLast60m",

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS, HEARTBEAT_GUARDED_SET } from "./cameraVisitsRoutes";
 import {
   CAMERA_RUNTIME_COLUMNS_SINCE_0124,
-  CAMERA_RUNTIME_WINDOW_COLUMNS_0143,
+  CAMERA_RUNTIME_WINDOW_COLUMNS_0144,
   cameraRuntimeHasColumns,
   heartbeatGuardedSetFor,
   resetStorableHeartbeatColumns,
@@ -12,11 +12,11 @@ import {
 /**
  * Migrations are hand-applied, so the code ALWAYS deploys ahead of the DDL for a while. The
  * heartbeat upsert names every column, which used to turn that window into "every camera
- * heartbeat rejected until someone applies 0143 and notices the lattice went STALE". These
+ * heartbeat rejected until someone applies 0144 and notices the lattice went STALE". These
  * pin the behaviour that closes the window: name only the post-0124 columns the catalog has.
  */
 
-const NEW_0143 = [
+const NEW_0144 = [
   "detectionsLast10m", "portalCrossingsLast60m",
   "conversationListeningCoverage60m", "conversationCaptureSecondsLast60m",
   "conversationCapturesLast60m", "conversationCaptureFailuresLast60m",
@@ -44,12 +44,12 @@ afterEach(() => resetStorableHeartbeatColumns());
 describe("camera heartbeat ingest - storable columns follow the catalog", () => {
   it("drops ONLY the post-0124 columns production lacks, and says so once", async () => {
     const logs: string[] = [];
-    const db = catalog(HEARTBEAT_COLUMNS.filter((c) => !NEW_0143.includes(c)));
+    const db = catalog(HEARTBEAT_COLUMNS.filter((c) => !NEW_0144.includes(c)));
     const columns = await storable(db, 1_000_000, (m) => logs.push(m));
-    for (const c of NEW_0143) expect(columns).not.toContain(c);
-    expect(columns.length).toBe(HEARTBEAT_COLUMNS.length - NEW_0143.length);
+    for (const c of NEW_0144) expect(columns).not.toContain(c);
+    expect(columns.length).toBe(HEARTBEAT_COLUMNS.length - NEW_0144.length);
     expect(logs).toHaveLength(1);
-    for (const c of NEW_0143) expect(logs[0]).toContain(c);
+    for (const c of NEW_0144) expect(logs[0]).toContain(c);
     expect(logs[0]).toContain("DROPPED");
 
     // Cached: the second heartbeat neither re-reads the catalog nor logs again.
@@ -83,7 +83,7 @@ describe("camera heartbeat ingest - storable columns follow the catalog", () => 
   });
 
   it("re-reads the catalog after the TTL and after an explicit reset, so an applied migration takes effect without a redeploy", async () => {
-    const db = catalog(HEARTBEAT_COLUMNS.filter((c) => !NEW_0143.includes(c)));
+    const db = catalog(HEARTBEAT_COLUMNS.filter((c) => !NEW_0144.includes(c)));
     await storable(db, 1_000_000);
     await storable(db, 1_000_000 + 9 * 60_000);
     expect(db.state.calls).toBe(1);
@@ -94,35 +94,35 @@ describe("camera heartbeat ingest - storable columns follow the catalog", () => 
     expect(db.state.calls).toBe(3);
   });
 
-  it("every post-0124 column is a real heartbeat column, and every 0143 column is listed", () => {
+  it("every post-0124 column is a real heartbeat column, and every 0144 column is listed", () => {
     for (const c of SINCE) expect(HEARTBEAT_COLUMNS).toContain(c);
-    for (const c of NEW_0143) expect(SINCE.has(c)).toBe(true);
-    expect([...CAMERA_RUNTIME_WINDOW_COLUMNS_0143].sort()).toEqual([...NEW_0143].sort());
+    for (const c of NEW_0144) expect(SINCE.has(c)).toBe(true);
+    expect([...CAMERA_RUNTIME_WINDOW_COLUMNS_0144].sort()).toEqual([...NEW_0144].sort());
   });
 });
 
 describe("camera_runtime readers - a column is SELECTed only once production has it", () => {
   it("true when the catalog has every column, false when any is missing", async () => {
-    expect(await cameraRuntimeHasColumns(catalog(HEARTBEAT_COLUMNS), NEW_0143, 1)).toBe(true);
+    expect(await cameraRuntimeHasColumns(catalog(HEARTBEAT_COLUMNS), NEW_0144, 1)).toBe(true);
     resetStorableHeartbeatColumns();
     const partial = catalog(HEARTBEAT_COLUMNS.filter((c) => c !== "portalCrossingsLast60m"));
-    expect(await cameraRuntimeHasColumns(partial, NEW_0143, 1)).toBe(false);
+    expect(await cameraRuntimeHasColumns(partial, NEW_0144, 1)).toBe(false);
     expect(await cameraRuntimeHasColumns(partial, ["detectionsLast10m"], 1)).toBe(true);
   });
 
   it("an unreadable or empty catalog answers false: a reader must never name a column it cannot see", async () => {
     const broken = { async execute() { throw new Error("INFORMATION_SCHEMA unavailable"); } };
-    expect(await cameraRuntimeHasColumns(broken, NEW_0143, 1)).toBe(false);
+    expect(await cameraRuntimeHasColumns(broken, NEW_0144, 1)).toBe(false);
     const empty = { async execute() { return [[]]; } };
-    expect(await cameraRuntimeHasColumns(empty, NEW_0143, 1)).toBe(false);
+    expect(await cameraRuntimeHasColumns(empty, NEW_0144, 1)).toBe(false);
   });
 
   it("shares the writer's catalog read: one INFORMATION_SCHEMA query serves both inside the TTL", async () => {
     const db = catalog(HEARTBEAT_COLUMNS);
     await storable(db, 1_000_000);
-    expect(await cameraRuntimeHasColumns(db, NEW_0143, 1_000_000 + 60_000)).toBe(true);
+    expect(await cameraRuntimeHasColumns(db, NEW_0144, 1_000_000 + 60_000)).toBe(true);
     expect(db.state.calls).toBe(1);
-    expect(await cameraRuntimeHasColumns(db, NEW_0143, 1_000_000 + 11 * 60_000)).toBe(true);
+    expect(await cameraRuntimeHasColumns(db, NEW_0144, 1_000_000 + 11 * 60_000)).toBe(true);
     expect(db.state.calls).toBe(2);
   });
 });
@@ -133,14 +133,14 @@ describe("camera heartbeat ingest - the guarded SET follows the column set it wr
   });
 
   it("guards every column of a REDUCED set and names none of the dropped ones", () => {
-    const reduced = HEARTBEAT_COLUMNS.filter((c) => !NEW_0143.includes(c));
+    const reduced = HEARTBEAT_COLUMNS.filter((c) => !NEW_0144.includes(c));
     const set = heartbeatGuardedSetFor(reduced, HEARTBEAT_ACCEPT, READ_BY_GUARDS);
     for (const col of reduced.filter((c) => c !== "camera")) {
       expect(set, `${col} is not accept-guarded`).toContain(
         `\`${col}\` = IF(${HEARTBEAT_ACCEPT}, VALUES(\`${col}\`), \`${col}\`)`,
       );
     }
-    for (const c of NEW_0143) expect(set).not.toContain(`\`${c}\``);
+    for (const c of NEW_0144) expect(set).not.toContain(`\`${c}\``);
     // + receivedAt and stateSince, the two server clocks.
     expect(set.split("IF(").length - 1).toBe(reduced.length - 1 + 2);
     expect(set.endsWith("`receivedAt`)")).toBe(true);

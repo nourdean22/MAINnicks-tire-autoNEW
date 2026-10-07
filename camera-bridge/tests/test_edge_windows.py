@@ -26,7 +26,7 @@ from visitd.main import PRUNE_INTERVAL_SECONDS                         # noqa: E
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROUTE = os.path.join(REPO, "..", "apps", "nickstire", "server", "routes", "cameraVisitsRoutes.ts")
-MIGRATION = os.path.join(REPO, "..", "apps", "nickstire", "drizzle", "0143_camera_runtime_window_counters.sql")
+MIGRATION = os.path.join(REPO, "..", "apps", "nickstire", "drizzle", "0144_camera_runtime_window_counters.sql")
 
 
 def _council(by_detector, detections=0, latency=12.5):
@@ -183,7 +183,7 @@ class WindowsReachTheShopTest(unittest.TestCase):
             self.assertIn(f'"{field}"', src,
                           f"{field} is declared but not in the route's column list, so it is parsed "
                           f"and then dropped before the write")
-        self.assertTrue(os.path.exists(MIGRATION), "drizzle/0143 is missing: a column the code names and no DDL creates")
+        self.assertTrue(os.path.exists(MIGRATION), "drizzle/0144 is missing: a column the code names and no DDL creates")
         with open(MIGRATION, encoding="utf-8") as fh:
             ddl = fh.read()
         for field in ("detectionsLast10m", "portalCrossingsLast60m"):

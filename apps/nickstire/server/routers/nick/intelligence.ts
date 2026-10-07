@@ -571,7 +571,7 @@ export async function handleRunMigrations() {
       `ALTER TABLE conversation_episodes ADD COLUMN IF NOT EXISTS triggeredAt TIMESTAMP NULL`,
       `ALTER TABLE conversation_episodes ADD COLUMN IF NOT EXISTS sttModel VARCHAR(128) NULL`,
       `CREATE INDEX IF NOT EXISTS idx_conversation_camera_started ON conversation_episodes (cameraSerial, startedAt)`,
-      // 2026-10-07 - camera_runtime rolling-window plausibility counters (matches drizzle/0143 +
+      // 2026-10-07 - camera_runtime rolling-window plausibility counters (matches drizzle/0144 +
       // schema.ts). The vehicle lane reports what the detector SAW in the last 10/60 min, the
       // office worker what the last hour of listening looked like. NULL = not reported, 0 = looked
       // and found none. The heartbeat route intersects its column list with INFORMATION_SCHEMA, so

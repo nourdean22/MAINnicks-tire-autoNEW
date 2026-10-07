@@ -32,7 +32,7 @@ export const CAMERA_RUNTIME_COLUMNS_SINCE_0124: ReadonlySet<string> = new Set<st
   "lastConversationCaptureAt", "lastConversationSttAt", "lastConversationPostAt",
   "lastConversationSummaryAt", "lastConversationCoverage", "conversationFailuresToday",
   "conversationLastError",
-  // 0143 rolling windows
+  // 0144 rolling windows
   "detectionsLast10m", "portalCrossingsLast60m",
   "conversationListeningCoverage60m", "conversationCaptureSecondsLast60m",
   "conversationCapturesLast60m", "conversationCaptureFailuresLast60m",
@@ -40,10 +40,10 @@ export const CAMERA_RUNTIME_COLUMNS_SINCE_0124: ReadonlySet<string> = new Set<st
 ]);
 
 /**
- * The 0143 rolling-window columns, in the order the readers select them. Readers add these
+ * The 0144 rolling-window columns, in the order the readers select them. Readers add these
  * to a SELECT only when `cameraRuntimeHasColumns` says production has them.
  */
-export const CAMERA_RUNTIME_WINDOW_COLUMNS_0143 = [
+export const CAMERA_RUNTIME_WINDOW_COLUMNS_0144 = [
   "detectionsLast10m", "portalCrossingsLast60m",
   "conversationListeningCoverage60m", "conversationCaptureSecondsLast60m",
   "conversationCapturesLast60m", "conversationCaptureFailuresLast60m",
@@ -108,7 +108,7 @@ export async function storableHeartbeatColumns<T extends string>(
   const missing = all.filter((c) => !columns.includes(c));
   const missingKey = JSON.stringify(missing);
   if (missing.length && missingKey !== loggedMissing) {
-    log(`[camera-heartbeat] camera_runtime lacks ${missing.join(", ")}; those fields are DROPPED until the migration is applied (drizzle/0143, or Admin > run migrations)`);
+    log(`[camera-heartbeat] camera_runtime lacks ${missing.join(", ")}; those fields are DROPPED until the migration is applied (drizzle/0144, or Admin > run migrations)`);
   }
   loggedMissing = missing.length ? missingKey : null;
   return columns;

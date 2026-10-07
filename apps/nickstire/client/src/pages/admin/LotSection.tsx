@@ -353,7 +353,7 @@ type CameraHealth = {
     lastCoverage: number | null;
     failuresToday: number | null;
     lastError: string | null;
-    /** Listening over the last hour (0143); null until the migration is applied and the worker reports. */
+    /** Listening over the last hour (0144); null until the migration is applied and the worker reports. */
     listeningCoverage60m: number | null;
     captureSecondsLast60m: number | null;
     capturesLast60m: number | null;
@@ -571,10 +571,10 @@ function CameraCard({ c }: { c: CameraHealth }) {
               </span>
             )}
             {/*
-              What the detector SAW (0143), beside how recently it ran. "inferred 4s ago" was
+              What the detector SAW (0144), beside how recently it ran. "inferred 4s ago" was
               true all through 2026-10-05 while the lane counted 4 arrivals on a 40-car day;
               these two numbers are the ones that would have said so. 0 is a real reading and
-              is shown; NULL (a pre-0143 edge) says nothing rather than claiming a zero.
+              is shown; NULL (a pre-0144 edge) says nothing rather than claiming a zero.
             */}
             {typeof c.vision?.detectionsLast10m === "number" && (
               <span className={c.facets.vision === "blind" ? "text-amber-400" : undefined}>
@@ -1080,7 +1080,7 @@ function ConversationPanel({
               worker {formatAgo(runtime?.workerAgeSeconds ?? null)} ago
             </span>
             {/*
-              Listening over the last hour (0143). The lane listened about 8% of the day on
+              Listening over the last hour (0144). The lane listened about 8% of the day on
               2026-10-03 to 10-05 while READY; "latest coverage" below is one clip's
               transcript coverage, a different number. typeof === "number": 0% is a reading.
             */}
@@ -1456,7 +1456,7 @@ export default function LotSection() {
   });
 
   // Office mic: coverage is a NUMBER about the last hour, or it is unknown. A fresh worker
-  // with no number is "not stored yet" while the 0143 migration lags; a stale worker's
+  // with no number is "not stored yet" while the 0144 migration lags; a stale worker's
   // number is history, not listening.
   const officeRuntime = officeCamera?.conversation ?? null;
   const officeFresh = workerReportFresh(officeCamera);
@@ -1488,7 +1488,7 @@ export default function LotSection() {
                   : ""),
             }
           : windowColumnsStored === false
-            ? { value: "coverage not stored yet", tone: "muted", detail: "migration 0143 has not been applied; the worker reports it, the shop cannot keep it" }
+            ? { value: "coverage not stored yet", tone: "muted", detail: "migration 0144 has not been applied; the worker reports it, the shop cannot keep it" }
             : { value: "coverage unknown", tone: "muted", detail: "the worker has not reported a listening window yet" };
 
   const signChip: { value: string; tone: ChipTone; detail: string | null } = !signLoaded
@@ -1505,7 +1505,7 @@ export default function LotSection() {
                 : signCamera.facets.vision === "quiet"
                   ? "nothing seen in the last 10 min; nothing says there should have been"
                   : signCamera.facets.vision === "unknown"
-                    ? "detector window not reported (edge predates 0143)"
+                    ? "detector window not reported (edge predates 0144)"
                     : null,
           }
         : {

@@ -475,7 +475,7 @@ def edge_heartbeat_body(
         "stitchedTotal": None if stitched_total is None else int(stitched_total),
         "stitchRefusedAmbiguous": (None if stitch_refused_ambiguous is None
                                    else int(stitch_refused_ambiguous)),
-        # Rolling windows (shop migration 0143). `lastInferenceAt` says the detector RAN;
+        # Rolling windows (shop migration 0144). `lastInferenceAt` says the detector RAN;
         # these say what it SAW: vehicles the detector reported in the last ten minutes, and
         # arrival-portal crossings in the last hour. Frames fine, detector running, zero
         # detections for an hour inside business hours is a blind camera, and on 2026-10-05

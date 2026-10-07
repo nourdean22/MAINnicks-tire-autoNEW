@@ -84,7 +84,7 @@ interface RuntimeSnapshot {
   ptzHomeOk?: boolean | null;
 
   /**
-   * What the detector SAW (migration 0143), for the plausibility facet. All optional and
+   * What the detector SAW (migration 0144), for the plausibility facet. All optional and
    * nullable: a producer that keeps no window reports nothing, and nothing is not zero.
    */
   detectionsLast10m?: number | null;
@@ -108,7 +108,7 @@ type HomeFacet = "ok" | "invalid" | "unknown" | "not_required";
  *            vehicles for ten minutes of business; the camera is not watching the lot.
  * quiet   -- it saw nothing, and nothing says it should have: no inference inside the
  *            window (the motion gate stayed shut), a recent crossing, or the shop closed.
- * unknown -- the producer does not report the window (pre-0143 edge).
+ * unknown -- the producer does not report the window (pre-0144 edge).
  */
 type VisionFacet = "seeing" | "blind" | "quiet" | "unknown" | "not_required";
 
@@ -130,7 +130,7 @@ interface HealthFacets {
 /**
  * Plausibility, judged only when the camera is otherwise delivering frames. This is a
  * canary, not a required capability: `unknown` never blocks HEALTHY, because every edge
- * that predates 0143 reports nothing here and a "fresh heartbeat is not proof" rule that
+ * that predates 0144 reports nothing here and a "fresh heartbeat is not proof" rule that
  * paged UNVERIFIED for a missing counter would page the owner about the deploy, not the lot.
  */
 function deriveVisionFacet(r: Pick<RuntimeSnapshot,
