@@ -37,7 +37,13 @@ export const HOME_HERO_SUBLINE: WebExperimentDefinition = {
     { metric: "page_cta_secondary_clicked", direction: "HIGHER_IS_BETTER" },
   ],
   surfaces: ["/"],
-  preregisteredAt: "2026-09-15T00:00:00.000Z",
+  // Counting window RESTARTED 2026-10-07 by operator decision (was
+  // 2026-09-15T00:00:00.000Z). Rows before the bot-traffic filter (#2917,
+  // live 14:19Z) carry no traffic class and include an Azure bot fleet that
+  // fired exposures and CTA clicks, so they cannot be cleaned after the fact.
+  // Same experimentId on purpose: the arm assignment key is unchanged, so a
+  // returning visitor keeps the arm they already saw.
+  preregisteredAt: "2026-10-07T14:30:00.000Z",
   arms: [
     {
       armId: "control",
