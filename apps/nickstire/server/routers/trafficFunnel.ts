@@ -249,10 +249,33 @@ export const trafficFunnelRouter = router({
 
       // ─── UNPACK COUNTS ────────────────────────────────
       const gsc = gscAggRows[0] ?? {};
-      const impressions = num(gsc.impressions);
-      const clicks = num(gsc.clicks);
-      const avgPosition = num(gsc.avgPosition);
+      let impressions = num(gsc.impressions);
+      let clicks = num(gsc.clicks);
+      let avgPosition = num(gsc.avgPosition);
       const gscDaysWithData = num(gsc.days);
+      // The stored rows are QUERY-dimensioned, so Google's anonymized queries are
+      // missing by construction and this sum understates the property. Same rule
+      // as the Market card and the StateNour bridge: prefer the official
+      // no-dimension total over the same window, else keep the sum LABELLED.
+      let gscSource: "gsc_official_no_dimension" | "stored_query_rows_partial" = "stored_query_rows_partial";
+      try {
+        const { getGscReport } = await import("../pipelines/gsc-data");
+        const { getBusinessDateKey } = await import("../lib/timezoneAssert");
+        const now = Date.now();
+        const startDate = getBusinessDateKey(new Date(now - days * 86_400_000));
+        const endDate = getBusinessDateKey(new Date(now));
+        const official = await getGscReport({ startDate, endDate }, { totalsOnly: true });
+        // No total row (inside GSC's data lag) is NOT an official zero.
+        if (official?.summaryHasData) {
+          impressions = official.summary.impressions;
+          clicks = official.summary.clicks;
+          avgPosition = official.summary.position;
+          gscSource = "gsc_official_no_dimension";
+        }
+      } catch {
+        // Deliberately swallowed: the stored sum below is the error path and
+        // reports its own provenance via gscSource.
+      }
 
       const calls = num(callEventsRows[0]?.c);
       const chats = num(chatSessionsRows[0]?.c);
@@ -284,7 +307,9 @@ export const trafficFunnelRouter = router({
           label: "Google Impressions",
           count: impressions,
           conversionFromPrev: null,
-          sub: gscDaysWithData > 0 ? `${gscDaysWithData} days of data` : "no GSC data",
+          sub: gscSource === "gsc_official_no_dimension"
+            ? "Google's official total"
+            : gscDaysWithData > 0 ? `${gscDaysWithData} days of stored rows (partial: anonymized queries missing)` : "no GSC data",
           severity: impressions > 0 ? "good" : "critical",
           note: impressions === 0 ? "GSC pipeline may be offline" : undefined,
         },
@@ -417,6 +442,7 @@ export const trafficFunnelRouter = router({
         alerts,
         /** Raw numbers exposed for custom consumers. */
         raw: {
+          gscSource,
           impressions,
           clicks,
           avgPosition,
