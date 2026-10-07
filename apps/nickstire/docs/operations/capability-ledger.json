@@ -1894,7 +1894,7 @@
       "blockers": [
         {
           "severity": "P2",
-          "description": "Exposure + conversion counts are dominated by a datacenter bot fleet (Azure IPs, spoofed mobile/desktop UAs, ~21 page loads per IP) that executes JS and fires experiment_exposure + page_cta_primary_clicked; /api/analytics/conversion has no bot or datacenter filtering, so a verdict from this resolver is not trustworthy until exposures are filtered. Plumbing is live; measurement validity is not.",
+          "description": "Exposure + conversion counts are dominated by a datacenter bot fleet (Azure IPs, spoofed mobile/desktop UAs, ~21 page loads per IP) that executes JS and fires experiment_exposure + page_cta_primary_clicked; /api/analytics/conversion has no bot or datacenter filtering, so a verdict from this resolver is not trustworthy until exposures are filtered. Plumbing is live; measurement validity is not. UPDATE 2026-10-07: filter BUILT (server/lib/trafficClass.ts tags each beacon human/datacenter/ua_inconsistent/automation/unknown from provider-published IP ranges + UA rules; the resolver's exposure and conversion queries exclude non-human rows). Not yet production-proven, and rows written before the deploy carry no tag and are still counted. Clears when a post-deploy resolver run shows tagged rows being excluded AND the operator decides whether to restart the counting window.",
           "source": "2026-10-07 production HTTP-log trace (Railway)"
         }
       ]
