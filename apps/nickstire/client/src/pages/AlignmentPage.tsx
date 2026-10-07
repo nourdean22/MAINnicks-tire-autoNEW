@@ -12,6 +12,7 @@ import BookingForm from "@/components/BookingForm";
 import FinancingCTA from "@/components/FinancingCTA";
 import FadeIn from "@/components/FadeIn";
 import { BUSINESS } from "@shared/business";
+import { getRouteByPath } from "@shared/routes";
 import { Phone, CheckCircle, AlertTriangle, Clock, MapPin, CreditCard } from "lucide-react";
 import { Link } from "wouter";
 import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
@@ -393,12 +394,16 @@ export default function AlignmentPage() {
   return (
     <PageLayout showChat={true}>
       {/* wave-176 · GSC (28d): /alignment at pos 31.6 / 0% CTR over
-          300 impressions. Title is fine (62 chars, keyword-led). Old
-          description was 200 chars → truncated mid-sentence on mobile
-          SERP, hiding the phone + free-check offer. Trimmed to 152
-          chars so the value props all survive. */}
+          300 impressions. Old description was 200 chars → truncated
+          mid-sentence on mobile SERP, hiding the phone + free-check offer.
+          Trimmed to 152 chars so the value props all survive.
+          2026-10-07 · title comes from shared/routes.ts. The literal that
+          used to sit here was byte-identical to WheelAlignmentClevelandPage's,
+          so two URLs served one <title> and the registry's wave-181.6
+          "near me" rewrite never reached the page
+          (client/src/__tests__/seo-title-single-source.test.ts). */}
       <SEOHead
-        title="Wheel Alignment Cleveland · Free Pull-Check · No Pay Til Yes | Nick's"
+        title={getRouteByPath("/alignment")?.title ?? ""}
         description="Cleveland wheel alignment on Euclid Ave. Hunter rack, free pull-check first, written quote before any work. You don't pay until you say yes. Walk in 7 days."
         canonicalPath="/alignment"
       />

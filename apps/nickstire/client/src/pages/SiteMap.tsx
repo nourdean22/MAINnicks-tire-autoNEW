@@ -24,6 +24,8 @@ import { trpc } from "@/lib/trpc";
 import { CITIES } from "@shared/cities";
 import { NEIGHBORHOODS } from "@shared/neighborhoods";
 import { SERVICES } from "@shared/services";
+import { GUIDES } from "@shared/guides";
+import { ALL_ROUTES } from "@shared/routes";
 import {
   Wrench, MapPin, AlertTriangle, BookOpen, PhoneCall, FileText,
   Gauge, Shield, Zap, DollarSign, Settings, Calendar,
@@ -52,7 +54,29 @@ const FEATURED_SERVICES: LinkItem[] = [
   { label: "Starter & Alternator", href: "/starter-alternator" },
   { label: "Belts & Hoses", href: "/belts-hoses" },
   { label: "Pre-Purchase Inspection", href: "/pre-purchase-inspection" },
+  // 2026-10-07 · site crawl as Googlebot: these sitemap pages had no inbound
+  // link from any page, so nothing but the sitemap file told Google they exist.
+  { label: "Custom Wheels & OEM Rims", href: "/wheels" },
+  { label: "Tire Rebates & Deals", href: "/tire-rebates" },
+  { label: "Muffler Shop Open Sunday", href: "/muffler-shop-open-sunday-cleveland" },
 ];
+
+/**
+ * Tire-size landing pages, from the registry rather than a hand list: the
+ * 2026-10-07 crawl found 11 of them with zero inbound links, and a list typed
+ * here would drift the same way. Sitemap-only, like everything else on this page.
+ */
+const TIRE_SIZE_PAGES: LinkItem[] = ALL_ROUTES.filter((r) => r.group === "tire-size" && r.sitemap).map((r) => ({
+  // "/tires/225-65r17" → "225/65R17"
+  label: r.path.replace(/^\/tires\//, "").replace(/^(\d+)-(\d+)r(\d+)$/i, "$1/$2R$3"),
+  href: r.path,
+}));
+
+const GUIDE_PAGES: LinkItem[] = GUIDES.map((g) => ({
+  label: g.title.replace(/\s*\|\s*Nick's Tire & Auto\s*$/, ""),
+  href: `/guides/${g.slug}`,
+  note: g.category.replace(/-/g, " "),
+}));
 
 const PROBLEM_PAGES: LinkItem[] = [
   { label: "Brakes Grinding", href: "/brakes-grinding" },
@@ -93,6 +117,7 @@ const ABOUT_LEGAL: LinkItem[] = [
   { label: "Specials", href: "/specials" },
   { label: "Careers", href: "/careers" },
   { label: "Contact", href: "/contact" },
+  { label: "Formerly Moe's Tire Euclid", href: "/moes-tire-euclid" },
   { label: "Privacy Policy", href: "/privacy-policy" },
   { label: "Terms", href: "/terms" },
 ];
@@ -160,8 +185,8 @@ export default function SiteMap() {
   })) || [];
 
   const totalPages =
-    FEATURED_SERVICES.length + PROBLEM_PAGES.length + cityLinks.length +
-    neighborhoodLinks.length + CUSTOMER_TOOLS.length + ABOUT_LEGAL.length +
+    FEATURED_SERVICES.length + TIRE_SIZE_PAGES.length + PROBLEM_PAGES.length + cityLinks.length +
+    neighborhoodLinks.length + GUIDE_PAGES.length + CUSTOMER_TOOLS.length + ABOUT_LEGAL.length +
     blogLinks.length + 1; // +1 for homepage
 
   return (
@@ -196,6 +221,13 @@ export default function SiteMap() {
             />
 
             <Section
+              icon={<Gauge className="w-5 h-5" />}
+              title="Tires by Size"
+              description="Installed-price pages for the sizes Cleveland drivers ask for most. Don't see yours? Every size is searchable on the Tires page."
+              items={TIRE_SIZE_PAGES}
+            />
+
+            <Section
               icon={<MapPin className="w-5 h-5" />}
               title="Cleveland-Area Cities"
               description="City-specific auto repair information. We serve the whole Cleveland metro — from Euclid to Parma, Lakewood to Mentor."
@@ -218,10 +250,17 @@ export default function SiteMap() {
               items={PROBLEM_PAGES}
             />
 
+            <Section
+              icon={<BookOpen className="w-5 h-5" />}
+              title="Car Care Guides"
+              description="Long-form guides from our mechanics: tire sizes, maintenance intervals, E-Check, what things cost in Cleveland."
+              items={GUIDE_PAGES}
+            />
+
             {blogLinks.length > 0 && (
               <Section
                 icon={<BookOpen className="w-5 h-5" />}
-                title="Blog &amp; Guides"
+                title="Blog"
                 description="Honest answers on maintenance, repairs, and cost expectations. No fluff."
                 items={blogLinks}
               />
@@ -249,4 +288,4 @@ export default function SiteMap() {
 
 // Icon imports used (prevents tree-shaking warnings in dev):
 // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-void [Gauge, Shield, Zap, DollarSign, Settings, Calendar];
+void [Shield, Zap, DollarSign, Settings, Calendar];
