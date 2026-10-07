@@ -14,6 +14,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { AddressInfo } from "node:net";
 import { MySqlDialect } from "drizzle-orm/mysql-core";
+import { sliceBlock } from "./testUtils/sourceBlock";
 
 const inserted: Array<Record<string, unknown>> = [];
 const fakeDb = {
@@ -106,8 +107,7 @@ describe("readers exclude non-human traffic", () => {
   });
 
   it("the public live-visitor counter filters too", () => {
-    const c = code("server/routers/conversion.ts");
-    const live = c.slice(c.indexOf("liveSessions"), c.indexOf("liveSessions") + 2000);
+    const live = sliceBlock(code("server/routers/conversion.ts"), "liveSessions: publicProcedure", "recentActivity: publicProcedure", { label: "conversion.ts" });
     expect(live).toContain("excludeNonHumanTraffic()");
   });
 });

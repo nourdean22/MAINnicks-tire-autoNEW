@@ -56,7 +56,7 @@ export type ReportingUse =
 export interface CanonicalMetric {
   /** The exact name used in METRICS-CONTRACT.md. Never rename in isolation. */
   name: string;
-  section: "voice-demand" | "rates" | "revenue" | "gsc";
+  section: "voice-demand" | "rates" | "revenue" | "gsc" | "web";
   definition: string;
   evidence: EvidenceLevel;
   use: ReportingUse;
@@ -364,6 +364,33 @@ export const CANONICAL_METRICS: readonly CanonicalMetric[] = Object.freeze([
     evidence: "observed",
     use: "diagnostic-only",
     limitations: ["Affected by dimensions, row limit and dedupe"],
+  },
+  {
+    name: "Experiment exposures / conversions",
+    section: "web",
+    definition: "Sessions counted by webExperimentResolve from customer_events, excluding datacenter / ua_inconsistent / automation traffic",
+    evidence: "inferred",
+    use: "executive-with-label",
+    limitations: [
+      "Traffic class is a classifier (provider IP ranges + UA rules), not proof of a person",
+      "Rows before 2026-10-07 are untagged and still counted — a window spanning that date mixes filtered and unfiltered days",
+    ],
+  },
+  {
+    name: "Live visitors (\"viewing now\")",
+    section: "web",
+    definition: "Distinct sessions with any customer_events row in the last 5 minutes, excluding non-human traffic classes",
+    evidence: "inferred",
+    use: "diagnostic-only",
+    limitations: ["Public social proof, not a demand metric", "Untagged and unknown-class rows are counted"],
+  },
+  {
+    name: "Traffic class unknown",
+    section: "web",
+    definition: "Beacon classified before every provider range list loaded, or with no IP",
+    evidence: "observed",
+    use: "diagnostic-only",
+    limitations: ["Not certified human; counted, not excluded"],
   },
 ]);
 
