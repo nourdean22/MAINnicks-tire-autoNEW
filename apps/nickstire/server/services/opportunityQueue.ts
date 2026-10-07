@@ -1118,8 +1118,8 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
   if (!db) return { scanned: 0, inserted: 0, refreshed: 0, collapsed: 0 };
 
   const { vapiCallLogs } = await import("../../drizzle/schema");
-  const { and, eq, gte, lte, isNull, isNotNull, desc } = await import("drizzle-orm");
-  const { isMissedCallEligible } = await import("../cron/jobs/missedCallRecovery");
+  const { and, gte, lte, isNull, isNotNull, desc } = await import("drizzle-orm");
+  const { isMissedCallEligible, proveCapturedNothing } = await import("../cron/jobs/missedCallRecovery");
 
   const now = Date.now();
   const windowStart = new Date(now - 24 * 60 * 60 * 1000);
@@ -1143,8 +1143,10 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
       createdAt: vapiCallLogs.createdAt,
     })
       .from(vapiCallLogs)
+      // No convertedToLead filter: it means "reached a tool", not "captured a
+      // lead". A tool-reaching call that saved nothing is still a missed call;
+      // eligibility below admits it only with proof (same rule as the SMS cron).
       .where(and(
-        eq(vapiCallLogs.convertedToLead, 0),
         isNotNull(vapiCallLogs.phoneNumber),
         isNull(vapiCallLogs.leadId),
         isNull(vapiCallLogs.callbackId),
@@ -1204,7 +1206,7 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
   const cardedThisRun = new Set<string>();
   for (const r of rows) {
     const meta = (r.metadata ?? null) as Record<string, unknown> | null;
-    const eligible = isMissedCallEligible({
+    const base = {
       id: r.id,
       vapiCallId: r.vapiCallId,
       phoneNumber: r.phoneNumber,
@@ -1214,7 +1216,12 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
       callbackId: r.callbackId,
       recoveryAlreadyStamped: false, // recovery SMS state doesn't gate a human call-back
       createdAtMs: new Date(r.createdAt).getTime(),
-    }, now);
+    };
+    // The evidence read runs only for tool-reaching calls that pass every other rule.
+    const capturedNothing = r.convertedToLead === 1 && isMissedCallEligible({ ...base, capturedNothing: true }, now)
+      ? await proveCapturedNothing(r.vapiCallId)
+      : undefined;
+    const eligible = isMissedCallEligible({ ...base, capturedNothing }, now);
     if (!eligible) continue;
 
     const p10 = phone10(r.phoneNumber);
