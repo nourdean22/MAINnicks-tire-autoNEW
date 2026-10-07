@@ -151,6 +151,15 @@ INTERACTION_HEARTBEAT_FIELDS = (
     "lastConversationCoverage",
     "conversationFailuresToday",
     "conversationLastError",
+    # 2026-10-07 - what the last hour of LISTENING looked like (officewake.py window counters,
+    # nickstire migration 0143). Forwarded only when present, so an older worker receipt sends
+    # nothing and the shop stores NULL ("not reported"), never a confident zero.
+    "conversationListeningCoverage60m",
+    "conversationCaptureSecondsLast60m",
+    "conversationCapturesLast60m",
+    "conversationCaptureFailuresLast60m",
+    "conversationWakeTriggersLast60m",
+    "conversationTranscribeBacklog",
 )
 
 EUFY_API_BASE = "https://security-app.eufylife.com"
@@ -763,6 +772,12 @@ def load_office_conversation_runtime(*, now: float | None = None) -> dict:
         "lastConversationCoverage",
         "conversationFailuresToday",
         "conversationLastError",
+        "conversationListeningCoverage60m",
+        "conversationCaptureSecondsLast60m",
+        "conversationCapturesLast60m",
+        "conversationCaptureFailuresLast60m",
+        "conversationWakeTriggersLast60m",
+        "conversationTranscribeBacklog",
     }
     out = {key: raw[key] for key in allowed if key in raw and raw[key] is not None}
     age = max(0.0, current - float(stat.st_mtime))

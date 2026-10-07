@@ -353,6 +353,8 @@ def edge_heartbeat_body(
     arrivals_after_stitch: Optional[int] = None,
     stitched_total: Optional[int] = None,
     stitch_refused_ambiguous: Optional[int] = None,
+    detections_last_10m: Optional[int] = None,
+    portal_crossings_last_60m: Optional[int] = None,
 ) -> Dict[str, object]:
     """The producer's account of itself, merging BOTH halves of what it knows.
 
@@ -473,6 +475,15 @@ def edge_heartbeat_body(
         "stitchedTotal": None if stitched_total is None else int(stitched_total),
         "stitchRefusedAmbiguous": (None if stitch_refused_ambiguous is None
                                    else int(stitch_refused_ambiguous)),
+        # Rolling windows (shop migration 0143). `lastInferenceAt` says the detector RAN;
+        # these say what it SAW: vehicles the detector reported in the last ten minutes, and
+        # arrival-portal crossings in the last hour. Frames fine, detector running, zero
+        # detections for an hour inside business hours is a blind camera, and on 2026-10-05
+        # (4 arrivals counted on a ~40-car day) nothing in the heartbeat could say so. Both
+        # None-preserving: a loop that has never run the detector has not measured zero.
+        "detectionsLast10m": None if detections_last_10m is None else int(detections_last_10m),
+        "portalCrossingsLast60m": (None if portal_crossings_last_60m is None
+                                   else int(portal_crossings_last_60m)),
     }
 
 
@@ -526,6 +537,13 @@ class EdgeLoop:
         self._recent_deaths: Deque[Tuple[int, float, float, float, dict]] = deque(maxlen=64)
         self.last_inference_at: Optional[float] = None
         self._inference_ms: Deque[float] = deque(maxlen=200)
+        #: (frame ts, detections the DETECTOR reported) for every inference, kept ten minutes.
+        #: Gated frames are not appended -- see `_note_inference`.
+        self._detection_counts: Deque[Tuple[float, int]] = deque()
+        #: Frame timestamps at which the vision layer's `arrivals` counter advanced, kept an
+        #: hour. Read as a delta so the loop never re-implements what counts as a crossing.
+        self._crossing_times: Deque[float] = deque()
+        self._arrivals_seen: Optional[int] = None
         #: How often to re-check that the located scene is still where it was. 0 disables.
         #: A startup fix is only true at startup: the operator resizes the window or goes
         #: fullscreen mid-shift and a boot-time binding then warps every frame through stale
@@ -715,6 +733,7 @@ class EdgeLoop:
             self._note_trajectory(frame, out)
             self._note_deaths(frame, out)
             self._note_inference(frame, out)
+            self._note_crossings(frame)
             self._note_reacquisition(frame, out)
             self._note_preexisting_disagreement(frame, out)
             # SEPARATE CALL, and separate on purpose. Nesting this inside the hard-case
@@ -862,6 +881,19 @@ class EdgeLoop:
             except Exception:
                 self.pipeline.metrics.inc("edge_drain_errors_total")
                 log.exception("shop drain error")
+            # Ledger retention (terminal visits past retentionDays, dead letters past 7 d).
+            # visitd's LiveLoop has called this every pass since the ledger existed; this
+            # loop never did, so the edge ledger on NicksMax only ever grew (audit
+            # 2026-10-07, B3). `housekeeping` throttles itself to once an hour, so riding the
+            # drain tick costs one float compare. Both clocks are wall time here: the edge's
+            # frame times ARE the clock, unlike a replayed MQTT epoch.
+            housekeeping = getattr(self.pipeline, "housekeeping", None)
+            if housekeeping is not None:
+                try:
+                    housekeeping(now, now)
+                except Exception:
+                    self.pipeline.metrics.inc("edge_housekeeping_errors_total")
+                    log.exception("ledger housekeeping error")
 
     def send_heartbeat(self, now: Optional[float] = None) -> bool:
         """Compose and post one heartbeat. False when no shop is configured."""
@@ -916,6 +948,8 @@ class EdgeLoop:
                 getattr(self.vision, "stats", None), "arrivals_after_stitch", None),
             stitched_total=stitch_counts.get("stitched"),
             stitch_refused_ambiguous=stitch_counts.get("refused_ambiguous"),
+            detections_last_10m=self.detections_last_10m,
+            portal_crossings_last_60m=self.portal_crossings_last_60m,
         )
         ok = self.pipeline.shop.heartbeat(body)
         authority_after = self.pipeline.shop.is_authoritative(self.camera)
@@ -1059,8 +1093,61 @@ class EdgeLoop:
             latency = getattr(council, "latency_ms", None)
             if latency:
                 self._inference_ms.append(float(latency))
+            # What the detector SAW on this inference. Zero is a real measurement here: the
+            # detector ran over the frame and reported no vehicle.
+            self._detection_counts.append((float(frame.ts), len(getattr(council, "detections", None) or [])))
+            self._prune_windows(float(frame.ts))
         except Exception:  # noqa: BLE001 - health bookkeeping never costs a frame
             self.pipeline.metrics.inc("edge_inference_note_errors_total")
+
+    DETECTIONS_WINDOW_SECONDS = 600.0
+    CROSSINGS_WINDOW_SECONDS = 3600.0
+
+    def _prune_windows(self, now: float) -> None:
+        while self._detection_counts and self._detection_counts[0][0] < now - self.DETECTIONS_WINDOW_SECONDS:
+            self._detection_counts.popleft()
+        while self._crossing_times and self._crossing_times[0] < now - self.CROSSINGS_WINDOW_SECONDS:
+            self._crossing_times.popleft()
+
+    def _note_crossings(self, frame) -> None:
+        """Stamp every advance of the vision layer's `arrivals` counter with the frame time."""
+        try:
+            stats = getattr(self.vision, "stats", None)
+            arrivals = getattr(stats, "arrivals", None) if stats is not None else None
+            if arrivals is None:
+                return
+            arrivals = int(arrivals)
+            if self._arrivals_seen is None:
+                self._arrivals_seen = arrivals          # a restart is not a burst of crossings
+                return
+            for _ in range(max(0, arrivals - self._arrivals_seen)):
+                self._crossing_times.append(float(frame.ts))
+            self._arrivals_seen = arrivals
+            self._prune_windows(float(frame.ts))
+        except Exception:  # noqa: BLE001 - health bookkeeping never costs a frame
+            self.pipeline.metrics.inc("edge_inference_note_errors_total")
+
+    @property
+    def detections_last_10m(self) -> Optional[int]:
+        """Vehicles the detector reported in the last ten minutes of frames; None until it has run.
+
+        None, never 0, before the first inference: a loop that has not inferred has not looked.
+        After that a 0 is the honest reading of an empty lot -- or of a blind camera, which is
+        exactly the distinction the shop's plausibility canary draws from frames + this.
+        """
+        if self.last_inference_at is None:
+            return None
+        self._prune_windows(float(self.last_frame_at if self.last_frame_at is not None else self.last_inference_at))
+        return int(sum(count for _ts, count in self._detection_counts))
+
+    @property
+    def portal_crossings_last_60m(self) -> Optional[int]:
+        """Arrival-portal crossings in the last hour of frames; None when the vision layer keeps no stats."""
+        if self._arrivals_seen is None:
+            return None
+        if self.last_frame_at is not None:
+            self._prune_windows(float(self.last_frame_at))
+        return len(self._crossing_times)
 
     @property
     def inference_p95_ms(self) -> Optional[float]:

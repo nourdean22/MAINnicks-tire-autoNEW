@@ -4874,6 +4874,27 @@ export const cameraRuntime = mysqlTable("camera_runtime", {
   arrivalsAfterStitch: int("arrivalsAfterStitch"),
   stitchedTotal: int("stitchedTotal"),
   stitchRefusedAmbiguous: int("stitchRefusedAmbiguous"),
+  /**
+   * Rolling-window plausibility counters (migration 0143). `lastInferenceAt` says the
+   * detector RAN; these say what it SAW. Frames fine + detections zero for an hour inside
+   * business hours is DEGRADED_VISION, and before these existed that day rendered "steady"
+   * (2026-10-05: the sign lane counted 4 arrivals on a 40-car day). NULL = this producer
+   * does not report the window; 0 = it looked and found none.
+   */
+  detectionsLast10m: int("detectionsLast10m"),
+  portalCrossingsLast60m: int("portalCrossingsLast60m"),
+  /**
+   * Office worker listening truth over the last hour (migration 0143), from officewake.py's
+   * local receipt via the Eufy agent. Coverage is capture seconds over schedule-eligible
+   * seconds (NULL under five eligible minutes: a worker that just started has not failed).
+   * "Alive and heard nothing" and "deaf" used to be the same READY.
+   */
+  conversationListeningCoverage60m: decimal("conversationListeningCoverage60m", { precision: 5, scale: 4 }),
+  conversationCaptureSecondsLast60m: int("conversationCaptureSecondsLast60m"),
+  conversationCapturesLast60m: int("conversationCapturesLast60m"),
+  conversationCaptureFailuresLast60m: int("conversationCaptureFailuresLast60m"),
+  conversationWakeTriggersLast60m: int("conversationWakeTriggersLast60m"),
+  conversationTranscribeBacklog: int("conversationTranscribeBacklog"),
   state: varchar("state", { length: 32 }).notNull(),
   stateSince: timestamp("stateSince"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
