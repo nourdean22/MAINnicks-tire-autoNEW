@@ -41,7 +41,7 @@ import { z } from "zod";
 import { sql } from "drizzle-orm";
 
 import { maskPlate, normalizePlate, PLATE_MATCH_CLASSES } from "../lib/plate";
-import { deriveStateAtIngest } from "../lib/cameraHealth";
+import { deriveStateAtIngest, shopOpenAt } from "../lib/cameraHealth";
 import { isUnknownColumnError } from "../lib/dbErrors";
 import {
   CAMERA_RUNTIME_COLUMNS_SINCE_0124,
@@ -617,10 +617,14 @@ export function registerCameraHeartbeatRoute(app: Express): void {
     if (!d) return res.status(503).json({ error: "database unavailable" });
 
     // The producer-side verdict. Liveness is trivially alive at the instant of receipt;
-    // the read side re-derives it with the real age.
+    // the read side re-derives it with the real age. The plausibility inputs ride along so
+    // a blind detector becomes a DEGRADED_VISION transition in camera_health_events with
+    // its own `stateSince` -- the episode the alert cron keys its one page on.
+    const nowEpoch = Math.floor(Date.now() / 1000);
+    const inferenceEpoch = epoch(b.lastInferenceAt);
     const verdict = deriveStateAtIngest({
       observedAtEdgeEpoch: epoch(b.observedAtEdge),
-      receivedAtEpoch: Math.floor(Date.now() / 1000),
+      receivedAtEpoch: nowEpoch,
       sourceConnected: b.sourceConnected ?? null,
       lastHealthyFrameAtEpoch: epoch(b.lastHealthyFrameAt),
       frameOk: b.frameOk ?? null,
@@ -631,6 +635,10 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       controlPlaneOk: b.controlPlaneOk ?? null,
       mediaPlaneOk: b.mediaPlaneOk ?? null,
       ptzHomeOk: b.ptzHomeOk ?? null,
+      detectionsLast10m: b.detectionsLast10m ?? null,
+      portalCrossingsLast60m: b.portalCrossingsLast60m ?? null,
+      inferenceAgeSeconds: inferenceEpoch === null ? null : Math.max(0, nowEpoch - inferenceEpoch),
+      shopOpen: shopOpenAt(),
       outboxDepth: b.outboxDepth ?? null,
       oldestOutboxAgeSeconds: b.oldestOutboxAgeSeconds ?? null,
       deadLetterDepth: b.deadLetterDepth ?? null,

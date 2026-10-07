@@ -13,7 +13,18 @@
  * vehicle-truth camera is deliberately NOT judged on PTZ. This keeps authority aligned
  * with the job each camera is allowed to do.
  */
+import { BUSINESS } from "../../shared/business";
 import type { CameraHealthProfile } from "../../shared/cameras";
+import { businessState } from "../../shared/shopState";
+
+/**
+ * Whether the shop is open at `now`, per BUSINESS.hours.structured in the shop's timezone.
+ * The plausibility canary's `shopOpen` input, computed by every caller the same way so the
+ * ingest-time state, the Lot read and the alert cron cannot disagree about "open".
+ */
+export function shopOpenAt(now: Date = new Date()): boolean {
+  return businessState(now, BUSINESS.timezone, BUSINESS.hours.structured).state === "open";
+}
 
 const CAMERA_STATES = [
   "NEVER_INGESTED",
@@ -42,6 +53,13 @@ export const HEALTH_THRESHOLDS = {
   /** A healthy frame older than this (on the producer's clock) means no usable source. */
   frameStaleAfterSeconds: 15,
   backlogWarnSeconds: 60,
+  /**
+   * Plausibility (audit 2026-10-07). `detectionsLast10m` is a 600 s window on the edge
+   * (edge_main.DETECTIONS_WINDOW_SECONDS); a zero in it is only evidence of blindness when
+   * the detector actually ran inside that window, so the inference age must be under the
+   * same 600 s.
+   */
+  blindInferenceMaxAgeSeconds: 600,
 } as const;
 
 interface RuntimeSnapshot {
@@ -65,6 +83,17 @@ interface RuntimeSnapshot {
   mediaPlaneOk?: boolean | null;
   ptzHomeOk?: boolean | null;
 
+  /**
+   * What the detector SAW (migration 0143), for the plausibility facet. All optional and
+   * nullable: a producer that keeps no window reports nothing, and nothing is not zero.
+   */
+  detectionsLast10m?: number | null;
+  portalCrossingsLast60m?: number | null;
+  /** Seconds since the detector last ran, on the reader's clock. */
+  inferenceAgeSeconds?: number | null;
+  /** Whether the shop is open at evaluation time (BUSINESS hours, shop timezone). */
+  shopOpen?: boolean | null;
+
   outboxDepth: number | null;
   oldestOutboxAgeSeconds: number | null;
   deadLetterDepth: number | null;
@@ -72,6 +101,16 @@ interface RuntimeSnapshot {
 
 type RequirementFacet = "ok" | "down" | "unknown" | "not_required";
 type HomeFacet = "ok" | "invalid" | "unknown" | "not_required";
+/**
+ * seeing  -- the detector saw at least one vehicle in the last 10 minutes.
+ * blind   -- it ran inside the window, saw NO vehicle for 10 minutes, no car crossed the
+ *            portal for 60, and the shop is open. A tire shop's lot is not empty of
+ *            vehicles for ten minutes of business; the camera is not watching the lot.
+ * quiet   -- it saw nothing, and nothing says it should have: no inference inside the
+ *            window (the motion gate stayed shut), a recent crossing, or the shop closed.
+ * unknown -- the producer does not report the window (pre-0143 edge).
+ */
+type VisionFacet = "seeing" | "blind" | "quiet" | "unknown" | "not_required";
 
 interface HealthFacets {
   producer: "alive" | "stale" | "offline" | "never";
@@ -79,12 +118,33 @@ interface HealthFacets {
   frames: "fresh" | "stale" | "unhealthy" | "unknown" | "not_required";
   pose: "ok" | "invalid" | "unknown" | "not_required";
   calibration: "valid" | "missing" | "not_required";
+  vision: VisionFacet;
   auth: RequirementFacet;
   events: RequirementFacet;
   control: RequirementFacet;
   media: RequirementFacet;
   home: HomeFacet;
   cloud: "ok" | "backlog" | "dead_letters" | "unknown";
+}
+
+/**
+ * Plausibility, judged only when the camera is otherwise delivering frames. This is a
+ * canary, not a required capability: `unknown` never blocks HEALTHY, because every edge
+ * that predates 0143 reports nothing here and a "fresh heartbeat is not proof" rule that
+ * paged UNVERIFIED for a missing counter would page the owner about the deploy, not the lot.
+ */
+function deriveVisionFacet(r: Pick<RuntimeSnapshot,
+  "detectionsLast10m" | "portalCrossingsLast60m" | "inferenceAgeSeconds" | "shopOpen">): VisionFacet {
+  const detections = r.detectionsLast10m;
+  if (detections === null || detections === undefined) return "unknown";
+  if (detections > 0) return "seeing";
+  const inferredInWindow =
+    r.inferenceAgeSeconds !== null && r.inferenceAgeSeconds !== undefined &&
+    r.inferenceAgeSeconds <= HEALTH_THRESHOLDS.blindInferenceMaxAgeSeconds;
+  if (!inferredInWindow) return "quiet";
+  if (r.portalCrossingsLast60m !== 0) return "quiet";
+  if (r.shopOpen !== true) return "quiet";
+  return "blind";
 }
 
 interface HealthVerdict {
@@ -110,6 +170,7 @@ function neverFacets(profile: CameraHealthProfile): HealthFacets {
     frames: interaction ? "not_required" : "unknown",
     pose: interaction ? "not_required" : "unknown",
     calibration: interaction ? "not_required" : "missing",
+    vision: interaction ? "not_required" : "unknown",
     auth: interaction ? "unknown" : "not_required",
     events: interaction ? "unknown" : "not_required",
     control: interaction ? "unknown" : "not_required",
@@ -160,6 +221,7 @@ export function deriveCameraState(
       frames: "not_required",
       pose: "not_required",
       calibration: "not_required",
+      vision: "not_required",
       auth: requirement(r.authPlaneOk),
       events: requirement(r.eventPlaneOk),
       control: requirement(r.controlPlaneOk),
@@ -232,12 +294,14 @@ export function deriveCameraState(
 
   const pose: HealthFacets["pose"] = r.poseOk === null ? "unknown" : r.poseOk ? "ok" : "invalid";
   const calibration: HealthFacets["calibration"] = r.calibrationVersion ? "valid" : "missing";
+  const vision = deriveVisionFacet(r);
   const facets: HealthFacets = {
     producer,
     source,
     frames,
     pose,
     calibration,
+    vision,
     auth: "not_required",
     events: "not_required",
     control: "not_required",
@@ -272,6 +336,16 @@ export function deriveCameraState(
   }
   if (frames === "unhealthy") {
     return { state: "DEGRADED_VISION", facets, reason: "capture is frozen or looping; detections are suppressed" };
+  }
+  if (vision === "blind") {
+    // The 2026-10-05 shape: frames fresh, detector running, four arrivals on a forty-car
+    // day, every surface green. Same state as a frozen capture because the consequence is
+    // the same -- the lot is not being watched -- with a reason that names the evidence.
+    return {
+      state: "DEGRADED_VISION",
+      facets,
+      reason: `detector ran ${Math.round(r.inferenceAgeSeconds ?? 0)}s ago but saw no vehicle for 10 min and no portal crossing for 60 min during business hours; the lot is not being watched`,
+    };
   }
   if (cloud === "dead_letters" || cloud === "backlog") {
     return {

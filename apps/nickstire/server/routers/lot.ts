@@ -31,6 +31,15 @@
  * was never observed is excluded from "today" by SQL NULL semantics, and letting
  * that quietly shrink the arrival count is an unknown rendering as a zero.
  *
+ * 4. **Drive-bys are not arrivals, departures or abandonments (2026-10-07).** A
+ *    PASS_THROUGH row carries an `arrivedAt` and a `departedAt` and never a bay, so it
+ *    counted once in `arrivalsToday`, once in `departuresToday` and once in
+ *    `leftWithoutBay` -- three customer-shaped numbers from a car that turned around
+ *    (17 of 111 rows on 2026-09-18). They are now excluded from all three and counted
+ *    on their own as `passThroughsToday`. `arrivalsToday` also counts EPISODES
+ *    (`COALESCE(episodeId, visitId)`), so a track the stitcher folded into an earlier
+ *    visit is one car, not two.
+ *
  * PRODUCER STATUS (corrected 2026-09-09). This header used to say "NO PRODUCER IS
  * WIRED YET". That was true when it was written and is now false: `visitd`'s
  * `shop_mirror` posts visit rows from its `after_step`, and `vision/run_live.py`'s
@@ -46,7 +55,8 @@ import { sql } from "drizzle-orm";
 
 import { router, adminProcedure } from "../_core/trpc";
 import { dbTyped } from "../lib/db-helper";
-import { deriveCameraState, HEALTH_THRESHOLDS } from "../lib/cameraHealth";
+import { deriveCameraState, HEALTH_THRESHOLDS, shopOpenAt } from "../lib/cameraHealth";
+import { CAMERA_RUNTIME_WINDOW_COLUMNS_0143, cameraRuntimeHasColumns } from "../lib/heartbeatStorableColumns";
 import {
   assessEdgeQuiescence, buildCommissioningReport, EDGE_SETTLE_MS, estimateClockOffset,
   machineEventsFromVisit, QUIESCENCE_HEARTBEAT_MAX_AGE_S, TRUTH_EVENTS,
@@ -500,10 +510,14 @@ export const lotRouter = router({
                     AND preexisting = 1 THEN 1 ELSE 0 END) AS preexistingWaiting,
           MAX(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NULL AND preexisting = 0
                    THEN ${ageMinutes("COALESCE(waitStartedAt, arrivedAt)")} END) AS oldestWaitMinutes,
-          SUM(CASE WHEN preexisting = 0 AND UNIX_TIMESTAMP(arrivedAt) >= ${ET_DAY_START}
-                   THEN 1 ELSE 0 END) AS arrivalsToday,
-          SUM(CASE WHEN UNIX_TIMESTAMP(departedAt) >= ${ET_DAY_START} THEN 1 ELSE 0 END) AS departuresToday,
-          SUM(CASE WHEN preexisting = 0 AND bayEnteredAt IS NULL
+          COUNT(DISTINCT CASE WHEN preexisting = 0 AND state <> 'PASS_THROUGH'
+                              AND UNIX_TIMESTAMP(arrivedAt) >= ${ET_DAY_START}
+                              THEN COALESCE(episodeId, visitId) END) AS arrivalsToday,
+          SUM(CASE WHEN preexisting = 0 AND state = 'PASS_THROUGH'
+                    AND UNIX_TIMESTAMP(arrivedAt) >= ${ET_DAY_START} THEN 1 ELSE 0 END) AS passThroughsToday,
+          SUM(CASE WHEN state <> 'PASS_THROUGH'
+                    AND UNIX_TIMESTAMP(departedAt) >= ${ET_DAY_START} THEN 1 ELSE 0 END) AS departuresToday,
+          SUM(CASE WHEN preexisting = 0 AND state <> 'PASS_THROUGH' AND bayEnteredAt IS NULL
                     AND UNIX_TIMESTAMP(departedAt) >= ${ET_DAY_START} THEN 1 ELSE 0 END) AS abandonedBeforeBay,
           SUM(CASE WHEN preexisting = 0 AND arrivedAt IS NULL THEN 1 ELSE 0 END) AS arrivalTimeUnknown,
           SUM(CASE WHEN plateStatus = 'CONFIRMED'
@@ -584,6 +598,9 @@ export const lotRouter = router({
           preexisting: num(r.preexisting),
           preexistingWaiting: num(r.preexistingWaiting),
           arrivalsToday: num(r.arrivalsToday),
+          // Cars that crossed the portal and left without staying. Shipped beside the
+          // arrivals so the two can never be read as one number again.
+          passThroughsToday: num(r.passThroughsToday),
           departuresToday: num(r.departuresToday),
           leftWithoutBay: num(r.abandonedBeforeBay),
           arrivalTimeUnknown: num(r.arrivalTimeUnknown),
@@ -845,6 +862,11 @@ export const lotRouter = router({
     if (!d) return { ok: false as const, reason: "database unavailable" };
 
     try {
+      // The 0143 rolling-window columns are selected only once production has them, the
+      // way `conversations` treats `visual` and `gist`: a hand-applied migration that lags
+      // the deploy must cost eight NULLs on the cards, not the whole Lot page.
+      const windowColumnsStored = await cameraRuntimeHasColumns(d, CAMERA_RUNTIME_WINDOW_COLUMNS_0143);
+      const shopOpen = shopOpenAt();
       const runtime = rowsOf(await d.execute(sql`
         SELECT r.camera, r.producerInstanceId, r.producerVersion, r.gitSha, r.heartbeatSeq,
                r.mode, r.commissioningRunId,
@@ -852,6 +874,12 @@ export const lotRouter = router({
                UNIX_TIMESTAMP(r.receivedAt) AS receivedAtEpoch,
                UNIX_TIMESTAMP(r.observedAtEdge) AS observedAtEdgeEpoch,
                UNIX_TIMESTAMP(r.lastHealthyFrameAt) AS lastHealthyFrameAtEpoch,
+               ${windowColumnsStored
+                 ? sql`r.detectionsLast10m, r.portalCrossingsLast60m,
+               r.conversationListeningCoverage60m, r.conversationCaptureSecondsLast60m,
+               r.conversationCapturesLast60m, r.conversationCaptureFailuresLast60m,
+               r.conversationWakeTriggersLast60m, r.conversationTranscribeBacklog,`
+                 : sql``}
                r.sourceType, r.sourceGeneration, r.sourceConnected, r.captureFps,
                r.frameOk, r.poseOk, r.poseDelta,
                r.authPlaneOk, r.eventPlaneOk, r.controlPlaneOk, r.mediaPlaneOk, r.ptzHomeOk,
@@ -950,6 +978,11 @@ export const lotRouter = router({
                 controlPlaneOk: bool(r.controlPlaneOk),
                 mediaPlaneOk: bool(r.mediaPlaneOk),
                 ptzHomeOk: bool(r.ptzHomeOk),
+                // Absent columns read as undefined -> null: "not reported", never zero.
+                detectionsLast10m: numOrNull(r.detectionsLast10m),
+                portalCrossingsLast60m: numOrNull(r.portalCrossingsLast60m),
+                inferenceAgeSeconds: numOrNull(r.inferenceAgeSeconds),
+                shopOpen,
                 outboxDepth: numOrNull(r.outboxDepth),
                 oldestOutboxAgeSeconds: numOrNull(r.oldestOutboxAgeSeconds),
                 deadLetterDepth: numOrNull(r.deadLetterDepth),
@@ -986,7 +1019,7 @@ export const lotRouter = router({
             ? { type: str(r.sourceType), generation: str(r.sourceGeneration), fps: numOrNull(r.captureFps), restores: numOrNull(r.restores) }
             : null,
           vision: r
-            ? { detector: str(r.detectorName), modelSha256: str(r.modelSha256), inferenceP95Ms: numOrNull(r.inferenceP95Ms), inferenceAgeSeconds: numOrNull(r.inferenceAgeSeconds), poseDelta: numOrNull(r.poseDelta), calibrationVersion: str(r.calibrationVersion), relocateFailures: numOrNull(r.relocateFailures), preexistingCrossed: numOrNull(r.preexistingCrossed), arrivalsAfterStitch: numOrNull(r.arrivalsAfterStitch), stitchedTotal: numOrNull(r.stitchedTotal), stitchRefusedAmbiguous: numOrNull(r.stitchRefusedAmbiguous) }
+            ? { detector: str(r.detectorName), modelSha256: str(r.modelSha256), inferenceP95Ms: numOrNull(r.inferenceP95Ms), inferenceAgeSeconds: numOrNull(r.inferenceAgeSeconds), poseDelta: numOrNull(r.poseDelta), calibrationVersion: str(r.calibrationVersion), relocateFailures: numOrNull(r.relocateFailures), preexistingCrossed: numOrNull(r.preexistingCrossed), arrivalsAfterStitch: numOrNull(r.arrivalsAfterStitch), stitchedTotal: numOrNull(r.stitchedTotal), stitchRefusedAmbiguous: numOrNull(r.stitchRefusedAmbiguous), detectionsLast10m: numOrNull(r.detectionsLast10m), portalCrossingsLast60m: numOrNull(r.portalCrossingsLast60m) }
             : null,
           transport: r
             ? {
@@ -1014,6 +1047,17 @@ export const lotRouter = router({
                 lastCoverage: numOrNull(r.lastConversationCoverage),
                 failuresToday: numOrNull(r.conversationFailuresToday),
                 lastError: str(r.conversationLastError),
+                // Listening coverage over the last hour (0143). "How much of the hour did
+                // the mic actually record" is the number the Office lane was missing: on
+                // 2026-10-03 to 10-05 it listened about 8% of the day while every state
+                // string said READY. NULL until the migration is applied and the worker
+                // reports.
+                listeningCoverage60m: numOrNull(r.conversationListeningCoverage60m),
+                captureSecondsLast60m: numOrNull(r.conversationCaptureSecondsLast60m),
+                capturesLast60m: numOrNull(r.conversationCapturesLast60m),
+                captureFailuresLast60m: numOrNull(r.conversationCaptureFailuresLast60m),
+                wakeTriggersLast60m: numOrNull(r.conversationWakeTriggersLast60m),
+                transcribeBacklog: numOrNull(r.conversationTranscribeBacklog),
               }
             : null,
           cloud: r
@@ -1047,6 +1091,9 @@ export const lotRouter = router({
         ok: true as const,
         asOf: new Date().toISOString(),
         thresholds: HEALTH_THRESHOLDS,
+        /** False until drizzle/0143 is applied: the window fields above are then NULL by absence, not by measurement. */
+        windowColumnsStored,
+        shopOpen,
         cameras,
         healthy: cameras.filter((c) => c.state === "HEALTHY").length,
         expected: expected.length,

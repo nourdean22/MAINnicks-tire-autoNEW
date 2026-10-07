@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS, HEARTBEAT_GUARDED_SET } from "./cameraVisitsRoutes";
 import {
   CAMERA_RUNTIME_COLUMNS_SINCE_0124,
+  CAMERA_RUNTIME_WINDOW_COLUMNS_0143,
+  cameraRuntimeHasColumns,
   heartbeatGuardedSetFor,
   resetStorableHeartbeatColumns,
   storableHeartbeatColumns,
@@ -95,6 +97,33 @@ describe("camera heartbeat ingest - storable columns follow the catalog", () => 
   it("every post-0124 column is a real heartbeat column, and every 0143 column is listed", () => {
     for (const c of SINCE) expect(HEARTBEAT_COLUMNS).toContain(c);
     for (const c of NEW_0143) expect(SINCE.has(c)).toBe(true);
+    expect([...CAMERA_RUNTIME_WINDOW_COLUMNS_0143].sort()).toEqual([...NEW_0143].sort());
+  });
+});
+
+describe("camera_runtime readers - a column is SELECTed only once production has it", () => {
+  it("true when the catalog has every column, false when any is missing", async () => {
+    expect(await cameraRuntimeHasColumns(catalog(HEARTBEAT_COLUMNS), NEW_0143, 1)).toBe(true);
+    resetStorableHeartbeatColumns();
+    const partial = catalog(HEARTBEAT_COLUMNS.filter((c) => c !== "portalCrossingsLast60m"));
+    expect(await cameraRuntimeHasColumns(partial, NEW_0143, 1)).toBe(false);
+    expect(await cameraRuntimeHasColumns(partial, ["detectionsLast10m"], 1)).toBe(true);
+  });
+
+  it("an unreadable or empty catalog answers false: a reader must never name a column it cannot see", async () => {
+    const broken = { async execute() { throw new Error("INFORMATION_SCHEMA unavailable"); } };
+    expect(await cameraRuntimeHasColumns(broken, NEW_0143, 1)).toBe(false);
+    const empty = { async execute() { return [[]]; } };
+    expect(await cameraRuntimeHasColumns(empty, NEW_0143, 1)).toBe(false);
+  });
+
+  it("shares the writer's catalog read: one INFORMATION_SCHEMA query serves both inside the TTL", async () => {
+    const db = catalog(HEARTBEAT_COLUMNS);
+    await storable(db, 1_000_000);
+    expect(await cameraRuntimeHasColumns(db, NEW_0143, 1_000_000 + 60_000)).toBe(true);
+    expect(db.state.calls).toBe(1);
+    expect(await cameraRuntimeHasColumns(db, NEW_0143, 1_000_000 + 11 * 60_000)).toBe(true);
+    expect(db.state.calls).toBe(2);
   });
 });
 

@@ -38,7 +38,10 @@
 import { useEffect, useState } from "react";
 
 import { trpc } from "@/lib/trpc";
-import { summarizeCameraFleet } from "@shared/cameraFleetHealth";
+import { BUSINESS } from "@shared/business";
+import { summarizeCameraFleet, WORKER_STALE_AFTER_SECONDS } from "@shared/cameraFleetHealth";
+import { lotDataConfidence, type LotConfidence } from "@shared/lotDataConfidence";
+import { localClock } from "@shared/shopState";
 import { PageHeader, StatCard, Panel, MetricGrid, EmptyState } from "./shared";
 // Durations live in shared/format.ts, with the "these take SQL-computed MINUTES,
 // never timestamps" contract documented next to them.
@@ -56,9 +59,12 @@ import {
   HelpCircle,
   Hourglass,
   MessageSquare,
+  Eye,
 } from "lucide-react";
 
 const POLL_MS = 15_000;
+/** The floor board reads every OPEN visit up to this many; past it the strip says "N more". */
+const FLOOR_BOARD_LIMIT = 200;
 /** How often the open-visit clocks re-render between polls. */
 const TICK_MS = 10_000;
 
@@ -302,6 +308,8 @@ type CameraFacets = {
   frames: string;
   pose: string;
   calibration: string;
+  /** seeing | blind | quiet | unknown | not_required -- what the detector SAW, not whether it ran. */
+  vision: string;
   auth: string;
   events: string;
   control: string;
@@ -326,7 +334,7 @@ type CameraHealth = {
   commissioningRunId: string | null;
   producer: { instanceId: string; version: string | null; gitSha: string | null; heartbeatSeq: number } | null;
   source: { type: string | null; generation: string | null; fps: number | null; restores: number | null } | null;
-  vision: { detector: string | null; modelSha256: string | null; inferenceP95Ms: number | null; inferenceAgeSeconds: number | null; poseDelta: number | null; calibrationVersion: string | null; relocateFailures: number | null; preexistingCrossed: number | null; arrivalsAfterStitch: number | null; stitchedTotal: number | null; stitchRefusedAmbiguous: number | null } | null;
+  vision: { detector: string | null; modelSha256: string | null; inferenceP95Ms: number | null; inferenceAgeSeconds: number | null; poseDelta: number | null; calibrationVersion: string | null; relocateFailures: number | null; preexistingCrossed: number | null; arrivalsAfterStitch: number | null; stitchedTotal: number | null; stitchRefusedAmbiguous: number | null; detectionsLast10m: number | null; portalCrossingsLast60m: number | null } | null;
   transport: { eventProofAgeSeconds: number | null; controlProofAgeSeconds: number | null; mediaProofAgeSeconds: number | null; ptzNotifyAgeSeconds: number | null } | null;
   conversation: {
     workerOk: boolean | null;
@@ -345,6 +353,13 @@ type CameraHealth = {
     lastCoverage: number | null;
     failuresToday: number | null;
     lastError: string | null;
+    /** Listening over the last hour (0143); null until the migration is applied and the worker reports. */
+    listeningCoverage60m: number | null;
+    captureSecondsLast60m: number | null;
+    capturesLast60m: number | null;
+    captureFailuresLast60m: number | null;
+    wakeTriggersLast60m: number | null;
+    transcribeBacklog: number | null;
   } | null;
   cloud: { outboxDepth: number | null; oldestOutboxAgeSeconds: number | null; deadLetterDepth: number | null; cloudAckAgeSeconds: number | null; diskFreeBytes: number | null } | null;
   /** Null when no health event was recorded for this camera today -- which is NOT the same
@@ -390,9 +405,45 @@ function stateTone(state: string, commissioned: boolean): string {
 
 /** One dimension of the lattice. `good` values read calm; the rest read as attention. */
 function facetTone(value: string): string {
-  if (["alive", "connected", "fresh", "ok", "valid"].includes(value)) return "text-emerald-400/80";
-  if (value === "unknown" || value === "never" || value === "not_required") return "text-foreground/35";
+  if (["alive", "connected", "fresh", "ok", "valid", "seeing"].includes(value)) return "text-emerald-400/80";
+  // `quiet` is "saw nothing, and nothing says it should have": not a fault, not a proof.
+  if (["unknown", "never", "not_required", "quiet"].includes(value)) return "text-foreground/35";
   return "text-amber-400";
+}
+
+/**
+ * Whether a worker's self-report is about NOW. The office worker writes its status every
+ * ~30 s and the agent relays it on every heartbeat; a READY that is hours old was written by a
+ * process that has since hung (2026-10-05/06), and the agent kept relaying it.
+ */
+function workerReportFresh(camera: CameraHealth | null): boolean {
+  const runtime = camera?.conversation ?? null;
+  return (
+    camera !== null &&
+    camera.facets.producer === "alive" &&
+    typeof runtime?.workerAgeSeconds === "number" &&
+    runtime.workerAgeSeconds <= WORKER_STALE_AFTER_SECONDS
+  );
+}
+
+type ChipTone = "ok" | "warn" | "bad" | "muted";
+
+const CHIP_TONE: Record<ChipTone, string> = {
+  ok: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+  warn: "border-amber-500/30 bg-amber-500/10 text-amber-300",
+  bad: "border-red-500/30 bg-red-500/10 text-red-300",
+  muted: "border-foreground/15 bg-foreground/5 text-foreground/55",
+};
+
+/** One fact on the trust strip: a label, a short value, and a tone that never carries the meaning alone. */
+function TrustChip({ label, value, tone, detail }: { label: string; value: string; tone: ChipTone; detail?: string | null }) {
+  return (
+    <div className={`rounded-lg border px-3 py-2 min-w-0 ${CHIP_TONE[tone]}`} title={detail ?? undefined}>
+      <div className="text-[10px] uppercase tracking-wide opacity-70">{label}</div>
+      <div className="text-[12px] font-medium leading-snug break-words">{value}</div>
+      {detail && <div className="mt-0.5 text-[11px] opacity-75 leading-snug break-words">{detail}</div>}
+    </div>
+  );
 }
 
 function CameraCard({ c }: { c: CameraHealth }) {
@@ -403,6 +454,7 @@ function CameraCard({ c }: { c: CameraHealth }) {
     ["frames", c.facets.frames],
     ["pose", c.facets.pose],
     ["calibration", c.facets.calibration],
+    ["vision", c.facets.vision],
     ["auth", c.facets.auth],
     ["events", c.facets.events],
     ["control", c.facets.control],
@@ -516,6 +568,22 @@ function CameraCard({ c }: { c: CameraHealth }) {
                 inferred {c.vision.inferenceAgeSeconds < 90
                   ? `${Math.max(0, Math.round(c.vision.inferenceAgeSeconds))}s ago`
                   : `${Math.round(c.vision.inferenceAgeSeconds / 60)}m ago`}
+              </span>
+            )}
+            {/*
+              What the detector SAW (0143), beside how recently it ran. "inferred 4s ago" was
+              true all through 2026-10-05 while the lane counted 4 arrivals on a 40-car day;
+              these two numbers are the ones that would have said so. 0 is a real reading and
+              is shown; NULL (a pre-0143 edge) says nothing rather than claiming a zero.
+            */}
+            {typeof c.vision?.detectionsLast10m === "number" && (
+              <span className={c.facets.vision === "blind" ? "text-amber-400" : undefined}>
+                saw {c.vision.detectionsLast10m} vehicle{c.vision.detectionsLast10m === 1 ? "" : "s"} in 10m
+              </span>
+            )}
+            {typeof c.vision?.portalCrossingsLast60m === "number" && (
+              <span className={c.facets.vision === "blind" ? "text-amber-400" : undefined}>
+                {c.vision.portalCrossingsLast60m} crossing{c.vision.portalCrossingsLast60m === 1 ? "" : "s"} in 60m
               </span>
             )}
             {/*
@@ -866,9 +934,16 @@ function ConversationPanel({
   const data = query.data as ConversationQueryData | undefined;
   const rows: ConversationRow[] = data?.ok === true ? data.conversations : [];
   const runtime = officeCamera?.conversation ?? null;
-  const workerState =
+  const reportedState =
     runtime?.state ?? (runtime?.workerOk === false ? "STOPPED" : "UNKNOWN");
+  // A self-report is a statement about now only while it is FRESH. A hung worker leaves
+  // "READY" on disk and the agent relays it for hours (2026-10-05/06); the panel then read a
+  // live state off a dead process. Stale or from a dead producer, the state is UNKNOWN and
+  // the last report is shown as history, dated.
+  const reportFresh = workerReportFresh(officeCamera);
+  const workerState = runtime && !reportFresh ? "UNKNOWN" : reportedState;
   const workerHealthy =
+    reportFresh &&
     runtime?.workerOk === true &&
     !["DEGRADED", "MISSING", "STALE", "ERROR", "STOPPED"].includes(workerState);
   const workerTone = workerHealthy
@@ -891,7 +966,7 @@ function ConversationPanel({
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-[12px] font-semibold">
-                NICKS EUCLID ┬╖ office camera
+                NICKS EUCLID · office camera
               </div>
               <div className="mt-0.5 text-[11px] text-foreground/45">
                 {officeCamera?.source?.generation ?? "camera identity unknown"}
@@ -983,7 +1058,7 @@ function ConversationPanel({
               </div>
               <div className="mt-0.5 text-[11px] text-foreground/45">
                 {runtime?.audioSource ?? "audio source unknown"}
-                {runtime?.captureHost ? ` ┬╖ ${runtime.captureHost}` : ""}
+                {runtime?.captureHost ? ` · ${runtime.captureHost}` : ""}
               </div>
             </div>
             <span
@@ -992,10 +1067,45 @@ function ConversationPanel({
               {workerState.replace(/_/g, " ").toLowerCase()}
             </span>
           </div>
+          {runtime && !reportFresh && (
+            <div className="mt-2 text-[11px] text-amber-300/90">
+              Last self-report {reportedState.replace(/_/g, " ").toLowerCase()},{" "}
+              {formatAgo(runtime.workerAgeSeconds)} ago
+              {officeCamera?.facets.producer !== "alive" ? " via a producer that is no longer heartbeating" : ""}.
+              A worker that stopped reporting is not known to be listening.
+            </div>
+          )}
           <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground/55 tabular-nums">
             <span>
               worker {formatAgo(runtime?.workerAgeSeconds ?? null)} ago
             </span>
+            {/*
+              Listening over the last hour (0143). The lane listened about 8% of the day on
+              2026-10-03 to 10-05 while READY; "latest coverage" below is one clip's
+              transcript coverage, a different number. typeof === "number": 0% is a reading.
+            */}
+            {typeof runtime?.listeningCoverage60m === "number" && (
+              <span className={runtime.listeningCoverage60m < 0.2 ? "text-amber-400" : undefined}>
+                listened {Math.round(runtime.listeningCoverage60m * 100)}% of the last hour
+              </span>
+            )}
+            {typeof runtime?.captureSecondsLast60m === "number" && (
+              <span>{Math.round(runtime.captureSecondsLast60m / 60)}m recorded</span>
+            )}
+            {typeof runtime?.capturesLast60m === "number" && (
+              <span>
+                {runtime.capturesLast60m} capture{runtime.capturesLast60m === 1 ? "" : "s"}
+                {typeof runtime.captureFailuresLast60m === "number" && runtime.captureFailuresLast60m > 0
+                  ? `, ${runtime.captureFailuresLast60m} failed`
+                  : ""}
+              </span>
+            )}
+            {typeof runtime?.wakeTriggersLast60m === "number" && (
+              <span>{runtime.wakeTriggersLast60m} wake{runtime.wakeTriggersLast60m === 1 ? "" : "s"}/h</span>
+            )}
+            {typeof runtime?.transcribeBacklog === "number" && runtime.transcribeBacklog > 0 && (
+              <span className="text-amber-400">backlog {runtime.transcribeBacklog}</span>
+            )}
             {runtime?.queueDepth !== null &&
               runtime?.queueDepth !== undefined && (
                 <span>queue {runtime.queueDepth}</span>
@@ -1055,7 +1165,7 @@ function ConversationPanel({
         <div className="mb-2">
           <div className="text-[12px] font-semibold">Counter conversations</div>
           <div className="text-[11px] text-foreground/40">
-            Operational summaries only ΓÇö raw audio and full transcripts stay off
+            Operational summaries only — raw audio and full transcripts stay off
             this screen; self-tests are hidden
           </div>
         </div>
@@ -1100,14 +1210,14 @@ function ConversationPanel({
                 (status === "SKIPPED"
                   ? "No speech was transcribed in this clip."
                   : status === "FAILED"
-                    ? "Summary unavailable ΓÇö capture, transcription, or extraction failed."
+                    ? "Summary unavailable — capture, transcription, or extraction failed."
                     : row.coverage === null
-                      ? "Summary withheld ΓÇö transcript coverage is unknown."
+                      ? "Summary withheld — transcript coverage is unknown."
                       : row.coverage < 0.65
-                        ? `Summary withheld ΓÇö transcript coverage ${Math.round(row.coverage * 100)}% is below the 65% evidence threshold.`
+                        ? `Summary withheld — transcript coverage ${Math.round(row.coverage * 100)}% is below the 65% evidence threshold.`
                         : row.factCount === 0
                           ? "No evidence-backed actionable facts were found."
-                          : "Summary withheld ΓÇö validated evidence is incomplete.");
+                          : "Summary withheld — validated evidence is incomplete.");
 
               return (
                 <div
@@ -1120,9 +1230,9 @@ function ConversationPanel({
                         {row.startedAtMs === null
                           ? "time unknown"
                           : stamp(new Date(row.startedAtMs).toISOString())}
-                        {" ┬╖ "}
+                        {" · "}
                         {row.source}
-                        {row.triggerType ? ` ┬╖ ${row.triggerType}` : ""}
+                        {row.triggerType ? ` · ${row.triggerType}` : ""}
                       </div>
                       {row.gist && (
                         <div className="mt-1 text-[13px] text-foreground/85">
@@ -1203,15 +1313,15 @@ function ConversationPanel({
                     <div className="mt-2 text-[11px] text-amber-300/80">
                       Candidate link
                       {row.candidateVehicleVisitId
-                        ? ` ┬╖ visit ${row.candidateVehicleVisitId}`
+                        ? ` · visit ${row.candidateVehicleVisitId}`
                         : ""}
                       {row.candidateWorkOrderId
-                        ? ` ┬╖ work order ${row.candidateWorkOrderId}`
+                        ? ` · work order ${row.candidateWorkOrderId}`
                         : ""}
                       {row.linkConfidence === null
-                        ? " ┬╖ confidence unknown"
-                        : ` ┬╖ ${Math.round(row.linkConfidence * 100)}% confidence`}
-                      {" ┬╖ not identity-confirmed"}
+                        ? " · confidence unknown"
+                        : ` · ${Math.round(row.linkConfidence * 100)}% confidence`}
+                      {" · not identity-confirmed"}
                     </div>
                   )}
 
@@ -1244,6 +1354,15 @@ export default function LotSection() {
     { limit: 50, openOnly: false, includeCommissioning: showCommissioning },
     { refetchInterval: POLL_MS },
   );
+  // THE FLOOR BOARD HAS ITS OWN READ (2026-10-07). It used to filter the 50 most recent
+  // visits of any state down to the open ones, so a car that arrived 51 visits ago and was
+  // still on the lot simply fell off the board -- on a 40-car day, by early afternoon, the
+  // longest-waiting cars were exactly the ones missing. This asks for OPEN visits only, up
+  // to FLOOR_BOARD_LIMIT, and the strip says "N more" when even that is not everything.
+  const onLotVisits = trpc.lot.visits.useQuery(
+    { limit: FLOOR_BOARD_LIMIT, openOnly: true, includeCommissioning: showCommissioning },
+    { refetchInterval: POLL_MS },
+  );
   const health = trpc.lot.health.useQuery(undefined, { refetchInterval: POLL_MS });
   const conversations = trpc.lot.conversations.useQuery(
     { limit: 25, includeSelftest: false },
@@ -1271,6 +1390,19 @@ export default function LotSection() {
       : (health.data as Parameters<typeof summarizeCameraFleet>[0]),
   );
 
+  const allRows: VisitRow[] =
+    visits.data?.ok === true ? (visits.data.rows as unknown as VisitRow[]) : [];
+  const healthCameras: CameraHealth[] =
+    health.data?.ok === true ? (health.data.cameras as unknown as CameraHealth[]) : [];
+  const officeCamera = healthCameras.find((camera) => camera.camera === "office") ?? null;
+  // The vehicle-truth camera. Every count on this page comes from it, so its state decides
+  // whether the lot is being WATCHED -- "Live" visits from the office camera are not.
+  const signCamera = healthCameras.find((camera) => camera.role === "vehicle_truth") ?? null;
+  const signLoaded = !health.isPending && !health.isError && health.data?.ok === true;
+  const signWatching = signCamera !== null && signCamera.state === "HEALTHY";
+  const signStateLabel = signCamera ? signCamera.state.replace(/_/g, " ").toLowerCase() : "unknown";
+  const windowColumnsStored = health.data?.ok === true ? health.data.windowColumnsStored : null;
+
   const badge: { label: string; variant: "success" | "warning" | "danger" | "neutral" } =
     nowFailed
       ? { label: "Unavailable", variant: "danger" }
@@ -1278,26 +1410,27 @@ export default function LotSection() {
         ? { label: "Loading", variant: "neutral" }
         : n?.ok === true && n.neverIngested
           ? { label: "Awaiting first event", variant: "neutral" }
-          : freshnessUnknown
-            ? { label: "Freshness unknown", variant: "warning" }
-            : stale
-              ? { label: `Stale ${Math.round((n!.staleSeconds ?? 0) / 60)}m`, variant: "warning" }
-              : fleet.state === "DEGRADED"
-                ? // Fresh visits from one camera do not make the fleet healthy: before
-                  // 2026-10-02 this said "Live" while sign was CAMERA_OFFLINE.
-                  { label: `Live · ${fleet.problems.length} camera issue${fleet.problems.length === 1 ? "" : "s"}`, variant: "warning" }
-                : fleet.state === "UNKNOWN" && !health.isPending
-                  ? { label: "Live · camera health unknown", variant: "warning" }
-                  : { label: "Live", variant: "success" };
+          : signLoaded && signCamera && !signWatching
+            ? // Never "Live" over a sign camera that is not HEALTHY: the visits below are
+              // whatever it last managed to see. 2026-10-05 said "Live" over a blind lane.
+              { label: `Not watching · sign ${signStateLabel}`, variant: "danger" }
+            : freshnessUnknown
+              ? { label: "Freshness unknown", variant: "warning" }
+              : stale
+                ? { label: `Stale ${Math.round((n!.staleSeconds ?? 0) / 60)}m`, variant: "warning" }
+                : fleet.state === "DEGRADED"
+                  ? // Fresh visits from one camera do not make the fleet healthy: before
+                    // 2026-10-02 this said "Live" while sign was CAMERA_OFFLINE.
+                    { label: `Live · ${fleet.problems.length} camera issue${fleet.problems.length === 1 ? "" : "s"}`, variant: "warning" }
+                  : fleet.state === "UNKNOWN" && !health.isPending
+                    ? { label: "Live · camera health unknown", variant: "warning" }
+                    : { label: "Live", variant: "success" };
 
-  const allRows: VisitRow[] =
-    visits.data?.ok === true ? (visits.data.rows as unknown as VisitRow[]) : [];
-  const healthCameras: CameraHealth[] =
-    health.data?.ok === true ? (health.data.cameras as unknown as CameraHealth[]) : [];
-  const officeCamera = healthCameras.find((camera) => camera.camera === "office") ?? null;
   // Longest-dwelling first: the car that has been there longest is the one about to
   // become a complaint, so it belongs at the top of the screen, not the bottom.
-  const onLot = allRows
+  const onLotRows: VisitRow[] =
+    onLotVisits.data?.ok === true ? (onLotVisits.data.rows as unknown as VisitRow[]) : [];
+  const onLot = onLotRows
     .filter((v) => v.open)
     .slice()
     .sort((a, b) => {
@@ -1305,6 +1438,97 @@ export default function LotSection() {
       const bv = b.onPropertyMinutes ?? b.sinceFirstSeenMinutes ?? -1;
       return bv - av;
     });
+  const onPropertyCount = n?.ok === true ? n.counts.onProperty : null;
+  const floorBoardLoaded = onLotVisits.data?.ok === true;
+  const notShown = floorBoardLoaded && onPropertyCount !== null ? Math.max(0, onPropertyCount - onLot.length) : null;
+
+  // HOW MUCH TO BELIEVE TODAY'S COUNTS, in words. Pure helper (shared/lotDataConfidence.ts);
+  // the clock is the shop's, recomputed on the tick so the expected-so-far number moves.
+  const clock = localClock(new Date(tick), BUSINESS.timezone);
+  const confidence: LotConfidence = lotDataConfidence({
+    activity: activity.isError
+      ? { ok: false, reason: activity.error?.message }
+      : (activity.data as Parameters<typeof lotDataConfidence>[0]["activity"]),
+    sign: signCamera
+      ? { state: signCamera.state, stateForSeconds: signCamera.stateForSeconds, dropsToday: signCamera.stability?.dropsToday ?? null }
+      : null,
+    clock: { hour: Math.floor(clock.minutes / 60), minute: clock.minutes % 60 },
+  });
+
+  // Office mic: coverage is a NUMBER about the last hour, or it is unknown. A fresh worker
+  // with no number is "not stored yet" while the 0143 migration lags; a stale worker's
+  // number is history, not listening.
+  const officeRuntime = officeCamera?.conversation ?? null;
+  const officeFresh = workerReportFresh(officeCamera);
+  const officeCoverage = officeRuntime?.listeningCoverage60m ?? null;
+  const officeChip: { value: string; tone: ChipTone; detail: string | null } = !officeCamera
+    ? { value: health.isPending ? "loading" : "unknown", tone: "muted", detail: "office camera health could not be read" }
+    : !officeRuntime
+      ? { value: "worker has not reported", tone: "warn", detail: "camera health alone is not capture health" }
+      : !officeFresh
+        ? {
+            value: `unknown · last report ${formatAgo(officeRuntime.workerAgeSeconds)} ago`,
+            tone: "warn",
+            detail: officeCamera.facets.producer !== "alive"
+              ? "the office producer is not heartbeating; its last worker report is history"
+              : "the worker stopped writing its status; a stale READY is not listening",
+          }
+        : typeof officeCoverage === "number"
+          ? {
+              value: `listened ${Math.round(officeCoverage * 100)}% of the last hour`,
+              tone: officeCoverage >= 0.5 ? "ok" : officeCoverage >= 0.2 ? "muted" : "warn",
+              detail:
+                `${officeRuntime.capturesLast60m ?? "?"} capture${officeRuntime.capturesLast60m === 1 ? "" : "s"}` +
+                (typeof officeRuntime.captureFailuresLast60m === "number" && officeRuntime.captureFailuresLast60m > 0
+                  ? `, ${officeRuntime.captureFailuresLast60m} failed`
+                  : "") +
+                (typeof officeRuntime.wakeTriggersLast60m === "number" ? `, ${officeRuntime.wakeTriggersLast60m} wakes` : "") +
+                (typeof officeRuntime.transcribeBacklog === "number" && officeRuntime.transcribeBacklog > 0
+                  ? `, backlog ${officeRuntime.transcribeBacklog}`
+                  : ""),
+            }
+          : windowColumnsStored === false
+            ? { value: "coverage not stored yet", tone: "muted", detail: "migration 0143 has not been applied; the worker reports it, the shop cannot keep it" }
+            : { value: "coverage unknown", tone: "muted", detail: "the worker has not reported a listening window yet" };
+
+  const signChip: { value: string; tone: ChipTone; detail: string | null } = !signLoaded
+    ? { value: health.isPending ? "loading" : "unknown", tone: "muted", detail: health.isError ? health.error?.message ?? null : "camera health could not be read" }
+    : !signCamera
+      ? { value: "no vehicle-truth camera registered", tone: "bad", detail: null }
+      : signWatching
+        ? {
+            value: `watching · heartbeat ${formatAgo(signCamera.ageSeconds)} ago`,
+            tone: "ok",
+            detail:
+              signCamera.facets.vision === "seeing" && typeof signCamera.vision?.detectionsLast10m === "number"
+                ? `saw ${signCamera.vision.detectionsLast10m} vehicle${signCamera.vision.detectionsLast10m === 1 ? "" : "s"} in the last 10 min`
+                : signCamera.facets.vision === "quiet"
+                  ? "nothing seen in the last 10 min; nothing says there should have been"
+                  : signCamera.facets.vision === "unknown"
+                    ? "detector window not reported (edge predates 0143)"
+                    : null,
+          }
+        : {
+            value: `${signStateLabel} for ${formatAgo(signCamera.stateForSeconds)}`,
+            tone: signCamera.state === "STALE" || signCamera.state === "UNVERIFIED_CAPABILITIES" ? "warn" : "bad",
+            detail: signCamera.reason,
+          };
+
+  const confidenceChip: { value: string; tone: ChipTone } =
+    confidence.level === "OK"
+      ? { value: "OK", tone: "ok" }
+      : confidence.level === "LOW"
+        ? { value: "LOW", tone: "warn" }
+        : { value: "cannot judge", tone: "muted" };
+
+  const eventChip: { value: string; tone: ChipTone } =
+    n?.ok !== true
+      ? { value: "unknown", tone: "muted" }
+      : n.neverIngested
+        ? { value: "none yet", tone: "muted" }
+        : n.staleSeconds === null
+          ? { value: "unknown", tone: "muted" }
+          : { value: `${formatAgo(n.staleSeconds)} ago`, tone: n.staleSeconds > 300 ? "warn" : "ok" };
 
   return (
     <div className="space-y-5">
@@ -1314,6 +1538,42 @@ export default function LotSection() {
         icon={<ParkingSquare className="w-5 h-5" />}
         badge={badge}
       />
+
+      {/* THE STRIP: what this page's numbers rest on, before any number. Each chip is a fact
+          with its evidence; none of them is a number from a producer that was not looking. */}
+      <Panel
+        title="What these numbers rest on"
+        icon={<Eye className="w-4 h-4" />}
+        subtitle="Camera, baseline, floor-board completeness and office listening, in words"
+        padding="sm"
+      >
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          <TrustChip label="Sign camera" value={signChip.value} tone={signChip.tone} detail={signChip.detail} />
+          <TrustChip label="Today's counts" value={confidenceChip.value} tone={confidenceChip.tone} detail={confidence.headline} />
+          <TrustChip
+            label="On the lot"
+            value={
+              !floorBoardLoaded
+                ? onLotVisits.isPending ? "loading" : "unavailable"
+                : onPropertyCount === null
+                  ? `${onLot.length} shown`
+                  : notShown && notShown > 0
+                    ? `${onLot.length} of ${onPropertyCount} shown`
+                    : `${onLot.length} of ${onPropertyCount}`
+            }
+            tone={!floorBoardLoaded ? "muted" : notShown && notShown > 0 ? "warn" : "ok"}
+            detail={
+              notShown && notShown > 0
+                ? `${notShown} more on the property than this read returns (${FLOOR_BOARD_LIMIT} max)`
+                : !signWatching && signLoaded
+                  ? "the sign camera is not watching, so the board may be missing cars"
+                  : null
+            }
+          />
+          <TrustChip label="Office mic" value={officeChip.value} tone={officeChip.tone} detail={officeChip.detail} />
+          <TrustChip label="Last camera event" value={eventChip.value} tone={eventChip.tone} detail={null} />
+        </div>
+      </Panel>
 
       {nowFailed ? (
         <Unknown what="Lot counters" reason={nowReason} />
@@ -1384,37 +1644,60 @@ export default function LotSection() {
             icon={<Hourglass className="w-4 h-4" />}
             subtitle="Longest first — clocks are live, and a car whose arrival was never observed says so instead of guessing"
           >
-            {visits.isError ? (
-              <Unknown what="Floor board" reason={visits.error?.message} />
-            ) : visits.isPending ? (
+            {onLotVisits.isError ? (
+              <Unknown what="Floor board" reason={onLotVisits.error?.message} />
+            ) : onLotVisits.isPending ? (
               <Loading what="vehicles on the lot" />
-            ) : !visits.data ? (
+            ) : !onLotVisits.data ? (
               <Unknown what="Floor board" />
-            ) : visits.data.ok === false ? (
-              <Unknown what="Floor board" reason={visits.data.reason} />
+            ) : onLotVisits.data.ok === false ? (
+              <Unknown what="Floor board" reason={onLotVisits.data.reason} />
             ) : onLot.length === 0 ? (
               <div className="text-[13px] text-foreground/60">
-                Nothing on the lot right now.
+                {signLoaded && signCamera && !signWatching ? (
+                  // An empty board under a camera that is not watching is not an empty lot.
+                  <span className="text-amber-400">
+                    Not being watched: the sign camera is {signStateLabel}. Vehicles may be on the
+                    property with nothing here to show them.
+                  </span>
+                ) : (
+                  "Nothing on the lot right now."
+                )}
                 {n.counts.onProperty > 0 && (
                   <span className="text-amber-400">
                     {" "}
-                    The counter above says {n.counts.onProperty}, so those visits fall
-                    outside this list&rsquo;s window — widen it before reading the lot as
-                    empty.
+                    The counter above says {n.counts.onProperty}, so open visits exist that this
+                    read did not return.
                   </span>
                 )}
               </div>
             ) : (
-              <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                {onLot.map((v) => (
-                  <FloorCard key={v.visitId} v={v} fetchedAt={visits.dataUpdatedAt} now={tick} />
-                ))}
-              </div>
+              <>
+                <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                  {onLot.map((v) => (
+                    <FloorCard key={v.visitId} v={v} fetchedAt={onLotVisits.dataUpdatedAt} now={tick} />
+                  ))}
+                </div>
+                {notShown !== null && notShown > 0 && (
+                  <div className="mt-3 text-[12px] text-amber-400">
+                    {notShown} more on the property than shown: this read returns at most{" "}
+                    {FLOOR_BOARD_LIMIT} open visits, longest first.
+                  </div>
+                )}
+              </>
             )}
           </Panel>
 
           <MetricGrid cols={4}>
-            <StatCard label="Arrivals today" value={n.counts.arrivalsToday} icon={<Car className="w-4 h-4" />} />
+            {/* Drive-bys are counted beside arrivals, never inside them. Until 2026-10-07 a
+                car that crossed the portal and turned around counted as an arrival, a
+                departure AND a left-without-a-bay. */}
+            <StatCard
+              label="Arrivals today"
+              value={n.counts.arrivalsToday}
+              icon={<Car className="w-4 h-4" />}
+              trendLabel={`${n.counts.passThroughsToday} drive-by${n.counts.passThroughsToday === 1 ? "" : "s"} not counted`}
+            />
             <StatCard label="Departures today" value={n.counts.departuresToday} icon={<LogOut className="w-4 h-4" />} />
             {/* NOT "abandoned". A finished outside tyre job looks identical to a
                 customer who gave up, and calling good business a loss is the worse of
@@ -1492,7 +1775,16 @@ export default function LotSection() {
 
           <Panel title="Bays" icon={<Wrench className="w-4 h-4" />}>
             {n.bays.length === 0 && n.counts.bayUnknown === 0 ? (
-              <div className="text-[13px] text-foreground/60">All bays clear.</div>
+              signLoaded && signCamera && !signWatching ? (
+                // "All bays clear." was rendered over a camera that could not see the bays
+                // (2026-10-05). An empty list from a blind or offline camera is unknown.
+                <div className="text-[13px] text-amber-400">
+                  Bay status unknown: the sign camera is {signStateLabel}, so an empty list is not a
+                  clear bay.
+                </div>
+              ) : (
+                <div className="text-[13px] text-foreground/60">All bays clear.</div>
+              )
             ) : (
               <div className="space-y-1.5">
                 {n.bays.map((b) => (
@@ -1517,13 +1809,24 @@ export default function LotSection() {
 
           <Panel title="Identity confidence today" icon={<ShieldQuestion className="w-4 h-4" />}
                  subtitle="A confusable or ambiguous plate is never bound to a customer automatically">
-            <MetricGrid cols={5}>
-              <StatCard label="Plates confirmed" value={n.identity.plateConfirmed} icon={<Camera className="w-4 h-4" />} color="text-emerald-400" />
-              <StatCard label="Plates ambiguous" value={n.identity.plateAmbiguous} icon={<AlertTriangle className="w-4 h-4" />} color="text-amber-400" />
-              <StatCard label="Customer exact" value={n.identity.customerExact} icon={<Car className="w-4 h-4" />} color="text-emerald-400" />
-              <StatCard label="Confusable only" value={n.identity.customerConfusable} icon={<ShieldQuestion className="w-4 h-4" />} color="text-amber-400" trendLabel="needs staff confirm" />
-              <StatCard label="Ambiguous" value={n.identity.customerAmbiguous} icon={<AlertTriangle className="w-4 h-4" />} color="text-foreground/60" trendLabel="no auto-link" />
-            </MetricGrid>
+            {Object.values(n.identity).every((v) => v === 0) ? (
+              // Five tiles that have read 0 since the day they shipped are not information;
+              // they teach the reader to skip the panel. No plate reader is wired to these
+              // cameras, so a zero here is "nothing produced", said once. The tiles return the
+              // moment any producer writes an identity.
+              <div className="text-[13px] text-foreground/60">
+                No plate or customer identity today. The cameras have no plate reader wired, so
+                these counters are zero by construction, not by observation.
+              </div>
+            ) : (
+              <MetricGrid cols={5}>
+                <StatCard label="Plates confirmed" value={n.identity.plateConfirmed} icon={<Camera className="w-4 h-4" />} color="text-emerald-400" />
+                <StatCard label="Plates ambiguous" value={n.identity.plateAmbiguous} icon={<AlertTriangle className="w-4 h-4" />} color="text-amber-400" />
+                <StatCard label="Customer exact" value={n.identity.customerExact} icon={<Car className="w-4 h-4" />} color="text-emerald-400" />
+                <StatCard label="Confusable only" value={n.identity.customerConfusable} icon={<ShieldQuestion className="w-4 h-4" />} color="text-amber-400" trendLabel="needs staff confirm" />
+                <StatCard label="Ambiguous" value={n.identity.customerAmbiguous} icon={<AlertTriangle className="w-4 h-4" />} color="text-foreground/60" trendLabel="no auto-link" />
+              </MetricGrid>
+            )}
           </Panel>
         </>
       ) : null}

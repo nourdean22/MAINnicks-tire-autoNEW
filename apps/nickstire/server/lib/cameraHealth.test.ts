@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { deriveCameraState, deriveStateAtIngest, HEALTH_THRESHOLDS } from "./cameraHealth";
+import { deriveCameraState, deriveStateAtIngest, HEALTH_THRESHOLDS, shopOpenAt } from "./cameraHealth";
 
 type RuntimeSnapshot = NonNullable<Parameters<typeof deriveCameraState>[0]>;
+
+/** The vision facet as the lattice reports it, for a fixed camera that is otherwise healthy. */
+const deriveVisionFacet = (over: Partial<RuntimeSnapshot>) => deriveCameraState(healthy(over)).facets.vision;
 
 /** A heartbeat received just now from a fixed producer with everything in order. */
 function healthy(over: Partial<RuntimeSnapshot> = {}): RuntimeSnapshot {
@@ -28,6 +31,8 @@ const fixedFacets = {
   frames: "fresh",
   pose: "ok",
   calibration: "valid",
+  // `healthy()` reports no detection window (a pre-0143 edge): unknown, and never a block.
+  vision: "unknown",
   auth: "not_required",
   events: "not_required",
   control: "not_required",
@@ -262,5 +267,95 @@ describe("camera health lattice — interaction PTZ", () => {
     const { ageSeconds: _drop, ...rest } = healthyInteraction({ ageSeconds: 999 });
     void _drop;
     expect(deriveStateAtIngest(rest, "interaction_ptz").state).toBe("HEALTHY");
+  });
+});
+
+/**
+ * The plausibility canary (audit 2026-10-07). On 2026-10-05 the sign lane counted 4 arrivals
+ * on a ~40-car day: frames fresh, pose ok, cloud ok, detector RUNNING, and nothing in the
+ * lattice asked what it was SEEING. These pin the one shape that is evidence of blindness
+ * and every neighbouring shape that is not.
+ */
+describe("camera health lattice — plausibility canary", () => {
+  const seeing = { detectionsLast10m: 3, portalCrossingsLast60m: 0, inferenceAgeSeconds: 5, shopOpen: true };
+  const blind = { detectionsLast10m: 0, portalCrossingsLast60m: 0, inferenceAgeSeconds: 12, shopOpen: true };
+
+  it("a detector that ran in the window, saw no vehicle for 10 min and no crossing for 60 min while the shop is open is DEGRADED_VISION", () => {
+    const v = deriveCameraState(healthy(blind));
+    expect(v.state).toBe("DEGRADED_VISION");
+    expect(v.facets.vision).toBe("blind");
+    expect(v.reason).toContain("saw no vehicle for 10 min");
+    expect(v.reason).toContain("the lot is not being watched");
+  });
+
+  it("a detector that sees vehicles is HEALTHY and says so", () => {
+    const v = deriveCameraState(healthy(seeing));
+    expect(v.state).toBe("HEALTHY");
+    expect(v.facets.vision).toBe("seeing");
+  });
+
+  it("zero detections are evidence only when the detector RAN inside the window: a shut motion gate is quiet, not blind", () => {
+    expect(deriveVisionFacet({ ...blind, inferenceAgeSeconds: HEALTH_THRESHOLDS.blindInferenceMaxAgeSeconds + 1 })).toBe("quiet");
+    expect(deriveVisionFacet({ ...blind, inferenceAgeSeconds: null })).toBe("quiet");
+    expect(deriveVisionFacet({ ...blind, inferenceAgeSeconds: HEALTH_THRESHOLDS.blindInferenceMaxAgeSeconds })).toBe("blind");
+    expect(deriveCameraState(healthy({ ...blind, inferenceAgeSeconds: 900 })).state).toBe("HEALTHY");
+  });
+
+  it("a crossing in the last hour proves the portal works: quiet, not blind", () => {
+    expect(deriveVisionFacet({ ...blind, portalCrossingsLast60m: 1 })).toBe("quiet");
+    expect(deriveVisionFacet({ ...blind, portalCrossingsLast60m: null })).toBe("quiet");
+  });
+
+  it("outside business hours an empty lot is quiet, never blind -- and an unknown clock is treated as closed", () => {
+    expect(deriveVisionFacet({ ...blind, shopOpen: false })).toBe("quiet");
+    expect(deriveVisionFacet({ ...blind, shopOpen: null })).toBe("quiet");
+    expect(deriveVisionFacet({ ...blind, shopOpen: undefined })).toBe("quiet");
+  });
+
+  it("a producer that reports no window is unknown, and unknown does NOT block HEALTHY", () => {
+    // Every edge that predates 0143 reports nothing here. Blocking HEALTHY on it would turn
+    // this deploy into an UNVERIFIED_CAPABILITIES page for a camera that is watching fine.
+    const v = deriveCameraState(healthy());
+    expect(v.facets.vision).toBe("unknown");
+    expect(v.state).toBe("HEALTHY");
+    expect(deriveVisionFacet({ detectionsLast10m: undefined })).toBe("unknown");
+  });
+
+  it("precedence: liveness, source and frames still come first; a frozen capture keeps its own reason", () => {
+    expect(deriveCameraState(healthy({ ...blind, ageSeconds: 999 })).state).toBe("PRODUCER_OFFLINE");
+    expect(deriveCameraState(healthy({ ...blind, sourceConnected: false })).state).toBe("CAMERA_OFFLINE");
+    expect(deriveCameraState(healthy({ ...blind, poseOk: false })).state).toBe("CALIBRATION_INVALID");
+    const frozen = deriveCameraState(healthy({ ...blind, frameOk: false }));
+    expect(frozen.state).toBe("DEGRADED_VISION");
+    expect(frozen.reason).toContain("frozen or looping");
+    // Blind outranks a cloud backlog: the lot not being watched is the larger problem.
+    expect(deriveCameraState(healthy({ ...blind, deadLetterDepth: 2 })).state).toBe("DEGRADED_VISION");
+  });
+
+  it("the interaction PTZ camera is never judged on vehicle detections", () => {
+    const v = deriveCameraState(healthyInteraction({ ...blind }), "interaction_ptz");
+    expect(v.state).toBe("HEALTHY");
+    expect(v.facets.vision).toBe("not_required");
+  });
+
+  it("the ingest-time derivation carries the canary too, so a blind detector is a logged transition", () => {
+    const { ageSeconds: _drop, ...rest } = healthy({ ...blind, ageSeconds: 0 });
+    void _drop;
+    expect(deriveStateAtIngest(rest).state).toBe("DEGRADED_VISION");
+  });
+});
+
+describe("shopOpenAt reads BUSINESS.hours.structured in the shop's timezone", () => {
+  // 2026-10-06 is a Tuesday; Cleveland is UTC-4 in October.
+  it("open mid-morning on a weekday, closed after 6pm", () => {
+    expect(shopOpenAt(new Date("2026-10-06T14:00:00Z"))).toBe(true);   // 10:00 ET
+    expect(shopOpenAt(new Date("2026-10-06T23:00:00Z"))).toBe(false);  // 19:00 ET
+    expect(shopOpenAt(new Date("2026-10-06T11:59:00Z"))).toBe(false);  // 07:59 ET
+  });
+
+  it("Sunday opens at 9, not 8", () => {
+    expect(shopOpenAt(new Date("2026-10-04T12:30:00Z"))).toBe(false);  // 08:30 ET Sunday
+    expect(shopOpenAt(new Date("2026-10-04T13:30:00Z"))).toBe(true);   // 09:30 ET Sunday
+    expect(shopOpenAt(new Date("2026-10-04T20:30:00Z"))).toBe(false);  // 16:30 ET Sunday
   });
 });
