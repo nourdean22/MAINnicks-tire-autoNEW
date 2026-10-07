@@ -22,6 +22,7 @@ import json
 import os
 import shutil
 import time
+from collections import deque
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,6 +32,8 @@ from zoneinfo import ZoneInfo
 DEFAULT_OFFICE_SERIAL = "T8410P5225154105"
 DEFAULT_EVENTS = frozenset({"motion", "personDetected"})
 FALSE_MARKERS = frozenset({"0", "false", "off", "clear", "cleared", "idle", "inactive", "none"})
+#: Run outcomes the worker reports as DEGRADED (and counts in conversationFailuresToday).
+FAILED_STATUSES = frozenset({"capture_failed", "runner_failed", "partial", "failed"})
 
 
 class OfficeWakeError(RuntimeError):
@@ -75,6 +78,26 @@ class CaptureResult:
     coverages: Optional[list[Optional[float]]] = None
     frames_captured: int = 0
     frames_posted: int = 0
+    #: Segments whose transcriber ran but produced no text (timeout, non-zero exit). The episode
+    #: is still posted carrying `transcriptError`; the RUN is "partial", never "ok". Until
+    #: 2026-10-07 a run whose every transcript failed reported ok and the worker stayed READY.
+    episodes_transcribe_failed: int = 0
+
+
+@dataclass
+class CapturePhase:
+    """Phase 1 of a wake: bounded audio (and frames) on disk, nothing transcribed or posted yet.
+
+    Capture and transcribe/post are separate phases so the office keeps being listened to while
+    whisper works: one three-minute transcription used to be three minutes of deafness. `result`
+    is set when the phase ended with nothing to process (blocked, failed, no speech).
+    """
+    trigger: Trigger
+    started_at: float
+    capture_seconds: float
+    segments: list[Any]
+    frames: list[dict[str, Any]]
+    result: Optional[CaptureResult] = None
 
 
 @dataclass
@@ -115,6 +138,9 @@ class OfficeWakeConfig:
     visual_enabled: bool = False
     visual_interval_seconds: float = 30.0
     visual_max_frames: int = 6
+    # Captured wakes allowed to wait for transcription (phase 2). Full -> the OLDEST is dropped
+    # with a ledger receipt and a counted failure; OFFICE_TRANSCRIBE_BACKLOG_MAX.
+    transcribe_backlog_max: int = 6
 
     def startup_blockers(self) -> list[str]:
         blockers: list[str] = []
@@ -168,18 +194,30 @@ class RuntimeReceipt:
     This is deliberately a FILE, not another cloud writer. The Eufy agent remains the only
     producer for camera_runtime.office, so a conversation worker restart can never race or
     overwrite camera/media/control facets with a second producerInstanceId.
+
+    The writer never raises. On Windows, `os.replace` onto a file a reader currently holds open
+    (the Eufy agent reads this one every heartbeat) fails with PermissionError for the
+    milliseconds the read takes. Until 2026-10-07 that exception escaped, the status task died
+    with it, the heartbeat went stale, and the supervisor restarted a healthy worker every ten
+    minutes for it.
     """
+
+    REPLACE_ATTEMPTS = 8
 
     def __init__(
         self,
         config: OfficeWakeConfig,
         *,
         clock: Callable[[], float] = time.time,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.config = config
         self.clock = clock
+        self.sleep = sleep
         self.path = Path(config.status_path) if config.status_path else None
         self._failure_day = ""
+        self.write_failures = 0
+        self.last_write_error: Optional[str] = None
         self.state: dict[str, Any] = {
             "conversationWorkerOk": True,
             "conversationWorkerState": "STARTING",
@@ -195,6 +233,18 @@ class RuntimeReceipt:
     def _local_day(self, now: float) -> str:
         return datetime.fromtimestamp(now, tz=ZoneInfo(self.config.timezone_name)).date().isoformat()
 
+    def _replace_with_retry(self, tmp: Path) -> None:
+        delay = 0.02
+        for attempt in range(self.REPLACE_ATTEMPTS):
+            try:
+                os.replace(tmp, self.path)
+                return
+            except PermissionError:
+                if attempt == self.REPLACE_ATTEMPTS - 1:
+                    raise
+                self.sleep(delay)
+                delay = min(0.25, delay * 2)
+
     def update(self, **fields: Any) -> None:
         now = float(self.clock())
         day = self._local_day(now)
@@ -205,10 +255,17 @@ class RuntimeReceipt:
         self.state["conversationWorkerHeartbeatAt"] = _iso_utc(now)
         if self.path is None:
             return
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_name(self.path.name + ".tmp")
-        tmp.write_text(json.dumps(self.state, sort_keys=True), encoding="utf-8")
-        os.replace(tmp, self.path)
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.path.with_name(self.path.name + ".tmp")
+            tmp.write_text(json.dumps(self.state, sort_keys=True), encoding="utf-8")
+            self._replace_with_retry(tmp)
+        except OSError as exc:
+            # The heartbeat writer must never take the worker down with it. The in-memory state
+            # stays current and the next write that lands carries the failure count.
+            self.write_failures += 1
+            self.last_write_error = f"{type(exc).__name__}: {exc}"[:200]
+            self.state["conversationStatusWriteFailures"] = self.write_failures
 
     def failure(self, message: str, *, state: str = "DEGRADED") -> None:
         failures = int(self.state.get("conversationFailuresToday") or 0) + 1
@@ -443,22 +500,30 @@ def prune_audio(
     return removed
 
 
-def run_capture_once(
+def capture_phase(
     config: OfficeWakeConfig,
     trigger: Trigger,
     *,
     capture_fn: Optional[Callable[..., list[Any]]] = None,
-    transcribe_fn: Optional[Callable[..., Any]] = None,
-    post_fn: Optional[Callable[..., dict[str, Any]]] = None,
     clock: Callable[[], float] = time.time,
     frame_sampler: Optional[Any] = None,
     people_counter: Optional[Any] = None,
-) -> CaptureResult:
-    from . import officeaudio, officeframes, officepost
+) -> CapturePhase:
+    """Phase 1: bounded audio capture plus the frames sampled beside it. Nothing leaves the box."""
+    from . import officeaudio, officeframes
 
     capture_fn = capture_fn or officeaudio.capture_window
-    transcribe_fn = transcribe_fn or officepost.transcribe
-    post_fn = post_fn or officepost.post_episode
+    started_at = float(clock())
+
+    def ended(status: str, reason: str, capture_seconds: float = 0.0) -> CapturePhase:
+        return CapturePhase(
+            trigger=trigger,
+            started_at=started_at,
+            capture_seconds=capture_seconds,
+            segments=[],
+            frames=[],
+            result=CaptureResult(status, reason, _trigger_payload(trigger)),
+        )
 
     kwargs: dict[str, Any] = {}
     if config.silence_db is not None:
@@ -468,15 +533,11 @@ def run_capture_once(
     if config.capture_mode:
         remaining = active_window_remaining_seconds(
             config.schedule,
-            at=clock(),
+            at=started_at,
             timezone_name=config.timezone_name,
         )
         if remaining <= 0:
-            return CaptureResult(
-                "capture_blocked",
-                "outside configured active hours at capture start",
-                _trigger_payload(trigger),
-            )
+            return ended("capture_blocked", "outside configured active hours at capture start")
         capture_seconds = min(capture_seconds, remaining)
 
     # The sampler runs BESIDE the audio capture and never blocks it: a dead camera feed costs the
@@ -505,11 +566,7 @@ def run_capture_once(
     except Exception as exc:  # noqa: BLE001
         if frame_sampler is not None:
             frame_sampler.stop(final_grab=False)
-        return CaptureResult(
-            "capture_failed",
-            f"{type(exc).__name__}: {exc}"[:500],
-            _trigger_payload(trigger),
-        )
+        return ended("capture_failed", f"{type(exc).__name__}: {exc}"[:500], capture_seconds)
     frames: list[dict[str, Any]] = []
     if frame_sampler is not None:
         try:
@@ -518,18 +575,42 @@ def run_capture_once(
             frames = []
 
     if not segments:
-        return CaptureResult(
-            "no_segments",
-            "bounded capture returned no speech segments",
-            _trigger_payload(trigger),
-        )
+        return ended("no_segments", "bounded capture returned no speech segments", capture_seconds)
 
     # On-box person count, once per sampled frame (not per post). null = not measured.
     if frames:
         officeframes.annotate_people(frames, people_counter)
 
+    return CapturePhase(
+        trigger=trigger,
+        started_at=started_at,
+        capture_seconds=capture_seconds,
+        segments=list(segments),
+        frames=frames,
+    )
+
+
+def process_phase(
+    config: OfficeWakeConfig,
+    phase: CapturePhase,
+    *,
+    transcribe_fn: Optional[Callable[..., Any]] = None,
+    post_fn: Optional[Callable[..., dict[str, Any]]] = None,
+) -> CaptureResult:
+    """Phase 2: transcribe each captured segment locally and post the evidence payload."""
+    from . import officeframes, officepost
+
+    if phase.result is not None:
+        return phase.result
+    transcribe_fn = transcribe_fn or officepost.transcribe
+    post_fn = post_fn or officepost.post_episode
+    trigger = phase.trigger
+    segments = phase.segments
+    frames = phase.frames
+
     prepared = 0
     transcribed = 0
+    transcribe_failed = 0
     posted = 0
     failed = 0
     facts_stored = 0
@@ -552,6 +633,11 @@ def run_capture_once(
 
         if transcript.error is None:
             transcribed += 1
+        else:
+            # The evidence payload still goes out (duration, volume, frames, the error itself);
+            # the run must not call itself ok over a transcriber that produced nothing.
+            transcribe_failed += 1
+            errors.append(f"transcribe: {transcript.error}"[:300])
         if transcript.latency_ms is not None:
             stt_latencies.append(int(transcript.latency_ms))
         payload = officepost.build_payload(
@@ -598,7 +684,8 @@ def run_capture_once(
             failed += 1
             errors.append(str(result.get("error") or "post failed")[:300])
 
-    status = "ok" if failed == 0 else ("partial" if prepared > failed else "failed")
+    problems = failed + transcribe_failed
+    status = "ok" if problems == 0 else ("partial" if prepared > failed else "failed")
     reason = "capture/transcribe/post complete" if not errors else " | ".join(errors)[:500]
     return CaptureResult(
         status,
@@ -615,11 +702,66 @@ def run_capture_once(
         coverages=coverages,
         frames_captured=len(frames),
         frames_posted=frames_posted,
+        episodes_transcribe_failed=transcribe_failed,
     )
 
 
+def run_capture_once(
+    config: OfficeWakeConfig,
+    trigger: Trigger,
+    *,
+    capture_fn: Optional[Callable[..., list[Any]]] = None,
+    transcribe_fn: Optional[Callable[..., Any]] = None,
+    post_fn: Optional[Callable[..., dict[str, Any]]] = None,
+    clock: Callable[[], float] = time.time,
+    frame_sampler: Optional[Any] = None,
+    people_counter: Optional[Any] = None,
+) -> CaptureResult:
+    """Capture, transcribe and post in ONE call: commissioning runs, --dry-run, injected runners.
+
+    The daemon runs the two phases on separate workers; this keeps the single-call contract.
+    """
+    phase = capture_phase(
+        config,
+        trigger,
+        capture_fn=capture_fn,
+        clock=clock,
+        frame_sampler=frame_sampler,
+        people_counter=people_counter,
+    )
+    return process_phase(config, phase, transcribe_fn=transcribe_fn, post_fn=post_fn)
+
+
+def schedule_active_seconds(
+    schedule: dict[int, tuple[ActiveWindow, ...]],
+    start: float,
+    end: float,
+    timezone_name: str,
+) -> float:
+    """Seconds of [start, end) inside the active schedule, sampled once per minute."""
+    if end <= start or not schedule:
+        return 0.0
+    total = 0.0
+    at = float(start)
+    while at < end:
+        step = min(60.0, float(end) - at)
+        if schedule_allows(schedule, at=at, timezone_name=timezone_name):
+            total += step
+        at += step
+    return round(total, 3)
+
+
 class OfficeWakeDaemon:
-    """One Eufy event listener plus one capture worker; bursts coalesce to one pending wake."""
+    """One Eufy event listener, one capture worker, one transcribe/post worker.
+
+    Bursts coalesce to one pending wake. Capture (phase 1) hands off to a bounded transcribe
+    backlog (phase 2) so the next wake is captured while whisper is still working on the last.
+    """
+
+    WINDOW_SECONDS = 3600.0
+    #: Under five eligible minutes the hour cannot be judged: a worker that just started, or a
+    #: shop that just opened, has not failed. Coverage is then None, never 0.
+    MIN_ELIGIBLE_SECONDS = 300.0
 
     def __init__(
         self,
@@ -629,17 +771,87 @@ class OfficeWakeDaemon:
         clock: Callable[[], float] = time.time,
         runner: Optional[Callable[[OfficeWakeConfig, Trigger], CaptureResult]] = None,
         runtime: Optional[RuntimeReceipt] = None,
+        capture_phase_fn: Optional[Callable[..., CapturePhase]] = None,
+        process_phase_fn: Optional[Callable[[OfficeWakeConfig, CapturePhase], CaptureResult]] = None,
     ) -> None:
         self.config = config
         self.ledger = ledger
         self.clock = clock
-        self.runner = runner or run_capture_once
+        # `runner` is the legacy single-call path (capture+transcribe+post in one thread); when it
+        # is injected the two-phase workers are bypassed. Production leaves it None.
+        self.runner = runner
+        self.capture_phase_fn = capture_phase_fn or capture_phase
+        self.process_phase_fn = process_phase_fn or process_phase
         self.queue: asyncio.Queue[Trigger] = asyncio.Queue(maxsize=1)
+        self.transcribe_queue: asyncio.Queue[CapturePhase] = asyncio.Queue(
+            maxsize=max(1, int(config.transcribe_backlog_max))
+        )
+        self.processing_phase: Optional[CapturePhase] = None
         self.last_capture_started_at: Optional[float] = None
         self.last_audio_fallback_finished_at: Optional[float] = None
         self.runtime = runtime or RuntimeReceipt(config, clock=clock)
         self.runtime_state = "STARTING"
         self.bridge_connected = False
+        # Listening ledger behind the *Last60m status fields.
+        self.started_at = float(clock())
+        self.current_capture_started_at: Optional[float] = None
+        self._trigger_times: deque[float] = deque()
+        self._capture_windows: deque[tuple[float, float, bool]] = deque()
+
+    # ---- listening counters ---------------------------------------------------------------------
+
+    def transcribe_backlog(self) -> int:
+        return self.transcribe_queue.qsize() + (1 if self.processing_phase is not None else 0)
+
+    def record_trigger(self, at: float) -> None:
+        self._trigger_times.append(float(at))
+
+    def record_capture_window(self, started_at: float, ended_at: float, *, ok: bool) -> None:
+        self._capture_windows.append((float(started_at), float(ended_at), bool(ok)))
+
+    def _prune(self, now: float) -> None:
+        horizon = now - self.WINDOW_SECONDS
+        while self._trigger_times and self._trigger_times[0] < horizon:
+            self._trigger_times.popleft()
+        while self._capture_windows and self._capture_windows[0][1] < horizon:
+            self._capture_windows.popleft()
+
+    def window_counters(self, now: Optional[float] = None) -> dict[str, Any]:
+        """What the last hour of listening looked like, as status fields.
+
+        Coverage is capture seconds over the seconds the schedule made this worker eligible to
+        listen (and that it existed for). "I am alive and heard nothing" and "I am deaf" used to
+        be the same READY.
+        """
+        current = float(self.clock() if now is None else now)
+        self._prune(current)
+        horizon = current - self.WINDOW_SECONDS
+        windows = [(s, e, ok) for (s, e, ok) in self._capture_windows if e >= horizon]
+        if self.current_capture_started_at is not None:
+            windows.append((self.current_capture_started_at, current, True))
+        capture_seconds = 0.0
+        for started, ended, _ok in windows:
+            capture_seconds += max(0.0, min(ended, current) - max(started, horizon))
+        failures = sum(1 for _s, _e, ok in windows if not ok)
+        eligible = schedule_active_seconds(
+            self.config.schedule,
+            max(horizon, self.started_at),
+            current,
+            self.config.timezone_name,
+        )
+        coverage: Optional[float] = None
+        if eligible >= self.MIN_ELIGIBLE_SECONDS:
+            coverage = round(min(1.0, capture_seconds / eligible), 3)
+        return {
+            "conversationWakeTriggersLast60m": sum(1 for at in self._trigger_times if at >= horizon),
+            "conversationCapturesLast60m": len(windows),
+            "conversationCaptureFailuresLast60m": failures,
+            "conversationCaptureSecondsLast60m": round(capture_seconds, 1),
+            "conversationListeningCoverage60m": coverage,
+            "conversationTranscribeBacklog": self.transcribe_backlog(),
+        }
+
+    # ---- wake intake --------------------------------------------------------------------------
 
     async def offer(self, event: dict[str, Any]) -> WakeDecision:
         now = self.clock()
@@ -653,6 +865,7 @@ class OfficeWakeDaemon:
             and trigger_enabled(self.config, trigger.event)
             and event_is_positive(event)
         ):
+            self.record_trigger(now)
             self.runtime.update(
                 lastConversationEventAt=_iso_utc(now),
                 conversationLastTrigger=trigger.event,
@@ -690,6 +903,80 @@ class OfficeWakeDaemon:
         self.runtime.update(conversationQueueDepth=self.queue.qsize())
         return decision
 
+    # ---- phase 1: capture -----------------------------------------------------------------------
+
+    def _idle_state(self, at: float) -> str:
+        return (
+            "READY"
+            if schedule_allows(self.config.schedule, at=at, timezone_name=self.config.timezone_name)
+            else "OFF_HOURS"
+        )
+
+    def _apply_result(self, result: CaptureResult, finished_at: float) -> None:
+        """Fold a finished (transcribed + posted, or failed) wake into the status receipt."""
+        measured_coverages = [
+            float(value) for value in (result.coverages or []) if value is not None
+        ]
+        common: dict[str, Any] = {"conversationQueueDepth": self.queue.qsize()}
+        common.update(self.window_counters(finished_at))
+        if measured_coverages:
+            common["lastConversationCoverage"] = round(min(measured_coverages), 4)
+        if self.config.visual_enabled:
+            # Visible to the Eufy agent's heartbeat: a camera that stops yielding frames shows
+            # up as 0 here instead of disappearing silently.
+            common["lastConversationFramesCaptured"] = result.frames_captured
+            common["lastConversationFramesPosted"] = result.frames_posted
+        if result.episodes_transcribed > 0:
+            common["lastConversationSttAt"] = _iso_utc(finished_at)
+        if result.episodes_posted > 0:
+            common["lastConversationPostAt"] = _iso_utc(finished_at)
+        if result.summaries_stored > 0:
+            common["lastConversationSummaryAt"] = _iso_utc(finished_at)
+
+        if result.status in FAILED_STATUSES:
+            self.runtime_state = "DEGRADED"
+            self.runtime.failure(result.reason, state=self.runtime_state)
+            self.runtime.update(**common)
+        else:
+            # A transcription finishing in the background must not pull a live capture out of
+            # CAPTURING; anything else (READY, DEGRADED, OFF_HOURS) is cleared by a clean result.
+            if self.runtime_state != "CAPTURING":
+                self.runtime_state = self._idle_state(finished_at)
+            self.runtime.update(
+                conversationWorkerState=self.runtime_state,
+                conversationLastError=None,
+                **common,
+            )
+
+    def _enqueue_phase(self, phase: CapturePhase) -> None:
+        """Hand a captured wake to the transcribe worker; a full backlog drops the OLDEST."""
+        if self.transcribe_queue.full():
+            try:
+                dropped = self.transcribe_queue.get_nowait()
+                self.transcribe_queue.task_done()
+            except asyncio.QueueEmpty:
+                dropped = None
+            if dropped is not None:
+                self.ledger.note(
+                    "transcribe_backlog_dropped",
+                    {
+                        "dropped": {
+                            "trigger": _trigger_payload(dropped.trigger),
+                            "segments": len(dropped.segments),
+                            "capturedAt": _iso_utc(dropped.started_at),
+                        },
+                        "backlogMax": self.transcribe_queue.maxsize,
+                    },
+                )
+                self.runtime_state = "DEGRADED"
+                self.runtime.failure(
+                    f"transcribe backlog full ({self.transcribe_queue.maxsize}); dropped the "
+                    f"oldest capture from {_iso_utc(dropped.started_at)}",
+                    state=self.runtime_state,
+                )
+        self.transcribe_queue.put_nowait(phase)
+        self.runtime.update(conversationTranscribeBacklog=self.transcribe_backlog())
+
     async def worker(self) -> None:
         while True:
             trigger = await self.queue.get()
@@ -725,68 +1012,115 @@ class OfficeWakeDaemon:
                     continue
 
                 self.last_capture_started_at = now
+                self.current_capture_started_at = now
                 self.runtime_state = "CAPTURING"
                 self.runtime.update(
                     conversationWorkerState=self.runtime_state,
                     lastConversationCaptureAt=_iso_utc(now),
                     conversationQueueDepth=self.queue.qsize(),
+                    **self.window_counters(now),
                 )
                 self.ledger.note("capture_started", {"trigger": _trigger_payload(trigger)})
+
+                if self.runner is not None:
+                    # Legacy single-call path: everything in one thread, result applied here.
+                    try:
+                        result = await asyncio.to_thread(self.runner, self.config, trigger)
+                    except Exception as exc:  # noqa: BLE001
+                        result = CaptureResult(
+                            "runner_failed",
+                            f"{type(exc).__name__}: {exc}"[:500],
+                            _trigger_payload(trigger),
+                            episodes_failed=1,
+                        )
+                    finished_at = self.clock()
+                    self.current_capture_started_at = None
+                    if trigger.event == "audioActivity":
+                        self.last_audio_fallback_finished_at = finished_at
+                    if result.status != "capture_blocked":
+                        self.record_capture_window(now, finished_at, ok=result.status not in FAILED_STATUSES)
+                    self.ledger.note("capture_finished", asdict(result))
+                    self._apply_result(result, finished_at)
+                    continue
+
                 try:
-                    result = await asyncio.to_thread(self.runner, self.config, trigger)
+                    phase = await asyncio.to_thread(
+                        self.capture_phase_fn, self.config, trigger, clock=self.clock
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    phase = CapturePhase(
+                        trigger=trigger,
+                        started_at=now,
+                        capture_seconds=0.0,
+                        segments=[],
+                        frames=[],
+                        result=CaptureResult(
+                            "runner_failed",
+                            f"{type(exc).__name__}: {exc}"[:500],
+                            _trigger_payload(trigger),
+                            episodes_failed=1,
+                        ),
+                    )
+                finished_at = self.clock()
+                self.current_capture_started_at = None
+                if trigger.event == "audioActivity":
+                    self.last_audio_fallback_finished_at = finished_at
+
+                if phase.result is not None:
+                    # Nothing to transcribe: blocked, failed, or no speech. Settle it now.
+                    if phase.result.status != "capture_blocked":
+                        self.record_capture_window(
+                            now, finished_at, ok=phase.result.status not in FAILED_STATUSES
+                        )
+                    self.ledger.note("capture_finished", asdict(phase.result))
+                    self._apply_result(phase.result, finished_at)
+                    continue
+
+                self.record_capture_window(now, finished_at, ok=True)
+                self.ledger.note(
+                    "capture_captured",
+                    {
+                        "trigger": _trigger_payload(trigger),
+                        "segments": len(phase.segments),
+                        "frames": len(phase.frames),
+                        "captureSeconds": round(phase.capture_seconds, 1),
+                    },
+                )
+                self._enqueue_phase(phase)
+                # Listening again while phase 2 runs. DEGRADED clears only on a clean result.
+                if self.runtime_state != "DEGRADED":
+                    self.runtime_state = self._idle_state(finished_at)
+                self.runtime.update(
+                    conversationWorkerState=self.runtime_state,
+                    conversationQueueDepth=self.queue.qsize(),
+                    **self.window_counters(finished_at),
+                )
+            finally:
+                self.queue.task_done()
+
+    # ---- phase 2: transcribe + post ---------------------------------------------------------------
+
+    async def transcribe_worker(self) -> None:
+        """Consume captured wakes oldest first, off the capture path."""
+        while True:
+            phase = await self.transcribe_queue.get()
+            self.processing_phase = phase
+            try:
+                try:
+                    result = await asyncio.to_thread(self.process_phase_fn, self.config, phase)
                 except Exception as exc:  # noqa: BLE001
                     result = CaptureResult(
                         "runner_failed",
                         f"{type(exc).__name__}: {exc}"[:500],
-                        _trigger_payload(trigger),
+                        _trigger_payload(phase.trigger),
                         episodes_failed=1,
                     )
                 self.ledger.note("capture_finished", asdict(result))
-
-                finished_at = self.clock()
-                if trigger.event == "audioActivity":
-                    self.last_audio_fallback_finished_at = finished_at
-                measured_coverages = [
-                    float(value) for value in (result.coverages or []) if value is not None
-                ]
-                common: dict[str, Any] = {
-                    "conversationQueueDepth": self.queue.qsize(),
-                }
-                if measured_coverages:
-                    common["lastConversationCoverage"] = round(min(measured_coverages), 4)
-                if self.config.visual_enabled:
-                    # Visible to the Eufy agent's heartbeat: a camera that stops yielding frames
-                    # shows up as 0 here instead of disappearing silently.
-                    common["lastConversationFramesCaptured"] = result.frames_captured
-                    common["lastConversationFramesPosted"] = result.frames_posted
-                if result.episodes_transcribed > 0:
-                    common["lastConversationSttAt"] = _iso_utc(finished_at)
-                if result.episodes_posted > 0:
-                    common["lastConversationPostAt"] = _iso_utc(finished_at)
-                if result.summaries_stored > 0:
-                    common["lastConversationSummaryAt"] = _iso_utc(finished_at)
-
-                if result.status in {"capture_failed", "runner_failed", "partial", "failed"}:
-                    self.runtime_state = "DEGRADED"
-                    self.runtime.failure(result.reason, state=self.runtime_state)
-                    self.runtime.update(**common)
-                else:
-                    self.runtime_state = (
-                        "READY"
-                        if schedule_allows(
-                            self.config.schedule,
-                            at=finished_at,
-                            timezone_name=self.config.timezone_name,
-                        )
-                        else "OFF_HOURS"
-                    )
-                    self.runtime.update(
-                        conversationWorkerState=self.runtime_state,
-                        conversationLastError=None,
-                        **common,
-                    )
+                self._apply_result(result, self.clock())
             finally:
-                self.queue.task_done()
+                self.processing_phase = None
+                self.runtime.update(conversationTranscribeBacklog=self.transcribe_backlog())
+                self.transcribe_queue.task_done()
 
 
 def audio_activity_detected(
@@ -952,25 +1286,38 @@ async def runtime_status_worker(
     *,
     interval_seconds: float = 30.0,
 ) -> None:
-    """Keep a fresh local worker heartbeat even when the shop is quiet."""
-    interval = max(1.0, float(interval_seconds))
+    """Keep a fresh local worker heartbeat even when the shop is quiet.
+
+    One bad tick must not end the heartbeat for the life of the process: a stale heartbeat is
+    exactly what the supervisor reads as a dead worker, and it restarts a live one for it.
+    """
+    interval = max(0.05, float(interval_seconds))
+    last_error: Optional[str] = None
     while True:
-        now = daemon.clock()
-        if daemon.runtime_state not in {"CAPTURING", "DEGRADED", "BRIDGE_RETRY"}:
-            daemon.runtime_state = (
-                "READY"
-                if schedule_allows(
-                    daemon.config.schedule,
-                    at=now,
-                    timezone_name=daemon.config.timezone_name,
+        try:
+            now = daemon.clock()
+            if daemon.runtime_state not in {"CAPTURING", "DEGRADED", "BRIDGE_RETRY"}:
+                daemon.runtime_state = (
+                    "READY"
+                    if schedule_allows(
+                        daemon.config.schedule,
+                        at=now,
+                        timezone_name=daemon.config.timezone_name,
+                    )
+                    else "OFF_HOURS"
                 )
-                else "OFF_HOURS"
+            daemon.runtime.update(
+                conversationWorkerOk=True,
+                conversationWorkerState=daemon.runtime_state,
+                conversationQueueDepth=daemon.queue.qsize(),
+                **daemon.window_counters(now),
             )
-        daemon.runtime.update(
-            conversationWorkerOk=True,
-            conversationWorkerState=daemon.runtime_state,
-            conversationQueueDepth=daemon.queue.qsize(),
-        )
+            last_error = None
+        except Exception as exc:  # noqa: BLE001
+            detail = f"{type(exc).__name__}: {exc}"[:500]
+            if detail != last_error:
+                daemon.ledger.note("status_worker_error", {"error": detail})
+                last_error = detail
         await asyncio.sleep(interval)
 
 
@@ -985,11 +1332,13 @@ async def listen_forever(
         raise OfficeWakeError("install requirements-office-wake.txt first") from exc
 
     worker_task = asyncio.create_task(daemon.worker())
+    transcribe_task = asyncio.create_task(daemon.transcribe_worker())
     retention_task = asyncio.create_task(
         retention_worker(daemon.config, daemon.ledger, daemon.runtime)
     )
     status_task = asyncio.create_task(runtime_status_worker(daemon))
     fallback_task = asyncio.create_task(audio_fallback_worker(daemon))
+    background = (worker_task, transcribe_task, retention_task, status_task, fallback_task)
     seen = 0
     delay = 2.0
     try:
@@ -1040,6 +1389,7 @@ async def listen_forever(
                         await daemon.offer(event)
                         if max_events > 0 and seen >= max_events:
                             await daemon.queue.join()
+                            await daemon.transcribe_queue.join()
                             return
             except Exception as exc:  # noqa: BLE001
                 detail = f"{type(exc).__name__}: {exc}"[:500]
@@ -1058,9 +1408,9 @@ async def listen_forever(
                 await asyncio.sleep(delay)
                 delay = min(60.0, delay * 2)
     finally:
-        for task in (worker_task, retention_task, status_task, fallback_task):
+        for task in background:
             task.cancel()
-        for task in (worker_task, retention_task, status_task, fallback_task):
+        for task in background:
             try:
                 await task
             except asyncio.CancelledError:
@@ -1069,6 +1419,7 @@ async def listen_forever(
             conversationWorkerOk=False,
             conversationWorkerState="STOPPED",
             conversationQueueDepth=daemon.queue.qsize(),
+            conversationTranscribeBacklog=daemon.transcribe_backlog(),
         )
 
 
@@ -1118,6 +1469,7 @@ def config_from_args(args: argparse.Namespace) -> OfficeWakeConfig:
         visual_enabled=bool(args.visual),
         visual_interval_seconds=max(5.0, float(args.visual_interval_seconds)),
         visual_max_frames=max(1, min(12, int(args.visual_max_frames))),
+        transcribe_backlog_max=max(1, int(args.transcribe_backlog_max)),
     )
 
 
@@ -1183,6 +1535,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     parser.add_argument("--visual-interval-seconds", type=float, default=float(os.environ.get("OFFICE_VISUAL_INTERVAL_SECONDS", "30")))
     parser.add_argument("--visual-max-frames", type=int, default=int(os.environ.get("OFFICE_VISUAL_MAX_FRAMES", "6")))
+    parser.add_argument("--transcribe-backlog-max", type=int, default=int(os.environ.get("OFFICE_TRANSCRIBE_BACKLOG_MAX", "6")), help="captured wakes kept waiting for transcription before the oldest is dropped")
     parser.add_argument("--retention-hours", type=float, default=float(os.environ.get("OFFICE_RAW_AUDIO_RETENTION_HOURS", "6")))
     parser.add_argument("--retention-max-mb", type=float, default=float(os.environ.get("OFFICE_RAW_AUDIO_MAX_MB", "256")))
     parser.add_argument("--min-free-mb", type=float, default=float(os.environ.get("OFFICE_MIN_FREE_MB", "768")))

@@ -250,6 +250,20 @@ def test_office_healthy_coverage_is_silent(tmp_path: Path):
     assert not [line for line in out["log"] if "listened only" in line]
 
 
+def test_office_low_coverage_in_a_quiet_hour_is_silent(tmp_path: Path):
+    # No wakes, no failures: a quiet office, not a deaf worker. Low coverage alone is not a WARN.
+    out = run_scenario("office-coverage-low-quiet-silent", tmp_path)
+    assert out["calls"] == []
+    assert not [line for line in out["log"] if "listened only" in line]
+
+
+def test_office_low_coverage_with_wakes_but_no_captures_warns(tmp_path: Path):
+    out = run_scenario("office-coverage-low-deaf-warns", tmp_path)
+    warns = [line for line in out["log"] if "listened only" in line]
+    assert len(warns) == 1, out["log"]
+    assert "(4 wakes, 0 captures, 0 failed)" in warns[0]
+
+
 def test_disk_floor_prunes_stale_audio_and_rotates_the_log(tmp_path: Path):
     out = run_scenario("disk-floor", tmp_path)
     assert out["markers"]["staleAudioRemains"] is False

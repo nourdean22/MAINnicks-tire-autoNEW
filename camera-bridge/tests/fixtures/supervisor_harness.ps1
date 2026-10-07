@@ -105,12 +105,17 @@ function Port-Open { param([int]$port, [int]$timeoutMs = 1500)
 # exercise the orphan / heartbeat / coverage paths.
 function Get-OfficeCodeFingerprint([string]$dir) { return "" }
 
-function Set-OfficeStatus([int]$heartbeatAgeMinutes, [string]$workerState, $coverage) {
+function Set-OfficeStatus([int]$heartbeatAgeMinutes, [string]$workerState, $coverage, [int]$failures = 0, [int]$wakes = 0, [int]$captures = 0) {
   $payload = @{
     conversationWorkerHeartbeatAt = [DateTime]::UtcNow.AddMinutes(-1 * $heartbeatAgeMinutes).ToString("o")
     conversationWorkerState       = $workerState
   }
-  if ($null -ne $coverage) { $payload["conversationListeningCoverage60m"] = $coverage }
+  if ($null -ne $coverage) {
+    $payload["conversationListeningCoverage60m"] = $coverage
+    $payload["conversationCaptureFailuresLast60m"] = $failures
+    $payload["conversationWakeTriggersLast60m"] = $wakes
+    $payload["conversationCapturesLast60m"] = $captures
+  }
   Set-Content -LiteralPath $officeStatusPath -Value ($payload | ConvertTo-Json -Compress) -Encoding ascii
 }
 function Install-OfficeCode {
@@ -180,18 +185,35 @@ switch ($Scenario) {
     Heal-OfficeWorker
   }
   "office-coverage-low-warns" {
+    # 20% listened, two captures failed this hour: the low coverage is explained -> WARN once.
     Install-OfficeCode
     Add-FakeProcess 31 "python.exe" $officePython 600
     $taskStates[$officeTask] = "Running"
-    Set-OfficeStatus 1 "READY" 0.2
+    Set-OfficeStatus 1 "READY" 0.2 2 5 3
     Heal-OfficeWorker
+    Heal-OfficeWorker
+  }
+  "office-coverage-low-quiet-silent" {
+    # 10% listened, but no wakes arrived and nothing failed: a quiet office, not a deaf worker.
+    Install-OfficeCode
+    Add-FakeProcess 31 "python.exe" $officePython 600
+    $taskStates[$officeTask] = "Running"
+    Set-OfficeStatus 1 "READY" 0.1 0 0 0
+    Heal-OfficeWorker
+  }
+  "office-coverage-low-deaf-warns" {
+    # Wakes arrived and none became a capture: deaf, even with zero recorded failures.
+    Install-OfficeCode
+    Add-FakeProcess 31 "python.exe" $officePython 600
+    $taskStates[$officeTask] = "Running"
+    Set-OfficeStatus 1 "READY" 0.0 0 4 0
     Heal-OfficeWorker
   }
   "office-coverage-ok-silent" {
     Install-OfficeCode
     Add-FakeProcess 31 "python.exe" $officePython 600
     $taskStates[$officeTask] = "Running"
-    Set-OfficeStatus 1 "READY" 0.9
+    Set-OfficeStatus 1 "READY" 0.9 0 6 5
     Heal-OfficeWorker
   }
   "disk-floor" {

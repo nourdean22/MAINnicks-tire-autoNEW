@@ -355,15 +355,20 @@ function Heal-OfficeWorker {
   } elseif ($null -ne $age -and $age -gt $officeHeartbeatStaleMinutes) {
     Kick-Task $officeTask "office-worker" ("running but heartbeat {0:N0} min old" -f $age) $true 10
   }
-  # Listening coverage: a READY worker that recorded little of the last hour is not healthy, it is
-  # quietly failing (captures erroring, source silent, transcribe backlog). Once an hour.
+  # Listening coverage: a READY worker that recorded little of the last hour is quietly failing
+  # ONLY when the hour explains it -- captures failed, or wakes arrived and none became a capture.
+  # A quiet hour with no wakes and no failures is a quiet office, not a deaf worker. Once an hour.
   if ($status -and $null -ne $status.conversationListeningCoverage60m) {
     $coverage = [double]$status.conversationListeningCoverage60m
-    if ($coverage -lt $officeListeningCoverageFloor -and ($status.conversationWorkerState -in @("READY","CAPTURING"))) {
+    $failures = [int]($status.conversationCaptureFailuresLast60m | Select-Object -First 1)
+    $wakes = [int]($status.conversationWakeTriggersLast60m | Select-Object -First 1)
+    $captures = [int]($status.conversationCapturesLast60m | Select-Object -First 1)
+    $explained = ($failures -gt 0) -or ($wakes -gt 0 -and $captures -eq 0)
+    if ($coverage -lt $officeListeningCoverageFloor -and $explained -and ($status.conversationWorkerState -in @("READY","CAPTURING"))) {
       $e = Get-Entry "office-coverage"
       if ($e.escalatedAt -lt ($nowEpoch - 3600)) {
         $e.escalatedAt = $nowEpoch
-        Log ("WARN office worker reports {0} but listened only {1}% of the last 60 min; captures are failing or the audio source is silent" -f $status.conversationWorkerState,[math]::Round($coverage * 100))
+        Log ("WARN office worker reports {0} but listened only {1}% of the last 60 min ({2} wakes, {3} captures, {4} failed); captures are failing or the audio source is silent" -f $status.conversationWorkerState,[math]::Round($coverage * 100),$wakes,$captures,$failures)
       }
     }
   }
