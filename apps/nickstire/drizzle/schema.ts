@@ -4687,11 +4687,13 @@ export const contentExperimentAssignments = mysqlTable("content_experiment_assig
  * shop-operations cockpit. One row per VISIT, written through
  * `POST /api/camera/visits`.
  *
- * WARNING: NO PRODUCER IS WIRED YET: visitd's cloud client posts to
- * `{baseUrl}/api/devices/{id}/events` on its StateNour base URL, and nothing in
- * `camera-bridge/` references the nickstire ingest route. Until visitd gains a
- * second sink the table stays empty and the Lot section correctly reports
- * "awaiting first event". `seq` is the last applied emission sequence, so a duplicate
+ * Producer (since 2026-09-28, ADR-0022): visitd on NicksMax runs two sinks. Its cloud
+ * client posts to `{baseUrl}/api/devices/{id}/events` on StateNour (owner lane) and its
+ * `ShopMirror` (`camera-bridge/visitd/shop_mirror.py`) posts the same visits here and
+ * heartbeats to `/api/camera/heartbeat` (shop lane). The 2026-09-09 "no producer is
+ * wired yet" warning that used to live here was true then and is historical now; the Lot
+ * section says "Not watching" when the sign camera is not HEALTHY rather than reading an
+ * empty table as a quiet lot. `seq` is the last applied emission sequence, so a duplicate
  * or out-of-order delivery cannot walk a visit backwards.
  *
  * Every lifecycle timestamp is nullable on purpose: an unobserved time stays

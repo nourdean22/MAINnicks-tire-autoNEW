@@ -7,6 +7,25 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Camera intelligence audit wave (2026-10-07, PR #2920) -- BUILT + TESTED; not yet merged or deployed
+
+Audit with live NicksMax, Railway and Neon receipts: [`../../../docs/agent-audit/CAMERA-INTELLIGENCE-AUDIT-2026-10-07.md`](../../../docs/agent-audit/CAMERA-INTELLIGENCE-AUDIT-2026-10-07.md). As-built decisions, superseding ADR-0017 where production diverged from it: [`../../../docs/adr/0022-camera-vision-as-built.md`](../../../docs/adr/0022-camera-vision-as-built.md). Contracts this PR changes in nickstire:
+
+- **`camera_runtime` gains eight rolling-window counters** (migration 0143: `detectionsLast10m`, `portalCrossingsLast60m`, `listeningCoverage60m`, `captureSecondsLast60m`, `capturesLast60m`, `captureFailuresLast60m`, `wakeTriggersLast60m`, `transcribeBacklog`). Hand-applied by the operator via Admin -> Run migrations. Until then every reader (heartbeat ingest, `lot.health`, the alert cron) checks INFORMATION_SCHEMA and selects the pre-0143 column set, so nothing 500s and the new facets read `unknown`.
+- **The health lattice has a `vision` facet** (`seeing` / `blind` / `quiet` / `unknown` / `not_required`). `DEGRADED_VISION` fires only when the detector ran within 600 s, saw no vehicle for 10 min and no portal crossing for 60 min during shop hours (`shopOpenAt()` reads `BUSINESS.hours`). `unknown` never blocks HEALTHY, so a pre-0143 edge cannot be paged for a column it does not send.
+- **Camera-health owner alerts are keyed per episode** (`camera_health:<camera>:e<epoch>:<STATE>`, `fired_for` = the episode's shop day) with a 30-minute cooldown that holds instead of dropping, and recovery keyed on the degraded episode. This ends the midnight-ET "Office PTZ degraded" + "Shop sign recovered" double page that the day-key reset produced, and a camera that fails twice in one day now pages twice.
+- **Lot states what its numbers rest on:** drive-bys (`PASS_THROUGH`) are counted apart from arrivals, departures and abandonments; a "What these numbers rest on" strip shows office / sign / data-confidence / event chips; the header reads "Not watching · sign <state>" whenever the vehicle-truth camera is not HEALTHY; the floor board has its own open-only query (limit 200, then "N more"); bay status reads unknown while the sign is not watching; `shared/lotDataConfidence.ts` grades today's arrivals against the prior-days baseline as UNKNOWN / LOW / OK.
+- **Conversation worker freshness:** the fleet verdict reads the office worker STALE after 120 s without a report (`shared/cameraFleetHealth.ts`).
+
+Corrections to older sections of this file, found by the audit (those sections stay as dated receipts):
+
+- **The Lot producer is live, not missing.** The 2026-09-09 paragraph "What is still missing is a PRODUCER" is historical: since 2026-09-28 visitd runs on NicksMax in Session 0 and its `ShopMirror` posts visits to `POST /api/camera/visits` and heartbeats to `/api/camera/heartbeat` (Railway accepted `sign seq=1 ... HEALTHY` that day); the owner lane posts the same visits to StateNour `/api/devices/{id}/events`. `vehicle_visits` row counts were not re-read on 2026-10-07 (TiDB was not reachable from the audit session), which is exactly the gap the trust strip now reports instead of assuming.
+- **Cold boot is observed twice, not proven.** Session-0 supervisor startup after a Windows start was observed on 2026-10-02 09:15 ET and 2026-10-03 13:56:58 ET (production chain back by 13:58:52 under SYSTEM). The receipt the 2026-09-28 notes asked for, fresh Railway camera heartbeats after a boot with nobody logged in, is still unrecorded.
+- **The live supervisor task is `NicksMaxCameraSupervisorSystem`** (SYSTEM, at startup); its loop script calls `nicksmax-camera-supervisor.ps1` about every 30 s. The one-minute `NicksMaxCameraSupervisor` registered by `register-camera-system-task.ps1` is the 2026-09-28 receipt, not the running configuration.
+- **The office camera watches as well as listens, and the decoder changed.** Migrations 0140 and 0141 are applied (0141 at 2026-10-03 01:24Z; `gist true` is stored on most Oct 5-6 episodes). The decoder is `ggml-large-v3-turbo-q5_0` since 2026-10-03 10:12 ET, which costs 226-600 s per 120 s capture, so the lane hears about 8 % of the day. PR #2920 decouples capture from transcription; the decoder choice stays the operator's.
+
+Operator-pending after merge: apply 0143; `git pull` on NicksMax (the supervisor, edge, office-worker and visitd hardening in commits 15b1ab19, ab6e55fa, 106e9b91 and f44d66cb is not live there until then); reclaim disk on NicksMax (113 MB free of 40 GB measured 2026-10-07; the supervisor's new 1 GB floor cannot free what desktop applications hold).
+
 ## Admin closure wave (2026-10-02) — BUILT + TESTED; not yet deployed
 
 Full corrections ledger and gated items: [`operations/ADMIN-TRUTH-PASS-2026-10-02.md`](operations/ADMIN-TRUTH-PASS-2026-10-02.md).
@@ -88,7 +107,7 @@ NicksMax now owns the lightweight production `sign` camera-processing lane. This
 - **SYSTEM authority:** `NicksMaxCameraSupervisorUser` is disabled. The active supervisor and production camera process tree run in Windows Session 0.
 - **Self-heal receipt:** with the user supervisor disabled, the old Session-1 production edge tree was killed. Session 0 recreated the production wrapper at 18:27:11 ET and Python/OpenVINO edge processes at 18:27:12 ET; the local status log recorded `START authoritative RTSP sign producer` at 18:27:12 ET.
 - **Cloud/admin-backend receipt:** Railway `MAINnicks-tire-auto` accepted the restarted producer at 22:27:38Z as `sign seq=1 accepted state=HEALTHY`, followed by seq=2 and seq=3 HEALTHY. After Windows was locked, HEARTBEAT acceptance continued through at least seq=8 at 22:31:08Z.
-- **Evidence boundary:** GUI-free, Session-0, self-heal, and locked-screen operation are proven. A full Windows reboot after the SYSTEM-supervisor cutover is not yet live-proven because the remote-control layer blocked restart/shutdown. Do not promote `AtStartup` configuration into a cold-boot receipt until a later controlled reboot produces fresh Session-0 and Railway evidence.
+- **Evidence boundary:** GUI-free, Session-0, self-heal, and locked-screen operation are proven. A full Windows reboot after the SYSTEM-supervisor cutover is not yet live-proven because the remote-control layer blocked restart/shutdown. Do not promote `AtStartup` configuration into a cold-boot receipt until a later controlled reboot produces fresh Session-0 and Railway evidence. **Updated 2026-10-07:** Session-0 startup after a Windows start was observed on 2026-10-02 09:15 ET and 2026-10-03 13:56:58 ET (chain back by 13:58:52 under SYSTEM); the login-free Railway heartbeat receipt is still unrecorded, so cold-boot persistence is observed-twice, not proven. The live task is `NicksMaxCameraSupervisorSystem` (at startup; its loop calls the supervisor tick about every 30 s).
 - **Storage warning:** C: had about 2.53 GB free (6.3%) at closeout. Camera logs/DBs were small; active worktrees were deliberately preserved rather than deleted.
 
 Durable local-node receipt: [`../../../docs/operations/NICKSMAX-WORKSTATION-2026-09-27.md`](../../../docs/operations/NICKSMAX-WORKSTATION-2026-09-27.md).
@@ -132,7 +151,7 @@ Durable receipt: [`../../../docs/00-current-truth/connection-hardening-2026-09-2
 - Tailscale shop connectivity works; initial DERP fallback followed by a direct peer path is normal NAT traversal, not an outage.
 - Camera-health detection, durable claim/retry behavior, and persisted sign degradation/recovery state transitions are proven. Provider-accepted **real production degradation plus recovery owner delivery is not yet proven** and remains open.
 - Office is commissioned and emits `PRODUCTION` heartbeats from NicksMax against NICKS EUCLID (`T8410P5225154105`). Media is live-proven; the current state is `UNVERIFIED_CAPABILITIES` because fresh semantic-event, control/PTZ and calibrated-home receipts remain unknown. The old Moes camera (`T8410P522517180B`) is legacy and is not the production target.
-- NicksMax camera authority is now live on the direct Session-0 RTSP/OpenVINO path with the V380 GUI absent and locked-screen heartbeats proven. The earlier camera-session reboot guard is superseded; only the post-cutover cold-boot persistence receipt and separate consumer ESU enrollment remain open.
+- NicksMax camera authority is now live on the direct Session-0 RTSP/OpenVINO path with the V380 GUI absent and locked-screen heartbeats proven. The earlier camera-session reboot guard is superseded; only the post-cutover cold-boot persistence receipt and separate consumer ESU enrollment remain open (2026-10-07: Session-0 startup after a boot was observed on Oct 2 and Oct 3, but the login-free Railway heartbeat receipt is still unrecorded).
 - Resend domain verification is failed until the required records are added at the authoritative Global Domain Group DNS provider.
 
 ## Higgsfield runtime recovery + live canary (2026-09-27)
@@ -286,11 +305,14 @@ renders **"Awaiting first event"** — NOT the failed-read banner, which is what
 table was missing. That distinction is the point: an empty lot and an unreadable one are different
 facts and the screen says which.
 
-**What is still missing is a PRODUCER, not the schema.** Two exist in the tree —
-`camera-bridge/visitd/shop_mirror.py` and `camera-bridge/vision/run_live.py`'s `VisitSink`, both
-posting `{visits:[…]}` with `x-sync-key` to `POST /api/camera/visits` — but neither runs against a
-live camera yet, because the cameras are not reachable from the operator's laptop. Until one runs on
-the shop machine the table stays empty and every Lot counter stays blank by design.
+**Historical (2026-09-09), superseded 2026-09-28 -- see the camera intelligence audit wave section at
+the top of this file.** At the time, what was missing was a PRODUCER, not the schema. Two existed in the
+tree — `camera-bridge/visitd/shop_mirror.py` and `camera-bridge/vision/run_live.py`'s `VisitSink`, both
+posting `{visits:[…]}` with `x-sync-key` to `POST /api/camera/visits` — but neither ran against a live
+camera, because the cameras were not reachable from the operator's laptop, so the table stayed empty and
+every Lot counter stayed blank by design. Since 2026-09-28 visitd's `ShopMirror` runs on NicksMax in
+Session 0 (Railway accepted its heartbeats that day), so the producer gap is closed; whether the table
+has rows on a given day is what the Lot trust strip now states instead of assuming.
 
 ## Public-site serving contract (2026-09-07, PR #2173 → `f2bcf949d`)
 

@@ -2685,7 +2685,7 @@
       "name": "Counter conversation episodes are shown to operators as evidence-backed summaries with transcript-quality and candidate-link uncertainty",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "PR #2686 established the Admin > Lot counter-conversation cockpit. PR #2704 branch camera/summary-first-audio-source-20260927 hardens the same capability: office capture is source-agnostic (RTSP or Windows DirectShow mic), event-woken capture carries the source format end-to-end, and stored summaries are synthesized only from accepted provenance-backed facts; free-form LLM summary prose is ignored.",
+        "codeCommit": "PR #2686 established the Admin > Lot counter-conversation cockpit. PR #2704 branch camera/summary-first-audio-source-20260927 hardens the same capability: office capture is source-agnostic (RTSP or Windows DirectShow mic), event-woken capture carries the source format end-to-end, and stored summaries are synthesized only from accepted provenance-backed facts; free-form LLM summary prose is ignored. PR #2920 (2026-10-07, commit ab6e55fa) makes the office worker's heartbeat survive locked SQLite reads, reports transcript failures as failures, decouples capture from transcription and adds listening-coverage counters to the office heartbeat.",
         "tests": [
           "server/lib/conversationQuality.test.ts: JSON boundary, interval-union coverage, unknown-vs-zero coverage, clip clamping",
           "server/routes/conversationRoutes.test.ts: coverage/failure gates plus speaker grouping reaches the fact extractor and speakerCount returns without identity semantics",
@@ -2694,7 +2694,12 @@
           "camera-bridge/tests/test_office_capture_installer.py: installer preserves generic source variables, DirectShow preflight path, and interactive-user task semantics",
           "Local 2026-09-27: focused office suite 66/66; full camera-bridge suite 737 passed, 2 skipped, 112 subtests"
         ],
-        "liveRuns": []
+        "liveRuns": [
+          "2026-09-29 17:35:54Z first automatic production receipt on NicksMax against NICKS EUCLID: wake on audioActivity (probe mean -48.2 dBFS, peak -27.1 dBFS), bounded capture, segmentation, local whisper, 5 episodes posted (coverages 1.000/0.911/0.919/0.742/0.167), summaries_stored=1, facts_stored=1, STT latency 25,086 ms (docs/CURRENT-TRUTH.md, Office Intelligence runtime).",
+          "2026-10-03 NicksMax transcript audit: 15 live office episodes in conversation_episodes, 0 facts, 0 dropped facts; the two substantial transcripts were incoherent (ggml-base.en-q5_1 on the i5-5350U). Decoder switched to ggml-large-v3-turbo-q5_0 at 10:12 ET (WhisperCpp/switch-to-turbo.log).",
+          "2026-10-07 camera audit (docs/agent-audit/CAMERA-INTELLIGENCE-AUDIT-2026-10-07.md): the Eufy bridge /record/T8410P5225154105 has been the live audio source since 2026-09-29 (Chrome, the Eufy web UI and the Windows microphone are not dependencies); with large-v3-turbo each 120 s capture transcribes in 226-600 s (two 600 s timeouts), so the lane hears about 8% of the day. Latency, not extraction, is the binding constraint."
+        ],
+        "deploymentId": "Railway MAINnicks-tire-auto deployment e146fe72-dce4-436a-9050-d9b9e5affc95 (main aa76a73, #2899, SUCCESS 2026-10-02T20:27:59Z) carries the /api/conversation-episodes ingest and the Admin > Lot cockpit read path and logged 10 of 10 framed episodes stored that evening; the 2026-09-29 first automatic receipt ran on the #2786-era production container, whose deployment id CURRENT-TRUTH did not record."
       },
       "blockers": [
         {
@@ -2704,18 +2709,18 @@
         },
         {
           "severity": "P2",
-          "description": "No stable production office audio source is commissioned yet. Eufy office media is intermittent on the current remote bridge; the new DirectShow counter-mic path is deployable but not physically installed/proven at the shop.",
-          "source": "2026-09-27 live Eufy A/B probe + PR #2704"
-        },
-        {
-          "severity": "P2",
           "description": "Diarization metadata is contract-ready but no live WhisperX/pyannote producer has been commissioned on the shop capture runtime. speakerCount and speaker labels may remain NULL/absent until that happens.",
           "source": "2026-09-26 camera workstream"
         },
         {
           "severity": "P2",
-          "description": "Transcription quality, not extraction, is the binding constraint. Measured 2026-10-03: 15 office episodes, 0 facts, 0 dropped facts; the two substantial transcripts were incoherent whisper output (ggml-base.en-q5_1 on the shop PC's i5-5350U) and a repetition loop that scored 0.855 coverage and published a gist. This branch refuses looped transcripts server-side and adds -mc 0 to the bridge transcriber; the bridge change is unproven until NicksMax runs the updated officepost.py. Ollama Cloud cannot transcribe (gemma4:cloud and gemma4:31b-cloud are text+image only; Gemma 4 audio exists only in the local E2B/E4B edge models, checked 2026-10-03). Benchmarked on NicksMax on one real 15s clip with -mc 0: base.en 9s, small.en 26s, medium.en ~76s, large-v3-turbo-q5_0 ~82s; turbo was the most coherent, but all four disagreed, so the distant Eufy camera mic is itself a limit. All three models are downloaded to the WhisperCpp dir; switching OFFICE_WHISPER_MODEL needs an elevated shell plus a restart of StateNour-OfficeIntelligence-NicksMax.",
-          "source": "2026-10-03 NicksMax transcript audit + branch nickstire/voice-arrival-and-facts"
+          "description": "2026-10-07 update: the decoder has been ggml-large-v3-turbo-q5_0 since 2026-10-03 10:12 ET, so the binding constraint is now latency (226-600 s per 120 s capture, about 8% listening coverage); the -mc 0 bridge change is still unproven until NicksMax pulls. Original 2026-10-03 note: Transcription quality, not extraction, is the binding constraint. Measured 2026-10-03: 15 office episodes, 0 facts, 0 dropped facts; the two substantial transcripts were incoherent whisper output (ggml-base.en-q5_1 on the shop PC's i5-5350U) and a repetition loop that scored 0.855 coverage and published a gist. This branch refuses looped transcripts server-side and adds -mc 0 to the bridge transcriber; the bridge change is unproven until NicksMax runs the updated officepost.py. Ollama Cloud cannot transcribe (gemma4:cloud and gemma4:31b-cloud are text+image only; Gemma 4 audio exists only in the local E2B/E4B edge models, checked 2026-10-03). Benchmarked on NicksMax on one real 15s clip with -mc 0: base.en 9s, small.en 26s, medium.en ~76s, large-v3-turbo-q5_0 ~82s; turbo was the most coherent, but all four disagreed, so the distant Eufy camera mic is itself a limit. All three models are downloaded to the WhisperCpp dir; switching OFFICE_WHISPER_MODEL needs an elevated shell plus a restart of StateNour-OfficeIntelligence-NicksMax.",
+          "source": "2026-10-03 NicksMax transcript audit + 2026-10-07 camera audit"
+        },
+        {
+          "severity": "P2",
+          "description": "Listening coverage is about 8% of the day (measured 2026-10-07: transcription runs 2-5x longer than the 120 s capture it follows). PR #2920 decouples capture from transcription so coverage no longer waits on whisper, but transcript throughput is unchanged; reverting OFFICE_WHISPER_MODEL to base.en (9 s per 15 s clip, less coherent) or adding CPU is an operator decision, recorded as open in ADR-0022.",
+          "source": "2026-10-07 camera audit"
         }
       ],
       "deferredScope": [
@@ -2725,10 +2730,11 @@
         "outside-service visual classification",
         "live-video viewing in Admin (not required for the summary-first product)"
       ],
-      "lastVerifiedAt": "2026-09-27",
+      "lastVerifiedAt": "2026-10-07",
       "codeState": "merged",
-      "operationalState": "unit_verified",
-      "exposure": "internal"
+      "operationalState": "live_verified",
+      "exposure": "internal",
+      "verificationExpiresAt": "2026-11-06"
     },
     {
       "capabilityId": "camera-role-aware-health",
@@ -2751,7 +2757,9 @@
           "After the persisted Eufy bridge recovered auth=ok / pushConnected=true / sessionLost=false, office transitioned AUTH_DEGRADED -> MEDIA_DEGRADED instead of falsely going green.",
           "Persistent NattyNour observer advanced one stable office producer sequence through at least seq 15 while remaining MEDIA_DEGRADED; it deliberately runs with EUFY_CONTROL_ENABLED=0 on the wrong LAN.",
           "Production camera_runtime readback: office mode=SHADOW, sourceConnected=1, authPlaneOk=1, eventPlaneOk=1, mediaPlaneOk=0, controlPlaneOk=NULL, ptzHomeOk=NULL; lastEventProofAt/lastControlProofAt/lastMediaProofAt/lastPtzNotifyAt all NULL at read time. Fixed sign remained independent in PRODUCTION.",
-          "2026-09-27 18:16Z production alert receipt: sign transitioned HEALTHY -> CLOUD_BACKLOG and camera-health-alerts claimed the page. Resend rejected both attempts because nickstire.org was unverified; the log-only notifyOwner fallback was correctly rejected as external delivery; the claim was released and the job failed retryably. This proves detection/claim/retry behavior live, not owner delivery."
+          "2026-09-27 18:16Z production alert receipt: sign transitioned HEALTHY -> CLOUD_BACKLOG and camera-health-alerts claimed the page. Resend rejected both attempts because nickstire.org was unverified; the log-only notifyOwner fallback was correctly rejected as external delivery; the claim was released and the job failed retryably. This proves detection/claim/retry behavior live, not owner delivery.",
+          "2026-09-29 00:19:11Z office seq=1 transitioned MEDIA_DEGRADED -> UNVERIFIED_CAPABILITIES with mode=PRODUCTION against NICKS EUCLID (T8410P5225154105) after the target fix; corrected heartbeats reached seq=16 by 00:28:15Z. The 2026-09-27 mode=SHADOW readback above is historical.",
+          "2026-10-07 camera audit (Railway camera heartbeats read live): sign HEALTHY on the Session-0 lane and office UNVERIFIED_CAPABILITIES, independently, as designed. Also found: day-keyed alert claims paged 'Office PTZ degraded' and 'Shop sign recovered' every midnight ET and stayed silent on a second failure inside one day, and two interleaved office heartbeat owners (duplicate Eufy agents) posted since 2026-10-03. PR #2920 re-keys alerts per episode with a 30-minute cooldown and dedupes agents in the supervisor; both unit-verified, live proof pending the merge and a NicksMax git pull."
         ],
         "databaseAssertions": [
           "Migration 0134 hash 108091f416b2b91e279ad9cbde3e781864d8a343a35410271b81ac55806686ab applied via scoped production DB guard; INFORMATION_SCHEMA re-read verified five nullable tinyint(1) transport flags + four nullable timestamp proof fields; __drizzle_migrations recorded created_at=1789301500000; strict reconciliation reports 0134 RECORDED_AND_MATCHED."
@@ -2760,8 +2768,8 @@
       "blockers": [
         {
           "severity": "P2",
-          "description": "Office T8410 P2P control/media is still not physically proven. NattyNour can authenticate and receive push state but is off the camera LAN; final bridge/control/media host must run on the shop-side Windows peer DESKTOP-VBAHM60 (or an explicitly engineered subnet route).",
-          "source": "2026-09-27 live office heartbeat + prior StationUnreachableError/P2P timeout receipts"
+          "description": "Office T8410 (NICKS EUCLID) media is proven (2026-09-29 mediaPlaneOk=true probe from NicksMax; 2026-10-02 /snapshot 200 image/jpeg from the NicksMax bridge). Control/PTZ is still unproven and intentionally disabled (EUFY_CONTROL_ENABLED=0), so office sits in UNVERIFIED_CAPABILITIES by design; the daily midnight 'Office PTZ degraded' page that produced is removed by PR #2920's per-episode alert keys (unit-verified, live proof pending).",
+          "source": "2026-09-29 media probe + 2026-10-02 snapshot + 2026-10-07 camera audit"
         },
         {
           "severity": "P2",
@@ -2785,8 +2793,8 @@
         "signed-in visual Admin > Lot walkthrough",
         "first provider-accepted production camera-health degradation alert + recovery delivery receipt after #2715 (or verified Resend DNS)"
       ],
-      "lastVerifiedAt": "2026-09-27",
-      "verificationExpiresAt": "2026-10-27",
+      "lastVerifiedAt": "2026-10-07",
+      "verificationExpiresAt": "2026-11-06",
       "codeState": "merged",
       "operationalState": "live_verified",
       "exposure": "internal"
@@ -3474,7 +3482,7 @@
           "camera-bridge vision/tests/test_officepeople.py (11): per-frame counts, unavailable/inference error/no cv2 -> null never 0, opt-out never loads, single load per process, label default vehicle, person detector cannot confirm arrivals; 9 mutations each caught",
           "camera-bridge vision/tests/test_officeframes.py (8) + test_officewake.py (+3): snapshot URL, sampler misses/closing frame/max, per-segment selection + thinning, OpenCV 1280->640 downscale, each episode carries its own frames, 120s post timeout with frames, capture failure stops the sampler; per-segment selection mutation turns red"
         ],
-        "liveRuns": "Pre-merge on NicksMax 2026-10-02: Eufy bridge /snapshot/T8410P5225154105 returned 200 image/jpeg 201,063 bytes; the supervisor's code-change rule restarted the office worker once at 14:16:15 ET and the worker reported CAPTURING with a fresh heartbeat. Live 2026-10-02: migration 0140 applied via Admin -> Run migrations at 18:52-18:53Z; NicksMax worker status lastConversationFramesPosted=1 at 19:35:48Z matching a 200 on POST /api/conversation-episodes; after PR #2899 (aa76a73, deployment e146fe72 SUCCESS 20:27:59Z) added a per-episode outcome log, Railway deploy logs show 10 of 10 framed episodes 20:29:51Z-20:54:36Z logging 'office visual stored' visualStatus DONE, provider ollama, model gemma4:31b, latency 539-1184 ms, error null, and zero 'office visual not stored' lines. On-box person count live 2026-10-02: person-detection-0200 fetched to NicksMax camera-bridge/ov_models (sha256 verified), office venv has openvino 2026.4 + cv2, a live snapshot counted 0 with no load error; after #2901 (781542d, deployment c4916064 SUCCESS, superseded by 3ceaf943 SUCCESS 21:48:21Z which contains it) 9 of 9 framed episodes 21:35:40Z-22:00:37Z logged 'office visual stored' with onBoxPeople a number (1,1,1,0,0,0,0,1,1), DONE, ollama gemma4:31b, 494-8537 ms, error null."
+        "liveRuns": "Pre-merge on NicksMax 2026-10-02: Eufy bridge /snapshot/T8410P5225154105 returned 200 image/jpeg 201,063 bytes; the supervisor's code-change rule restarted the office worker once at 14:16:15 ET and the worker reported CAPTURING with a fresh heartbeat. Live 2026-10-02: migration 0140 applied via Admin -> Run migrations at 18:52-18:53Z; NicksMax worker status lastConversationFramesPosted=1 at 19:35:48Z matching a 200 on POST /api/conversation-episodes; after PR #2899 (aa76a73, deployment e146fe72 SUCCESS 20:27:59Z) added a per-episode outcome log, Railway deploy logs show 10 of 10 framed episodes 20:29:51Z-20:54:36Z logging 'office visual stored' visualStatus DONE, provider ollama, model gemma4:31b, latency 539-1184 ms, error null, and zero 'office visual not stored' lines. On-box person count live 2026-10-02: person-detection-0200 fetched to NicksMax camera-bridge/ov_models (sha256 verified), office venv has openvino 2026.4 + cv2, a live snapshot counted 0 with no load error; after #2901 (781542d, deployment c4916064 SUCCESS, superseded by 3ceaf943 SUCCESS 21:48:21Z which contains it) 9 of 9 framed episodes 21:35:40Z-22:00:37Z logged 'office visual stored' with onBoxPeople a number (1,1,1,0,0,0,0,1,1), DONE, ollama gemma4:31b, 494-8537 ms, error null. 2026-10-07 camera audit: migration 0141 ('Heard:' gist) was applied 2026-10-03 01:24Z and Railway logs show gist true stored on most Oct 5-6 episodes; 5 Right/Wrong reviews were written 2026-10-02 23:38Z (visual.review) and their consumption in a later prompt is still unproven."
       },
       "blockers": [
         {
@@ -3484,20 +3492,15 @@
         },
         {
           "severity": "P2",
-          "description": "'Heard:' topic line (conversation_episodes.gist, migration 0141): merged + unit-verified only. Needs Admin -> Run migrations to apply 0141; until then the gist is computed and logged as a flag but not stored. Live proof: a 'conversation extracted' log line with gist true and a 'Heard:' line in Admin -> Lot.",
-          "source": "2026-10-02 office heard-gist PR"
-        },
-        {
-          "severity": "P2",
-          "description": "Self-learning (Right / Wrong reviews -> calibration notes in the vision prompt) and camera context in fact extraction are deployed but not yet exercised live: proof is a saved review row (visual.review) and a later episode described with it in the prompt. On-box person count is live-proven (see liveRuns).",
-          "source": "2026-10-02 office self-learning PR"
+          "description": "Self-learning: 5 Right/Wrong reviews are saved (2026-10-02 23:38Z, visual.review), but no later episode has yet been proven described with those calibration notes in its prompt. Camera context in fact extraction is deployed and unexercised. On-box person count is live-proven (see liveRuns).",
+          "source": "2026-10-02 office self-learning PR + 2026-10-07 camera audit"
         }
       ],
       "deferredScope": [
         "fine-tuning or retraining any model on reviewed frames (the loop is prompt calibration only; frames are never stored)"
       ],
-      "lastVerifiedAt": "2026-10-02",
-      "verificationExpiresAt": "2026-11-02"
+      "lastVerifiedAt": "2026-10-07",
+      "verificationExpiresAt": "2026-11-06"
     },
     {
       "capabilityId": "reel-video-forge-self-hosted",

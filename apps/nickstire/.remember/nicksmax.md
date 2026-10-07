@@ -34,7 +34,8 @@ This proves the camera lane survives without the V380 GUI, without the interacti
 
 - A full Windows reboot **after** the SYSTEM-supervisor cutover has not been observed. The remote-control layer blocked the restart command. Treat cold-boot persistence as configured-but-not-yet-live-proven.
 - Do not claim a reboot receipt until a later session observes the machine boot, the Session-0 supervisor start, and fresh Railway camera heartbeats without logging into the desktop.
-- C: had about 2.53 GB free (6.3%) at closeout. Camera logs/DBs were small; active worktrees were the largest obvious reclaim candidates and were deliberately left untouched.
+- **Update 2026-10-07 (camera audit):** Session-0 supervisor startup after a Windows start was observed on 2026-10-02 09:15 ET and 2026-10-03 13:56:58 ET (`Win32_OperatingSystem` LastBootUpTime; the production chain was back by 13:58:52 under SYSTEM). Still unrecorded: fresh Railway camera heartbeats after a boot with nobody logged in. Treat cold boot as observed-twice, not proven. The live task is `NicksMaxCameraSupervisorSystem` (at startup; its loop calls the tick about every 30 s), not the one-minute `NicksMaxCameraSupervisor` the 09-28 scripts register.
+- C: had about 2.53 GB free (6.3%) at closeout. Camera logs/DBs were small; active worktrees were the largest obvious reclaim candidates and were deliberately left untouched. **2026-10-07:** 113 MB free of 40.16 GB, CPU load 100 % on the 2-core i5-5350U, with ChatGPT desktop, Claude desktop, Codex CUA and a V380 desktop client running on the sensor host. Reclaim is an operator action; the supervisor in PR #2920 holds a 1 GB floor once NicksMax pulls.
 
 ## Operating rules
 

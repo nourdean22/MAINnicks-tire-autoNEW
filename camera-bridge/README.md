@@ -1,5 +1,17 @@
 # camera-bridge v2 - Arrival Intelligence edge runbook
 
+> **As built (2026-10-07; ADR-0022).** Production does NOT run the Frigate lane drawn below. The `sign`
+> camera is read through the V380 vendor relay (`:8554`) -> FFmpeg middle-lens crop -> MediaMTX
+> `rtsp://127.0.0.1:8555/sign` -> `edge_main.py` (OpenVINO detector council + `vision/pipeline.py` +
+> visitd's `VisitTracker`), on the shop's Windows PC NicksMax under the SYSTEM supervisor
+> `scripts/nicksmax/nicksmax-camera-supervisor.ps1` (~30 s loop). It posts visits and heartbeats to BOTH
+> nickstire (`/api/camera/visits`, `/api/camera/heartbeat`) and StateNour (`/api/devices/{id}/events`).
+> The office counter lane (`vision/officewake.py`, Eufy `/record` audio -> local whisper -> text only;
+> stills to a cloud vision model) is a second producer on the same box: `docs/SHOP-PC-RUNBOOK.md` section 8.
+> Host receipts: `docs/operations/NICKSMAX-CAMERA-HOST-2026-09-28.md`. The Frigate + MQTT + PoE design
+> below is the ADR-0017 plan and the Docker lab lane; `visitd` (state machine, ledger, outbox, cloud
+> client) is shared by both and is what the sections on delivery, metrics and troubleshooting describe.
+
 Frigate 0.17.2 does detection, tracking, zones and plate reading on the shop LAN; `visitd` (this package) turns
 Frigate's MQTT stream into deterministic **visits** and ships idempotent events to statenour
 (`https://bdnick.info`). Spec: `docs/research/2026-09-08-camera-vision-MASTER-PLAN.md` sections 4.2, 6, 8.2, 9, 11, 13, 15.
@@ -265,8 +277,8 @@ it has been silent for 20 min (two missed heartbeats plus one tick) and pages on
 | `mqtt connect failed reason=Not authorized` | wrong `MQTT_USERNAME`/`MQTT_PASSWORD` or passwd file missing | section 5, then `docker compose restart mqtt visitd` |
 | broker container exits at start | `mosquitto/passwd` absent or world-readable | create it (section 5) |
 | Frigate logs `No such file: /config/config.yml` | file mounted instead of the directory | keep `./frigate/config:/config`, put `config.yml` inside |
-| `cloud dropped ... reason=sync_key_rejected` | `STATENOUR_SYNC_KEY` differs from Railway | fix `.env`; dropped events are gone (log has the eventId) |
-| `cloud dropped ... reason=http_404` | `cloudDeviceId` is not a statenour `platformDeviceId` | check `smart_devices.platform_device_id`; the cloud resolves id OR platformDeviceId since PR `statenour/camera-arrival-p0` |
+| `cloud dropped ... reason=sync_key_rejected` | `STATENOUR_SYNC_KEY` differs from Railway | fix `.env`; since 2026-10-07 the payload is parked in the ledger's `dead_letter` table for 7 days (not deleted) and raises `deadLetterDepth` in the heartbeat, so the shop reads CLOUD_BACKLOG and pages instead of staying green |
+| `cloud dropped ... reason=http_404` | `cloudDeviceId` is not a statenour `platformDeviceId` | check `smart_devices.platform_device_id`; the cloud resolves id OR platformDeviceId since PR `statenour/camera-arrival-p0`; the refused payload is parked in `dead_letter` |
 | `cloud blocked reason=missing_sync_key` | key not in env | events wait in the outbox (max 5000); set the key and restart |
 | events stuck, `visitd_outbox_depth` grows, `cloud retry ... status=0` | WAN down / DNS | nothing to do; flushes in order on reconnect, cloud dedupes by `eventId` |
 | `cloud dead-lettered event_id=...` | the cloud answered ONE event with an HTTP error (5xx/429) `outboxMaxAttempts` times: a poison payload | delivery moves on; the row waits 7 days in the ledger's `dead_letter` table (`sqlite3 data/visitd.sqlite "select event_id,last_status,last_error from dead_letter"`); `deadLetterDepth` is in the heartbeat |

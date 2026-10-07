@@ -299,7 +299,10 @@ can see.
 **It is a different pipeline with a different privacy posture, so it is deliberately not
 folded into `edge_main.py`.** The audio never leaves this machine: it is transcribed locally
 and only the TEXT is posted. `conversation_episodes.audioRef` stores a path, never a
-recording.
+recording. **Stills do leave it** (since #2898, 2026-10-02): the office "watch" sends a few
+frames per episode to a cloud vision model (Ollama Cloud, Google fallback) for a one-line
+description and stores the description, never the frames. Say "audio stays local", not
+"nothing leaves the box".
 
 ### Install it
 

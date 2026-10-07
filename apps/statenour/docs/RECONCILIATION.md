@@ -1,5 +1,17 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-07 · Camera audit wave (PR #2920, staged commits) · vehicle lane hardened, office watch truth, docs reconciled · 1 statenour ship inside a cross-app PR
+>
+> Driven by `docs/agent-audit/CAMERA-INTELLIGENCE-AUDIT-2026-10-07.md` (live NicksMax, Railway and Neon receipts): the vehicle lane reported about a tenth of pre-cutover arrivals while every surface read HEALTHY; one track minted 35 phantom visits overnight; the office lane listened about 8 % of the day. Most fixes are camera-bridge and nickstire (see the nickstire ledger). The statenour slice:
+>
+> - **`lib/services/vehicle-detection.ts`: the row is written BEFORE the page** (marker `alertSuppressedReason: "pending"` until the page completes; a retry that finds the marker finishes the one page, a retry that finds it cleared does nothing). Before: page, then INSERT; a failed INSERT answered 5xx, the edge outbox retried, no row was found, and it paged again. A `P2002` from the new unique eventId index is answered with the row that won. Visit window 12 h -> 7 days (a car over the weekend is one visit). `tests/services/vehicle-detection.test.ts`: the in-memory Prisma now enforces the unique index and honours `createdAt` windows; 5 new cases (order, suppressed rows carry no marker, crash-then-retry pages once, lost race answered with the winner, weekend visit).
+> - **Pending migration `20261007120000_device_events_identity_indexes`** (partial UNIQUE on `(device_id, data->>'eventId')`, index on `(device_id, data->>'visitId')`), registered statement for statement in `app/api/system/apply-pending-migration/route.ts`, read-only duplicate preflight in the file header. `lib/db/schema-sentinel.ts` expects the unique index, so `/system/health` says "missing" until the operator applies it -- true, not a false positive.
+> - **Docs:** `CURRENT-TRUTH.md` no longer says the office camera "does not watch" (it has since #2898/#2901); the pending-operator-decision line in `.remember/now.md` is closed (both options shipped); `docs/adr/0022-camera-vision-as-built.md` supersedes ADR-0017 on five of seven decisions.
+>
+> Gates: targeted vitest 6 files / 51 passed (vehicle-detection, apply-pending-migration, three schema-sentinel files, owner-panel migrations) · `tsc --noEmit` 0 · eslint on the four changed files 0 · `check:raw-sql`, `prisma validate` green (receipts in the PR). Not run here: the full `verify:hard` chain (cross-app PR; CI carries it).
+>
+> **Open (operator):** apply `20261007120000_device_events_identity_indexes` after the preflight; `git pull` on NicksMax; decide whether to revert the office decoder to `base.en` (the coverage number now exists to judge it).
+>
 > ## 2026-10-03 · Sentry sweep + cron hygiene (#2904 · #2906) · chat 500 on em-dash, duplicate cron runs, daily-brief compose bound · 2 statenour ships
 >
 > A 90-day Sentry sweep (org `statenour`, 21 unresolved) plus a cron audit of both apps. Thinking engine first run verified: `think` success 03:04Z 10-03, 8 contradictions, 4 causal_chains, 1 identity_snapshot written; #2894 live.
@@ -65,7 +77,7 @@
 >
 > The sign producer has run without an rc=3 exit since 11:20.
 >
-> **Open:** office "watch" (vision) is not built; it waits on the operator's choice between cloud VLM stills and on-box detection only. The first `/api/cron/think` rows land on the next mega-evening.
+> **Open:** ~~office "watch" (vision) is not built; it waits on the operator's choice between cloud VLM stills and on-box detection only.~~ Corrected 2026-10-07: both shipped on 2026-10-02 (#2898 cloud stills with the "Saw:" line, #2901 on-box person count); this line was stale when written. The first `/api/cron/think` rows land on the next mega-evening.
 >
 > ## 2026-10-02 · brain graph Unlinked tray + Obsidian bridge restored (#2890) · out-of-window FK anchors, dangling-link requeue, Obsidian status reaches prod, export overwrite loop ended · NattyNour bridge repaired live
 >
