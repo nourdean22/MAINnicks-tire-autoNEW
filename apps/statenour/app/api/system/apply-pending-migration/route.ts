@@ -374,6 +374,24 @@ const MIGRATIONS: Record<string, string[]> = {
     `CREATE INDEX IF NOT EXISTS "bridge_receipts_first_seen_at_idx" ON "bridge_receipts"("first_seen_at");`
   ],
 
+  // Camera audit 2026-10-07 · vehicle lane hardening. Two expression indexes on
+  // device_events, nothing else: one edge eventId per device (the service's
+  // findFirst-then-create dedupe had no database behind it, so two retries of
+  // one arrival became two rows and two pages), and a visitId index so the
+  // visit window can span a weekend. Prisma cannot model either. Mirrors,
+  // statement for statement,
+  // prisma/migrations-pending/20261007120000_device_events_identity_indexes/migration.sql,
+  // whose header carries the read-only duplicate preflight to run if the
+  // unique create fails. Deduplicating is a DELETE and is not automated here.
+  "20261007120000_device_events_identity_indexes": [
+    `CREATE UNIQUE INDEX IF NOT EXISTS "device_events_device_id_event_id_uniq"
+  ON "device_events" ("device_id", ("data"->>'eventId'))
+  WHERE "data"->>'eventId' IS NOT NULL`,
+    `CREATE INDEX IF NOT EXISTS "device_events_device_id_visit_id_idx"
+  ON "device_events" ("device_id", ("data"->>'visitId'))
+  WHERE "data"->>'visitId' IS NOT NULL`,
+  ],
+
   // Q-31 · BrainMemory transaction-time validity. Additive nullable columns
   // only; no historical backfill and no destructive DDL. Runtime code probes
   // these columns before use, so this remains deploy-safe before the operator

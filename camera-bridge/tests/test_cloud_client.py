@@ -76,6 +76,31 @@ class CloudClientTest(unittest.TestCase):
         self.assertEqual(client.deliver_once(), "sent")
         self.assertEqual(self.metrics.get("visitd_cloud_dropped_total", {"reason": "sync_key_rejected"}), 1)
 
+    def test_a_permanent_4xx_parks_the_payload_in_dead_letter_instead_of_deleting_it(self) -> None:
+        """The cloud's refusal is evidence, and deadLetterDepth is how the shop learns of it.
+
+        Until 2026-10-07 a 401/400/404 DELETED the row: the heartbeat kept reporting
+        deadLetterDepth=0 and a camera whose every event was being rejected read HEALTHY."""
+        transport = FakeTransport([(400, '{"error":"invalid body","fieldErrors":{"data":["bad state"]}}'), (401, "unauthorized")])
+        client = self._client(transport)
+        self.ledger.enqueue("malformed", "dev-a", "u", {"eventId": "malformed"})
+        self.ledger.enqueue("unauthorized", "dev-b", "u", {"eventId": "unauthorized"})
+        with self.assertLogs("visitd.cloud", level="ERROR") as logs:
+            self.assertEqual(client.deliver_once(), "dropped")
+            self.assertEqual(client.deliver_once(), "dropped")
+        self.assertTrue(all("parked in dead_letter" in line for line in logs.output))
+        self.assertEqual(self.ledger.outbox_depth(), 0)
+        self.assertEqual(self.ledger.dead_letter_depth(), 2)
+        parked = {r["event_id"]: r for r in self.ledger.dead_letter_rows()}
+        self.assertEqual(parked["malformed"]["last_status"], 400)
+        self.assertIn("bad state", parked["malformed"]["last_error"])
+        self.assertEqual(parked["unauthorized"]["last_status"], 401)
+        self.assertEqual(self.metrics.get("visitd_outbox_dead_lettered_total"), 2)
+        self.assertEqual(self.metrics.get("visitd_cloud_dropped_total", {"reason": "http_400"}), 1)
+        self.assertEqual(self.metrics.get("visitd_cloud_dropped_total", {"reason": "sync_key_rejected"}), 1)
+        # Retention still applies: housekeeping prunes a parked 4xx like any other dead letter.
+        self.assertEqual(self.ledger.prune_dead_letter(0.0, now=self.ledger.dead_letter_rows()[0]["parked_at"] + 1.0), 2)
+
     def test_network_exception_is_a_retry(self) -> None:
         transport = FakeTransport([])
         client = self._client(transport)

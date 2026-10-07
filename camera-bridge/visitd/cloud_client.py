@@ -5,12 +5,18 @@ PATCH {baseUrl}/api/devices/{cloudDeviceId}         (heartbeat, not queued)
 
 Retry policy: network errors, 408/425/429 and 5xx retry with exponential
 backoff (never skipping ahead, so order is preserved); any other 4xx is
-permanent - the item is logged and removed so one bad payload cannot wedge
-the queue. 401 additionally names the likely cause (sync key mismatch).
-A payload that keeps drawing an HTTP error response is parked in the ledger's
-dead_letter table after outboxMaxAttempts such responses, and delivery moves
-on; transport failures (no response at all: WAN down, DNS) never count, so
-an outage flushes in order once it ends. The sync key is never logged.
+permanent - the item is logged, PARKED in the ledger's dead_letter table and
+removed from the outbox so one bad payload cannot wedge the queue. 401
+additionally names the likely cause (sync key mismatch). Until 2026-10-07 a
+permanent 4xx DELETED the payload: the only record of what the cloud refused
+was a log line, and the heartbeat's deadLetterDepth stayed 0, so the shop's
+health lattice read a camera whose every event was being rejected as HEALTHY.
+Parked rows raise deadLetterDepth (CLOUD_BACKLOG, which pages) and are kept
+for 7 days by Pipeline.housekeeping.
+A payload that keeps drawing an HTTP error response is parked the same way
+after outboxMaxAttempts such responses, and delivery moves on; transport
+failures (no response at all: WAN down, DNS) never count, so an outage
+flushes in order once it ends. The sync key is never logged.
 """
 from __future__ import annotations
 
@@ -166,14 +172,17 @@ class CloudClient:
             # was in the next twenty characters.
             #
             # The full text is also stored in the dead letter below, but a dead-letter row is
-            # drained on the next successful run, so by the time anyone reads the log the
-            # evidence can be gone. Same lesson as the commissioning P0 on this branch:
-            # truncate where text is PRINTED, and only where the reader loses nothing.
-            log.error("cloud dropped event_id=%s device=%s status=%s reason=%s body=%r",
+            # pruned after seven days, so by the time anyone reads the log the evidence can
+            # be gone. Same lesson as the commissioning P0 on this branch: truncate where
+            # text is PRINTED, and only where the reader loses nothing.
+            log.error("cloud dropped event_id=%s device=%s status=%s reason=%s body=%r (parked in dead_letter)",
                       item.event_id, item.device_id, status, reason, text[:1200])
-            self.ledger.outbox_fail(item.id, f"{status}: {text}", permanent=True)
+            # PARK, never delete. The payload the cloud refused is the evidence of why; a
+            # deleted row left a 401 storm looking like an idle camera (deadLetterDepth 0).
+            self.ledger.outbox_dead_letter(item.id, status, f"{status}: {text}")
             self.metrics.inc("visitd_cloud_events_total", labels={"result": "dropped"})
             self.metrics.inc("visitd_cloud_dropped_total", labels={"reason": reason})
+            self.metrics.inc("visitd_outbox_dead_lettered_total")
             self.metrics.set("visitd_outbox_depth", self.ledger.outbox_depth())
             return "dropped"
         counted = status > 0  # an HTTP error response counts toward the cap; no response at all never does
