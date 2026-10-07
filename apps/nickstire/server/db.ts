@@ -1519,23 +1519,30 @@ export async function createInspection(data: Omit<InsertVehicleInspection, "shar
  * every column schema.ts declares and would 500 on a pre-0143 database
  * (.claude/skills/nickstire-tidb-ddl), so the item read retries with the
  * pre-0143 column set when the database reports an unknown column.
+ *
+ * Built on demand, not at import: five test files mock `../drizzle/schema`
+ * with a partial factory, and a module-level `inspectionItems.id` would throw
+ * on import in every one of them (the rest of this file only touches schema
+ * tables inside functions, for the same reason).
  */
-const INSPECTION_ITEM_PRE_0143_COLUMNS = {
-  id: inspectionItems.id,
-  inspectionId: inspectionItems.inspectionId,
-  component: inspectionItems.component,
-  category: inspectionItems.category,
-  condition: inspectionItems.condition,
-  notes: inspectionItems.notes,
-  photoUrl: inspectionItems.photoUrl,
-  recommendedAction: inspectionItems.recommendedAction,
-  estimatedCost: inspectionItems.estimatedCost,
-  decision: inspectionItems.decision,
-  decisionAt: inspectionItems.decisionAt,
-  customerNote: inspectionItems.customerNote,
-  sortOrder: inspectionItems.sortOrder,
-  createdAt: inspectionItems.createdAt,
-};
+function inspectionItemPre0143Columns() {
+  return {
+    id: inspectionItems.id,
+    inspectionId: inspectionItems.inspectionId,
+    component: inspectionItems.component,
+    category: inspectionItems.category,
+    condition: inspectionItems.condition,
+    notes: inspectionItems.notes,
+    photoUrl: inspectionItems.photoUrl,
+    recommendedAction: inspectionItems.recommendedAction,
+    estimatedCost: inspectionItems.estimatedCost,
+    decision: inspectionItems.decision,
+    decisionAt: inspectionItems.decisionAt,
+    customerNote: inspectionItems.customerNote,
+    sortOrder: inspectionItems.sortOrder,
+    createdAt: inspectionItems.createdAt,
+  };
+}
 
 const NO_0143_COLUMNS = {
   measurementsJson: null,
@@ -1599,7 +1606,7 @@ async function selectInspectionItems(
     return rows.map(viewInspectionItem);
   } catch (err) {
     if (!isUnknownColumnError(err)) throw err;
-    const rows = await db.select(INSPECTION_ITEM_PRE_0143_COLUMNS).from(inspectionItems)
+    const rows = await db.select(inspectionItemPre0143Columns()).from(inspectionItems)
       .where(eq(inspectionItems.inspectionId, inspectionId))
       .orderBy(inspectionItems.sortOrder);
     return rows.map((r: Record<string, unknown>) => viewInspectionItem({ ...r, ...NO_0143_COLUMNS } as unknown as InspectionItem));
