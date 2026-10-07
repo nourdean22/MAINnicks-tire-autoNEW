@@ -17,6 +17,7 @@
  */
 import { router, publicProcedure, adminProcedure } from "../_core/trpc";
 import { sql } from "drizzle-orm";
+import { excludeNonHumanTraffic } from "../lib/trafficClass";
 import { z } from "zod";
 
 import { createLogger } from "../lib/logger";
@@ -61,6 +62,7 @@ export const conversionRouter = router({
           FROM customer_events
           WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
             AND sessionId IS NOT NULL
+            AND ${excludeNonHumanTraffic()}
         `);
         return { count, asOf: new Date().toISOString() };
       } catch (err) {
