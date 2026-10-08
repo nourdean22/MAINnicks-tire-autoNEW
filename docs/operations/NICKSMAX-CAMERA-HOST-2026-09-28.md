@@ -110,21 +110,29 @@ A SYSTEM scheduled supervisor was successfully created on NicksMax with the rece
 - result: `0x00041301`
 - receipt timestamp: 2026-09-28T14:08:09-04:00
 
-The SYSTEM task was created as a recurring one-minute task so it does not depend on the
-interactive `nourd` session. A non-admin query later returned Access Denied for that
-SYSTEM-owned task; that must not be misreported as task absence.
+The SYSTEM task was created as a recurring task so it does not depend on the interactive
+`nourd` session. A non-admin query later returned Access Denied for that SYSTEM-owned task;
+that must not be misreported as task absence.
 
 The exact proven SYSTEM registration flow and its verifier are versioned at:
 
 - `camera-bridge/scripts/nicksmax/register-camera-system-task.ps1`
 - `camera-bridge/scripts/nicksmax/verify-camera-system-task.ps1`
 
-The installer recreates `NicksMaxCameraSupervisor` as a one-minute SYSTEM task using
-`schtasks.exe /RU SYSTEM /RL HIGHEST`, matching the successful production receipt.
+**Corrected 2026-10-07 (camera audit).** The live task is `NicksMaxCameraSupervisorSystem`, and
+the supervisor loop runs about every 30 s (`nicksmax-camera-supervisor.ps1`), not one minute; the
+installer and verifier scripts still say `NicksMaxCameraSupervisor` / one-minute and are to be read
+as the 2026-09-28 receipt, not the current configuration. Since 2026-10-07 the supervisor also
+ends the real child processes on a restart (Stop-ScheduledTask only ended the PowerShell wrapper,
+which orphaned node/python children into EADDRINUSE storms and duplicate Eufy agents), reclaims
+orphans, dedupes agents, holds a 1 GB disk floor and escalates once an hour when restarts do not
+converge. A `git pull` on NicksMax is required before any of that is live there.
 
-A literal full-machine power-cycle/cold-reboot test is still a distinct proof and was not
-performed during this cutover. SYSTEM scheduling and runtime self-heal were proven; do not
-inflate that into a physical power-loss receipt.
+**Cold boot, as of 2026-10-07.** Session-0 supervisor startup after a Windows start was observed
+on 2026-10-02 09:15 ET and 2026-10-03 13:56:58 ET (the production chain was back by 13:58:52).
+What is still not recorded is the full receipt the 2026-09-28 note asked for: fresh Railway
+camera heartbeats after a boot with nobody logged in. Until that is written down, treat cold-boot
+persistence as observed-twice, not proven.
 
 ## Security / external dependency boundary
 

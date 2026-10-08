@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { summarizeCameraFleet } from "./cameraFleetHealth";
+import { summarizeCameraFleet, WORKER_STALE_AFTER_SECONDS } from "./cameraFleetHealth";
 
 const cam = (over: Record<string, unknown>) => ({
   camera: "sign",
@@ -50,5 +50,24 @@ describe("summarizeCameraFleet", () => {
   it("a stopped worker with no state string is still a problem", () => {
     const v = summarizeCameraFleet({ ok: true, cameras: [cam({ conversation: { workerOk: false, state: null } })] });
     expect(v.problems[0].state).toBe("conversation worker STOPPED");
+  });
+
+  it("a READY self-report older than the stale window is a problem: the 2026-10-05 hung worker read live for hours", () => {
+    const stale = summarizeCameraFleet({
+      ok: true,
+      cameras: [cam({ camera: "office", label: "Office", conversation: { workerOk: true, state: "READY", workerAgeSeconds: WORKER_STALE_AFTER_SECONDS + 240 } })],
+    });
+    expect(stale.state).toBe("DEGRADED");
+    expect(stale.problems[0].state).toBe("conversation worker STALE (last report 6m ago)");
+
+    const fresh = summarizeCameraFleet({
+      ok: true,
+      cameras: [cam({ camera: "office", conversation: { workerOk: true, state: "READY", workerAgeSeconds: 30 } })],
+    });
+    expect(fresh.state).toBe("HEALTHY");
+    // No age reported (an older lot.health) is not stale: unknown stays unknown here and is
+    // judged by the state string alone, as before.
+    const unaged = summarizeCameraFleet({ ok: true, cameras: [cam({ camera: "office", conversation: { workerOk: true, state: "READY" } })] });
+    expect(unaged.state).toBe("HEALTHY");
   });
 });

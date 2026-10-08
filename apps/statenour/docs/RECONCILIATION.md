@@ -1,5 +1,17 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-07 · Camera audit wave (PR #2920, staged commits) · vehicle lane hardened, office watch truth, docs reconciled · 1 statenour ship inside a cross-app PR
+>
+> Driven by `docs/agent-audit/CAMERA-INTELLIGENCE-AUDIT-2026-10-07.md` (live NicksMax, Railway and Neon receipts): the vehicle lane reported about a tenth of pre-cutover arrivals while every surface read HEALTHY; one track minted 35 phantom visits overnight; the office lane listened about 8 % of the day. Most fixes are camera-bridge and nickstire (see the nickstire ledger). The statenour slice:
+>
+> - **`lib/services/vehicle-detection.ts`: the row is written BEFORE the page** (marker `alertSuppressedReason: "pending"` until the page completes; a retry that finds the marker finishes the one page, a retry that finds it cleared does nothing). Before: page, then INSERT; a failed INSERT answered 5xx, the edge outbox retried, no row was found, and it paged again. A `P2002` from the new unique eventId index is answered with the row that won. Visit window 12 h -> 7 days (a car over the weekend is one visit). `tests/services/vehicle-detection.test.ts`: the in-memory Prisma now enforces the unique index and honours `createdAt` windows; 5 new cases (order, suppressed rows carry no marker, crash-then-retry pages once, lost race answered with the winner, weekend visit).
+> - **Pending migration `20261007120000_device_events_identity_indexes`** (partial UNIQUE on `(device_id, data->>'eventId')`, index on `(device_id, data->>'visitId')`), registered statement for statement in `app/api/system/apply-pending-migration/route.ts`, read-only duplicate preflight in the file header. `lib/db/schema-sentinel.ts` expects the unique index, so `/system/health` says "missing" until the operator applies it -- true, not a false positive.
+> - **Docs:** `CURRENT-TRUTH.md` no longer says the office camera "does not watch" (it has since #2898/#2901); the pending-operator-decision line in `.remember/now.md` is closed (both options shipped); `docs/adr/0022-camera-vision-as-built.md` supersedes ADR-0017 on five of seven decisions.
+>
+> Gates: targeted vitest 6 files / 51 passed (vehicle-detection, apply-pending-migration, three schema-sentinel files, owner-panel migrations) · `tsc --noEmit` 0 · eslint on the four changed files 0 · `check:raw-sql`, `prisma validate` green (receipts in the PR). Not run here: the full `verify:hard` chain (cross-app PR; CI carries it).
+>
+> **Open (operator):** apply `20261007120000_device_events_identity_indexes` after the preflight; `git pull` on NicksMax; decide whether to revert the office decoder to `base.en` (the coverage number now exists to judge it).
+>
 > ## 2026-10-03 · Sentry sweep + cron hygiene (#2904 · #2906) · chat 500 on em-dash, duplicate cron runs, daily-brief compose bound · 2 statenour ships
 >
 > A 90-day Sentry sweep (org `statenour`, 21 unresolved) plus a cron audit of both apps. Thinking engine first run verified: `think` success 03:04Z 10-03, 8 contradictions, 4 causal_chains, 1 identity_snapshot written; #2894 live.
@@ -65,7 +77,7 @@
 >
 > The sign producer has run without an rc=3 exit since 11:20.
 >
-> **Open:** office "watch" (vision) is not built; it waits on the operator's choice between cloud VLM stills and on-box detection only. The first `/api/cron/think` rows land on the next mega-evening.
+> **Open:** ~~office "watch" (vision) is not built; it waits on the operator's choice between cloud VLM stills and on-box detection only.~~ Corrected 2026-10-07: both shipped on 2026-10-02 (#2898 cloud stills with the "Saw:" line, #2901 on-box person count); this line was stale when written. The first `/api/cron/think` rows land on the next mega-evening.
 >
 > ## 2026-10-02 · brain graph Unlinked tray + Obsidian bridge restored (#2890) · out-of-window FK anchors, dangling-link requeue, Obsidian status reaches prod, export overwrite loop ended · NattyNour bridge repaired live
 >
@@ -4351,7 +4363,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-10-03 (Sentry sweep + cron hygiene #2904 · #2906 — see top entry)
+**Last verified:** 2026-10-07 (camera audit wave, PR #2920 — see top entry; prior stamp 2026-10-03, Sentry sweep + cron hygiene #2904 · #2906)
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.

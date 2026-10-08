@@ -1100,6 +1100,13 @@
       "when": 1791396000000,
       "tag": "0143_dvi_measurements_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "5",
+      "when": 1791400000000,
+      "tag": "0144_camera_runtime_window_counters",
+      "breakpoints": true
     }
   ]
 }

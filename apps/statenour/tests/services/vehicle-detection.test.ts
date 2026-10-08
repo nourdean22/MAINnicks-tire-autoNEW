@@ -47,6 +47,8 @@ vi.mock("@/lib/prisma", () => {
   const matches = (row: Row, where: Record<string, unknown>) =>
     (!where.deviceId || row.deviceId === where.deviceId) &&
     (!where.event || row.event === where.event) &&
+    // The service's windows are createdAt lower bounds; honour them so a window can be tested.
+    (!(where.createdAt as { gte?: Date } | undefined)?.gte || row.createdAt >= (where.createdAt as { gte: Date }).gte) &&
     matchData(row, where.data as { path: string[]; equals: unknown } | undefined) &&
     ((where.AND as Array<{ data: { path: string[]; equals: unknown } }> | undefined) ?? []).every((c) => matchData(row, c.data));
   return {
@@ -59,6 +61,12 @@ vi.mock("@/lib/prisma", () => {
           return rows[0] ?? null;
         }),
         create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+          // The partial UNIQUE index of migrations-pending/20261007120000_device_events_identity_indexes:
+          // one non-null data->>'eventId' per device. Prisma surfaces the violation as P2002.
+          const eventId = (data.data as Record<string, unknown> | undefined)?.eventId;
+          if (eventId && (store.events as Row[]).some((r) => r.deviceId === data.deviceId && r.data?.eventId === eventId)) {
+            throw Object.assign(new Error("Unique constraint failed on the fields: (`device_id`,`data->>'eventId'`)"), { code: "P2002" });
+          }
           const row = { id: `event_${++store.seq}`, createdAt: new Date(), ...data };
           store.events.push(row);
           return row;
@@ -239,5 +247,94 @@ describe("Arrival Intelligence ingest", () => {
   it("rejects a malformed payload with a 400 ServiceError instead of persisting garbage", async () => {
     await expect(handleVehicleEvent(deviceId, base({ state: "ENTERED_ZONE", confidence: "high" as unknown as number }))).rejects.toMatchObject({ status: 400 });
     expect(prisma.deviceEvent.create).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Hardening 2026-10-07 (camera audit, PR #2920). The ingest used to page, then write the
+ * row; a failed write after a sent page meant a 5xx to the edge, an outbox retry, no row to
+ * find, and a second page. The dedupe also had no database behind it.
+ */
+describe("Arrival Intelligence ingest · row before page, unique eventId, weekend visits", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.mocked(datetime.hourET).mockReturnValue(12);
+    await prisma.deviceEvent.deleteMany({});
+  });
+
+  it("writes the row BEFORE it pages, with the pending marker, and clears the marker after", async () => {
+    const id = await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", visitId: "v-order" }, { schemaVersion: 2, eventId: "e-order" }));
+    const createOrder = vi.mocked(prisma.deviceEvent.create).mock.invocationCallOrder[0];
+    const pageOrder = vi.mocked(telegram.sendTelegramWithButtons).mock.invocationCallOrder[0];
+    expect(createOrder).toBeLessThan(pageOrder);
+    const created = vi.mocked(prisma.deviceEvent.create).mock.calls[0][0] as { data: { data: Record<string, unknown> } };
+    expect(created.data.data.alertSuppressedReason).toBe("pending");
+    expect(created.data.data.telegramMessageId).toBeNull();
+    const row = await prisma.deviceEvent.findUnique({ where: { id } });
+    expect((row?.data as Record<string, unknown>).alertSuppressedReason).toBeNull();
+    expect((row?.data as Record<string, unknown>).telegramMessageId).toBe("999123");
+  });
+
+  it("a suppressed row never carries the pending marker: the reason is written with the row", async () => {
+    vi.mocked(datetime.hourET).mockReturnValue(23);
+    const id = await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", visitId: "v-quiet" }, { eventId: "e-quiet" }));
+    const row = await prisma.deviceEvent.findUnique({ where: { id } });
+    expect((row?.data as Record<string, unknown>).alertSuppressedReason).toBe("quiet_hours");
+    expect(prisma.deviceEvent.update).not.toHaveBeenCalled();
+  });
+
+  it("a row whose page never completed is paged on the retry -- once", async () => {
+    // The process died between INSERT and page: the row exists with the marker still set.
+    const seeded = await prisma.deviceEvent.create({
+      data: {
+        deviceId,
+        event: "vehicle_detected",
+        source: "frigate",
+        timestamp: new Date(),
+        data: { eventId: "e-crash", visitId: "v-crash", state: "CONFIRMED_ARRIVAL", zone: "front_lot", cameraId: "sign", telegramMessageId: null, alertSuppressedReason: "pending" },
+      },
+    });
+    vi.clearAllMocks();
+    const payload = base({ state: "CONFIRMED_ARRIVAL", visitId: "v-crash" }, { schemaVersion: 2, eventId: "e-crash" });
+    const id = await handleVehicleEvent(deviceId, payload);
+    expect(id).toBe(seeded.id);
+    expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
+    expect(push.sendPush).toHaveBeenCalledOnce();
+    expect(prisma.deviceEvent.create).not.toHaveBeenCalled();
+    const row = await prisma.deviceEvent.findUnique({ where: { id } });
+    expect((row?.data as Record<string, unknown>).telegramMessageId).toBe("999123");
+    expect((row?.data as Record<string, unknown>).alertSuppressedReason).toBeNull();
+    // The next retry finds the page complete and does nothing.
+    await handleVehicleEvent(deviceId, payload);
+    expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
+  });
+
+  it("a retry that lost the pre-check race is answered with the row that won, and nothing pages twice", async () => {
+    const payload = base({ state: "CONFIRMED_ARRIVAL" }, { schemaVersion: 2, eventId: "e-race" });
+    const first = await handleVehicleEvent(deviceId, payload);
+    expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
+    // The twin's eventId pre-check ran before the first INSERT landed and saw nothing...
+    vi.mocked(prisma.deviceEvent.findFirst).mockResolvedValueOnce(null);
+    const second = await handleVehicleEvent(deviceId, payload);
+    // ...so it reached the INSERT, which the unique index refused (P2002), and it was
+    // answered with the first row. One row, one page.
+    expect(second).toBe(first);
+    expect(prisma.deviceEvent.create).toHaveBeenCalledTimes(2);
+    expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
+    expect(store.events).toHaveLength(1);
+  });
+
+  it("a car that sits over the weekend is ONE visit; a visitId older than the 7-day window is not", async () => {
+    const first = await handleVehicleEvent(deviceId, base({ state: "ENTERED_ZONE", visitId: "v-weekend", trackId: "t-fri" }, { schemaVersion: 2, eventId: "e-fri" }));
+    const row = store.events.find((r) => r.id === first) as Row;
+    row.createdAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    const monday = await handleVehicleEvent(deviceId, base({ state: "DEPARTING", visitId: "v-weekend", trackId: "t-mon", dwellSeconds: 180_000 }, { schemaVersion: 2, eventId: "e-mon" }));
+    expect(monday).toBe(first);
+    expect(store.events).toHaveLength(1);
+
+    row.createdAt = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    const later = await handleVehicleEvent(deviceId, base({ state: "ENTERED_ZONE", visitId: "v-weekend", trackId: "t-next" }, { schemaVersion: 2, eventId: "e-next" }));
+    expect(later).not.toBe(first);
+    expect(store.events).toHaveLength(2);
   });
 });

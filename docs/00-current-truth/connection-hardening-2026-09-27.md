@@ -51,7 +51,7 @@ The production alert rail has proven detection, claim, retry, and recovery-state
 - Self-heal is live-proven: the old Session-1 production tree was killed while the user supervisor was disabled; Session 0 recreated the production wrapper at 18:27:11 ET and Python/OpenVINO edge processes at 18:27:12 ET.
 - Railway accepted the restarted producer beginning at 22:27:38Z with `sign seq=1 accepted state=HEALTHY`, followed by seq=2 and seq=3 HEALTHY.
 - Locked-screen independence is live-proven: with Windows locked and the V380 GUI absent, Railway continued accepting HEALTHY heartbeats through at least seq=8 at 22:31:08Z.
-- Cold-boot persistence after the SYSTEM-supervisor cutover is **not yet live-proven**. The remote-control layer blocked restart/shutdown. A later controlled reboot must observe Session-0 startup plus fresh Railway camera heartbeats before login.
+- Cold-boot persistence after the SYSTEM-supervisor cutover is **not yet live-proven**. The remote-control layer blocked restart/shutdown. A later controlled reboot must observe Session-0 startup plus fresh Railway camera heartbeats before login. **Update 2026-10-07:** Session-0 startup after a Windows start was observed on 2026-10-02 09:15 ET and 2026-10-03 13:56:58 ET (chain back by 13:58:52 under SYSTEM); the login-free Railway heartbeat receipt is still unrecorded, so this stays observed-twice, not proven.
 - C: had about 2.53 GB free (6.3%) at closeout. Camera logs/DBs were small; active worktrees were deliberately not deleted.
 - Hostname/reboot servicing from the earlier workstation setup is complete. Consumer ESU remains **not enrolled**; that is a separate operator/account action.
 
@@ -68,4 +68,4 @@ No connected DNS-management authority for Global Domain Group is available in th
 
 ## Concurrency / cleanup boundary
 
-The camera sibling-session guard is closed for this workstream. Do not reintroduce the V380 GUI/WGC as a production dependency or re-enable the interactive camera supervisor while the Session-0 lane is healthy. A future reboot is allowed only when it will not disrupt other active sessions, and must be used to capture the still-missing cold-boot camera receipt. Other isolated active worktrees are not reconciliation backlog and must not be reset or merged blindly.
+The camera sibling-session guard is closed for this workstream. Do not reintroduce the V380 GUI/WGC as a production dependency or re-enable the interactive camera supervisor while the Session-0 lane is healthy. A future reboot is allowed only when it will not disrupt other active sessions, and must be used to capture the still-missing cold-boot camera receipt (as of 2026-10-07 two boots have been observed, Oct 2 and Oct 3, but the login-free Railway heartbeat receipt is still unrecorded). Other isolated active worktrees are not reconciliation backlog and must not be reset or merged blindly.

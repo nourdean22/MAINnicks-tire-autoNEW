@@ -120,6 +120,21 @@ export const EXPECTATIONS: SchemaExpectation[] = [
     reason: "v7.7 idempotency — without partial, legacy NULLs collide",
   },
   {
+    // 2026-10-07 · camera audit. Parked as
+    // prisma/migrations-pending/20261007120000_device_events_identity_indexes until the
+    // operator applies it, so this reads "missing" until then -- and that reading is TRUE,
+    // not a false positive. An expression index Prisma cannot model: a `db push` drops it
+    // silently and this is the only thing that would say so. The arrival ingest
+    // (lib/services/vehicle-detection.ts) dedupes retried edge events on data->>'eventId'
+    // and catches the P2002 this index raises; without the index two retries of one arrival
+    // are two rows and two pages.
+    kind: "partial_unique",
+    table: "device_events",
+    indexName: "device_events_device_id_event_id_uniq",
+    predicate: "(data ->> 'eventId'::text) IS NOT NULL",
+    reason: "camera audit 2026-10-07 — one edge eventId per device, or a retried arrival pages twice",
+  },
+  {
     // 2026-07-11 · hand-applied 20260711000000_assistant_reply_uniq
     // (railway run + apply-pending-migration.ts, verified in pg_indexes
     // + migrate status). Closes the cmou6xugm double-reply race — one

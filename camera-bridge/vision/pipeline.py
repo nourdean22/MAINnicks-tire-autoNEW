@@ -17,6 +17,10 @@ Invariants, each asserted by a test in tests/test_vision.py:
      and motion but creates no visits at all.
   5. A frozen or stale capture cannot mint arrivals; recovery is treated as a
      reconnect, which re-arms the preexisting census.
+  6. A visit visitd has closed (LEFT / PASS_THROUGH) cannot be re-opened by a track that
+     merely stays visible: the track is a candidate again and needs a fresh portal
+     crossing. And an arrival parked ON the zone edge is not reported as leaving until
+     it moves -- the polygon test alone made one parked car into a run of visits.
 
 visitd itself is untouched -- it stays a pure function of the event stream it is fed.
 The whole point of this module is to feed it an HONEST stream.
@@ -52,6 +56,16 @@ def load_visitd():
     return parse_event, VisitTracker, VisitPolicy, CameraSpec
 
 
+def _visitd_terminal_states() -> frozenset:
+    """visitd's own terminal set, so a renamed or added terminal state cannot leave a track armed."""
+    try:
+        load_visitd()
+        from visitd.state_machine import TERMINAL_STATES                 # noqa: E402
+        return frozenset(TERMINAL_STATES)
+    except Exception:  # noqa: BLE001
+        return frozenset({"LEFT", "PASS_THROUGH"})
+
+
 @dataclass
 class PipelineStats:
     frames: int = 0
@@ -75,6 +89,13 @@ class PipelineStats:
     arrivals_after_stitch: int = 0
     rejected_no_entry_evidence: int = 0
     motion_only_frames: int = 0
+    #: Frames on which an ARRIVAL track's ground point read outside the arrival zone while the
+    #: track had not moved since its last inside sample, and the zone was HELD. A parked car on
+    #: the polygon edge shows up here instead of as a DEPARTING -> LEFT -> new-visit cycle.
+    zone_exit_held: int = 0
+    #: Tracks still visible after visitd closed their visit (LEFT / PASS_THROUGH), demoted to
+    #: candidates so they need a fresh portal crossing before they can open another visit.
+    rearmed_after_terminal: int = 0
     visitd_states: Counter = field(default_factory=Counter)
 
     def to_dict(self) -> dict:
@@ -105,8 +126,13 @@ class VisionPipeline:
         scene_lock: Optional[SceneLock] = None,
         frame_health: Optional[FrameHealth] = None,
         track_graph: Optional[TrackGraph] = None,
+        zone_exit_frames: int = 3,
     ) -> None:
         self.council = council
+        #: Consecutive OUTSIDE samples an arrival track that HAS moved must show before the
+        #: arrival zone is dropped from what visitd is told. One noisy box edge is not an exit.
+        self.zone_exit_frames = max(1, int(zone_exit_frames))
+        self._terminal_states = _visitd_terminal_states()
         self.lot_map = lot_map
         self.portal = entry_portal
         #: Track ids already recorded as a census/portal disagreement. The path keeps
@@ -186,7 +212,10 @@ class VisionPipeline:
             "score": float(track.score),
             "top_score": float(track.score),
             "frame_time": now,
-            "start_time": track.born_ts,
+            # A track re-armed after visitd closed its visit starts its NEXT visit at the
+            # re-arm, not at a birth that belongs to the previous one.
+            "start_time": (track.born_ts if getattr(track, "rearmed_at", None) is None
+                           else track.rearmed_at),
             "end_time": now if ended else None,
             "box": [int(x1), int(y1), int(x2), int(y2)],
             "area": int(max(0.0, x2 - x1) * max(0.0, y2 - y1)),
@@ -227,7 +256,87 @@ class VisionPipeline:
                 ))
                 continue
             stamped.append(em)
+        self._absorb_terminal(stamped, now)
         return stamped
+
+    def _absorb_terminal(self, emissions: list, now: float) -> None:
+        """A visit visitd closed ends the arrival authority of every track that fed it.
+
+        LEFT and PASS_THROUGH pop the visit inside visitd; the track here could stay alive for
+        hours (a car parked on the street in view, a car straddling the zone edge). Every later
+        "update" for it was an object id visitd no longer knew, so visitd minted a new visit --
+        sign-188 became a run of visits for one parked car. Now the track is a candidate again
+        with a cleared path: occupancy, not a customer, until the portal sees it cross.
+        """
+        for em in emissions:
+            if getattr(em, "state", None) not in self._terminal_states:
+                continue
+            vid = getattr(em, "visit_id", None)
+            if not vid:
+                continue
+            for tid in [tid for tid, mapped in self._track_visit.items() if mapped == vid]:
+                self._track_visit.pop(tid, None)
+                self.timings.pop(tid, None)
+                t = self.tracks.get(tid)
+                if t is None or t.evidence != "arrival":
+                    continue
+                t.evidence = "candidate"
+                t.entry_reason = ""
+                t.path.clear()
+                t.path.append(t.ground_point)
+                t.last_in_arrival_ts = None
+                t.zone_exit_frames = 0
+                t.rearmed_at = now
+                self.stats.rearmed_after_terminal += 1
+                self.evidence.write(EvidencePacket(
+                    event="VISIT_CLOSED_TRACK_REARMED", ts=now, camera=self.camera, track_id=tid,
+                    visit_id=vid,
+                    rule="visitd closed the visit; a still-visible track needs a fresh portal "
+                         "crossing before it can open another",
+                    reasons=[f"state={getattr(em, 'state', '?')}", "path cleared; evidence=candidate"],
+                    box=t.box, zones=t.zones,
+                ))
+
+    def _settle_zones(self, t: Track, observed: list[str], now: float) -> list[str]:
+        """Arrival-zone membership for an ARRIVAL track, with the physics the polygon lacks.
+
+        `zones_at` is a point-in-polygon test on the box's bottom-centre. For a car parked ON
+        the polygon edge that point reads outside for long stretches and inside for a few frames;
+        visitd saw the zone close, waited its 20 s leave grace, closed the visit, and the next
+        inside sample minted a brand-new visit for the same parked car.
+
+        A parked car does not leave without moving. So an arrival track keeps the arrival zone
+        while it has not moved (beyond the tracker's move epsilon) since the last sample that WAS
+        inside; once it has moved it still needs `zone_exit_frames` consecutive outside samples
+        before the zone is dropped. Candidates and preexisting tracks are untouched: hysteresis
+        only ever protects a visit that already exists, never helps create one.
+        """
+        if self.arrival_zone in observed:
+            t.last_in_arrival_ts = now
+            t.zone_exit_frames = 0
+            return observed
+        if t.evidence != "arrival" or self.arrival_zone not in t.zones:
+            t.zone_exit_frames = 0
+            return observed
+        held = sorted({*observed, self.arrival_zone})
+        moved_since_inside = (
+            t.last_in_arrival_ts is None or t.still_since > t.last_in_arrival_ts
+        )
+        if not moved_since_inside:
+            self.stats.zone_exit_held += 1
+            return held
+        t.zone_exit_frames += 1
+        if t.zone_exit_frames < self.zone_exit_frames:
+            return held
+        return observed
+
+    def _tick(self, now: float, out: dict) -> None:
+        """visitd's own clock; its terminal emissions disarm the tracks that fed them."""
+        emissions = list(self.tracker.tick(now))
+        for em in emissions:
+            self.stats.visitd_states[getattr(em, "state", "?")] += 1
+        out["emissions"].extend(emissions)
+        self._absorb_terminal(emissions, now)
 
     # -------------------------------------------------------------------- main step
     def step(self, frame: Frame, detections: Optional[Sequence[Detection]] = None,
@@ -320,9 +429,7 @@ class VisionPipeline:
         # and produce a departure that never happened.
         if getattr(result, "skipped_no_motion", False):
             out["suppressed"] = "no motion: detector skipped, tracks held"
-            for em in self.tracker.tick(now):
-                self.stats.visitd_states[getattr(em, "state", "?")] += 1
-                out["emissions"].append(em)
+            self._tick(now, out)
             return out
 
         born, died = self.tracks.update(dets, now, confirmable=confirmable)
@@ -346,7 +453,7 @@ class VisionPipeline:
 
         # 6. Entry evidence: the ONLY way to become an arrival -------------------
         for t in list(self.tracks.tracks.values()):
-            t.zones = self.lot_map.zones_at(t.ground_point)
+            t.zones = self._settle_zones(t, self.lot_map.zones_at(t.ground_point), now)
             if t.evidence != "candidate":
                 # THE CENSUS'S DECISION, MEASURED INSTEAD OF ASSUMED.
                 #
@@ -470,9 +577,7 @@ class VisionPipeline:
         self.stitch.expire(now)
 
         # 9. visitd's own clock -------------------------------------------------
-        for em in self.tracker.tick(now):
-            self.stats.visitd_states[getattr(em, "state", "?")] += 1
-            out["emissions"].append(em)
+        self._tick(now, out)
 
         return out
 

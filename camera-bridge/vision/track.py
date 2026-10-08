@@ -48,6 +48,14 @@ class Track:
     retired_allowed: Optional[int] = None
     path: deque[tuple[float, float]] = field(default_factory=lambda: deque(maxlen=240))
     zones: list[str] = field(default_factory=list)
+    #: Arrival-zone hysteresis bookkeeping, written only by `VisionPipeline._settle_zones`.
+    #: `last_in_arrival_ts` is the last frame the ground point was observed INSIDE the arrival
+    #: zone; `zone_exit_frames` counts consecutive outside samples since the track moved.
+    last_in_arrival_ts: Optional[float] = None
+    zone_exit_frames: int = 0
+    #: Set when visitd closed this track's visit while the track stayed visible. The track is
+    #: then a candidate again, and the next visit it opens starts here, not at `born_ts`.
+    rearmed_at: Optional[float] = None
 
     @property
     def ground_point(self) -> tuple[float, float]:

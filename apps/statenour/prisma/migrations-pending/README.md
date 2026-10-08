@@ -8,13 +8,30 @@ them back when ready.
 
 `20260929123500_reality_event_envelope` was applied to production after a live durable-mission proof exposed the expected `event_version` schema drift. Production read-back verified all five columns, all three indexes, and zero NULL `occurred_at` rows. The migration is now canonical under `prisma/migrations/`, and production Prisma migration history records it applied.
 
-## ⏳ 2026-09-29 — ONE PENDING
+## ⏳ 2026-10-07 — TWO PENDING
 
 Every dir parked here must be registered in the guarded endpoint with its exact
 statements, or listed with a reason in the test's `OPERATOR_ONLY` map:
 `tests/api/apply-pending-migration.test.ts` fails otherwise. #2784 parked one
 its code already needed without registering it: production failed every
 reality-event read and write, and the one-request fix only existed after #2788.
+
+### `20261007120000_device_events_identity_indexes`
+
+Camera audit 2026-10-07 (PR #2920). **Not applied.** Two expression indexes on
+`device_events`, no ALTER, no DROP, no row touched: a partial UNIQUE on
+`(device_id, data->>'eventId')` so a retried edge event can exist once per device
+(the service's findFirst-then-create dedupe had no database behind it), and an
+index on `(device_id, data->>'visitId')` so the visit window can span a weekend.
+Registered in the guarded endpoint
+(`POST /api/system/apply-pending-migration { name: "20261007120000_device_events_identity_indexes" }`).
+The code is safe before the apply: `lib/services/vehicle-detection.ts` keeps its
+pre-check and additionally catches the P2002 the index raises once it exists.
+`lib/db/schema-sentinel.ts` expects the unique index, so `/system/health` reports
+it missing until the apply -- that reading is true. The unique CREATE fails on
+existing duplicate eventIds; the migration header has the read-only preflight.
+After applying: promote the dir to `prisma/migrations/`, then
+`prisma migrate resolve --applied 20261007120000_device_events_identity_indexes` -- both halves.
 
 ### `20260929090000_bridge_receipts`
 
