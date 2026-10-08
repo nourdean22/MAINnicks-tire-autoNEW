@@ -1,5 +1,23 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-08 · Dead bridge queries resolved (cross-app PR, staged commits) · `customer_stats` built, `getTopServices` retired, four bridge reads made honest · 1 statenour ship inside a cross-app PR
+>
+> The two queries PR C's contract guard found dead on its first whole-file run, decided per query on the data each needs, plus the bridge-honesty defects found reading their consumers.
+>
+> - **`customer_stats` is built in nickstire and read here** (`lib/services/business-intel.ts` `getCustomerStats`): two counts, customers on file and first visits in the current New York month, the only fields the dashboard summary used. The old consumer type also asked for `withPhone`, `returning` and a `topCustomers` list with names and phones that nothing displayed; they are neither requested nor sent. A count that is missing or not a number is `bridgeAvailable: false`, never a zero that reads as available. The nickstire handler throws on an unreadable database, so the route answers 500.
+> - **`getTopServices` retired** with its query `revenue_top_services`: removed from `lib/ai/tools/business.ts`, `catalog.ts`, `playbooks.ts`, `tool-families.ts`, `chat-mode.ts` (its keyword family), `reasoning/whitelist.ts`, `agent-bridge/scopes.ts` and `tool-policy.ts`, the tool-catalog reference, and both snapshots. Invoice service descriptions have mostly stopped arriving (1 of 30 in August 2026), so a ranking would describe a sliver of the tickets. Rebuild it only with a handler that says how many tickets its ranking covers.
+> - **`fetchBridge` reads a 200 `{ error }` body as a failed read.** Every nickstire revenue handler answers `{ error: "No DB" }` with status 200 when the shop database is unreachable; that was read as data: $0.00 with `bridgeAvailable: true`.
+> - **Revenue counts the field the handlers send.** `getRevenueStats` parsed `jobCount`, which no handler has ever sent (they send `invoiceCount`), so every payload said 0 jobs and a $0.00 average ticket beside a real total. The average ticket is derived from the count (`invoices.totalAmount` is NOT NULL, so the bridge's own `AVG` always equals it). The test fixture had sent `jobCount` too, which is how it stayed green.
+> - **The board consult no longer states an unread month as $0** (`lib/services/board-consult-record.ts`): revenue goes into the advisors' context only when `bridgeAvailable`; otherwise one line says it is UNKNOWN and not to assume a figure.
+> - **The redaction reasons say "could not be read", not "did not answer"** (`lib/ai/tools/bridge-honesty.ts`, the dashboard redaction and the revenue tool): a read also fails when the bridge answers with an error.
+> - **`scripts/contract-pre-flight.ts`**: `customer_stats` moves to the production tier, `revenue_top_services` leaves the list, a 200 with an error body is an error rather than available, and the `customer_search` probe sends the `term` the handler reads (it sent `phone` and got 200 "Search term required", counted as available). `KNOWN_PENDING` in the contract test is empty of both.
+>
+> Gates: receipts in the PR body (targeted vitest 75/75, `tsc --noEmit` exit 0, eslint 0 errors; positive controls: 17 defects planted across both apps, 16 turned a test red, and the survivor, the bridge `avgTicket` read, proved redundant and was deleted).
+>
+> **Flagged · NOT fixed:**
+> - `/api/analytics/dashboard` still returns customer zeros beside `bridgeHealth.customers: false` on a failed read (no in-repo UI reads that route; the Nick dashboard tool redacts it).
+> - The contract guard still cannot see a query name held in a variable before the call.
+
 > ## 2026-10-08 · Camera N-series PR C (cross-app PR, staged commits) · owner lot brief in the morning brief, arrival page claimed once, bridge contract doc reconciled and guarded · 1 statenour ship inside a cross-app PR
 >
 > Audit item N4 of `docs/agent-audit/CAMERA-INTELLIGENCE-AUDIT-2026-10-07.md` (the owner brief over qualified nickstire lot events, `/system/camera` retired or demoted) and the StateNour Codex P1 from #2920.
