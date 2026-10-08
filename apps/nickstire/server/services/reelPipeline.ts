@@ -13,6 +13,7 @@
  * gated publish (publishToSocial / REEL_PUBLISH_ENABLED) are later stages.
  */
 import type { ClipProbe } from "../../shared/clipDrift";
+import type { ShotSource } from "../../shared/shotRouter";
 import { createLogger } from "../lib/logger";
 import type { ReelAssemblyBrief } from "./reelAssembly";
 import type { CtaType } from "../../shared/instagramStudio";
@@ -246,6 +247,12 @@ export interface ReelJobBrief {
      */
     motion?: string;
     audioCue?: string;
+    /**
+     * The declared shot source (shared/shotRouter), carried from an approved
+     * pack's brief by buildBriefFromApprovedProductionPack. Declared real or
+     * deterministic, the beat is never sent to a generation provider.
+     */
+    source?: ShotSource;
     /** Higgsfield API request already submitted; resume polling, never resubmit. */
     higgsfieldRequestId?: string;
     /** Video Forge idempotency key, persisted BEFORE submit (Forge dedupes on it). */
@@ -485,6 +492,21 @@ export async function enqueueReelJob(
         briefId: brief.id, source, reason: condemned,
       });
       throw new Error(`REEL_SCRIPT_CONDEMNED: ${condemned}`);
+    }
+  }
+
+  // The generator's declared-source rule, one layer earlier (2026-10-08): a
+  // Reel whose beats are declared real or deterministic has no publishable lane
+  // yet, so it is refused before a content slot or generation budget is held.
+  // processNextReelJob applies the same rule to rows that are already queued.
+  {
+    const { beatsTheGeneratorMustNotRender, generationHoldReason } = await import("../../shared/shotRouter");
+    const blocked = beatsTheGeneratorMustNotRender(brief.storyboardBeats ?? [], []);
+    if (blocked.length) {
+      log.error("declared real/deterministic beats BLOCKED at enqueue — no spend reserved", {
+        briefId: brief.id, source, beats: blocked.map((b) => `${b.beatNumber}:${b.route}`).join(","),
+      });
+      throw new Error(generationHoldReason(blocked, "enqueue"));
     }
   }
 
@@ -805,7 +827,14 @@ export async function enqueueReelJob(
     // briefId is the key generation resolves its arm on (dailyReelPost
     // hookArmForEpisode, reelBriefGen durationLaneForEpisode) — recording
     // under any other key records an arm that was never generated.
-    await assignEpisodeToActiveExperiment(jobId, { contentOrigin: "ai_generated", briefId: brief.id });
+    // A brief built from an approved pack says so: its content origin is the
+    // pack, and an arm applied only while a brief is written never reaches it.
+    const approvedPackSlug = (brief as { approvedPackSlug?: string }).approvedPackSlug;
+    await assignEpisodeToActiveExperiment(jobId, {
+      contentOrigin: approvedPackSlug ? "approved_pack" : "ai_generated",
+      briefId: brief.id,
+      ...(approvedPackSlug ? { approvedPackSlug } : {}),
+    });
   }
 
   return { jobId };
@@ -973,6 +1002,33 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
         await releaseFailedJobReservation(job.payload, job.id);
         log.error("condemned script BLOCKED at generation — legacy queued row, no clips generated", {
           jobId: job.id, briefId: job.briefId, reason: condemned,
+        });
+        return { processed: true, jobId: job.id, status: "failed" };
+      }
+    }
+
+    // A BEAT DECLARED REAL IS NEVER GENERATED (2026-10-08). Until now nothing
+    // here read StoryboardBeat.source or the REAL / DETERMINISTIC tag, so a
+    // proof pack enqueued from Studio would have sent "REAL macro of a tire
+    // tread" to the video model: a synthetic shot documenting real work, the
+    // one thing the production doctrine forbids. Neither declared route has a
+    // publishable lane yet (the stock guard refuses every locally hosted clip;
+    // a real-evidence route is the operator's decision), so the job stops here,
+    // before any clip is bought, naming each beat and what it needs.
+    {
+      const { beatsTheGeneratorMustNotRender, generationHoldReason } = await import("../../shared/shotRouter");
+      let existingClips: unknown = [];
+      try { existingClips = job.clipUrlsJson ? JSON.parse(job.clipUrlsJson) : []; } catch { existingClips = []; }
+      const blocked = beatsTheGeneratorMustNotRender(beats, existingClips);
+      if (blocked.length) {
+        const reason = generationHoldReason(blocked);
+        const { eq } = await import("drizzle-orm");
+        await d.update(reelJobs)
+          .set({ status: "failed", queueState: queueStateForReelStatus("failed"), error: reason.slice(0, 1000) })
+          .where(eq(reelJobs.id, job.id));
+        await releaseFailedJobReservation(job.payload, job.id);
+        log.error("declared real/deterministic beats BLOCKED at generation — no clips generated", {
+          jobId: job.id, briefId: job.briefId, beats: blocked.map((b) => `${b.beatNumber}:${b.route}`).join(","),
         });
         return { processed: true, jobId: job.id, status: "failed" };
       }

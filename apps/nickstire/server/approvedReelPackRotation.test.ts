@@ -15,7 +15,7 @@ import {
   writeActiveReelSlate,
 } from "./services/approvedReelPackRotation";
 import { askLeakageProblem, askProblem, askSignals, type ReelAsk } from "../shared/reelAsk";
-import { declaredBeatSource } from "../shared/shotRouter";
+import { beatsTheGeneratorMustNotRender, declaredBeatSource } from "../shared/shotRouter";
 
 describe("approved Reel-pack rotation", () => {
   it("contains every explicitly approved pack exactly once", () => {
@@ -261,6 +261,27 @@ describe("proof packs and the declared beat source", () => {
     const plain = build(PROOF[0], base)!.storyboardBeats as Array<Record<string, unknown>>;
     expect(plain.some((b) => "source" in b)).toBe(false);
     expect(declaredBeatSource(plain[0] as { visual?: string })).toBe("real");
+  });
+
+  it("the generator refuses every proof pack before spend, and holds no rotation pack", () => {
+    // The proof packs tag every evidence beat REAL and every card DETERMINISTIC;
+    // built for the lane, each is refused at enqueue and at generation.
+    for (const slug of PROOF) {
+      const beats = build(slug, loadApprovedProductionPack(slug)!)!.storyboardBeats as Array<{ beatNumber: number; visual: string }>;
+      const blocked = beatsTheGeneratorMustNotRender(beats, []);
+      expect(blocked.map((b) => b.beatNumber)).toEqual(beats.map((b) => b.beatNumber));
+      expect(blocked.filter((b) => b.route === "needs_deterministic_render")).toHaveLength(1);
+    }
+    // CONTROL, over the whole daily rotation: not one beat is held, so the gate cannot stall the lane.
+    const held: string[] = [];
+    for (const slug of APPROVED_REEL_PACK_SLUGS) {
+      const snapshot = loadApprovedProductionPack(slug);
+      const brief = snapshot ? build(slug, snapshot) : null;
+      if (!brief) continue; // packs the builder rejects are covered by reelPackRotationCoverage.test.ts
+      for (const b of beatsTheGeneratorMustNotRender(brief.storyboardBeats as Array<{ beatNumber: number; visual: string }>, [])) held.push(`${slug} beat ${b.beatNumber}`);
+    }
+    expect(APPROVED_REEL_PACK_SLUGS.length).toBeGreaterThan(100);
+    expect(held).toEqual([]);
   });
 
   it("each proof pack declares one ask, and its caption, beats and voiceover ask for nothing else", () => {

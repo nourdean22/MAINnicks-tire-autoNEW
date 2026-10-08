@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-08T14:38:08.880Z",
-  "count": 778,
+  "generatedAt": "2026-10-08T19:42:58.894Z",
+  "count": 780,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -77,6 +77,8 @@
     "mutation.contentAdmin.saveCarouselDraft",
     "mutation.contentAdmin.saveReelDraft",
     "mutation.contentAdmin.setAutonomyKillSwitch",
+    "mutation.contentAdmin.setAutonomyLimit",
+    "mutation.contentAdmin.setAutonomyPaidRepair",
     "mutation.contentAdmin.stageCarouselToInventory",
     "mutation.contentAdmin.startContentExperiment",
     "mutation.contentAdmin.stopContentExperiment",

@@ -146,9 +146,20 @@ export function experimentEpisodeKey(reelJobId: number, briefId?: string | null)
  * UNIQUE(experiment_id, episode_key) lets one episode sit in several.
  * Exposed presets are skipped: no generator applies their arm.
  */
+/**
+ * Variables an arm can change only while a brief is being WRITTEN: dailyReelPost
+ * passes the hook arm to the brief generator, reelBriefGen picks the duration
+ * lane. A Reel built from an approved pack keeps its reviewed brief verbatim
+ * ("An approved pack is already production input", dailyReelPost), so neither
+ * arm reaches it, and recording it put identical Reels in both arms. The daily
+ * lane draws every Reel from the pack library (resolveApprovedPackSelection), so
+ * a hook or duration experiment collects only AI-written briefs (2026-10-08).
+ */
+const BRIEF_WRITING_VARIABLES: ReadonlySet<string> = new Set(["hook_style", "length_band"]);
+
 export async function assignEpisodeToActiveExperiment(
   reelJobId: number,
-  context: { franchiseId?: string; contentOrigin?: string; postingSlot?: string; provider?: string; model?: string; briefId?: string } = {},
+  context: { franchiseId?: string; contentOrigin?: string; postingSlot?: string; provider?: string; model?: string; briefId?: string; approvedPackSlug?: string } = {},
 ): Promise<Array<{ experimentId: string; armId: string; variantValue: string }>> {
   try {
     const { getDb } = await import("../db");
@@ -171,6 +182,7 @@ export async function assignEpisodeToActiveExperiment(
       if (seenVariables.has(row.primaryVariable)) continue; // generation applies only the oldest per variable
       seenVariables.add(row.primaryVariable);
       if (isUnwiredExperimentId(row.experimentId)) continue;
+      if (context.approvedPackSlug && BRIEF_WRITING_VARIABLES.has(row.primaryVariable)) continue; // its arm never reaches a pack Reel
       const arms = (Array.isArray(row.armsJson) ? row.armsJson : []) as ExperimentDefinition["arms"];
       if (arms.length < 2) continue;
       defs.push({
@@ -185,7 +197,7 @@ export async function assignEpisodeToActiveExperiment(
 
     // The episode key must be STABLE for this job — assignment is derived from
     // it, so a changing key would re-roll the arm on every retry.
-    const { briefId, ...rest } = context;
+    const { briefId, approvedPackSlug: _pack, ...rest } = context;
     const episodeKey = experimentEpisodeKey(reelJobId, briefId);
     const out: Array<{ experimentId: string; armId: string; variantValue: string }> = [];
     for (const def of defs) {

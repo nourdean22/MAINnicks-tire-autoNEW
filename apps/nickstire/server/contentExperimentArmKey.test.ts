@@ -11,6 +11,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { assignArm, type ExperimentDefinition } from "../shared/contentExperiments";
 import { experimentEpisodeKey } from "./services/contentExperimentStore";
+import { sliceBlock } from "./testUtils/sourceBlock";
 
 const def: ExperimentDefinition = {
   experimentId: "hook-style-direct-v1",
@@ -47,6 +48,9 @@ describe("experimentEpisodeKey", () => {
   });
   it("wiring: the enqueue site passes the brief id", () => {
     const src = fs.readFileSync(path.join(__dirname, "services/reelPipeline.ts"), "utf8");
-    expect(src).toMatch(/assignEpisodeToActiveExperiment\(jobId, \{ contentOrigin: "ai_generated", briefId: brief\.id \}\)/);
+    const call = sliceBlock(src, "await assignEpisodeToActiveExperiment(jobId, {", "});", { label: "reelPipeline.ts" });
+    expect(call).toContain("briefId: brief.id,");
+    // A pack-built brief is recorded as the pack, never as AI-written (2026-10-08).
+    expect(call).toContain('contentOrigin: approvedPackSlug ? "approved_pack" : "ai_generated",');
   });
 });

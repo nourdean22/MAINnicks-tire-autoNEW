@@ -1,6 +1,14 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { declaredBeatSource, routeShot, shotRouteProblems, type ShotFacts } from "./shotRouter";
+import {
+  beatGenerationRoute,
+  beatsTheGeneratorMustNotRender,
+  declaredBeatSource,
+  generationHoldReason,
+  routeShot,
+  shotRouteProblems,
+  type ShotFacts,
+} from "./shotRouter";
 
 const facts = (over: Partial<ShotFacts> = {}): ShotFacts => ({
   claimsRealWork: false, explainsMechanism: false, atmosphereOrMetaphor: false, hasApprovedStill: false,
@@ -43,6 +51,69 @@ describe("declaredBeatSource — explicit tags only, never a guess", () => {
     expect(declaredBeatSource({ visual: "AI illustrative: abstract vibration plate" })).toBe("ai_illustrative");
     expect(declaredBeatSource({ visual: "a tire on a lift, real-looking" })).toBe("unspecified");
     expect(declaredBeatSource({ visual: null })).toBe("unspecified");
+  });
+});
+
+describe("declaredBeatSource — a tag counts only as written, in capitals", () => {
+  it("ordinary prose that starts with the same word is not a declaration", () => {
+    // The generator acts on a declaration now; title-case prose must not hold a Reel nobody tagged.
+    expect(declaredBeatSource({ visual: "Real-world pothole damage on a rim" })).toBe("unspecified");
+    expect(declaredBeatSource({ visual: "Real tire, real shop, real light" })).toBe("unspecified");
+    expect(declaredBeatSource({ visual: "Still frame of the gauge at 4/32" })).toBe("unspecified");
+    expect(declaredBeatSource({ visual: "Ai-generated wheel spinning" })).toBe("unspecified");
+    expect(declaredBeatSource({ visual: "AIRBAG light on the cluster" })).toBe("unspecified");
+    expect(declaredBeatSource({ visual: "Deterministic? no, a camera move" })).toBe("unspecified");
+  });
+  it("CONTROL: the capitalised tags still read", () => {
+    expect(declaredBeatSource({ visual: "REAL: the balancer display" })).toBe("real");
+    expect(declaredBeatSource({ visual: "  REAL macro: a nail head" })).toBe("real");
+    expect(declaredBeatSource({ visual: "STILL push on the exterior" })).toBe("still_motion");
+    expect(declaredBeatSource({ visual: "AI-ILLUSTRATIVE fog" })).toBe("ai_illustrative");
+  });
+});
+
+describe("the generator's route for a declared source", () => {
+  it("real and deterministic are never generated; everything else generates as before", () => {
+    expect(beatGenerationRoute({ visual: "REAL: the gauge in the tread" })).toBe("needs_real_footage");
+    expect(beatGenerationRoute({ visual: "a tire", source: "real" })).toBe("needs_real_footage");
+    expect(beatGenerationRoute({ visual: "DETERMINISTIC card: three columns" })).toBe("needs_deterministic_render");
+    expect(beatGenerationRoute({ visual: "STILL-MOTION push" })).toBe("generate");
+    expect(beatGenerationRoute({ visual: "AI illustrative: fog" })).toBe("generate");
+    expect(beatGenerationRoute({ visual: "a tire on the lift" })).toBe("generate");
+    // The field wins over the tag, both ways.
+    expect(beatGenerationRoute({ visual: "REAL macro", source: "ai_illustrative" })).toBe("generate");
+  });
+
+  it("names the beats without a clip, and a resumed job keeps the clips it has", () => {
+    const beats = [
+      { beatNumber: 1, visual: "REAL macro of the tread" },
+      { beatNumber: 2, visual: "a tire on the lift" },
+      { beatNumber: 3, visual: "DETERMINISTIC card: the zones" },
+      { beatNumber: 4, visual: "REAL: the gauge" },
+    ];
+    expect(beatsTheGeneratorMustNotRender(beats, [])).toEqual([
+      { beatNumber: 1, route: "needs_real_footage" },
+      { beatNumber: 3, route: "needs_deterministic_render" },
+      { beatNumber: 4, route: "needs_real_footage" },
+    ]);
+    expect(beatsTheGeneratorMustNotRender(beats, ["https://cdn/real-1.mp4", null, "", "https://cdn/real-4.mp4"])).toEqual([
+      { beatNumber: 3, route: "needs_deterministic_render" },
+    ]);
+    expect(beatsTheGeneratorMustNotRender(beats, "{not an array}")).toHaveLength(3);
+    expect(beatsTheGeneratorMustNotRender([{ beatNumber: 1, visual: "a tire" }], [])).toEqual([]);
+  });
+
+  it("the refusal line says which beats, what each needs, and where it stopped", () => {
+    expect(generationHoldReason([{ beatNumber: 2, route: "needs_real_footage" }])).toBe(
+      "BEAT_SOURCE_NOT_GENERATABLE (blocked at generation, before spend): beat 2 is declared real: capture the footage (docs/reels-engine-v2/05-CAPTURE-CHECKLIST.md). Nothing was generated.",
+    );
+    expect(generationHoldReason([
+      { beatNumber: 1, route: "needs_real_footage" },
+      { beatNumber: 3, route: "needs_deterministic_render" },
+      { beatNumber: 4, route: "needs_real_footage" },
+    ], "enqueue")).toBe(
+      "BEAT_SOURCE_NOT_GENERATABLE (blocked at enqueue, nothing reserved): beats 1, 4 are declared real: capture the footage (docs/reels-engine-v2/05-CAPTURE-CHECKLIST.md); beat 3 is declared deterministic: no publishable card renderer yet. Nothing was generated.",
+    );
   });
 });
 

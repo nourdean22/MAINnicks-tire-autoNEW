@@ -12,10 +12,12 @@ import {
   evaluateAutonomyAction,
   resolveBoundaryOutcome,
   type AutonomyActionContext,
+  type AutonomyLimitKey,
   type AutonomyPolicy,
   type BoundaryActor,
   type PolicyDecision,
 } from "../../client/src/lib/autonomyPolicy";
+import { isDuplicateKeyError } from "../lib/dbErrors";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("services:autonomy-control");
@@ -357,14 +359,28 @@ export async function enforceAtBoundary(
   }
 }
 
+/** A policy (or one edit to it) the strict schema refuses: the caller's input, not a breakage. */
+export class PolicyValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PolicyValidationError";
+  }
+}
+
+function strictFailure(error: z.ZodError): string {
+  return `${error.issues[0]?.path.join(".")} ${error.issues[0]?.message}`;
+}
+
 /** Publish a new policy version (append-only, STRICT-validated). Version
  *  allocation is guarded by the UNIQUE constraint on `version` — a concurrent
  *  publisher hits a duplicate-key error and we retry once against the fresh
- *  max instead of silently double-allocating. */
+ *  max instead of silently double-allocating. This publishes a WHOLE policy;
+ *  to change one setting use editPolicy's callers below, which cannot lose a
+ *  concurrent edit. */
 export async function publishPolicyVersion(policy: AutonomyPolicy, note: string, createdBy: string): Promise<{ version: number }> {
   const strict = autonomyPolicyStrictSchema.safeParse({ ...policy, version: Math.max(1, Math.floor(policy.version)) });
   if (!strict.success) {
-    throw new Error(`policy failed strict validation: ${strict.error.issues[0]?.path.join(".")} ${strict.error.issues[0]?.message}`);
+    throw new PolicyValidationError(`policy failed strict validation: ${strictFailure(strict.error)}`);
   }
   const { getDb } = await import("../db");
   const d = await getDb();
@@ -388,25 +404,119 @@ export async function publishPolicyVersion(policy: AutonomyPolicy, note: string,
       log.info("autonomy policy version published", { version: nextVersion, note });
       return { version: nextVersion };
     } catch (err) {
-      const dup = err instanceof Error && /duplicate/i.test(err.message);
-      if (!dup || attempt === 1) throw err;
+      // drizzle wraps the driver error: the message is the SQL and its params,
+      // and ER_DUP_ENTRY sits on `.cause`. The old /duplicate/i test on the
+      // message never matched a real collision, so this retry never ran.
+      if (!isDuplicateKeyError(err) || attempt === 1) throw err;
       log.warn("policy version collision — retrying against fresh max", { attempted: nextVersion });
     }
   }
   throw new Error("policy version allocation failed");
 }
 
+const EDIT_ATTEMPTS = 3;
+
+/**
+ * Change ONE setting in the governing policy and publish the result as the
+ * next version. Every operator control on Autonomy control goes through here.
+ *
+ * Why not publish a policy the phone built: the phone's copy is partial or
+ * stale. The command center sends version, mode, kill switches and limits
+ * only, so publishing it as the whole policy failed shape validation — every
+ * limit edit, the Generation budget included, was refused until 2026-10-08 —
+ * and a stale whole copy would undo a kill switch armed from another device.
+ *
+ * An edit starts from the policy that GOVERNS, read fresh (never the 30 s
+ * cache): the latest stored version when it validates, the code default when
+ * storage is empty or that version fails validation (the same fallback
+ * getActivePolicy applies, so an emergency switch can always be armed). An
+ * unreachable store is an error, never "edit the default": that would publish
+ * the default over every setting the operator chose.
+ *
+ * Exactly the next version number is written, and the UNIQUE index on
+ * `version` (uq_autonomy_policy_version, drizzle/0086) is the compare-and-swap:
+ * when another edit took the number first, this one re-reads and re-applies
+ * its change on top, so neither edit is lost. publishPolicyVersion's retry
+ * cannot do that — it re-publishes its own copy.
+ */
+async function editPolicy(
+  change: (current: AutonomyPolicy) => AutonomyPolicy,
+  note: (current: AutonomyPolicy) => string,
+  createdBy: string,
+): Promise<{ version: number }> {
+  const { getDb } = await import("../db");
+  const d = await getDb();
+  if (!d) throw new Error("DB not available — cannot edit the autonomy policy");
+  const { autonomyPolicyVersions } = await import("../../drizzle/schema");
+  const { desc } = await import("drizzle-orm");
+
+  for (let attempt = 0; attempt < EDIT_ATTEMPTS; attempt++) {
+    const rows = await d
+      .select({ version: autonomyPolicyVersions.version, policyJson: autonomyPolicyVersions.policyJson })
+      .from(autonomyPolicyVersions)
+      .orderBy(desc(autonomyPolicyVersions.version))
+      .limit(1);
+    let current: AutonomyPolicy = DEFAULT_AUTONOMY_POLICY;
+    if (rows.length) {
+      let stored: unknown = null;
+      try { stored = JSON.parse(rows[0].policyJson); } catch { /* unparseable reads as invalid below */ }
+      const parsed = autonomyPolicyStrictSchema.safeParse(stored);
+      if (parsed.success) current = parsed.data;
+      else log.error("stored policy failed STRICT validation — editing on top of the DEFAULT that governs", { version: rows[0].version });
+    }
+    const nextVersion = (rows[0]?.version ?? DEFAULT_AUTONOMY_POLICY.version) + 1;
+    const strict = autonomyPolicyStrictSchema.safeParse({ ...change(current), version: nextVersion });
+    if (!strict.success) {
+      throw new PolicyValidationError(`policy edit failed strict validation: ${strictFailure(strict.error)}`);
+    }
+    const text = note(current);
+    try {
+      await d.insert(autonomyPolicyVersions).values({
+        version: nextVersion,
+        policyJson: JSON.stringify(strict.data),
+        note: text.slice(0, 400),
+        createdBy: createdBy.slice(0, 120),
+      });
+      clearPolicyCache();
+      emergencyCache = null;
+      log.info("autonomy policy edited", { version: nextVersion, note: text });
+      return { version: nextVersion };
+    } catch (err) {
+      if (!isDuplicateKeyError(err) || attempt === EDIT_ATTEMPTS - 1) throw err;
+      log.warn("policy edit lost the version race — re-reading and re-applying", { attempted: nextVersion });
+    }
+  }
+  throw new Error("policy edit failed");
+}
+
 /** One-tap emergency control: flips a kill switch by publishing a new version. */
 export async function setKillSwitch(scope: "global" | "generation" | "publishing", on: boolean, createdBy: string): Promise<{ version: number }> {
-  const current = await getActivePolicy();
-  const next: AutonomyPolicy = {
-    ...current,
-    emergencyControls: {
-      ...current.emergencyControls,
-      globalKillSwitch: scope === "global" ? on : current.emergencyControls.globalKillSwitch,
-      generationKillSwitch: scope === "generation" ? on : current.emergencyControls.generationKillSwitch,
-      publishingKillSwitch: scope === "publishing" ? on : current.emergencyControls.publishingKillSwitch,
-    },
-  };
-  return publishPolicyVersion(next, `${scope} kill switch ${on ? "ON" : "OFF"}`, createdBy);
+  const field = scope === "global" ? "globalKillSwitch" : scope === "generation" ? "generationKillSwitch" : "publishingKillSwitch";
+  return editPolicy(
+    (current) => ({ ...current, emergencyControls: { ...current.emergencyControls, [field]: on } }),
+    () => `${scope} kill switch ${on ? "ON" : "OFF"}`,
+    createdBy,
+  );
+}
+
+/** One limit (budget, caps, spacing). Bounds are the strict schema's; out of range is a PolicyValidationError. */
+export async function setPolicyLimit(key: AutonomyLimitKey, value: number, createdBy: string): Promise<{ version: number }> {
+  return editPolicy(
+    (current) => ({ ...current, limits: { ...current.limits, [key]: value } }),
+    (current) => `${key} ${current.limits[key]} -> ${value}`,
+    createdBy,
+  );
+}
+
+/**
+ * Whether a paid beat repair runs on its own ("auto": within the generation
+ * budget and the repairs-per-asset limit) or waits for the operator. The one
+ * reader is cron/jobs/dailyReelPost.ts, which spends only on "auto".
+ */
+export async function setPaidRepairPermission(permission: "auto" | "approval_required", createdBy: string): Promise<{ version: number }> {
+  return editPolicy(
+    (current) => ({ ...current, autonomousRepair: { paidBeatRegeneration: permission } }),
+    (current) => `paid beat repair ${current.autonomousRepair?.paidBeatRegeneration ?? "approval_required"} -> ${permission}`,
+    createdBy,
+  );
 }

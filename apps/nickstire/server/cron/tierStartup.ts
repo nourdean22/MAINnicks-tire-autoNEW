@@ -153,6 +153,41 @@ export async function readLastRunAgeMs(d: StartupExecutor, tierName: string): Pr
   return ageSec == null ? null : Number(ageSec) * 1000;
 }
 
+/** Past the due moment, so the claim's whole-second TIMESTAMPDIFF reads "due" despite rounding. */
+const DUE_CHECK_SLACK_MS = 15_000;
+
+/**
+ * A tier that was NOT due at boot gets one claimed check at the moment it falls
+ * due, and its interval timer starts from that check (2026-10-08).
+ *
+ * Before, the interval started at boot, so a tier that was not due waited a
+ * FULL interval after every deploy, and a deploy before that tick reset the
+ * wait. A run slid to almost twice the interval: on 2026-10-08 the 2-hour tier
+ * (missed-call recovery, callback escalation, stale-lead follow-up,
+ * confirmation calls) ran at 10:17, 12:28, 15:17 and 18:26Z — 131, 168 and
+ * 189 minutes apart — across fourteen boots, none of whose containers lived
+ * the two hours its timer needed.
+ *
+ * The check claims exactly like the boot pass (claimStartupPass), so of two
+ * processes alive at that moment one runs it. Null means "start the interval
+ * now", the old behaviour, whenever there is nothing to align to: the boot pass
+ * was claimed (it is running now), the claim could not be attempted, the server
+ * is draining, or the age of the last run is unknown.
+ */
+export function firstTickDelayMs(ctx: { allowanceMs: number; lastRunAgeMs: number | null; claim: StartupClaim | null }): number | null {
+  if (!ctx.claim || ctx.claim.claimed || ctx.claim.via !== "not-due") return null;
+  if (ctx.lastRunAgeMs == null || ctx.lastRunAgeMs >= ctx.allowanceMs) return null;
+  return ctx.allowanceMs - ctx.lastRunAgeMs + DUE_CHECK_SLACK_MS;
+}
+
+/** The due check's fire/skip decision and its log line (the boot pass has describeStartup). */
+export function describeDueCheck(claim: StartupClaim | null, claimError: string | null): { fire: boolean; reason: string } {
+  if (claim?.claimed) return { fire: true, reason: "claimed the pass it fell due for — the interval timer starts now" };
+  if (claim?.via === "draining") return { fire: false, reason: "server is shutting down — no claim taken" };
+  if (!claim) return { fire: false, reason: `could not claim (${claimError ?? "no database"}) — no claim, no fire; the interval timer starts now` };
+  return { fire: false, reason: "another process ran it first — the interval timer starts now" };
+}
+
 export interface StartupContext {
   tierName: string;
   allowanceMs: number;

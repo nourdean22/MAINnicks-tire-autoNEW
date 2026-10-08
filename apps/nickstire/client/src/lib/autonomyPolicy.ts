@@ -106,6 +106,19 @@ export interface AutonomyPolicy {
   };
 }
 
+/** Every key of `limits`, for the endpoint that changes one limit at a time. */
+export const AUTONOMY_LIMIT_KEYS = [
+  "maxFeedPostsPerDay",
+  "maxStoriesPerDay",
+  "minimumFeedSpacingHours",
+  "maxCampaignsPerWeek",
+  "maxGenerationCostPerDayUsd",
+  "maxGenerationCostPerCampaignUsd",
+  "maxRepairAttemptsPerAsset",
+  "maxModelCallsPerCampaign",
+] as const satisfies ReadonlyArray<keyof AutonomyPolicy["limits"]>;
+export type AutonomyLimitKey = (typeof AUTONOMY_LIMIT_KEYS)[number];
+
 /** Today's real operating posture, written down and versioned. */
 export const DEFAULT_AUTONOMY_POLICY: AutonomyPolicy = {
   version: 1,

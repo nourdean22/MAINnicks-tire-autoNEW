@@ -2129,3 +2129,79 @@ measurement. Every proposal below cites the moment in this wave that produced it
   checked `git rev-parse HEAD^{tree}` = the pre-merge commit's tree. P6's `git merge -s ours` does the same with no
   conflict resolution: prefer it. Adding a trailer to the merge commit by amending, before the first push, was not
   blocked. No new proposal; this raises P6's confidence and its placement question still stands.
+
+## 2026-10-08 · Reels Engine v2 follow-up (branch `claude/peaceful-pascal-988w9o`): autonomy one-field edits, tier due check, declared-source gate, caption safe zone
+
+### P1 · `nickstire-verify` — a value exported only for a test trips `lint:orphans`
+- **Trigger (witnessed, twice this session):** `reelVoice.ASS_CAPTION_MARGIN_V` and `tierStartup.DUE_CHECK_SLACK_MS`
+  were each exported so a test could import them. `pnpm run lint:orphans` (knip) flagged each as a NEW orphan, the
+  second only after the 474 s full suite. Both were un-exported: the caption test now parses MarginV out of the
+  generated ASS, and the cadence test derives the slack from `firstTickDelayMs` one minute short of due.
+- **Cost:** two extra fix-and-rerun loops, one of them behind an 8-minute suite.
+- **Proposed edit:** Traps: "Do not export a value only so a test can read it. knip's orphan gate does not count a
+  test as a consumer. Derive the value in the test from the function's behaviour or from the artifact it produces.
+  When the diff adds an `export`, run `pnpm run lint:orphans` in the targeted loop, before the full suite."
+- **Confidence:** high (recurred 2x in one session)
+- **Status:** proposed
+
+### P2 · `nickstire-verify` — find the source-shape pins on a call site before editing it
+- **Trigger (witnessed):** `server/contentExperimentArmKey.test.ts` pinned the literal text
+  `assignEpisodeToActiveExperiment(jobId, { contentOrigin: "ai_generated", briefId: brief.id })` with a regex. The
+  pack-origin fix in `services/reelPipeline.ts` changed that call. The pin went red only in the full suite, not in the
+  targeted files run while editing.
+- **Cost:** one full-suite cycle to discover a 3-line test update (`sliceBlock` + two `toContain`).
+- **Proposed edit:** pre-push sequence: "Before changing a call site, `grep -rn '<fnName>(' --include='*.test.ts*'`.
+  A test that asserts source text goes red only at full-suite time."
+- **Confidence:** medium (once)
+- **Status:** proposed
+
+### P3 · `nickstire-reel-operator` — a real-footage requirement is declared on the beat, not in prose
+- **Trigger (witnessed):** checking the operator's 31-day / 62-Reel research (2026-10-08) against the packs through
+  the production loader. 9 of the 133 buildable rotation packs say "Real vehicle and tire footage only." in
+  `modelRecommendation`, and 16 claim "0 credits" in `creditEfficiencyNote`. `shared/shotRouter.beatsTheGeneratorMustNotRender`
+  refuses none of them: no beat carries `source: "real"` or the visual tag `declaredBeatSource` reads. The daily lane
+  would generate synthetic versions of packs whose author asked for real footage, at 12 credits per 4 s beat clip
+  (5-6 clips a Reel). Same pass: 23 of the 133 use one placeholder five-line visual template ("Extreme macro of the
+  physical subject...", "Neutral technical comparison of the relevant physical components...").
+- **Cost:** nothing spent. It is a mis-pricing waiting to happen: 14 of the research's 62 picks carry the "0 credits"
+  note while the lane would charge ~60 credits each.
+- **Proposed edit:** under pack authoring: "If a shot must be real, put `source: "real"` on that beat; the generator
+  then refuses it until the footage exists. Prose in `modelRecommendation` / `creditEfficiencyNote` is read by no gate.
+  A pack whose beat visuals name no concrete subject ('the physical subject', 'the relevant components') is not
+  production-ready."
+- **Confidence:** high (9 and 23 instances)
+- **Status:** proposed
+
+### P4 · `CLAUDE-OPERATING-PROFILE.md` § SUBAGENT POLICY + `nickstire-verify` "dispatch reviewers" — spawn on request
+- **Trigger (witnessed, twice):** the operator rejected both unrequested Explore spawns this session, at 11:25Z
+  ("Creative pipeline repo census") and 14:27Z ("Inventory hook + visual identity systems"). The profile calls
+  subagents "encouraged", and `nickstire-verify` says a wave is not done until reviewers are dispatched per subsystem.
+- **Cost:** two interrupted turns. Both inventories were then done in-session.
+- **Proposed edit:** profile: "Spawn only when the operator asks; otherwise run the pass in-session."
+  `nickstire-verify`: "dispatch reviewers per subsystem" becomes "run a per-subsystem hostile pass, in-session unless
+  the operator asked for agents".
+- **Confidence:** high (2x). The operator gave no reason; cost or noise is an inference.
+- **Status:** proposed
+
+### P5 · `nickstire-verify` — a pixel test renders with production's own asset
+- **Trigger (witnessed):** `server/captionSafeZone.test.ts` "cropdetect measures the real drawtext box" rendered with
+  Arial Bold (Windows) or DejaVu Sans Bold (Linux) as a "wider, so conservative" stand-in. DejaVu measured 936 px against
+  an 894 px budget on every Linux box with ffmpeg. Production's Anton (`server/services/adStudio/fonts/Anton-Regular.ttf`,
+  byte-identical to `ANTON_TTF_B64`) measures 600 px. Earlier this session I recorded it as "pre-existing, reported".
+  This branch renders with Anton; positive control at 1.8x size (1,030 px) goes red.
+- **Cost:** a standing red in every cloud full-suite run, triaged twice this session.
+- **Proposed edit:** Traps: "A render or pixel test uses the production asset (font, overlay, LUT). OS faces are fallbacks
+  only: 'wider, so conservative' on one OS is a different, failing test on another."
+- **Confidence:** medium (once)
+- **Status:** proposed
+
+### Recurrence note on 2026-10-02 P5 (`nickstire-verify` — run the fail-open-slice gate locally)
+- Third occurrence. `server/cron/tierCadence.test.ts` (3) and `server/declaredSourceAtGeneration.test.ts` (2) added raw
+  `x.slice(..., y.indexOf(...))`, caught by `server/failOpenSliceGate.test.ts` only in the full suite, then converted to
+  `sliceBlock()`. P5 is still unapplied (no SKILL.md mentions `sliceBlock`).
+
+### Observation · `canonical-business-truth.test.ts` is past its timeout on cloud containers, on clean main
+- "no customer-copy line makes a claim the shop cannot back" ran 52.0 s on an origin/main snapshot (`git archive` plus
+  linked node_modules) and 52.7 s on this branch, against `testTimeout` 30 s, so every cloud full-suite run shows it
+  red. The `nickstire-verify` "within ~2x of its timeout" trap now has a live instance past 1x. It needs a test fix (a
+  per-test timeout or a faster scan), not a skill line. Recorded so the next session does not re-triage it.

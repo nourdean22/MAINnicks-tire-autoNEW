@@ -22,7 +22,7 @@ import { createLogger } from "../lib/logger";
 import { BUSINESS } from "@shared/business";
 import { DECLINED_RECOVERY_WINDOW_DAYS } from "@shared/const";
 import { acquireCronLock, releaseCronLock, jobTimeoutMs, beginCronDrain, isCronDraining, trackCronRun } from "./index";
-import { claimStartupPass, describeStartup, readLastRunAgeMs, startupAllowanceMs, type StartupClaim } from "./tierStartup";
+import { claimStartupPass, describeDueCheck, describeStartup, firstTickDelayMs, readLastRunAgeMs, startupAllowanceMs, type StartupClaim } from "./tierStartup";
 import { createWallClockRunner, isWallClockTier, startWallClockLoop } from "./wallClockTiers";
 
 const log = createLogger("scheduler");
@@ -121,6 +121,8 @@ export interface Tier {
   running: boolean;
   lastRun: Date | null;
   handle?: ReturnType<typeof setInterval>;
+  /** A not-due-at-boot tier's claimed check at the moment it falls due (tierStartup.firstTickDelayMs). */
+  dueCheck?: ReturnType<typeof setTimeout>;
 }
 
 const tiers: Tier[] = [];
@@ -3236,6 +3238,18 @@ export function startTieredScheduler(): void {
     // hourly pass measured 89 s live, so about 1.3 % of a thirteen-deploy day).
     const stagger = idx * 30_000;
 
+    // 2026-10-08 · the recurring timer starts once the tier's phase is known,
+    // not at boot. A tier that was not due at boot used to wait a full interval
+    // from boot, and every deploy before that tick reset the wait: the 2-hour
+    // tier ran 131/168/189 min apart that day. Now it gets one claimed check
+    // when it falls due (firstTickDelayMs), and the interval starts there.
+    const startRecurring = () => {
+      if (isCronDraining() || tier.handle) return;
+      tier.handle = setInterval(() => {
+        runTier(tier).catch(err => log.error(`Tier ${tier.name} failed:`, { error: err instanceof Error ? err.message : String(err) }));
+      }, tier.intervalMs);
+    };
+
     setTimeout(async () => {
       const allowanceMs = startupAllowanceMs(tier.name, tier.intervalMs);
       let lastRunAgeMs: number | null = null;
@@ -3257,14 +3271,32 @@ export function startTieredScheduler(): void {
       }
       const decision = describeStartup({ tierName: tier.name, allowanceMs, claim, lastRunAgeMs, claimError });
       log.info(`${tier.name} tier startup: ${decision.fire ? "FIRING" : "skipping"} — ${decision.reason}`);
+      const dueInMs = firstTickDelayMs({ allowanceMs, lastRunAgeMs, claim });
+      if (dueInMs === null) {
+        startRecurring();
+      } else {
+        log.info(`${tier.name} tier falls due in ${Math.round(dueInMs / 60000)} min — a claimed check runs then, and the interval starts from it`);
+        tier.dueCheck = setTimeout(async () => {
+          tier.dueCheck = undefined;
+          let dueClaim: StartupClaim | null = null;
+          let dueError: string | null = null;
+          try {
+            const { getDb } = await import("../db");
+            const d = await getDb();
+            if (d) dueClaim = await claimStartupPass(d, tier.name, allowanceMs);
+          } catch (e) {
+            dueError = e instanceof Error ? e.message : String(e);
+          }
+          const due = describeDueCheck(dueClaim, dueError);
+          log.info(`${tier.name} tier due check: ${due.fire ? "FIRING" : "skipping"} — ${due.reason}`);
+          startRecurring();
+          if (!due.fire) return;
+          runTier(tier).catch(err => log.error(`Tier ${tier.name} due check failed:`, { error: err instanceof Error ? err.message : String(err) }));
+        }, dueInMs);
+      }
       if (!decision.fire) return;
       runTier(tier).catch(err => log.error(`Tier ${tier.name} startup failed:`, { error: err instanceof Error ? err.message : String(err) }));
     }, stagger);
-
-    // Schedule recurring
-    tier.handle = setInterval(() => {
-      runTier(tier).catch(err => log.error(`Tier ${tier.name} failed:`, { error: err instanceof Error ? err.message : String(err) }));
-    }, tier.intervalMs);
   }
 
   const wallClockTierNames = tiers.filter((t) => isWallClockTier(t.name)).map((t) => t.name);
@@ -3313,6 +3345,7 @@ export function stopTieredScheduler(): void {
   stopWallClockLoop = undefined;
   for (const tier of tiers) {
     if (tier.handle) clearInterval(tier.handle);
+    if (tier.dueCheck) clearTimeout(tier.dueCheck);
   }
   log.info("Tiered scheduler stopped");
 }
