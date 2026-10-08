@@ -18,7 +18,7 @@
  * can inject a throwing reader to prove the omission rule.
  */
 import { createLogger } from "../lib/logger";
-import { MIN_SAMPLES_PER_ARM, type ExperimentPresetId } from "../../shared/contentExperiments";
+import { DECISION_LOOKS, type ExperimentPresetId } from "../../shared/contentExperiments";
 import { MIN_PER_SIDE, measureFindingCosts, type QaOutcomeRow } from "../../shared/renderedQaOutcomes";
 import type { RecentReelSignals } from "./reelRepetitionHistory";
 
@@ -473,26 +473,30 @@ export function composeCreativeCards(g: GatheredInputs, now: Date = new Date()):
         ],
         confidence: "high",
         confidenceReason: "a measured skip-rate gap on the account's own posts, not the critic's opinion of the frame",
-        firstAction: `Treat ${top.code} as a repair, not a warning, in the rendered-QA registry — and open Publish to see which posted Reels carry it`,
+        firstAction: `Make ${top.code} a repair, not a warning, in the rendered-QA registry`,
       });
     }
   }
 
   // ── 4. experiment ──
   if (g.experiments.ok) {
-    const thin = g.experiments.value.find((e) => e.thinnestArm < MIN_SAMPLES_PER_ARM);
+    // The resolver's first possible verdict is the first planned look
+    // (DECISION_LOOKS[0] per arm), not the 4-post floor; the card counts to
+    // the number that can actually produce a result.
+    const firstLook = DECISION_LOOKS[0];
+    const thin = g.experiments.value.find((e) => e.thinnestArm < firstLook);
     if (thin) {
       cards.push({
         type: "experiment",
         title: `Experiment running: ${thin.experimentId}`,
         format: "experiment",
         why: [
-          `${thin.attached} published episode${thin.attached === 1 ? "" : "s"} attached across ${thin.arms} arms; thinnest arm ${thin.thinnestArm}/${MIN_SAMPLES_PER_ARM} needed for a verdict`,
+          `${thin.attached} published episode${thin.attached === 1 ? "" : "s"} attached across ${thin.arms} arms; thinnest arm ${thin.thinnestArm}/${firstLook} needed for the first verdict`,
           `primary metric ${thin.primaryMetric} on ${thin.primaryVariable}`,
         ],
         confidence: "high",
         confidenceReason: "counts from content_experiment_assignments",
-        firstAction: `Keep the lane posting — ${MIN_SAMPLES_PER_ARM - thin.thinnestArm} more in the thinnest arm before the resolver can decide`,
+        firstAction: `Keep the lane posting — ${firstLook - thin.thinnestArm} more in the thinnest arm before the resolver's first look`,
       });
     } else if (g.experiments.value.length === 0 && g.ledger.ok && g.ledger.value.available) {
       const buckets = g.ledger.value.durationBuckets;
@@ -765,15 +769,19 @@ const defaultReaders: AssistantReaders = {
     }
     const ids = [...rows.keys()];
     if (!ids.length) return [];
+    // Latest NON-NULL reading per post. instagram-data refreshes insights only
+    // for posts under 14 days old but keeps writing a snapshot row (skip_rate
+    // NULL) for every recent media item, so "newest row" would drop a Reel the
+    // moment it aged past 14 days although its real skip rate is one row older.
     const snaps = await d
       .select({ postId: igMetricSnapshots.postId, skipRate: igMetricSnapshots.skipRate })
       .from(igMetricSnapshots)
-      .where(inArray(igMetricSnapshots.postId, ids.slice(0, 500)))
+      .where(and(inArray(igMetricSnapshots.postId, ids.slice(0, 500)), isNotNull(igMetricSnapshots.skipRate)))
       .orderBy(desc(igMetricSnapshots.capturedAt))
       .limit(3000);
     const seen = new Set<string>();
     for (const s of snaps as Array<{ postId: string; skipRate: unknown }>) {
-      if (seen.has(s.postId)) continue; // newest first: the first row per post is its latest reading
+      if (seen.has(s.postId)) continue; // newest first: the first row per post is its latest non-null reading
       seen.add(s.postId);
       // DECIMAL arrives as a string from mysql2 ("83.6000"); a null stays null.
       const n = s.skipRate == null ? null : Number(s.skipRate);

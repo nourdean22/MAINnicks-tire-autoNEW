@@ -665,6 +665,19 @@ export const contentAdminRouter = router({
       };
     }),
 
+  /** Stop a running content experiment (2026-10-08). The lever the wiring
+   *  gate assumed: the resolver now reports a running unwired experiment as
+   *  "not wired, not judged (stop it)", and until this existed nothing but SQL
+   *  could. A stopped experiment leaves assignment and judging at once. */
+  stopContentExperiment: dbAdminProcedure
+    .input(z.object({ experimentId: z.string().min(1).max(100), reason: z.string().min(1).max(500) }))
+    .mutation(async ({ input }) => {
+      const { stopExperiment } = await import("../services/contentExperimentStore");
+      const stopped = await stopExperiment(input.experimentId, input.reason);
+      if (!stopped) throw new TRPCError({ code: "NOT_FOUND", message: `no RUNNING experiment "${input.experimentId}" (unknown id, or already concluded/stopped)` });
+      return { stopped: input.experimentId };
+    }),
+
   /** Blind pairwise review (2026-10-08, services/pairwiseReview.ts): the next
    *  two judged photo posts the operator has not compared, with NO scores, and
    *  the running agreement between the operator's picks and the judge. Three
@@ -690,11 +703,12 @@ export const contentAdminRouter = router({
       const { getDb } = await import("../db");
       const d = await getDb();
       if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "no database" });
-      const { recordPairPick } = await import("../services/pairwiseReview");
+      const { recordPairPick, PairPickError } = await import("../services/pairwiseReview");
       try {
         return await recordPairPick(d, { ...input, actor: ctx.user?.email ?? "admin" });
       } catch (err) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: err instanceof Error ? err.message : String(err) });
+        const code = err instanceof PairPickError && err.kind === "write_failed" ? "INTERNAL_SERVER_ERROR" : "BAD_REQUEST";
+        throw new TRPCError({ code, message: err instanceof Error ? err.message : String(err) });
       }
     }),
 

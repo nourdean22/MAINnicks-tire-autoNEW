@@ -111,7 +111,12 @@ export function probeFromFfprobeJson(doc: unknown): MediaProbe | null {
 async function ffprobe(input: string): Promise<MediaProbe> {
   const bin = process.env.FFPROBE_PATH || "ffprobe";
   const out = await new Promise<string>((resolve, reject) => {
-    const p = spawn(bin, ["-v", "error", "-print_format", "json", "-show_streams", "-show_format", input], { stdio: ["ignore", "pipe", "pipe"] });
+    // Same spawn convention as reelAssembly/audioQa: a bare `ffprobe` on the
+    // Windows operator box resolves only through a shell; a pinned path never needs one.
+    const p = spawn(bin, ["-v", "error", "-print_format", "json", "-show_streams", "-show_format", input], {
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: process.platform === "win32" && !process.env.FFPROBE_PATH,
+    });
     let o = "";
     let e = "";
     p.stdout.on("data", (c) => { o += c; });
@@ -166,7 +171,7 @@ export async function runDeliveredReelQaPass(db: Db, limit = 2): Promise<{ check
     WHERE status = 'posted' AND igPostId IS NOT NULL AND mp4Url IS NOT NULL AND mp4Url <> ''
       AND updatedAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)
       AND updatedAt <= DATE_SUB(NOW(), INTERVAL 30 MINUTE)
-    ORDER BY id ASC
+    ORDER BY updatedAt ASC, id ASC
     LIMIT 25
   `);
   const rows = (Array.isArray(res) && Array.isArray(res[0]) ? res[0] : []) as Array<{ id: number; igPostId: string; mp4Url: string; payload: string | null }>;

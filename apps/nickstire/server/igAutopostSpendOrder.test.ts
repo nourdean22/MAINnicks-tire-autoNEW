@@ -7,7 +7,11 @@
  * (which reads the concept, caption and image PROMPT, never the image). A
  * failed caption or a judge rejection therefore cost ~2.5 min and one image
  * credit for a verdict already decidable. The loop now runs caption eval →
- * judge → image, and a judge-blocked run records no image.
+ * judge → image; a live judge rejection REGENERATES (the old flow ended the
+ * run and waited for the next tick), and the run aborts with the judge's
+ * reason only when every attempt is spent, recording no image for the
+ * rejected concept. The judge therefore sees up to MAX_REGEN_ATTEMPTS + 1
+ * concepts per run instead of one.
  *
  * Source-order canary: `runIgAutopost` wires DB, LLM and image providers
  * internally, so the order is asserted on the loop's text, sliced between the
@@ -40,17 +44,22 @@ describe("runIgAutopost: caption, then judge, then pixels", () => {
     expect(skip).not.toContain("selectPostImage");
   });
 
-  it("a judge rejection in live mode ends the run with no image generated; dryrun keeps previewing", () => {
-    expect(loop).toContain("if (!dryRun && judgeGate.block) {");
-    const blocked = sliceBlock(loop, "if (judgeBlocked) {", "// No draft cleared the gate", { label: "judge-blocked return" });
+  it("a live judge rejection regenerates; the run aborts on the judge's reason only when no attempt survived; dryrun keeps previewing", () => {
+    const reject = sliceBlock(loop, "if (!dryRun && judgeGate.block) {", "const image = await selectPostImage(post);", { label: "judge-reject branch" });
+    expect(reject).toContain("continue;");
+    expect(reject).not.toContain("break;");
+    expect(reject).not.toContain("selectPostImage");
+    const blocked = sliceBlock(loop, "if (!best && judgeBlocked) {", "// No draft cleared the gate", { label: "judge-blocked return" });
     expect(blocked).toContain("imageUrl: null");
     expect(blocked).toContain("error: `judge-blocked: ${reason}`");
     expect(blocked).toContain('status: "aborted"');
-    expect(blocked).toContain("no image was generated");
+    expect(blocked).toContain("no image was generated for the rejected concept");
   });
 
-  it("the judge is asked exactly once per concept, through judgeConcept, and only when switched on", () => {
+  it("the judge is reached only through judgeConcept (one call site, once per caption-passing attempt), only when switched on, and the per-run call count is logged", () => {
     expect(SRC.split("judgeSingleConcept({")).toHaveLength(2);
+    expect(loop).toContain("if (shadowJudge) judgeCalls++;");
+    expect(loop).toContain("judgeCalls,");
     const helper = sliceBlock(SRC, "async function judgeConcept(", "function composeCaption(", { label: "judgeConcept" });
     expect(helper).toContain('if (process.env.IG_SHADOW_JUDGE === "false") return undefined;');
     expect(helper).toContain("return { error: errMsg(err).slice(0, 200) };");

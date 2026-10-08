@@ -40,11 +40,14 @@ export const MIN_SAMPLES_PER_ARM = 4;
  * The rule before it was "top arm leads by 10% after 4 posts per arm". Instagram
  * per-post outcomes swing several-fold from post to post, so that rule crowned
  * a winner between two IDENTICAL arms in 85.8% of seeded simulated runs at 4
- * posts per arm and 80.8% at 8 (contentExperimentsValidity.test.ts keeps the
- * old rule as its control). With the test the same A/A runs produce a winner in
- * 2.8% and 4.2% of runs. The price is power: a genuinely doubled share rate at
- * 12 posts per arm is called 58% of the time; otherwise the experiment keeps
- * running (insufficient_data), never concludes on the wrong arm.
+ * posts per arm (contentExperimentsValidity.test.ts keeps the old rule as its
+ * control). The budget is spent across the planned DECISION_LOOKS below, and
+ * the calibration walks the resolver's daily looks (4 … 100 posts per arm)
+ * the way the cron does. Measured 2026-10-08, 400 runs per condition: identical
+ * arms end as a false winner in 3.8% of experiments (69.5% tie, the rest still
+ * running at 100 per arm); a doubled share rate is found in 99.8% (mean first
+ * verdict at 27.5 posts per arm), a 1.5x rate in 85.0% (mean 61.4) — never on
+ * the wrong arm. Otherwise the experiment keeps running (insufficient_data).
  */
 const WINNER_ALPHA = 0.05;
 
@@ -126,6 +129,10 @@ export const METRIC_SPECS: Record<string, MetricSpec> = {
   // avg_watch_time: milliseconds-per-viewer, weighted, higher wins.
   avgWatchTimeMs: { aggregation: "WEIGHTED_AVERAGE", direction: "HIGHER_IS_BETTER" },
   reels_skip_rate: { aggregation: "RAW_AVERAGE", direction: "LOWER_IS_BETTER" },
+  // The snapshot column's own name, like avgWatchTimeMs above: an experiment
+  // declared this way was gatherable (resolver) but had no spec here, so it
+  // was refused `invalid_design` every day and could never resolve (2026-10-08).
+  skipRate: { aggregation: "RAW_AVERAGE", direction: "LOWER_IS_BETTER" },
   shares: COUNT,
   saved: COUNT,
   likes: COUNT,
@@ -134,6 +141,38 @@ export const METRIC_SPECS: Record<string, MetricSpec> = {
 };
 
 /** An unregistered metric has no defensible aggregation — say so, don't guess. */
+/** The ig_metric_snapshots column a metric name reads. */
+export type SnapshotMetricColumn = "shares" | "saved" | "views" | "reach" | "avgWatchTimeMs" | "skipRate";
+
+/**
+ * Which snapshot column each gatherable metric name reads. Lives beside
+ * METRIC_SPECS so one test can hold the invariant the resolver depends on:
+ * every name here has a spec (else the evaluator refuses it as invalid_design
+ * after the observations were gathered), and every preset's primary metric is
+ * here (else the resolver reports it unmeasurable). A metric with no snapshot
+ * column (dms, calls, comments…) is unmeasurable and is reported as such.
+ */
+export const SNAPSHOT_COLUMN_FOR_METRIC: Record<string, SnapshotMetricColumn> = {
+  shares: "shares",
+  shares_per_reach: "shares",
+  saved: "saved",
+  saves_per_reach: "saved",
+  views: "views",
+  reach: "reach",
+  avg_watch_time: "avgWatchTimeMs",
+  ig_reels_avg_watch_time: "avgWatchTimeMs",
+  // The snapshot column name itself — the live hook-style-2026-08 experiment
+  // declares its metric this way (found 2026-08-06 when the resolver reported
+  // the estate's one real experiment "unmeasurable").
+  avgWatchTimeMs: "avgWatchTimeMs",
+  // Skip rate is the metric a hook experiment exists to move. It was missing
+  // here AND unreadable in the gatherer (DECIMAL arrives as a string) until
+  // 2026-10-08, so hook experiments could only be judged on proxies.
+  skip_rate: "skipRate",
+  reels_skip_rate: "skipRate",
+  skipRate: "skipRate",
+};
+
 export function metricSpec(name: string): MetricSpec | null {
   return METRIC_SPECS[name] ?? null;
 }
@@ -307,22 +346,76 @@ function perPostValue(spec: MetricSpec, o: ArmObservation): number {
   return spec.aggregation === "COUNT_PER_REACH" && o.reach && o.reach > 0 ? v / o.reach : v;
 }
 
+/** The weight armRates gives one post: its reach for a WEIGHTED_AVERAGE metric, 1 for every other aggregation. */
+function perPostWeight(spec: MetricSpec, o: ArmObservation): number {
+  return spec.aggregation === "WEIGHTED_AVERAGE" && o.reach && o.reach > 0 ? o.reach : 1;
+}
+
 /**
- * Two-sided permutation p-value for a difference in means between two arms'
- * per-post values: the share of relabellings of the pooled posts whose mean
- * gap is at least the observed one. Exact when the relabellings are few enough
- * to enumerate, otherwise a fixed-seed Monte Carlo of 20,000 draws, so the same
- * data always returns the same p. Valid with no assumption about the shape of
- * the per-post distribution, which is the point: reach is heavy-tailed.
+ * Thinnest-arm reported counts at which a verdict may CONCLUDE (2026-10-08).
+ *
+ * The resolver re-evaluates every day, and a rule validated at ONE look was
+ * being applied at every look: under the validity test's own noise model an
+ * A/A experiment concluded in 83% of runs (optional stopping — each day's
+ * glance at p ≤ 0.05 is another chance for noise to cross it; and the "under
+ * 10% lead → tie" rule concluded before any test at all). So verdicts are
+ * allowed only at these planned looks, with WINNER_ALPHA split across them
+ * (Bonferroni; conservative, stateless, no bookkeeping of looks taken), and a
+ * tie — "no actionable difference" — only from the 48-per-arm look on. Past
+ * the last look, every further 48 posts per arm is another look. Between
+ * looks the verdict is insufficient_data naming the next look.
  */
-export function permutationP(a: number[], b: number[]): number {
-  const pooled = [...a, ...b];
-  const n = pooled.length;
+export const DECISION_LOOKS = [12, 24, 48, 96] as const;
+const TIE_FROM_LOOK = 48;
+const LOOK_STEP_AFTER_LAST = 48;
+
+export function isDecisionLook(thinnestArm: number): boolean {
+  if ((DECISION_LOOKS as readonly number[]).includes(thinnestArm)) return true;
+  const last = DECISION_LOOKS[DECISION_LOOKS.length - 1];
+  return thinnestArm > last && (thinnestArm - last) % LOOK_STEP_AFTER_LAST === 0;
+}
+
+export function nextDecisionLook(thinnestArm: number): number {
+  for (const look of DECISION_LOOKS) if (look > thinnestArm) return look;
+  const last = DECISION_LOOKS[DECISION_LOOKS.length - 1];
+  return last + (Math.floor((thinnestArm - last) / LOOK_STEP_AFTER_LAST) + 1) * LOOK_STEP_AFTER_LAST;
+}
+
+/**
+ * Two-sided permutation p-value for a difference in (weighted) means between
+ * two arms' per-post values: the share of relabellings of the pooled posts
+ * whose mean gap is at least the observed one. Exact when the relabellings
+ * are few enough to enumerate, otherwise a fixed-seed Monte Carlo of 20,000
+ * draws, so the same data always returns the same p. Valid with no assumption
+ * about the shape of the per-post distribution, which is the point: reach is
+ * heavy-tailed.
+ *
+ * WEIGHTS (2026-10-08). The statistic is the gap between the arms' weighted
+ * means, Σ(v·w)/Σw, with the weights the caller ranks by — reach for a
+ * WEIGHTED_AVERAGE metric, 1 otherwise. Testing the UNWEIGHTED gap while
+ * ranking by the weighted one could crown the arm the test had just shown to
+ * be worse (one 9,000 ms post at 50,000 reach beside five at 10 reach beat
+ * six honest 5,000 ms posts, p = 0.015, in the direction the test did not
+ * support). With every weight 1 this is exactly the old unweighted test.
+ */
+export function permutationP(a: number[], b: number[], weightsA?: number[], weightsB?: number[]): number {
+  const n = a.length + b.length;
   const k = a.length;
   if (k === 0 || k === n) return 1;
-  const total = pooled.reduce((s, x) => s + x, 0);
-  const gap = (sumA: number) => Math.abs(sumA / k - (total - sumA) / (n - k));
-  const observed = gap(a.reduce((s, x) => s + x, 0)) - 1e-12;
+  const w = [...(weightsA ?? a.map(() => 1)), ...(weightsB ?? b.map(() => 1))].map((x) => (x > 0 && Number.isFinite(x) ? x : 1));
+  const vw = [...a, ...b].map((v, i) => v * w[i]);
+  const totalVW = vw.reduce((s, x) => s + x, 0);
+  const totalW = w.reduce((s, x) => s + x, 0);
+  // Gap between the weighted means of a k-subset and its complement.
+  const gap = (sumVW: number, sumW: number) => {
+    const restW = totalW - sumW;
+    if (sumW <= 0 || restW <= 0) return 0;
+    return Math.abs(sumVW / sumW - (totalVW - sumVW) / restW);
+  };
+  let obsVW = 0;
+  let obsW = 0;
+  for (let i = 0; i < k; i++) { obsVW += vw[i]; obsW += w[i]; }
+  const observed = gap(obsVW, obsW) - 1e-12;
 
   let combos = 1;
   for (let i = 0; i < k; i++) combos = (combos * (n - i)) / (i + 1);
@@ -331,10 +424,11 @@ export function permutationP(a: number[], b: number[]): number {
   if (combos <= 50_000) {
     const idx = Array.from({ length: k }, (_, i) => i);
     for (;;) {
-      let sum = 0;
-      for (const i of idx) sum += pooled[i];
+      let sVW = 0;
+      let sW = 0;
+      for (const i of idx) { sVW += vw[i]; sW += w[i]; }
       draws++;
-      if (gap(sum) >= observed) hits++;
+      if (gap(sVW, sW) >= observed) hits++;
       let j = k - 1;
       while (j >= 0 && idx[j] === n - k + j) j--;
       if (j < 0) break;
@@ -343,17 +437,18 @@ export function permutationP(a: number[], b: number[]): number {
     }
   } else {
     let seed = n * 7919 + k;
-    for (const x of pooled) seed = (seed * 31 + Math.round(x * 1e6)) >>> 0;
+    for (let i = 0; i < n; i++) seed = (seed * 31 + Math.round(vw[i] * 1e6) + Math.round(w[i])) >>> 0;
     const rng = mulberry32(seed);
-    const arr = [...pooled];
+    const order = Array.from({ length: n }, (_, i) => i);
     for (draws = 0; draws < 20_000; draws++) {
       for (let i = 0; i < k; i++) {
         const j = i + Math.floor(rng() * (n - i));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
+        [order[i], order[j]] = [order[j], order[i]];
       }
-      let sum = 0;
-      for (let i = 0; i < k; i++) sum += arr[i];
-      if (gap(sum) >= observed) hits++;
+      let sVW = 0;
+      let sW = 0;
+      for (let i = 0; i < k; i++) { sVW += vw[order[i]]; sW += w[order[i]]; }
+      if (gap(sVW, sW) >= observed) hits++;
     }
   }
   return hits / draws;
@@ -424,31 +519,63 @@ export function evaluateExperiment(
   // guard below and throws away a decisive result.
   const gap = spec.direction === "LOWER_IS_BETTER" ? second.rate - top.rate : top.rate - second.rate;
   const lift = second.rate === 0 ? Infinity : gap / second.rate;
-  // A margin under 10% across this few posts is not a result.
+
+  // Verdicts only at a planned look (see DECISION_LOOKS). Every other day the
+  // honest answer is "not yet", naming the next look.
+  if (!isDecisionLook(smallest)) {
+    const next = nextDecisionLook(smallest);
+    return {
+      status: "insufficient_data",
+      needed: next,
+      have: smallest,
+      note: `between decision looks: the thinnest arm has ${smallest} reported posts, next verdict at ${next} per arm` +
+        (Number.isFinite(lift) ? ` (top arm currently leads by ${(lift * 100).toFixed(1)}%)` : ""),
+    };
+  }
+  const alphaPerLook = WINNER_ALPHA / DECISION_LOOKS.length;
+
+  // A margin under 10% is not a result worth acting on. From the 48-per-arm
+  // look it is a tie ("retire this variable" is the proposal); before that it
+  // is not yet a finding — a 9% lead at 12 posts says nothing about 48.
   if (Number.isFinite(lift) && lift < 0.1) {
-    return { status: "tie", note: `top two arms within ${(lift * 100).toFixed(1)}% — not separable at this sample size` };
+    if (smallest >= TIE_FROM_LOOK) {
+      return { status: "tie", note: `top two arms within ${(lift * 100).toFixed(1)}% after ${smallest} posts per arm — no actionable difference` };
+    }
+    const next = nextDecisionLook(smallest);
+    return {
+      status: "insufficient_data",
+      needed: next,
+      have: smallest,
+      note: `top two arms within ${(lift * 100).toFixed(1)}% at ${smallest} per arm — too close to call before the ${TIE_FROM_LOOK}-per-arm look; next look at ${next}`,
+    };
   }
 
   // The lead must also be distinguishable from noise. The two leaders were
   // picked AFTER looking at the data, so with more than two arms the p-value
   // is multiplied by the number of possible runners-up (Bonferroni) to pay for
-  // that choice.
-  const values = (armId: string) =>
-    observations
-      .filter((o) => o.armId === armId && o.horizonHours === horizonHours && o.metricValue !== null)
-      .map((o) => perPostValue(spec, o));
-  const p = Math.min(1, permutationP(values(top.armId), values(second.armId)) * (scored.length - 1));
+  // that choice; the per-look alpha pays for the planned looks.
+  const posts = (armId: string) =>
+    observations.filter((o) => o.armId === armId && o.horizonHours === horizonHours && o.metricValue !== null);
+  const topPosts = posts(top.armId);
+  const secondPosts = posts(second.armId);
+  const p = Math.min(1, permutationP(
+    topPosts.map((o) => perPostValue(spec, o)),
+    secondPosts.map((o) => perPostValue(spec, o)),
+    topPosts.map((o) => perPostWeight(spec, o)),
+    secondPosts.map((o) => perPostWeight(spec, o)),
+  ) * (scored.length - 1));
   // A lead that noise could explain is NOT a tie. The resolver CONCLUDES an
   // experiment on a tie and proposes retiring the variable, so reporting
   // "not enough evidence yet" as a tie would end a live experiment and kill a
   // possibly-real effect. It is insufficient data: the experiment keeps
   // running and the next round of posts is the "needed".
-  if (p > WINNER_ALPHA) {
+  if (p > alphaPerLook) {
+    const next = nextDecisionLook(smallest);
     return {
       status: "insufficient_data",
-      needed: smallest + MIN_SAMPLES_PER_ARM,
+      needed: next,
       have: smallest,
-      note: `top arm leads by ${Number.isFinite(lift) ? `${(lift * 100).toFixed(1)}%` : "an undefined margin"} but a permutation test cannot yet tell it from noise (p=${p.toFixed(3)} > ${WINNER_ALPHA}); keep running`,
+      note: `top arm leads by ${Number.isFinite(lift) ? `${(lift * 100).toFixed(1)}%` : "an undefined margin"} but a permutation test cannot yet tell it from noise (p=${p.toFixed(3)} > ${alphaPerLook.toFixed(4)} per look); next look at ${next} per arm`,
     };
   }
 

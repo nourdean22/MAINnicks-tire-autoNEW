@@ -59,6 +59,8 @@ describe("the scorer sees it", () => {
     expect(p?.points).toBe(4);
     expect(p?.ok).toBe(false);
     expect(p?.detail).toContain("opens like 6/8 recent reels");
+    // The fraction in the detail is the points awarded, deduction included.
+    expect(p?.detail).toMatch(/\(4\/5 points\)$/);
   });
 
   it("a different opener, or no hook history, costs nothing", () => {

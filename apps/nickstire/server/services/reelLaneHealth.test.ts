@@ -36,7 +36,7 @@ describe("readReelLane", () => {
   };
 
   it("maps the reads into a measured reading (TiDB returns numbers as strings)", async () => {
-    await expect(readReelLane(fake("101", "2"))).resolves.toEqual({ kind: "measured", hoursSinceLastPost: 101, readyAwaitingApproval: 2, deliveredIssues: [], providerDrift: [] });
+    await expect(readReelLane(fake("101", "2"))).resolves.toEqual({ kind: "measured", hoursSinceLastPost: 101, readyAwaitingApproval: 2, deliveredIssues: [], deliveredUnmeasured: [], providerDrift: [] });
   });
 
   it("collects delivered-copy QA failures and skips unparseable payloads", async () => {
@@ -50,16 +50,36 @@ describe("readReelLane", () => {
     expect(renderReelLaneException(r)).toBeNull();
   });
 
+  it("a delivered-copy check that could not run in 3 attempts is said out loud, never read as healthy", async () => {
+    const r = await readReelLane(fake("5", "0", [
+      { id: 11, payload: JSON.stringify({ deliveredQa: { verdict: "unmeasured", issues: [], attempts: 3, reason: "delivered URL unavailable: Instagram not configured (need META_PAGE_ACCESS_TOKEN)" } }) },
+      { id: 10, payload: JSON.stringify({ deliveredQa: { verdict: "unmeasured", issues: [], attempts: 1, reason: "ffprobe exited 1" } }) }, // still retrying: not reported
+    ]));
+    expect(r).toMatchObject({ deliveredUnmeasured: [{ jobId: 11 }] });
+    expect(renderDeliveredQaException(r)).toBe(
+      "Delivered-copy QA UNMEASURED for 1 posted Reel(s) after 3 attempts — delivered URL unavailable: Instagram not configured (need META_PAGE_ACCESS_TOKEN) (job 11)",
+    );
+  });
+
   it("collects clip probes from assembled and posted rows and reports a provider whose clips changed shape", async () => {
     const probe = (beatNumber: number, over: Record<string, unknown> = {}) => ({ beatNumber, provider: "higgsfield", width: 1080, height: 1920, fps: 24, durationSec: 5, ...over });
     const r = await readReelLane(fake("5", "0", [
       { id: 9, payload: JSON.stringify({ clipProbes: [probe(1, { width: 720, height: 1280 }), probe(2, { width: 720, height: 1280 }), probe(3)] }) },
       { id: 8, payload: JSON.stringify({ clipProbes: [probe(1), probe(2), probe(3)] }) },
     ]));
-    expect(r.kind === "measured" && r.providerDrift?.[0]).toMatchObject({ provider: "higgsfield", baseline: "1080x1920@24", total: 6 });
+    expect(r.kind === "measured" && r.providerDrift?.[0]).toMatchObject({ provider: "higgsfield", baseline: "1080x1920@24", baselineShare: 4 / 6, total: 6 });
     expect(renderProviderDriftException(r)).toBe(
       "Provider drift: 2 of 6 higgsfield clips this week came back off its 1080x1920@24 / 5s baseline (e.g. 720x1280@24 5s, job 9 beat 1) — check the provider before the next paid run",
     );
+  });
+
+  it("a window with no majority shape is reported as a provider change, not as drift from a norm", async () => {
+    const probe = (beatNumber: number, over: Record<string, unknown> = {}) => ({ beatNumber, provider: "higgsfield", width: 1080, height: 1920, fps: 24, durationSec: 5, ...over });
+    const r = await readReelLane(fake("5", "0", [
+      { id: 9, payload: JSON.stringify({ clipProbes: [probe(1, { width: 720, height: 1280 }), probe(2, { width: 720, height: 1280 }), probe(3, { width: 720, height: 1280 })] }) },
+      { id: 8, payload: JSON.stringify({ clipProbes: [probe(1), probe(2), probe(3)] }) },
+    ]));
+    expect(renderProviderDriftException(r)).toMatch(/^Provider drift: higgsfield clips this week have no majority shape \(most common 1080x1920@24 holds 50% of 6; e\.g\. 720x1280@24 5s, job 9 beat 1\)/);
   });
 
   it("one odd clip is a glitch, not drift: no line", async () => {
@@ -72,7 +92,7 @@ describe("readReelLane", () => {
 
   it("no posted row → null hours, which renders as a stall", async () => {
     const r = await readReelLane(fake(null, 0));
-    expect(r).toEqual({ kind: "measured", hoursSinceLastPost: null, readyAwaitingApproval: 0, deliveredIssues: [], providerDrift: [] });
+    expect(r).toEqual({ kind: "measured", hoursSinceLastPost: null, readyAwaitingApproval: 0, deliveredIssues: [], deliveredUnmeasured: [], providerDrift: [] });
     expect(renderReelLaneException(r)).not.toBeNull();
   });
 

@@ -874,16 +874,20 @@ export function validateMutedFirstClarity(beats: StoryboardBeat[]): { ok: boolea
  *          prose with nothing else on screen. Unambiguous; no approved pack in
  *          docs/reel-packs comes near it (densest beat measured 3.75).
  *   warn   more than 3 words per second after a 0.3 s reaction allowance —
- *          the subtitle-reading guideline range. Three approved beats in two
- *          packs exceed it today; they are flagged, not held.
+ *          the subtitle-reading guideline range. Measured 2026-10-08 over the
+ *          68 of 196 committed packs that carry storyboardBeats (346 beats):
+ *          two beats in one pack exceed it; they are flagged, not held.
  * Numbers, prices and "3,000-mile" each count as one word.
  */
 export function validateOnScreenReadability(beats: StoryboardBeat[]): { blocking: string[]; warnings: string[] } {
   const blocking: string[] = [];
   const warnings: string[] = [];
   for (const b of beats) {
-    const words = (b.onScreenText.match(/[A-Za-z0-9$%'/.,-]+/g) ?? []).filter((w) => /[A-Za-z0-9]/.test(w)).length;
-    const seconds = b.endSecond - b.startSecond;
+    // A beat with no text (older payloads, a partial draft) has nothing to
+    // read: no finding, and never a throw — a $0 gate that crashes preflight
+    // would hold the lane harder than any block it could raise.
+    const words = (String(b.onScreenText ?? "").match(/[A-Za-z0-9$%'/.,-]+/g) ?? []).filter((w) => /[A-Za-z0-9]/.test(w)).length;
+    const seconds = Number(b.endSecond) - Number(b.startSecond);
     if (!words || !(seconds > 0)) continue;
     if (words > 4 * seconds) {
       blocking.push(`beat ${b.beatNumber}: ${words} words of on-screen text in ${seconds.toFixed(1)}s cannot be read before the cut (limit 4 words/s)`);
@@ -1213,6 +1217,7 @@ function distinctPart(
   const saturation = saturatedHookGrammar(recent.hookGrammars);
   const hookFatigued = !!saturation && classifyHookGrammar(brief.storyboardBeats?.[0]?.onScreenText) === saturation.grammar;
   const ok = repeated.length === 0 && !hookFatigued;
+  const points = Math.max(0, DISTINCT_SIGNALS - repeated.length - (hookFatigued ? 1 : 0));
   const fatigueNote = hookFatigued && saturation
     ? `opens like ${saturation.count}/${saturation.of} recent reels (${saturation.grammar.replace(/_/g, " ")})`
     : "";
@@ -1230,13 +1235,15 @@ function distinctPart(
     // handed nearly every brief a zero and quietly required a perfect score
     // on all nine other parts. Graduated says what is actually true: this
     // brief is four-fifths new.
-    points: Math.max(0, DISTINCT_SIGNALS - repeated.length - (hookFatigued ? 1 : 0)),
+    points,
+    // The fraction is the points awarded, so the hook-fatigue deduction shows
+    // in the same number the scale sums ("4/5" never reads beside a 3).
     detail: ok
       ? `No repeat across ${recent.topics.length} recent reels`
       : [
-          repeated.length ? `Repeats recent ${repeated.join(", ")} (${DISTINCT_SIGNALS - repeated.length}/${DISTINCT_SIGNALS} signals new)` : "",
+          repeated.length ? `Repeats recent ${repeated.join(", ")}` : "",
           fatigueNote,
-        ].filter(Boolean).join("; "),
+        ].filter(Boolean).join("; ") + ` (${points}/${DISTINCT_SIGNALS} points)`,
   };
 }
 

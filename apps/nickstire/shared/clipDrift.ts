@@ -29,6 +29,8 @@ export interface ClipDrift {
   provider: string;
   /** "1080x1920@24" — the shape most of this provider's recent clips share. */
   baseline: string;
+  /** Share of the window on the baseline shape. Under 0.5 there is no majority: the window is split, not drifting from a norm. */
+  baselineShare: number;
   baselineDurationSec: number;
   total: number;
   drifted: Array<{ jobId: number; beatNumber: number; signature: string; durationSec: number }>;
@@ -52,10 +54,16 @@ function mode<T extends string | number>(xs: T[]): T {
  * drifts when its shape differs from the modal shape or its length is more
  * than a second off the modal length. Local renders are deterministic and
  * are not reported.
+ *
+ * Probes are taken OLDEST-FIRST (by job id within the window the caller
+ * passes newest-first), so when a provider changes mid-window and the two
+ * shapes tie, the older shape is the baseline and the NEW clips read as the
+ * drift — not the other way round. `baselineShare` says how much of the
+ * window the baseline actually holds.
  */
 export function clipDriftReport(probes: Array<ClipProbe & { jobId: number }>): ClipDrift[] {
   const byProvider = new Map<string, Array<ClipProbe & { jobId: number }>>();
-  for (const p of probes) {
+  for (const p of [...probes].sort((a, b) => a.jobId - b.jobId || a.beatNumber - b.beatNumber)) {
     if (p.provider === "local") continue;
     const list = byProvider.get(p.provider) ?? [];
     list.push(p);
@@ -65,11 +73,12 @@ export function clipDriftReport(probes: Array<ClipProbe & { jobId: number }>): C
   for (const [provider, list] of byProvider) {
     if (list.length < MIN_BASELINE) continue;
     const baseline = mode(list.map(clipSignature));
+    const baselineShare = list.filter((p) => clipSignature(p) === baseline).length / list.length;
     const baselineDurationSec = mode(list.map((p) => Math.round(p.durationSec * 2) / 2));
     const drifted = list
       .filter((p) => clipSignature(p) !== baseline || Math.abs(p.durationSec - baselineDurationSec) > DURATION_TOLERANCE_SEC)
       .map((p) => ({ jobId: p.jobId, beatNumber: p.beatNumber, signature: clipSignature(p), durationSec: p.durationSec }));
-    out.push({ provider, baseline, baselineDurationSec, total: list.length, drifted });
+    out.push({ provider, baseline, baselineShare, baselineDurationSec, total: list.length, drifted });
   }
   return out.sort((a, b) => b.drifted.length - a.drifted.length || a.provider.localeCompare(b.provider));
 }

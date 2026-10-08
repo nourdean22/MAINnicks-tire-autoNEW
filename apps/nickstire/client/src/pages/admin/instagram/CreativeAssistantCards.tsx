@@ -60,7 +60,9 @@ function actionTarget(card: AssistantCard): { view: IgView; handoff?: Parameters
     case "fatigue":
       return { view: "patterns" };
     case "quality":
-      return { view: "publish" };
+      // The critic registry and lane QA state live on Pipeline health; the
+      // Queue shows drafts, not posted Reels' verdicts.
+      return { view: "pipeline" };
     case "experiment":
       return { view: "strategy" };
   }

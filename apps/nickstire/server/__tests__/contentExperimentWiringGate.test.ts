@@ -15,6 +15,8 @@ const state = vi.hoisted(() => ({
   running: [] as Array<Record<string, unknown>>,
   inserts: [] as Array<{ experimentId: string; armId: string; episodeKey: string }>,
   started: [] as string[],
+  updates: [] as Array<Record<string, unknown>>,
+  stopAffected: 1,
 }));
 
 // dbAdminProcedure refuses the call when getDbTyped() is null; assignment reads
@@ -26,6 +28,11 @@ vi.mock("../db", async (importOriginal) => {
     insert: () => ({
       values: (v: { experimentId: string; armId: string; episodeKey: string }) => ({
         onDuplicateKeyUpdate: async () => { state.inserts.push(v); },
+      }),
+    }),
+    update: () => ({
+      set: (v: Record<string, unknown>) => ({
+        where: async () => { state.updates.push(v); return [{ affectedRows: state.stopAffected }]; },
       }),
     }),
   };
@@ -105,5 +112,23 @@ describe("contentAdmin.startContentExperiment — only wired presets start", () 
     const r = await caller.startContentExperiment({ preset: "hook_style_v1" });
     expect(r.wiring).toBe("wired");
     expect(state.started).toEqual(["hook-style-direct-v1"]);
+  });
+});
+
+describe("contentAdmin.stopContentExperiment — the lever the wiring gate assumed", () => {
+  beforeEach(() => { state.updates.length = 0; state.stopAffected = 1; });
+
+  it("stops a RUNNING experiment with the reason, so neither the assigner nor the resolver sees it again", async () => {
+    const caller = contentAdminRouter.createCaller(adminCtx());
+    await expect(caller.stopContentExperiment({ experimentId: "audio-style-v1", reason: "exposed preset: no generator reads its arm" })).resolves.toEqual({ stopped: "audio-style-v1" });
+    expect(state.updates).toHaveLength(1);
+    expect(state.updates[0]).toMatchObject({ status: "stopped", verdictStatus: "stopped", verdictNote: "exposed preset: no generator reads its arm" });
+    expect(state.updates[0].concludedAt).toBeInstanceOf(Date);
+  });
+
+  it("an unknown or already-ended experiment is NOT_FOUND, never a silent success", async () => {
+    state.stopAffected = 0;
+    const caller = contentAdminRouter.createCaller(adminCtx());
+    await expect(caller.stopContentExperiment({ experimentId: "nope", reason: "x" })).rejects.toThrow(/no RUNNING experiment/);
   });
 });

@@ -21,6 +21,7 @@ describe("clipDriftReport", () => {
     const [r] = clipDriftReport(probes);
     expect(r.provider).toBe("higgsfield");
     expect(r.baseline).toBe("1080x1920@24");
+    expect(r.baselineShare).toBeCloseTo(7 / 8, 6);
     expect(r.baselineDurationSec).toBe(5);
     expect(r.total).toBe(8);
     expect(r.drifted).toEqual([
@@ -39,6 +40,18 @@ describe("clipDriftReport", () => {
     const [r] = clipDriftReport(Array.from({ length: 6 }, (_, i) => probe(1, i + 1)));
     expect(r.drifted).toEqual([]);
     expect(r.total).toBe(6);
+  });
+
+  it("a mid-window provider change: the OLDER shape is the baseline, the new clips are the drift, and the split is reported", () => {
+    // Newest-first input, as the lane reader passes it: job 2 (new shape) before job 1 (old shape).
+    const probes = [
+      ...Array.from({ length: 6 }, (_, i) => probe(2, i + 1, { width: 720, height: 1280 })),
+      ...Array.from({ length: 6 }, (_, i) => probe(1, i + 1)),
+    ];
+    const [r] = clipDriftReport(probes);
+    expect(r.baseline).toBe("1080x1920@24");
+    expect(r.baselineShare).toBe(0.5);
+    expect(r.drifted.map((d) => d.jobId)).toEqual([2, 2, 2, 2, 2, 2]);
   });
 
   it("an unknown frame count is part of the signature, never a silent match", () => {

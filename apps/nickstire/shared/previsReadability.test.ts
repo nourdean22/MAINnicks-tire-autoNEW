@@ -27,6 +27,8 @@ describe("validateOnScreenReadability", () => {
   });
   it("empty text and zero-length beats are not this check's business", () => {
     expect(validateOnScreenReadability([beat(1, 0, 3, ""), beat(2, 3, 3, "words")])).toEqual({ blocking: [], warnings: [] });
+    // Older payloads can lack the field entirely; the gate reads nothing, never throws.
+    expect(validateOnScreenReadability([{ ...beat(1, 0, 3, ""), onScreenText: undefined as unknown as string }])).toEqual({ blocking: [], warnings: [] });
   });
 });
 
@@ -36,15 +38,28 @@ describe("approved reel packs", () => {
     const files = execSync("git ls-files 'docs/reel-packs/*/brief.json'", { encoding: "utf8", cwd: root }).split("\n").filter(Boolean);
     expect(files.length).toBeGreaterThan(50);
     const blocked: string[] = [];
+    const warned = new Set<string>();
     let beatsSeen = 0;
+    let packsWithBeats = 0;
     for (const f of files) {
       let brief: { storyboardBeats?: StoryboardBeat[] };
       try { brief = JSON.parse(readFileSync(`${root}${f}`, "utf8")); } catch { continue; }
-      const beats = (brief.storyboardBeats ?? []).map((b) => ({ ...b, onScreenText: b.onScreenText ?? "" }));
-      beatsSeen += beats.length;
-      blocked.push(...validateOnScreenReadability(beats).blocking.map((m) => `${f}: ${m}`));
+      // Static-image packs carry no storyboard; only the ones with beats are
+      // this gate's population. Beats are fed as committed (some lack
+      // onScreenText) — the gate's own null-safety is under test here.
+      if (!Array.isArray(brief.storyboardBeats) || brief.storyboardBeats.length === 0) continue;
+      packsWithBeats++;
+      beatsSeen += brief.storyboardBeats.length;
+      const r = validateOnScreenReadability(brief.storyboardBeats);
+      blocked.push(...r.blocking.map((m) => `${f}: ${m}`));
+      if (r.warnings.length) warned.add(f);
     }
+    // Measured 2026-10-08: 68 of 196 packs carry beats (346 beats), 2 warned
+    // beats in 1 pack. The floors prove the scan read a population, not an
+    // empty set; a tree that drops below them is a changed corpus, not a pass.
+    expect(packsWithBeats).toBeGreaterThanOrEqual(60);
     expect(beatsSeen).toBeGreaterThan(300);
     expect(blocked).toEqual([]);
+    expect(warned.size).toBeLessThanOrEqual(3);
   });
 });

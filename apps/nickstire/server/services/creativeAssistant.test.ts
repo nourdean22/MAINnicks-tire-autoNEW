@@ -8,6 +8,7 @@
  * removes exactly the cards that depend on it — never a confident zero.
  */
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   buildCreativeAssistant,
   composeCreativeCards,
@@ -75,9 +76,9 @@ describe("composeCreativeCards — positive control", () => {
   const result = composeCreativeCards(fixture(), new Date("2026-10-01T12:00:00Z"));
   const byType = Object.fromEntries(result.cards.map((c) => [c.type, c]));
 
-  it("emits all five card types, at most five cards", () => {
+  it("emits the five everyday card types from the fixture, at most six cards", () => {
     expect(result.cards.map((c) => c.type)).toEqual(["opportunity", "capture", "fatigue", "experiment", "reuse"]);
-    expect(result.cards.length).toBeLessThanOrEqual(5);
+    expect(result.cards.length).toBeLessThanOrEqual(6);
   });
 
   it("ranks e-check on top: three question mentions + a rising GSC query, never covered, carousel format", () => {
@@ -212,13 +213,13 @@ describe("the omission rule — a failed read is never a zero", () => {
 });
 
 describe("experiment card for a running experiment that lacks samples", () => {
-  it("names the thinnest arm against MIN_SAMPLES_PER_ARM", () => {
+  it("names the thinnest arm against the resolver's first decision look", () => {
     const r = composeCreativeCards(fixture({
       experiments: ok([{ experimentId: "duration-lane-v1", primaryVariable: "length_band", primaryMetric: "shares_per_reach", arms: 3, thinnestArm: 1, attached: 5 }]),
     }));
     const card = r.cards.find((c) => c.type === "experiment")!;
     expect(card.title).toBe("Experiment running: duration-lane-v1");
-    expect(card.why[0]).toBe("5 published episodes attached across 3 arms; thinnest arm 1/4 needed for a verdict");
+    expect(card.why[0]).toBe("5 published episodes attached across 3 arms; thinnest arm 1/12 needed for the first verdict");
     expect(card.preset).toBeUndefined();
   });
 });
@@ -322,5 +323,17 @@ describe("real-evidence share: the shop adoption number (2026-10-08)", () => {
     const capture = r.cards.find((c) => c.type === "capture");
     expect(capture).toBeTruthy();
     expect(capture?.why.some((w) => w.includes("real shop evidence"))).toBe(false);
+  });
+});
+
+describe("real-evidence share: the photo-post count rests on a literal igAutopost writes", () => {
+  it("igAutopost still records a real-asset image with the note prefix the reader matches", () => {
+    // assert-the-consumer: the reader (creativeAssistant realEvidence) matches
+    // `image.note.startsWith("real shop asset ")`; if the writer rewords its
+    // note, every real photo post silently stops counting. Pin the writer.
+    const src = readFileSync(new URL("./igAutopost.ts", import.meta.url), "utf8");
+    expect(src).toContain("note: `real shop asset ${image.realAssetId} — operator-captured photo, eval skipped`");
+    const reader = readFileSync(new URL("./creativeAssistant.ts", import.meta.url), "utf8");
+    expect(reader).toContain('note.startsWith("real shop asset ")');
   });
 });

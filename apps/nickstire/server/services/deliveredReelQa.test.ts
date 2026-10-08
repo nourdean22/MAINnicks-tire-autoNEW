@@ -89,15 +89,15 @@ describe("runDeliveredReelQaPass", () => {
       { id: 4, igPostId: "d", mp4Url: "/m4.mp4", payload: "{}" },
       { id: 5, igPostId: "e", mp4Url: "/m5.mp4", payload: "{}" },
     ];
-    const db = {
-      execute: async (q: { queryChunks?: unknown[] }) => {
+    const db: Parameters<typeof runDeliveredReelQaPass>[0] = {
+      execute: async (q) => {
         const text = JSON.stringify(q);
         if (text.includes("SELECT id, igPostId")) return [rows];
         writes.push(text);
         return [{ affectedRows: 1 }];
       },
     };
-    const summary = await runDeliveredReelQaPass(db as never, 2);
+    const summary = await runDeliveredReelQaPass(db, 2);
     expect(summary.checked).toBe(2);
     expect(summary.jobs).toEqual(["3:unmeasured", "4:unmeasured"]);
     expect(writes).toHaveLength(2);

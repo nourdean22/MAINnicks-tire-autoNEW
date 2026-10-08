@@ -136,11 +136,15 @@ export async function logAdminAction(data: {
   idempotencyKey?: string;
   beforeJson?: Record<string, unknown> | null;
   afterJson?: Record<string, unknown> | null;
-}): Promise<void> {
+}): Promise<boolean> {
+  // Returns whether the row was written. Every existing caller ignores it
+  // (audit logging must never break the main flow); a caller for which the
+  // audit row IS the record (pairwiseReview.recordPairPick, 2026-10-08) must
+  // not report success on a swallowed insert failure.
   try {
     const { auditLog } = await import("../../drizzle/schema");
     const d = await db();
-    if (!d) return;
+    if (!d) return false;
 
     const changes: Record<string, { old: unknown; new: unknown }> = {};
     if (data.previousValue !== undefined || data.newValue !== undefined) {
@@ -167,6 +171,7 @@ export async function logAdminAction(data: {
     await d.insert(auditLog).values(values);
 
     log.info(`${data.action} → ${data.entityType}#${data.entityId}: ${data.details}`);
+    return true;
   } catch (err) {
     // Never let audit logging break the main flow. Log the error's classes and
     // driver codes only: a drizzle query error's message carries every bound
@@ -177,6 +182,7 @@ export async function logAdminAction(data: {
       entityType: data.entityType,
       entityId: data.entityId,
     });
+    return false;
   }
 }
 

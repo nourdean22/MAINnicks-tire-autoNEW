@@ -13,6 +13,7 @@ import {
   isDurationLaneId,
   isUnwiredExperimentId,
   metricSpec,
+  SNAPSHOT_COLUMN_FOR_METRIC,
   assignArm,
 } from "./contentExperiments";
 
@@ -105,5 +106,19 @@ describe("wired vs exposed (2026-10-08)", () => {
     const def = buildExperimentPreset("opening_asset_v1", "x");
     expect(def.primaryMetric).toBe("skip_rate");
     expect(metricSpec(def.primaryMetric)?.direction).toBe("LOWER_IS_BETTER");
+  });
+});
+
+describe("gatherable metrics and METRIC_SPECS agree (2026-10-08)", () => {
+  it("every metric name the resolver can gather has a registered aggregation and direction", () => {
+    // Without this, a metric could be gathered and then refused `invalid_design`
+    // on every run — the exact shape `skipRate` had before this test existed.
+    for (const name of Object.keys(SNAPSHOT_COLUMN_FOR_METRIC)) expect(metricSpec(name), name).not.toBeNull();
+  });
+  it("every preset's primary metric is gatherable", () => {
+    for (const id of EXPERIMENT_PRESET_IDS) {
+      const def = buildExperimentPreset(id, "x");
+      expect(SNAPSHOT_COLUMN_FOR_METRIC[def.primaryMetric], `${id}: ${def.primaryMetric}`).toBeTruthy();
+    }
   });
 });

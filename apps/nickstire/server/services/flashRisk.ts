@@ -92,7 +92,7 @@ export async function scanFlashRisk(mp4Path: string, ffmpegBin = process.env.FFM
       "-vf", `fps=${FLASH_SAMPLE_FPS},scale=64:-2,format=gray,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-`,
       "-an", "-f", "null", "-",
     ];
-    const p = spawn(ffmpegBin, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const p = spawn(ffmpegBin, args, { stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32" && !process.env.FFMPEG_PATH });
     let out = "";
     let err = "";
     p.stdout.on("data", (d) => { out += d; });

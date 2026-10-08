@@ -1693,9 +1693,10 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
     let best: { post: GeneratedPost; image: PostImage; scores: IgEvalScores } | null = null;
     let lastScores: IgEvalScores | null = null;
     let lastPost: GeneratedPost | null = null;
-    // Set when the independent judge rejects a concept in live mode: the run
-    // ends there, as it always did — now before any image is generated.
+    // The LAST live-mode judge rejection, if any. The loop regenerates past a
+    // rejection; this decides the abort message when no attempt survived.
     let judgeBlocked: { post: GeneratedPost; scores: IgEvalScores; reason: string } | null = null;
+    let judgeCalls = 0;
     // combineScores treats a skipped image as non-blocking, so an eval built
     // with this stub is exactly the caption's own verdict.
     const notGenerated = (why: string) => ({ proLook: null, skipped: true, note: `image not generated — ${why}` });
@@ -1723,20 +1724,27 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
       }
 
       // JUDGE BEFORE PIXELS (2026-10-08). The independent judge reads the
-      // concept, the caption and the image PROMPT, never the image, and in
-      // live mode its rejection ends the run — so judging after generation
-      // bought nothing but the image. Same day: four of five runs were
-      // judge-rejected as near-duplicates, each with a finished image. The
-      // verdict, the gate and the dryrun exemption are unchanged; only the
-      // order moved. (The gate's own doctrine is below, where it fires.)
+      // concept, the caption and the image PROMPT, never the image, so it is
+      // asked here, before any image is bought. On 2026-10-07 four of five
+      // runs were judge-rejected as near-duplicates, each with a finished
+      // image. WHAT CHANGED vs the post-loop judge: it now sees every
+      // caption-passing attempt (so up to MAX_REGEN_ATTEMPTS + 1 judge calls
+      // per run, ~3 s each, instead of one), and a live-mode rejection
+      // REGENERATES rather than ending the run — the old flow never gave a
+      // rejected run a second concept, it waited for the next 15-minute tick.
+      // The run aborts with the judge's reason only when every attempt is
+      // spent. The gate's verdict, its fail-closed-on-error rule and the
+      // dryrun exemption are unchanged. (The gate's doctrine is below.)
       const shadowJudge = await judgeConcept(post, captionEval, captionOnly, slot, dryRun);
+      if (shadowJudge) judgeCalls++;
       const judgeGate = shadowJudgeGate(shadowJudge, process.env.IG_SHADOW_JUDGE !== "false");
       if (!dryRun && judgeGate.block) {
         const scores = combineScores(captionEval, notGenerated("the independent judge rejected the concept"));
         if (shadowJudge) scores.shadowJudge = shadowJudge;
         lastScores = scores;
         judgeBlocked = { post, scores, reason: judgeGate.reason };
-        break;
+        log.info("ig-autopost judge rejected the concept before any image — regenerating", { attempt, judgeCalls, conceptKey: post.conceptKey, reason: judgeGate.reason.slice(0, 200) });
+        continue;
       }
 
       const image = await selectPostImage(post);
@@ -1760,6 +1768,7 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
         overall: scores.overall,
         passed: scores.passed,
         imageSkipped: scores.image.skipped,
+        judgeCalls,
       });
       if (scores.passed) {
         best = { post, image, scores };
@@ -1778,8 +1787,10 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
     // IG_SHADOW_JUDGE=false disables judge AND gate together. An aborted row
     // stays RETRYABLE (alreadyRanSlotToday): a later cron tick regenerates
     // fresh content rather than resurrecting the rejected draft — deliberate,
-    // since a rejection is content-specific, not slot-specific.
-    if (judgeBlocked) {
+    // since a rejection is content-specific, not slot-specific. Reached only
+    // when no attempt survived AND at least one was judge-rejected; the
+    // judge's reason outranks a later caption miss as the thing to tell.
+    if (!best && judgeBlocked) {
       const { post, scores, reason } = judgeBlocked;
       const caption = composeCaption(post);
       await logRun({
@@ -1792,7 +1803,7 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
         const { sendTelegram } = await import("./telegram");
         await sendTelegram(
           `IG AUTOPOST — BLOCKED BY THE INDEPENDENT JUDGE (${post.archetype}/${post.conceptKey})\n` +
-          `${reason}\nNothing was posted and no image was generated. The slot retries with fresh content on a later tick.`,
+          `${reason}\nNothing was posted and no image was generated for the rejected concept; every attempt this run was spent. The slot retries with fresh content on a later tick.`,
         );
       } catch (e) {
         log.warn("judge-gate notify failed (block stands)", { error: errMsg(e) });

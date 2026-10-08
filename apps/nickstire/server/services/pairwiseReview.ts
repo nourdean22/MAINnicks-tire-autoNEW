@@ -106,9 +106,19 @@ export function judgeAgreement(records: PickRecord[]): JudgeAgreement {
   return out;
 }
 
-/** logAdminAction stores `metadata` under changes.metadata.new; read it back, strictly. */
+/**
+ * logAdminAction stores `metadata` under changes.metadata.new; read it back,
+ * strictly. The column is a drizzle `json()`, which has no driver-side
+ * mapping, and this repo's other json() readers (dripProcessor, vapi) have met
+ * the value as a STRING on TiDB — so a string is parsed, not treated as "no
+ * record" (which would show the same pair forever and never score a pick).
+ */
 export function pickRecordFromAuditChanges(changes: unknown): PickRecord | null {
-  const m = (changes as { metadata?: { new?: Record<string, unknown> } } | null)?.metadata?.new;
+  let decoded: unknown = changes;
+  if (typeof changes === "string") {
+    try { decoded = JSON.parse(changes); } catch { return null; }
+  }
+  const m = (decoded as { metadata?: { new?: Record<string, unknown> } } | null)?.metadata?.new;
   if (!m) return null;
   const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
   const aId = n(m.aId);
@@ -122,15 +132,20 @@ export function pickRecordFromAuditChanges(changes: unknown): PickRecord | null 
 
 type Db = NonNullable<Awaited<ReturnType<typeof import("../db").getDb>>>;
 
-/** Judged photo posts from the last 30 days, newest first. Throws on a failed read. */
+/**
+ * Judged photo posts and previews from the last 30 days, newest first: rows
+ * that were posted live or previewed in dryrun. Aborted drafts (cap holds,
+ * visual-QA holds, old judge-blocked rows that still carry an image) are not
+ * "posts" and are left out. Throws on a failed read.
+ */
 export async function loadPairCandidates(d: Db): Promise<PairCandidate[]> {
   const { igAutopostLog } = await import("../../drizzle/schema");
-  const { and, desc, gte, isNotNull } = await import("drizzle-orm");
+  const { and, desc, gte, inArray, isNotNull } = await import("drizzle-orm");
   const since = new Date(Date.now() - 30 * 86_400_000);
   const rows = await d
     .select({ id: igAutopostLog.id, imageUrl: igAutopostLog.imageUrl, caption: igAutopostLog.caption, scores: igAutopostLog.evalScoresJson })
     .from(igAutopostLog)
-    .where(and(gte(igAutopostLog.createdAt, since), isNotNull(igAutopostLog.imageUrl)))
+    .where(and(gte(igAutopostLog.createdAt, since), isNotNull(igAutopostLog.imageUrl), inArray(igAutopostLog.status, ["posted", "dryrun"])))
     .orderBy(desc(igAutopostLog.createdAt))
     .limit(60);
   const out: PairCandidate[] = [];
@@ -169,18 +184,32 @@ export async function loadPickRecords(d: Db): Promise<Array<PickRecord & { key: 
  * Record a pick. The judge totals are re-read here, never taken from the
  * client, so the snapshot is what the judge actually said.
  */
+export class PairPickError extends Error {
+  constructor(message: string, public readonly kind: "invalid_pair" | "write_failed") { super(message); }
+}
+
 export async function recordPairPick(
   d: Db,
   input: { aId: number; bId: number; pick: PairPick; actor: string },
 ): Promise<PickRecord> {
+  if (input.aId === input.bId) throw new PairPickError("that pair is not two current judged posts", "invalid_pair");
+  // A pair is picked once. A second submission (a double tap, a retried
+  // request) returns the pick already on record and writes nothing, so the
+  // agreement readout cannot count one opinion twice.
+  const key = pairKey(input.aId, input.bId);
+  const existing = (await loadPickRecords(d)).find((r) => r.key === key);
+  if (existing) return { aId: existing.aId, bId: existing.bId, pick: existing.pick, aJudge: existing.aJudge, bJudge: existing.bJudge };
   const candidates = await loadPairCandidates(d);
   const byId = new Map(candidates.map((c) => [c.id, c]));
   const a = byId.get(input.aId);
   const b = byId.get(input.bId);
-  if (!a || !b || input.aId === input.bId) throw new Error("that pair is not two current judged posts");
+  if (!a || !b) throw new PairPickError("that pair is not two current judged posts", "invalid_pair");
   const record: PickRecord = { aId: input.aId, bId: input.bId, pick: input.pick, aJudge: a.judgeTotal, bJudge: b.judgeTotal };
   const { logAdminAction } = await import("./auditTrail");
-  await logAdminAction({
+  // The audit row is the ONLY record of the pick. logAdminAction swallows a
+  // failed insert by design; here that must surface, or the tapper sees the
+  // same pair again with no idea why and agreement never moves.
+  const written = await logAdminAction({
     action: PAIRWISE_ACTION,
     entityType: PAIRWISE_ENTITY,
     entityId: pairKey(input.aId, input.bId),
@@ -188,7 +217,11 @@ export async function recordPairPick(
     metadata: { ...record },
     actor: input.actor,
     actorType: "human_user",
+    // Belt to the pre-check's braces: the audit table's unique claim key
+    // refuses a second row for the same pair inside the read→write window.
+    idempotencyKey: `pairwise:${key}`,
   });
+  if (!written) throw new PairPickError("the pick was not recorded (audit write failed) — try again", "write_failed");
   log.info("pairwise pick recorded", { key: pairKey(input.aId, input.bId), pick: input.pick });
   return record;
 }

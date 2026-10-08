@@ -111,10 +111,6 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
           day opens on the strongest opportunity, not only on what is broken. */}
       <CreativeAssistantCards onNavigate={onNavigate} />
 
-      {/* Blind pairwise review (2026-10-08): one tap a day calibrates the
-          judge that gates live photo posts against the shop's own taste. */}
-      <PairwisePick />
-
       <Card className="border-primary/30">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg"><ShieldAlert className="h-5 w-5 text-primary" /> Needs your decision</CardTitle>
@@ -149,6 +145,12 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
           )}
         </CardContent>
       </Card>
+
+      {/* Blind pairwise review (2026-10-08): one tap a day calibrates the
+          judge that gates live photo posts against the shop's own taste.
+          Below the decisions on purpose: a calibration chore never pushes
+          an urgent decision off the first screen of a phone. */}
+      <PairwisePick />
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>

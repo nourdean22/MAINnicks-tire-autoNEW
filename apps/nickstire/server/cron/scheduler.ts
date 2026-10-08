@@ -2872,6 +2872,16 @@ function buildTiers(): void {
       },
       {
         name: "pipelines-auto-run", // GBP reviews + GSC + Instagram — all pipelines that are due
+        // 12 MINUTES, not the 4-minute default (2026-10-08). The Instagram
+        // pipeline now ends with the delivered-copy QA pass (services/
+        // deliveredReelQa.ts): at most two posted Reels per run, each a Graph
+        // GET (15 s) + ffprobe of the master and the CDN copy (60 s each) + a
+        // full ffmpeg decode of the CDN copy for the flash scan (120 s). Worst
+        // case adds ~8.5 min on top of GBP + GSC + the analytics sync; typical
+        // adds 1–3. At the 4-minute default a slow pass logged "failed:
+        // timeout" while the handler kept running as a zombie. This tier is a
+        // daily interval, so the budget stays far inside the lock hand-back.
+        timeoutMs: 12 * 60 * 1000,
         handler: async () => {
           const { runDuePipelines } = await import("../pipelines/orchestrator");
           const result = await runDuePipelines();

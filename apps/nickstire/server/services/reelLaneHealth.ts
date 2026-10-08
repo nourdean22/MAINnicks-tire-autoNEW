@@ -32,16 +32,30 @@ export type ReelLaneReading =
       readyAwaitingApproval: number;
       /** Reels posted in the last 7 days whose Instagram-delivered copy failed QA (services/deliveredReelQa.ts). */
       deliveredIssues?: Array<{ jobId: number; issues: string[] }>;
+      /** Posted Reels whose delivered-copy check could not run in any of its 3 attempts, with the last reason. */
+      deliveredUnmeasured?: Array<{ jobId: number; reason: string }>;
       /** Per-provider clip-shape drift over the last 7 days of assembled/posted Reels (shared/clipDrift.ts). */
       providerDrift?: ClipDrift[];
     }
   | { kind: "unreadable" };
 
-/** The delivered-copy line, or null when every checked Reel looked right. */
+/**
+ * The delivered-copy line, or null when every checked Reel looked right. A
+ * lane whose checks could not RUN is not a healthy lane: after the third
+ * failed attempt the row is never retried, so UNMEASURED is said out loud with
+ * its reason (no token, no media_url, ffprobe unable to read the CDN copy).
+ */
 export function renderDeliveredQaException(r: ReelLaneReading): string | null {
-  if (r.kind !== "measured" || !r.deliveredIssues?.length) return null;
-  const detail = r.deliveredIssues.slice(0, 3).map((d) => `job ${d.jobId}: ${d.issues.join(", ")}`).join("; ");
-  return `${r.deliveredIssues.length} posted Reel(s) look worse on Instagram than the master — ${detail}`;
+  if (r.kind !== "measured") return null;
+  if (r.deliveredIssues?.length) {
+    const detail = r.deliveredIssues.slice(0, 3).map((d) => `job ${d.jobId}: ${d.issues.join(", ")}`).join("; ");
+    return `${r.deliveredIssues.length} posted Reel(s) look worse on Instagram than the master — ${detail}`;
+  }
+  if (r.deliveredUnmeasured?.length) {
+    const u = r.deliveredUnmeasured;
+    return `Delivered-copy QA UNMEASURED for ${u.length} posted Reel(s) after 3 attempts — ${u[0].reason} (job ${u[0].jobId})`;
+  }
+  return null;
 }
 
 /** Two or more drifted clips from one provider in a week is a change, not a glitch. */
@@ -53,6 +67,12 @@ export function renderProviderDriftException(r: ReelLaneReading): string | null 
   const hit = (r.providerDrift ?? []).find((d) => d.drifted.length >= DRIFT_MIN_CLIPS);
   if (!hit) return null;
   const eg = hit.drifted[0];
+  if (hit.baselineShare <= 0.5) {
+    // No majority shape (the most common holds at most half): the window is
+    // split, which is a provider CHANGE, not a few clips off a norm — say
+    // that rather than call the newer half drift.
+    return `Provider drift: ${hit.provider} clips this week have no majority shape (most common ${hit.baseline} holds ${Math.round(hit.baselineShare * 100)}% of ${hit.total}; e.g. ${eg.signature} ${eg.durationSec}s, job ${eg.jobId} beat ${eg.beatNumber}) — the provider changed its output mid-week; check it before the next paid run`;
+  }
   return `Provider drift: ${hit.drifted.length} of ${hit.total} ${hit.provider} clips this week came back off its ${hit.baseline} / ${hit.baselineDurationSec}s baseline (e.g. ${eg.signature} ${eg.durationSec}s, job ${eg.jobId} beat ${eg.beatNumber}) — check the provider before the next paid run`;
 }
 
@@ -98,16 +118,23 @@ export async function readReelLane(db: Executor): Promise<ReelLaneReading> {
   const recent = await db.execute(sql`
     SELECT id, payload FROM reel_jobs
     WHERE status IN ('assembled', 'posted') AND updatedAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-    ORDER BY id DESC LIMIT 40
+    ORDER BY updatedAt DESC, id DESC LIMIT 40
   `);
   const recentRows = (Array.isArray(recent) && Array.isArray(recent[0]) ? recent[0] : []) as Array<{ id: number; payload: string | null }>;
   const deliveredIssues: Array<{ jobId: number; issues: string[] }> = [];
+  const deliveredUnmeasured: Array<{ jobId: number; reason: string }> = [];
   const probes: Array<ClipProbe & { jobId: number }> = [];
   for (const row of recentRows) {
     try {
-      const payload = (row.payload ? JSON.parse(row.payload) : {}) as { deliveredQa?: { verdict?: string; issues?: unknown }; clipProbes?: unknown };
+      const payload = (row.payload ? JSON.parse(row.payload) : {}) as {
+        deliveredQa?: { verdict?: string; issues?: unknown; attempts?: unknown; reason?: unknown };
+        clipProbes?: unknown;
+      };
       const qa = payload.deliveredQa;
       if (qa?.verdict === "issues") deliveredIssues.push({ jobId: Number(row.id), issues: Array.isArray(qa.issues) ? qa.issues.map(String) : [] });
+      if (qa?.verdict === "unmeasured" && Number(qa.attempts) >= 3) {
+        deliveredUnmeasured.push({ jobId: Number(row.id), reason: typeof qa.reason === "string" ? qa.reason.slice(0, 160) : "no reason recorded" });
+      }
       if (Array.isArray(payload.clipProbes)) {
         for (const p of payload.clipProbes as ClipProbe[]) {
           if (typeof p?.width === "number" && typeof p?.height === "number" && typeof p?.durationSec === "number") probes.push({ ...p, jobId: Number(row.id) });
@@ -123,6 +150,7 @@ export async function readReelLane(db: Executor): Promise<ReelLaneReading> {
     hoursSinceLastPost: hours === null || hours === undefined ? null : Number(hours),
     readyAwaitingApproval: Number(ready?.n ?? 0),
     deliveredIssues,
+    deliveredUnmeasured,
     providerDrift: clipDriftReport(probes),
   };
 }

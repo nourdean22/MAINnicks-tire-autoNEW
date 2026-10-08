@@ -31,6 +31,7 @@ import {
   type ExperimentArm,
   type ExperimentDefinition,
   type ExperimentVerdict,
+  type SnapshotMetricColumn,
 } from "../../shared/contentExperiments";
 
 const log = createLogger("services:content-experiments");
@@ -50,6 +51,29 @@ export async function startExperiment(def: ExperimentDefinition): Promise<boolea
   }).onDuplicateKeyUpdate({ set: { armsJson: def.arms } });
   log.info("experiment started", { experimentId: def.experimentId, variable: def.primaryVariable, arms: def.arms.length });
   return true;
+}
+
+/**
+ * Stop a RUNNING experiment (operator lever, 2026-10-08). Until now the only
+ * status writer was recordVerdict, so an experiment the resolver refuses to
+ * judge — an exposed preset started before the wiring gate, or any test the
+ * operator wants ended — sat `running` forever with no door but SQL. Writes
+ * `stopped` with the reason; the resolver and the assigner read only
+ * `running`, so a stopped experiment is out of both at once. Returns whether
+ * a running row was stopped (false = unknown id or already ended).
+ */
+export async function stopExperiment(experimentId: string, reason: string): Promise<boolean> {
+  const { getDb } = await import("../db");
+  const d = await getDb();
+  if (!d) return false;
+  const { contentExperiments } = await import("../../drizzle/schema");
+  const { and, eq } = await import("drizzle-orm");
+  const [result] = await d.update(contentExperiments)
+    .set({ status: "stopped", concludedAt: new Date(), verdictStatus: "stopped", verdictNote: reason.slice(0, 500) })
+    .where(and(eq(contentExperiments.experimentId, experimentId), eq(contentExperiments.status, "running")));
+  const affected = (result as { affectedRows?: number })?.affectedRows ?? 0;
+  if (affected > 0) log.info("experiment stopped by the operator", { experimentId, reason: reason.slice(0, 120) });
+  return affected > 0;
 }
 
 /**
@@ -342,7 +366,7 @@ export async function attachPublishedMedia(
  */
 export async function gatherObservations(
   experimentId: string,
-  metric: "shares" | "saved" | "views" | "reach" | "avgWatchTimeMs" | "skipRate",
+  metric: SnapshotMetricColumn,
   horizonHours: 24 | 72 | 168,
 ): Promise<ArmObservation[]> {
   const { getDb } = await import("../db");
@@ -405,7 +429,7 @@ export async function gatherObservations(
  */
 export async function recordVerdict(
   def: ExperimentDefinition,
-  metric: "shares" | "saved" | "views" | "reach" | "avgWatchTimeMs" | "skipRate",
+  metric: SnapshotMetricColumn,
   horizonHours: 24 | 72 | 168 = 72,
 ): Promise<ExperimentVerdict | null> {
   const observations = await gatherObservations(def.experimentId, metric, horizonHours);
