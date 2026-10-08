@@ -387,12 +387,15 @@ describe("Arrival Intelligence ingest · exclusive page claim", () => {
     const payload = base({ state: "CONFIRMED_ARRIVAL", visitId: "v-two" }, { schemaVersion: 2, eventId: "e-two" });
     const first = handleVehicleEvent(deviceId, payload);
     const second = handleVehicleEvent(deviceId, payload);
+    // Attach the handlers now: the loser rejects while the winner is still parked on the gate,
+    // and a rejection nobody is listening for yet is an unhandled rejection that fails the run.
+    const settled = Promise.allSettled([first, second]);
     // One macrotask drains every microtask: the first caller is parked on the gate with its
     // page in flight, the second has read the row, lost the swap and been told to retry.
     await new Promise((r) => setTimeout(r, 0));
     expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
     release({ ok: true, messageId: 424242 });
-    const [won, lost] = await Promise.allSettled([first, second]);
+    const [won, lost] = await settled;
     expect(won).toEqual({ status: "fulfilled", value: seeded.id });
     // Retryable, never acknowledged: the winner's page was not confirmed when the loser answered.
     expect(lost.status).toBe("rejected");
