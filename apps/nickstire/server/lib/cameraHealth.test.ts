@@ -211,6 +211,24 @@ describe("camera health lattice — fixed geometry", () => {
     void _drop;
     expect(deriveStateAtIngest(rest).state).toBe("HEALTHY");
   });
+
+  it("the ingest-time derivation takes the solar context too: a dark solar camera whose edge is still up is EXPECTED_SOLAR_OFFLINE, not a CAMERA_OFFLINE drop (Codex on #2927)", () => {
+    const { ageSeconds: _drop, ...dark } = healthy({ sourceConnected: false });
+    void _drop;
+    const night = { expectedOffline: true, reason: "solar camera: dark from civil dusk 19:25 until about 09:50 (sunrise 07:20 + 150 min) is expected" };
+    // Without the context the ingest judged the loss as a loss: that is the drop every evening.
+    expect(deriveStateAtIngest(dark).state).toBe("CAMERA_OFFLINE");
+    expect(deriveStateAtIngest(dark, "fixed_geometry", null).state).toBe("CAMERA_OFFLINE");
+    const v = deriveStateAtIngest(dark, "fixed_geometry", { solar: night });
+    expect(v.state).toBe("EXPECTED_SOLAR_OFFLINE");
+    expect(v.reason).toContain("capture source is disconnected");
+    // Daylight: the same loss is a loss.
+    expect(deriveStateAtIngest(dark, "fixed_geometry", { solar: { ...night, expectedOffline: false } }).state).toBe("CAMERA_OFFLINE");
+    // A camera that is awake and sending frames is judged exactly as before, night or day.
+    const { ageSeconds: _awakeDrop, ...awake } = healthy();
+    void _awakeDrop;
+    expect(deriveStateAtIngest(awake, "fixed_geometry", { solar: night }).state).toBe("HEALTHY");
+  });
 });
 
 describe("camera health lattice — interaction PTZ", () => {
@@ -342,6 +360,30 @@ describe("camera health lattice — plausibility canary", () => {
     const { ageSeconds: _drop, ...rest } = healthy({ ...blind, ageSeconds: 0 });
     void _drop;
     expect(deriveStateAtIngest(rest).state).toBe("DEGRADED_VISION");
+  });
+
+  it("a zero window inside the first 600 s of a restarted producer is WARMING, not blind, and never pages (Codex on #2920)", () => {
+    // heartbeatSeq restarts with the producer instance, one per heartbeatSeconds (30 s): 19
+    // heartbeats is 570 s of uptime, less than the 600 s window the counter needs to fill.
+    const mature = Math.ceil(HEALTH_THRESHOLDS.blindInferenceMaxAgeSeconds / HEALTH_THRESHOLDS.heartbeatSeconds);
+    expect(deriveVisionFacet({ ...blind, heartbeatSeq: 1 })).toBe("warming");
+    expect(deriveVisionFacet({ ...blind, heartbeatSeq: mature - 1 })).toBe("warming");
+    expect(deriveVisionFacet({ ...blind, heartbeatSeq: mature })).toBe("blind");
+    const restarted = deriveCameraState(healthy({ ...blind, heartbeatSeq: 3 }));
+    expect(restarted.state).toBe("HEALTHY");
+    expect(restarted.facets.vision).toBe("warming");
+    // Seeing is seeing, however young the process; and a producer that sends no counter is judged as before.
+    expect(deriveVisionFacet({ ...seeing, heartbeatSeq: 1 })).toBe("seeing");
+    expect(deriveVisionFacet({ ...blind, heartbeatSeq: null })).toBe("blind");
+    expect(deriveVisionFacet({ ...blind, heartbeatSeq: undefined })).toBe("blind");
+  });
+
+  it("the ingest-time derivation sees the same warming window, so a restart does not log a DEGRADED_VISION transition", () => {
+    const { ageSeconds: _drop, ...rest } = healthy({ ...blind, ageSeconds: 0, heartbeatSeq: 2 });
+    void _drop;
+    const v = deriveStateAtIngest(rest);
+    expect(v.state).toBe("HEALTHY");
+    expect(v.facets.vision).toBe("warming");
   });
 });
 

@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 import {
   COLUMNS, GUARDED_SET, HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS,
   HEARTBEAT_GUARDED_SET, activeRunField, parseHeartbeat, plateTextToStore,
@@ -563,5 +565,53 @@ describe("camera heartbeat — interaction transport proofs (0134)", () => {
         `\`${field}\` = IF(${HEARTBEAT_ACCEPT}, VALUES(\`${field}\`), \`${field}\`)`,
       );
     }
+  });
+});
+
+/**
+ * The health timeline's RESUMPTION writer (audit N6). The ingest's transition branch compares
+ * the producer's reported state with its previous one, so a producer coming back after
+ * PRODUCER_OFFLINE (a state only the 5-minute pass can record) logged nothing and the outage
+ * never closed in `camera_health_events`. The route now reads the last event -- only after a
+ * gap past the stale threshold -- and writes the resumption at the heartbeat.
+ */
+describe("camera heartbeat ingest - resumption after a read-derived outage reaches the timeline", () => {
+  const route = fs.readFileSync(path.join(__dirname, "cameraVisitsRoutes.ts"), "utf8");
+
+  it("reads the previous row's gap, consults the last event only past the stale threshold, and writes through the pure rule", () => {
+    expect(route).toContain("UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt) AS gapSeconds");
+    expect(route).toContain("gapSeconds > HEALTH_THRESHOLDS.staleAfterSeconds");
+    expect(route).toContain("SELECT toState FROM camera_health_events");
+    expect(route).toContain("resumptionTransition({");
+    // The resumption is a fallback of the producer-transition branch, never a replacement.
+    const branch = route.indexOf("if (!transition) {");
+    const write = route.indexOf("INSERT INTO camera_health_events", branch);
+    expect(branch).toBeGreaterThan(route.indexOf('reason: "producer restarted (new instance id)"'));
+    expect(write).toBeGreaterThan(branch);
+  });
+
+  it("writes the RETRO outage row for a gap the 5-minute pass never saw, stamped on the heartbeat clock, before the resumption (review on #2929)", () => {
+    // The previous row's own receive time is the only clock that places the outage.
+    expect(route).toContain("UNIX_TIMESTAMP(receivedAt) AS prevReceivedEpoch");
+    const latestRead = route.indexOf("SELECT toState FROM camera_health_events");
+    const retro = route.indexOf("const retro = retroOutageTransition({");
+    const retroWrite = route.indexOf("FROM_UNIXTIME(${retro.atEpoch})", retro);
+    const resumption = route.indexOf("transition = resumptionTransition({", retro);
+    expect(latestRead).toBeGreaterThanOrEqual(0);
+    expect(retro).toBeGreaterThan(latestRead);
+    expect(retroWrite).toBeGreaterThan(retro);
+    expect(resumption).toBeGreaterThan(retroWrite);
+    // The resumption closes the row just written, not the stale one it read before it.
+    expect(route.slice(resumption, resumption + 300)).toContain("latestToState: retro ? retro.to : latestToState,");
+    // A solar camera asks the sky about the moment the gap began; a mains camera gets no excuse.
+    expect(route).toContain('cameraPowerFor(b.camera) === "solar" ? (ms) => solarExpectedOffline(new Date(ms)).expectedOffline : null');
+  });
+
+  it("derives the ingest-time state WITH the solar context, so a dark solar camera whose edge is up records EXPECTED_SOLAR_OFFLINE, not a CAMERA_OFFLINE drop (Codex on #2927)", () => {
+    const call = route.indexOf("const verdict = deriveStateAtIngest({");
+    const close = route.indexOf("}, cameraHealthProfileFor(b.camera), {", call);
+    expect(call).toBeGreaterThanOrEqual(0);
+    expect(close).toBeGreaterThan(call);
+    expect(route.slice(close, close + 600)).toContain('solar: cameraPowerFor(b.camera) === "solar" ? solarExpectedOffline(new Date()) : null');
   });
 });

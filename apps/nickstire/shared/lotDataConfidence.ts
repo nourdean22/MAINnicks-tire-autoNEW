@@ -52,6 +52,31 @@ export interface LotConfidenceInput {
   sign: LotConfidenceSign | null | undefined;
   /** Shop-local clock, from `localClock(now, BUSINESS.timezone)`. */
   clock: { hour: number; minute: number };
+  /**
+   * The sign camera's HEALTHY share of business time so far (`lot.health` coverage, audit N2).
+   * `pct` null = the shop has not opened; absent or null = not measured (an older server).
+   * `pctExpected` excludes the minutes the camera was EXPECTED dark (the solar morning): the
+   * gate reads it, because those minutes are not a data-quality gap. `hours` lets the baseline
+   * be scaled PER HOUR to what the camera actually watched in that hour, so a dark morning that
+   * the baseline days also had is not discounted twice (review on #2929).
+   */
+  coverage?: {
+    pct: number | null;
+    pctExpected?: number | null;
+    watchedMinutes: number;
+    elapsedMinutes: number;
+    solarMinutes?: number;
+    hours?: readonly LotConfidenceCoverageHour[];
+  } | null;
+}
+
+export interface LotConfidenceCoverageHour {
+  /** Shop-local hour of the day this cell covers. */
+  hour: number;
+  watchedMinutes: number;
+  elapsedMinutes: number;
+  /** Minutes the camera was expected dark (EXPECTED_SOLAR_OFFLINE). */
+  solarMinutes: number;
 }
 
 export interface LotConfidence {
@@ -82,6 +107,13 @@ const LOT_CONFIDENCE_RULES = {
   drops: 5,
   /** Earlier days that must have reported before today is compared with anything. */
   minPriorDays: 2,
+  /**
+   * Below this share of business time watched, today is not compared with the baseline at all
+   * (audit N2: "comparisons withheld below 80%"). At or above it the expectation is scaled to
+   * the share actually watched, so a camera that missed 10% of the morning is not read as a
+   * 10% slow day.
+   */
+  minCoverage: 0.8,
 } as const;
 
 const R = LOT_CONFIDENCE_RULES;
@@ -98,14 +130,39 @@ function fmtAge(sec: number | null): string {
  * hours in full, the current hour pro rata. Hours with no baseline contribute nothing.
  * Exercised through `lotDataConfidence` (the `expectedSoFar` field) and directly by its test.
  */
-function expectedArrivalsSoFar(hours: readonly LotConfidenceHour[], clock: { hour: number; minute: number }): number {
+function expectedArrivalsSoFar(
+  hours: readonly LotConfidenceHour[],
+  clock: { hour: number; minute: number },
+  /** Share of each hour's EXPECTED watch time the camera actually watched (1 = all of it, or not measured). */
+  watchedShareOfHour: (hour: number) => number = () => 1,
+): number {
   let total = 0;
   for (const h of hours) {
     if (h.baselineArrivals === null) continue;
-    if (h.hour < clock.hour) total += h.baselineArrivals;
-    else if (h.hour === clock.hour) total += h.baselineArrivals * (Math.min(59, Math.max(0, clock.minute)) / 60);
+    const share = watchedShareOfHour(h.hour);
+    if (h.hour < clock.hour) total += h.baselineArrivals * share;
+    else if (h.hour === clock.hour) total += h.baselineArrivals * share * (Math.min(59, Math.max(0, clock.minute)) / 60);
   }
   return total;
+}
+
+/**
+ * The per-hour scaling the baseline comparison uses: the share of the hour's EXPECTED watch
+ * time (elapsed minus the minutes the camera was expected dark) that was actually watched. An
+ * hour with nothing expected (the whole hour inside the solar window) scales by 1, because the
+ * baseline for that hour was measured dark too and already says ~0. An hour the coverage read
+ * does not know scales by 1: unknown is not a discount.
+ */
+function watchedShareByHour(hours: readonly LotConfidenceCoverageHour[] | undefined): (hour: number) => number {
+  if (!hours) return () => 1;
+  const byHour = new Map(hours.map((h) => [h.hour, h]));
+  return (hour: number) => {
+    const c = byHour.get(hour);
+    if (!c) return 1;
+    const expectedMinutes = c.elapsedMinutes - c.solarMinutes;
+    if (expectedMinutes <= 0) return 1;
+    return Math.min(1, Math.max(0, c.watchedMinutes / expectedMinutes));
+  };
 }
 
 export function lotDataConfidence(input: LotConfidenceInput): LotConfidence {
@@ -146,6 +203,33 @@ export function lotDataConfidence(input: LotConfidenceInput): LotConfidence {
     reasons.push(`${passThroughs} of ${crossings} crossings today read as drive-bys; the portal may be calling stays pass-throughs`);
   }
 
+  // COVERAGE GATE (audit N2). The counts can only be compared with the usual pace over the
+  // minutes the camera actually watched. The gate reads the share of EXPECTED watch time (the
+  // solar morning the camera always misses is not a data-quality gap; the baseline missed it
+  // too), falling back to the raw share from an older server. Below the floor the comparison is
+  // withheld, in words, with the minutes; the LOW reasons above (drops, drive-bys) stand on
+  // their own. Percentages are floored: 79.6% must never read "80%" beside "withheld under 80%".
+  const coverage = input.coverage ?? null;
+  const gateShareRaw = coverage ? (coverage.pctExpected !== undefined ? coverage.pctExpected : coverage.pct) : null;
+  const gateShare = gateShareRaw === null ? null : Math.min(1, Math.max(0, gateShareRaw));
+  const solarMinutes = coverage?.solarMinutes ?? 0;
+  if (gateShare !== null && gateShare < R.minCoverage) {
+    const pctText = `${Math.floor(gateShare * 100)}%`;
+    const expectedMinutes = Math.max(0, coverage!.elapsedMinutes - solarMinutes);
+    reasons.push(
+      `sign camera watched only ${pctText} of the business time it was expected to so far (${coverage!.watchedMinutes} of ${expectedMinutes} min${solarMinutes > 0 ? `; ${solarMinutes} min expected dark on its battery` : ""}); today is not compared with the baseline`,
+    );
+    return {
+      level: level === "LOW" ? "LOW" : "UNKNOWN",
+      headline: level === "LOW"
+        ? `${observed} arrivals so far; ${reasons[0]}.`
+        : `${observed} arrivals so far; comparison withheld: the sign camera watched only ${pctText} of the business time it was expected to so far.`,
+      reasons,
+      expectedSoFar: null,
+      observedArrivals: observed,
+    };
+  }
+
   if (activity.history.priorDaysWithData < R.minPriorDays) {
     const days = activity.history.priorDaysWithData;
     reasons.push(`only ${days} earlier day${days === 1 ? "" : "s"} of history; nothing to compare today against`);
@@ -160,9 +244,18 @@ export function lotDataConfidence(input: LotConfidenceInput): LotConfidence {
     };
   }
 
-  const expected = expectedArrivalsSoFar(activity.hours, input.clock);
+  // Scaled, hour by hour, to the share of each hour's expected watch time the camera actually
+  // watched (1 when coverage is not measured): the baseline predicts arrivals the camera would
+  // have SEEN, not arrivals that happened. Per hour, so an unexpected outage at 10 discounts the
+  // 10 o'clock baseline and nothing else, and the expected dark morning discounts nothing (the
+  // baseline for those hours was measured dark too). A server without per-hour coverage scales
+  // the whole expectation by the expected-watch share instead.
+  const shareByHour = coverage?.hours ? watchedShareByHour(coverage.hours) : () => gateShare ?? 1;
+  const expected = expectedArrivalsSoFar(activity.hours, input.clock, shareByHour);
   const expectedRounded = Math.round(expected);
   const days = activity.history.priorDaysWithData;
+  const scaledNote =
+    gateShare !== null && gateShare < 1 ? `, scaled to the ${Math.floor(gateShare * 100)}% of expected watch time the sign camera covered` : "";
 
   if (expected < R.minExpected) {
     if (level === "LOW") {
@@ -180,9 +273,9 @@ export function lotDataConfidence(input: LotConfidenceInput): LotConfidence {
 
   if (observed < expected * R.lowRatio) {
     level = "LOW";
-    reasons.unshift(`${observed} arrivals so far vs about ${expectedRounded} usual by now (last ${days} days)`);
+    reasons.unshift(`${observed} arrivals so far vs about ${expectedRounded} usual by now (last ${days} days${scaledNote})`);
   } else {
-    reasons.push(`${observed} arrivals so far vs about ${expectedRounded} usual by now (last ${days} days)`);
+    reasons.push(`${observed} arrivals so far vs about ${expectedRounded} usual by now (last ${days} days${scaledNote})`);
   }
 
   return {
