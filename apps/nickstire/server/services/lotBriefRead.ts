@@ -171,9 +171,14 @@ export async function readLotBrief(
     } else if (lastSyncMs < businessEndMs) {
       tickets = { count: null, withheld: "the invoice mirror last synced before the day closed" };
     } else {
+      // `invoiceDate` names the shop-local day as stored, the contract the other invoice readers
+      // keep (`DATE(invoiceDate)`: the revenue engines, shopStatus, dashboardSync). Converting it
+      // from UTC moved every date-only ALG ticket, stored as that day's midnight, onto the day
+      // before (Codex on #2931). A ticket stamped during business hours (08:00-18:00 ET) has the
+      // same calendar date either way. The range is DATE(invoiceDate) = date, kept index-friendly.
       const [t] = readRows(await d.execute(sql`
         SELECT COUNT(*) AS n FROM invoices
-        WHERE DATE(CONVERT_TZ(invoiceDate, '+00:00', 'America/New_York')) = ${date}
+        WHERE invoiceDate >= ${date} AND invoiceDate < ${addDays(date, 1)}
           AND paymentStatus <> 'refunded'
       `));
       tickets = { count: num(t?.n), withheld: null };
@@ -182,7 +187,10 @@ export async function readLotBrief(
     // 4 · Long stays nobody explains, judged only on a day the camera watched (the coverage gate).
     let longDwells: LongDwells | null = null;
     if (targetCoverage.pctExpected !== null && targetCoverage.pctExpected >= LOT_CONFIDENCE_RULES.minCoverage) {
-      const endEpoch = Math.floor(businessEndMs / 1000);
+      // Every visit row of the day, not only the long ones: a car is an EPISODE, and the service
+      // that explains it can sit on a short member (the stay before it went into a bay). Grouping
+      // and the business-hours clamp live in longDwellAnomalies (Codex on #2931). One shop day is
+      // tens of rows.
       const visitRows = readRows(await d.execute(sql`
         SELECT visitId, COALESCE(episodeId, visitId) AS episodeKey,
                UNIX_TIMESTAMP(arrivedAt) AS arrivedEpoch, UNIX_TIMESTAMP(departedAt) AS departedEpoch,
@@ -194,8 +202,6 @@ export async function readLotBrief(
           AND arrivedAt IS NOT NULL
           AND UNIX_TIMESTAMP(arrivedAt) >= ${Math.floor(target.dayStartMs / 1000)}
           AND UNIX_TIMESTAMP(arrivedAt) < ${Math.floor(target.dayEndMs / 1000)}
-          AND LEAST(COALESCE(UNIX_TIMESTAMP(departedAt), ${endEpoch}), ${endEpoch}) - UNIX_TIMESTAMP(arrivedAt)
-              >= ${LOT_BRIEF_RULES.longDwellMinutes * 60}
       `));
       const marksByVisit = new Map<string, VisitMarkRow[]>();
       if (visitRows.length) {
@@ -230,7 +236,7 @@ export async function readLotBrief(
           marks: marksByVisit.get(String(r.visitId)) ?? [],
         };
       });
-      longDwells = longDwellAnomalies(visits, targetCoverage.segments, businessEndMs);
+      longDwells = longDwellAnomalies(visits, targetCoverage.segments, target.openMs ?? target.dayStartMs, businessEndMs);
     }
 
     const brief = composeLotBrief({

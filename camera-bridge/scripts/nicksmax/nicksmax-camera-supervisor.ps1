@@ -174,11 +174,19 @@ function Test-RtspFrame([string]$url) {
 }
 
 # ---- process discovery -----------------------------------------------------------------------
-# Matches "<image name> <command line>" so a child whose command line is hidden from this token
-# (elevated, other session) is still found by its image name; needles anchor on the image.
+# A process's identity is "<image name> <command line>", plus " exe=<executable path>" when this
+# token can read it. Needles anchor on the image. Every kill path (the needle sweep, the port
+# owner check, the duplicate sweep) reads this one identity, so they cannot disagree about whose
+# child a process is (Codex on #2931: the sweep ended any go2rtc the port check had refused).
+function Get-ProcessIdentity($p) {
+  $identity = "{0} {1}" -f $p.Name,$p.CommandLine
+  if (-not [string]::IsNullOrWhiteSpace([string]$p.ExecutablePath)) { $identity += " exe=" + $p.ExecutablePath }
+  return $identity
+}
+
 function Get-ProcessesMatching([string]$needle) {
   return @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
-    Where-Object { ("{0} {1}" -f $_.Name,$_.CommandLine) -match $needle })
+    Where-Object { (Get-ProcessIdentity $_) -match $needle })
 }
 
 function Find-ProcessByCommand([string]$needle) {
@@ -198,9 +206,12 @@ function Stop-ProcessesByCommand([string]$needle,[string]$label) {
 #   eufy-bridge : start-bridge-nicksmax.ps1 -> node server.mjs (:3000) -> go2rtc (1984/8654/8655)
 #   eufy-agent  : start-agent-nicksmax.ps1  -> python agent.py --eufy-only (:3601 health)
 #   office      : python -m vision.officewake --capture (no port; heartbeat file instead)
+# go2rtc's command line is `go2rtc -config ./go2rtc.yaml` (probed on NicksMax 2026-10-08), which
+# any go2rtc could print; only its executable, under the bridge install in StateNour\Eufy\, makes
+# it this task's child. An unrelated or unreadable go2rtc is a neighbour (Codex on #2931).
 function Get-TaskChildSpec([string]$key) {
   switch ($key) {
-    "eufy-bridge"   { return @{ Needles = @('^node(\.exe)?\s.*\bserver\.mjs\b', '^go2rtc(\.exe)?\b'); Ports = @(3000, 1984, 8654, 8655) } }
+    "eufy-bridge"   { return @{ Needles = @('^node(\.exe)?\s.*\bserver\.mjs\b', '^go2rtc(\.exe)?\s.*\sexe=.*\\StateNour\\Eufy\\.*\bgo2rtc\.exe$'); Ports = @(3000, 1984, 8654, 8655) } }
     "eufy-agent"    { return @{ Needles = @('^python\w*(\.exe)?\s.*\bagent\.py\s+--eufy-only\b'); Ports = @(3601) } }
     "office-worker" { return @{ Needles = @('^python\w*(\.exe)?\s.*-m\s+vision\.officewake\b'); Ports = @() } }
   }
@@ -235,7 +246,7 @@ function Stop-PortOwner([int]$port,[string]$label,[string[]]$needles = @()) {
       Log ("WARN :{0} owner pid={1} has no readable command line; cannot prove it is a camera child, leaving it" -f $port,$owner)
       continue
     }
-    $identity = "{0} {1}" -f $cim.Name,$cim.CommandLine
+    $identity = Get-ProcessIdentity $cim
     $isChild = $false
     foreach ($needle in $needles) { if ($identity -match $needle) { $isChild = $true; break } }
     if (-not $isChild) {

@@ -385,6 +385,39 @@ def test_port_owner_identity_is_the_command_line_not_the_image_name(tmp_path: Pa
     assert "pid=12: no child specification to verify it against" in log
 
 
+def test_an_unrelated_go2rtc_survives_a_bridge_restart(tmp_path: Path):
+    # Codex on #2931: the go2rtc needle was the bare image, so the needle sweep in
+    # Stop-TaskChildren ended every go2rtc on the host before the guarded port pass ran.
+    out = run_scenario("unrelated-go2rtc-survives-bridge-restart", tmp_path)
+    calls = out["calls"]
+    assert _index(calls, "stop-pid:11") < _index(calls, f"start-task:{BRIDGE_TASK}")
+    assert _index(calls, "stop-pid:12") < _index(calls, f"start-task:{BRIDGE_TASK}")
+    # Same command line as the bridge's go2rtc, another install, holding a managed port.
+    assert "stop-pid:63" not in calls
+    # Unreadable: the sweep no longer ends what the port pass refuses to guess about.
+    assert "stop-pid:62" not in calls
+    assert ":8655 owner pid=63 is not this task's child by command line" in "\n".join(out["log"])
+
+
+def test_an_unrelated_go2rtc_is_not_a_duplicate_of_the_bridges(tmp_path: Path):
+    # With the bare-image needle, the bridge's go2rtc and an older unrelated one were two roots of
+    # one worker, neither owning :3000, so every healthy tick ended the newer one: the bridge's.
+    out = run_scenario("unrelated-go2rtc-is-not-a-duplicate", tmp_path)
+    assert out["calls"] == []
+
+
+def test_every_kill_path_reads_one_process_identity():
+    text = source()
+    # Built once, in Get-ProcessIdentity; no kill path formats its own.
+    assert "-f $p.Name,$p.CommandLine" in text
+    assert "-f $_.Name,$_.CommandLine" not in text
+    assert "-f $cim.Name,$cim.CommandLine" not in text
+    matching = text[text.index("function Get-ProcessesMatching") : text.index("function Find-ProcessByCommand")]
+    assert "Get-ProcessIdentity $_" in matching
+    port_owner = text[text.index("function Stop-PortOwner") : text.index("function Remove-DuplicateProcesses")]
+    assert "$identity = Get-ProcessIdentity $cim" in port_owner
+
+
 def test_edge_fingerprint_is_recorded_only_after_the_stale_edge_is_gone():
     text = source()
     heal = text[text.index("function Heal-EdgeCode") : text.index("function Get-OfficeStatus")]

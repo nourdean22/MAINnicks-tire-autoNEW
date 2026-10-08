@@ -65,12 +65,13 @@ $unkillable = New-Object System.Collections.Generic.List[int]
 $failStart = $false
 $markers = @{}
 
-function Add-FakeProcess([int]$processId, [string]$name, [string]$commandLine, [int]$ageSeconds, [int]$parentProcessId = 0) {
+function Add-FakeProcess([int]$processId, [string]$name, [string]$commandLine, [int]$ageSeconds, [int]$parentProcessId = 0, [string]$executablePath = '') {
   $fakeProcesses.Add([pscustomobject]@{
     ProcessId       = $processId
     ParentProcessId = $parentProcessId
     Name            = $name
     CommandLine     = $commandLine
+    ExecutablePath  = $executablePath
     CreationDate    = (Get-Date).AddSeconds(-1 * $ageSeconds)
   })
 }
@@ -138,6 +139,10 @@ function Install-OfficeCode {
 }
 
 $bridgeNode = '"C:\Program Files\nodejs\node.exe" server.mjs'
+# The bridge's go2rtc as probed on NicksMax 2026-10-08: a command line any go2rtc could print, and
+# an executable under the bridge install. Only the executable path makes it this task's child.
+$bridgeGo2rtcCmd = 'go2rtc -config ./go2rtc.yaml'
+$bridgeGo2rtcExe = 'C:\Users\nourd\AppData\Local\StateNour\Eufy\ha-eufy-sdk-bridge-0.3.0\go2rtc.exe'
 $agentPython = 'C:\Users\nourd\venv\Scripts\python.exe agent.py --eufy-only'
 $officePython = 'C:\Users\nourd\python\python.exe -m vision.officewake --capture'
 $edgePython = 'C:\Users\nourd\venv\Scripts\python.exe edge_main.py --config data\config-nicksmax-sign-production.yaml'
@@ -151,7 +156,7 @@ function Install-EdgeCode([string]$version) {
 switch ($Scenario) {
   "kick-restart-order" {
     Add-FakeProcess 11 "node.exe" $bridgeNode 600
-    Add-FakeProcess 12 "go2rtc.exe" 'go2rtc -config go2rtc.yaml' 590
+    Add-FakeProcess 12 "go2rtc.exe" $bridgeGo2rtcCmd 590 11 $bridgeGo2rtcExe
     Add-FakeProcess 13 "Code.exe" 'Code.exe C:\notes\go2rtc.yaml server.mjs' 5000
     Add-FakeProcess 21 "python.exe" $agentPython 600
     $portOwners[3000] = 11; $portOwners[1984] = 12; $portOwners[3601] = 21
@@ -198,7 +203,7 @@ switch ($Scenario) {
   }
   "reclaim-orphan" {
     Add-FakeProcess 11 "node.exe" $bridgeNode 600
-    Add-FakeProcess 12 "go2rtc.exe" 'go2rtc -config go2rtc.yaml' 590
+    Add-FakeProcess 12 "go2rtc.exe" $bridgeGo2rtcCmd 590 11 $bridgeGo2rtcExe
     $portOwners[3000] = 11; $portOwners[1984] = 12
     $taskStates["StateNour-Eufy-Bridge-NicksMax"] = "Ready"
     Heal-EufyTask $eufyTasks[0]
@@ -337,11 +342,36 @@ switch ($Scenario) {
     Add-FakeProcess 61 "node.exe" '"C:\Program Files\nodejs\node.exe" C:\other\app.js' 600
     Add-FakeProcess 62 "go2rtc.exe" '' 600
     Add-FakeProcess 11 "node.exe" $bridgeNode 600
-    Add-FakeProcess 12 "go2rtc.exe" 'go2rtc -config go2rtc.yaml' 590
+    Add-FakeProcess 12 "go2rtc.exe" $bridgeGo2rtcCmd 590 11 $bridgeGo2rtcExe
     $portOwners[3000] = 61; $portOwners[1984] = 62; $portOwners[8654] = 11; $portOwners[8655] = 12
     $spec = Get-TaskChildSpec "eufy-bridge"
     foreach ($port in @(3000, 1984, 8654)) { Stop-PortOwner $port ("eufy-bridge :{0} owner" -f $port) $spec.Needles }
     Stop-PortOwner 8655 "eufy-bridge :8655 owner"
+  }
+  "unrelated-go2rtc-survives-bridge-restart" {
+    # Codex on #2931: the go2rtc needle was the bare image, so the needle sweep ended EVERY go2rtc
+    # before the guarded port pass ran. Same command line as ours, a different install:
+    #   63 an unrelated go2rtc, readable, holding managed :8655 -> left alone by the sweep and the port pass
+    #   62 a go2rtc this token cannot read                       -> left alone: a guess is not identity
+    #   11, 12 the bridge's node and go2rtc                      -> ended. 12 holds no port (it lost its
+    #      listener), so only the sweep can end it: the sweep must know it by its executable.
+    Add-FakeProcess 11 "node.exe" $bridgeNode 600
+    Add-FakeProcess 12 "go2rtc.exe" $bridgeGo2rtcCmd 590 11 $bridgeGo2rtcExe
+    Add-FakeProcess 63 "go2rtc.exe" $bridgeGo2rtcCmd 900 0 'C:\Tools\go2rtc\go2rtc.exe'
+    Add-FakeProcess 62 "go2rtc.exe" '' 900
+    $portOwners[3000] = 11; $portOwners[8655] = 63
+    Kick-Task "StateNour-Eufy-Bridge-NicksMax" "eufy-bridge" "harness restart" $true 0
+  }
+  "unrelated-go2rtc-is-not-a-duplicate" {
+    # A healthy tick dedupes every child needle. With the bare-image needle the bridge's go2rtc and an
+    # unrelated, OLDER one were two roots of one worker, neither owning :3000, so the newer -- the
+    # bridge's -- was ended on every tick.
+    Add-FakeProcess 11 "node.exe" $bridgeNode 600
+    Add-FakeProcess 12 "go2rtc.exe" $bridgeGo2rtcCmd 590 11 $bridgeGo2rtcExe
+    Add-FakeProcess 63 "go2rtc.exe" $bridgeGo2rtcCmd 7200 0 'C:\Tools\go2rtc\go2rtc.exe'
+    $portOwners[3000] = 11; $portOwners[1984] = 12
+    $taskStates["StateNour-Eufy-Bridge-NicksMax"] = "Running"
+    Heal-EufyTask $eufyTasks[0]
   }
   "edge-code-stop-fails-keeps-old-fingerprint" {
     # The stale edge refuses to die (Codex on #2925): nothing may be ledgered as handled. The

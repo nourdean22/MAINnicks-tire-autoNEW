@@ -60,7 +60,7 @@ function fakeDb(f: Fixture) {
       return [f.marks ?? []];
     }
     if (t.includes("FROM vehicle_visits") && t.includes("GROUP BY etDate")) return [f.counts ?? []];
-    if (t.includes("FROM vehicle_visits") && t.includes("LEAST(")) return [f.dwell ?? []];
+    if (t.includes("FROM vehicle_visits") && t.includes("bayEnteredAt")) return [f.dwell ?? []];
     if (t.includes("FROM camera_health_events") && t.includes("LIMIT 1")) return [f.anchor ?? []];
     if (t.includes("FROM camera_health_events")) return [f.events ?? []];
     if (t.includes("FROM invoices")) return [[{ n: f.tickets ?? 0 }]];
@@ -115,6 +115,12 @@ describe("readLotBrief", () => {
       "Thursday: 14 cars came in (camera watched 95% of business hours); no same-weekday comparison yet, 0 of the last 4 Thursdays were watched enough to compare.",
     ]);
     expect(r.tickets).toEqual({ count: 11, withheld: null });
+    // The ticket day is the stored shop-local day, DATE(invoiceDate) = date as a range. A UTC
+    // conversion moved every date-only ALG ticket onto the day before (Codex on #2931).
+    const ticketRead = calls.find((c) => c.text.includes("FROM invoices"))!;
+    expect(ticketRead.text).not.toContain("CONVERT_TZ");
+    expect(ticketRead.text).toContain("invoiceDate >= ? AND invoiceDate < ?");
+    expect(ticketRead.params).toEqual(["2026-10-15", "2026-10-16"]);
     // The count spans 2026-09-17 04:00Z (four weeks back) to 2026-10-16 04:00Z, as epochs.
     const count = calls.find((c) => c.text.includes("GROUP BY etDate"))!;
     expect(count.text).toContain("DATE_FORMAT(CONVERT_TZ(arrivedAt, '+00:00', 'America/New_York'), '%Y-%m-%d') AS etDate");
@@ -168,6 +174,28 @@ describe("readLotBrief", () => {
     expect(marked.longDwells).toEqual({ count: 0, longestMinutes: null, uncertain: 0 });
   });
 
+  it("long stays are judged per car over the whole day's visits: a short visit's mark explains its car", async () => {
+    // Codex on #2931: the read kept only rows that were long on their own, so the short visit that
+    // carried the mark was never read, and the long member after it was reported unexplained.
+    const { db, calls } = fakeDb({
+      counts: [{ etDate: "2026-10-15", arrivals: 2, passThroughs: 0 }],
+      anchor: [{ fromState: null, toState: "HEALTHY", reason: null, atEpoch: D_START - H }],
+      dwell: [
+        { visitId: "v-1a", episodeKey: "ep-1", arrivedEpoch: OPEN + H, departedEpoch: OPEN + H + 1200, bayEnteredEpoch: null, bayExitedEpoch: null },
+        { visitId: "v-1b", episodeKey: "ep-1", arrivedEpoch: OPEN + 2 * H, departedEpoch: OPEN + 6 * H, bayEnteredEpoch: null, bayExitedEpoch: null },
+        // Dropped off two hours before opening, gone an hour after it: one business hour.
+        { visitId: "v-2", episodeKey: "v-2", arrivedEpoch: OPEN - 2 * H, departedEpoch: OPEN + H, bayEnteredEpoch: null, bayExitedEpoch: null },
+      ],
+      marks: [{ visitId: "v-1a", mark: "SERVICE_STARTED", markedEpoch: OPEN + H + 600, note: null }],
+    });
+    const r = await readLotBrief(db, {}, { freshness: fresh(null), nowMs: NOW });
+    if (!r.ok) throw new Error(r.error);
+    expect(r.longDwells).toEqual({ count: 0, longestMinutes: null, uncertain: 0 });
+    // No duration filter in SQL: the day's rows are read whole, and the marks of every one of them.
+    expect(calls.find((c) => c.text.includes("bayEnteredAt"))!.text).not.toContain("LEAST(");
+    expect(calls.find((c) => c.text.includes("FROM vehicle_visit_marks"))!.params).toEqual(["v-1a", "v-1b", "v-2"]);
+  });
+
   it("an unwatched day is not judged for long stays at all (no dwell read)", async () => {
     const { db, calls } = fakeDb({
       counts: [{ etDate: "2026-10-15", arrivals: 9, passThroughs: 0 }],
@@ -177,7 +205,7 @@ describe("readLotBrief", () => {
     if (!r.ok) throw new Error(r.error);
     expect(r.coverage.pctExpected).toBe(0);
     expect(r.longDwells).toBeNull();
-    expect(calls.some((c) => c.text.includes("LEAST("))).toBe(false);
+    expect(calls.some((c) => c.text.includes("bayEnteredAt"))).toBe(false);
     expect(r.events.map((e) => e.kind)).toEqual(["coverage_low"]);
   });
 

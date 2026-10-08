@@ -123,42 +123,60 @@ export interface LongDwells {
 }
 
 /**
- * Long stays nobody explains. A stay ends at departure or at close, whichever is first: a car
- * kept overnight for a multi-day job is measured by the business day it spent, not by the night.
- * A stay is explained, and not an anomaly, when the camera saw a bay or an operator marked service
- * (`deriveVisitMarkState`, the same derivation the Lot cards use); NOT_A_JOB removes the car.
+ * Long stays nobody explains, one judgement per CAR. A car is an episode: a stitched re-arrival
+ * (the car back on the lot from a bay) shares its episode with the first visit, so the stay runs
+ * from the first member's arrival to the last member's departure, and service recorded on ANY
+ * member explains the car (Codex on #2931: a mark on one member left the other counted).
+ *
+ * Only business time counts. A stay starts no earlier than opening and ends at departure or close,
+ * whichever is first: a car dropped off at 06:00 is not waiting while the shop is shut, and a car
+ * kept overnight is measured by the business day it spent, not by the night.
+ *
+ * A car is explained, and not an anomaly, when the camera saw one of its visits in a bay or an
+ * operator marked service on one (`deriveVisitMarkState` per visit, the derivation the Lot cards
+ * use, so a CLEARED undoes marks on its own card only); NOT_A_JOB on any visit removes the car.
  */
 export function longDwellAnomalies(
   visits: readonly DwellVisit[],
   segments: readonly TimelineSegment[],
+  businessStartMs: number,
   businessEndMs: number,
 ): LongDwells {
-  const longest = new Map<string, number>();
-  const uncertain = new Set<string>();
+  const episodes = new Map<string, DwellVisit[]>();
   for (const v of visits) {
-    const endMs = Math.min(v.departedAtMs ?? Number.POSITIVE_INFINITY, businessEndMs);
-    const minutes = Math.floor((endMs - v.arrivedAtMs) / 60_000);
+    const members = episodes.get(v.episodeKey);
+    if (members) members.push(v);
+    else episodes.set(v.episodeKey, [v]);
+  }
+  let count = 0;
+  let uncertain = 0;
+  let longestMinutes: number | null = null;
+  for (const members of episodes.values()) {
+    const arrivedAtMs = Math.min(...members.map((m) => m.arrivedAtMs));
+    const departedAtMs = members.some((m) => m.departedAtMs === null)
+      ? null
+      : Math.max(...members.map((m) => m.departedAtMs as number));
+    const startMs = Math.max(arrivedAtMs, businessStartMs);
+    const endMs = Math.min(departedAtMs ?? Number.POSITIVE_INFINITY, businessEndMs);
+    const minutes = Math.floor((endMs - startMs) / 60_000);
     if (!(minutes >= R.longDwellMinutes)) continue;
-    const state = deriveVisitMarkState(
-      { bayEnteredAtMs: v.bayEnteredAtMs, bayExitedAtMs: v.bayExitedAtMs, departedAtMs: v.departedAtMs },
-      v.marks,
-      endMs,
+    const states = members.map((m) =>
+      deriveVisitMarkState(
+        { bayEnteredAtMs: m.bayEnteredAtMs, bayExitedAtMs: m.bayExitedAtMs, departedAtMs: m.departedAtMs },
+        m.marks,
+        endMs,
+      ),
     );
-    if (state.notAJob) continue;
-    if (state.serviceStartedAtMs !== null || state.serviceDoneAtMs !== null) continue;
-    if (unwatchedMinutes(segments, v.arrivedAtMs, endMs) > R.maxUnwatchedDwellMinutes) {
-      uncertain.add(v.episodeKey);
+    if (states.some((s) => s.notAJob)) continue;
+    if (states.some((s) => s.serviceStartedAtMs !== null || s.serviceDoneAtMs !== null)) continue;
+    if (unwatchedMinutes(segments, startMs, endMs) > R.maxUnwatchedDwellMinutes) {
+      uncertain++;
       continue;
     }
-    longest.set(v.episodeKey, Math.max(longest.get(v.episodeKey) ?? 0, minutes));
+    count++;
+    longestMinutes = Math.max(longestMinutes ?? 0, minutes);
   }
-  for (const key of longest.keys()) uncertain.delete(key);
-  const values = [...longest.values()];
-  return {
-    count: values.length,
-    longestMinutes: values.length ? Math.max(...values) : null,
-    uncertain: uncertain.size,
-  };
+  return { count, longestMinutes, uncertain };
 }
 
 export interface LotBriefInput {

@@ -55,6 +55,12 @@ const log = logger.withSurface("services/vehicle-detection");
  * compare-and-swap pinned on the marker and the deadline it read (the marker
  * becomes "paging"), so exactly one caller pages. The clear is pinned the same
  * way, and a lease lost mid-page is logged instead of silently overwritten.
+ *
+ * And again (Codex P1 on #2931): a retry that finds the page in another caller's
+ * hands is answered 503, never 2xx. The edge outbox acknowledges a 2xx for good,
+ * so when the holder had died before paging, the retry inside its lease was the
+ * last one, and the page was lost. A 503 keeps the retry coming until the marker
+ * is cleared (acknowledged) or the lease lapses (it claims the page itself).
  */
 
 // The payload schema lives in vehicle-event-contract.ts (shared with the
@@ -97,6 +103,15 @@ const ALERT_PAGING = "paging";
  * the long-stop for a process that died in between, not a budget the happy path spends.
  */
 const ALERT_LEASE_MS = 60_000;
+
+/**
+ * The answer to a retry whose row has an unconfirmed page in another caller's hands. 503 because
+ * the edge retries it (camera-bridge/visitd/cloud_client.py: any 5xx is transient) and dead-letters
+ * most 4xx; never a 2xx, which the edge acknowledges for good.
+ */
+function pageNotYetConfirmed(rowId: string): ServiceError {
+  return new ServiceError("The arrival page for this event is still in flight; retry.", 503, { existing: rowId });
+}
 /**
  * eventId idempotency spans the whole DeviceEvent retention (data-cleanup
  * deletes after 90 days): the edge outbox is durable and can legitimately
@@ -326,12 +341,15 @@ export async function handleVehicleEvent(deviceId: string, payload: unknown): Pr
         // paging (lease fresh: leave it), or the process died in between (lease lapsed, or a row
         // from before leases): claim the page with a compare-and-swap and finish it, once.
         const claimed = await claimPendingPage(duplicate.id, dupData);
-        if (claimed) {
-          log.info("duplicate_event_completing_alert", { deviceId, eventId: event.eventId, existing: duplicate.id });
-          await pageAndRecord(duplicate.id, claimed);
-        } else {
+        if (!claimed) {
+          // Another caller holds the page: its lease is fresh, or it just won the swap. Until that
+          // page is confirmed this retry must stay retryable, or a holder that died takes the
+          // page with it.
           log.info("duplicate_event_page_in_progress", { deviceId, eventId: event.eventId, existing: duplicate.id });
+          throw pageNotYetConfirmed(duplicate.id);
         }
+        log.info("duplicate_event_completing_alert", { deviceId, eventId: event.eventId, existing: duplicate.id });
+        await pageAndRecord(duplicate.id, claimed);
         return duplicate.id;
       }
       log.info("duplicate_event_ignored", { deviceId, eventId: event.eventId, existing: duplicate.id });
@@ -467,6 +485,13 @@ export async function handleVehicleEvent(deviceId: string, payload: unknown): Pr
         orderBy: { createdAt: "desc" },
       });
       if (winner) {
+        // The twin is still paging (its row carries the marker): the same unconfirmed page as
+        // a retry inside a lease, and the same retryable answer.
+        const winnerMarker = (winner.data as Record<string, unknown> | null)?.alertSuppressedReason;
+        if (winnerMarker === ALERT_PENDING || winnerMarker === ALERT_PAGING) {
+          log.info("duplicate_event_lost_race_page_in_flight", { deviceId, eventId: event.eventId, existing: winner.id });
+          throw pageNotYetConfirmed(winner.id);
+        }
         log.info("duplicate_event_lost_race", { deviceId, eventId: event.eventId, existing: winner.id });
         return winner.id;
       }

@@ -388,13 +388,20 @@ describe("Arrival Intelligence ingest · exclusive page claim", () => {
     const first = handleVehicleEvent(deviceId, payload);
     const second = handleVehicleEvent(deviceId, payload);
     // One macrotask drains every microtask: the first caller is parked on the gate with its
-    // page in flight, the second has read the row, lost the swap and returned.
+    // page in flight, the second has read the row, lost the swap and been told to retry.
     await new Promise((r) => setTimeout(r, 0));
     expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
     release({ ok: true, messageId: 424242 });
-    expect(await Promise.all([first, second])).toEqual([seeded.id, seeded.id]);
+    const [won, lost] = await Promise.allSettled([first, second]);
+    expect(won).toEqual({ status: "fulfilled", value: seeded.id });
+    // Retryable, never acknowledged: the winner's page was not confirmed when the loser answered.
+    expect(lost.status).toBe("rejected");
+    expect((lost as PromiseRejectedResult).reason).toMatchObject({ name: "ServiceError", status: 503 });
     expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
     expect(push.sendPush).toHaveBeenCalledOnce();
+    // The loser's retry, once the page is done, is acknowledged and pages nothing.
+    expect(await handleVehicleEvent(deviceId, payload)).toBe(seeded.id);
+    expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
     const row = await prisma.deviceEvent.findUnique({ where: { id: seeded.id } });
     expect((row?.data as Record<string, unknown>).alertSuppressedReason).toBeNull();
     expect((row?.data as Record<string, unknown>).telegramMessageId).toBe("424242");
@@ -403,16 +410,55 @@ describe("Arrival Intelligence ingest · exclusive page claim", () => {
     expect(swaps.filter((s) => Array.isArray(s.where.AND)).length).toBe(2);
   });
 
-  it("a retry inside the writer's lease leaves the row alone: the writer is still paging", async () => {
+  it("a retry inside the writer's lease leaves the row alone and is told to retry (503), not acknowledged", async () => {
     const seeded = await pendingRow("e-fresh", "v-fresh", { alertClaimedAt: Date.now() - 5_000 });
     vi.clearAllMocks();
-    const id = await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", visitId: "v-fresh" }, { schemaVersion: 2, eventId: "e-fresh" }));
-    expect(id).toBe(seeded.id);
+    await expect(
+      handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", visitId: "v-fresh" }, { schemaVersion: 2, eventId: "e-fresh" })),
+    ).rejects.toMatchObject({ name: "ServiceError", status: 503, details: { existing: seeded.id } });
     expect(telegram.sendTelegramWithButtons).not.toHaveBeenCalled();
     expect(push.sendPush).not.toHaveBeenCalled();
     expect(prisma.deviceEvent.updateMany).not.toHaveBeenCalled();
     const row = await prisma.deviceEvent.findUnique({ where: { id: seeded.id } });
     expect((row?.data as Record<string, unknown>).alertSuppressedReason).toBe("pending");
+  });
+
+  // Codex P1 on #2931: the retry inside the lease used to be answered with the row id, a 2xx the
+  // edge outbox acknowledges for good. When the writer had died before paging, that retry was the
+  // last one and the page was lost. Now every retry stays retryable until one can finish the page.
+  it("a writer that died inside its lease does not take the page with it: the retry after the lease pages once", async () => {
+    const seeded = await pendingRow("e-dead", "v-dead", { alertClaimedAt: Date.now() - 5_000 });
+    vi.clearAllMocks();
+    const payload = base({ state: "CONFIRMED_ARRIVAL", visitId: "v-dead" }, { schemaVersion: 2, eventId: "e-dead" });
+    await expect(handleVehicleEvent(deviceId, payload)).rejects.toMatchObject({ status: 503 });
+    expect(telegram.sendTelegramWithButtons).not.toHaveBeenCalled();
+    // The edge keeps retrying; the dead writer's lease lapses.
+    vi.useFakeTimers({ now: Date.now() + 61_000, toFake: ["Date"] });
+    try {
+      expect(await handleVehicleEvent(deviceId, payload)).toBe(seeded.id);
+      expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
+      expect(await handleVehicleEvent(deviceId, payload)).toBe(seeded.id);
+      expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a twin that lost the INSERT race while the winner is still paging is told to retry, not acknowledged", async () => {
+    let release!: (v: { ok: boolean; messageId: number }) => void;
+    const gate = new Promise<{ ok: boolean; messageId: number }>((resolve) => { release = resolve; });
+    vi.mocked(telegram.sendTelegramWithButtons).mockImplementationOnce(() => gate as never);
+    const payload = base({ state: "CONFIRMED_ARRIVAL" }, { schemaVersion: 2, eventId: "e-twin" });
+    const first = handleVehicleEvent(deviceId, payload);
+    await new Promise((r) => setTimeout(r, 0)); // the winner's row exists; its page is in flight
+    vi.mocked(prisma.deviceEvent.findFirst).mockResolvedValueOnce(null); // the twin's pre-check saw nothing
+    await expect(handleVehicleEvent(deviceId, payload)).rejects.toMatchObject({ name: "ServiceError", status: 503 });
+    release({ ok: true, messageId: 777 });
+    const id = await first;
+    // Once the page is done the twin's retry is acknowledged with the winner's row. One row, one page.
+    expect(await handleVehicleEvent(deviceId, payload)).toBe(id);
+    expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
+    expect(store.events).toHaveLength(1);
   });
 
   it("a retry past the lease claims the page and pins BOTH fields it read: the marker and the deadline", async () => {

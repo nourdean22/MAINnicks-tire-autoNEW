@@ -80,7 +80,7 @@ function visit(over: Partial<DwellVisit> & { visitId: string }): DwellVisit {
 
 describe("longDwellAnomalies", () => {
   it("counts a 4h30m stay nobody explains, and not a short one", () => {
-    const r = longDwellAnomalies([visit({ visitId: "a" }), visit({ visitId: "b", departedAtMs: OPEN + H + 60 * 60_000 })], allDayHealthy, CLOSE);
+    const r = longDwellAnomalies([visit({ visitId: "a" }), visit({ visitId: "b", departedAtMs: OPEN + H + 60 * 60_000 })], allDayHealthy, OPEN, CLOSE);
     expect(r).toEqual({ count: 1, longestMinutes: 270, uncertain: 0 });
   });
 
@@ -97,7 +97,7 @@ describe("longDwellAnomalies", () => {
           { mark: "CLEARED", markedAtMs: at + 60_000, note: null },
         ],
       }),
-    ], allDayHealthy, CLOSE);
+    ], allDayHealthy, OPEN, CLOSE);
     expect(r).toEqual({ count: 1, longestMinutes: 270, uncertain: 0 });
   });
 
@@ -107,13 +107,13 @@ describe("longDwellAnomalies", () => {
       { state: "STALE", fromMs: OPEN + 3 * H, toMs: OPEN + 4 * H, open: false, reason: null },
       { state: "HEALTHY", fromMs: OPEN + 4 * H, toMs: DAY_END, open: true, reason: null },
     ];
-    expect(longDwellAnomalies([visit({ visitId: "a" })], segments, CLOSE)).toEqual({ count: 0, longestMinutes: null, uncertain: 1 });
+    expect(longDwellAnomalies([visit({ visitId: "a" })], segments, OPEN, CLOSE)).toEqual({ count: 0, longestMinutes: null, uncertain: 1 });
   });
 
   it("a car still there at close is measured to close, not through the night", () => {
-    const r = longDwellAnomalies([visit({ visitId: "late", arrivedAtMs: CLOSE - 3 * H, departedAtMs: null })], allDayHealthy, CLOSE);
+    const r = longDwellAnomalies([visit({ visitId: "late", arrivedAtMs: CLOSE - 3 * H, departedAtMs: null })], allDayHealthy, OPEN, CLOSE);
     expect(r).toEqual({ count: 1, longestMinutes: 180, uncertain: 0 });
-    const short = longDwellAnomalies([visit({ visitId: "later", arrivedAtMs: CLOSE - 2 * H, departedAtMs: null })], allDayHealthy, CLOSE);
+    const short = longDwellAnomalies([visit({ visitId: "later", arrivedAtMs: CLOSE - 2 * H, departedAtMs: null })], allDayHealthy, OPEN, CLOSE);
     expect(short.count).toBe(0);
   });
 
@@ -121,8 +121,48 @@ describe("longDwellAnomalies", () => {
     const r = longDwellAnomalies([
       visit({ visitId: "a1", episodeKey: "ep" }),
       visit({ visitId: "a2", episodeKey: "ep", departedAtMs: OPEN + H + 300 * 60_000 }),
-    ], allDayHealthy, CLOSE);
+    ], allDayHealthy, OPEN, CLOSE);
     expect(r).toEqual({ count: 1, longestMinutes: 300, uncertain: 0 });
+  });
+
+  // Codex on #2931: the stay counted the closed hours before opening.
+  it("only business time counts: a car dropped off before opening starts waiting at opening", () => {
+    const r = longDwellAnomalies([
+      // 06:00 to 09:00 ET is one business hour, not three.
+      visit({ visitId: "early", arrivedAtMs: OPEN - 2 * H, departedAtMs: OPEN + H }),
+      // 06:00 to 11:30 ET is three and a half business hours, reported as such, not five and a half.
+      visit({ visitId: "early-long", arrivedAtMs: OPEN - 2 * H, departedAtMs: OPEN + 3.5 * H }),
+    ], allDayHealthy, OPEN, CLOSE);
+    expect(r).toEqual({ count: 1, longestMinutes: 210, uncertain: 0 });
+  });
+
+  // Codex on #2931: service on one member of an episode left the other member counted.
+  it("service on any visit of a car explains the car, even on a short visit; NOT_A_JOB on any visit removes it", () => {
+    const at = OPEN + H + 10 * 60_000;
+    const r = longDwellAnomalies([
+      // Marked while it was briefly on the lot, then back for a long wait after its bay.
+      visit({ visitId: "m1", episodeKey: "marked", departedAtMs: OPEN + H + 20 * 60_000, marks: [{ mark: "SERVICE_STARTED", markedAtMs: at, note: null }] }),
+      visit({ visitId: "m2", episodeKey: "marked", arrivedAtMs: OPEN + 2.5 * H, departedAtMs: OPEN + 6.5 * H }),
+      // The camera saw the short visit enter a bay.
+      visit({ visitId: "b1", episodeKey: "bayed", departedAtMs: OPEN + H + 20 * 60_000, bayEnteredAtMs: at }),
+      visit({ visitId: "b2", episodeKey: "bayed", arrivedAtMs: OPEN + 2.5 * H, departedAtMs: OPEN + 6.5 * H }),
+      // A staff car, marked on one visit.
+      visit({ visitId: "s1", episodeKey: "staff", departedAtMs: OPEN + H + 20 * 60_000, marks: [{ mark: "NOT_A_JOB", markedAtMs: at, note: null }] }),
+      visit({ visitId: "s2", episodeKey: "staff", arrivedAtMs: OPEN + 2.5 * H, departedAtMs: OPEN + 6.5 * H }),
+      // CONTROL: nothing recorded on either visit. One car, measured from its first arrival to its last departure.
+      visit({ visitId: "u1", episodeKey: "unexplained", departedAtMs: OPEN + H + 20 * 60_000 }),
+      visit({ visitId: "u2", episodeKey: "unexplained", arrivedAtMs: OPEN + 2.5 * H, departedAtMs: OPEN + 6.5 * H }),
+    ], allDayHealthy, OPEN, CLOSE);
+    expect(r).toEqual({ count: 1, longestMinutes: 330, uncertain: 0 });
+  });
+
+  it("a CLEARED undoes marks on its own visit only: another visit's service mark still explains the car", () => {
+    const at = OPEN + H + 10 * 60_000;
+    const r = longDwellAnomalies([
+      visit({ visitId: "c1", episodeKey: "ep", departedAtMs: OPEN + H + 20 * 60_000, marks: [{ mark: "SERVICE_STARTED", markedAtMs: at, note: null }] }),
+      visit({ visitId: "c2", episodeKey: "ep", arrivedAtMs: OPEN + 2.5 * H, departedAtMs: OPEN + 6.5 * H, marks: [{ mark: "CLEARED", markedAtMs: at + 60_000, note: null }] }),
+    ], allDayHealthy, OPEN, CLOSE);
+    expect(r).toEqual({ count: 0, longestMinutes: null, uncertain: 0 });
   });
 });
 
