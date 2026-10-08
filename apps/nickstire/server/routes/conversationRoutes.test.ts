@@ -483,6 +483,7 @@ describe("office visual calibration receipt (audit N5)", () => {
     const DONE = {
       status: "DONE" as const, summary: "Customer at the counter", peopleCount: 1, activities: [],
       waitingUnattended: false, frameCount: 1, provider: "ollama", model: "m", latencyMs: 5, error: null,
+      prompted: true,
     };
     visualReady.mockResolvedValue(true);
     analyzeFrames.mockResolvedValue(DONE);
@@ -509,5 +510,37 @@ describe("office visual calibration receipt (audit N5)", () => {
     expect(update).not.toContain("two customers, staff on phone");
     expect(logSpy.info).toHaveBeenCalledWith("office visual stored",
       expect.objectContaining({ calibrationFrom: ["ep-wrong-1"] }));
+    // The flag is the route's to read, not the row's to keep.
+    expect(update).not.toContain("prompted");
+  });
+
+  it("stores NO receipt when no vision call fired: with no provider key the reviews reached nothing (Codex on #2927)", async () => {
+    // The REAL analyzeOfficeFrames, so the no-key path is the production one, not a stand-in.
+    const actual = await vi.importActual<typeof import("../services/officeVisual")>("../services/officeVisual");
+    const saved = { o: process.env.OLLAMA_API_KEY, g: process.env.GEMINI_API_KEY };
+    delete process.env.OLLAMA_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    try {
+      vi.mocked(officeVisualColumnReady).mockResolvedValue(true);
+      vi.mocked(analyzeOfficeFrames).mockImplementationOnce(actual.analyzeOfficeFrames);
+      vi.mocked(loadVisualCalibrationDetailed).mockResolvedValueOnce({
+        notes: ['Was wrong: "one person" -- what actually happened: "two customers"'],
+        episodeIds: ["ep-wrong-1"],
+      });
+      const execute = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(getDb).mockResolvedValue({ execute } as never);
+      logSpy.warn.mockClear();
+      const { res, out } = fakeRes();
+      await mount()({ headers: { "x-sync-key": KEY }, body: body({ frames: [{ mime: "image/jpeg", base64: "A".repeat(200) }] }) }, res);
+      expect(out.code).toBe(200);
+      const update = JSON.stringify(execute.mock.calls[1][0]);
+      expect(update).toContain("no vision provider configured"); // the real FAILED visual reached the row...
+      expect(update).not.toContain("ep-wrong-1"); // ...without a receipt for a call that never fired
+      expect(logSpy.warn).toHaveBeenCalledWith("office visual not stored",
+        expect.objectContaining({ visualStatus: "FAILED", calibrationFrom: [] }));
+    } finally {
+      if (saved.o === undefined) delete process.env.OLLAMA_API_KEY; else process.env.OLLAMA_API_KEY = saved.o;
+      if (saved.g === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = saved.g;
+    }
   });
 });
