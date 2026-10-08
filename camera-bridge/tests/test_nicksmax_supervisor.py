@@ -167,6 +167,21 @@ def test_listening_coverage_floor_is_read_from_the_office_status():
     assert "listened only" in text
 
 
+def test_edge_code_change_is_checked_before_the_arm_path_and_recorded_on_every_start():
+    # A `git pull` must be the deploy for the sign edge as it already is for the office worker:
+    # the check runs where the start path can reload the edge in the same tick, and every start
+    # records the fingerprint it loaded so the next tick does not restart it again for nothing.
+    text = source()
+    heal = text.index("if (Heal-EdgeCode $armed $prodHealthy)")
+    arm = text.index("if ($armed) {")
+    start = text.index("authoritative RTSP sign producer started after decoded-frame proof")
+    recorded = text.index('(Get-Entry "edge-code-version").fingerprint = Get-EdgeCodeFingerprint $root')
+    assert heal < arm < start < recorded
+    fingerprint = text[text.index("function Get-EdgeCodeFingerprint") : text.index("function Heal-EdgeCode")]
+    assert '"edge_main.py","edge_health.py"' in fingerprint
+    assert '-notlike "office*.py"' in fingerprint
+
+
 # ---- behaviour: the harness runs the supervisor's own functions against fakes -----------------
 
 
@@ -271,3 +286,73 @@ def test_disk_floor_prunes_stale_audio_and_rotates_the_log(tmp_path: Path):
     assert out["markers"]["rotatedLogExists"] is True
     assert any("ACTION disk floor: removed 1 raw audio files" in line for line in out["log"])
     assert any("ESCALATE disk free" in line for line in out["log"])
+
+
+def test_edge_code_change_ends_the_production_edge_once_and_records_it(tmp_path: Path):
+    out = run_scenario("edge-code-changed-restarts", tmp_path)
+    m = out["markers"]
+    assert m["first"] is True
+    assert out["calls"] == ["stop-pid:41"]
+    assert len(out["state"]["sign-edge"]["restarts"]) == 1
+    assert m["fingerprintAfterFirst"].startswith("edge_main.py:")
+    assert any("edge code changed on disk" in line for line in out["log"])
+    # Same tree on the next tick: nothing to do.
+    assert m["second"] is False
+    # Edited again inside the 10-minute window: wait, and keep the OLD fingerprint on record so a
+    # later tick retries the reload instead of forgetting the change.
+    assert m["third"] is False
+    assert m["fingerprintAfterThrottle"] == m["fingerprintAfterFirst"]
+
+
+def test_edge_code_rule_leaves_an_unarmed_or_down_edge_alone(tmp_path: Path):
+    out = run_scenario("edge-code-leaves-unarmed-or-down-edge-alone", tmp_path)
+    assert out["calls"] == []
+    assert out["markers"] == {"unarmed": False, "down": False, "fingerprint": ""}
+    assert "sign-edge" not in out["state"]
+
+
+def test_edge_launcher_wrapper_does_not_shield_the_edge_from_a_code_change():
+    # run-sign-rtsp-production.ps1 stays alive as the edge's parent for its whole life, so a
+    # "launcher alive" guard would never let the rule fire (NicksMax 2026-10-08 07:41-07:50).
+    text = source()
+    heal = text[text.index("function Heal-EdgeCode") : text.index("function Get-OfficeStatus")]
+    assert "$prodStarting" not in heal.split("{", 1)[1]
+    assert "function Heal-EdgeCode([bool]$armed,[bool]$prodHealthy)" in text
+
+
+def test_logger_falls_back_to_an_overflow_file_when_the_log_is_locked(tmp_path: Path):
+    out = run_scenario("log-locked-falls-back", tmp_path)
+    assert out["markers"]["overflowExists"] is True
+    assert "while locked" in out["markers"]["overflowText"]
+    assert "after unlock" not in out["markers"]["overflowText"]
+    assert any("after unlock" in line for line in out["log"])
+    assert not any("while locked" in line for line in out["log"])
+
+
+def test_edge_fingerprint_ignores_office_modules_but_sees_edge_modules(tmp_path: Path):
+    out = run_scenario("edge-code-fingerprint-skips-office-modules", tmp_path)
+    assert out["markers"] == {"unchangedByOfficeModule": True, "changedByEdgeModule": True}
+
+
+# ---- venv launcher pairs: one worker, two matching processes ------------------------------------
+# Witnessed 2026-10-08 07:00-07:36 on NicksMax: the first dedupe pass killed the CHILD interpreter
+# of every venv worker (launcher pid N, real interpreter pid N+1 with the same command line, born
+# 50-360 ms apart), the launcher exited, the task went Ready, and the supervisor restarted the
+# office worker and the Eufy agent every two minutes (14 restarts an hour each, ESCALATE fired).
+
+
+def test_venv_launcher_and_its_child_are_one_worker_not_a_duplicate(tmp_path: Path):
+    out = run_scenario("dedupe-venv-launcher-pair-is-one-worker", tmp_path)
+    assert out["calls"] == [], out["log"]
+    assert out["state"]["eufy-agent"]["portMisses"] == 0
+
+
+def test_two_venv_trees_end_the_whole_newer_tree_and_keep_the_port_owner(tmp_path: Path):
+    out = run_scenario("dedupe-two-venv-trees-ends-the-newer-tree", tmp_path)
+    assert sorted(out["calls"]) == ["stop-pid:23", "stop-pid:24"], out["log"]
+    assert all("keeping pid=21" in line for line in out["log"] if "duplicate" in line)
+
+
+def test_office_venv_launcher_pair_is_left_alone(tmp_path: Path):
+    out = run_scenario("office-venv-launcher-pair-not-deduped", tmp_path)
+    assert out["calls"] == [], out["log"]

@@ -60,12 +60,13 @@ $taskStates = @{}
 $killed = New-Object System.Collections.Generic.List[int]
 $markers = @{}
 
-function Add-FakeProcess([int]$processId, [string]$name, [string]$commandLine, [int]$ageSeconds) {
+function Add-FakeProcess([int]$processId, [string]$name, [string]$commandLine, [int]$ageSeconds, [int]$parentProcessId = 0) {
   $fakeProcesses.Add([pscustomobject]@{
-    ProcessId    = $processId
-    Name         = $name
-    CommandLine  = $commandLine
-    CreationDate = (Get-Date).AddSeconds(-1 * $ageSeconds)
+    ProcessId       = $processId
+    ParentProcessId = $parentProcessId
+    Name            = $name
+    CommandLine     = $commandLine
+    CreationDate    = (Get-Date).AddSeconds(-1 * $ageSeconds)
   })
 }
 function Get-CimInstance { param([string]$ClassName, $ErrorAction)
@@ -127,6 +128,13 @@ function Install-OfficeCode {
 $bridgeNode = '"C:\Program Files\nodejs\node.exe" server.mjs'
 $agentPython = 'C:\Users\nourd\venv\Scripts\python.exe agent.py --eufy-only'
 $officePython = 'C:\Users\nourd\python\python.exe -m vision.officewake --capture'
+$edgePython = 'C:\Users\nourd\venv\Scripts\python.exe edge_main.py --config data\config-nicksmax-sign-production.yaml'
+
+function Install-EdgeCode([string]$version) {
+  # Get-EdgeCodeFingerprint hashes edge_main.py at the root (plus visitd\ and vision\ modules when
+  # they exist); one root file is enough to give the harness a fingerprint that changes on edit.
+  Set-Content -LiteralPath (Join-Path $root "edge_main.py") -Value ("# sign edge " + $version) -Encoding ascii
+}
 
 switch ($Scenario) {
   "kick-restart-order" {
@@ -149,6 +157,32 @@ switch ($Scenario) {
     Add-FakeProcess 22 "python.exe" $agentPython 60
     $taskStates["StateNour-Eufy-Agent-NicksMax"] = "Running"
     Heal-EufyTask $eufyTasks[1]
+  }
+  "dedupe-venv-launcher-pair-is-one-worker" {
+    # A venv python.exe is a launcher: the real interpreter is its CHILD with the same command
+    # line (witnessed 2026-10-08, pairs 50-360 ms apart). One worker, two matching processes.
+    Add-FakeProcess 21 "python.exe" $agentPython 600
+    Add-FakeProcess 22 "python.exe" $agentPython 599 21
+    $portOwners[3601] = 22
+    $taskStates["StateNour-Eufy-Agent-NicksMax"] = "Running"
+    Heal-EufyTask $eufyTasks[1]
+  }
+  "dedupe-two-venv-trees-ends-the-newer-tree" {
+    Add-FakeProcess 21 "python.exe" $agentPython 600
+    Add-FakeProcess 22 "python.exe" $agentPython 599 21
+    Add-FakeProcess 23 "python.exe" $agentPython 60
+    Add-FakeProcess 24 "python.exe" $agentPython 59 23
+    $portOwners[3601] = 22
+    $taskStates["StateNour-Eufy-Agent-NicksMax"] = "Running"
+    Heal-EufyTask $eufyTasks[1]
+  }
+  "office-venv-launcher-pair-not-deduped" {
+    Install-OfficeCode
+    Add-FakeProcess 31 "python.exe" $officePython 600
+    Add-FakeProcess 32 "python.exe" $officePython 599 31
+    $taskStates[$officeTask] = "Running"
+    Set-OfficeStatus 1 "READY" $null
+    Heal-OfficeWorker
   }
   "reclaim-orphan" {
     Add-FakeProcess 11 "node.exe" $bridgeNode 600
@@ -215,6 +249,57 @@ switch ($Scenario) {
     $taskStates[$officeTask] = "Running"
     Set-OfficeStatus 1 "READY" 0.9 0 6 5
     Heal-OfficeWorker
+  }
+  "edge-code-changed-restarts" {
+    # Armed, healthy production edge (pid 41 owns :9095), first sight of the tree: end it once and
+    # record the fingerprint. Same tree again: nothing. Edited again inside the 10-minute window:
+    # wait, and keep the OLD fingerprint so a later tick retries instead of forgetting the change.
+    Install-EdgeCode "v1"
+    Add-FakeProcess 41 "python.exe" $edgePython 3600
+    $portOwners[9095] = 41
+    # The launcher wrapper (pid 40) is the edge's parent for its whole life; it must not shield it.
+    Add-FakeProcess 40 "powershell.exe" 'powershell.exe -NoProfile -File C:\x\data\run-sign-rtsp-production.ps1' 3601
+    $markers["first"] = [bool](Heal-EdgeCode $true $true)
+    $markers["fingerprintAfterFirst"] = [string](Get-Entry "edge-code-version").fingerprint
+    $markers["second"] = [bool](Heal-EdgeCode $true $true)
+    Install-EdgeCode "v2"
+    $markers["third"] = [bool](Heal-EdgeCode $true $true)
+    $markers["fingerprintAfterThrottle"] = [string](Get-Entry "edge-code-version").fingerprint
+  }
+  "edge-code-leaves-unarmed-or-down-edge-alone" {
+    Install-EdgeCode "v1"
+    Add-FakeProcess 41 "python.exe" $edgePython 3600
+    $portOwners[9095] = 41
+    $markers["unarmed"] = [bool](Heal-EdgeCode $false $true)
+    $markers["down"] = [bool](Heal-EdgeCode $true $false)
+    $markers["fingerprint"] = [string](Get-Entry "edge-code-version").fingerprint
+  }
+  "edge-code-fingerprint-skips-office-modules" {
+    Install-EdgeCode "v1"
+    $before = Get-EdgeCodeFingerprint $root
+    New-Item -ItemType Directory -Force -Path (Join-Path $root "vision") | Out-Null
+    Set-Content -LiteralPath (Join-Path (Join-Path $root "vision") "officewake.py") -Value "# office" -Encoding ascii
+    $markers["unchangedByOfficeModule"] = ($before -eq (Get-EdgeCodeFingerprint $root))
+    Set-Content -LiteralPath (Join-Path (Join-Path $root "vision") "pipeline.py") -Value "# edge module" -Encoding ascii
+    $markers["changedByEdgeModule"] = ($before -ne (Get-EdgeCodeFingerprint $root))
+  }
+  "log-locked-falls-back" {
+    # Another process holds the log open with no sharing (2026-10-08: a remote-admin reverse
+    # read): the line must land in $log.overflow instead of vanishing, and ordinary logging
+    # must resume on the main file once the handle is gone.
+    Set-Content -LiteralPath $log -Value "existing" -Encoding ascii
+    $h = [IO.File]::Open($log, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    # The supervisor runs under $ErrorActionPreference = "Continue" (its first line), where a
+    # sharing violation on Add-Content is NON-terminating: no throw, no catch, no fallback. The
+    # harness sets "Stop" at the top, which made the first version of this probe pass while the
+    # box wrote nothing anywhere (2026-10-08 07:48, the sign-edge restart). Mirror the real
+    # preference for the locked write.
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { Log "while locked" 2>$null } finally { $h.Dispose(); $ErrorActionPreference = $saved }
+    Log "after unlock"
+    $markers["overflowExists"] = [bool](Test-Path -LiteralPath ($log + ".overflow"))
+    $markers["overflowText"] = if ($markers["overflowExists"]) { [string](Get-Content -LiteralPath ($log + ".overflow") -Raw) } else { "" }
   }
   "disk-floor" {
     New-Item -ItemType Directory -Force -Path $officeAudioDir | Out-Null

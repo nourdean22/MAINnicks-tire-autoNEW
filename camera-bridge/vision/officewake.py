@@ -141,6 +141,12 @@ class OfficeWakeConfig:
     # Captured wakes allowed to wait for transcription (phase 2). Full -> the OLDEST is dropped
     # with a ledger receipt and a counted failure; OFFICE_TRANSCRIBE_BACKLOG_MAX.
     transcribe_backlog_max: int = 6
+    # Where `model` came from: env (OFFICE_WHISPER_MODEL), override-file, override-ignored, none.
+    model_source: str = "env"
+    # Directory holding whisper-model.override: the status file's directory, never the audio
+    # out_dir (the supervisor's disk floor prunes every file older than 6 h in there). Empty
+    # means out_dir, which is only right when out_dir is not the audio directory (tests).
+    model_override_dir: str = ""
 
     def startup_blockers(self) -> list[str]:
         blockers: list[str] = []
@@ -224,6 +230,8 @@ class RuntimeReceipt:
             "conversationAudioSource": config.source_name,
             "conversationCaptureHost": config.capture_host or os.environ.get("COMPUTERNAME", ""),
             "conversationSttEngine": os.path.basename(config.transcriber) or config.transcriber,
+            "conversationWhisperModel": os.path.basename(config.model) if config.model else None,
+            "conversationWhisperModelSource": config.model_source,
             "conversationQueueDepth": 0,
             "conversationFailuresToday": 0,
             "conversationLastError": None,
@@ -797,6 +805,8 @@ class OfficeWakeDaemon:
         self.current_capture_started_at: Optional[float] = None
         self._trigger_times: deque[float] = deque()
         self._capture_windows: deque[tuple[float, float, bool]] = deque()
+        # Operator decoder switch without an elevated shell: see resolve_whisper_model.
+        self.model_override_watch = WhisperModelOverrideWatch(config.model_override_dir or config.out_dir)
 
     # ---- listening counters ---------------------------------------------------------------------
 
@@ -1313,6 +1323,22 @@ async def runtime_status_worker(
                 **daemon.window_counters(now),
             )
             last_error = None
+            # The decoder override file changed: leave cleanly between captures so the supervisor
+            # starts the task again with the new model. SystemExit is not an Exception, so the
+            # guard below does not swallow it.
+            watch = getattr(daemon, "model_override_watch", None)
+            if (
+                watch is not None
+                and watch.changed()
+                and daemon.runtime_state != "CAPTURING"
+                and daemon.transcribe_backlog() == 0
+            ):
+                daemon.ledger.note(
+                    "whisper_model_override_changed",
+                    {"from": watch.initial, "to": read_whisper_model_override(watch.out_dir)},
+                )
+                daemon.runtime.update(conversationWorkerOk=True, conversationWorkerState="RESTARTING")
+                raise SystemExit(0)
         except Exception as exc:  # noqa: BLE001
             detail = f"{type(exc).__name__}: {exc}"[:500]
             if detail != last_error:
@@ -1408,6 +1434,11 @@ async def listen_forever(
                 await asyncio.sleep(delay)
                 delay = min(60.0, delay * 2)
     finally:
+        # A background task that asked the process to exit (the status worker, on a decoder
+        # override change) ends with SystemExit; re-awaiting it here re-raises that. Keep the
+        # RESTARTING receipt it wrote instead of overwriting it with STOPPED, and let the exit
+        # continue once every other task is cancelled.
+        exit_request: Optional[SystemExit] = None
         for task in background:
             task.cancel()
         for task in background:
@@ -1415,12 +1446,83 @@ async def listen_forever(
                 await task
             except asyncio.CancelledError:
                 pass
+            except SystemExit as exc:
+                exit_request = exc
+        if exit_request is not None:
+            raise exit_request
         daemon.runtime.update(
             conversationWorkerOk=False,
             conversationWorkerState="STOPPED",
             conversationQueueDepth=daemon.queue.qsize(),
             conversationTranscribeBacklog=daemon.transcribe_backlog(),
         )
+
+
+WHISPER_MODEL_OVERRIDE_FILE = "whisper-model.override"
+
+
+def whisper_override_dir(status_path: str, out_dir: str) -> str:
+    """Where whisper-model.override lives: beside the status file (install-office-capture.ps1
+    puts both the status JSON and the ledger in `...\\StateNour\\OfficeIntelligence`), never in
+    the audio out_dir (`...\\OfficeIntelligence\\audio`), where the supervisor's disk floor removes
+    every file older than 6 h. Without a status path the out_dir is all there is."""
+    status = str(status_path or "").strip()
+    if status:
+        return str(Path(status).parent)
+    return str(out_dir)
+
+
+def read_whisper_model_override(out_dir: str) -> Optional[str]:
+    """First non-empty, non-comment line of `<dir>/whisper-model.override`, or None.
+
+    The decoder lived only in the MACHINE environment (install-office-capture.ps1 writes
+    OFFICE_WHISPER_MODEL there), so changing it needed an elevated shell on the shop PC; the
+    2026-10-03 switch to large-v3-turbo was done that way. This file is operator-writable, the
+    SYSTEM worker reads it at startup, and the worker exits on a change so the supervisor restarts
+    it with the new decoder (WhisperModelOverrideWatch). No elevation, no task edit.
+    """
+    path = Path(out_dir) / WHISPER_MODEL_OVERRIDE_FILE
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        value = line.strip()
+        if value and not value.startswith("#"):
+            return value
+    return None
+
+
+def resolve_whisper_model(cli_model: Optional[str], out_dir: str) -> tuple[Optional[str], str]:
+    """Return (model path, source). The override file wins when it names an existing file; a bare
+    name such as `small.en-q5_1` is looked up as `ggml-<name>.bin` beside the configured model.
+    An override that resolves to nothing is reported as `override-ignored` and the environment's
+    model stays in force: a typo must never silence the office lane."""
+    override = read_whisper_model_override(out_dir)
+    if override:
+        candidate = Path(override)
+        if candidate.is_file():
+            return str(candidate), "override-file"
+        if cli_model:
+            sibling = Path(cli_model).parent / f"ggml-{override}.bin"
+            if sibling.is_file():
+                return str(sibling), "override-file"
+        return cli_model, "override-ignored"
+    return cli_model, ("env" if cli_model else "none")
+
+
+class WhisperModelOverrideWatch:
+    """Remembers the override file's content at startup; `changed()` is True once it differs.
+
+    Checked from the status worker between captures; a change ends the process cleanly and the
+    supervisor's "task not Running -> start" rule brings it back reading the new file."""
+
+    def __init__(self, out_dir: str) -> None:
+        self.out_dir = out_dir
+        self.initial = read_whisper_model_override(out_dir)
+
+    def changed(self) -> bool:
+        return read_whisper_model_override(self.out_dir) != self.initial
 
 
 def _env_true(name: str) -> bool:
@@ -1434,6 +1536,8 @@ def config_from_args(args: argparse.Namespace) -> OfficeWakeConfig:
         for item in str(args.events or "").split(",")
         if item.strip()
     ) or DEFAULT_EVENTS
+    model_override_dir = whisper_override_dir(str(args.status or ""), str(args.out_dir))
+    model, model_source = resolve_whisper_model(args.model, model_override_dir)
     return OfficeWakeConfig(
         bridge_url=str(args.bridge_url or "").strip(),
         office_serial=str(args.office_serial or "").strip(),
@@ -1448,7 +1552,9 @@ def config_from_args(args: argparse.Namespace) -> OfficeWakeConfig:
         seconds=max(10.0, float(args.seconds)),
         silence_db=args.silence_db,
         transcriber=str(args.transcriber),
-        model=args.model,
+        model=model,
+        model_source=model_source,
+        model_override_dir=model_override_dir,
         endpoint=str(args.endpoint),
         dry_run=bool(args.dry_run),
         timezone_name=str(args.timezone),
@@ -1565,6 +1671,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             "scheduleConfigured": bool(config.schedule),
             "dryRun": config.dry_run,
             "retentionHours": config.retention_hours,
+            "whisperModel": os.path.basename(config.model) if config.model else None,
+            "whisperModelSource": config.model_source,
         },
     )
     daemon = OfficeWakeDaemon(config, ledger=ledger)
