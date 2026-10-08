@@ -7,7 +7,7 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-10-08 · camera N-series PR C, owner lot brief + arrival page claim · see RECONCILIATION.
+**Last refreshed:** 2026-10-08 · dead bridge queries resolved (customer_stats built, getTopServices retired) · see RECONCILIATION.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--

@@ -4446,6 +4446,55 @@
       ],
       "lastVerifiedAt": "2026-10-08",
       "verificationExpiresAt": null
+    },
+    {
+      "capabilityId": "statenour-customer-stats-bridge-20261008",
+      "name": "customer_stats bridge action: customers on file and first visits in the current New York month, the two counts StateNour's dashboard summary reads; an unreadable database throws so the bridge answers 500, never a 200 of zeros",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "Follow-up to camera N-series PR C (branch claude/dreamy-newton-0iob20, 2026-10-08). StateNour had called customer_stats since v10.0.51 and nickstire never registered it, so every call was a 400 and the dashboard summary's customer section read as unknown (found by the PR C bridge contract guard). server/services/customerStatsRead.ts readCustomerStats: COUNT(*) of customers and the customers whose firstVisitDate (earliest invoice, maintained by services/dataPipelines.ts) falls in the current America/New_York calendar month, compared as the stored shop-local day; not createdAt, which an import sets in bulk. Counts only: the old StateNour type also asked for withPhone, returning and a topCustomers list with names and phones that nothing displayed, and none is sent. Registered as QUERY_HANDLERS.customer_stats in server/routes/nour-os-query.ts; row in docs/NICKSTIRE-QUERY-CONTRACT.md v11.12. StateNour's consumer (lib/services/business-intel.ts getCustomerStats) reports bridgeAvailable false for a failed read, a 200 error body, or a missing or non-numeric count.",
+        "tests": [
+          "apps/nickstire/server/services/customerStatsRead.test.ts (11): the New York month (late on the last evening of a month is still that month though UTC rolled over; December rolls into January; the standard-time boundary) asserted through the parameters the read sends; counts and first visits, never createdAt; zero first visits read as zero; throws on a missing database, an empty result and a non-numeric count; registered in QUERY_HANDLERS and answering through the real handler; rejects when the database is down so the route answers 500. Positive controls: createdAt for firstVisitDate, zeros for a missing database, a UTC month, an empty result read as zero and an unregistered handler each turned a test red.",
+          "apps/statenour/tests/ai/business-tools-bridge-honesty.test.ts getCustomerStats (3) and apps/statenour/tests/contracts/nick-bridge-query-contract.test.ts (the handler has a contract row and no StateNour call targets an unregistered query)"
+        ],
+        "liveRuns": "None yet. The proof is customer_stats answering 200 with numeric counts on the live bridge after this deploys (the contract pre-flight, scripts/contract-pre-flight.ts, probes it in the production tier)."
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "The dashboard summary route /api/analytics/dashboard still returns customer zeros beside bridgeHealth.customers false on a failed read; no in-repo UI reads that route and the Nick dashboard tool redacts it.",
+          "source": "dead bridge queries follow-up, 2026-10-08"
+        }
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "verificationExpiresAt": "2026-11-07"
+    },
+    {
+      "capabilityId": "camera-restart-continuity-20261008",
+      "name": "A car parked through a sign-edge restart keeps its visit: restored visits are held from departing for a bounded window and a still car in the same spot continues its visit under the old object id, with no departure and no new arrival; ambiguity refuses and the visit departs as before",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "Follow-up to camera N-series PR C (branch claude/dreamy-newton-0iob20, 2026-10-08), camera audit 2026-10-07 section 5. camera-bridge edge_main.reconcile_restart force-ends the restored sightings (dwell frozen at the last activity), holds their visits in DEPARTING (visitd VisitTracker.hold_departures, transient, never persisted) and arms vision VisionPipeline.arm_restart_rebind. A track that is confirmable with 3+ hits, never moved, sits in a zone the restored sighting was still in, has IoU >= 0.5 with its last box and was born <= 120 s after that car was last seen reports under the old object id, so visitd resurrects the sighting: no departure row, no new arrival, arrivedAt and the stored episode id kept (the upsert keeps a stored value over a null). One track over two restored cars, two tracks over one, a moved car or a longer gap refuses. The window opens on the first decoded frame and closes after 20 s or once every entry is decided. Flags --restart-rebind-seconds (0 disables) and --restart-rebind-max-gap-seconds; counters edge_restart_continuations_total and edge_restart_departures_total.",
+        "tests": [
+          "camera-bridge/tests/test_restart_continuity.py: a car parked through a restart keeps its visit and later leaves on the original visit; the no-window control loses it; a car gone during the downtime departs with dwell frozen; two adjacent cars each keep their own visit; refusals for one track over two cars, two tracks over one car, a long blackout and a car driving through; the downtime is measured from each car's own last sighting; a contested car departs at the early close; no vision, a zero window and an arming failure all release the holds. camera-bridge/tests/test_state_machine.py RestartHoldTest (6) and test_edge_main.py RestartContinuityTelemetryTest (2). 14 planted defects, 14 caught. Suite: 930 passed, 3 skipped."
+        ],
+        "liveRuns": "None yet. NicksMax runs the edge from its checkout, so this goes live at the git pull after merge. The proof is the first sign-edge restart with a parked car: the edge log line 'restart continuity: track ... continues visit ...' and that visit's vehicle_visits row keeping departedAt NULL. The sign edge restarted twice on 2026-10-08 (22:06Z, 22:11Z) on the code before this change."
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "The episode id lives only on emitted events, never in the visitd ledger, so if a continued car's track later dies and is re-acquired, the re-acquired visit gets a new episode id and the Lot can count that car twice.",
+          "source": "restart continuity, 2026-10-08"
+        }
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "verificationExpiresAt": "2026-11-07"
     }
   ],
   "axes": {

@@ -138,7 +138,15 @@ function Install-OfficeCode {
   New-Item -ItemType File -Force -Path (Join-Path $root "vision\officewake.py") | Out-Null
 }
 
-$bridgeNode = '"C:\Program Files\nodejs\node.exe" server.mjs'
+# The bridge's node as start-bridge-nicksmax.ps1 launches it since 2026-10-08, byte for byte as
+# probed on NicksMax at 22:03Z (pid 29724; Start-Process leaves the trailing space): server.mjs by
+# its absolute path under the Eufy install. node.exe's own executable is the system node, which
+# says nothing, so that path is the whole identity.
+$bridgeNode = '"C:\Program Files\nodejs\node.exe" "C:\Users\nourd\AppData\Local\StateNour\Eufy\ha-eufy-sdk-bridge-0.3.0\server.mjs" '
+# Any other node project's server.mjs: the commonest entry-point name there is, often on :3000.
+$unrelatedNode = '"C:\Program Files\nodejs\node.exe" C:\Users\nourd\dev\shop-site\server.mjs'
+# The launcher's form before 2026-10-08 (pid 25348, probed the same day): no path, so no identity.
+$relativeNode = '"C:\Program Files\nodejs\node.exe" server.mjs '
 # The bridge's go2rtc as probed on NicksMax 2026-10-08: a command line any go2rtc could print, and
 # an executable under the bridge install. Only the executable path makes it this task's child.
 $bridgeGo2rtcCmd = 'go2rtc -config ./go2rtc.yaml'
@@ -370,6 +378,41 @@ switch ($Scenario) {
     Add-FakeProcess 12 "go2rtc.exe" $bridgeGo2rtcCmd 590 11 $bridgeGo2rtcExe
     Add-FakeProcess 63 "go2rtc.exe" $bridgeGo2rtcCmd 7200 0 'C:\Tools\go2rtc\go2rtc.exe'
     $portOwners[3000] = 11; $portOwners[1984] = 12
+    $taskStates["StateNour-Eufy-Bridge-NicksMax"] = "Running"
+    Heal-EufyTask $eufyTasks[0]
+  }
+  "unrelated-node-survives-bridge-restart" {
+    # The node needle was any `node ... server.mjs`, so a restart's needle sweep would end every node
+    # server.mjs on the host before the guarded port pass ran -- the go2rtc defect from #2931 again.
+    #   64 another project's node server.mjs, holding :3000 (every dev server's default) -> left alone
+    #      by the sweep and by the port pass
+    #   65 a node server.mjs with no path (the launcher's old form)                   -> left alone:
+    #      a bare file name is not identity, which is why the launcher had to change first
+    #   11, 12 the bridge's node and go2rtc -> ended. 11 lost its listener, so only the sweep can end it.
+    Add-FakeProcess 11 "node.exe" $bridgeNode 600
+    Add-FakeProcess 12 "go2rtc.exe" $bridgeGo2rtcCmd 590 11 $bridgeGo2rtcExe
+    Add-FakeProcess 64 "node.exe" $unrelatedNode 900
+    Add-FakeProcess 65 "node.exe" $relativeNode 900
+    $portOwners[3000] = 64; $portOwners[1984] = 12
+    Kick-Task "StateNour-Eufy-Bridge-NicksMax" "eufy-bridge" "harness restart" $true 0
+  }
+  "unrelated-node-is-not-a-duplicate" {
+    # A healthy tick dedupes every child needle. With the any-server.mjs needle the bridge's node and
+    # an unrelated, OLDER node server.mjs were two roots of one worker; the bridge's owns :3000, so
+    # the unrelated one was ended on every tick.
+    Add-FakeProcess 11 "node.exe" $bridgeNode 600
+    Add-FakeProcess 12 "go2rtc.exe" $bridgeGo2rtcCmd 590 11 $bridgeGo2rtcExe
+    Add-FakeProcess 64 "node.exe" $unrelatedNode 7200
+    $portOwners[3000] = 11; $portOwners[1984] = 12
+    $taskStates["StateNour-Eufy-Bridge-NicksMax"] = "Running"
+    Heal-EufyTask $eufyTasks[0]
+  }
+  "two-bridge-nodes-are-still-duplicates" {
+    # The control for the scenario above: two copies of the REAL bridge node are still one worker
+    # too many. The tighter needle must not blind the dedupe to the case it exists for.
+    Add-FakeProcess 11 "node.exe" $bridgeNode 600
+    Add-FakeProcess 14 "node.exe" $bridgeNode 60
+    $portOwners[3000] = 11
     $taskStates["StateNour-Eufy-Bridge-NicksMax"] = "Running"
     Heal-EufyTask $eufyTasks[0]
   }

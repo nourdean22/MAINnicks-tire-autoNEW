@@ -38,6 +38,13 @@ class EufyShopRuntimeInstallerTests(unittest.TestCase):
         self.assertIn('$env:GO2RTC_WEBRTC_LISTEN = "__GO2RTC_WEBRTC_LISTEN__"', SOURCE)
         self.assertNotIn('BRIDGE_HOST = "0.0.0.0"', SOURCE)
 
+    def test_bridge_launcher_names_server_mjs_by_its_absolute_path(self):
+        # The NicksMax supervisor knows the bridge's node by this path under StateNour\Eufy\; a bare
+        # `server.mjs` is any node project's entry point, so a launcher that passed one could not be
+        # told from a neighbour (2026-10-08).
+        self.assertIn('& "__NODE__" "__BRIDGE_ROOT__\\server.mjs"', SOURCE)
+        self.assertNotIn('& "__NODE__" server.mjs', SOURCE)
+
     def test_secrets_are_dpapi_and_never_written_to_runtime_json(self):
         self.assertIn("ConvertFrom-SecureString", SOURCE)
         self.assertIn("ConvertTo-SecureString", SOURCE)

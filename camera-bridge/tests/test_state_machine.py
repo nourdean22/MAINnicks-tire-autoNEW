@@ -359,5 +359,78 @@ class ZoneDwellTest(unittest.TestCase):
         self.assertAlmostEqual(left[0].dwell_seconds, 0.0)
 
 
+class RestartHoldTest(unittest.TestCase):
+    """`hold_departures`: the window an edge restart needs to look for a parked car.
+
+    The edge force-ends a restored sighting (dwell freezes at the last activity, the visit
+    goes DEPARTING) and holds the visit while its census looks for the car. Each test names
+    the way the hold could be wrong.
+    """
+
+    def _parked(self, t):
+        t.handle_event(ev("new", "o1", T0, ["front_lot"]))
+        t.handle_event(ev("update", "o1", T0 + 60, ["front_lot"], stationary=True))
+        visit = t.open_visits()[0]
+        self.assertEqual(visit.state, CONFIRMED_ARRIVAL, "precondition: a confirmed, parked car")
+        return visit
+
+    def test_a_held_visit_is_not_declared_LEFT_before_the_hold(self):
+        t = tracker()
+        v = self._parked(t)
+        t.force_end_open_sightings(T0 + 60, "producer_restart")
+        self.assertEqual(t.hold_departures([v.visit_id], T0 + 200), 1)
+        self.assertNotIn(LEFT, states(ticks(t, T0 + 60, T0 + 195)),
+                         "the 20 s grace alone would have departed it at T0+80")
+        self.assertEqual(states(ticks(t, T0 + 195, T0 + 205)).count(LEFT), 1)
+
+    def test_a_hold_never_SHORTENS_the_grace(self):
+        t = tracker()
+        v = self._parked(t)
+        t.force_end_open_sightings(T0 + 60, "producer_restart")
+        t.hold_departures([v.visit_id], T0 + 61)
+        self.assertNotIn(LEFT, states(ticks(t, T0 + 60, T0 + 75)))
+        self.assertIn(LEFT, states(ticks(t, T0 + 75, T0 + 85)))
+
+    def test_releasing_the_hold_restores_the_normal_grace(self):
+        t = tracker()
+        v = self._parked(t)
+        t.force_end_open_sightings(T0 + 60, "producer_restart")
+        t.hold_departures([v.visit_id], float("inf"))
+        self.assertNotIn(LEFT, states(ticks(t, T0 + 60, T0 + 500)))
+        t.hold_departures([v.visit_id], None)
+        self.assertIn(LEFT, states(t.tick(T0 + 505)))
+
+    def test_an_update_under_the_OLD_id_resurrects_the_visit_and_clears_the_hold(self):
+        t = tracker()
+        v = self._parked(t)
+        t.force_end_open_sightings(T0 + 60, "producer_restart")
+        t.hold_departures([v.visit_id], float("inf"))
+        self.assertEqual(v.state, DEPARTING, "precondition: the force-end sent it DEPARTING")
+        out = t.handle_event(ev("update", "o1", T0 + 90, ["front_lot"], stationary=True))
+        self.assertNotIn(LEFT, states(out))
+        v = t.open_visits()[0]
+        self.assertEqual(v.state, CONFIRMED_ARRIVAL, "back in the state it had before the restart")
+        self.assertIsNone(v.sightings["o1"].end_time, "the sighting is resurrected")
+        self.assertIsNone(v.restart_hold_until,
+                          "a later REAL departure must get the normal grace, not the old hold")
+        t.handle_event(ev("end", "o1", T0 + 120, []))
+        self.assertIn(LEFT, states(ticks(t, T0 + 120, T0 + 145)))
+
+    def test_the_hold_is_NEVER_persisted(self):
+        """A persisted hold whose producer died before releasing it would keep a departed
+        car on the lot forever: the next restart only touches OPEN sightings."""
+        t = tracker()
+        v = self._parked(t)
+        t.hold_departures([v.visit_id], float("inf"))
+        state = t.export_state()
+        self.assertNotIn("restart_hold_until", state["visits"][0])
+        restored = tracker()
+        restored.restore_state(state)
+        self.assertIsNone(restored.open_visits()[0].restart_hold_until)
+
+    def test_an_unknown_visit_is_ignored(self):
+        self.assertEqual(tracker().hold_departures(["nope"], T0), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

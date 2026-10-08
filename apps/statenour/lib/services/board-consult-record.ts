@@ -40,8 +40,13 @@ const log = rootLogger.withSurface("services/board-consult-record");
  * capped block from the meta-scoreboard, plus revenue + the latest
  * pricing advisory when the question smells like pricing/revenue.
  * Best-effort: any failure returns "" → the old context-blind consult.
+ *
+ * Exported for its test only. 2026-10-08: revenue went in as "live numbers"
+ * without checking `bridgeAvailable`, so during a shop-bridge outage the
+ * advisors were handed `"totalRevenue":"0.00"` as the month's revenue. An
+ * unreadable month is now stated as unknown, never as zero.
  */
-async function buildBusinessContextBlock(question: string): Promise<string> {
+export async function buildBusinessContextBlock(question: string): Promise<string> {
   try {
     const parts: string[] = [];
     const { buildMetaScoreboard } = await import("@/lib/services/meta-scoreboard");
@@ -51,7 +56,13 @@ async function buildBusinessContextBlock(question: string): Promise<string> {
     if (/\b(pric(e|ing)|revenue|margin|cost|charge|discount|rate)\b/i.test(question)) {
       const { getRevenueStats } = await import("@/lib/services/business-intel");
       const rev = await getRevenueStats("month").catch(() => null);
-      if (rev) parts.push(`Revenue (month): ${JSON.stringify(rev).slice(0, 300)}`);
+      if (rev?.bridgeAvailable) {
+        parts.push(`Revenue (month): ${JSON.stringify(rev).slice(0, 300)}`);
+      } else if (rev) {
+        parts.push(
+          "Revenue (month): UNKNOWN, the shop bridge could not be read. Do not state or assume a figure.",
+        );
+      }
       const advisory = await prisma.brainMemory
         .findFirst({
           where: { category: "pricing_advisory" },

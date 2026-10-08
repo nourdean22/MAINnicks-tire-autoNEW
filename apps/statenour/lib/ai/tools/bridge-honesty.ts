@@ -2,8 +2,9 @@
  * Pure guards that stop a dead shop bridge from being reported as real numbers.
  *
  * `fetchBridge` returns null on EVERY failure — no sync key, a non-2xx, a
- * timeout, a thrown error — and the business-intel services then compute their
- * totals from empty arrays. The result is a SUCCESS-SHAPED payload of zeros
+ * timeout, a thrown error, a 200 whose body is `{ error }` — and the
+ * business-intel services then compute their totals from empty arrays. The
+ * result is a SUCCESS-SHAPED payload of zeros
  * (`totalRevenue: "0.00"`, `jobCount: 0`) carrying a `bridgeAvailable` /
  * `bridgeHealth` marker that, until now, had no consumer anywhere in the repo.
  *
@@ -60,19 +61,12 @@ export function redactUnreadableSections<T extends RedactableSummary>(
     customers: summary.bridgeHealth.customers ? summary.customers : null,
     jobs: summary.bridgeHealth.jobsToday ? summary.jobs : null,
     unavailable: unreadable,
+    // "Could not be read", not "did not answer": a read also fails when the bridge answers
+    // with an error (an unregistered query, an unreadable shop database). The verdict is
+    // the same either way; the stated cause must not claim more than is known.
     reason:
-      `The shop bridge did not answer for: ${unreadable.join(", ")}. ` +
+      `These could not be read from the shop bridge: ${unreadable.join(", ")}. ` +
       "Those are UNKNOWN, not zero — do not state figures for them.",
-  };
-}
-
-/** What the top-services tool returns instead of an empty list. */
-export function topServicesUnavailable() {
-  return {
-    unavailable: true as const,
-    reason:
-      "The nickstire shop bridge did not return top services, so they are " +
-      "UNKNOWN, not an empty list. Do not name services or figures.",
   };
 }
 
@@ -80,8 +74,9 @@ export function topServicesUnavailable() {
 export function revenueUnavailable(period: string) {
   return {
     unavailable: true as const,
+    // Same wording rule as above: the bridge may have answered, with an error.
     reason:
-      "The nickstire shop bridge did not answer, so revenue could not be read. " +
+      "Revenue could not be read from the nickstire shop bridge. " +
       "This is UNKNOWN, not a zero-revenue period — do not state a figure.",
     period,
   };

@@ -22,7 +22,6 @@ export const REASONING_TOOL_WHITELIST_ENTRIES = [
   "getDashboardSummary",
   "getRevenueStats",
   "getReviewStats",
-  "getTopServices",
   "getShopSnapshot",
   "queryNickstire",
   "compareLiveRevenue",

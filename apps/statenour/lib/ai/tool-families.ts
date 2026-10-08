@@ -140,7 +140,6 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   // v10.0.79 · getShopBriefing retired — dailyPulse covers same surface plus personal layer.
   getReviewStats: { family: "business-read", description: "Review statistics for the shop", cost: "cheap", tags: ["nickstire"] },
   getRevenueStats: { family: "business-read", description: "Revenue breakdown", cost: "cheap", tags: ["nickstire"] },
-  getTopServices: { family: "business-read", description: "Top services by revenue", cost: "cheap", tags: ["nickstire"] },
   getDashboardSummary: { family: "business-read", description: "Admin dashboard rollup", cost: "cheap", tags: ["nickstire"] },
   // v10.0.79 · getLiveRevenue retired — subset of getRevenueStats({period:"day"})
   compareLiveRevenue: { family: "business-read", description: "Compare current vs prior period", cost: "cheap", tags: ["nickstire"] },

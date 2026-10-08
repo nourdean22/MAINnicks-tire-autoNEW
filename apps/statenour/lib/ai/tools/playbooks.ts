@@ -82,7 +82,6 @@ export const PLAYBOOKS: readonly Playbook[] = [
       "getGscTopQueries",
       "getGscSummary",
       "getReviewStats",
-      "getTopServices",
       "renderInlineChart",
     ],
     guidance:
