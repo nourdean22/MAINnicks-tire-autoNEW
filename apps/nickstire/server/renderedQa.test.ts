@@ -278,6 +278,23 @@ describe("evaluateRenderedReel (mocked vision seam)", () => {
     ).rejects.toThrow(/no complete JSON object \(finish_reason=stop, 31 chars: "I cannot evaluate these frames\."\)/);
   });
 
+  it("asks the vision lane for a bounded thinking budget that leaves room for the verdict (2040001 was cut at 573 chars on 4096)", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rqa-budget-"));
+    const fake = path.join(dir, "f.jpg");
+    await fs.writeFile(fake, Buffer.from("fakejpegbytes"));
+    const invoke = vi.fn().mockResolvedValue({ choices: [{ message: { content: '{"decision":"approve","findings":[]}' }, finish_reason: "stop" }] });
+    vi.doMock("./_core/llm", () => ({ invokeLLM: invoke }));
+    vi.resetModules();
+    const { callVisionCritic } = await import("./services/renderedQa");
+    await callVisionCritic({ frames: [{ label: "beat1", beatNumber: 1, timestamp: 1, path: fake }], system: "s", user: "u" });
+    const args = invoke.mock.calls[0][0] as { reasoningEffort?: string; maxTokens?: number };
+    // "medium" = 8,192 thinking tokens on Gemini 2.5. Lower fails open (a
+    // critic that barely looked); the visible budget must clear the cap by
+    // enough for a full findings JSON, or the verdict truncates and holds.
+    expect(args.reasoningEffort).toBe("medium");
+    expect((args.maxTokens ?? 0) - 8_192).toBeGreaterThanOrEqual(4_096);
+  });
+
   it("control: a well-formed approve is still a completed vision verdict", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rqa-wellformed-"));
     const fake = path.join(dir, "f.jpg");

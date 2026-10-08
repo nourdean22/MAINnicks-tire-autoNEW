@@ -65,6 +65,23 @@ export type InvokeParams = {
   tool_choice?: ToolChoice;
   maxTokens?: number;
   max_tokens?: number;
+  /**
+   * Thinking budget for a request that reaches Google's OpenAI-compatible
+   * endpoint (the vision reroute, a direct gemini-* model, or the quota
+   * fallback), sent as `reasoning_effort`. Gemini 2.5 spends its thinking out
+   * of max_tokens: on 2026-10-08 15:31Z the rendered-QA critic's 4096 budget
+   * came back finish_reason=length after 573 visible characters (job 2040001),
+   * the truncation reviewReplies, igAutopost, carouselBriefGen, genomeGen,
+   * visualBibleObserved and instagramStudio each worked around by raising
+   * maxTokens instead. On 2.5 models low / medium / high cap thinking at
+   * 1,024 / 8,192 / 24,576 tokens; on Gemini 3 they set thinking_level
+   * (ai.google.dev/gemini-api/docs/openai, read 2026-10-08). "none" and "minimal" are left out on purpose: "none" is
+   * refused by 2.5 Pro and every Gemini 3 model, and GEMINI_MODEL can point
+   * the lane at either. Never sent to Ollama or OpenAI. Never combined with
+   * extra_body thinking_config — Google answers 400 to both at once
+   * (vision-analyzer.ts measured it).
+   */
+  reasoningEffort?: "low" | "medium" | "high";
   /** Per-call abort timeout in ms (default 30000). Large structured
    *  generations — full carousel/reel briefs — routinely need more. */
   timeoutMs?: number;
@@ -455,6 +472,9 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   }
 }
 
+const GEMINI_OPENAI_CHAT_URL = "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions";
+const GOOGLE_API_ORIGIN = "https://generativelanguage.googleapis.com/";
+
 async function invokeLLMUnrecorded(params: InvokeParams): Promise<InvokeResult> {
   const requestedModel = resolveEffectiveModel(params.model);
   const model = requestedModel || (process.env.OPENAI_API_KEY && process.env.AI_FORCE_GEMINI !== "true"
@@ -575,16 +595,24 @@ async function invokeLLMUnrecorded(params: InvokeParams): Promise<InvokeResult> 
         signal: AbortSignal.timeout(timeoutMs),
       });
 
+    // reasoning_effort is Google's field (InvokeParams.reasoningEffort): it is
+    // added only to a body that goes to Google's endpoint, decided by the URL
+    // actually fetched, never by the model name — under AI_FORCE_OLLAMA a
+    // gemini-* name can still resolve to the Ollama lane.
+    const withGeminiThinking = (body: Record<string, unknown>): Record<string, unknown> =>
+      params.reasoningEffort ? { ...body, reasoning_effort: params.reasoningEffort } : body;
+
     // resolveApiUrl/resolveApiKey are flag-poisoned for the reroute (under
     // AI_FORCE_OLLAMA, isOllamaModel() is true for ANY model) — hard-target
     // Gemini's endpoint, same as the 403-subscription fallback below.
+    const directUrl = visionRerouted ? "" : resolveApiUrl(model);
     let response = visionRerouted
       ? await doFetch(
-          "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions",
+          GEMINI_OPENAI_CHAT_URL,
           process.env.GEMINI_API_KEY as string,
-          { ...payload, model: visionModel },
+          withGeminiThinking({ ...payload, model: visionModel }),
         )
-      : await doFetch(resolveApiUrl(model), resolveApiKey(model), payload);
+      : await doFetch(directUrl, resolveApiKey(model), directUrl.startsWith(GOOGLE_API_ORIGIN) ? withGeminiThinking(payload) : payload);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -620,9 +648,9 @@ async function invokeLLMUnrecorded(params: InvokeParams): Promise<InvokeResult> 
         // AI_FORCE_OLLAMA, isOllamaModel() short-circuits true for ANY model,
         // which would route the retry straight back to the refusing lane.
         response = await doFetch(
-          "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions",
+          GEMINI_OPENAI_CHAT_URL,
           geminiKey,
-          { ...payload, model: fallbackModel },
+          withGeminiThinking({ ...payload, model: fallbackModel }),
         );
         if (!response.ok) {
           const fallbackText = await response.text();

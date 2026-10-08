@@ -4,7 +4,25 @@
  * ad-hoc inline types the audit found scattered across this run's new code.
  */
 import { describe, it, expect } from "vitest";
-import { parseReelJobPayload } from "./reelJobPayload";
+import { parseReelJobPayload, renderedQaRunsSoFar } from "./reelJobPayload";
+
+describe("renderedQaRunsSoFar — one counting rule for the critic runner and the publish gate", () => {
+  const verdict = { decision: "approve", findings: [], critic: "skipped", qaState: "unavailable" };
+  it("no verdict and no counter is zero runs", () => {
+    expect(renderedQaRunsSoFar({})).toBe(0);
+  });
+  it("a verdict written before the counter existed is one run (job 2040001's 10:33Z verdict)", () => {
+    expect(renderedQaRunsSoFar({ renderedQa: verdict })).toBe(1);
+  });
+  it("the counter wins once it exists, including a string-shaped one from older JSON", () => {
+    expect(renderedQaRunsSoFar({ renderedQa: verdict, renderedQaAttempts: 2 })).toBe(2);
+    expect(renderedQaRunsSoFar({ renderedQa: verdict, renderedQaAttempts: "3" })).toBe(3);
+  });
+  it("a zero or garbage counter beside a verdict still reads as one run, never zero", () => {
+    expect(renderedQaRunsSoFar({ renderedQa: verdict, renderedQaAttempts: 0 })).toBe(1);
+    expect(renderedQaRunsSoFar({ renderedQa: verdict, renderedQaAttempts: "n/a" })).toBe(1);
+  });
+});
 
 describe("parseReelJobPayload", () => {
   it("parses a real payload shape into its typed fields", () => {

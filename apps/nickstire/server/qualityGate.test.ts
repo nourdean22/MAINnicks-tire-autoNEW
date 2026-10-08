@@ -283,10 +283,19 @@ describe("a persisted NON-evaluation is re-run by a publish door, bounded (job 2
     expect(g.allowed).toBe(false);
   });
 
-  it("assert-the-consumer: the runner increments exactly the field the gate reads", () => {
+  it("assert-the-consumer: the runner and the gate count critic runs by the one shared rule, read before the overwrite", () => {
+    // 2026-10-08 15:31Z: the gate counted a pre-counter verdict as one run and
+    // the runner did not, so job 2040001's log said "critic run 2 of 3" and the
+    // next pulse said "1 critic run(s)". Both now call renderedQaRunsSoFar, and
+    // the runner must take it BEFORE the new verdict replaces the old one —
+    // after the overwrite, a first-ever run would count itself twice.
     const runner = readFileSync(new URL("./services/renderedQa.ts", import.meta.url), "utf8");
     const gate = readFileSync(new URL("./services/qualityGate.ts", import.meta.url), "utf8");
-    expect(runner).toContain("payload.renderedQaAttempts = (Number(payload.renderedQaAttempts) || 0) + 1;");
-    expect(gate).toContain("Number(payload.renderedQaAttempts)");
+    const readAt = runner.indexOf("const runsBefore = renderedQaRunsSoFar(payload);");
+    const overwriteAt = runner.indexOf("payload.renderedQa = verdict;");
+    expect(readAt).toBeGreaterThan(-1);
+    expect(overwriteAt).toBeGreaterThan(readAt);
+    expect(runner).toContain("payload.renderedQaAttempts = runsBefore + 1;");
+    expect(gate).toContain("const attempts = renderedQaRunsSoFar(payload);");
   });
 });

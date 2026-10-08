@@ -134,6 +134,20 @@ export interface ReelJobPayloadView {
   clipProbes?: ClipProbe[];
 }
 
+/**
+ * Critic runs so far for an asset — ONE counting rule for the runner that
+ * increments it (renderedQa.runRenderedQaOnJob) and the gate that bounds its
+ * re-runs (qualityGate.evaluateReelPublishGate). A verdict written before the
+ * counter existed counts as one run. Until 2026-10-08 the gate counted that
+ * way and the runner did not: job 2040001's second run (15:31Z) persisted
+ * counter 1, and the next pulse read "1 critic run(s)" right after
+ * "critic run 2 of 3". The runner must read this BEFORE it replaces the
+ * previous verdict, or a first run counts itself twice.
+ */
+export function renderedQaRunsSoFar(payload: { renderedQa?: unknown; renderedQaAttempts?: unknown }): number {
+  return Math.max(Number(payload.renderedQaAttempts) || 0, payload.renderedQa ? 1 : 0);
+}
+
 /** Never throws — an unparsable or missing payload returns an empty view,
  *  matching every existing reader's own "one bad row must not crash the
  *  caller" convention. */

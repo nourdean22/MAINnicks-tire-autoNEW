@@ -20,6 +20,7 @@
 import type { PublishGate } from "./postQaOrchestrator";
 import type { RenderedFinding, RenderedQaVerdict } from "./renderedQa";
 import { createLogger } from "../lib/logger";
+import { renderedQaRunsSoFar } from "../../shared/reelJobPayload";
 
 const log = createLogger("services:quality-gate");
 
@@ -155,8 +156,9 @@ export async function evaluateReelPublishGate(
   let source: ReelPublishGateResult["source"] = "persisted";
   const isNonEvaluation = (v: RenderedQaVerdict | undefined): boolean =>
     !!v && (v.qaState !== "completed" || v.critic === "skipped");
-  // A verdict that predates the counter still counts as one run.
-  const attempts = Math.max(Number(payload.renderedQaAttempts) || 0, verdict ? 1 : 0);
+  // A verdict that predates the counter still counts as one run — the same
+  // rule the runner increments by (shared/reelJobPayload.ts).
+  const attempts = renderedQaRunsSoFar(payload);
   let retryNote = "";
   if (verdict && isNonEvaluation(verdict) && !verdict.staleAfterRepair) {
     const lastAt = Date.parse(String(verdict.evaluatedAt ?? "")) || 0;
