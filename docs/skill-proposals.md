@@ -2205,3 +2205,11 @@ measurement. Every proposal below cites the moment in this wave that produced it
   linked node_modules) and 52.7 s on this branch, against `testTimeout` 30 s, so every cloud full-suite run shows it
   red. The `nickstire-verify` "within ~2x of its timeout" trap now has a live instance past 1x. It needs a test fix (a
   per-test timeout or a faster scan), not a skill line. Recorded so the next session does not re-triage it.
+
+### Resolution note on the 2026-10-08 Observation (`canonical-business-truth.test.ts` timeout)
+- Fixed in the same PR (#2933), at the operator's request. Root cause: two kill-rule alternatives opened with an 80-character
+  lookbehind (`claim.approval-promise` financing window, `claim.echeck-pass-guarantee` E-Check window), which V8 tries at every
+  position of the text: 6.9 s and 4.3 s of regex time on the server files alone. A literal lookahead in front of each gives
+  the same matches (2,191,382 old-vs-new comparisons over the corpus, 0 diffs). With an exact line-pass memo, the scan went from
+  52 s to about 7.5 s. `shared/voiceRuleShape.test.ts` now fails on any variable-width leading lookbehind (mutation-checked
+  against the old patterns: red, naming both rules).

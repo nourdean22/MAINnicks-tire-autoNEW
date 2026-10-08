@@ -772,9 +772,15 @@ const decodeCopy = (t: string) =>
 const stripTags = (t: string) => t.replace(/<[^<>\n]{1,200}>/g, "");
 const VARIANTS: Array<(t: string) => string> = [decodeCopy, (t) => stripTags(decodeCopy(t))];
 
+/** Everything rawClaimHits depends on besides the text: the surface, or null when the file is not scanned. */
+function claimSurface(file: string): "admin" | "web" | null {
+  if (CLAIM_SCAN_SKIP.has(file)) return null;
+  return file.includes("/admin/") ? "admin" : "web";
+}
+
 function rawClaimHits(file: string, text: string): Array<{ ruleId: string; match: string; index: number }> {
-  if (CLAIM_SCAN_SKIP.has(file)) return [];
-  const surface = file.includes("/admin/") ? "admin" : "web";
+  const surface = claimSurface(file);
+  if (!surface) return [];
   return findVoiceViolations(text, { surface, skipRuleIds: NON_CLAIM_RULE_IDS }).map((v) => ({
     ruleId: v.ruleId,
     match: v.match,
@@ -782,9 +788,35 @@ function rawClaimHits(file: string, text: string): Array<{ ruleId: string; match
   }));
 }
 
+/**
+ * Line-pass results by surface and normalized text (2026-10-08). The engine is a
+ * pure function of the two, and line texts repeat across the corpus ("}",
+ * imports, shared JSX), so each distinct one is scanned once. A variant
+ * identical to the one before it is skipped: same text, same findings.
+ *
+ * Measured on a cloud container: the claim scan took 52 s against the 30 s
+ * timeout. Most of it was two lookbehind-first alternatives in shared/voice.ts
+ * (fixed there: 14 s); this memo and the variant skip took it to about 7.5 s.
+ */
+const lineHitMemo = new Map<string, Array<{ ruleId: string; match: string; index: number }>>();
+
 /** Line pass only: both variants of one line. */
 function claimHits(file: string, text: string): Array<{ ruleId: string; match: string }> {
-  return VARIANTS.flatMap((norm) => rawClaimHits(file, norm(text)));
+  const out: Array<{ ruleId: string; match: string }> = [];
+  let previous: string | null = null;
+  for (const norm of VARIANTS) {
+    const t = norm(text);
+    if (t === previous) continue;
+    previous = t;
+    const key = `${claimSurface(file)}\u0000${t}`;
+    let hits = lineHitMemo.get(key);
+    if (!hits) {
+      hits = rawClaimHits(file, t);
+      lineHitMemo.set(key, hits);
+    }
+    out.push(...hits);
+  }
+  return out;
 }
 
 function claimFindings(lines: Array<{ file: string; line: number; text: string }>): string[] {
@@ -798,6 +830,7 @@ function claimFindings(lines: Array<{ file: string; line: number; text: string }
   }
   // Joined pass: a phrase split across wrapped lines. Reported at its first line.
   for (const [file, list] of byFile) {
+    let previousJoined: string | null = null;
     for (const norm of VARIANTS) {
       let joined = "";
       const starts: number[] = [];
@@ -805,6 +838,9 @@ function claimFindings(lines: Array<{ file: string; line: number; text: string }
         starts.push(joined.length);
         joined += norm(l.text.trim()).trimEnd() + " ";
       }
+      // Identical to the variant before it: already scanned, same findings.
+      if (joined === previousJoined) continue;
+      previousJoined = joined;
       for (const h of rawClaimHits(file, joined)) {
         let i = 0;
         while (i + 1 < starts.length && starts[i + 1] <= h.index) i++;
