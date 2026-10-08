@@ -105,7 +105,10 @@ export type SolarExpectation = {
   reason: string;
 };
 
-export const SOLAR_RECOVERY_MINUTES = 120;
+/** Default lag after sunrise before a solar camera is expected back; both measured recoveries
+ *  (2026-10-04 09:15 ET, 2026-10-07 09:23 ET) fell inside it. Pinned by solar.test.ts through
+ *  solarExpectedOffline(), not by name. */
+const SOLAR_RECOVERY_MINUTES = 120;
 
 /**
  * Whether a solar-powered camera is expected to be dark at `now`: between the previous civil

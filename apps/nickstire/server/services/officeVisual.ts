@@ -286,23 +286,14 @@ export function calibrationNote(v: OfficeVisual): string | null {
 }
 
 /**
- * Latest operator-reviewed descriptions, corrections first. Cached for 5 minutes and dropped by
- * `__resetOfficeVisualCalibration` / a new review, so a correction reaches the next call quickly
- * without a query on every episode. A failed read returns [] (the prompt simply has no
- * calibration block), never an error: calibration is an improvement, not a dependency.
- */
-export async function loadVisualCalibration(
-  d: { execute: (q: SQL) => Promise<unknown> },
-  now = Date.now(),
-): Promise<string[]> {
-  return (await loadVisualCalibrationDetailed(d, now)).notes;
-}
-
-/**
- * The calibration with its receipt: which reviewed episodes the notes came from, one id per
- * note, in order. `conversationRoutes` stores the ids as `calibrationFrom` on the visual it
- * produces, so "did the operator's Wrong reach the next call?" is answered by a row, not by
- * reading this cache's TTL off a clock (audit 2026-10-07, N5).
+ * Latest operator-reviewed descriptions, corrections first, with their receipt: which reviewed
+ * episodes the notes came from, one id per note, in order. `conversationRoutes` stores the ids
+ * as `calibrationFrom` on the visual it produces, so "did the operator's Wrong reach the next
+ * call?" is answered by a row, not by reading this cache's TTL off a clock (audit 2026-10-07, N5).
+ * Cached for 5 minutes and dropped by `__resetOfficeVisualCalibration` / a new review, so a
+ * correction reaches the next call quickly without a query on every episode. A failed read
+ * returns empty lists (the prompt simply has no calibration block), never an error: calibration
+ * is an improvement, not a dependency.
  */
 export async function loadVisualCalibrationDetailed(
   d: { execute: (q: SQL) => Promise<unknown> },

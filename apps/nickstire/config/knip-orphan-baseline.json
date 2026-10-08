@@ -5960,6 +5960,16 @@
       "file": "apps/nickstire/server/lib/trafficClass.ts",
       "symbol": "__setTrafficRangesForTest",
       "reason": "TEST SEAM. Replaces the cached range set and disables the background refresh so tests never fetch provider files. Imported only by trafficClassWiring.test.ts (drives the real Express route over node:http); it has no production caller by design."
+    },
+    {
+      "file": "apps/nickstire/server/lib/solar.ts",
+      "symbol": "localDayOf",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. YYYY-MM-DD of an instant in the shop timezone via Intl, the bridge from a Date to the solar day whose sunrise/dusk window applies. solar.test.ts imports it to pin that a UTC instant after midnight UTC still reads as the shop's previous calendar day (the DST/day-boundary trap this app documents under Time). Its runtime consumer is solarExpectedOffline in the same module (three calls: today / yesterday / tomorrow), which lot.health and the camera-health-alerts cron reach for the solar sign camera, so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/lib/solar.ts",
+      "symbol": "solarDay",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The NOAA sunrise / sunset / civil dawn / civil dusk computation for one local day at the shop. solar.test.ts imports it to pin the result against the published Cleveland table for 2026-10-08 (sunrise 07:29, sunset 18:58, civil 07:03 / 19:25 EDT), the shortening of October days, and the two measured camera recoveries at about sunrise + 2 h; sunset and civil dawn are reachable only this way, since solarExpectedOffline exposes just dusk and sunrise + lag. Its runtime consumer is solarExpectedOffline in the same module, reached by lot.health and the camera-health-alerts cron for the solar sign camera, so the computation is live, not vacuous."
     }
   ]
 }

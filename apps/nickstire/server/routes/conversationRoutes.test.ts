@@ -17,7 +17,6 @@ vi.mock("../services/officeVisual", async (importOriginal) => ({
   analyzeOfficeFrames: vi.fn(),
   officeVisualColumnReady: vi.fn(),
   conversationEpisodeColumnReady: vi.fn().mockResolvedValue(false),
-  loadVisualCalibration: vi.fn().mockResolvedValue([]),
   loadVisualCalibrationDetailed: vi.fn().mockResolvedValue({ notes: [], episodeIds: [] }),
 }));
 

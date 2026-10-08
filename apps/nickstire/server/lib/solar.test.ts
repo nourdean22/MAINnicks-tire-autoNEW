@@ -5,7 +5,7 @@
  * a paging decision, not an almanac.
  */
 import { describe, expect, it } from "vitest";
-import { SOLAR_RECOVERY_MINUTES, localDayOf, solarDay, solarExpectedOffline } from "./solar";
+import { localDayOf, solarDay, solarExpectedOffline } from "./solar";
 
 const CLEVELAND = { lat: 41.5525118, lng: -81.5571875, timezone: "America/New_York" };
 const edt = (h: number, m: number, day = 8) => Date.UTC(2026, 9, day, h + 4, m); // EDT = UTC-4
@@ -36,9 +36,13 @@ describe("solarDay", () => {
     const lag4 = (edt(9, 15, 4) - oct4.sunriseMs) / 60_000;
     const lag7 = (edt(9, 23, 7) - oct7.sunriseMs) / 60_000;
     expect(lag4).toBeGreaterThan(95);
-    expect(lag4).toBeLessThanOrEqual(SOLAR_RECOVERY_MINUTES);
     expect(lag7).toBeGreaterThan(95);
-    expect(lag7).toBeLessThanOrEqual(SOLAR_RECOVERY_MINUTES);
+    // The DEFAULT lag must still cover both measured recovery instants (no page before the
+    // camera actually came back) and must end soon after them (a page is still possible).
+    expect(solarExpectedOffline(new Date(edt(9, 15, 4)), CLEVELAND).expectedOffline).toBe(true);
+    expect(solarExpectedOffline(new Date(edt(9, 23, 7)), CLEVELAND).expectedOffline).toBe(true);
+    expect(solarExpectedOffline(new Date(edt(9, 35, 4)), CLEVELAND).expectedOffline).toBe(false);
+    expect(solarExpectedOffline(new Date(edt(9, 35, 7)), CLEVELAND).expectedOffline).toBe(false);
   });
 });
 

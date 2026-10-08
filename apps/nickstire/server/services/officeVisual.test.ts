@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   parseVisualReply, analyzeOfficeFrames, officeVisualColumnReady, storedVisual,
   __resetOfficeVisualReadyCache, OFFICE_VISUAL_MAX_FRAMES,
-  buildPrompt, calibrationNote, conversationEpisodeColumnReady, loadVisualCalibration, loadVisualCalibrationDetailed, __resetOfficeVisualCalibration, type OfficeVisual,
+  buildPrompt, calibrationNote, conversationEpisodeColumnReady, loadVisualCalibrationDetailed, __resetOfficeVisualCalibration, type OfficeVisual,
 } from "./officeVisual";
 
 const META = { frameCount: 2, provider: "ollama", model: "m", latencyMs: 9 };
@@ -143,15 +143,15 @@ describe("office visual — learning loop and on-box people", () => {
     const execute = vi.fn().mockResolvedValue([[
       row("correct", "ok one"), row("wrong", "bad one", "really two people"), row("correct", "ok two"),
     ]]);
-    const notes = await loadVisualCalibration({ execute }, 1_000);
+    const { notes } = await loadVisualCalibrationDetailed({ execute }, 1_000);
     expect(notes[0]).toContain("really two people");
     expect(notes).toHaveLength(3);
-    await loadVisualCalibration({ execute }, 2_000);
+    await loadVisualCalibrationDetailed({ execute }, 2_000);
     expect(execute).toHaveBeenCalledTimes(1);
 
     __resetOfficeVisualCalibration();
     const broken = vi.fn().mockRejectedValue(new Error("db down"));
-    expect(await loadVisualCalibration({ execute: broken }, 3_000)).toEqual([]);
+    expect(await loadVisualCalibrationDetailed({ execute: broken }, 3_000)).toEqual({ notes: [], episodeIds: [] });
   });
 
   it("storedVisual reads back the review and the on-box count", () => {
@@ -195,8 +195,6 @@ describe("office visual calibration receipt (audit N5)", () => {
     const cached = await loadVisualCalibrationDetailed({ execute }, 2_000);
     expect(cached.episodeIds).toEqual(first.episodeIds);
     expect(execute).toHaveBeenCalledTimes(1);
-    // The plain loader is the same read: notes only.
-    expect(await loadVisualCalibration({ execute }, 2_500)).toEqual(first.notes);
 
     __resetOfficeVisualCalibration();
     const broken = vi.fn().mockRejectedValue(new Error("db down"));

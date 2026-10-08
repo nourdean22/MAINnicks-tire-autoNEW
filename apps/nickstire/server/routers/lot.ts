@@ -448,7 +448,7 @@ export const lotRouter = router({
   /**
    * Operator verdict on what the office camera "Saw" for one conversation. This is the
    * self-learning loop: reviewed descriptions become calibration notes in the next vision
-   * prompt (services/officeVisual.ts loadVisualCalibration), so a correction here changes how
+   * prompt (services/officeVisual.ts loadVisualCalibrationDetailed), so a correction here changes how
    * the camera describes the next customer. Stored inside the existing `visual` JSON
    * (JSON_SET), so no migration; refused when the episode has no visual to review.
    */
