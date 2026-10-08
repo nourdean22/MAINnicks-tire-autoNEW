@@ -3,7 +3,7 @@
  *
  * Four rows: ShopDriver connection, invoice mirror, SMS gateway, and the NHTSA
  * manufacturer-program list behind the work-order drawer (Q-50 phase 3). The first
- * three read existing queries (see ./dataFreshness for which, and why no new reader):
+ * three read existing queries (see ./freshnessRows for which, and why no new reader):
  * `todayPulse` is shared with "Today, for real" through the react-query cache. The
  * NHTSA row is the one extra request, a two-row SELECT polled every 10 minutes,
  * because nothing else on the admin reads the ingest's state.
@@ -15,7 +15,7 @@
 import { trpc } from "@/lib/trpc";
 import { Clock } from "lucide-react";
 import { ProvenanceTag } from "../shared/ProvenanceTag";
-import { invoiceMirrorRow, nhtsaWarrantyRow, shopDriverRow, smsGatewayRow, type FreshnessRow } from "./dataFreshness";
+import { invoiceMirrorRow, nhtsaWarrantyRow, shopDriverRow, smsGatewayRow, type FreshnessRow } from "./freshnessRows";
 
 export function DataFreshness() {
   const shopDriver = trpc.adminSecurity.integrationFreshness.useQuery(undefined, { refetchInterval: 300_000 });

@@ -47,7 +47,7 @@ vi.mock("@/lib/trpc", () => ({
 }));
 
 import GatewayPill from "../components/admin/GatewayPill";
-import { smsGatewayRow } from "../pages/admin/today/dataFreshness";
+import { smsGatewayRow } from "../pages/admin/today/freshnessRows";
 import { OutreachBrief } from "../pages/admin/outreach/OutreachBrief";
 import { useSettingsStatus } from "../pages/admin/settings/useSettingsStatus";
 import SettingsStatusTab from "../pages/admin/settings/SettingsStatusTab";
