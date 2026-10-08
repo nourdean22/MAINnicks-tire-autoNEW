@@ -51,6 +51,13 @@ DELIBERATELY_UNREACHABLE = {
                  "is that it runs until signalled.",
     "--motion-gate": "store_true with default=True and no --no-motion-gate counterpart, so "
                      "passing it cannot change behaviour.",
+    "--restart-rebind-seconds": "restart continuity is ON at its tested default (20 s from the "
+                                "first frame) without the flag; it exists to switch it off (0) "
+                                "while diagnosing, not as a per-install knob.",
+    "--restart-rebind-max-gap-seconds": "the stranger-inheritance bound (120 s). Raising it per "
+                                        "install would trade a known false-continuation risk "
+                                        "for coverage; that is a code change with a test, not "
+                                        "an installer parameter.",
 }
 
 

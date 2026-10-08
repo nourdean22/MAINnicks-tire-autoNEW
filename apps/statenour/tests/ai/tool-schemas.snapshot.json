@@ -2152,20 +2152,6 @@
     }
   },
   {
-    "name": "getTopServices",
-    "description": "Get top services by revenue at Nick's Tire & Auto",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "limit": {
-          "default": 10,
-          "type": "number"
-        }
-      },
-      "type": "object"
-    }
-  },
-  {
     "name": "getWeeklyTargets",
     "description": "Get this week's 3 targets to check progress. Use mid-week to reference what was set on Monday.",
     "inputSchema": {

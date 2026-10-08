@@ -116,7 +116,6 @@ catalog and the model:
 | `getEstimateLeaks`    | Find revenue leaks · unconverted estimates             | `{}`            | leak array · $value declined    | free | yes    | nickstire bridge (estimates) |
 | `getReviewStats`      | Review statistics (count + avg + recency)              | `{}`            | review stats payload            | free | yes    | `BrainMemory(review_stats)` |
 | `getRevenueStats`     | Revenue statistics (day / week / month)                | `period`        | revenue + comparison            | free | yes    | nickstire bridge (revenue) |
-| `getTopServices`      | Top services by revenue                                | `{}`            | service rollup                  | free | yes    | nickstire bridge        |
 
 ---
 

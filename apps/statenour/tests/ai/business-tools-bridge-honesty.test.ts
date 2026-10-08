@@ -70,10 +70,15 @@ describe("getRevenueStats tool — end to end through the real service", () => {
   it("still reports a REAL figure when the bridge answers", async () => {
     // Both directions, mandatory. A guard that always answers "unavailable"
     // would satisfy the case above while destroying the tool.
+    //
+    // THE PRODUCER'S REAL SHAPE (apps/nickstire/server/routes/nour-os-query.ts,
+    // revenue_range). This fixture used to send `jobCount`, a field no handler
+    // has ever sent, so it stayed green while every live payload said 0 jobs
+    // and a $0.00 average ticket beside a real total (fixed 2026-10-08).
     queryNick.mockResolvedValue({
-      data: { totalDollars: 4210.5, jobCount: 7 },
+      data: { from: "2026-10-01", to: "2026-10-08", totalDollars: 4210.5, invoiceCount: 7, avgTicket: 601.5 },
       query: "revenue_range",
-      timestamp: "2026-08-04T00:00:00.000Z",
+      timestamp: "2026-10-08T00:00:00.000Z",
     });
 
     const out = (await revenueTool.execute({ period: "month" }, {})) as Record<string, unknown>;
@@ -81,12 +86,37 @@ describe("getRevenueStats tool — end to end through the real service", () => {
     expect(out.unavailable).toBeUndefined();
     expect(out.totalRevenue).toBe("4210.50");
     expect(out.jobCount).toBe(7);
+    expect(out.avgTicket).toBe("601.50");
+  });
+
+  it("counts revenue_today's invoices too, and derives the average ticket from them", async () => {
+    queryNick.mockResolvedValue({
+      data: { totalCents: 90000, totalDollars: 900, invoiceCount: 3 },
+      query: "revenue_today",
+      timestamp: "2026-10-08T00:00:00.000Z",
+    });
+    const out = (await revenueTool.execute({ period: "day" }, {})) as Record<string, unknown>;
+    expect(out.jobCount).toBe(3);
+    expect(out.avgTicket).toBe("300.00");
+  });
+
+  it("does NOT report zeros when the handler answers 200 with an error body", async () => {
+    // Every revenue handler answers `{ error: "No DB" }` with status 200 when the
+    // shop database is unreachable. That was read as data: $0.00, bridgeAvailable true.
+    queryNick.mockResolvedValue({
+      data: { error: "No DB" },
+      query: "revenue_range",
+      timestamp: "2026-10-08T00:00:00.000Z",
+    });
+    const out = (await revenueTool.execute({ period: "month" }, {})) as Record<string, unknown>;
+    expect(out.unavailable).toBe(true);
+    expect(JSON.stringify(out)).not.toContain("0.00");
   });
 
   it("reports a GENUINE zero month as a real figure, not as unavailable", async () => {
     // The distinction this whole change is about: measured zero != unmeasured.
     queryNick.mockResolvedValue({
-      data: { totalDollars: 0, jobCount: 0 },
+      data: { totalDollars: 0, invoiceCount: 0 },
       query: "revenue_range",
       timestamp: "2026-08-04T00:00:00.000Z",
     });
@@ -98,57 +128,51 @@ describe("getRevenueStats tool — end to end through the real service", () => {
   });
 });
 
-describe("getTopServices tool — end to end through the real service", () => {
-  const topServicesTool = businessTools.getTopServices as unknown as Executable;
-
-  it("says unknown, not an empty list, when nickstire has no such query", async () => {
-    // What the bridge answers today: nickstire has never had a
-    // revenue_top_services handler, so it is a 400 "Unknown query".
-    queryNick.mockResolvedValue({
-      error: 'HTTP 400: {"error":"Unknown query: revenue_top_services"}',
-      statusCode: 400,
-    });
-
-    const out = (await topServicesTool.execute({ limit: 10 }, {})) as Record<string, unknown>;
-
-    expect(Array.isArray(out)).toBe(false);
-    expect(out.unavailable).toBe(true);
-    expect(String(out.reason)).toMatch(/UNKNOWN, not an empty list/);
+describe("getTopServices — retired 2026-10-08", () => {
+  it("is not offered to the model any more", () => {
+    // Its bridge query was never built, and the data it needs has mostly stopped
+    // arriving (invoice service descriptions 1/30 in Aug 2026). Rebuild it only with
+    // a handler that reports how many tickets its ranking covers.
+    expect(businessTools).not.toHaveProperty("getTopServices");
   });
+});
 
-  it("says unknown when the answer has no services array", async () => {
-    queryNick.mockResolvedValue({ data: {}, query: "revenue_top_services", timestamp: "2026-10-08T00:00:00.000Z" });
-    const out = (await topServicesTool.execute({ limit: 10 }, {})) as Record<string, unknown>;
-    expect(out.unavailable).toBe(true);
-  });
-
-  it("returns real services, highest revenue first, when the bridge answers", async () => {
+describe("getCustomerStats — end to end through the real service", () => {
+  it("reads the two counts nickstire's customer_stats handler sends", async () => {
+    // The producer's real shape: apps/nickstire/server/services/customerStatsRead.ts.
     queryNick.mockResolvedValue({
-      data: {
-        services: [
-          { service: "Alignment", count: 4, revenue: 380 },
-          { service: "Tires", count: 9, revenue: 2140.5 },
-        ],
-      },
-      query: "revenue_top_services",
+      data: { total: 1843, newThisMonth: 17, monthStart: "2026-10-01", newThisMonthMeans: "..." },
+      query: "customer_stats",
       timestamp: "2026-10-08T00:00:00.000Z",
     });
-
-    const out = (await topServicesTool.execute({ limit: 10 }, {})) as Array<Record<string, unknown>>;
-
-    expect(out.map((s) => s.service)).toEqual(["Tires", "Alignment"]);
-    expect(out[0].revenueFormatted).toBe("2140.50");
+    const { getCustomerStats } = await import("@/lib/services/business-intel");
+    expect(await getCustomerStats()).toEqual({ total: 1843, newThisMonth: 17, bridgeAvailable: true });
   });
 
-  it("reports a GENUINE empty list as empty, not as unavailable", async () => {
-    // Measured empty != unmeasured: a shop day with no services is a real answer.
+  it("is UNAVAILABLE, not zero customers, when the read fails", async () => {
+    const { getCustomerStats } = await import("@/lib/services/business-intel");
+    // The handler throws on an unreadable DB, so the route answers 500.
+    queryNick.mockResolvedValue({ error: 'HTTP 500: {"error":"Query execution failed"}', statusCode: 500 });
+    expect((await getCustomerStats()).bridgeAvailable).toBe(false);
+    // A soft error body, and a payload whose counts are not numbers, are not readings either.
+    queryNick.mockResolvedValue({ data: { error: "No DB" }, query: "customer_stats", timestamp: "t" });
+    expect((await getCustomerStats()).bridgeAvailable).toBe(false);
+    queryNick.mockResolvedValue({ data: { total: "lots", newThisMonth: 1 }, query: "customer_stats", timestamp: "t" });
+    expect((await getCustomerStats()).bridgeAvailable).toBe(false);
+    // Missing counts must not default to a zero that reports as a reading.
+    queryNick.mockResolvedValue({ data: {}, query: "customer_stats", timestamp: "t" });
+    expect((await getCustomerStats()).bridgeAvailable).toBe(false);
+  });
+
+  it("sends the model no names, phones or customer list", async () => {
     queryNick.mockResolvedValue({
-      data: { services: [] },
-      query: "revenue_top_services",
+      data: { total: 2, newThisMonth: 0, topCustomers: [{ id: "c1", fullName: "Jane Doe", phone: "2165550100" }] },
+      query: "customer_stats",
       timestamp: "2026-10-08T00:00:00.000Z",
     });
-    const out = await topServicesTool.execute({ limit: 10 }, {});
-    expect(out).toEqual([]);
+    const { getCustomerStats } = await import("@/lib/services/business-intel");
+    const out = await getCustomerStats();
+    expect(JSON.stringify(out)).not.toMatch(/Jane|2165550100|topCustomers/);
   });
 });
 
@@ -177,6 +201,10 @@ describe("redactUnreadableSections", () => {
     expect(out.customers).toEqual({ total: 5 });
     expect(out.unavailable).toEqual(["revenue", "jobsToday"]);
     expect(String(out.reason)).toMatch(/UNKNOWN, not zero/);
+    // The cause must not claim more than is known: a read also fails when the
+    // bridge ANSWERS with an error, so "did not answer" overstated it.
+    expect(String(out.reason)).toMatch(/could not be read from the shop bridge/);
+    expect(String(out.reason)).not.toMatch(/did not answer/);
   });
 
   it("blanks every section when the whole bridge is down", () => {
@@ -207,5 +235,8 @@ describe("revenueUnavailable", () => {
     expect(out.period).toBe("month");
     expect(JSON.stringify(out)).not.toMatch(/\d+\.\d\d/);
     expect(out.reason).toMatch(/UNKNOWN, not a zero-revenue period/);
+    // A 200 `{ error: "No DB" }` lands here too, so "did not answer" would overstate the cause.
+    expect(out.reason).toMatch(/could not be read from the nickstire shop bridge/);
+    expect(out.reason).not.toMatch(/did not answer/);
   });
 });

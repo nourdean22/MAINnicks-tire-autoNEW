@@ -51,14 +51,9 @@ const KNOWN_PENDING = new Set<string>([
   "leads_overdue_count",
   "leads_today_count",
   "leads_week_count",
-  // Found 2026-10-08, the first run after the scan learned to read multi-line
-  // calls. Neither has ever had a nickstire handler, so both have failed on
-  // every call since v10.0.51. Consumers: lib/services/business-intel.ts
-  // getTopServices (the Nick tool now says "unknown" instead of handing the
-  // model an empty list) and getCustomerStats (the dashboard summary already
-  // redacts it through bridgeAvailable: false).
-  "revenue_top_services",
-  "customer_stats",
+  // `revenue_top_services` and `customer_stats` sat here from 2026-10-08 (found by the first
+  // multi-line run) until the same day's follow-up: `customer_stats` became a nickstire
+  // handler, and getTopServices was retired, so nothing calls `revenue_top_services`.
 ]);
 
 /** Parse the live handler keys out of nickstire's QUERY_HANDLERS registry. */

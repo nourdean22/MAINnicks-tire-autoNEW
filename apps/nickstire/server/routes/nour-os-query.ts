@@ -420,6 +420,16 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
     return { customers: rows, count: (rows as unknown[]).length, moneyUnits: { totalSpent: "cents", totalSpentDollars: "USD" } };
   },
 
+  // Customers on file + first visits in the current shop month (2026-10-08). StateNour's
+  // dashboard summary called this from v10.0.51 and it was never registered (400 on every
+  // call). Counts only, no names or phones. An unreadable DB THROWS (500) so StateNour
+  // reports the section unknown; see server/services/customerStatsRead.ts.
+  "customer_stats": async () => {
+    const { getDb } = await import("../db");
+    const { readCustomerStats } = await import("../services/customerStatsRead");
+    return readCustomerStats(await getDb());
+  },
+
   // ─── Vehicle lookup by plate (added 2026-09-08 · ADR-0017 camera vision) ──
   //
   // The camera edge (camera-bridge/visitd) reads plates; statenour asks here

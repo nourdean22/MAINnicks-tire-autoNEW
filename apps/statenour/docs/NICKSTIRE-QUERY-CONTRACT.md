@@ -1,4 +1,4 @@
-# Nickstire Query Contract — v11.11 (2026-10-08)
+# Nickstire Query Contract — v11.12 (2026-10-08)
 
 > **This doc exists twice, byte for byte:** `apps/nickstire/docs/` and
 > `apps/statenour/docs/`. When adding or changing an endpoint, update both in the
@@ -495,6 +495,7 @@ every registered handler. If `x-sync-key` is missing/wrong → 401.
 | `cars_today` | none | Same payload as section 1 `GET /api/bridge/cars-today`: `{ count, openTickets, avgTicket, byStatus: { drop_off, in_progress, ready, paid }, byPayment, generatedAt, dataAsOf, ageMinutes, staleness, source }`. A separate implementation in `nour-os-query.ts` with the same top-level fields (checked 2026-10-08). |
 | `customer_detail` | `customerId: string` | `{ customer, timeline: { invoices, estimates, algEstimates, callbacks }, counts }` — added Wave-200 Phase 6 for Customer 360 |
 | `customer_search` | `term: string` | Top 20 matching customers |
+| `customer_stats` | none | `{ total, newThisMonth, monthStart, newThisMonthMeans }`: customers on file, and customers whose first invoice (`firstVisitDate`) falls in the current America/New_York calendar month starting `monthStart`. Counts only, no names or phones. An unreadable database throws, so the route answers 500 rather than a zero. Added v11.12. |
 | `draft_opportunity_sms` | `opportunityId: uuid` | `{ opportunityId, customerName, customerPhoneMasked, sourceType, state, consentOk, recommendedAction, bestChannel, draft, noDraftReason?, riskLabel, riskReasons, guardFindings }` — deterministic evidence-only draft for a Decision-Inbox row; call-first types (callback/complaint/promise) return `draft: null` + reason. READ, never sends. Added Autopilot Wave 2, 2026-07-29 — see §8 |
 | `drop_off_ratio` | `range?: 7d \| 30d \| 90d` (default 30d) | Same payload as section 4: `{ range, dropOffs, walkIns, ratio, uberBackCount, generatedAt, dataAsOf, ageMinutes, staleness, source }`. |
 | `estimates_aging` | `scope?: online \| alg` (default online) | Same payload as section 3 for the scope: `{ total, bucket_lt24h, bucket_1d_3d, bucket_3d_7d, bucket_gt7d, stalest, generatedAt, dataAsOf, ageMinutes, staleness, scope, source }`, plus `totalDeclinedValue` for `alg`. |
@@ -752,6 +753,15 @@ retry-after-timeout) reports as SUCCESS/"already sent", never as failure.
   now reads statenour bridge calls written across several lines, which it could not
   see before. Its first run found two queries statenour had called since v10.0.51
   that nickstire never registered: `revenue_top_services` and `customer_stats`.
+
+- **v11.12** (2026-10-08) — the two dead queries are resolved. `customer_stats` is
+  built (`server/services/customerStatsRead.ts`): two counts, the only fields the
+  statenour dashboard summary reads; the old consumer type also asked for a
+  `topCustomers` list with names and phones that nothing displayed, and it is not
+  sent. `revenue_top_services` is retired rather than built: its one consumer, the
+  `getTopServices` chat tool, is removed from statenour, because the invoice service
+  descriptions a ranking needs have mostly stopped arriving (1 of 30 in August 2026).
+  Both queries had answered 400 on every call since v10.0.51.
 
 When adding a new endpoint: bump version, document here + statenour repo,
 include the commit hash in the PR description so cross-ring wiring is

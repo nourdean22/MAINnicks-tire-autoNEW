@@ -104,21 +104,11 @@ export const businessTools = {
     },
   }),
 
-  getTopServices: tool({
-    description: "Get top services by revenue at Nick's Tire & Auto",
-    inputSchema: z.object({ limit: z.number().default(10) }),
-    execute: async ({ limit }) => {
-      const { getTopServices } = await import("@/lib/services/business-intel");
-      const services = await getTopServices(limit);
-      // null = the shop bridge could not answer. Never hand the model [] for
-      // that: an empty list reads as "no services", which is not what we know.
-      if (services === null) {
-        const { topServicesUnavailable } = await import("@/lib/ai/tools/bridge-honesty");
-        return topServicesUnavailable();
-      }
-      return services;
-    },
-  }),
+  // getTopServices: retired 2026-10-08. It read the bridge query `revenue_top_services`, which
+  // nickstire never registered, so it had answered "unknown" on every call since v10.0.51; and
+  // the data a top-services list needs has mostly stopped arriving (invoice service descriptions:
+  // Jun 31/123, Jul 12/106, Aug 1/30 per apps/nickstire/docs/CURRENT-TRUTH.md). Rebuild it only
+  // with a handler that reports how many tickets its ranking covers.
 
   getDashboardSummary: tool({
     description: "Get full business dashboard summary — revenue, customers, reviews, open jobs",

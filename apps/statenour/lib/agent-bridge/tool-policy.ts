@@ -28,7 +28,6 @@ export const CHATGPT_ACTIONS_V1_TOOLS: string[] = [
   "getDashboardSummary",
   "getRevenueStats",
   "getReviewStats",
-  "getTopServices",
   "getEstimateLeaks",
   "compareCompetitors",
   "pricingAdvisorySummary",

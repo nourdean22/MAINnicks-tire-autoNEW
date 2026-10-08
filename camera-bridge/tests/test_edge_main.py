@@ -617,6 +617,7 @@ def _args(**over):
         commissioning_run=None, heartbeat_seconds=30.0, drain_seconds=5.0,
         dry_run=True, log_level="WARNING", channel=None, persist_seconds=2.0,
         stall_exit_seconds=180.0, scene_atlas=None, scene=None,
+        restart_rebind_seconds=20.0, restart_rebind_max_gap_seconds=120.0,
         adjudicator_model=None, adjudicator_device=None,
         hard_cases=None, hard_case_max_gb=2.0, hard_case_episodes="both", trajectories=None,
         service_review_seconds=30.0, shadow_ledger=None,
@@ -895,6 +896,37 @@ class RestartReconcileTest(unittest.TestCase):
 
 
 
+class RestartContinuityTelemetryTest(unittest.TestCase):
+    """What the operator reads after a deploy: which cars kept their visit, and how many
+    restored visits departed. Asserted on the metric VALUES and the log text, because a
+    counter nobody increments and a log line nobody emits look identical in a green suite."""
+
+    def test_continuations_and_the_window_summary_reach_metrics_and_the_log(self):
+        pipeline = make_pipeline()
+        out = {"emissions": [], "suppressed": None,
+               "restartContinuations": [{"trackId": 146, "visitId": "v-1", "objectId": "sign-120"}],
+               "restartRebind": {"entries": 3, "continued": 1, "ended": 2,
+                                 "continuedVisits": ["v-1"], "refused": {"moved": 1}, "at": 1000.0}}
+        vision = FakeVision(pipeline.tracker, steps=[out])
+        loop = _loop(pipeline, vision, FakeSource(frames=[FakeFrame(1000.0)]))
+        with self.assertLogs("edge", level="INFO") as logs:
+            loop.step()
+        self.assertEqual(pipeline.metrics.get("edge_restart_continuations_total"), 1)
+        self.assertEqual(pipeline.metrics.get("edge_restart_departures_total"), 2)
+        text = "\n".join(logs.output)
+        self.assertIn("track 146 continues visit v-1 (was sign-120)", text)
+        self.assertIn("1 of 3 restored car(s) continued, 2 depart", text)
+
+    def test_a_malformed_outcome_never_breaks_the_loop(self):
+        pipeline = make_pipeline()
+        out = {"emissions": [], "suppressed": None, "restartRebind": {"ended": "not-a-number"}}
+        loop = _loop(pipeline, FakeVision(pipeline.tracker, steps=[out]),
+                     FakeSource(frames=[FakeFrame(1000.0)]))
+        with self.assertLogs("edge", level="ERROR"):
+            loop.step()
+        self.assertEqual(loop.frames, 1, "the frame was still processed")
+
+
 class RestartClassificationWiringTest(unittest.TestCase):
     """The pin must be seeded by `build_edge`, before the loop runs.
 
@@ -941,7 +973,7 @@ class RestartClassificationWiringTest(unittest.TestCase):
 
             # Relaunched by the scheduler: NO --commissioning-run, so the mirror is PRODUCTION.
             args = _args(calibration=None, ledger=path, commissioning_run=None)
-            pipeline, *_ = edge_main.build_edge(self._shop_cfg(), args)
+            pipeline, vision, *_ = edge_main.build_edge(self._shop_cfg(), args)
             try:
                 self.assertTrue(pipeline.shop.enabled,
                                 "precondition: the mirror must be enabled or nothing is queued "
@@ -953,6 +985,12 @@ class RestartClassificationWiringTest(unittest.TestCase):
                 # emission that follows. Asserting before this tick measured a moment the
                 # bug had not reached yet -- the first version of this test survived
                 # deleting the fix outright.
+                #
+                # CLOSE THE RESTART WINDOW FIRST. Since restart continuity, the restored
+                # visit is HELD while the census looks for the car, and this test feeds no
+                # frame to open (or close) the window. Closing it unmatched is what a real
+                # producer reaches 20 s after its first frame when the car is gone.
+                vision.close_restart_rebind(time.time())
                 pipeline.tick(time.time() + 100_000)
                 self.assertFalse(pipeline.tracker.open_visits(),
                                  "precondition: the visit reached a terminal state, which is "

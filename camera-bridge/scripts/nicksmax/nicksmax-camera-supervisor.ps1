@@ -203,15 +203,21 @@ function Stop-ProcessesByCommand([string]$needle,[string]$label) {
 
 # What each task's wrapper actually runs, by image+command line and by the ports it must hold.
 # Stop-ScheduledTask ends the powershell.exe wrapper only; these are what keep the port.
-#   eufy-bridge : start-bridge-nicksmax.ps1 -> node server.mjs (:3000) -> go2rtc (1984/8654/8655)
+#   eufy-bridge : start-bridge-nicksmax.ps1 -> node <install>\server.mjs (:3000) -> go2rtc (1984/8654/8655)
 #   eufy-agent  : start-agent-nicksmax.ps1  -> python agent.py --eufy-only (:3601 health)
 #   office      : python -m vision.officewake --capture (no port; heartbeat file instead)
 # go2rtc's command line is `go2rtc -config ./go2rtc.yaml` (probed on NicksMax 2026-10-08), which
 # any go2rtc could print; only its executable, under the bridge install in StateNour\Eufy\, makes
 # it this task's child. An unrelated or unreadable go2rtc is a neighbour (Codex on #2931).
+# node is the same problem the other way round: its executable is the system node.exe, so only the
+# script it runs can say whose it is. The launcher passes server.mjs by its absolute path under
+# StateNour\Eufy\ (since 2026-10-08; it used to pass a bare `server.mjs` from the bridge directory),
+# and that path is the needle. Any other node server.mjs -- the commonest Node entry point, often on
+# :3000 -- is a neighbour, and so is a bare one: a launcher reverted to the old form shows up here
+# as ":3000 owner ... is not this task's child", never as a kill.
 function Get-TaskChildSpec([string]$key) {
   switch ($key) {
-    "eufy-bridge"   { return @{ Needles = @('^node(\.exe)?\s.*\bserver\.mjs\b', '^go2rtc(\.exe)?\s.*\sexe=.*\\StateNour\\Eufy\\.*\bgo2rtc\.exe$'); Ports = @(3000, 1984, 8654, 8655) } }
+    "eufy-bridge"   { return @{ Needles = @('^node(\.exe)?\s.*\\StateNour\\Eufy\\(?:[^\\"\s]+\\)*server\.mjs\b', '^go2rtc(\.exe)?\s.*\sexe=.*\\StateNour\\Eufy\\.*\bgo2rtc\.exe$'); Ports = @(3000, 1984, 8654, 8655) } }
     "eufy-agent"    { return @{ Needles = @('^python\w*(\.exe)?\s.*\bagent\.py\s+--eufy-only\b'); Ports = @(3601) } }
     "office-worker" { return @{ Needles = @('^python\w*(\.exe)?\s.*-m\s+vision\.officewake\b'); Ports = @() } }
   }

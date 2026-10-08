@@ -736,6 +736,7 @@ class EdgeLoop:
             self._note_crossings(frame)
             self._note_reacquisition(frame, out)
             self._note_preexisting_disagreement(frame, out)
+            self._note_restart_rebind(out)
             # SEPARATE CALL, and separate on purpose. Nesting this inside the hard-case
             # bookkeeping coupled two independent subsystems: with no recorder configured
             # the ledger silently recorded nothing, and nested one level deeper it fired
@@ -775,6 +776,26 @@ class EdgeLoop:
 
         self._run_timers()
         return out
+
+    def _note_restart_rebind(self, out: Dict[str, object]) -> None:
+        """Say what restart continuity decided: a line per car that kept its visit, and one
+        summary when the window closes. Read from the vision step's output, never re-derived."""
+        try:
+            for c in out.get("restartContinuations") or []:
+                self.pipeline.metrics.inc("edge_restart_continuations_total")
+                log.info("restart continuity: track %s continues visit %s (was %s); the car never left",
+                         c.get("trackId"), c.get("visitId"), c.get("objectId"))
+            summary = out.get("restartRebind")
+            if summary:
+                ended = int(summary.get("ended") or 0)
+                if ended:
+                    self.pipeline.metrics.inc("edge_restart_departures_total", ended)
+                log.info("restart continuity window closed: %s of %s restored car(s) continued, %s "
+                         "depart through the normal grace; refused=%s",
+                         summary.get("continued"), summary.get("entries"), ended,
+                         summary.get("refused"))
+        except Exception:  # telemetry only; never the loop's problem
+            log.exception("could not record the restart continuity outcome")
 
     def _persist_due(self) -> bool:
         """True when the quiet-frame persist interval has elapsed (and arms the next one)."""
@@ -1677,13 +1698,41 @@ def seed_track_ids(vision: Any, tracker: Any, camera: str) -> int:
     return highest
 
 
-def reconcile_restart(pipeline: Any, camera: str) -> int:
+def restored_rebind_entries(tracker: Any, camera: str) -> list:
+    """Where the dead process last saw each car it was still tracking on this camera.
+
+    One `RestoredSighting` per OPEN sighting that still sat inside a zone, read BEFORE the
+    restart force-end: `_force_end` advances `last_frame_time` to the shared anchor, and the
+    rebind's downtime check needs the time this car was actually last seen. A sighting with
+    no box or no open zone is left out; it departs exactly as before.
+    """
+    from vision.pipeline import RestoredSighting
+
+    entries = []
+    for visit in tracker.open_visits():
+        for sighting in visit.open_sightings():
+            if sighting.camera != camera or not sighting.last_box:
+                continue
+            zones = frozenset(sighting.open_zones())
+            if not zones:
+                continue
+            entries.append(RestoredSighting(
+                object_id=sighting.id, visit_id=visit.visit_id,
+                box=tuple(float(v) for v in sighting.last_box),
+                last_seen=float(sighting.last_frame_time), zones=zones,
+                arrived_at=float(visit.created_at),
+            ))
+    return entries
+
+
+def reconcile_restart(pipeline: Any, camera: str, vision: Any = None,
+                      rebind_seconds: float = 0.0, rebind_max_gap_seconds: float = 120.0) -> int:
     """Force-end this camera's restored sightings; returns how many visits it touched.
 
     WHY A RESTART MUST END THEM. Every path visitd has for recognising a car it has already
     seen -- `_by_sighting`, `_continued_visit`'s `max_age_closed` map -- is keyed on the
     PRODUCER-ASSIGNED object id, and a fresh `TrackGraph` cannot reproduce the ids the dead
-    process handed out. So after a restart visitd genuinely cannot tell that the car now in
+    process handed out. So after a restart visitd cannot, by itself, tell that the car now in
     bay 2 is the car that was in bay 2 before: vision identity does not survive the process.
 
     Leaving the orphans open was the worse of the two available wrongs. Nothing ends them --
@@ -1699,23 +1748,54 @@ def reconcile_restart(pipeline: Any, camera: str) -> int:
     not billed to the customer -- the visits go DEPARTING, and the ordinary leave grace
     resolves them.
 
-    WHAT IT COSTS, stated rather than hidden: a car still parked through the restart opens a
-    NEW visit with a new arrival time instead of continuing its old one. That is a visible,
-    conservative wrong number -- one visit split in two -- and it is strictly better than the
-    alternative the id-seeding fix rules out, where a DIFFERENT customer silently inherits a
-    stranger's arrival time, bay and data class. Continuity across a restart would require
-    vision identity to be durable, which is a different piece of work.
+    WHAT THAT COST, and the continuity that now recovers it. A track born after a restart is
+    `preexisting` to the census and never reaches visitd, so a car still parked through the
+    restart lost its visit at the restart and stayed invisible until it left and re-entered
+    (2026-10-07 camera audit section 5; the docstring here used to claim it opened a NEW
+    visit, which stopped being true when the census learned to call such tracks
+    preexisting). With `vision` and `rebind_seconds > 0` the restored visits are HELD in
+    DEPARTING (`VisitTracker.hold_departures`) and the vision pipeline looks for each car
+    where it was last seen (`VisionPipeline.arm_restart_rebind`, invariant 7). A match
+    reports under the old object id and visitd resurrects the sighting; everything unmatched
+    departs through the grace when the window closes, as it always did. The force-end comes
+    FIRST and stays: dwell freezes at the last activity, so a restored visit that had not yet
+    confirmed cannot be promoted on downtime it was never observed for.
     """
+    entries: list = []
     try:
         before = {v.visit_id for v in pipeline.tracker.open_visits()}
         if not before:
             return 0
+        if vision is not None and rebind_seconds > 0:
+            try:
+                entries = restored_rebind_entries(pipeline.tracker, camera)
+            except Exception:
+                log.exception("could not read the restored cars' last positions; every restored "
+                              "visit departs through the normal grace")
+                entries = []
         pipeline.force_end_open_sightings("producer_restart", time.time(), camera)
     except Exception:
         log.exception("could not reconcile restored sightings; they will expire on max age instead")
         return 0
     log.info("restart reconcile: force-ended %s camera's open sightings across %s restored visit(s) "
              "at their last recorded activity", camera, len(before))
+    if entries:
+        try:
+            # Held until the vision pipeline's first frame sets a real deadline. Not persisted:
+            # a process that dies inside the window restores these visits DEPARTING with no hold.
+            pipeline.tracker.hold_departures(sorted({e.visit_id for e in entries}), float("inf"))
+            armed = vision.arm_restart_rebind(entries, window_seconds=rebind_seconds,
+                                              max_gap_seconds=rebind_max_gap_seconds)
+            log.info("restart reconcile: holding %s restored car(s) for %.0fs after the first frame "
+                     "while the census looks for each one where it was last seen", armed, rebind_seconds)
+        except Exception:
+            log.exception("could not arm restart continuity; releasing the holds so every restored "
+                          "visit departs through the normal grace")
+            try:
+                pipeline.tracker.hold_departures(sorted({e.visit_id for e in entries}), None)
+                vision.close_restart_rebind(time.time())
+            except Exception:
+                log.exception("could not release the restart holds")
     return len(before)
 
 
@@ -1801,9 +1881,10 @@ def build_edge(cfg: Config, args: argparse.Namespace):
     Order matters: `Pipeline.__init__` restores open visits from the ledger into its
     tracker, so building it first means a restarted producer resumes the cars that were
     on the lot rather than re-arming from empty. Those restored visits have no live
-    vision TRACK -- the pixels moved on while the process was down -- and that is correct:
-    visitd's own timers age them out through the normal departure grace instead of the
-    vision layer inventing a track it never saw.
+    vision TRACK -- the pixels moved on while the process was down -- so the vision layer
+    never invents one: a restored visit continues only when the census sees a car exactly
+    where it was last seen (`reconcile_restart`, invariant 7 in vision/pipeline.py), and
+    every other one departs through visitd's normal grace.
     """
     from vision.evidence import EvidenceStore
     from vision.geometry import EntryPortal, LotMap, Zone
@@ -1920,7 +2001,9 @@ def build_edge(cfg: Config, args: argparse.Namespace):
     except Exception:
         log.exception("could not restore queued visit classifications; a COMMISSIONING row "
                       "still queued from the previous process may be recorded as PRODUCTION")
-    reconcile_restart(pipeline, camera)
+    reconcile_restart(pipeline, camera, vision=vision,
+                      rebind_seconds=float(getattr(args, "restart_rebind_seconds", 20.0) or 0.0),
+                      rebind_max_gap_seconds=float(getattr(args, "restart_rebind_max_gap_seconds", 120.0)))
 
     # The mode this producer returns to when NOT commissioning. Derived from the
     # CALIBRATION, never from the launch flag: a runtime started with
@@ -2064,6 +2147,13 @@ def parse_args(argv=None) -> argparse.Namespace:
                     help="exit(3) after this long with NO frame at all so the supervisor restarts; "
                          "0 disables. A frozen-but-delivering camera is NOT a stall -- that is "
                          "reported as degraded vision, and restarting on it would only thrash")
+    ap.add_argument("--restart-rebind-seconds", type=float, default=20.0,
+                    help="after a restart, how long (from the first frame) a car still parked where "
+                         "the previous process last saw it may continue its visit; 0 departs every "
+                         "restored visit through the normal grace, as before")
+    ap.add_argument("--restart-rebind-max-gap-seconds", type=float, default=120.0,
+                    help="longest the lot may have gone unwatched for a restored visit to continue; "
+                         "past it a car in the old spot may be a different car")
     ap.add_argument("--replay", action="store_true",
                     help="tag every visit dataClass=REPLAY. The shop filters its counters on "
                          "PRODUCTION, so a replay lane can post real rows against live data "

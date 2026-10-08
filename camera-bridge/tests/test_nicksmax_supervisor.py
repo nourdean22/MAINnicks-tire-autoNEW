@@ -20,6 +20,7 @@ failed (no Heal-* functions, 400 ms probe, two-miss restart, warn-only disk floo
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -404,6 +405,49 @@ def test_an_unrelated_go2rtc_is_not_a_duplicate_of_the_bridges(tmp_path: Path):
     # one worker, neither owning :3000, so every healthy tick ended the newer one: the bridge's.
     out = run_scenario("unrelated-go2rtc-is-not-a-duplicate", tmp_path)
     assert out["calls"] == []
+
+
+# ---- the bridge's node, known by its own path (2026-10-08) --------------------------------------
+# The node needle was any `node ... server.mjs` -- the go2rtc defect from #2931 in a second image.
+# server.mjs is the commonest Node entry point and :3000 the commonest dev port, so any other project
+# on this box would be ended on every bridge restart and swept as a "duplicate" on every healthy tick
+# (none runs there today; the 2026-10-08 probe found only Desktop Commander's node processes).
+# start-bridge-nicksmax.ps1 now passes server.mjs by its absolute path under StateNour\Eufy\, and
+# that path is the needle. Positive control: against the any-server.mjs needle the first two probes
+# and the text contract went red; the dedupe control passed on both, as a control must.
+
+
+def test_an_unrelated_node_server_survives_a_bridge_restart(tmp_path: Path):
+    out = run_scenario("unrelated-node-survives-bridge-restart", tmp_path)
+    calls = out["calls"]
+    assert _index(calls, "stop-pid:11") < _index(calls, f"start-task:{BRIDGE_TASK}")
+    assert _index(calls, "stop-pid:12") < _index(calls, f"start-task:{BRIDGE_TASK}")
+    # Another project's server.mjs holding :3000: neither the sweep nor the port pass ends it.
+    assert "stop-pid:64" not in calls
+    assert ":3000 owner pid=64 is not this task's child by command line" in "\n".join(out["log"])
+    # A node server.mjs with no path is nobody's child -- the reason the launcher changed first.
+    assert "stop-pid:65" not in calls
+
+
+def test_an_unrelated_node_server_is_not_a_duplicate_of_the_bridges(tmp_path: Path):
+    out = run_scenario("unrelated-node-is-not-a-duplicate", tmp_path)
+    assert out["calls"] == []
+
+
+def test_two_copies_of_the_bridge_node_are_still_one_too_many(tmp_path: Path):
+    # Control: the tighter needle must not blind the dedupe to the case it exists for.
+    out = run_scenario("two-bridge-nodes-are-still-duplicates", tmp_path)
+    assert out["calls"] == ["stop-pid:14"]
+    assert any("duplicate eufy-bridge pid=14; keeping pid=11" in line for line in out["log"])
+
+
+def test_the_bridge_node_needle_names_the_eufy_install():
+    text = source()
+    spec = text[text.index("function Get-TaskChildSpec") : text.index("function Stop-TaskChildren")]
+    node_needles = re.findall(r"'(\^node[^']*)'", spec)
+    assert len(node_needles) == 1, node_needles
+    assert r"\\StateNour\\Eufy\\" in node_needles[0]
+    assert r"server\.mjs" in node_needles[0]
 
 
 def test_every_kill_path_reads_one_process_identity():
