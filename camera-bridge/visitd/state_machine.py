@@ -161,6 +161,12 @@ class Visit:
     confirmed_at: Optional[float] = None
     left_at: Optional[float] = None
     continues_visit_id: Optional[str] = None  # the max-age-closed visit this one continues (same Frigate object id)
+    #: Earliest time a DEPARTING visit may be declared LEFT, set by `hold_departures` while an
+    #: edge producer decides whether a restored car is still parked (see `edge_main.reconcile_restart`).
+    #: TRANSIENT, never serialized: a persisted hold whose producer died before releasing it would
+    #: keep a departed car on the lot forever. A restart inside the hold therefore departs the car
+    #: through the normal grace, which is the behaviour before holds existed.
+    restart_hold_until: Optional[float] = None
 
     @property
     def is_terminal(self) -> bool:
@@ -386,6 +392,27 @@ class VisitTracker:
             return []
         self._force_ended[reason] = self._force_ended.get(reason, 0) + ended
         return self._evaluate_all(at, estimated=True)
+
+    def hold_departures(self, visit_ids: Iterable[str], until: Optional[float]) -> int:
+        """Keep these visits from being declared LEFT before `until` (None releases the hold).
+
+        An edge producer restarts with no way to recognise the cars it was tracking: its new
+        tracks carry new object ids. It force-ends the restored sightings, which sends their
+        visits DEPARTING with dwell frozen at the last activity, and holds them here while it
+        looks for each car where its last box was. A car that is still parked gets an update
+        under its OLD object id, and `_apply_snapshot` + `_evaluate` resurrect the sighting
+        and restore the visit's state exactly as for a max-age force-end. A car that is gone
+        departs through the normal grace once the hold is released or lapses. The hold only
+        ever DELAYS a departure; it never shortens the grace. Returns the visits held.
+        """
+        held = 0
+        for visit_id in visit_ids:
+            visit = self._visits.get(visit_id)
+            if visit is None:
+                continue
+            visit.restart_hold_until = until
+            held += 1
+        return held
 
     def discard_camera_state(self, camera: str) -> int:
         """Discard open visit state belonging entirely to one camera.
@@ -759,6 +786,9 @@ class VisitTracker:
             if in_zone:
                 visit.state = visit.state_before_departing or ENTERED_ZONE
                 visit.state_before_departing = visit.departing_since = visit.hold_until = None
+                # Back in a zone: a restart hold has done its job, and a later real departure
+                # must get the normal grace, not one stretched to the old hold.
+                visit.restart_hold_until = None
             else:
                 visit.hold_until = self._departure_hold(visit)
                 if at >= visit.hold_until:
@@ -820,7 +850,10 @@ class VisitTracker:
         if not visit.open_sightings():
             base = max(base, max((s.end_time or 0.0 for s in visit.sightings.values()), default=base))
         topo = max((l.max_seconds for l in self.policy.topology if l.from_camera == visit.last_camera), default=0.0)
-        return base + max(self.policy.leave_grace_seconds, topo)
+        hold = base + max(self.policy.leave_grace_seconds, topo)
+        if visit.restart_hold_until is not None:
+            hold = max(hold, visit.restart_hold_until)
+        return hold
 
     def _emit(self, visit: Visit, state: str, at: float, estimated: bool, sighting: Sighting, merged_into: Optional[str] = None) -> Emission:
         """Transition to `state`, bump seq, and build the Emission snapshot."""

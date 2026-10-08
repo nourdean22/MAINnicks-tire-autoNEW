@@ -21,6 +21,13 @@ Invariants, each asserted by a test in tests/test_vision.py:
      merely stays visible: the track is a candidate again and needs a fresh portal
      crossing. And an arrival parked ON the zone edge is not reported as leaving until
      it moves -- the polygon test alone made one parked car into a run of visits.
+  7. A car still parked through a PRODUCER RESTART continues the visit it already had,
+     instead of vanishing until it leaves. The restart hands this pipeline the restored
+     visits' last boxes (`arm_restart_rebind`); a track that never moved, sits in the same
+     zone and overlaps exactly one of them reports under that visit's OLD object id, so
+     visitd resurrects the sighting. It is never an arrival: no `new` is emitted, the
+     arrival counter does not move, and ambiguity (two cars for one box, one track over
+     two boxes) refuses and lets the visit depart as before.
 
 visitd itself is untouched -- it stays a pure function of the event stream it is fed.
 The whole point of this module is to feed it an HONEST stream.
@@ -38,7 +45,7 @@ from .stitch import EpisodeStitcher
 from .census import PreexistingCensus
 from .detector import CouncilResult, DetectorCouncil
 from .evidence import EvidencePacket, EvidenceStore
-from .frame import Detection, Frame
+from .frame import Detection, Frame, iou
 from .framehealth import FrameHealth
 from .geometry import EntryPortal, LotMap
 from .scenelock import SceneLock
@@ -96,6 +103,9 @@ class PipelineStats:
     #: Tracks still visible after visitd closed their visit (LEFT / PASS_THROUGH), demoted to
     #: candidates so they need a fresh portal crossing before they can open another visit.
     rearmed_after_terminal: int = 0
+    #: Tracks that continued a visit restored from before a producer restart (invariant 7).
+    #: Not arrivals, and deliberately not folded into `arrivals`.
+    restart_continuations: int = 0
     visitd_states: Counter = field(default_factory=Counter)
 
     def to_dict(self) -> dict:
@@ -108,6 +118,45 @@ class PipelineStats:
 #: `parse_event=None` (a stub tracker that wants the raw dict). Telling those apart is what
 #: keeps tracker injection from silently disabling the parser.
 _USE_VISITD_PARSER = object()
+
+
+@dataclass(frozen=True)
+class RestoredSighting:
+    """One car the previous process was tracking, as the ledger restored it.
+
+    `object_id` is the visitd sighting id the dead process emitted under ("sign-120");
+    `box` and `last_seen` are where and when that process last saw the car; `zones` are the
+    zones its sighting was still inside. Built by `edge_main.restored_rebind_entries`.
+    """
+
+    object_id: str
+    visit_id: str
+    box: tuple
+    last_seen: float
+    zones: frozenset
+    arrived_at: Optional[float] = None
+
+
+@dataclass
+class _RestartRebind:
+    """The window after a producer restart in which a parked car may resume its visit."""
+
+    entries: list
+    window_seconds: float
+    max_gap_seconds: float
+    iou_min: float
+    min_hits: int
+    #: Frame time the window closes; set by the FIRST frame, so a slow model load or RTSP
+    #: connect does not eat the window before any pixel arrived.
+    deadline: Optional[float] = None
+    claimed: dict = field(default_factory=dict)       # object_id -> track_id
+    contested: set = field(default_factory=set)       # object_ids refused for ambiguity
+    decided: set = field(default_factory=set)         # track_ids already judged
+    refused: Counter = field(default_factory=Counter)
+
+    def open_entries(self) -> list:
+        return [e for e in self.entries
+                if e.object_id not in self.claimed and e.object_id not in self.contested]
 
 
 class VisionPipeline:
@@ -158,6 +207,11 @@ class VisionPipeline:
         self._was_unhealthy = False
         self._in_blind_interval = False
         self._last_image = None
+        #: track id -> the visitd object id it reports under, for a track that continues a
+        #: visit restored from before a restart (invariant 7). Every other track reports as
+        #: "{camera}-{track_id}".
+        self._object_alias: dict[int, str] = {}
+        self._rebind: Optional[_RestartRebind] = None
 
         # PARSING AND TRACKER OWNERSHIP ARE ORTHOGONAL, and conflating them was a real bug.
         # This used to read `if tracker is not None: self._parse_event = None`, so injecting
@@ -194,6 +248,10 @@ class VisionPipeline:
         self.timings.clear()
         self._track_visit.clear()
         self._preexisting_crossed.clear()
+        # The restored visits a restart was holding were just discarded with the rest of the
+        # camera's state, so there is nothing left for a track to continue.
+        self._object_alias.clear()
+        self._rebind = None
         self.stitch = EpisodeStitcher(camera=self.camera)
         self.census.note_reconnect(now)
         self._start_ts = None
@@ -206,7 +264,9 @@ class VisionPipeline:
             track.zones = sorted({*track.zones, self.arrival_zone})
         x1, y1, x2, y2 = track.box
         after = {
-            "id": f"{self.camera}-{track.track_id}",
+            # A track continuing a restored visit reports under that visit's OLD object id,
+            # which is the only key visitd can recognise the car by (invariant 7).
+            "id": self._object_alias.get(track.track_id, f"{self.camera}-{track.track_id}"),
             "camera": self.camera,
             "label": "car",
             "score": float(track.score),
@@ -277,6 +337,9 @@ class VisionPipeline:
             for tid in [tid for tid, mapped in self._track_visit.items() if mapped == vid]:
                 self._track_visit.pop(tid, None)
                 self.timings.pop(tid, None)
+                # The old object id belongs to the closed visit; a re-armed track that later
+                # crosses the portal opens its next visit under its own id.
+                self._object_alias.pop(tid, None)
                 t = self.tracks.get(tid)
                 if t is None or t.evidence != "arrival":
                     continue
@@ -338,6 +401,146 @@ class VisionPipeline:
         out["emissions"].extend(emissions)
         self._absorb_terminal(emissions, now)
 
+    # ------------------------------------------------------------- restart rebind
+    def arm_restart_rebind(self, entries: Sequence[RestoredSighting], *,
+                           window_seconds: float = 20.0, max_gap_seconds: float = 120.0,
+                           iou_min: float = 0.5, min_hits: int = 3) -> int:
+        """Give a restarted producer's census the restored cars to look for (invariant 7).
+
+        The caller has force-ended these sightings and asked visitd to hold their visits
+        (`VisitTracker.hold_departures`). The window opens on the FIRST frame this pipeline
+        processes and lasts `window_seconds`; the hold is then shortened to that deadline,
+        and lapses there for every car nobody matched. Returns the entries armed.
+
+        `max_gap_seconds` bounds how long the lot may have gone unwatched: past it, a car in
+        the old spot may be a different car, so the visit departs as it did before this
+        existed. A deploy restart is ~30 s; a stall exit plus restart ~70-100 s.
+        """
+        live = [e for e in entries if e.box and e.zones]
+        if not live:
+            self._rebind = None
+            return 0
+        self._rebind = _RestartRebind(
+            entries=list(live), window_seconds=max(0.0, float(window_seconds)),
+            max_gap_seconds=max(0.0, float(max_gap_seconds)),
+            iou_min=float(iou_min), min_hits=max(1, int(min_hits)),
+        )
+        return len(live)
+
+    def close_restart_rebind(self, now: float) -> Optional[dict]:
+        """End the window: release every unmatched hold and report what happened.
+
+        Released visits depart through visitd's ordinary grace on the next evaluation, with
+        dwell frozen at their last activity, exactly as before restart continuity existed.
+        """
+        rb = self._rebind
+        if rb is None:
+            return None
+        self._rebind = None
+        unmatched = [e for e in rb.entries if e.object_id not in rb.claimed]
+        hold = getattr(self.tracker, "hold_departures", None)
+        if hold is not None and unmatched:
+            hold(sorted({e.visit_id for e in unmatched}), None)
+        continued = [e for e in rb.entries if e.object_id in rb.claimed]
+        return {
+            "entries": len(rb.entries),
+            "continued": len(continued),
+            "ended": len(unmatched),
+            "continuedVisits": sorted({e.visit_id for e in continued}),
+            "refused": dict(rb.refused),
+            "at": now,
+        }
+
+    def _restart_rebind_clock(self, now: float, out: dict) -> None:
+        """Start the window on the first frame; close it once its deadline has passed."""
+        rb = self._rebind
+        if rb is None:
+            return
+        if rb.deadline is None:
+            rb.deadline = now + rb.window_seconds
+            hold = getattr(self.tracker, "hold_departures", None)
+            if hold is not None:
+                hold(sorted({e.visit_id for e in rb.entries}), rb.deadline)
+            return
+        if now >= rb.deadline or not rb.open_entries():
+            out["restartRebind"] = self.close_restart_rebind(now)
+
+    def _restart_rebind_pass(self, now: float, out: dict) -> None:
+        """Bind each not-yet-arrived track to the restored car it is, when that is unambiguous.
+
+        A track qualifies only when ALL of these hold, and each one closes a way to be wrong:
+          * detector-confirmable and seen `min_hits` times -- one box is not a car;
+          * never moved since birth (`still_since == born_ts`) -- a car driving through the
+            old spot is not the parked one;
+          * born within `max_gap_seconds` of when the dead process last saw the car -- after a
+            long blackout the spot may hold a different car;
+          * its ground point in a zone the restored sighting was still inside, and IoU with
+            that sighting's last box >= `iou_min`;
+          * exactly ONE restored car matches (a track over two boxes refuses), and no OTHER
+            live track overlaps that car's box (two tracks for one box refuses).
+        A refusal is final for that track and costs nothing new: the visit departs as it
+        did before this existed.
+        """
+        rb = self._rebind
+        if rb is None or rb.deadline is None or now >= rb.deadline:
+            return
+        open_ids = {getattr(v, "visit_id", None) for v in self.tracker.open_visits()}
+        live = list(self.tracks.tracks.values())
+        for t in live:
+            if t.evidence not in ("preexisting", "candidate") or t.track_id in rb.decided:
+                continue
+            if not t.confirmable or t.hits < rb.min_hits:
+                continue                      # not enough evidence yet; judged on a later frame
+            rb.decided.add(t.track_id)
+            if t.still_since > t.born_ts:
+                rb.refused["moved"] += 1
+                continue
+            zones = set(self.lot_map.zones_at(t.ground_point))
+            near = [e for e in rb.open_entries()
+                    if e.visit_id in open_ids and e.zones & zones
+                    and iou(t.box, e.box) >= rb.iou_min]
+            if not near:
+                rb.refused["no_match"] += 1
+                continue
+            if len({e.visit_id for e in near}) > 1:
+                # One track over two restored cars: cannot say which one it is.
+                rb.refused["ambiguous_track"] += 1
+                rb.contested.update(e.object_id for e in near)
+                continue
+            entry = max(near, key=lambda e: iou(t.box, e.box))
+            if t.born_ts - entry.last_seen > rb.max_gap_seconds:
+                rb.refused["gap"] += 1
+                continue
+            rivals = [o for o in live if o.track_id != t.track_id
+                      and iou(o.box, entry.box) >= rb.iou_min]
+            if rivals:
+                # Two tracks over one restored car: binding either could hand a stranger the
+                # visit. Neither gets it.
+                rb.refused["ambiguous_car"] += 1
+                rb.contested.add(entry.object_id)
+                continue
+            rb.claimed[entry.object_id] = t.track_id
+            t.evidence = "arrival"
+            t.entry_reason = f"continues visit {entry.visit_id} across a producer restart"
+            self._object_alias[t.track_id] = entry.object_id
+            self._track_visit[t.track_id] = entry.visit_id
+            # Arrival time is the visit's own. No episode id is stamped: the original one lived
+            # only in the dead process, and the shop keeps the stored one when none is sent.
+            self.timings[t.track_id] = VisitTiming(arrived_at=entry.arrived_at,
+                                                   wait_started_at=entry.arrived_at)
+            self.stats.restart_continuations += 1
+            out.setdefault("restartContinuations", []).append(
+                {"trackId": t.track_id, "visitId": entry.visit_id, "objectId": entry.object_id})
+            self.evidence.write(EvidencePacket(
+                event="RESTART_CONTINUATION", ts=now, camera=self.camera, track_id=t.track_id,
+                visit_id=entry.visit_id,
+                rule="a still car where a restored visit's car last was continues that visit",
+                reasons=[f"iou={iou(t.box, entry.box):.2f}",
+                         f"gap={t.born_ts - entry.last_seen:.1f}s",
+                         f"object={entry.object_id}"],
+                box=t.box, zones=sorted(zones),
+            ))
+
     # -------------------------------------------------------------------- main step
     def step(self, frame: Frame, detections: Optional[Sequence[Detection]] = None,
              detections_can_confirm: bool = True) -> dict:
@@ -351,6 +554,9 @@ class VisionPipeline:
         # never going to provide.
         _layout_epoch = (frame.meta or {}).get("layoutEpoch")
         out: dict[str, Any] = {"emissions": [], "suppressed": None, "born": [], "died": []}
+        # Before any gate can return: the restart window is timed from the first frame and
+        # must close on schedule whether or not this frame is usable.
+        self._restart_rebind_clock(now, out)
 
         # 0. Is this frame even OF the camera? -----------------------------------
         # A screen-region capture silently returns whatever window overlaps the target.
@@ -450,6 +656,9 @@ class VisionPipeline:
                 ))
             else:
                 self.stats.candidates += 1
+
+        # 5b. A car still parked through a producer restart continues its visit ----
+        self._restart_rebind_pass(now, out)
 
         # 6. Entry evidence: the ONLY way to become an arrival -------------------
         for t in list(self.tracks.tracks.values()):
@@ -569,6 +778,7 @@ class VisionPipeline:
                         layout_epoch=_layout_epoch,
                     )
             self._track_visit.pop(t.track_id, None)
+            self._object_alias.pop(t.track_id, None)
 
         # 8b. Fragment expiry runs EVERY step, not only inside `adopt()`. Overnight a
         # producer has deaths and no new arrivals, so an expiry that only fired on adopt
@@ -586,7 +796,10 @@ class VisionPipeline:
         d = self.stats.to_dict()
         d["openVisits"] = len(getattr(self.tracker, "open_visits", lambda: [])())
         d["occupiedBays"] = self.bays.occupied_bays()
-        d["falseArrivalsFromPreexisting"] = 0  # structural: preexisting never reaches visitd
+        # Structural: a preexisting track never reaches visitd as an ARRIVAL. The one way it
+        # reaches visitd at all is continuing a restored visit (invariant 7), which emits no
+        # `new` and is counted apart in `restart_continuations`.
+        d["falseArrivalsFromPreexisting"] = 0
         # Refusals included: a stitcher that never stitches and a stitcher that merges
         # everything both show up as "stitched" alone, and they need opposite fixes.
         d["stitch"] = self.stitch.to_dict()
