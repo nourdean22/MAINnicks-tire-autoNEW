@@ -571,6 +571,19 @@ export async function handleRunMigrations() {
       `ALTER TABLE conversation_episodes ADD COLUMN IF NOT EXISTS triggeredAt TIMESTAMP NULL`,
       `ALTER TABLE conversation_episodes ADD COLUMN IF NOT EXISTS sttModel VARCHAR(128) NULL`,
       `CREATE INDEX IF NOT EXISTS idx_conversation_camera_started ON conversation_episodes (cameraSerial, startedAt)`,
+      // 2026-10-07 - camera_runtime rolling-window plausibility counters (matches drizzle/0144 +
+      // schema.ts). The vehicle lane reports what the detector SAW in the last 10/60 min, the
+      // office worker what the last hour of listening looked like. NULL = not reported, 0 = looked
+      // and found none. The heartbeat route intersects its column list with INFORMATION_SCHEMA, so
+      // a late apply drops only these fields instead of rejecting every camera heartbeat.
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS detectionsLast10m INT NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS portalCrossingsLast60m INT NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationListeningCoverage60m DECIMAL(5,4) NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationCaptureSecondsLast60m INT NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationCapturesLast60m INT NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationCaptureFailuresLast60m INT NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationWakeTriggersLast60m INT NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationTranscribeBacklog INT NULL`,
       // 2026-09-23 · candidates recruiting funnel (matches drizzle/0129 + schema.ts). All
       // nullable, all IF NOT EXISTS. createCandidate falls back to the pre-0129 columns on
       // ER_BAD_FIELD_ERROR, so deploy order does not matter; until this runs, intent and

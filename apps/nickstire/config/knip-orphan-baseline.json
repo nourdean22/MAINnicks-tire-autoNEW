@@ -5930,6 +5930,36 @@
       "file": "apps/nickstire/shared/mediaModelRegistry.ts",
       "symbol": "MEDIA_MODEL_PROFILES",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. mediaModelRegistry.test.ts iterates it to enforce the license gate (UNKNOWN never production) and parity with apps/video-forge/forge/profiles.json, the runtime copy the GPU worker enforces — the parity check is the reason it must stay enumerable. Runtime consumer: getMediaProfile in the same module (generationLedger pricing, videoForgeClient profile resolution)."
+    },
+    {
+      "file": "apps/nickstire/server/lib/trafficClass.ts",
+      "symbol": "classifyUserAgent",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The deterministic UA verdict (automation markers; Safari 26+ with an iPhone OS token below 18 is impossible because iOS 26 freezes the token at 18_x). trafficClass.test.ts imports it to pin both the fleet signature and the real-iPhone non-match. Runtime consumer: decideTrafficClass in the same module, reached from classifyTraffic on every /api/analytics/conversion beacon, so it is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/lib/trafficClass.ts",
+      "symbol": "buildRangeSet",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Turns provider CIDRs into merged unsigned IPv4 intervals + an IPv6 BlockList. trafficClass.test.ts and trafficClassWiring.test.ts import it to build known ranges (incl. a prefix above 128.0.0.0). Runtime consumer: refreshRanges in the same module, run daily on the beacon path, so it is live."
+    },
+    {
+      "file": "apps/nickstire/server/lib/trafficClass.ts",
+      "symbol": "inRangeSet",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Binary search over IPv4 intervals, IPv4-mapped IPv6 and BlockList for IPv6. trafficClass.test.ts imports it to pin range edges and the 2026-10-01 fleet IPs. Runtime consumer: decideTrafficClass in the same module, on every beacon, so it is live."
+    },
+    {
+      "file": "apps/nickstire/server/lib/trafficClass.ts",
+      "symbol": "decideTrafficClass",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The pure decision: UA verdict first, datacenter on a range hit, human ONLY when every source loaded, else unknown. trafficClass.test.ts imports it because the only other route is classifyTraffic's network-backed cache. Runtime consumer: classifyTraffic in the same module, called by POST /api/analytics/conversion, so it is live."
+    },
+    {
+      "file": "apps/nickstire/server/lib/trafficClass.ts",
+      "symbol": "parseProviderCidrs",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Extracts CIDRs from AWS/GCP/Azure/Oracle publication shapes. trafficClass.test.ts imports it to pin each shape without network. Runtime consumer: fetchSource in the same module, in the daily refresh, so it is live."
+    },
+    {
+      "file": "apps/nickstire/server/lib/trafficClass.ts",
+      "symbol": "__setTrafficRangesForTest",
+      "reason": "TEST SEAM. Replaces the cached range set and disables the background refresh so tests never fetch provider files. Imported only by trafficClassWiring.test.ts (drives the real Express route over node:http); it has no production caller by design."
     }
   ]
 }

@@ -41,7 +41,14 @@ import { z } from "zod";
 import { sql } from "drizzle-orm";
 
 import { maskPlate, normalizePlate, PLATE_MATCH_CLASSES } from "../lib/plate";
-import { deriveStateAtIngest } from "../lib/cameraHealth";
+import { deriveStateAtIngest, shopOpenAt } from "../lib/cameraHealth";
+import { isUnknownColumnError } from "../lib/dbErrors";
+import {
+  CAMERA_RUNTIME_COLUMNS_SINCE_0124,
+  heartbeatGuardedSetFor,
+  resetStorableHeartbeatColumns,
+  storableHeartbeatColumns,
+} from "../lib/heartbeatStorableColumns";
 import { cameraHealthProfileFor } from "../../shared/cameras";
 import { cameraProducerAuthority } from "./cameraProducerAuthority";
 
@@ -426,6 +433,14 @@ const heartbeatSchema = z.object({
   lastConversationCoverage: z.number().min(0).max(1).nullish(),
   conversationFailuresToday: z.number().int().min(0).nullish(),
   conversationLastError: z.string().max(500).nullish(),
+  // Office listening truth over the last hour (0144). NULL = the worker receipt predates
+  // these, or under five eligible minutes to judge. Never a guess.
+  conversationListeningCoverage60m: z.number().min(0).max(1).nullish(),
+  conversationCaptureSecondsLast60m: z.number().min(0).nullish(),
+  conversationCapturesLast60m: z.number().int().min(0).nullish(),
+  conversationCaptureFailuresLast60m: z.number().int().min(0).nullish(),
+  conversationWakeTriggersLast60m: z.number().int().min(0).nullish(),
+  conversationTranscribeBacklog: z.number().int().min(0).nullish(),
   calibrationVersion: z.string().max(32).nullish(),
   detectorName: z.string().max(128).nullish(),
   modelSha256: z.string().max(64).nullish(),
@@ -449,6 +464,13 @@ const heartbeatSchema = z.object({
   arrivalsAfterStitch: z.number().int().nullish(),
   stitchedTotal: z.number().int().nullish(),
   stitchRefusedAmbiguous: z.number().int().nullish(),
+  /**
+   * Rolling-window plausibility counters (0144). `lastInferenceAt` says the detector RAN;
+   * these say what it SAW. `nullish`, never defaulted: a producer that does not keep the
+   * window has not measured zero.
+   */
+  detectionsLast10m: z.number().int().min(0).nullish(),
+  portalCrossingsLast60m: z.number().int().min(0).nullish(),
 });
 export function parseHeartbeat(body: unknown) {
   return heartbeatSchema.safeParse(body);
@@ -474,6 +496,11 @@ export const HEARTBEAT_COLUMNS = [
   // still be dropped here, silently, because the write names these columns and nothing
   // else. Adding to the schema without adding here is a writer with no reader.
   "arrivalsAfterStitch", "stitchedTotal", "stitchRefusedAmbiguous",
+  // 0144 rolling windows: what the detector saw, and what the office worker heard.
+  "detectionsLast10m", "portalCrossingsLast60m",
+  "conversationListeningCoverage60m", "conversationCaptureSecondsLast60m",
+  "conversationCapturesLast60m", "conversationCaptureFailuresLast60m",
+  "conversationWakeTriggersLast60m", "conversationTranscribeBacklog",
 ] as const;
 
 /**
@@ -541,23 +568,9 @@ const HEARTBEAT_READ_BY_GUARDS = ["state", "heartbeatSeq", "producerInstanceId"]
  * the left-to-right rule and runs THIS string: restart applies, replay is a no-op, a
  * newer heartbeat applies, and `stateSince` moves only on a real state change.
  */
-export const HEARTBEAT_GUARDED_SET = (() => {
-  const guard = (c: string) => `\`${c}\` = IF(${HEARTBEAT_ACCEPT}, VALUES(\`${c}\`), \`${c}\`)`;
-  const readByGuards = new Set<string>(HEARTBEAT_READ_BY_GUARDS);
-  const plain = HEARTBEAT_COLUMNS.filter((c) => c !== "camera" && !readByGuards.has(c));
-  const acceptedAfterDiscriminators =
-    "(VALUES(`producerInstanceId`) = `producerInstanceId` AND VALUES(`heartbeatSeq`) >= `heartbeatSeq`)";
-  return [
-    ...plain.map(guard),
-    // Before `state`, or it compares the new state to itself and never fires.
-    `\`stateSince\` = IF(${HEARTBEAT_ACCEPT} AND VALUES(\`state\`) <> \`state\`, NOW(), \`stateSince\`)`,
-    guard("state"),
-    guard("heartbeatSeq"),
-    guard("producerInstanceId"),
-    // LAST: every HEARTBEAT_ACCEPT above must still see the pre-statement liveness clock.
-    `\`receivedAt\` = IF(${acceptedAfterDiscriminators}, NOW(), \`receivedAt\`)`,
-  ].join(", ");
-})();
+export const HEARTBEAT_GUARDED_SET = heartbeatGuardedSetFor(
+  HEARTBEAT_COLUMNS, HEARTBEAT_ACCEPT, HEARTBEAT_READ_BY_GUARDS,
+);
 
 const epoch = (d: Date | null | undefined): number | null => (d ? Math.floor(d.getTime() / 1000) : null);
 
@@ -604,10 +617,14 @@ export function registerCameraHeartbeatRoute(app: Express): void {
     if (!d) return res.status(503).json({ error: "database unavailable" });
 
     // The producer-side verdict. Liveness is trivially alive at the instant of receipt;
-    // the read side re-derives it with the real age.
+    // the read side re-derives it with the real age. The plausibility inputs ride along so
+    // a blind detector becomes a DEGRADED_VISION transition in camera_health_events with
+    // its own `stateSince` -- the episode the alert cron keys its one page on.
+    const nowEpoch = Math.floor(Date.now() / 1000);
+    const inferenceEpoch = epoch(b.lastInferenceAt);
     const verdict = deriveStateAtIngest({
       observedAtEdgeEpoch: epoch(b.observedAtEdge),
-      receivedAtEpoch: Math.floor(Date.now() / 1000),
+      receivedAtEpoch: nowEpoch,
       sourceConnected: b.sourceConnected ?? null,
       lastHealthyFrameAtEpoch: epoch(b.lastHealthyFrameAt),
       frameOk: b.frameOk ?? null,
@@ -618,6 +635,10 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       controlPlaneOk: b.controlPlaneOk ?? null,
       mediaPlaneOk: b.mediaPlaneOk ?? null,
       ptzHomeOk: b.ptzHomeOk ?? null,
+      detectionsLast10m: b.detectionsLast10m ?? null,
+      portalCrossingsLast60m: b.portalCrossingsLast60m ?? null,
+      inferenceAgeSeconds: inferenceEpoch === null ? null : Math.max(0, nowEpoch - inferenceEpoch),
+      shopOpen: shopOpenAt(),
       outboxDepth: b.outboxDepth ?? null,
       oldestOutboxAgeSeconds: b.oldestOutboxAgeSeconds ?? null,
       deadLetterDepth: b.deadLetterDepth ?? null,
@@ -683,6 +704,15 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       arrivalsAfterStitch: b.arrivalsAfterStitch ?? null,
       stitchedTotal: b.stitchedTotal ?? null,
       stitchRefusedAmbiguous: b.stitchRefusedAmbiguous ?? null,
+      detectionsLast10m: b.detectionsLast10m ?? null,
+      portalCrossingsLast60m: b.portalCrossingsLast60m ?? null,
+      conversationListeningCoverage60m: b.conversationListeningCoverage60m ?? null,
+      conversationCaptureSecondsLast60m:
+        b.conversationCaptureSecondsLast60m == null ? null : Math.round(b.conversationCaptureSecondsLast60m),
+      conversationCapturesLast60m: b.conversationCapturesLast60m ?? null,
+      conversationCaptureFailuresLast60m: b.conversationCaptureFailuresLast60m ?? null,
+      conversationWakeTriggersLast60m: b.conversationWakeTriggersLast60m ?? null,
+      conversationTranscribeBacklog: b.conversationTranscribeBacklog ?? null,
       state: verdict.state,
     };
 
@@ -696,12 +726,28 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       const prevList = (Array.isArray(prevRows) ? prevRows[0] : prevRows) as unknown as Array<Record<string, unknown>> | undefined;
       const prev = Array.isArray(prevList) && prevList.length ? prevList[0] : null;
 
-      const placeholders = HEARTBEAT_COLUMNS.map((c) => sql`${values[c]}`);
-      const result = await d.execute(sql`
-        INSERT INTO camera_runtime (${sql.raw(HEARTBEAT_COLUMNS.map((c) => `\`${c}\``).join(", "))}, \`receivedAt\`, \`stateSince\`)
-        VALUES (${sql.join(placeholders, sql`, `)}, NOW(), NOW())
-        ON DUPLICATE KEY UPDATE ${sql.raw(HEARTBEAT_GUARDED_SET)}
-      `);
+      // Only columns production HAS (lib/heartbeatStorableColumns.ts): a hand-applied
+      // migration that is late drops its new fields, logged once, instead of rejecting
+      // every camera heartbeat until it lands.
+      const upsert = async () => {
+        const columns = await storableHeartbeatColumns(d, HEARTBEAT_COLUMNS, CAMERA_RUNTIME_COLUMNS_SINCE_0124);
+        const placeholders = columns.map((c) => sql`${values[c]}`);
+        return d.execute(sql`
+          INSERT INTO camera_runtime (${sql.raw(columns.map((c) => `\`${c}\``).join(", "))}, \`receivedAt\`, \`stateSince\`)
+          VALUES (${sql.join(placeholders, sql`, `)}, NOW(), NOW())
+          ON DUPLICATE KEY UPDATE ${sql.raw(heartbeatGuardedSetFor(columns, HEARTBEAT_ACCEPT, HEARTBEAT_READ_BY_GUARDS))}
+        `);
+      };
+      let result: unknown;
+      try {
+        result = await upsert();
+      } catch (err) {
+        // The catalog said a column existed and the write disagreed (a column dropped, or a
+        // cache from before a rollback). Ask again, once, rather than rejecting the heartbeat.
+        if (!isUnknownColumnError(err)) throw err;
+        resetStorableHeartbeatColumns();
+        result = await upsert();
+      }
       const info = (Array.isArray(result) ? result[0] : result) as { affectedRows?: number } | undefined;
       const accepted = Number(info?.affectedRows ?? 0) !== 0;
       // Read back the elected owner. `affectedRows` can be zero for an identical heartbeat,

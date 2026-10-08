@@ -1876,10 +1876,10 @@
       "operationalState": "live_verified",
       "codeState": "merged",
       "exposure": "production",
-      "lastVerifiedAt": "2026-09-15",
+      "lastVerifiedAt": "2026-10-07",
       "evidence": {
         "codeCommit": "ad38f7878 (#2330): shared/webExperiments.ts (one primary variable, contract-bound), shared/experimentKernel.ts (two-sample mSPRT always-valid p, chi-square SRM, guardrail refusal, min 50 exposed sessions per arm), client/src/hooks/useWebExperimentArm.ts (deterministic assignment, exposure logged once), server/cron/jobs/webExperimentResolve.ts (re-derives every arm server-side from the session id, drops mismatches, >5% rejected = invalid_design, PROPOSE-ONLY over Telegram + the evidence ledger). f41664165: the H4 claim now rests on its verdict event by index (sourceEventIndexes) and the ledger caps the bridge key at H4 as CRON.",
-        "liveRuns": "2026-09-15: flag web_experiment_home_hero_subline_2026_09 flipped ON via /api/admin/flags/toggle and re-read true; GET https://nickstire.org/api/trpc/experiments.active -> {active:['home-hero-subline-2026-09']}. Read-only DB probe under railway run at 14:02 UTC: 20 experiment_exposure rows / 12 distinct sessions since 13:42 UTC, control 6 : variant 6 (eventData.element = experimentId, eventData.props.armId -- exactly the resolver's read path). A Browser-pane visit rendered the control subline and produced a control exposure row (positive control).",
+        "liveRuns": "2026-10-07 RE-VERIFIED from production runtime evidence (Railway deploy logs, service MAINnicks-tire-auto, module cron:web-experiment-resolve): the resolver evaluated home-hero-subline-2026-09 every day 2026-09-30..10-06 at ~13:31 UTC, latest 2026-10-06T13:32:07Z status keep_running, visitors 3659 accepted 3659 rejected 0, control 1802 exposures vs variant 1857, contractHash 657350d2c1e4b905; GET https://nickstire.org/api/trpc/experiments.active -> {active:[home-hero-subline-2026-09]} on 2026-10-07. Daily new visitors fell 157, 74, 107, 46, 13, 10 (2026-10-01..10-06); traced the same day: NOT a human-traffic drop. Railway HTTP logs 2026-10-01 20:34-23:59 UTC show 203 non-Sentry GET / from only 21 IPs, the top IPs (4.155.134.61, 20.106.183.55, 128.203.189.244, 20.168.93.88, 172.212.171.146: Microsoft Azure ranges) at exactly 21 loads each with spoofed UAs (iPhone OS 16_0 paired with Safari Version/26.6, an impossible combo; X11 Linux Chrome), and they fired /api/analytics/conversion (>=501 POSTs from 92 IPs that day vs 40 on 10-06). The fleet stopped ~10-04, so the exposure counts above are bot-dominated (see blocker). 2026-09-15: flag web_experiment_home_hero_subline_2026_09 flipped ON via /api/admin/flags/toggle and re-read true; GET https://nickstire.org/api/trpc/experiments.active -> {active:['home-hero-subline-2026-09']}. Read-only DB probe under railway run at 14:02 UTC: 20 experiment_exposure rows / 12 distinct sessions since 13:42 UTC, control 6 : variant 6 (eventData.element = experimentId, eventData.props.armId -- exactly the resolver's read path). A Browser-pane visit rendered the control subline and produced a control exposure row (positive control).",
         "limits": "The resolver never writes a flag or copy; a verdict is a Telegram proposal + a ledger claim. No winner before 50 exposed sessions per arm. CALIBRATED 2026-09-15 on this kernel (shared/experimentKernelCalibration.ts; re-run any time with `pnpm calibrate:kernel`, 2,000 seeded runs, ~100 exposed sessions/day): A/A any-peek false positives 1.3% over 30 daily reads and 2.2% over 90 (alpha 5%; a naive peeked z-test measures 26.1% / 34.1%); power at base 5% is 30.5% for +2pp, 67.8% for +3pp, 98.7% for +5pp with 0 wrong-arm declarations; a 60/40 randomiser is refused as invalid_design in 100% of runs. The SRM alarm is also peeked daily; under the original per-look p<0.001 it falsely refused a BALANCED split in 1.45% of 30-day runs. Fixed the same day from the harness's own sweep (floor x alpha, 2,000 seeded runs each): DEFAULT_SRM_ALPHA is now 1e-4, false refusal 0.05%, a 60/40 randomiser still refused in 100% of runs, a mild 55/45 in 95.1% (was 98.4%); the old alpha is kept as a CONTROL in the test so the defect stays reproducible. An H4 claim from this cron therefore rests on a rule whose validity is measured, not cited; the GrowthBook cross-check named in docs/UPSTREAMS.md was RUN 2026-09-15 (scripts/proof/growthbook-crosscheck.py over `pnpm calibrate:kernel -- --stream <scenario> 500`; gbstats 0.8.0 SequentialTwoSidedTTest, absolute difference, alpha 0.05, tuning 5000, same daily counts, same stopping-rule shape): A/A false positives 0.8% vs 0.8% on the SAME 4 of 500 runs, +3pp power 66.8% vs 66.6% (99.8% per-run agreement), +5pp 98.4% vs 98.6% (99.8%), wrong arm 0% for both, median declaration day equal; on a 60/40 randomiser the kernel refuses 100% of runs while gbstats (no design gate) would declare 1% -- reported in its own bucket, not compared. The exported streams carry the kernel's REAL per-day verdict (every gate), the script self-tests (agree / disagree / refused fixtures + a mutation guard, scripts/proof/test_growthbook_crosscheck.py) and refuses any gbstats but 0.8.0. The kernel's H4 stands on an external engine's agreement, not on its own citation.",
         "productionMeasurement": "Daily resolver cron registered (CRON-INVENTORY.md web-experiment-resolve); no verdict yet (n < 50 per arm on 2026-09-15).",
         "tests": [
@@ -1890,7 +1890,14 @@
         ],
         "deploymentId": "railway MAINnicks-tire-auto main auto-deploy of dd61b8a1d (#2334), health deploy.commit == sha verified by the proof workflow run 34983700370"
       },
-      "verificationExpiresAt": "2026-10-06"
+      "verificationExpiresAt": "2026-10-28",
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Exposure + conversion counts are dominated by a datacenter bot fleet (Azure IPs, spoofed mobile/desktop UAs, ~21 page loads per IP) that executes JS and fires experiment_exposure + page_cta_primary_clicked; /api/analytics/conversion has no bot or datacenter filtering, so a verdict from this resolver is not trustworthy until exposures are filtered. Plumbing is live; measurement validity is not. UPDATE 2026-10-07: filter BUILT (server/lib/trafficClass.ts tags each beacon human/datacenter/ua_inconsistent/automation/unknown from provider-published IP ranges + UA rules; the resolver's exposure and conversion queries exclude non-human rows). Not yet production-proven, and rows written before the deploy carry no tag and are still counted. UPDATE 2026-10-07 14:19Z: filter DEPLOYED (0bf912f8, health deploy.commit verified; prod log 'datacenter ranges loaded' prefixes 115811 complete true failed []; the fleet was still firing beacons from Azure 172.174.190.227 with the impossible iOS 16 / Safari 26.6 UA at deploy time). Operator decided 2026-10-07 to RESTART the counting window: shared/webExperiments.ts preregisteredAt is now 2026-10-07T14:30:00Z (same experimentId, so arm assignment is unchanged). Clears when the first post-restart resolver run (~13:32Z daily) shows exposure counts in line with human traffic rather than the fleet's beacon volume.",
+          "source": "2026-10-07 production HTTP-log trace (Railway)"
+        }
+      ]
     },
     {
       "capabilityId": "proof-hidden-holdout-and-time-machine",
@@ -2678,7 +2685,7 @@
       "name": "Counter conversation episodes are shown to operators as evidence-backed summaries with transcript-quality and candidate-link uncertainty",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "PR #2686 established the Admin > Lot counter-conversation cockpit. PR #2704 branch camera/summary-first-audio-source-20260927 hardens the same capability: office capture is source-agnostic (RTSP or Windows DirectShow mic), event-woken capture carries the source format end-to-end, and stored summaries are synthesized only from accepted provenance-backed facts; free-form LLM summary prose is ignored.",
+        "codeCommit": "PR #2686 established the Admin > Lot counter-conversation cockpit. PR #2704 branch camera/summary-first-audio-source-20260927 hardens the same capability: office capture is source-agnostic (RTSP or Windows DirectShow mic), event-woken capture carries the source format end-to-end, and stored summaries are synthesized only from accepted provenance-backed facts; free-form LLM summary prose is ignored. PR #2920 (2026-10-07, commit ab6e55fa) makes the office worker's heartbeat survive locked SQLite reads, reports transcript failures as failures, decouples capture from transcription and adds listening-coverage counters to the office heartbeat.",
         "tests": [
           "server/lib/conversationQuality.test.ts: JSON boundary, interval-union coverage, unknown-vs-zero coverage, clip clamping",
           "server/routes/conversationRoutes.test.ts: coverage/failure gates plus speaker grouping reaches the fact extractor and speakerCount returns without identity semantics",
@@ -2687,7 +2694,12 @@
           "camera-bridge/tests/test_office_capture_installer.py: installer preserves generic source variables, DirectShow preflight path, and interactive-user task semantics",
           "Local 2026-09-27: focused office suite 66/66; full camera-bridge suite 737 passed, 2 skipped, 112 subtests"
         ],
-        "liveRuns": []
+        "liveRuns": [
+          "2026-09-29 17:35:54Z first automatic production receipt on NicksMax against NICKS EUCLID: wake on audioActivity (probe mean -48.2 dBFS, peak -27.1 dBFS), bounded capture, segmentation, local whisper, 5 episodes posted (coverages 1.000/0.911/0.919/0.742/0.167), summaries_stored=1, facts_stored=1, STT latency 25,086 ms (docs/CURRENT-TRUTH.md, Office Intelligence runtime).",
+          "2026-10-03 NicksMax transcript audit: 15 live office episodes in conversation_episodes, 0 facts, 0 dropped facts; the two substantial transcripts were incoherent (ggml-base.en-q5_1 on the i5-5350U). Decoder switched to ggml-large-v3-turbo-q5_0 at 10:12 ET (WhisperCpp/switch-to-turbo.log).",
+          "2026-10-07 camera audit (docs/agent-audit/CAMERA-INTELLIGENCE-AUDIT-2026-10-07.md): the Eufy bridge /record/T8410P5225154105 has been the live audio source since 2026-09-29 (Chrome, the Eufy web UI and the Windows microphone are not dependencies); with large-v3-turbo each 120 s capture transcribes in 226-600 s (two 600 s timeouts), so the lane hears about 8% of the day. Latency, not extraction, is the binding constraint."
+        ],
+        "deploymentId": "Railway MAINnicks-tire-auto deployment e146fe72-dce4-436a-9050-d9b9e5affc95 (main aa76a73, #2899, SUCCESS 2026-10-02T20:27:59Z) carries the /api/conversation-episodes ingest and the Admin > Lot cockpit read path and logged 10 of 10 framed episodes stored that evening; the 2026-09-29 first automatic receipt ran on the #2786-era production container, whose deployment id CURRENT-TRUTH did not record."
       },
       "blockers": [
         {
@@ -2697,18 +2709,18 @@
         },
         {
           "severity": "P2",
-          "description": "No stable production office audio source is commissioned yet. Eufy office media is intermittent on the current remote bridge; the new DirectShow counter-mic path is deployable but not physically installed/proven at the shop.",
-          "source": "2026-09-27 live Eufy A/B probe + PR #2704"
-        },
-        {
-          "severity": "P2",
           "description": "Diarization metadata is contract-ready but no live WhisperX/pyannote producer has been commissioned on the shop capture runtime. speakerCount and speaker labels may remain NULL/absent until that happens.",
           "source": "2026-09-26 camera workstream"
         },
         {
           "severity": "P2",
-          "description": "Transcription quality, not extraction, is the binding constraint. Measured 2026-10-03: 15 office episodes, 0 facts, 0 dropped facts; the two substantial transcripts were incoherent whisper output (ggml-base.en-q5_1 on the shop PC's i5-5350U) and a repetition loop that scored 0.855 coverage and published a gist. This branch refuses looped transcripts server-side and adds -mc 0 to the bridge transcriber; the bridge change is unproven until NicksMax runs the updated officepost.py. Ollama Cloud cannot transcribe (gemma4:cloud and gemma4:31b-cloud are text+image only; Gemma 4 audio exists only in the local E2B/E4B edge models, checked 2026-10-03). Benchmarked on NicksMax on one real 15s clip with -mc 0: base.en 9s, small.en 26s, medium.en ~76s, large-v3-turbo-q5_0 ~82s; turbo was the most coherent, but all four disagreed, so the distant Eufy camera mic is itself a limit. All three models are downloaded to the WhisperCpp dir; switching OFFICE_WHISPER_MODEL needs an elevated shell plus a restart of StateNour-OfficeIntelligence-NicksMax.",
-          "source": "2026-10-03 NicksMax transcript audit + branch nickstire/voice-arrival-and-facts"
+          "description": "2026-10-07 update: the decoder has been ggml-large-v3-turbo-q5_0 since 2026-10-03 10:12 ET, so the binding constraint is now latency (226-600 s per 120 s capture, about 8% listening coverage); the -mc 0 bridge change is still unproven until NicksMax pulls. Original 2026-10-03 note: Transcription quality, not extraction, is the binding constraint. Measured 2026-10-03: 15 office episodes, 0 facts, 0 dropped facts; the two substantial transcripts were incoherent whisper output (ggml-base.en-q5_1 on the shop PC's i5-5350U) and a repetition loop that scored 0.855 coverage and published a gist. This branch refuses looped transcripts server-side and adds -mc 0 to the bridge transcriber; the bridge change is unproven until NicksMax runs the updated officepost.py. Ollama Cloud cannot transcribe (gemma4:cloud and gemma4:31b-cloud are text+image only; Gemma 4 audio exists only in the local E2B/E4B edge models, checked 2026-10-03). Benchmarked on NicksMax on one real 15s clip with -mc 0: base.en 9s, small.en 26s, medium.en ~76s, large-v3-turbo-q5_0 ~82s; turbo was the most coherent, but all four disagreed, so the distant Eufy camera mic is itself a limit. All three models are downloaded to the WhisperCpp dir; switching OFFICE_WHISPER_MODEL needs an elevated shell plus a restart of StateNour-OfficeIntelligence-NicksMax.",
+          "source": "2026-10-03 NicksMax transcript audit + 2026-10-07 camera audit"
+        },
+        {
+          "severity": "P2",
+          "description": "Listening coverage is about 8% of the day (measured 2026-10-07: transcription runs 2-5x longer than the 120 s capture it follows). PR #2920 decouples capture from transcription so coverage no longer waits on whisper, but transcript throughput is unchanged; reverting OFFICE_WHISPER_MODEL to base.en (9 s per 15 s clip, less coherent) or adding CPU is an operator decision, recorded as open in ADR-0022.",
+          "source": "2026-10-07 camera audit"
         }
       ],
       "deferredScope": [
@@ -2718,10 +2730,11 @@
         "outside-service visual classification",
         "live-video viewing in Admin (not required for the summary-first product)"
       ],
-      "lastVerifiedAt": "2026-09-27",
+      "lastVerifiedAt": "2026-10-07",
       "codeState": "merged",
-      "operationalState": "unit_verified",
-      "exposure": "internal"
+      "operationalState": "live_verified",
+      "exposure": "internal",
+      "verificationExpiresAt": "2026-11-06"
     },
     {
       "capabilityId": "camera-role-aware-health",
@@ -2744,7 +2757,9 @@
           "After the persisted Eufy bridge recovered auth=ok / pushConnected=true / sessionLost=false, office transitioned AUTH_DEGRADED -> MEDIA_DEGRADED instead of falsely going green.",
           "Persistent NattyNour observer advanced one stable office producer sequence through at least seq 15 while remaining MEDIA_DEGRADED; it deliberately runs with EUFY_CONTROL_ENABLED=0 on the wrong LAN.",
           "Production camera_runtime readback: office mode=SHADOW, sourceConnected=1, authPlaneOk=1, eventPlaneOk=1, mediaPlaneOk=0, controlPlaneOk=NULL, ptzHomeOk=NULL; lastEventProofAt/lastControlProofAt/lastMediaProofAt/lastPtzNotifyAt all NULL at read time. Fixed sign remained independent in PRODUCTION.",
-          "2026-09-27 18:16Z production alert receipt: sign transitioned HEALTHY -> CLOUD_BACKLOG and camera-health-alerts claimed the page. Resend rejected both attempts because nickstire.org was unverified; the log-only notifyOwner fallback was correctly rejected as external delivery; the claim was released and the job failed retryably. This proves detection/claim/retry behavior live, not owner delivery."
+          "2026-09-27 18:16Z production alert receipt: sign transitioned HEALTHY -> CLOUD_BACKLOG and camera-health-alerts claimed the page. Resend rejected both attempts because nickstire.org was unverified; the log-only notifyOwner fallback was correctly rejected as external delivery; the claim was released and the job failed retryably. This proves detection/claim/retry behavior live, not owner delivery.",
+          "2026-09-29 00:19:11Z office seq=1 transitioned MEDIA_DEGRADED -> UNVERIFIED_CAPABILITIES with mode=PRODUCTION against NICKS EUCLID (T8410P5225154105) after the target fix; corrected heartbeats reached seq=16 by 00:28:15Z. The 2026-09-27 mode=SHADOW readback above is historical.",
+          "2026-10-07 camera audit (Railway camera heartbeats read live): sign HEALTHY on the Session-0 lane and office UNVERIFIED_CAPABILITIES, independently, as designed. Also found: day-keyed alert claims paged 'Office PTZ degraded' and 'Shop sign recovered' every midnight ET and stayed silent on a second failure inside one day, and two interleaved office heartbeat owners (duplicate Eufy agents) posted since 2026-10-03. PR #2920 re-keys alerts per episode with a 30-minute cooldown and dedupes agents in the supervisor; both unit-verified, live proof pending the merge and a NicksMax git pull."
         ],
         "databaseAssertions": [
           "Migration 0134 hash 108091f416b2b91e279ad9cbde3e781864d8a343a35410271b81ac55806686ab applied via scoped production DB guard; INFORMATION_SCHEMA re-read verified five nullable tinyint(1) transport flags + four nullable timestamp proof fields; __drizzle_migrations recorded created_at=1789301500000; strict reconciliation reports 0134 RECORDED_AND_MATCHED."
@@ -2753,8 +2768,8 @@
       "blockers": [
         {
           "severity": "P2",
-          "description": "Office T8410 P2P control/media is still not physically proven. NattyNour can authenticate and receive push state but is off the camera LAN; final bridge/control/media host must run on the shop-side Windows peer DESKTOP-VBAHM60 (or an explicitly engineered subnet route).",
-          "source": "2026-09-27 live office heartbeat + prior StationUnreachableError/P2P timeout receipts"
+          "description": "Office T8410 (NICKS EUCLID) media is proven (2026-09-29 mediaPlaneOk=true probe from NicksMax; 2026-10-02 /snapshot 200 image/jpeg from the NicksMax bridge). Control/PTZ is still unproven and intentionally disabled (EUFY_CONTROL_ENABLED=0), so office sits in UNVERIFIED_CAPABILITIES by design; the daily midnight 'Office PTZ degraded' page that produced is removed by PR #2920's per-episode alert keys (unit-verified, live proof pending).",
+          "source": "2026-09-29 media probe + 2026-10-02 snapshot + 2026-10-07 camera audit"
         },
         {
           "severity": "P2",
@@ -2778,10 +2793,48 @@
         "signed-in visual Admin > Lot walkthrough",
         "first provider-accepted production camera-health degradation alert + recovery delivery receipt after #2715 (or verified Resend DNS)"
       ],
-      "lastVerifiedAt": "2026-09-27",
-      "verificationExpiresAt": "2026-10-27",
+      "lastVerifiedAt": "2026-10-07",
+      "verificationExpiresAt": "2026-11-06",
       "codeState": "merged",
       "operationalState": "live_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "lot-truth-plausibility-20261007",
+      "name": "Lot page and camera alerts say what the counts rest on: blind-detector canary, trust strip, complete floor board, drive-by-free counters, per-episode paging",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "PR #2920 candidate (branch claude/dreamy-newton-0iob20), camera audit 2026-10-07 items B2 + C1-C5. server/lib/cameraHealth.ts adds the `vision` facet (seeing / blind / quiet / unknown) from the 0144 window counters and derives DEGRADED_VISION when the detector ran inside the 10-minute window, saw no vehicle for 10 minutes, no car crossed the portal for 60 minutes and the shop is open (BUSINESS hours via shared/shopState businessState); `unknown` never blocks HEALTHY so a pre-0144 edge is not paged UNVERIFIED. server/lib/heartbeatStorableColumns.ts cameraRuntimeHasColumns gates every SELECT of the 0144 columns (lot.health, camera-health-alerts) on INFORMATION_SCHEMA so the hand-applied migration cannot red a reader. routers/lot.ts `now` excludes PASS_THROUGH from arrivalsToday / departuresToday / leftWithoutBay, counts episodes (COUNT DISTINCT COALESCE(episodeId, visitId)) and ships passThroughsToday beside them. services/cameraHealthAlertPolicy.ts keys each claim per episode (stateSince, or the last heartbeat for STALE / PRODUCER_OFFLINE), writes fired_for as the episode's shop day so midnight changes nothing, holds (never drops) pages inside a 30-minute cooldown, keys a recovery on the episode it closes, and does not call a blind camera recovered because the shop closed. shared/cameraFleetHealth.ts treats a worker self-report older than 120 s as STALE. shared/lotDataConfidence.ts judges today's counts OK / LOW / UNKNOWN against the hourly baseline and the sign camera. client LotSection renders a trust strip (sign camera, counts verdict, floor-board completeness, office listening coverage, last event), a 'Not watching' badge whenever the sign camera is not HEALTHY, a floor board read of OPEN visits (limit 200, 'N more' disclosed), 'Bay status unknown' instead of 'All bays clear.' under a non-watching camera, the identity tiles hidden with their reason while all five are zero, the office worker as UNKNOWN with its dated last report when stale, the six listening fields and the two detector-window fields, and escapes for the fourteen separators that rendered as mojibake.",
+        "tests": [
+          "apps/nickstire/server/lib/cameraHealth.test.ts: the canary fires only for ran-in-window + zero detections + zero crossings + shop open; quiet for a shut gate, a recent crossing or closed hours; unknown never blocks HEALTHY; precedence under liveness / source / frames / frozen capture; the PTZ camera is not judged; the ingest derivation carries it; shopOpenAt against BUSINESS hours including Sunday",
+          "apps/nickstire/server/cameraHealthAlerts.test.ts: episode selection per state class, claim key and fired_for stable across midnight, two outages are two claims, legacy day-scoped fallback, key length within VARCHAR(100), cooldown holds rather than drops, blind-then-closed is not a recovery, service source wiring",
+          "apps/nickstire/server/routes/cameraVisitsRoutes.storable.test.ts: cameraRuntimeHasColumns true / false / unreadable, and it shares the writer's catalog read inside the TTL",
+          "apps/nickstire/shared/cameraFleetHealth.test.ts: a READY self-report older than 120 s degrades the fleet; a fresh one and an unaged one do not",
+          "apps/nickstire/shared/lotDataConfidence.test.ts: the 2026-10-05 shape (4 arrivals by 15:00 on a 28-expected baseline) is LOW in words; a normal morning is OK; a non-HEALTHY sign camera is UNKNOWN never LOW; failed reads are UNKNOWN; fewer than two earlier days is UNKNOWN; early in the day is UNKNOWN; a drive-by majority is LOW; five drops is LOW; positive control",
+          "apps/nickstire/server/lotCardFieldDrift.test.ts: the two detector-window fields and the six listening fields the router now returns reach the Lot page"
+        ],
+        "liveRuns": "NONE yet. Not deployed. The 0144 columns are NULL in production until drizzle/0144 is applied, and the NicksMax edge must pull before it reports detectionsLast10m / portalCrossingsLast60m; until both, the canary reads `unknown` (which never blocks HEALTHY) and the strip says the window is not stored."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "drizzle/0144 is not applied in production. Readers select the window columns only once INFORMATION_SCHEMA shows them; the writer drops only those eight fields until then.",
+          "source": "PR #2920 candidate, 2026-10-07"
+        },
+        {
+          "severity": "P2",
+          "description": "No signed-in Admin > Lot walkthrough of the trust strip, the 'Not watching' badge wording, the floor board's 'N more' line or the office worker's stale-report line yet (deferred in .completion/evidence.d/claude-dreamy-newton-0iob20.json).",
+          "source": "PR #2920 candidate, 2026-10-07"
+        }
+      ],
+      "deferredScope": [
+        "operator visit marks as ground truth for the plausibility baseline",
+        "daylight-aware detection thresholds",
+        "a per-camera health timeline beyond the shared 20-row transition list"
+      ],
+      "lastVerifiedAt": "2026-10-07",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
       "exposure": "internal"
     },
     {
@@ -3429,7 +3482,7 @@
           "camera-bridge vision/tests/test_officepeople.py (11): per-frame counts, unavailable/inference error/no cv2 -> null never 0, opt-out never loads, single load per process, label default vehicle, person detector cannot confirm arrivals; 9 mutations each caught",
           "camera-bridge vision/tests/test_officeframes.py (8) + test_officewake.py (+3): snapshot URL, sampler misses/closing frame/max, per-segment selection + thinning, OpenCV 1280->640 downscale, each episode carries its own frames, 120s post timeout with frames, capture failure stops the sampler; per-segment selection mutation turns red"
         ],
-        "liveRuns": "Pre-merge on NicksMax 2026-10-02: Eufy bridge /snapshot/T8410P5225154105 returned 200 image/jpeg 201,063 bytes; the supervisor's code-change rule restarted the office worker once at 14:16:15 ET and the worker reported CAPTURING with a fresh heartbeat. Live 2026-10-02: migration 0140 applied via Admin -> Run migrations at 18:52-18:53Z; NicksMax worker status lastConversationFramesPosted=1 at 19:35:48Z matching a 200 on POST /api/conversation-episodes; after PR #2899 (aa76a73, deployment e146fe72 SUCCESS 20:27:59Z) added a per-episode outcome log, Railway deploy logs show 10 of 10 framed episodes 20:29:51Z-20:54:36Z logging 'office visual stored' visualStatus DONE, provider ollama, model gemma4:31b, latency 539-1184 ms, error null, and zero 'office visual not stored' lines. On-box person count live 2026-10-02: person-detection-0200 fetched to NicksMax camera-bridge/ov_models (sha256 verified), office venv has openvino 2026.4 + cv2, a live snapshot counted 0 with no load error; after #2901 (781542d, deployment c4916064 SUCCESS, superseded by 3ceaf943 SUCCESS 21:48:21Z which contains it) 9 of 9 framed episodes 21:35:40Z-22:00:37Z logged 'office visual stored' with onBoxPeople a number (1,1,1,0,0,0,0,1,1), DONE, ollama gemma4:31b, 494-8537 ms, error null."
+        "liveRuns": "Pre-merge on NicksMax 2026-10-02: Eufy bridge /snapshot/T8410P5225154105 returned 200 image/jpeg 201,063 bytes; the supervisor's code-change rule restarted the office worker once at 14:16:15 ET and the worker reported CAPTURING with a fresh heartbeat. Live 2026-10-02: migration 0140 applied via Admin -> Run migrations at 18:52-18:53Z; NicksMax worker status lastConversationFramesPosted=1 at 19:35:48Z matching a 200 on POST /api/conversation-episodes; after PR #2899 (aa76a73, deployment e146fe72 SUCCESS 20:27:59Z) added a per-episode outcome log, Railway deploy logs show 10 of 10 framed episodes 20:29:51Z-20:54:36Z logging 'office visual stored' visualStatus DONE, provider ollama, model gemma4:31b, latency 539-1184 ms, error null, and zero 'office visual not stored' lines. On-box person count live 2026-10-02: person-detection-0200 fetched to NicksMax camera-bridge/ov_models (sha256 verified), office venv has openvino 2026.4 + cv2, a live snapshot counted 0 with no load error; after #2901 (781542d, deployment c4916064 SUCCESS, superseded by 3ceaf943 SUCCESS 21:48:21Z which contains it) 9 of 9 framed episodes 21:35:40Z-22:00:37Z logged 'office visual stored' with onBoxPeople a number (1,1,1,0,0,0,0,1,1), DONE, ollama gemma4:31b, 494-8537 ms, error null. 2026-10-07 camera audit: migration 0141 ('Heard:' gist) was applied 2026-10-03 01:24Z and Railway logs show gist true stored on most Oct 5-6 episodes; 5 Right/Wrong reviews were written 2026-10-02 23:38Z (visual.review) and their consumption in a later prompt is still unproven."
       },
       "blockers": [
         {
@@ -3439,20 +3492,15 @@
         },
         {
           "severity": "P2",
-          "description": "'Heard:' topic line (conversation_episodes.gist, migration 0141): merged + unit-verified only. Needs Admin -> Run migrations to apply 0141; until then the gist is computed and logged as a flag but not stored. Live proof: a 'conversation extracted' log line with gist true and a 'Heard:' line in Admin -> Lot.",
-          "source": "2026-10-02 office heard-gist PR"
-        },
-        {
-          "severity": "P2",
-          "description": "Self-learning (Right / Wrong reviews -> calibration notes in the vision prompt) and camera context in fact extraction are deployed but not yet exercised live: proof is a saved review row (visual.review) and a later episode described with it in the prompt. On-box person count is live-proven (see liveRuns).",
-          "source": "2026-10-02 office self-learning PR"
+          "description": "Self-learning: 5 Right/Wrong reviews are saved (2026-10-02 23:38Z, visual.review), but no later episode has yet been proven described with those calibration notes in its prompt. Camera context in fact extraction is deployed and unexercised. On-box person count is live-proven (see liveRuns).",
+          "source": "2026-10-02 office self-learning PR + 2026-10-07 camera audit"
         }
       ],
       "deferredScope": [
         "fine-tuning or retraining any model on reviewed frames (the loop is prompt calibration only; frames are never stored)"
       ],
-      "lastVerifiedAt": "2026-10-02",
-      "verificationExpiresAt": "2026-11-02"
+      "lastVerifiedAt": "2026-10-07",
+      "verificationExpiresAt": "2026-11-06"
     },
     {
       "capabilityId": "reel-video-forge-self-hosted",
@@ -3496,6 +3544,42 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled"
+    },
+    {
+      "capabilityId": "dvi-measurements-verification-0143",
+      "name": "DVI findings carry structured measurements graded by shop-guidance bands, up to 8 photos, and post-work verification (after-photos + after-measurements) that the customer page shows and the opportunity queue treats as completed work",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "deployed",
+      "exposure": "operator_only",
+      "evidence": {
+        "codeCommit": "Branch nickstire/dvi-measurements, commit b0414737 (2026-10-07) plus its completion commit; squash-merges via its PR. shared/inspectionMeasurements.ts is the ONE vocabulary: metric, unit, positions (tire corners as in tireTin, front/rear for brakes, fluid names), the grading bands (tread >=6 / 3-5 / <=2 of 32nds; pads >=7 / 4-6 / <=3 mm; rotor margin over minimum spec; battery >=12.4 / 12.0-12.39 / <12.0 V; CCA >=80% / 60-79% / <60% of rated; fluid good/fair/replace), zod schemas and the tolerant JSON decoders. drizzle/schema.ts + 0143 add measurementsJson, photoUrlsJson, verifiedAt, verifiedBy, verificationNote, verificationPhotoUrlsJson, verificationMeasurementsJson to inspection_items (nullable, no ENUM, one ALTER each). server/db.ts: selectInspectionItems retries with the pre-0143 column list on an unknown-column error; buildInspectionItemValues attaches the new keys only when supplied and mirrors the first photo into photoUrl; add/update report degraded='measurements_unavailable' when the table cannot hold the new keys; verifyInspectionItem refuses on a pre-0143 database. server/routers/services.ts: addItem/updateItem accept measurements + photoUrls through the shared schemas; verifyItem (admin) maps the refusal to PRECONDITION_FAILED. server/services/opportunityQueue.ts: summarizeInspectionForQueue excludes verified items; the collector's fallback chain drops verifiedAt then decision; the deferral reconciler tries the verifiedAt clause first. server/services/evidenceEngine.ts: the bare select() on inspection_items is pinned to explicit columns. client InspectionCapturePanel: Measurements block, multi-photo strip, Verify work mode. client InspectionReport: measurement chips, photo grid, Completed-and-verified block, decision buttons hidden for a verified item. No sends.",
+        "deploymentId": "railway main auto-deploy (#2921 squash 4ec2e338, live 2026-10-07 20:07 UTC); migration 0143 applied by the apply script as a one-off pre-deploy command on deployment 27df548b (commit 9b276127, 2026-10-07 22:17 UTC), command removed afterwards",
+        "tests": [
+          "shared/inspectionMeasurements.test.ts: every grading band pinned on both sides of its boundary; formatting per metric; schema rejects out-of-range, wrong-type and unknown metrics; metricsForCategory; tolerant decode of garbage JSON; photo list fallback and cap.",
+          "server/inspectionMeasurementsWiring.test.ts: value builder attaches 0143 keys only when supplied and mirrors the first photo; row decoder on a pre-0143 row, a verified row and garbage; verifyItem registered and validating; addItem rejects 40/32 tread and a ninth photo; a verified red item with no decision is not an open deferral.",
+          "server/services/opportunityQueue.test.ts: 0143 case — verified items are completed work whatever their decision (red on origin/main: openFlagged 2, now 0).",
+          "client/src/__tests__/inspection-report-verification.test.tsx: measurements, every photo and the verified block render; decision buttons gone for a verified item; an unverified item keeps them and shows the legacy single photo. Red on origin/main (2 of 2).",
+          "Neighbouring suites green on the new code: inspectionDecisionReceipt, inspectionDecisionReceiptLedger, publicServiceReadsFailClosed, trpc-auth-tier, migration-journal, admin (section matrix renders the rewritten panel), smoke — 11 files, 463 passed, 2026-10-07."
+        ],
+        "liveRuns": [
+          "2026-10-07 22:17:01 UTC — migration 0143 applied to production TiDB: scripts/migrations/apply-dvi-measurements.ts ran as a Railway pre-deploy command on deployment 27df548b (commit 9b276127, the prerender-refresh commit after the #2921 merge). Deploy-log receipt: '0143_dvi_measurements_verification: 7 columns added, 0 already present — all 7 verified'. The credential never left Railway (the session had no Railway CLI or DATABASE_URL; two plain redeploys skipped the pre-deploy hook, confirmed in their logs). The pre-deploy command was removed from the service afterwards. PR #2921 squash-merged as 4ec2e338 (CI 13 passed, 2 skipped by design) and live since 20:07 UTC."
+        ]
+      },
+      "lastVerifiedAt": "2026-10-07",
+      "verificationExpiresAt": "2027-01-07",
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Not yet exercised on production: no finding has carried a measurement and no item has been verified since 0143 landed (2026-10-07 22:17 UTC); rendering is pinned by tests only, not yet seen on the installed admin PWA or a customer's phone. The first real finding with a tread or pad measurement plus one verified approved item moves this to live_verified."
+        }
+      ],
+      "deferredScope": [
+        "a Telegram digest line when work is verified (a send; its own approved change)",
+        "an inspection.item_verified audit-log receipt like the one decisions already write (recordInspectionDecisionReceipt)",
+        "pairing before/after by metric + position on the customer page (today the after list renders under the before list)",
+        "an admin list of past inspections beyond the Verify work dropdown (inspection.list exists; no browse UI)"
+      ]
     }
   ],
   "axes": {

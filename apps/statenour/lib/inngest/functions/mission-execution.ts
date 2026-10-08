@@ -81,6 +81,7 @@ export const durableMissionExecution = inngest.createFunction(
               cached: report.cached ?? false,
               citationCount: report.allCitations.length,
               synthesisChars: report.synthesis?.length ?? 0,
+              synthesisStatus: report.synthesisStatus,
               synthesisHash: report.synthesis ? hashText(report.synthesis) : null,
             };
           });

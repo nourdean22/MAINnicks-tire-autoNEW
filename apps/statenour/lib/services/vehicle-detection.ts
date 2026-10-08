@@ -30,6 +30,23 @@ const log = logger.withSurface("services/vehicle-detection");
  *    camera), and a web-push with tag `arrival:<visit>` rides the existing
  *    PR #1740 flood control next to the Telegram edit-in-place message.
  *  · Nothing here is an LLM: every field is copied or computed.
+ *
+ * Hardened 2026-10-07 (camera audit, PR #2920):
+ *  · The row is written BEFORE the page, with `alertSuppressedReason: "pending"`
+ *    until the page completes. It used to be written after: a page sent and
+ *    then a failed INSERT (the route answers 5xx, the edge outbox retries)
+ *    found no row on the retry and paged again. Now a retry that finds the
+ *    marker still "pending" finishes the one page; a retry that finds it
+ *    cleared does nothing. The remaining window -- page sent, then the
+ *    marking UPDATE fails -- is one UPDATE wide instead of one Telegram call
+ *    plus one INSERT wide, and is logged as such.
+ *  · The eventId dedupe has a database behind it: a partial UNIQUE index on
+ *    (device_id, data->>'eventId') (migrations-pending/20261007120000_...).
+ *    Two retries that both pass the findFirst pre-check now race on the
+ *    INSERT; the loser's P2002 is answered with the winner's row.
+ *  · The visit window is 7 days, not 12 hours: a car dropped Friday evening
+ *    and finished Monday is ONE visit. The same migration adds the visitId
+ *    expression index that keeps that lookup cheap.
  */
 
 // The payload schema lives in vehicle-event-contract.ts (shared with the
@@ -51,8 +68,19 @@ const VEHICLE_STATES = [
 
 const QUIET_HOURS = { startHourET: 20, endHourET: 7 } as const;
 const COOLDOWN_SECONDS = 120;
-const VISIT_WINDOW_MS = 12 * 60 * 60 * 1000;
+/**
+ * How far back a `visitId` is looked up. Seven days, not twelve hours: the edge mints one
+ * visitId per episode and a car can legitimately sit over a weekend, so the window is a scan
+ * bound, not a business rule. The expression index on (device_id, data->>'visitId') in
+ * migrations-pending/20261007120000_device_events_identity_indexes keeps the lookup cheap.
+ */
+const VISIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const TRACK_WINDOW_MS = 10 * 60 * 1000;
+/**
+ * `alertSuppressedReason` while the row exists and its page has not completed. A retry that
+ * finds this knows the process died between INSERT and page, and finishes the page once.
+ */
+const ALERT_PENDING = "pending";
 /**
  * eventId idempotency spans the whole DeviceEvent retention (data-cleanup
  * deletes after 90 days): the edge outbox is durable and can legitimately
@@ -149,6 +177,78 @@ export async function handleVehicleEvent(deviceId: string, payload: unknown): Pr
 
   log.info("processing_vehicle_event", { deviceId, visitId, trackId, state, zone, hasPlate: Boolean(plate.text) });
 
+  const formatAlertText = (currentState: string, currentDwell: number, currentPlate: typeof plate) => {
+    let plateLine = "NONE";
+    if (currentPlate && currentPlate.status && currentPlate.status !== "NONE") {
+      const known = currentPlate.knownName ? ` ${currentPlate.knownName}` : "";
+      const stateStr = currentPlate.state ? ` (${currentPlate.state})` : "";
+      const textStr = currentPlate.text ? ` <b>${currentPlate.text}</b>` : "";
+      plateLine = `${currentPlate.status}${textStr}${known}${stateStr} [conf: ${Math.round((currentPlate.confidence || 0) * 100)}%]`;
+    }
+    const urgencyIcon = currentState === "CONFIRMED_ARRIVAL" ? "🚨" : "🚗";
+    const visitLine = visitKey ? `<b>Visit:</b> ${String(visitKey).slice(0, 12)}\n` : "";
+    return (
+      `${urgencyIcon} <b>Vehicle Arrival Intelligence</b>\n\n` +
+      `<b>Camera:</b> ${cameraName}\n` +
+      `<b>Zone:</b> ${zoneName}\n` +
+      `<b>Type:</b> ${label} (${Math.round(confidence * 100)}%)\n` +
+      `<b>State:</b> ${currentState}${data.estimated ? " (estimated)" : ""}\n` +
+      `<b>Dwell:</b> ${Math.round(currentDwell)}s\n` +
+      `<b>Plate:</b> ${plateLine}\n` +
+      visitLine +
+      `\n<i>Time: ${new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" })}</i>`
+    );
+  };
+
+  const buttons: InlineButton[][] = [[{ text: "📹 Open Camera Panel", url: COCKPIT_URL }]];
+
+  /**
+   * Page the operator for a row that ALREADY EXISTS, then clear its pending marker. The row
+   * comes first on purpose: a retry can then tell "paged" from "died before paging" by the
+   * marker, where a row written after the page could not tell either from "never happened".
+   */
+  const pageAndRecord = async (
+    rowId: string,
+    currentData: Record<string, unknown>,
+  ): Promise<{ telegramMessageId: string | null; text: string }> => {
+    const text = formatAlertText(state, dwellSeconds, plate);
+    log.info("sending_new_telegram_alert", { deviceId, cameraId, zone, state, rowId });
+    const res = (await sendTelegramWithButtons(text, buttons).catch((err) => {
+      log.error("failed_to_send_telegram", { error: err.message });
+      return { ok: false };
+    })) as { ok: boolean; messageId?: number };
+    const telegramMessageId = res.ok && res.messageId ? String(res.messageId) : null;
+    if (telegramMessageId) log.info("telegram_alert_sent", { messageId: telegramMessageId });
+
+    // Web push next to Telegram. Tagged per visit so PR #1740 flood control
+    // applies; a failure here never fails the ingest.
+    try {
+      await sendPush({
+        title: state === "CONFIRMED_ARRIVAL" ? "Vehicle arrived" : "Vehicle entering lot",
+        body: `${cameraName} · ${zoneName}${plate.text ? ` · ${plate.text}` : ""}`,
+        level: state === "CONFIRMED_ARRIVAL" ? "high" : "medium",
+        tag: `arrival:${visitKey ?? `${cameraId ?? deviceId}:${zone}`}`,
+        url: COCKPIT_URL,
+        data: { deviceId, visitId, trackId, state },
+      });
+    } catch (err) {
+      log.warn("arrival_push_failed", { error: err instanceof Error ? err.message : String(err) });
+    }
+
+    try {
+      await prisma.deviceEvent.update({
+        where: { id: rowId },
+        data: { data: { ...currentData, telegramMessageId, alertSuppressedReason: null } as Prisma.InputJsonObject },
+      });
+    } catch (err) {
+      // The one remaining double-page window: the page went out and the marker could not be
+      // cleared, so a retry of this eventId will page again. Say so where it can be found.
+      log.error("alert_marker_not_cleared", { rowId, eventId: event.eventId ?? null, error: err instanceof Error ? err.message : String(err) });
+      throw err;
+    }
+    return { telegramMessageId, text };
+  };
+
   // 0. Idempotency: a repeated eventId is a retry from the edge outbox.
   if (event.eventId) {
     const duplicate = await prisma.deviceEvent.findFirst({
@@ -161,6 +261,13 @@ export async function handleVehicleEvent(deviceId: string, payload: unknown): Pr
       orderBy: { createdAt: "desc" },
     });
     if (duplicate) {
+      const dupData = (duplicate.data as Record<string, unknown> | null) || {};
+      if (dupData.alertSuppressedReason === ALERT_PENDING) {
+        // The row landed and the page after it never completed: finish it, once.
+        log.info("duplicate_event_completing_alert", { deviceId, eventId: event.eventId, existing: duplicate.id });
+        await pageAndRecord(duplicate.id, dupData);
+        return duplicate.id;
+      }
       log.info("duplicate_event_ignored", { deviceId, eventId: event.eventId, existing: duplicate.id });
       return duplicate.id;
     }
@@ -190,31 +297,6 @@ export async function handleVehicleEvent(deviceId: string, payload: unknown): Pr
       orderBy: { createdAt: "desc" },
     });
   }
-
-  const formatAlertText = (currentState: string, currentDwell: number, currentPlate: typeof plate) => {
-    let plateLine = "NONE";
-    if (currentPlate && currentPlate.status && currentPlate.status !== "NONE") {
-      const known = currentPlate.knownName ? ` ${currentPlate.knownName}` : "";
-      const stateStr = currentPlate.state ? ` (${currentPlate.state})` : "";
-      const textStr = currentPlate.text ? ` <b>${currentPlate.text}</b>` : "";
-      plateLine = `${currentPlate.status}${textStr}${known}${stateStr} [conf: ${Math.round((currentPlate.confidence || 0) * 100)}%]`;
-    }
-    const urgencyIcon = currentState === "CONFIRMED_ARRIVAL" ? "🚨" : "🚗";
-    const visitLine = visitKey ? `<b>Visit:</b> ${String(visitKey).slice(0, 12)}\n` : "";
-    return (
-      `${urgencyIcon} <b>Vehicle Arrival Intelligence</b>\n\n` +
-      `<b>Camera:</b> ${cameraName}\n` +
-      `<b>Zone:</b> ${zoneName}\n` +
-      `<b>Type:</b> ${label} (${Math.round(confidence * 100)}%)\n` +
-      `<b>State:</b> ${currentState}${data.estimated ? " (estimated)" : ""}\n` +
-      `<b>Dwell:</b> ${Math.round(currentDwell)}s\n` +
-      `<b>Plate:</b> ${plateLine}\n` +
-      visitLine +
-      `\n<i>Time: ${new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" })}</i>`
-    );
-  };
-
-  const buttons: InlineButton[][] = [[{ text: "📹 Open Camera Panel", url: COCKPIT_URL }]];
 
   if (existingEvent) {
     log.info("updating_existing_event", { eventId: existingEvent.id, state });
@@ -283,67 +365,62 @@ export async function handleVehicleEvent(deviceId: string, payload: unknown): Pr
   const ageMs = Date.now() - timestamp.getTime();
   const staleReplay = ageMs > STALE_EVENT_MS;
 
-  let telegramMessageId: number | null = null;
-  let alertSuppressedReason: string | null = null;
-  let sentAlertText: string | undefined;
   const wantsAlert = ALERT_STATES.has(state);
-
+  let alertSuppressedReason: string | null = null;
   if (!isEnabled) alertSuppressedReason = "flag_off";
   else if (!wantsAlert) alertSuppressedReason = "state";
   else if (staleReplay) alertSuppressedReason = "stale_replay";
   else if (isCooldownActive) alertSuppressedReason = "cooldown";
   else if (quiet) alertSuppressedReason = "quiet_hours";
 
-  if (alertSuppressedReason === null) {
-    const text = formatAlertText(state, dwellSeconds, plate);
-    sentAlertText = text;
-    log.info("sending_new_telegram_alert", { deviceId, cameraId, zone, state });
-    const res = (await sendTelegramWithButtons(text, buttons).catch((err) => {
-      log.error("failed_to_send_telegram", { error: err.message });
-      return { ok: false };
-    })) as { ok: boolean; messageId?: number };
-
-    if (res.ok && res.messageId) {
-      telegramMessageId = res.messageId;
-      log.info("telegram_alert_sent", { messageId: telegramMessageId });
-    }
-
-    // Web push next to Telegram. Tagged per visit so PR #1740 flood control
-    // applies; a failure here never fails the ingest.
-    try {
-      await sendPush({
-        title: state === "CONFIRMED_ARRIVAL" ? "Vehicle arrived" : "Vehicle entering lot",
-        body: `${cameraName} · ${zoneName}${plate.text ? ` · ${plate.text}` : ""}`,
-        level: state === "CONFIRMED_ARRIVAL" ? "high" : "medium",
-        tag: `arrival:${visitKey ?? `${cameraId ?? deviceId}:${zone}`}`,
-        url: COCKPIT_URL,
-        data: { deviceId, visitId, trackId, state },
-      });
-    } catch (err) {
-      log.warn("arrival_push_failed", { error: err instanceof Error ? err.message : String(err) });
-    }
-  } else {
-    log.info("telegram_alert_skipped", { reason: alertSuppressedReason, state, isEnabled, isCooldownActive, quiet, ageMs });
-  }
-
+  // 4. THE ROW FIRST, then the page. Written with the pending marker when a page is due, so
+  //    a retry can tell a completed page from a process that died between the two.
   const eventData = {
     ...data,
     eventId: event.eventId ?? null,
     schemaVersion: event.schemaVersion ?? 1,
-    telegramMessageId: telegramMessageId ? String(telegramMessageId) : null,
-    alertSuppressedReason,
+    telegramMessageId: null,
+    alertSuppressedReason: alertSuppressedReason ?? ALERT_PENDING,
   };
 
-  const newEvent = await prisma.deviceEvent.create({
-    data: { deviceId, event: eventName, data: eventData as Prisma.InputJsonObject, source, timestamp },
-  });
+  let newEvent: { id: string };
+  try {
+    newEvent = await prisma.deviceEvent.create({
+      data: { deviceId, event: eventName, data: eventData as Prisma.InputJsonObject, source, timestamp },
+    });
+  } catch (err) {
+    // The unique index on (device_id, data->>'eventId') refused a second row for this
+    // eventId: a retry that passed the pre-check at the same moment as its twin. The twin
+    // owns the page; answer with its row.
+    if ((err as { code?: string }).code === "P2002" && event.eventId) {
+      const winner = await prisma.deviceEvent.findFirst({
+        where: { deviceId, event: eventName, data: { path: ["eventId"], equals: event.eventId } },
+        orderBy: { createdAt: "desc" },
+      });
+      if (winner) {
+        log.info("duplicate_event_lost_race", { deviceId, eventId: event.eventId, existing: winner.id });
+        return winner.id;
+      }
+    }
+    throw err;
+  }
+
+  let telegramMessageId: string | null = null;
+  let sentAlertText: string | undefined;
+  if (alertSuppressedReason === null) {
+    const paged = await pageAndRecord(newEvent.id, eventData);
+    telegramMessageId = paged.telegramMessageId;
+    sentAlertText = paged.text;
+  } else {
+    log.info("telegram_alert_skipped", { reason: alertSuppressedReason, state, isEnabled, isCooldownActive, quiet, ageMs });
+  }
 
   maybeLinkCustomer({
     eventId: newEvent.id,
     state,
     plate,
     existingData: {},
-    telegramMessageId: telegramMessageId ? String(telegramMessageId) : null,
+    telegramMessageId,
     alertText: sentAlertText,
     buttons,
   });

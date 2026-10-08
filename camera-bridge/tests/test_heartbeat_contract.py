@@ -150,6 +150,14 @@ def interaction_heartbeat_keys(module=None):
         "lastConversationCoverage": 0.91,
         "conversationFailuresToday": 0,
         "conversationLastError": "fixture-only prior error",
+        # 0144 listening windows. Present here so the contract proves the builder FORWARDS
+        # them and the shop STORES them -- a key missing from either side fails above.
+        "conversationListeningCoverage60m": 0.42,
+        "conversationCaptureSecondsLast60m": 1512,
+        "conversationCapturesLast60m": 13,
+        "conversationCaptureFailuresLast60m": 1,
+        "conversationWakeTriggersLast60m": 19,
+        "conversationTranscribeBacklog": 2,
     }
     payload = module.build_office_camera_heartbeat(
         auth_ok=True,

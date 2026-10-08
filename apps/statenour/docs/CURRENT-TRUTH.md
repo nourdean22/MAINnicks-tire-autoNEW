@@ -6,8 +6,9 @@
 
 - **Agent follow-ups: LIVE + PROVEN.** All three switches are on, and the 17:45Z run went through with no skip.
 - **Thinking engine: BUILT + WIRED, waiting on its first mega-evening run.** `/api/cron/think` (mega-evening, detached) writes `contradictions`, `identity_snapshots` and `causal_chains` again. identityDelta and the shop brief now age-gate those reads.
-- **NicksMax supervisor: LIVE.** It restarts the office conversation worker and the Eufy bridge/agent, and logs ESCALATE when restarts do not converge.
-- **Office camera:** listens (audio to transcript); does not watch.
+- **NicksMax supervisor: LIVE.** It restarts the office conversation worker and the Eufy bridge/agent, and logs ESCALATE when restarts do not converge. **Corrected 2026-10-07:** its restart primitive ended only the PowerShell wrapper and orphaned the node/python children (Eufy-bridge restart storm, two Eufy agents on `:3601`, two `office` heartbeat owners); fixed in PR #2920, live on NicksMax only after a `git pull` there.
+- **Office camera:** listens (audio to transcript) AND watches (stills to a cloud vision model, "Saw:" line, Right/Wrong review) since #2898 and #2901 (2026-10-02). The 2026-10-02 line here saying "does not watch" was stale the day it was written. **Measured 2026-10-07:** it listened about 8 % of the business day after the 2026-10-03 switch to `large-v3-turbo` (transcription ran longer than capture, serial worker); PR #2920 decouples capture from transcription and reports a 60-minute listening coverage in the heartbeat (`conversationListeningCoverage60m`, shop-side column 0144).
+- **Vehicle lane (device_events): hardened 2026-10-07 (PR #2920), apply pending.** The ingest writes the row before it pages (a crash between the two no longer pages twice on the edge's retry), catches the P2002 of a per-device unique `eventId` index, and keeps a visit for 7 days instead of 12 hours. The index is parked as `prisma/migrations-pending/20261007120000_device_events_identity_indexes` and registered in the guarded endpoint; `/system/health` reports it missing until the operator applies it, which is the true reading.
 
 Ship record: `docs/RECONCILIATION.md` top entry.
 

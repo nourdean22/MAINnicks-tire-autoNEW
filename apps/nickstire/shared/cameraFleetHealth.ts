@@ -26,8 +26,21 @@ export interface CameraFleetInputCamera {
   commissioned?: boolean | null;
   registered?: boolean | null;
   /** Interaction worker runtime, when the camera has one (lot.health `conversation`). */
-  conversation?: { workerOk?: boolean | null; state?: string | null } | null;
+  conversation?: {
+    workerOk?: boolean | null;
+    state?: string | null;
+    /** Seconds since the worker last wrote its own status (lot.health `workerAgeSeconds`). */
+    workerAgeSeconds?: number | null;
+  } | null;
 }
+
+/**
+ * A worker self-report older than this is not a report about now. The office worker writes
+ * its status every ~30 s and the agent relays it on every heartbeat; on 2026-10-05/06 the
+ * worker hung with "READY" on disk for hours while the agent kept relaying it, so the panel
+ * and this verdict read a live state off a dead process.
+ */
+export const WORKER_STALE_AFTER_SECONDS = 120;
 
 export interface CameraFleetProblem {
   camera: string;
@@ -72,6 +85,15 @@ export function summarizeCameraFleet(
     const workerState = worker?.state?.toUpperCase() ?? null;
     if (worker && (worker.workerOk === false || (workerState && WORKER_BAD.has(workerState)))) {
       problems.push({ camera: c.camera, label, state: `conversation worker ${workerState ?? "STOPPED"}` });
+      continue;
+    }
+    const workerAge = worker?.workerAgeSeconds;
+    if (worker && typeof workerAge === "number" && workerAge > WORKER_STALE_AFTER_SECONDS) {
+      problems.push({
+        camera: c.camera,
+        label,
+        state: `conversation worker STALE (last report ${Math.round(workerAge / 60)}m ago)`,
+      });
     }
   }
   return {

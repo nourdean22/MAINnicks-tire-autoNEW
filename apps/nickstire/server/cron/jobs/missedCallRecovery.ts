@@ -76,6 +76,23 @@ export function isMissedCallEligible(row: MissedCallRow, nowMs: number): boolean
   return age >= WINDOW_MIN_AGE_MS && age <= WINDOW_MAX_AGE_MS;
 }
 
+/**
+ * Proof that a tool-reaching call (convertedToLead = 1) captured NOTHING: no
+ * lead, no callback, no callback request citing the call, no expected arrival.
+ * A failed evidence read is unknown and returns false (skip, never a false
+ * positive). Shared by this cron and the revenue-opportunity collector so the
+ * rule cannot drift between the two again.
+ */
+export async function proveCapturedNothing(vapiCallId: string): Promise<boolean> {
+  const { loadCallCaptureEvidence } = await import("../../services/vapiActionExtraction");
+  const ev = await loadCallCaptureEvidence(vapiCallId);
+  return (
+    ev.reachedTool !== undefined && // undefined = the read failed → unknown → skip
+    ev.leadId == null && ev.callbackId == null &&
+    !ev.existingCallbackForCall && !ev.hasExpectedArrival
+  );
+}
+
 function maskPhone(p: string | null): string {
   if (!p) return "??";
   const d = p.replace(/\D/g, "");
@@ -104,7 +121,6 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
     const { vapiCallLogs, customers } = await import("../../../drizzle/schema");
     const { and, eq, gte, lte, isNull, isNotNull, sql, desc } = await import("drizzle-orm");
     const { normalizePhone } = await import("../../lib/phone");
-    const { loadCallCaptureEvidence } = await import("../../services/vapiActionExtraction");
 
     const now = Date.now();
     const windowStart = new Date(now - WINDOW_MAX_AGE_MS);
@@ -160,11 +176,7 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
       // per such call; ~15/day). Every other rule runs first, so the read only
       // happens for calls that would otherwise qualify.
       if (row.convertedToLead === 1 && isMissedCallEligible({ ...row, capturedNothing: true }, now)) {
-        const ev = await loadCallCaptureEvidence(row.vapiCallId);
-        row.capturedNothing =
-          ev.reachedTool !== undefined && // undefined = the read failed → unknown → skip
-          ev.leadId == null && ev.callbackId == null &&
-          !ev.existingCallbackForCall && !ev.hasExpectedArrival;
+        row.capturedNothing = await proveCapturedNothing(row.vapiCallId);
       }
       if (!isMissedCallEligible(row, now)) continue;
       const np = normalizePhone(row.phoneNumber);

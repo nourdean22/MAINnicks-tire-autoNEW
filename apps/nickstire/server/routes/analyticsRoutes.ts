@@ -57,10 +57,16 @@ export function registerAnalyticsRoutes(app: Express): void {
           const { customerEvents } = await import("../../drizzle/schema");
           const str = (v: unknown, max: number) =>
             typeof v === "string" && v.length > 0 ? v.slice(0, max) : null;
+          // Datacenter / spoofed-UA / automation beacons are TAGGED, not dropped,
+          // so readers can exclude them and the tagging stays auditable. The raw
+          // IP is never stored. req.ip is the client (trust proxy, rateLimiters.ts).
+          const { classifyTraffic } = await import("../lib/trafficClass");
+          const trafficClass = classifyTraffic(req.get("user-agent"), req.ip);
           await d.insert(customerEvents).values({
             eventName: String(body.type).slice(0, 64),
             eventData: {
               source: "conversion_hook",
+              traffic: { class: trafficClass },
               ...(typeof body.element === "string" ? { element: body.element.slice(0, 200) } : {}),
               ...(typeof body.value === "number" ? { value: body.value } : {}),
               ...(typeof body.props === "object" && body.props !== null ? { props: body.props } : {}),

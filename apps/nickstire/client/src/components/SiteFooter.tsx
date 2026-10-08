@@ -213,6 +213,12 @@ export default function SiteFooter() {
                   { href: "/check-engine-light-diagnostic", label: "Check Engine Light" },
                   { href: "/tire-storage", label: "Tire Storage" },
                   { href: "/hybrid-ev-repair", label: "Hybrid & EV Repair" },
+                  // 2026-10-07 · site crawl: /site-map had ZERO inbound links,
+                  // so the one page built to link every other page was itself
+                  // unreachable from any page. 16 sitemap URLs were orphans
+                  // with it (11 tire-size pages, /wheels, /tire-rebates,
+                  // /moes-tire-euclid, /muffler-shop-open-sunday-cleveland).
+                  { href: "/site-map", label: "Site Map" },
                 ].map((l) => (
                   <Link key={l.href} href={l.href} className={LINK_CLASS}>{l.label}</Link>
                 ))}

@@ -2,21 +2,104 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
+  cameraAlertClaim,
+  cameraAlertCooldownSeconds,
   cameraAlertDecision,
-  cameraAlertShopDay,
+  cameraAlertEpisode,
   deliverCameraAlertExternally,
   deliverWithConfirmedNotification,
+  episodeFromAlertKey,
   formatCameraHealthAlert,
 } from "./services/cameraHealthAlertPolicy";
 import { runCameraHealthAlertSelfTest } from "./services/cameraHealthAlerts";
 
+const CAMERA_ALERT_COOLDOWN_SECONDS = cameraAlertCooldownSeconds();
+
+/** The shop day as the claim records it: fired_for of a day-scoped (legacy) claim made at `now`. */
+const cameraAlertShopDay = (now: Date = new Date()) => cameraAlertClaim("sign", "NEVER_INGESTED", null, now).firedFor;
+
+/**
+ * One page per EPISODE (2026-10-07). The day-scoped claim failed both ways on real days:
+ * the second outage of a day was deduped against the first, and an outage that crossed
+ * midnight paged again with nothing changed. The cooldown keeps a flapping source from
+ * turning the fix into a storm (sign dropped 17 times on 2026-09-18).
+ */
+describe("camera health alert episodes", () => {
+  it("a producer-reported state is keyed on stateSince; a liveness state on the last heartbeat; NEVER_INGESTED on nothing", () => {
+    expect(cameraAlertEpisode({ state: "CAMERA_OFFLINE", stateSinceEpoch: 1_759_800_000, receivedAtEpoch: 1_759_800_600 })).toBe(1_759_800_000);
+    expect(cameraAlertEpisode({ state: "CAMERA_OFFLINE", stateSinceEpoch: null, receivedAtEpoch: 1_759_800_600 })).toBe(1_759_800_600);
+    expect(cameraAlertEpisode({ state: "PRODUCER_OFFLINE", stateSinceEpoch: 1_759_800_000, receivedAtEpoch: 1_759_800_600 })).toBe(1_759_800_600);
+    expect(cameraAlertEpisode({ state: "STALE", stateSinceEpoch: 1_759_800_000, receivedAtEpoch: null })).toBeNull();
+    expect(cameraAlertEpisode({ state: "NEVER_INGESTED", stateSinceEpoch: null, receivedAtEpoch: null })).toBeNull();
+  });
+
+  it("the claim key names the episode and its fired_for is the shop day the episode BEGAN, so midnight changes nothing", () => {
+    // 2026-10-06 23:30 ET = 2026-10-07 03:30Z.
+    const episode = Math.floor(Date.parse("2026-10-07T03:30:00Z") / 1000);
+    const before = cameraAlertClaim("sign", "CAMERA_OFFLINE", episode, new Date("2026-10-07T03:40:00Z"));
+    const after = cameraAlertClaim("sign", "CAMERA_OFFLINE", episode, new Date("2026-10-07T13:00:00Z"));
+    expect(before).toEqual({ key: `camera_health:sign:e${episode}:CAMERA_OFFLINE`, firedFor: "2026-10-06" });
+    expect(after).toEqual(before);
+    expect(before.key.length).toBeLessThanOrEqual(100);
+  });
+
+  it("two outages on one day are two claims; the same outage is one claim however often the cron looks", () => {
+    const first = cameraAlertClaim("sign", "CAMERA_OFFLINE", 1_759_830_000);
+    const second = cameraAlertClaim("sign", "CAMERA_OFFLINE", 1_759_845_000);
+    expect(first.key).not.toBe(second.key);
+    expect(cameraAlertClaim("sign", "CAMERA_OFFLINE", 1_759_830_000)).toEqual(first);
+  });
+
+  it("without an episode the claim falls back to the day-scoped key this replaces", () => {
+    const now = new Date("2026-10-07T15:00:00Z");
+    expect(cameraAlertClaim("sign", "NEVER_INGESTED", null, now)).toEqual({ key: "camera_health:sign:NEVER_INGESTED", firedFor: "2026-10-07" });
+  });
+
+  it("a long camera id is clipped so the key fits alert_key VARCHAR(100)", () => {
+    const { key } = cameraAlertClaim("x".repeat(64), "UNVERIFIED_CAPABILITIES", 1_759_830_000);
+    expect(key.length).toBeLessThanOrEqual(100);
+  });
+
+  it("the episode is read back out of a claim key, and a legacy key reads as none", () => {
+    expect(episodeFromAlertKey("camera_health:sign:e1759830000:CAMERA_OFFLINE")).toBe(1_759_830_000);
+    expect(episodeFromAlertKey("camera_health:sign:CAMERA_OFFLINE")).toBeNull();
+    expect(episodeFromAlertKey(null)).toBeNull();
+  });
+
+  it("recovery still recognises a degraded episode key, and is keyed on THAT episode by the service", () => {
+    expect(cameraAlertDecision("HEALTHY", "camera_health:sign:e1759830000:CAMERA_OFFLINE")).toEqual({ notify: true, recovery: true, held: false });
+    expect(cameraAlertDecision("HEALTHY", "camera_health:sign:e1759830000:HEALTHY")).toEqual({ notify: false, recovery: false, held: false });
+  });
+
+  it(`a page less than ${CAMERA_ALERT_COOLDOWN_SECONDS}s after the last one is HELD, not dropped: still degraded later, it pages then`, () => {
+    expect(cameraAlertDecision("CAMERA_OFFLINE", "camera_health:sign:e1:HEALTHY", null, 600)).toEqual({ notify: false, recovery: false, held: true });
+    expect(cameraAlertDecision("CAMERA_OFFLINE", "camera_health:sign:e1:HEALTHY", null, CAMERA_ALERT_COOLDOWN_SECONDS)).toEqual({ notify: true, recovery: false, held: false });
+    expect(cameraAlertDecision("HEALTHY", "camera_health:sign:e1:CAMERA_OFFLINE", null, 60)).toEqual({ notify: false, recovery: true, held: true });
+    // The very first page about a camera has nothing to wait on.
+    expect(cameraAlertDecision("CAMERA_OFFLINE", null, null, null)).toEqual({ notify: true, recovery: false, held: false });
+    // A non-paging state is never "held": nothing was going to be sent.
+    expect(cameraAlertDecision("STALE", "camera_health:sign:e1:HEALTHY", null, 60)).toEqual({ notify: false, recovery: false, held: false });
+  });
+
+  it("a blind camera that stopped being judged because the shop closed is NOT a recovery; a seeing one is", () => {
+    const prior = "camera_health:sign:e1759830000:DEGRADED_VISION";
+    expect(cameraAlertDecision("HEALTHY", prior, { vision: "quiet" })).toEqual({ notify: false, recovery: false, held: false });
+    expect(cameraAlertDecision("HEALTHY", prior, { vision: "seeing" })).toEqual({ notify: true, recovery: true, held: false });
+    // A pre-0144 producer reports no window; its DEGRADED_VISION was a frozen capture and HEALTHY is real.
+    expect(cameraAlertDecision("HEALTHY", prior, { vision: "unknown" })).toEqual({ notify: true, recovery: true, held: false });
+    // Quiet after any OTHER degradation is still a recovery.
+    expect(cameraAlertDecision("HEALTHY", "camera_health:sign:e1759830000:CAMERA_OFFLINE", { vision: "quiet" })).toEqual({ notify: true, recovery: true, held: false });
+  });
+});
+
 describe("camera health alert policy", () => {
   it("does not page transient STALE or an ordinary healthy camera", () => {
-    expect(cameraAlertDecision("STALE", null)).toEqual({ notify: false, recovery: false });
-    expect(cameraAlertDecision("HEALTHY", null)).toEqual({ notify: false, recovery: false });
+    expect(cameraAlertDecision("STALE", null)).toEqual({ notify: false, recovery: false, held: false });
+    expect(cameraAlertDecision("HEALTHY", null)).toEqual({ notify: false, recovery: false, held: false });
     expect(cameraAlertDecision("HEALTHY", "camera_health:sign:HEALTHY")).toEqual({
       notify: false,
       recovery: false,
+      held: false,
     });
   });
 
@@ -38,6 +121,7 @@ describe("camera health alert policy", () => {
       expect(cameraAlertDecision(state, null), state).toEqual({
         notify: true,
         recovery: false,
+        held: false,
       });
     }
   });
@@ -45,10 +129,10 @@ describe("camera health alert policy", () => {
   it("sends recovery only after a prior degraded camera alert", () => {
     expect(
       cameraAlertDecision("HEALTHY", "camera_health:sign:CAMERA_OFFLINE"),
-    ).toEqual({ notify: true, recovery: true });
+    ).toEqual({ notify: true, recovery: true, held: false });
     expect(
       cameraAlertDecision("HEALTHY", "camera_health:office:CONTROL_DEGRADED"),
-    ).toEqual({ notify: true, recovery: true });
+    ).toEqual({ notify: true, recovery: true, held: false });
   });
 
   it("operator copy names authority, state/recovery and proof", () => {
@@ -66,6 +150,7 @@ describe("camera health alert policy", () => {
           frames: "not_required",
           pose: "not_required",
           calibration: "not_required",
+          vision: "not_required",
           auth: "ok",
           events: "ok",
           control: "down",
@@ -94,6 +179,7 @@ describe("camera health alert policy", () => {
           frames: "not_required",
           pose: "not_required",
           calibration: "not_required",
+          vision: "not_required",
           auth: "ok",
           events: "ok",
           control: "ok",
@@ -372,6 +458,18 @@ describe("camera health alert wiring", () => {
     expect(policy).toContain("releaseClaim");
     expect(policy).toContain("throw new Error");
     expect(service).not.toContain("notification_messages");
+  });
+
+  it("claims per EPISODE with the cooldown, keys a recovery on the episode it closes, and reads the 0144 columns only when production has them", () => {
+    expect(service).toContain("UNIX_TIMESTAMP(stateSince) AS stateSinceEpoch");
+    expect(service).toContain("cameraAlertEpisode(");
+    expect(service).toContain("cameraAlertClaim(");
+    expect(service).toContain("episodeFromAlertKey(");
+    expect(service).toContain("UNIX_TIMESTAMP() - UNIX_TIMESTAMP(fired_at) AS ageSeconds");
+    expect(service).toContain("cameraRuntimeHasColumns(db, PLAUSIBILITY_COLUMNS)");
+    expect(service).toContain("shopOpenAt()");
+    // The day-scoped claim is gone from the service: every claim goes through the policy.
+    expect(service).not.toMatch(/alertKey\(camera, state\)/);
   });
 
   it("routes through the proven system notification surface", () => {

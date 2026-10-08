@@ -3,8 +3,29 @@ import type { deriveCameraState } from "../lib/cameraHealth";
 
 export type CameraHealthState = ReturnType<typeof deriveCameraState>["state"];
 export type CameraHealthVerdict = ReturnType<typeof deriveCameraState>;
+export type CameraHealthFacets = CameraHealthVerdict["facets"];
 
 const NON_PAGING_STATES = new Set<CameraHealthState>(["HEALTHY", "STALE"]);
+
+/**
+ * States the READ side derives from heartbeat age. The producer never reports them, so the
+ * row's `stateSince` does not move when one begins; the last heartbeat's time is the only
+ * clock that identifies the outage.
+ */
+const LIVENESS_STATES = new Set<CameraHealthState>(["STALE", "PRODUCER_OFFLINE"]);
+
+/**
+ * Minimum gap between two pages about one camera. The 2026-09-18 sign camera dropped 17
+ * times in one morning; one page per episode with no floor would have sent 34 messages. The
+ * cooldown DELAYS rather than drops: the cron runs every five minutes, and a camera still
+ * degraded (or still recovered) once the gap has passed pages then, against the same episode.
+ */
+const CAMERA_ALERT_COOLDOWN_SECONDS = 30 * 60;
+
+/** The cooldown, for the service's run summary and the tests; the policy applies it itself. */
+export function cameraAlertCooldownSeconds(): number {
+  return CAMERA_ALERT_COOLDOWN_SECONDS;
+}
 
 function isCameraPagingState(state: CameraHealthState): boolean {
   return !NON_PAGING_STATES.has(state);
@@ -13,16 +34,85 @@ function isCameraPagingState(state: CameraHealthState): boolean {
 export function cameraAlertDecision(
   state: CameraHealthState,
   latestAlertKey: string | null,
-): { notify: boolean; recovery: boolean } {
+  facets: Pick<CameraHealthFacets, "vision"> | null = null,
+  sinceLastAlertSeconds: number | null = null,
+): { notify: boolean; recovery: boolean; held: boolean } {
+  const held =
+    sinceLastAlertSeconds !== null &&
+    Number.isFinite(sinceLastAlertSeconds) &&
+    sinceLastAlertSeconds < CAMERA_ALERT_COOLDOWN_SECONDS;
   if (state === "HEALTHY") {
-    const recovery = Boolean(latestAlertKey && !latestAlertKey.endsWith(":HEALTHY"));
-    return { notify: recovery, recovery };
+    const priorDegraded = Boolean(latestAlertKey && !latestAlertKey.endsWith(":HEALTHY"));
+    // A blind camera is not "recovered" because the shop closed. The plausibility canary
+    // cannot be judged outside business hours (vision=quiet), so HEALTHY after a
+    // DEGRADED_VISION page is a recovery only once the detector is SEEING again -- or the
+    // producer reports no window at all (unknown), where the old DEGRADED_VISION meant a
+    // frozen capture and HEALTHY is a real recovery.
+    const closedNotRecovered =
+      priorDegraded &&
+      latestAlertKey !== null &&
+      latestAlertKey.endsWith(":DEGRADED_VISION") &&
+      facets?.vision === "quiet";
+    const recovery = priorDegraded && !closedNotRecovered;
+    return { notify: recovery && !held, recovery, held: recovery && held };
   }
-  return { notify: isCameraPagingState(state), recovery: false };
+  const paging = isCameraPagingState(state);
+  return { notify: paging && !held, recovery: false, held: paging && held };
 }
 
-/** Explicit Cleveland shop date. Never derive daily claims from DB/session timezone. */
-export function cameraAlertShopDay(now: Date = new Date()): string {
+/**
+ * The EPISODE an alert belongs to: the epoch second the camera entered its current state.
+ *
+ * Before 2026-10-07 the claim key was camera/state/shop-day, which failed both ways: the
+ * second real outage of a day was silently deduped against the first, and an outage that
+ * crossed midnight paged again at 00:00 with nothing changed. Keyed on the episode, each
+ * outage pages once and a recovery pages once, whatever the clock says.
+ *
+ * Returns null when no clock identifies the episode (NEVER_INGESTED has no heartbeat; a row
+ * from before `stateSince` existed) -- the caller then falls back to the day-scoped key.
+ */
+export function cameraAlertEpisode(input: {
+  state: CameraHealthState;
+  stateSinceEpoch: number | null;
+  receivedAtEpoch: number | null;
+}): number | null {
+  if (input.state === "NEVER_INGESTED") return null;
+  if (LIVENESS_STATES.has(input.state)) return input.receivedAtEpoch;
+  return input.stateSinceEpoch ?? input.receivedAtEpoch;
+}
+
+/** The episode segment of a claim key written by `cameraAlertClaim`, or null for a legacy key. */
+export function episodeFromAlertKey(key: string | null): number | null {
+  const m = key === null ? null : /:e(\d+):[A-Z_]+$/.exec(key);
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * The durable claim for one page: `cron_alerts_fired` (alert_key VARCHAR(100), fired_for
+ * DATE). `fired_for` is the shop day the EPISODE began, not today, so the composite key stays
+ * the same across midnight. A camera id is clipped to keep the key inside the column.
+ */
+export function cameraAlertClaim(
+  camera: string,
+  state: CameraHealthState,
+  episode: number | null,
+  now: Date = new Date(),
+): { key: string; firedFor: string } {
+  const cam = camera.slice(0, 40);
+  if (episode === null) {
+    return { key: `camera_health:${cam}:${state}`, firedFor: cameraAlertShopDay(now) };
+  }
+  return {
+    key: `camera_health:${cam}:e${Math.floor(episode)}:${state}`,
+    firedFor: cameraAlertShopDay(new Date(Math.floor(episode) * 1000)),
+  };
+}
+
+/**
+ * Explicit Cleveland shop date. Never derive daily claims from DB/session timezone.
+ * Reached through `cameraAlertClaim` (fired_for) and pinned directly by the DST tests.
+ */
+function cameraAlertShopDay(now: Date = new Date()): string {
   return now.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
 }
 

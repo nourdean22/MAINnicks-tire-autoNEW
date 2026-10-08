@@ -81,6 +81,12 @@ vi.mock("./db", () => ({
   getDbTyped: async () => fakeDb,
 }));
 
+/** Capture evidence for tool-reaching calls; per-test, keyed by vapiCallId. */
+let captureEvidence: Record<string, Record<string, unknown>> = {};
+vi.mock("./services/vapiActionExtraction", () => ({
+  loadCallCaptureEvidence: async (callId: string) => captureEvidence[callId] ?? {},
+}));
+
 beforeEach(() => {
   captured = [];
   oppRows = {};
@@ -93,6 +99,7 @@ beforeEach(() => {
   livePhoneRows = [];
   inserts = [];
   refreshNext = false;
+  captureEvidence = {};
 });
 
 /** Shop-time SQL strings, exactly as DATE_FORMAT returns them. */
@@ -420,6 +427,43 @@ describe("collectMissedCalls · one live card per phone", () => {
     expect(inserts.some((t) => t.includes("call-redial"))).toBe(true);
     expect(captured.some((t) => t.includes("UPDATE revenue_opportunities") && t.includes("collapsed into"))).toBe(false);
     expect(stats.collapsed).toBe(0);
+  });
+});
+
+describe("collectMissedCalls · a tool-reaching call is not a capture (2026-10-07)", () => {
+  // convertedToLead = 1 means Nick REACHED a tool, not that anything was saved.
+  // The collector filtered convertedToLead = 0 in SQL, so a caller who reached
+  // tireInquiry and saved nothing never got a call-back card (the SMS cron was
+  // fixed in 844c880a; this collector was not).
+  const toolCall = (vapiCallId: string, phone: string) => ({
+    id: 1, vapiCallId, phoneNumber: phone, durationSeconds: 40, convertedToLead: 1,
+    leadId: null, callbackId: null, metadata: null, createdAt: new Date(Date.now() - 90 * 60_000),
+  });
+  const nothing = { reachedTool: true, leadId: null, callbackId: null, existingCallbackForCall: false, hasExpectedArrival: false };
+
+  it("PROVEN to have captured nothing -> gets a card", async () => {
+    vapiSelectRows = [toolCall("call-tool-empty", "2165550188")];
+    captureEvidence["call-tool-empty"] = nothing;
+    const { collectMissedCalls } = await import("./services/opportunityQueue");
+    await collectMissedCalls();
+    expect(inserts.some((t) => t.includes("call-tool-empty"))).toBe(true);
+  });
+
+  it("captured something (callback request / expected arrival) -> no card", async () => {
+    vapiSelectRows = [toolCall("call-tool-cb", "2165550189"), toolCall("call-tool-arr", "2165550190")];
+    captureEvidence["call-tool-cb"] = { ...nothing, existingCallbackForCall: true };
+    captureEvidence["call-tool-arr"] = { ...nothing, hasExpectedArrival: true };
+    const { collectMissedCalls } = await import("./services/opportunityQueue");
+    await collectMissedCalls();
+    expect(inserts.some((t) => t.includes("call-tool-cb"))).toBe(false);
+    expect(inserts.some((t) => t.includes("call-tool-arr"))).toBe(false);
+  });
+
+  it("a failed evidence read is unknown -> no card (never a false positive)", async () => {
+    vapiSelectRows = [toolCall("call-tool-unknown", "2165550191")];
+    const { collectMissedCalls } = await import("./services/opportunityQueue");
+    await collectMissedCalls();
+    expect(inserts.some((t) => t.includes("call-tool-unknown"))).toBe(false);
   });
 });
 

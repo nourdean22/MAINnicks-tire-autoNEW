@@ -15,11 +15,11 @@
  *   · "literature review on tire-shop SEO patterns"
  *
  * Architecture:
- *   1. PLAN · gpt-4o-mini decomposes the question into 3-5 sub-queries
- *   2. SEARCH · Perplexity runs each sub-query in parallel
- *   3. SYNTHESIZE · gpt-4o-mini writes a final report with inline citations
+ *   1. PLAN · the "classify" lane decomposes the question into ≤5 sub-queries
+ *   2. SEARCH · Perplexity (or the multi-source quorum) runs each in parallel
+ *   3. SYNTHESIZE · the "deep" lane (fast-lane fallback) writes a cited report
  *
- * Total cost · ~3-5 Perplexity searches + 2 gpt-4o-mini calls + ~10-15s.
+ * Total cost · ~3-7 searches + up to 3 page reads + 3 model calls + ~30-90s.
  * NOT cheap · use sparingly. Returned report goes into the response so
  * the operator sees the full chain, not just the final answer.
  */
@@ -52,6 +52,10 @@ export interface DeepResearchReport {
   /** AG-34 · true when served from a <7-day-old persisted report instead
    *  of re-spending 3-5 searches — the spendy tool compounds now. */
   cached?: boolean;
+  /** Why `synthesis` is what it is. An empty synthesis is NOT always "no
+   *  sources": `synth_failed` means the searches returned content and only
+   *  the write-up step failed — `rounds` still carry the findings. */
+  synthesisStatus: "ok" | "cached" | "synth_failed" | "no_sources";
 }
 
 const REUSE_WINDOW_MS = 7 * 86400_000;
@@ -89,6 +93,7 @@ async function findRecentReport(question: string): Promise<DeepResearchReport | 
       allCitations: Array.isArray(meta.citations) ? meta.citations : [],
       durationMs: 0,
       cached: true,
+      synthesisStatus: "cached",
     };
   } catch (err) {
     log.debug("reuse_check_failed", { err: (err as Error).message });
@@ -172,17 +177,62 @@ ${dossier}
 
 Synthesize a tight cited report.`;
 
+  return synthesizeWithLanes([
+    { role: "system", content: SYNTHESIZER_SYSTEM },
+    { role: "user", content: userPrompt },
+  ]);
+}
+
+/**
+ * Synthesis lane budgets. aiChat gives "deep" a 100s provider budget
+ * (provider.ts PROVIDER_TIMEOUT), but this step used to be guarded at 15s with
+ * one retry into the same wall: prod logged 8 `research-synth api_timeout`
+ * between 2026-09-18 and 09-29, and each one discarded a report whose searches
+ * had already succeeded. Same shape as compose-daily-brief's lanes: each
+ * attempt is aborted (not orphaned), and the fast lane still fits inside the
+ * chat route's 120s maxDuration after planning + search.
+ */
+export const SYNTH_LANES = [
+  { lane: "deep" as const, ms: 50_000 },
+  { lane: "fast" as const, ms: 20_000 },
+];
+
+type SynthMessages = Array<{ role: "system" | "user"; content: string }>;
+
+export async function synthesizeWithLanes(
+  messages: SynthMessages,
+  lanes: ReadonlyArray<{ lane: "deep" | "fast"; ms: number }> = SYNTH_LANES,
+): Promise<string> {
   // wave-AO follow-up · audit #438 Tier-2 · was bare aiChat.
   const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
   const aiChat = makeTracedAiChat("deep-research", "brain");
-  const reply = await aiChat(
-    [
-      { role: "system", content: SYNTHESIZER_SYSTEM },
-      { role: "user", content: userPrompt },
-    ],
-    "deep",
-  );
-  return (reply?.content ?? "").trim();
+  let lastErr: unknown = null;
+  for (const { lane, ms } of lanes) {
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(new Error(`research-synth ${lane} lane exceeded ${ms / 1000}s`)),
+      ms,
+    );
+    try {
+      const reply = await aiChat(messages, lane, { signal: controller.signal });
+      // aiChat never throws on total provider failure — it returns a sentinel.
+      const sentinel = reply?.provider === "emergency" || reply?.provider === "none";
+      const text = (reply?.content ?? "").trim();
+      if (controller.signal.aborted) throw controller.signal.reason ?? new Error(`${lane} lane aborted`);
+      if (sentinel || !text) throw new Error(`${lane} lane returned no synthesis (provider=${reply?.provider ?? "?"})`);
+      if (lane !== "deep") log.warn("synth_fell_back", { lane });
+      return text;
+    } catch (err) {
+      lastErr = controller.signal.aborted ? controller.signal.reason ?? err : err;
+      log.warn("synth_lane_failed", {
+        lane,
+        err: (lastErr instanceof Error ? lastErr.message : String(lastErr)).slice(0, 200),
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
 const planSubQueries = withGuardian("research-planner", _planSubQueries, {
@@ -191,9 +241,11 @@ const planSubQueries = withGuardian("research-planner", _planSubQueries, {
   reliabilityOnly: true, // internal sub-step of arsenal.deepResearch
 });
 
+// The lanes own the per-attempt budgets; the guardian is the outer backstop
+// (sum of lanes + slack) and must not retry — a retry re-pays every lane.
 const synthesize = withGuardian("research-synth", _synthesize, {
-  timeoutMs: 15_000,
-  maxRetries: 1,
+  timeoutMs: SYNTH_LANES.reduce((sum, l) => sum + l.ms, 0) + 5_000,
+  maxRetries: 0,
   reliabilityOnly: true, // internal synthesis sub-step of arsenal.deepResearch
 });
 
@@ -426,5 +478,6 @@ export async function runDeepResearch(args: {
     synthesis,
     allCitations,
     durationMs: Date.now() - startedAt,
+    synthesisStatus: synthesis ? "ok" : allRounds.length > 0 ? "synth_failed" : "no_sources",
   };
 }

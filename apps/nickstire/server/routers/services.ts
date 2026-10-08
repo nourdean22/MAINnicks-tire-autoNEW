@@ -14,6 +14,7 @@ import {
   createCustomerNotification, getPendingNotifications, markNotificationSent,
   getServicePricingByCategory, getAllServicePricing, upsertServicePricing, seedDefaultPricing,
   createInspection, getInspection, getInspectionByToken, getInspections, addInspectionItem, updateInspectionItem, deleteInspectionItem, publishInspection,
+  verifyInspectionItem,
   recordInspectionView, decideInspectionItem,
   getLoyaltyRewards, createLoyaltyReward, updateLoyaltyReward,
   getLoyaltyTransactions, awardPoints, redeemReward,
@@ -25,6 +26,7 @@ import { createLogger } from "../lib/logger";
 import { pickGatewayDevice, isGatewayOnline } from "../lib/gateway-device";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { z } from "zod";
+import { inspectionMeasurementsSchema, photoUrlListSchema } from "@shared/inspectionMeasurements";
 
 const log = createLogger("routers:services");
 
@@ -393,6 +395,10 @@ export const inspectionRouter = router({
       condition: z.enum(["green", "yellow", "red"]),
       notes: z.string().optional(),
       photoUrl: z.string().optional(),
+      /** 0143 · every photo for the finding (the first is mirrored into photoUrl). */
+      photoUrls: photoUrlListSchema.optional(),
+      /** 0143 · structured measurements, validated against shared/inspectionMeasurements.ts. */
+      measurements: inspectionMeasurementsSchema.optional(),
       recommendedAction: z.string().optional(),
       estimatedCost: z.number().optional(),
       sortOrder: z.number().default(0),
@@ -408,12 +414,37 @@ export const inspectionRouter = router({
       condition: z.enum(["green", "yellow", "red"]).optional(),
       notes: z.string().optional(),
       photoUrl: z.string().optional(),
+      photoUrls: photoUrlListSchema.optional(),
+      measurements: inspectionMeasurementsSchema.optional(),
       recommendedAction: z.string().optional(),
       estimatedCost: z.number().optional(),
     }))
     .mutation(async ({ input }) => {
       const { id, ...data } = input;
       return updateInspectionItem(id, data);
+    }),
+  /**
+   * 0143 · post-work verification. After the approved repair is done the tech
+   * records who did it, AFTER photos and AFTER measurements. This is the proof
+   * the customer page shows and the signal that closes the deferral in the
+   * opportunity queue. Admin-only; nothing is sent to the customer by this call.
+   */
+  verifyItem: adminProcedure
+    .input(z.object({
+      id: z.number().int().positive(),
+      verifiedBy: z.string().min(1).max(255),
+      note: z.string().max(500).optional(),
+      photoUrls: photoUrlListSchema.optional(),
+      measurements: inspectionMeasurementsSchema.optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const res = await verifyInspectionItem(input);
+      if (res.success) return res;
+      if (res.reason === "not_found") throw new TRPCError({ code: "NOT_FOUND", message: "Inspection item not found" });
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Verification needs migration 0143 (drizzle/0143_dvi_measurements_verification.sql) applied to the database — nothing was recorded.",
+      });
     }),
   deleteItem: adminProcedure
     .input(z.object({ id: z.number() }))

@@ -1,3 +1,7 @@
+# 2026-09-28 receipt script -- it verifies `NicksMaxCameraSupervisor` (every minute), NOT the live
+# `NicksMaxCameraSupervisorSystem` (at startup, ~30 s loop) the box has run since the SYSTEM cutover,
+# so it may report the task missing on the current host. See
+# docs/operations/NICKSMAX-CAMERA-HOST-2026-09-28.md ("Corrected 2026-10-07").
 $ErrorActionPreference = "Stop"
 $taskName = "NicksMaxCameraSupervisor"
 $receipt = "C:\Users\nourd\NicksMax\lab\v380-cloud-relay\system-supervisor-verify.txt"

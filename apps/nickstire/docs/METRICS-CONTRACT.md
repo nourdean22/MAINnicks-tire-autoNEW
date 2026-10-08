@@ -112,6 +112,20 @@ reconciliation uses the existing mirror or an operator-supplied export, never a 
 | Detailed-row coverage | stored detail divided by official aggregate for clicks/impressions | both | operational diagnostic, not completeness proof | when both windows match | diagnostic |
 | Detailed row count | persisted rows in the window | `search_performance` | affected by dimensions, row limit and dedupe | dimensional sync | diagnostic |
 
+## Web beacon traffic classes (added 2026-10-07)
+
+Every `/api/analytics/conversion` beacon written from 2026-10-07 carries `eventData.traffic.class`,
+set server-side by `server/lib/trafficClass.ts` from the request's UA and IP (the IP is never stored).
+
+| Canonical metric | Definition | Source | Evidence / limitation | Freshness | Executive use |
+|---|---|---|---|---|---|
+| Experiment exposures / conversions | Sessions counted by `webExperimentResolve` | `customer_events` | **excludes** `datacenter`, `ua_inconsistent`, `automation`; keeps `human`, `unknown` and untagged pre-2026-10-07 rows, so earlier windows still include the 2026-10-01 Azure bot fleet | daily resolver | yes, with the window's start date stated |
+| Live visitors ("viewing now") | Distinct sessions with any event in the last 5 minutes | `customer_events` | same exclusion | real time | public social proof |
+| Traffic class `unknown` | Beacon seen before every provider range list had loaded, or with no IP | `customer_events` | not certified human; counted, not excluded | per beacon | diagnostic |
+
+The change is forward-only by design: historical rows are not re-labelled (rule 2 of PROTECTED-CORE).
+A count that spans 2026-10-07 mixes filtered and unfiltered days and must say so.
+
 ## Data quality requirements
 
 Every executive metric response should expose, where applicable:

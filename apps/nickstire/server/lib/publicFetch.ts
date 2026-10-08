@@ -16,7 +16,7 @@
 import { isIP } from "net";
 
 /** Dotted-quad -> uint32. Only called after net.isIP() has confirmed the form. */
-function ipv4ToInt(ip: string): number {
+export function ipv4ToInt(ip: string): number {
   return ip.split(".").reduce((acc, o) => acc * 256 + Number(o), 0) >>> 0;
 }
 

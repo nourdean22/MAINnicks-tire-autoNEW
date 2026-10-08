@@ -1118,8 +1118,8 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
   if (!db) return { scanned: 0, inserted: 0, refreshed: 0, collapsed: 0 };
 
   const { vapiCallLogs } = await import("../../drizzle/schema");
-  const { and, eq, gte, lte, isNull, isNotNull, desc } = await import("drizzle-orm");
-  const { isMissedCallEligible } = await import("../cron/jobs/missedCallRecovery");
+  const { and, gte, lte, isNull, isNotNull, desc } = await import("drizzle-orm");
+  const { isMissedCallEligible, proveCapturedNothing } = await import("../cron/jobs/missedCallRecovery");
 
   const now = Date.now();
   const windowStart = new Date(now - 24 * 60 * 60 * 1000);
@@ -1143,8 +1143,10 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
       createdAt: vapiCallLogs.createdAt,
     })
       .from(vapiCallLogs)
+      // No convertedToLead filter: it means "reached a tool", not "captured a
+      // lead". A tool-reaching call that saved nothing is still a missed call;
+      // eligibility below admits it only with proof (same rule as the SMS cron).
       .where(and(
-        eq(vapiCallLogs.convertedToLead, 0),
         isNotNull(vapiCallLogs.phoneNumber),
         isNull(vapiCallLogs.leadId),
         isNull(vapiCallLogs.callbackId),
@@ -1204,7 +1206,7 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
   const cardedThisRun = new Set<string>();
   for (const r of rows) {
     const meta = (r.metadata ?? null) as Record<string, unknown> | null;
-    const eligible = isMissedCallEligible({
+    const base = {
       id: r.id,
       vapiCallId: r.vapiCallId,
       phoneNumber: r.phoneNumber,
@@ -1214,7 +1216,12 @@ export async function collectMissedCalls(): Promise<CollectorStats & { collapsed
       callbackId: r.callbackId,
       recoveryAlreadyStamped: false, // recovery SMS state doesn't gate a human call-back
       createdAtMs: new Date(r.createdAt).getTime(),
-    }, now);
+    };
+    // The evidence read runs only for tool-reaching calls that pass every other rule.
+    const capturedNothing = r.convertedToLead === 1 && isMissedCallEligible({ ...base, capturedNothing: true }, now)
+      ? await proveCapturedNothing(r.vapiCallId)
+      : undefined;
+    const eligible = isMissedCallEligible({ ...base, capturedNothing }, now);
     if (!eligible) continue;
 
     const p10 = phone10(r.phoneNumber);
@@ -1671,12 +1678,15 @@ export async function captureComplaintOpportunity(
  * operator conversation, not a deferral chase.
  */
 export function summarizeInspectionForQueue(
-  items: Array<{ condition: string; decision: string | null; estimatedCost: number | null; photoUrl?: string | null }>,
+  items: Array<{ condition: string; decision: string | null; estimatedCost: number | null; photoUrl?: string | null; verifiedAt?: Date | string | null }>,
 ): { openFlagged: number; redOpen: number; valueCents: number; urgency: OpportunityUrgency; photoSupportedOpen: number } {
+  // 0143 · a VERIFIED item is completed work (after-photo + after-measurement
+  // recorded), never a deferral — whatever its decision column says.
   const open = items.filter(
     (i) =>
       (i.condition === "red" || i.condition === "yellow") &&
-      (i.decision === null || i.decision === "declined"),
+      (i.decision === null || i.decision === "declined") &&
+      !i.verifiedAt,
   );
   const redOpen = open.filter((i) => i.condition === "red").length;
   // estimatedCost is stored in DOLLARS on inspection_items
@@ -1713,39 +1723,40 @@ export async function collectInspectionDeferrals(): Promise<CollectorStats> {
     inspectionId: number; customerName: string; customerPhone: string | null;
     vehicleInfo: string; publishedAgeDays: number; unlinked: number;
     condition: string; decision: string | null; estimatedCost: number | null;
-    photoUrl: string | null;
+    photoUrl: string | null; verifiedAt: Date | string | null;
   };
-  let rows: Row[];
-  const baseQuery = (withDecision: boolean) => sql`
+  // Column availability degrades in the order the migrations shipped: 0143
+  // (verifiedAt) is newest, 0101 (decision) before it. Each attempt drops the
+  // newest column the database reports unknown; a database with neither still
+  // yields rows (every flagged item then counts as open and unverified).
+  const baseQuery = (cols: { decision: boolean; verified: boolean }) => sql`
     SELECT v.id AS inspectionId, v.customerName AS customerName,
            v.customerPhone AS customerPhone, v.vehicleInfo AS vehicleInfo,
            DATEDIFF(NOW(), v.createdAt) AS publishedAgeDays,
            (v.bookingId IS NULL) AS unlinked,
            i.condition AS condition,
-           ${withDecision ? sql`i.decision` : sql`NULL`} AS decision,
+           ${cols.decision ? sql`i.decision` : sql`NULL`} AS decision,
            i.estimatedCost AS estimatedCost,
-           i.photoUrl AS photoUrl
+           i.photoUrl AS photoUrl,
+           ${cols.verified ? sql`i.verifiedAt` : sql`NULL`} AS verifiedAt
     FROM vehicle_inspections v
     INNER JOIN inspection_items i ON i.inspectionId = v.id
     WHERE v.isPublished = 1
       AND v.createdAt >= DATE_SUB(NOW(), INTERVAL 60 DAY)
       AND i.condition IN ('red', 'yellow')
   `;
-  try {
-    rows = rowsFromExecute(await db.execute(baseQuery(true))) as unknown as Row[];
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (isUnknownColumnError(err)) {
-      try {
-        rows = rowsFromExecute(await db.execute(baseQuery(false))) as unknown as Row[];
-      } catch {
-        return { scanned: 0, inserted: 0, refreshed: 0 };
-      }
-    } else {
-      log.warn("[opportunity-queue] inspection collector query failed", { error: msg });
+  let rows: Row[] | null = null;
+  for (const cols of [{ decision: true, verified: true }, { decision: true, verified: false }, { decision: false, verified: false }]) {
+    try {
+      rows = rowsFromExecute(await db.execute(baseQuery(cols))) as unknown as Row[];
+      break;
+    } catch (err) {
+      if (isUnknownColumnError(err)) continue;
+      log.warn("[opportunity-queue] inspection collector query failed", { error: err instanceof Error ? err.message : String(err) });
       return { scanned: 0, inserted: 0, refreshed: 0 };
     }
   }
+  if (!rows) return { scanned: 0, inserted: 0, refreshed: 0 };
 
   // Group items per inspection, summarize with the pure helper.
   const byInspection = new Map<number, { meta: Row; items: Row[] }>();
@@ -1764,9 +1775,10 @@ export async function collectInspectionDeferrals(): Promise<CollectorStats> {
         decision: i.decision == null ? null : String(i.decision),
         estimatedCost: i.estimatedCost == null ? null : Number(i.estimatedCost),
         photoUrl: i.photoUrl == null ? null : String(i.photoUrl),
+        verifiedAt: i.verifiedAt ?? null,
       })),
     );
-    if (s.openFlagged === 0) continue; // everything approved/answered — no deferral
+    if (s.openFlagged === 0) continue; // everything approved/answered/verified — no deferral
 
     const res = await upsertOpportunity({
       sourceType: "deferred_service",
@@ -2253,10 +2265,12 @@ export async function reconcileOpportunities(): Promise<ReconcileStats> {
   }
 
   // 4. deferred_service: every flagged item on the inspection now has a
-  //    non-declined decision → the deferral resolved (the customer
-  //    engaged; approved work is active business, not a chase).
+  //    non-declined decision, or verified completed work (0143) → the
+  //    deferral resolved (the customer engaged; approved or finished work
+  //    is active business, not a chase). The verifiedAt clause is tried
+  //    first and dropped on a pre-0143 database.
   try {
-    const resolved = rowsFromExecute(await db.execute(sql`
+    const resolvedQuery = (withVerified: boolean) => sql`
       SELECT o.id
       FROM revenue_opportunities o
       WHERE o.source_type = 'deferred_service'
@@ -2267,16 +2281,24 @@ export async function reconcileOpportunities(): Promise<ReconcileStats> {
           WHERE i.inspectionId = CAST(SUBSTRING(o.source_id, 12) AS UNSIGNED)
             AND i.condition IN ('red', 'yellow')
             AND (i.decision IS NULL OR i.decision = 'declined')
+            ${withVerified ? sql`AND i.verifiedAt IS NULL` : sql``}
         )
       LIMIT 100
-    `));
+    `;
+    let resolved: Array<Record<string, unknown>>;
+    try {
+      resolved = rowsFromExecute(await db.execute(resolvedQuery(true)));
+    } catch (err) {
+      if (!isUnknownColumnError(err)) throw err;
+      resolved = rowsFromExecute(await db.execute(resolvedQuery(false)));
+    }
     stats.checked += resolved.length;
     for (const r of resolved) {
       const res = await transitionOpportunity({
         id: String(r.id),
         to: "lost",
         by: "reconciler",
-        note: "source resolved: every flagged inspection item now has a customer decision",
+        note: "source resolved: every flagged inspection item now has a customer decision or verified completed work",
       });
       if (res.ok) stats.closed++;
     }

@@ -151,7 +151,7 @@ describe("F7 — an empty official response is not an official zero (2026-10-02)
     expect(GSC_SRC).toMatch(/summaryHasData: totalRows\.length > 0/);
   });
   it("every summary-only caller asks for totals only and gates on summaryHasData", () => {
-    for (const f of ["server/routers/admin/market.ts", "server/routes/nour-os-query.ts"]) {
+    for (const f of ["server/routers/admin/market.ts", "server/routes/nour-os-query.ts", "server/routers/trafficFunnel.ts"]) {
       const c = code(readFileSync(resolve(APP, f), "utf8"));
       expect(c, f).toMatch(/getGscReport\([^)]*\{ totalsOnly: true \}\)/);
       expect(c, f).toContain("official?.summaryHasData");
@@ -167,3 +167,15 @@ describe("F8 — statenourMetrics refuses an empty official window instead of se
     expect(c).toMatch(/if \(!report\.summaryHasData\) \{\s*throw new TRPCError\(\{\s*code: "PRECONDITION_FAILED"/);
   });
 });
+
+describe("F9 — the Traffic Funnel's GSC stages prefer the official total and label it (2026-10-07)", () => {
+  const FUNNEL = code(readFileSync(resolve(APP, "server/routers/trafficFunnel.ts"), "utf8"));
+  it("both provenance labels exist and ride out on the payload", () => {
+    // Pre-fix: the "Google Impressions" and "Clicks to Site" stages were the SUM of
+    // stored query rows (anonymized queries missing), unlabelled.
+    expect(FUNNEL).toContain('"gsc_official_no_dimension"');
+    expect(FUNNEL).toContain('"stored_query_rows_partial"');
+    expect(FUNNEL).toMatch(/raw: \{\s*gscSource,/);
+  });
+});
+

@@ -77,8 +77,16 @@ export async function getProprietaryEvidence(topicKeyword?: string): Promise<Pro
     if (recentInsps.length > 0) {
       // Look for a failed component item in these inspections
       for (const insp of recentInsps) {
+        // Explicit columns, not a bare select(): 0143 adds columns to
+        // inspection_items that a pre-migration database does not have, and a
+        // bare select() would name them (.claude/skills/nickstire-tidb-ddl).
         const items = await db
-          .select()
+          .select({
+            component: inspectionItems.component,
+            condition: inspectionItems.condition,
+            notes: inspectionItems.notes,
+            recommendedAction: inspectionItems.recommendedAction,
+          })
           .from(inspectionItems)
           .where(
             and(

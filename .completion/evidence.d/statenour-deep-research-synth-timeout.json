@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "PR #2916 commit 6 touches server/cron/jobs/missedCallRecovery.ts ONLY to extract the existing capture-proof expression into an exported proveCapturedNothing() helper; the cron's try/catch, its shadow gate (missed_call_recovery flag + MISSED_CALL_RECOVERY_SEND=1) and its business-hours early return are unchanged, and a failed evidence read still resolves to unknown -> skip. Re-run for THIS diff on 2026-10-07: server/__tests__/cronNoSwallowedFailure.test.ts + server/cron/jobs/cronRethrow2026.test.ts + server/__tests__/missedCallRecovery.test.ts -> 3 files, 32 tests passed, exit 0."
+    }
+  }
+}

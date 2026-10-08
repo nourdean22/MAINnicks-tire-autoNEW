@@ -1,3 +1,8 @@
+# 2026-09-28 receipt script -- NOT the live configuration. It registers `NicksMaxCameraSupervisor`
+# (every minute, SYSTEM). Since the SYSTEM cutover the box runs `NicksMaxCameraSupervisorSystem`
+# (at startup), whose loop script calls nicksmax-camera-supervisor.ps1 about every 30 s. Registering
+# this task beside it would run two supervisors. Read docs/operations/NICKSMAX-CAMERA-HOST-2026-09-28.md
+# ("Corrected 2026-10-07") and docs/adr/0022-camera-vision-as-built.md before running it.
 $ErrorActionPreference = "Stop"
 $taskName = "NicksMaxCameraSupervisor"
 $supervisor = "C:\Users\nourd\NicksMax\repos\NOURCITY\camera-bridge\data\nicksmax-camera-supervisor.ps1"

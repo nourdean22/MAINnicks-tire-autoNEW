@@ -37,17 +37,24 @@ export const researchOnDemand = inngest.createFunction(
         synthesis: r.synthesis,
         citations: r.allCitations.slice(0, 10),
         cached: r.cached ?? false,
+        synthesisStatus: r.synthesisStatus,
+        roundCount: r.rounds.filter((x) => x.content).length,
       };
     });
 
     const delivery = await step.run("deliver", async () => {
       if (!report.synthesis) {
-        // Honest empty: never deliver a fabricated report.
-        const { sendTelegram } = await import("@/lib/services/telegram");
-        const sent = await sendTelegram(
-          `🔎 Research came back empty for: "${question.slice(0, 120)}" — no sources returned usable content.`,
-        );
-        return { delivered: sent ? "empty-notice" : "undelivered" };
+        // Honest empty: never deliver a fabricated report. And never call a
+        // write-up failure "no sources" — the searches DID return content.
+        const { sendTelegram, escapeHtml } = await import("@/lib/services/telegram");
+        const q = escapeHtml(question.slice(0, 120));
+        const text =
+          report.synthesisStatus === "synth_failed"
+            ? `🔎 Research on "${q}": ${report.roundCount} search round(s) returned content, but the write-up step failed, so there is no report.\n\n` +
+              `Sources found:\n${report.citations.map((c) => `• ${escapeHtml(c)}`).join("\n") || "• (none cited)"}`
+            : `🔎 Research came back empty for: "${q}" — no sources returned usable content.`;
+        const sent = await sendTelegram(text);
+        return { delivered: sent ? `empty-notice:${report.synthesisStatus}` : "undelivered" };
       }
       if (deliverTo === "push") {
         const { sendPush } = await import("@/lib/notifications/push");

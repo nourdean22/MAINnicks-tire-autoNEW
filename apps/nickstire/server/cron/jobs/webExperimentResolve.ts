@@ -21,6 +21,7 @@
  * details string, and that must stay distinguishable from a productive run.
  */
 import { sql } from "drizzle-orm";
+import { excludeNonHumanTraffic } from "../../lib/trafficClass";
 import { createLogger } from "../../lib/logger";
 import { experimentVerdictKey } from "../../services/bridgeKeys";
 import { assignByKey, evaluateWebExperiment, type ArmMetricCounts, type WebExperimentDefinition, type WebExperimentVerdict } from "../../../shared/experimentKernel";
@@ -122,6 +123,7 @@ async function gatherArmCounts(def: WebExperimentDefinition): Promise<{ counts: 
       AND sessionId IS NOT NULL
       AND JSON_UNQUOTE(JSON_EXTRACT(eventData, '$.element')) = ${def.experimentId}
       AND createdAt >= ${since}
+      AND ${excludeNonHumanTraffic()}
     GROUP BY sessionId, reportedArm
   `);
   const { accepted, integrity } = deriveExposures(
@@ -138,6 +140,7 @@ async function gatherArmCounts(def: WebExperimentDefinition): Promise<{ counts: 
       WHERE eventName = ${metric}
         AND sessionId IS NOT NULL
         AND createdAt >= ${since}
+        AND ${excludeNonHumanTraffic()}
       GROUP BY sessionId
     `);
     conversions.set(metric, new Map(rows.map((r) => [String(r.sessionId), new Date(r.firstAt as string | Date)])));
