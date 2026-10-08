@@ -647,6 +647,12 @@ export async function buildWellbeingSlice(
 // stays the place to look at the lot; this does not duplicate it.
 
 const LOT_BRIEF_TIMEOUT_MS = 8_000;
+/**
+ * The whole call, retries included. queryNick retries a timeout three times (about 35 s at
+ * 8 s per attempt), and the brief also answers a Telegram command on a route whose budget is
+ * 30 s: one slow nickstire must cost the brief one line, not the brief.
+ */
+const LOT_BRIEF_DEADLINE_MS = 12_000;
 const LOT_BRIEF_MAX_LINES = 3;
 
 function lotBriefUnavailable(reason: string): MorningBriefSlice {
@@ -658,6 +664,21 @@ function lotBriefUnavailable(reason: string): MorningBriefSlice {
 }
 
 export async function readLotBriefLines(): Promise<MorningBriefSlice> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<MorningBriefSlice>((resolve) => {
+    timer = setTimeout(
+      () => resolve(lotBriefUnavailable(`no reply within ${LOT_BRIEF_DEADLINE_MS / 1000} s`)),
+      LOT_BRIEF_DEADLINE_MS,
+    );
+  });
+  try {
+    return await Promise.race([fetchLotBriefLines(), deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchLotBriefLines(): Promise<MorningBriefSlice> {
   const res = await queryNick<Record<string, unknown>>("lot_brief", {}, LOT_BRIEF_TIMEOUT_MS);
   if ("error" in res) return lotBriefUnavailable(String(res.error));
   const data = (res.data ?? {}) as Record<string, unknown>;

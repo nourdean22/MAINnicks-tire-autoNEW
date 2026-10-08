@@ -62,7 +62,7 @@ const QUIET_LOT = {
   data: { ok: true, date: "2026-10-15", lines: [QUIET_LOT_LINE], events: [], coverage: { pctExpected: 0.92 } },
 };
 
-import { buildMorningBrief } from "@/lib/services/morning-brief";
+import { buildMorningBrief, readLotBriefLines } from "@/lib/services/morning-brief";
 
 let mockDriftEvents: any[] = [];
 let mockWisdomEvents: any[] = [];
@@ -212,6 +212,25 @@ describe("Morning Brief · v10.0.526 multi-slice composer", () => {
     expect(brief.text).not.toContain("Lot · four");
     const shopPayload = (brief.payload as { shop: Record<string, unknown> }).shop;
     expect(shopPayload.lot).toMatchObject({ ok: true, events: ["traffic_high"], coveragePct: 0.9 });
+  });
+
+  it("lot brief · a bridge that never answers costs ONE line after 12 s, not the brief (retries alone run ~35 s)", async () => {
+    vi.useFakeTimers();
+    try {
+      lotBridge.queryNick.mockReturnValue(new Promise(() => {}));
+      const pending = readLotBriefLines();
+      await vi.advanceTimersByTimeAsync(11_999);
+      let settled = false;
+      void pending.then(() => { settled = true; });
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      const slice = await pending;
+      expect(slice.lines).toEqual(["<i>Lot · brief unavailable (no reply within 12 s)</i>"]);
+      expect(slice.payload).toEqual({ ok: false, error: "no reply within 12 s" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("lot brief · a bridge failure and an ok:false reply are each ONE line saying so, never a quiet day", async () => {
