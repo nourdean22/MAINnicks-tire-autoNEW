@@ -542,9 +542,9 @@ describe("camera health timeline — derived transitions from the 5-minute pass 
     walk(q.queryChunks);
     return { text: text.join("").replace(/\s+/g, " ").trim(), params };
   }
-  const fakeDb = (latestToState: string | null | undefined) => {
+  const fakeDb = (latestToState: string | null | undefined, latestAtEpoch: number | null = null) => {
     const execute = vi.fn()
-      .mockResolvedValueOnce([latestToState === undefined ? [] : [{ toState: latestToState }]])
+      .mockResolvedValueOnce([latestToState === undefined ? [] : [{ toState: latestToState, atEpoch: latestAtEpoch }]])
       .mockResolvedValueOnce([{ affectedRows: 1 }]);
     return { db: { execute } as unknown as Parameters<typeof recordDerivedHealthTransition>[0], execute };
   };
@@ -555,11 +555,50 @@ describe("camera health timeline — derived transitions from the 5-minute pass 
     await expect(recordDerivedHealthTransition(db, "sign", offline, "0f0abbba26066a27")).resolves.toBe(true);
     expect(execute).toHaveBeenCalledTimes(2);
     const read = flat(execute.mock.calls[0][0]);
-    expect(read.text).toContain("SELECT toState FROM camera_health_events WHERE camera = ? ORDER BY at DESC, id DESC LIMIT 1");
+    // The row's own time comes back with its state: a stamped transition must never be ordered before it.
+    expect(read.text).toContain("SELECT toState, UNIX_TIMESTAMP(at) AS atEpoch FROM camera_health_events WHERE camera = ? ORDER BY at DESC, id DESC LIMIT 1");
     expect(read.params).toEqual(["sign"]);
     const write = flat(execute.mock.calls[1][0]);
-    expect(write.text).toContain("INSERT INTO camera_health_events (camera, fromState, toState, reason, producerInstanceId, sourceGeneration)");
+    expect(write.text).toContain("INSERT INTO camera_health_events (camera, fromState, toState, reason, producerInstanceId, sourceGeneration, at)");
+    // No clock given: stamped NOW(), the pre-review behaviour.
+    expect(write.text).toContain("NOW())");
     expect(write.params).toEqual(["sign", "HEALTHY", "PRODUCER_OFFLINE", "derived on the 5-minute pass: no heartbeat for 184 s", "0f0abbba26066a27", null]);
+  });
+
+  it("stamps the row where the state BEGAN on the heartbeat clock, not when this tick noticed it (review on #2929)", async () => {
+    const { db, execute } = fakeDb("HEALTHY", 1_791_460_000);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date(1_791_460_900 * 1000));
+      await expect(recordDerivedHealthTransition(db, "sign", offline, "p1", 1_791_460_720)).resolves.toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+    const write = flat(execute.mock.calls[1][0]);
+    expect(write.text).toContain("FROM_UNIXTIME(?))");
+    expect(write.text).not.toContain("NOW()");
+    expect(write.params.at(-1)).toBe(1_791_460_720);
+  });
+
+  it("a stamp never lands before the row it follows (the timeline reads in `at` order) and never in the future", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date(1_791_460_900 * 1000));
+      // Began 10 s BEFORE the last recorded row: one second after it instead.
+      const before = fakeDb("HEALTHY", 1_791_460_800);
+      await recordDerivedHealthTransition(before.db, "sign", offline, "p1", 1_791_460_790);
+      expect(flat(before.execute.mock.calls[1][0]).params.at(-1)).toBe(1_791_460_801);
+      // Began "in the future" (a fast database clock): now.
+      const future = fakeDb("HEALTHY", 1_791_460_000);
+      await recordDerivedHealthTransition(future.db, "sign", offline, "p1", 1_791_461_000);
+      expect(flat(future.execute.mock.calls[1][0]).params.at(-1)).toBe(1_791_460_900);
+      // The last row is itself at now and the state began earlier: now, not a second past it.
+      const atNow = fakeDb("HEALTHY", 1_791_460_900);
+      await recordDerivedHealthTransition(atNow.db, "sign", offline, "p1", 1_791_460_700);
+      expect(flat(atNow.execute.mock.calls[1][0]).params.at(-1)).toBe(1_791_460_900);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("writes nothing when the last row already says what this pass derived", async () => {
@@ -596,6 +635,10 @@ describe("camera health timeline — derived transitions from the 5-minute pass 
     // The pass reads the producer id (for the timeline row) and the heartbeat counter (for the
     // warming window) from the same heartbeat it judges.
     expect(service).toMatch(/SELECT camera,\s+producerInstanceId,\s+heartbeatSeq,\s+UNIX_TIMESTAMP\(\) - UNIX_TIMESTAMP\(receivedAt\) AS ageSeconds/);
+    // ...and stamps the row where the state began (review on #2929): the clock comes from the
+    // pure rule, in epoch seconds, through the recorder's fifth argument.
+    expect(service).toContain("const beganAtMs = derivedStateBeganAtMs({");
+    expect(service).toContain("beganAtMs === null ? null : Math.floor(beganAtMs / 1000),");
   });
 });
 
@@ -621,11 +664,31 @@ describe("camera health alert policy — recovery after DEGRADED_VISION knows wh
     expect(cameraAlertDecision("HEALTHY", prior, { vision: "quiet" }, null, undefined)).toEqual({ notify: false, recovery: false, held: false });
   });
 
-  it("the service records the facet with every claim, reads it back with the latest page, and passes the producer's uptime into the lattice", () => {
+  it("a frozen capture on a QUIET lot pages as vision=blind too: only the frames facet tells the two apart (review on #2929)", () => {
+    // Paged blind with frames=unhealthy: that was the frozen capture, so HEALTHY recovers at once.
+    expect(cameraAlertDecision("HEALTHY", prior, { vision: "quiet" }, null, "blind", "unhealthy")).toEqual({ notify: true, recovery: true, held: false });
+    // Paged blind with healthy frames: the blind canary, which waits for the detector to see again.
+    expect(cameraAlertDecision("HEALTHY", prior, { vision: "quiet" }, null, "blind", "fresh")).toEqual({ notify: false, recovery: false, held: false });
+    expect(cameraAlertDecision("HEALTHY", prior, { vision: "seeing" }, null, "blind", "fresh")).toEqual({ notify: true, recovery: true, held: false });
+    // Frames not recorded with the page: cautious, as before.
+    expect(cameraAlertDecision("HEALTHY", prior, { vision: "quiet" }, null, "blind", null)).toEqual({ notify: false, recovery: false, held: false });
+  });
+
+  it("a WARMING detector (restarted producer, window not mature) is held like a quiet one: it has not seen anything yet either", () => {
+    expect(cameraAlertDecision("HEALTHY", prior, { vision: "warming" }, null, "blind", "fresh")).toEqual({ notify: false, recovery: false, held: false });
+    expect(cameraAlertDecision("HEALTHY", prior, { vision: "warming" }, null, "blind", "unhealthy")).toEqual({ notify: true, recovery: true, held: false });
+    // Outside DEGRADED_VISION the warming window changes nothing.
+    expect(cameraAlertDecision("HEALTHY", "camera_health:sign:e1759830000:PRODUCER_OFFLINE", { vision: "warming" }, null, null)).toEqual({ notify: true, recovery: true, held: false });
+  });
+
+  it("the service records BOTH facets with every claim, reads them back with the latest page, and passes the producer's uptime into the lattice", () => {
     const service = fs.readFileSync(path.join(__dirname, "services", "cameraHealthAlerts.ts"), "utf8");
     expect(service).toContain("vision: verdict.facets.vision,");
+    expect(service).toContain("frames: verdict.facets.frames,");
     expect(service).toContain("SELECT alert_key, payload, UNIX_TIMESTAMP() - UNIX_TIMESTAMP(fired_at) AS ageSeconds");
     expect(service).toContain("latest?.vision,");
+    expect(service).toContain("latest?.frames,");
+    expect(service).toContain('if (typeof p.frames === "string") frames = p.frames;');
     // The warming window (Codex on #2920): the cron must give deriveCameraState the heartbeat counter.
     expect(service).toContain("heartbeatSeq,\n           UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt) AS ageSeconds");
     expect(service).toContain("heartbeatSeq: numberOrNull(row.heartbeatSeq),");

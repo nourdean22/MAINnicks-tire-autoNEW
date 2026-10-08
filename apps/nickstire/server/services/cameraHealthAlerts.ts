@@ -27,7 +27,7 @@ import { createLogger } from "../lib/logger";
 import { deriveCameraState, shopOpenAt } from "../lib/cameraHealth";
 import { solarExpectedOffline } from "../lib/solar";
 import { cameraRuntimeHasColumns } from "../lib/heartbeatStorableColumns";
-import { derivedTransition } from "../lib/cameraTimeline";
+import { derivedStateBeganAtMs, derivedTransition } from "../lib/cameraTimeline";
 import { isMissingTableError } from "../lib/dbErrors";
 import { EXPECTED_CAMERAS, cameraPowerFor } from "../../shared/cameras";
 import {
@@ -160,7 +160,7 @@ export async function runCameraHealthAlertSelfTest(input?: {
 async function latestCameraAlert(
   db: Db,
   camera: string,
-): Promise<{ key: string; ageSeconds: number | null; vision: string | null } | null> {
+): Promise<{ key: string; ageSeconds: number | null; vision: string | null; frames: string | null } | null> {
   const prefix = `camera_health:${camera}:%`;
   const [rows] = await db.execute(sql`
     SELECT alert_key, payload, UNIX_TIMESTAMP() - UNIX_TIMESTAMP(fired_at) AS ageSeconds
@@ -172,15 +172,19 @@ async function latestCameraAlert(
   const row = (rows as Array<Record<string, unknown>>)[0];
   if (!row?.alert_key) return null;
   let vision: string | null = null;
+  let frames: string | null = null;
   try {
     const payload = typeof row.payload === "string" ? JSON.parse(row.payload) : row.payload;
-    if (payload && typeof payload === "object" && typeof (payload as { vision?: unknown }).vision === "string") {
-      vision = (payload as { vision: string }).vision;
+    if (payload && typeof payload === "object") {
+      const p = payload as { vision?: unknown; frames?: unknown };
+      if (typeof p.vision === "string") vision = p.vision;
+      if (typeof p.frames === "string") frames = p.frames;
     }
   } catch {
     vision = null; // an unreadable payload is "not recorded", which the policy treats cautiously
+    frames = null;
   }
-  return { key: String(row.alert_key), ageSeconds: numberOrNull(row.ageSeconds), vision };
+  return { key: String(row.alert_key), ageSeconds: numberOrNull(row.ageSeconds), vision, frames };
 }
 
 /**
@@ -200,21 +204,33 @@ export async function recordDerivedHealthTransition(
   camera: string,
   verdict: { state: HealthState; reason: string },
   producerInstanceId: string | null,
+  /** When the derived state BEGAN on the heartbeat clock (derivedStateBeganAtMs), epoch seconds; null = now. */
+  beganAtEpoch: number | null = null,
 ): Promise<boolean> {
   try {
     const [rows] = await db.execute(sql`
-      SELECT toState FROM camera_health_events
+      SELECT toState, UNIX_TIMESTAMP(at) AS atEpoch FROM camera_health_events
        WHERE camera = ${camera}
        ORDER BY at DESC, id DESC
        LIMIT 1
     `);
     const latest = (rows as Array<Record<string, unknown>>)[0];
     const latestToState = latest?.toState == null ? null : String(latest.toState);
+    const latestAtEpoch = latest?.atEpoch == null ? null : Number(latest.atEpoch);
     const transition = derivedTransition(latestToState, verdict);
     if (!transition) return false;
+    // Stamped where the state began, not when this tick noticed it: a row stamped at the tick
+    // counted up to five minutes of a dead producer as watched (review on #2929). Never before
+    // the row it follows (the timeline is read in `at` order) and never in the future.
+    const nowEpoch = Math.floor(Date.now() / 1000);
+    let atEpoch: number | null = beganAtEpoch === null ? null : Math.min(Math.floor(beganAtEpoch), nowEpoch);
+    if (atEpoch !== null && latestAtEpoch !== null && Number.isFinite(latestAtEpoch) && atEpoch <= latestAtEpoch) {
+      atEpoch = Math.min(latestAtEpoch + 1, nowEpoch);
+    }
     await db.execute(sql`
-      INSERT INTO camera_health_events (camera, fromState, toState, reason, producerInstanceId, sourceGeneration)
-      VALUES (${camera}, ${transition.from}, ${transition.to}, ${transition.reason}, ${producerInstanceId}, ${null})
+      INSERT INTO camera_health_events (camera, fromState, toState, reason, producerInstanceId, sourceGeneration, at)
+      VALUES (${camera}, ${transition.from}, ${transition.to}, ${transition.reason}, ${producerInstanceId}, ${null},
+              ${atEpoch === null ? sql`NOW()` : sql`FROM_UNIXTIME(${atEpoch})`})
     `);
     log.info("camera health timeline: derived transition recorded", {
       camera,
@@ -288,7 +304,11 @@ export async function runCameraHealthAlerts(): Promise<{
   let held = 0;
   let recorded = 0;
   let timelineFailure: unknown = null;
+  // One camera's undeliverable page must not stop the next camera from being judged, recorded
+  // and paged on the same tick (review on #2929); the failure is thrown after the loop.
+  let deliveryFailure: unknown = null;
   const observed: string[] = [];
+  const nowMs = Date.now();
 
   for (const expected of commissioned) {
     const row = byCamera.get(expected.camera);
@@ -330,12 +350,20 @@ export async function runCameraHealthAlerts(): Promise<{
     // the two agree on what happened. A failure is kept, not thrown here: every camera is still
     // judged and paged, then the run fails loudly at the end.
     try {
+      const beganAtMs = derivedStateBeganAtMs({
+        state: verdict.state,
+        receivedAtEpoch: row ? numberOrNull(row.receivedAtEpoch) : null,
+        ageSeconds: row ? numberOrNull(row.ageSeconds) : null,
+        stateSinceEpoch: row ? numberOrNull(row.stateSinceEpoch) : null,
+        nowMs,
+      });
       if (
         await recordDerivedHealthTransition(
           db,
           expected.camera,
           verdict,
           row?.producerInstanceId == null ? null : String(row.producerInstanceId),
+          beganAtMs === null ? null : Math.floor(beganAtMs / 1000),
         )
       ) {
         recorded++;
@@ -351,6 +379,7 @@ export async function runCameraHealthAlerts(): Promise<{
       verdict.facets,
       latest?.ageSeconds ?? null,
       latest?.vision,
+      latest?.frames,
     );
     if (decision.held) held++;
     if (!decision.notify) continue;
@@ -379,25 +408,39 @@ export async function runCameraHealthAlerts(): Promise<{
       reason: verdict.reason,
       recovery: decision.recovery,
       episode,
-      // The vision facet AT PAGE TIME, so a later HEALTHY can tell a blind-canary page (recovery
-      // waits for the detector to see again) from a frozen-capture page (recovers like any other).
+      // The vision AND frames facets AT PAGE TIME, so a later HEALTHY can tell a blind-canary
+      // page (recovery waits for the detector to see again) from a frozen-capture page (recovers
+      // like any other): on a quiet lot a frozen capture reads vision=blind too.
       vision: verdict.facets.vision,
+      frames: verdict.facets.frames,
     });
     if (!claimed) continue;
 
-    await deliverClaimedAlert({
-      db,
-      camera: expected.camera,
-      state: verdict.state,
-      claim,
-      alert: formatCameraHealthAlert({
+    try {
+      await deliverClaimedAlert({
+        db,
         camera: expected.camera,
-        label: expected.label,
-        role: expected.role,
-        verdict,
-        recovery: decision.recovery,
-      }),
-    });
+        state: verdict.state,
+        claim,
+        alert: formatCameraHealthAlert({
+          camera: expected.camera,
+          label: expected.label,
+          role: expected.role,
+          verdict,
+          recovery: decision.recovery,
+        }),
+      });
+    } catch (err) {
+      // The claim was released inside deliverWithConfirmedNotification, so the page is retried
+      // next tick; the other cameras still get their turn on this one.
+      deliveryFailure = err;
+      log.error("camera health alert delivery failed; continuing with the other cameras", {
+        camera: expected.camera,
+        state: verdict.state,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      continue;
+    }
     sent++;
     if (decision.recovery) {
       log.info("camera health recovery fired", {
@@ -421,6 +464,11 @@ export async function runCameraHealthAlerts(): Promise<{
         timelineFailure instanceof Error ? timelineFailure.message : String(timelineFailure)
       }`,
     );
+  }
+  if (deliveryFailure) {
+    throw deliveryFailure instanceof Error
+      ? deliveryFailure
+      : new Error(`camera-health-alerts: ${sent} alert(s) sent, one delivery failed: ${String(deliveryFailure)}`);
   }
 
   return {

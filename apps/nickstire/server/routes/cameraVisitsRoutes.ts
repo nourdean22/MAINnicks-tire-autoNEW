@@ -42,7 +42,9 @@ import { sql } from "drizzle-orm";
 
 import { maskPlate, normalizePlate, PLATE_MATCH_CLASSES } from "../lib/plate";
 import { deriveStateAtIngest, HEALTH_THRESHOLDS, shopOpenAt } from "../lib/cameraHealth";
-import { resumptionTransition } from "../lib/cameraTimeline";
+import { resumptionTransition, retroOutageTransition } from "../lib/cameraTimeline";
+import { solarExpectedOffline } from "../lib/solar";
+import { cameraPowerFor } from "../../shared/cameras";
 import { isUnknownColumnError } from "../lib/dbErrors";
 import {
   CAMERA_RUNTIME_COLUMNS_SINCE_0124,
@@ -726,7 +728,8 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       // rows, and the worst case is one duplicated transition line.
       const prevRows = await d.execute(sql`
         SELECT state, producerInstanceId,
-               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt) AS gapSeconds
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt) AS gapSeconds,
+               UNIX_TIMESTAMP(receivedAt) AS prevReceivedEpoch
           FROM camera_runtime WHERE camera = ${b.camera}
       `);
       const prevList = (Array.isArray(prevRows) ? prevRows[0] : prevRows) as unknown as Array<Record<string, unknown>> | undefined;
@@ -796,10 +799,29 @@ export function registerCameraHeartbeatRoute(app: Express): void {
             const latestList = (Array.isArray(latestRows) ? latestRows[0] : latestRows) as unknown as Array<Record<string, unknown>> | undefined;
             const latestToState =
               Array.isArray(latestList) && latestList.length && latestList[0].toState != null ? String(latestList[0].toState) : null;
+            // A gap the 5-minute pass never recorded (it fell between two ticks) is written here,
+            // stamped where it began on the heartbeat clock, so a short outage is neither
+            // invisible nor counted as watched (review on #2929). A solar camera that went dark
+            // inside its window is recorded as expected, not as a fault.
+            const retro = retroOutageTransition({
+              gapSeconds,
+              prevReceivedEpoch: prev && prev.prevReceivedEpoch != null ? Number(prev.prevReceivedEpoch) : null,
+              latestToState,
+              solarExpectedAt:
+                cameraPowerFor(b.camera) === "solar" ? (ms) => solarExpectedOffline(new Date(ms)).expectedOffline : null,
+            });
+            if (retro) {
+              await d.execute(sql`
+                INSERT INTO camera_health_events (camera, fromState, toState, reason, producerInstanceId, sourceGeneration, at)
+                VALUES (${b.camera}, ${retro.from}, ${retro.to}, ${retro.reason},
+                        ${prev && prev.producerInstanceId != null ? String(prev.producerInstanceId) : null}, ${null},
+                        FROM_UNIXTIME(${retro.atEpoch}))
+              `);
+            }
             transition = resumptionTransition({
               gapSeconds,
               staleAfterSeconds: HEALTH_THRESHOLDS.staleAfterSeconds,
-              latestToState,
+              latestToState: retro ? retro.to : latestToState,
               state: verdict.state,
             });
           }

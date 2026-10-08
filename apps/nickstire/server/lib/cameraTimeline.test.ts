@@ -7,10 +7,14 @@ import {
   buildCameraTimeline,
   businessHourWindows,
   coverageByBusinessHour,
+  derivedStateBeganAtMs,
   derivedTransition,
+  reconcileWithLive,
   resumptionTransition,
+  retroOutageTransition,
   type HealthEventRow,
 } from "./cameraTimeline";
+import { HEALTH_THRESHOLDS } from "./cameraHealth";
 
 const T0 = Date.UTC(2026, 9, 8, 4, 0); // 2026-10-08 00:00 EDT, local midnight
 const h = (hours: number, minutes = 0) => T0 + hours * 3_600_000 + minutes * 60_000;
@@ -68,14 +72,23 @@ describe("buildCameraTimeline", () => {
     expect(tl.current?.sinceMs).toBe(h(9));
   });
 
-  it("rows outside the day (before midnight, after now) are ignored rather than bending the segments", () => {
+  it("a row before midnight is ignored (the anchor already covers it); a row stamped after now is clamped to now, not dropped", () => {
+    // The database clock can run a second ahead of the app's: the newest row is still the
+    // latest fact about the camera, so it takes over AT now instead of vanishing (review on #2929).
     const tl = buildCameraTimeline({
       anchor: ev("HEALTHY", h(-2)),
-      events: [ev("STALE", h(-1)), ev("PRODUCER_OFFLINE", h(13))],
+      events: [ev("STALE", h(-1)), ev("PRODUCER_OFFLINE", h(12, 0) + 900)],
       dayStartMs: T0,
       nowMs: h(12),
     });
-    expect(tl.segments).toEqual([{ state: "HEALTHY", fromMs: T0, toMs: h(12), open: true, reason: null }]);
+    expect(tl.segments).toEqual([
+      { state: "HEALTHY", fromMs: T0, toMs: h(12), open: false, reason: null },
+      { state: "PRODUCER_OFFLINE", fromMs: h(12), toMs: h(12), open: true, reason: null },
+    ]);
+    expect(tl.current).toEqual({ state: "PRODUCER_OFFLINE", sinceMs: h(12), forSeconds: 0 });
+    // The before-midnight row alone changes nothing.
+    const only = buildCameraTimeline({ anchor: ev("HEALTHY", h(-2)), events: [ev("STALE", h(-1))], dayStartMs: T0, nowMs: h(12) });
+    expect(only.segments).toEqual([{ state: "HEALTHY", fromMs: T0, toMs: h(12), open: true, reason: null }]);
   });
 });
 
@@ -126,6 +139,175 @@ describe("coverageByBusinessHour", () => {
     expect(cov.hours[0].watchedMs).toBe(0);
     expect(cov.hours[0].unknownMs).toBe(0);
     expect(cov.pct).toBeCloseTo(45 / 120, 6);
+    // ...but it is reported APART and excluded from the expected-watch share (review on #2929):
+    // the baseline days were dark at the same hours, so the dark morning is not a data gap.
+    expect(cov.hours[0]).toMatchObject({ solarMs: 3_600_000, pct: 0, pctExpected: null });
+    expect(cov.hours[1]).toMatchObject({ solarMs: 900_000, watchedMs: 2_700_000, pct: 0.75, pctExpected: 1 });
+    expect(cov.solarMs).toBe(4_500_000);
+    expect(cov.pctExpected).toBe(1);
+  });
+
+  it("an UNEXPECTED outage is not excused: it lowers pctExpected exactly as it lowers pct", () => {
+    const tl = buildCameraTimeline({
+      anchor: ev("HEALTHY", h(-1)),
+      events: [ev("PRODUCER_OFFLINE", h(9)), ev("HEALTHY", h(9, 30))],
+      dayStartMs: T0,
+      nowMs: h(10),
+    });
+    const cov = coverageByBusinessHour(tl.segments, windows, h(10));
+    expect(cov.solarMs).toBe(0);
+    expect(cov.pct).toBeCloseTo(90 / 120, 6);
+    expect(cov.pctExpected).toBeCloseTo(90 / 120, 6);
+  });
+});
+
+/**
+ * When a READ-derived state began (review on #2929): the 5-minute pass notices a dead producer
+ * up to five minutes late, and a timeline row stamped at the tick counted those minutes as
+ * watched. The clock that identifies the outage is the last heartbeat, plus the threshold.
+ */
+describe("derivedStateBeganAtMs", () => {
+  const T = HEALTH_THRESHOLDS;
+  const received = 1_791_460_000; // epoch seconds of the last heartbeat
+  const now = (received + 300) * 1000;
+
+  it("STALE and PRODUCER_OFFLINE begin their threshold after the last heartbeat, never at the tick", () => {
+    expect(derivedStateBeganAtMs({ state: "STALE", receivedAtEpoch: received, ageSeconds: 300, stateSinceEpoch: received - 7200, nowMs: now }))
+      .toBe((received + T.staleAfterSeconds) * 1000);
+    expect(derivedStateBeganAtMs({ state: "PRODUCER_OFFLINE", receivedAtEpoch: received, ageSeconds: 300, stateSinceEpoch: received - 7200, nowMs: now }))
+      .toBe((received + T.offlineAfterSeconds) * 1000);
+  });
+
+  it("an expected solar outage that is a heartbeat GAP begins like STALE; one the producer itself reports begins at its stateSince", () => {
+    expect(derivedStateBeganAtMs({ state: "EXPECTED_SOLAR_OFFLINE", receivedAtEpoch: received, ageSeconds: 300, stateSinceEpoch: received - 7200, nowMs: now }))
+      .toBe((received + T.staleAfterSeconds) * 1000);
+    // Heartbeats still arriving (age 20 s): the edge is up with no stream, so the producer's own clock applies.
+    expect(derivedStateBeganAtMs({ state: "EXPECTED_SOLAR_OFFLINE", receivedAtEpoch: received, ageSeconds: 20, stateSinceEpoch: received - 40, nowMs: now }))
+      .toBe((received - 40) * 1000);
+  });
+
+  it("every producer-reported state begins at stateSince; no clock at all is null; nothing begins in the future", () => {
+    expect(derivedStateBeganAtMs({ state: "HEALTHY", receivedAtEpoch: received, ageSeconds: 10, stateSinceEpoch: received - 3600, nowMs: now })).toBe((received - 3600) * 1000);
+    expect(derivedStateBeganAtMs({ state: "CAMERA_OFFLINE", receivedAtEpoch: received, ageSeconds: 10, stateSinceEpoch: null, nowMs: now })).toBeNull();
+    expect(derivedStateBeganAtMs({ state: "STALE", receivedAtEpoch: null, ageSeconds: null, stateSinceEpoch: null, nowMs: now })).toBeNull();
+    // A heartbeat received "now" is STALE only in 60 s: clamped to now rather than reported ahead of it.
+    expect(derivedStateBeganAtMs({ state: "STALE", receivedAtEpoch: received + 300, ageSeconds: 0, stateSinceEpoch: null, nowMs: now })).toBe(now);
+  });
+});
+
+/**
+ * The rows lag the reader (review on #2929): the pass writes a read-derived state up to five
+ * minutes after it began, and a camera the pass does not cover never gets one. The reader
+ * derives the live state itself and corrects the open segment where the two disagree.
+ */
+describe("reconcileWithLive", () => {
+  const recorded = () =>
+    buildCameraTimeline({ anchor: ev("HEALTHY", h(-1)), events: [], dayStartMs: T0, nowMs: h(12) });
+
+  it("cuts the open segment where the live state began and lets the live state run to now", () => {
+    const tl = reconcileWithLive(recorded(), { state: "PRODUCER_OFFLINE", sinceMs: h(11, 50), reason: "last heartbeat 600s ago" }, h(12));
+    expect(tl.segments.map((s) => [s.state, s.fromMs, s.toMs, s.open])).toEqual([
+      ["HEALTHY", T0, h(11, 50), false],
+      ["PRODUCER_OFFLINE", h(11, 50), h(12), true],
+    ]);
+    expect(tl.current).toEqual({ state: "PRODUCER_OFFLINE", sinceMs: h(11, 50), forSeconds: 600 });
+    expect(tl.anchorKnown).toBe(true);
+    // Which is what keeps a dead producer's last ten minutes out of "watched".
+    const cov = coverageByBusinessHour(tl.segments, businessHourWindows(h(8), h(18)), h(12));
+    expect(cov.watchedMs).toBe(4 * 3_600_000 - 600_000);
+  });
+
+  it("agrees with rows that already say what the reader sees, and never times a camera that never ingested", () => {
+    const same = recorded();
+    expect(reconcileWithLive(same, { state: "HEALTHY", sinceMs: h(-1), reason: null }, h(12))).toBe(same);
+    const never = buildCameraTimeline({ anchor: null, events: [], dayStartMs: T0, nowMs: h(12) });
+    expect(reconcileWithLive(never, { state: "NEVER_INGESTED", sinceMs: null, reason: "no heartbeat" }, h(12))).toBe(never);
+  });
+
+  it("a live state that began before the open segment cuts at the segment's start; one with no clock takes over at now", () => {
+    const early = reconcileWithLive(
+      buildCameraTimeline({ anchor: ev("HEALTHY", h(-1)), events: [ev("STALE", h(11))], dayStartMs: T0, nowMs: h(12) }),
+      { state: "PRODUCER_OFFLINE", sinceMs: h(10), reason: null },
+      h(12),
+    );
+    expect(early.segments.map((s) => [s.state, s.fromMs, s.toMs])).toEqual([
+      ["HEALTHY", T0, h(11)],
+      ["PRODUCER_OFFLINE", h(11), h(12)],
+    ]);
+    expect(early.current).toEqual({ state: "PRODUCER_OFFLINE", sinceMs: h(10), forSeconds: 7200 });
+    const noClock = reconcileWithLive(recorded(), { state: "CAMERA_OFFLINE", sinceMs: null, reason: null }, h(12));
+    expect(noClock.segments.map((s) => [s.state, s.fromMs, s.toMs, s.open])).toEqual([
+      ["HEALTHY", T0, h(12), false],
+      ["CAMERA_OFFLINE", h(12), h(12), true],
+    ]);
+    expect(noClock.current).toEqual({ state: "CAMERA_OFFLINE", sinceMs: h(12), forSeconds: 0 });
+  });
+
+  it("an unanchored morning stays UNKNOWN up to the live state's start: unknown is not watched and not an outage", () => {
+    const tl = reconcileWithLive(
+      buildCameraTimeline({ anchor: null, events: [], dayStartMs: T0, nowMs: h(12) }),
+      { state: "PRODUCER_OFFLINE", sinceMs: h(11, 50), reason: null },
+      h(12),
+    );
+    expect(tl.anchorKnown).toBe(false);
+    expect(tl.segments.map((s) => s.state)).toEqual(["UNKNOWN", "PRODUCER_OFFLINE"]);
+    const cov = coverageByBusinessHour(tl.segments, businessHourWindows(h(8), h(18)), h(12));
+    expect(cov.watchedMs).toBe(0);
+    expect(cov.unknownMs).toBe(4 * 3_600_000 - 600_000);
+  });
+});
+
+/**
+ * The outage row the ingest writes for a gap the 5-minute pass never saw (review on #2929):
+ * a 90-second blackout between two ticks left no row at all, so its minutes counted as watched.
+ */
+describe("retroOutageTransition (the heartbeat ingest, on resumption)", () => {
+  const T = HEALTH_THRESHOLDS;
+  const prev = 1_791_460_000;
+
+  it("a gap past the stale threshold but inside the offline one is STALE, stamped 60 s after the last heartbeat", () => {
+    expect(retroOutageTransition({ gapSeconds: 90, prevReceivedEpoch: prev, latestToState: "HEALTHY" })).toEqual({
+      from: "HEALTHY",
+      to: "STALE",
+      reason: `no heartbeat for 90 s (recorded at resumption; began ${T.staleAfterSeconds} s after the last one)`,
+      atEpoch: prev + T.staleAfterSeconds,
+    });
+  });
+
+  it("a longer gap is PRODUCER_OFFLINE, stamped 120 s after the last heartbeat", () => {
+    const row = retroOutageTransition({ gapSeconds: 1900, prevReceivedEpoch: prev, latestToState: "HEALTHY" });
+    expect(row).toMatchObject({ from: "HEALTHY", to: "PRODUCER_OFFLINE", atEpoch: prev + T.offlineAfterSeconds });
+    expect(row!.reason).toContain("began 120 s after the last one");
+  });
+
+  it("a solar camera that went dark inside its window is recorded as expected, not as a fault", () => {
+    const row = retroOutageTransition({
+      gapSeconds: 50_000,
+      prevReceivedEpoch: prev,
+      latestToState: "HEALTHY",
+      solarExpectedAt: (ms) => ms === (prev + T.offlineAfterSeconds) * 1000,
+    });
+    expect(row).toMatchObject({ to: "EXPECTED_SOLAR_OFFLINE", atEpoch: prev + T.offlineAfterSeconds });
+    expect(row!.reason).toContain("dark inside the solar window");
+    // The sky is asked about the moment the outage BEGAN, not about now.
+    const asked: number[] = [];
+    retroOutageTransition({ gapSeconds: 50_000, prevReceivedEpoch: prev, latestToState: "HEALTHY", solarExpectedAt: (ms) => (asked.push(ms), false) });
+    expect(asked).toEqual([(prev + T.offlineAfterSeconds) * 1000]);
+  });
+
+  it("writes nothing when the pass already recorded the outage, when the gap is within cadence, or when no clock places it", () => {
+    expect(retroOutageTransition({ gapSeconds: 1900, prevReceivedEpoch: prev, latestToState: "PRODUCER_OFFLINE" })).toBeNull();
+    expect(retroOutageTransition({ gapSeconds: 1900, prevReceivedEpoch: prev, latestToState: "STALE" })).toBeNull();
+    expect(retroOutageTransition({ gapSeconds: 1900, prevReceivedEpoch: prev, latestToState: "EXPECTED_SOLAR_OFFLINE" })).toBeNull();
+    expect(retroOutageTransition({ gapSeconds: T.staleAfterSeconds, prevReceivedEpoch: prev, latestToState: "HEALTHY" })).toBeNull();
+    expect(retroOutageTransition({ gapSeconds: null, prevReceivedEpoch: prev, latestToState: "HEALTHY" })).toBeNull();
+    expect(retroOutageTransition({ gapSeconds: 1900, prevReceivedEpoch: null, latestToState: "HEALTHY" })).toBeNull();
+  });
+
+  it("anchors an empty history (first row ever) and keeps the reason inside VARCHAR(191)", () => {
+    const row = retroOutageTransition({ gapSeconds: 123_456_789, prevReceivedEpoch: prev, latestToState: null });
+    expect(row).toMatchObject({ from: null, to: "PRODUCER_OFFLINE" });
+    expect(row!.reason.length).toBeLessThanOrEqual(191);
   });
 });
 

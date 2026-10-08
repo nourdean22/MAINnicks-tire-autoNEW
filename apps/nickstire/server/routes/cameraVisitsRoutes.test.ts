@@ -589,4 +589,21 @@ describe("camera heartbeat ingest - resumption after a read-derived outage reach
     expect(branch).toBeGreaterThan(route.indexOf('reason: "producer restarted (new instance id)"'));
     expect(write).toBeGreaterThan(branch);
   });
+
+  it("writes the RETRO outage row for a gap the 5-minute pass never saw, stamped on the heartbeat clock, before the resumption (review on #2929)", () => {
+    // The previous row's own receive time is the only clock that places the outage.
+    expect(route).toContain("UNIX_TIMESTAMP(receivedAt) AS prevReceivedEpoch");
+    const latestRead = route.indexOf("SELECT toState FROM camera_health_events");
+    const retro = route.indexOf("const retro = retroOutageTransition({");
+    const retroWrite = route.indexOf("FROM_UNIXTIME(${retro.atEpoch})", retro);
+    const resumption = route.indexOf("transition = resumptionTransition({", retro);
+    expect(latestRead).toBeGreaterThanOrEqual(0);
+    expect(retro).toBeGreaterThan(latestRead);
+    expect(retroWrite).toBeGreaterThan(retro);
+    expect(resumption).toBeGreaterThan(retroWrite);
+    // The resumption closes the row just written, not the stale one it read before it.
+    expect(route.slice(resumption, resumption + 300)).toContain("latestToState: retro ? retro.to : latestToState,");
+    // A solar camera asks the sky about the moment the gap began; a mains camera gets no excuse.
+    expect(route).toContain('cameraPowerFor(b.camera) === "solar" ? (ms) => solarExpectedOffline(new Date(ms)).expectedOffline : null');
+  });
 });

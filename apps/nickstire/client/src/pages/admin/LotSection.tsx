@@ -506,7 +506,7 @@ function HealthTimeline({ timeline, stability, window }: { timeline: CameraTimel
     stability === null
       ? timeline.anchorKnown
         ? "no change recorded today"
-        : "no record before today"
+        : "no record today or before it"
       : `${stability.transitionsToday} change${stability.transitionsToday === 1 ? "" : "s"}, ${stability.dropsToday} drop${stability.dropsToday === 1 ? "" : "s"} today`;
   return (
     <div className="mt-1 w-[9.5rem] max-w-full">
@@ -600,7 +600,9 @@ function CameraCard({ c, window }: { c: CameraHealth; window: BusinessWindow | n
               A steady source and a flapping one are indistinguishable from a single glance.
               The strip is the day as time (audit N6): every state segment, including the
               read-derived ones no heartbeat could report, with the drops count beneath it. */}
-          {c.timeline !== null && c.state !== "NEVER_INGESTED" && (
+          {/* `!= null`, not `!== null`: an older server (deploy overlap, a rollback under a cached
+              PWA bundle) sends no `timeline` at all, and the strip must not throw on undefined. */}
+          {c.timeline != null && c.state !== "NEVER_INGESTED" && (
             <HealthTimeline timeline={c.timeline} stability={c.stability} window={window} />
           )}
         </div>
@@ -1710,8 +1712,18 @@ export default function LotSection() {
       ? { state: signCamera.state, stateForSeconds: signCamera.stateForSeconds, dropsToday: signCamera.stability?.dropsToday ?? null }
       : null,
     clock: { hour: Math.floor(clock.minutes / 60), minute: clock.minutes % 60 },
-    // Comparisons are withheld under 80% of business time watched, scaled above it (audit N2).
-    coverage: coverage ? { pct: coverage.pct, watchedMinutes: coverage.watchedMinutes, elapsedMinutes: coverage.elapsedMinutes } : null,
+    // Comparisons are withheld under 80% of the business time the camera was EXPECTED to watch
+    // (its solar morning excluded), and the baseline is scaled per hour above it (audit N2).
+    coverage: coverage
+      ? {
+          pct: coverage.pct,
+          pctExpected: coverage.pctExpected,
+          watchedMinutes: coverage.watchedMinutes,
+          elapsedMinutes: coverage.elapsedMinutes,
+          solarMinutes: coverage.solarMinutes,
+          hours: coverage.hours.map((h) => ({ hour: h.hour, watchedMinutes: h.watchedMinutes, elapsedMinutes: h.elapsedMinutes, solarMinutes: h.solarMinutes })),
+        }
+      : null,
   });
 
   // WATCHED TODAY: the share of the shop's business time the sign camera spent HEALTHY, from
@@ -1723,15 +1735,22 @@ export default function LotSection() {
       ? { value: "no business hours today", tone: "muted", detail: "coverage is measured over the shop's configured hours" }
       : coverage.pct === null
         ? { value: "shop not open yet", tone: "muted", detail: `coverage starts at ${shopClock(coverage.openMs)}` }
-        : {
-            value: `watched ${Math.round(coverage.pct * 100)}% of business time`,
-            tone: coverage.pct >= 0.8 ? "ok" : "warn",
-            detail:
-              `${coverage.watchedMinutes} of ${coverage.elapsedMinutes} min since ${shopClock(coverage.openMs)}` +
-              (coverage.unknownMinutes > 0 ? `; ${coverage.unknownMinutes} min with no record` : "") +
-              (!coverage.anchorKnown ? "; nothing recorded before today" : "") +
-              (coverage.pct < 0.8 ? "; comparisons with the baseline are withheld under 80%" : ""),
-          };
+        : (() => {
+            // The chip says the honest share of ALL business time; the tone and the gate read
+            // the share of the time the camera was expected to watch (its solar morning is a
+            // fact about its battery, not a data-quality gap). Floored, never rounded up to 80.
+            const gate = coverage.pctExpected ?? coverage.pct;
+            return {
+              value: `watched ${Math.floor(coverage.pct * 100)}% of business time`,
+              tone: gate >= 0.8 ? "ok" : "warn",
+              detail:
+                `${coverage.watchedMinutes} of ${coverage.elapsedMinutes} min since ${shopClock(coverage.openMs)}` +
+                (coverage.solarMinutes > 0 ? `; ${coverage.solarMinutes} min expected dark (solar)` : "") +
+                (coverage.unknownMinutes > 0 ? `; ${coverage.unknownMinutes} min with no record` : "") +
+                (!coverage.anchorKnown ? "; nothing recorded before today" : "") +
+                (gate < 0.8 ? `; ${Math.floor(gate * 100)}% of expected watch time, comparisons with the baseline are withheld under 80%` : ""),
+            };
+          })();
 
   // Office mic: coverage is a NUMBER about the last hour, or it is unknown. A fresh worker
   // with no number is "not stored yet" while the 0144 migration lags; a stale worker's
@@ -1845,14 +1864,20 @@ export default function LotSection() {
                     className={`h-1.5 flex-1 rounded-sm ${
                       h.pct === null
                         ? "bg-foreground/10"
-                        : h.pct >= 0.8
-                          ? "bg-emerald-500/70"
-                          : h.pct > 0
-                            ? "bg-amber-500/70"
-                            : "bg-red-500/60"
+                        : h.unknownMinutes >= h.elapsedMinutes
+                          ? "bg-foreground/15" // no record: grey, never a verdict colour
+                          : h.solarMinutes >= h.elapsedMinutes
+                            ? "bg-sky-500/50" // expected dark on its battery, the strip's own colour for it
+                            : (h.pctExpected ?? h.pct) >= 0.8
+                              ? "bg-emerald-500/70"
+                              : (h.pctExpected ?? h.pct) > 0
+                                ? "bg-amber-500/70"
+                                : "bg-red-500/60"
                     }`}
                     title={`${shopClock(h.startMs)}: ${
-                      h.pct === null ? "not yet" : `${Math.round(h.pct * 100)}% watched (${h.watchedMinutes} of ${h.elapsedMinutes} min${h.unknownMinutes > 0 ? `, ${h.unknownMinutes} min no record` : ""})`
+                      h.pct === null
+                        ? "not yet"
+                        : `${Math.floor(h.pct * 100)}% watched (${h.watchedMinutes} of ${h.elapsedMinutes} min${h.solarMinutes > 0 ? `, ${h.solarMinutes} min expected dark` : ""}${h.unknownMinutes > 0 ? `, ${h.unknownMinutes} min no record` : ""})`
                     }`}
                   />
                 ))}

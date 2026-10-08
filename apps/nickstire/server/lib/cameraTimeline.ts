@@ -20,6 +20,8 @@
  * day's rows plus the one row before the day (the anchor), the Lot page renders the result.
  */
 
+import { HEALTH_THRESHOLDS } from "./cameraHealth";
+
 export interface HealthEventRow {
   toState: string;
   fromState: string | null;
@@ -62,9 +64,11 @@ export function buildCameraTimeline(input: {
   nowMs: number;
 }): CameraTimeline {
   const { anchor, dayStartMs, nowMs } = input;
+  // A row stamped a moment AFTER the reader's clock (the database clock a second ahead of the
+  // app's) is still the latest fact about the camera; it is clamped to now, never dropped.
   const events = input.events
-    .filter((e) => e.atMs >= dayStartMs && e.atMs <= nowMs)
-    .slice()
+    .filter((e) => e.atMs >= dayStartMs)
+    .map((e) => (e.atMs > nowMs ? { ...e, atMs: nowMs } : e))
     .sort((a, b) => a.atMs - b.atMs);
 
   const segments: TimelineSegment[] = [];
@@ -105,8 +109,16 @@ export interface CoverageHour {
   watchedMs: number;
   /** Elapsed time no row covers (an unanchored morning); counted as not watched, reported apart. */
   unknownMs: number;
-  /** watched / elapsed, or null while nothing of the hour has passed. */
+  /**
+   * Elapsed time the camera was EXPECTED dark (EXPECTED_SOLAR_OFFLINE, audit N3): not watched,
+   * but not a data-quality gap either -- the baseline days were dark at the same hours, so this
+   * time is excluded from `pctExpected` and from the per-hour scaling of the baseline.
+   */
+  solarMs: number;
+  /** watched / elapsed, or null while nothing of the hour has passed. The honest share for the chip. */
   pct: number | null;
+  /** watched / (elapsed - solar): the share of the time the camera was expected to watch; null when nothing was expected. */
+  pctExpected: number | null;
 }
 
 export interface BusinessCoverage {
@@ -114,9 +126,15 @@ export interface BusinessCoverage {
   elapsedMs: number;
   watchedMs: number;
   unknownMs: number;
+  solarMs: number;
   /** watched / elapsed over the whole business day so far, or null before it opens. */
   pct: number | null;
+  /** watched / (elapsed - solar) over the day so far; null before it opens or while every minute was expected dark. */
+  pctExpected: number | null;
 }
+
+/** The state the lot is expected NOT to be watched in: a solar camera dark on its battery. */
+const EXPECTED_DARK_STATE = "EXPECTED_SOLAR_OFFLINE";
 
 /** Whole clock hours from open to close; the last window is shorter when the hours do not divide. */
 export function businessHourWindows(openMs: number, closeMs: number): Array<{ startMs: number; endMs: number }> {
@@ -137,11 +155,13 @@ export function coverageByBusinessHour(
   windows: ReadonlyArray<{ startMs: number; endMs: number }>,
   nowMs: number,
 ): BusinessCoverage {
+  const share = (watched: number, denominator: number): number | null => (denominator > 0 ? watched / denominator : null);
   const hours: CoverageHour[] = windows.map((w) => {
     const end = Math.min(w.endMs, nowMs);
     const elapsedMs = Math.max(0, end - w.startMs);
     let watchedMs = 0;
     let unknownMs = 0;
+    let solarMs = 0;
     if (elapsedMs > 0) {
       for (const s of segments) {
         const a = Math.max(s.fromMs, w.startMs);
@@ -149,14 +169,122 @@ export function coverageByBusinessHour(
         if (b <= a) continue;
         if (s.state === WATCHING_STATE) watchedMs += b - a;
         else if (s.state === UNKNOWN_STATE) unknownMs += b - a;
+        else if (s.state === EXPECTED_DARK_STATE) solarMs += b - a;
       }
     }
-    return { startMs: w.startMs, endMs: w.endMs, elapsedMs, watchedMs, unknownMs, pct: elapsedMs > 0 ? watchedMs / elapsedMs : null };
+    return {
+      startMs: w.startMs,
+      endMs: w.endMs,
+      elapsedMs,
+      watchedMs,
+      unknownMs,
+      solarMs,
+      pct: share(watchedMs, elapsedMs),
+      pctExpected: share(watchedMs, elapsedMs - solarMs),
+    };
   });
   const elapsedMs = hours.reduce((n, h) => n + h.elapsedMs, 0);
   const watchedMs = hours.reduce((n, h) => n + h.watchedMs, 0);
   const unknownMs = hours.reduce((n, h) => n + h.unknownMs, 0);
-  return { hours, elapsedMs, watchedMs, unknownMs, pct: elapsedMs > 0 ? watchedMs / elapsedMs : null };
+  const solarMs = hours.reduce((n, h) => n + h.solarMs, 0);
+  return {
+    hours,
+    elapsedMs,
+    watchedMs,
+    unknownMs,
+    solarMs,
+    pct: share(watchedMs, elapsedMs),
+    pctExpected: share(watchedMs, elapsedMs - solarMs),
+  };
+}
+
+/**
+ * When a derived state BEGAN, on the heartbeat clock, not on the clock of whoever noticed it
+ * (review on #2929): the 5-minute pass sees a dead producer up to five minutes late, and a
+ * timeline row stamped at the tick counted those minutes as watched. STALE begins
+ * `staleAfterSeconds` after the last heartbeat, PRODUCER_OFFLINE `offlineAfterSeconds` after
+ * it; an expected solar outage that is a heartbeat gap begins like STALE, one that the producer
+ * itself reports begins at its `stateSince`; every other state at `stateSince`. Never later
+ * than `nowMs`, and null when no clock identifies it (no row at all).
+ */
+export function derivedStateBeganAtMs(input: {
+  state: string;
+  receivedAtEpoch: number | null;
+  ageSeconds: number | null;
+  stateSinceEpoch: number | null;
+  nowMs: number;
+}): number | null {
+  const T = HEALTH_THRESHOLDS;
+  const fromHeartbeat = (lagSeconds: number): number | null =>
+    input.receivedAtEpoch === null ? null : (input.receivedAtEpoch + lagSeconds) * 1000;
+  let began: number | null;
+  if (input.state === "STALE") began = fromHeartbeat(T.staleAfterSeconds);
+  else if (input.state === "PRODUCER_OFFLINE") began = fromHeartbeat(T.offlineAfterSeconds);
+  else if (input.state === "EXPECTED_SOLAR_OFFLINE") {
+    const gap = input.ageSeconds !== null && input.ageSeconds > T.staleAfterSeconds;
+    began = gap ? fromHeartbeat(T.staleAfterSeconds) : input.stateSinceEpoch === null ? null : input.stateSinceEpoch * 1000;
+  } else began = input.stateSinceEpoch === null ? null : input.stateSinceEpoch * 1000;
+  return began === null ? null : Math.min(began, input.nowMs);
+}
+
+/**
+ * The recorded day, corrected by what the reader can see RIGHT NOW. The rows lag: the pass
+ * writes a read-derived state up to five minutes after it began, and a camera the pass does not
+ * cover never gets one. The reader derives the live state itself, so when it differs from the
+ * state the rows left open, the open segment is cut where the live state began and the live
+ * state takes over to now. Pure; the rows are not touched.
+ */
+export function reconcileWithLive(
+  timeline: CameraTimeline,
+  live: { state: string; sinceMs: number | null; reason: string | null },
+  nowMs: number,
+): CameraTimeline {
+  if (live.state === "NEVER_INGESTED") return timeline;
+  const current = timeline.current;
+  if (current !== null && current.state === live.state) return timeline;
+  const segments = timeline.segments.slice();
+  const open = segments.pop();
+  if (!open) return timeline;
+  // The live state began at `sinceMs`, but not before the open segment started (the rows know
+  // nothing earlier than that) and not after now.
+  const cut = Math.max(open.fromMs, Math.min(live.sinceMs ?? nowMs, nowMs));
+  if (cut > open.fromMs) segments.push({ ...open, toMs: cut, open: false });
+  segments.push({ state: live.state, fromMs: cut, toMs: Math.max(nowMs, cut), open: true, reason: live.reason });
+  const sinceMs = live.sinceMs ?? cut;
+  return {
+    anchorKnown: timeline.anchorKnown,
+    segments,
+    current: { state: live.state, sinceMs, forSeconds: Math.max(0, Math.round((nowMs - sinceMs) / 1000)) },
+  };
+}
+
+/**
+ * The outage row the heartbeat ingest writes for a gap the 5-minute pass never recorded (the
+ * gap fell between two ticks): STALE or PRODUCER_OFFLINE by its length, stamped where it began
+ * on the heartbeat clock, or EXPECTED_SOLAR_OFFLINE when a solar camera went dark inside its
+ * window. Without it a short outage was invisible and its minutes counted as watched (review on
+ * #2929). Null when the last recorded state already is a read-derived outage (the pass saw it),
+ * or when the gap is within the stale threshold.
+ */
+export function retroOutageTransition(input: {
+  gapSeconds: number | null;
+  prevReceivedEpoch: number | null;
+  latestToState: string | null;
+  solarExpectedAt?: ((ms: number) => boolean) | null;
+}): { from: string | null; to: string; reason: string; atEpoch: number } | null {
+  const { gapSeconds, prevReceivedEpoch, latestToState } = input;
+  const T = HEALTH_THRESHOLDS;
+  if (gapSeconds === null || !Number.isFinite(gapSeconds) || gapSeconds <= T.staleAfterSeconds) return null;
+  if (prevReceivedEpoch === null) return null;
+  if (latestToState !== null && READ_DERIVED_STATES.has(latestToState)) return null;
+  const offline = gapSeconds > T.offlineAfterSeconds;
+  const atEpoch = prevReceivedEpoch + (offline ? T.offlineAfterSeconds : T.staleAfterSeconds);
+  const solar = input.solarExpectedAt ? input.solarExpectedAt(atEpoch * 1000) : false;
+  const to = solar ? "EXPECTED_SOLAR_OFFLINE" : offline ? "PRODUCER_OFFLINE" : "STALE";
+  const reason = solar
+    ? `dark inside the solar window: no heartbeat for ${Math.round(gapSeconds)} s (recorded at resumption)`
+    : `no heartbeat for ${Math.round(gapSeconds)} s (recorded at resumption; began ${offline ? T.offlineAfterSeconds : T.staleAfterSeconds} s after the last one)`;
+  return { from: latestToState, to, reason: reason.slice(0, 191), atEpoch };
 }
 
 /**

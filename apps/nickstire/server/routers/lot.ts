@@ -64,8 +64,15 @@ import {
 } from "../lib/commissioningReport";
 import { EXPECTED_CAMERAS, cameraPowerFor } from "../../shared/cameras";
 import { BUSINESS } from "../../shared/business";
-import { shopDayWindow } from "../../shared/shopState";
-import { buildCameraTimeline, businessHourWindows, coverageByBusinessHour, type HealthEventRow } from "../lib/cameraTimeline";
+import { localClock, shopDayWindow } from "../../shared/shopState";
+import {
+  buildCameraTimeline,
+  businessHourWindows,
+  coverageByBusinessHour,
+  derivedStateBeganAtMs,
+  reconcileWithLive,
+  type HealthEventRow,
+} from "../lib/cameraTimeline";
 import { VISIT_MARKS } from "../../shared/visitMarks";
 import { deriveVisitMarkState, type VisitMarkRow } from "../lib/visitMarks";
 import { isDuplicateKeyError, isMissingTableError, logSafeErrorMessage } from "../lib/dbErrors";
@@ -847,10 +854,13 @@ export const lotRouter = router({
                  ${sql.raw("UNIX_TIMESTAMP(departedAt)")} AS departedEpoch
           FROM vehicle_visits
           WHERE ${input.includeCommissioning ? sql`1 = 1` : sql`dataClass = 'PRODUCTION'`}
-            ${input.openOnly ? sql`AND departedAt IS NULL` : sql``}
+            ${input.openOnly ? sql`AND departedAt IS NULL AND COALESCE(arrivedAt, createdAt) >= NOW() - INTERVAL 7 DAY` : sql``}
           -- The open-only floor board keeps the LONGEST-waiting cars when it hits its cap: the
           -- car about to become a complaint must survive the LIMIT, so open visits read oldest
-          -- first (the board sorts by dwell anyway). The recent list stays newest first.
+          -- first (the board sorts by dwell anyway). The recent list stays newest first. Nothing
+          -- server-side ever closes an open visit, so without the 7-day floor (a weekend car is
+          -- one visit; an older open row is an orphan) the oldest-first read would fill its cap
+          -- with orphans and push today's cars off the board (review on #2929).
           ORDER BY COALESCE(arrivedAt, createdAt) ${input.openOnly ? sql.raw("ASC") : sql.raw("DESC")}
           LIMIT ${input.limit}
         `));
@@ -1013,6 +1023,7 @@ export const lotRouter = router({
                r.diskFreeBytes, r.restores, r.relocateFailures, r.preexistingCrossed,
                r.arrivalsAfterStitch, r.stitchedTotal, r.stitchRefusedAmbiguous,
                UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.stateSince) AS stateForSeconds,
+               UNIX_TIMESTAMP(r.stateSince) AS stateSinceEpoch,
                (SELECT COUNT(*) FROM vehicle_visits o
                  WHERE o.camera = r.camera AND o.departedAt IS NULL
                    AND o.dataClass = 'PRODUCTION') AS openVisits
@@ -1037,11 +1048,14 @@ export const lotRouter = router({
       //
       // `drops` counts only the states where the lot is NOT being watched. A return to
       // HEALTHY is not an incident, so counting every transition would double every outage
-      // and make a recovering camera look worse than one that stayed down.
+      // and make a recovering camera look worse than one that stayed down. STALE is not in
+      // the list: since the 5-minute pass writes the read-derived states (audit N6) an outage
+      // can be recorded as STALE and then PRODUCER_OFFLINE, and one late heartbeat caught by a
+      // tick is STALE for a minute; neither is a second drop (review on #2929).
       const stability = rowsOf(await d.execute(sql`
         SELECT camera,
                SUM(CASE WHEN toState IN ('CAMERA_OFFLINE','DEGRADED_VISION','PRODUCER_OFFLINE',
-                                         'CALIBRATION_INVALID','STALE','AUTH_DEGRADED',
+                                         'CALIBRATION_INVALID','AUTH_DEGRADED',
                                          'EVENTS_DEGRADED','CONTROL_DEGRADED','MEDIA_DEGRADED',
                                          'PTZ_HOME_INVALID') THEN 1 ELSE 0 END) AS drops,
                COUNT(*) AS transitions
@@ -1079,11 +1093,21 @@ export const lotRouter = router({
           SELECT camera, toState, reason, UNIX_TIMESTAMP(at) AS atEpoch
           FROM camera_health_events
           WHERE camera = ${c.camera} AND at < FROM_UNIXTIME(${dayStartEpoch})
+            -- The last row whose state actually CHANGED: a same-state "producer restarted" row
+            -- would make "healthy for 2 h" of a camera that has been healthy for days.
+            AND (fromState IS NULL OR fromState <> toState)
           ORDER BY at DESC, id DESC
           LIMIT 1
         `));
         if (anchor) anchorByCamera.set(c.camera, anchor);
       }
+      // Declared BEFORE their first use: the coverage block below calls eventRow through
+      // timelineFor, and a `const` read before its line throws at runtime while compiling clean
+      // (tsc does not track the temporal dead zone across closures). Caught by review on #2929;
+      // lotHealth.test.ts now executes this handler with one anchor row so the shape cannot return.
+      const bool = (v: unknown): boolean | null =>
+        v === null || v === undefined ? null : Boolean(Number(v));
+      const str = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
       const eventRow = (e: Record<string, unknown>): HealthEventRow => ({
         toState: String(e.toState),
         fromState: str(e.fromState),
@@ -1099,42 +1123,7 @@ export const lotRouter = router({
           nowMs,
         });
       };
-      const truthCamera = EXPECTED_CAMERAS.find((c) => c.role === "vehicle_truth") ?? null;
-      const minutes = (ms: number) => Math.round(ms / 60_000);
-      const coverage =
-        truthCamera && dayWindow.openMs !== null && dayWindow.closeMs !== null
-          ? (() => {
-              const tl = timelineFor(truthCamera.camera);
-              const cov = coverageByBusinessHour(tl.segments, businessHourWindows(dayWindow.openMs, dayWindow.closeMs), nowMs);
-              return {
-                camera: truthCamera.camera,
-                weekday: dayWindow.weekday,
-                openMs: dayWindow.openMs,
-                closeMs: dayWindow.closeMs,
-                nowMs,
-                /** False when no row predates today: the morning before the first row is UNKNOWN, counted as not watched. */
-                anchorKnown: tl.anchorKnown,
-                /** HEALTHY share of business time so far; null before the shop opens. */
-                pct: cov.pct,
-                elapsedMinutes: minutes(cov.elapsedMs),
-                watchedMinutes: minutes(cov.watchedMs),
-                unknownMinutes: minutes(cov.unknownMs),
-                hours: cov.hours.map((h) => ({
-                  startMs: h.startMs,
-                  endMs: h.endMs,
-                  elapsedMinutes: minutes(h.elapsedMs),
-                  watchedMinutes: minutes(h.watchedMs),
-                  unknownMinutes: minutes(h.unknownMs),
-                  pct: h.pct,
-                })),
-              };
-            })()
-          : null;
-
       const byCamera = new Map(runtime.map((r) => [String(r.camera), r]));
-      const bool = (v: unknown): boolean | null =>
-        v === null || v === undefined ? null : Boolean(Number(v));
-      const str = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
 
       const describe = (
         camera: string,
@@ -1261,8 +1250,27 @@ export const lotRouter = router({
           openVisits: r ? num(r.openVisits) : 0,
           // Today as state segments (audit N6): what "steady today" could not say. `current`
           // is the state in force and its real start; `anchorKnown` false means the day opened
-          // on UNKNOWN because nothing was recorded before midnight.
-          timeline: timelineFor(camera),
+          // on UNKNOWN because nothing was recorded before midnight. Reconciled with the state
+          // THIS read derives: the rows lag the 5-minute pass by up to a tick and never cover a
+          // camera the pass skips, so the open segment is cut where the live state began
+          // (review on #2929).
+          timeline: reconcileWithLive(
+            timelineFor(camera),
+            {
+              state: verdict.state,
+              sinceMs: r
+                ? derivedStateBeganAtMs({
+                    state: verdict.state,
+                    receivedAtEpoch: numOrNull(r.receivedAtEpoch),
+                    ageSeconds: numOrNull(r.ageSeconds),
+                    stateSinceEpoch: numOrNull(r.stateSinceEpoch),
+                    nowMs,
+                  })
+                : null,
+              reason: verdict.reason,
+            },
+            nowMs,
+          ),
         };
       };
 
@@ -1285,6 +1293,50 @@ export const lotRouter = router({
           ),
         );
       const cameras = [...expected, ...unregistered];
+
+      // HOW MUCH OF BUSINESS TIME THE LOT WAS WATCHED (audit N2), from the vehicle-truth
+      // camera's RECONCILED timeline (what this read sees, not only what the rows have caught up
+      // with). Minutes the camera was expected dark (EXPECTED_SOLAR_OFFLINE) are reported apart
+      // and excluded from `pctExpected`: the baseline days were dark at the same hours, so they
+      // are not a data-quality gap and must not discount the comparison twice (review on #2929).
+      const truth = expected.find((c) => c.role === "vehicle_truth") ?? null;
+      const minutes = (ms: number) => Math.round(ms / 60_000);
+      const coverage =
+        truth && truth.timeline && dayWindow.openMs !== null && dayWindow.closeMs !== null
+          ? (() => {
+              const tl = truth.timeline;
+              const cov = coverageByBusinessHour(tl.segments, businessHourWindows(dayWindow.openMs, dayWindow.closeMs), nowMs);
+              return {
+                camera: truth.camera,
+                weekday: dayWindow.weekday,
+                openMs: dayWindow.openMs,
+                closeMs: dayWindow.closeMs,
+                nowMs,
+                /** False when no row predates today: the morning before the first row is UNKNOWN, counted as not watched. */
+                anchorKnown: tl.anchorKnown,
+                /** HEALTHY share of business time so far; null before the shop opens. */
+                pct: cov.pct,
+                /** HEALTHY share of the business time the camera was EXPECTED to watch (solar minutes excluded); the gate reads this. */
+                pctExpected: cov.pctExpected,
+                elapsedMinutes: minutes(cov.elapsedMs),
+                watchedMinutes: minutes(cov.watchedMs),
+                unknownMinutes: minutes(cov.unknownMs),
+                solarMinutes: minutes(cov.solarMs),
+                hours: cov.hours.map((h) => ({
+                  /** The shop-local hour this cell covers, so the confidence read can scale the baseline per hour. */
+                  hour: Math.floor(localClock(new Date(h.startMs), BUSINESS.timezone).minutes / 60),
+                  startMs: h.startMs,
+                  endMs: h.endMs,
+                  elapsedMinutes: minutes(h.elapsedMs),
+                  watchedMinutes: minutes(h.watchedMs),
+                  unknownMinutes: minutes(h.unknownMs),
+                  solarMinutes: minutes(h.solarMs),
+                  pct: h.pct,
+                  pctExpected: h.pctExpected,
+                })),
+              };
+            })()
+          : null;
 
       return {
         ok: true as const,
