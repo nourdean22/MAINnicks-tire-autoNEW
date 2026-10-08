@@ -167,6 +167,21 @@ def test_listening_coverage_floor_is_read_from_the_office_status():
     assert "listened only" in text
 
 
+def test_edge_code_change_is_checked_before_the_arm_path_and_recorded_on_every_start():
+    # A `git pull` must be the deploy for the sign edge as it already is for the office worker:
+    # the check runs where the start path can reload the edge in the same tick, and every start
+    # records the fingerprint it loaded so the next tick does not restart it again for nothing.
+    text = source()
+    heal = text.index("if (Heal-EdgeCode $armed $prodHealthy ([bool]$prodStarting))")
+    arm = text.index("if ($armed) {")
+    start = text.index("authoritative RTSP sign producer started after decoded-frame proof")
+    recorded = text.index('(Get-Entry "edge-code-version").fingerprint = Get-EdgeCodeFingerprint $root')
+    assert heal < arm < start < recorded
+    fingerprint = text[text.index("function Get-EdgeCodeFingerprint") : text.index("function Heal-EdgeCode")]
+    assert '"edge_main.py","edge_health.py"' in fingerprint
+    assert '-notlike "office*.py"' in fingerprint
+
+
 # ---- behaviour: the harness runs the supervisor's own functions against fakes -----------------
 
 
@@ -271,3 +286,31 @@ def test_disk_floor_prunes_stale_audio_and_rotates_the_log(tmp_path: Path):
     assert out["markers"]["rotatedLogExists"] is True
     assert any("ACTION disk floor: removed 1 raw audio files" in line for line in out["log"])
     assert any("ESCALATE disk free" in line for line in out["log"])
+
+
+def test_edge_code_change_ends_the_production_edge_once_and_records_it(tmp_path: Path):
+    out = run_scenario("edge-code-changed-restarts", tmp_path)
+    m = out["markers"]
+    assert m["first"] is True
+    assert out["calls"] == ["stop-pid:41"]
+    assert len(out["state"]["sign-edge"]["restarts"]) == 1
+    assert m["fingerprintAfterFirst"].startswith("edge_main.py:")
+    assert any("edge code changed on disk" in line for line in out["log"])
+    # Same tree on the next tick: nothing to do.
+    assert m["second"] is False
+    # Edited again inside the 10-minute window: wait, and keep the OLD fingerprint on record so a
+    # later tick retries the reload instead of forgetting the change.
+    assert m["third"] is False
+    assert m["fingerprintAfterThrottle"] == m["fingerprintAfterFirst"]
+
+
+def test_edge_code_rule_leaves_an_unarmed_down_or_starting_edge_alone(tmp_path: Path):
+    out = run_scenario("edge-code-leaves-unarmed-down-or-starting", tmp_path)
+    assert out["calls"] == []
+    assert out["markers"] == {"unarmed": False, "down": False, "starting": False, "fingerprint": ""}
+    assert "sign-edge" not in out["state"]
+
+
+def test_edge_fingerprint_ignores_office_modules_but_sees_edge_modules(tmp_path: Path):
+    out = run_scenario("edge-code-fingerprint-skips-office-modules", tmp_path)
+    assert out["markers"] == {"unchangedByOfficeModule": True, "changedByEdgeModule": True}

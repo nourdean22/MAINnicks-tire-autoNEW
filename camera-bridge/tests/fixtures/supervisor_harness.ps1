@@ -127,6 +127,13 @@ function Install-OfficeCode {
 $bridgeNode = '"C:\Program Files\nodejs\node.exe" server.mjs'
 $agentPython = 'C:\Users\nourd\venv\Scripts\python.exe agent.py --eufy-only'
 $officePython = 'C:\Users\nourd\python\python.exe -m vision.officewake --capture'
+$edgePython = 'C:\Users\nourd\venv\Scripts\python.exe edge_main.py --config data\config-nicksmax-sign-production.yaml'
+
+function Install-EdgeCode([string]$version) {
+  # Get-EdgeCodeFingerprint hashes edge_main.py at the root (plus visitd\ and vision\ modules when
+  # they exist); one root file is enough to give the harness a fingerprint that changes on edit.
+  Set-Content -LiteralPath (Join-Path $root "edge_main.py") -Value ("# sign edge " + $version) -Encoding ascii
+}
 
 switch ($Scenario) {
   "kick-restart-order" {
@@ -215,6 +222,38 @@ switch ($Scenario) {
     $taskStates[$officeTask] = "Running"
     Set-OfficeStatus 1 "READY" 0.9 0 6 5
     Heal-OfficeWorker
+  }
+  "edge-code-changed-restarts" {
+    # Armed, healthy production edge (pid 41 owns :9095), first sight of the tree: end it once and
+    # record the fingerprint. Same tree again: nothing. Edited again inside the 10-minute window:
+    # wait, and keep the OLD fingerprint so a later tick retries instead of forgetting the change.
+    Install-EdgeCode "v1"
+    Add-FakeProcess 41 "python.exe" $edgePython 3600
+    $portOwners[9095] = 41
+    $markers["first"] = [bool](Heal-EdgeCode $true $true $false)
+    $markers["fingerprintAfterFirst"] = [string](Get-Entry "edge-code-version").fingerprint
+    $markers["second"] = [bool](Heal-EdgeCode $true $true $false)
+    Install-EdgeCode "v2"
+    $markers["third"] = [bool](Heal-EdgeCode $true $true $false)
+    $markers["fingerprintAfterThrottle"] = [string](Get-Entry "edge-code-version").fingerprint
+  }
+  "edge-code-leaves-unarmed-down-or-starting" {
+    Install-EdgeCode "v1"
+    Add-FakeProcess 41 "python.exe" $edgePython 3600
+    $portOwners[9095] = 41
+    $markers["unarmed"] = [bool](Heal-EdgeCode $false $true $false)
+    $markers["down"] = [bool](Heal-EdgeCode $true $false $false)
+    $markers["starting"] = [bool](Heal-EdgeCode $true $true $true)
+    $markers["fingerprint"] = [string](Get-Entry "edge-code-version").fingerprint
+  }
+  "edge-code-fingerprint-skips-office-modules" {
+    Install-EdgeCode "v1"
+    $before = Get-EdgeCodeFingerprint $root
+    New-Item -ItemType Directory -Force -Path (Join-Path $root "vision") | Out-Null
+    Set-Content -LiteralPath (Join-Path (Join-Path $root "vision") "officewake.py") -Value "# office" -Encoding ascii
+    $markers["unchangedByOfficeModule"] = ($before -eq (Get-EdgeCodeFingerprint $root))
+    Set-Content -LiteralPath (Join-Path (Join-Path $root "vision") "pipeline.py") -Value "# edge module" -Encoding ascii
+    $markers["changedByEdgeModule"] = ($before -ne (Get-EdgeCodeFingerprint $root))
   }
   "disk-floor" {
     New-Item -ItemType Directory -Force -Path $officeAudioDir | Out-Null

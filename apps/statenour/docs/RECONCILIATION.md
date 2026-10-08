@@ -10,7 +10,7 @@
 >
 > Gates: targeted vitest 6 files / 51 passed (vehicle-detection, apply-pending-migration, three schema-sentinel files, owner-panel migrations) · `tsc --noEmit` 0 · eslint on the four changed files 0 · `check:raw-sql`, `prisma validate` green (receipts in the PR). Not run here: the full `verify:hard` chain (cross-app PR; CI carries it).
 >
-> **Open (operator):** apply `20261007120000_device_events_identity_indexes` after the preflight; `git pull` on NicksMax; decide whether to revert the office decoder to `base.en` (the coverage number now exists to judge it).
+> **Closed 2026-10-08 (operator approved, same session):** `20261007120000_device_events_identity_indexes` applied to prod Neon after the read-only preflight found and resolved the duplicate eventIds, promoted to `prisma/migrations/` with its `_prisma_migrations` row (checksum = sha256 of the file, the same method Prisma records); `git pull` on NicksMax done; the decoder is switched to `small.en-q5_1` through the new `whisper-model.override` file (camera-bridge, no elevation) rather than reverted to `base.en`. nickstire 0144 is applied through a one-off Railway pre-deploy command carrying `scripts/migrations/apply-camera-runtime-window-counters.ts` (receipt in the nickstire ledger).
 >
 > ## 2026-10-03 · Sentry sweep + cron hygiene (#2904 · #2906) · chat 500 on em-dash, duplicate cron runs, daily-brief compose bound · 2 statenour ships
 >

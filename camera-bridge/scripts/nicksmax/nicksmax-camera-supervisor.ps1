@@ -24,7 +24,9 @@ $ErrorActionPreference = "Continue"
 #      ESCALATE; listening coverage under 50% while READY -> WARN.
 #   2. Eufy bridge (:3000) + agent (:3601) tasks: duplicates -> keep the port owner; not running
 #      -> start (reclaiming an orphan first); port closed three ticks in a row -> restart.
-#   3. sign pipeline: relay -> MediaMTX -> crop -> production edge (decoded-frame proof).
+#   3. sign pipeline: relay -> MediaMTX -> crop -> production edge (decoded-frame proof). An
+#      armed, healthy edge whose Python modules changed on disk is ended once so the same start
+#      path reloads it: a `git pull` is the deploy for the edge too (2026-10-08).
 #   4. disk floor: under 1 GB free -> rotate this log, prune raw office audio past the worker's
 #      own retention, ESCALATE. (Measured 0.10 GB free on 2026-10-05.)
 # Every restart is recorded per component; more than $escalateRestartsPerHour in an hour logs
@@ -288,6 +290,49 @@ function Get-OfficeCodeFingerprint([string]$dir) {
   return ($parts -join "|")
 }
 
+# Fingerprint of the sign edge's Python modules: edge_main.py, edge_health.py, visitd\*.py and
+# vision\*.py minus the office worker's own office*.py (those belong to the rule above). Same
+# ledger convention: the fingerprint on record is the one the running edge was started on.
+function Get-EdgeCodeFingerprint([string]$dir) {
+  $files = @()
+  foreach ($name in @("edge_main.py","edge_health.py")) {
+    $p = Join-Path $dir $name
+    if (Test-Path -LiteralPath $p) { $files += Get-Item -LiteralPath $p }
+  }
+  $files += @(Get-ChildItem -Path (Join-Path $dir "visitd") -Filter "*.py" -File -ErrorAction SilentlyContinue)
+  $files += @(Get-ChildItem -Path (Join-Path $dir "vision") -Filter "*.py" -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike "office*.py" })
+  if (-not $files -or @($files).Count -eq 0) { return "" }
+  $sha = [Security.Cryptography.SHA256]::Create()
+  try {
+    $parts = foreach ($f in @($files | Sort-Object FullName)) { $f.Name + ":" + [BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($f.FullName))) }
+  } finally { $sha.Dispose() }
+  return ($parts -join "|")
+}
+
+# A long-running edge keeps the code it started with. When `git pull` changes its modules, end the
+# production edge once between ticks and let the arm path below start it again on the new code,
+# behind the same decoded-frame proof as any other start (2026-10-08: #2920's phantom re-arrival
+# fix sat on disk unloaded while the old edge kept running). Scope, deliberately narrow:
+#   * armed and healthy only -- a missing edge is already the start path's business, and the
+#     fingerprint is recorded whenever that path starts one, since it loads what is on disk;
+#   * never within 10 min of another sign-edge restart (a stale-lease kill, a fresh start);
+#   * the fingerprint is recorded only when the restart is actually issued, so a throttled tick
+#     retries instead of forgetting the change. First sight of a tree counts as changed.
+# Returns $true when it ended the edge, so the caller re-probes :9095 before deciding to start.
+function Heal-EdgeCode([bool]$armed,[bool]$prodHealthy,[bool]$prodStarting) {
+  if (-not $armed) { return $false }
+  $fp = Get-EdgeCodeFingerprint $root
+  if (-not $fp) { return $false }
+  $e = Get-Entry "edge-code-version"
+  if ($e.fingerprint -eq $fp) { return $false }
+  if (-not $prodHealthy -or $prodStarting) { return $false }
+  if ((Restarts-InLastMinutes "sign-edge" 10) -gt 0) { return $false }
+  Stop-ProcessesByCommand "python.*config-nicksmax-sign-production\.yaml" "production edge running stale code"
+  Record-Restart "sign-edge" "edge code changed on disk; ended the production edge so the start path reloads it"
+  $e.fingerprint = $fp
+  return $true
+}
+
 function Get-OfficeStatus {
   if (-not (Test-Path $officeStatusPath)) { return $null }
   try {
@@ -500,6 +545,10 @@ if ($prodHealthy -and -not $leaseFresh) {
   $prodHealthy = Port-Open 9095
 }
 $prodStarting = Find-ProcessByCommand "run-sign-rtsp-production\.ps1"
+if (Heal-EdgeCode $armed $prodHealthy ([bool]$prodStarting)) {
+  Start-Sleep -Milliseconds 900
+  $prodHealthy = Port-Open 9095
+}
 
 if ($armed) {
   # Fail closed: production marker means there may be ONE direct sign edge, never shadow + production.
@@ -511,6 +560,8 @@ if ($armed) {
         Set-Content -Path $prodStartMarker -Value (Get-Date -Format o) -Encoding ascii
         Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @("-NoProfile","-ExecutionPolicy","Bypass","-File",$productionLauncher)
         Record-Restart "sign-edge" "authoritative RTSP sign producer started after decoded-frame proof"
+        # This start loads whatever is on disk right now; that is the code the edge runs from here.
+        (Get-Entry "edge-code-version").fingerprint = Get-EdgeCodeFingerprint $root
       } else {
         Log "WAIT production RTSP decode proof failed; refusing early edge start"
       }

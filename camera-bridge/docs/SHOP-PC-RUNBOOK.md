@@ -345,6 +345,36 @@ task runs at boot and the loop decides its own hours, so there is no second sche
 sync with the first. To change them, pass `--open` / `--close` when registering, or edit
 `DEFAULT_OPEN` / `DEFAULT_CLOSE`.
 
+### Change the decoder without an elevated shell (added 2026-10-08)
+
+The installer writes the whisper model path into the **Machine** environment
+(`OFFICE_WHISPER_MODEL`), which the SYSTEM task reads at start. Editing that needs an elevated
+shell on the box, so the 2026-10-03 switch to `large-v3-turbo` was done by hand and the lane
+then listened about 8 % of the day (the decoder ran slower than real time). The worker now
+reads one operator-writable file first:
+
+```
+C:\Users\nourd\AppData\Local\StateNour\OfficeIntelligence\whisper-model.override
+```
+
+That is the status file's directory, deliberately NOT `...\OfficeIntelligence\audio` (the
+`--out-dir`): the supervisor's disk floor deletes every file older than 6 h in `audio\`, and a
+switch that silently un-switched itself on the first low-disk tick is worse than none. One
+line: either a full path to a `ggml-*.bin`, or the bare name looked up beside the environment
+model (`small.en-q5_1` resolves to `...\WhisperCpp\ggml-small.en-q5_1.bin`). Lines starting
+with `#` are comments. The worker reads it at startup and the status worker
+re-reads it every heartbeat: a change ends the process cleanly between captures (never
+mid-capture, never with a transcription still queued), the receipt says `RESTARTING`, and the
+supervisor's "task not Running -> start" rule brings it back on the new decoder within a tick.
+No task edit, no elevation, no reboot.
+
+A name that resolves to nothing is **ignored, not obeyed**: the environment decoder stays in
+force and the status receipt reports `conversationWhisperModelSource: override-ignored`
+(`override-file` when it applied, `env` when there is no file). Read the receipt before
+believing the switch happened. The models on this box, measured 2026-10-07: `base.en-q5_1`
+(60 MB, about 9 s per 15 s clip), `small.en-q5_1` (190 MB), `large-v3-turbo-q5_0` (574 MB,
+the one that could not keep up). Delete the file to return to the environment model.
+
 ### The three things that will bite
 
 | Symptom | Cause | Fix |

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import sys
 import tempfile
@@ -10,11 +11,15 @@ from pathlib import Path
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from vision.officepost import Transcript
 from vision.officewake import (
+    WHISPER_MODEL_OVERRIDE_FILE,
     OfficeWakeConfig,
     OfficeWakeDaemon,
     Trigger,
+    WhisperModelOverrideWatch,
     active_window_remaining_seconds,
     audio_activity_detected,
     audio_fallback_in_cooldown,
@@ -22,9 +27,13 @@ from vision.officewake import (
     decide_event,
     parse_schedule,
     prune_audio,
+    read_whisper_model_override,
+    resolve_whisper_model,
     retention_worker,
     run_capture_once,
+    runtime_status_worker,
     schedule_allows,
+    whisper_override_dir,
 )
 
 
@@ -708,3 +717,182 @@ def test_capture_failure_stops_the_sampler_without_a_closing_grab(tmp_path):
     )
     assert result.status == "capture_failed"
     assert sampler.stopped_with_final is False
+
+
+# ---- whisper decoder override: an operator-writable file beats the Machine environment --------
+# The decoder path lived only in the SYSTEM task's Machine env (install-office-capture.ps1), so
+# changing it needed an elevated shell on the shop PC. `<out_dir>/whisper-model.override` is read at
+# startup, and a change between captures ends the worker cleanly so the supervisor restarts it.
+
+
+def _override(tmp_path, text):
+    (tmp_path / WHISPER_MODEL_OVERRIDE_FILE).write_text(text, encoding="utf-8")
+
+
+def _models(tmp_path):
+    models = tmp_path / "WhisperCpp"
+    models.mkdir(exist_ok=True)
+    env_model = models / "ggml-large-v3-turbo-q5_0.bin"
+    env_model.write_bytes(b"x")
+    return env_model
+
+
+def test_no_override_file_keeps_the_environment_decoder(tmp_path):
+    env_model = _models(tmp_path)
+    assert read_whisper_model_override(str(tmp_path)) is None
+    assert resolve_whisper_model(str(env_model), str(tmp_path)) == (str(env_model), "env")
+    assert resolve_whisper_model(None, str(tmp_path)) == (None, "none")
+
+
+def test_override_reads_the_first_uncommented_line_only(tmp_path):
+    _override(tmp_path, "# office decoder, operator-writable\n\n  small.en-q5_1  \nbase.en-q5_1\n")
+    assert read_whisper_model_override(str(tmp_path)) == "small.en-q5_1"
+    _override(tmp_path, "# only comments\n\n")
+    assert read_whisper_model_override(str(tmp_path)) is None
+
+
+def test_override_bare_name_resolves_beside_the_environment_decoder(tmp_path):
+    env_model = _models(tmp_path)
+    small = env_model.parent / "ggml-small.en-q5_1.bin"
+    small.write_bytes(b"x")
+    _override(tmp_path, "small.en-q5_1\n")
+    assert resolve_whisper_model(str(env_model), str(tmp_path)) == (str(small), "override-file")
+
+
+def test_override_explicit_path_wins_over_the_environment_decoder(tmp_path):
+    env_model = _models(tmp_path)
+    explicit = tmp_path / "elsewhere" / "ggml-base.en-q5_1.bin"
+    explicit.parent.mkdir()
+    explicit.write_bytes(b"x")
+    _override(tmp_path, f"{explicit}\n")
+    assert resolve_whisper_model(str(env_model), str(tmp_path)) == (str(explicit), "override-file")
+
+
+def test_override_naming_a_missing_model_is_ignored_and_says_so(tmp_path):
+    # A typo must never silence the office lane: the environment decoder stays in force and the
+    # status receipt says the override was ignored, instead of the worker failing every capture.
+    env_model = _models(tmp_path)
+    _override(tmp_path, "smal.en-q5_1\n")
+    assert resolve_whisper_model(str(env_model), str(tmp_path)) == (str(env_model), "override-ignored")
+    # Positive control for the same input: once the file exists the same line resolves.
+    (env_model.parent / "ggml-smal.en-q5_1.bin").write_bytes(b"x")
+    assert resolve_whisper_model(str(env_model), str(tmp_path))[1] == "override-file"
+
+
+def test_status_receipt_names_the_decoder_and_where_it_came_from(tmp_path):
+    cfg = config(
+        model="C:/Users/nourd/AppData/Local/StateNour/WhisperCpp/ggml-small.en-q5_1.bin",
+        model_source="override-file",
+        status_path=str(tmp_path / "status.json"),
+    )
+    OfficeWakeDaemon(cfg, ledger=MemoryLedger(), clock=lambda: MONDAY_10AM)
+    written = json.loads((tmp_path / "status.json").read_text(encoding="utf-8"))
+    assert written["conversationWhisperModel"] == "ggml-small.en-q5_1.bin"
+    assert written["conversationWhisperModelSource"] == "override-file"
+
+    bare = config(model=None, status_path=str(tmp_path / "bare.json"))
+    OfficeWakeDaemon(bare, ledger=MemoryLedger(), clock=lambda: MONDAY_10AM)
+    written = json.loads((tmp_path / "bare.json").read_text(encoding="utf-8"))
+    assert written["conversationWhisperModel"] is None
+    assert written["conversationWhisperModelSource"] == "env"
+
+
+def test_override_watch_sees_a_change_in_content_not_in_bytes(tmp_path):
+    _override(tmp_path, "small.en-q5_1\n")
+    watch = WhisperModelOverrideWatch(str(tmp_path))
+    assert watch.initial == "small.en-q5_1"
+    assert watch.changed() is False
+    _override(tmp_path, "# same decoder, new comment\nsmall.en-q5_1\n")
+    assert watch.changed() is False
+    _override(tmp_path, "base.en-q5_1\n")
+    assert watch.changed() is True
+
+
+def test_override_watch_counts_a_file_appearing_or_vanishing_as_a_change(tmp_path):
+    watch = WhisperModelOverrideWatch(str(tmp_path))
+    assert watch.initial is None
+    _override(tmp_path, "small.en-q5_1\n")
+    assert watch.changed() is True
+
+    present = WhisperModelOverrideWatch(str(tmp_path))
+    (tmp_path / WHISPER_MODEL_OVERRIDE_FILE).unlink()
+    assert present.changed() is True
+
+
+def test_status_worker_exits_cleanly_on_override_change_but_never_mid_capture(tmp_path):
+    ledger = MemoryLedger()
+    cfg = config(
+        out_dir=str(tmp_path),
+        status_path=str(tmp_path / "status.json"),
+        model="C:/models/ggml-large-v3-turbo-q5_0.bin",
+    )
+    daemon = OfficeWakeDaemon(cfg, ledger=ledger, clock=lambda: MONDAY_10AM)
+
+    async def scenario():
+        daemon.runtime_state = "CAPTURING"
+        task = asyncio.create_task(runtime_status_worker(daemon, interval_seconds=0.01))
+        await asyncio.sleep(0.05)
+        _override(tmp_path, "small.en-q5_1\n")
+        await asyncio.sleep(0.05)
+        # Mid-capture the worker keeps heartbeating; the change waits for the capture to end.
+        assert not task.done()
+        assert daemon.runtime.state["conversationWorkerState"] == "CAPTURING"
+        daemon.runtime_state = "READY"
+        # SystemExit propagates through here; a worker that keeps running is a failure, not a hang.
+        await asyncio.wait_for(task, timeout=2.0)
+
+    with pytest.raises(SystemExit) as exit_info:
+        asyncio.run(scenario())
+    assert exit_info.value.code == 0
+    notes = [payload for kind, payload in ledger.rows if kind == "whisper_model_override_changed"]
+    assert notes == [{"from": None, "to": "small.en-q5_1"}]
+    # The receipt on disk says RESTARTING, so the supervisor's "task not Running -> start" rule
+    # brings the worker back and nothing reads the gap as a crash.
+    written = json.loads((tmp_path / "status.json").read_text(encoding="utf-8"))
+    assert written["conversationWorkerState"] == "RESTARTING"
+    assert written["conversationWorkerOk"] is True
+
+
+def test_status_worker_waits_for_the_transcribe_backlog_before_exiting(tmp_path):
+    ledger = MemoryLedger()
+    cfg = config(out_dir=str(tmp_path), status_path=str(tmp_path / "status.json"))
+    daemon = OfficeWakeDaemon(cfg, ledger=ledger, clock=lambda: MONDAY_10AM)
+    daemon.processing_phase = "transcribing"  # one capture still being decoded
+
+    async def scenario():
+        daemon.runtime_state = "READY"
+        task = asyncio.create_task(runtime_status_worker(daemon, interval_seconds=0.01))
+        _override(tmp_path, "small.en-q5_1\n")
+        await asyncio.sleep(0.05)
+        assert not task.done()
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(scenario())
+    assert not [kind for kind, _ in ledger.rows if kind == "whisper_model_override_changed"]
+
+
+def test_override_lives_beside_the_status_file_never_in_the_pruned_audio_dir():
+    # install-office-capture.ps1: out_dir = ...\OfficeIntelligence\audio, status = ...\OfficeIntelligence\
+    # office-conversation-status.json. The supervisor's disk floor deletes every file older than
+    # 6 h in audio\, so an override written there would vanish on the first low-disk tick.
+    status = "C:/Users/nourd/AppData/Local/StateNour/OfficeIntelligence/office-conversation-status.json"
+    audio = "C:/Users/nourd/AppData/Local/StateNour/OfficeIntelligence/audio"
+    assert whisper_override_dir(status, audio) == str(Path(status).parent)
+    assert whisper_override_dir("", audio) == audio
+    assert whisper_override_dir("   ", audio) == audio
+
+
+def test_daemon_watches_the_override_dir_not_the_audio_dir(tmp_path):
+    audio = tmp_path / "audio"
+    audio.mkdir()
+    cfg = config(out_dir=str(audio), model_override_dir=str(tmp_path), status_path=str(tmp_path / "status.json"))
+    daemon = OfficeWakeDaemon(cfg, ledger=MemoryLedger(), clock=lambda: MONDAY_10AM)
+    assert daemon.model_override_watch.out_dir == str(tmp_path)
+    _override(audio, "small.en-q5_1\n")
+    assert daemon.model_override_watch.changed() is False
+    _override(tmp_path, "small.en-q5_1\n")
+    assert daemon.model_override_watch.changed() is True
