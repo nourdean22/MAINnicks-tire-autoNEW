@@ -493,8 +493,12 @@ function HealthTimeline({ timeline, stability, window }: { timeline: CameraTimel
   const segments = timeline.segments;
   const first = segments[0]?.fromMs ?? 0;
   const last = segments[segments.length - 1]?.toMs ?? first;
-  const spanStart = window ? Math.min(window.openMs, last) : first;
-  const spanEnd = window ? Math.max(window.closeMs, last) : last;
+  // Before the shop opens the business window has not started, so the strip shows the day so
+  // far (midnight to now); from open onward it spans open to close, stretched past close when
+  // the day runs late.
+  const beforeOpen = window !== null && last < window.openMs;
+  const spanStart = window && !beforeOpen ? window.openMs : first;
+  const spanEnd = window && !beforeOpen ? Math.max(window.closeMs, last) : last;
   const span = Math.max(1, spanEnd - spanStart);
   const current = timeline.current;
   const currentLabel = current ? current.state.replace(/_/g, " ").toLowerCase() : null;
@@ -1778,9 +1782,11 @@ export default function LotSection() {
                 ? `saw ${signCamera.vision.detectionsLast10m} vehicle${signCamera.vision.detectionsLast10m === 1 ? "" : "s"} in the last 10 min`
                 : signCamera.facets.vision === "quiet"
                   ? "nothing seen in the last 10 min; nothing says there should have been"
-                  : signCamera.facets.vision === "unknown"
-                    ? "detector window not reported (edge predates 0144)"
-                    : null,
+                  : signCamera.facets.vision === "warming"
+                    ? "detector restarted under 10 min ago; its window is still filling, so a zero is not a verdict yet"
+                    : signCamera.facets.vision === "unknown"
+                      ? "detector window not reported (edge predates 0144)"
+                      : null,
           }
         : {
             value: `${signStateLabel} for ${formatAgo(signCamera.stateForSeconds)}`,

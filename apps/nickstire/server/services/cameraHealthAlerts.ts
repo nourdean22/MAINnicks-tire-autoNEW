@@ -153,14 +153,17 @@ export async function runCameraHealthAlertSelfTest(input?: {
   };
 }
 
-/** The most recent page about this camera, degraded or recovery, and how long ago it fired. */
+/**
+ * The most recent page about this camera, degraded or recovery, how long ago it fired, and the
+ * vision facet recorded with it (null for a claim written before that field existed).
+ */
 async function latestCameraAlert(
   db: Db,
   camera: string,
-): Promise<{ key: string; ageSeconds: number | null } | null> {
+): Promise<{ key: string; ageSeconds: number | null; vision: string | null } | null> {
   const prefix = `camera_health:${camera}:%`;
   const [rows] = await db.execute(sql`
-    SELECT alert_key, UNIX_TIMESTAMP() - UNIX_TIMESTAMP(fired_at) AS ageSeconds
+    SELECT alert_key, payload, UNIX_TIMESTAMP() - UNIX_TIMESTAMP(fired_at) AS ageSeconds
       FROM cron_alerts_fired
      WHERE alert_key LIKE ${prefix}
      ORDER BY fired_at DESC
@@ -168,7 +171,16 @@ async function latestCameraAlert(
   `);
   const row = (rows as Array<Record<string, unknown>>)[0];
   if (!row?.alert_key) return null;
-  return { key: String(row.alert_key), ageSeconds: numberOrNull(row.ageSeconds) };
+  let vision: string | null = null;
+  try {
+    const payload = typeof row.payload === "string" ? JSON.parse(row.payload) : row.payload;
+    if (payload && typeof payload === "object" && typeof (payload as { vision?: unknown }).vision === "string") {
+      vision = (payload as { vision: string }).vision;
+    }
+  } catch {
+    vision = null; // an unreadable payload is "not recorded", which the policy treats cautiously
+  }
+  return { key: String(row.alert_key), ageSeconds: numberOrNull(row.ageSeconds), vision };
 }
 
 /**
@@ -244,6 +256,7 @@ export async function runCameraHealthAlerts(): Promise<{
   const [rows] = await db.execute(sql`
     SELECT camera,
            producerInstanceId,
+           heartbeatSeq,
            UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt) AS ageSeconds,
            UNIX_TIMESTAMP(observedAtEdge) AS observedAtEdgeEpoch,
            UNIX_TIMESTAMP(receivedAt) AS receivedAtEpoch,
@@ -285,6 +298,7 @@ export async function runCameraHealthAlerts(): Promise<{
             ageSeconds: numberOrNull(row.ageSeconds),
             observedAtEdgeEpoch: numberOrNull(row.observedAtEdgeEpoch),
             receivedAtEpoch: numberOrNull(row.receivedAtEpoch),
+            heartbeatSeq: numberOrNull(row.heartbeatSeq),
             sourceConnected: boolOrNull(row.sourceConnected),
             lastHealthyFrameAtEpoch: numberOrNull(row.lastHealthyFrameAtEpoch),
             frameOk: boolOrNull(row.frameOk),
@@ -336,6 +350,7 @@ export async function runCameraHealthAlerts(): Promise<{
       latest?.key ?? null,
       verdict.facets,
       latest?.ageSeconds ?? null,
+      latest?.vision,
     );
     if (decision.held) held++;
     if (!decision.notify) continue;
@@ -364,6 +379,9 @@ export async function runCameraHealthAlerts(): Promise<{
       reason: verdict.reason,
       recovery: decision.recovery,
       episode,
+      // The vision facet AT PAGE TIME, so a later HEALTHY can tell a blind-canary page (recovery
+      // waits for the detector to see again) from a frozen-capture page (recovers like any other).
+      vision: verdict.facets.vision,
     });
     if (!claimed) continue;
 

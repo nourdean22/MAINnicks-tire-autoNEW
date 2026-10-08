@@ -343,6 +343,30 @@ describe("camera health lattice — plausibility canary", () => {
     void _drop;
     expect(deriveStateAtIngest(rest).state).toBe("DEGRADED_VISION");
   });
+
+  it("a zero window inside the first 600 s of a restarted producer is WARMING, not blind, and never pages (Codex on #2920)", () => {
+    // heartbeatSeq restarts with the producer instance, one per heartbeatSeconds (30 s): 19
+    // heartbeats is 570 s of uptime, less than the 600 s window the counter needs to fill.
+    const mature = Math.ceil(HEALTH_THRESHOLDS.blindInferenceMaxAgeSeconds / HEALTH_THRESHOLDS.heartbeatSeconds);
+    expect(deriveVisionFacet({ ...blind, heartbeatSeq: 1 })).toBe("warming");
+    expect(deriveVisionFacet({ ...blind, heartbeatSeq: mature - 1 })).toBe("warming");
+    expect(deriveVisionFacet({ ...blind, heartbeatSeq: mature })).toBe("blind");
+    const restarted = deriveCameraState(healthy({ ...blind, heartbeatSeq: 3 }));
+    expect(restarted.state).toBe("HEALTHY");
+    expect(restarted.facets.vision).toBe("warming");
+    // Seeing is seeing, however young the process; and a producer that sends no counter is judged as before.
+    expect(deriveVisionFacet({ ...seeing, heartbeatSeq: 1 })).toBe("seeing");
+    expect(deriveVisionFacet({ ...blind, heartbeatSeq: null })).toBe("blind");
+    expect(deriveVisionFacet({ ...blind, heartbeatSeq: undefined })).toBe("blind");
+  });
+
+  it("the ingest-time derivation sees the same warming window, so a restart does not log a DEGRADED_VISION transition", () => {
+    const { ageSeconds: _drop, ...rest } = healthy({ ...blind, ageSeconds: 0, heartbeatSeq: 2 });
+    void _drop;
+    const v = deriveStateAtIngest(rest);
+    expect(v.state).toBe("HEALTHY");
+    expect(v.facets.vision).toBe("warming");
+  });
 });
 
 describe("shopOpenAt reads BUSINESS.hours.structured in the shop's timezone", () => {

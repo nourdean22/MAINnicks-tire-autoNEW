@@ -41,6 +41,8 @@ export function cameraAlertDecision(
   latestAlertKey: string | null,
   facets: Pick<CameraHealthFacets, "vision"> | null = null,
   sinceLastAlertSeconds: number | null = null,
+  /** The vision facet recorded with the LAST page (claim payload); null/undefined = not recorded. */
+  priorAlertVision: string | null | undefined = undefined,
 ): { notify: boolean; recovery: boolean; held: boolean } {
   const held =
     sinceLastAlertSeconds !== null &&
@@ -53,11 +55,17 @@ export function cameraAlertDecision(
     // DEGRADED_VISION page is a recovery only once the detector is SEEING again -- or the
     // producer reports no window at all (unknown), where the old DEGRADED_VISION meant a
     // frozen capture and HEALTHY is a real recovery.
+    // ...and only when the page that opened the episode WAS the blind canary. DEGRADED_VISION
+    // also names a frozen capture, whose recovery has nothing to do with vehicles being seen;
+    // the claim payload records the vision facet at page time so the two can be told apart
+    // (Codex on #2920). A page recorded before that field existed stays on the cautious side.
+    const priorWasBlindCanary = priorAlertVision === undefined || priorAlertVision === null || priorAlertVision === "blind";
     const closedNotRecovered =
       priorDegraded &&
       latestAlertKey !== null &&
       latestAlertKey.endsWith(":DEGRADED_VISION") &&
-      facets?.vision === "quiet";
+      facets?.vision === "quiet" &&
+      priorWasBlindCanary;
     const recovery = priorDegraded && !closedNotRecovered;
     return { notify: recovery && !held, recovery, held: recovery && held };
   }

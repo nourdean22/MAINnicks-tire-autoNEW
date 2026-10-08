@@ -626,6 +626,9 @@ export function registerCameraHeartbeatRoute(app: Express): void {
     const verdict = deriveStateAtIngest({
       observedAtEdgeEpoch: epoch(b.observedAtEdge),
       receivedAtEpoch: nowEpoch,
+      // The producer's uptime proxy: a zero detection window inside the first 600 s of a
+      // restarted edge is warming, not blind (Codex on #2920).
+      heartbeatSeq: b.heartbeatSeq,
       sourceConnected: b.sourceConnected ?? null,
       lastHealthyFrameAtEpoch: epoch(b.lastHealthyFrameAt),
       frameOk: b.frameOk ?? null,

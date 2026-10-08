@@ -716,8 +716,11 @@ export const lotRouter = router({
         SELECT
           DATEDIFF(${etDate("NOW()")}, ${etDate("arrivedAt")}) AS dayOffset,
           ${sql.raw("HOUR(CONVERT_TZ(arrivedAt, '+00:00', 'America/New_York'))")} AS etHour,
-          SUM(CASE WHEN state <> 'PASS_THROUGH' THEN 1 ELSE 0 END) AS arrivals,
-          SUM(CASE WHEN state =  'PASS_THROUGH' THEN 1 ELSE 0 END) AS passThroughs
+          -- One EPISODE is one car (stitched re-arrivals share an episodeId), the same identity
+          -- the headline counter uses: summing rows here inflated today's observed arrivals
+          -- against a baseline and could read an undercount as OK (Codex on #2920).
+          COUNT(DISTINCT CASE WHEN state <> 'PASS_THROUGH' THEN COALESCE(episodeId, visitId) END) AS arrivals,
+          COUNT(DISTINCT CASE WHEN state =  'PASS_THROUGH' THEN COALESCE(episodeId, visitId) END) AS passThroughs
         FROM vehicle_visits
         WHERE dataClass = 'PRODUCTION'
           AND preexisting = 0
@@ -845,7 +848,10 @@ export const lotRouter = router({
           FROM vehicle_visits
           WHERE ${input.includeCommissioning ? sql`1 = 1` : sql`dataClass = 'PRODUCTION'`}
             ${input.openOnly ? sql`AND departedAt IS NULL` : sql``}
-          ORDER BY COALESCE(arrivedAt, createdAt) DESC
+          -- The open-only floor board keeps the LONGEST-waiting cars when it hits its cap: the
+          -- car about to become a complaint must survive the LIMIT, so open visits read oldest
+          -- first (the board sorts by dwell anyway). The recent list stays newest first.
+          ORDER BY COALESCE(arrivedAt, createdAt) ${input.openOnly ? sql.raw("ASC") : sql.raw("DESC")}
           LIMIT ${input.limit}
         `));
 
@@ -1146,6 +1152,7 @@ export const lotRouter = router({
                 ageSeconds: numOrNull(r.ageSeconds),
                 observedAtEdgeEpoch: numOrNull(r.observedAtEdgeEpoch),
                 receivedAtEpoch: numOrNull(r.receivedAtEpoch),
+                heartbeatSeq: numOrNull(r.heartbeatSeq),
                 sourceConnected: bool(r.sourceConnected),
                 lastHealthyFrameAtEpoch: numOrNull(r.lastHealthyFrameAtEpoch),
                 frameOk: bool(r.frameOk),

@@ -107,6 +107,13 @@ interface RuntimeSnapshot {
   portalCrossingsLast60m?: number | null;
   /** Seconds since the detector last ran, on the reader's clock. */
   inferenceAgeSeconds?: number | null;
+  /**
+   * The producer's heartbeat counter, which restarts with its process (one per
+   * `heartbeatSeconds`). It is the uptime the producer does not otherwise report: the detector's
+   * 600 s window restarts at zero with the process, so a zero inside the first 600 s is "nothing
+   * seen YET", never blindness (Codex on #2920). Absent = judged as before.
+   */
+  heartbeatSeq?: number | null;
   /** Whether the shop is open at evaluation time (BUSINESS hours, shop timezone). */
   shopOpen?: boolean | null;
 
@@ -126,7 +133,7 @@ type HomeFacet = "ok" | "invalid" | "unknown" | "not_required";
  *            window (the motion gate stayed shut), a recent crossing, or the shop closed.
  * unknown -- the producer does not report the window (pre-0144 edge).
  */
-type VisionFacet = "seeing" | "blind" | "quiet" | "unknown" | "not_required";
+type VisionFacet = "seeing" | "blind" | "quiet" | "warming" | "unknown" | "not_required";
 
 interface HealthFacets {
   producer: "alive" | "stale" | "offline" | "never";
@@ -150,10 +157,20 @@ interface HealthFacets {
  * paged UNVERIFIED for a missing counter would page the owner about the deploy, not the lot.
  */
 function deriveVisionFacet(r: Pick<RuntimeSnapshot,
-  "detectionsLast10m" | "portalCrossingsLast60m" | "inferenceAgeSeconds" | "shopOpen">): VisionFacet {
+  "detectionsLast10m" | "portalCrossingsLast60m" | "inferenceAgeSeconds" | "shopOpen" | "heartbeatSeq">): VisionFacet {
   const detections = r.detectionsLast10m;
   if (detections === null || detections === undefined) return "unknown";
   if (detections > 0) return "seeing";
+  // A window that has not had time to fill is not a measurement. The edge's counter restarts
+  // at zero with its process, so a daytime restart on an empty frame read as a mature blind
+  // window and would have paged (Codex on #2920). heartbeatSeq restarts with the producer
+  // instance, one per heartbeatSeconds: under 600 s of it, the zero is WARMING, never blind.
+  if (
+    r.heartbeatSeq !== null && r.heartbeatSeq !== undefined &&
+    r.heartbeatSeq * HEALTH_THRESHOLDS.heartbeatSeconds < HEALTH_THRESHOLDS.blindInferenceMaxAgeSeconds
+  ) {
+    return "warming";
+  }
   const inferredInWindow =
     r.inferenceAgeSeconds !== null && r.inferenceAgeSeconds !== undefined &&
     r.inferenceAgeSeconds <= HEALTH_THRESHOLDS.blindInferenceMaxAgeSeconds;

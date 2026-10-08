@@ -596,3 +596,36 @@ describe("camera health timeline — derived transitions from the 5-minute pass 
     expect(service).toContain("producerInstanceId,\n           UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt) AS ageSeconds");
   });
 });
+
+/**
+ * DEGRADED_VISION names two things: the blind canary (zero detections in a mature window while
+ * the shop is open) and a frozen capture. Only the first needs "seeing again" before HEALTHY is
+ * a recovery; a frozen-capture recovery after closing time was being held until a vehicle
+ * happened to be seen (Codex on #2920). The claim payload now records the vision facet at page
+ * time, and the policy reads it back.
+ */
+describe("camera health alert policy — recovery after DEGRADED_VISION knows which kind it was (Codex on #2920)", () => {
+  const prior = "camera_health:sign:e1759830000:DEGRADED_VISION";
+
+  it("a page for the blind canary waits for the detector to see again; a frozen-capture page recovers at once", () => {
+    expect(cameraAlertDecision("HEALTHY", prior, { vision: "quiet" }, null, "blind")).toEqual({ notify: false, recovery: false, held: false });
+    expect(cameraAlertDecision("HEALTHY", prior, { vision: "quiet" }, null, "seeing")).toEqual({ notify: true, recovery: true, held: false });
+    expect(cameraAlertDecision("HEALTHY", prior, { vision: "quiet" }, null, "quiet")).toEqual({ notify: true, recovery: true, held: false });
+    expect(cameraAlertDecision("HEALTHY", prior, { vision: "quiet" }, null, "unknown")).toEqual({ notify: true, recovery: true, held: false });
+  });
+
+  it("a claim written before the facet existed stays on the cautious side", () => {
+    expect(cameraAlertDecision("HEALTHY", prior, { vision: "quiet" }, null, null)).toEqual({ notify: false, recovery: false, held: false });
+    expect(cameraAlertDecision("HEALTHY", prior, { vision: "quiet" }, null, undefined)).toEqual({ notify: false, recovery: false, held: false });
+  });
+
+  it("the service records the facet with every claim, reads it back with the latest page, and passes the producer's uptime into the lattice", () => {
+    const service = fs.readFileSync(path.join(__dirname, "services", "cameraHealthAlerts.ts"), "utf8");
+    expect(service).toContain("vision: verdict.facets.vision,");
+    expect(service).toContain("SELECT alert_key, payload, UNIX_TIMESTAMP() - UNIX_TIMESTAMP(fired_at) AS ageSeconds");
+    expect(service).toContain("latest?.vision,");
+    // The warming window (Codex on #2920): the cron must give deriveCameraState the heartbeat counter.
+    expect(service).toContain("heartbeatSeq,\n           UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt) AS ageSeconds");
+    expect(service).toContain("heartbeatSeq: numberOrNull(row.heartbeatSeq),");
+  });
+});
