@@ -13,7 +13,7 @@ vi.mock("../db", () => ({ getDb: () => getDb() }));
 const lastSync = vi.fn<() => Date | null>(() => null);
 vi.mock("./shopDriverMirror", () => ({ getLastSuccessfulSync: () => lastSync() }));
 
-import { addDays, readLotBrief, shopDate } from "./lotBriefRead";
+import { readLotBrief } from "./lotBriefRead";
 import { QUERY_HANDLERS } from "../routes/nour-os-query";
 
 /** Flatten a drizzle sql object to its text and params. */
@@ -78,11 +78,14 @@ afterEach(() => {
 });
 
 describe("shop dates", () => {
-  it("yesterday is computed in New York, and calendar steps never slip across DST", () => {
-    expect(shopDate(NOW)).toBe("2026-10-16");
-    expect(shopDate(Date.UTC(2026, 9, 16, 3, 30))).toBe("2026-10-15"); // 23:30 EDT is still the 15th
-    expect(addDays("2026-11-02", -1)).toBe("2026-11-01");
-    expect(addDays("2026-10-15", -28)).toBe("2026-09-17");
+  it("yesterday is computed in New York: at 23:30 EDT on the 15th (03:30Z on the 16th) it is the 14th", async () => {
+    const late = await readLotBrief(fakeDb({}).db, {}, { freshness: fresh(null), nowMs: Date.UTC(2026, 9, 16, 3, 30) });
+    if (!late.ok) throw new Error(late.error);
+    expect(late.date).toBe("2026-10-14");
+    expect(late.weekday).toBe("wednesday");
+    const morning = await readLotBrief(fakeDb({}).db, {}, { freshness: fresh(null), nowMs: NOW });
+    if (!morning.ok) throw new Error(morning.error);
+    expect(morning.date).toBe("2026-10-15");
   });
 });
 

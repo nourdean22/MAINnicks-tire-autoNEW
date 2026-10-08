@@ -92,7 +92,7 @@ export function coverageForPastDay(input: {
 }
 
 /** Minutes of [fromMs, toMs) the camera was NOT watching (any state but HEALTHY, solar dark included). */
-export function unwatchedMinutes(segments: readonly TimelineSegment[], fromMs: number, toMs: number): number {
+function unwatchedMinutes(segments: readonly TimelineSegment[], fromMs: number, toMs: number): number {
   let ms = 0;
   for (const s of segments) {
     if (s.state === "HEALTHY") continue;

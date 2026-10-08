@@ -54,12 +54,12 @@ const numOrNull = (v: unknown): number | null => (v === null || v === undefined 
 const str = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
 
 /** YYYY-MM-DD in the shop's zone. */
-export function shopDate(ms: number): string {
+function shopDate(ms: number): string {
   return new Date(ms).toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
 }
 
 /** Calendar arithmetic on a YYYY-MM-DD, at UTC noon, so no zone or DST change can move it a day. */
-export function addDays(date: string, days: number): string {
+function addDays(date: string, days: number): string {
   return new Date(Date.parse(`${date}T12:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
 }
 
