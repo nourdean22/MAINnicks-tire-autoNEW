@@ -66,6 +66,16 @@ export function redactUnreadableSections<T extends RedactableSummary>(
   };
 }
 
+/** What the top-services tool returns instead of an empty list. */
+export function topServicesUnavailable() {
+  return {
+    unavailable: true as const,
+    reason:
+      "The nickstire shop bridge did not return top services, so they are " +
+      "UNKNOWN, not an empty list. Do not name services or figures.",
+  };
+}
+
 /** What the revenue tool returns instead of a fabricated zero month. */
 export function revenueUnavailable(period: string) {
   return {

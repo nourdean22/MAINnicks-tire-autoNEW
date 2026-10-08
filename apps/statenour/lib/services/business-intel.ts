@@ -18,13 +18,23 @@
  *   · getRevenueStats(period)   → revenue_today / revenue_week /
  *                                  revenue_range (month + year)
  *   · getTopServices(limit)     → revenue_top_services bridge query
- *                                  (graceful empty fallback when
- *                                   the query isn't available yet)
+ *                                  (null when it cannot be read)
  *   · getCustomerStats()        → customer_stats bridge query
- *                                  (graceful empty fallback)
+ *                                  (bridgeAvailable: false when it
+ *                                   cannot be read)
  *   · getDashboardSummary()     → fans out to the above + reviews
  *
- * Design contract: bridge failure → empty/zero (NEVER fake data).
+ * CORRECTED 2026-10-08: nickstire has never had a `revenue_top_services`
+ * or a `customer_stats` handler, so both reads have failed on every call
+ * since they were wired. The bridge contract guard could not see them
+ * (each puts its query name on the line after a multi-line type
+ * argument); they are now catalogued as pending in
+ * tests/contracts/nick-bridge-query-contract.test.ts.
+ *
+ * Design contract: a failed bridge read is marked, never passed off as
+ * data: getTopServices returns null; the others carry their zero
+ * defaults beside `bridgeAvailable` / `bridgeHealth`, which every AI
+ * consumer must redact first (lib/ai/tools/bridge-honesty.ts).
  * The /system/errors deck surfaces persistent bridge errors via
  * the logger.warn calls in fetchBridge.
  */
@@ -140,17 +150,20 @@ export async function getRevenueStats(period: "day" | "week" | "month" | "year" 
 }
 
 export async function getTopServices(limit = 10) {
-  // Bridge query `revenue_top_services` returns pre-aggregated
-  // service totals — much cheaper than streaming raw jobs. If the
-  // bridge doesn't expose it yet, gracefully return empty so the
-  // Nick `getTopServices` tool returns "[] (bridge unavailable)"
-  // rather than fabricating data.
+  // Bridge query `revenue_top_services` would return pre-aggregated
+  // service totals. Nickstire has no such handler yet (see the header),
+  // so this read fails today.
+  //
+  // A failed read returns null, never []. The Nick `getTopServices`
+  // tool used to receive [] here and hand it to the model as "no
+  // services": a fabricated answer, not an unknown one. The tool turns
+  // null into an explicit unavailable payload (lib/ai/tools/bridge-honesty.ts).
   const data = await fetchBridge<{
     services?: Array<{ service: string; count: number; revenue: number }>;
   }>("revenue_top_services", { limit });
 
-  const services = data?.services ?? [];
-  return services
+  if (!data || !Array.isArray(data.services)) return null;
+  return data.services
     .map((s) => ({
       service: s.service,
       count: s.count,

@@ -1,8 +1,11 @@
-# Nickstire Query Contract — v11.10 (2026-09-08)
+# Nickstire Query Contract — v11.11 (2026-10-08)
 
-> **This doc is the mirror.** It must match `docs/NICKSTIRE-QUERY-CONTRACT.md`
-> in the statenour-os repo byte-for-byte. When adding or changing an endpoint,
-> update both files in the same commit.
+> **This doc exists twice, byte for byte:** `apps/nickstire/docs/` and
+> `apps/statenour/docs/`. When adding or changing an endpoint, update both in the
+> same commit. `apps/statenour/tests/contracts/nick-bridge-query-contract.test.ts`
+> fails when the two differ, and when a registered `/api/nour-os/query` action
+> has no row in section 7 (or a row names an action nothing registers). The
+> copies had drifted apart once, unnoticed, before that test existed.
 
 ## Auth
 
@@ -485,31 +488,51 @@ every registered handler. If `x-sync-key` is missing/wrong → 401.
 
 | Action | Filters | Returns |
 |---|---|---|
-| `top_decisions` | none | `{ decisions: [{ id, urgency, state, recommendedAction, valueDollars, dataQuality, attempts }], totalLive, excludedNoConsent, excludedSnoozed }` — same due-aware/consent-filtered topDecisions(5) read as the admin Decision Inbox (added 2026-07-28, consumed by statenour `getTopDecisions`) |
 | `attention_needed` | none | `{ alerts: [{ level, message, count }], totalCritical, totalWarning }` |
 | `bookings_status` | none | 7-day status breakdown |
 | `bookings_today` | none | Today's bookings (ET-anchored) |
 | `callbacks_pending` | none | New callback requests |
-| `customer_search` | `term: string` | Top 20 matching customers |
+| `cars_today` | none | Same payload as section 1 `GET /api/bridge/cars-today`: `{ count, openTickets, avgTicket, byStatus: { drop_off, in_progress, ready, paid }, byPayment, generatedAt, dataAsOf, ageMinutes, staleness, source }`. A separate implementation in `nour-os-query.ts` with the same top-level fields (checked 2026-10-08). |
 | `customer_detail` | `customerId: string` | `{ customer, timeline: { invoices, estimates, algEstimates, callbacks }, counts }` — added Wave-200 Phase 6 for Customer 360 |
+| `customer_search` | `term: string` | Top 20 matching customers |
 | `draft_opportunity_sms` | `opportunityId: uuid` | `{ opportunityId, customerName, customerPhoneMasked, sourceType, state, consentOk, recommendedAction, bestChannel, draft, noDraftReason?, riskLabel, riskReasons, guardFindings }` — deterministic evidence-only draft for a Decision-Inbox row; call-first types (callback/complaint/promise) return `draft: null` + reason. READ, never sends. Added Autopilot Wave 2, 2026-07-29 — see §8 |
-| `recent_customer_ids` | `sinceDays?: number` (default 90, max 365) | `{ customerIds: string[], count, sinceDays }` — drives statenour daily customer-preferences cron · cap 500 |
+| `drop_off_ratio` | `range?: 7d \| 30d \| 90d` (default 30d) | Same payload as section 4: `{ range, dropOffs, walkIns, ratio, uberBackCount, generatedAt, dataAsOf, ageMinutes, staleness, source }`. |
+| `estimates_aging` | `scope?: online \| alg` (default online) | Same payload as section 3 for the scope: `{ total, bucket_lt24h, bucket_1d_3d, bucket_3d_7d, bucket_gt7d, stalest, generatedAt, dataAsOf, ageMinutes, staleness, scope, source }`, plus `totalDeclinedValue` for `alg`. |
+| `estimates_conversion` | `range?: 7d \| 30d \| 90d` (default 30d), `scope?: online \| alg` (default online) | Same payload as section 2 for the scope: `online` = `{ range, given, converted, rate, avgTimeToConvertHours, byService, ... }`, `alg` = `{ range, given, converted, rate, declinedCount, declinedValue, topUnmatched, ... }`, both with the freshness fields, `scope` and `source`. |
 | `feature_flags` | none | All flags + enabled state |
+| `funnel_first_visit` | none | First-visit conversion + per-source breakdown · `{ ok, overallRate, avgDaysToRepeat, bySource: [{ source, firstVisits, repeated, rate }] }`. Statenour /funnel consumer. |
+| `funnel_overview` | none | 6-stage Customer Journey Funnel · derived from master_report sub-reports · `{ ok, stages: [{ label, value, conversionFromPrev, pctOfTopOfFunnel }] (6 entries), leadToJobRate, leadToRetainedRate, timestamp }`. Statenour /funnel consumer. |
 | `gsc_summary` | `from?, to?` (YYYY-MM-DD; default last 30d) | `{ totalClicks, totalImpressions, avgCtr, avgPosition }` (CTR is %, position is float) |
+| `gsc_top_pages` | `from?` (YYYY-MM-DD, default 30 days ago), `limit?` (default 10, max 50) | `{ from, pages, count }`: top pages by clicks from `from` onward (`pipelines/gsc-data.ts` `getPagePerformance`). Pairs with `gsc_top_queries` on the statenour /seo page. |
 | `gsc_top_queries` | `from?, to?, limit?` (default 30d, top 10, max 50) | `{ queries: [{ query, clicks, impressions, ctr, avgPosition }] }` |
+| `instagram_autopost_status` | none | `{ livePostingEnabled, latestLogs: [{ id, archetype, conceptKey, status, caption, imageUrl, overallScore, source, createdAt, error }] (newest 5), dbReadable }`. `latestLogs` is `[]` both for an idle lane and for an unreadable database; `dbReadable: false` says which. Read only: the mutating run/config actions live behind their own key at `/api/nour-os/ig-control`. |
+| `instagram_autopost_test_hf` | none | `{ dnsResults: { <host>: { address, family } \| { error } }, fetchResults: { <url>: { status, statusText, durationMs } \| { error } } }`: a network probe from the nickstire container (DNS for google.com, graph.facebook.com, router.huggingface.co, huggingface.co; a GET with a 5 s timeout to three URLs). Diagnostic; writes nothing. |
+| `instagram_delivery_issues` | none | `{ issues: [{ key, layer, severity: blocker \| warning \| info, reason, evidence, nextAction }], facts }` from `services/socialDeliveryIssues.ts`, the service the admin console reads. A null count in `facts` means it could not be read, never zero. |
+| `instagram_reel_reliability` | none | `{ windowDays, total, byStatus, succeeded, failed, closedFailures, ambiguous, failureRate }` from `services/reelReliability.ts`; null means not counted, never zero. |
 | `leads_pipeline` | none | 30-day status breakdown |
 | `leads_today` | none | Today's leads (ET-anchored) |
 | `leads_urgent` | none | Urgency ≥ 4, status = new |
-| `lot_brief` | `date?: YYYY-MM-DD` (shop-local, before today, within 120 days; default yesterday) | `{ ok: true, date, weekday, open, arrivals, passThroughs, coverage: { pctExpected, gatePassed, unmeasured }, baseline: { weeksConsidered, weeksCompared, meanArrivals, withheld }, tickets: { count, withheld }, longDwells: { count, longestMinutes, uncertain } | null, events: [{ kind, text }] (max 3), lines: string[] (1-3), generatedAt, dataAsOf, ageMinutes, staleness, source }` or `{ ok: false, error }`. The lot camera's view of one shop day for the morning brief (camera audit N4, 2026-10-08): traffic against the same weekday of the prior four weeks, compared only when that day and at least two earlier ones were watched >= 80% of business hours (days before 2026-10-08 16:15Z are unmeasured); long stays (3h+) with no service recorded; lot traffic with few tickets (tickets withheld unless the ALG mirror synced after that day's close). `lines` is what to render: the material events, or one summary line. Consumer: statenour `lib/services/morning-brief.ts` `readLotBriefLines`. Source: `server/services/lotBriefRead.ts` + `server/lib/lotBrief.ts`. |
-| `funnel_first_visit` | none | First-visit conversion + per-source breakdown · `{ ok, overallRate, avgDaysToRepeat, bySource: [{ source, firstVisits, repeated, rate }] }`. Statenour /funnel consumer. |
-| `funnel_overview` | none | 6-stage Customer Journey Funnel · derived from master_report sub-reports · `{ ok, stages: [{ label, value, conversionFromPrev, pctOfTopOfFunnel }] (6 entries), leadToJobRate, leadToRetainedRate, timestamp }`. Statenour /funnel consumer. |
+| `lot_brief` | `date?: YYYY-MM-DD` (shop-local, before today, within 120 days; default yesterday) | `{ ok: true, date, weekday, open, arrivals, passThroughs, coverage: { pctExpected, gatePassed, unmeasured }, baseline: { weeksConsidered, weeksCompared, meanArrivals, withheld }, tickets: { count, withheld }, longDwells: { count, longestMinutes, uncertain } \| null, events: [{ kind, text }] (max 3), lines: string[] (1-3), generatedAt, dataAsOf, ageMinutes, staleness, source }` or `{ ok: false, error }`. The lot camera's view of one shop day for the morning brief (camera audit N4, 2026-10-08): traffic against the same weekday of the prior four weeks, compared only when that day and at least two earlier ones were watched >= 80% of business hours (days before 2026-10-08 16:15Z are unmeasured); long stays (3h+ of business time, judged per car across its stitched visits) with no service recorded; lot traffic with few tickets (tickets withheld unless the ALG mirror synced after that day's close). `lines` is what to render: the material events, or one summary line. Consumer: statenour `lib/services/morning-brief.ts` `readLotBriefLines`. Source: `server/services/lotBriefRead.ts` + `server/lib/lotBrief.ts`. |
+| `marketing_attribution` | `from?, to?` (YYYY-MM-DD, default the last 30 days) | `{ from, to, sources: [{ source, utmSource, leadCount, bookedCount, completedCount, lostCount, conversionCount, conversionRate, totalDollars, avgTicketDollars }], totals: { leadCount, conversionCount, conversionRate, totalDollars }, topSource, note }`: leads by source with their booking/invoice conversions and revenue (`conversionRate` in %). |
 | `master_report` | none | Synthesized health score + top alert/opp/risk + 13-component breakdown + sub-reports. See "master_report shape" below. Returns `{ ok: false, error }` if generation fails. Cache TTL 60s server-side. |
+| `recent_customer_ids` | `sinceDays?: number` (default 90, max 365) | `{ customerIds: string[], count, sinceDays }` — drives statenour daily customer-preferences cron · cap 500 |
+| `recent_invoices` | `days?` (1-1000, default 30) | `{ invoices: [{ id, totalAmount, invoiceDate }], count, days }`: newest first, at most 1000; `totalAmount` is in cents. |
+| `recent_leads` | `days?` (1-1000, default 30) | `{ leads: [{ id, fullName, createdAt, status, urgencyScore, source }], count, days }`: newest first, at most 1000. |
 | `revenue_range` | `from?, to?` | Total + avg ticket for range |
 | `revenue_today` | none | Today's revenue (ET-anchored) |
 | `send_opportunity_sms` | `opportunityId: uuid, body: string, idempotencyKey: string (8-64, [A-Za-z0-9._-]), approvedBy: string` | `{ ok, sent, duplicate, queued?, error? }` — the ONE bounded customer-texting ACTION. See §8 for the mandatory approval contract. Added Autopilot Wave 2, 2026-07-29 |
+| `service_affinity_v2_status` | none | `{ ok: true, migrated: false, message }` before migration 0061; otherwise `{ ok: true, migrated: true, predictions: { total, treatment, control, armRatioTreatmentPct, armSplitHealthy, avgConfidenceTreatment, avgConfidenceControl, distinctModelVersions }, cron: { lastTick, ageMinutes, running }, closedLoop: { impressions, smsSent, outcomesMatched } }`; `{ ok: false, error }` with no database. |
 | `shop_pulse` | none | Live snapshot via nickIntelligence |
+| `team_performance` | none | AG-20 (2026-07-09) · per-tech 30d metrics + clock state · `{ techs: [{ techId, name, role, clockedIn, currentLoad, jobsCompleted30d, totalRevenue30d, qcPassRate, comebackRate }], teamTotals }`. First staff-visible handler — statenour command-center consumer. |
+| `top_decisions` | none | `{ decisions: [{ id, urgency, state, recommendedAction, valueDollars, dataQuality, attempts }], totalLive, excludedNoConsent, excludedSnoozed }` — same due-aware/consent-filtered topDecisions(5) read as the admin Decision Inbox (added 2026-07-28, consumed by statenour `getTopDecisions`) |
 | `vehicle_lookup_by_plate` | `plate: string` (raw camera read, 3+ alphanumerics) | `{ plate, normalized, variants, matches: [{ source: "memberships", membershipId, name, phoneMasked, plate, exact, vehicleDesc, membershipStatus, bookingsToday: [{ id, service, vehicle, status, preferredDate }] }], count, sources }` — READ-ONLY, ADVISORY. Normalized match plus single-character OCR-confusable variants (O/0, I/1, B/8, S/5, Z/2). Source today is `memberships.vehiclePlate` only (`vehicles` was retired in 0117; `customer_vehicles` gains a plate column in a later wave). `bookingsToday` uses the arrival-load definition (`preferredDate` = ET today AND status `new`/`confirmed`), not `bookings_today`'s created-today arm; each row carries `linkage`: `phone+name` (the booking name agrees with the member's first or full name) or `phone_only` (a shared/recycled phone; such rows omit `service` and `vehicle` so another customer's history never rides along). Non-object `filters` is a 400. The raw plate is masked to two characters in the route's request log. Consumer: statenour `lib/services/vehicle-customer-link.ts` after a CONFIRMED_ARRIVAL. Added 2026-09-08, ADR-0017 |
 | `work_orders_active` | none | Open work orders (≠ completed/cancelled) |
+
+Queries statenour calls that nickstire has NOT registered are not listed here. They answer
+400 "Unknown query", and the callers must treat that as unknown, never as zero or empty.
+The list is `KNOWN_PENDING` in `apps/statenour/tests/contracts/nick-bridge-query-contract.test.ts`
+(and the `newly-required` tier of `apps/statenour/scripts/contract-pre-flight.ts`); that test
+fails when a pending query ships, so it cannot go stale the way a copy here would.
 
 ### master_report shape (added v11.5, 2026-05-24)
 
@@ -718,6 +741,17 @@ retry-after-timeout) reports as SUCCESS/"already sent", never as failure.
   arrival alert. Matching is on the normalized plate plus OCR-confusable
   variants; the only plate source today is `memberships.vehiclePlate`.
   No write lane, no customer-facing side effect.
+
+- **v11.11** (2026-10-08) — `lot_brief` action added (camera audit N4): the lot
+  camera's view of one shop day in at most three material lines for the statenour
+  morning brief. The two copies of this file, which had drifted (four section 7 rows
+  and section 8 existed only in statenour's, `team_performance` only in nickstire's),
+  are one document again; section 7 now has a row for every registered action (13
+  had none) and is sorted as its heading says; a contract test holds both copies
+  byte-identical and every registered action to one well-formed row. The same test
+  now reads statenour bridge calls written across several lines, which it could not
+  see before. Its first run found two queries statenour had called since v10.0.51
+  that nickstire never registered: `revenue_top_services` and `customer_stats`.
 
 When adding a new endpoint: bump version, document here + statenour repo,
 include the commit hash in the PR description so cross-ring wiring is

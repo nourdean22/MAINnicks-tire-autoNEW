@@ -109,7 +109,14 @@ export const businessTools = {
     inputSchema: z.object({ limit: z.number().default(10) }),
     execute: async ({ limit }) => {
       const { getTopServices } = await import("@/lib/services/business-intel");
-      return getTopServices(limit);
+      const services = await getTopServices(limit);
+      // null = the shop bridge could not answer. Never hand the model [] for
+      // that: an empty list reads as "no services", which is not what we know.
+      if (services === null) {
+        const { topServicesUnavailable } = await import("@/lib/ai/tools/bridge-honesty");
+        return topServicesUnavailable();
+      }
+      return services;
     },
   }),
 

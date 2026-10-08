@@ -138,6 +138,17 @@ const ACTIONS: ActionSpec[] = [
     tier: "newly-required",
     consumer: "pipeline-controller lead-surge",
   },
+  {
+    query: "revenue_top_services",
+    filters: { limit: 5 },
+    tier: "newly-required",
+    consumer: "business-intel getTopServices (Nick getTopServices tool)",
+  },
+  {
+    query: "customer_stats",
+    tier: "newly-required",
+    consumer: "business-intel getCustomerStats (dashboard summary)",
+  },
 ];
 
 interface ProbeResult {
