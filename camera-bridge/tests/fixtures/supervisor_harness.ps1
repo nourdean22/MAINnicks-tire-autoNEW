@@ -382,7 +382,7 @@ switch ($Scenario) {
     Heal-EufyTask $eufyTasks[0]
   }
   "unrelated-node-survives-bridge-restart" {
-    # The node needle was any `node ... server.mjs`, so a restart's needle sweep ended every node
+    # The node needle was any `node ... server.mjs`, so a restart's needle sweep would end every node
     # server.mjs on the host before the guarded port pass ran -- the go2rtc defect from #2931 again.
     #   64 another project's node server.mjs, holding :3000 (every dev server's default) -> left alone
     #      by the sweep and by the port pass

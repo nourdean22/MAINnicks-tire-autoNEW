@@ -409,8 +409,9 @@ def test_an_unrelated_go2rtc_is_not_a_duplicate_of_the_bridges(tmp_path: Path):
 
 # ---- the bridge's node, known by its own path (2026-10-08) --------------------------------------
 # The node needle was any `node ... server.mjs` -- the go2rtc defect from #2931 in a second image.
-# server.mjs is the commonest Node entry point and :3000 the commonest dev port, so another project
-# on this box was ended on every bridge restart and swept as a "duplicate" on every healthy tick.
+# server.mjs is the commonest Node entry point and :3000 the commonest dev port, so any other project
+# on this box would be ended on every bridge restart and swept as a "duplicate" on every healthy tick
+# (none runs there today; the 2026-10-08 probe found only Desktop Commander's node processes).
 # start-bridge-nicksmax.ps1 now passes server.mjs by its absolute path under StateNour\Eufy\, and
 # that path is the needle. Positive control: against the any-server.mjs needle the first two probes
 # and the text contract went red; the dedupe control passed on both, as a control must.
