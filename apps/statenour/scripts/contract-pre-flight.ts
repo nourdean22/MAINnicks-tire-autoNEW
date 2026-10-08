@@ -84,6 +84,11 @@ const ACTIONS: ActionSpec[] = [
   },
   { query: "shop_pulse", tier: "production", consumer: "HQ SituationCard" },
   { query: "attention_needed", tier: "production", consumer: "morning brief" },
+  {
+    query: "lot_brief",
+    tier: "production",
+    consumer: "morning brief shop slice (camera audit N4, 2026-10-08)",
+  },
   { query: "bookings_today", tier: "production", consumer: "EOD debrief" },
   { query: "leads_today", tier: "production", consumer: "EOD debrief" },
   { query: "leads_urgent", tier: "production", consumer: "morning brief" },

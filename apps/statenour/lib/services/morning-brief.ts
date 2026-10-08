@@ -25,6 +25,8 @@
  *   · `prisma.commitment` · active commitments table
  *   · existing calendar-api.ts via getTodaySchedule helper
  *   · AuditEvent(eventType="ceo_business_context") · nickstire bridge
+ *   · nickstire `lot_brief` bridge action · the lot camera's view of
+ *     yesterday, at most three lines (camera audit N4, 2026-10-08)
  *   · CronJobLog · failed-cron tally for the SHOP slice
  *   · PersonalDailyLog + BodyTracking · wellbeing placeholder
  *   · BrainMemory(category="wisdom") · wisdom-of-the-day pull
@@ -35,6 +37,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { readNickRevenue } from "@/lib/nickstire/revenue";
+import { queryNick } from "@/lib/nickstire/query";
 import { activeOnly } from "@/lib/db/soft-delete";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
@@ -363,11 +366,16 @@ const STALE_BRIDGE_HOURS = 24;
  *   · AND there are no failed crons in the last 24h.
  * If there ARE failed crons but no bridge data, we still emit a 1-line
  * cron section · operator wants to see infra alerts even without sync.
+ *
+ * Since camera audit N4 (2026-10-08) the slice also carries the lot
+ * brief (`readLotBriefLines`), which always says at least one line: a
+ * quiet day and a failed read are both facts, so the slice now renders
+ * on every brief.
  */
 export async function buildShopSlice(): Promise<MorningBriefSlice> {
   const since24h = new Date(Date.now() - 24 * 60 * 60_000);
 
-  const [latestContext, failedCronCount, failedCronJobs] = await Promise.all([
+  const [latestContext, failedCronCount, failedCronJobs, lot] = await Promise.all([
     prisma.auditEvent
       .findFirst({
         where: { eventType: "ceo_business_context" },
@@ -385,6 +393,8 @@ export async function buildShopSlice(): Promise<MorningBriefSlice> {
         take: 3,
         select: { jobName: true },
       }),
+    // Its own failure is one line of its own, never the whole shop slice's.
+    readLotBriefLines().catch((err: unknown) => lotBriefUnavailable(err instanceof Error ? err.message : String(err))),
   ]);
 
   const bridgeFresh =
@@ -392,8 +402,9 @@ export async function buildShopSlice(): Promise<MorningBriefSlice> {
     Date.now() - new Date(latestContext.createdAt).getTime() <
       STALE_BRIDGE_HOURS * 60 * 60_000;
 
-  // Both signals absent · slice is empty.
-  if (!bridgeFresh && failedCronCount === 0) {
+  // Every signal absent · slice is empty. The lot brief always says one line (a quiet day
+  // and a failed read are both things to say), so in practice the slice now always renders.
+  if (!bridgeFresh && failedCronCount === 0 && lot.lines.length === 0) {
     return emptySlice();
   }
 
@@ -461,6 +472,10 @@ export async function buildShopSlice(): Promise<MorningBriefSlice> {
     payload.bridgeStale = true;
     payload.bridgeSyncedAt = new Date(latestContext.createdAt).toISOString();
   }
+
+  // The lot camera's view of yesterday (camera audit N4), before the infra line.
+  lines.push(...lot.lines);
+  if (Object.keys(lot.payload).length > 0) payload.lot = lot.payload;
 
   if (failedCronCount > 0) {
     const names = (failedCronJobs as Array<{ jobName: string }>)
@@ -620,6 +635,54 @@ export async function buildWellbeingSlice(
   }
 
   return { lines, payload };
+}
+
+// ── Lot brief (camera audit N4, 2026-10-08) ─────────────────────────
+//
+// nickstire's `lot_brief` bridge action: the lot camera's view of yesterday in at most three
+// material lines (traffic against the same weekday, gated by how much of the day the camera
+// watched; long stays nobody explains; lot traffic with few tickets). nickstire decides what is
+// material and words it; this only renders. A quiet day is one line and a failed read is one
+// line: never silence, and never a failure dressed as a quiet day. The Lot page in Nick's Admin
+// stays the place to look at the lot; this does not duplicate it.
+
+const LOT_BRIEF_TIMEOUT_MS = 8_000;
+const LOT_BRIEF_MAX_LINES = 3;
+
+function lotBriefUnavailable(reason: string): MorningBriefSlice {
+  const short = reason.slice(0, 120);
+  return {
+    lines: [`<i>Lot · brief unavailable (${escapeHtml(short.slice(0, 80))})</i>`],
+    payload: { ok: false, error: short },
+  };
+}
+
+export async function readLotBriefLines(): Promise<MorningBriefSlice> {
+  const res = await queryNick<Record<string, unknown>>("lot_brief", {}, LOT_BRIEF_TIMEOUT_MS);
+  if ("error" in res) return lotBriefUnavailable(String(res.error));
+  const data = (res.data ?? {}) as Record<string, unknown>;
+  if (data.ok !== true) {
+    return lotBriefUnavailable(typeof data.error === "string" ? data.error : "nickstire gave no reason");
+  }
+  const lines = Array.isArray(data.lines)
+    ? data.lines.filter((l): l is string => typeof l === "string" && l.trim().length > 0)
+    : [];
+  if (lines.length === 0) return lotBriefUnavailable("the reply carried no lines");
+  const events = Array.isArray(data.events)
+    ? data.events
+        .map((e) => (e && typeof e === "object" ? (e as { kind?: unknown }).kind : null))
+        .filter((k): k is string => typeof k === "string")
+    : [];
+  const coverage = data.coverage && typeof data.coverage === "object" ? (data.coverage as Record<string, unknown>) : {};
+  return {
+    lines: lines.slice(0, LOT_BRIEF_MAX_LINES).map((l) => `Lot · ${escapeHtml(l.slice(0, 220))}`),
+    payload: {
+      ok: true,
+      date: typeof data.date === "string" ? data.date : null,
+      events,
+      coveragePct: typeof coverage.pctExpected === "number" ? coverage.pctExpected : null,
+    },
+  };
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────

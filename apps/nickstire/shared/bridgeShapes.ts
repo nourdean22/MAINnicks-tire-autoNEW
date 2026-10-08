@@ -40,10 +40,34 @@ export const RevenueTodayShape = z.object({
   invoiceCount: z.number(),
 });
 
+/**
+ * lot_brief (camera audit N4, 2026-10-08) → StateNour's morning-brief shop slice, which renders
+ * `lines` and records the rest. A failed read is `{ ok: false, error }` and must stay
+ * distinguishable from a quiet day, so the two branches are a discriminated union.
+ */
+export const LotBriefShape = z.discriminatedUnion("ok", [
+  z.object({
+    ok: z.literal(true),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    weekday: z.string(),
+    open: z.boolean(),
+    arrivals: z.number(),
+    passThroughs: z.number(),
+    coverage: z.object({ pctExpected: z.number().nullable(), gatePassed: z.boolean(), unmeasured: z.string().nullable() }),
+    events: z.array(z.object({ kind: z.string(), text: z.string() })).max(3),
+    lines: z.array(z.string()).min(1).max(3),
+    generatedAt: z.string(),
+    dataAsOf: z.string().nullable(),
+    staleness: z.string(),
+  }),
+  z.object({ ok: z.literal(false), error: z.string() }),
+]);
+
 /** Query-name → shape, for a future runtime validation wrapper. */
 export const BRIDGE_SHAPES = {
   top_decisions: TopDecisionsShape,
   revenue_today: RevenueTodayShape,
+  lot_brief: LotBriefShape,
 } as const;
 
 export type BridgeShapeName = keyof typeof BRIDGE_SHAPES;

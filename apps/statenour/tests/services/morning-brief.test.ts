@@ -51,6 +51,17 @@ vi.mock("@/lib/brain/anticipated-questions", () => ({
   getTodaysAnticipated: vi.fn().mockResolvedValue(null),
 }));
 
+// The lot brief (camera audit N4) reaches nickstire over the bridge; never the network here.
+const lotBridge = vi.hoisted(() => ({ queryNick: vi.fn() }));
+vi.mock("@/lib/nickstire/query", () => ({ queryNick: lotBridge.queryNick }));
+const QUIET_LOT_LINE =
+  "Thursday: 14 cars came in, in line with recent Thursdays (camera watched 92% of business hours).";
+const QUIET_LOT = {
+  query: "lot_brief",
+  timestamp: "2026-10-16T11:00:00.000Z",
+  data: { ok: true, date: "2026-10-15", lines: [QUIET_LOT_LINE], events: [], coverage: { pctExpected: 0.92 } },
+};
+
 import { buildMorningBrief } from "@/lib/services/morning-brief";
 
 let mockDriftEvents: any[] = [];
@@ -72,6 +83,7 @@ function resetMocks() {
   mocks.personalDailyLog.findMany.mockResolvedValue([]);
   mocks.bodyTracking.findMany.mockResolvedValue([]);
   mocks.brainMemory.update.mockResolvedValue({});
+  lotBridge.queryNick.mockResolvedValue(QUIET_LOT);
 
   mocks.brainMemory.findMany.mockImplementation(async (args: any) => {
     const where = args?.where || {};
@@ -153,7 +165,7 @@ describe("Morning Brief · v10.0.526 multi-slice composer", () => {
   });
 
   // 3 ─────────────────────────────────────────────────────────────
-  it("shop slice · skips silently when bridge is stale AND no failed crons", async () => {
+  it("shop slice · a stale bridge adds no context lines; the lot brief's one line still shows (camera audit N4)", async () => {
     mocks.auditEvent.findFirst.mockResolvedValue({
       // 30h ago · stale (>24h)
       createdAt: new Date(Date.now() - 30 * 60 * 60_000),
@@ -162,12 +174,63 @@ describe("Morning Brief · v10.0.526 multi-slice composer", () => {
     mocks.cronJobLog.count.mockResolvedValue(0);
 
     const brief = await buildMorningBrief();
-    expect(brief.text).not.toContain("<b>Shop</b>");
     expect(brief.text).not.toContain("Line of cars");
+    expect(brief.text).toContain("<b>Shop</b>");
+    expect(brief.text).toContain(`Lot · ${QUIET_LOT_LINE}`);
 
     const shopPayload = (brief.payload as { shop: Record<string, unknown> })
       .shop;
-    expect(Object.keys(shopPayload)).toHaveLength(0);
+    expect(shopPayload.lineOfCars).toBeUndefined();
+    expect(shopPayload.lot).toEqual({ ok: true, date: "2026-10-15", events: [], coveragePct: 0.92 });
+  });
+
+  it("shop slice · even a malformed lot reply is a line, never silence", async () => {
+    mocks.auditEvent.findFirst.mockResolvedValue(null);
+    mocks.cronJobLog.count.mockResolvedValue(0);
+    // A reply nickstire could never send (ok with no lines) is still a line, not silence.
+    lotBridge.queryNick.mockResolvedValue({ query: "lot_brief", timestamp: "t", data: { ok: true, lines: [] } });
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Lot · brief unavailable (the reply carried no lines)");
+  });
+
+  it("lot brief · asks nickstire for lot_brief with a bounded timeout and renders at most three lines, escaped", async () => {
+    lotBridge.queryNick.mockResolvedValue({
+      query: "lot_brief",
+      timestamp: "t",
+      data: {
+        ok: true,
+        date: "2026-10-15",
+        lines: ["Busier than usual: <b>21</b> cars", "two", "three", "four"],
+        events: [{ kind: "traffic_high", text: "x" }],
+        coverage: { pctExpected: 0.9 },
+      },
+    });
+    const brief = await buildMorningBrief();
+    expect(lotBridge.queryNick).toHaveBeenCalledWith("lot_brief", {}, 8_000);
+    expect(brief.text).toContain("Lot · Busier than usual: &lt;b&gt;21&lt;/b&gt; cars");
+    expect(brief.text).toContain("Lot · three");
+    expect(brief.text).not.toContain("Lot · four");
+    const shopPayload = (brief.payload as { shop: Record<string, unknown> }).shop;
+    expect(shopPayload.lot).toMatchObject({ ok: true, events: ["traffic_high"], coveragePct: 0.9 });
+  });
+
+  it("lot brief · a bridge failure and an ok:false reply are each ONE line saying so, never a quiet day", async () => {
+    lotBridge.queryNick.mockResolvedValue({ error: "HTTP 500: boom", statusCode: 500 });
+    const failed = await buildMorningBrief();
+    expect(failed.text).toContain("Lot · brief unavailable (HTTP 500: boom)");
+    expect(failed.text).not.toContain("in line with");
+
+    lotBridge.queryNick.mockResolvedValue({ query: "lot_brief", timestamp: "t", data: { ok: false, error: "lot brief read failed (Error ER_LOCK_WAIT_TIMEOUT/1205)" } });
+    const notOk = await buildMorningBrief();
+    expect(notOk.text).toContain("Lot · brief unavailable (lot brief read failed (Error ER_LOCK_WAIT_TIMEOUT/1205))");
+    const shopPayload = (notOk.payload as { shop: Record<string, unknown> }).shop;
+    expect(shopPayload.lot).toMatchObject({ ok: false });
+
+    lotBridge.queryNick.mockRejectedValue(new Error("socket hang up"));
+    const thrown = await buildMorningBrief();
+    expect(thrown.text).toContain("Lot · brief unavailable (socket hang up)");
+    // A lot-brief failure is its own line, never the whole shop slice's.
+    expect(thrown.text).not.toContain("Shop slice unavailable");
   });
 
   // 4 ─────────────────────────────────────────────────────────────

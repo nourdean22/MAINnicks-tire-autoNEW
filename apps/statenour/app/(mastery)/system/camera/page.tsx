@@ -178,7 +178,7 @@ export default function CameraArrivalsPage() {
     <StandardPage
       eyebrow="Nick's Tire & Auto"
       title="Arrival Intelligence"
-      description="Real-time vehicle detection and automated license plate recognition fleet cockpit."
+      description="Raw vehicle-event log: arrival alerts and plate corrections. The lot view is Nick's Admin, Lot."
       width="2xl"
       rhythm="loose"
       className="px-3 py-4 text-fg sm:px-4 sm:py-6"
@@ -204,6 +204,19 @@ export default function CameraArrivalsPage() {
           </div>
         }
     >
+
+      {/* Demoted 2026-10-08 (camera audit N4): this is StateNour's raw vehicle-event log, kept
+          for the arrival-alert links and for plate corrections. The lot itself (episodes,
+          coverage, operator marks) is the Lot section of Nick's Admin, and the morning brief
+          carries yesterday's summary from it. Two lot views that disagree are worse than one. */}
+      <div
+        role="note"
+        className="rounded-surface border border-edge-strong bg-content px-3 py-2 text-xs text-fg-secondary"
+      >
+        This page is the raw vehicle-event log: arrival alerts and plate corrections. The shop&apos;s
+        lot view, with coverage and visit marks, is the Lot section of Nick&apos;s Admin
+        (nickstire.org/admin); the morning brief carries yesterday&apos;s summary.
+      </div>
 
       {readFailed && (
         <div

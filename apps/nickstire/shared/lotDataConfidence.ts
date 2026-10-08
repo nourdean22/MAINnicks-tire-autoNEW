@@ -93,9 +93,10 @@ export interface LotConfidence {
 /**
  * The thresholds. Proposed values; none has been measured against a month of real days yet.
  * The test file restates the two it probes by value, so a change here must be a decision
- * made in both places.
+ * made in both places. Exported for the StateNour lot brief (server/lib/lotBrief.ts), which
+ * gates its comparisons on the same coverage and the same number of earlier days.
  */
-const LOT_CONFIDENCE_RULES = {
+export const LOT_CONFIDENCE_RULES = {
   /** Expected count below which a ratio is noise rather than evidence. */
   minExpected: 6,
   /** Observed / expected under this is LOW. */

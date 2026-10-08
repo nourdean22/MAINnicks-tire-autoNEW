@@ -98,11 +98,14 @@ interface Callsite {
 function scanCallsites(): Callsite[] {
   const files = ["lib", "app", "src"].flatMap((d) => walk(join(STATENOUR_ROOT, d)));
   const hits: Callsite[] = [];
-  // Direct forms:  queryNick("x")  ·  fetchBridge<T>("x")
-  // Known limitation: only a literal first-arg is scanned. A query name held
-  // in a variable first (`const q = "x"; queryNick(q)`) is NOT caught — every
-  // current callsite passes a literal, so this is a structural gap, not a miss.
-  const direct = /(?:queryNick|fetchBridge)\s*(?:<[^>]*>)?\(\s*["']([a-z0-9_]+)["']/g;
+  // Direct forms:  queryNick("x")  ·  fetchBridge<T>("x")  ·  queryNick<Record<string, unknown>>("x")
+  // The type argument may nest generics up to three deep. Until 2026-10-08 it stopped at the
+  // first `>`, so `queryNick<Record<string, unknown>>("x")` was invisible: a typo in such a
+  // call passed this guard (`draft_opportunity_sms` and `lot_brief` were both unguarded).
+  // Known limitations: only a literal first-arg ON THE SAME LINE is scanned. A query name held
+  // in a variable first (`const q = "x"; queryNick(q)`), or written on the line after the
+  // call's open paren (lib/brain/legacy-shims.ts), is NOT caught — a structural gap.
+  const direct = /(?:queryNick|fetchBridge)\s*(?:<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)?\(\s*["']([a-z0-9_]+)["']/g;
   // Batch form:  queryNickBatch([{ query: "x" }, ...]) — only trust `query:`
   // literals in files that actually use the batch helper, so we don't pick up
   // unrelated `query:` object properties.
