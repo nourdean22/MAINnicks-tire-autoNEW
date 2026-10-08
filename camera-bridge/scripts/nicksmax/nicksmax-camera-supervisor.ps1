@@ -79,12 +79,15 @@ try {
 # either. 2026-10-08 07:34-07:5x: a remote-admin session's reverse read left an exclusive handle
 # on this file, Add-Content failed every tick, and the supervisor restarted workers for 20 minutes
 # with nothing on record. Lines that cannot reach $log go to $log.overflow; read both.
+# -ErrorAction Stop on both writes is load-bearing: this script runs under "Continue" (line 1),
+# where a sharing violation is a NON-terminating error that never reaches a catch. The first
+# version of this fallback shipped without it and wrote nothing anywhere for the 07:48 restart.
 function Log([string]$m) {
   $line = "{0} {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $m
   try {
-    Add-Content -Path $log -Value $line -Encoding utf8
+    Add-Content -Path $log -Value $line -Encoding utf8 -ErrorAction Stop
   } catch {
-    try { Add-Content -Path ($log + ".overflow") -Value $line -Encoding utf8 } catch {}
+    try { Add-Content -Path ($log + ".overflow") -Value $line -Encoding utf8 -ErrorAction Stop } catch {}
   }
 }
 

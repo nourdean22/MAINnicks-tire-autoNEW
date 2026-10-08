@@ -289,7 +289,14 @@ switch ($Scenario) {
     # must resume on the main file once the handle is gone.
     Set-Content -LiteralPath $log -Value "existing" -Encoding ascii
     $h = [IO.File]::Open($log, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
-    try { Log "while locked" } finally { $h.Dispose() }
+    # The supervisor runs under $ErrorActionPreference = "Continue" (its first line), where a
+    # sharing violation on Add-Content is NON-terminating: no throw, no catch, no fallback. The
+    # harness sets "Stop" at the top, which made the first version of this probe pass while the
+    # box wrote nothing anywhere (2026-10-08 07:48, the sign-edge restart). Mirror the real
+    # preference for the locked write.
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { Log "while locked" 2>$null } finally { $h.Dispose(); $ErrorActionPreference = $saved }
     Log "after unlock"
     $markers["overflowExists"] = [bool](Test-Path -LiteralPath ($log + ".overflow"))
     $markers["overflowText"] = if ($markers["overflowExists"]) { [string](Get-Content -LiteralPath ($log + ".overflow") -Raw) } else { "" }
