@@ -8,10 +8,12 @@
  *
  * Who consumes it: `runReelPreflight` reports a beat whose declared source
  * contradicts what the beat claims (shotRouteProblems), and the pilot briefs
- * declare each beat's source in `StoryboardBeat.source`. The pipeline does
- * not yet honour `source` when it picks a provider — that is the design item
- * in docs/reels-engine-v2/02-PRODUCTION-DOCTRINE.md §8, presented before any
- * change to a live workflow.
+ * declare each beat's source in `StoryboardBeat.source`. Since 2026-10-08 the
+ * pipeline honours a declaration of real or deterministic by REFUSING to
+ * generate the beat (enqueueReelJob, processNextReelJob, requestBeatRepair:
+ * beatsTheGeneratorMustNotRender / beatGenerationRoute). Routing those beats
+ * to a publishable lane (real footage, a card renderer) waits on the
+ * operator's real-evidence publish decision (02-PRODUCTION-DOCTRINE.md §8).
  */
 export type ShotSource = "real" | "deterministic" | "still_motion" | "ai_illustrative";
 export type ShotRoute = ShotSource | "reuse" | "delete" | "do_not_generate";
@@ -69,15 +71,71 @@ export function routeShot(f: ShotFacts): ShotDecision {
  * leading REAL / DETERMINISTIC / STILL / AI tag the proof packs write at the
  * start of `visual`. "unspecified" is the honest default — nothing is inferred
  * from prose, because a guess here would be a shot plan nobody made.
+ *
+ * The tag counts only as written, in capitals (2026-10-08). The generator now
+ * acts on it, and ordinary prose ("Real-world pothole damage…", "Still frame
+ * of…") would otherwise read as a declaration and hold a Reel nobody tagged.
  */
 export function declaredBeatSource(beat: { visual?: string | null; source?: ShotSource | null }): ShotSource | "unspecified" {
   if (beat.source) return beat.source;
-  const head = String(beat.visual ?? "").trimStart().slice(0, 24).toUpperCase();
+  const head = String(beat.visual ?? "").trimStart().slice(0, 24);
   if (/^REAL\b/.test(head)) return "real";
   if (/^DETERMINISTIC\b/.test(head)) return "deterministic";
   if (/^STILL(?:[ _-]MOTION)?\b/.test(head)) return "still_motion";
   if (/^AI(?:[ _-]ILLUSTRATIVE)?\b/.test(head)) return "ai_illustrative";
   return "unspecified";
+}
+
+/** What the clip generator does with a beat that has no clip yet. */
+export type BeatGenerationRoute = "generate" | "needs_real_footage" | "needs_deterministic_render";
+
+/**
+ * The generator's reading of a DECLARED source (2026-10-08). A beat declared
+ * real is never generated: a synthetic shot must never document real work. A
+ * beat declared deterministic is drawn, not imagined — a generated "diagram"
+ * is the lettering artifact the critic blocks. Neither has a publishable route
+ * today (the publish door's stock guard refuses every clip the free local lane
+ * hosts, and opening a real-evidence route is the operator's decision), so the
+ * generator holds such a job before it spends. still_motion, ai_illustrative
+ * and undeclared beats generate as before.
+ */
+export function beatGenerationRoute(beat: { visual?: string | null; source?: ShotSource | null }): BeatGenerationRoute {
+  const source = declaredBeatSource(beat);
+  if (source === "real") return "needs_real_footage";
+  if (source === "deterministic") return "needs_deterministic_render";
+  return "generate";
+}
+
+/** The beats the generator must not render: declared real or deterministic, with no clip yet (a resumed job keeps its clips). */
+export function beatsTheGeneratorMustNotRender(
+  beats: ReadonlyArray<{ beatNumber: number; visual?: string | null; source?: ShotSource | null }>,
+  existingClipUrls: unknown,
+): Array<{ beatNumber: number; route: Exclude<BeatGenerationRoute, "generate"> }> {
+  const clips = Array.isArray(existingClipUrls) ? existingClipUrls : [];
+  const out: Array<{ beatNumber: number; route: Exclude<BeatGenerationRoute, "generate"> }> = [];
+  beats.forEach((beat, i) => {
+    const clip = clips[i];
+    if (typeof clip === "string" && clip.startsWith("http")) return;
+    const route = beatGenerationRoute(beat);
+    if (route !== "generate") out.push({ beatNumber: beat.beatNumber, route });
+  });
+  return out;
+}
+
+/** The refusal line, at enqueue or at generation: which beats, and what each needs. */
+export function generationHoldReason(
+  blocked: ReadonlyArray<{ beatNumber: number; route: Exclude<BeatGenerationRoute, "generate"> }>,
+  stage: "enqueue" | "generation" = "generation",
+): string {
+  const list = (route: Exclude<BeatGenerationRoute, "generate">) => blocked.filter((b) => b.route === route).map((b) => b.beatNumber);
+  const real = list("needs_real_footage");
+  const drawn = list("needs_deterministic_render");
+  const beatWord = (n: number[]) => (n.length === 1 ? `beat ${n[0]} is` : `beats ${n.join(", ")} are`);
+  const parts: string[] = [];
+  if (real.length) parts.push(`${beatWord(real)} declared real: capture the footage (docs/reels-engine-v2/05-CAPTURE-CHECKLIST.md)`);
+  if (drawn.length) parts.push(`${beatWord(drawn)} declared deterministic: no publishable card renderer yet`);
+  const where = stage === "enqueue" ? "blocked at enqueue, nothing reserved" : "blocked at generation, before spend";
+  return `BEAT_SOURCE_NOT_GENERATABLE (${where}): ${parts.join("; ")}. Nothing was generated.`;
 }
 
 const REAL_WORK_CLAIM = /\b(customer|our shop|nick'?s|measurement|gauge|reading|repair(?:ed|ing)?|before and after|before\/after|evidence|technician)\b/i;

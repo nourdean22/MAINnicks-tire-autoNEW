@@ -87,6 +87,21 @@ describe("assignEpisodeToActiveExperiment — what generation applies is what is
     expect(await assignEpisodeToActiveExperiment(7, { briefId: "b" })).toEqual([]);
     expect(state.inserts).toEqual([]);
   });
+
+  it("a Reel built from an approved pack is recorded in no brief-writing experiment: its brief is never rewritten", async () => {
+    // dailyReelPost uses the pack's reviewed brief verbatim and never reads the hook arm;
+    // reelBriefGen (the duration lane) never runs for it. Recording it put identical Reels in both arms.
+    state.running = [
+      row("hook-style-direct-v1", "hook_style", "2026-09-02"),
+      row("duration-lane-v1", "length_band", "2026-09-03", 3),
+    ];
+    const pack = await assignEpisodeToActiveExperiment(8, { briefId: "daily-2026-10-09", approvedPackSlug: "2026-08-17-pothole-damage" });
+    expect(pack).toEqual([]);
+    expect(state.inserts).toEqual([]);
+    // CONTROL: an AI-written brief in the same state is still recorded in both.
+    const written = await assignEpisodeToActiveExperiment(9, { briefId: "studio-2026-10-09" });
+    expect(written.map((o) => o.experimentId)).toEqual(["hook-style-direct-v1", "duration-lane-v1"]);
+  });
 });
 
 const adminCtx = (): TrpcContext => ({

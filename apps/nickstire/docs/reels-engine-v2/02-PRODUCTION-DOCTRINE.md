@@ -15,7 +15,7 @@ free); it is not *rendered* earlier.
 | Layer | Default method | In the repo today | State |
 |---|---|---|---|
 | Mechanical evidence | Real shop footage or photography | `mediaAssets.rightsStatus = "real_shop"` pool; `realAssetFirst.ts` matches one asset to a brief (`pool_empty` / `pool_unenriched` are named states); `payload.realAsset` | BUILT + WIRED for **one** asset per Reel (the hero still) — not per shot |
-| Measurements and labels | Deterministic graphics | Caption overlay in `reelAssembly.ts` (`drawtext` from a textfile, `CAPTION_SAFE`, `CAPTION_BEAT_Y_FRAC = 0.62`); **no diagram/measurement-card renderer** | caption layer EXISTS · diagram cards MISSING |
+| Measurements and labels | Deterministic graphics | Caption overlay in `reelAssembly.ts` (`drawtext` from a textfile, `CAPTION_SAFE`, `CAPTION_BEAT_Y_FRAC = 0.55`); **no diagram/measurement-card renderer** | caption layer EXISTS · diagram cards MISSING |
 | Before/after | Real matched shots | nothing enforces a matched pair | MISSING (capture rule, §6) |
 | Explanatory motion | 2D/2.5D animation, crops, masks, callouts | `templateStockStudio.ts`: six deterministic camera moves on a still, animated gradient without one, 1080×1920@30, **no text in the clip by design** | EXISTS as a *backdrop* lane; crops/masks/callouts MISSING |
 | Atmosphere and metaphor | AI image or video, clearly illustrative | Providers `veo`, `higgsfield` (seedance 1.5), `self_hosted` (Video Forge; BUILT, never run on a GPU, not deployed) via `reelPipeline.ts`; `REEL_IMAGE_CONDITIONING=true` conditions the hero frame | EXISTS; per-shot routing MISSING (one provider per Reel) |
@@ -80,7 +80,7 @@ reference point, not a route.
 |---|---|---|
 | Canvas | 9:16, working master 1080×1920 | `reelAssembly.ts:329` scale/crop; `templateStockStudio` FRAME_W/H |
 | Delivery | H.264 MP4 + AAC, 30 fps | `libx264`, `aac` 192k; assembly refuses a master without ~30 fps worth of frames |
-| Safe composition | no essential info in top 14%, bottom 35%, outer 6% (Meta ad guide) | Width: `CAPTION_SAFE.maxWidthFrac = 0.82` (9% margins) ✓. **Vertical: beat captions anchor at `y = 0.62h`; a two-line caption at the common font sizes ends near 66% of frame height, ~1% inside Meta's bottom reserve.** Hook caption is centred ✓. Decision for the operator: lower `CAPTION_BEAT_Y_FRAC` to ≈ 0.56 (one constant; `renderedPixelStats` reads the same band; tests pin it). Not changed in this PR. |
+| Safe composition | no essential info in top 14%, bottom 35%, outer 6% (Meta ad guide) | Width: `CAPTION_SAFE.maxWidthFrac = 0.82` (9% margins) ✓. **Vertical (2026-10-08, after #2932): beat captions anchor at `y = 0.55h` and the word-timed captions at `MarginV` 720.** Measured with Anton, the old `0.62h` put every beat caption inside Meta's bottom reserve (one line by 18-26 px, two lines by up to 103 px) and the old `MarginV` 500 put the word-timed captions wholly inside it; now the worst case ends at 63.4% of the height, 31 px clear (`server/captionSafeZone.test.ts` renders it). Hook caption is centred ✓. |
 | Opening | evidence / transformation / symptom / question visible on frame one; logo never opens | `validateMutedFirstClarity` requires text on every beat; `checkEditorialContract` now WARNS on a logo/plate or generic opening (this branch) |
 | Text | one idea per card; rendered separately from generative plates | captions burned by assembly ✓; readability gate (> 4 words/s block, > 3 warn) ✓ |
 | Captions | deterministic, timed from the final voice track | `reelVoice` ElevenLabs path returns alignment; packs ship `captions.srt` ✓ |
@@ -136,17 +136,21 @@ See `07-PRODUCTION-METRICS.md` — each metric mapped to a source table or marke
    REAL / DETERMINISTIC / STILL / AI tag; never a guess) and `shotRouteProblems` (a declared source that
    contradicts the beat's claim) wired into `runReelPreflight` as **production warnings**, silent on
    the undeclared beats of the 196 older packs. `routeShot` (the seven-step table) is pure and tested
-   and has **no runtime consumer**: the provider pick honouring `source` is item 6 below.
+   and has **no runtime consumer**; the generator's refusal (item 6) reads the declared source directly.
 2. **BUILT + WIRED.** `shared/editorialContract.ts` in `runReelPreflight` as **structural warnings**:
    logo/plate never opens, generic opening has no subject, one idea per card (> 9 words and ≥ 2
-   sentences), one CTA and it comes last, end card ≤ 2 s. The three proof packs clear it (test).
+   sentences), no CTA in any beat (since 2026-10-08: the one ask is drawn on the end card; the old
+   "one CTA and it comes last" pointed editors at assembly's leaked-ask stop), end card ≤ 2 s. The three
+   proof packs clear it (test).
 3. **BUILT.** The capture card asks for the six-shot set (stills first — the pool the lane reads is
    image-only; a 5–8 s clip when easy).
 4. Publish-policy decision (operator): the real-evidence prefix vs the stock guard (§1). NOT STARTED.
 5. Diagram/measurement card renderer (deterministic) — only after two proof Reels need the same card.
    NOT STARTED.
-6. The pipeline honouring `source` when it picks a provider (a REAL beat never goes to a generator;
-   a `still_motion` beat goes to `templateStockStudio`). A change to the live lane: presented here,
-   not made without sign-off.
+6. **BUILT + WIRED as a refusal (2026-10-08, after #2932).** A beat declared real or deterministic is
+   never sent to a generator: refused at enqueue, at generation (before the paid provider anchor) and
+   at the single-beat repair entry (`shotRouter.beatsTheGeneratorMustNotRender`). ROUTING such a beat
+   (real footage, a card renderer, a `still_motion` beat to `templateStockStudio`) waits on item 4:
+   the stock guard refuses every locally hosted clip.
 
-Items 4–6 are the multi-workflow changes; `09-90-DAY-MODEL.md` carries them in the operator handoff.
+Items 4–5 are the remaining multi-workflow changes; `09-90-DAY-MODEL.md` carries them in the operator handoff.

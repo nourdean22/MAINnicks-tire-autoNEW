@@ -516,7 +516,7 @@ describe("runReelPreflight", () => {
   // and declares no source — the 196 committed packs predate the field.
   describe("editorial contract + shot router wiring", () => {
     const editorial = (r: ReturnType<typeof runReelPreflight>) =>
-      r.findings.filter((f) => /frame one|one idea per card|one CTA|end card held/.test(f.message));
+      r.findings.filter((f) => /frame one|one idea per card|beats carry no ask|end card held/.test(f.message));
     const routed = (r: ReturnType<typeof runReelPreflight>) => r.findings.filter((f) => /declared (?:ai_illustrative|real)/.test(f.message));
 
     it("CONTROL: the sample brief raises neither an editorial nor a route finding", () => {
@@ -536,12 +536,12 @@ describe("runReelPreflight", () => {
       expect(r.status).toBe("pass");
     });
 
-    it("a call to action before the last beat is a structural WARN", () => {
+    it("a call to action in a beat is a structural WARN (the one ask is drawn on the end card)", () => {
       const b = structuredClone(sample());
       b.storyboardBeats[1].onScreenText = "BOOK AN INSPECTION TODAY";
       const r = runReelPreflight(b);
       expect(editorial(r).map((f) => f.message)).toEqual([
-        expect.stringMatching(/^beat 2: a call to action before the last beat/),
+        expect.stringMatching(/^beat 2: a call to action in a beat \("BOOK AN INSPECTION TODAY"\) — beats carry no ask/),
       ]);
     });
 

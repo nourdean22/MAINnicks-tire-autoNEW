@@ -4209,14 +4209,15 @@
       "operationalState": "unit_verified",
       "exposure": "internal",
       "evidence": {
-        "codeCommit": "branch claude/peaceful-pascal-988w9o (Reels Engine v2 follow-up to #2923, 2026-10-08). shared/editorialContract.ts checkEditorialContract: logo/plate or generic footage on frame one, one idea per card (> 9 words and ≥ 2 sentences), a CTA before the last beat, more than one CTA verb on the last card, an end card held past 2 s. shared/shotRouter.ts: declaredBeatSource reads StoryboardBeat.source or the leading REAL / DETERMINISTIC / STILL / AI tag the proof packs write (never inferred from prose); shotRouteProblems reports an ai_illustrative beat that describes real work, a measurement or evidence, and a real beat that asks for a generated shot; routeShot is the audit's seven-step decision table (no runtime consumer yet — the provider pick honouring source is doctrine §8 item 6, presented for sign-off). client/src/lib/facelessReelStudio.ts: StoryboardBeat.source?: ShotSource; runReelPreflight pushes the contract findings as structural warnings after the readability gate and the route contradictions as production warnings after the provider-scene status. Warnings, not blocks: the renderer sees pixels, the storyboard is the only place these can be read, and a block would re-generate every older pack whose beats declare nothing. server/services/creativeAssistant.ts: both capture-card firstAction strings now ask for the six-shot set of docs/reels-engine-v2/05-CAPTURE-CHECKLIST.md, stills first (listReusableRealShopMedia is image-only). Second consumer of the declared source: apps/video-forge/bench/build_corpus.py skips a beat its brief declares real or deterministic (same reading — the `source` field, else the leading tag), so the generation benchmark never asks the generator for a shot it must never be given; on 2026-10-08 the three proof packs had reshuffled 46 of the 48 committed corpus cases and failed the video-forge corpus-reproducibility gate on PR #2930. With the filter the committed corpus.v1.jsonl rebuilds byte-identical (pool 458 beats).",
+        "codeCommit": "branch claude/peaceful-pascal-988w9o (Reels Engine v2 follow-up to #2923, 2026-10-08). shared/editorialContract.ts checkEditorialContract: logo/plate or generic footage on frame one, one idea per card (> 9 words and ≥ 2 sentences), a call to action in any beat (cta_in_beat, imperative forms only, 'book'/'schedule' with a service object included; beats askSignals already flags are left to askLeakageProblem), an end card held past 2 s. shared/shotRouter.ts: declaredBeatSource reads StoryboardBeat.source or the leading REAL / DETERMINISTIC / STILL / AI tag the proof packs write (never inferred from prose); shotRouteProblems reports an ai_illustrative beat that describes real work, a measurement or evidence, and a real beat that asks for a generated shot; routeShot is the audit's seven-step decision table (no runtime consumer yet — the provider pick honouring source is doctrine §8 item 6, presented for sign-off). client/src/lib/facelessReelStudio.ts: StoryboardBeat.source?: ShotSource; runReelPreflight pushes the contract findings as structural warnings after the readability gate and the route contradictions as production warnings after the provider-scene status. Warnings, not blocks: the renderer sees pixels, the storyboard is the only place these can be read, and a block would re-generate every older pack whose beats declare nothing. server/services/creativeAssistant.ts: both capture-card firstAction strings now ask for the six-shot set of docs/reels-engine-v2/05-CAPTURE-CHECKLIST.md, stills first (listReusableRealShopMedia is image-only). Second consumer of the declared source: apps/video-forge/bench/build_corpus.py skips a beat its brief declares real or deterministic (same reading — the `source` field, else the leading tag), so the generation benchmark never asks the generator for a shot it must never be given; on 2026-10-08 the three proof packs had reshuffled 46 of the 48 committed corpus cases and failed the video-forge corpus-reproducibility gate on PR #2930. With the filter the committed corpus.v1.jsonl rebuilds byte-identical (pool 458 beats).",
         "tests": [
           "shared/editorialContract.test.ts (9): control passes; each rule fires alone; beats read in beatNumber order; the three proof packs clear the contract.",
           "shared/shotRouter.test.ts (12): the seven questions in order (real > deterministic > approved still > do-not-generate > reuse > ai_illustrative > delete / capture); every tag spelling and the unspecified default; contradictions only, silent on undeclared beats; the proof packs declare a source on every beat with no ai_illustrative beat.",
           "client/src/__tests__/faceless-reel-studio.test.ts (+4): control sample raises neither finding; a generic opening is a structural WARN naming frame one and the brief still passes; a CTA before the last beat warns; an ai_illustrative beat describing a measurement is a production WARN and the same beat declared real is not. 4 files 90 tests exit 0 with previsReadability.",
           "tsc --noEmit exit 0.",
           "apps/video-forge/tests/test_build_corpus.py (3): declared real / deterministic beats leave the pool, the field wins over the tag, the tag is read only at the start (never 'realistic' or 'a real tire' in prose), the proof packs add nothing and the penny-test pack still adds its five beats; filter removed → 2 red and the corpus diverges. Full video-forge job locally: compileall ok, 72 tests OK, corpus no diff.",
-          "Codex review of #2930 (2026-10-08): buildBriefFromApprovedProductionPack dropped a beat's `source` field, so a pack declaring it in the field (not the visual tag) reached runReelPreflight as unspecified. It now keeps the field through shared/shotRouter.parseShotSource (the four values only). server/approvedReelPackRotation.test.ts: a field that disagrees with the visual tag survives and wins in declaredBeatSource; a stray value and an absent one add nothing; control: no committed pack declares the field, so every existing brief builds unchanged. Builder mutation → red."
+          "Codex review of #2930 (2026-10-08): buildBriefFromApprovedProductionPack dropped a beat's `source` field, so a pack declaring it in the field (not the visual tag) reached runReelPreflight as unspecified. It now keeps the field through shared/shotRouter.parseShotSource (the four values only). server/approvedReelPackRotation.test.ts: a field that disagrees with the visual tag survives and wins in declaredBeatSource; a stray value and an absent one add nothing; control: no committed pack declares the field, so every existing brief builds unchanged. Builder mutation → red.",
+          "2026-10-08, branch claude/peaceful-pascal-988w9o after #2932 (2026-10-08): the CTA rule now flags a CTA in ANY beat (cta_in_beat), the last included — 'one CTA, and it comes last' pointed editors at assembly's leaked-ask stop — in imperative form only ('one visit', 'bumper tap' are not asks; both are on committed packs), leaving beats askSignals flags to askLeakageProblem. shared/editorialContract.test.ts (11) and client/src/__tests__/faceless-reel-studio.test.ts green; mutations: last beat exempt (3 red), no dedupe (1 red). Found, not changed: askSignals' call-us pattern is case-sensitive."
         ],
         "liveRuns": [],
         "deploymentId": null
@@ -4248,7 +4249,8 @@
           "shared/angleBank.test.ts (13): the committed file parses with 100 / 20 / 12 / 15; every named pack is accepted by the production builder (a beat-count draft of this check mis-graded 16 entries — packs the builder rejects — and wrongly condemned 2026-08-18-power-steering-whine, accepted by the builder with 0 beats under the two common keys; the 16 were re-pointed at accepted packs); no stub restates a pack slug; ROTATION CANARY pins that exactly the three proof packs are production-ready and outside the rotation (every other builder-accepted pack is in it, 133 / 133); seven mutations refused by name (incl. the spacing rule and a near-duplicate at overlap 1.00); the status line with zeros, a BROKEN entry and a full rotation.",
           "server/services/creativeAssistant.test.ts (+2): the inputs.angleBank line from the fixture; an unreadable bank is an error input and no card depends on it; the injected-readers test pins the error wording. 31 tests exit 0.",
           "The near-duplicate guard fired on the author's own replacement wording (A064 vs A083, overlap 0.65) before it was reworded — the instrument is proven on a real positive.",
-          "Codex review of #2930 (2026-10-08), two P2s fixed: 'in rotation' now counts the operator's active slate while one is set (resolveApprovedPackSelection draws only from it; an unreadable slate counts 0, and an unreadable or used-up slate is named because the drain holds on both), and 'published' counts reel jobs in either live status, posted or published (reelReliability.ts). shared/angleBank.test.ts +2 (slate narrows the count with a no-slate control; unreadable slate); slate mutation → 2 red. The reader's DB wiring (readActiveReelSlate, the two-status filter) has no unit test: typecheck only."
+          "Codex review of #2930 (2026-10-08), two P2s fixed: 'in rotation' now counts the operator's active slate while one is set (resolveApprovedPackSelection draws only from it; an unreadable slate counts 0, and an unreadable or used-up slate is named because the drain holds on both), and 'published' counts reel jobs in either live status, posted or published (reelReliability.ts). shared/angleBank.test.ts +2 (slate narrows the count with a no-slate control; unreadable slate); slate mutation → 2 red. The reader's DB wiring (readActiveReelSlate, the two-status filter) has no unit test: typecheck only.",
+          "2026-10-08, branch claude/peaceful-pascal-988w9o after #2932 (2026-10-08): server/services/creativeAssistant.angleBankReader.test.ts (5) drives the real reader through buildCreativeAssistant against a faked database: both live statuses asked for (bound params ['posted','published']), duplicate and corrupt payloads, slate active / used up / unreadable, no database reads 'error: no database'. Mutations: posted only (1 red), never used up (1 red)."
         ],
         "liveRuns": [],
         "deploymentId": null
@@ -4303,6 +4305,146 @@
       ],
       "lastVerifiedAt": "2026-10-08",
       "verificationExpiresAt": "2026-11-07"
+    },
+    {
+      "capabilityId": "autonomy-control-one-field-edits",
+      "name": "Autonomy control edits change one setting against the stored policy: limits (Generation budget included), the Paid repairs switch, kill switches",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "exposureNote": "The Paid repairs row and the limit editor are on the operator's Autonomy control screen once deployed. Recorded internal, not operator_only, until a live tap proves the round trip against TiDB (P1); no state is inflated to meet the ledger's operator_only rule.",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o after #2932 (2026-10-08). Defect found: the limit editor published collectCommandCenter's partial policy (version, mode, kill switches, limits) through publishAutonomyPolicy, and validateAutonomyPolicyShape refused it (formatPermissions missing): every limit edit, the Generation budget included, failed from the phone, and an emptied field passed the client check as 0 (Number(\"\") is 0). server/services/autonomyControl.ts editPolicy: read the latest stored version fresh (never the 30 s cache; the code default only when storage is empty or the stored version fails strict validation, as getActivePolicy governs), apply one change, insert exactly the next version; the UNIQUE version index is the compare-and-swap, and a collision re-reads and re-applies (publishPolicyVersion's retry re-publishes its own copy). setPolicyLimit, setPaidRepairPermission and setKillSwitch use it. Duplicate keys are recognised with dbErrors.isDuplicateKeyError (the old /duplicate/i on drizzle's message never matched). PolicyValidationError maps to BAD_REQUEST. routers/content.ts: setAutonomyLimit, setAutonomyPaidRepair (procedure census 780). AutonomyCommandCenter.tsx: limits save through setAutonomyLimit; Paid repairs row, Automatic behind confirmDialog, Ask me first one tap, 48 px targets. commandCenter.ts carries paidBeatRegeneration. Codex review round on #2933: setPolicyLimit refuses a fraction for a count limit (AUTONOMY_COUNT_LIMIT_KEYS: feed posts, stories, campaigns, repairs, model calls; spacing and money keep decimals) and the panel disables Save for one; turning paid repairs on carries the budget and repair limit the confirm showed (confirmedLimits), and the edit refuses it with CONFLICT (PolicyConflictError) when the re-read policy differs, inside the same compare-and-swap loop.",
+        "tests": [
+          "server/__tests__/autonomyPolicyEdit.test.ts (20): control — the editor's old payload fails the shape check, the full policy passes; next version written and everything unsent kept; a concurrent edit re-applied on top (drizzle DrizzleQueryError with ER_DUP_ENTRY on .cause); a non-duplicate failure not retried; out of range is PolicyValidationError with nothing written; unreachable store refuses; empty store edits the default as v2; paid-repair notes; a kill switch arms from storage not the cache, and arms on top of the default when the stored version is invalid; publishPolicyVersion retries a wrapped duplicate; router BAD_REQUEST and enum. Mutations, each red then restored: re-publish the first copy (1 red), regex duplicate check (1), kill switch from the cache (1), refuse an invalid stored version (1). Codex round (+6): a fraction for a count is refused and nothing is written (CONTROL: spacing 2.5 and $12.50 save); stale paid-repair consent is a conflict, also when a racing edit takes the version first; no consent is refused, turning repairs off needs none; router CONFLICT and BAD_REQUEST; after a conflict the next read shows the stored limits, not the 30 s cache.",
+          "client/src/__tests__/autonomy-command-center-controls.test.tsx (9): positive control kill switch; Save sends {key, value}; an empty field cannot save; Automatic opens the in-DOM confirm (never window.confirm) and a cancel changes nothing; confirmed publishes auto once; Ask me first is one tap without a confirm; the setting in force publishes nothing; 48 px targets. Mutations: confirm removed (1 red), empty-field guard removed (1 red). Codex round (+1): a fraction in a count row cannot be saved (CONTROL: a whole number can); Automatic sends the limits it showed.",
+          "19 test files touching the autonomy code: 201 passed."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "Not proven against production: the first live tap on Autonomy control (a limit or Paid repairs) should log 'autonomy policy edited' with the note and the next version. Assumed, not verified from this session: the UNIQUE index uq_autonomy_policy_version from drizzle/0086 exists in production (publishPolicyVersion already relied on it).",
+          "source": "2026-10-08 branch claude/peaceful-pascal-988w9o after #2932 (2026-10-08)"
+        }
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "verificationExpiresAt": null
+    },
+    {
+      "capabilityId": "scheduler-tier-due-check-cadence",
+      "name": "A tier not due at boot gets one claimed check when it falls due, and its interval starts there, so redeploys cannot stretch the 2-hour tier toward four hours",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o after #2932 (2026-10-08). Production evidence: the 2-hour tier (missed-call recovery, callback escalation, stale-lead follow-up, confirmation calls, review requests and 33 more jobs) ran at 10:17, 12:28, 15:17 and 18:26Z on 2026-10-08 — 131, 168 and 189 minutes apart — because every boot that found it not due restarted a full 2-hour setInterval and fourteen boots never let one tick. server/cron/tierStartup.ts firstTickDelayMs (allowance - age + 15 s slack; null when there is nothing to align to) and describeDueCheck; server/cron/scheduler.ts: startRecurring starts the interval only once the phase is known, a not-due tier schedules tier.dueCheck through claimStartupPass (exactly one process fires), stopTieredScheduler clears it.",
+        "tests": [
+          "server/cron/tierCadence.test.ts (9): firstTickDelayMs for ages 10/100/119 min and every null case; describeDueCheck; a replay of 2026-10-08's fifteen real boot lines — POSITIVE CONTROL: the old rule reproduces production's runs exactly (12:28:52, 15:17:19, 18:26:00); the new rule runs every 120 min 15 s; a seeded month of random deploys (>400 boots) keeps every gap within interval + slack + stagger while the old rule exceeds interval + 30 min; the wiring in scheduler.ts. Mutation: firstTickDelayMs returning null (the old rule) turns 3 behaviour tests red.",
+          "server/cron/tierStartup.test.ts (14) and wallClockTiers.test.ts (20) unchanged and green."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "First live proof: a boot logs '<tier> tier falls due in N min — a claimed check runs then', and N minutes later on the same container '<tier> tier due check: FIRING — claimed the pass it fell due for'; on a day with several deploys, consecutive 'Tier hourly:' lines stay about 120 minutes apart.",
+          "source": "2026-10-08 branch claude/peaceful-pascal-988w9o after #2932 (2026-10-08)"
+        }
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "verificationExpiresAt": null
+    },
+    {
+      "capabilityId": "reel-generator-declared-source-gate",
+      "name": "A storyboard beat declared real or deterministic is never sent to a generation provider (enqueue, generation, single-beat repair)",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o after #2932 (2026-10-08). shared/shotRouter.ts: beatGenerationRoute, beatsTheGeneratorMustNotRender (a resumed job keeps its clips), generationHoldReason; declaredBeatSource reads a tag only as written in capitals (prose such as 'Real-world pothole damage' was a declaration before). server/services/reelPipeline.ts: refused in enqueueReelJob before the governor reservation, and in processNextReelJob after the claim and before the paid provider anchor (job failed with BEAT_SOURCE_NOT_GENERATABLE, reservation released); selectiveRepair.requestBeatRepair refuses such a beat before any spend check or write. Neither declared route has a publishable lane: the stock guard (qualityGate.reelClipsIncludeStock) refuses every locally hosted clip, so routing waits on the real-evidence decision. Codex review round on #2933: a refusal before any provider call (this gate and the condemned-script gate) now closes the job's generation reservation (closeRefusedJobReservation: release when nothing was bought, fail when a resumed job already holds clips); a reserved row counted as spend in spendSinceUsd until the 6 h sweep.",
+        "tests": [
+          "shared/shotRouter.test.ts (+5): capitals-only tags with controls; routes; resume; the refusal line at both stages.",
+          "server/approvedReelPackRotation.test.ts (+1): every proof pack is refused before spend; CONTROL over all approved rotation packs (>100): not one beat held.",
+          "server/declaredSourceAtGeneration.test.ts (5): the gate runs after the claim and before the paid anchor and any clip, fails closed, releases the reservation, keeps resumed clips; the enqueue check precedes the reservation.",
+          "server/selectiveRepair.test.ts (+1): a REAL or DETERMINISTIC beat is refused with no update or insert; plain prose still queues.",
+          "Mutations, each red then restored: route always 'generate' (4 red), case-insensitive tags (2), no resume skip (1). 29 test files touching the code: 293 passed.",
+          "server/refusedJobReservation.test.ts (4): the real processNextReelJob through the fallback-chain harness; a declared-real beat and a condemned script release reel_job_<id> with no provider call; a resumed job holding a clip fails it instead; CONTROL: an ordinary beat releases nothing and reaches the provider."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "No production brief declares a source today (no rotation pack does); the first live proof is a Studio enqueue of a proof pack refused with BEAT_SOURCE_NOT_GENERATABLE (blocked at enqueue, nothing reserved).",
+          "source": "2026-10-08 branch claude/peaceful-pascal-988w9o after #2932 (2026-10-08)"
+        }
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "verificationExpiresAt": null
+    },
+    {
+      "capabilityId": "reel-caption-bottom-safe-zone",
+      "name": "Burned-in Reel captions end above the bottom 35% of the frame that Instagram's interface covers",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o after #2932 (2026-10-08). server/services/reelAssembly.ts CAPTION_BEAT_Y_FRAC 0.62 -> 0.55; server/services/reelVoice.ts ASS_CAPTION_MARGIN_V 500 -> 720 (the word-timed path, used when the voiceover carries word timing — ElevenLabs; production's Google TTS assembles with drawtext, usedAss false on job 2040001). Measured by rendering with the production font (Anton, materialized by resolveReelFontPath) and the exact drawtext/libass settings on 1080x1920: at 0.62 every beat caption ended inside the reserve (one line 18-26 px, two lines up to 103 px, box bottom 70.4%); MarginV 500 put the word-timed box at 69.5-74.2%. Now the worst case (two lines at 64 px) ends at 63.4%, 31 px clear, and the word-timed box spans 58.0-62.8%.",
+        "tests": [
+          "server/captionSafeZone.test.ts (+6): arithmetic for every font band, one line and two, with the old 0.62 as a failing control; the filter the model assumes (28 px box border, 1.2 line height, the exported anchor) read from buildFfmpegArgs; the word-timed margin with the old 500 as a failing control; real renders with Anton for drawtext (every band) and libass, each with a POSITIVE CONTROL at the old value detected inside the reserve. The render tests skip where ffmpeg lacks drawtext or libass.",
+          "server/reelAssembly.test.ts and renderedPixelStats.test.ts green on the new anchor."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "First live proof: the next assembled Reel's frames (rendered QA's caption band, or a frame grab of its MP4) show beat captions ending above 65% of the height.",
+          "source": "2026-10-08 branch claude/peaceful-pascal-988w9o after #2932 (2026-10-08)"
+        },
+        {
+          "severity": "P2",
+          "description": "Pre-existing, not changed: captionSafeZone.test.ts's width check renders with DejaVu Sans Bold where Arial is absent (Linux) and fails there (936 > 894 px); production uses Anton, but if Anton ever fails to materialize the DejaVu fallback can run hook captions ~5% past the safe width. CI skips it (no ffmpeg).",
+          "source": "2026-10-08 branch claude/peaceful-pascal-988w9o after #2932 (2026-10-08)"
+        }
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "verificationExpiresAt": null
+    },
+    {
+      "capabilityId": "content-experiment-pack-recording",
+      "name": "Experiments record only Reels their arm can reach: pack-built Reels are kept out of brief-writing experiments (hook style, duration lane)",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o after #2932 (2026-10-08). Finding: resolveApprovedPackSelection returns a library pack every day, and dailyReelPost builds pack Reels from the reviewed brief verbatim; hookArmForEpisode is read only in the AI-brief branch and durationLaneForEpisode only in reelBriefGen. assignEpisodeToActiveExperiment recorded every enqueued Reel anyway, so a started hook or duration test would have put identical pack Reels in both arms. Now enqueueReelJob passes approvedPackSlug and contentOrigin 'approved_pack' (varchar 30), and assignment skips hook_style / length_band experiments for a pack Reel (BRIEF_WRITING_VARIABLES). docs/reels-engine-v2/06-EXPERIMENTS.md carries the pack-variant design for the five mission experiments.",
+        "tests": [
+          "server/__tests__/contentExperimentWiringGate.test.ts (+1): a pack Reel is recorded in neither experiment; CONTROL — an AI-written brief in the same state is recorded in both. Mutation: the pack filter removed turns it red."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Whether any experiment is running in production was not read from this session (no database access); the fix matters from the day a hook or duration experiment starts. The five mission experiments need approved pack variants (design in 06-EXPERIMENTS.md; operator decision).",
+          "source": "2026-10-08 branch claude/peaceful-pascal-988w9o after #2932 (2026-10-08)"
+        }
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "verificationExpiresAt": null
     }
   ],
   "axes": {
