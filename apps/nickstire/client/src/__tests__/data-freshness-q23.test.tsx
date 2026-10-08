@@ -39,7 +39,7 @@ import {
   invoiceMirrorRow,
   shopDriverRow,
   smsGatewayRow,
-} from "../pages/admin/today/dataFreshness";
+} from "../pages/admin/today/freshnessRows";
 
 afterEach(() => {
   cleanup();

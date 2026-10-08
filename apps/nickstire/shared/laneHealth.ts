@@ -19,7 +19,7 @@
  * after 7 days (cron/jobs/cleanup.ts), so "no run" means "no run in 7 days".
  *
  * PURE: no clock, no DB, no React. The server sends raw reads; the client calls
- * `buildLaneHealthRows` with its own `now`, like ../client/.../dataFreshness.ts.
+ * `buildLaneHealthRows` with its own `now`, like ../client/.../freshnessRows.ts.
  */
 
 import {
