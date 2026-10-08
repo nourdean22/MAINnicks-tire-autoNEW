@@ -12,8 +12,8 @@ inside an app, read the nearest `apps/<app>/AGENTS.md`; root policy maps the rou
 You get FEWER automated safety nets than a Claude session in this repo. What that changes:
 
 - **No PreToolUse gate.** `scripts/agent-os/pretool.mjs` is wired only in `.claude/settings.json`
-  and is Claude-only by design (`pretool.mjs:15`). Its 13 blocking rules in
-  `config/agent-os/policy.json` — push-to-main, force-push, `git push` with an implicit
+  and is Claude-only by design (`pretool.mjs:15`). Its 13 always-on blocking rules in
+  `config/agent-os/policy.json` (+4 scoped to `.worktrees/night-shift-*`) — push-to-main, force-push, `git push` with an implicit
   destination, `git add -A`, `--no-verify`, `git checkout --`/restore, `git stash pop`,
   `git worktree remove`, recursive-delete of a worktree, `prisma db push --accept-data-loss`,
   `DROP`/`TRUNCATE`, `pnpm install` inside a junctioned worktree, writing a `.env` — are

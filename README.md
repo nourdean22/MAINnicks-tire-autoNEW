@@ -48,8 +48,13 @@ the gotchas that bite everyone.
 
 > `apps/voice/` (Python LiveKit Agents) was **RETIRED and removed 2026-08-03** — the statenour
 > route it POSTed to was deleted, taking the machine-caller auth path with it. The Railway
-> service is scaled to 0 replicas. Do not look for it; `pnpm-lock.yaml` still carries an empty
-> `apps/voice: {}` importer entry, which is inert.
+> service was deleted as well (`railway status` on 2026-10-08 lists only the three services above),
+> and the `pnpm-lock.yaml` importer entry is gone. Do not look for it.
+
+> `apps/video-forge/` (Python, added 2026-10-03 in #2908) is a self-hosted GPU render service behind
+> nickstire's `self_hosted` reel provider. It is not a pnpm workspace package (no `package.json`) and
+> not a Railway service: BUILT and tested on the CPU mock only, no GPU run yet. See its README and
+> `apps/nickstire/docs/operations/VIDEO-FORGE.md`.
 
 > The two **web products are independent** — different frameworks, different databases,
 > different domains. They share only this repo, the Turbo/pnpm tooling, the `main` branch,
@@ -84,9 +89,9 @@ NOURCITY/
 │  ├─ nickstire/        # nicks-tire-auto — Vite+Express, TiDB        → nickstire.org
 │  ├─ statenour/        # @statenour/web  — Next.js, Neon+pgvector    → bdnick.info
 │  ├─ worker/           # @statenour/worker — Express+node-cron relay (internal)
-│  └─ voice/            # RETIRED 2026-08-03 — ZERO tracked files; `ls` may still show it
+│  └─ video-forge/      # Python GPU render service (#2908): not a pnpm package, not on Railway
 ├─ packages/            # shared workspace packages — rostered in "Workspace packages" below
-├─ docs/                # MIGRATION_PLAN.md, MIGRATION_AUDIT.md, RAILWAY_PROVISION.md, adr/
+├─ docs/                # agent-os/, agent-audit/, reporting/, operations/, UPSTREAMS.md, adr/; old plans in 90-archive/
 ├─ scripts/             # repo-level helper scripts
 ├─ lefthook.yml         # pre-commit + pre-push git hooks (the REAL gates)
 ├─ .github/workflows/   # CI — every action ref SHA-pinned, gated by actionPinning.test.mjs
@@ -95,7 +100,8 @@ NOURCITY/
 ├─ pnpm-workspace.yaml  # apps/* + packages/*
 ├─ pnpm-lock.yaml       # single root lockfile
 ├─ turbo.json           # task graph (build/check/typecheck/lint/test/dev/start)
-├─ CLAUDE.md            # cross-cutting agent rules (read this if you are an agent)
+├─ AGENTS.md            # canonical cross-agent policy (read this if you are an agent)
+├─ CLAUDE.md            # Claude adapter: imports AGENTS.md (GEMINI.md, .cursor/rules, copilot-instructions point there too)
 └─ README.md            # ← you are here
 ```
 
@@ -103,6 +109,7 @@ There is **no root `tsconfig.json`** — each app/package owns its own. There is
 Dockerfile** — `statenour` and `worker` each ship their own (Railway builds those images, so
 their OS layers are real and are **not** visible to Dependabot); `nickstire` builds from source
 via `nixpacks.toml` + Railway dashboard commands (see [Deployment](#deployment-railway)).
+`apps/video-forge/Dockerfile` targets RunPod/Modal, not Railway.
 
 ### Workspace packages
 
@@ -180,7 +187,7 @@ Each app reads its own env file. Copy the examples where they exist and fill in 
 cp apps/nickstire/.env.example apps/nickstire/.env      # exists
 cp apps/statenour/.env.example apps/statenour/.env.local # exists
 # apps/worker has NO .env.example — it only needs CRON_SECRET + STATENOUR_WEB_URL locally
-# apps/voice uses its own Python env (see apps/voice/README.md)
+# apps/video-forge is Python and outside pnpm (see apps/video-forge/README.md)
 ```
 
 ### 3. Run an app in dev
@@ -493,11 +500,11 @@ each with its own **Root Directory + Watch Path** so only the changed app redepl
 | `MAINnicks-tire-auto` | nickstire | **No Dockerfile in repo.** Railway dashboard build/start commands (`pnpm --filter nicks-tire-auto build` / `start`), healthcheck `/api/health`. A legacy `vercel.json` remains for an install-command override. | `apps/nickstire/**` |
 | `statenour-web` | statenour | `apps/statenour/Dockerfile` — 3-stage `node:20-alpine`, **build context = monorepo root** (builds `@nour/utils` + `@statenour/lenses` dist first), Next.js standalone, runtime `node apps/statenour/server.js`, `PORT=8080`. | `apps/statenour/**` |
 | `statenour-worker` | worker | `apps/worker/Dockerfile` — 3-stage `node:20-alpine`, `pnpm deploy --prod --legacy` for a symlink-free artifact, `node dist/index.js`. Railway crons hit `/cron/mega` + `/cron/mega-evening`. | `apps/worker/**` |
-| `statenour-voice` — **RETIRED, scaled to 0 replicas** (see the topology note above) | voice | `apps/voice/Dockerfile` still exists — Python image, build context `apps/voice/` only, `python agent.py`. Outside the Turbo graph. Kept here for history; not live traffic. | `apps/voice/**` |
 
-There are **no `railway.json`/`railway.toml`/`nixpacks.toml`/`Procfile`** files — deploy is
-driven by the three Dockerfiles + nickstire's dashboard-configured commands. Operator
-provisioning steps live in `docs/RAILWAY_PROVISION.md`.
+There are **no `railway.json`/`railway.toml`/`Procfile`** files — deploy is
+driven by the statenour and worker Dockerfiles + nickstire's `nixpacks.toml` and dashboard-configured
+commands (`apps/video-forge/Dockerfile` is for RunPod/Modal, not Railway). The original operator
+provisioning steps are archived in `docs/90-archive/superseded-plans/RAILWAY_PROVISION.md`.
 
 **Deploy = push to `main`.** Railway watches the branch and rebuilds only the services whose
 watch path changed. **Rollback:** Railway dashboard → service → Deployments → previous green
@@ -591,23 +598,27 @@ NOT re-add the ignore flag.
 
 | Doc | What |
 |---|---|
-| `CLAUDE.md` (root) | Cross-cutting agent rules: context routing, shared-`main` protocol, verify gates, Windows gotchas |
-| `apps/nickstire/CLAUDE.md` | The real nickstire app bible (architecture, subsystems, gotchas) |
+| `AGENTS.md` (root) | Canonical cross-agent policy: topology, branching, protected operations, context routing, verify gates, Windows notes. `CLAUDE.md`, `GEMINI.md`, `.cursor/rules/*` and `.github/copilot-instructions.md` are thin adapters that import or point at it (`pnpm agent:parity` enforces) |
+| `apps/nickstire/AGENTS.md` | The nickstire app bible (architecture, subsystems, gotchas); the `CLAUDE.md` beside it is a thin adapter that imports it |
 | `apps/nickstire/DEPLOY.md` · `PROTECTED-CORE.md` · `truth_os.md` | nickstire deploy contract, protected infra, prod-true state |
 | `apps/statenour/AGENTS.md` · `DEPLOY.md` | statenour app bible + deploy contract |
-| `apps/worker/DEPLOY.md` · `apps/voice/DEPLOY.md` | worker / voice deploy contracts |
-| `docs/MIGRATION_PLAN.md` · `MIGRATION_AUDIT.md` | The 2026-05-17 Vercel→Railway monorepo migration (this repo absorbed statenour-os) |
-| `docs/RAILWAY_PROVISION.md` | Operator handoff: Railway service + cron provisioning |
+| `apps/worker/DEPLOY.md` | worker deploy contract |
+| `docs/90-archive/superseded-plans/MIGRATION_PLAN.md` + `MIGRATION_AUDIT.md` | Archived: the 2026-05-17 Vercel-to-Railway monorepo migration (this repo absorbed statenour-os) |
+| `docs/90-archive/superseded-plans/RAILWAY_PROVISION.md` | Archived: operator handoff for the original Railway service + cron provisioning |
 | `docs/adr/` | Architecture decision records |
+| `docs/agent-os/README.md` | Agent OS design notes: hooks, policy canaries, adapter parity |
+| `apps/video-forge/README.md` + `apps/nickstire/docs/operations/VIDEO-FORGE.md` | GPU render service contract + its reality-state ledger |
 
 > **History:** this repo began as `nickstire`. The statenour-os codebase was merged in on
 > **2026-05-17** during a Vercel → Railway migration; the worker and voice services were
 > carved out to host the long-running cron + voice workloads that don't belong on a web host.
+> The voice service was retired and deleted on 2026-08-03.
 
 ---
 
 > _Doc accuracy: the repository structure, scripts, env-var names, git hooks, CI, and deploy
-> config in this README were verified against the actual repo files on **2026-06-01**.
+> config in this README were verified against the actual repo files on **2026-06-01**; the voice-service, `docs/` path and
+> agent-policy references were re-verified on **2026-10-08**.
 > Framework versions, test counts, and Railway service identifiers are point-in-time — treat
 > `package.json`, `turbo.json`, and each app's `DEPLOY.md` as the source of truth for current
 > values._

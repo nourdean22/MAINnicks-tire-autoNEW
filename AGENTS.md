@@ -22,7 +22,7 @@ The two web products are independent — different frameworks, databases, domain
 `camera-bridge/`, `MoneyPrinterTurbo/`, `last30days-skill/`, `ad-factory/`.
 
 **These no longer exist — do not go looking:** `apps/voice` + its Railway service, the `perplexica-mcp` sidecar (2026-08-05),
-`perplexica` + `searxng-perplexica` (no caller since #2599). **`ls apps/` still shows `voice/`, a husk with zero tracked files.**
+`perplexica` + `searxng-perplexica` (no caller since #2599). **`apps/video-forge/` (#2908): GPU service; no package.json; not on Railway.**
 
 ## Source-of-truth hierarchy
 

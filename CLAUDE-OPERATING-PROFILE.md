@@ -97,14 +97,20 @@ Before every non-trivial task:
 Always-on meta-stances — invoke with the Skill tool by EXACT name below. A stance you did not
 invoke did not apply: naming it in prose is not invocation. If you claim a stance shaped your
 work, the Skill call must be in the transcript.
-- `superpowers-lab` — EVERY non-trivial task, before clarifying questions or file exploration.
+- `superpowers-lab` - NOT INSTALLED (no copy in ~/.claude/skills, no public source; checked 2026-10-08). No always-on
+  replacement: run steps 1-4 above, and invoke `brainstorming` / `karpathy-guidelines` only when their own triggers match.
 - `karpathy-guidelines` — every code task · think first · simplest thing that works · surgical edits · verifiable goal.
 - `brainstorming` — before building anything new · vague ideas -> validated design.
-- `kaizen` — refactor / quality / cleanup work · small surgical improvements · YAGNI · error-proof · standardize.
+- `kaizen` - NOT INSTALLED (same check): for refactor / cleanup work apply `karpathy-guidelines` (surgical edits, YAGNI, standardize).
 
 Reasoning lenses — invoke the one whose trigger matches:
-- `database-architect` — ANY schema, migration, query or data-layer decision · access patterns first · backups + rollback before destructive moves.
-- `frontend-design:frontend-design` — ANY new UI or visual reshaping · reject AI-slop (Inter · purple gradients · symmetric layouts) · one dominant aesthetic direction · DFII >= 8 (aesthetic + fit + feasibility + performance - risk).
+- `database-architect` - NOT INSTALLED (same check). Trigger unchanged: ANY schema, migration, query or data-layer decision;
+  doctrine inline: access patterns first, backups + rollback before destructive moves. Schema / migration edits route to
+  `statenour-migration` (Prisma) or `nickstire-tidb-ddl` (TiDB), DB-touching scripts to `prod-db-guard`; query and ORM changes follow the doctrine.
+- `frontend-design:frontend-design` - NOT INSTALLED (neither the stale local copy nor the plugin copy; checked 2026-10-08).
+  Trigger unchanged: ANY new UI or visual reshaping. Invoke `antislop-ui` + `antislop-layoutmobile` instead (and
+  `nickstire-ios-pwa-primitives` for any confirm/alert/prompt); keep the doctrine: reject AI-slop (Inter, purple gradients,
+  symmetric layouts), one dominant aesthetic direction, DFII >= 8 (aesthetic + fit + feasibility + performance - risk).
 - FIRST-PRINCIPLES — inline doctrine, NO skill backs this · question -> delete -> simplify -> accelerate -> automate · 10x not 10% · apply when scoping or when a plan reads as additive.
   There is no skill to invoke for this. The `elon-musk` skill was a Portuguese-language
   persona simulator ("fale como Elon"), not a reasoning lens — archived 2026-08-03 with the
@@ -127,7 +133,7 @@ SUBAGENT POLICY
 
 Subagents (Task tool — code-explorer / code-reviewer / code-simplifier / Explore / general-purpose / etc.) are encouraged for parallelization, research, and bounded execution. Every invocation MUST follow these rules:
 
-1. INHERIT THE STANCE — state the operating stance in the agent prompt explicitly; don't assume the agent re-derives it. Invoke kaizen, karpathy, and the right reasoning lens.
+1. INHERIT THE STANCE — state the operating stance in the agent prompt explicitly; don't assume the agent re-derives it. Invoke karpathy-guidelines for code work, brainstorming for new builds, and the right reasoning lens.
 
 2. BRIEF LIKE A COLLEAGUE — terse command prompts produce shallow slop. Give the agent: what you're accomplishing and why · what you've learned or ruled out · file paths and line numbers · the form of the answer expected.
 
