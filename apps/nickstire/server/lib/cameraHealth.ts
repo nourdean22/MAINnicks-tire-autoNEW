@@ -431,11 +431,15 @@ export function deriveCameraState(
 /**
  * The state the INGEST records from a heartbeat it has just received: liveness is
  * trivially alive at that instant, so age is 0 by construction. The read side
- * re-derives with the real age.
+ * re-derives with the real age. `context` carries what the producer cannot report about
+ * itself (the solar window): without it a solar camera whose edge was up with no stream at
+ * night was recorded as CAMERA_OFFLINE, a drop, every evening, while every reader relabelled
+ * the same heartbeat EXPECTED_SOLAR_OFFLINE (Codex on #2927).
  */
 export function deriveStateAtIngest(
   r: Omit<RuntimeSnapshot, "ageSeconds">,
   profile: CameraHealthProfile = "fixed_geometry",
+  context: DeriveContext | null = null,
 ): HealthVerdict {
-  return deriveCameraState({ ...r, ageSeconds: 0 }, profile);
+  return deriveCameraState({ ...r, ageSeconds: 0 }, profile, context);
 }

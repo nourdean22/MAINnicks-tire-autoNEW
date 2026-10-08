@@ -211,6 +211,24 @@ describe("camera health lattice — fixed geometry", () => {
     void _drop;
     expect(deriveStateAtIngest(rest).state).toBe("HEALTHY");
   });
+
+  it("the ingest-time derivation takes the solar context too: a dark solar camera whose edge is still up is EXPECTED_SOLAR_OFFLINE, not a CAMERA_OFFLINE drop (Codex on #2927)", () => {
+    const { ageSeconds: _drop, ...dark } = healthy({ sourceConnected: false });
+    void _drop;
+    const night = { expectedOffline: true, reason: "solar camera: dark from civil dusk 19:25 until about 09:50 (sunrise 07:20 + 150 min) is expected" };
+    // Without the context the ingest judged the loss as a loss: that is the drop every evening.
+    expect(deriveStateAtIngest(dark).state).toBe("CAMERA_OFFLINE");
+    expect(deriveStateAtIngest(dark, "fixed_geometry", null).state).toBe("CAMERA_OFFLINE");
+    const v = deriveStateAtIngest(dark, "fixed_geometry", { solar: night });
+    expect(v.state).toBe("EXPECTED_SOLAR_OFFLINE");
+    expect(v.reason).toContain("capture source is disconnected");
+    // Daylight: the same loss is a loss.
+    expect(deriveStateAtIngest(dark, "fixed_geometry", { solar: { ...night, expectedOffline: false } }).state).toBe("CAMERA_OFFLINE");
+    // A camera that is awake and sending frames is judged exactly as before, night or day.
+    const { ageSeconds: _awakeDrop, ...awake } = healthy();
+    void _awakeDrop;
+    expect(deriveStateAtIngest(awake, "fixed_geometry", { solar: night }).state).toBe("HEALTHY");
+  });
 });
 
 describe("camera health lattice — interaction PTZ", () => {

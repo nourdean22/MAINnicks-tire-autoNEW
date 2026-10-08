@@ -82,14 +82,14 @@ const signRuntime = {
 
 type Fixtures = { anchor: Array<Record<string, unknown>>; today: Array<Record<string, unknown>> };
 
-function install(fixtures: Fixtures): Flat[] {
+function install(fixtures: Fixtures, runtime: Record<string, unknown> = signRuntime): Flat[] {
   const executed: Flat[] = [];
   h.execute = async (q: unknown) => {
     const f = flat(q);
     executed.push(f);
     const t = f.text;
     if (t.includes("INFORMATION_SCHEMA.COLUMNS")) return [[], []];
-    if (t.includes("FROM camera_runtime r")) return [[signRuntime], []];
+    if (t.includes("FROM camera_runtime r")) return [[runtime], []];
     if (t.includes("FROM camera_health_events ORDER BY at DESC LIMIT 20")) return [[], []];
     if (t.includes("GROUP BY camera")) return [[], []];
     if (t.includes("WHERE at >= FROM_UNIXTIME(?)")) return [fixtures.today, []];
@@ -181,5 +181,24 @@ describe("lot.health executed with rows in camera_health_events (review on #2929
     const stability = executed.find((q) => q.text.includes("GROUP BY camera"))!;
     expect(stability.text).toContain("toState IN ('CAMERA_OFFLINE','DEGRADED_VISION','PRODUCER_OFFLINE'");
     expect(stability.text).not.toContain("'STALE'");
+  });
+
+  it("a solar camera dark at night with its edge still heartbeating: EXPECTED_SOLAR_OFFLINE for as long as the producer's own clock says, not the 20 s since the last heartbeat (Codex on #2927)", async () => {
+    const NIGHT_MS = Date.UTC(2026, 9, 8, 2, 0, 0); // 22:00 EDT on Oct 7: inside the solar window, shop closed
+    vi.setSystemTime(new Date(NIGHT_MS));
+    const nightEpoch = NIGHT_MS / 1000;
+    install({ anchor: [], today: [] }, {
+      ...signRuntime,
+      ageSeconds: 20, receivedAtEpoch: nightEpoch - 20, observedAtEdgeEpoch: nightEpoch - 21,
+      // The edge is up and posting; the camera itself has been gone since dusk.
+      sourceConnected: 0, lastHealthyFrameAtEpoch: nightEpoch - 9000,
+      stateForSeconds: 9000, stateSinceEpoch: nightEpoch - 9000,
+    });
+    const res = await health();
+    const sign = res.cameras.find((c) => c.camera === "sign")!;
+    expect(sign.state).toBe("EXPECTED_SOLAR_OFFLINE");
+    expect(sign.stateForSeconds).toBe(9000);
+    expect(sign.timeline.current).toEqual({ state: "EXPECTED_SOLAR_OFFLINE", sinceMs: (nightEpoch - 9000) * 1000, forSeconds: 9000 });
+    expect(sign.timeline.segments.map((s) => s.state)).toEqual(["UNKNOWN", "EXPECTED_SOLAR_OFFLINE"]);
   });
 });

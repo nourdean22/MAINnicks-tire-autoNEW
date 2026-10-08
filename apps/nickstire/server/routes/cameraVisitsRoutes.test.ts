@@ -606,4 +606,12 @@ describe("camera heartbeat ingest - resumption after a read-derived outage reach
     // A solar camera asks the sky about the moment the gap began; a mains camera gets no excuse.
     expect(route).toContain('cameraPowerFor(b.camera) === "solar" ? (ms) => solarExpectedOffline(new Date(ms)).expectedOffline : null');
   });
+
+  it("derives the ingest-time state WITH the solar context, so a dark solar camera whose edge is up records EXPECTED_SOLAR_OFFLINE, not a CAMERA_OFFLINE drop (Codex on #2927)", () => {
+    const call = route.indexOf("const verdict = deriveStateAtIngest({");
+    const close = route.indexOf("}, cameraHealthProfileFor(b.camera), {", call);
+    expect(call).toBeGreaterThanOrEqual(0);
+    expect(close).toBeGreaterThan(call);
+    expect(route.slice(close, close + 600)).toContain('solar: cameraPowerFor(b.camera) === "solar" ? solarExpectedOffline(new Date()) : null');
+  });
 });

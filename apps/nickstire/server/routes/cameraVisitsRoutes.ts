@@ -648,7 +648,12 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       outboxDepth: b.outboxDepth ?? null,
       oldestOutboxAgeSeconds: b.oldestOutboxAgeSeconds ?? null,
       deadLetterDepth: b.deadLetterDepth ?? null,
-    }, cameraHealthProfileFor(b.camera));
+    }, cameraHealthProfileFor(b.camera), {
+      // The same sky lot.health and the alert pass judge by: a solar camera's edge that is up
+      // with no stream inside its window is EXPECTED_SOLAR_OFFLINE in the row and in the
+      // transition it logs, not a CAMERA_OFFLINE drop every evening (Codex on #2927).
+      solar: cameraPowerFor(b.camera) === "solar" ? solarExpectedOffline(new Date()) : null,
+    });
 
     const values: Record<(typeof HEARTBEAT_COLUMNS)[number], unknown> = {
       camera: b.camera,

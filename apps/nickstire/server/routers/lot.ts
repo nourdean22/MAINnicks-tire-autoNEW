@@ -76,7 +76,7 @@ import {
 import { VISIT_MARKS } from "../../shared/visitMarks";
 import { deriveVisitMarkState, type VisitMarkRow } from "../lib/visitMarks";
 import { isDuplicateKeyError, isMissingTableError, logSafeErrorMessage } from "../lib/dbErrors";
-import { insertedId, writeResult } from "../lib/dbResult";
+import { affectedRows, insertedId, writeResult } from "../lib/dbResult";
 import { createLogger } from "../lib/logger";
 import { jsonArray, transcriptCoverage } from "../lib/conversationQuality";
 import { conversationEpisodeColumnReady, officeVisualColumnReady, storedVisual, __resetOfficeVisualCalibration } from "../services/officeVisual";
@@ -563,18 +563,30 @@ export const lotRouter = router({
         notAJob: 0,
       };
       try {
+        // Only the marks IN FORCE: a mark counts unless a CLEARED (the undo) follows it for the
+        // same visit in (markedAt, id) order, the boundary deriveVisitMarkState applies to the
+        // history. Counting the whole history said "not a job" of a car whose mis-tap had been
+        // cleared, while its own card said the marks were cleared (Codex on #2927). A CLEARED
+        // row is never a mark of its own.
+        const inForce = sql`
+          m.mark <> 'CLEARED'
+          AND NOT EXISTS (
+            SELECT 1 FROM vehicle_visit_marks c
+             WHERE c.visitId = m.visitId AND c.mark = 'CLEARED'
+               AND (c.markedAt > m.markedAt OR (c.markedAt = m.markedAt AND c.id > m.id))
+          )`;
         const byMark = rowsOf(await d.execute(sql`
           SELECT m.mark, COUNT(DISTINCT m.visitId) AS n
           FROM vehicle_visit_marks m
           JOIN vehicle_visits v ON v.visitId = m.visitId
-          WHERE v.departedAt IS NULL AND v.dataClass = 'PRODUCTION'
+          WHERE v.departedAt IS NULL AND v.dataClass = 'PRODUCTION' AND ${inForce}
           GROUP BY m.mark
         `));
         const openMarked = rowsOf(await d.execute(sql`
           SELECT COUNT(DISTINCT m.visitId) AS n
           FROM vehicle_visit_marks m
           JOIN vehicle_visits v ON v.visitId = m.visitId
-          WHERE v.departedAt IS NULL AND v.dataClass = 'PRODUCTION'
+          WHERE v.departedAt IS NULL AND v.dataClass = 'PRODUCTION' AND ${inForce}
         `));
         const countOf = (mark: string) => num(byMark.find((row) => String(row.mark) === mark)?.n ?? 0);
         marks.available = true;
@@ -1179,9 +1191,14 @@ export const lotRouter = router({
           // the heartbeats stopped, not when `stateSince` last moved: no heartbeat arrives to
           // move it, so the row still says HEALTHY-since-this-morning while the camera has been
           // dark since dusk. The alert policy already keys those states on the last heartbeat;
-          // the card and the confidence strip must say the same number.
+          // the card and the confidence strip must say the same number. The exception is a
+          // solar camera whose edge is still heartbeating with no stream: its heartbeat age
+          // resets every 30 s, so the card read "dark for 20 s" all night (Codex on #2927); the
+          // ingest records that state itself now, so the producer's own clock is the one to show.
           stateForSeconds: r
-            ? (verdict.state === "STALE" || verdict.state === "PRODUCER_OFFLINE" || verdict.state === "EXPECTED_SOLAR_OFFLINE"
+            ? (verdict.state === "STALE" ||
+               verdict.state === "PRODUCER_OFFLINE" ||
+               (verdict.state === "EXPECTED_SOLAR_OFFLINE" && (numOrNull(r.ageSeconds) ?? Infinity) > HEALTH_THRESHOLDS.staleAfterSeconds)
                 ? numOrNull(r.ageSeconds)
                 : numOrNull(r.stateForSeconds))
             : null,
@@ -1514,25 +1531,45 @@ export const lotRouter = router({
       const d = await dbTyped();
       if (!d) return { ok: false as const, reason: "database unavailable" };
       try {
-        const visit = rowsOf(await d.execute(sql`
-          SELECT visitId, departedAt FROM vehicle_visits WHERE visitId = ${input.visitId} LIMIT 1
-        `))[0];
-        if (!visit) return { ok: false as const, reason: `no visit ${input.visitId}` };
-        if (visit.departedAt) return { ok: false as const, reason: "this car has left; marks are for cars on the property" };
         const note = input.note?.trim() ? input.note.trim().slice(0, 191) : null;
+        // The open-visit check is INSIDE the write (claim-before-act): a departure the camera
+        // recorded between a SELECT and a separate INSERT appended a mark to a car that had
+        // already left (Codex on #2927). INSERT ... SELECT inserts nothing for a missing or a
+        // departed visit; the two refusals are then told apart by a read that races nothing.
         const inserted = await d.execute(sql`
           INSERT INTO vehicle_visit_marks (visitId, mark, markedBy, note)
-          VALUES (${input.visitId}, ${input.mark}, ${ctx.user.openId}, ${note})
+          SELECT v.visitId, ${input.mark}, ${ctx.user.openId}, ${note}
+            FROM vehicle_visits v
+           WHERE v.visitId = ${input.visitId} AND v.departedAt IS NULL
         `);
+        if ((affectedRows(inserted) ?? 0) !== 1) {
+          const visit = rowsOf(await d.execute(sql`
+            SELECT visitId, departedAt FROM vehicle_visits WHERE visitId = ${input.visitId} LIMIT 1
+          `))[0];
+          if (!visit) return { ok: false as const, reason: `no visit ${input.visitId}` };
+          return { ok: false as const, reason: "this car has left; marks are for cars on the property" };
+        }
         // Read back THIS row by its id: "the latest mark for the visit" could be another
         // admin's tap in the same second. No id from the driver -> the server clock stands in.
+        // A failed read-back after the committed insert is NOT a failed mark: the row exists, so
+        // the tap is reported recorded with the server clock; reporting a failure invited a
+        // retry that appended a duplicate (Codex on #2927).
         const id = insertedId(inserted);
-        const stamped = id === null
-          ? null
-          : rowsOf(await d.execute(sql`
+        let markedAtMs = Date.now();
+        if (id !== null) {
+          try {
+            const stamped = rowsOf(await d.execute(sql`
               SELECT ${sql.raw("UNIX_TIMESTAMP(markedAt)")} AS markedEpoch FROM vehicle_visit_marks WHERE id = ${id} LIMIT 1
             `))[0];
-        const markedAtMs = stamped?.markedEpoch != null ? num(stamped.markedEpoch) * 1000 : Date.now();
+            if (stamped?.markedEpoch != null) markedAtMs = num(stamped.markedEpoch) * 1000;
+          } catch (err) {
+            log.warn("lot.markVisit: mark recorded, timestamp read-back failed; reporting the server clock", {
+              visitId: input.visitId,
+              id,
+              error: logSafeErrorMessage(err),
+            });
+          }
+        }
         return { ok: true as const, mark: input.mark, markedAtMs };
       } catch (err) {
         if (isMissingTableError(err)) {
