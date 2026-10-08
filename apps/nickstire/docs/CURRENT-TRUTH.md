@@ -524,6 +524,13 @@ DELETE FROM shop_settings WHERE `key` = 'nick_memory_insight_e8bb1cbd7719';
 Verify first with `SELECT` on the same key — the row's value should contain `"Daily revenue truth: $0. Jobs: 0."`. No other memory row shares that hash; real revenue days each have their own key.
 - **There is exactly one weekly report.** The `weeklyReport` tRPC router and `notifyWeeklyReport` were removed 2026-08-08: both had zero callers (registered but never invoked — no client, no cron), and their bookings/leads/callbacks content now rides the digest. The separate `weekly-strategic-insight` cron (Sundays, AI brief via Telegram) is unrelated and still live.
 
+## Weekly Search Console digest (2026-10-08)
+
+- `server/cron/jobs/weeklyGscDigest.ts` (`weekly-gsc-digest`: hourly tier + `oncePerShopDay`, shop-TZ Mondays, `requiresEnv: GOOGLE_SEARCH_CONSOLE_KEY`) pushes one Telegram message: the OFFICIAL 28-day Search Console totals (the window ends 3 days back for GSC's finalisation lag) vs the prior 28 days, top 8 queries / top 5 pages, then CTR opportunities and 7-day ranking moves from the `search_performance` mirror. GSC numbers previously reached the operator only by pull (admin Market card, `pnpm gsc:report`, the StateNour bridge); the daily `gsc-pipeline` alert fires only on a 5-position drop.
+- Two sources, kept distinct: the headline is the API's no-dimension total (the same number the Market card and the bridge use); the insights are mirror-derived. The mirror's `MAX(date)` is read first, so an EMPTY or BEHIND mirror is named in the message instead of an empty list reading as "no opportunities". The query lists carry the anonymisation caveat (~93% of query-dimension impressions are anonymised); no rate is computed from them.
+- Fails closed: no official total, a schema error on the mirror query, or a failed Telegram send all reject the run (cron_log `failed`, observer-visible). Non-Mondays return a named skip without touching Google or the database.
+- First live run: Monday 2026-10-12, first hourly tick after 07:00 ET. Until a cron_log row and the Telegram message exist, the capability is unit-verified only (18 tests in `weeklyGscDigest.test.ts`, all driven through the job's single export).
+
 ## GSC data flow
 
 1. `server/pipelines/gsc-data.ts` authenticates with the Google service account.

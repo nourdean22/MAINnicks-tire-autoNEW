@@ -26,7 +26,11 @@ name: Deploy drift (statenour)
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    # Hourly, off the hour. Was every 30 minutes: each run takes ~30 s but
+    # GitHub bills every job as a full minute, so 48 runs/day cost ~1,440
+    # billable minutes a month for a probe whose incident class lasted three
+    # days. An hour of extra latency changes nothing it protects against.
+    - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
       simulate:
