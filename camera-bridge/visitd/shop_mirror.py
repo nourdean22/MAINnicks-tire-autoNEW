@@ -253,6 +253,14 @@ class ShopMirror:
                 row["entryEvidence"] = f"visitd {emission.state}"
 
             zone = getattr(emission, "zone", None)
+            # FIRST bay entry and FIRST bay exit only. A car that leaves the lift and comes back
+            # (marked done, then returned for a re-check) keeps its first entry, so the server's
+            # "a bay entry after a done mark reopens the job" rule (apps/nickstire/server/lib/
+            # visitMarks.ts) cannot fire end to end (Codex on #2927). Dormant today: production
+            # runs with bayZones: [] (the sign camera sees no bay; "Phase 2" puts bays on the bay
+            # cameras), so neither field is ever written. PREREQUISITE for commissioning bay
+            # zones: send the LATEST entry and exit as well (keep the first for service time) and
+            # test it against real bay emissions before claiming camera-driven reopen.
             if self._is_bay(emission.camera, zone):
                 if row["bayEnteredAt"] is None:
                     row["bayEnteredAt"] = iso_utc(emission.at)

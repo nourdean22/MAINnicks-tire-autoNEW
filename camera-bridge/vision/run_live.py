@@ -38,7 +38,7 @@ from vision.detector import (  # noqa: E402
     DetectorCouncil, DetectorUnavailable, Mog2MotionDetector, OpenVinoVehicleDetector,
 )
 from vision.evidence import EvidenceStore  # noqa: E402
-from vision.geometry import EntryPortal, LotMap, Zone, point_in_poly  # noqa: E402
+from vision.geometry import EntryPortal, LotMap, Zone, portal_straddles  # noqa: E402
 from vision.panedetect import (ChannelNotFound, assert_channel_usable,  # noqa: E402
                                classify_motion, detect_live_region,
                                resolve_channel, split_into_channels)
@@ -566,7 +566,7 @@ class PortalNotUsable(Exception):
     """A portal that cannot be crossed inward. See `assert_portal_straddles`."""
 
 
-def assert_portal_straddles(lot_poly, portal_poly, samples: int = 4000) -> None:
+def assert_portal_straddles(lot_poly, portal_poly) -> None:
     """Refuse a portal that does not span the lot boundary.
 
     An arrival is a vehicle crossing INTO the lot through the portal. A portal drawn
@@ -582,33 +582,30 @@ def assert_portal_straddles(lot_poly, portal_poly, samples: int = 4000) -> None:
 
     A portal wholly OUTSIDE is refused for the mirror reason: nothing can land in the lot
     through it either.
+
+    The decision is `vision.geometry.portal_straddles`, the check the production edge's
+    calibration loader (`edge_main.load_calibration`) applies. This runner used to carry its
+    own grid sampler: two answers to one question can disagree, and a band thinner than a grid
+    cell found no cell on either side and was refused as "entirely INSIDE" (2026-10-08).
     """
     if not portal_poly:
         return                      # census mode: no portal is a deliberate, honest state
-    xs = [p[0] for p in lot_poly + list(portal_poly)]
-    ys = [p[1] for p in lot_poly + list(portal_poly)]
-    x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
-    step = max(1.0, ((x1 - x0) * (y1 - y0) / max(samples, 1)) ** 0.5)
-    inside_lot = outside_lot = 0
-    y = y0
-    while y <= y1:
-        x = x0
-        while x <= x1:
-            if point_in_poly((x, y), portal_poly):
-                if point_in_poly((x, y), lot_poly):
-                    inside_lot += 1
-                else:
-                    outside_lot += 1
-            x += step
-        y += step
-    if inside_lot and outside_lot:
+    verdict = portal_straddles(lot_poly, portal_poly)
+    if verdict["ok"]:
         return
-    where = "entirely INSIDE the lot" if outside_lot == 0 else "entirely OUTSIDE the lot"
+    if verdict["samples"] == 0:
+        raise PortalNotUsable(f"the calibration cannot be checked: {verdict['reason']}")
+    if verdict["inside"] and not verdict["outside"]:
+        where = "entirely INSIDE the lot"
+    elif verdict["outside"] and not verdict["inside"]:
+        where = "entirely OUTSIDE the lot"
+    else:
+        where = "along the lot boundary, on neither side of it"
     raise PortalNotUsable(
-        f"the portal is {where} ({inside_lot} sampled cells inside, {outside_lot} outside), "
-        "so no vehicle can ever cross INTO the lot through it and no arrival will ever be "
-        "recorded -- which looks exactly like a quiet lot. Redraw the portal as a band "
-        "STRADDLING the lot's entry edge, with part of it outside the lot polygon."
+        f"the portal is {where} ({verdict['inside']} of {verdict['samples']} sampled points inside, "
+        "no edge crossing the lot boundary), so no vehicle can ever cross INTO the lot through it "
+        "and no arrival will ever be recorded -- which looks exactly like a quiet lot. Redraw the "
+        "portal as a band STRADDLING the lot's entry edge, with part of it outside the lot polygon."
     )
 
 

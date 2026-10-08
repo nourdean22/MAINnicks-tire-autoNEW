@@ -58,6 +58,11 @@ $fakeProcesses = New-Object System.Collections.Generic.List[object]
 $portOwners = @{}
 $taskStates = @{}
 $killed = New-Object System.Collections.Generic.List[int]
+# A pid in here survives Stop-Process (the call is recorded as refused): the kill-failed arm of
+# the edge code-change rule. $failStart makes Start-ScheduledTask throw: the start-failed arm of
+# the office code-change rule. Both default to the happy path.
+$unkillable = New-Object System.Collections.Generic.List[int]
+$failStart = $false
 $markers = @{}
 
 function Add-FakeProcess([int]$processId, [string]$name, [string]$commandLine, [int]$ageSeconds, [int]$parentProcessId = 0) {
@@ -73,6 +78,10 @@ function Get-CimInstance { param([string]$ClassName, $ErrorAction)
   return @($fakeProcesses | Where-Object { $killed -notcontains $_.ProcessId })
 }
 function Stop-Process { param([int]$Id, [switch]$Force, $ErrorAction)
+  if ($unkillable -contains $Id) {
+    $calls.Add("stop-pid:${Id}:refused")
+    return
+  }
   $killed.Add($Id)
   $calls.Add("stop-pid:$Id")
 }
@@ -86,7 +95,10 @@ function Get-NetTCPConnection { param([int]$LocalPort, [string]$State, $ErrorAct
   }
 }
 function Stop-ScheduledTask { param([string]$TaskName, $ErrorAction) $calls.Add("stop-task:$TaskName") }
-function Start-ScheduledTask { param([string]$TaskName, $ErrorAction) $calls.Add("start-task:$TaskName") }
+function Start-ScheduledTask { param([string]$TaskName, $ErrorAction)
+  if ($failStart) { throw "Start-ScheduledTask refused by the harness" }
+  $calls.Add("start-task:$TaskName")
+}
 function Set-ScheduledTask { param([string]$TaskName, $Action, $ErrorAction) $calls.Add("set-task:$TaskName") }
 function Get-ScheduledTask { param([string]$TaskName, $ErrorAction)
   if ($taskStates.ContainsKey($TaskName)) {
@@ -315,6 +327,47 @@ switch ($Scenario) {
     $markers["staleAudioRemains"] = [bool](Test-Path -LiteralPath $stale)
     $markers["freshAudioRemains"] = [bool](Test-Path -LiteralPath $fresh)
     $markers["rotatedLogExists"] = [bool](Test-Path -LiteralPath ($log + ".1"))
+  }
+  "port-owner-identity" {
+    # Four listeners on managed ports (Codex on #2920: the image name alone was identity):
+    #   :3000 an unrelated node (not server.mjs)        -> left alone, named in the log
+    #   :1984 a go2rtc whose command line is unreadable -> left alone: a guess is not identity
+    #   :8654 the real bridge child                      -> ended
+    #   :8655 the real go2rtc, probed with NO needles    -> left alone: nothing to verify against
+    Add-FakeProcess 61 "node.exe" '"C:\Program Files\nodejs\node.exe" C:\other\app.js' 600
+    Add-FakeProcess 62 "go2rtc.exe" '' 600
+    Add-FakeProcess 11 "node.exe" $bridgeNode 600
+    Add-FakeProcess 12 "go2rtc.exe" 'go2rtc -config go2rtc.yaml' 590
+    $portOwners[3000] = 61; $portOwners[1984] = 62; $portOwners[8654] = 11; $portOwners[8655] = 12
+    $spec = Get-TaskChildSpec "eufy-bridge"
+    foreach ($port in @(3000, 1984, 8654)) { Stop-PortOwner $port ("eufy-bridge :{0} owner" -f $port) $spec.Needles }
+    Stop-PortOwner 8655 "eufy-bridge :8655 owner"
+  }
+  "edge-code-stop-fails-keeps-old-fingerprint" {
+    # The stale edge refuses to die (Codex on #2925): nothing may be ledgered as handled. The
+    # next tick, with the process killable, ends it and records the fingerprint.
+    Install-EdgeCode "v1"
+    Add-FakeProcess 41 "python.exe" $edgePython 3600
+    $portOwners[9095] = 41
+    $unkillable.Add(41)
+    $markers["first"] = [bool](Heal-EdgeCode $true $true)
+    $markers["fingerprintAfterFailedStop"] = [string](Get-Entry "edge-code-version").fingerprint
+    $markers["restartsAfterFailedStop"] = @((Get-Entry "sign-edge").restarts).Count
+    $unkillable.Clear()
+    $markers["second"] = [bool](Heal-EdgeCode $true $true)
+    $markers["fingerprintAfterSecond"] = [string](Get-Entry "edge-code-version").fingerprint
+  }
+  "office-code-change-start-fails-keeps-old-fingerprint" {
+    # The office worker's code changed on disk but the task could not be started: the OLD
+    # fingerprint stays on record so a later tick retries instead of forgetting the change.
+    Install-OfficeCode
+    Add-FakeProcess 31 "python.exe" $officePython 600
+    $taskStates[$officeTask] = "Running"
+    Set-OfficeStatus 1 "READY" $null
+    function Get-OfficeCodeFingerprint([string]$dir) { return "office-v2" }
+    $failStart = $true
+    Heal-OfficeWorker
+    $markers["fingerprintAfterFailedStart"] = [string](Get-Entry "office-code-version").fingerprint
   }
   default { throw "unknown scenario: $Scenario" }
 }
