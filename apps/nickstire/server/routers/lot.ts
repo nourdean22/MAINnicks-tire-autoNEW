@@ -63,10 +63,20 @@ import {
   machineEventsFromVisit, QUIESCENCE_HEARTBEAT_MAX_AGE_S, TRUTH_EVENTS,
 } from "../lib/commissioningReport";
 import { EXPECTED_CAMERAS, cameraPowerFor } from "../../shared/cameras";
+import { BUSINESS } from "../../shared/business";
+import { localClock, shopDayWindow } from "../../shared/shopState";
+import {
+  buildCameraTimeline,
+  businessHourWindows,
+  coverageByBusinessHour,
+  derivedStateBeganAtMs,
+  reconcileWithLive,
+  type HealthEventRow,
+} from "../lib/cameraTimeline";
 import { VISIT_MARKS } from "../../shared/visitMarks";
 import { deriveVisitMarkState, type VisitMarkRow } from "../lib/visitMarks";
 import { isDuplicateKeyError, isMissingTableError, logSafeErrorMessage } from "../lib/dbErrors";
-import { insertedId, writeResult } from "../lib/dbResult";
+import { affectedRows, insertedId, writeResult } from "../lib/dbResult";
 import { createLogger } from "../lib/logger";
 import { jsonArray, transcriptCoverage } from "../lib/conversationQuality";
 import { conversationEpisodeColumnReady, officeVisualColumnReady, storedVisual, __resetOfficeVisualCalibration } from "../services/officeVisual";
@@ -553,18 +563,30 @@ export const lotRouter = router({
         notAJob: 0,
       };
       try {
+        // Only the marks IN FORCE: a mark counts unless a CLEARED (the undo) follows it for the
+        // same visit in (markedAt, id) order, the boundary deriveVisitMarkState applies to the
+        // history. Counting the whole history said "not a job" of a car whose mis-tap had been
+        // cleared, while its own card said the marks were cleared (Codex on #2927). A CLEARED
+        // row is never a mark of its own.
+        const inForce = sql`
+          m.mark <> 'CLEARED'
+          AND NOT EXISTS (
+            SELECT 1 FROM vehicle_visit_marks c
+             WHERE c.visitId = m.visitId AND c.mark = 'CLEARED'
+               AND (c.markedAt > m.markedAt OR (c.markedAt = m.markedAt AND c.id > m.id))
+          )`;
         const byMark = rowsOf(await d.execute(sql`
           SELECT m.mark, COUNT(DISTINCT m.visitId) AS n
           FROM vehicle_visit_marks m
           JOIN vehicle_visits v ON v.visitId = m.visitId
-          WHERE v.departedAt IS NULL AND v.dataClass = 'PRODUCTION'
+          WHERE v.departedAt IS NULL AND v.dataClass = 'PRODUCTION' AND ${inForce}
           GROUP BY m.mark
         `));
         const openMarked = rowsOf(await d.execute(sql`
           SELECT COUNT(DISTINCT m.visitId) AS n
           FROM vehicle_visit_marks m
           JOIN vehicle_visits v ON v.visitId = m.visitId
-          WHERE v.departedAt IS NULL AND v.dataClass = 'PRODUCTION'
+          WHERE v.departedAt IS NULL AND v.dataClass = 'PRODUCTION' AND ${inForce}
         `));
         const countOf = (mark: string) => num(byMark.find((row) => String(row.mark) === mark)?.n ?? 0);
         marks.available = true;
@@ -713,8 +735,11 @@ export const lotRouter = router({
         SELECT
           DATEDIFF(${etDate("NOW()")}, ${etDate("arrivedAt")}) AS dayOffset,
           ${sql.raw("HOUR(CONVERT_TZ(arrivedAt, '+00:00', 'America/New_York'))")} AS etHour,
-          SUM(CASE WHEN state <> 'PASS_THROUGH' THEN 1 ELSE 0 END) AS arrivals,
-          SUM(CASE WHEN state =  'PASS_THROUGH' THEN 1 ELSE 0 END) AS passThroughs
+          -- One EPISODE is one car (stitched re-arrivals share an episodeId), the same identity
+          -- the headline counter uses: summing rows here inflated today's observed arrivals
+          -- against a baseline and could read an undercount as OK (Codex on #2920).
+          COUNT(DISTINCT CASE WHEN state <> 'PASS_THROUGH' THEN COALESCE(episodeId, visitId) END) AS arrivals,
+          COUNT(DISTINCT CASE WHEN state =  'PASS_THROUGH' THEN COALESCE(episodeId, visitId) END) AS passThroughs
         FROM vehicle_visits
         WHERE dataClass = 'PRODUCTION'
           AND preexisting = 0
@@ -841,8 +866,14 @@ export const lotRouter = router({
                  ${sql.raw("UNIX_TIMESTAMP(departedAt)")} AS departedEpoch
           FROM vehicle_visits
           WHERE ${input.includeCommissioning ? sql`1 = 1` : sql`dataClass = 'PRODUCTION'`}
-            ${input.openOnly ? sql`AND departedAt IS NULL` : sql``}
-          ORDER BY COALESCE(arrivedAt, createdAt) DESC
+            ${input.openOnly ? sql`AND departedAt IS NULL AND COALESCE(arrivedAt, createdAt) >= NOW() - INTERVAL 7 DAY` : sql``}
+          -- The open-only floor board keeps the LONGEST-waiting cars when it hits its cap: the
+          -- car about to become a complaint must survive the LIMIT, so open visits read oldest
+          -- first (the board sorts by dwell anyway). The recent list stays newest first. Nothing
+          -- server-side ever closes an open visit, so without the 7-day floor (a weekend car is
+          -- one visit; an older open row is an orphan) the oldest-first read would fill its cap
+          -- with orphans and push today's cars off the board (review on #2929).
+          ORDER BY COALESCE(arrivedAt, createdAt) ${input.openOnly ? sql.raw("ASC") : sql.raw("DESC")}
           LIMIT ${input.limit}
         `));
 
@@ -1004,6 +1035,7 @@ export const lotRouter = router({
                r.diskFreeBytes, r.restores, r.relocateFailures, r.preexistingCrossed,
                r.arrivalsAfterStitch, r.stitchedTotal, r.stitchRefusedAmbiguous,
                UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.stateSince) AS stateForSeconds,
+               UNIX_TIMESTAMP(r.stateSince) AS stateSinceEpoch,
                (SELECT COUNT(*) FROM vehicle_visits o
                  WHERE o.camera = r.camera AND o.departedAt IS NULL
                    AND o.dataClass = 'PRODUCTION') AS openVisits
@@ -1028,11 +1060,14 @@ export const lotRouter = router({
       //
       // `drops` counts only the states where the lot is NOT being watched. A return to
       // HEALTHY is not an incident, so counting every transition would double every outage
-      // and make a recovering camera look worse than one that stayed down.
+      // and make a recovering camera look worse than one that stayed down. STALE is not in
+      // the list: since the 5-minute pass writes the read-derived states (audit N6) an outage
+      // can be recorded as STALE and then PRODUCER_OFFLINE, and one late heartbeat caught by a
+      // tick is STALE for a minute; neither is a second drop (review on #2929).
       const stability = rowsOf(await d.execute(sql`
         SELECT camera,
                SUM(CASE WHEN toState IN ('CAMERA_OFFLINE','DEGRADED_VISION','PRODUCER_OFFLINE',
-                                         'CALIBRATION_INVALID','STALE','AUTH_DEGRADED',
+                                         'CALIBRATION_INVALID','AUTH_DEGRADED',
                                          'EVENTS_DEGRADED','CONTROL_DEGRADED','MEDIA_DEGRADED',
                                          'PTZ_HOME_INVALID') THEN 1 ELSE 0 END) AS drops,
                COUNT(*) AS transitions
@@ -1043,10 +1078,64 @@ export const lotRouter = router({
       `));
       const byStability = new Map(stability.map((s) => [String(s.camera), s]));
 
-      const byCamera = new Map(runtime.map((r) => [String(r.camera), r]));
+      // THE DAY AS A TIMELINE, and how much of business time the lot was WATCHED (audit N2 + N6).
+      //
+      // "steady today" above counts rows; this reads them as time. The day's rows plus the one
+      // row before the day (the anchor) give each camera a contiguous set of state segments
+      // from local midnight to now; the vehicle-truth camera's HEALTHY share of the business
+      // hours so far is the coverage every count on this page should be read against.
+      // The read-derived states (STALE / PRODUCER_OFFLINE / EXPECTED_SOLAR_OFFLINE) are in the
+      // table since the 5-minute alert pass started writing them; before that the timeline
+      // could only show what the producer itself reported.
+      const nowMs = Date.now();
+      const dayWindow = shopDayWindow(new Date(nowMs), BUSINESS.timezone, BUSINESS.hours.structured);
+      const dayStartEpoch = Math.floor(dayWindow.dayStartMs / 1000);
+      const todayEvents = rowsOf(await d.execute(sql`
+        SELECT camera, fromState, toState, reason, UNIX_TIMESTAMP(at) AS atEpoch
+        FROM camera_health_events
+        WHERE at >= FROM_UNIXTIME(${dayStartEpoch})
+        ORDER BY at ASC, id ASC
+      `));
+      // The last row before the day, per expected camera. One indexed LIMIT 1 read each, ordered
+      // by time first: TiDB ids are allocated in per-node ranges and are NOT time-ordered, so
+      // MAX(id) could name a row from an hour earlier (server/__tests__/latestByIdOrdering).
+      const anchorByCamera = new Map<string, Record<string, unknown>>();
+      for (const c of EXPECTED_CAMERAS) {
+        const [anchor] = rowsOf(await d.execute(sql`
+          SELECT camera, toState, reason, UNIX_TIMESTAMP(at) AS atEpoch
+          FROM camera_health_events
+          WHERE camera = ${c.camera} AND at < FROM_UNIXTIME(${dayStartEpoch})
+            -- The last row whose state actually CHANGED: a same-state "producer restarted" row
+            -- would make "healthy for 2 h" of a camera that has been healthy for days.
+            AND (fromState IS NULL OR fromState <> toState)
+          ORDER BY at DESC, id DESC
+          LIMIT 1
+        `));
+        if (anchor) anchorByCamera.set(c.camera, anchor);
+      }
+      // Declared BEFORE their first use: the coverage block below calls eventRow through
+      // timelineFor, and a `const` read before its line throws at runtime while compiling clean
+      // (tsc does not track the temporal dead zone across closures). Caught by review on #2929;
+      // lotHealth.test.ts now executes this handler with one anchor row so the shape cannot return.
       const bool = (v: unknown): boolean | null =>
         v === null || v === undefined ? null : Boolean(Number(v));
       const str = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
+      const eventRow = (e: Record<string, unknown>): HealthEventRow => ({
+        toState: String(e.toState),
+        fromState: str(e.fromState),
+        reason: str(e.reason),
+        atMs: num(e.atEpoch) * 1000,
+      });
+      const timelineFor = (camera: string) => {
+        const a = anchorByCamera.get(camera);
+        return buildCameraTimeline({
+          anchor: a ? eventRow(a) : null,
+          events: todayEvents.filter((e) => String(e.camera) === camera).map(eventRow),
+          dayStartMs: dayWindow.dayStartMs,
+          nowMs,
+        });
+      };
+      const byCamera = new Map(runtime.map((r) => [String(r.camera), r]));
 
       const describe = (
         camera: string,
@@ -1064,6 +1153,7 @@ export const lotRouter = router({
                 ageSeconds: numOrNull(r.ageSeconds),
                 observedAtEdgeEpoch: numOrNull(r.observedAtEdgeEpoch),
                 receivedAtEpoch: numOrNull(r.receivedAtEpoch),
+                heartbeatSeq: numOrNull(r.heartbeatSeq),
                 sourceConnected: bool(r.sourceConnected),
                 lastHealthyFrameAtEpoch: numOrNull(r.lastHealthyFrameAtEpoch),
                 frameOk: bool(r.frameOk),
@@ -1101,9 +1191,14 @@ export const lotRouter = router({
           // the heartbeats stopped, not when `stateSince` last moved: no heartbeat arrives to
           // move it, so the row still says HEALTHY-since-this-morning while the camera has been
           // dark since dusk. The alert policy already keys those states on the last heartbeat;
-          // the card and the confidence strip must say the same number.
+          // the card and the confidence strip must say the same number. The exception is a
+          // solar camera whose edge is still heartbeating with no stream: its heartbeat age
+          // resets every 30 s, so the card read "dark for 20 s" all night (Codex on #2927); the
+          // ingest records that state itself now, so the producer's own clock is the one to show.
           stateForSeconds: r
-            ? (verdict.state === "STALE" || verdict.state === "PRODUCER_OFFLINE" || verdict.state === "EXPECTED_SOLAR_OFFLINE"
+            ? (verdict.state === "STALE" ||
+               verdict.state === "PRODUCER_OFFLINE" ||
+               (verdict.state === "EXPECTED_SOLAR_OFFLINE" && (numOrNull(r.ageSeconds) ?? Infinity) > HEALTH_THRESHOLDS.staleAfterSeconds)
                 ? numOrNull(r.ageSeconds)
                 : numOrNull(r.stateForSeconds))
             : null,
@@ -1170,6 +1265,29 @@ export const lotRouter = router({
             ? { outboxDepth: numOrNull(r.outboxDepth), oldestOutboxAgeSeconds: numOrNull(r.oldestOutboxAgeSeconds), deadLetterDepth: numOrNull(r.deadLetterDepth), cloudAckAgeSeconds: numOrNull(r.cloudAckAgeSeconds), diskFreeBytes: numOrNull(r.diskFreeBytes) }
             : null,
           openVisits: r ? num(r.openVisits) : 0,
+          // Today as state segments (audit N6): what "steady today" could not say. `current`
+          // is the state in force and its real start; `anchorKnown` false means the day opened
+          // on UNKNOWN because nothing was recorded before midnight. Reconciled with the state
+          // THIS read derives: the rows lag the 5-minute pass by up to a tick and never cover a
+          // camera the pass skips, so the open segment is cut where the live state began
+          // (review on #2929).
+          timeline: reconcileWithLive(
+            timelineFor(camera),
+            {
+              state: verdict.state,
+              sinceMs: r
+                ? derivedStateBeganAtMs({
+                    state: verdict.state,
+                    receivedAtEpoch: numOrNull(r.receivedAtEpoch),
+                    ageSeconds: numOrNull(r.ageSeconds),
+                    stateSinceEpoch: numOrNull(r.stateSinceEpoch),
+                    nowMs,
+                  })
+                : null,
+              reason: verdict.reason,
+            },
+            nowMs,
+          ),
         };
       };
 
@@ -1193,6 +1311,50 @@ export const lotRouter = router({
         );
       const cameras = [...expected, ...unregistered];
 
+      // HOW MUCH OF BUSINESS TIME THE LOT WAS WATCHED (audit N2), from the vehicle-truth
+      // camera's RECONCILED timeline (what this read sees, not only what the rows have caught up
+      // with). Minutes the camera was expected dark (EXPECTED_SOLAR_OFFLINE) are reported apart
+      // and excluded from `pctExpected`: the baseline days were dark at the same hours, so they
+      // are not a data-quality gap and must not discount the comparison twice (review on #2929).
+      const truth = expected.find((c) => c.role === "vehicle_truth") ?? null;
+      const minutes = (ms: number) => Math.round(ms / 60_000);
+      const coverage =
+        truth && truth.timeline && dayWindow.openMs !== null && dayWindow.closeMs !== null
+          ? (() => {
+              const tl = truth.timeline;
+              const cov = coverageByBusinessHour(tl.segments, businessHourWindows(dayWindow.openMs, dayWindow.closeMs), nowMs);
+              return {
+                camera: truth.camera,
+                weekday: dayWindow.weekday,
+                openMs: dayWindow.openMs,
+                closeMs: dayWindow.closeMs,
+                nowMs,
+                /** False when no row predates today: the morning before the first row is UNKNOWN, counted as not watched. */
+                anchorKnown: tl.anchorKnown,
+                /** HEALTHY share of business time so far; null before the shop opens. */
+                pct: cov.pct,
+                /** HEALTHY share of the business time the camera was EXPECTED to watch (solar minutes excluded); the gate reads this. */
+                pctExpected: cov.pctExpected,
+                elapsedMinutes: minutes(cov.elapsedMs),
+                watchedMinutes: minutes(cov.watchedMs),
+                unknownMinutes: minutes(cov.unknownMs),
+                solarMinutes: minutes(cov.solarMs),
+                hours: cov.hours.map((h) => ({
+                  /** The shop-local hour this cell covers, so the confidence read can scale the baseline per hour. */
+                  hour: Math.floor(localClock(new Date(h.startMs), BUSINESS.timezone).minutes / 60),
+                  startMs: h.startMs,
+                  endMs: h.endMs,
+                  elapsedMinutes: minutes(h.elapsedMs),
+                  watchedMinutes: minutes(h.watchedMs),
+                  unknownMinutes: minutes(h.unknownMs),
+                  solarMinutes: minutes(h.solarMs),
+                  pct: h.pct,
+                  pctExpected: h.pctExpected,
+                })),
+              };
+            })()
+          : null;
+
       return {
         ok: true as const,
         asOf: new Date().toISOString(),
@@ -1203,6 +1365,8 @@ export const lotRouter = router({
         cameras,
         healthy: cameras.filter((c) => c.state === "HEALTHY").length,
         expected: expected.length,
+        /** Vehicle-truth camera's HEALTHY share of business time so far, per hour (audit N2); null without hours today. */
+        coverage,
         transitions: transitions.map((t) => ({
           camera: String(t.camera),
           from: str(t.fromState),
@@ -1367,25 +1531,45 @@ export const lotRouter = router({
       const d = await dbTyped();
       if (!d) return { ok: false as const, reason: "database unavailable" };
       try {
-        const visit = rowsOf(await d.execute(sql`
-          SELECT visitId, departedAt FROM vehicle_visits WHERE visitId = ${input.visitId} LIMIT 1
-        `))[0];
-        if (!visit) return { ok: false as const, reason: `no visit ${input.visitId}` };
-        if (visit.departedAt) return { ok: false as const, reason: "this car has left; marks are for cars on the property" };
         const note = input.note?.trim() ? input.note.trim().slice(0, 191) : null;
+        // The open-visit check is INSIDE the write (claim-before-act): a departure the camera
+        // recorded between a SELECT and a separate INSERT appended a mark to a car that had
+        // already left (Codex on #2927). INSERT ... SELECT inserts nothing for a missing or a
+        // departed visit; the two refusals are then told apart by a read that races nothing.
         const inserted = await d.execute(sql`
           INSERT INTO vehicle_visit_marks (visitId, mark, markedBy, note)
-          VALUES (${input.visitId}, ${input.mark}, ${ctx.user.openId}, ${note})
+          SELECT v.visitId, ${input.mark}, ${ctx.user.openId}, ${note}
+            FROM vehicle_visits v
+           WHERE v.visitId = ${input.visitId} AND v.departedAt IS NULL
         `);
+        if ((affectedRows(inserted) ?? 0) !== 1) {
+          const visit = rowsOf(await d.execute(sql`
+            SELECT visitId, departedAt FROM vehicle_visits WHERE visitId = ${input.visitId} LIMIT 1
+          `))[0];
+          if (!visit) return { ok: false as const, reason: `no visit ${input.visitId}` };
+          return { ok: false as const, reason: "this car has left; marks are for cars on the property" };
+        }
         // Read back THIS row by its id: "the latest mark for the visit" could be another
         // admin's tap in the same second. No id from the driver -> the server clock stands in.
+        // A failed read-back after the committed insert is NOT a failed mark: the row exists, so
+        // the tap is reported recorded with the server clock; reporting a failure invited a
+        // retry that appended a duplicate (Codex on #2927).
         const id = insertedId(inserted);
-        const stamped = id === null
-          ? null
-          : rowsOf(await d.execute(sql`
+        let markedAtMs = Date.now();
+        if (id !== null) {
+          try {
+            const stamped = rowsOf(await d.execute(sql`
               SELECT ${sql.raw("UNIX_TIMESTAMP(markedAt)")} AS markedEpoch FROM vehicle_visit_marks WHERE id = ${id} LIMIT 1
             `))[0];
-        const markedAtMs = stamped?.markedEpoch != null ? num(stamped.markedEpoch) * 1000 : Date.now();
+            if (stamped?.markedEpoch != null) markedAtMs = num(stamped.markedEpoch) * 1000;
+          } catch (err) {
+            log.warn("lot.markVisit: mark recorded, timestamp read-back failed; reporting the server clock", {
+              visitId: input.visitId,
+              id,
+              error: logSafeErrorMessage(err),
+            });
+          }
+        }
         return { ok: true as const, mark: input.mark, markedAtMs };
       } catch (err) {
         if (isMissingTableError(err)) {

@@ -27,6 +27,8 @@ import { createLogger } from "../lib/logger";
 import { deriveCameraState, shopOpenAt } from "../lib/cameraHealth";
 import { solarExpectedOffline } from "../lib/solar";
 import { cameraRuntimeHasColumns } from "../lib/heartbeatStorableColumns";
+import { derivedStateBeganAtMs, derivedTransition } from "../lib/cameraTimeline";
+import { isMissingTableError } from "../lib/dbErrors";
 import { EXPECTED_CAMERAS, cameraPowerFor } from "../../shared/cameras";
 import {
   cameraAlertClaim,
@@ -151,14 +153,17 @@ export async function runCameraHealthAlertSelfTest(input?: {
   };
 }
 
-/** The most recent page about this camera, degraded or recovery, and how long ago it fired. */
+/**
+ * The most recent page about this camera, degraded or recovery, how long ago it fired, and the
+ * vision facet recorded with it (null for a claim written before that field existed).
+ */
 async function latestCameraAlert(
   db: Db,
   camera: string,
-): Promise<{ key: string; ageSeconds: number | null } | null> {
+): Promise<{ key: string; ageSeconds: number | null; vision: string | null; frames: string | null } | null> {
   const prefix = `camera_health:${camera}:%`;
   const [rows] = await db.execute(sql`
-    SELECT alert_key, UNIX_TIMESTAMP() - UNIX_TIMESTAMP(fired_at) AS ageSeconds
+    SELECT alert_key, payload, UNIX_TIMESTAMP() - UNIX_TIMESTAMP(fired_at) AS ageSeconds
       FROM cron_alerts_fired
      WHERE alert_key LIKE ${prefix}
      ORDER BY fired_at DESC
@@ -166,7 +171,83 @@ async function latestCameraAlert(
   `);
   const row = (rows as Array<Record<string, unknown>>)[0];
   if (!row?.alert_key) return null;
-  return { key: String(row.alert_key), ageSeconds: numberOrNull(row.ageSeconds) };
+  let vision: string | null = null;
+  let frames: string | null = null;
+  try {
+    const payload = typeof row.payload === "string" ? JSON.parse(row.payload) : row.payload;
+    if (payload && typeof payload === "object") {
+      const p = payload as { vision?: unknown; frames?: unknown };
+      if (typeof p.vision === "string") vision = p.vision;
+      if (typeof p.frames === "string") frames = p.frames;
+    }
+  } catch {
+    vision = null; // an unreadable payload is "not recorded", which the policy treats cautiously
+    frames = null;
+  }
+  return { key: String(row.alert_key), ageSeconds: numberOrNull(row.ageSeconds), vision, frames };
+}
+
+/**
+ * The health TIMELINE's second writer (audit N6). The heartbeat ingest logs the producer's own
+ * state changes into `camera_health_events`; it cannot log STALE, PRODUCER_OFFLINE or
+ * EXPECTED_SOLAR_OFFLINE, because no heartbeat arrives to log them, so until this pass the
+ * table read HEALTHY straight through every outage. Each tick compares the state this job
+ * DERIVES with the last row for the camera and writes one transition when they differ.
+ *
+ * A missing table is logged once and skipped (the table is hand-applied, like every migration
+ * here); any other failure propagates to the caller, which pages first and throws after -- a
+ * timeline that stopped must not pass as a quiet tick.
+ */
+let timelineTableMissingLogged = false;
+export async function recordDerivedHealthTransition(
+  db: Db,
+  camera: string,
+  verdict: { state: HealthState; reason: string },
+  producerInstanceId: string | null,
+  /** When the derived state BEGAN on the heartbeat clock (derivedStateBeganAtMs), epoch seconds; null = now. */
+  beganAtEpoch: number | null = null,
+): Promise<boolean> {
+  try {
+    const [rows] = await db.execute(sql`
+      SELECT toState, UNIX_TIMESTAMP(at) AS atEpoch FROM camera_health_events
+       WHERE camera = ${camera}
+       ORDER BY at DESC, id DESC
+       LIMIT 1
+    `);
+    const latest = (rows as Array<Record<string, unknown>>)[0];
+    const latestToState = latest?.toState == null ? null : String(latest.toState);
+    const latestAtEpoch = latest?.atEpoch == null ? null : Number(latest.atEpoch);
+    const transition = derivedTransition(latestToState, verdict);
+    if (!transition) return false;
+    // Stamped where the state began, not when this tick noticed it: a row stamped at the tick
+    // counted up to five minutes of a dead producer as watched (review on #2929). Never before
+    // the row it follows (the timeline is read in `at` order) and never in the future.
+    const nowEpoch = Math.floor(Date.now() / 1000);
+    let atEpoch: number | null = beganAtEpoch === null ? null : Math.min(Math.floor(beganAtEpoch), nowEpoch);
+    if (atEpoch !== null && latestAtEpoch !== null && Number.isFinite(latestAtEpoch) && atEpoch <= latestAtEpoch) {
+      atEpoch = Math.min(latestAtEpoch + 1, nowEpoch);
+    }
+    await db.execute(sql`
+      INSERT INTO camera_health_events (camera, fromState, toState, reason, producerInstanceId, sourceGeneration, at)
+      VALUES (${camera}, ${transition.from}, ${transition.to}, ${transition.reason}, ${producerInstanceId}, ${null},
+              ${atEpoch === null ? sql`NOW()` : sql`FROM_UNIXTIME(${atEpoch})`})
+    `);
+    log.info("camera health timeline: derived transition recorded", {
+      camera,
+      from: transition.from,
+      to: transition.to,
+    });
+    return true;
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      if (!timelineTableMissingLogged) {
+        timelineTableMissingLogged = true;
+        log.warn("camera_health_events is missing; derived transitions are not recorded until it is applied", { camera });
+      }
+      return false;
+    }
+    throw err;
+  }
 }
 
 export async function runCameraHealthAlerts(): Promise<{
@@ -190,6 +271,8 @@ export async function runCameraHealthAlerts(): Promise<{
   const cameraNames = commissioned.map((camera) => camera.camera);
   const [rows] = await db.execute(sql`
     SELECT camera,
+           producerInstanceId,
+           heartbeatSeq,
            UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt) AS ageSeconds,
            UNIX_TIMESTAMP(observedAtEdge) AS observedAtEdgeEpoch,
            UNIX_TIMESTAMP(receivedAt) AS receivedAtEpoch,
@@ -219,7 +302,13 @@ export async function runCameraHealthAlerts(): Promise<{
 
   let sent = 0;
   let held = 0;
+  let recorded = 0;
+  let timelineFailure: unknown = null;
+  // One camera's undeliverable page must not stop the next camera from being judged, recorded
+  // and paged on the same tick (review on #2929); the failure is thrown after the loop.
+  let deliveryFailure: unknown = null;
   const observed: string[] = [];
+  const nowMs = Date.now();
 
   for (const expected of commissioned) {
     const row = byCamera.get(expected.camera);
@@ -229,6 +318,7 @@ export async function runCameraHealthAlerts(): Promise<{
             ageSeconds: numberOrNull(row.ageSeconds),
             observedAtEdgeEpoch: numberOrNull(row.observedAtEdgeEpoch),
             receivedAtEpoch: numberOrNull(row.receivedAtEpoch),
+            heartbeatSeq: numberOrNull(row.heartbeatSeq),
             sourceConnected: boolOrNull(row.sourceConnected),
             lastHealthyFrameAtEpoch: numberOrNull(row.lastHealthyFrameAtEpoch),
             frameOk: boolOrNull(row.frameOk),
@@ -256,12 +346,40 @@ export async function runCameraHealthAlerts(): Promise<{
     );
     observed.push(`${expected.camera}=${verdict.state}`);
 
+    // The timeline row for the state this pass derived (audit N6), written before the page so
+    // the two agree on what happened. A failure is kept, not thrown here: every camera is still
+    // judged and paged, then the run fails loudly at the end.
+    try {
+      const beganAtMs = derivedStateBeganAtMs({
+        state: verdict.state,
+        receivedAtEpoch: row ? numberOrNull(row.receivedAtEpoch) : null,
+        ageSeconds: row ? numberOrNull(row.ageSeconds) : null,
+        stateSinceEpoch: row ? numberOrNull(row.stateSinceEpoch) : null,
+        nowMs,
+      });
+      if (
+        await recordDerivedHealthTransition(
+          db,
+          expected.camera,
+          verdict,
+          row?.producerInstanceId == null ? null : String(row.producerInstanceId),
+          beganAtMs === null ? null : Math.floor(beganAtMs / 1000),
+        )
+      ) {
+        recorded++;
+      }
+    } catch (err) {
+      timelineFailure = err;
+    }
+
     const latest = await latestCameraAlert(db, expected.camera);
     const decision = cameraAlertDecision(
       verdict.state,
       latest?.key ?? null,
       verdict.facets,
       latest?.ageSeconds ?? null,
+      latest?.vision,
+      latest?.frames,
     );
     if (decision.held) held++;
     if (!decision.notify) continue;
@@ -290,22 +408,39 @@ export async function runCameraHealthAlerts(): Promise<{
       reason: verdict.reason,
       recovery: decision.recovery,
       episode,
+      // The vision AND frames facets AT PAGE TIME, so a later HEALTHY can tell a blind-canary
+      // page (recovery waits for the detector to see again) from a frozen-capture page (recovers
+      // like any other): on a quiet lot a frozen capture reads vision=blind too.
+      vision: verdict.facets.vision,
+      frames: verdict.facets.frames,
     });
     if (!claimed) continue;
 
-    await deliverClaimedAlert({
-      db,
-      camera: expected.camera,
-      state: verdict.state,
-      claim,
-      alert: formatCameraHealthAlert({
+    try {
+      await deliverClaimedAlert({
+        db,
         camera: expected.camera,
-        label: expected.label,
-        role: expected.role,
-        verdict,
-        recovery: decision.recovery,
-      }),
-    });
+        state: verdict.state,
+        claim,
+        alert: formatCameraHealthAlert({
+          camera: expected.camera,
+          label: expected.label,
+          role: expected.role,
+          verdict,
+          recovery: decision.recovery,
+        }),
+      });
+    } catch (err) {
+      // The claim was released inside deliverWithConfirmedNotification, so the page is retried
+      // next tick; the other cameras still get their turn on this one.
+      deliveryFailure = err;
+      log.error("camera health alert delivery failed; continuing with the other cameras", {
+        camera: expected.camera,
+        state: verdict.state,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      continue;
+    }
     sent++;
     if (decision.recovery) {
       log.info("camera health recovery fired", {
@@ -323,8 +458,21 @@ export async function runCameraHealthAlerts(): Promise<{
     }
   }
 
+  if (timelineFailure) {
+    throw new Error(
+      `camera-health-alerts: ${sent} alert(s) sent, then the health timeline write failed: ${
+        timelineFailure instanceof Error ? timelineFailure.message : String(timelineFailure)
+      }`,
+    );
+  }
+  if (deliveryFailure) {
+    throw deliveryFailure instanceof Error
+      ? deliveryFailure
+      : new Error(`camera-health-alerts: ${sent} alert(s) sent, one delivery failed: ${String(deliveryFailure)}`);
+  }
+
   return {
     recordsProcessed: sent,
-    details: `${sent} alert(s)${held ? `, ${held} held by the ${Math.round(cameraAlertCooldownSeconds() / 60)}-minute cooldown` : ""}; ${observed.join(", ")}`,
+    details: `${sent} alert(s)${held ? `, ${held} held by the ${Math.round(cameraAlertCooldownSeconds() / 60)}-minute cooldown` : ""}${recorded ? `, ${recorded} timeline transition(s) recorded` : ""}; ${observed.join(", ")}`,
   };
 }

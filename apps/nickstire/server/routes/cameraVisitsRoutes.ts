@@ -41,7 +41,10 @@ import { z } from "zod";
 import { sql } from "drizzle-orm";
 
 import { maskPlate, normalizePlate, PLATE_MATCH_CLASSES } from "../lib/plate";
-import { deriveStateAtIngest, shopOpenAt } from "../lib/cameraHealth";
+import { deriveStateAtIngest, HEALTH_THRESHOLDS, shopOpenAt } from "../lib/cameraHealth";
+import { resumptionTransition, retroOutageTransition } from "../lib/cameraTimeline";
+import { solarExpectedOffline } from "../lib/solar";
+import { cameraPowerFor } from "../../shared/cameras";
 import { isUnknownColumnError } from "../lib/dbErrors";
 import {
   CAMERA_RUNTIME_COLUMNS_SINCE_0124,
@@ -625,6 +628,9 @@ export function registerCameraHeartbeatRoute(app: Express): void {
     const verdict = deriveStateAtIngest({
       observedAtEdgeEpoch: epoch(b.observedAtEdge),
       receivedAtEpoch: nowEpoch,
+      // The producer's uptime proxy: a zero detection window inside the first 600 s of a
+      // restarted edge is warming, not blind (Codex on #2920).
+      heartbeatSeq: b.heartbeatSeq,
       sourceConnected: b.sourceConnected ?? null,
       lastHealthyFrameAtEpoch: epoch(b.lastHealthyFrameAt),
       frameOk: b.frameOk ?? null,
@@ -642,7 +648,12 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       outboxDepth: b.outboxDepth ?? null,
       oldestOutboxAgeSeconds: b.oldestOutboxAgeSeconds ?? null,
       deadLetterDepth: b.deadLetterDepth ?? null,
-    }, cameraHealthProfileFor(b.camera));
+    }, cameraHealthProfileFor(b.camera), {
+      // The same sky lot.health and the alert pass judge by: a solar camera's edge that is up
+      // with no stream inside its window is EXPECTED_SOLAR_OFFLINE in the row and in the
+      // transition it logs, not a CAMERA_OFFLINE drop every evening (Codex on #2927).
+      solar: cameraPowerFor(b.camera) === "solar" ? solarExpectedOffline(new Date()) : null,
+    });
 
     const values: Record<(typeof HEARTBEAT_COLUMNS)[number], unknown> = {
       camera: b.camera,
@@ -721,7 +732,10 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       // between two heartbeats for one camera is benign: the guard orders the
       // rows, and the worst case is one duplicated transition line.
       const prevRows = await d.execute(sql`
-        SELECT state, producerInstanceId FROM camera_runtime WHERE camera = ${b.camera}
+        SELECT state, producerInstanceId,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt) AS gapSeconds,
+               UNIX_TIMESTAMP(receivedAt) AS prevReceivedEpoch
+          FROM camera_runtime WHERE camera = ${b.camera}
       `);
       const prevList = (Array.isArray(prevRows) ? prevRows[0] : prevRows) as unknown as Array<Record<string, unknown>> | undefined;
       const prev = Array.isArray(prevList) && prevList.length ? prevList[0] : null;
@@ -772,6 +786,50 @@ export function registerCameraHeartbeatRoute(app: Express): void {
           transition = { from: prevState, to: verdict.state, reason: verdict.reason };
         } else if (prevInstance !== null && prevInstance !== b.producerInstanceId) {
           transition = { from: prevState, to: verdict.state, reason: "producer restarted (new instance id)" };
+        }
+        if (!transition) {
+          // A producer coming BACK after a read-derived outage (audit N6). Its reported state
+          // did not change, so the branch above saw nothing -- but the 5-minute pass may have
+          // logged STALE / PRODUCER_OFFLINE / EXPECTED_SOLAR_OFFLINE while it was silent, and
+          // the recovery belongs at this heartbeat, not at the next tick. Only a gap past the
+          // stale threshold can mean that, so a normal cadence never pays for the extra read.
+          const gapSeconds = prev && prev.gapSeconds != null ? Number(prev.gapSeconds) : null;
+          if (gapSeconds !== null && Number.isFinite(gapSeconds) && gapSeconds > HEALTH_THRESHOLDS.staleAfterSeconds) {
+            const latestRows = await d.execute(sql`
+              SELECT toState FROM camera_health_events
+               WHERE camera = ${b.camera}
+               ORDER BY at DESC, id DESC
+               LIMIT 1
+            `);
+            const latestList = (Array.isArray(latestRows) ? latestRows[0] : latestRows) as unknown as Array<Record<string, unknown>> | undefined;
+            const latestToState =
+              Array.isArray(latestList) && latestList.length && latestList[0].toState != null ? String(latestList[0].toState) : null;
+            // A gap the 5-minute pass never recorded (it fell between two ticks) is written here,
+            // stamped where it began on the heartbeat clock, so a short outage is neither
+            // invisible nor counted as watched (review on #2929). A solar camera that went dark
+            // inside its window is recorded as expected, not as a fault.
+            const retro = retroOutageTransition({
+              gapSeconds,
+              prevReceivedEpoch: prev && prev.prevReceivedEpoch != null ? Number(prev.prevReceivedEpoch) : null,
+              latestToState,
+              solarExpectedAt:
+                cameraPowerFor(b.camera) === "solar" ? (ms) => solarExpectedOffline(new Date(ms)).expectedOffline : null,
+            });
+            if (retro) {
+              await d.execute(sql`
+                INSERT INTO camera_health_events (camera, fromState, toState, reason, producerInstanceId, sourceGeneration, at)
+                VALUES (${b.camera}, ${retro.from}, ${retro.to}, ${retro.reason},
+                        ${prev && prev.producerInstanceId != null ? String(prev.producerInstanceId) : null}, ${null},
+                        FROM_UNIXTIME(${retro.atEpoch}))
+              `);
+            }
+            transition = resumptionTransition({
+              gapSeconds,
+              staleAfterSeconds: HEALTH_THRESHOLDS.staleAfterSeconds,
+              latestToState: retro ? retro.to : latestToState,
+              state: verdict.state,
+            });
+          }
         }
         if (transition) {
           await d.execute(sql`
