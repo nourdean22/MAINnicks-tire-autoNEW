@@ -43,10 +43,10 @@
   },
   "devDependencies": {
     "@types/node": "25.9.4",
-    "lefthook": "2.1.14",
+    "lefthook": "2.1.16",
     "sherif": "1.13.0",
     "syncpack": "15.3.3",
-    "turbo": "^2.11.3",
+    "turbo": "^2.11.6",
     "typescript": "catalog:"
   },
   "engines": {
