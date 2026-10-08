@@ -3580,6 +3580,36 @@
         "pairing before/after by metric + position on the customer page (today the after list renders under the before list)",
         "an admin list of past inspections beyond the Verify work dropdown (inspection.list exists; no browse UI)"
       ]
+    },
+    {
+      "capabilityId": "receptionist-prompt-evolution-gate",
+      "name": "Weekly receptionist prompt evolution proposes a candidate only through a calibrated holdout gate",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o (094cb418): server/services/promptEvolutionGate.ts replaces the holdout rule in services/promptEvolution.ts. Was `candidate passRate > baseline passRate` over ~5 holdout seeds with one ghost replay each; now 3 replays per seed per prompt, an exact one-sided sign-flip permutation test on per-seed pass-rate differences (alpha 0.05), a veto when a call the served prompt passes on every replay is failed on every replay, and an explicit underpowered outcome. The weekly cron (cron/jobs/promptEvolutionWeekly.ts) runs 30 seeds (~12 on the holdout), logs one structured `[evolve] result` line and writes the gate reading into cron_log details and Telegram. Still PROPOSE-ONLY: the served prompt is never written; applying a proposal is an operator edit + Push Config. ghostReplay.ts and promptEvolutionGate.ts are evaluator paths (config/agent-os/evaluator-paths.json).",
+        "tests": [
+          "server/services/promptEvolutionGate.test.ts (13): seeded calibration in the experimentKernelCalibration style. CONTROL: the replaced rule accepts two identical prompts in > 20% of runs (measured 28.7% at 5 seeds, 36.9% at 12; 20,000 runs, mulberry32 seed 99); the gate holds A/A acceptance <= 5% (measured 0.7%); power >= 75% for a candidate fixing 5 of 12 always-failing calls (measured 82.4%; a plain sign test 45.0%, kept as a second CONTROL); regression veto; a candidate's own 'unresolvable' loss counts as a loss; exact permutation p on hand-countable cases. Six mutations each turn the file red (no significance, veto removed, either-arm unresolvable exclusion, permutation DP broken, magnitude dropped, unresolvable replay counted as a pass).",
+          "server/cron/jobs/promptEvolutionWeekly.test.ts (4): the gate's reason, +improved/-worsened and p reach cron_log details; a regressed call id reaches Telegram",
+          "server/vapi.customer-corpus-tuning.test.ts: the Telegram summary still labels an accepted candidate OFFLINE and 'NOT a production/business winner'"
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not observed in production under the new gate yet. The first Monday run after deploy is the live confirmation: Railway shows one `[evolve] result` line with a non-null gate reading (or a named earlier outcome), cron_log details carry `gate <reason> +N/-M p=`, and the run finishes inside the job's 30-minute budget at 30 seeds (the 12-seed run took 118.6s on 2026-10-05). That 2026-10-05 run's own outcome was never logged; it is readable only from cron_log details or shop_settings key prompt_evolution_latest.",
+          "source": "2026-10-08 AutoResearch audit"
+        }
+      ],
+      "deferredScope": [
+        "a frozen, versioned seed corpus: unnecessary for the gate, because the comparison is paired on the same seeds within one run, so weekly pool rotation cannot bias it",
+        "measuring the replay noise of the production model lanes directly (the simulation uses the CURRENT-TRUTH +/-1-2 seed description; the per-run `baseline self-disagreement` count in the verdict is the live reading)"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {
