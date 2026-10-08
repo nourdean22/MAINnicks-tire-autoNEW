@@ -58,7 +58,10 @@ vi.mock("@/lib/prisma", () => {
         findFirst: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
           const rows = (store.events as Row[]).filter((r) => matches(r, where));
           rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-          return rows[0] ?? null;
+          // A SNAPSHOT, as Postgres returns one: a caller that read the row keeps what it read
+          // even after another caller's UPDATE lands. Returning the live object would let the
+          // second of two racing retries see the first one's claim for free.
+          return rows[0] ? structuredClone(rows[0]) : null;
         }),
         create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
           // The partial UNIQUE index of migrations-pending/20261007120000_device_events_identity_indexes:
@@ -75,6 +78,15 @@ vi.mock("@/lib/prisma", () => {
           const row = store.events.find((r) => r.id === where.id)!;
           Object.assign(row, data);
           return row;
+        }),
+        // The compare-and-swap the page claim uses: every row matching the WHERE (id, JSON-path
+        // equals, AND list) is rewritten, and the count says who won. Synchronous inside the
+        // mock, like one UPDATE statement, so two callers interleave the way Postgres serialises
+        // them: the second swap sees the first swap's write.
+        updateMany: vi.fn(async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+          const rows = (store.events as Row[]).filter((r) => (!where.id || r.id === where.id) && matches(r, where));
+          for (const row of rows) Object.assign(row, data);
+          return { count: rows.length };
         }),
         findUnique: vi.fn(async ({ where }: { where: { id: string } }) => store.events.find((r) => r.id === where.id) ?? null),
       },
@@ -336,5 +348,114 @@ describe("Arrival Intelligence ingest · row before page, unique eventId, weeken
     const later = await handleVehicleEvent(deviceId, base({ state: "ENTERED_ZONE", visitId: "v-weekend", trackId: "t-next" }, { schemaVersion: 2, eventId: "e-next" }));
     expect(later).not.toBe(first);
     expect(store.events).toHaveLength(2);
+  });
+});
+
+/**
+ * Hardening 2026-10-08 (Codex P1 on #2920). Finishing a pending page was a read-then-update:
+ * two retries that both found the marker both paged. The page is now a CLAIM (compare-and-swap
+ * pinned on the marker and the lease deadline the decision read), and the writer's own lease
+ * keeps a retry off a page that is still in flight. Positive control: against the pre-fix
+ * service the first test paged twice (sendTelegramWithButtons called 2 times) and the second
+ * paged once where it must not; both green after.
+ */
+describe("Arrival Intelligence ingest · exclusive page claim", () => {
+  const pendingRow = (eventId: string, visitId: string, extra: Record<string, unknown> = {}) =>
+    prisma.deviceEvent.create({
+      data: {
+        deviceId,
+        event: "vehicle_detected",
+        source: "frigate",
+        timestamp: new Date(),
+        data: { eventId, visitId, state: "CONFIRMED_ARRIVAL", zone: "front_lot", cameraId: "sign", telegramMessageId: null, alertSuppressedReason: "pending", ...extra },
+      },
+    });
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.mocked(datetime.hourET).mockReturnValue(12);
+    await prisma.deviceEvent.deleteMany({});
+  });
+
+  it("two retries that both find a dead writer's pending row page ONCE: the second loses the swap", async () => {
+    const seeded = await pendingRow("e-two", "v-two"); // a row from before leases: no deadline to pin, marker alone decides
+    vi.clearAllMocks();
+    // Hold the first page open so the second retry arrives while it is in flight.
+    let release!: (v: { ok: boolean; messageId: number }) => void;
+    const gate = new Promise<{ ok: boolean; messageId: number }>((resolve) => { release = resolve; });
+    vi.mocked(telegram.sendTelegramWithButtons).mockImplementationOnce(() => gate as never);
+    const payload = base({ state: "CONFIRMED_ARRIVAL", visitId: "v-two" }, { schemaVersion: 2, eventId: "e-two" });
+    const first = handleVehicleEvent(deviceId, payload);
+    const second = handleVehicleEvent(deviceId, payload);
+    // One macrotask drains every microtask: the first caller is parked on the gate with its
+    // page in flight, the second has read the row, lost the swap and returned.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
+    release({ ok: true, messageId: 424242 });
+    expect(await Promise.all([first, second])).toEqual([seeded.id, seeded.id]);
+    expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
+    expect(push.sendPush).toHaveBeenCalledOnce();
+    const row = await prisma.deviceEvent.findUnique({ where: { id: seeded.id } });
+    expect((row?.data as Record<string, unknown>).alertSuppressedReason).toBeNull();
+    expect((row?.data as Record<string, unknown>).telegramMessageId).toBe("424242");
+    // The claim moved the marker before paging, so the losing swap found no "pending" row.
+    const swaps = vi.mocked(prisma.deviceEvent.updateMany).mock.calls.map((c) => c[0] as { where: { AND?: unknown[] } });
+    expect(swaps.filter((s) => Array.isArray(s.where.AND)).length).toBe(2);
+  });
+
+  it("a retry inside the writer's lease leaves the row alone: the writer is still paging", async () => {
+    const seeded = await pendingRow("e-fresh", "v-fresh", { alertClaimedAt: Date.now() - 5_000 });
+    vi.clearAllMocks();
+    const id = await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", visitId: "v-fresh" }, { schemaVersion: 2, eventId: "e-fresh" }));
+    expect(id).toBe(seeded.id);
+    expect(telegram.sendTelegramWithButtons).not.toHaveBeenCalled();
+    expect(push.sendPush).not.toHaveBeenCalled();
+    expect(prisma.deviceEvent.updateMany).not.toHaveBeenCalled();
+    const row = await prisma.deviceEvent.findUnique({ where: { id: seeded.id } });
+    expect((row?.data as Record<string, unknown>).alertSuppressedReason).toBe("pending");
+  });
+
+  it("a retry past the lease claims the page and pins BOTH fields it read: the marker and the deadline", async () => {
+    const stale = Date.now() - 120_000;
+    const seeded = await pendingRow("e-stale", "v-stale", { alertClaimedAt: stale });
+    vi.clearAllMocks();
+    const id = await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", visitId: "v-stale" }, { schemaVersion: 2, eventId: "e-stale" }));
+    expect(id).toBe(seeded.id);
+    expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
+    const claim = vi.mocked(prisma.deviceEvent.updateMany).mock.calls[0][0] as {
+      where: { id: string; AND: Array<{ data: { path: string[]; equals: unknown } }> };
+      data: { data: Record<string, unknown> };
+    };
+    expect(claim.where.id).toBe(seeded.id);
+    expect(claim.where.AND).toEqual([
+      { data: { path: ["alertSuppressedReason"], equals: "pending" } },
+      { data: { path: ["alertClaimedAt"], equals: stale } },
+    ]);
+    expect(claim.data.data.alertSuppressedReason).toBe("paging");
+    expect(claim.data.data.alertClaimedAt).toBeGreaterThan(stale);
+    // The clear is pinned on the lease the claim wrote, never a bare update by id.
+    const clear = vi.mocked(prisma.deviceEvent.updateMany).mock.calls[1][0] as { where: { data: { path: string[]; equals: unknown } } };
+    expect(clear.where.data).toEqual({ path: ["alertClaimedAt"], equals: claim.data.data.alertClaimedAt });
+    expect(prisma.deviceEvent.update).not.toHaveBeenCalled();
+  });
+
+  it("the writer leases its own page and clears it pinned on that lease", async () => {
+    const id = await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", visitId: "v-own" }, { schemaVersion: 2, eventId: "e-own" }));
+    const created = vi.mocked(prisma.deviceEvent.create).mock.calls[0][0] as { data: { data: Record<string, unknown> } };
+    expect(created.data.data.alertSuppressedReason).toBe("pending");
+    expect(typeof created.data.data.alertClaimedAt).toBe("number");
+    const clear = vi.mocked(prisma.deviceEvent.updateMany).mock.calls[0][0] as { where: { id: string; data: { path: string[]; equals: unknown } } };
+    expect(clear.where).toEqual({ id, data: { path: ["alertClaimedAt"], equals: created.data.data.alertClaimedAt } });
+    const row = await prisma.deviceEvent.findUnique({ where: { id } });
+    expect((row?.data as Record<string, unknown>).alertSuppressedReason).toBeNull();
+  });
+
+  it("a lease lost mid-page is recorded, not thrown, and never overwrites the new holder's marker", async () => {
+    // The page outran the lease and a retry re-claimed the row: the writer's pinned clear matches nothing.
+    vi.mocked(prisma.deviceEvent.updateMany).mockResolvedValueOnce({ count: 0 });
+    const id = await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", visitId: "v-lost" }, { schemaVersion: 2, eventId: "e-lost" }));
+    expect(typeof id).toBe("string");
+    expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
+    expect(prisma.deviceEvent.update).not.toHaveBeenCalled();
   });
 });
