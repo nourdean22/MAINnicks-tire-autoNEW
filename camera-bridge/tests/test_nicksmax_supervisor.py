@@ -314,3 +314,27 @@ def test_edge_code_rule_leaves_an_unarmed_down_or_starting_edge_alone(tmp_path: 
 def test_edge_fingerprint_ignores_office_modules_but_sees_edge_modules(tmp_path: Path):
     out = run_scenario("edge-code-fingerprint-skips-office-modules", tmp_path)
     assert out["markers"] == {"unchangedByOfficeModule": True, "changedByEdgeModule": True}
+
+
+# ---- venv launcher pairs: one worker, two matching processes ------------------------------------
+# Witnessed 2026-10-08 07:00-07:36 on NicksMax: the first dedupe pass killed the CHILD interpreter
+# of every venv worker (launcher pid N, real interpreter pid N+1 with the same command line, born
+# 50-360 ms apart), the launcher exited, the task went Ready, and the supervisor restarted the
+# office worker and the Eufy agent every two minutes (14 restarts an hour each, ESCALATE fired).
+
+
+def test_venv_launcher_and_its_child_are_one_worker_not_a_duplicate(tmp_path: Path):
+    out = run_scenario("dedupe-venv-launcher-pair-is-one-worker", tmp_path)
+    assert out["calls"] == [], out["log"]
+    assert out["state"]["eufy-agent"]["portMisses"] == 0
+
+
+def test_two_venv_trees_end_the_whole_newer_tree_and_keep_the_port_owner(tmp_path: Path):
+    out = run_scenario("dedupe-two-venv-trees-ends-the-newer-tree", tmp_path)
+    assert sorted(out["calls"]) == ["stop-pid:23", "stop-pid:24"], out["log"]
+    assert all("keeping pid=21" in line for line in out["log"] if "duplicate" in line)
+
+
+def test_office_venv_launcher_pair_is_left_alone(tmp_path: Path):
+    out = run_scenario("office-venv-launcher-pair-not-deduped", tmp_path)
+    assert out["calls"] == [], out["log"]

@@ -60,12 +60,13 @@ $taskStates = @{}
 $killed = New-Object System.Collections.Generic.List[int]
 $markers = @{}
 
-function Add-FakeProcess([int]$processId, [string]$name, [string]$commandLine, [int]$ageSeconds) {
+function Add-FakeProcess([int]$processId, [string]$name, [string]$commandLine, [int]$ageSeconds, [int]$parentProcessId = 0) {
   $fakeProcesses.Add([pscustomobject]@{
-    ProcessId    = $processId
-    Name         = $name
-    CommandLine  = $commandLine
-    CreationDate = (Get-Date).AddSeconds(-1 * $ageSeconds)
+    ProcessId       = $processId
+    ParentProcessId = $parentProcessId
+    Name            = $name
+    CommandLine     = $commandLine
+    CreationDate    = (Get-Date).AddSeconds(-1 * $ageSeconds)
   })
 }
 function Get-CimInstance { param([string]$ClassName, $ErrorAction)
@@ -156,6 +157,32 @@ switch ($Scenario) {
     Add-FakeProcess 22 "python.exe" $agentPython 60
     $taskStates["StateNour-Eufy-Agent-NicksMax"] = "Running"
     Heal-EufyTask $eufyTasks[1]
+  }
+  "dedupe-venv-launcher-pair-is-one-worker" {
+    # A venv python.exe is a launcher: the real interpreter is its CHILD with the same command
+    # line (witnessed 2026-10-08, pairs 50-360 ms apart). One worker, two matching processes.
+    Add-FakeProcess 21 "python.exe" $agentPython 600
+    Add-FakeProcess 22 "python.exe" $agentPython 599 21
+    $portOwners[3601] = 22
+    $taskStates["StateNour-Eufy-Agent-NicksMax"] = "Running"
+    Heal-EufyTask $eufyTasks[1]
+  }
+  "dedupe-two-venv-trees-ends-the-newer-tree" {
+    Add-FakeProcess 21 "python.exe" $agentPython 600
+    Add-FakeProcess 22 "python.exe" $agentPython 599 21
+    Add-FakeProcess 23 "python.exe" $agentPython 60
+    Add-FakeProcess 24 "python.exe" $agentPython 59 23
+    $portOwners[3601] = 22
+    $taskStates["StateNour-Eufy-Agent-NicksMax"] = "Running"
+    Heal-EufyTask $eufyTasks[1]
+  }
+  "office-venv-launcher-pair-not-deduped" {
+    Install-OfficeCode
+    Add-FakeProcess 31 "python.exe" $officePython 600
+    Add-FakeProcess 32 "python.exe" $officePython 599 31
+    $taskStates[$officeTask] = "Running"
+    Set-OfficeStatus 1 "READY" $null
+    Heal-OfficeWorker
   }
   "reclaim-orphan" {
     Add-FakeProcess 11 "node.exe" $bridgeNode 600

@@ -218,22 +218,50 @@ function Stop-PortOwner([int]$port,[string]$label) {
 
 # Two copies of one worker is never right: both post, both write the same heartbeat file, and the
 # newer one cannot bind the port. Keep the listener (else the oldest) and end the rest.
+#
+# Count process TREES, never processes. A venv python.exe is a LAUNCHER: it runs the real
+# interpreter as its child with the same command line (two matches, 50-360 ms apart, witnessed
+# 2026-10-08). The first per-process dedupe killed that child under every venv worker, the launcher
+# exited, the task went Ready, and this supervisor restarted the office worker and the Eufy agent
+# every two minutes (14 an hour each) until a human read the log. A tree whose member owns the port
+# is the one to keep; otherwise the oldest root. Ending a duplicate ends its whole tree.
 function Remove-DuplicateProcesses([string]$needle,[int]$port,[string]$label) {
   $procs = @(Get-ProcessesMatching $needle)
   if ($procs.Count -le 1) { return 0 }
+  $ids = @($procs | ForEach-Object { [int64]$_.ProcessId })
+  $roots = @($procs | Where-Object { $ids -notcontains [int64]$_.ParentProcessId })
+  if ($roots.Count -le 1) { return 0 }
   $owner = $null
   if ($port -gt 0) {
     $owner = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
       Select-Object -First 1 -ExpandProperty OwningProcess
   }
-  $keep = $procs | Where-Object { $_.ProcessId -eq $owner } | Select-Object -First 1
-  if (-not $keep) { $keep = $procs | Sort-Object CreationDate | Select-Object -First 1 }
+  $trees = @(foreach ($r in $roots) {
+    $members = @($r)
+    $grew = $true
+    while ($grew) {
+      $grew = $false
+      $memberIds = @($members | ForEach-Object { [int64]$_.ProcessId })
+      foreach ($p in $procs) {
+        if (($memberIds -contains [int64]$p.ParentProcessId) -and ($memberIds -notcontains [int64]$p.ProcessId)) {
+          $members += $p
+          $grew = $true
+        }
+      }
+    }
+    $memberIds = @($members | ForEach-Object { [int64]$_.ProcessId })
+    [pscustomobject]@{ Root = $r; Members = $members; OwnsPort = [bool]($owner -and ($memberIds -contains [int64]$owner)) }
+  })
+  $keep = @($trees | Where-Object { $_.OwnsPort }) | Select-Object -First 1
+  if (-not $keep) { $keep = @($trees | Sort-Object { $_.Root.CreationDate }) | Select-Object -First 1 }
   $stopped = 0
-  foreach ($p in $procs) {
-    if ($p.ProcessId -eq $keep.ProcessId) { continue }
-    Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
-    Log ("ACTION stopped duplicate {0} pid={1}; keeping pid={2}" -f $label,$p.ProcessId,$keep.ProcessId)
-    $stopped++
+  foreach ($t in $trees) {
+    if ($t.Root.ProcessId -eq $keep.Root.ProcessId) { continue }
+    foreach ($p in $t.Members) {
+      Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
+      Log ("ACTION stopped duplicate {0} pid={1}; keeping pid={2}" -f $label,$p.ProcessId,$keep.Root.ProcessId)
+      $stopped++
+    }
   }
   return $stopped
 }
