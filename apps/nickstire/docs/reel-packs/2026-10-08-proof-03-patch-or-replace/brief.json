@@ -16,7 +16,7 @@
     "#NicksTireAndAuto",
     "#EuclidAve"
   ],
-  "voiceoverScript": "Nail in the tire: patch or replace? In the tread area and under a quarter inch, it is often repairable. A proper repair comes off the wheel, gets inspected inside, then a plug plus an inside patch. Sidewall or shoulder, or over a quarter inch: replace. Bring the tire; we look inside first.",
+  "voiceoverScript": "Nail in the tire: patch or replace? In the tread area and under a quarter inch, it is often repairable. A proper repair comes off the wheel, gets inspected inside, then a plug plus an inside patch. Sidewall or shoulder, or over a quarter inch: replace. We look inside first, then we decide.",
   "storyboardBeats": [
     {
       "beatNumber": 1,
@@ -82,13 +82,13 @@
       "beatNumber": 6,
       "startSecond": 20,
       "endSecond": 24,
-      "purpose": "CTA: one action; loop back to the nail",
+      "purpose": "close: inside first, no ask (the end card carries it); loop back to the nail",
       "visual": "REAL: the nail in the tread from beat 1 with the zone outline, then the bay door or exterior for the last second",
       "motion": "hold on the macro, cut to a static exterior",
-      "onScreenText": "BRING THE TIRE. WE LOOK INSIDE.",
-      "narration": "Bring the tire; we look inside first.",
+      "onScreenText": "WE LOOK INSIDE FIRST, THEN DECIDE.",
+      "narration": "We look inside first, then we decide.",
       "audioCue": "music bed resolves; VO ends by 23.5s",
-      "safeZoneNotes": "CTA caption centred; logo and address only on the end card"
+      "safeZoneNotes": "closing caption centred; logo and address only on the end card"
     }
   ]
 }

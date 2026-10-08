@@ -27,8 +27,8 @@ ducked under VO. Estimated generation cost: **$0** (no AI shot in this Reel).
 
 ## Editorial contract check
 
-Frame one = evidence (no logo) ✓ · one idea per card ✓ (longest caption 6 words) · single CTA
-("get it checked"; the end card and the caption ask the same: stop by) ✓ · end card ≤ 2 s: the lane's end-card freeze is 3 s — review ✓/✗ with the
+Frame one = evidence (no logo) ✓ · one idea per card ✓ (longest caption 6 words) · single ask
+(the end card STOP BY NICK'S and the caption; beats and voiceover carry none) ✓ · end card ≤ 2 s: the lane's end-card freeze is 3 s — review ✓/✗ with the
 operator · readability gate: 0 blocking, 0 warnings · narration 41 words ≈ 21.0 s synthesized vs
 23 s audible ✓ · mechanical-truth packets: 0 violations · claim audit: none.
 

@@ -14,7 +14,7 @@ import {
   resolveApprovedPackSelection,
   writeActiveReelSlate,
 } from "./services/approvedReelPackRotation";
-import { askLeakageProblem, askProblem, type ReelAsk } from "../shared/reelAsk";
+import { askLeakageProblem, askProblem, askSignals, type ReelAsk } from "../shared/reelAsk";
 import { declaredBeatSource } from "../shared/shotRouter";
 
 describe("approved Reel-pack rotation", () => {
@@ -282,6 +282,26 @@ describe("proof packs and the declared beat source", () => {
       caption: "An inspection says which. Comment TREAD or book an inspection — Nick's Tire & Auto, Euclid Ave, Cleveland.",
       declaredAsk: { kind: "visit" },
     })).toMatch(/comment-keyword/);
+  });
+
+  // Codex review of #2932: askSignals has no pattern for the shop's own imperatives,
+  // so "GET IT CHECKED" in a beat passed the check above while the end card asked
+  // STOP BY NICK'S: two asks, one of them burned into pixels and audio. These are
+  // the editorial contract's CTA verbs plus the visit phrasing.
+  it("no proof pack beat, narration or voiceover carries a call to action; the end card is the one ask", () => {
+    const SHOP_CTA = /\b(book|call|comment|dm|visit|bring|get it checked|schedule|tap|message us|stop by|come in)\b/i;
+    for (const [old, line] of [["ONE EDGE WORN? GET IT CHECKED", "beat"], ["Bring the tire; we look inside first.", "voiceover"]]) {
+      expect(SHOP_CTA.test(old), `control: the removed ${line} is a CTA`).toBe(true);
+      expect(askSignals(old), `control: the production detector alone misses the removed ${line}`).toEqual([]);
+    }
+    for (const slug of PROOF) {
+      const snapshot = loadApprovedProductionPack(slug)!;
+      const surfaces = [
+        String(snapshot.parsed.voiceoverScript ?? ""),
+        ...beatsOf(snapshot).flatMap((b) => [String(b.onScreenText ?? ""), String(b.narration ?? "")]),
+      ];
+      for (const text of surfaces) expect(SHOP_CTA.test(text), `${slug}: ${text}`).toBe(false);
+    }
   });
 
   it("no proof pack promises a duration the shop has not verified", () => {

@@ -727,13 +727,16 @@ const defaultReaders: AssistantReaders = {
     const d = await getDb();
     if (!d) throw new Error("no database");
     const { igAutopostLog, reelJobs } = await import("../../drizzle/schema");
-    const { and, desc, eq, gte, inArray } = await import("drizzle-orm");
+    const { and, desc, eq, gte } = await import("drizzle-orm");
     const { parseReelJobPayload } = await import("../../shared/reelJobPayload");
     const windowDays = 30;
     const since = new Date(Date.now() - windowDays * 86_400_000);
     const [reels, photos] = await Promise.all([
+      // "posted" only, on purpose: reel_jobs has no publication timestamp, and the
+      // paths that write "published" (reconcileAssembledReel, reconciliation)
+      // stamp updatedAt = now, which would pull an old reel into this window.
       d.select({ payload: reelJobs.payload }).from(reelJobs)
-        .where(and(inArray(reelJobs.status, ["posted", "published"]), gte(reelJobs.updatedAt, since)))
+        .where(and(eq(reelJobs.status, "posted"), gte(reelJobs.updatedAt, since)))
         .orderBy(desc(reelJobs.updatedAt)).limit(200),
       d.select({ scores: igAutopostLog.evalScoresJson }).from(igAutopostLog)
         .where(and(eq(igAutopostLog.status, "posted"), gte(igAutopostLog.createdAt, since)))
@@ -781,6 +784,7 @@ const defaultReaders: AssistantReaders = {
     const { parseReelJobPayload } = await import("../../shared/reelJobPayload");
     // Both spellings are terminal live states: dailyReelPost writes "posted" and
     // reconciliation may promote the same media to "published" (reelReliability.ts).
+    // No time window here, so the reconciliation timestamp cannot skew it.
     const posted = await d.select({ payload: reelJobs.payload }).from(reelJobs)
       .where(inArray(reelJobs.status, ["posted", "published"])).orderBy(desc(reelJobs.updatedAt)).limit(500);
     const publishedPackSlugs = new Set<string>();
@@ -810,7 +814,9 @@ const defaultReaders: AssistantReaders = {
     const jobs = await d
       .select({ igPostId: reelJobs.igPostId, payload: reelJobs.payload })
       .from(reelJobs)
-      .where(and(inArray(reelJobs.status, ["posted", "published"]), isNotNull(reelJobs.igPostId), gte(reelJobs.updatedAt, since)))
+      // "posted" only: a "published" row's updatedAt is its reconciliation time,
+      // not its publication time, so it cannot be windowed (see realEvidence).
+      .where(and(eq(reelJobs.status, "posted"), isNotNull(reelJobs.igPostId), gte(reelJobs.updatedAt, since)))
       .orderBy(desc(reelJobs.updatedAt))
       .limit(200);
     const rows = new Map<string, QaOutcomeRow>();

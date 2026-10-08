@@ -29,7 +29,7 @@ abstract vibration transition, it is one AI clip (illustrative, labelled) — th
 ## Editorial contract check
 
 Frame one = motion + evidence ✓ · longest caption 8 words ("SPEED SAYS WHERE TO START. NOT THE
-ANSWER.") ✓ · single CTA (the end card and the caption ask the same: stop by) ✓ ·
+ANSWER.") ✓ · single ask (the end card STOP BY NICK'S and the caption; beats and voiceover carry none) ✓ ·
 readability 0/0 · narration 53 words ≈ 26.6 s vs 27 s audible ✓ (tight: the closing line ends by
 23.5 s) · mechanical truth 0 violations · claim audit none.
 
