@@ -50,7 +50,7 @@ const posts: PostRecord[] = [
 ];
 
 const angleBank = {
-  total: 100, productionReady: 20, pilot: 8, stubs: 12, withPack: 20, inRotation: 16, published: 0,
+  total: 100, productionReady: 20, pilot: 8, stubs: 12, withPack: 20, inRotation: 16, activeSlate: null, published: 0,
   nextToApprove: ["2026-10-08-proof-01-uneven-wear", "2026-10-08-proof-02-highway-shake"],
   missingPacks: [] as string[],
 };

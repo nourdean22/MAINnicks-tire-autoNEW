@@ -1,7 +1,7 @@
 # Proof Reel 01 — Uneven tire wear (Evidence diagnosis)
 
 **Purpose:** prove macro evidence, deterministic overlays and accurate education, entirely from
-real footage plus graphics. No generated vehicle parts. Runtime 20 s of beats + the 3 s SAVE card.
+real footage plus graphics. No generated vehicle parts. Runtime 20 s of beats + the 3 s end card (declared ask `visit`: STOP BY NICK'S).
 
 **Status (2026-10-08):** brief, captions and shot list are production input; the animatic
 (timing/readability) was rendered and reviewed; **no real footage exists yet** — every REAL shot
@@ -27,8 +27,8 @@ ducked under VO. Estimated generation cost: **$0** (no AI shot in this Reel).
 
 ## Editorial contract check
 
-Frame one = evidence (no logo) ✓ · one idea per card ✓ (longest caption 6 words) · single CTA
-("get it checked") ✓ · end card ≤ 2 s: the lane's SAVE freeze is 3 s — review ✓/✗ with the
+Frame one = evidence (no logo) ✓ · one idea per card ✓ (longest caption 6 words) · single ask
+(the end card STOP BY NICK'S and the caption; beats and voiceover carry none) ✓ · end card ≤ 2 s: the lane's end-card freeze is 3 s — review ✓/✗ with the
 operator · readability gate: 0 blocking, 0 warnings · narration 41 words ≈ 21.0 s synthesized vs
 23 s audible ✓ · mechanical-truth packets: 0 violations · claim audit: none.
 
@@ -44,5 +44,5 @@ Caption defect → regenerate the caption layer only. Evidence defect → recapt
 Pacing → change the beat boundaries in `brief.json` (the readability and narration gates re-run).
 
 **Primary caption:**
-> One edge of this tire wore smooth. That is the tire telling on something: alignment, pressure, a worn part or skipped rotations. A 10-minute inspection says which. Comment TREAD or book an inspection — Nick's Tire & Auto, Euclid Ave, Cleveland.
+> One edge of this tire wore smooth. That is the tire telling on something: alignment, pressure, a worn part or skipped rotations. An inspection says which. Stop by Nick's Tire & Auto, Euclid Ave, Cleveland.
 > #ClevelandAuto #TireWear #WheelAlignment #NicksTireAndAuto #EuclidAve

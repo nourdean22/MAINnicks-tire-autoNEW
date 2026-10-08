@@ -133,4 +133,25 @@ describe("angleBankStatus + angleBankLine", () => {
     const s = angleBankStatus(bank, facts({ rotation: top.map((a) => a.packSlug!) }));
     expect(angleBankLine(s)).toBe("20 production-ready angles of 100: 20 with a pack, 20 in rotation, 0 published");
   });
+  // Codex review of #2930: with an operator slate set, resolveApprovedPackSelection
+  // draws ONLY from the slate, so the library count overstated what the lane can pick.
+  it("an active slate is the rotation: only its packs count, while approval stays library-wide", () => {
+    const library = top.slice(3).map((a) => a.packSlug!);
+    const slugs = new Set([top[3].packSlug!, top[4].packSlug!]);
+    const s = angleBankStatus(bank, { ...facts({ rotation: library }), activeSlate: { slugs, state: "active" } });
+    expect(s.inRotation).toBe(2);
+    expect(s.activeSlate).toEqual({ size: 2, state: "active" });
+    expect(s.nextToApprove).toEqual(top.slice(0, 3).map((a) => a.packSlug!));
+    expect(angleBankLine(s)).toMatch(/^20 production-ready angles of 100: 20 with a pack, 2 in rotation \(active slate of 2\), 0 published; awaiting rotation approval: proof-01-uneven-wear, /);
+    // Control: the same library without a slate counts all seventeen.
+    expect(angleBankStatus(bank, facts({ rotation: library })).inRotation).toBe(17);
+  });
+  it("a slate the drain holds on says so: unreadable counts nothing, used up names its size", () => {
+    const all = facts({ rotation: top.map((a) => a.packSlug!) });
+    const unreadable = angleBankStatus(bank, { ...all, activeSlate: { slugs: new Set<string>(), state: "unreadable" } });
+    expect(unreadable.inRotation).toBe(0);
+    expect(angleBankLine(unreadable)).toBe("20 production-ready angles of 100: 20 with a pack, 0 in rotation (the active slate is unreadable, so the lane holds), 0 published");
+    const usedUp = angleBankStatus(bank, { ...all, activeSlate: { slugs: new Set([top[5].packSlug!]), state: "exhausted" } });
+    expect(angleBankLine(usedUp)).toBe("20 production-ready angles of 100: 20 with a pack, 1 in rotation (active slate of 1, used up, so the lane holds), 0 published");
+  });
 });

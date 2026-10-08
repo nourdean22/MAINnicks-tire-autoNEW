@@ -14,6 +14,8 @@ import {
   resolveApprovedPackSelection,
   writeActiveReelSlate,
 } from "./services/approvedReelPackRotation";
+import { askLeakageProblem, askProblem, askSignals, type ReelAsk } from "../shared/reelAsk";
+import { declaredBeatSource } from "../shared/shotRouter";
 
 describe("approved Reel-pack rotation", () => {
   it("contains every explicitly approved pack exactly once", () => {
@@ -224,6 +226,91 @@ describe("approved Reel-pack rotation", () => {
       const brief = snapshot && buildBriefFromApprovedProductionPack(pack, snapshot, `autopost-${pack.slug}`);
       expect(brief, pack.slug).not.toBeNull();
       expect((brief?.sourceNotes as Array<{ kind?: string }>).some((note) => note.kind === "proof"), pack.slug).toBe(true);
+    }
+  });
+});
+
+// Codex review of #2930 (2026-10-08): the declared shot source died in the
+// production builder, and the three proof packs carried two asks and an
+// unverified duration in their captions.
+describe("proof packs and the declared beat source", () => {
+  const PROOF = [
+    "2026-10-08-proof-01-uneven-wear",
+    "2026-10-08-proof-02-highway-shake",
+    "2026-10-08-proof-03-patch-or-replace",
+  ] as const;
+  type Snapshot = NonNullable<ReturnType<typeof loadApprovedProductionPack>>;
+  const build = (slug: string, snapshot: Snapshot) =>
+    buildBriefFromApprovedProductionPack({ slug: slug as (typeof APPROVED_REEL_PACK_SLUGS)[number], topic: "" }, snapshot, `test-${slug}`);
+  const beatsOf = (snapshot: Snapshot) => snapshot.parsed.storyboardBeats as Array<Record<string, unknown>>;
+
+  it("a declared source survives the production builder and reaches the route check; a stray or absent one does not appear", () => {
+    const base = loadApprovedProductionPack(PROOF[0])!;
+    const beats = beatsOf(base).map((b) => ({ ...b }));
+    // Beat 1's visual is tagged REAL: a field that DISAGREES with the tag proves the field arrived.
+    beats[0].source = "still_motion";
+    beats[1].source = " Deterministic ";
+    beats[2].source = "REALLY";
+    const out = build(PROOF[0], { ...base, parsed: { ...base.parsed, storyboardBeats: beats } })!.storyboardBeats as Array<Record<string, unknown>>;
+    expect(out[0].source).toBe("still_motion");
+    expect(declaredBeatSource(out[0] as { visual?: string; source?: never })).toBe("still_motion");
+    expect(out[1].source).toBe("deterministic");
+    expect("source" in out[2]).toBe(false);
+    expect("source" in out[3]).toBe(false);
+    // Control: the committed pack declares no field, so the builder adds none and the tag still reads.
+    const plain = build(PROOF[0], base)!.storyboardBeats as Array<Record<string, unknown>>;
+    expect(plain.some((b) => "source" in b)).toBe(false);
+    expect(declaredBeatSource(plain[0] as { visual?: string })).toBe("real");
+  });
+
+  it("each proof pack declares one ask, and its caption, beats and voiceover ask for nothing else", () => {
+    for (const slug of PROOF) {
+      const snapshot = loadApprovedProductionPack(slug)!;
+      const brief = build(slug, snapshot)!;
+      const ask = brief.ask as ReelAsk;
+      expect(ask, slug).toEqual({ kind: "visit" });
+      expect(askProblem(ask), slug).toBeNull();
+      expect(askLeakageProblem({
+        beats: beatsOf(snapshot).map((b) => String(b.onScreenText ?? "")),
+        voiceoverScript: String(snapshot.parsed.voiceoverScript ?? ""),
+        caption: String(brief.selectedCaption),
+        declaredAsk: ask,
+      }), slug).toBeNull();
+    }
+    // Control: the caption the review flagged fails the same check against the same ask.
+    expect(askLeakageProblem({
+      caption: "An inspection says which. Comment TREAD or book an inspection — Nick's Tire & Auto, Euclid Ave, Cleveland.",
+      declaredAsk: { kind: "visit" },
+    })).toMatch(/comment-keyword/);
+  });
+
+  // Codex review of #2932: askSignals has no pattern for the shop's own imperatives,
+  // so "GET IT CHECKED" in a beat passed the check above while the end card asked
+  // STOP BY NICK'S: two asks, one of them burned into pixels and audio. These are
+  // the editorial contract's CTA verbs plus the visit phrasing.
+  it("no proof pack beat, narration or voiceover carries a call to action; the end card is the one ask", () => {
+    const SHOP_CTA = /\b(book|call|comment|dm|visit|bring|get it checked|schedule|tap|message us|stop by|come in)\b/i;
+    for (const [old, line] of [["ONE EDGE WORN? GET IT CHECKED", "beat"], ["Bring the tire; we look inside first.", "voiceover"]]) {
+      expect(SHOP_CTA.test(old), `control: the removed ${line} is a CTA`).toBe(true);
+      expect(askSignals(old), `control: the production detector alone misses the removed ${line}`).toEqual([]);
+    }
+    for (const slug of PROOF) {
+      const snapshot = loadApprovedProductionPack(slug)!;
+      const surfaces = [
+        String(snapshot.parsed.voiceoverScript ?? ""),
+        ...beatsOf(snapshot).flatMap((b) => [String(b.onScreenText ?? ""), String(b.narration ?? "")]),
+      ];
+      for (const text of surfaces) expect(SHOP_CTA.test(text), `${slug}: ${text}`).toBe(false);
+    }
+  });
+
+  it("no proof pack promises a duration the shop has not verified", () => {
+    const duration = /\b\d+[- ]?(?:minute|min|hour|hr)s?\b/i;
+    expect(duration.test("A 10-minute inspection says which.")).toBe(true); // control: the removed phrase
+    for (const slug of PROOF) {
+      const snapshot = loadApprovedProductionPack(slug)!;
+      const copy = [snapshot.parsed.selectedCaption, snapshot.parsed.voiceoverScript, ...beatsOf(snapshot).map((b) => b.onScreenText)].join(" ");
+      expect(duration.test(copy), slug).toBe(false);
     }
   });
 });

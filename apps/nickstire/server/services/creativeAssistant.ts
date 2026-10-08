@@ -20,7 +20,7 @@
 import { createLogger } from "../lib/logger";
 import { DECISION_LOOKS, type ExperimentPresetId } from "../../shared/contentExperiments";
 import { MIN_PER_SIDE, measureFindingCosts, type QaOutcomeRow } from "../../shared/renderedQaOutcomes";
-import { angleBankLine, type AngleBankStatus } from "../../shared/angleBank";
+import { angleBankLine, type AngleBankSlate, type AngleBankStatus } from "../../shared/angleBank";
 import type { RecentReelSignals } from "./reelRepetitionHistory";
 
 const log = createLogger("services:creative-assistant");
@@ -732,6 +732,9 @@ const defaultReaders: AssistantReaders = {
     const windowDays = 30;
     const since = new Date(Date.now() - windowDays * 86_400_000);
     const [reels, photos] = await Promise.all([
+      // "posted" only, on purpose: reel_jobs has no publication timestamp, and the
+      // paths that write "published" (reconcileAssembledReel, reconciliation)
+      // stamp updatedAt = now, which would pull an old reel into this window.
       d.select({ payload: reelJobs.payload }).from(reelJobs)
         .where(and(eq(reelJobs.status, "posted"), gte(reelJobs.updatedAt, since)))
         .orderBy(desc(reelJobs.updatedAt)).limit(200),
@@ -760,7 +763,7 @@ const defaultReaders: AssistantReaders = {
     const fs = await import("node:fs");
     const path = await import("node:path");
     const { resolvePacksDir } = await import("./reelPackRegistry");
-    const { APPROVED_REEL_PACK_SLUGS, packBuildsForLane } = await import("./approvedReelPackRotation");
+    const { APPROVED_REEL_PACK_SLUGS, packBuildsForLane, readActiveReelSlate } = await import("./approvedReelPackRotation");
     const { PRODUCTION_READY_COUNT, angleBankStatus, parseAngleBank } = await import("../../shared/angleBank");
     const packsDir = resolvePacksDir();
     if (!packsDir) throw new Error("no reel-packs directory in this process");
@@ -777,16 +780,28 @@ const defaultReaders: AssistantReaders = {
     const d = await getDb();
     if (!d) throw new Error("no database");
     const { reelJobs } = await import("../../drizzle/schema");
-    const { desc, eq } = await import("drizzle-orm");
+    const { desc, inArray } = await import("drizzle-orm");
     const { parseReelJobPayload } = await import("../../shared/reelJobPayload");
+    // Both spellings are terminal live states: dailyReelPost writes "posted" and
+    // reconciliation may promote the same media to "published" (reelReliability.ts).
+    // No time window here, so the reconciliation timestamp cannot skew it.
     const posted = await d.select({ payload: reelJobs.payload }).from(reelJobs)
-      .where(eq(reelJobs.status, "posted")).orderBy(desc(reelJobs.updatedAt)).limit(500);
+      .where(inArray(reelJobs.status, ["posted", "published"])).orderBy(desc(reelJobs.updatedAt)).limit(500);
     const publishedPackSlugs = new Set<string>();
     for (const r of posted as Array<{ payload: string | null }>) {
       const slug = parseReelJobPayload(r.payload).approvedPackSlug;
       if (typeof slug === "string" && slug) publishedPackSlugs.add(slug);
     }
-    return angleBankStatus(bank, { buildablePacks, rotation: new Set<string>(APPROVED_REEL_PACK_SLUGS), publishedPackSlugs });
+    // While an operator slate is set the lane draws only from it
+    // (resolveApprovedPackSelection); the drain holds on an unreadable slate and
+    // on one whose cursor has passed its last pack (dailyReelPost.ts).
+    const slate = await readActiveReelSlate(d);
+    const activeSlate: AngleBankSlate | null = slate.malformed
+      ? { slugs: new Set<string>(), state: "unreadable" }
+      : slate.configured
+        ? { slugs: new Set<string>(slate.slugs), state: (slate.cursor ?? 0) >= slate.slugs.length ? "exhausted" : "active" }
+        : null;
+    return angleBankStatus(bank, { buildablePacks, rotation: new Set<string>(APPROVED_REEL_PACK_SLUGS), activeSlate, publishedPackSlugs });
   },
   async qaOutcomes() {
     const { getDb } = await import("../db");
@@ -799,6 +814,8 @@ const defaultReaders: AssistantReaders = {
     const jobs = await d
       .select({ igPostId: reelJobs.igPostId, payload: reelJobs.payload })
       .from(reelJobs)
+      // "posted" only: a "published" row's updatedAt is its reconciliation time,
+      // not its publication time, so it cannot be windowed (see realEvidence).
       .where(and(eq(reelJobs.status, "posted"), isNotNull(reelJobs.igPostId), gte(reelJobs.updatedAt, since)))
       .orderBy(desc(reelJobs.updatedAt))
       .limit(200);

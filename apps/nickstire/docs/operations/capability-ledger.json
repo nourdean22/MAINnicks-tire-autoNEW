@@ -4084,20 +4084,16 @@
         ],
         "liveRuns": [
           "2026-10-08T15:31:26Z, Railway deployment 2eb8c519 (commit 0f9453df, PR #2923): the daily-reel-post drain selected job 2040001 and logged 'rendered QA: re-running the critic after a persisted non-evaluation' (attempts 1, lastEvaluatedAt 10:33:48Z); the master was fetched (20,655,977 bytes), the critic ran on gemini-2.5-flash via the vision reroute, came back 'no complete JSON object (finish_reason=length, 573 chars)', the skipped verdict was persisted and the job HELD with '(critic run 2 of 3)'. No publish.",
-          "2026-10-08T15:46:26Z and 16:01:24Z: the next two pulses held 2040001 naming 'next automatic re-run after 2026-10-08T16:01:49Z' — the 30-minute spacing respected, no early re-run, no publish."
+          "2026-10-08T15:46:26Z and 16:01:24Z: the next two pulses held 2040001 naming 'next automatic re-run after 2026-10-08T16:01:49Z' — the 30-minute spacing respected, no early re-run, no publish.",
+          "2026-10-08T16:46:28Z and 17:17:04Z, under #2930's one run-counting rule (Railway 7c5de257, then 15d3c230): the 16:46:28Z hold read '2 critic run(s); next automatic re-run after 2026-10-08T17:00:39.266Z'; the 17:17:04Z re-run logged attempts 2 and the runner persisted attempt 3. The gate and the runner now count the same way."
         ],
         "deploymentId": "2eb8c519-bf3c-490c-b74d-7340e8dbb910"
       },
-      "blockers": [
-        {
-          "severity": "P2",
-          "description": "The run counter undercounts a job whose first verdict predates it: the 15:46Z hold read '1 critic run(s)' right after '(critic run 2 of 3)', because the gate counted the pre-counter verdict as one run and the runner did not. Bounded either way (such a job gets at most one extra run). Fixed on branch claude/peaceful-pascal-988w9o — both sides now call shared/reelJobPayload.renderedQaRunsSoFar, read before the overwrite — not yet deployed.",
-          "source": "2026-10-08 Railway logs for job 2040001"
-        }
-      ],
+      "blockers": [],
       "deferredScope": [
         "a re-run that fails before a verdict is persisted (fetch/ffprobe failure) is not counted, so it is bounded only by the drain cadence — the pre-existing no-verdict behaviour",
-        "the attempt counter is not reset by a repair re-render (selectiveRepair marks the verdict stale; a stale verdict is re-run by the repair path, not here)"
+        "the attempt counter is not reset by a repair re-render (selectiveRepair marks the verdict stale; a stale verdict is re-run by the repair path, not here)",
+        "job 2040001's counter stays one below its four real critic runs (10:33Z, 15:31Z, 16:30Z, 17:17Z): the pre-#2930 runner never counted the verdict that predated the counter, and the payload cannot recover it. Jobs whose first verdict is written after #2930 count exactly."
       ],
       "lastVerifiedAt": "2026-10-08",
       "codeState": "merged",
@@ -4110,30 +4106,29 @@
       "name": "The rendered-QA vision critic asks the Gemini lane for a bounded thinking budget, so its verdict JSON is no longer cut off at the token cap",
       "owner": "operator",
       "codeState": "merged",
-      "operationalState": "unit_verified",
+      "operationalState": "live_verified",
       "exposure": "internal",
       "evidence": {
-        "codeCommit": "branch claude/peaceful-pascal-988w9o, 2026-10-08. Root cause from production: job 2040001's re-run at 15:31:26Z reached gemini-2.5-flash (vision reroute) and returned finish_reason=length after 573 visible characters on max_tokens 4096 — the reply began '{\"decision\": \"repair\", \"findings\": [{\"beatNumber\": null, \"code\": \"MALFORMED_GEOMETRY\"' and was cut there. Gemini 2.5 spends its thinking out of max_tokens; the same truncation is documented at other call sites in this app (reviewReplies, instagramAdmin, igAutopost, carouselBriefGen, genomeGen, visualBibleObserved, instagramStudio) and vision-analyzer.ts measured reasoning_effort on the live compatibility endpoint. server/_core/llm.ts: InvokeParams.reasoningEffort ('low' | 'medium' | 'high' only — 'none' is refused by 2.5 Pro and Gemini 3) is added as reasoning_effort ONLY to a body fetched from Google's endpoint (the vision reroute, a direct gemini-* URL, the 403-quota fallback), decided by the URL actually fetched; Ollama and OpenAI bodies never carry it; without the param every body is byte-identical. server/services/renderedQa.ts callVisionCritic (also used by the specialist lenses in criticPanel.ts): reasoningEffort 'medium' (8,192 thinking tokens on 2.5, above the ~3.9k it spent before the cut — inferred: the 4,096 budget less ~150 visible tokens) and maxTokens 16,384. Cap chosen by the failure asymmetry: too little thinking fails OPEN (an approve from a critic that barely looked), too small a budget fails CLOSED (a truncated verdict, held).",
+        "codeCommit": "PR #2930, main 328daf0f (2026-10-08). Root cause from production: job 2040001's re-run at 15:31:26Z reached gemini-2.5-flash (vision reroute) and returned finish_reason=length after 573 visible characters on max_tokens 4096 — the reply began '{\"decision\": \"repair\", \"findings\": [{\"beatNumber\": null, \"code\": \"MALFORMED_GEOMETRY\"' and was cut there. Gemini 2.5 spends its thinking out of max_tokens; the same truncation is documented at other call sites in this app (reviewReplies, instagramAdmin, igAutopost, carouselBriefGen, genomeGen, visualBibleObserved, instagramStudio) and vision-analyzer.ts measured reasoning_effort on the live compatibility endpoint. server/_core/llm.ts: InvokeParams.reasoningEffort ('low' | 'medium' | 'high' only — 'none' is refused by 2.5 Pro and Gemini 3) is added as reasoning_effort ONLY to a body fetched from Google's endpoint (the vision reroute, a direct gemini-* URL, the 403-quota fallback), decided by the URL actually fetched; Ollama and OpenAI bodies never carry it; without the param every body is byte-identical. server/services/renderedQa.ts callVisionCritic (also used by the specialist lenses in criticPanel.ts): reasoningEffort 'medium' (8,192 thinking tokens on 2.5, above the ~3.9k it spent before the cut — inferred: the 4,096 budget less ~150 visible tokens) and maxTokens 16,384. Cap chosen by the failure asymmetry: too little thinking fails OPEN (an approve from a critic that barely looked), too small a budget fails CLOSED (a truncated verdict, held).",
         "tests": [
           "server/_core/llm.vision-reroute.test.ts (+5): control — no param, no field; the vision reroute carries reasoning_effort; an Ollama text call never does even when asked; the 403-quota fallback carries it while the refused Ollama attempt did not; a direct gemini-* model carries it and a direct gpt-4o never does. Mutations: wiring made a no-op → 3 red; field sent to every direct URL → 3 red.",
           "server/renderedQa.test.ts (+1): callVisionCritic asks for reasoningEffort 'medium' with at least 4,096 tokens of visible budget above the 8,192 cap; reverted to 4096 / no effort → red.",
           "Consumer set: 42 test files importing the gate, the critic, the payload module or the LLM wrapper, exit 0; tsc --noEmit exit 0."
         ],
-        "liveRuns": [],
-        "deploymentId": null
+        "liveRuns": [
+          "2026-10-08T17:17:04Z to 17:17:51Z, Railway deployment 15d3c230 (commit 108843ce, the prerender refresh on top of #2930 328daf0f; #2930 itself deployed as 7c5de257, SUCCESS 16:45:46Z): the daily-reel-post drain re-ran the critic for job 2040001 (attempts 2; due from 17:00:39Z, 30 minutes after the 16:30:39Z verdict, and run by the first drain pulse after that), fetched the master (20,655,977 bytes) and persisted attempt 3 with critic 'vision', decision 'repair', 17 findings, craftTotal 61.1, escalate 'automotive', visionCalls 1, pixelFlags []. The two runs before it on max_tokens 4,096 were cut at 573 characters (15:31:26Z) and 1,655 characters (16:30:16Z), both finish_reason=length.",
+          "Same pulse, 17:17:51Z: the gate returned needs_paid_repair and, because production's autonomy policy sets autonomousRepair.paidBeatRegeneration to 'auto', the drain queued a paid regeneration of beat 2 (SUBJECT_CONTINUITY, repair rep_56b1e18f-420) through requestBeatRepair ('beat repair QUEUED (no provider call on request path)'). A completed verdict is what makes that policy-authorized path reachable; #2930's PR text said a paid repair always waits for the operator, which was wrong."
+        ],
+        "deploymentId": "15d3c230-5d63-4d2c-b3dc-025931cfadea"
       },
-      "blockers": [
-        {
-          "severity": "P1",
-          "description": "Not yet observed in production. First live proof: a critic run after this deploys persisting critic 'vision' / qaState 'completed' — job 2040001's next automatic re-run (due ~17:01Z on 2026-10-08 if the deploy lands first; otherwise its budget is spent and Instagram → Queue → re-run rendered QA is the lever), or the next assembled Reel. If Google refuses reasoning_effort for the configured GEMINI_MODEL, the skip reason will name the 400 and the critic stays a non-evaluation (fails closed).",
-          "source": "2026-10-08 branch self-audit"
-        }
-      ],
+      "blockers": [],
       "deferredScope": [
         "the critic's verdict quality under an 8,192-token thinking cap is not measured against unbounded thinking; the cap only bounds latency and guarantees the JSON fits",
-        "a 90 s timeout still bounds the call; a slow Gemini response fails closed as a skipped verdict, as before"
+        "a 90 s timeout still bounds the call; a slow Gemini response fails closed as a skipped verdict, as before",
+        "a completed repair verdict whose fix costs credits follows autonomousRepair.paidBeatRegeneration: with 'auto' (production, 2026-10-08) the daily-reel drain queues the paid beat regeneration itself, capped by maxGenerationCostPerDayUsd and maxRepairAttemptsPerAsset (cron/jobs/dailyReelPost.ts); with the default 'approval_required' it holds. This capability makes that path reachable and does not change it."
       ],
-      "lastVerifiedAt": "2026-10-08"
+      "lastVerifiedAt": "2026-10-08",
+      "verificationExpiresAt": "2026-11-08"
     },
     {
       "capabilityId": "camera-visit-marks-20261008",
@@ -4218,7 +4213,8 @@
           "shared/shotRouter.test.ts (12): the seven questions in order (real > deterministic > approved still > do-not-generate > reuse > ai_illustrative > delete / capture); every tag spelling and the unspecified default; contradictions only, silent on undeclared beats; the proof packs declare a source on every beat with no ai_illustrative beat.",
           "client/src/__tests__/faceless-reel-studio.test.ts (+4): control sample raises neither finding; a generic opening is a structural WARN naming frame one and the brief still passes; a CTA before the last beat warns; an ai_illustrative beat describing a measurement is a production WARN and the same beat declared real is not. 4 files 90 tests exit 0 with previsReadability.",
           "tsc --noEmit exit 0.",
-          "apps/video-forge/tests/test_build_corpus.py (3): declared real / deterministic beats leave the pool, the field wins over the tag, the tag is read only at the start (never 'realistic' or 'a real tire' in prose), the proof packs add nothing and the penny-test pack still adds its five beats; filter removed → 2 red and the corpus diverges. Full video-forge job locally: compileall ok, 72 tests OK, corpus no diff."
+          "apps/video-forge/tests/test_build_corpus.py (3): declared real / deterministic beats leave the pool, the field wins over the tag, the tag is read only at the start (never 'realistic' or 'a real tire' in prose), the proof packs add nothing and the penny-test pack still adds its five beats; filter removed → 2 red and the corpus diverges. Full video-forge job locally: compileall ok, 72 tests OK, corpus no diff.",
+          "Codex review of #2930 (2026-10-08): buildBriefFromApprovedProductionPack dropped a beat's `source` field, so a pack declaring it in the field (not the visual tag) reached runReelPreflight as unspecified. It now keeps the field through shared/shotRouter.parseShotSource (the four values only). server/approvedReelPackRotation.test.ts: a field that disagrees with the visual tag survives and wins in declaredBeatSource; a stray value and an absent one add nothing; control: no committed pack declares the field, so every existing brief builds unchanged. Builder mutation → red."
         ],
         "liveRuns": [],
         "deploymentId": null
@@ -4249,7 +4245,8 @@
         "tests": [
           "shared/angleBank.test.ts (13): the committed file parses with 100 / 20 / 12 / 15; every named pack is accepted by the production builder (a beat-count draft of this check mis-graded 16 entries — packs the builder rejects — and wrongly condemned 2026-08-18-power-steering-whine, accepted by the builder with 0 beats under the two common keys; the 16 were re-pointed at accepted packs); no stub restates a pack slug; ROTATION CANARY pins that exactly the three proof packs are production-ready and outside the rotation (every other builder-accepted pack is in it, 133 / 133); seven mutations refused by name (incl. the spacing rule and a near-duplicate at overlap 1.00); the status line with zeros, a BROKEN entry and a full rotation.",
           "server/services/creativeAssistant.test.ts (+2): the inputs.angleBank line from the fixture; an unreadable bank is an error input and no card depends on it; the injected-readers test pins the error wording. 31 tests exit 0.",
-          "The near-duplicate guard fired on the author's own replacement wording (A064 vs A083, overlap 0.65) before it was reworded — the instrument is proven on a real positive."
+          "The near-duplicate guard fired on the author's own replacement wording (A064 vs A083, overlap 0.65) before it was reworded — the instrument is proven on a real positive.",
+          "Codex review of #2930 (2026-10-08), two P2s fixed: 'in rotation' now counts the operator's active slate while one is set (resolveApprovedPackSelection draws only from it; an unreadable slate counts 0, and an unreadable or used-up slate is named because the drain holds on both), and 'published' counts reel jobs in either live status, posted or published (reelReliability.ts). shared/angleBank.test.ts +2 (slate narrows the count with a no-slate control; unreadable slate); slate mutation → 2 red. The reader's DB wiring (readActiveReelSlate, the two-status filter) has no unit test: typecheck only."
         ],
         "liveRuns": [],
         "deploymentId": null
@@ -4257,7 +4254,7 @@
       "blockers": [
         {
           "severity": "P2",
-          "description": "The Sources line has not been seen rendered: this session has no browser against a running admin. First live proof is the Creative Assistant's Sources row on Today showing 'angleBank 20 production-ready angles of 100: 20 with a pack, 17 in rotation, 0 published; awaiting rotation approval: proof-01-uneven-wear, proof-02-highway-shake, proof-03-patch-or-replace' after deploy.",
+          "description": "The Sources line has not been seen rendered: this session has no browser against a running admin. First live proof is the Creative Assistant's Sources row on Today showing 'angleBank 20 production-ready angles of 100: 20 with a pack, 17 in rotation, 0 published; awaiting rotation approval: proof-01-uneven-wear, proof-02-highway-shake, proof-03-patch-or-replace' after deploy, or 'N in rotation (active slate of M)' while an operator slate is set.",
           "source": "2026-10-08 branch self-audit"
         }
       ],
