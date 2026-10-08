@@ -25,8 +25,9 @@
 import { sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { deriveCameraState, shopOpenAt } from "../lib/cameraHealth";
+import { solarExpectedOffline } from "../lib/solar";
 import { cameraRuntimeHasColumns } from "../lib/heartbeatStorableColumns";
-import { EXPECTED_CAMERAS } from "../../shared/cameras";
+import { EXPECTED_CAMERAS, cameraPowerFor } from "../../shared/cameras";
 import {
   cameraAlertClaim,
   cameraAlertCooldownSeconds,
@@ -182,6 +183,9 @@ export async function runCameraHealthAlerts(): Promise<{
   }
 
   const shopOpen = shopOpenAt();
+  // Same sky as lot.health: a solar camera dark between civil dusk and ~2 h after sunrise is
+  // EXPECTED_SOLAR_OFFLINE (non-paging), the same loss at noon pages as before (audit N3).
+  const solar = solarExpectedOffline(new Date());
   const hasPlausibility = await cameraRuntimeHasColumns(db, PLAUSIBILITY_COLUMNS);
   const cameraNames = commissioned.map((camera) => camera.camera);
   const [rows] = await db.execute(sql`
@@ -248,6 +252,7 @@ export async function runCameraHealthAlerts(): Promise<{
           }
         : null,
       expected.healthProfile,
+      { solar: cameraPowerFor(expected.camera) === "solar" ? solar : null },
     );
     observed.push(`${expected.camera}=${verdict.state}`);
 

@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   parseVisualReply, analyzeOfficeFrames, officeVisualColumnReady, storedVisual,
   __resetOfficeVisualReadyCache, OFFICE_VISUAL_MAX_FRAMES,
-  buildPrompt, calibrationNote, conversationEpisodeColumnReady, loadVisualCalibration, __resetOfficeVisualCalibration, type OfficeVisual,
+  buildPrompt, calibrationNote, conversationEpisodeColumnReady, loadVisualCalibrationDetailed, __resetOfficeVisualCalibration, type OfficeVisual,
 } from "./officeVisual";
 
 const META = { frameCount: 2, provider: "ollama", model: "m", latencyMs: 9 };
@@ -143,21 +143,28 @@ describe("office visual — learning loop and on-box people", () => {
     const execute = vi.fn().mockResolvedValue([[
       row("correct", "ok one"), row("wrong", "bad one", "really two people"), row("correct", "ok two"),
     ]]);
-    const notes = await loadVisualCalibration({ execute }, 1_000);
+    const { notes } = await loadVisualCalibrationDetailed({ execute }, 1_000);
     expect(notes[0]).toContain("really two people");
     expect(notes).toHaveLength(3);
-    await loadVisualCalibration({ execute }, 2_000);
+    await loadVisualCalibrationDetailed({ execute }, 2_000);
     expect(execute).toHaveBeenCalledTimes(1);
 
     __resetOfficeVisualCalibration();
     const broken = vi.fn().mockRejectedValue(new Error("db down"));
-    expect(await loadVisualCalibration({ execute: broken }, 3_000)).toEqual([]);
+    expect(await loadVisualCalibrationDetailed({ execute: broken }, 3_000)).toEqual({ notes: [], episodeIds: [] });
   });
 
   it("storedVisual reads back the review and the on-box count", () => {
     const v = storedVisual(JSON.stringify({ ...base, onBoxPeople: 2, review: { verdict: "wrong", note: "n", at: "t" } }));
     expect(v).toMatchObject({ onBoxPeople: 2, review: { verdict: "wrong", note: "n" } });
     expect(storedVisual(JSON.stringify(base))).toMatchObject({ onBoxPeople: null, review: null });
+  });
+
+  it("storedVisual keeps the calibrationFrom receipt (ids only) so the N5 proof is readable, not write-only", () => {
+    const v = storedVisual(JSON.stringify({ ...base, calibrationFrom: ["ep-wrong-1", 7, "ep-ok-2"] }));
+    expect(v?.calibrationFrom).toEqual(["ep-wrong-1", "ep-ok-2"]);
+    // Absent stays absent: an older row is not given an empty receipt it never had.
+    expect(storedVisual(JSON.stringify(base))).not.toHaveProperty("calibrationFrom");
   });
 });
 
@@ -173,5 +180,31 @@ describe("conversationEpisodeColumnReady (0140 visual, 0141 gist)", () => {
     await conversationEpisodeColumnReady({ execute }, "visual", 1_000);
     await conversationEpisodeColumnReady({ execute }, "gist", 1_000);
     expect(execute).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("office visual calibration receipt (audit N5)", () => {
+  const base2: OfficeVisual = {
+    status: "DONE", summary: "one person", peopleCount: 1, activities: [], waitingUnattended: null,
+    frameCount: 1, provider: "ollama", model: "m", latencyMs: 1, error: null,
+  };
+  it("returns one episode id per note, corrections first, and the cache keeps the pairing", async () => {
+    __resetOfficeVisualCalibration();
+    const row = (episodeId: string, verdict: "correct" | "wrong", summary: string, note: string | null = null) =>
+      ({ episodeId, visual: JSON.stringify({ ...base2, summary, review: { verdict, note, at: "t" } }) });
+    const execute = vi.fn().mockResolvedValue([[
+      row("ep-ok-1", "correct", "ok one"), row("ep-wrong-1", "wrong", "bad one", "really two people"), row("ep-ok-2", "correct", "ok two"),
+    ]]);
+    const first = await loadVisualCalibrationDetailed({ execute }, 1_000);
+    expect(first.episodeIds).toEqual(["ep-wrong-1", "ep-ok-1", "ep-ok-2"]);
+    expect(first.notes).toHaveLength(3);
+    expect(first.notes[0]).toContain("really two people");
+    const cached = await loadVisualCalibrationDetailed({ execute }, 2_000);
+    expect(cached.episodeIds).toEqual(first.episodeIds);
+    expect(execute).toHaveBeenCalledTimes(1);
+
+    __resetOfficeVisualCalibration();
+    const broken = vi.fn().mockRejectedValue(new Error("db down"));
+    expect(await loadVisualCalibrationDetailed({ execute: broken }, 3_000)).toEqual({ notes: [], episodeIds: [] });
   });
 });

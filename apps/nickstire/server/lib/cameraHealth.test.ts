@@ -359,3 +359,39 @@ describe("shopOpenAt reads BUSINESS.hours.structured in the shop's timezone", ()
     expect(shopOpenAt(new Date("2026-10-04T20:30:00Z"))).toBe(false);  // 16:30 ET Sunday
   });
 });
+
+describe("camera health lattice — solar-aware expected offline (audit N3)", () => {
+  const dark = { expectedOffline: true, reason: "solar camera: dark from civil dusk 19:25 until about 09:29 (sunrise 07:29 + 120 min) is expected" };
+  const daylight = { expectedOffline: false, reason: "daylight" };
+
+  it("a producer that aged out inside the window is EXPECTED_SOLAR_OFFLINE, facets untouched, loss still named", () => {
+    const v = deriveCameraState(healthy({ ageSeconds: 900 }), "fixed_geometry", { solar: dark });
+    expect(v.state).toBe("EXPECTED_SOLAR_OFFLINE");
+    expect(v.facets.producer).toBe("offline");
+    expect(v.reason).toContain("civil dusk");
+    expect(v.reason).toContain("last heartbeat 900s ago");
+  });
+
+  it("a stale heartbeat and a disconnected source inside the window read the same way", () => {
+    expect(deriveCameraState(healthy({ ageSeconds: 90 }), "fixed_geometry", { solar: dark }).state).toBe("EXPECTED_SOLAR_OFFLINE");
+    expect(deriveCameraState(healthy({ sourceConnected: false }), "fixed_geometry", { solar: dark }).state).toBe("EXPECTED_SOLAR_OFFLINE");
+  });
+
+  it("the same loss in daylight, or with no solar context, is the fault it always was", () => {
+    expect(deriveCameraState(healthy({ ageSeconds: 900 }), "fixed_geometry", { solar: daylight }).state).toBe("PRODUCER_OFFLINE");
+    expect(deriveCameraState(healthy({ ageSeconds: 900 }), "fixed_geometry", null).state).toBe("PRODUCER_OFFLINE");
+    expect(deriveCameraState(healthy({ ageSeconds: 900 })).state).toBe("PRODUCER_OFFLINE");
+    expect(deriveCameraState(healthy({ sourceConnected: false }), "fixed_geometry", { solar: daylight }).state).toBe("CAMERA_OFFLINE");
+  });
+
+  it("an awake camera is judged exactly as before, whatever the sky says", () => {
+    expect(deriveCameraState(healthy(), "fixed_geometry", { solar: dark }).state).toBe("HEALTHY");
+    expect(deriveCameraState(healthy({ calibrationVersion: null }), "fixed_geometry", { solar: dark }).state).toBe("CALIBRATION_INVALID");
+    expect(deriveCameraState(healthy({ frameOk: false }), "fixed_geometry", { solar: dark }).state).toBe("DEGRADED_VISION");
+  });
+
+  it("never-ingested and the PTZ office camera get no solar excuse", () => {
+    expect(deriveCameraState(null, "fixed_geometry", { solar: dark }).state).toBe("NEVER_INGESTED");
+    expect(deriveCameraState(healthyInteraction({ ageSeconds: 900 }), "interaction_ptz", { solar: dark }).state).toBe("PRODUCER_OFFLINE");
+  });
+});

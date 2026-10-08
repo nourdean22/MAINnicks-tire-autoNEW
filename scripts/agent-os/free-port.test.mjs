@@ -17,12 +17,16 @@ import { once } from "node:events";
 import { spawn, spawnSync } from "node:child_process";
 import { canListen, holdAsClient } from "./free-port.mjs";
 
+// Spawned straight from Node (no bash, so no MSYS path rewrite) curl cannot open /dev/null on
+// Windows and exits 23 before it reports any status. Bash-side probes keep /dev/null on purpose.
+const NULL_DEV = process.platform === "win32" ? "NUL" : "/dev/null";
+
 // The bind rules for a client-held port are the kernel's. These cases pin the
 // runner the gate runs on (ubuntu-latest); elsewhere they say so and skip.
 const LINUX_ONLY = "Linux-only: pins the agent-policy runner's bind rules for a client-held port";
 
 /** What the old freePort() asked: does anything answer here? Nonzero means it called the port free. */
-const curlProbe = (port) => spawnSync("curl", ["-s", "-o", "/dev/null", "-m", "1", `http://localhost:${port}/`]).status;
+const curlProbe = (port) => spawnSync("curl", ["-s", "-o", NULL_DEV, "-m", "1", `http://localhost:${port}/`]).status;
 
 // Below the client-port range and clear of both dev-server canaries' windows
 // (20000+, 24000+), so a test here never races them or the kernel for a port.
@@ -80,7 +84,7 @@ test("HAZARD, as CI met it: curl's own end after it talks to a fake and exits", 
     // Every probe in the dev-server canaries is a curl like this one. Its exit
     // closes the kept-alive connection from curl's side, so the TIME_WAIT lands
     // on curl's port, not the fake's.
-    const curl = spawn("curl", ["-s", "-o", "/dev/null", "-m", "5", "--local-port", String(port), `http://127.0.0.1:${fake.address().port}/`]);
+    const curl = spawn("curl", ["-s", "-o", NULL_DEV, "-m", "5", "--local-port", String(port), `http://127.0.0.1:${fake.address().port}/`]);
     const [code] = await once(curl, "exit");
     assert.equal(code, 0, "precondition: curl must have completed a request from that port");
     assert.notEqual(curlProbe(port), 0, "precondition: nothing answers there, so the old freePort() would have picked it");

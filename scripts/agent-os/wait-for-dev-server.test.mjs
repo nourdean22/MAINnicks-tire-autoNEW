@@ -28,6 +28,10 @@ import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { canListen, holdAsClient } from "./free-port.mjs";
 
+// Spawned straight from Node (no bash, so no MSYS path rewrite) curl cannot open /dev/null on
+// Windows and exits 23 before it reports any status. Bash-side probes keep /dev/null on purpose.
+const NULL_DEV = process.platform === "win32" ? "NUL" : "/dev/null";
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SCRIPT = join(ROOT, "scripts", "ci", "wait-for-dev-server.sh");
 const DIR = mkdtempSync(join(tmpdir(), "wfds-"));
@@ -212,7 +216,7 @@ test("kill_port frees a port held by a process the script never started", () => 
     `nohup node -e 'require("http").createServer((_q,r)=>r.end("x")).listen(${port})' >/dev/null 2>&1 & sleep 2`]);
   assert.equal(holder.status, 0);
 
-  const alive = spawnSync("curl", ["-s", "-o", "/dev/null", "-m", "2", `http://localhost:${port}/`]);
+  const alive = spawnSync("curl", ["-s", "-o", NULL_DEV, "-m", "2", `http://localhost:${port}/`]);
   assert.equal(alive.status, 0, "the holder must be listening, or this proves nothing");
 
   const r = spawnSync("bash", ["-c",

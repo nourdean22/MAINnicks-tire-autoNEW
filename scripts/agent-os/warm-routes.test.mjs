@@ -35,6 +35,10 @@ import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { canListen, holdAsClient } from "./free-port.mjs";
 
+// Spawned straight from Node (no bash, so no MSYS path rewrite) curl cannot open /dev/null on
+// Windows and exits 23 before it reports any status. Bash-side probes keep /dev/null on purpose.
+const NULL_DEV = process.platform === "win32" ? "NUL" : "/dev/null";
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SCRIPT = join(ROOT, "scripts", "ci", "warm-routes.sh");
 const DIR = mkdtempSync(join(tmpdir(), "warm-"));
@@ -124,7 +128,7 @@ function run(mode, { retries = 1, withRestart = false, maxRestarts = 1 } = {}) {
   // hand the already-running server to the warm script.
   spawnSync("bash", ["-c", `${startEnv} bash ${BOOT}`], { timeout: 20_000 });
   for (let i = 0; i < 100; i++) {
-    const r = spawnSync("curl", ["-s", "-o", "/dev/null", "-m", "1", `http://localhost:${port}/health`]);
+    const r = spawnSync("curl", ["-s", "-o", NULL_DEV, "-m", "1", `http://localhost:${port}/health`]);
     if (r.status === 0) break;
     spawnSync("bash", ["-c", "sleep 0.1"]);
   }
@@ -157,7 +161,7 @@ function run(mode, { retries = 1, withRestart = false, maxRestarts = 1 } = {}) {
   } finally {
     closeSync(fd);
   }
-  spawnSync("curl", ["-s", "-o", "/dev/null", "-m", "2", `http://localhost:${port}/__exit`]);
+  spawnSync("curl", ["-s", "-o", NULL_DEV, "-m", "2", `http://localhost:${port}/__exit`]);
   return {
     status: r.status,
     out: readFileSync(outPath, "utf8"),
@@ -286,7 +290,7 @@ test("the workflow's own RESTART_CMD frees a held port — not just any restart"
     { timeout: 30_000 });
   assert.equal(holder.status, 0, `the holder must be listening within 15s, or this proves nothing (exit ${holder.status})`);
   assert.equal(
-    spawnSync("curl", ["-s", "-o", "/dev/null", "-m", "2", `http://localhost:${port}/`]).status,
+    spawnSync("curl", ["-s", "-o", NULL_DEV, "-m", "2", `http://localhost:${port}/`]).status,
     0,
     "the holder must be listening, or this proves nothing",
   );

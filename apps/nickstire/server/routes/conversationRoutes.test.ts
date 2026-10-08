@@ -17,7 +17,7 @@ vi.mock("../services/officeVisual", async (importOriginal) => ({
   analyzeOfficeFrames: vi.fn(),
   officeVisualColumnReady: vi.fn(),
   conversationEpisodeColumnReady: vi.fn().mockResolvedValue(false),
-  loadVisualCalibration: vi.fn().mockResolvedValue([]),
+  loadVisualCalibrationDetailed: vi.fn().mockResolvedValue({ notes: [], episodeIds: [] }),
 }));
 
 const logSpy = vi.hoisted(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }));
@@ -30,7 +30,7 @@ vi.mock("../db", async (importOriginal) => ({
 
 import { extractConversationFacts } from "../services/conversationFacts";
 import { getDb } from "../db";
-import { analyzeOfficeFrames, conversationEpisodeColumnReady, officeVisualColumnReady } from "../services/officeVisual";
+import { analyzeOfficeFrames, conversationEpisodeColumnReady, loadVisualCalibrationDetailed, officeVisualColumnReady } from "../services/officeVisual";
 import { registerConversationEpisodeRoute } from "./conversationRoutes";
 
 const extract = extractConversationFacts as unknown as ReturnType<typeof vi.fn>;
@@ -471,5 +471,43 @@ describe("conversation ingest — office visual frames", () => {
     const b = fakeRes();
     await h({ headers: { "x-sync-key": KEY }, body: body({ frames: [{ mime: "image/jpeg", base64: "A".repeat(400_001) }] }) }, b.res);
     expect(b.out.code).toBe(400);
+  });
+});
+
+describe("office visual calibration receipt (audit N5)", () => {
+  it("stores and logs WHICH reviewed episodes shaped the description, ids only, never the review text", async () => {
+    const visualReady = vi.mocked(officeVisualColumnReady);
+    const analyzeFrames = vi.mocked(analyzeOfficeFrames);
+    const db = vi.mocked(getDb);
+    const FRAME = { mime: "image/jpeg", base64: "A".repeat(200) };
+    const DONE = {
+      status: "DONE" as const, summary: "Customer at the counter", peopleCount: 1, activities: [],
+      waitingUnattended: false, frameCount: 1, provider: "ollama", model: "m", latencyMs: 5, error: null,
+    };
+    visualReady.mockResolvedValue(true);
+    analyzeFrames.mockResolvedValue(DONE);
+    vi.mocked(loadVisualCalibrationDetailed).mockResolvedValueOnce({
+      notes: ['Was wrong: "one person" -- what actually happened: "two customers, staff on phone"'],
+      episodeIds: ["ep-wrong-1"],
+    });
+    const execute = vi.fn().mockResolvedValue(undefined);
+    db.mockResolvedValue({ execute });
+    logSpy.info.mockClear();
+    const { res, out } = fakeRes();
+    await mount()({ headers: { "x-sync-key": KEY }, body: body({ frames: [FRAME] }) }, res);
+    expect(out.code).toBe(200);
+    // The note reached the prompt...
+    expect(analyzeFrames).toHaveBeenCalledWith(
+      [{ mime: "image/jpeg", base64: FRAME.base64 }],
+      undefined,
+      expect.objectContaining({ calibration: [expect.stringContaining("two customers, staff on phone")] }),
+    );
+    // ...and the stored visual names where it came from, by id only.
+    const update = JSON.stringify(execute.mock.calls[1][0]);
+    expect(update).toContain("ep-wrong-1");
+    expect(update).toContain("calibrationFrom");
+    expect(update).not.toContain("two customers, staff on phone");
+    expect(logSpy.info).toHaveBeenCalledWith("office visual stored",
+      expect.objectContaining({ calibrationFrom: ["ep-wrong-1"] }));
   });
 });
