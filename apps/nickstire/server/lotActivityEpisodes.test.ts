@@ -27,8 +27,11 @@ describe("lot.activity counts episodes, like lot.now", () => {
     expect(block).toContain("COUNT(DISTINCT CASE WHEN state <> 'PASS_THROUGH' THEN COALESCE(episodeId, visitId) END) AS arrivals");
     expect(block).toContain("COUNT(DISTINCT CASE WHEN state =  'PASS_THROUGH' THEN COALESCE(episodeId, visitId) END) AS passThroughs");
     expect(block).not.toMatch(/SUM\(CASE WHEN state <> 'PASS_THROUGH' THEN 1/);
-    // The headline counter it must agree with.
-    expect(router).toContain("COUNT(DISTINCT COALESCE(episodeId, visitId))");
+    // The headline counter it must agree with: lot.now's arrivalsToday counts the same identity
+    // (one episode, one car) behind its own preexisting / day-start filters.
+    expect(router).toMatch(
+      /COUNT\(DISTINCT CASE WHEN preexisting = 0 AND state <> 'PASS_THROUGH'[\s\S]{0,200}?THEN COALESCE\(episodeId, visitId\) END\) AS arrivalsToday/,
+    );
   });
 });
 

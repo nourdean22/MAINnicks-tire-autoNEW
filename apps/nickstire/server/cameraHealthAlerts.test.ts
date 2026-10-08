@@ -593,7 +593,9 @@ describe("camera health timeline — derived transitions from the 5-minute pass 
     expect(service).toContain("timelineFailure = err;");
     expect(service).toContain("if (timelineFailure) {");
     expect(service.indexOf("if (timelineFailure) {")).toBeGreaterThan(service.lastIndexOf("await deliverClaimedAlert({"));
-    expect(service).toContain("producerInstanceId,\n           UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt) AS ageSeconds");
+    // The pass reads the producer id (for the timeline row) and the heartbeat counter (for the
+    // warming window) from the same heartbeat it judges.
+    expect(service).toMatch(/SELECT camera,\s+producerInstanceId,\s+heartbeatSeq,\s+UNIX_TIMESTAMP\(\) - UNIX_TIMESTAMP\(receivedAt\) AS ageSeconds/);
   });
 });
 
