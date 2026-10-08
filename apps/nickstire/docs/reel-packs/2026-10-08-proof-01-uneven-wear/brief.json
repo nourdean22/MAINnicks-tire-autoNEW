@@ -5,7 +5,10 @@
   "campaignKeyword": "TREAD",
   "mechanicTruth": "Uneven wear can point to alignment, inflation, worn suspension parts or skipped rotations; an inspection tells which. A tire worn on one edge is evidence that something changed how it meets the road, not a diagnosis by itself.",
   "loopIdea": "The closing beat settles back on the same macro of the worn edge under the same inspection light, so the loop restarts on the evidence the hook opened with.",
-  "selectedCaption": "One edge of this tire wore smooth. That is the tire telling on something: alignment, pressure, a worn part or skipped rotations. A 10-minute inspection says which. Comment TREAD or book an inspection — Nick's Tire & Auto, Euclid Ave, Cleveland.",
+  "selectedCaption": "One edge of this tire wore smooth. That is the tire telling on something: alignment, pressure, a worn part or skipped rotations. An inspection says which. Stop by Nick's Tire & Auto, Euclid Ave, Cleveland.",
+  "ask": {
+    "kind": "visit"
+  },
   "hashtags": [
     "#ClevelandAuto",
     "#TireWear",
@@ -13,7 +16,7 @@
     "#NicksTireAndAuto",
     "#EuclidAve"
   ],
-  "voiceoverScript": "One edge of this tire wore smooth. A tread gauge shows the difference. Uneven wear can point to alignment, pressure, a worn part, or skipped rotations. The tire shows the pattern; the inspection says which. One edge worn? Get it checked.",
+  "voiceoverScript": "One edge of this tire wore smooth. A tread gauge shows the difference. Uneven wear can point to alignment, pressure, a worn part, or skipped rotations. The tire shows the pattern; the inspection says which. One edge worn: evidence, not diagnosis.",
   "storyboardBeats": [
     {
       "beatNumber": 1,
@@ -67,13 +70,13 @@
       "beatNumber": 5,
       "startSecond": 16,
       "endSecond": 20,
-      "purpose": "CTA: one action, restrained; loop back to the hook macro",
+      "purpose": "close: the evidence line, no ask (the end card carries it); loop back to the hook macro",
       "visual": "REAL: the same worn-edge macro from beat 1 under the same light, then the shop exterior or bay door for the last second",
       "motion": "hold on the macro, cut to a static exterior",
-      "onScreenText": "ONE EDGE WORN? GET IT CHECKED",
-      "narration": "One edge worn? Get it checked.",
+      "onScreenText": "ONE EDGE WORN: EVIDENCE, NOT DIAGNOSIS",
+      "narration": "One edge worn: evidence, not diagnosis.",
       "audioCue": "music bed resolves; VO ends by 19.5s",
-      "safeZoneNotes": "CTA caption centred; logo and address only on the end card, never a standalone opening"
+      "safeZoneNotes": "closing caption centred; logo and address only on the end card, never a standalone opening"
     }
   ]
 }

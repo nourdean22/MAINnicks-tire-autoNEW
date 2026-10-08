@@ -180,12 +180,28 @@ export function parseAngleBank(raw: unknown): AngleBank {
   return { generated: r.generated, note: r.note, categories: ANGLE_CATEGORIES, angles };
 }
 
+/** The operator's active Reel slate, as the daily drain reads it (readActiveReelSlate). */
+export interface AngleBankSlate {
+  /** The slate's pack slugs; empty when the saved slate is unreadable. */
+  slugs: ReadonlySet<string>;
+  /** "active": the lane draws from it. "exhausted" (cursor past the last pack) and "unreadable": the lane holds. */
+  state: "active" | "exhausted" | "unreadable";
+}
+
 export interface AngleBankFacts {
   /** Pack slugs the PRODUCTION builder accepts (packBuildsForLane) — the lane's own definition of usable. */
   buildablePacks: ReadonlySet<string>;
-  /** APPROVED_REEL_PACK_SLUGS — the daily lane's append-only feed. */
+  /** APPROVED_REEL_PACK_SLUGS — approval into the daily lane's library. */
   rotation: ReadonlySet<string>;
-  /** approvedPackSlug of every posted reel job. */
+  /**
+   * The operator's active Reel slate, when one is set. The lane then draws ONLY
+   * from it (resolveApprovedPackSelection), so "in rotation" means on the slate.
+   * null or absent = no slate, the approved library is the rotation. The daily
+   * drain HOLDS on an exhausted slate (cursor past its last pack) and on an
+   * unreadable one, whose slug set is empty.
+   */
+  activeSlate?: AngleBankSlate | null;
+  /** approvedPackSlug of every reel job that reached Instagram (posted or published). */
   publishedPackSlugs: ReadonlySet<string>;
 }
 
@@ -196,11 +212,13 @@ export interface AngleBankStatus {
   stubs: number;
   /** Production-ready angles whose pack the builder accepts. */
   withPack: number;
-  /** Production-ready angles whose pack is in the daily rotation. */
+  /** Production-ready angles whose pack the lane can select today: the active slate's, else the approved library's. */
   inRotation: number;
+  /** The operator's active slate as the lane sees it; null when none is set. */
+  activeSlate: { size: number; state: AngleBankSlate["state"] } | null;
   /** Production-ready angles whose pack has been published at least once. */
   published: number;
-  /** Production-ready pack slugs the builder accepts that are not in the rotation — the operator's list. */
+  /** Production-ready pack slugs the builder accepts that are not in the approved library — the operator's list. */
   nextToApprove: string[];
   /** Production-ready pack slugs that are missing or that the builder rejects — a broken inventory entry. */
   missingPacks: string[];
@@ -220,8 +238,8 @@ export function angleBankStatus(bank: AngleBank, facts: AngleBankFacts): AngleBa
       continue;
     }
     withPack++;
-    if (facts.rotation.has(slug)) inRotation++;
-    else nextToApprove.push(slug);
+    if ((facts.activeSlate ? facts.activeSlate.slugs : facts.rotation).has(slug)) inRotation++;
+    if (!facts.rotation.has(slug)) nextToApprove.push(slug);
     if (facts.publishedPackSlugs.has(slug)) published++;
   }
   return {
@@ -231,6 +249,7 @@ export function angleBankStatus(bank: AngleBank, facts: AngleBankFacts): AngleBa
     stubs: bank.angles.filter((a) => a.status === "stub").length,
     withPack,
     inRotation,
+    activeSlate: facts.activeSlate ? { size: facts.activeSlate.slugs.size, state: facts.activeSlate.state } : null,
     published,
     nextToApprove,
     missingPacks,
@@ -243,7 +262,13 @@ export function angleBankStatus(bank: AngleBank, facts: AngleBankFacts): AngleBa
  * have not entered the rotation, and the operator reads it on a phone.
  */
 export function angleBankLine(s: AngleBankStatus): string {
-  const head = `${s.productionReady} production-ready angles of ${s.total}: ${s.withPack} with a pack, ${s.inRotation} in rotation, ${s.published} published`;
+  const sl = s.activeSlate;
+  const slate =
+    !sl ? ""
+    : sl.state === "unreadable" ? " (the active slate is unreadable, so the lane holds)"
+    : sl.state === "exhausted" ? ` (active slate of ${sl.size}, used up, so the lane holds)`
+    : ` (active slate of ${sl.size})`;
+  const head = `${s.productionReady} production-ready angles of ${s.total}: ${s.withPack} with a pack, ${s.inRotation} in rotation${slate}, ${s.published} published`;
   const parts = [head];
   if (s.nextToApprove.length) parts.push(`awaiting rotation approval: ${s.nextToApprove.map(shortSlug).join(", ")}`);
   if (s.missingPacks.length) parts.push(`BROKEN entries (pack missing or rejected by the builder): ${s.missingPacks.join(", ")}`);

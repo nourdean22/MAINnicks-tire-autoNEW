@@ -5,7 +5,10 @@
   "campaignKeyword": "SHAKE",
   "mechanicTruth": "A shake at highway speed is often wheel balance, but alignment, a damaged tire or worn parts can cause it too; an inspection tells which. The speed at which it starts narrows where to look first; it does not name the cause.",
   "loopIdea": "The last beat ends on the wheel spinning down on the balancer, which is the frame the hook opened on, so the loop restarts on motion.",
-  "selectedCaption": "Smooth around town, shakes on the highway? The speed tells us where to start looking: wheel balance first, then the tire itself, then alignment and worn parts. The balancer gives a number; hands check for play. Comment SHAKE or book an inspection — Nick's Tire & Auto, Euclid Ave, Cleveland.",
+  "selectedCaption": "Smooth around town, shakes on the highway? The speed tells us where to start looking: wheel balance first, then the tire itself, then alignment and worn parts. The balancer gives a number; hands check for play. Stop by Nick's Tire & Auto, Euclid Ave, Cleveland.",
+  "ask": {
+    "kind": "visit"
+  },
   "hashtags": [
     "#ClevelandAuto",
     "#SteeringWheelShake",

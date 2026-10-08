@@ -1,7 +1,7 @@
 # Proof Reel 03 — Patch or replace (Measurement proof, direct response)
 
 **Purpose:** prove mechanical truth, visual comparison and direct-response usefulness on the most
-claim-sensitive topic in the packet set. Runtime 24 s of beats + the 3 s SAVE card.
+claim-sensitive topic in the packet set. Runtime 24 s of beats + the 3 s end card (declared ask `visit`: STOP BY NICK'S).
 
 **Status (2026-10-08):** brief, captions and shot list are production input; animatic rendered and
 reviewed; **no real footage exists yet**. Beat 4 (the inside repair) needs the shop's approval to
@@ -31,16 +31,16 @@ want, which is the rule for building it ("two Reels need the same operation").
 
 ## Editorial contract check
 
-Frame one = the question on real evidence ✓ · longest caption 7 words ✓ · single CTA ("bring the
-tire") ✓ · readability 0/0 · narration 53 words ≈ 26.2 s vs 27 s audible ✓ · mechanical truth
+Frame one = the question on real evidence ✓ · longest caption 7 words ✓ · single ask (the end
+card STOP BY NICK'S and the caption; beats and voiceover carry none) ✓ · readability 0/0 · narration 53 words ≈ 26.2 s vs 27 s audible ✓ · mechanical truth
 0 violations (voiceover, on-screen text, caption and per-beat narration all scanned) · claim audit none.
 
 ## Trust rejection watch-list for this Reel
 
 Diagnosis without evidence (none: every claim is shown) · fear beyond evidence (none) · price
-(none stated) · customer evidence (a scrap tire is not a customer's) · CTA deliverable ("we look
-inside" is the shop's actual process).
+(none stated) · customer evidence (a scrap tire is not a customer's) · closing claim deliverable ("we look
+inside first" is the shop's actual process).
 
 **Primary caption:**
-> Nail in the tire: patch or replace? It depends on where and how big. In the tread area and under a quarter inch, it is often repairable — tire off the wheel, inspected inside, plug plus an inside patch. In the sidewall or shoulder, or bigger than a quarter inch, the tire is replaced. Comment NAIL or bring it in — Nick's Tire & Auto, Euclid Ave, Cleveland.
+> Nail in the tire: patch or replace? It depends on where and how big. In the tread area and under a quarter inch, it is often repairable — tire off the wheel, inspected inside, plug plus an inside patch. In the sidewall or shoulder, or bigger than a quarter inch, the tire is replaced. Stop by Nick's Tire & Auto, Euclid Ave, Cleveland.
 > #ClevelandAuto #TireRepair #FlatTire #NicksTireAndAuto #EuclidAve

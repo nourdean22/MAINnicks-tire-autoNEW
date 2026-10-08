@@ -17,6 +17,7 @@ import { resolvePacksDir } from "./reelPackRegistry";
 import { MOTION_LENSES, REEL_ARCHETYPES } from "../../client/src/lib/facelessReelStudio";
 import type { MotionLens, ReelArchetype } from "../../client/src/lib/facelessReelStudio";
 import type { ApprovedPackPool } from "../../shared/reelJobPayload";
+import { parseShotSource } from "../../shared/shotRouter";
 
 /**
  * EVERY PACK-DERIVED REEL LOOKED THE SAME, AND THIS IS WHY.
@@ -247,8 +248,14 @@ export const ROTATION_EXCLUDED: Readonly<Record<string, string>> = {
   "2026-08-20-tire-sidewall-numbers":
     "Repost: on-screen text scores 1.00 against an already-published post. The originality gate " +
     "would refuse it at the publish door anyway; keeping it out of the rotation saves the render.",
-  "2026-10-08-proof-01-uneven-wear": PROOF_PACK_EXCLUSION,
-  "2026-10-08-proof-02-highway-shake": PROOF_PACK_EXCLUSION,
+  "2026-10-08-proof-01-uneven-wear":
+    PROOF_PACK_EXCLUSION +
+    " Also: beat 2's INNER 3/32 / OUTER 7/32 are example readings. Replace them with the captured tire's " +
+    "gauge values before admission, or the Reel shows a measurement nobody took.",
+  "2026-10-08-proof-02-highway-shake":
+    PROOF_PACK_EXCLUSION +
+    " Also: it rests on the vibration truth packet (shared/mechanicalTruth.ts), which has no source and no " +
+    "technician approval yet. It stays out until that packet is cited or technician-approved.",
   "2026-10-08-proof-03-patch-or-replace": PROOF_PACK_EXCLUSION,
 };
 
@@ -367,6 +374,7 @@ export function buildBriefFromApprovedProductionPack(
     const beatNumber = Number(beat.beatNumber ?? beat.beat ?? beat.index ?? index + 1);
     const startSecond = Number(beat.startSecond ?? beat.start ?? index * 5);
     const endSecond = Number(beat.endSecond ?? beat.end ?? startSecond + 5);
+    const declaredSource = parseShotSource(beat.source);
     return {
       beatNumber,
       startSecond,
@@ -377,6 +385,10 @@ export function buildBriefFromApprovedProductionPack(
       purpose: stringValue(beat.purpose) || stringValue(beat.intent) || stringValue(beat.role) || stringValue(beat.label),
       audioCue: stringValue(beat.audioCue) || stringValue(beat.audioNote),
       safeZoneNotes: stringValue(beat.safeZoneNotes),
+      // The declared shot source (StoryboardBeat.source) rides through, or
+      // runReelPreflight's route check sees every pack beat as "unspecified"
+      // and silently skips it. Only the four declared values survive.
+      ...(declaredSource ? { source: declaredSource } : {}),
     };
   });
   const selectedCaption = stringValue(source.selectedCaption) || stringValue(source.caption) || primaryCaptionFromReadme(snapshot.files.readme);

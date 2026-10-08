@@ -16,6 +16,19 @@
 export type ShotSource = "real" | "deterministic" | "still_motion" | "ai_illustrative";
 export type ShotRoute = ShotSource | "reuse" | "delete" | "do_not_generate";
 
+const SHOT_SOURCES: readonly ShotSource[] = ["real", "deterministic", "still_motion", "ai_illustrative"];
+
+/**
+ * A `source` read from untrusted JSON (a committed pack brief): one of the four
+ * declared values, or null. The approved-pack builder keeps a beat's source only
+ * through this, so the declaration reaches runReelPreflight intact and a stray
+ * value never does.
+ */
+export function parseShotSource(value: unknown): ShotSource | null {
+  const v = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return (SHOT_SOURCES as readonly string[]).includes(v) ? (v as ShotSource) : null;
+}
+
 export interface ShotFacts {
   /** Claims to show Nick's, a customer vehicle, damage, a measurement or repair work. */
   claimsRealWork: boolean;
