@@ -4213,7 +4213,8 @@
           "shared/shotRouter.test.ts (12): the seven questions in order (real > deterministic > approved still > do-not-generate > reuse > ai_illustrative > delete / capture); every tag spelling and the unspecified default; contradictions only, silent on undeclared beats; the proof packs declare a source on every beat with no ai_illustrative beat.",
           "client/src/__tests__/faceless-reel-studio.test.ts (+4): control sample raises neither finding; a generic opening is a structural WARN naming frame one and the brief still passes; a CTA before the last beat warns; an ai_illustrative beat describing a measurement is a production WARN and the same beat declared real is not. 4 files 90 tests exit 0 with previsReadability.",
           "tsc --noEmit exit 0.",
-          "apps/video-forge/tests/test_build_corpus.py (3): declared real / deterministic beats leave the pool, the field wins over the tag, the tag is read only at the start (never 'realistic' or 'a real tire' in prose), the proof packs add nothing and the penny-test pack still adds its five beats; filter removed → 2 red and the corpus diverges. Full video-forge job locally: compileall ok, 72 tests OK, corpus no diff."
+          "apps/video-forge/tests/test_build_corpus.py (3): declared real / deterministic beats leave the pool, the field wins over the tag, the tag is read only at the start (never 'realistic' or 'a real tire' in prose), the proof packs add nothing and the penny-test pack still adds its five beats; filter removed → 2 red and the corpus diverges. Full video-forge job locally: compileall ok, 72 tests OK, corpus no diff.",
+          "Codex review of #2930 (2026-10-08): buildBriefFromApprovedProductionPack dropped a beat's `source` field, so a pack declaring it in the field (not the visual tag) reached runReelPreflight as unspecified. It now keeps the field through shared/shotRouter.parseShotSource (the four values only). server/approvedReelPackRotation.test.ts: a field that disagrees with the visual tag survives and wins in declaredBeatSource; a stray value and an absent one add nothing; control: no committed pack declares the field, so every existing brief builds unchanged. Builder mutation → red."
         ],
         "liveRuns": [],
         "deploymentId": null
@@ -4244,7 +4245,8 @@
         "tests": [
           "shared/angleBank.test.ts (13): the committed file parses with 100 / 20 / 12 / 15; every named pack is accepted by the production builder (a beat-count draft of this check mis-graded 16 entries — packs the builder rejects — and wrongly condemned 2026-08-18-power-steering-whine, accepted by the builder with 0 beats under the two common keys; the 16 were re-pointed at accepted packs); no stub restates a pack slug; ROTATION CANARY pins that exactly the three proof packs are production-ready and outside the rotation (every other builder-accepted pack is in it, 133 / 133); seven mutations refused by name (incl. the spacing rule and a near-duplicate at overlap 1.00); the status line with zeros, a BROKEN entry and a full rotation.",
           "server/services/creativeAssistant.test.ts (+2): the inputs.angleBank line from the fixture; an unreadable bank is an error input and no card depends on it; the injected-readers test pins the error wording. 31 tests exit 0.",
-          "The near-duplicate guard fired on the author's own replacement wording (A064 vs A083, overlap 0.65) before it was reworded — the instrument is proven on a real positive."
+          "The near-duplicate guard fired on the author's own replacement wording (A064 vs A083, overlap 0.65) before it was reworded — the instrument is proven on a real positive.",
+          "Codex review of #2930 (2026-10-08), two P2s fixed: 'in rotation' now counts the operator's active slate while one is set (resolveApprovedPackSelection draws only from it; an unreadable slate counts 0, and an unreadable or used-up slate is named because the drain holds on both), and 'published' counts reel jobs in either live status, posted or published (reelReliability.ts). shared/angleBank.test.ts +2 (slate narrows the count with a no-slate control; unreadable slate); slate mutation → 2 red. The reader's DB wiring (readActiveReelSlate, the two-status filter) has no unit test: typecheck only."
         ],
         "liveRuns": [],
         "deploymentId": null
@@ -4252,7 +4254,7 @@
       "blockers": [
         {
           "severity": "P2",
-          "description": "The Sources line has not been seen rendered: this session has no browser against a running admin. First live proof is the Creative Assistant's Sources row on Today showing 'angleBank 20 production-ready angles of 100: 20 with a pack, 17 in rotation, 0 published; awaiting rotation approval: proof-01-uneven-wear, proof-02-highway-shake, proof-03-patch-or-replace' after deploy.",
+          "description": "The Sources line has not been seen rendered: this session has no browser against a running admin. First live proof is the Creative Assistant's Sources row on Today showing 'angleBank 20 production-ready angles of 100: 20 with a pack, 17 in rotation, 0 published; awaiting rotation approval: proof-01-uneven-wear, proof-02-highway-shake, proof-03-patch-or-replace' after deploy, or 'N in rotation (active slate of M)' while an operator slate is set.",
           "source": "2026-10-08 branch self-audit"
         }
       ],

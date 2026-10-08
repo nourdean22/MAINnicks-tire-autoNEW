@@ -2,7 +2,7 @@
 
 **Purpose:** prove the mystery structure, local relevance and illustrative synthesis **without
 false evidence** — the Reel preserves uncertainty instead of diagnosing by video. Runtime 24 s of
-beats + the 3 s SAVE card.
+beats + the 3 s end card (declared ask `visit`: STOP BY NICK'S).
 
 **Status (2026-10-08):** brief, captions and shot list are production input; animatic rendered and
 reviewed; **no real footage exists yet** (capture owners in `05-CAPTURE-CHECKLIST.md`). The one
@@ -29,7 +29,7 @@ abstract vibration transition, it is one AI clip (illustrative, labelled) — th
 ## Editorial contract check
 
 Frame one = motion + evidence ✓ · longest caption 8 words ("SPEED SAYS WHERE TO START. NOT THE
-ANSWER.") ✓ · single CTA (implicit: come in; the caption carries "book an inspection") ✓ ·
+ANSWER.") ✓ · single CTA (the end card and the caption ask the same: stop by) ✓ ·
 readability 0/0 · narration 53 words ≈ 26.6 s vs 27 s audible ✓ (tight: the closing line ends by
 23.5 s) · mechanical truth 0 violations · claim audit none.
 
@@ -40,5 +40,5 @@ It tests whether the system can say "often wheel balance" and "we check" without
 footage.
 
 **Primary caption:**
-> Smooth around town, shakes on the highway? The speed tells us where to start looking: wheel balance first, then the tire itself, then alignment and worn parts. The balancer gives a number; hands check for play. Comment SHAKE or book an inspection — Nick's Tire & Auto, Euclid Ave, Cleveland.
+> Smooth around town, shakes on the highway? The speed tells us where to start looking: wheel balance first, then the tire itself, then alignment and worn parts. The balancer gives a number; hands check for play. Stop by Nick's Tire & Auto, Euclid Ave, Cleveland.
 > #ClevelandAuto #SteeringWheelShake #WheelBalance #NicksTireAndAuto #I90

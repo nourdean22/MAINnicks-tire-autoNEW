@@ -5,7 +5,10 @@
   "campaignKeyword": "NAIL",
   "mechanicTruth": "A puncture in the tread area is often repairable. A proper repair means taking the tire off the wheel, inspecting it inside, and filling the hole with a plug (stem) plus sealing it with an inside patch. Punctures in the sidewall or shoulder, or larger than 1/4 inch, are not repairable; the tire is replaced.",
   "loopIdea": "The last beat returns to the nail in the tread from the hook, now with the zone outline around it, so the loop restarts on the question the Reel answers.",
-  "selectedCaption": "Nail in the tire: patch or replace? It depends on where and how big. In the tread area and under a quarter inch, it is often repairable — tire off the wheel, inspected inside, plug plus an inside patch. In the sidewall or shoulder, or bigger than a quarter inch, the tire is replaced. Comment NAIL or bring it in — Nick's Tire & Auto, Euclid Ave, Cleveland.",
+  "selectedCaption": "Nail in the tire: patch or replace? It depends on where and how big. In the tread area and under a quarter inch, it is often repairable — tire off the wheel, inspected inside, plug plus an inside patch. In the sidewall or shoulder, or bigger than a quarter inch, the tire is replaced. Stop by Nick's Tire & Auto, Euclid Ave, Cleveland.",
+  "ask": {
+    "kind": "visit"
+  },
   "hashtags": [
     "#ClevelandAuto",
     "#TireRepair",

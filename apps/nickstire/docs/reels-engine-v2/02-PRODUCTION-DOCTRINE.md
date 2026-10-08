@@ -87,7 +87,7 @@ reference point, not a route.
 | Voiceover | factual spine; music never masks it | sidechain ducking ✓ |
 | Natural sound | tire machine, ratchet, impact, gauge click | MISSING (library + capture) |
 | CTA | one action | `ctaType` single on a brief ✓; `CAMPAIGN_KEYWORDS` list ✓ |
-| End card | ≤ 2 s unless the closing visual carries the CTA | the lane's SAVE freeze is ~3 s — review against this rule |
+| End card | ≤ 2 s unless the closing visual carries the CTA | the lane's end-card freeze is ~3 s — review against this rule |
 
 ## 5. QA — rejection classes mapped to the critic registry
 
