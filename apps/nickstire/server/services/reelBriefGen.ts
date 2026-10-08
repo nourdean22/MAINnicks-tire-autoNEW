@@ -23,6 +23,7 @@ import { buildFacelessReelSystemPrompt } from "../../client/src/lib/facelessReel
 import { serializeThesisForPrompt, type CreativeThesis } from "../../client/src/lib/creativeThesis";
 import { applyCreativeSkills } from "./skillRouter";
 import { buildBrandBibleFragment } from "../../shared/brandBible";
+import { buildTruthPacketFragment } from "../../shared/mechanicalTruth";
 import { assessEvidence, evidenceDirective, type EvidenceFact } from "../../shared/evidenceSufficiency";
 import { PUBLIC_SOURCE_REGISTRY } from "./evidenceResolver";
 import { buildFranchiseFragment, type FranchiseId } from "../../shared/contentFranchises";
@@ -1032,6 +1033,12 @@ export async function generateReelBriefAI(
   systemPrompt += `
 
 ${buildBrandBibleFragment()}`;
+  // Mechanical truth BEFORE the script is written: the same packets the publish
+  // door enforces (reelClaimAudit.condemnedContentProblem), so a violation costs
+  // a sentence here instead of a refused render later.
+  systemPrompt += `
+
+${buildTruthPacketFragment()}`;
   if (input.franchiseId) {
     systemPrompt += `
 

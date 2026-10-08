@@ -274,6 +274,13 @@ ${(pendingCallbacks[0]?.count ?? 0) > 0 ? `- 📞 ${pendingCallbacks[0]?.count} 
           if (Number(q?.failed24h ?? 0) > 0) parts.push(`${Number(q?.failed24h)} delivery failure(s) in 24h (replayable from SMS Ops)`);
         }
       } catch { parts.push("queue/suppression counts UNKNOWN (read failed)"); }
+      try {
+        const { readReelLane, renderReelLaneException } = await import("../../services/reelLaneHealth");
+        const { getDb } = await import("../../db");
+        const rdb = await getDb();
+        const line = renderReelLaneException(rdb ? await readReelLane(rdb) : { kind: "unreadable" });
+        if (line) parts.push(line);
+      } catch { parts.push("Instagram Reel lane UNKNOWN (read failed — check Instagram → Queue)"); }
       if (parts.length > 0) {
         exceptionsBlock = "\nEXCEPTIONS (needs Nick — everything else is handled):\n- " + parts.join("\n- ");
       }

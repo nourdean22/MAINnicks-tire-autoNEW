@@ -464,3 +464,53 @@ env-reversible switches: `RENDERED_QA_SPECIALIST` unset = old call count; `REEL_
 - **Known open operational facts (not code):** Higgsfield and OpenRouter credits are exhausted;
   `REPLICATE_API_KEY` is unset in prod; Facebook has zero insights; the declined-work matcher last
   ran 2026-05-07.
+
+## Z. Control gates — disposition of the 2026-10-08 blind-spot review
+
+An external "Creative Intelligence OS 3.0" review (2026-10-08) argued that the remaining quality gaps
+are the controls AROUND generation, not more models or agents. Checked against this repo and Railway
+the same day. Status words follow the ladder: built / wired / tested / deployed / live.
+
+| # | Review item | Verdict | Where / what |
+|---|---|---|---|
+| 1 | Previs (storyboard + timed animatic) before paid generation | PARTIAL — NEXT | Approved packs are human-reviewed beats before render; dynamic briefs pass the M10 preflight and claim bank (one LLM call per rejected brief) before any paid clip; the contact sheet comes only AFTER render. Missing: a $0 timed animatic (beat cards + VO timing) for dynamic briefs. |
+| 2 | Pairwise blind human preference | PARTIAL — PROTOCOL below | Store: statenour `POST /api/proof/taste` (two candidates, winner, reason codes, mirrored to BrainMemory). Decision rule: the paired permutation gate in `server/services/promptEvolutionGate.ts`. Missing: a review screen that randomises sides. |
+| 3 | QA on the platform-delivered copy | MISSING — NEXT | `metaSocial.ts` already reads `media_url` back; nothing compares the delivered rendition with the master. Needs a live token to verify, so it is not built blind. |
+| 4 | Mechanical truth packets | BUILT + WIRED + TESTED | `shared/mechanicalTruth.ts`; refused at the Reel publish door (`reelClaimAudit.condemnedContentProblem`), given to the brief generator up front. Technician sign-off: none yet. |
+| 5 | Experiment validity (A/A, power, SRM, stopping) | BUILT + TESTED (content); EXISTED (web) | Content experiments: permutation gate, A/A 85.8% → 2.8% false winners, power stated (58% for a doubled rate at 12 posts/arm). Web: `shared/experimentKernel.ts` already had mSPRT, SRM and a calibration harness. |
+| 6 | Unbranded recognition test with Cleveland drivers | PROTOCOL — operator | People, not code. Below. |
+| 7 | Calibrated real-shop capture | PROTOCOL — operator | Below. The DVI photo pairs (migration 0143) are the first capture stream to calibrate. |
+| 8 | Agent and upload threat model | EXISTS, partial | Evaluator separation + Night Shift identity boundary (`docs/DREAM-TO-PROOF.md`), AI disclosure gate (`shared/reelDisclosure.ts`), external-content fencing (statenour). Not audited here: media upload MIME / size validation. |
+| 9 | Provider drift canaries | LATER | Image provider circuit breaker exists (`imageProviderCircuit`); no fixed-brief canary suite. |
+| 10 | Content incident response | PROTOCOL below | Lineage exists: `content_runs`, `reel_jobs.igPostId`, `ig_metric_snapshots`. |
+| 11 | Shop adoption loop | PROTOCOL — operator | Below. Without it the system drifts to synthetic media because it is easier to get. |
+| 12 | Accessibility beyond captions | BUILT (flash); EXISTED (caption obstruction) | `server/services/flashRisk.ts` → `PHOTOSENSITIVE_FLASH` block; `CAPTION_OBSTRUCTION` + pixel `CAPTION_BOX_BUSY` already ran. Not measured: localized or red flashes, caption contrast ratio. |
+
+**Also found and fixed in the same wave:** the nightly Reel had not posted since 10-04 (approved queue
+drained, nothing told the operator — the morning brief now does), and `content-auto-gen` had failed on
+every observed run (budget + diagnostics; cause unconfirmed until the next run).
+
+### Pairwise review protocol (item 2)
+1. Pairs, never 1–10 scores, for the decision. Hide provider, prompt, price and which is old/new.
+2. Show every pair twice, once in each order (AB and BA); add 1 repeated pair per 10 to measure each reviewer's consistency.
+3. One question per pass: stops the scroll · believable · clear what to do · feels like Nick's · visible defect.
+4. Ties are allowed and recorded. A reviewer below 70% self-agreement on repeated pairs is reported, not silently averaged.
+5. A candidate "wins" only through a paired test over the frozen briefs (the `promptEvolutionGate.ts` rule), and a single reliably-broken brief vetoes it.
+
+### Capture kit and weekly loop (items 7, 11)
+- Kit: one phone with locked exposure / white balance / 30 fps, a clamp or small tripod, a diffused inspection light, a grey card shot whenever the light changes.
+- Shot set per job (under a minute): wide of the car, the defect in macro, the measurement (tread gauge, DVI reading), the part out, the part in, the finished state from the same angle as the wide.
+- Weekly: the service lead names three real customer questions; whoever is on the floor captures; someone strips plates, faces and names and confirms consent; a technician checks the claim against the truth packet; one item goes to production.
+- Track only four numbers: approved captures per week, % usable, median minutes per capture, % of published pieces with real Nick's evidence.
+
+### Incident runbook (item 10)
+1. **Stop the lane:** Reels — set `REEL_PUBLISH_ENABLED=false` (Railway, operator); static posts — `IG_AUTOPOST_DRYRUN=true`. A wrong approval — set `revoked_at` on its `reel_publish_approvals` row (the drain then skips it).
+2. **Take it down:** this codebase has no delete-from-Instagram path; remove the post in the Instagram app and note the media id.
+3. **Trace it:** `reel_jobs.igPostId` → the job's payload (brief, QA verdict, approval) → `content_runs`.
+4. **Fix the class:** add the failure as a fixture — a truth-packet example, a condemned phrase in `reelClaimAudit.ts`, or a QA test — before re-enabling.
+
+### Recognition test (item 6)
+Debranded cues (palette, type, the gold scan light, sound, voice, shop imagery) shown to 30+ Cleveland
+drivers next to local competitors and national chains, with "another shop" and "don't know" as
+options. Keep a cue only if it is linked to Nick's more often than to anyone else. Expect "black and
+gold, premium automotive" to be category-generic — that is the point of testing it.

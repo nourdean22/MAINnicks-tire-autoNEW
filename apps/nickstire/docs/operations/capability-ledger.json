@@ -3610,6 +3610,142 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "reel-lane-stall-exception",
+      "name": "Morning brief names a stalled Reel lane and the approval that unblocks it",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: server/services/reelLaneHealth.ts (readReelLane + renderReelLaneException) wired into the EXCEPTIONS block of server/cron/jobs/morningBrief.ts. Written against Railway 2026-10-05..08: no Reel published for four nights while each 04:00 UTC drain skipped its 3 approved jobs (1740002 inventory_published, 1740003/1770004 repost:caption) and nothing told the operator.",
+        "tests": [
+          "server/services/reelLaneHealth.test.ts (9): healthy says nothing; the 10-05..08 shape names days and waiting reels; stalled-with-nothing-waiting points at production; never-posted is a stall; unreadable is UNKNOWN; TiDB string numbers parse; a throwing query propagates; the brief block reads it, pushes the line and maps a throw to UNKNOWN (sliceBlock, fail-closed). Mutation: removing the call from the brief turns the wiring test red."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not observed in a production brief yet. Live proof: the first morning brief after deploy while no Reel has posted for 36 h carries the line; one after a post does not.",
+          "source": "2026-10-08 creative control gates"
+        }
+      ],
+      "deferredScope": [
+        "approving reels from the brief (approval stays an operator action in Instagram → Queue)"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "article-draft-generation-diagnostics",
+      "name": "Blog article drafts get an output budget and an empty reply names its cause",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: server/content-generator.ts generateArticle passes maxTokens 12288 (was the 4096 default), joins text-part replies, and throws with model / finish_reason / completion_tokens on an empty reply. content-auto-gen failed on all three observed runs (2026-09-30, 10-03, 10-07: 'LLM returned empty or non-string content').",
+        "tests": [
+          "server/contentGeneratorContract.test.ts (+3, red on the old code 3/3): an empty reply names model, finish_reason and completion tokens; text parts are joined; maxTokens >= 12288."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "The lane is failing in production and the cause is a hypothesis (output budget shared with reasoning). The next Wed/Sat content-auto-gen run either saves a draft or now logs the model and finish_reason that explain why not.",
+          "source": "2026-10-08 creative control gates"
+        }
+      ],
+      "deferredScope": [],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "content-experiment-permutation-gate",
+      "name": "Content experiment winners must survive a permutation test",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: shared/contentExperiments.ts evaluateExperiment requires two-sided permutation p <= 0.05 between the top two arms (Bonferroni over runners-up) on top of >= 4 posts per arm and a 10% lead; otherwise 'tie'. permutationP is exact up to 50,000 relabellings, fixed-seed Monte Carlo (20,000) beyond.",
+        "tests": [
+          "shared/contentExperimentsValidity.test.ts (6): CONTROL — the replaced rule crowns a winner between identical arms in > 60% of runs (measured 85.8% at 4 posts/arm, 80.8% at 8); the gate holds A/A <= 6% (measured 2.8% / 4.2%); a doubled share rate at 12 posts/arm is called >= 45% of the time (measured 58.1%) and never on the wrong arm; exact permutation case; Monte Carlo determinism. Mutation: disabling the gate turns the A/A and wrong-arm tests red. Existing experiment suites 42/42."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "No experiment has resolved under the new rule in production. Expect more 'tie' verdicts than before; that is the rule working, not the lane failing.",
+          "source": "2026-10-08 creative control gates"
+        }
+      ],
+      "deferredScope": [
+        "sample-ratio-mismatch check for content arms (assignment is deterministic per episode; survivorship from failed publishes is the remaining SRM source)"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "mechanical-truth-packets",
+      "name": "Mechanical truth packets block unsafe repair claims at the Reel publish door",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: shared/mechanicalTruth.ts — five topics (puncture repair, tread depth, uneven wear, vibration, pothole damage), sources NHTSA and USTMA, ten prohibited affirmative claims. Enforced in shared/reelClaimAudit.ts condemnedContentProblem (called by dailyReelPost drain and gate chain, reelPipeline generation and assembly); allowed statements and reasons injected into the reel brief system prompt (reelBriefGen.ts).",
+        "tests": [
+          "shared/mechanicalTruth.test.ts (7): every prohibited id has an unsafe example it catches (ids read from source); eight correct statements from the repo's own content pass; zero matches across docs/reel-packs, blog, guides, seo pages, tire-size content and the reel manifest; no packet claims technician sign-off; the brief prompt carries the reasons but never the unsafe sentences; the publish door refuses voiceover and on-screen violations and passes a correct script. Mutation: unwiring the door turns the door test red. First probe pass found 23 false positives and a question-then-answer bypass; both fixed before shipping. Existing condemned-content suites 29/29."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "No packet is technician-approved (technicianApproval null on all five). The sourced facts apply regardless; shop sign-off is an operator action.",
+          "source": "2026-10-08 creative control gates"
+        }
+      ],
+      "deferredScope": [
+        "static posts, carousels and articles (only the Reel door enforces the packets today)",
+        "brakes, corrosion, TPMS and check-engine packets"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "rendered-qa-flash-check",
+      "name": "Rendered QA blocks reels that flash more than three times a second",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: server/services/flashRisk.ts (one ffmpeg pass at 15 fps, signalstats YAVG → relative luminance, WCAG 2.2 SC 2.3.1 general-flash rule) run on the master inside renderedQa.ts; a fail adds a PHOTOSENSITIVE_FLASH block finding (repairRouter: reassemble, no spend); an unrunnable scan is recorded as flash.unmeasured, never a pass; the vision critic is never offered the code (DETERMINISTIC_CODES).",
+        "tests": [
+          "server/services/flashRisk.test.ts (7): steady, slow fade, two-a-second and a single white-flash transition pass; a 5 Hz strobe fails; bright-to-bright changes are not general flashes; the real ffmpeg pass fails a rendered strobe and passes a rendered steady clip."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not run on a production reel yet; whole-frame average luminance under-reads flashes that cover part of the frame, and red flashes are not measured.",
+          "source": "2026-10-08 creative control gates"
+        }
+      ],
+      "deferredScope": [
+        "area-based (PEAT-style) analysis",
+        "red-flash measurement",
+        "caption contrast ratio"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {

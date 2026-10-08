@@ -258,11 +258,29 @@ Return your response as a JSON object with these exact fields:
 Respond with valid JSON only. No markdown, no code blocks, just raw JSON.`,
       },
     ],
+    // A whole article as JSON, plus whatever the lane spends reasoning first.
+    // The 4096 default left no room for both: content-auto-gen came back empty
+    // on every observed production run (2026-09-30, 10-03, 10-07).
+    maxTokens: 12288,
   });
 
-  const rawContent = response.choices[0]?.message?.content;
-  if (!rawContent || typeof rawContent !== "string") {
-    throw new Error("LLM returned empty or non-string content");
+  const choice = response.choices?.[0];
+  const content = choice?.message?.content;
+  // Some lanes return text parts rather than one string; the article is the
+  // concatenated text either way.
+  const rawContent = typeof content === "string"
+    ? content
+    : Array.isArray(content)
+      ? content.map((p) => (p && typeof p === "object" && "text" in p && typeof p.text === "string" ? p.text : "")).join("")
+      : "";
+  if (!rawContent.trim()) {
+    // Name the cause in the error itself: cron_log and Telegram only ever see
+    // this message, and "empty content" alone left three failures undiagnosable.
+    throw new Error(
+      `LLM returned no article text (model=${response.model ?? "unknown"}, ` +
+      `finish_reason=${choice?.finish_reason ?? "unknown"}, ` +
+      `completion_tokens=${response.usage?.completion_tokens ?? "unknown"})`,
+    );
   }
 
   let article: GeneratedArticle;

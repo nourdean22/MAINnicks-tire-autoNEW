@@ -27,11 +27,26 @@
 import type { CtaType, ContentDistributionObjective } from "./instagramStudio";
 import type { FranchiseId } from "./contentFranchises";
 import type { ContentOrigin } from "./instagramStudio";
+import { mulberry32 } from "./experimentKernelCalibration";
 
 export const EXPERIMENT_REGISTRY_VERSION = "content-experiments-v1" as const;
 
 /** Below this many posts per arm, no verdict is issued. */
 export const MIN_SAMPLES_PER_ARM = 4;
+
+/**
+ * A "winner" must also survive a permutation test at this level (2026-10-08).
+ *
+ * The rule before it was "top arm leads by 10% after 4 posts per arm". Instagram
+ * per-post outcomes swing several-fold from post to post, so that rule crowned
+ * a winner between two IDENTICAL arms in 85.8% of seeded simulated runs at 4
+ * posts per arm and 80.8% at 8 (contentExperimentsValidity.test.ts keeps the
+ * old rule as its control). With the test the same A/A runs produce a winner in
+ * 2.8% and 4.2% of runs. The price is power: a genuinely doubled share rate at
+ * 12 posts per arm is called 58% of the time and reads as a tie otherwise,
+ * never as the wrong arm.
+ */
+const WINNER_ALPHA = 0.05;
 
 /**
  * HOW A METRIC COMBINES ACROSS POSTS — declared, never assumed.
@@ -286,6 +301,64 @@ export function armRates(
   return out;
 }
 
+/** One post's value on the primary metric, on the same footing armRates uses. */
+function perPostValue(spec: MetricSpec, o: ArmObservation): number {
+  const v = o.metricValue as number;
+  return spec.aggregation === "COUNT_PER_REACH" && o.reach && o.reach > 0 ? v / o.reach : v;
+}
+
+/**
+ * Two-sided permutation p-value for a difference in means between two arms'
+ * per-post values: the share of relabellings of the pooled posts whose mean
+ * gap is at least the observed one. Exact when the relabellings are few enough
+ * to enumerate, otherwise a fixed-seed Monte Carlo of 20,000 draws, so the same
+ * data always returns the same p. Valid with no assumption about the shape of
+ * the per-post distribution, which is the point: reach is heavy-tailed.
+ */
+export function permutationP(a: number[], b: number[]): number {
+  const pooled = [...a, ...b];
+  const n = pooled.length;
+  const k = a.length;
+  if (k === 0 || k === n) return 1;
+  const total = pooled.reduce((s, x) => s + x, 0);
+  const gap = (sumA: number) => Math.abs(sumA / k - (total - sumA) / (n - k));
+  const observed = gap(a.reduce((s, x) => s + x, 0)) - 1e-12;
+
+  let combos = 1;
+  for (let i = 0; i < k; i++) combos = (combos * (n - i)) / (i + 1);
+  let hits = 0;
+  let draws = 0;
+  if (combos <= 50_000) {
+    const idx = Array.from({ length: k }, (_, i) => i);
+    for (;;) {
+      let sum = 0;
+      for (const i of idx) sum += pooled[i];
+      draws++;
+      if (gap(sum) >= observed) hits++;
+      let j = k - 1;
+      while (j >= 0 && idx[j] === n - k + j) j--;
+      if (j < 0) break;
+      idx[j]++;
+      for (let m = j + 1; m < k; m++) idx[m] = idx[m - 1] + 1;
+    }
+  } else {
+    let seed = n * 7919 + k;
+    for (const x of pooled) seed = (seed * 31 + Math.round(x * 1e6)) >>> 0;
+    const rng = mulberry32(seed);
+    const arr = [...pooled];
+    for (draws = 0; draws < 20_000; draws++) {
+      for (let i = 0; i < k; i++) {
+        const j = i + Math.floor(rng() * (n - i));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      let sum = 0;
+      for (let i = 0; i < k; i++) sum += arr[i];
+      if (gap(sum) >= observed) hits++;
+    }
+  }
+  return hits / draws;
+}
+
 /**
  * Decide an experiment. Refuses a verdict rather than manufacturing one —
  * `insufficient_data`, `no_signal` and `invalid_design` are first-class
@@ -356,13 +429,29 @@ export function evaluateExperiment(
     return { status: "tie", note: `top two arms within ${(lift * 100).toFixed(1)}% — not separable at this sample size` };
   }
 
+  // The lead must also be distinguishable from noise. The two leaders were
+  // picked AFTER looking at the data, so with more than two arms the p-value
+  // is multiplied by the number of possible runners-up (Bonferroni) to pay for
+  // that choice.
+  const values = (armId: string) =>
+    observations
+      .filter((o) => o.armId === armId && o.horizonHours === horizonHours && o.metricValue !== null)
+      .map((o) => perPostValue(spec, o));
+  const p = Math.min(1, permutationP(values(top.armId), values(second.armId)) * (scored.length - 1));
+  if (p > WINNER_ALPHA) {
+    return {
+      status: "tie",
+      note: `top arm leads by ${Number.isFinite(lift) ? `${(lift * 100).toFixed(1)}%` : "an undefined margin"} but a permutation test cannot tell it from noise (p=${p.toFixed(3)} > ${WINNER_ALPHA}) — keep running`,
+    };
+  }
+
   const arm = def.arms.find((a) => a.armId === top.armId);
   return {
     status: "winner",
     armId: top.armId,
     variantValue: arm?.variantValue ?? top.armId,
     lift: Number.isFinite(lift) ? lift : 1,
-    note: `${def.primaryVariable}=${arm?.variantValue} leads on ${def.primaryMetric} at ${horizonHours}h`,
+    note: `${def.primaryVariable}=${arm?.variantValue} leads on ${def.primaryMetric} at ${horizonHours}h (permutation p=${p.toFixed(3)})`,
   };
 }
 

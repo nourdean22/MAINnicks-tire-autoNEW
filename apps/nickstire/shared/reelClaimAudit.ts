@@ -29,6 +29,7 @@
  */
 
 import { jaccardSimilarity, normalizeForComparison } from "./reelOriginality";
+import { mechanicalTruthViolations } from "./mechanicalTruth";
 
 /**
  * DELIBERATELY HIGHER than the originality gate's 0.5, because the two gates
@@ -414,6 +415,15 @@ export interface ClaimContentCandidate {
  * and 1830002/1830003 happen to trip both.
  */
 export function condemnedContentProblem(candidate: ClaimContentCandidate): string | null {
+  // Mechanical truth first, on the RAW text: the packets' patterns read
+  // punctuation ("2/32", "can't") that normalizeForComparison strips. A script
+  // that teaches an unsafe repair shortcut is condemned whatever its wording
+  // and whatever a human approved (shared/mechanicalTruth.ts).
+  const [truth] = mechanicalTruthViolations(`${candidate.voiceover ?? ""}\n${candidate.onScreenText ?? ""}`);
+  if (truth) {
+    return `this script makes a claim the ${truth.topic.replace(/_/g, " ")} truth packet prohibits ("${truth.match}"): ${truth.reason}`;
+  }
+
   const vo = normalizeForComparison(candidate.voiceover);
   const ost = normalizeForComparison(candidate.onScreenText);
   if (!vo && !ost) return null;

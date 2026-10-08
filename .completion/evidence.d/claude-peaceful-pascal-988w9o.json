@@ -1,10 +1,10 @@
 {
   "evidence": {
     "cron-fail-closed": {
-      "ref": "receptionist prompt-evolution gate (2026-10-08): server/cron/jobs/promptEvolutionWeekly.test.ts 'Monday + an infrastructure failure ... fails the cron run' - a rejected runPromptEvolution rejects the job with no kv row and no Telegram; mutation (job catches the error and returns a quiet zero) turns it red. The job's only catch is the pre-existing best-effort Telegram send. server/__tests__/cronNoSwallowedFailure.test.ts + cronRethrow2026.test.ts green on this diff (41 tests with the weekly + corpus-tuning files)."
+      "ref": "PR #2923 (receptionist gate + creative control gates, 2026-10-08): server/cron/jobs/promptEvolutionWeekly.test.ts 'Monday + an infrastructure failure ... fails the cron run' — a rejected runPromptEvolution rejects the job with no kv row and no Telegram; mutation (catch and return a quiet zero) turns it red. morningBrief's new Reel-lane exception maps a failed read to an UNKNOWN line, never silence (server/services/reelLaneHealth.test.ts, sliceBlock wiring test). content-generator's empty reply now throws with model / finish_reason / completion_tokens, so content-auto-gen still fails loudly (server/contentGeneratorContract.test.ts +3, red on the old code). cronNoSwallowedFailure + cronRethrow2026 green on this diff."
     },
     "capability-ledger-updated": {
-      "ref": "docs/operations/capability-ledger.json: new row receptionist-prompt-evolution-gate (merged / unit_verified / internal, P2 blocker: first Monday run after deploy is the live confirmation); REALITY-LEDGER.md re-rendered; scripts/check-capability-ledger.mjs valid at 114 capabilities."
+      "ref": "docs/operations/capability-ledger.json: six rows — receptionist-prompt-evolution-gate, reel-lane-stall-exception, article-draft-generation-diagnostics (P1: lane failing in prod, cause a hypothesis until the next run), content-experiment-permutation-gate, mechanical-truth-packets (no technician sign-off yet), rendered-qa-flash-check — all merged / unit_verified / internal with the live proof each still needs named as a blocker; REALITY-LEDGER.md re-rendered; check-capability-ledger valid at 119."
     }
   }
 }
