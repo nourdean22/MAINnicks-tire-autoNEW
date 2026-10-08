@@ -257,20 +257,21 @@ switch ($Scenario) {
     Install-EdgeCode "v1"
     Add-FakeProcess 41 "python.exe" $edgePython 3600
     $portOwners[9095] = 41
-    $markers["first"] = [bool](Heal-EdgeCode $true $true $false)
+    # The launcher wrapper (pid 40) is the edge's parent for its whole life; it must not shield it.
+    Add-FakeProcess 40 "powershell.exe" 'powershell.exe -NoProfile -File C:\x\data\run-sign-rtsp-production.ps1' 3601
+    $markers["first"] = [bool](Heal-EdgeCode $true $true)
     $markers["fingerprintAfterFirst"] = [string](Get-Entry "edge-code-version").fingerprint
-    $markers["second"] = [bool](Heal-EdgeCode $true $true $false)
+    $markers["second"] = [bool](Heal-EdgeCode $true $true)
     Install-EdgeCode "v2"
-    $markers["third"] = [bool](Heal-EdgeCode $true $true $false)
+    $markers["third"] = [bool](Heal-EdgeCode $true $true)
     $markers["fingerprintAfterThrottle"] = [string](Get-Entry "edge-code-version").fingerprint
   }
-  "edge-code-leaves-unarmed-down-or-starting" {
+  "edge-code-leaves-unarmed-or-down-edge-alone" {
     Install-EdgeCode "v1"
     Add-FakeProcess 41 "python.exe" $edgePython 3600
     $portOwners[9095] = 41
-    $markers["unarmed"] = [bool](Heal-EdgeCode $false $true $false)
-    $markers["down"] = [bool](Heal-EdgeCode $true $false $false)
-    $markers["starting"] = [bool](Heal-EdgeCode $true $true $true)
+    $markers["unarmed"] = [bool](Heal-EdgeCode $false $true)
+    $markers["down"] = [bool](Heal-EdgeCode $true $false)
     $markers["fingerprint"] = [string](Get-Entry "edge-code-version").fingerprint
   }
   "edge-code-fingerprint-skips-office-modules" {
@@ -281,6 +282,17 @@ switch ($Scenario) {
     $markers["unchangedByOfficeModule"] = ($before -eq (Get-EdgeCodeFingerprint $root))
     Set-Content -LiteralPath (Join-Path (Join-Path $root "vision") "pipeline.py") -Value "# edge module" -Encoding ascii
     $markers["changedByEdgeModule"] = ($before -ne (Get-EdgeCodeFingerprint $root))
+  }
+  "log-locked-falls-back" {
+    # Another process holds the log open with no sharing (2026-10-08: a remote-admin reverse
+    # read): the line must land in $log.overflow instead of vanishing, and ordinary logging
+    # must resume on the main file once the handle is gone.
+    Set-Content -LiteralPath $log -Value "existing" -Encoding ascii
+    $h = [IO.File]::Open($log, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    try { Log "while locked" } finally { $h.Dispose() }
+    Log "after unlock"
+    $markers["overflowExists"] = [bool](Test-Path -LiteralPath ($log + ".overflow"))
+    $markers["overflowText"] = if ($markers["overflowExists"]) { [string](Get-Content -LiteralPath ($log + ".overflow") -Raw) } else { "" }
   }
   "disk-floor" {
     New-Item -ItemType Directory -Force -Path $officeAudioDir | Out-Null

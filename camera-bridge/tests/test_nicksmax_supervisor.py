@@ -172,7 +172,7 @@ def test_edge_code_change_is_checked_before_the_arm_path_and_recorded_on_every_s
     # the check runs where the start path can reload the edge in the same tick, and every start
     # records the fingerprint it loaded so the next tick does not restart it again for nothing.
     text = source()
-    heal = text.index("if (Heal-EdgeCode $armed $prodHealthy ([bool]$prodStarting))")
+    heal = text.index("if (Heal-EdgeCode $armed $prodHealthy)")
     arm = text.index("if ($armed) {")
     start = text.index("authoritative RTSP sign producer started after decoded-frame proof")
     recorded = text.index('(Get-Entry "edge-code-version").fingerprint = Get-EdgeCodeFingerprint $root')
@@ -304,11 +304,29 @@ def test_edge_code_change_ends_the_production_edge_once_and_records_it(tmp_path:
     assert m["fingerprintAfterThrottle"] == m["fingerprintAfterFirst"]
 
 
-def test_edge_code_rule_leaves_an_unarmed_down_or_starting_edge_alone(tmp_path: Path):
-    out = run_scenario("edge-code-leaves-unarmed-down-or-starting", tmp_path)
+def test_edge_code_rule_leaves_an_unarmed_or_down_edge_alone(tmp_path: Path):
+    out = run_scenario("edge-code-leaves-unarmed-or-down-edge-alone", tmp_path)
     assert out["calls"] == []
-    assert out["markers"] == {"unarmed": False, "down": False, "starting": False, "fingerprint": ""}
+    assert out["markers"] == {"unarmed": False, "down": False, "fingerprint": ""}
     assert "sign-edge" not in out["state"]
+
+
+def test_edge_launcher_wrapper_does_not_shield_the_edge_from_a_code_change():
+    # run-sign-rtsp-production.ps1 stays alive as the edge's parent for its whole life, so a
+    # "launcher alive" guard would never let the rule fire (NicksMax 2026-10-08 07:41-07:50).
+    text = source()
+    heal = text[text.index("function Heal-EdgeCode") : text.index("function Get-OfficeStatus")]
+    assert "$prodStarting" not in heal.split("{", 1)[1]
+    assert "function Heal-EdgeCode([bool]$armed,[bool]$prodHealthy)" in text
+
+
+def test_logger_falls_back_to_an_overflow_file_when_the_log_is_locked(tmp_path: Path):
+    out = run_scenario("log-locked-falls-back", tmp_path)
+    assert out["markers"]["overflowExists"] is True
+    assert "while locked" in out["markers"]["overflowText"]
+    assert "after unlock" not in out["markers"]["overflowText"]
+    assert any("after unlock" in line for line in out["log"])
+    assert not any("while locked" in line for line in out["log"])
 
 
 def test_edge_fingerprint_ignores_office_modules_but_sees_edge_modules(tmp_path: Path):

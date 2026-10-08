@@ -169,6 +169,16 @@ junctions every `node_modules`; an install inside one offers to wipe the shared 
 other worktree points at, and the prompt defaults to yes. On a fresh box that has its own
 clone this does not apply — it applies the moment you make a worktree.
 
+**Do not tail the supervisor log with a remote file reader (added 2026-10-08).** Desktop
+Commander's `read_file` with a negative offset left an exclusive handle on
+`logs\nicksmax-camera-supervisor.log` at 07:34; every `Add-Content` in the supervisor then
+failed silently for 20+ minutes while it kept restarting workers, and only the restart stamps
+in `data\.nicksmax-supervisor-state.json` showed it was alive. Read it through a shell
+(`powershell -NoProfile -Command "Get-Content -Tail 40 <path>"`), which closes its handle. The
+supervisor now writes lines it cannot land to `<log>.overflow` — read both, and treat a log
+that stops while the state file keeps changing as a locked file, not a dead supervisor. The
+leaked handle clears when the Desktop Commander agent restarts or the box reboots.
+
 ---
 
 ## 5. What the producer now records, and where to look

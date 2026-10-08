@@ -75,11 +75,16 @@ try {
   exit 0
 }
 
+# Logging must never break supervision -- and a log that cannot be written must not silence it
+# either. 2026-10-08 07:34-07:5x: a remote-admin session's reverse read left an exclusive handle
+# on this file, Add-Content failed every tick, and the supervisor restarted workers for 20 minutes
+# with nothing on record. Lines that cannot reach $log go to $log.overflow; read both.
 function Log([string]$m) {
+  $line = "{0} {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $m
   try {
-    Add-Content -Path $log -Value ("{0} {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $m) -Encoding utf8
+    Add-Content -Path $log -Value $line -Encoding utf8
   } catch {
-    # Logging must never break supervision across privilege-context races.
+    try { Add-Content -Path ($log + ".overflow") -Value $line -Encoding utf8 } catch {}
   }
 }
 
@@ -343,17 +348,21 @@ function Get-EdgeCodeFingerprint([string]$dir) {
 # fix sat on disk unloaded while the old edge kept running). Scope, deliberately narrow:
 #   * armed and healthy only -- a missing edge is already the start path's business, and the
 #     fingerprint is recorded whenever that path starts one, since it loads what is on disk;
-#   * never within 10 min of another sign-edge restart (a stale-lease kill, a fresh start);
+#   * never within 10 min of another sign-edge restart (a stale-lease kill, a fresh start). The
+#     launcher wrapper ($prodStarting) is NOT a guard here: run-sign-rtsp-production.ps1 stays
+#     alive as the edge's parent for the edge's whole life (pid 28568 under the 01:51 edge on
+#     2026-10-08), so "a launcher is alive" means "the edge is running", which is the case this
+#     rule exists for. The start path below reads it the same way: alive -> do not start another.
 #   * the fingerprint is recorded only when the restart is actually issued, so a throttled tick
 #     retries instead of forgetting the change. First sight of a tree counts as changed.
 # Returns $true when it ended the edge, so the caller re-probes :9095 before deciding to start.
-function Heal-EdgeCode([bool]$armed,[bool]$prodHealthy,[bool]$prodStarting) {
+function Heal-EdgeCode([bool]$armed,[bool]$prodHealthy) {
   if (-not $armed) { return $false }
   $fp = Get-EdgeCodeFingerprint $root
   if (-not $fp) { return $false }
   $e = Get-Entry "edge-code-version"
   if ($e.fingerprint -eq $fp) { return $false }
-  if (-not $prodHealthy -or $prodStarting) { return $false }
+  if (-not $prodHealthy) { return $false }
   if ((Restarts-InLastMinutes "sign-edge" 10) -gt 0) { return $false }
   Stop-ProcessesByCommand "python.*config-nicksmax-sign-production\.yaml" "production edge running stale code"
   Record-Restart "sign-edge" "edge code changed on disk; ended the production edge so the start path reloads it"
@@ -573,9 +582,11 @@ if ($prodHealthy -and -not $leaseFresh) {
   $prodHealthy = Port-Open 9095
 }
 $prodStarting = Find-ProcessByCommand "run-sign-rtsp-production\.ps1"
-if (Heal-EdgeCode $armed $prodHealthy ([bool]$prodStarting)) {
+if (Heal-EdgeCode $armed $prodHealthy) {
+  # The launcher wrapper exits with its child; re-read both so this same tick can start the edge.
   Start-Sleep -Milliseconds 900
   $prodHealthy = Port-Open 9095
+  $prodStarting = Find-ProcessByCommand "run-sign-rtsp-production\.ps1"
 }
 
 if ($armed) {
