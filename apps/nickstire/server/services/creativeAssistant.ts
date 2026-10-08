@@ -1,7 +1,7 @@
 /**
  * Creative Assistant — "what should we make today?" (README §M, PROMPT-PACK §14).
  *
- * Five cards at most, one per type, each with `why` = the exact signal lines
+ * Six cards at most, one per type, each with `why` = the exact signal lines
  * it was ranked on. Deterministic: no LLM, every weight is in this file. The
  * score is a product of demand x freshness x evidence, so a strong search
  * query the account covered last week ranks below a weaker one it never
@@ -18,12 +18,13 @@
  * can inject a throwing reader to prove the omission rule.
  */
 import { createLogger } from "../lib/logger";
-import { MIN_SAMPLES_PER_ARM, type ExperimentPresetId } from "../../shared/contentExperiments";
+import { DECISION_LOOKS, type ExperimentPresetId } from "../../shared/contentExperiments";
+import { MIN_PER_SIDE, measureFindingCosts, type QaOutcomeRow } from "../../shared/renderedQaOutcomes";
 import type { RecentReelSignals } from "./reelRepetitionHistory";
 
 const log = createLogger("services:creative-assistant");
 
-export type CreativeCardType = "opportunity" | "capture" | "fatigue" | "experiment" | "reuse";
+export type CreativeCardType = "opportunity" | "capture" | "fatigue" | "quality" | "experiment" | "reuse";
 export type CreativeFormat = "reel" | "carousel" | "static" | "article" | "capture" | "experiment";
 export type CreativeConfidence = "high" | "medium" | "low";
 
@@ -95,6 +96,19 @@ export interface ExperimentInputs {
   attached: number;
 }
 
+/**
+ * Shop adoption, measured (2026-10-08): of the pieces actually published in
+ * the window, how many carried a REAL shop photo (a reel with a matched
+ * `realAsset`, or a photo post whose image was an operator-captured asset)?
+ * The capture loop only closes when this number moves; everything upstream of
+ * it (capture cards, the real-asset pool) is activity.
+ */
+export interface RealEvidenceInputs {
+  windowDays: number;
+  published: number;
+  withReal: number;
+}
+
 export interface ArticleInputs {
   articles: Array<{ slug: string; title: string; publishDate: string }>;
   social: Array<{ topic: string; hookText: string }>;
@@ -110,6 +124,9 @@ export interface GatheredInputs {
   experiments: ReadResult<ExperimentInputs[]>;
   articles: ReadResult<ArticleInputs>;
   weather: ReadResult<string[]>;
+  /** Posted Reels with a completed critic verdict, joined to their latest skip rate (shared/renderedQaOutcomes.ts). */
+  qaOutcomes: ReadResult<QaOutcomeRow[]>;
+  realEvidence: ReadResult<RealEvidenceInputs>;
 }
 
 export interface AssistantReaders {
@@ -120,6 +137,8 @@ export interface AssistantReaders {
   experiments(): Promise<ExperimentInputs[]>;
   articles(): Promise<ArticleInputs>;
   weather(): Promise<string[]>;
+  qaOutcomes(): Promise<QaOutcomeRow[]>;
+  realEvidence(): Promise<RealEvidenceInputs>;
 }
 
 async function read<T>(name: string, fn: () => Promise<T>): Promise<ReadResult<T>> {
@@ -282,6 +301,12 @@ function evidence(topic: string, assets: ReadResult<RealAssetInputs>): { factor:
   return { factor: 0.7, line: `no real-shop asset matches among ${assets.value.count} reusable — AI visual only`, matched: false };
 }
 
+/** "2/14 published pieces in 30d carried real shop evidence" — a zero window says so rather than "0%". */
+function realEvidenceLine(r: RealEvidenceInputs): string {
+  if (r.published === 0) return `no pieces published in ${r.windowDays}d, so real-evidence share is unmeasured`;
+  return `${r.withReal}/${r.published} published pieces in ${r.windowDays}d carried real shop evidence (${Math.round((100 * r.withReal) / r.published)}%)`;
+}
+
 export function composeCreativeCards(g: GatheredInputs, now: Date = new Date()): CreativeAssistantResult {
   const cards: CreativeCard[] = [];
   const inputs: Record<string, SourceInput> = {};
@@ -301,6 +326,9 @@ export function composeCreativeCards(g: GatheredInputs, now: Date = new Date()):
   inputs.experiments = g.experiments.ok ? g.experiments.value.length : `error: ${g.experiments.error}`;
   inputs.articles = g.articles.ok ? g.articles.value.articles.length : `error: ${g.articles.error}`;
   inputs.weather = g.weather.ok ? g.weather.value.length : `error: ${g.weather.error}`;
+  inputs.qaOutcomes = g.qaOutcomes.ok ? g.qaOutcomes.value.filter((r) => r.skipRate != null).length : `error: ${g.qaOutcomes.error}`;
+  const evidenceLine = g.realEvidence.ok ? realEvidenceLine(g.realEvidence.value) : null;
+  inputs.realEvidence = evidenceLine ?? `error: ${(g.realEvidence as { error: string }).error}`;
 
   // ── 1. opportunity ──
   let opportunity: { topic: string; assetMatched: boolean } | null = null;
@@ -365,7 +393,7 @@ export function composeCreativeCards(g: GatheredInputs, now: Date = new Date()):
         type: "capture",
         title: captured.title,
         format: "capture",
-        why: captured.why.length ? captured.why : [`real-shop pool: ${g.realAssets.value.count} reusable images`],
+        why: [...(captured.why.length ? captured.why : [`real-shop pool: ${g.realAssets.value.count} reusable images`]), ...(evidenceLine ? [evidenceLine] : [])],
         confidence: "medium",
         confidenceReason: "capture opportunities come from the asset enrichment pass, not from outcomes",
         firstAction: captured.firstAction ?? "Shoot it on the next matching job",
@@ -378,6 +406,7 @@ export function composeCreativeCards(g: GatheredInputs, now: Date = new Date()):
         why: [
           `top opportunity "${opportunity.topic}" has no matching real-shop asset`,
           `real-shop pool: ${g.realAssets.value.count} reusable images`,
+          ...(evidenceLine ? [evidenceLine] : []),
         ],
         confidence: g.realAssets.value.count === 0 ? "high" : "medium",
         confidenceReason: g.realAssets.value.count === 0 ? "the pool is empty — nothing real can be reused" : "no word match in the pool; a near match may exist under another name",
@@ -420,21 +449,54 @@ export function composeCreativeCards(g: GatheredInputs, now: Date = new Date()):
     }
   }
 
+  // ── 3b. quality: a critic finding the audience has priced ──
+  //
+  // The rendered-QA registry decides by taste which defects ship as warnings.
+  // This card appears only when the posts carrying one code are skipped more
+  // than the posts without it by a margin a permutation test, corrected for
+  // the number of codes tested, would rarely produce (shared/renderedQaOutcomes).
+  // A read failure omits the card; too few posts per side is "not tested" and
+  // also omits it — the critic's taste is not contradicted by silence.
+  if (g.qaOutcomes.ok) {
+    const costs = measureFindingCosts(g.qaOutcomes.value);
+    const costly = costs.filter((c) => c.costly);
+    const top = costly[0];
+    if (top) {
+      cards.push({
+        type: "quality",
+        title: `Critic finding "${top.code}" costs viewers`,
+        format: "reel",
+        why: [
+          ...costly.slice(0, 3).map((c) =>
+            `${c.code}: ${c.withN} posts with it skip ${c.withMeanSkip.toFixed(1)}% vs ${c.withoutMeanSkip.toFixed(1)}% for ${c.withoutN} without (+${c.deltaPoints.toFixed(1)} pts, p=${c.p.toFixed(3)} <= ${c.alpha.toFixed(4)})`),
+          `latest skip-rate snapshot per posted Reel; ${costs.length} code(s) had >= ${MIN_PER_SIDE} posts on both sides and were tested`,
+        ],
+        confidence: "high",
+        confidenceReason: "a measured skip-rate gap on the account's own posts, not the critic's opinion of the frame",
+        firstAction: `Make ${top.code} a repair, not a warning, in the rendered-QA registry`,
+      });
+    }
+  }
+
   // ── 4. experiment ──
   if (g.experiments.ok) {
-    const thin = g.experiments.value.find((e) => e.thinnestArm < MIN_SAMPLES_PER_ARM);
+    // The resolver's first possible verdict is the first planned look
+    // (DECISION_LOOKS[0] per arm), not the 4-post floor; the card counts to
+    // the number that can actually produce a result.
+    const firstLook = DECISION_LOOKS[0];
+    const thin = g.experiments.value.find((e) => e.thinnestArm < firstLook);
     if (thin) {
       cards.push({
         type: "experiment",
         title: `Experiment running: ${thin.experimentId}`,
         format: "experiment",
         why: [
-          `${thin.attached} published episode${thin.attached === 1 ? "" : "s"} attached across ${thin.arms} arms; thinnest arm ${thin.thinnestArm}/${MIN_SAMPLES_PER_ARM} needed for a verdict`,
+          `${thin.attached} published episode${thin.attached === 1 ? "" : "s"} attached across ${thin.arms} arms; thinnest arm ${thin.thinnestArm}/${firstLook} needed for the first verdict`,
           `primary metric ${thin.primaryMetric} on ${thin.primaryVariable}`,
         ],
         confidence: "high",
         confidenceReason: "counts from content_experiment_assignments",
-        firstAction: `Keep the lane posting — ${MIN_SAMPLES_PER_ARM - thin.thinnestArm} more in the thinnest arm before the resolver can decide`,
+        firstAction: `Keep the lane posting — ${firstLook - thin.thinnestArm} more in the thinnest arm before the resolver's first look`,
       });
     } else if (g.experiments.value.length === 0 && g.ledger.ok && g.ledger.value.available) {
       const buckets = g.ledger.value.durationBuckets;
@@ -500,7 +562,7 @@ export function composeCreativeCards(g: GatheredInputs, now: Date = new Date()):
     }
   }
 
-  return { cards: cards.slice(0, 5), generatedAt: now.toISOString(), inputs };
+  return { cards: cards.slice(0, 6), generatedAt: now.toISOString(), inputs };
 }
 
 // ─── IO readers ───────────────────────────────────────────────────────────
@@ -647,10 +709,91 @@ const defaultReaders: AssistantReaders = {
     const { evaluateWeatherTriggers } = await import("./weatherIntelligence");
     return (await evaluateWeatherTriggers()).triggered;
   },
+  async realEvidence() {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) throw new Error("no database");
+    const { igAutopostLog, reelJobs } = await import("../../drizzle/schema");
+    const { and, desc, eq, gte } = await import("drizzle-orm");
+    const { parseReelJobPayload } = await import("../../shared/reelJobPayload");
+    const windowDays = 30;
+    const since = new Date(Date.now() - windowDays * 86_400_000);
+    const [reels, photos] = await Promise.all([
+      d.select({ payload: reelJobs.payload }).from(reelJobs)
+        .where(and(eq(reelJobs.status, "posted"), gte(reelJobs.updatedAt, since)))
+        .orderBy(desc(reelJobs.updatedAt)).limit(200),
+      d.select({ scores: igAutopostLog.evalScoresJson }).from(igAutopostLog)
+        .where(and(eq(igAutopostLog.status, "posted"), gte(igAutopostLog.createdAt, since)))
+        .orderBy(desc(igAutopostLog.createdAt)).limit(200),
+    ]);
+    let withReal = 0;
+    for (const r of reels as Array<{ payload: string | null }>) {
+      if (parseReelJobPayload(r.payload).realAsset?.assetId) withReal++;
+    }
+    for (const p of photos as Array<{ scores: string | null }>) {
+      // igAutopost records a real-asset image as `image.note = "real shop
+      // asset <id> — operator-captured photo, eval skipped"` (igAutopost.ts,
+      // the eval branch); nothing else writes that prefix.
+      try {
+        const note = (JSON.parse(p.scores ?? "{}") as { image?: { note?: unknown } }).image?.note;
+        if (typeof note === "string" && note.startsWith("real shop asset ")) withReal++;
+      } catch {
+        // an unreadable score row is not evidence either way
+      }
+    }
+    return { windowDays, published: reels.length + photos.length, withReal };
+  },
+  async qaOutcomes() {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) throw new Error("no database");
+    const { igMetricSnapshots, reelJobs } = await import("../../drizzle/schema");
+    const { and, desc, eq, gte, inArray, isNotNull } = await import("drizzle-orm");
+    const { parseReelJobPayload } = await import("../../shared/reelJobPayload");
+    const since = new Date(Date.now() - NINETY_DAYS_MS);
+    const jobs = await d
+      .select({ igPostId: reelJobs.igPostId, payload: reelJobs.payload })
+      .from(reelJobs)
+      .where(and(eq(reelJobs.status, "posted"), isNotNull(reelJobs.igPostId), gte(reelJobs.updatedAt, since)))
+      .orderBy(desc(reelJobs.updatedAt))
+      .limit(200);
+    const rows = new Map<string, QaOutcomeRow>();
+    for (const job of jobs as Array<{ igPostId: string | null; payload: string | null }>) {
+      if (!job.igPostId || rows.has(job.igPostId)) continue;
+      const qa = parseReelJobPayload(job.payload).renderedQa;
+      // Only a COMPLETED verdict that still describes the posted mp4 is a
+      // reading of that Reel. An unavailable critic says nothing about the
+      // frames; a verdict made stale by a repair describes a file nobody saw.
+      if (!qa || qa.qaState !== "completed" || qa.staleAfterRepair) continue;
+      rows.set(job.igPostId, { postId: job.igPostId, codes: [...new Set(qa.findings.map((f) => String(f.code)))], skipRate: null });
+    }
+    const ids = [...rows.keys()];
+    if (!ids.length) return [];
+    // Latest NON-NULL reading per post. instagram-data refreshes insights only
+    // for posts under 14 days old but keeps writing a snapshot row (skip_rate
+    // NULL) for every recent media item, so "newest row" would drop a Reel the
+    // moment it aged past 14 days although its real skip rate is one row older.
+    const snaps = await d
+      .select({ postId: igMetricSnapshots.postId, skipRate: igMetricSnapshots.skipRate })
+      .from(igMetricSnapshots)
+      .where(and(inArray(igMetricSnapshots.postId, ids.slice(0, 500)), isNotNull(igMetricSnapshots.skipRate)))
+      .orderBy(desc(igMetricSnapshots.capturedAt))
+      .limit(3000);
+    const seen = new Set<string>();
+    for (const s of snaps as Array<{ postId: string; skipRate: unknown }>) {
+      if (seen.has(s.postId)) continue; // newest first: the first row per post is its latest non-null reading
+      seen.add(s.postId);
+      // DECIMAL arrives as a string from mysql2 ("83.6000"); a null stays null.
+      const n = s.skipRate == null ? null : Number(s.skipRate);
+      const r = rows.get(s.postId);
+      if (r) r.skipRate = n != null && Number.isFinite(n) ? n : null;
+    }
+    return [...rows.values()];
+  },
 };
 
 async function gatherCreativeInputs(readers: AssistantReaders = defaultReaders): Promise<GatheredInputs> {
-  const [topicSignals, ledger, posts, realAssets, experiments, articles, weather] = await Promise.all([
+  const [topicSignals, ledger, posts, realAssets, experiments, articles, weather, qaOutcomes, realEvidence] = await Promise.all([
     read("topicSignals", readers.topicSignals),
     read("ledger", readers.ledger),
     read("posts", readers.posts),
@@ -658,8 +801,10 @@ async function gatherCreativeInputs(readers: AssistantReaders = defaultReaders):
     read("experiments", readers.experiments),
     read("articles", readers.articles),
     read("weather", readers.weather),
+    read("qaOutcomes", readers.qaOutcomes),
+    read("realEvidence", readers.realEvidence),
   ]);
-  return { topicSignals, ledger, posts, realAssets, experiments, articles, weather };
+  return { topicSignals, ledger, posts, realAssets, experiments, articles, weather, qaOutcomes, realEvidence };
 }
 
 /** The router's entry point: gather every source, then rank. */

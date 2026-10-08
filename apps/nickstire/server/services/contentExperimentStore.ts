@@ -25,11 +25,13 @@ import {
   evaluateExperiment,
   horizonForSnapshot,
   isDurationLaneId,
+  isUnwiredExperimentId,
   type ArmObservation,
   type DurationLaneId,
   type ExperimentArm,
   type ExperimentDefinition,
   type ExperimentVerdict,
+  type SnapshotMetricColumn,
 } from "../../shared/contentExperiments";
 
 const log = createLogger("services:content-experiments");
@@ -49,6 +51,29 @@ export async function startExperiment(def: ExperimentDefinition): Promise<boolea
   }).onDuplicateKeyUpdate({ set: { armsJson: def.arms } });
   log.info("experiment started", { experimentId: def.experimentId, variable: def.primaryVariable, arms: def.arms.length });
   return true;
+}
+
+/**
+ * Stop a RUNNING experiment (operator lever, 2026-10-08). Until now the only
+ * status writer was recordVerdict, so an experiment the resolver refuses to
+ * judge — an exposed preset started before the wiring gate, or any test the
+ * operator wants ended — sat `running` forever with no door but SQL. Writes
+ * `stopped` with the reason; the resolver and the assigner read only
+ * `running`, so a stopped experiment is out of both at once. Returns whether
+ * a running row was stopped (false = unknown id or already ended).
+ */
+export async function stopExperiment(experimentId: string, reason: string): Promise<boolean> {
+  const { getDb } = await import("../db");
+  const d = await getDb();
+  if (!d) return false;
+  const { contentExperiments } = await import("../../drizzle/schema");
+  const { and, eq } = await import("drizzle-orm");
+  const [result] = await d.update(contentExperiments)
+    .set({ status: "stopped", concludedAt: new Date(), verdictStatus: "stopped", verdictNote: reason.slice(0, 500) })
+    .where(and(eq(contentExperiments.experimentId, experimentId), eq(contentExperiments.status, "running")));
+  const affected = (result as { affectedRows?: number })?.affectedRows ?? 0;
+  if (affected > 0) log.info("experiment stopped by the operator", { experimentId, reason: reason.slice(0, 120) });
+  return affected > 0;
 }
 
 /**
@@ -92,18 +117,6 @@ export async function assignEpisode(
 }
 
 /**
- * Assign a reel job to whichever experiment is currently RUNNING, if any.
- *
- * This is the pipeline's entry point, and it is deliberately a NO-OP when no
- * experiment is running — which is the default state. Wiring it in therefore
- * changes nothing until an operator starts an experiment, and a failure here
- * must never take down a reel: an unassigned episode is a measurement gap, a
- * thrown error is a lost reel. Logged, swallowed, returns null.
- *
- * Picks the OLDEST running experiment so two overlapping ones cannot silently
- * fight over the same episode.
- */
-/**
  * The key an episode's arm is derived from. MUST be the same key generation
  * resolves on (dailyReelPost → hookArmForEpisode(briefId); reelBriefGen →
  * durationLaneForEpisode(episodeKey)). Until 2026-10-01 enqueue recorded the
@@ -117,50 +130,75 @@ export function experimentEpisodeKey(reelJobId: number, briefId?: string | null)
   return briefId && briefId.trim() ? briefId.trim() : `reel_job_${reelJobId}`;
 }
 
+/**
+ * Record a reel job in every experiment that will actually shape it.
+ *
+ * This is the pipeline's entry point, and it is deliberately a NO-OP when no
+ * experiment is running, which is the default state. A failure here must never
+ * take down a reel: an unassigned episode is a measurement gap, a thrown error
+ * is a lost reel. Logged, swallowed, returns [].
+ *
+ * WHICH experiments: the oldest running one PER primary variable, which is
+ * exactly the one generation applies (runningArmForEpisode). Until 2026-10-08
+ * this recorded only the single oldest running experiment of any variable, so
+ * with a hook test and a duration test both running, the newer one had its arm
+ * applied to every Reel and recorded on none, and it could never conclude.
+ * UNIQUE(experiment_id, episode_key) lets one episode sit in several.
+ * Exposed presets are skipped: no generator applies their arm.
+ */
 export async function assignEpisodeToActiveExperiment(
   reelJobId: number,
   context: { franchiseId?: string; contentOrigin?: string; postingSlot?: string; provider?: string; model?: string; briefId?: string } = {},
-): Promise<{ experimentId: string; armId: string; variantValue: string } | null> {
+): Promise<Array<{ experimentId: string; armId: string; variantValue: string }>> {
   try {
     const { getDb } = await import("../db");
     const d = await getDb();
-    if (!d) return null;
+    if (!d) return [];
     const { contentExperiments } = await import("../../drizzle/schema");
     const { eq, asc } = await import("drizzle-orm");
-    const rows = await d
+    const rows = (await d
       .select()
       .from(contentExperiments)
       .where(eq(contentExperiments.status, "running"))
-      .orderBy(asc(contentExperiments.startedAt))
-      .limit(1);
-    if (!rows.length) return null;
-
-    const row = rows[0] as unknown as {
+      .orderBy(asc(contentExperiments.startedAt))) as unknown as Array<{
       experimentId: string; primaryVariable: string; objective: string; primaryMetric: string;
       armsJson: unknown; startedAt: Date;
-    };
-    const def: ExperimentDefinition = {
-      experimentId: row.experimentId,
-      primaryVariable: row.primaryVariable as ExperimentDefinition["primaryVariable"],
-      objective: row.objective as ExperimentDefinition["objective"],
-      primaryMetric: row.primaryMetric,
-      arms: (Array.isArray(row.armsJson) ? row.armsJson : []) as ExperimentDefinition["arms"],
-      startedAt: new Date(row.startedAt).toISOString(),
-    };
-    if (def.arms.length < 2) return null;
+    }>;
+
+    const seenVariables = new Set<string>();
+    const defs: ExperimentDefinition[] = [];
+    for (const row of rows) {
+      if (seenVariables.has(row.primaryVariable)) continue; // generation applies only the oldest per variable
+      seenVariables.add(row.primaryVariable);
+      if (isUnwiredExperimentId(row.experimentId)) continue;
+      const arms = (Array.isArray(row.armsJson) ? row.armsJson : []) as ExperimentDefinition["arms"];
+      if (arms.length < 2) continue;
+      defs.push({
+        experimentId: row.experimentId,
+        primaryVariable: row.primaryVariable as ExperimentDefinition["primaryVariable"],
+        objective: row.objective as ExperimentDefinition["objective"],
+        primaryMetric: row.primaryMetric,
+        arms,
+        startedAt: new Date(row.startedAt).toISOString(),
+      });
+    }
 
     // The episode key must be STABLE for this job — assignment is derived from
     // it, so a changing key would re-roll the arm on every retry.
     const { briefId, ...rest } = context;
     const episodeKey = experimentEpisodeKey(reelJobId, briefId);
-    const assigned = await assignEpisode(def, episodeKey, { reelJobId, ...rest });
-    if (!assigned) return null;
-    log.info("episode assigned to experiment", { reelJobId, experimentId: def.experimentId, arm: assigned.armId });
-    return { experimentId: def.experimentId, ...assigned };
+    const out: Array<{ experimentId: string; armId: string; variantValue: string }> = [];
+    for (const def of defs) {
+      const assigned = await assignEpisode(def, episodeKey, { reelJobId, ...rest });
+      if (!assigned) continue;
+      log.info("episode assigned to experiment", { reelJobId, experimentId: def.experimentId, arm: assigned.armId });
+      out.push({ experimentId: def.experimentId, ...assigned });
+    }
+    return out;
   } catch (err) {
     // An unassigned episode is a measurement gap. A thrown error is a lost reel.
     log.warn("experiment assignment skipped (reel continues)", { reelJobId, err: err instanceof Error ? err.message : String(err) });
-    return null;
+    return [];
   }
 }
 
@@ -328,7 +366,7 @@ export async function attachPublishedMedia(
  */
 export async function gatherObservations(
   experimentId: string,
-  metric: "shares" | "saved" | "views" | "reach" | "avgWatchTimeMs",
+  metric: SnapshotMetricColumn,
   horizonHours: 24 | 72 | 168,
 ): Promise<ArmObservation[]> {
   const { getDb } = await import("../db");
@@ -364,12 +402,19 @@ export async function gatherObservations(
       if (!capturedAt) continue;
       if (horizonForSnapshot(a.publishedAt, capturedAt) !== horizonHours) continue;
       const raw = s[metric];
+      // skip_rate is a DECIMAL column, which mysql2 returns as a STRING
+      // ("83.6000"). Reading only numbers made every skip rate "not reported",
+      // so no hook experiment could ever be judged on the metric hooks move.
+      // A numeric string is a number; anything else stays null, never 0.
+      const value = typeof raw === "number"
+        ? raw
+        : typeof raw === "string" && raw.trim() !== "" && Number.isFinite(Number(raw)) ? Number(raw) : null;
       out.push({
         armId: a.armId,
         mediaId: a.mediaId,
         horizonHours,
         reach: typeof s.reach === "number" ? s.reach : null,
-        metricValue: typeof raw === "number" ? raw : null,
+        metricValue: value,
       });
       break;
     }
@@ -384,7 +429,7 @@ export async function gatherObservations(
  */
 export async function recordVerdict(
   def: ExperimentDefinition,
-  metric: "shares" | "saved" | "views" | "reach" | "avgWatchTimeMs",
+  metric: SnapshotMetricColumn,
   horizonHours: 24 | 72 | 168 = 72,
 ): Promise<ExperimentVerdict | null> {
   const observations = await gatherObservations(def.experimentId, metric, horizonHours);

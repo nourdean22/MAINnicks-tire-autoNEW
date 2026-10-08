@@ -3596,6 +3596,516 @@
       ]
     },
     {
+      "capabilityId": "receptionist-prompt-evolution-gate",
+      "name": "Weekly receptionist prompt evolution proposes a candidate only through a calibrated holdout gate",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o (094cb418): server/services/promptEvolutionGate.ts replaces the holdout rule in services/promptEvolution.ts. Was `candidate passRate > baseline passRate` over ~5 holdout seeds with one ghost replay each; now 3 replays per seed per prompt, an exact one-sided sign-flip permutation test on per-seed pass-rate differences (alpha 0.05), a veto when a call the served prompt passes on every replay is failed on every replay, and an explicit underpowered outcome. The weekly cron (cron/jobs/promptEvolutionWeekly.ts) runs 30 seeds (~12 on the holdout), logs one structured `[evolve] result` line and writes the gate reading into cron_log details and Telegram. Still PROPOSE-ONLY: the served prompt is never written; applying a proposal is an operator edit + Push Config. ghostReplay.ts and promptEvolutionGate.ts are evaluator paths (config/agent-os/evaluator-paths.json).",
+        "tests": [
+          "server/services/promptEvolutionGate.test.ts (13): seeded calibration in the experimentKernelCalibration style. CONTROL: the replaced rule accepts two identical prompts in > 20% of runs (measured 28.7% at 5 seeds, 36.9% at 12; 20,000 runs, mulberry32 seed 99); the gate holds A/A acceptance <= 5% (measured 0.7%); power >= 75% for a candidate fixing 5 of 12 always-failing calls (measured 82.4%; a plain sign test 45.0%, kept as a second CONTROL); regression veto; a candidate's own 'unresolvable' loss counts as a loss; exact permutation p on hand-countable cases. Six mutations each turn the file red (no significance, veto removed, either-arm unresolvable exclusion, permutation DP broken, magnitude dropped, unresolvable replay counted as a pass).",
+          "server/cron/jobs/promptEvolutionWeekly.test.ts (4): the gate's reason, +improved/-worsened and p reach cron_log details; a regressed call id reaches Telegram",
+          "server/vapi.customer-corpus-tuning.test.ts: the Telegram summary still labels an accepted candidate OFFLINE and 'NOT a production/business winner'"
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not observed in production under the new gate yet. The first Monday run after deploy is the live confirmation: Railway shows one `[evolve] result` line with a non-null gate reading (or a named earlier outcome), cron_log details carry `gate <reason> +N/-M p=`, and the run finishes inside the job's 30-minute budget at 30 seeds (the 12-seed run took 118.6s on 2026-10-05). That 2026-10-05 run's own outcome was never logged; it is readable only from cron_log details or shop_settings key prompt_evolution_latest.",
+          "source": "2026-10-08 AutoResearch audit"
+        }
+      ],
+      "deferredScope": [
+        "a frozen, versioned seed corpus: unnecessary for the gate, because the comparison is paired on the same seeds within one run, so weekly pool rotation cannot bias it",
+        "measuring the replay noise of the production model lanes directly (the simulation uses the CURRENT-TRUTH +/-1-2 seed description; the per-run `baseline self-disagreement` count in the verdict is the live reading)"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "reel-lane-stall-exception",
+      "name": "Morning brief names a stalled Reel lane and the approval that unblocks it",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: server/services/reelLaneHealth.ts (readReelLane + renderReelLaneException) wired into the EXCEPTIONS block of server/cron/jobs/morningBrief.ts. Written against Railway 2026-10-05..08: no Reel published for four nights while each 04:00 UTC drain skipped its 3 approved jobs (1740002 inventory_published, 1740003/1770004 repost:caption) and nothing told the operator.",
+        "tests": [
+          "server/services/reelLaneHealth.test.ts (9): healthy says nothing; the 10-05..08 shape names days and waiting reels; stalled-with-nothing-waiting points at production; never-posted is a stall; unreadable is UNKNOWN; TiDB string numbers parse; a throwing query propagates; the brief block reads it, pushes the line and maps a throw to UNKNOWN (sliceBlock, fail-closed). Mutation: removing the call from the brief turns the wiring test red."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not observed in a production brief yet. Live proof: the first morning brief after deploy while no Reel has posted for 36 h carries the line; one after a post does not.",
+          "source": "2026-10-08 creative control gates"
+        }
+      ],
+      "deferredScope": [
+        "approving reels from the brief (approval stays an operator action in Instagram → Queue)"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "article-draft-generation-diagnostics",
+      "name": "Blog article drafts get an output budget and an empty reply names its cause",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: server/content-generator.ts generateArticle passes maxTokens 12288 (was the 4096 default), joins text-part replies, and throws with model / finish_reason / completion_tokens on an empty reply. content-auto-gen failed on all three observed runs (2026-09-30, 10-03, 10-07: 'LLM returned empty or non-string content').",
+        "tests": [
+          "server/contentGeneratorContract.test.ts (+3, red on the old code 3/3): an empty reply names model, finish_reason and completion tokens; text parts are joined; maxTokens >= 12288."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "The lane is failing in production and the cause is a hypothesis (output budget shared with reasoning). The next Wed/Sat content-auto-gen run either saves a draft or now logs the model and finish_reason that explain why not.",
+          "source": "2026-10-08 creative control gates"
+        }
+      ],
+      "deferredScope": [],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "content-experiment-permutation-gate",
+      "name": "Content experiment winners must survive a permutation test",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: shared/contentExperiments.ts evaluateExperiment decides only at the planned looks DECISION_LOOKS = 12 / 24 / 48 / 96 reported posts per arm (then every 48), splits WINNER_ALPHA 0.05 across them (0.0125 per look; Bonferroni, stateless, no bookkeeping of looks taken), requires a >= 10% lead AND a two-sided permutation p <= 0.0125 between the top two arms (x runners-up with more than two arms), calls a tie (< 10% lead; 'retire this variable') only from the 48-per-arm look, and between looks or short of significance returns insufficient_data naming the next look — the experiment keeps running. For WEIGHTED_AVERAGE metrics (avg_watch_time, ig_reels_avg_watch_time, avgWatchTimeMs) the permutation statistic is the reach-weighted mean gap, the same quantity armRates ranks on (before: plain per-post values, so the ranking and its p-value were computed on different quantities). permutationP is exact up to 50,000 relabellings, fixed-seed Monte Carlo (20,000) beyond. Pre-merge audit 2026-10-08: the single-look rule was being re-applied every day by the resolver (optional stopping) and 'under 10% -> tie' concluded before any test.",
+        "tests": [
+          "shared/contentExperimentsValidity.test.ts (16): CONTROL — the replaced rule crowns a winner between identical arms in > 60% of first looks (measured 85.8% at 4 posts/arm); walked daily the way the resolver runs (4 … 100 posts per arm, the first verdict scored): identical arms end as a false winner in <= 6% of experiments (measured 3.8%; 69.5% tie, 26.8% still running at 100), a doubled share rate is found >= 95% (measured 99.8%, mean first verdict 27.5 posts/arm) and a 1.5x rate >= 70% (measured 85.0%), never on the wrong arm; decision-look arithmetic; between looks -> insufficient_data naming the next look whatever the lead; a noise-explainable lead at 12 -> insufficient_data; arms within 10% at 12 -> 'too close to call yet', at 48 -> tie; a decisive lead at a look -> winner; permutationP exact case, p = 1 on identical samples, Monte Carlo determinism, equal weights == unweighted, the weighted exact path matches an independent brute-force enumeration of weighted-mean gaps; a reach-weighted lead on avg_watch_time is a winner where the old per-post test (kept as CONTROL) could not tell the arms apart. Mutations: removing the decision-look guard turns the A/A walk red; dropping the weights turns the weighted-metric test red.",
+          "shared/contentExperiments.test.ts, server/services/contentExperimentStore.test.ts, server/cron/jobs/contentExperimentResolve.test.ts and shared/contentExperimentPresets.test.ts (11) green on the sequential rule."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "No experiment has resolved under the new rule in production. A verdict is now possible only at 12 / 24 / 48 / 96 reported posts per arm; every other day the resolver notes 'between decision looks' with the next look — that is the rule working, not the lane failing.",
+          "source": "2026-10-08 creative control gates"
+        }
+      ],
+      "deferredScope": [
+        "sample-ratio-mismatch check for content arms (assignment is deterministic per episode; survivorship from failed publishes is the remaining SRM source)",
+        "a dominance guard for WEIGHTED_AVERAGE metrics: one post carrying most of an arm's reach decides that arm's mean while the permutation null still treats posts as exchangeable",
+        "an operator-facing look calendar (the resolver's note names the next look; nothing on the admin shows it)"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "mechanical-truth-packets",
+      "name": "Mechanical truth packets block unsafe repair claims at the Reel publish door",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: shared/mechanicalTruth.ts — five topics (puncture repair, tread depth, uneven wear, vibration, pothole damage), sources NHTSA and USTMA on three packets (puncture repair, tread depth, uneven wear); vibration and pothole damage ship with sources: [] until a citation is added; ten prohibited affirmative claims. Enforced in shared/reelClaimAudit.ts condemnedContentProblem (called by dailyReelPost drain and gate chain, reelPipeline generation and assembly); allowed statements and reasons injected into the reel brief system prompt (reelBriefGen.ts).",
+        "tests": [
+          "shared/mechanicalTruth.test.ts (7): every prohibited id has an unsafe example it catches (ids read from source); eight correct statements from the repo's own content pass; zero matches across docs/reel-packs, blog, guides, seo pages, tire-size content and the reel manifest (568 files scanned); no packet claims technician sign-off; the brief prompt carries the reasons but never the unsafe sentences; the publish door refuses voiceover and on-screen violations and passes a correct script. Mutation: unwiring the door turns the door test red. First probe pass found 23 false positives and a question-then-answer bypass; both fixed before shipping. Existing condemned-content suites 29/29."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "No packet is technician-approved (technicianApproval null on all five). The sourced facts apply regardless; shop sign-off is an operator action.",
+          "source": "2026-10-08 creative control gates"
+        }
+      ],
+      "deferredScope": [
+        "static posts, carousels and articles (only the Reel door enforces the packets today)",
+        "brakes, corrosion, TPMS and check-engine packets"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "rendered-qa-flash-check",
+      "name": "Rendered QA blocks reels that flash more than three times a second",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: server/services/flashRisk.ts (one ffmpeg pass at 15 fps, signalstats YAVG → relative luminance, WCAG 2.2 SC 2.3.1 general-flash rule) run on the master inside renderedQa.ts; a fail adds a PHOTOSENSITIVE_FLASH block finding (repairRouter: reassemble, no spend); an unrunnable scan is recorded as flash.unmeasured, never a pass; the vision critic is never offered the code (DETERMINISTIC_CODES).",
+        "tests": [
+          "server/services/flashRisk.test.ts (7): steady, slow fade, two-a-second and a single white-flash transition pass; a 5 Hz strobe fails; bright-to-bright changes are not general flashes; the real ffmpeg pass fails a rendered strobe and passes a rendered steady clip."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not run on a production reel yet; whole-frame average luminance under-reads flashes that cover part of the frame, and red flashes are not measured.",
+          "source": "2026-10-08 creative control gates"
+        }
+      ],
+      "deferredScope": [
+        "area-based (PEAT-style) analysis",
+        "red-flash measurement",
+        "caption contrast ratio"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "delivered-reel-qa",
+      "name": "Instagram-delivered Reel copy is probed against the master and flash-scanned",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: server/services/deliveredReelQa.ts (compareDelivered pure; checkDeliveredReel = Graph media_url read-only → ffprobe master + delivered → scanFlashRisk; runDeliveredReelQaPass ≤ 2 Reels per 8-hourly instagram-data pipeline run, posted 30 min–7 d ago, unmeasured retried ≤ 3, write keeps updatedAt = updatedAt); metaSocial.getMediaDeliveryUrl; reelLaneHealth.renderDeliveredQaException → morning brief EXCEPTIONS. Pre-merge audit 2026-10-08: reelLaneHealth renders a Reel whose check stayed unmeasured after 3 attempts as its own EXCEPTIONS line with the reason, never as healthy; the pipelines-auto-run cron hosting the pass carries an explicit 12-minute timeoutMs (worst case adds ~8.5 min; at the 4-minute default a slow pass logged 'failed: timeout' while the handler kept running); ffprobe/ffmpeg spawn uses the shell only on win32 without an explicit FFPROBE_PATH / FFMPEG_PATH, the repo convention.",
+        "tests": [
+          "server/services/deliveredReelQa.test.ts (9; the two real-ffmpeg render cases skip on a runner without ffmpeg — proven locally, skipped on CI): every issue code on a hand-built pair; delivered-only rules without a master; ffprobe JSON mapping; real ffmpeg renders (downscaled + silent copy → below_720p, resolution_dropped, audio_lost; unreadable master still checks the copy); no token → unmeasured with the Graph reason; pass loop honours limit, retry cap and updatedAt = updatedAt (mutation caught).",
+          "server/services/reelLaneHealth.test.ts: deliveredIssues collected, unparseable payloads skipped, UNMEASURED after 3 attempts said out loud, morning-brief wiring sliced."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "Never run with a live META_PAGE_ACCESS_TOKEN: whether Graph returns media_url for a Reel's VIDEO rendition (vs thumbnail) is unverified until the first pass logs a verdict.",
+          "source": "2026-10-08 creative control gates, wave 2"
+        }
+      ],
+      "deferredScope": [
+        "per-rendition (resolution ladder) checks",
+        "audio loudness comparison"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "skip-rate-metric",
+      "name": "Reel skip rate is a gatherable experiment metric",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: server/services/contentExperimentStore.gatherObservations parses DECIMAL strings (mysql2 returns \"83.6000\"); shared/contentExperiments.SNAPSHOT_COLUMN_FOR_METRIC (one table, imported by contentExperimentResolve — the local GATHERABLE_METRIC copy is gone) maps skip_rate / reels_skip_rate / skipRate → skipRate; METRIC_SPECS gains skipRate (RAW_AVERAGE, LOWER_IS_BETTER) so an experiment declared against the snapshot column name is not refused as invalid_design; opening_asset_v1 decides on skip_rate (LOWER_IS_BETTER).",
+        "tests": [
+          "server/services/contentExperimentStore.skipRate.test.ts (2): \"83.6000\" → 83.6, null stays null, integer columns unchanged.",
+          "server/cron/jobs/contentExperimentResolve.test.ts 'skip rate is resolvable'.",
+          "shared/contentExperimentPresets.test.ts: every metric name the resolver can gather has a registered aggregation and direction; every preset's primary metric is gatherable."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "No experiment has been judged on skip rate yet; the first hook-style verdict on it is the proof.",
+          "source": "2026-10-08 creative control gates, wave 2"
+        }
+      ],
+      "deferredScope": [],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "content-experiment-wiring-gate",
+      "name": "Only wired experiment presets can start, be judged, or receive assignments",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: shared/contentExperiments.isUnwiredExperimentId; routers/content.startContentExperiment refuses exposed presets (PRECONDITION_FAILED); contentExperimentResolve skips a running unwired experiment with 'not wired, not judged'; contentExperimentStore.assignEpisodeToActiveExperiment records the oldest running experiment of EACH primary variable (was: the single oldest of any variable) and skips unwired ones; evaluateExperiment returns insufficient_data, not tie, on a non-significant lead. Pre-merge audit 2026-10-08: routers/content.stopContentExperiment (dbAdminProcedure: experimentId + reason) -> contentExperimentStore.stopExperiment marks a RUNNING experiment stopped with the reason (status, concludedAt, verdictStatus 'stopped', verdictNote), NOT_FOUND when nothing is running under that id — the operator lever for an exposed preset found running.",
+        "tests": [
+          "server/__tests__/contentExperimentWiringGate.test.ts (6): per-variable assignment with unwired skipped; no-op without experiments; exposed preset refused and nothing started; wired preset starts (three guards mutated, all caught); stopContentExperiment stops a running experiment with the reason recorded; an unknown or already-ended id is NOT_FOUND, never a silent success.",
+          "shared/contentExperimentPresets.test.ts (11): unwired ids, pairwise-coprime arm counts, opening_asset_v1 on skip_rate, every gatherable metric has a registered spec, every preset's primary metric is gatherable.",
+          "shared/contentExperimentsValidity.test.ts: a noise-explainable lead -> insufficient_data; arms within 10% -> tie only from the 48-per-arm look."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "If an exposed preset is RUNNING in production it is reported each resolver run and must be stopped by the operator (contentAdmin.stopContentExperiment — a tRPC call, no admin button yet); nothing stops it automatically.",
+          "source": "2026-10-08 creative control gates, wave 2"
+        }
+      ],
+      "deferredScope": [
+        "wiring audio_v1 / carousel_cover_v1 / fb_format_v1 / opening_asset_v1 arms into generation"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "previs-readability-gate",
+      "name": "$0 on-screen reading-speed check before any paid clip",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: client/src/lib/facelessReelStudio.validateOnScreenReadability inside runReelPreflight: > 4 words/s blocks, > 3 words/s after a 0.3 s eye-landing warns. Null-safe on onScreenText and beat seconds (older payloads lack the field): a $0 gate that throws would hold the lane harder than any block it could raise.",
+        "tests": [
+          "shared/previsReadability.test.ts (4): block and warn thresholds on exact beats; empty text, zero-length beats and a beat with no onScreenText field are no finding and never a throw; scan of the 68 of 196 committed reel packs that carry storyboard beats (346 beats, fed as committed): 0 blocked, 2 warned in 1 pack, with population floors asserted (>= 60 packs, > 300 beats) so an empty scan cannot pass."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Thresholds come from reading-speed literature, not from this account's skip data; validate against skip rate once ≥ 20 Reels carry both.",
+          "source": "2026-10-08 creative control gates, wave 2"
+        }
+      ],
+      "deferredScope": [
+        "timed animatic for human review (no pre-generation human gate exists in the dynamic lane)"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "upload-image-signature",
+      "name": "Upload routes type an image by its bytes and refuse non-images",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: server/lib/imageSignature.sniffImageMime (JPEG/PNG/WebP/HEIC/HEIF by signature) used by booking.uploadPhoto (public), services.uploadPhoto, instagramStudio.uploadEvidencePhoto (registry mimeType too) and higgsfieldStudio's start-image sniffer; non-images → BAD_REQUEST before storagePut.",
+        "tests": [
+          "server/__tests__/uploadImageSignature.test.ts (8): every allowed signature; HTML, SVG and an MP4 ftyp refused; public booking route refuses HTML labelled image/jpeg and stores nothing (mutation caught), stores mislabelled HEIC as image/heic, leaves a correct JPEG unchanged; source canary per upload route (booking, services, instagramStudio): sniff -> refuse non-image -> store under the sniffed type.",
+          "server/higgsfieldStartImage.test.ts (39) + imageConditioning (5) + reelGenerationPreflight (6) green on the shared sniffer."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "No production upload observed since; a customer HEIC that previously entered storage as image/jpeg now carries image/heic, which downstream readers must decode.",
+          "source": "2026-10-08 creative control gates, wave 2"
+        }
+      ],
+      "deferredScope": [
+        "size/dimension limits beyond the existing zod bounds",
+        "animated-image rejection"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "hook-fatigue-steer",
+      "name": "A saturated opening-line shape costs a point and steers the generator",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: shared/reelHookGrammar.ts (classifier moved from reelRepetitionHistory; saturatedHookGrammar ≥ 50% of ≥ 8 known grammars; buildHookFatigueFragment); facelessReelStudio.distinctPart deducts one point; reelDraftPrep passes hookFatigue; reelBriefGen appends the fragment after the measured hook scoreboard.",
+        "tests": [
+          "shared/reelHookGrammar.test.ts (8): saturation thresholds, unknown never counts, fragment offers every other shape, scorer deduction and detail, wiring sliced (deduction and steer mutated, both caught).",
+          "server/reelDraftPrep.test.ts (+2): hookFatigue passed from the window; unreadable history steers nothing."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Steer effect on the next window's grammar mix is unmeasured; read it from the Creative Assistant fatigue card after a week.",
+          "source": "2026-10-08 creative control gates, wave 2"
+        }
+      ],
+      "deferredScope": [
+        "CTA-family and structure penalties (deliberately excluded: both are policy, not drift)"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "rendered-qa-outcomes-card",
+      "name": "Critic finding codes are priced by the audience's skip rate",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: shared/renderedQaOutcomes.measureFindingCosts (two-sample permutation per code, Bonferroni over codes tested, ≥ 4 posts per side); creativeAssistant qaOutcomes reader (posted Reels with a COMPLETED, non-stale critic verdict joined to the latest snapshot that carries a skip rate — a NULL skip rate is not a side) → `quality` card (sixth card type; client ICON/TYPE_LABEL/actionTarget -> Pipeline health, where the critic registry and lane QA state live).",
+        "tests": [
+          "shared/renderedQaOutcomes.test.ts (5): costly code with the numbers; noise-explainable gap not costly; cheaper-with-code never costly; thin sides not tested; Bonferroni alpha.",
+          "server/services/creativeAssistant.test.ts (+3): card with measured line; no card on noise or thin data; failed read is an error input (significance gate mutated, caught)."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "Renders nothing until completed critic verdicts exist on ≥ 4 posted Reels per side. RENDERED_QA_ENABLED is ON in production (corrected 2026-10-08: the earlier 'defaults OFF in production' claim was wrong — Railway sets the variable on MAINnicks-tire-auto and the 10:33Z publish-gate path is unreachable without it), but only two verdicts have been persisted since 09-28 (1980001 vision/approve, 2040001 skipped), so the join has no population yet.",
+          "source": "2026-10-08 creative control gates, wave 2"
+        }
+      ],
+      "deferredScope": [
+        "feeding the priced codes back into the repair router"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "real-evidence-share",
+      "name": "Share of published pieces carrying real shop evidence, read live",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: creativeAssistant realEvidence reader: posted reel_jobs with payload.realAsset + posted ig_autopost_log rows whose evalScoresJson.image.note starts 'real shop asset' (the literal igAutopost writes), 30-day window; inputs.realEvidence and a capture-card line; empty window reads unmeasured.",
+        "tests": [
+          "server/services/creativeAssistant.test.ts (+4): measured line and card; empty window unmeasured, never 0%; failed read is an error input; assert-the-consumer canary pins the exact `real shop asset ` note literal igAutopost.ts writes, so a reworded writer fails here instead of silently zeroing the share."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not read against production yet; the photo-post count rests on a string literal shared with igAutopost.ts rather than a column.",
+          "source": "2026-10-08 creative control gates, wave 2"
+        }
+      ],
+      "deferredScope": [
+        "a column on ig_autopost_log for image origin"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "clip-drift-probes",
+      "name": "Provider clip shape is probed at assembly and drift is reported week over week",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: server/services/reelAssembly probes each downloaded clip (ffprobeReel) → AssembleResult.clipProbes; reelPipeline.persistClipProbes labels each by the beat's last succeeded providerOp ('local' without one) and merges onto the current payload; shared/clipDrift.clipDriftReport (modal shape + length per provider, ≥ 5 clips for a baseline); reelLaneHealth reads assembled + posted rows (7 d) → renderProviderDriftException (≥ 2 drifted clips) → morning brief. Probes are read oldest-first, so a mid-window provider change makes the NEW shape the drift and the older shape the baseline; a week with no majority shape (baselineShare <= 0.5) renders as a provider change rather than drift from a norm.",
+        "tests": [
+          "shared/clipDrift.test.ts (5): drifted clips named; no baseline under 5; local never reported; a uniform window has nothing drifted; a mid-window shape change keeps the older shape as baseline with the split reported; unknown fps is part of the signature.",
+          "server/clipProbeWiring.test.ts (3): probe after download, persist after the assembled write with provider labelling, payload field declared (persist call mutated, caught).",
+          "server/services/reelLaneHealth.test.ts (+3): drift line text; no-majority line; one odd clip is no line."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "No baseline until five clips are assembled after deploy; nb_frames-less containers read fps as '?' and would show as drift against a numbered baseline.",
+          "source": "2026-10-08 creative control gates, wave 2"
+        }
+      ],
+      "deferredScope": [
+        "codec/bitrate in the signature",
+        "a paid fixed-brief canary"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "pairwise-blind-review",
+      "name": "Operator blind picks between judged posts, measured against the independent judge",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: server/services/pairwiseReview.ts (nextBlindPair: newest two unseen judged photo posts, sides by hash; recordPairPick re-reads judge totals and writes audit_log content.pairwise_pick via logAdminAction with both totals in metadata; judgeAgreement); routers/content contentAdmin.pairwiseNext / pairwisePick; client PairwisePick.tsx on the Today tab (three ≥ 48 px buttons, no scores shown). Pre-merge audit 2026-10-08: recordPairPick is idempotent per pair (an existing content.pairwise_pick row for the pair is returned and nothing is written), refuses aId === bId, and throws PairPickError('write_failed') when logAdminAction reports the audit insert did not happen (auditTrail.logAdminAction now returns whether it wrote; the router maps write_failed -> INTERNAL_SERVER_ERROR, an invalid pair -> BAD_REQUEST); candidates are posted / dryrun ig_autopost_log rows only; the audit json column is parsed when the driver hands it back as a string (drizzle MySqlJson has no driver-side mapping on TiDB). Client PairwisePick.tsx: Left / Can't tell / Right (one word per 66 px column), buttons disabled until the next pair is fetched (pick.isPending holds through the invalidate), so a double tap cannot record twice.",
+        "tests": [
+          "server/services/pairwiseReview.test.ts (11): no score leaks into a pair; picked pairs skipped either way; null when exhausted; side not a function of recency; agreement counts only decidable picks; no scored pick is null, never 0 or 1; strict audit parsing incl. the string-shaped json column; both judge totals re-read server-side and recorded; a failed audit insert rejects with write_failed; a pair already on record returns that pick and writes nothing; a pair that is not two current judged posts is refused before any write."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Zero picks exist until the operator uses it; agreement means nothing before ~10 scored picks. A failed audit write is logged by logAdminAction, not surfaced to the tapper — the same pair simply returns.",
+          "source": "2026-10-08 creative control gates, wave 2"
+        }
+      ],
+      "deferredScope": [
+        "reason codes per pick",
+        "showing each pair twice (AB/BA) for self-consistency"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "ig-autopost-spend-order",
+      "name": "ig-autopost evaluates the caption and asks the judge before generating an image",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: server/services/igAutopost.runIgAutopost loop: evalCaption -> judgeConcept (new helper; same verdict, same gate, dryrun exemption kept) -> selectPostImage. A live judge rejection REGENERATES (continue), so the judge sees up to MAX_REGEN_ATTEMPTS + 1 = 3 concepts per run instead of the run ending and waiting for the next tick; the run aborts on the judge's reason only when every attempt is spent, no image is generated for a rejected concept, and both the eval line and the judge-rejected line carry the running judgeCalls count. Railway 2026-10-07: 341,992 / 337,578 / 332,407 ms runs each spent an image on a 0.53–0.54 caption; 4 of 5 runs judge-rejected with a finished image.",
+        "tests": [
+          "server/igAutopostSpendOrder.test.ts (4): order inside the loop; caption-fail branch skips the image; judge-reject branch regenerates (continue, no break, no selectPostImage) and the all-attempts-rejected return has imageUrl null, status aborted and says no image was generated; the judge is reached only through judgeConcept, once per caption-passing attempt, judgeCalls logged (image-first mutation caught).",
+          "10 existing autopost suites (107 tests) green on the restructure, re-run after the regenerate change (11 files with this one, 111 tests, exit 0)."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not observed on a live slot yet; expect the next caption-failed or judge-rejected run's [pulse] line well under 3 minutes, and a judge-rejected attempt to cost one more caption pass rather than the slot.",
+          "source": "2026-10-08 creative control gates, wave 2"
+        }
+      ],
+      "deferredScope": [
+        "a judge-rejection budget separate from the caption regen budget (both share MAX_REGEN_ATTEMPTS, so a run can spend its 3 LLM passes on judge rejections alone)",
+        "feeding the judge's reason into the regenerate: generatePost takes only the brief, so a near-duplicate rejection can be followed by another near-duplicate; the next concept is fresh, not steered"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "rendered-qa-nonevaluation-retry",
+      "name": "A persisted rendered-QA non-evaluation is re-run by the publish door, bounded, instead of holding the Reel forever",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: server/services/qualityGate.evaluateReelPublishGate — a persisted verdict with qaState != completed or critic == skipped (critic outage, timeout, unreadable reply) is re-run through runRenderedQaOnJob when the caller is a publish door (runIfMissing), at most RENDERED_QA_MAX_ATTEMPTS = 3 critic runs per asset and never inside RENDERED_QA_RETRY_MIN_MS = 30 min of the last verdict; a re-run that fails again is the same unavailable hold, now naming the count and, once the budget is spent, the admin re-run. Read-only callers never re-run. renderedQa.runRenderedQaOnJob increments payload.renderedQaAttempts on every persisted verdict (shared/reelJobPayload.ts declares it); callVisionCritic reads an array-of-parts reply and names finish_reason + the reply head when no JSON object came back. Production evidence (Railway, 2026-10-08): job 2040001 enqueued 10:02:41Z; 10:33:48Z 'vision critic returned no complete JSON object' persisted as a skipped verdict; eleven drain pulses 10:33–13:30Z each held 'unavailable' reading that same verdict (one critic warning in the whole window); RENDERED_QA_ENABLED is ON in production (the hold branch is unreachable otherwise; the variable is set on the MAINnicks-tire-auto service).",
+        "tests": [
+          "server/qualityGate.test.ts (+8): re-run after the spacing decides on the FRESH verdict; no re-run inside 30 min (hold names the next re-run); budget spent after 3 runs (hold names the admin re-run); a pre-counter verdict counts as one run and a re-run that produced nothing is counted; a re-run that comes back skipped is still a hold; read-only never re-runs; stale-after-repair is not a candidate; assert-the-consumer pins the exact field the runner increments and the gate reads.",
+          "server/renderedQa.test.ts (+2): an array-of-parts reply is a completed vision verdict; the parser's failure names finish_reason and the first 120 chars of the reply.",
+          "Gate consumer set (25 files: publish doors, reject guard, stock guard, drain head-of-line, exactly-once publish, authority, orchestrator, critic panel, repair router, payload) green on the change."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "Not yet observed on job 2040001 (held in production since 10:33Z 2026-10-08): the first drain pulse ≥ 30 min after the deploy should log 'rendered QA: re-running the critic after a persisted non-evaluation' and either a vision verdict or a second named failure. If the critic fails three times the Reel stays held with the budget-spent reason — the vision lane (Gemini via invokeLLM) is then the problem to fix, not the gate.",
+          "source": "2026-10-08 pre-merge audit, Railway logs"
+        }
+      ],
+      "deferredScope": [
+        "a re-run that fails before a verdict is persisted (fetch/ffprobe failure) is not counted, so it is bounded only by the drain cadence — the pre-existing no-verdict behaviour",
+        "the attempt counter is not reset by a repair re-render (selectiveRepair marks the verdict stale; a stale verdict is re-run by the repair path, not here)"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
       "capabilityId": "camera-visit-marks-20261008",
       "name": "Operator visit marks: Customer waiting / Service started / Service done / Not a job on each open floor-board visit, stored per visit and read back as service and pickup clocks",
       "owner": "operator",

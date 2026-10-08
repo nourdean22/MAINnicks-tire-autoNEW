@@ -34,10 +34,10 @@ vi.mock("./db", () => ({
 
 import {
   classifyCtaFamily,
-  classifyHookGrammar,
   durationBucket,
   getRecentReelSignals,
 } from "./services/reelRepetitionHistory";
+import { classifyHookGrammar } from "../shared/reelHookGrammar";
 
 const EMPTY_SHAPE = {
   topics: [], keywords: [], archetypes: [], motionLenses: [], objectCharacters: [],

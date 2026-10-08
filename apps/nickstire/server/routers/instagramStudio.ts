@@ -308,6 +308,12 @@ export const instagramStudioRouter = router({
       const { randomInt } = await import("crypto");
       const { storagePut } = await import("../storage");
       const buffer = Buffer.from(input.base64, "base64");
+      // The declared mimeType is the client's claim; the bytes decide
+      // (server/lib/imageSignature.ts). A mislabelled real photo is stored under
+      // its true type; a non-image is refused before it reaches storage.
+      const { sniffImageMime, NOT_AN_IMAGE_MESSAGE } = await import("../lib/imageSignature");
+      const mime = sniffImageMime(buffer);
+      if (!mime) throw new TRPCError({ code: "BAD_REQUEST", message: NOT_AN_IMAGE_MESSAGE });
       const safeFilename = input.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
       const suffix = randomInt(100000, 999999).toString();
       const capturedAt = Date.now();
@@ -316,7 +322,7 @@ export const instagramStudioRouter = router({
       // media_assets.logical_key is varchar(191), while accepted upload names
       // may be 255 chars. Keep the original name in metadata, not in the key.
       const registryKey = `ig-evidence/${capturedAt}-${suffix}-${randomUUID()}`;
-      const { url } = await storagePut(key, buffer, input.mimeType);
+      const { url } = await storagePut(key, buffer, mime);
 
       // Build the real-media memory while the bytes are in hand. This was a
       // BUILT-UNWIRED gap: evidence uploads already existed, and the canonical
@@ -342,7 +348,7 @@ export const instagramStudioRouter = router({
             logicalKey: registryKey,
             assetType: "instagram_evidence_photo",
             format: "image",
-            mimeType: input.mimeType,
+            mimeType: mime,
             runtimeUrl: url,
             provider: "operator_upload",
             providerModel: null,

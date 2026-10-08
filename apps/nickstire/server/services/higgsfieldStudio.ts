@@ -1,3 +1,4 @@
+import { sniffImageMime } from "../lib/imageSignature";
 import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
@@ -554,12 +555,11 @@ const START_IMAGE_MAX_REDIRECTS = 3;
  */
 
 /** Identify by CONTENT, not by the URL's extension — the filename is attacker- or
- *  CDN-controlled and the CLI acts on the bytes. */
+ *  CDN-controlled and the CLI acts on the bytes. The sniffer itself is shared
+ *  with the upload routes (lib/imageSignature.ts); the CLI takes only these three. */
 function sniffImageExt(buf: Buffer): "jpg" | "png" | "webp" | null {
-  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "jpg";
-  if (buf.length >= 8 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "png";
-  if (buf.length >= 12 && buf.subarray(0, 4).toString("ascii") === "RIFF" && buf.subarray(8, 12).toString("ascii") === "WEBP") return "webp";
-  return null;
+  const mime = sniffImageMime(buf);
+  return mime === "image/jpeg" ? "jpg" : mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : null;
 }
 
 /**

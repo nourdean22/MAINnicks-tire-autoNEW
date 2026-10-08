@@ -16,6 +16,7 @@
 import { eq } from "drizzle-orm";
 import { shopSettings } from "../../../drizzle/schema";
 import { createLogger } from "../../lib/logger";
+import { describeVerdict } from "../../services/promptEvolutionGate";
 
 const log = createLogger("cron:prompt-evolution");
 
@@ -43,7 +44,28 @@ export async function processPromptEvolutionWeekly(now: Date = new Date()): Prom
   }
 
   const { runPromptEvolution } = await import("../../services/promptEvolution");
-  const result = await runPromptEvolution({ seedCount: 12, candidates: 2, log: (l) => log.info(`[evolve] ${l}`) });
+  // 30 seeds -> ~12 on the holdout (40% hash split). At 12 the paired sign
+  // test can accept a candidate that fixes 5 calls and breaks none; the old
+  // 12-seed run left ~5, where only a clean 5-for-5 sweep could ever pass.
+  // ~125 replays; the job's own 30-minute budget (scheduler.ts) covers it.
+  const result = await runPromptEvolution({
+    seedCount: 30,
+    candidates: 2,
+    holdoutRepeats: 3,
+    log: (l) => log.info(`[evolve] ${l}`),
+  });
+  // The verdict, as one structured line. Until 2026-10-08 a normal run logged
+  // nothing — the 10-05 run's 118s showed in Railway with no outcome at all.
+  log.info("[evolve] result", {
+    outcome: result.outcome,
+    usableSeeds: result.usableSeeds,
+    trainCount: result.trainCount,
+    holdoutCount: result.holdoutCount,
+    baselineTrain: result.baselineTrain,
+    baselineHoldout: result.baselineHoldout,
+    candidates: result.candidateSummaries.length,
+    gate: result.gate ? describeVerdict(result.gate) : null,
+  });
 
   await setKv(
     "prompt_evolution_latest",
@@ -61,14 +83,14 @@ export async function processPromptEvolutionWeekly(now: Date = new Date()): Prom
     `Seeds: ${result.usableSeeds} real failed calls (train ${result.trainCount} / holdout ${result.holdoutCount})`,
     `Baseline: train ${result.baselineTrain} · holdout ${result.baselineHoldout}`,
     result.outcome === "accepted"
-      ? `OFFLINE CANDIDATE passed strict holdout improvement (${result.accepted?.holdout}): ${result.accepted?.rationale.slice(0, 200)}\nThis is NOT a production/business winner: the candidate has not served customers, so arrival/revenue impact is unmeasured. Full candidate prompt saved to shop settings key prompt_evolution_latest. Applying it stays your call: edit + Push Config.`
-      : `No proposal shipped — outcome: ${result.outcome}. The gate held; negative feedback recorded in the result.`,
+      ? `OFFLINE CANDIDATE passed the paired holdout permutation test (${result.accepted?.holdout}): ${result.accepted?.rationale.slice(0, 200)}\nThis is NOT a production/business winner: the candidate has not served customers, so arrival/revenue impact is unmeasured. Full candidate prompt saved to shop settings key prompt_evolution_latest. Applying it stays your call: edit + Push Config.`
+      : `No proposal shipped — outcome: ${result.outcome}. The gate held; negative feedback recorded in the result.${result.gate ? `\nHoldout: ${describeVerdict(result.gate)}` : ""}`,
   ].join("\n");
   const { sendTelegram } = await import("../../services/telegram");
   await sendTelegram(summary).catch(() => undefined);
 
   return {
     recordsProcessed: result.outcome === "accepted" ? 1 : 0,
-    details: `outcome: ${result.outcome} · baseline ${result.baselineTrain}/${result.baselineHoldout} · ${result.candidateSummaries.length} candidates`,
+    details: `outcome: ${result.outcome} · baseline ${result.baselineTrain}/${result.baselineHoldout} · ${result.candidateSummaries.length} candidates${result.gate ? ` · gate ${result.gate.reason} +${result.gate.improved}/-${result.gate.worsened} p=${result.gate.pValue.toFixed(3)}` : ""}`,
   };
 }

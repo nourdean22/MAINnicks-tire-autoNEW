@@ -20,6 +20,7 @@ import {
   assignArm,
   findConfounds,
   armRates,
+  DECISION_LOOKS,
   MIN_SAMPLES_PER_ARM,
   type ExperimentDefinition,
   type ArmObservation,
@@ -144,13 +145,21 @@ describe("experiment registry — refuses to manufacture a verdict", () => {
     expect(evaluateExperiment(def, [...obs("a", 6, null), ...obs("b", 6, 3)]).status).toBe("insufficient_data");
   });
 
-  it("calls a tie when the margin is inside noise", () => {
-    const v = evaluateExperiment(def, [...obs("a", 8, 100), ...obs("b", 8, 96)]);
+  // Verdicts are issued only at the planned looks (DECISION_LOOKS per arm,
+  // 2026-10-08): a tie from the 48-per-arm look, a winner from the first.
+  it("calls a tie when the margin is inside noise, from the 48-per-arm look", () => {
+    const v = evaluateExperiment(def, [...obs("a", 48, 100), ...obs("b", 48, 96)]);
     expect(v.status).toBe("tie");
   });
 
-  it("names a winner on a real margin with enough data", () => {
+  it("between looks a real margin is 'not yet', naming the next look", () => {
     const v = evaluateExperiment(def, [...obs("a", 8, 90), ...obs("b", 8, 30)]);
+    expect(v.status).toBe("insufficient_data");
+    if (v.status === "insufficient_data") expect(v.needed).toBe(DECISION_LOOKS[0]);
+  });
+
+  it("names a winner on a real margin at the first decision look", () => {
+    const v = evaluateExperiment(def, [...obs("a", DECISION_LOOKS[0], 90), ...obs("b", DECISION_LOOKS[0], 30)]);
     expect(v.status).toBe("winner");
     if (v.status === "winner") {
       expect(v.armId).toBe("a");
@@ -161,7 +170,7 @@ describe("experiment registry — refuses to manufacture a verdict", () => {
 
   it("normalises by reach — more reach alone is not a better arm", () => {
     // b has triple the raw metric but triple the reach; the rates are equal.
-    const v = evaluateExperiment(def, [...obs("a", 8, 10, 1000), ...obs("b", 8, 30, 3000)]);
+    const v = evaluateExperiment(def, [...obs("a", 48, 10, 1000), ...obs("b", 48, 30, 3000)]);
     expect(v.status).toBe("tie");
   });
 

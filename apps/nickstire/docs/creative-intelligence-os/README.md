@@ -42,8 +42,8 @@ Verified on the combined tree: `pnpm run check` 0 errors · lint/lint:source/bra
 | GSC rising queries | `gsc-data.getRisingQueries` (Eastern-cut windows, throws on no-db) | wired |
 | Topic graph | `shared/topicGraph.ts` | consumed by the miner, realAssetFirst, trend intel |
 | Real-asset-first + enrichment + capture card | `realAssetFirst.ts`, `mediaEnrichment.ts`, `instagramAdmin.getCaptureOpportunities` | wired; enrichment needs `GEMINI_API_KEY` (prod has it) |
-| Creative Assistant (5 cards, "why" lines) | `creativeAssistant.ts`, Today tab | wired, deterministic, no LLM |
-| Experiments: 6 presets | `shared/contentExperiments.buildExperimentPreset` | `hook_style_v1`, `duration_v1` **wired**; `opening_asset_v1`, `carousel_cover_v1`, `audio_v1`, `fb_format_v1` **exposed only** (assigned + resolved, no generator reads the arm yet) |
+| Creative Assistant (up to 6 cards, "why" lines) | `creativeAssistant.ts`, Today tab | wired, deterministic, no LLM; `quality` card and real-evidence share since 2026-10-08 |
+| Experiments: 6 presets | `shared/contentExperiments.buildExperimentPreset` | `hook_style_v1`, `duration_v1` **wired**; `opening_asset_v1`, `carousel_cover_v1`, `audio_v1`, `fb_format_v1` **exposed only** — defined, but refused at start, not judged and not assigned until a generator reads the arm (2026-10-08) |
 | Repetition ledger +4 dims · Pattern Lab objective scores | `reelRepetitionHistory.ts`, `shared/reelStructureLearning.ts` | wired; production ranking unchanged until an objective is passed |
 | $0 pixel checks + craft score + adaptive specialist | `renderedPixelStats.ts`, `renderedQa.ts`, `criticPanel.ts` | wired; specialist behind `RENDERED_QA_SPECIALIST` |
 | Visual language (16 grammars) | `shared/visualLanguage.ts` | mapping only; renders byte-identical (parity test) |
@@ -464,3 +464,53 @@ env-reversible switches: `RENDERED_QA_SPECIALIST` unset = old call count; `REEL_
 - **Known open operational facts (not code):** Higgsfield and OpenRouter credits are exhausted;
   `REPLICATE_API_KEY` is unset in prod; Facebook has zero insights; the declined-work matcher last
   ran 2026-05-07.
+
+## Z. Control gates — disposition of the 2026-10-08 blind-spot review
+
+An external "Creative Intelligence OS 3.0" review (2026-10-08) argued that the remaining quality gaps
+are the controls AROUND generation, not more models or agents. Checked against this repo and Railway
+the same day. Status words follow the ladder: built / wired / tested / deployed / live.
+
+| # | Review item | Verdict | Where / what |
+|---|---|---|---|
+| 1 | Previs (storyboard + timed animatic) before paid generation | BUILT + TESTED | Approved packs are human-reviewed beats before render; dynamic briefs pass the M10 preflight, the claim bank and, since 2026-10-08, the readability gate (`validateOnScreenReadability`: > 4 words/s blocks) before any paid clip. No animatic: the dynamic lane has no human gate before generation, so a timed preview would have no viewer; the timing rule is what a viewer would have caught. |
+| 2 | Pairwise blind human preference | BUILT + WIRED + TESTED | Today tab "Which post is better?" (`services/pairwiseReview.ts`): two judged photo posts, no scores, sides by hash; picks in `audit_log` (`content.pairwise_pick`) with judge totals snapshotted; operator-vs-judge agreement shown. Cross-app taste store stays statenour `POST /api/proof/taste`. Protocol below still governs how to read it. |
+| 3 | QA on the platform-delivered copy | BUILT + TESTED; unverified live | `services/deliveredReelQa.ts` in the 8-hourly Instagram pipeline: Graph `media_url` → ffprobe master + delivered → flash scan → `payload.deliveredQa`; morning-brief line. Needs a live `META_PAGE_ACCESS_TOKEN` run to prove it against Instagram. |
+| 4 | Mechanical truth packets | BUILT + WIRED + TESTED | `shared/mechanicalTruth.ts`; refused at the Reel publish door (`reelClaimAudit.condemnedContentProblem`), given to the brief generator up front. Technician sign-off: none yet. |
+| 5 | Experiment validity (A/A, power, SRM, stopping) | BUILT + TESTED (content); EXISTED (web) | Content experiments: permutation gate at planned looks only (12/24/48/96 per arm, 5% split across looks, tie only from 48, reach-weighted for weighted metrics). Walked daily in simulation: A/A 85.8% → 3.8% false winners across all looks; a doubled rate found 99.8% (mean 27.5 posts/arm), 1.5x 85.0%, never the wrong arm. Web: `shared/experimentKernel.ts` already had mSPRT, SRM and a calibration harness. |
+| 6 | Unbranded recognition test with Cleveland drivers | PROTOCOL — operator | People, not code. Below. |
+| 7 | Calibrated real-shop capture | PROTOCOL — operator | Below. The DVI photo pairs (migration 0143) are the first capture stream to calibrate. |
+| 8 | Agent and upload threat model | BUILT (uploads); EXISTS (agents) | Evaluator separation + Night Shift identity boundary (`docs/DREAM-TO-PROOF.md`), AI disclosure gate (`shared/reelDisclosure.ts`), external-content fencing (statenour). Uploads: the bytes decide (`server/lib/imageSignature.ts`) on all three routes; non-images refused, HEIC/HEIF accepted. Size limits were already zod-bounded. |
+| 9 | Provider drift canaries | BUILT + TESTED ($0) | `shared/clipDrift.ts`: assembly probes every clip it downloads; a provider whose clips drift from its own modal shape/length (≥ 2 in 7 d) is named in the morning brief. No fixed-brief paid canary — the clips already paid for are the canary. |
+| 10 | Content incident response | PROTOCOL below | Lineage exists: `content_runs`, `reel_jobs.igPostId`, `ig_metric_snapshots`. |
+| 11 | Shop adoption loop | MEASURED + PROTOCOL | The fourth number below is now read live: Creative Assistant `inputs.realEvidence` and the capture card carry "N/M published pieces in 30d carried real shop evidence". The rest is the protocol below. |
+| 12 | Accessibility beyond captions | BUILT (flash); EXISTED (caption obstruction) | `server/services/flashRisk.ts` → `PHOTOSENSITIVE_FLASH` block; `CAPTION_OBSTRUCTION` + pixel `CAPTION_BOX_BUSY` already ran. Not measured: localized or red flashes, caption contrast ratio. |
+
+**Also found and fixed in the same wave:** the nightly Reel had not posted since 10-04 (approved queue
+drained, nothing told the operator — the morning brief now does), and `content-auto-gen` had failed on
+every observed run (budget + diagnostics; cause unconfirmed until the next run).
+
+### Pairwise review protocol (item 2)
+1. Pairs, never 1–10 scores, for the decision. Hide provider, prompt, price and which is old/new.
+2. Show every pair twice, once in each order (AB and BA); add 1 repeated pair per 10 to measure each reviewer's consistency.
+3. One question per pass: stops the scroll · believable · clear what to do · feels like Nick's · visible defect.
+4. Ties are allowed and recorded. A reviewer below 70% self-agreement on repeated pairs is reported, not silently averaged.
+5. A candidate "wins" only through a paired test over the frozen briefs (the `promptEvolutionGate.ts` rule), and a single reliably-broken brief vetoes it.
+
+### Capture kit and weekly loop (items 7, 11)
+- Kit: one phone with locked exposure / white balance / 30 fps, a clamp or small tripod, a diffused inspection light, a grey card shot whenever the light changes.
+- Shot set per job (under a minute): wide of the car, the defect in macro, the measurement (tread gauge, DVI reading), the part out, the part in, the finished state from the same angle as the wide.
+- Weekly: the service lead names three real customer questions; whoever is on the floor captures; someone strips plates, faces and names and confirms consent; a technician checks the claim against the truth packet; one item goes to production.
+- Track only four numbers: approved captures per week, % usable, median minutes per capture, % of published pieces with real Nick's evidence.
+
+### Incident runbook (item 10)
+1. **Stop the lane:** Reels — set `REEL_PUBLISH_ENABLED=false` (Railway, operator); static posts — `IG_AUTOPOST_DRYRUN=true`. A wrong approval — set `revoked_at` on its `reel_publish_approvals` row (the drain then skips it).
+2. **Take it down:** this codebase has no delete-from-Instagram path; remove the post in the Instagram app and note the media id.
+3. **Trace it:** `reel_jobs.igPostId` → the job's payload (brief, QA verdict, approval) → `content_runs`.
+4. **Fix the class:** add the failure as a fixture — a truth-packet example, a condemned phrase in `reelClaimAudit.ts`, or a QA test — before re-enabling.
+
+### Recognition test (item 6)
+Debranded cues (palette, type, the gold scan light, sound, voice, shop imagery) shown to 30+ Cleveland
+drivers next to local competitors and national chains, with "another shop" and "don't know" as
+options. Keep a cue only if it is linked to Nick's more often than to anyone else. Expect "black and
+gold, premium automotive" to be category-generic — that is the point of testing it.

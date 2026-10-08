@@ -53,6 +53,11 @@ const CODE_ROUTES: Record<RenderedDefectCode, { method: RepairMethod; unit: Repa
   LIGHTING_DRIFT:         { method: "regrade",    unit: "color_grade",    paid: false },
   PALETTE_DRIFT:          { method: "regrade",    unit: "color_grade",    paid: false },
   WEAK_COMPOSITION:       { method: "reassemble", unit: "final_encode",   paid: false },
+  // Flashes come from the edit (strobe cuts, white-flash transitions) far more
+  // often than from a generated clip, so the cheap honest first move is to
+  // re-assemble. A flash baked into a clip survives that, and the next QA pass
+  // measures it again and blocks again; it never reads as repaired.
+  PHOTOSENSITIVE_FLASH:   { method: "reassemble", unit: "final_encode",   paid: false },
   // Craft codes. Routed honestly rather than cheaply.
   //
   // The tempting move is to send these to "regrade", which is free. It would

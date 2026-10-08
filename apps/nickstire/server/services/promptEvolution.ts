@@ -6,7 +6,8 @@
  * Mechanism (SkillOpt-shaped, #1400): real failed calls with vaulted
  * transcripts → deterministic train/holdout split → ghost-replay baseline →
  * optimizer proposes bounded candidate prompts (different model family) →
- * invariant guard → train selection → STRICT holdout gate. Output is a
+ * invariant guard → train selection → paired permutation-test holdout gate
+ * (promptEvolutionGate.ts — repeated replays, regression veto). Output is a
  * serializable result; persistence and notification are the caller's job.
  * Nothing here ever writes the served prompt — Push Config stays the one
  * serving gate.
@@ -20,6 +21,7 @@ import {
   splitSeeds,
   violatedInvariants,
 } from "./ghostReplay";
+import { describeVerdict, judgeHoldout, toSeedTrials, type GateVerdict } from "./promptEvolutionGate";
 
 const OPTIMIZER_MODEL = process.env.PROMPT_EVOLVE_OPTIMIZER || "gpt-oss:120b";
 
@@ -312,16 +314,28 @@ export interface EvolutionResult {
   baselineHoldout: string;
   candidateSummaries: Array<{ rationale: string; train: string; rejectedInvariants?: string[] }>;
   accepted: null | { rationale: string; holdout: string; prompt: string };
-  outcome: "accepted" | "rejected-holdout" | "rejected-train" | "no-candidates" | "baseline-clean";
+  /** The holdout gate's full reading; null when no candidate reached the holdout. */
+  gate: GateVerdict | null;
+  outcome:
+    | "accepted"
+    | "rejected-holdout"
+    | "rejected-regression"
+    | "rejected-underpowered"
+    | "rejected-train"
+    | "no-candidates"
+    | "baseline-clean";
 }
 
 /** One full gated evolution cycle. Throws on infrastructure failure (no DB,
  *  LLM lane down) — a failed run must be a failed cron run, never a quiet
  *  success. */
 export async function runPromptEvolution(
-  opts: { seedCount?: number; candidates?: number; log?: (line: string) => void } = {},
+  opts: { seedCount?: number; candidates?: number; holdoutRepeats?: number; log?: (line: string) => void } = {},
 ): Promise<EvolutionResult> {
-  const seedCount = Math.max(4, Math.min(20, opts.seedCount ?? 12));
+  const seedCount = Math.max(4, Math.min(40, opts.seedCount ?? 12));
+  // Replays per holdout seed per prompt. One replay is what let a single
+  // nondeterministic seed flip pass as an improvement (promptEvolutionGate.ts).
+  const repeats = Math.max(1, Math.min(5, opts.holdoutRepeats ?? 3));
   const k = Math.max(1, Math.min(3, opts.candidates ?? 2));
   const log = opts.log ?? (() => undefined);
   const { ASSISTANT_SYSTEM_PROMPT } = await import("./vapi");
@@ -353,7 +367,7 @@ export async function runPromptEvolution(
     .filter((g) => !g.pass && !g.unresolvable)
     .map((g) => ({ seed: train.find((s) => s.id === g.id)!, grade: g }));
   if (!trainFailures.length) {
-    return { ...base, candidateSummaries: [], accepted: null, outcome: "baseline-clean" };
+    return { ...base, candidateSummaries: [], accepted: null, gate: null, outcome: "baseline-clean" };
   }
 
   const candidates = await proposeCandidates(ASSISTANT_SYSTEM_PROMPT, trainFailures, k, log);
@@ -370,19 +384,33 @@ export async function runPromptEvolution(
     if (!best || scored.passRate > best.train.passRate) best = { ...c, train: scored };
   }
 
-  if (!candidates.length) return { ...base, candidateSummaries: summaries, accepted: null, outcome: "no-candidates" };
+  if (!candidates.length) return { ...base, candidateSummaries: summaries, accepted: null, gate: null, outcome: "no-candidates" };
   if (!best || best.train.passRate <= baseTrain.passRate) {
-    return { ...base, candidateSummaries: summaries, accepted: null, outcome: "rejected-train" };
+    return { ...base, candidateSummaries: summaries, accepted: null, gate: null, outcome: "rejected-train" };
   }
 
-  const candHold = await scorePrompt(best.prompt, holdout);
-  if (candHold.passRate > baseHold.passRate) {
+  // Paired, repeated holdout. The baseline's first scoring above is reused as
+  // replay 1, so a run that never reaches here pays nothing extra.
+  const baseRuns: ScoredPrompt[] = [baseHold];
+  const candRuns: ScoredPrompt[] = [];
+  for (let r = 0; r < repeats; r++) {
+    if (r > 0) baseRuns.push(await scorePrompt(ASSISTANT_SYSTEM_PROMPT, holdout));
+    candRuns.push(await scorePrompt(best.prompt, holdout));
+  }
+  const gate = judgeHoldout(toSeedTrials(baseRuns), toSeedTrials(candRuns));
+  log(`holdout gate: ${describeVerdict(gate)}`);
+  if (gate.accept) {
     return {
       ...base,
       candidateSummaries: summaries,
-      accepted: { rationale: best.rationale, holdout: `${candHold.passes}/${candHold.total}`, prompt: best.prompt },
+      accepted: { rationale: best.rationale, holdout: describeVerdict(gate), prompt: best.prompt },
+      gate,
       outcome: "accepted",
     };
   }
-  return { ...base, candidateSummaries: summaries, accepted: null, outcome: "rejected-holdout" };
+  const outcome: EvolutionResult["outcome"] =
+    gate.reason === "regressed-seed" ? "rejected-regression"
+      : gate.reason === "underpowered" ? "rejected-underpowered"
+        : "rejected-holdout";
+  return { ...base, candidateSummaries: summaries, accepted: null, gate, outcome };
 }

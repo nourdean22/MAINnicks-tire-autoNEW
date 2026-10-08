@@ -7,6 +7,7 @@
  * (clip download, VO/music gen, ffmpeg spawn, storagePut) is the orchestration
  * section at the bottom of this file.
  */
+import type { ClipProbe } from "../../shared/clipDrift";
 import { spawn } from "child_process";
 import fs from "fs";
 import os from "os";
@@ -785,6 +786,8 @@ export interface AssembleResult {
   mp4Url: string;
   durationSec: number;
   usedVo: boolean;
+  /** Each clip's shape as ffprobe read it here, by beat (provider attached by the pipeline; shared/clipDrift.ts). */
+  clipProbes: Array<Omit<ClipProbe, "provider">>;
 }
 
 /**
@@ -837,6 +840,7 @@ export async function assembleReel(
   const workDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), `reel-${jobId}-`));
   try {
     const clipPaths: string[] = [];
+    const clipProbes: AssembleResult["clipProbes"] = [];
     for (let i = 0; i < segs.length; i++) {
       const p = path.join(workDir, `clip-${i}.mp4`);
       const url = clipUrls[i];
@@ -887,6 +891,17 @@ export async function assembleReel(
         await fs.promises.writeFile(p, buf);
       }
       clipPaths.push(p);
+      // PROVIDER DRIFT PROBE (2026-10-08, shared/clipDrift.ts). The bytes are
+      // local now, so reading their shape costs nothing — no provider call, no
+      // credit. A probe that fails is logged and left out; it never fails the
+      // assembly, and a missing probe reads as "unmeasured", never as a match.
+      try {
+        const pr = await ffprobeReel(p);
+        const fps = pr.nbFrames > 0 && pr.videoStreamSec > 0 ? Math.round(pr.nbFrames / pr.videoStreamSec) : null;
+        clipProbes.push({ beatNumber: segs[i].beatNumber, width: pr.width, height: pr.height, fps, durationSec: Number(pr.duration.toFixed(2)) });
+      } catch (e) {
+        log.warn("clip probe failed (assembly continues)", { jobId, beat: segs[i].beatNumber, e: e instanceof Error ? e.message : String(e) });
+      }
     }
     const { generateVoiceover, generateAssSubtitles } = await import("./reelVoice");
     const vo = await generateVoiceover(brief.voiceoverScript);
@@ -1092,7 +1107,7 @@ export async function assembleReel(
       }
     } catch { /* registerProducedAsset is already tolerant; belt over suspenders */ }
     // Report the REAL file length (beats + the save-payload freeze), not just the beats.
-    return { mp4Url: put.url, durationSec: total + SAVE_FREEZE_SECONDS, usedVo: !!voPath };
+    return { mp4Url: put.url, durationSec: total + SAVE_FREEZE_SECONDS, usedVo: !!voPath, clipProbes };
   } finally {
     fs.promises.rm(workDir, { recursive: true, force: true }).catch(() => {});
   }

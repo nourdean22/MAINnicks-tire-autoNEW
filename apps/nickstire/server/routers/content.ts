@@ -640,12 +640,18 @@ export const contentAdminRouter = router({
   startContentExperiment: dbAdminProcedure
     .input(z.object({ preset: z.enum(EXPERIMENT_PRESET_IDS) }))
     .mutation(async ({ input }) => {
-      // Wave B: every §R preset is startable from here. The definitions live in
-      // shared/contentExperiments.ts (buildExperimentPreset) so this router and
-      // the generator read ONE table. `wiring` is returned so the caller can see
-      // whether the arm actually changes generation (hook_style_v1, duration_v1)
-      // or is only recorded + resolved (the rest).
+      // The definitions live in shared/contentExperiments.ts
+      // (buildExperimentPreset) so this router and the generator read ONE
+      // table. Only a WIRED preset starts: an exposed one gives both arms the
+      // same content, so it would run an A/A test under a treatment's name and
+      // could conclude a false tie or winner (2026-10-08).
       const def = buildExperimentPreset(input.preset);
+      if (def.wiring !== "wired") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `${def.preset} is not wired yet: nothing in generation applies its arm, so both arms would be the same content and the result would mean nothing. Wire the arm into generation first.`,
+        });
+      }
       const { startExperiment } = await import("../services/contentExperimentStore");
       const ok = await startExperiment(def);
       if (!ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "experiment registry unavailable (no DB)" });
@@ -657,6 +663,53 @@ export const contentAdminRouter = router({
         metricNote: def.metricNote,
         wiring: def.wiring,
       };
+    }),
+
+  /** Stop a running content experiment (2026-10-08). The lever the wiring
+   *  gate assumed: the resolver now reports a running unwired experiment as
+   *  "not wired, not judged (stop it)", and until this existed nothing but SQL
+   *  could. A stopped experiment leaves assignment and judging at once. */
+  stopContentExperiment: dbAdminProcedure
+    .input(z.object({ experimentId: z.string().min(1).max(100), reason: z.string().min(1).max(500) }))
+    .mutation(async ({ input }) => {
+      const { stopExperiment } = await import("../services/contentExperimentStore");
+      const stopped = await stopExperiment(input.experimentId, input.reason);
+      if (!stopped) throw new TRPCError({ code: "NOT_FOUND", message: `no RUNNING experiment "${input.experimentId}" (unknown id, or already concluded/stopped)` });
+      return { stopped: input.experimentId };
+    }),
+
+  /** Blind pairwise review (2026-10-08, services/pairwiseReview.ts): the next
+   *  two judged photo posts the operator has not compared, with NO scores, and
+   *  the running agreement between the operator's picks and the judge. Three
+   *  states: a pair, verified nothing left to compare, or unreadable. */
+  pairwiseNext: adminProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return { available: false as const, pair: null, readout: null, reason: "no database" };
+    try {
+      const { loadPairCandidates, loadPickRecords, nextBlindPair, judgeAgreement } = await import("../services/pairwiseReview");
+      const [candidates, picks] = await Promise.all([loadPairCandidates(d), loadPickRecords(d)]);
+      const pair = nextBlindPair(candidates, new Set(picks.map((p) => p.key)));
+      return { available: true as const, pair, readout: judgeAgreement(picks), candidates: candidates.length };
+    } catch (err) {
+      return { available: false as const, pair: null, readout: null, reason: err instanceof Error ? err.message.slice(0, 200) : String(err) };
+    }
+  }),
+
+  /** Record one blind pick. The judge totals are re-read server-side. */
+  pairwisePick: dbAdminProcedure
+    .input(z.object({ aId: z.number().int().positive(), bId: z.number().int().positive(), pick: z.enum(["a", "b", "tie"]) }))
+    .mutation(async ({ input, ctx }) => {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "no database" });
+      const { recordPairPick, PairPickError } = await import("../services/pairwiseReview");
+      try {
+        return await recordPairPick(d, { ...input, actor: ctx.user?.email ?? "admin" });
+      } catch (err) {
+        const code = err instanceof PairPickError && err.kind === "write_failed" ? "INTERNAL_SERVER_ERROR" : "BAD_REQUEST";
+        throw new TRPCError({ code, message: err instanceof Error ? err.message : String(err) });
+      }
     }),
 
   /** Shadow-judge disagreement readout (2026-08-06) — the reader the shadow

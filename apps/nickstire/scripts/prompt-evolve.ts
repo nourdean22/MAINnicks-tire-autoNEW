@@ -42,7 +42,7 @@ async function main() {
   const nIdx = args.indexOf("--seeds");
   const kIdx = args.indexOf("--candidates");
   const fIdx = args.indexOf("--filter");
-  const seedCount = nIdx >= 0 ? Math.max(1, Math.min(20, parseInt(args[nIdx + 1], 10) || 12)) : 12;
+  const seedCount = nIdx >= 0 ? Math.max(1, Math.min(40, parseInt(args[nIdx + 1], 10) || 12)) : 12;
   const k = kIdx >= 0 ? Math.max(1, Math.min(3, parseInt(args[kIdx + 1], 10) || 2)) : 2;
   const filterRx = fIdx >= 0 ? new RegExp(args[fIdx + 1], "i") : null;
 
@@ -100,6 +100,10 @@ async function main() {
     console.log(`  candidate: train ${c.train}${c.rejectedInvariants ? ` REJECTED unscored (invariants: ${c.rejectedInvariants.join(",")})` : ""} — ${c.rationale.slice(0, 90)}`);
   }
   console.log(`outcome: ${result.outcome}`);
+  if (result.gate) {
+    const { describeVerdict } = await import("../server/services/promptEvolutionGate");
+    console.log(`holdout gate: ${describeVerdict(result.gate)}`);
+  }
 
   const outDir = join(process.cwd(), "eval-datasets", "prompt-evolution");
   mkdirSync(outDir, { recursive: true });
@@ -112,7 +116,7 @@ async function main() {
       `PROPOSAL ONLY. The served prompt is unchanged; applying this is an operator decision via the normal edit + Push Config gate.`,
       ``,
       `- Baseline: train ${result.baselineTrain} · holdout ${result.baselineHoldout}`,
-      `- Candidate holdout: ${result.accepted.holdout} — STRICT improvement`,
+      `- Candidate holdout (paired permutation test): ${result.accepted.holdout}`,
       `- Rationale: ${result.accepted.rationale}`,
       ``,
       "```",
@@ -121,7 +125,7 @@ async function main() {
     ].join("\n"));
     console.log(`proposal written → ${proposalPath}`);
   } else {
-    appendFileSync(join(outDir, "rejected.jsonl"), JSON.stringify({ date: stamp, outcome: result.outcome, candidates: result.candidateSummaries }) + "\n");
+    appendFileSync(join(outDir, "rejected.jsonl"), JSON.stringify({ date: stamp, outcome: result.outcome, candidates: result.candidateSummaries, gate: result.gate }) + "\n");
     console.log("no proposal shipped — negative feedback recorded.");
   }
 }
