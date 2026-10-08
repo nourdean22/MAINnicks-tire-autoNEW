@@ -1,6 +1,11 @@
 # Session ledger - nickstire
 
-**Updated: 2026-10-08 15:30Z** (camera N-series: PR A #2927 merged + deployed, 0144 and 0145 applied, PR B #2929 review round done and merge pending, first section; the merged camera audit wave #2920 + #2925 follows; then the Search Console wave and the 2026-10-03 Sentry sweep.)
+**Updated: 2026-10-08 16:50Z** (camera N-series: PR B #2929 merged + deployed, PR C open with N4 and the remaining Codex follow-ups, first section; PR A + B history next; then the merged camera audit wave #2920 + #2925, the Search Console wave and the 2026-10-03 Sentry sweep.)
+
+## 2026-10-08 · Camera N-series PR C (N4 lot brief, N5 receipt honesty, bay clock limit, camera-bridge + StateNour Codex fixes) -- PR open; PR B #2929 MERGED `ed9a45d0`, DEPLOYED (`3ce638b1` SUCCESS 16:15:16Z)
+
+**What it is:** `docs/CURRENT-TRUTH.md` top section. N4 = bridge action `lot_brief` (`server/services/lotBriefRead.ts` + `server/lib/lotBrief.ts`, `QUERY_HANDLERS`, `shared/bridgeShapes` `LotBriefShape`, `LOT_CONFIDENCE_RULES` exported) rendered by StateNour `readLotBriefLines` in the morning brief's shop slice; `/system/camera` demoted. Coverage is UNMEASURED for days that opened before 2026-10-08 16:15:11Z (`TIMELINE_COMPLETE_FROM_MS`); first possible same-weekday comparison is the 2026-10-24 brief. N5: `analyzeOfficeFrames` returns `prompted`; the route stores `calibrationFrom` only then. Bay clock: production writes no bay times (`bayZones: []`); `shop_mirror.py` names the latest-entry prerequisite. camera-bridge: exact portal straddle check, and **the 2026-09-16 shop calibration (portal wholly inside the lot, corners snapped) used to pass the edge loader -- now refused**; `run_live` uses the same check. StateNour: the bridge contract guard reads nested generics now (`queryNick<Record<string, unknown>>("x")` was invisible). Ledger: `camera-lot-brief-20261008` (new), coverage entry `deployed`, visit-marks + office-visual updated. Evidence fragment: `.completion/evidence.d/claude-dreamy-newton-0iob20-nseries-c.json`.
+**Live proofs to read after merge:** the first morning brief with a `Lot · ` line; `lot_brief` answering on the live bridge; the first derived health row (the sign camera's dusk EXPECTED_SOLAR_OFFLINE); the first framed office episode with no vision key never logs a receipt.
 
 ## 2026-10-08 · Camera N-series PR A (N1 visit marks, N3 solar state, N5 calibration receipt) -- MERGED #2927 `ab5b91cb`, DEPLOYED (Railway `24073610` SUCCESS 14:21:40Z); PR B #2929 reviewed, merge pending CI
 
