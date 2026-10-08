@@ -129,6 +129,34 @@ describe("requestBeatRepair (P1: nothing renders on the request path; P2: stale 
     expect(payload.repairQueue[0]).toMatchObject({ beatNumber: 2, state: "queued", attempts: [] });
   });
 
+  it("refuses a beat declared REAL or DETERMINISTIC before any spend check or write; an undeclared beat still queues", async () => {
+    const declared = (visual: string) => {
+      const p = JSON.parse(baseJob().payload as string);
+      p.storyboardBeats[1] = { ...p.storyboardBeats[1], visual };
+      return baseJob({ payload: JSON.stringify(p) });
+    };
+    for (const [visual, word] of [["REAL: the gauge in the inner tread", "real"], ["DETERMINISTIC card: the repair zones", "deterministic"]] as const) {
+      const { db, updates, inserts } = repairDb(declared(visual));
+      vi.doMock("./db", () => ({ getDb: vi.fn().mockResolvedValue(db) }));
+      vi.doMock("./services/higgsfieldStudio", () => ({ generateReelClipVideo: vi.fn() }));
+      vi.resetModules();
+      const { requestBeatRepair } = await import("./services/selectiveRepair");
+      await expect(requestBeatRepair({ jobId: 7, beatNumber: 2 })).rejects.toThrow(`beat 2 of job 7 is declared ${word} — a provider never regenerates it`);
+      expect(updates).toEqual([]);
+      expect(inserts).toEqual([]);
+      vi.doUnmock("./db");
+      vi.doUnmock("./services/higgsfieldStudio");
+    }
+    // CONTROL: the same beat in plain prose ("Real" is not the tag) queues as before.
+    const { db, updates } = repairDb(declared("Real-world close-up of the inner tread"));
+    vi.doMock("./db", () => ({ getDb: vi.fn().mockResolvedValue(db) }));
+    vi.doMock("./services/higgsfieldStudio", () => ({ generateReelClipVideo: vi.fn() }));
+    vi.resetModules();
+    const { requestBeatRepair } = await import("./services/selectiveRepair");
+    await expect(requestBeatRepair({ jobId: 7, beatNumber: 2 })).resolves.toMatchObject({ state: "queued" });
+    expect(updates.find((x) => x.__table === "reel_jobs")?.status).toBe("repair_queued");
+  });
+
   it("refuses a second repair while one is in flight", async () => {
     const busy = baseJob({
       payload: JSON.stringify({ ...JSON.parse(baseJob().payload as string), repairQueue: [{ logicalRepairId: "rep_x", beatNumber: 1, state: "queued", attempts: [], instruction: { preserve: [], change: [] }, requestedAt: "t", previousClipUrl: null }] }),

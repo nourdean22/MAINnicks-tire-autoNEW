@@ -165,12 +165,20 @@ export const CAPTION_SAFE = {
 
 /**
  * Vertical anchor of every NON-hook beat caption, as a fraction of frame
- * height (drawtext `y=h*0.62`). The hook caption is vertically centred
+ * height (drawtext `y=h*0.55`). The hook caption is vertically centred
  * instead. Exported so the deterministic pixel checks (renderedPixelStats)
  * inspect the SAME band the overlay is drawn into, rather than a second
  * hand-copied number that drifts the day this one moves.
+ *
+ * 0.62 → 0.55 on 2026-10-08. Instagram's UI covers the bottom 35% of a Reel
+ * (Meta's safe-zone guide: no essential content below 65% of the height).
+ * Measured with the production font (Anton) and these drawtext settings on a
+ * 1080x1920 frame, EVERY beat caption at 0.62 ended inside that zone: one
+ * line by 18-26 px, two lines by 60-103 px (box bottom at 70.4%). At 0.55 the
+ * worst case (two lines at 64 px) ends at 63.4%, 31 px clear, and the box
+ * starts at 53.5%, just below the centre. captionSafeZone.test.ts renders it.
  */
-export const CAPTION_BEAT_Y_FRAC = 0.62;
+export const CAPTION_BEAT_Y_FRAC = 0.55;
 
 /** Estimated rendered text-box width in px for the caption's longest line. */
 export function estimateCaptionWidthPx(caption: string, fontSize: number): number {

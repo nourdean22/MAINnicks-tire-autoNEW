@@ -1,5 +1,35 @@
 # Reels Engine v2 — The five experiments, on the framework that exists
 
+## What the lane can actually vary (2026-10-08, after #2932)
+
+**The daily lane publishes approved packs verbatim.** `resolveApprovedPackSelection` returns a library
+pack every day (or holds on a broken slate or cursor), and `dailyReelPost` builds the Reel from the
+pack's reviewed brief without regenerating it. The two "wired" presets apply their arm only while a
+brief is being WRITTEN: `hook_style_v1` in the daily lane's AI-brief branch (unreachable while the
+library has packs), `duration_v1` in `reelBriefGen` (Studio). Until this change every enqueued Reel
+was still recorded in both, so a started hook test would have compared identical pack Reels under two
+arm names. Pack Reels are no longer recorded in `hook_style` / `length_band` experiments
+(`contentExperimentStore.assignEpisodeToActiveExperiment`); those two collect only AI-written briefs.
+
+**So the five below cannot be wired by a generation switch.** Three of them (#1 opening mechanism,
+#2 opening asset, #4 payoff structure) change reviewed content, and #3 changes authored prompts.
+
+**Design to approve before anything is built — pack-variant arms:**
+
+1. An arm is a reviewed VARIANT of an approved pack (`docs/reel-packs/<slug>/variants/<arm>/brief.json`),
+   approved like any pack; a pack without a variant for the running experiment is simply not in it.
+2. At selection, the pack branch asks the store for this episode's arm (deterministic on the brief id,
+   as today) and builds from that variant; assignment records the arm only when a variant was used.
+3. Cost: one extra authored brief per pack per arm, and the wait — at one Reel a day across two arms
+   the first decision look (12 per arm) is about 24 posting days away.
+4. #5 (native presentation) needs no variant: it is a publish-time switch, but it changes the publish
+   path, so it is its own decision.
+5. #2 (opening asset) also waits on the real-evidence publish route: the generator refuses a beat
+   declared real, and the stock guard refuses a locally hosted clip.
+
+Sequencing still follows the audit: measure production first, experiment after stable publication.
+
+
 Rules (all enforced in code since PR #2923): a preset starts only if its treatment changes
 generation (`isUnwiredExperimentId` → `startContentExperiment` refuses `PRECONDITION_FAILED`);
 verdicts only at the decision looks (12 / 24 / 48 / 96 reported posts per arm), 0.0125 per look,

@@ -26,6 +26,8 @@ export interface CommandCenterSnapshot {
     source: "storage" | "storage_empty" | "fallback_unreachable";
     emergencyControls: AutonomyPolicy["emergencyControls"];
     limits: AutonomyPolicy["limits"];
+    /** Absent on policies written before 2026-09-09; absent reads as approval_required, as dailyReelPost reads it. */
+    paidBeatRegeneration: NonNullable<AutonomyPolicy["autonomousRepair"]>["paidBeatRegeneration"];
   };
   spend: {
     available: boolean;
@@ -58,6 +60,7 @@ export async function collectCommandCenter(): Promise<CommandCenterSnapshot> {
       source: emergency.source,
       emergencyControls: emergency.controls,
       limits: policy.limits,
+      paidBeatRegeneration: policy.autonomousRepair?.paidBeatRegeneration ?? "approval_required",
     },
     spend: { available: false, todayUsd: null, capUsd: policy.limits.maxGenerationCostPerDayUsd, isEstimate: true },
     reservations: { available: false, rows: [] },

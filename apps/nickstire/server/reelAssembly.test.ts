@@ -5,6 +5,7 @@ import {
   wrapCaption,
   briefToSegments,
   segmentsTotalSeconds,
+  CAPTION_BEAT_Y_FRAC,
   buildFfmpegArgs,
   evaluateRenderIntegrity,
   type ReelAssemblyBrief,
@@ -202,7 +203,8 @@ describe("buildFfmpegArgs", () => {
     // (caption-safezone-001) centers (h - lines*lineH)/2 + j*lineH instead of
     // the old single-run (h-text_h)/2
     expect(fc).toMatch(/y=\(h-\d+\)\/2\+0/);
-    expect(fc).toContain("y=h*0.62"); // later captions in the lower third (out of IG safe zone)
+    // later captions just below the centre, above Instagram's bottom 35% (captionSafeZone.test.ts measures it)
+    expect(fc).toContain(`y=h*${CAPTION_BEAT_Y_FRAC}+0`);
   });
 
   it("emits an IG-ready H.264 +faststart mp4 mapped from the final video/audio labels", () => {

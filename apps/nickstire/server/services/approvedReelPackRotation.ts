@@ -239,10 +239,11 @@ export const APPROVED_REEL_PACK_SLUGS = [
  */
 const PROOF_PACK_EXCLUSION =
   "Reels Engine v2 proof pack (docs/reels-engine-v2/08-PILOT.md): every evidence beat is declared REAL " +
-  "and the real-shop pool does not hold its shots yet. In the rotation today the lane would GENERATE a " +
-  "beat the brief declares real — a synthetic shot documenting real work. Enters the rotation on " +
-  "operator instruction once the six-shot set is captured and the provider pick honours " +
-  "StoryboardBeat.source (02-PRODUCTION-DOCTRINE.md §8 item 6).";
+  "and the real-shop pool does not hold its shots yet. The generator refuses a beat declared real or " +
+  "deterministic (shared/shotRouter.beatsTheGeneratorMustNotRender, at enqueue and at generation), so in " +
+  "the rotation today it would fail every day rather than ship a synthetic shot of real work. Enters the " +
+  "rotation on operator instruction once the six-shot set is captured AND a publishable route exists for " +
+  "real footage and cards (the stock guard refuses every locally hosted clip; 09-90-DAY-MODEL.md decision).";
 
 export const ROTATION_EXCLUDED: Readonly<Record<string, string>> = {
   "2026-08-20-tire-sidewall-numbers":

@@ -28,6 +28,7 @@ import { GBP_ARCHETYPES } from "@shared/const";
 
 import { createLogger } from "../lib/logger";
 import type { ReelBrief } from "../../client/src/lib/facelessReelStudio";
+import { AUTONOMY_LIMIT_KEYS } from "../../client/src/lib/autonomyPolicy";
 import { dispatch } from "../services/eventBus";
 import { queueStateForReelStatus } from "@shared/reelQueue";
 import { EXPERIMENT_PRESET_IDS, buildExperimentPreset } from "@shared/contentExperiments";
@@ -545,12 +546,14 @@ export const contentAdminRouter = router({
   publishAutonomyPolicy: adminProcedure
     .input(z.object({ policy: z.unknown(), note: z.string().max(400).default("") }))
     .mutation(async ({ input, ctx }) => {
-      const { publishPolicyVersion } = await import("../services/autonomyControl");
+      const { publishPolicyVersion, PolicyValidationError } = await import("../services/autonomyControl");
       const { validateAutonomyPolicyShape } = await import("../../client/src/lib/autonomyPolicy");
       if (!validateAutonomyPolicyShape(input.policy)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Policy failed shape validation" });
       }
-      return publishPolicyVersion(input.policy, input.note, ctx.user?.email ?? "admin");
+      return publishPolicyVersion(input.policy, input.note, ctx.user?.email ?? "admin").catch((err: unknown) => {
+        throw err instanceof PolicyValidationError ? new TRPCError({ code: "BAD_REQUEST", message: err.message }) : err;
+      });
     }),
 
   setAutonomyKillSwitch: adminProcedure
@@ -558,6 +561,34 @@ export const contentAdminRouter = router({
     .mutation(async ({ input, ctx }) => {
       const { setKillSwitch } = await import("../services/autonomyControl");
       return setKillSwitch(input.scope, input.on, ctx.user?.email ?? "admin");
+    }),
+
+  /** One limit, edited on the server against the stored policy (Autonomy control's limit rows). */
+  setAutonomyLimit: adminProcedure
+    .input(z.object({ key: z.enum(AUTONOMY_LIMIT_KEYS), value: z.number().finite() }))
+    .mutation(async ({ input, ctx }) => {
+      const { setPolicyLimit, PolicyValidationError } = await import("../services/autonomyControl");
+      return setPolicyLimit(input.key, input.value, ctx.user?.email ?? "admin").catch((err: unknown) => {
+        throw err instanceof PolicyValidationError ? new TRPCError({ code: "BAD_REQUEST", message: err.message }) : err;
+      });
+    }),
+
+  /** Paid beat repairs: "auto" spends within the budget; "approval_required" waits for the operator. */
+  setAutonomyPaidRepair: adminProcedure
+    .input(z.object({
+      permission: z.enum(["auto", "approval_required"]),
+      /** Turning paid repairs on: the budget and repair limit the confirm showed. */
+      confirmedLimits: z.object({
+        maxGenerationCostPerDayUsd: z.number().finite(),
+        maxRepairAttemptsPerAsset: z.number().finite(),
+      }).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { setPaidRepairPermission, PolicyValidationError, PolicyConflictError } = await import("../services/autonomyControl");
+      return setPaidRepairPermission(input.permission, ctx.user?.email ?? "admin", input.confirmedLimits).catch((err: unknown) => {
+        if (err instanceof PolicyConflictError) throw new TRPCError({ code: "CONFLICT", message: err.message });
+        throw err instanceof PolicyValidationError ? new TRPCError({ code: "BAD_REQUEST", message: err.message }) : err;
+      });
     }),
 
   runConceptTournament: adminProcedure

@@ -30,8 +30,8 @@ single source.
    contradictions, grounding, voiceover fit, leaked ask, claim safety, DUA. All pure, $0.
 2. Real evidence on the evidence beats: the six-shot set captured and graded `usable` in the
    real-shop pool (`mediaAssets.rightsStatus = real_shop`). **This is the pilot's bottleneck and the
-   only part the shop floor owns.** No capture, no Reel — the lane must not generate a beat the brief
-   declares REAL.
+   only part the shop floor owns.** No capture, no Reel — and since 2026-10-08 the generator
+   refuses a beat the brief declares REAL (shared/shotRouter.ts), at enqueue and at generation.
 3. Assembly (ffmpeg, captions burned, VO + music bed) → rendered QA (vision critic; now re-run when
    it fails to evaluate) → mechanical-truth check at the publish door → exact-asset approval.
 4. Publish: the drain, one Reel per day, approval-gated. The proof packs enter the daily rotation

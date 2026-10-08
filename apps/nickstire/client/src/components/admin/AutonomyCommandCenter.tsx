@@ -11,7 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { trpc } from "@/lib/trpc";
+import { AUTONOMY_COUNT_LIMIT_KEYS } from "@/lib/autonomyPolicy";
 
 function SwitchRow({ label, on, scope, busy, onToggle }: { label: string; on: boolean; scope: "global" | "generation" | "publishing"; busy: boolean; onToggle: (scope: "global" | "generation" | "publishing", next: boolean) => void }) {
   return (
@@ -35,13 +37,28 @@ export default function AutonomyCommandCenter() {
   const [editingLimit, setEditingLimit] = useState<string | null>(null);
   const [limitDraft, setLimitDraft] = useState<string>("");
 
-  const publishPolicy = trpc.contentAdmin.publishAutonomyPolicy.useMutation({
-    onSuccess: () => {
-      toast.success("Policy updated", { description: "Published as a new version — the previous one stays in history." });
+  // A limit is changed on the server, against the stored policy. Publishing the
+  // policy held here failed every time: the command center sends only part of
+  // it (no format permissions, scores or approvals), so the shape check refused
+  // it — the Generation budget could not be changed from the phone.
+  const setLimit = trpc.contentAdmin.setAutonomyLimit.useMutation({
+    onSuccess: (r) => {
+      toast.success("Policy updated", { description: `Published as v${r.version} — the previous version stays in history.` });
       setEditingLimit(null);
       center.refetch();
     },
     onError: (err) => toast.error("Policy not changed", { description: err.message }),
+  });
+
+  const paidRepair = trpc.contentAdmin.setAutonomyPaidRepair.useMutation({
+    onSuccess: (r, vars) => {
+      toast.success(vars.permission === "auto" ? "Paid repairs: automatic" : "Paid repairs: ask me first", {
+        description: `Published as v${r.version} — the previous version stays in history.`,
+      });
+      center.refetch();
+    },
+    // A CONFLICT means the limits moved since the confirm: refetch so the new ones show.
+    onError: (err) => { toast.error("Paid repairs not changed", { description: err.message }); center.refetch(); },
   });
 
   const killSwitch = trpc.contentAdmin.setAutonomyKillSwitch.useMutation({
@@ -115,6 +132,7 @@ export default function AutonomyCommandCenter() {
                 const current = (s.policy.limits as Record<string, number>)[key];
                 if (current === undefined) return null;
                 const isEditing = editingLimit === key;
+                const wholeOnly = (AUTONOMY_COUNT_LIMIT_KEYS as readonly string[]).includes(key);
                 return (
                   <div key={key} className="flex items-center justify-between gap-2 text-xs">
                     <span className="text-muted-foreground">{label}</span>
@@ -132,26 +150,16 @@ export default function AutonomyCommandCenter() {
                         <Input
                           value={limitDraft}
                           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLimitDraft(e.target.value)}
-                          inputMode="decimal"
+                          inputMode={wholeOnly ? "numeric" : "decimal"}
                           className="h-7 w-20 text-xs font-mono"
                           aria-label={`${label} (${unit})`}
                         />
                         <Button
                           size="sm" className="h-7 text-[11px]"
-                          disabled={publishPolicy.isPending || !Number.isFinite(Number(limitDraft)) || Number(limitDraft) < min || Number(limitDraft) > max}
-                          onClick={() => {
-                            // Publish the WHOLE policy with one limit changed —
-                            // publishPolicyVersion is versioned and audited, so
-                            // this is reversible by publishing the prior version.
-                            const next = {
-                              ...s.policy,
-                              limits: { ...s.policy.limits, [key]: Number(limitDraft) },
-                            };
-                            delete (next as Record<string, unknown>).source;
-                            publishPolicy.mutate({ policy: next, note: `${label} ${current}${unit} -> ${limitDraft}${unit}` });
-                          }}
+                          disabled={setLimit.isPending || limitDraft.trim() === "" || !Number.isFinite(Number(limitDraft)) || Number(limitDraft) < min || Number(limitDraft) > max || (wholeOnly && !Number.isInteger(Number(limitDraft)))}
+                          onClick={() => setLimit.mutate({ key, value: Number(limitDraft) })}
                         >
-                          {publishPolicy.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                          {setLimit.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
                         </Button>
                         <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => setEditingLimit(null)}>
                           Cancel
@@ -163,6 +171,58 @@ export default function AutonomyCommandCenter() {
               })}
               <p className="text-[11px] text-muted-foreground/70 pt-1">
                 Each change publishes a new policy version. The previous version stays in history, so any change is reversible.
+              </p>
+            </div>
+            {/* Paid repairs. A needs_paid_repair verdict is a known flaw whose fix
+                costs credits; the daily-reel drain pays for it only when this
+                reads "auto". Allowing spend takes a confirm; stopping it is one tap. */}
+            <div className="space-y-1.5 border-t border-border/40 pt-2">
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <span className="text-muted-foreground">Paid repairs</span>
+                <span className="flex gap-1" role="group" aria-label="Paid repairs">
+                  <Button
+                    size="sm"
+                    variant={s.policy.paidBeatRegeneration === "auto" ? "default" : "outline"}
+                    className="min-h-[48px] px-3 text-xs"
+                    aria-pressed={s.policy.paidBeatRegeneration === "auto"}
+                    disabled={paidRepair.isPending}
+                    onClick={async () => {
+                      if (s.policy.paidBeatRegeneration === "auto") return;
+                      // The consent travels with the bounds it was given under; the
+                      // server refuses it if the stored policy has moved since.
+                      const confirmedLimits = {
+                        maxGenerationCostPerDayUsd: s.policy.limits.maxGenerationCostPerDayUsd,
+                        maxRepairAttemptsPerAsset: s.policy.limits.maxRepairAttemptsPerAsset,
+                      };
+                      const ok = await confirmDialog({
+                        title: "Let paid repairs run on their own?",
+                        message: `When the critic finds a flaw that costs credits to fix, the system pays for the fix itself, within the generation budget ($${confirmedLimits.maxGenerationCostPerDayUsd}/day) and ${confirmedLimits.maxRepairAttemptsPerAsset} repairs per Reel. You can switch back here at any time.`,
+                        confirmLabel: "Allow paid repairs",
+                      });
+                      if (ok) paidRepair.mutate({ permission: "auto", confirmedLimits });
+                    }}
+                  >
+                    Automatic
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={s.policy.paidBeatRegeneration !== "auto" ? "default" : "outline"}
+                    className="min-h-[48px] px-3 text-xs"
+                    aria-pressed={s.policy.paidBeatRegeneration !== "auto"}
+                    disabled={paidRepair.isPending}
+                    onClick={() => {
+                      if (s.policy.paidBeatRegeneration !== "auto") return;
+                      paidRepair.mutate({ permission: "approval_required" });
+                    }}
+                  >
+                    Ask me first
+                  </Button>
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground/70">
+                {s.policy.paidBeatRegeneration === "auto"
+                  ? "When the critic finds a flaw that costs credits to fix, the fix runs on its own, within the budget and the repairs limit above."
+                  : "When the critic finds a flaw that costs credits to fix, the Reel waits in the Queue for you."}
               </p>
             </div>
           </CardContent>

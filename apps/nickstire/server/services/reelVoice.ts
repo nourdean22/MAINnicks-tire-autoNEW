@@ -190,6 +190,19 @@ export function formatAssTime(seconds: number): string {
   return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}.${cs.toString().padStart(2, "0")}`;
 }
 
+/**
+ * Bottom margin of the word-timed captions, in PlayRes pixels (1080x1920,
+ * bottom-centre alignment, so a wrapped chunk grows upward and this edge
+ * stays put).
+ *
+ * 500 → 720 on 2026-10-08. At 500 every caption sat wholly inside the bottom
+ * 35% that Instagram's UI covers: measured with Anton through libass, the box
+ * spanned 69.5-74.2% of the height. At 720 it spans 58.0-62.8%, 43 px clear,
+ * level with the drawtext beat captions (reelAssembly CAPTION_BEAT_Y_FRAC).
+ * This path runs when the voiceover carries word timing (ElevenLabs).
+ */
+const ASS_CAPTION_MARGIN_V = 720;
+
 export function generateAssSubtitles(alignment: VoiceAlignment): string {
   const words: WordAlignment[] = [];
   let currentWord = "";
@@ -223,7 +236,7 @@ PlayResY: 1920
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Anton,80,&H0013B9FD,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,3,6,0,2,20,20,500,1
+Style: Default,Anton,80,&H0013B9FD,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,3,6,0,2,20,20,${ASS_CAPTION_MARGIN_V},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
