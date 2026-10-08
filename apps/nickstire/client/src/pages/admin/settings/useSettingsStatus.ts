@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { gatewayState } from "@/lib/gatewayState";
 import { deriveCronIssues } from "./cron-issues";
-import { summarizeCameraFleet, type CameraFleetInputCamera } from "@shared/cameraFleetHealth";
+import { cameraProblemSeverity, isExpectedCameraState, summarizeCameraFleet, type CameraFleetInputCamera } from "@shared/cameraFleetHealth";
 
 /** Every check below that can fail to run. The "could not run" banner divides by this. */
 export const SETTINGS_STATUS_CHECK_COUNT = 9;
@@ -151,9 +151,13 @@ export function useSettingsStatus() {
       for (const p of fleet.problems) {
         issues.push({
           key: `camera-${p.camera}`,
-          severity: /OFFLINE|NEVER_INGESTED|PRODUCER_OFFLINE|UNREGISTERED/.test(p.state) ? "alert" : "warning",
+          // An EXPECTED state (the solar sign camera dark on its battery overnight) is a warning
+          // with its own wording, never an alert: nobody is paged for it and nothing is broken.
+          severity: cameraProblemSeverity(p.state),
           title: `Camera · ${p.label}: ${p.state}`,
-          detail: "Lot arrivals, bay truth or office capture from this camera cannot be trusted until it is HEALTHY again.",
+          detail: isExpectedCameraState(p.state)
+            ? "The solar sign camera is dark on its battery between civil dusk and about two hours after sunrise. The lot is unwatched until it wakes; nobody is paged, and daytime loss would show as PRODUCER_OFFLINE instead."
+            : "Lot arrivals, bay truth or office capture from this camera cannot be trusted until it is HEALTHY again.",
           whyText: "Per-camera state comes from lot.health (camera_runtime heartbeats + derived health lattice). Only commissioned cameras and unregistered producers are counted.",
           actionHref: "/admin?tab=lot",
           actionLabel: "Open Lot",

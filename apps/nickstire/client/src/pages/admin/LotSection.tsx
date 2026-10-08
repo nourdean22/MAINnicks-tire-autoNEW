@@ -35,11 +35,11 @@
  *
  * Data: trpc.lot.now + trpc.lot.visits + trpc.lot.health + trpc.lot.conversations, polled every 15s.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
-import { VISIT_MARKS, VISIT_MARK_LABELS, type VisitMark } from "@shared/visitMarks";
+import { VISIT_MARK_BUTTONS, VISIT_MARK_LABELS, type VisitMark, type VisitMarkState } from "@shared/visitMarks";
 import { summarizeCameraFleet, WORKER_STALE_AFTER_SECONDS } from "@shared/cameraFleetHealth";
 import { lotDataConfidence, type LotConfidence } from "@shared/lotDataConfidence";
 import { localClock } from "@shared/shopState";
@@ -165,20 +165,8 @@ type VisitRow = {
    * `undefined` = an older server; `null` = the table is not applied yet (no buttons, say why).
    */
   marks?: VisitMarkState | null;
+  /** Every mark row for the visit, oldest first, including CLEARED undos: the card's audit title. */
   markHistory?: Array<{ mark: string; atMs: number; note: string | null }>;
-};
-
-type VisitMarkState = {
-  latest: { mark: VisitMark; atMs: number; note: string | null } | null;
-  customerWaiting: boolean;
-  notAJob: boolean;
-  serviceStartedAtMs: number | null;
-  serviceStartedBy: "camera" | "mark" | null;
-  serviceDoneAtMs: number | null;
-  serviceMinutes: number | null;
-  pickupPending: boolean;
-  pickupWaitMinutes: number | null;
-  markCount: number;
 };
 
 type ConversationRow = {
@@ -701,7 +689,9 @@ function stageOf(v: VisitRow): Stage {
     return { label: "Not a job", tone: "bg-foreground/10 text-foreground/55 border-foreground/20" };
   }
   if (v.marks?.pickupPending) {
-    return { label: "Done · waiting for pickup", tone: "bg-sky-500/15 text-sky-300 border-sky-500/30" };
+    // Keep the bay in view: a done car still on a lift is blocking it.
+    const inBay = v.bayEnteredAt && !v.bayExitedAt && v.bay ? ` · ${v.bay}` : "";
+    return { label: `Done · waiting for pickup${inBay}`, tone: "bg-sky-500/15 text-sky-300 border-sky-500/30" };
   }
   if (v.bayEnteredAt && !v.bayExitedAt) {
     return {
@@ -868,20 +858,22 @@ function ActivityPanel({ a }: { a: ActivityData }) {
 function MarkControls({ v, onMarked }: { v: VisitRow; onMarked: () => void }) {
   const [armed, setArmed] = useState<VisitMark | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Set synchronously on the confirming tap: the mutation's isPending re-render lands a tick
+  // later, and a second tap inside that tick would otherwise append a duplicate row.
+  const inFlight = useRef(false);
   const mark = trpc.lot.markVisit.useMutation({
     onSuccess: (r) => {
-      if (r.ok) {
-        setArmed(null);
-        setError(null);
-        onMarked();
-      } else {
-        setArmed(null);
-        setError(r.reason);
-      }
+      setArmed(null);
+      setError(r.ok ? null : r.reason);
     },
     onError: (e) => {
       setArmed(null);
       setError(e.message);
+    },
+    // Refetch on every outcome: a refused tap ("this car has left") is also news for the board.
+    onSettled: () => {
+      inFlight.current = false;
+      onMarked();
     },
   });
   useEffect(() => {
@@ -891,67 +883,105 @@ function MarkControls({ v, onMarked }: { v: VisitRow; onMarked: () => void }) {
   }, [armed]);
 
   const m = v.marks;
-  if (m === null) {
-    return <div className="mt-2.5 text-[11px] text-foreground/35">Marks need migration 0145 (vehicle_visit_marks) before these buttons work.</div>;
-  }
-  if (m === undefined) return null;
-  const disabled: Record<VisitMark, boolean> = {
-    CUSTOMER_WAITING: m.customerWaiting || m.notAJob,
-    SERVICE_STARTED: m.notAJob || (m.serviceStartedAtMs !== null && m.serviceDoneAtMs === null),
-    SERVICE_DONE: m.notAJob || m.serviceDoneAtMs !== null,
-    NOT_A_JOB: m.notAJob,
+  // Table not applied (null) or an older server (undefined): the line above the grid says why,
+  // once, instead of forty cards repeating it.
+  if (m === null || m === undefined) return null;
+  const why: Partial<Record<VisitMark, string>> = {
+    CUSTOMER_WAITING: m.notAJob ? "marked not a job" : m.customerWaiting ? "already marked" : undefined,
+    SERVICE_STARTED: m.notAJob ? "marked not a job" : m.serviceRunning ? "service is already running" : undefined,
+    SERVICE_DONE: m.notAJob ? "marked not a job" : m.serviceDoneAtMs !== null ? "already marked done" : undefined,
+    NOT_A_JOB: m.notAJob ? "already marked" : undefined,
+  };
+  const send = (k: VisitMark) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    mark.mutate({ visitId: v.visitId, mark: k });
+  };
+  const tap = (k: VisitMark) => {
+    if (armed === k) send(k);
+    else {
+      setError(null);
+      setArmed(k);
+    }
+  };
+  const button = (k: VisitMark, extraClass = "") => {
+    const isArmed = armed === k;
+    return (
+      <button
+        key={k}
+        type="button"
+        disabled={Boolean(why[k]) || mark.isPending}
+        title={why[k]}
+        aria-pressed={isArmed}
+        className={`min-h-12 min-w-12 rounded-md border px-2.5 text-[12px] active:scale-95 disabled:opacity-40 ${
+          isArmed
+            ? "border-amber-400/60 bg-amber-500/15 text-amber-200"
+            : `border-foreground/15 bg-foreground/[0.03] text-foreground/75 ${extraClass}`
+        }`}
+        onClick={() => tap(k)}
+      >
+        {isArmed ? `Tap again: ${VISIT_MARK_LABELS[k]}` : VISIT_MARK_LABELS[k]}
+      </button>
+    );
   };
   return (
     <div className="mt-2.5">
       <div className="flex flex-wrap gap-1.5">
-        {VISIT_MARKS.map((k) => {
-          const isArmed = armed === k;
-          return (
-            <button
-              key={k}
-              type="button"
-              disabled={disabled[k] || mark.isPending}
-              aria-pressed={isArmed}
-              className={`min-h-12 min-w-12 rounded-md border px-2.5 text-[12px] active:scale-95 disabled:opacity-40 ${
-                isArmed
-                  ? "border-amber-400/60 bg-amber-500/15 text-amber-200"
-                  : "border-foreground/15 bg-foreground/[0.03] text-foreground/75"
-              }`}
-              onClick={() => {
-                if (isArmed) mark.mutate({ visitId: v.visitId, mark: k });
-                else setArmed(k);
-              }}
-            >
-              {isArmed ? `Tap again: ${VISIT_MARK_LABELS[k]}` : VISIT_MARK_LABELS[k]}
-            </button>
-          );
-        })}
+        {VISIT_MARK_BUTTONS.map((k) => button(k))}
+        {/* The undo. Rows are append-only, so a thumb that landed on "Not a job" is reversed by
+            appending CLEARED; only marks after it count, and the history keeps the mistake. */}
+        {m.markCount > 0 && button("CLEARED", "text-foreground/50")}
       </div>
-      {error && <div className="mt-1 text-[11px] text-red-300">{error}</div>}
+      {error && (
+        <div role="status" className="mt-1 text-[11px] text-red-300">
+          {error}
+        </div>
+      )}
     </div>
   );
 }
 
-/** What the marks say about this car, in one line. Clocks keep advancing between polls. */
-function MarkSummary({ m, open, fetchedAt, now }: { m: VisitMarkState; open: boolean; fetchedAt: number; now: number }) {
+/**
+ * What the marks say about this car, in one line. Clocks keep advancing between polls, but only
+ * while the server says the clock runs (`serviceRunning`): a camera-started service ends when
+ * the car leaves the bay, so this line never disagrees with the "In bay" cell above it.
+ * Rendered only once somebody has tapped something; the camera's own clocks have their own cells.
+ */
+function MarkSummary({ m, history, open, fetchedAt, now }: {
+  m: VisitMarkState;
+  history: ReadonlyArray<{ mark: string; atMs: number; note: string | null }>;
+  open: boolean;
+  fetchedAt: number;
+  now: number;
+}) {
   const stampMs = (ms: number) => stamp(new Date(ms).toISOString());
-  const serviceRunning = open && m.serviceStartedAtMs !== null && m.serviceDoneAtMs === null;
-  const service = advanceOpenDuration(m.serviceMinutes, serviceRunning, fetchedAt, now);
+  const label = (k: string) => (VISIT_MARK_LABELS as Record<string, string>)[k] ?? k.toLowerCase().replace(/_/g, " ");
+  const audit = history.map((h) => `${label(h.mark)} ${stampMs(h.atMs)}${h.note ? ` (${h.note})` : ""}`).join(" · ");
+  if (m.markCount === 0) {
+    // Nothing in force. Rows that were cleared still exist, and the card must say so: an undo
+    // that erased every trace of the mistake would make a mis-tap on "Clear marks" invisible.
+    return history.length > 0 ? <div className="mt-2 text-[11px] text-foreground/40" title={audit}>Marks cleared</div> : null;
+  }
+  const service = advanceOpenDuration(m.serviceMinutes, open && m.serviceRunning, fetchedAt, now);
   const pickup = advanceOpenDuration(m.pickupWaitMinutes, open && m.pickupPending, fetchedAt, now);
   if (m.notAJob) {
     return (
-      <div className="mt-2 text-[11px] text-foreground/55">
+      <div className="mt-2 text-[11px] text-foreground/55" title={audit}>
         Marked not a job{m.latest?.note ? `: ${m.latest.note}` : ""}
       </div>
     );
   }
-  if (!m.customerWaiting && m.serviceStartedAtMs === null && m.serviceDoneAtMs === null) return null;
+  if (!m.customerWaiting && m.serviceStartedAtMs === null && m.serviceDoneAtMs === null) {
+    return <div className="mt-2 text-[11px] text-foreground/45" title={audit}>{m.markCount} mark{m.markCount === 1 ? "" : "s"} recorded</div>;
+  }
   return (
-    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground/55">
+    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground/55" title={audit}>
       {m.customerWaiting && <span className="text-amber-300">Customer waiting</span>}
       {m.serviceStartedAtMs !== null && (
         <span>
-          Service {formatDuration(service)} · started {stampMs(m.serviceStartedAtMs)} {m.serviceStartedBy === "mark" ? "(tap)" : "(camera)"}
+          Service {formatDuration(service)}
+          {m.serviceEndedAtMs !== null ? " (ended at bay exit)" : ""} · started {stampMs(m.serviceStartedAtMs)}{" "}
+          {m.serviceStartedBy === "mark" ? "(tap)" : "(camera)"}
         </span>
       )}
       {m.serviceDoneAtMs !== null && m.serviceStartedAtMs === null && <span>Done {stampMs(m.serviceDoneAtMs)}</span>}
@@ -1047,7 +1077,7 @@ function FloorCard({ v, fetchedAt, now, onMarked }: { v: VisitRow; fetchedAt: nu
         )}
       </div>
 
-      {v.marks ? <MarkSummary m={v.marks} open={v.open} fetchedAt={fetchedAt} now={now} /> : null}
+      {v.marks ? <MarkSummary m={v.marks} history={v.markHistory ?? []} open={v.open} fetchedAt={fetchedAt} now={now} /> : null}
       {v.open ? <MarkControls v={v} onMarked={onMarked} /> : null}
     </div>
   );
@@ -1538,6 +1568,8 @@ export default function LotSection() {
   const signWatching = signCamera !== null && signCamera.state === "HEALTHY";
   const signStateLabel = signCamera ? signCamera.state.replace(/_/g, " ").toLowerCase() : "unknown";
   const windowColumnsStored = health.data?.ok === true ? health.data.windowColumnsStored : null;
+  const shopOpenNow = health.data?.ok === true ? health.data.shopOpen : null;
+  const signSolarNight = signCamera !== null && signCamera.state === "EXPECTED_SOLAR_OFFLINE";
 
   const badge: { label: string; variant: "success" | "warning" | "danger" | "neutral" } =
     nowFailed
@@ -1546,6 +1578,12 @@ export default function LotSection() {
         ? { label: "Loading", variant: "neutral" }
         : n?.ok === true && n.neverIngested
           ? { label: "Awaiting first event", variant: "neutral" }
+          : signLoaded && signSolarNight
+            ? // Dark on its battery, as expected: still not watching, but a fact about the sky.
+              // Amber only while the shop is open on it (the 08:00 to ~09:30 overlap), calm at night.
+              shopOpenNow
+                ? { label: "Not watching · sign dark (solar) while open", variant: "warning" }
+                : { label: "Not watching · sign dark (solar night)", variant: "neutral" }
           : signLoaded && signCamera && !signWatching
             ? // Never "Live" over a sign camera that is not HEALTHY: the visits below are
               // whatever it last managed to see. 2026-10-05 said "Live" over a blind lane.
@@ -1646,7 +1684,12 @@ export default function LotSection() {
           }
         : {
             value: `${signStateLabel} for ${formatAgo(signCamera.stateForSeconds)}`,
-            tone: signCamera.state === "STALE" || signCamera.state === "UNVERIFIED_CAPABILITIES" ? "warn" : "bad",
+            tone:
+              signCamera.state === "EXPECTED_SOLAR_OFFLINE"
+                ? "muted"
+                : signCamera.state === "STALE" || signCamera.state === "UNVERIFIED_CAPABILITIES"
+                  ? "warn"
+                  : "bad",
             detail: signCamera.reason,
           };
 
@@ -1814,8 +1857,11 @@ export default function LotSection() {
                   <div className="mb-2.5 text-[11px] text-foreground/50">
                     {n.marks.available
                       ? `Marked ${n.marks.openMarked} of ${n.counts.onProperty} on the property` +
-                        (n.marks.serviceDone > 0 ? ` · ${n.marks.serviceDone} waiting for pickup` : "") +
-                        (n.marks.customerWaiting > 0 ? ` · ${n.marks.customerWaiting} customer${n.marks.customerWaiting === 1 ? "" : "s"} waiting` : "") +
+                        (n.marks.markedShare !== null ? ` (${Math.round(n.marks.markedShare * 100)}%)` : "") +
+                        // "marked done", not "waiting for pickup": this counts cars with a done
+                        // mark, and a car put back on the lift after it is not waiting for anyone.
+                        (n.marks.serviceDone > 0 ? ` · ${n.marks.serviceDone} marked done` : "") +
+                        (n.marks.customerWaiting > 0 ? ` · ${n.marks.customerWaiting} marked waiting` : "") +
                         (n.marks.notAJob > 0 ? ` · ${n.marks.notAJob} not a job` : "")
                       : "Marks need migration 0145 (vehicle_visit_marks) before the buttons appear."}
                   </div>

@@ -159,6 +159,13 @@ describe("office visual — learning loop and on-box people", () => {
     expect(v).toMatchObject({ onBoxPeople: 2, review: { verdict: "wrong", note: "n" } });
     expect(storedVisual(JSON.stringify(base))).toMatchObject({ onBoxPeople: null, review: null });
   });
+
+  it("storedVisual keeps the calibrationFrom receipt (ids only) so the N5 proof is readable, not write-only", () => {
+    const v = storedVisual(JSON.stringify({ ...base, calibrationFrom: ["ep-wrong-1", 7, "ep-ok-2"] }));
+    expect(v?.calibrationFrom).toEqual(["ep-wrong-1", "ep-ok-2"]);
+    // Absent stays absent: an older row is not given an empty receipt it never had.
+    expect(storedVisual(JSON.stringify(base))).not.toHaveProperty("calibrationFrom");
+  });
 });
 
 describe("conversationEpisodeColumnReady (0140 visual, 0141 gist)", () => {

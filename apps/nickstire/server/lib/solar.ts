@@ -105,10 +105,16 @@ export type SolarExpectation = {
   reason: string;
 };
 
-/** Default lag after sunrise before a solar camera is expected back; both measured recoveries
- *  (2026-10-04 09:15 ET, 2026-10-07 09:23 ET) fell inside it. Pinned by solar.test.ts through
- *  solarExpectedOffline(), not by name. */
-const SOLAR_RECOVERY_MINUTES = 120;
+/**
+ * Default lag after sunrise before a solar camera is expected back. The two measured recoveries
+ * (2026-10-04 09:15 ET, 2026-10-07 09:23 ET) were sunrise + 106 and + 116 min on clear-ish
+ * mornings; 150 leaves a cloudy morning ~35 min of room before a late wake would page twice
+ * (offline, then recovery). The cost is the mirror: a real daytime loss between sunrise + 2 h and
+ * + 2.5 h is read as expected for up to 30 min. Re-measure from the camera_health_events
+ * timeline after a week and move this number on evidence, not on a guess. Pinned by
+ * solar.test.ts through solarExpectedOffline(), not by name.
+ */
+const SOLAR_RECOVERY_MINUTES = 150;
 
 /**
  * Whether a solar-powered camera is expected to be dark at `now`: between the previous civil

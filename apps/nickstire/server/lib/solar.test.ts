@@ -41,8 +41,10 @@ describe("solarDay", () => {
     // camera actually came back) and must end soon after them (a page is still possible).
     expect(solarExpectedOffline(new Date(edt(9, 15, 4)), CLEVELAND).expectedOffline).toBe(true);
     expect(solarExpectedOffline(new Date(edt(9, 23, 7)), CLEVELAND).expectedOffline).toBe(true);
-    expect(solarExpectedOffline(new Date(edt(9, 35, 4)), CLEVELAND).expectedOffline).toBe(false);
-    expect(solarExpectedOffline(new Date(edt(9, 35, 7)), CLEVELAND).expectedOffline).toBe(false);
+    // The default lag is 150 min (sunrise 07:24 / 07:28 -> about 09:54 / 09:58 on those days).
+    expect(solarExpectedOffline(new Date(edt(9, 50, 4)), CLEVELAND).expectedOffline).toBe(true);
+    expect(solarExpectedOffline(new Date(edt(10, 5, 4)), CLEVELAND).expectedOffline).toBe(false);
+    expect(solarExpectedOffline(new Date(edt(10, 5, 7)), CLEVELAND).expectedOffline).toBe(false);
   });
 });
 
@@ -55,10 +57,11 @@ describe("localDayOf", () => {
 });
 
 describe("solarExpectedOffline", () => {
-  it("is expected overnight and until two hours after sunrise, not at noon", () => {
+  it("is expected overnight and until two and a half hours after sunrise, not at noon", () => {
     expect(solarExpectedOffline(new Date(edt(5, 0)), CLEVELAND).expectedOffline).toBe(true);
-    expect(solarExpectedOffline(new Date(edt(8, 30)), CLEVELAND).expectedOffline).toBe(true); // 07:29 + 2 h = 09:29
-    expect(solarExpectedOffline(new Date(edt(9, 45)), CLEVELAND).expectedOffline).toBe(false);
+    expect(solarExpectedOffline(new Date(edt(8, 30)), CLEVELAND).expectedOffline).toBe(true); // 07:29 + 150 min = 09:59
+    expect(solarExpectedOffline(new Date(edt(9, 45)), CLEVELAND).expectedOffline).toBe(true);
+    expect(solarExpectedOffline(new Date(edt(10, 15)), CLEVELAND).expectedOffline).toBe(false);
     expect(solarExpectedOffline(new Date(edt(12, 0)), CLEVELAND).expectedOffline).toBe(false);
     expect(solarExpectedOffline(new Date(edt(19, 40)), CLEVELAND).expectedOffline).toBe(true); // after civil dusk ~19:25
     expect(solarExpectedOffline(new Date(edt(23, 59)), CLEVELAND).expectedOffline).toBe(true);
@@ -66,7 +69,7 @@ describe("solarExpectedOffline", () => {
 
   it("names the window in the shop's local time so an operator can check it against the sky", () => {
     const night = solarExpectedOffline(new Date(edt(5, 0)), CLEVELAND);
-    expect(night.reason).toMatch(/dark from civil dusk \d\d:\d\d until about 09:[23]\d/);
+    expect(night.reason).toMatch(/dark from civil dusk \d\d:\d\d until about (09:5\d|10:0\d)/);
     expect(night.fromMs).toBeLessThan(night.untilMs);
     const day = solarExpectedOffline(new Date(edt(12, 0)), CLEVELAND);
     expect(day.reason).toMatch(/daylight/);

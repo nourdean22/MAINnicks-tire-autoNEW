@@ -89,6 +89,13 @@ async function main(): Promise<void> {
     const present = await columnNames(connection);
     const missing = COLUMNS.filter((c) => !present.includes(c));
     if (missing.length) throw new Error(`POST-CHECK FAILED: ${TABLE} lacks columns ${missing.join(", ")}`);
+    // A pre-existing table of another shape would pass the column check and still lack the
+    // index every read uses; say so instead of recording the migration as applied.
+    const [indexRows] = await connection.query<mysql.RowDataPacket[]>(
+      "SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? LIMIT 1",
+      [TABLE, "idx_vehicle_visit_marks_visit"],
+    );
+    if (indexRows.length === 0) throw new Error(`POST-CHECK FAILED: ${TABLE} lacks index idx_vehicle_visit_marks_visit`);
 
     await connection.query(
       "CREATE TABLE IF NOT EXISTS __drizzle_migrations (id SERIAL PRIMARY KEY, hash TEXT NOT NULL, created_at BIGINT)",

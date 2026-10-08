@@ -65,8 +65,8 @@ import {
 import { EXPECTED_CAMERAS, cameraPowerFor } from "../../shared/cameras";
 import { VISIT_MARKS } from "../../shared/visitMarks";
 import { deriveVisitMarkState, type VisitMarkRow } from "../lib/visitMarks";
-import { isDuplicateKeyError, isMissingTableError } from "../lib/dbErrors";
-import { writeResult } from "../lib/dbResult";
+import { isDuplicateKeyError, isMissingTableError, logSafeErrorMessage } from "../lib/dbErrors";
+import { insertedId, writeResult } from "../lib/dbResult";
 import { createLogger } from "../lib/logger";
 import { jsonArray, transcriptCoverage } from "../lib/conversationQuality";
 import { conversationEpisodeColumnReady, officeVisualColumnReady, storedVisual, __resetOfficeVisualCalibration } from "../services/officeVisual";
@@ -837,6 +837,7 @@ export const lotRouter = router({
                  ${minutesBetween("COALESCE(waitStartedAt, arrivedAt)", ["bayEnteredAt", "departedAt", "NOW()"])} AS waitMinutes,
                  ${minutesBetween("bayEnteredAt", ["bayExitedAt", "departedAt", "NOW()"])} AS bayMinutes,
                  ${sql.raw("UNIX_TIMESTAMP(bayEnteredAt)")} AS bayEnteredEpoch,
+                 ${sql.raw("UNIX_TIMESTAMP(bayExitedAt)")} AS bayExitedEpoch,
                  ${sql.raw("UNIX_TIMESTAMP(departedAt)")} AS departedEpoch
           FROM vehicle_visits
           WHERE ${input.includeCommissioning ? sql`1 = 1` : sql`dataClass = 'PRODUCTION'`}
@@ -889,7 +890,7 @@ export const lotRouter = router({
           rows: list.map((v) => ({
             marks: marksAvailable
               ? deriveVisitMarkState(
-                  { bayEnteredAtMs: epochMs(v.bayEnteredEpoch), departedAtMs: epochMs(v.departedEpoch) },
+                  { bayEnteredAtMs: epochMs(v.bayEnteredEpoch), bayExitedAtMs: epochMs(v.bayExitedEpoch), departedAtMs: epochMs(v.departedEpoch) },
                   marksByVisit.get(String(v.visitId)) ?? [],
                   nowMs,
                 )
@@ -1096,7 +1097,16 @@ export const lotRouter = router({
           facets: verdict.facets,
           reason: verdict.reason,
           ageSeconds: r ? numOrNull(r.ageSeconds) : null,
-          stateForSeconds: r ? numOrNull(r.stateForSeconds) : null,
+          // A READ-derived state (STALE / PRODUCER_OFFLINE / EXPECTED_SOLAR_OFFLINE) began when
+          // the heartbeats stopped, not when `stateSince` last moved: no heartbeat arrives to
+          // move it, so the row still says HEALTHY-since-this-morning while the camera has been
+          // dark since dusk. The alert policy already keys those states on the last heartbeat;
+          // the card and the confidence strip must say the same number.
+          stateForSeconds: r
+            ? (verdict.state === "STALE" || verdict.state === "PRODUCER_OFFLINE" || verdict.state === "EXPECTED_SOLAR_OFFLINE"
+                ? numOrNull(r.ageSeconds)
+                : numOrNull(r.stateForSeconds))
+            : null,
           // NULL, not 0, when this camera has no row today. "It has not dropped" and "no
           // event was ever recorded for it" are different claims, and a camera that has
           // never reported must not render as the steadiest one on the screen.
@@ -1363,20 +1373,27 @@ export const lotRouter = router({
         if (!visit) return { ok: false as const, reason: `no visit ${input.visitId}` };
         if (visit.departedAt) return { ok: false as const, reason: "this car has left; marks are for cars on the property" };
         const note = input.note?.trim() ? input.note.trim().slice(0, 191) : null;
-        await d.execute(sql`
+        const inserted = await d.execute(sql`
           INSERT INTO vehicle_visit_marks (visitId, mark, markedBy, note)
           VALUES (${input.visitId}, ${input.mark}, ${ctx.user.openId}, ${note})
         `);
-        const stamped = rowsOf(await d.execute(sql`
-          SELECT ${sql.raw("UNIX_TIMESTAMP(markedAt)")} AS markedEpoch
-          FROM vehicle_visit_marks WHERE visitId = ${input.visitId} ORDER BY markedAt DESC, id DESC LIMIT 1
-        `))[0];
-        return { ok: true as const, mark: input.mark, markedAtMs: num(stamped?.markedEpoch ?? 0) * 1000 };
+        // Read back THIS row by its id: "the latest mark for the visit" could be another
+        // admin's tap in the same second. No id from the driver -> the server clock stands in.
+        const id = insertedId(inserted);
+        const stamped = id === null
+          ? null
+          : rowsOf(await d.execute(sql`
+              SELECT ${sql.raw("UNIX_TIMESTAMP(markedAt)")} AS markedEpoch FROM vehicle_visit_marks WHERE id = ${id} LIMIT 1
+            `))[0];
+        const markedAtMs = stamped?.markedEpoch != null ? num(stamped.markedEpoch) * 1000 : Date.now();
+        return { ok: true as const, mark: input.mark, markedAtMs };
       } catch (err) {
         if (isMissingTableError(err)) {
           return { ok: false as const, reason: "visit marks need migration 0145 (vehicle_visit_marks) applied first" };
         }
-        return { ok: false as const, reason: err instanceof Error ? err.message : "could not record the mark" };
+        // Never the raw driver message: a wrapped query error carries its params, and one of them
+        // is the admin's openId, which this table's own comment promises never reaches the browser.
+        return { ok: false as const, reason: `could not record the mark: ${logSafeErrorMessage(err)}` };
       }
     }),
 

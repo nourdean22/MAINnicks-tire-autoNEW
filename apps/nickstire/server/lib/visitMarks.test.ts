@@ -145,3 +145,75 @@ describe("deriveVisitMarkState", () => {
     expect(s.latest?.mark).toBe("SERVICE_DONE");
   });
 });
+
+describe("deriveVisitMarkState -- review fixes before merge (2026-10-08)", () => {
+  it("a camera-started service with no tap about it ENDS when the car leaves the bay; the two clocks on one card agree", () => {
+    const s = deriveVisitMarkState(
+      { bayEnteredAtMs: T0, bayExitedAtMs: T0 + min(30), departedAtMs: null },
+      [{ mark: "CUSTOMER_WAITING", markedAtMs: T0 + min(2), note: null }],
+      NOW,
+    );
+    expect(s.serviceStartedBy).toBe("camera");
+    expect(s.serviceEndedAtMs).toBe(T0 + min(30));
+    expect(s.serviceMinutes).toBe(30);
+    expect(s.serviceRunning).toBe(false);
+    expect(s.pickupPending).toBe(false);
+    // Still in the bay: the clock runs.
+    const running = deriveVisitMarkState({ bayEnteredAtMs: T0, bayExitedAtMs: null, departedAtMs: null }, [], NOW);
+    expect(running.serviceRunning).toBe(true);
+    expect(running.serviceEndedAtMs).toBeNull();
+    expect(running.serviceMinutes).toBe(90);
+    // A tap owns the clock instead: a SERVICE_STARTED mark keeps it running past the bay exit.
+    const tapped = deriveVisitMarkState(
+      { bayEnteredAtMs: T0, bayExitedAtMs: T0 + min(30), departedAtMs: null },
+      [{ mark: "SERVICE_STARTED", markedAtMs: T0 + min(40), note: null }],
+      NOW,
+    );
+    expect(tapped.serviceEndedAtMs).toBeNull();
+    expect(tapped.serviceRunning).toBe(true);
+  });
+
+  it("the camera seeing the car enter a bay AFTER the done mark reopens the job: not pickup pending, no confident 0", () => {
+    const s = deriveVisitMarkState(
+      { bayEnteredAtMs: T0 + min(60), departedAtMs: null },
+      [{ mark: "SERVICE_DONE", markedAtMs: T0 + min(45), note: null }],
+      NOW,
+    );
+    expect(s.pickupPending).toBe(false);
+    expect(s.serviceDoneAtMs).toBeNull();
+    expect(s.serviceStartedAtMs).toBe(T0 + min(60));
+    expect(s.serviceStartedBy).toBe("camera");
+    expect(s.serviceRunning).toBe(true);
+    expect(s.serviceMinutes).toBe(30);
+  });
+
+  it("CLEARED is the undo: only marks after the last CLEARED are in force, the history keeps the mistake", () => {
+    const marks = [
+      { mark: "NOT_A_JOB", markedAtMs: T0 + min(5), note: null },
+      { mark: "CLEARED", markedAtMs: T0 + min(6), note: null },
+      { mark: "CUSTOMER_WAITING", markedAtMs: T0 + min(7), note: null },
+    ];
+    const s = deriveVisitMarkState({ bayEnteredAtMs: null, departedAtMs: null }, marks, NOW);
+    expect(s.notAJob).toBe(false);
+    expect(s.customerWaiting).toBe(true);
+    expect(s.markCount).toBe(1);
+    expect(s.latest?.mark).toBe("CUSTOMER_WAITING");
+    // Cleared with nothing after it: back to UNKNOWN, zero marks in force.
+    const bare = deriveVisitMarkState({ bayEnteredAtMs: null, departedAtMs: null }, marks.slice(0, 2), NOW);
+    expect(bare.markCount).toBe(0);
+    expect(bare.latest).toBeNull();
+    expect(bare.notAJob).toBe(false);
+  });
+
+  it("a done mark before any start (and no bay) is UNKNOWN service time, not 0", () => {
+    const s = deriveVisitMarkState(
+      { bayEnteredAtMs: null, departedAtMs: null },
+      [{ mark: "SERVICE_DONE", markedAtMs: T0 + min(10), note: null }],
+      NOW,
+    );
+    expect(s.serviceStartedAtMs).toBeNull();
+    expect(s.serviceMinutes).toBeNull();
+    expect(s.pickupPending).toBe(true);
+    expect(s.pickupWaitMinutes).toBe(80);
+  });
+});

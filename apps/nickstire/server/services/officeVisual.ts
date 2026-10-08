@@ -250,6 +250,11 @@ export function storedVisual(raw: unknown): OfficeVisual | null {
     error: typeof o.error === "string" ? o.error : null,
     onBoxPeople: typeof o.onBoxPeople === "number" ? o.onBoxPeople : null,
     review: storedReview(o.review),
+    // The N5 receipt must survive a read-back, or it is write-only: a row that names the
+    // reviews it learned from, which nothing can read, proves nothing to anyone.
+    ...(Array.isArray(o.calibrationFrom)
+      ? { calibrationFrom: o.calibrationFrom.filter((id): id is string => typeof id === "string") }
+      : {}),
   };
 }
 

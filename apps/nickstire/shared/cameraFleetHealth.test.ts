@@ -71,3 +71,18 @@ describe("summarizeCameraFleet", () => {
     expect(unaged.state).toBe("HEALTHY");
   });
 });
+
+describe("cameraProblemSeverity (Settings > Status)", () => {
+  it("an EXPECTED state is a warning, a real loss is an alert", async () => {
+    const { cameraProblemSeverity, isExpectedCameraState } = await import("./cameraFleetHealth");
+    expect(cameraProblemSeverity("EXPECTED_SOLAR_OFFLINE")).toBe("warning");
+    expect(isExpectedCameraState("EXPECTED_SOLAR_OFFLINE")).toBe(true);
+    // Positive controls: the states that must still alarm.
+    expect(cameraProblemSeverity("PRODUCER_OFFLINE")).toBe("alert");
+    expect(cameraProblemSeverity("CAMERA_OFFLINE")).toBe("alert");
+    expect(cameraProblemSeverity("NEVER_INGESTED")).toBe("alert");
+    expect(cameraProblemSeverity("UNREGISTERED (HEALTHY)")).toBe("alert");
+    expect(cameraProblemSeverity("STALE")).toBe("warning");
+    expect(isExpectedCameraState("PRODUCER_OFFLINE")).toBe(false);
+  });
+});
