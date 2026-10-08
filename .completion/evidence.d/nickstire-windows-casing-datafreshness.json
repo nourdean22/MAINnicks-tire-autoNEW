@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "deferred": "No operator-visible change in this diff (2026-10-08, branch nickstire/windows-casing-datafreshness). It renames client/src/pages/admin/today/dataFreshness.ts to freshnessRows.ts because the old name differed from DataFreshness.tsx only in case, which makes tsc fail on every Windows checkout (7 errors: TS1149/TS1261/TS2305, exit 2 on a fresh clone of main 49ca78a77). The Data freshness card on Intelligence HQ renders the same rows from the same builders; only the import path moved. Not walked through live: this machine has no DATABASE_URL, so the admin PWA was not opened. Receipts instead: pnpm run check 0 errors exit 0; vitest on data-freshness-q23, data-freshness-nhtsa-q50, gateway-one-rule-q23, gateway-unknown-readers-q23, lane-health-q23: 5 files, 74 passed, exit 0; lefthook pre-commit 6/6 green; pre-push build:affected 4/4 tasks green."
+    }
+  }
+}
