@@ -1,8 +1,31 @@
 # Session ledger - nickstire
 
-**Updated: 2026-10-08 16:50Z** (camera N-series: PR B #2929 merged + deployed, PR C open with N4 and the remaining Codex follow-ups, first section; PR A + B history next; then the merged camera audit wave #2920 + #2925, the Search Console wave and the 2026-10-03 Sentry sweep.)
+**Updated: 2026-10-08 23:30Z** (evening: #2934 merged + deployed, the supervisor log-writer fix, first section; then PR C, PR A + B history, the merged camera audit wave #2920 + #2925, the Search Console wave and the 2026-10-03 Sentry sweep.)
 
-## 2026-10-08 · Camera N-series PR C (N4 lot brief, N5 receipt honesty, bay clock limit, camera-bridge + StateNour Codex fixes) -- PR open; PR B #2929 MERGED `ed9a45d0`, DEPLOYED (`3ce638b1` SUCCESS 16:15:16Z)
+## 2026-10-08 evening · #2934 MERGED `d679d066` + DEPLOYED; supervisor log-writer fix (branch `claude/dreamy-newton-0iob20`, PR after #2934)
+
+**#2934:**
+- **Shipped and live:** `customer_stats` is built and LIVE (200 at 22:58:04Z, 2334 / 10); `getTopServices` is retired.
+- **Shipped, live proof owed:** sign-edge restart continuity and the Eufy bridge node identity.
+- **NicksMax:** pulled 22:50:37Z. The node needle sees only bridge node 29724. The sign edge restarted onto the new code at 22:51Z and is HEALTHY.
+- **Ledger:** `statenour-customer-stats-bridge-20261008` is now `live_verified`. `camera-restart-continuity-20261008` stays `unit_verified`: the 22:51Z restart had 0 open visits.
+
+**Log fix:** the supervisor log had been dead since 07:34. Desktop Commander's leaked read handle meets 5.1 `Add-Content`'s deny-read open (full story in `nicksmax.md` and CURRENT-TRUTH's top section). Fixed by `Write-SharedFile` plus `Restore-Overflow`.
+
+**Still to read** (Routine `trig_01YVMh3DeH3QkxWdKikYuyjd`, 2026-10-09 10:25Z):
+- the first morning brief `Lot · ` line;
+- overnight sign-camera rows (EXPECTED_SOLAR_OFFLINE at ingest);
+- the first sign-edge restart with a parked car (`restart continuity: track ... continues visit ...`).
+
+The log-fix CURRENT-TRUTH heading then moves to MERGED, with the box's first `NOTE restored` line as its receipt.
+
+**Flagged, not fixed:**
+- the box-local `data\` loop and shim still use `Add-Content`;
+- the sign camera flaps at dusk (sign-crop restarted 8x in 9 min, generic ESCALATE);
+- `revenue_range` drops today's timed tickets (`BETWEEN` on a timestamp);
+- four copies of `categorizeService`.
+
+## 2026-10-08 · Camera N-series PR C (N4 lot brief, N5 receipt honesty, bay clock limit, camera-bridge + StateNour Codex fixes) -- MERGED #2931 `9d316523`, DEPLOYED (StateNour `7cf38ba4`, nickstire `547b9ed1`); PR B #2929 MERGED `ed9a45d0`, DEPLOYED (`3ce638b1` SUCCESS 16:15:16Z)
 
 **What it is:** `docs/CURRENT-TRUTH.md` top section. N4 = bridge action `lot_brief` (`server/services/lotBriefRead.ts` + `server/lib/lotBrief.ts`, `QUERY_HANDLERS`, `shared/bridgeShapes` `LotBriefShape`, `LOT_CONFIDENCE_RULES` exported) rendered by StateNour `readLotBriefLines` in the morning brief's shop slice; `/system/camera` demoted. Coverage is UNMEASURED for days that opened before 2026-10-08 16:15:11Z (`TIMELINE_COMPLETE_FROM_MS`); first possible same-weekday comparison is the 2026-10-24 brief. N5: `analyzeOfficeFrames` returns `prompted`; the route stores `calibrationFrom` only then. Bay clock: production writes no bay times (`bayZones: []`); `shop_mirror.py` names the latest-entry prerequisite. camera-bridge: exact portal straddle check, and **the 2026-09-16 shop calibration (portal wholly inside the lot, corners snapped) used to pass the edge loader -- now refused**; `run_live` uses the same check. StateNour: the bridge contract guard reads nested generics now (`queryNick<Record<string, unknown>>("x")` was invisible). Ledger: `camera-lot-brief-20261008` (new), coverage entry `deployed`, visit-marks + office-visual updated. Evidence fragment: `.completion/evidence.d/claude-dreamy-newton-0iob20-nseries-c.json`.
 **Live proofs to read after merge:** the first morning brief with a `Lot · ` line; `lot_brief` answering on the live bridge; the first derived health row (the sign camera's dusk EXPECTED_SOLAR_OFFLINE); the first framed office episode with no vision key never logs a receipt.
