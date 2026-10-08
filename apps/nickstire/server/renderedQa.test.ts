@@ -250,6 +250,34 @@ describe("evaluateRenderedReel (mocked vision seam)", () => {
     ).rejects.toThrow("no complete JSON object");
   });
 
+  it("reads an array-of-parts reply like a string (the wrapper types content as string | parts[])", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rqa-parts-"));
+    const fake = path.join(dir, "f.jpg");
+    await fs.writeFile(fake, Buffer.from("fakejpegbytes"));
+    vi.doMock("./_core/llm", () => ({
+      invokeLLM: vi.fn().mockResolvedValue({ choices: [{ message: { content: [{ type: "text", text: '{"decision":"approve","findings":[]}' }] }, finish_reason: "stop" }] }),
+    }));
+    vi.resetModules();
+    const { evaluateRenderedReel: evalReel } = await import("./services/renderedQa");
+    const verdict = await evalReel({ frames: [{ label: "beat1", beatNumber: 1, timestamp: 1, path: fake }], brief: { topic: "brakes" } });
+    expect(verdict.critic).toBe("vision");
+    expect(verdict.qaState).toBe("completed");
+  });
+
+  it("the parser's failure names the finish reason and the head of the reply, so the next skip says why", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rqa-why-"));
+    const fake = path.join(dir, "f.jpg");
+    await fs.writeFile(fake, Buffer.from("fakejpegbytes"));
+    vi.doMock("./_core/llm", () => ({
+      invokeLLM: vi.fn().mockResolvedValue({ choices: [{ message: { content: "I cannot evaluate these frames." }, finish_reason: "stop" }] }),
+    }));
+    vi.resetModules();
+    const { callVisionCritic } = await import("./services/renderedQa");
+    await expect(
+      callVisionCritic({ frames: [{ label: "beat1", beatNumber: 1, timestamp: 1, path: fake }], system: "s", user: "u" }),
+    ).rejects.toThrow(/no complete JSON object \(finish_reason=stop, 31 chars: "I cannot evaluate these frames\."\)/);
+  });
+
   it("control: a well-formed approve is still a completed vision verdict", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rqa-wellformed-"));
     const fake = path.join(dir, "f.jpg");

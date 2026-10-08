@@ -64,7 +64,15 @@ export const RENDERED_DEFECT_CODES = {
   GENERIC_STOCK_LOOK: { severity: "warn", meaning: "competent and completely anonymous - could be any shop in any city, carries no specific vehicle, damage or place" },
   WEAK_COMPOSITION: { severity: "warn", meaning: "subject too small / centered awkwardly / dead framing" },
   CAPTION_OBSTRUCTION: { severity: "warn", meaning: "burned-in caption collides with the subject or safe zones" },
+  // MEASURED, never judged: services/flashRisk.ts counts general flashes over
+  // the whole master at 15 fps. A still frame cannot show flashing, so the
+  // vision critic is never offered this code (DETERMINISTIC_CODES below).
+  PHOTOSENSITIVE_FLASH: { severity: "block", meaning: "more than three general flashes in a one-second window (WCAG 2.2 SC 2.3.1) - a seizure risk" },
 } as const;
+
+/** Codes set by a deterministic check, not the critic: never listed in the
+ *  critic's prompt, and dropped if a critic emits one anyway. */
+const DETERMINISTIC_CODES = new Set<string>(["PHOTOSENSITIVE_FLASH"]);
 
 /** Palette comes from the VERSIONED bible, not a hardcoded phrase. The critic
  *  prompt used to say "the graphite+gold world", which drifts the moment the
@@ -164,6 +172,7 @@ const CODE_DIMENSIONS: Record<RenderedDefectCode, CraftDimension[]> = {
   GENERIC_STOCK_LOOK: ["nonGeneric"],
   WEAK_COMPOSITION: ["cinematography"],
   CAPTION_OBSTRUCTION: ["typography"],
+  PHOTOSENSITIVE_FLASH: ["motion"],
 };
 
 /** Fraction of a dimension's weight each pixel flag removes. Hypotheses, like
@@ -264,6 +273,8 @@ export interface RenderedQaVerdict {
   findings: RenderedFinding[];
   framesEvaluated: number;
   contactSheetPath?: string;
+  /** Whole-master flash measurement (services/flashRisk.ts); `unmeasured` when the scan could not run. */
+  flash?: import("./flashRisk").FlashRisk | { unmeasured: string };
   evaluatedAt: string;
   critic: "vision" | "skipped";
   /**
@@ -451,7 +462,7 @@ export function clampVerdict(
   for (const f of Array.isArray(obj.findings) ? obj.findings : []) {
     const rec = f as { beatNumber?: unknown; code?: unknown; description?: unknown; preserve?: unknown; change?: unknown; confidence?: unknown };
     const code = String(rec.code ?? "");
-    if (!(code in RENDERED_DEFECT_CODES)) {
+    if (!(code in RENDERED_DEFECT_CODES) || DETERMINISTIC_CODES.has(code)) {
       // Dropped from `findings` (severity is registry-owned), but COUNTED — a
       // dropped serious defect must not silently become a clean pass.
       droppedUnknownCodes++;
@@ -554,7 +565,13 @@ export async function callVisionCritic(input: { frames: ExtractedFrame[]; system
     outputSchema: VERDICT_SCHEMA,
   });
   const content = res.choices?.[0]?.message?.content;
-  const text = typeof content === "string" ? content : "";
+  // The wrapper types content as string | parts[]; a parts reply used to read
+  // as "" here and surface as "no complete JSON object" with nothing to go on.
+  const text = typeof content === "string"
+    ? content
+    : Array.isArray(content)
+      ? content.map((p) => (p && typeof p === "object" && (p as { type?: string }).type === "text" ? String((p as { text?: unknown }).text ?? "") : "")).join("\n")
+      : "";
   const cleaned = text.replace(/```(?:json)?/g, "").trim();
   const start = cleaned.indexOf("{");
   let depth = 0;
@@ -567,7 +584,13 @@ export async function callVisionCritic(input: { frames: ExtractedFrame[]; system
   // or prose. This used to parse "{}", which clamps to an approve with a full
   // craft score; the throw keeps the promise above, and the caller records a
   // skipped verdict that the publish gate refuses (2026-10-01, review of #2865).
-  if (start < 0 || end <= start) throw new Error("vision critic returned no complete JSON object");
+  if (start < 0 || end <= start) {
+    // Name the shape of the failure: the finish reason and the head of the
+    // reply. 2026-10-08 (job 2040001) logged only the sentence, so whether the
+    // model was cut at the cap, blocked, or answered in prose was unknowable.
+    const finish = res.choices?.[0]?.finish_reason ?? "unknown";
+    throw new Error(`vision critic returned no complete JSON object (finish_reason=${finish}, ${text.length} chars: ${JSON.stringify(text.slice(0, 120))})`);
+  }
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
@@ -582,6 +605,7 @@ export function beatsDocFor(brief: EvaluateRenderedReelInput["brief"]): string {
 export async function evaluateRenderedReel(input: EvaluateRenderedReelInput): Promise<RenderedQaVerdict> {
   try {
     const codeDoc = Object.entries(RENDERED_DEFECT_CODES)
+      .filter(([code]) => !DETERMINISTIC_CODES.has(code))
       .map(([code, v]) => `${code} (${v.severity}): ${v.meaning}`)
       .join("\n");
     // Pre-flags are shown even when they could not be computed — "unavailable"
@@ -628,7 +652,7 @@ export async function evaluateRenderedReel(input: EvaluateRenderedReelInput): Pr
     return clampVerdict(parsed, input.frames.length, "vision", input.pixelStats);
   } catch (err) {
     log.warn("vision critic unavailable — verdict skipped, not fabricated", {
-      err: err instanceof Error ? err.message.slice(0, 160) : String(err),
+      err: err instanceof Error ? err.message.slice(0, 400) : String(err),
     });
     return clampVerdict({ decision: "approve", findings: [] }, input.frames.length, "skipped", input.pixelStats);
   }
@@ -693,8 +717,15 @@ export async function runRenderedQaOnJob(jobId: number, opts: RunRenderedQaOptio
     }
 
     let frames;
+    // Flashing lives BETWEEN the sampled frames, so it is measured on the
+    // master itself while it is still on disk. A scan that cannot run is not a
+    // pass: it is recorded as unmeasured on the verdict.
+    let flash: RenderedQaVerdict["flash"];
     try {
       frames = await extractReelFrames(mp4Path, beats);
+      flash = await import("./flashRisk")
+        .then((m) => m.scanFlashRisk(mp4Path))
+        .catch((err: unknown) => ({ unmeasured: err instanceof Error ? err.message.slice(0, 160) : String(err) }));
     } finally {
       // The frames are already written elsewhere by extractReelFrames; the temp
       // master itself is large and must not accumulate in tmp across runs.
@@ -747,10 +778,26 @@ export async function runRenderedQaOnJob(jobId: number, opts: RunRenderedQaOptio
       }
     }
     verdict.contactSheetPath = sheet;
+    verdict.flash = flash;
+    if (flash && "fail" in flash && flash.fail) {
+      verdict.findings.push({
+        beatNumber: null,
+        code: "PHOTOSENSITIVE_FLASH",
+        severity: "block",
+        description: `${flash.maxFlashesPerSecond} general flashes inside one second starting at ${flash.worstWindowStartSec?.toFixed(1)}s (limit 3)`,
+        preserve: ["every beat's content"],
+        change: ["replace strobe or flash transitions near that time with a cut or a slower fade"],
+      });
+      verdict.decision = "repair";
+    }
     payload.renderedQa = verdict;
+    // Every persisted verdict, skipped ones included, counts against the
+    // gate's re-run budget (qualityGate reads renderedQaAttempts).
+    payload.renderedQaAttempts = (Number(payload.renderedQaAttempts) || 0) + 1;
     await d.update(reelJobs).set({ payload: JSON.stringify(payload) }).where(eq(reelJobs.id, jobId));
     log.info("rendered QA verdict persisted", {
       jobId,
+      attempt: payload.renderedQaAttempts,
       decision: verdict.decision,
       findings: verdict.findings.length,
       critic: verdict.critic,

@@ -143,3 +143,28 @@ describe("prepareCleanReelBrief", () => {
     expect(res.rejectedForPreflight).toEqual([]);
   });
 });
+
+describe("hook fatigue reaches the generator (2026-10-08)", () => {
+  beforeEach(() => {
+    genMock.mockReset();
+    recentSignalsMock.mockReset();
+  });
+  const base = { topics: [], keywords: [], archetypes: [], motionLenses: [], objectCharacters: [] };
+
+  it("a shape that opened most recent Reels is passed as hookFatigue", async () => {
+    recentSignalsMock.mockResolvedValue({
+      ...base, available: true,
+      hookGrammars: ["symptom_question", "symptom_question", "symptom_question", "symptom_question", "symptom_question", "command", "number_lead", "symptom_question"],
+    } as never);
+    genMock.mockResolvedValueOnce({ brief: cleanBrief(), rawModel: "m" });
+    await prepareCleanReelBrief({ topic: "t" });
+    expect(genMock).toHaveBeenCalledWith(expect.objectContaining({ hookFatigue: { grammar: "symptom_question", count: 6, of: 8 } }));
+  });
+
+  it("an unreadable history steers nothing", async () => {
+    recentSignalsMock.mockResolvedValue({ ...base, available: false, hookGrammars: Array(10).fill("command") } as never);
+    genMock.mockResolvedValueOnce({ brief: cleanBrief(), rawModel: "m" });
+    await prepareCleanReelBrief({ topic: "t" });
+    expect(genMock.mock.calls[0][0]).not.toHaveProperty("hookFatigue");
+  });
+});

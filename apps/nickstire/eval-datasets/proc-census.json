@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-08T13:12:30.557Z",
-  "count": 775,
+  "generatedAt": "2026-10-08T14:38:08.880Z",
+  "count": 778,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -58,6 +58,7 @@
     "mutation.contentAdmin.ingestFinishedMp4",
     "mutation.contentAdmin.logCarousel",
     "mutation.contentAdmin.logReel",
+    "mutation.contentAdmin.pairwisePick",
     "mutation.contentAdmin.previewHooks",
     "mutation.contentAdmin.probeVeoConnection",
     "mutation.contentAdmin.publishAutonomyPolicy",
@@ -78,6 +79,7 @@
     "mutation.contentAdmin.setAutonomyKillSwitch",
     "mutation.contentAdmin.stageCarouselToInventory",
     "mutation.contentAdmin.startContentExperiment",
+    "mutation.contentAdmin.stopContentExperiment",
     "mutation.contentAdmin.syncSocialMetricsAndAttribution",
     "mutation.contentAdmin.toggleCampaign",
     "mutation.contentAdmin.toggleNotification",
@@ -436,6 +438,7 @@
     "query.contentAdmin.listStatenourQueue",
     "query.contentAdmin.openPublishAttempts",
     "query.contentAdmin.operationsSignal",
+    "query.contentAdmin.pairwiseNext",
     "query.contentAdmin.queueTruthReport",
     "query.contentAdmin.recentContentRuns",
     "query.contentAdmin.reelJobsNeedingAttention",

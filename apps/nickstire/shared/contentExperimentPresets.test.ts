@@ -11,7 +11,9 @@ import {
   buildExperimentPreset,
   findConfounds,
   isDurationLaneId,
+  isUnwiredExperimentId,
   metricSpec,
+  SNAPSHOT_COLUMN_FOR_METRIC,
   assignArm,
 } from "./contentExperiments";
 
@@ -78,5 +80,45 @@ describe("buildExperimentPreset", () => {
     expect(isDurationLaneId("20s")).toBe(false);
     expect(isDurationLaneId(undefined)).toBe(false);
     expect(isDurationLaneId("toString")).toBe(false);
+  });
+});
+
+describe("wired vs exposed (2026-10-08)", () => {
+  it("isUnwiredExperimentId names exactly the exposed presets' experiment ids", () => {
+    const exposed = EXPERIMENT_PRESET_IDS.map((id) => buildExperimentPreset(id, "x")).filter((d) => d.wiring === "exposed");
+    expect(exposed.map((d) => isUnwiredExperimentId(d.experimentId))).toEqual(exposed.map(() => true));
+    expect(isUnwiredExperimentId("hook-style-direct-v1")).toBe(false);
+    expect(isUnwiredExperimentId("duration-lane-v1")).toBe(false);
+    expect(isUnwiredExperimentId("some-other-experiment")).toBe(false);
+  });
+
+  it("wired presets have pairwise coprime arm counts, so concurrent ones are not confounded", () => {
+    // assignArm hashes every experiment's episode key the same way, so two
+    // running experiments with 2 arms each would put arm 0 with arm 0 on EVERY
+    // episode: each would measure the other. Coprime counts make the joint
+    // assignment uniform. Wiring a preset that breaks this needs a salted hash.
+    const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+    const counts = EXPERIMENT_PRESET_IDS.map((id) => buildExperimentPreset(id, "x")).filter((d) => d.wiring === "wired").map((d) => d.arms.length);
+    for (let i = 0; i < counts.length; i++) for (let j = i + 1; j < counts.length; j++) expect(gcd(counts[i], counts[j])).toBe(1);
+  });
+
+  it("opening_asset_v1 decides on its own hypothesis, 3-s survival, where lower skip wins", () => {
+    const def = buildExperimentPreset("opening_asset_v1", "x");
+    expect(def.primaryMetric).toBe("skip_rate");
+    expect(metricSpec(def.primaryMetric)?.direction).toBe("LOWER_IS_BETTER");
+  });
+});
+
+describe("gatherable metrics and METRIC_SPECS agree (2026-10-08)", () => {
+  it("every metric name the resolver can gather has a registered aggregation and direction", () => {
+    // Without this, a metric could be gathered and then refused `invalid_design`
+    // on every run — the exact shape `skipRate` had before this test existed.
+    for (const name of Object.keys(SNAPSHOT_COLUMN_FOR_METRIC)) expect(metricSpec(name), name).not.toBeNull();
+  });
+  it("every preset's primary metric is gatherable", () => {
+    for (const id of EXPERIMENT_PRESET_IDS) {
+      const def = buildExperimentPreset(id, "x");
+      expect(SNAPSHOT_COLUMN_FOR_METRIC[def.primaryMetric], `${id}: ${def.primaryMetric}`).toBeTruthy();
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, Camera, FlaskConical, Loader2, Recycle, Repeat, Target } from "lucide-react";
+import { AlertTriangle, ArrowRight, Camera, FlaskConical, Gauge, Loader2, Recycle, Repeat, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
@@ -8,7 +8,7 @@ import { writeCreateHandoff } from "./igViews";
 /**
  * CREATIVE ASSISTANT — "what should we make today?" (README §M / §S).
  *
- * Five stacked cards, each with the exact signal lines it was ranked on.
+ * Up to six stacked cards, each with the exact signal lines it was ranked on.
  * Three states, never two: a failed query says so in its own words; a source
  * the server could not read is listed by name under the cards; an empty card
  * set after a successful read is a real "nothing stood out". Mobile-first,
@@ -21,6 +21,7 @@ const ICON: Record<AssistantCard["type"], typeof Target> = {
   opportunity: Target,
   capture: Camera,
   fatigue: Repeat,
+  quality: Gauge,
   experiment: FlaskConical,
   reuse: Recycle,
 };
@@ -29,6 +30,7 @@ const TYPE_LABEL: Record<AssistantCard["type"], string> = {
   opportunity: "Strongest opportunity",
   capture: "Capture opportunity",
   fatigue: "Fatigue warning",
+  quality: "Quality cost, measured",
   experiment: "Experiment",
   reuse: "Article ↔ social reuse",
 };
@@ -57,6 +59,10 @@ function actionTarget(card: AssistantCard): { view: IgView; handoff?: Parameters
       return { view: "create", handoff: { sourceType: "creative_assistant_capture", detail: card.topic ?? card.title } };
     case "fatigue":
       return { view: "patterns" };
+    case "quality":
+      // The critic registry and lane QA state live on Pipeline health; the
+      // Queue shows drafts, not posted Reels' verdicts.
+      return { view: "pipeline" };
     case "experiment":
       return { view: "strategy" };
   }

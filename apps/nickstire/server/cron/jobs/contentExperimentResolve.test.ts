@@ -76,3 +76,29 @@ describe("processContentExperimentResolve", () => {
     expect(result.details).toContain("healthy: winner");
   });
 });
+
+describe("skip rate is resolvable (2026-10-08)", () => {
+  it("an experiment on skip_rate is gathered from the skipRate column, not reported unmeasurable", async () => {
+    vi.clearAllMocks();
+    mocks.loadRunningExperiments.mockResolvedValue([def({ experimentId: "hook-skip-v1", primaryMetric: "skip_rate" })]);
+    mocks.recordVerdict.mockResolvedValue({ status: "insufficient_data", needed: 4, have: 1, note: "" });
+    const r = await processContentExperimentResolve();
+    expect(mocks.recordVerdict).toHaveBeenCalledWith(expect.objectContaining({ experimentId: "hook-skip-v1" }), "skipRate", 72);
+    expect(r.details).not.toContain("unmeasurable");
+  });
+});
+
+describe("an unwired preset is never judged (2026-10-08)", () => {
+  it("a running exposed preset is reported, not measured, so it cannot conclude a false tie", async () => {
+    vi.clearAllMocks();
+    mocks.loadRunningExperiments.mockResolvedValue([
+      def({ experimentId: "audio-style-v1", primaryVariable: "audio_style", primaryMetric: "avg_watch_time" }),
+      def(),
+    ]);
+    mocks.recordVerdict.mockResolvedValue({ status: "insufficient_data", needed: 4, have: 1, note: "" });
+    const r = await processContentExperimentResolve();
+    expect(mocks.recordVerdict).toHaveBeenCalledTimes(1);
+    expect(mocks.recordVerdict).toHaveBeenCalledWith(expect.objectContaining({ experimentId: "hook-style-direct-v1" }), "shares", 72);
+    expect(r.details).toContain("audio-style-v1: not wired, not judged");
+  });
+});

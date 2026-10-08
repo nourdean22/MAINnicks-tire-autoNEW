@@ -1,6 +1,9 @@
 {
   "$comment": "EVALUATOR SEPARATION. A candidate branch (prefix listed below) may change the PRODUCT, never the things that JUDGE the product, in the same change. Otherwise the loop learns that weakening a test is cheaper than improving the page. That includes the MEASUREMENT PATH: who is assigned to which arm, what counts as an exposure or a conversion, and the sink those events land in — a candidate that can edit those can change what gets judged, not just how. Changing an evaluator is a different class of authority: a normal branch, reviewed on its own. Checked by scripts/agent-os/check-evaluator-separation.mjs; canaried by evaluatorSeparation.test.mjs.",
-  "candidateBranchPrefixes": ["darwin/", "night-shift/"],
+  "candidateBranchPrefixes": [
+    "darwin/",
+    "night-shift/"
+  ],
   "evaluatorPaths": [
     "apps/nickstire/goals/",
     "apps/nickstire/tests/",
@@ -15,7 +18,14 @@
     "apps/nickstire/client/src/__tests__/experiment-instrumentation.test.tsx",
     "apps/nickstire/server/routes/analyticsRoutes.ts",
     "apps/nickstire/server/cron/jobs/webExperimentResolve.ts",
+    "apps/nickstire/server/cron/jobs/contentExperimentResolve.ts",
+    "apps/nickstire/shared/contentExperiments.ts",
+    "apps/nickstire/shared/mechanicalTruth.ts",
+    "apps/nickstire/shared/renderedQaOutcomes.ts",
     "apps/nickstire/server/services/evidenceLedger.ts",
+    "apps/nickstire/server/services/ghostReplay.ts",
+    "apps/nickstire/server/services/promptEvolutionGate.ts",
+    "apps/nickstire/server/services/pairwiseReview.ts",
     "apps/nickstire/scripts/lint-brand-voice.ts",
     "apps/nickstire/scripts/lint-source.mjs",
     "apps/nickstire/scripts/proof/",

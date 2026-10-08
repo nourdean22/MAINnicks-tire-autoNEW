@@ -6,6 +6,7 @@ import {
   evaluateExperiment,
   metricSpec,
   METRIC_SPECS,
+  DECISION_LOOKS,
   MIN_SAMPLES_PER_ARM,
   type ExperimentDefinition,
   type ArmObservation,
@@ -82,10 +83,14 @@ describe("average metrics are not divided by reach", () => {
 });
 
 describe("metric direction decides the winner", () => {
+  // Verdicts are issued only at the planned looks (DECISION_LOOKS per arm);
+  // the fixtures sit on the first one so direction, not sample size, is what
+  // these two cases test.
+  const look = DECISION_LOOKS[0];
   it("picks the LOWER arm on skip rate", () => {
     const v = evaluateExperiment(def("reels_skip_rate"), [
-      ...obs("a", 1000, 0.9),
-      ...obs("b", 1000, 0.4),
+      ...obs("a", 1000, 0.9, look),
+      ...obs("b", 1000, 0.4, look),
     ]);
     expect(v.status).toBe("winner");
     if (v.status === "winner") expect(v.armId).toBe("b");
@@ -93,8 +98,8 @@ describe("metric direction decides the winner", () => {
 
   it("picks the HIGHER arm on shares", () => {
     const v = evaluateExperiment(def("shares"), [
-      ...obs("a", 1000, 50),
-      ...obs("b", 1000, 5),
+      ...obs("a", 1000, 50, look),
+      ...obs("b", 1000, 5, look),
     ]);
     expect(v.status).toBe("winner");
     if (v.status === "winner") expect(v.armId).toBe("a");

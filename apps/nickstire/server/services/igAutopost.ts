@@ -1693,24 +1693,72 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
     let best: { post: GeneratedPost; image: PostImage; scores: IgEvalScores } | null = null;
     let lastScores: IgEvalScores | null = null;
     let lastPost: GeneratedPost | null = null;
+    // The LAST live-mode judge rejection, if any. The loop regenerates past a
+    // rejection; this decides the abort message when no attempt survived.
+    let judgeBlocked: { post: GeneratedPost; scores: IgEvalScores; reason: string } | null = null;
+    let judgeCalls = 0;
+    // combineScores treats a skipped image as non-blocking, so an eval built
+    // with this stub is exactly the caption's own verdict.
+    const notGenerated = (why: string) => ({ proLook: null, skipped: true, note: `image not generated — ${why}` });
 
     for (let attempt = 0; attempt <= MAX_REGEN_ATTEMPTS; attempt++) {
       const post = await generatePost(brief, opts.forceArchetype, opts.customConcept);
       lastPost = post;
+
+      // CAPTION BEFORE PIXELS (2026-10-08). evalCaption never reads the image,
+      // and a caption under the bar fails the attempt whatever the image scores
+      // (combineScores: passed = captionPass && imagePass) — yet the image was
+      // generated first. Railway, 2026-10-07: three runs of 332–342 s, each
+      // with attempt 0 at 0.53–0.54 caption-weighted and a finished image —
+      // ~2.5 min and one image credit bought for a verdict already known.
+      const captionEval = await evalCaption(post, brief);
+      const captionOnly = combineScores(captionEval, notGenerated("caption below threshold"));
+      if (!captionOnly.passed) {
+        lastScores = captionOnly;
+        log.info("ig-autopost eval", {
+          attempt, archetype: post.archetype, conceptKey: post.conceptKey,
+          captionWeighted: captionOnly.captionWeighted, overall: captionOnly.overall,
+          passed: false, imageSkipped: true, imageGenerated: false,
+        });
+        continue;
+      }
+
+      // JUDGE BEFORE PIXELS (2026-10-08). The independent judge reads the
+      // concept, the caption and the image PROMPT, never the image, so it is
+      // asked here, before any image is bought. On 2026-10-07 four of five
+      // runs were judge-rejected as near-duplicates, each with a finished
+      // image. WHAT CHANGED vs the post-loop judge: it now sees every
+      // caption-passing attempt (so up to MAX_REGEN_ATTEMPTS + 1 judge calls
+      // per run, ~3 s each, instead of one), and a live-mode rejection
+      // REGENERATES rather than ending the run — the old flow never gave a
+      // rejected run a second concept, it waited for the next 15-minute tick.
+      // The run aborts with the judge's reason only when every attempt is
+      // spent. The gate's verdict, its fail-closed-on-error rule and the
+      // dryrun exemption are unchanged. (The gate's doctrine is below.)
+      const shadowJudge = await judgeConcept(post, captionEval, captionOnly, slot, dryRun);
+      if (shadowJudge) judgeCalls++;
+      const judgeGate = shadowJudgeGate(shadowJudge, process.env.IG_SHADOW_JUDGE !== "false");
+      if (!dryRun && judgeGate.block) {
+        const scores = combineScores(captionEval, notGenerated("the independent judge rejected the concept"));
+        if (shadowJudge) scores.shadowJudge = shadowJudge;
+        lastScores = scores;
+        judgeBlocked = { post, scores, reason: judgeGate.reason };
+        log.info("ig-autopost judge rejected the concept before any image — regenerating", { attempt, judgeCalls, conceptKey: post.conceptKey, reason: judgeGate.reason.slice(0, 200) });
+        continue;
+      }
+
       const image = await selectPostImage(post);
-      const [captionEval, imageEval] = await Promise.all([
-        evalCaption(post, brief),
-        // A branded poster is a deterministic, approved template — not an AI
-        // gamble — so the pro-look vision eval (which scores photos) is skipped.
-        // A real shop asset is an operator-captured photo: same exemption,
-        // the gate's reason names the asset.
-        image.kind === "poster"
-          ? Promise.resolve({ proLook: null, skipped: true, note: "branded poster — deterministic template, eval skipped" })
-          : image.kind === "real"
-            ? Promise.resolve({ proLook: null, skipped: true, note: `real shop asset ${image.realAssetId} — operator-captured photo, eval skipped` })
-            : evalImage(image.url),
-      ]);
+      // A branded poster is a deterministic, approved template — not an AI
+      // gamble — so the pro-look vision eval (which scores photos) is skipped.
+      // A real shop asset is an operator-captured photo: same exemption,
+      // the gate's reason names the asset.
+      const imageEval = image.kind === "poster"
+        ? { proLook: null, skipped: true, note: "branded poster — deterministic template, eval skipped" }
+        : image.kind === "real"
+          ? { proLook: null, skipped: true, note: `real shop asset ${image.realAssetId} — operator-captured photo, eval skipped` }
+          : await evalImage(image.url);
       const scores = combineScores(captionEval, imageEval);
+      if (shadowJudge) scores.shadowJudge = shadowJudge;
       lastScores = scores;
       log.info("ig-autopost eval", {
         attempt,
@@ -1720,11 +1768,54 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
         overall: scores.overall,
         passed: scores.passed,
         imageSkipped: scores.image.skipped,
+        judgeCalls,
       });
       if (scores.passed) {
         best = { post, image, scores };
         break;
       }
+    }
+
+    // ── INDEPENDENT-JUDGE PUBLISH GATE (operator flip 2026-08-07) ──
+    // Was read-and-log shadow (2026-08-05 → 08-07); the operator flipped the
+    // gate over the retro-tournament readout (5/25 self-eval passes
+    // judge-rejected, unanimous generic-visual signature). The verdict lands
+    // in evalScoresJson.shadowJudge for the disagreement readout. Blocks the
+    // LIVE branch only — dryrun previews keep flowing to Telegram with the
+    // verdict attached (that lane has a human). Fail-closed on judge error by
+    // the same "automated" reasoning as the kill switch below; kill-switch
+    // IG_SHADOW_JUDGE=false disables judge AND gate together. An aborted row
+    // stays RETRYABLE (alreadyRanSlotToday): a later cron tick regenerates
+    // fresh content rather than resurrecting the rejected draft — deliberate,
+    // since a rejection is content-specific, not slot-specific. Reached only
+    // when no attempt survived AND at least one was judge-rejected; the
+    // judge's reason outranks a later caption miss as the thing to tell.
+    if (!best && judgeBlocked) {
+      const { post, scores, reason } = judgeBlocked;
+      const caption = composeCaption(post);
+      await logRun({
+        archetype: post.archetype, conceptKey: post.conceptKey, slot, slotDate,
+        scores, status: "aborted", caption, hashtags: post.hashtags,
+        imagePrompt: post.imagePrompt, imageUrl: null,
+        igPostId: null, fbPostId: null, error: `judge-blocked: ${reason}`.slice(0, 500), source,
+      });
+      try {
+        const { sendTelegram } = await import("./telegram");
+        await sendTelegram(
+          `IG AUTOPOST — BLOCKED BY THE INDEPENDENT JUDGE (${post.archetype}/${post.conceptKey})\n` +
+          `${reason}\nNothing was posted and no image was generated for the rejected concept; every attempt this run was spent. The slot retries with fresh content on a later tick.`,
+        );
+      } catch (e) {
+        log.warn("judge-gate notify failed (block stands)", { error: errMsg(e) });
+      }
+      log.warn("ig-autopost judge gate blocked live publish", { reason });
+      return {
+        recordsProcessed: 1,
+        details: `judge-blocked (${post.archetype}) — not posted: ${reason}`,
+        status: "aborted",
+        archetype: post.archetype, conceptKey: post.conceptKey, scores,
+        igPostId: null, fbPostId: null, dryRun: false,
+      };
     }
 
     // No draft cleared the gate → ABORT (never post a sub-threshold draft).
@@ -1753,36 +1844,6 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
     const { post, image, scores } = best;
     const caption = composeCaption(post);
 
-    // INDEPENDENT JUDGE · was read-and-log shadow (2026-08-05 → 08-07); the
-    // operator flipped the gate on 2026-08-07 over the retro-tournament
-    // readout (5/25 self-eval passes judge-rejected, unanimous generic-visual
-    // signature). The verdict still lands in evalScoresJson.shadowJudge for
-    // the disagreement readout; the LIVE branch below now also blocks on it
-    // (shadowJudgeGate). Kill-switch IG_SHADOW_JUDGE=false disables judge AND
-    // gate together. In live mode the call is P0 — it gates a publish and
-    // must not yield to background lanes; dryrun stays P1 shadow.
-    if (process.env.IG_SHADOW_JUDGE !== "false") {
-      try {
-        const { judgeSingleConcept } = await import("./conceptTournament");
-        const verdict = await judgeSingleConcept({
-          campaignAsk: `Autonomous ${post.archetype} Instagram ${slot ?? "manual"} post for the shop feed`,
-          concept: {
-            title: post.conceptKey,
-            hook: caption.split("\n")[0] ?? caption.slice(0, 120),
-            coreIdea: caption,
-            visualIdea: post.imagePrompt,
-            whyItWorks: scores.caption.notes || "self-eval notes unavailable",
-          },
-          priority: dryRun ? 1 : 0,
-        });
-        scores.shadowJudge = { total: verdict.total, rejected: verdict.rejected, note: verdict.note || verdict.rejectionReason };
-        log.info("ig-autopost shadow judge", { total: verdict.total, rejected: verdict.rejected, selfOverall: scores.overall });
-      } catch (err) {
-        scores.shadowJudge = { error: errMsg(err).slice(0, 200) };
-        log.warn("ig-autopost shadow judge failed (run continues)", { err: errMsg(err) });
-      }
-    }
-
     // ── DRYRUN ── log + Telegram preview, never touch Meta.
     if (dryRun) {
       await logRun({
@@ -1798,41 +1859,6 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
         status: "dryrun",
         archetype: post.archetype, conceptKey: post.conceptKey, scores,
         igPostId: null, fbPostId: null, dryRun: true,
-      };
-    }
-
-    // ── INDEPENDENT-JUDGE PUBLISH GATE (operator flip 2026-08-07) ──
-    // Blocks the LIVE branch only — the dryrun return above already ran, so
-    // previews keep flowing to Telegram with the verdict attached (that lane
-    // has a human). Fail-closed on judge error by the same "automated"
-    // reasoning as the kill switch below. An aborted row stays RETRYABLE
-    // (alreadyRanSlotToday): a later cron tick regenerates fresh content
-    // rather than resurrecting the rejected draft — deliberate, since a
-    // rejection is content-specific, not slot-specific.
-    const judgeGate = shadowJudgeGate(scores.shadowJudge, process.env.IG_SHADOW_JUDGE !== "false");
-    if (judgeGate.block) {
-      await logRun({
-        archetype: post.archetype, conceptKey: post.conceptKey, slot, slotDate,
-        scores, status: "aborted", caption, hashtags: post.hashtags,
-        imagePrompt: post.imagePrompt, imageUrl: image.url,
-        igPostId: null, fbPostId: null, error: `judge-blocked: ${judgeGate.reason}`.slice(0, 500), source,
-      });
-      try {
-        const { sendTelegram } = await import("./telegram");
-        await sendTelegram(
-          `IG AUTOPOST — BLOCKED BY THE INDEPENDENT JUDGE (${post.archetype}/${post.conceptKey})\n` +
-          `${judgeGate.reason}\nNothing was posted. The slot retries with fresh content on a later tick.`,
-        );
-      } catch (e) {
-        log.warn("judge-gate notify failed (block stands)", { error: errMsg(e) });
-      }
-      log.warn("ig-autopost judge gate blocked live publish", { reason: judgeGate.reason });
-      return {
-        recordsProcessed: 1,
-        details: `judge-blocked (${post.archetype}) — not posted: ${judgeGate.reason}`,
-        status: "aborted",
-        archetype: post.archetype, conceptKey: post.conceptKey, scores,
-        igPostId: null, fbPostId: null, dryRun: false,
       };
     }
 
@@ -2058,6 +2084,43 @@ export async function runIgAutopostOneOff(forceArchetype?: IgArchetype, customCo
 // ─────────────────────────────────────────────────────────
 
 /** Final caption = LLM caption + a blank line + hashtags (IG convention). */
+/**
+ * The independent judge's verdict on a concept, or undefined when the judge is
+ * switched off (IG_SHADOW_JUDGE=false disables judge AND gate together). A
+ * judge-lane failure is recorded as `{ error }`, never dropped — the live gate
+ * fails closed on it. P0 in live mode (it gates a publish and must not yield
+ * to background lanes), P1 shadow in dryrun.
+ */
+async function judgeConcept(
+  post: GeneratedPost,
+  captionEval: CaptionEval,
+  scores: IgEvalScores,
+  slot: string | null,
+  dryRun: boolean,
+): Promise<IgEvalScores["shadowJudge"]> {
+  if (process.env.IG_SHADOW_JUDGE === "false") return undefined;
+  const caption = composeCaption(post);
+  try {
+    const { judgeSingleConcept } = await import("./conceptTournament");
+    const verdict = await judgeSingleConcept({
+      campaignAsk: `Autonomous ${post.archetype} Instagram ${slot ?? "manual"} post for the shop feed`,
+      concept: {
+        title: post.conceptKey,
+        hook: caption.split("\n")[0] ?? caption.slice(0, 120),
+        coreIdea: caption,
+        visualIdea: post.imagePrompt,
+        whyItWorks: captionEval.notes || "self-eval notes unavailable",
+      },
+      priority: dryRun ? 1 : 0,
+    });
+    log.info("ig-autopost shadow judge", { total: verdict.total, rejected: verdict.rejected, selfOverall: scores.overall });
+    return { total: verdict.total, rejected: verdict.rejected, note: verdict.note || verdict.rejectionReason };
+  } catch (err) {
+    log.warn("ig-autopost shadow judge failed (run continues)", { err: errMsg(err) });
+    return { error: errMsg(err).slice(0, 200) };
+  }
+}
+
 function composeCaption(post: GeneratedPost): string {
   const tags = post.hashtags.map((h) => `#${h}`).join(" ");
   const body = post.caption.trim();

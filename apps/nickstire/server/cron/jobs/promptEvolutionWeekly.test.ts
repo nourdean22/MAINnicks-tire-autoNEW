@@ -66,4 +66,25 @@ describe("processPromptEvolutionWeekly", () => {
     expect(r.details).toContain("rejected-holdout");
     expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("gate held"));
   });
+
+  it("Monday + an infrastructure failure (no DB, dead LLM lane) fails the cron run — no kv row, no Telegram, never a quiet zero", async () => {
+    mocks.runPromptEvolution.mockRejectedValue(new Error("only 2 usable seeds — need >= 4"));
+    await expect(processPromptEvolutionWeekly(new Date("2026-08-03T15:00:00Z"))).rejects.toThrow("usable seeds");
+    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.sendTelegram).not.toHaveBeenCalled();
+  });
+
+  it("Monday + a holdout reading → cron_log details and Telegram carry the gate's reason and numbers", async () => {
+    const gate = {
+      accept: false, reason: "regressed-seed" as const, comparable: 12, improved: 5, worsened: 1, tied: 6,
+      pValue: 0.04, bestPossibleP: 1 / 4096, baselineSelfDisagreement: 3, regressedSeeds: ["call-7"],
+      baseline: { passes: 12, trials: 36 }, candidate: { passes: 25, trials: 36 },
+    };
+    mocks.runPromptEvolution.mockResolvedValue({ ...accepted, accepted: null, gate, outcome: "rejected-regression" });
+    const r = await processPromptEvolutionWeekly(new Date("2026-08-03T15:00:00Z"));
+    expect(r.recordsProcessed).toBe(0);
+    expect(r.details).toContain("gate regressed-seed +5/-1 p=0.040");
+    expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("regressed call-7"));
+  });
 });

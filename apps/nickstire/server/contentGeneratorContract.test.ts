@@ -70,3 +70,40 @@ describe("generateArticle prompt contract", () => {
     expect(article.relatedServices).toEqual(["/tires", "/alignment"]);
   });
 });
+
+/**
+ * content-auto-gen failed on every observed production run (2026-09-30,
+ * 10-03, 10-07: "LLM returned empty or non-string content"), and the error
+ * named neither the model nor why the reply was empty, so the cause could not
+ * be read from the logs. The call also carried no maxTokens, so a long JSON
+ * article shared the 4096 default with any reasoning the model does first.
+ */
+describe("generateArticle — an empty reply explains itself; text parts are accepted", () => {
+  const article = {
+    slug: "s", title: "t", metaTitle: "m", metaDescription: "d", category: "Tires", readTime: "4 min read",
+    excerpt: "e", sections: [{ heading: "h", content: "c" }], relatedServices: ["tires"], tags: ["a"],
+  };
+
+  it("an empty reply names the model, finish reason and completion tokens", async () => {
+    invokeLLM.mockResolvedValue({
+      model: "gemini-2.5-flash",
+      choices: [{ message: { content: "" }, finish_reason: "length" }],
+      usage: { prompt_tokens: 900, completion_tokens: 12288, total_tokens: 13188 },
+    });
+    await expect(generateArticle("tire pressure")).rejects.toThrow(/model=gemini-2\.5-flash.*finish_reason=length.*completion_tokens=12288/);
+  });
+
+  it("content returned as text parts is joined, not rejected", async () => {
+    invokeLLM.mockResolvedValue({
+      choices: [{ message: { content: [{ type: "text", text: JSON.stringify(article).slice(0, 40) }, { type: "text", text: JSON.stringify(article).slice(40) }] } }],
+    });
+    await expect(generateArticle("tire pressure")).resolves.toMatchObject({ slug: "s", title: "t" });
+  });
+
+  it("asks for enough output budget that reasoning cannot starve the article", async () => {
+    invokeLLM.mockResolvedValue({ choices: [{ message: { content: JSON.stringify(article) } }] });
+    await generateArticle("tire pressure");
+    const call = invokeLLM.mock.calls[0][0] as { maxTokens?: number };
+    expect(call.maxTokens ?? 0).toBeGreaterThanOrEqual(12288);
+  });
+});

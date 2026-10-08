@@ -7,8 +7,17 @@
  * quality (audit: skipped-critic-as-approval).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
 
 let jobRow: { id: number; payload: string } | null = null;
+/** The QA runner the gate may call to re-run a persisted non-evaluation. */
+let rerunMock = vi.fn();
+// Partial mock: the orchestrator's repair planner imports the defect registry
+// from the same module, so the real exports stay and only the runner is seamed.
+vi.mock("./services/renderedQa", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./services/renderedQa")>()),
+  runRenderedQaOnJob: (...args: unknown[]) => rerunMock(...args),
+}));
 /** How many reel jobs the provider-health probe should see as recently failed. */
 let recentFailures = 0;
 vi.mock("./db", () => ({
@@ -195,5 +204,89 @@ describe("evaluateReelPublishGate", () => {
     const g = await evaluateReelPublishGate(1, { runIfMissing: false });
     expect(g.allowed).toBe(true);
     expect(g.gate).toBe("proceed");
+  });
+});
+
+describe("a persisted NON-evaluation is re-run by a publish door, bounded (job 2040001, 2026-10-08)", () => {
+  // Job 2040001: one "no complete JSON object" at 10:33Z was persisted as a
+  // skipped verdict, and every drain pulse until 13:30Z read it back as THE
+  // verdict — the critic was never asked again. A publish door may now re-run
+  // it: at most 3 critic runs per asset, never inside 30 minutes of the last.
+  const skippedAt = (minutesAgo: number, attempts?: number) => {
+    const skipped = {
+      decision: "approve", findings: [], framesEvaluated: 8, critic: "skipped", qaState: "unavailable",
+      evaluatedAt: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
+    };
+    setJob(skipped, attempts === undefined ? {} : { renderedQaAttempts: attempts });
+  };
+  beforeEach(() => { rerunMock = vi.fn(); process.env.RENDERED_QA_ENABLED = "true"; });
+
+  it("asks the critic again once the spacing has passed and decides on the FRESH verdict", async () => {
+    skippedAt(31, 1);
+    rerunMock.mockResolvedValue(completed([]));
+    const g = await evaluateReelPublishGate(1);
+    expect(rerunMock).toHaveBeenCalledTimes(1);
+    expect(rerunMock).toHaveBeenCalledWith(1);
+    expect(g.allowed).toBe(true);
+    expect(g.gate).toBe("proceed");
+    expect(g.source).toBe("fresh");
+  });
+
+  it("does not re-run inside the 30-minute spacing — the hold names the next re-run", async () => {
+    skippedAt(5, 1);
+    const g = await evaluateReelPublishGate(1);
+    expect(rerunMock).not.toHaveBeenCalled();
+    expect(g.allowed).toBe(false);
+    expect(g.gate).toBe("unavailable");
+    expect(g.reason).toMatch(/1 critic run\(s\); next automatic re-run after 20/);
+  });
+
+  it("stops after 3 critic runs — the hold says the budget is spent and points at the admin re-run", async () => {
+    skippedAt(60, 3);
+    const g = await evaluateReelPublishGate(1);
+    expect(rerunMock).not.toHaveBeenCalled();
+    expect(g.gate).toBe("unavailable");
+    expect(g.reason).toMatch(/3 critic runs, re-run budget spent/);
+  });
+
+  it("a verdict that predates the counter counts as one run; a re-run that produced nothing is the same hold, counted", async () => {
+    skippedAt(60); // no renderedQaAttempts on the payload
+    rerunMock.mockResolvedValue(null);
+    const g = await evaluateReelPublishGate(1);
+    expect(rerunMock).toHaveBeenCalledTimes(1);
+    expect(g.gate).toBe("unavailable");
+    expect(g.reason).toMatch(/critic run 2 of 3/);
+  });
+
+  it("a re-run that comes back skipped again is still a hold, never an approval", async () => {
+    skippedAt(45, 1);
+    rerunMock.mockResolvedValue({ ...completed([]), critic: "skipped", qaState: "unavailable" });
+    const g = await evaluateReelPublishGate(1);
+    expect(rerunMock).toHaveBeenCalledTimes(1);
+    expect(g.allowed).toBe(false);
+    expect(g.gate).toBe("unavailable");
+    expect(g.reason).toMatch(/critic run 2 of 3/);
+  });
+
+  it("a read-only check never re-runs, whatever the age", async () => {
+    skippedAt(600, 1);
+    const g = await evaluateReelPublishGate(1, { runIfMissing: false });
+    expect(rerunMock).not.toHaveBeenCalled();
+    expect(g.gate).toBe("unavailable");
+    expect(g.reason).toMatch(/a publish door re-runs it/);
+  });
+
+  it("a stale-after-repair verdict is not a re-run candidate (the repair path owns it)", async () => {
+    setJob({ decision: "approve", findings: [], framesEvaluated: 8, critic: "skipped", qaState: "unavailable", staleAfterRepair: true, evaluatedAt: new Date(Date.now() - 3_600_000).toISOString() }, { renderedQaAttempts: 1 });
+    const g = await evaluateReelPublishGate(1);
+    expect(rerunMock).not.toHaveBeenCalled();
+    expect(g.allowed).toBe(false);
+  });
+
+  it("assert-the-consumer: the runner increments exactly the field the gate reads", () => {
+    const runner = readFileSync(new URL("./services/renderedQa.ts", import.meta.url), "utf8");
+    const gate = readFileSync(new URL("./services/qualityGate.ts", import.meta.url), "utf8");
+    expect(runner).toContain("payload.renderedQaAttempts = (Number(payload.renderedQaAttempts) || 0) + 1;");
+    expect(gate).toContain("Number(payload.renderedQaAttempts)");
   });
 });

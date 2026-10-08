@@ -11,6 +11,7 @@ import type { IgView } from "./igViews";
 import { writeCreateHandoff } from "./igViews";
 import { HQ } from "./HQ";
 import { CreativeAssistantCards } from "./CreativeAssistantCards";
+import { PairwisePick } from "./PairwisePick";
 
 /**
  * TODAY — the command center the audit found missing. One ranked list of what
@@ -144,6 +145,12 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
           )}
         </CardContent>
       </Card>
+
+      {/* Blind pairwise review (2026-10-08): one tap a day calibrates the
+          judge that gates live photo posts against the shop's own taste.
+          Below the decisions on purpose: a calibration chore never pushes
+          an urgent decision off the first screen of a phone. */}
+      <PairwisePick />
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
