@@ -23,7 +23,7 @@
  */
 import { spawn } from "child_process";
 import { NOIR_PALETTE, BRAND_BIBLE_VERSION } from "../../shared/brandBible";
-import { parseReelJobPayload } from "../../shared/reelJobPayload";
+import { parseReelJobPayload, renderedQaRunsSoFar } from "../../shared/reelJobPayload";
 import { promises as fs } from "fs";
 import path from "path";
 import os from "os";
@@ -560,7 +560,18 @@ export async function callVisionCritic(input: { frames: ExtractedFrame[]; system
       { role: "system", content: input.system },
       { role: "user", content: [{ type: "text", text: input.user }, ...imageParts] },
     ],
-    maxTokens: 4096,
+    // The vision lane (Gemini 2.5 Flash via the reroute) spends its thinking
+    // out of this budget. At 4096 with unbounded thinking the verdict was cut
+    // off mid-finding — finish_reason=length, 573 chars, job 2040001,
+    // 2026-10-08 15:31Z — which the gate rightly holds as a non-evaluation.
+    // The cap is "medium" (8,192 thinking tokens on 2.5), above the ~3.9k it
+    // spent before the cut (inferred: 4,096 less ~150 visible tokens), and
+    // not "low": a thinking cap set too low fails
+    // OPEN (an approve from a critic that barely looked); a budget set too
+    // small fails CLOSED (a truncated verdict, held). 16,384 leaves ~8k for
+    // the JSON, and 8k thinking fits well inside the 90 s timeout.
+    maxTokens: 16_384,
+    reasoningEffort: "medium",
     timeoutMs: 90_000,
     outputSchema: VERDICT_SCHEMA,
   });
@@ -790,10 +801,12 @@ export async function runRenderedQaOnJob(jobId: number, opts: RunRenderedQaOptio
       });
       verdict.decision = "repair";
     }
-    payload.renderedQa = verdict;
     // Every persisted verdict, skipped ones included, counts against the
-    // gate's re-run budget (qualityGate reads renderedQaAttempts).
-    payload.renderedQaAttempts = (Number(payload.renderedQaAttempts) || 0) + 1;
+    // gate's re-run budget — by the one rule the gate reads with, taken
+    // BEFORE this verdict replaces the previous one.
+    const runsBefore = renderedQaRunsSoFar(payload);
+    payload.renderedQa = verdict;
+    payload.renderedQaAttempts = runsBefore + 1;
     await d.update(reelJobs).set({ payload: JSON.stringify(payload) }).where(eq(reelJobs.id, jobId));
     log.info("rendered QA verdict persisted", {
       jobId,

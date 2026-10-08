@@ -4086,14 +4086,17 @@
           "server/renderedQa.test.ts (+2): an array-of-parts reply is a completed vision verdict; the parser's failure names finish_reason and the first 120 chars of the reply.",
           "Gate consumer set (25 files: publish doors, reject guard, stock guard, drain head-of-line, exactly-once publish, authority, orchestrator, critic panel, repair router, payload) green on the change."
         ],
-        "liveRuns": [],
-        "deploymentId": null
+        "liveRuns": [
+          "2026-10-08T15:31:26Z, Railway deployment 2eb8c519 (commit 0f9453df, PR #2923): the daily-reel-post drain selected job 2040001 and logged 'rendered QA: re-running the critic after a persisted non-evaluation' (attempts 1, lastEvaluatedAt 10:33:48Z); the master was fetched (20,655,977 bytes), the critic ran on gemini-2.5-flash via the vision reroute, came back 'no complete JSON object (finish_reason=length, 573 chars)', the skipped verdict was persisted and the job HELD with '(critic run 2 of 3)'. No publish.",
+          "2026-10-08T15:46:26Z and 16:01:24Z: the next two pulses held 2040001 naming 'next automatic re-run after 2026-10-08T16:01:49Z' — the 30-minute spacing respected, no early re-run, no publish."
+        ],
+        "deploymentId": "2eb8c519-bf3c-490c-b74d-7340e8dbb910"
       },
       "blockers": [
         {
-          "severity": "P1",
-          "description": "Not yet observed on job 2040001 (held in production since 10:33Z 2026-10-08): the first drain pulse ≥ 30 min after the deploy should log 'rendered QA: re-running the critic after a persisted non-evaluation' and either a vision verdict or a second named failure. If the critic fails three times the Reel stays held with the budget-spent reason — the vision lane (Gemini via invokeLLM) is then the problem to fix, not the gate.",
-          "source": "2026-10-08 pre-merge audit, Railway logs"
+          "severity": "P2",
+          "description": "The run counter undercounts a job whose first verdict predates it: the 15:46Z hold read '1 critic run(s)' right after '(critic run 2 of 3)', because the gate counted the pre-counter verdict as one run and the runner did not. Bounded either way (such a job gets at most one extra run). Fixed on branch claude/peaceful-pascal-988w9o — both sides now call shared/reelJobPayload.renderedQaRunsSoFar, read before the overwrite — not yet deployed.",
+          "source": "2026-10-08 Railway logs for job 2040001"
         }
       ],
       "deferredScope": [
@@ -4102,8 +4105,39 @@
       ],
       "lastVerifiedAt": "2026-10-08",
       "codeState": "merged",
+      "operationalState": "live_verified",
+      "exposure": "internal",
+      "verificationExpiresAt": "2026-11-08"
+    },
+    {
+      "capabilityId": "rendered-qa-critic-thinking-budget",
+      "name": "The rendered-QA vision critic asks the Gemini lane for a bounded thinking budget, so its verdict JSON is no longer cut off at the token cap",
+      "owner": "operator",
+      "codeState": "merged",
       "operationalState": "unit_verified",
-      "exposure": "internal"
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o, 2026-10-08. Root cause from production: job 2040001's re-run at 15:31:26Z reached gemini-2.5-flash (vision reroute) and returned finish_reason=length after 573 visible characters on max_tokens 4096 — the reply began '{\"decision\": \"repair\", \"findings\": [{\"beatNumber\": null, \"code\": \"MALFORMED_GEOMETRY\"' and was cut there. Gemini 2.5 spends its thinking out of max_tokens; the same truncation is documented at other call sites in this app (reviewReplies, instagramAdmin, igAutopost, carouselBriefGen, genomeGen, visualBibleObserved, instagramStudio) and vision-analyzer.ts measured reasoning_effort on the live compatibility endpoint. server/_core/llm.ts: InvokeParams.reasoningEffort ('low' | 'medium' | 'high' only — 'none' is refused by 2.5 Pro and Gemini 3) is added as reasoning_effort ONLY to a body fetched from Google's endpoint (the vision reroute, a direct gemini-* URL, the 403-quota fallback), decided by the URL actually fetched; Ollama and OpenAI bodies never carry it; without the param every body is byte-identical. server/services/renderedQa.ts callVisionCritic (also used by the specialist lenses in criticPanel.ts): reasoningEffort 'medium' (8,192 thinking tokens on 2.5, above the ~3.9k it spent before the cut — inferred: the 4,096 budget less ~150 visible tokens) and maxTokens 16,384. Cap chosen by the failure asymmetry: too little thinking fails OPEN (an approve from a critic that barely looked), too small a budget fails CLOSED (a truncated verdict, held).",
+        "tests": [
+          "server/_core/llm.vision-reroute.test.ts (+5): control — no param, no field; the vision reroute carries reasoning_effort; an Ollama text call never does even when asked; the 403-quota fallback carries it while the refused Ollama attempt did not; a direct gemini-* model carries it and a direct gpt-4o never does. Mutations: wiring made a no-op → 3 red; field sent to every direct URL → 3 red.",
+          "server/renderedQa.test.ts (+1): callVisionCritic asks for reasoningEffort 'medium' with at least 4,096 tokens of visible budget above the 8,192 cap; reverted to 4096 / no effort → red.",
+          "Consumer set: 42 test files importing the gate, the critic, the payload module or the LLM wrapper, exit 0; tsc --noEmit exit 0."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "Not yet observed in production. First live proof: a critic run after this deploys persisting critic 'vision' / qaState 'completed' — job 2040001's next automatic re-run (due ~17:01Z on 2026-10-08 if the deploy lands first; otherwise its budget is spent and Instagram → Queue → re-run rendered QA is the lever), or the next assembled Reel. If Google refuses reasoning_effort for the configured GEMINI_MODEL, the skip reason will name the 400 and the critic stays a non-evaluation (fails closed).",
+          "source": "2026-10-08 branch self-audit"
+        }
+      ],
+      "deferredScope": [
+        "the critic's verdict quality under an 8,192-token thinking cap is not measured against unbounded thinking; the cap only bounds latency and guarantees the JSON fits",
+        "a 90 s timeout still bounds the call; a slow Gemini response fails closed as a skipped verdict, as before"
+      ],
+      "lastVerifiedAt": "2026-10-08"
     },
     {
       "capabilityId": "camera-visit-marks-20261008",
@@ -4136,6 +4170,68 @@
       "deferredScope": [
         "marks as ground truth for lotDataConfidence and the detector calibration (needs marks to accumulate first)",
         "service-time and pickup-wait reporting from marks (weeks of marks before a baseline means anything)"
+      ],
+      "lastVerifiedAt": "2026-10-08"
+    },
+    {
+      "capabilityId": "reel-preflight-editorial-contract-shot-router",
+      "name": "The storyboard is checked against the editorial contract and for declared-source contradictions in runReelPreflight, before any spend, as warnings",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o (Reels Engine v2 follow-up to #2923, 2026-10-08). shared/editorialContract.ts checkEditorialContract: logo/plate or generic footage on frame one, one idea per card (> 9 words and ≥ 2 sentences), a CTA before the last beat, more than one CTA verb on the last card, an end card held past 2 s. shared/shotRouter.ts: declaredBeatSource reads StoryboardBeat.source or the leading REAL / DETERMINISTIC / STILL / AI tag the proof packs write (never inferred from prose); shotRouteProblems reports an ai_illustrative beat that describes real work, a measurement or evidence, and a real beat that asks for a generated shot; routeShot is the audit's seven-step decision table (no runtime consumer yet — the provider pick honouring source is doctrine §8 item 6, presented for sign-off). client/src/lib/facelessReelStudio.ts: StoryboardBeat.source?: ShotSource; runReelPreflight pushes the contract findings as structural warnings after the readability gate and the route contradictions as production warnings after the provider-scene status. Warnings, not blocks: the renderer sees pixels, the storyboard is the only place these can be read, and a block would re-generate every older pack whose beats declare nothing. server/services/creativeAssistant.ts: both capture-card firstAction strings now ask for the six-shot set of docs/reels-engine-v2/05-CAPTURE-CHECKLIST.md, stills first (listReusableRealShopMedia is image-only).",
+        "tests": [
+          "shared/editorialContract.test.ts (9): control passes; each rule fires alone; beats read in beatNumber order; the three proof packs clear the contract.",
+          "shared/shotRouter.test.ts (12): the seven questions in order (real > deterministic > approved still > do-not-generate > reuse > ai_illustrative > delete / capture); every tag spelling and the unspecified default; contradictions only, silent on undeclared beats; the proof packs declare a source on every beat with no ai_illustrative beat.",
+          "client/src/__tests__/faceless-reel-studio.test.ts (+4): control sample raises neither finding; a generic opening is a structural WARN naming frame one and the brief still passes; a CTA before the last beat warns; an ai_illustrative beat describing a measurement is a production WARN and the same beat declared real is not. 4 files 90 tests exit 0 with previsReadability.",
+          "tsc --noEmit exit 0."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "No production brief has been seen with a declared source yet: the 196 older packs predate the field, so the route check is live only for the three proof packs and any new brief that declares one. First live proof is a preflight report on a pack-derived job carrying a 'beat N: opens on' or 'declared' warning in reel_jobs.payload.",
+          "source": "2026-10-08 branch self-audit"
+        }
+      ],
+      "deferredScope": [
+        "routeShot has no runtime consumer (knip baseline entry states it); the provider pick reading StoryboardBeat.source is a live-lane change presented in docs/reels-engine-v2/02-PRODUCTION-DOCTRINE.md §8 item 6",
+        "the promise-vs-payoff half of the hook rubric (does frame one's promise match the last beat?) is not deterministic and is not built; the frame-one subject half is",
+        "the end-card rule only fires on a visual that names an end/logo/contact/closing card; the lane's ~3 s SAVE freeze is not a beat and is not checked here"
+      ],
+      "lastVerifiedAt": "2026-10-08"
+    },
+    {
+      "capabilityId": "reels-angle-bank-inventory",
+      "name": "Reels Engine v2 angle bank: 100 feasibility-graded angles indexed over the committed packs, validated in code, reported as a Creative Assistant provenance line",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o, 2026-10-08. docs/reels-engine-v2/angle-bank.json: 100 angles, 15 categories, rank = production order, the first 20 production_ready (feasibility A or B, brief with ≥ 4 beats, route and real evidence named), A001–A008 the 8-Reel pilot, 88 angles naming their committed pack, 12 stubs with no pack. shared/angleBank.ts parseAngleBank refuses sequential-id/rank breaks, unknown category / family / route / feasibility / status / truth packet, a stub naming a pack or a pack entry without one, a pack claimed twice, production_ready outside the first 20 or with feasibility C/D, a category repeated inside six consecutive production slots, and near-duplicate angles by the publish door's word-overlap rule (ORIGINALITY_BLOCK_THRESHOLD); angleBankStatus counts the production-ready set against the packs on disk, APPROVED_REEL_PACK_SLUGS and posted jobs' approvedPackSlug; angleBankLine prints zeros as zeros. server/services/creativeAssistant.ts: an angleBank reader (bank file beside the packs via resolvePacksDir; usable = approvedReelPackRotation.packBuildsForLane, the production builder's own acceptance; posted reel_jobs read for approvedPackSlug) wired into gatherCreativeInputs and inputs.angleBank — an unreadable bank or rotation is 'error: …' (UNKNOWN), never 'all in rotation'. The lane does not read the bank: packs enter the daily rotation through APPROVED_REEL_PACK_SLUGS on operator instruction; the three proof packs sit in ROTATION_EXCLUDED with the reason; nextToApprove is the operator's list.",
+        "tests": [
+          "shared/angleBank.test.ts (13): the committed file parses with 100 / 20 / 12 / 15; every named pack is accepted by the production builder (a beat-count draft of this check mis-graded 16 entries — packs the builder rejects — and wrongly condemned 2026-08-18-power-steering-whine, accepted by the builder with 0 beats under the two common keys; the 16 were re-pointed at accepted packs); no stub restates a pack slug; ROTATION CANARY pins that exactly the three proof packs are production-ready and outside the rotation (every other builder-accepted pack is in it, 133 / 133); seven mutations refused by name (incl. the spacing rule and a near-duplicate at overlap 1.00); the status line with zeros, a BROKEN entry and a full rotation.",
+          "server/services/creativeAssistant.test.ts (+2): the inputs.angleBank line from the fixture; an unreadable bank is an error input and no card depends on it; the injected-readers test pins the error wording. 31 tests exit 0.",
+          "The near-duplicate guard fired on the author's own replacement wording (A064 vs A083, overlap 0.65) before it was reworded — the instrument is proven on a real positive."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "The Sources line has not been seen rendered: this session has no browser against a running admin. First live proof is the Creative Assistant's Sources row on Today showing 'angleBank 20 production-ready angles of 100: 20 with a pack, 17 in rotation, 0 published; awaiting rotation approval: proof-01-uneven-wear, proof-02-highway-shake, proof-03-patch-or-replace' after deploy.",
+          "source": "2026-10-08 branch self-audit"
+        }
+      ],
+      "deferredScope": [
+        "published counts only pack-derived jobs (payload.approvedPackSlug); a Studio-rendered Reel of the same angle is invisible to it",
+        "the bank is hand-authored; the test keeps it honest against the disk and the rotation but cannot grade feasibility — that is the operator's and the technician's call per angle"
       ],
       "lastVerifiedAt": "2026-10-08"
     }

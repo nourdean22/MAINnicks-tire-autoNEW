@@ -49,6 +49,12 @@ const posts: PostRecord[] = [
   { postId: "r1", postType: "REELS", caption: "Grinding brakes means metal on metal — send this to a friend", reach: 5000, saved: 3, shares: 90 },
 ];
 
+const angleBank = {
+  total: 100, productionReady: 20, pilot: 8, stubs: 12, withPack: 20, inRotation: 16, published: 0,
+  nextToApprove: ["2026-10-08-proof-01-uneven-wear", "2026-10-08-proof-02-highway-shake"],
+  missingPacks: [] as string[],
+};
+
 function fixture(over: Partial<GatheredInputs> = {}): GatheredInputs {
   return {
     topicSignals: ok({
@@ -61,6 +67,7 @@ function fixture(over: Partial<GatheredInputs> = {}): GatheredInputs {
     posts: ok(posts),
     qaOutcomes: ok([]),
     realEvidence: ok({ windowDays: 30, published: 14, withReal: 2 }),
+    angleBank: ok(angleBank),
     realAssets: ok({ count: 12, assets: [{ id: 7, label: "brake-rotor-worn real-brake-pads.jpg" }], captures: [] }),
     experiments: ok([]),
     articles: ok({
@@ -250,8 +257,10 @@ describe("buildCreativeAssistant with injected readers", () => {
       weather: async () => { throw new Error("NWS 503"); },
       qaOutcomes: async () => [],
       realEvidence: async () => ({ windowDays: 30, published: 0, withReal: 0 }),
+      angleBank: async () => { throw new Error("angle bank: A004: unknown category tyres"); },
     };
     const r = await buildCreativeAssistant(readers, new Date("2026-10-01T12:00:00Z"));
+    expect(r.inputs.angleBank).toBe("error: angle bank: A004: unknown category tyres");
     expect(r.generatedAt).toBe("2026-10-01T12:00:00.000Z");
     expect(r.inputs.posts).toBe("error: snapshot read failed");
     expect(r.inputs.weather).toBe("error: NWS 503");
@@ -323,6 +332,22 @@ describe("real-evidence share: the shop adoption number (2026-10-08)", () => {
     const capture = r.cards.find((c) => c.type === "capture");
     expect(capture).toBeTruthy();
     expect(capture?.why.some((w) => w.includes("real shop evidence"))).toBe(false);
+  });
+});
+
+describe("angle bank: the inventory's state is a provenance line (2026-10-08)", () => {
+  it("prints the counts with zeros as zeros and names the packs awaiting rotation approval", () => {
+    const r = composeCreativeCards(fixture());
+    expect(r.inputs.angleBank).toBe(
+      "20 production-ready angles of 100: 20 with a pack, 16 in rotation, 0 published; awaiting rotation approval: proof-01-uneven-wear, proof-02-highway-shake",
+    );
+  });
+
+  it("an unreadable bank is an error input, and no card depends on it", () => {
+    const before = composeCreativeCards(fixture()).cards.map((c) => c.type);
+    const r = composeCreativeCards(fixture({ angleBank: err("no reel-packs directory in this process") }));
+    expect(r.inputs.angleBank).toBe("error: no reel-packs directory in this process");
+    expect(r.cards.map((c) => c.type)).toEqual(before);
   });
 });
 

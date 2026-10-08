@@ -1,0 +1,91 @@
+{
+  "id": "proof-02-highway-shake",
+  "family": "evidence_diagnosis",
+  "objective": "Prove the mystery structure, local relevance and illustrative synthesis without false evidence: the Reel preserves uncertainty instead of diagnosing by video.",
+  "campaignKeyword": "SHAKE",
+  "mechanicTruth": "A shake at highway speed is often wheel balance, but alignment, a damaged tire or worn parts can cause it too; an inspection tells which. The speed at which it starts narrows where to look first; it does not name the cause.",
+  "loopIdea": "The last beat ends on the wheel spinning down on the balancer, which is the frame the hook opened on, so the loop restarts on motion.",
+  "selectedCaption": "Smooth around town, shakes on the highway? The speed tells us where to start looking: wheel balance first, then the tire itself, then alignment and worn parts. The balancer gives a number; hands check for play. Comment SHAKE or book an inspection — Nick's Tire & Auto, Euclid Ave, Cleveland.",
+  "hashtags": [
+    "#ClevelandAuto",
+    "#SteeringWheelShake",
+    "#WheelBalance",
+    "#NicksTireAndAuto",
+    "#I90"
+  ],
+  "voiceoverScript": "Smooth in town, shakes on the highway? The speed is a clue. Near sixty it is often wheel balance; the balancer puts a number on it. A damaged tire, alignment, or a worn part can shake too. We check for play and the tire itself. Speed says where to start, not the answer.",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "hook: motion and evidence on frame one, never a driving shot",
+      "visual": "REAL: a wheel and tire spinning on the balancer, the lit inspection bay behind it, slight blur on the tread",
+      "motion": "static camera, the wheel spins up; cut in at full speed",
+      "onScreenText": "ONLY SHAKES AT HIGHWAY SPEED?",
+      "narration": "Smooth in town, shakes on the highway? The speed is a clue.",
+      "audioCue": "balancer motor spin-up, shop room tone; VO at 0.4s",
+      "safeZoneNotes": "hook caption centred over the hub; keep the rim inside the central 60%"
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "measurement: the balancer readout is the first honest number",
+      "visual": "REAL: the balancer display, inner and outer correction weights readable, a weight being tapped onto the rim lip",
+      "motion": "static on the display for 2s, cut to the hammer on the weight",
+      "onScreenText": "THE BALANCER PUTS A NUMBER ON IT",
+      "narration": "Near sixty it is often wheel balance; the balancer puts a number on it.",
+      "audioCue": "display beep, weight hammer tap",
+      "safeZoneNotes": "display centred; no reflections of staff faces in the screen"
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "explanation: deterministic three-cause card, no single verdict",
+      "visual": "DETERMINISTIC card: three columns — balance, tire or wheel damage, alignment or worn parts — each with a small line icon, the first column lit first",
+      "motion": "columns light one per 0.8s; no camera move",
+      "onScreenText": "THREE PLACES TO LOOK",
+      "narration": "A damaged tire, alignment, or a worn part can shake too.",
+      "audioCue": "soft tick per column; music bed low",
+      "safeZoneNotes": "columns inside the central 50% height; nothing in the outer 6%"
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "what inspection determines: hands check for play on the lift",
+      "visual": "REAL: a technician's gloved hands rocking a wheel at twelve and six on the lift, then at nine and three",
+      "motion": "slow push-in on the hands; the wheel rocks visibly",
+      "onScreenText": "HANDS CHECK FOR PLAY",
+      "narration": "We check for play",
+      "audioCue": "lift hum, a faint clunk if play exists, room tone",
+      "safeZoneNotes": "no customer plate or VIN; the car body stays anonymous"
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "evidence: the tire itself can be the cause",
+      "visual": "REAL macro: a sidewall bulge or a flat-spotted tread block under the inspection light, a thumb pressing beside it for scale",
+      "motion": "slow lateral track along the sidewall to the bulge",
+      "onScreenText": "A BULGE SHAKES TOO",
+      "narration": "and the tire itself.",
+      "audioCue": "inspection-light click, room tone",
+      "safeZoneNotes": "the bulge sits centre-frame; caption below it, above the bottom reserve"
+    },
+    {
+      "beatNumber": 6,
+      "startSecond": 20,
+      "endSecond": 24,
+      "purpose": "closing line + one CTA; loop to the spinning wheel",
+      "visual": "REAL: the balancer wheel spinning down to a stop, the inspection bay behind it; the shop exterior for the last second",
+      "motion": "hold on the wheel slowing; cut to a static exterior",
+      "onScreenText": "SPEED SAYS WHERE TO START. NOT THE ANSWER.",
+      "narration": "Speed says where to start, not the answer.",
+      "audioCue": "balancer spins down; music bed resolves; VO ends by 23.5s",
+      "safeZoneNotes": "CTA caption centred; logo and address only on the end card"
+    }
+  ]
+}
