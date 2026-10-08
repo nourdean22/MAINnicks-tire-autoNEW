@@ -7,6 +7,7 @@
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
+import { sliceBlock } from "../testUtils/sourceBlock";
 import type { TrpcContext } from "../_core/context";
 
 const { puts } = vi.hoisted(() => ({ puts: [] as Array<{ key: string; type: string }> }));
@@ -70,9 +71,8 @@ describe("every upload route sniffs the bytes before storing (the public route i
   for (const [file, proc] of [["booking.ts", "uploadPhoto"], ["services.ts", "uploadPhoto"], ["instagramStudio.ts", "uploadEvidencePhoto"]] as const) {
     it(`${file} ${proc}: sniff → refuse non-image → store under the sniffed type`, () => {
       const src = readFileSync(new URL(`../routers/${file}`, import.meta.url), "utf8");
-      const start = src.indexOf(`${proc}:`);
-      expect(start).toBeGreaterThan(-1);
-      const body = src.slice(start, src.indexOf("}),", start));
+      // sliceBlock throws on a missing marker; a raw indexOf slice would widen to EOF and pass on unrelated text.
+      const body = sliceBlock(src, `${proc}:`, "}),", { label: `${file} ${proc}` });
       const sniff = body.indexOf("const mime = sniffImageMime(buffer);");
       const refuse = body.indexOf('if (!mime) throw new TRPCError({ code: "BAD_REQUEST", message: NOT_AN_IMAGE_MESSAGE });');
       const store = body.indexOf("storagePut(key, buffer, mime)");

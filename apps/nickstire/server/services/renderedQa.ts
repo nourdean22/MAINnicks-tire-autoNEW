@@ -565,7 +565,13 @@ export async function callVisionCritic(input: { frames: ExtractedFrame[]; system
     outputSchema: VERDICT_SCHEMA,
   });
   const content = res.choices?.[0]?.message?.content;
-  const text = typeof content === "string" ? content : "";
+  // The wrapper types content as string | parts[]; a parts reply used to read
+  // as "" here and surface as "no complete JSON object" with nothing to go on.
+  const text = typeof content === "string"
+    ? content
+    : Array.isArray(content)
+      ? content.map((p) => (p && typeof p === "object" && (p as { type?: string }).type === "text" ? String((p as { text?: unknown }).text ?? "") : "")).join("\n")
+      : "";
   const cleaned = text.replace(/```(?:json)?/g, "").trim();
   const start = cleaned.indexOf("{");
   let depth = 0;
@@ -578,7 +584,13 @@ export async function callVisionCritic(input: { frames: ExtractedFrame[]; system
   // or prose. This used to parse "{}", which clamps to an approve with a full
   // craft score; the throw keeps the promise above, and the caller records a
   // skipped verdict that the publish gate refuses (2026-10-01, review of #2865).
-  if (start < 0 || end <= start) throw new Error("vision critic returned no complete JSON object");
+  if (start < 0 || end <= start) {
+    // Name the shape of the failure: the finish reason and the head of the
+    // reply. 2026-10-08 (job 2040001) logged only the sentence, so whether the
+    // model was cut at the cap, blocked, or answered in prose was unknowable.
+    const finish = res.choices?.[0]?.finish_reason ?? "unknown";
+    throw new Error(`vision critic returned no complete JSON object (finish_reason=${finish}, ${text.length} chars: ${JSON.stringify(text.slice(0, 120))})`);
+  }
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
@@ -640,7 +652,7 @@ export async function evaluateRenderedReel(input: EvaluateRenderedReelInput): Pr
     return clampVerdict(parsed, input.frames.length, "vision", input.pixelStats);
   } catch (err) {
     log.warn("vision critic unavailable — verdict skipped, not fabricated", {
-      err: err instanceof Error ? err.message.slice(0, 160) : String(err),
+      err: err instanceof Error ? err.message.slice(0, 400) : String(err),
     });
     return clampVerdict({ decision: "approve", findings: [] }, input.frames.length, "skipped", input.pixelStats);
   }
@@ -779,9 +791,13 @@ export async function runRenderedQaOnJob(jobId: number, opts: RunRenderedQaOptio
       verdict.decision = "repair";
     }
     payload.renderedQa = verdict;
+    // Every persisted verdict, skipped ones included, counts against the
+    // gate's re-run budget (qualityGate reads renderedQaAttempts).
+    payload.renderedQaAttempts = (Number(payload.renderedQaAttempts) || 0) + 1;
     await d.update(reelJobs).set({ payload: JSON.stringify(payload) }).where(eq(reelJobs.id, jobId));
     log.info("rendered QA verdict persisted", {
       jobId,
+      attempt: payload.renderedQaAttempts,
       decision: verdict.decision,
       findings: verdict.findings.length,
       critic: verdict.critic,

@@ -3935,7 +3935,7 @@
       "blockers": [
         {
           "severity": "P1",
-          "description": "Renders nothing until RENDERED_QA_ENABLED=true has produced completed critic verdicts on ≥ 4 posted Reels per side; the flag defaults OFF in production.",
+          "description": "Renders nothing until completed critic verdicts exist on ≥ 4 posted Reels per side. RENDERED_QA_ENABLED is ON in production (corrected 2026-10-08: the earlier 'defaults OFF in production' claim was wrong — Railway sets the variable on MAINnicks-tire-auto and the 10:33Z publish-gate path is unreachable without it), but only two verdicts have been persisted since 09-28 (1980001 vision/approve, 2040001 skipped), so the join has no population yet.",
           "source": "2026-10-08 creative control gates, wave 2"
         }
       ],
@@ -4055,6 +4055,36 @@
       "deferredScope": [
         "a judge-rejection budget separate from the caption regen budget (both share MAX_REGEN_ATTEMPTS, so a run can spend its 3 LLM passes on judge rejections alone)",
         "feeding the judge's reason into the regenerate: generatePost takes only the brief, so a near-duplicate rejection can be followed by another near-duplicate; the next concept is fresh, not steered"
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "rendered-qa-nonevaluation-retry",
+      "name": "A persisted rendered-QA non-evaluation is re-run by the publish door, bounded, instead of holding the Reel forever",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o: server/services/qualityGate.evaluateReelPublishGate — a persisted verdict with qaState != completed or critic == skipped (critic outage, timeout, unreadable reply) is re-run through runRenderedQaOnJob when the caller is a publish door (runIfMissing), at most RENDERED_QA_MAX_ATTEMPTS = 3 critic runs per asset and never inside RENDERED_QA_RETRY_MIN_MS = 30 min of the last verdict; a re-run that fails again is the same unavailable hold, now naming the count and, once the budget is spent, the admin re-run. Read-only callers never re-run. renderedQa.runRenderedQaOnJob increments payload.renderedQaAttempts on every persisted verdict (shared/reelJobPayload.ts declares it); callVisionCritic reads an array-of-parts reply and names finish_reason + the reply head when no JSON object came back. Production evidence (Railway, 2026-10-08): job 2040001 enqueued 10:02:41Z; 10:33:48Z 'vision critic returned no complete JSON object' persisted as a skipped verdict; eleven drain pulses 10:33–13:30Z each held 'unavailable' reading that same verdict (one critic warning in the whole window); RENDERED_QA_ENABLED is ON in production (the hold branch is unreachable otherwise; the variable is set on the MAINnicks-tire-auto service).",
+        "tests": [
+          "server/qualityGate.test.ts (+8): re-run after the spacing decides on the FRESH verdict; no re-run inside 30 min (hold names the next re-run); budget spent after 3 runs (hold names the admin re-run); a pre-counter verdict counts as one run and a re-run that produced nothing is counted; a re-run that comes back skipped is still a hold; read-only never re-runs; stale-after-repair is not a candidate; assert-the-consumer pins the exact field the runner increments and the gate reads.",
+          "server/renderedQa.test.ts (+2): an array-of-parts reply is a completed vision verdict; the parser's failure names finish_reason and the first 120 chars of the reply.",
+          "Gate consumer set (25 files: publish doors, reject guard, stock guard, drain head-of-line, exactly-once publish, authority, orchestrator, critic panel, repair router, payload) green on the change."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "Not yet observed on job 2040001 (held in production since 10:33Z 2026-10-08): the first drain pulse ≥ 30 min after the deploy should log 'rendered QA: re-running the critic after a persisted non-evaluation' and either a vision verdict or a second named failure. If the critic fails three times the Reel stays held with the budget-spent reason — the vision lane (Gemini via invokeLLM) is then the problem to fix, not the gate.",
+          "source": "2026-10-08 pre-merge audit, Railway logs"
+        }
+      ],
+      "deferredScope": [
+        "a re-run that fails before a verdict is persisted (fetch/ffprobe failure) is not counted, so it is bounded only by the drain cadence — the pre-existing no-verdict behaviour",
+        "the attempt counter is not reset by a repair re-render (selectiveRepair marks the verdict stale; a stale verdict is re-run by the repair path, not here)"
       ],
       "lastVerifiedAt": "2026-10-08",
       "codeState": "merged",

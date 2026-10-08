@@ -118,6 +118,14 @@ export interface ReelJobPayloadView {
    */
   renderedQa?: RenderedQaVerdict;
   /**
+   * How many times `runRenderedQaOnJob` has produced a verdict for this asset
+   * (incremented on every persisted verdict, skipped ones included). Read by
+   * qualityGate to bound its re-runs after a non-evaluation (2026-10-08: job
+   * 2040001 sat on one unreadable critic reply through eleven drain pulses
+   * because a persisted skip was read back like a verdict).
+   */
+  renderedQaAttempts?: number;
+  /**
    * Shape of each generated clip as ffprobe read it at assembly (width, height,
    * fps, seconds), labelled by the beat's provider. Written by reelPipeline
    * after assembly (2026-10-08); read by reelLaneHealth to spot a provider whose

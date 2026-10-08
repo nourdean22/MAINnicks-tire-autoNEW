@@ -19,6 +19,22 @@
  */
 import type { PublishGate } from "./postQaOrchestrator";
 import type { RenderedFinding, RenderedQaVerdict } from "./renderedQa";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("services:quality-gate");
+
+/**
+ * Re-run budget after a NON-evaluation (2026-10-08). A persisted skipped
+ * verdict (critic outage, timeout, unreadable reply) was read back on every
+ * pulse exactly like a verdict, so the critic was never asked again: job
+ * 2040001 sat on one "no complete JSON object" from 10:33 to 13:30 UTC through
+ * eleven drain pulses, while the admin's re-run button was the only way out.
+ * A publish door may now ask again — at most this many critic runs per asset,
+ * never sooner than this after the last — and a run that fails again is the
+ * same hold, now naming the count. Read-only callers never re-run.
+ */
+const RENDERED_QA_MAX_ATTEMPTS = 3;
+const RENDERED_QA_RETRY_MIN_MS = 30 * 60 * 1000;
 
 /** Gate outcomes that are NOT an orchestrator decision — evidence problems. */
 export type EvidenceGate = "unavailable" | "stale" | "needs_review" | "disabled" | "stock_fallback";
@@ -137,6 +153,31 @@ export async function evaluateReelPublishGate(
   // Prefer the persisted verdict; else run it once.
   let verdict = payload.renderedQa as RenderedQaVerdict | undefined;
   let source: ReelPublishGateResult["source"] = "persisted";
+  const isNonEvaluation = (v: RenderedQaVerdict | undefined): boolean =>
+    !!v && (v.qaState !== "completed" || v.critic === "skipped");
+  // A verdict that predates the counter still counts as one run.
+  const attempts = Math.max(Number(payload.renderedQaAttempts) || 0, verdict ? 1 : 0);
+  let retryNote = "";
+  if (verdict && isNonEvaluation(verdict) && !verdict.staleAfterRepair) {
+    const lastAt = Date.parse(String(verdict.evaluatedAt ?? "")) || 0;
+    const dueAt = lastAt + RENDERED_QA_RETRY_MIN_MS;
+    if (!runIfMissing) {
+      retryNote = ` (${attempts} critic run(s) so far; a publish door re-runs it)`;
+    } else if (attempts >= RENDERED_QA_MAX_ATTEMPTS) {
+      retryNote = ` (${attempts} critic runs, re-run budget spent — re-run rendered QA from Instagram → Queue after checking the critic lane)`;
+    } else if (Date.now() < dueAt) {
+      retryNote = ` (${attempts} critic run(s); next automatic re-run after ${new Date(dueAt).toISOString()})`;
+    } else {
+      log.info("rendered QA: re-running the critic after a persisted non-evaluation", { jobId, attempts, lastEvaluatedAt: verdict.evaluatedAt ?? null });
+      const { runRenderedQaOnJob } = await import("./renderedQa");
+      const rerun = (await runRenderedQaOnJob(jobId)) ?? undefined;
+      if (rerun) {
+        verdict = rerun;
+        source = "fresh";
+      }
+      retryNote = ` (critic run ${attempts + 1} of ${RENDERED_QA_MAX_ATTEMPTS})`;
+    }
+  }
   if (!verdict) {
     if (!runIfMissing) {
       return result("unavailable", false, "unavailable", "rendered QA has not been run for this job yet (not evaluated on a read-only check)");
@@ -153,7 +194,7 @@ export async function evaluateReelPublishGate(
   // `critic === "skipped"` is checked too so verdicts persisted before qaState
   // existed are still caught.
   if (verdict.qaState !== "completed" || verdict.critic === "skipped") {
-    return result("unavailable", false, source, "vision critic did not evaluate (outage/timeout/parse failure) — an approve-shaped non-evaluation is not an approval", verdict.findings);
+    return result("unavailable", false, source, `vision critic did not evaluate (outage/timeout/parse failure) — an approve-shaped non-evaluation is not an approval${retryNote}`, verdict.findings);
   }
 
   // The media changed after this verdict was written (selectiveRepair re-render).
