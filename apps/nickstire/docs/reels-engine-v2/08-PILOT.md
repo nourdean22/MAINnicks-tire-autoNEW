@@ -19,9 +19,20 @@ publish (stock guard, `02-PRODUCTION-DOCTRINE.md` §1).
 | A008 | Worn tire and new tire in the rain (`2026-08-17-tread-depth-rain-vs-snow`) | C | clip 3 gauge in a 2/32 groove and a 10/32 groove under one light; both tires side by side | none for the numbers; the depth card is deterministic | real + deterministic | per pack | `tread_depth` |
 
 Hooks, scripts, beats, captions and audio for A001–A003 are in each pack's `brief.json`,
-`README.md` and `captions.srt`; for A004–A008 they are the committed briefs the daily lane already
-builds from (`buildBriefFromApprovedProductionPack`). Nothing is restated here so the pack stays the
-single source.
+`README.md` and `captions.srt`; for A004–A008 they are the committed briefs the builder accepts
+(`buildBriefFromApprovedProductionPack`). Nothing is restated here so the pack stays the single
+source. **A004's pack left the daily rotation on 2026-10-08**: like every pack of the 2026-09-25
+imports, its beats are placeholders that name no object ("Extreme macro of the physical subject"),
+so the generator could not show the pads. A004 is made from its real capture or not at all, which
+its row already says.
+
+**A ninth, the cheapest real Reel to capture: A027, finding a slow leak with soapy water**
+(`2026-08-20-slow-leak-soap-test`, in the rotation, truth packet `puncture_repair`). The Car
+Forensics proof batch has five Reels; four are A003, A004, A005 and A007 here, and this is the fifth.
+Its evidence is one spray bottle on any tire that comes in low: soap film on the bead seat, the valve
+stem and the tread, bubbles growing at the leak (clip 2), the marked spot (clip 3), the plug-patch or
+the valve core that fixes it (clip 4/5). Its generated version stays in the rotation; a captured one
+replaces it when the operator admits real footage to publishing.
 
 ## What each Reel needs before it is a Reel (the gates, in the order they fire)
 

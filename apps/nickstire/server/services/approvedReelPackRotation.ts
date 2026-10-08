@@ -184,49 +184,14 @@ export const APPROVED_REEL_PACK_SLUGS = [
   "2026-09-07-auto-headlights-wont-turn-on-dusk",
   "2026-09-07-wheel-stud-snapped",
 
-  // -- Approved 2026-09-25: operator-requested evening-batch import ----------
-  // 33 concepts reconciled against the live rotation: 23 distinct lessons
-  // appended below; 10 semantic duplicates are mapped in the import manifest.
-  // APPEND ONLY: reel_approved_pack_rotation_index is an array index.
-  "2026-09-25-oil-overfill-not-extra-protection",
-  "2026-09-25-ev-regen-brake-corrosion",
-  "2026-09-25-alignment-green-loose-parts",
-  "2026-09-25-balancer-zero-still-vibrates",
-  "2026-09-25-ohio-used-tire-whole-inspection",
-  "2026-09-25-impact-gun-vs-torque-wrench",
-  "2026-09-25-xl-means-extra-load",
-  "2026-09-25-oil-pressure-vs-oil-life",
-  "2026-09-25-rotor-surface-rust-overnight",
-  "2026-09-25-coolant-level-vs-freeze-protection",
-  "2026-09-25-starting-circuit-voltage-drop",
-  "2026-09-25-puncture-repair-zone",
-  "2026-09-25-two-new-tires-rear-axle",
-  "2026-09-25-tpms-flash-vs-steady",
-  "2026-09-25-tire-age-dot-date-code",
-  "2026-09-25-sidewall-max-psi-vs-placard",
-  "2026-09-25-directional-tire-rotation-arrow",
-  "2026-09-25-run-flat-limited-mobility",
-  "2026-09-25-battery-light-charging-system",
-  "2026-09-25-inner-outer-brake-pad-wear",
-  "2026-09-25-driven-flat-hidden-internal-damage",
-  "2026-09-25-epdm-belt-wear-no-cracks",
-  "2026-09-25-swollen-capped-lug-nuts",
-
-  // -- Approved 2026-09-25: midday-batch reconciliation after #2655 --------
-  // 27 source concepts reconciled against current main: 11 distinct lessons
-  // appended here; 16 are already covered by the existing/evening rotation.
-  // APPEND ONLY: reel_approved_pack_rotation_index is an array index.
-  "2026-09-06-nitrogen-vs-air-tire-fill",
-  "2026-08-27-foggy-windshield-recirculate-trick",
-  "2026-09-25-locking-lug-roadside-tool",
-  "2026-09-25-lug-nut-seat-shape-fit",
-  "2026-09-25-hidden-inner-lip-wheel-bend",
-  "2026-09-25-utqg-treadwear-not-mileage",
-  "2026-09-25-strut-misting-vs-leak",
-  "2026-09-25-run-flat-can-look-normal",
-  "2026-09-25-wheel-fitment-beyond-bolt-pattern",
-  "2026-09-25-sidewall-indent-vs-bulge",
-  "2026-09-25-ms-vs-3pmsf",
+  // -- 2026-09-25 imports (evening 23 + midday 11): OUT of the rotation ------
+  // Removed 2026-10-08. Every beat of all 34 packs is one of ten placeholder
+  // shots that name no object ("Extreme macro of the physical subject…"), so
+  // the generator could not show any of their topics. They are listed in
+  // ROTATION_EXCLUDED with what each needs. They were the TAIL of this array
+  // (indices 99-132) and the production cursor read 32 that day (Railway,
+  // "daily reel topic from approved pack selection", 10:02Z), so no index at or
+  // below the cursor moved. Re-admit by APPENDING at the end, never in place.
 ] as const;
 
 /**
@@ -245,6 +210,18 @@ const PROOF_PACK_EXCLUSION =
   "rotation on operator instruction once the six-shot set is captured AND a publishable route exists for " +
   "real footage and cards (the stock guard refuses every locally hosted clip; 09-90-DAY-MODEL.md decision).";
 
+const SUBJECT_FREE_IMPORT =
+  "2026-09-25 import: every beat is a placeholder that names no object (\"Extreme macro of the physical " +
+  "subject…\", \"…the relevant physical components…\"), so the generator was sent no subject and the clip " +
+  "could not show the topic (shared/shotRouter.isSubjectFreeVisual; the generator also refuses such beats).";
+const SUBJECT_FREE_REAL =
+  SUBJECT_FREE_IMPORT +
+  " The pack's own production note asks for real shop footage (its videoPrompt), so it waits for that " +
+  "capture (05-CAPTURE-CHECKLIST.md) and the operator's real-evidence publish decision.";
+const SUBJECT_FREE_NO_ROUTE =
+  SUBJECT_FREE_IMPORT +
+  " The pack names no route at all: write what the camera sees in each beat (operator-approved), or capture it.";
+
 export const ROTATION_EXCLUDED: Readonly<Record<string, string>> = {
   "2026-08-20-tire-sidewall-numbers":
     "Repost: on-screen text scores 1.00 against an already-published post. The originality gate " +
@@ -258,6 +235,40 @@ export const ROTATION_EXCLUDED: Readonly<Record<string, string>> = {
     " Also: it rests on the vibration truth packet (shared/mechanicalTruth.ts), which has no source and no " +
     "technician approval yet. It stays out until that packet is cited or technician-approved.",
   "2026-10-08-proof-03-patch-or-replace": PROOF_PACK_EXCLUSION,
+  "2026-09-25-oil-overfill-not-extra-protection": SUBJECT_FREE_REAL,
+  "2026-09-25-ev-regen-brake-corrosion": SUBJECT_FREE_REAL,
+  "2026-09-25-alignment-green-loose-parts": SUBJECT_FREE_REAL,
+  "2026-09-25-balancer-zero-still-vibrates": SUBJECT_FREE_REAL,
+  "2026-09-25-ohio-used-tire-whole-inspection": SUBJECT_FREE_REAL,
+  "2026-09-25-impact-gun-vs-torque-wrench": SUBJECT_FREE_REAL,
+  "2026-09-25-xl-means-extra-load": SUBJECT_FREE_REAL,
+  "2026-09-25-oil-pressure-vs-oil-life": SUBJECT_FREE_REAL,
+  "2026-09-25-rotor-surface-rust-overnight": SUBJECT_FREE_REAL,
+  "2026-09-25-coolant-level-vs-freeze-protection": SUBJECT_FREE_REAL,
+  "2026-09-25-starting-circuit-voltage-drop": SUBJECT_FREE_REAL,
+  "2026-09-25-puncture-repair-zone": SUBJECT_FREE_REAL,
+  "2026-09-25-two-new-tires-rear-axle": SUBJECT_FREE_REAL,
+  "2026-09-25-tpms-flash-vs-steady": SUBJECT_FREE_REAL,
+  "2026-09-25-tire-age-dot-date-code": SUBJECT_FREE_REAL,
+  "2026-09-25-sidewall-max-psi-vs-placard": SUBJECT_FREE_REAL,
+  "2026-09-25-directional-tire-rotation-arrow": SUBJECT_FREE_REAL,
+  "2026-09-25-battery-light-charging-system": SUBJECT_FREE_REAL,
+  "2026-09-25-inner-outer-brake-pad-wear": SUBJECT_FREE_REAL,
+  "2026-09-25-driven-flat-hidden-internal-damage": SUBJECT_FREE_REAL,
+  "2026-09-25-epdm-belt-wear-no-cracks": SUBJECT_FREE_REAL,
+  "2026-09-25-swollen-capped-lug-nuts": SUBJECT_FREE_REAL,
+  "2026-09-25-run-flat-limited-mobility": SUBJECT_FREE_NO_ROUTE,
+  "2026-09-06-nitrogen-vs-air-tire-fill": SUBJECT_FREE_NO_ROUTE,
+  "2026-08-27-foggy-windshield-recirculate-trick": SUBJECT_FREE_NO_ROUTE,
+  "2026-09-25-locking-lug-roadside-tool": SUBJECT_FREE_NO_ROUTE,
+  "2026-09-25-lug-nut-seat-shape-fit": SUBJECT_FREE_NO_ROUTE,
+  "2026-09-25-hidden-inner-lip-wheel-bend": SUBJECT_FREE_NO_ROUTE,
+  "2026-09-25-utqg-treadwear-not-mileage": SUBJECT_FREE_NO_ROUTE,
+  "2026-09-25-strut-misting-vs-leak": SUBJECT_FREE_NO_ROUTE,
+  "2026-09-25-run-flat-can-look-normal": SUBJECT_FREE_NO_ROUTE,
+  "2026-09-25-wheel-fitment-beyond-bolt-pattern": SUBJECT_FREE_NO_ROUTE,
+  "2026-09-25-sidewall-indent-vs-bulge": SUBJECT_FREE_NO_ROUTE,
+  "2026-09-25-ms-vs-3pmsf": SUBJECT_FREE_NO_ROUTE,
 };
 
 export interface ApprovedReelPack {

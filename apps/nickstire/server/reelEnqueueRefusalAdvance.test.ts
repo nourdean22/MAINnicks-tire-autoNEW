@@ -59,6 +59,43 @@ describe("the refusal is typed, so the caller can tell it from an outage", () =>
   });
 });
 
+describe("every content verdict inside enqueueReelJob is typed (2026-10-08)", () => {
+  // The catch above advances the rotation only for ReelPreflightBlockedError.
+  // Four content refusals in enqueueReelJob threw a bare Error — the condemned
+  // script, the declared-source / no-subject hold, the episode contract and the
+  // over-long caption — so an approved pack refused by any of them would have
+  // failed the cron every production hour without moving the cursor. Only an
+  // infrastructure fault may throw a bare Error here.
+  const INFRA_ONLY = ['"DB not available"', '"REEL_EPISODE_CONTRACT_INVALID: '];
+  const bareThrows = (src: string): string[] => {
+    const a = src.indexOf("export async function enqueueReelJob");
+    const b = src.indexOf("\nexport async function processNextReelJob", a);
+    expect(a, "enqueueReelJob not found").toBeGreaterThan(-1);
+    expect(b, "enqueueReelJob end not found").toBeGreaterThan(a);
+    const body = src.slice(a, b);
+    return [...body.matchAll(/throw new Error\(\s*([^\n]{0,60})/g)].map((m) => m[1]);
+  };
+  const isInfra = (arg: string) => INFRA_ONLY.some((p) => arg.startsWith(p));
+
+  it("only infrastructure faults throw a bare Error", () => {
+    const bare = bareThrows(PIPELINE);
+    expect(bare.length, "the scan found no throw at all — anchor moved").toBeGreaterThan(0);
+    expect(bare.filter((arg) => !isInfra(arg))).toEqual([]);
+    for (const reason of ["REEL_SCRIPT_CONDEMNED", "generationHoldReason(blocked, \"enqueue\")", "Episode contract blocked", "over Instagram's"]) {
+      expect(PIPELINE, reason).toContain(reason);
+    }
+  });
+
+  it("CONTROL: a content refusal written as a bare Error is caught by the scan", () => {
+    const planted = PIPELINE.replace(
+      "throw new ReelPreflightBlockedError([generationHoldReason(blocked, \"enqueue\")]);",
+      "throw new Error(generationHoldReason(blocked, \"enqueue\"));",
+    );
+    expect(planted).not.toBe(PIPELINE);
+    expect(bareThrows(planted).filter((arg) => !isInfra(arg))).toEqual(['generationHoldReason(blocked, "enqueue"));']);
+  });
+});
+
 describe("an approved pack refused at enqueue advances the rotation", () => {
   it("catches the refusal and moves the cursor past that pack", () => {
     const b = enqueueBlock();

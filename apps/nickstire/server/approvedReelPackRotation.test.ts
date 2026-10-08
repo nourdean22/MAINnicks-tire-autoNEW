@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   APPROVED_REEL_PACKS,
   APPROVED_REEL_PACK_SLUGS,
+  ROTATION_EXCLUDED,
   approvedReelPackAt,
   approvedReelPackAtFromPool,
   buildBriefFromApprovedProductionPack,
@@ -15,7 +16,9 @@ import {
   writeActiveReelSlate,
 } from "./services/approvedReelPackRotation";
 import { askLeakageProblem, askProblem, askSignals, type ReelAsk } from "../shared/reelAsk";
-import { beatsTheGeneratorMustNotRender, declaredBeatSource } from "../shared/shotRouter";
+import { readdirSync } from "node:fs";
+import path from "node:path";
+import { beatsTheGeneratorMustNotRender, declaredBeatSource, generationHoldReason } from "../shared/shotRouter";
 
 describe("approved Reel-pack rotation", () => {
   it("contains every explicitly approved pack exactly once", () => {
@@ -280,8 +283,39 @@ describe("proof packs and the declared beat source", () => {
       if (!brief) continue; // packs the builder rejects are covered by reelPackRotationCoverage.test.ts
       for (const b of beatsTheGeneratorMustNotRender(brief.storyboardBeats as Array<{ beatNumber: number; visual: string }>, [])) held.push(`${slug} beat ${b.beatNumber}`);
     }
-    expect(APPROVED_REEL_PACK_SLUGS.length).toBeGreaterThan(100);
+    expect(APPROVED_REEL_PACK_SLUGS.length).toBeGreaterThan(90);
     expect(held).toEqual([]);
+  });
+
+  it("every pack on disk whose beats name no object is OUT of the rotation with a reason, and the generator holds each such beat", () => {
+    // 2026-10-08: the two 2026-09-25 imports wrote ten placeholder shots
+    // ("Extreme macro of the physical subject…") into 34 packs, all of them in
+    // the rotation. The generator sent them verbatim, so none of those Reels
+    // could show its topic. Scanned over EVERY pack directory, not the list,
+    // so a future import with the same template cannot slip back in.
+    const dir = path.join(__dirname, "..", "docs", "reel-packs");
+    const subjectFree: string[] = [];
+    let scannedBeats = 0;
+    for (const slug of readdirSync(dir)) {
+      const snapshot = loadApprovedProductionPack(slug);
+      const brief = snapshot ? build(slug, snapshot) : null;
+      if (!brief) continue;
+      const beats = brief.storyboardBeats as Array<{ beatNumber: number; visual: string }>;
+      scannedBeats += beats.length;
+      const held = beatsTheGeneratorMustNotRender(beats, []);
+      const blank = held.filter((b) => b.route === "needs_subject");
+      if (!blank.length) continue;
+      subjectFree.push(slug);
+      // A partial placeholder would be a different defect; the imports were whole-pack templates.
+      expect(blank.map((b) => b.beatNumber), slug).toEqual(beats.map((b) => b.beatNumber));
+      expect(generationHoldReason(held, "enqueue"), slug).toMatch(/placeholders? that names? no object/);
+    }
+    // The instrument read the whole library, and found the defect it was written for.
+    expect(scannedBeats).toBeGreaterThan(600);
+    expect(subjectFree).toHaveLength(34);
+    const inRotation = subjectFree.filter((slug) => (APPROVED_REEL_PACK_SLUGS as readonly string[]).includes(slug));
+    expect(inRotation, "a subject-free pack is in the daily rotation").toEqual([]);
+    for (const slug of subjectFree) expect(ROTATION_EXCLUDED[slug], slug).toMatch(/names no object/);
   });
 
   it("each proof pack declares one ask, and its caption, beats and voiceover ask for nothing else", () => {

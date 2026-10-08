@@ -2249,3 +2249,27 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - A hook-grammar measurement over the rotation returned `unknown` for 133 of 133 packs: it read `brief.storyboardBeats`
   from a pack object that has only `slug` and `topic`. Re-run through `buildBriefFromApprovedProductionPack` with a
   positive control (`built > 100`): 119 of 133 hooks are direct statements, longest run 26.
+
+## 2026-10-08 (late) · after #2934: subject-free packs out of the rotation, typed enqueue refusals
+
+### P1 · `nickstire-reel-operator` — an imported pack must name what the camera sees in every beat
+- **Trigger (witnessed):** both 2026-09-25 imports (34 packs, 26% of the rotation) filled every beat with one of two
+  five-shot templates ("Extreme macro of the physical subject…", "unbranded automotive component macro…"). Each pack's
+  real subject sat in `videoPrompt`, which the generator never reads, so the provider prompt for an XL-load-rating Reel
+  named no tire. The 31-day review saw "17 of 62 share one placeholder description" and the earlier P3 saw "real footage
+  in prose"; neither read the prompt the generator actually builds (`buildHiggsfieldReelPromptPack`), which is where
+  the defect showed in one line.
+- **Proposed edit:** "Before admitting packs, print beat 1's provider prompt for each and read its `Subject:` line. A
+  subject a viewer could not name is not a shot. `beatGenerationRoute` now holds such beats (`needs_subject`)."
+- **Confidence:** high (34 of 34, measured)
+- **Status:** proposed
+
+### P2 · `nickstire-verify` — a refusal the caller cannot type is a jam
+- **Trigger (witnessed):** four content refusals in `enqueueReelJob` threw a bare `Error`; `dailyReelPost` advances the
+  rotation only on `ReelPreflightBlockedError`, and the lane enqueues only at the production hour, so an approved pack
+  refused by any of them would have cost every following day's Reel. One of the four was this branch's own gate
+  (#2933), whose test pinned the bare throw. `reelEnqueueRefusalAdvance.test.ts` now fails on any new one.
+- **Proposed edit:** "When adding a refusal on a path a scheduler calls, find the caller's catch and throw what it
+  types. A test that pins the throw's text pins the bug with it."
+- **Confidence:** high (4 sites)
+- **Status:** proposed
