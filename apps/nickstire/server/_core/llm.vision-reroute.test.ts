@@ -38,12 +38,12 @@ const IMG_MESSAGES: Message[] = [{
   ],
 }];
 
-type Call = { url: string; auth: string | undefined; model: unknown };
+type Call = { url: string; auth: string | undefined; model: unknown; body: Record<string, unknown> };
 function stubFetch(responses: Array<{ status: number; body: string }>): Call[] {
   const calls: Call[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
     const parsed = JSON.parse(String(init.body));
-    calls.push({ url: String(url), auth: (init.headers as Record<string, string>).authorization, model: parsed.model });
+    calls.push({ url: String(url), auth: (init.headers as Record<string, string>).authorization, model: parsed.model, body: parsed });
     const r = responses[Math.min(calls.length - 1, responses.length - 1)];
     return new Response(r.body, { status: r.status });
   }));
@@ -111,6 +111,13 @@ describe("vision reroute off the ollama lane", () => {
     expect(calls[0].url).toContain("ollama.com");
   });
 
+  it("CONTROL: without reasoningEffort the rerouted body carries no reasoning_effort (byte-identical to before)", async () => {
+    armForceOllama();
+    const calls = stubFetch([{ status: 200, body: OK }]);
+    await invokeLLM({ messages: IMG_MESSAGES });
+    expect(calls[0].body).not.toHaveProperty("reasoning_effort");
+  });
+
   it("a failed rerouted call throws plainly — it is never bounced back through the 403-subscription fallback", async () => {
     armForceOllama();
     const calls = stubFetch([
@@ -120,5 +127,55 @@ describe("vision reroute off the ollama lane", () => {
     await expect(invokeLLM({ messages: IMG_MESSAGES })).rejects.toThrow(/LLM invoke failed: 403/);
     expect(calls).toHaveLength(1); // one Gemini call, no second hop
     expect(calls[0].url).toContain("generativelanguage.googleapis.com");
+  });
+});
+
+// 2026-10-08 15:31Z: the rendered-QA critic's 4096 budget came back
+// finish_reason=length after 573 visible characters — Gemini 2.5 spends its
+// thinking out of max_tokens. reasoning_effort bounds that thinking, and it is
+// Google's field: it must reach Google's endpoint and nothing else.
+describe("reasoning_effort rides only a request that goes to Google's endpoint", () => {
+  it("the vision reroute carries it", async () => {
+    armForceOllama();
+    const calls = stubFetch([{ status: 200, body: OK }]);
+    await invokeLLM({ messages: IMG_MESSAGES, reasoningEffort: "medium" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toContain("generativelanguage.googleapis.com");
+    expect(calls[0].body.reasoning_effort).toBe("medium");
+  });
+
+  it("a text call on the Ollama lane never carries it, even when the caller asked", async () => {
+    armForceOllama();
+    const calls = stubFetch([{ status: 200, body: OK }]);
+    await invokeLLM({ messages: [{ role: "user", content: "hi" }], reasoningEffort: "medium" });
+    expect(calls[0].url).toContain("ollama.com");
+    expect(calls[0].body).not.toHaveProperty("reasoning_effort");
+  });
+
+  it("the 403-quota fallback to Gemini carries it; the refused Ollama attempt did not", async () => {
+    armForceOllama();
+    const calls = stubFetch([
+      { status: 403, body: JSON.stringify({ error: { message: "this model requires a subscription" } }) },
+      { status: 200, body: OK },
+    ]);
+    await invokeLLM({ messages: [{ role: "user", content: "hi" }], reasoningEffort: "low" });
+    expect(calls).toHaveLength(2);
+    expect(calls[0].body).not.toHaveProperty("reasoning_effort");
+    expect(calls[1].url).toContain("generativelanguage.googleapis.com");
+    expect(calls[1].body.reasoning_effort).toBe("low");
+  });
+
+  it("a direct gemini-* model carries it; a direct OpenAI model never does", async () => {
+    delete process.env.AI_FORCE_OLLAMA;
+    delete process.env.AI_FORCE_GEMINI;
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    process.env.OPENAI_API_KEY = "test-openai-key";
+    const calls = stubFetch([{ status: 200, body: OK }]);
+    await invokeLLM({ model: "gemini-2.5-flash", messages: [{ role: "user", content: "hi" }], reasoningEffort: "high" });
+    await invokeLLM({ model: "gpt-4o", messages: [{ role: "user", content: "hi" }], reasoningEffort: "high" });
+    expect(calls[0].url).toContain("generativelanguage.googleapis.com");
+    expect(calls[0].body.reasoning_effort).toBe("high");
+    expect(calls[1].url).toContain("api.openai.com");
+    expect(calls[1].body).not.toHaveProperty("reasoning_effort");
   });
 });

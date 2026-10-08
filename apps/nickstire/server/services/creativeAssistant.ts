@@ -20,6 +20,7 @@
 import { createLogger } from "../lib/logger";
 import { DECISION_LOOKS, type ExperimentPresetId } from "../../shared/contentExperiments";
 import { MIN_PER_SIDE, measureFindingCosts, type QaOutcomeRow } from "../../shared/renderedQaOutcomes";
+import { angleBankLine, type AngleBankStatus } from "../../shared/angleBank";
 import type { RecentReelSignals } from "./reelRepetitionHistory";
 
 const log = createLogger("services:creative-assistant");
@@ -127,6 +128,8 @@ export interface GatheredInputs {
   /** Posted Reels with a completed critic verdict, joined to their latest skip rate (shared/renderedQaOutcomes.ts). */
   qaOutcomes: ReadResult<QaOutcomeRow[]>;
   realEvidence: ReadResult<RealEvidenceInputs>;
+  /** The Reels Engine v2 inventory (docs/reels-engine-v2/angle-bank.json) against the packs on disk, the daily rotation and what has published. */
+  angleBank: ReadResult<AngleBankStatus>;
 }
 
 export interface AssistantReaders {
@@ -139,6 +142,7 @@ export interface AssistantReaders {
   weather(): Promise<string[]>;
   qaOutcomes(): Promise<QaOutcomeRow[]>;
   realEvidence(): Promise<RealEvidenceInputs>;
+  angleBank(): Promise<AngleBankStatus>;
 }
 
 async function read<T>(name: string, fn: () => Promise<T>): Promise<ReadResult<T>> {
@@ -329,6 +333,11 @@ export function composeCreativeCards(g: GatheredInputs, now: Date = new Date()):
   inputs.qaOutcomes = g.qaOutcomes.ok ? g.qaOutcomes.value.filter((r) => r.skipRate != null).length : `error: ${g.qaOutcomes.error}`;
   const evidenceLine = g.realEvidence.ok ? realEvidenceLine(g.realEvidence.value) : null;
   inputs.realEvidence = evidenceLine ?? `error: ${(g.realEvidence as { error: string }).error}`;
+  // The inventory's state is a provenance line, not a card: "<N> production-ready
+  // angles of <M>: <x> with a pack, <y> in rotation, <z> published; awaiting
+  // rotation approval: …". A zero is printed as a zero; an unreadable bank or
+  // rotation is an error input (UNKNOWN), never a quiet "all in rotation".
+  inputs.angleBank = g.angleBank.ok ? angleBankLine(g.angleBank.value) : `error: ${g.angleBank.error}`;
 
   // ── 1. opportunity ──
   let opportunity: { topic: string; assetMatched: boolean } | null = null;
@@ -410,7 +419,11 @@ export function composeCreativeCards(g: GatheredInputs, now: Date = new Date()):
         ],
         confidence: g.realAssets.value.count === 0 ? "high" : "medium",
         confidenceReason: g.realAssets.value.count === 0 ? "the pool is empty — nothing real can be reused" : "no word match in the pool; a near match may exist under another name",
-        firstAction: `Capture 3 photos of ${opportunity.topic} on the next job (phone, landscape + vertical)`,
+        // The six-shot set from docs/reels-engine-v2/05-CAPTURE-CHECKLIST.md. The
+        // pool the lane reads is image-only (listReusableRealShopMedia filters
+        // image/%), so a still of each shot is what unblocks a Reel today; the
+        // clip is for the lanes that come after the production proof.
+        firstAction: `Shoot the six-shot set for ${opportunity.topic} on the next job — context, defect macro, measurement, hands on the part, corrected part, matched final (vertical; a still of each, plus a 5–8 s clip when easy)`,
         topic: opportunity.topic,
       });
     }
@@ -655,7 +668,7 @@ const defaultReaders: AssistantReaders = {
       return [{
         title: `Capture: ${subject}`,
         why: [...(typeof c.forTopic === "string" ? [`needed for "${c.forTopic}"`] : []), ...why],
-        firstAction: `Shoot ${subject} on the next matching job (phone, landscape + vertical)`,
+        firstAction: `Shoot the six-shot set for ${subject} on the next matching job — context, defect macro, measurement, hands on the part, corrected part, matched final (vertical; a still of each, plus a 5–8 s clip when easy)`,
       }];
     });
     return { count: assets.length, assets, captures };
@@ -743,6 +756,38 @@ const defaultReaders: AssistantReaders = {
     }
     return { windowDays, published: reels.length + photos.length, withReal };
   },
+  async angleBank() {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const { resolvePacksDir } = await import("./reelPackRegistry");
+    const { APPROVED_REEL_PACK_SLUGS, packBuildsForLane } = await import("./approvedReelPackRotation");
+    const { PRODUCTION_READY_COUNT, angleBankStatus, parseAngleBank } = await import("../../shared/angleBank");
+    const packsDir = resolvePacksDir();
+    if (!packsDir) throw new Error("no reel-packs directory in this process");
+    // The bank lives beside the packs it indexes; a missing or malformed file
+    // throws (parseAngleBank names the first defect) and becomes an error input.
+    const bank = parseAngleBank(JSON.parse(fs.readFileSync(path.join(packsDir, "..", "reels-engine-v2", "angle-bank.json"), "utf8")));
+    // Usable = the production builder accepts it (the lane's own instrument);
+    // a missing or rejected pack is reported by angleBankStatus as BROKEN, not thrown.
+    const buildablePacks = new Set<string>();
+    for (const a of bank.angles.slice(0, PRODUCTION_READY_COUNT)) {
+      if (a.packSlug && packBuildsForLane(a.packSlug)) buildablePacks.add(a.packSlug);
+    }
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) throw new Error("no database");
+    const { reelJobs } = await import("../../drizzle/schema");
+    const { desc, eq } = await import("drizzle-orm");
+    const { parseReelJobPayload } = await import("../../shared/reelJobPayload");
+    const posted = await d.select({ payload: reelJobs.payload }).from(reelJobs)
+      .where(eq(reelJobs.status, "posted")).orderBy(desc(reelJobs.updatedAt)).limit(500);
+    const publishedPackSlugs = new Set<string>();
+    for (const r of posted as Array<{ payload: string | null }>) {
+      const slug = parseReelJobPayload(r.payload).approvedPackSlug;
+      if (typeof slug === "string" && slug) publishedPackSlugs.add(slug);
+    }
+    return angleBankStatus(bank, { buildablePacks, rotation: new Set<string>(APPROVED_REEL_PACK_SLUGS), publishedPackSlugs });
+  },
   async qaOutcomes() {
     const { getDb } = await import("../db");
     const d = await getDb();
@@ -793,7 +838,7 @@ const defaultReaders: AssistantReaders = {
 };
 
 async function gatherCreativeInputs(readers: AssistantReaders = defaultReaders): Promise<GatheredInputs> {
-  const [topicSignals, ledger, posts, realAssets, experiments, articles, weather, qaOutcomes, realEvidence] = await Promise.all([
+  const [topicSignals, ledger, posts, realAssets, experiments, articles, weather, qaOutcomes, realEvidence, angleBank] = await Promise.all([
     read("topicSignals", readers.topicSignals),
     read("ledger", readers.ledger),
     read("posts", readers.posts),
@@ -803,8 +848,9 @@ async function gatherCreativeInputs(readers: AssistantReaders = defaultReaders):
     read("weather", readers.weather),
     read("qaOutcomes", readers.qaOutcomes),
     read("realEvidence", readers.realEvidence),
+    read("angleBank", readers.angleBank),
   ]);
-  return { topicSignals, ledger, posts, realAssets, experiments, articles, weather, qaOutcomes, realEvidence };
+  return { topicSignals, ledger, posts, realAssets, experiments, articles, weather, qaOutcomes, realEvidence, angleBank };
 }
 
 /** The router's entry point: gather every source, then rank. */

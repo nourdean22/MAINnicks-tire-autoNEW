@@ -236,10 +236,20 @@ export const APPROVED_REEL_PACK_SLUGS = [
  * `buildBriefFromApprovedProductionPack` and appears in neither list — which is
  * how 67 usable packs sat unreachable while new ones kept being written.
  */
+const PROOF_PACK_EXCLUSION =
+  "Reels Engine v2 proof pack (docs/reels-engine-v2/08-PILOT.md): every evidence beat is declared REAL " +
+  "and the real-shop pool does not hold its shots yet. In the rotation today the lane would GENERATE a " +
+  "beat the brief declares real — a synthetic shot documenting real work. Enters the rotation on " +
+  "operator instruction once the six-shot set is captured and the provider pick honours " +
+  "StoryboardBeat.source (02-PRODUCTION-DOCTRINE.md §8 item 6).";
+
 export const ROTATION_EXCLUDED: Readonly<Record<string, string>> = {
   "2026-08-20-tire-sidewall-numbers":
     "Repost: on-screen text scores 1.00 against an already-published post. The originality gate " +
     "would refuse it at the publish door anyway; keeping it out of the rotation saves the render.",
+  "2026-10-08-proof-01-uneven-wear": PROOF_PACK_EXCLUSION,
+  "2026-10-08-proof-02-highway-shake": PROOF_PACK_EXCLUSION,
+  "2026-10-08-proof-03-patch-or-replace": PROOF_PACK_EXCLUSION,
 };
 
 export interface ApprovedReelPack {
@@ -923,4 +933,17 @@ export function buildApprovedPackBriefForTest(slug: string): Record<string, unkn
   const snapshot = loadApprovedProductionPack(slug);
   if (!snapshot) return null;
   return buildBriefFromApprovedProductionPack({ slug: slug as ApprovedReelPack["slug"], topic: "" }, snapshot, "coverage-probe");
+}
+
+/**
+ * "Does the production builder accept this pack?" — the lane's own definition
+ * of a usable pack, for readers that grade inventory (the angle bank's status
+ * line). Beats counted on disk are the weaker instrument: on 2026-10-08 a
+ * beat-count draft condemned 2026-08-18-power-steering-whine (0 beats under the
+ * two common keys, accepted here) and passed 16 packs this rejects.
+ */
+export function packBuildsForLane(slug: string): boolean {
+  const snapshot = loadApprovedProductionPack(slug);
+  if (!snapshot) return false;
+  return buildBriefFromApprovedProductionPack({ slug: slug as ApprovedReelPack["slug"], topic: "" }, snapshot, "angle-bank") !== null;
 }

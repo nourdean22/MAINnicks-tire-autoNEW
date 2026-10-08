@@ -509,6 +509,56 @@ describe("runReelPreflight", () => {
     expect(r.status).toBe("block");
     expect(r.blocking.some((f) => f.category === "structural")).toBe(true);
   });
+
+  // Editorial contract + shot router (2026-10-08): both WARN, so the lane keeps
+  // rendering; the point is that the storyboard is read BEFORE any spend. The
+  // control proves the wiring is silent on a brief that follows the contract
+  // and declares no source — the 196 committed packs predate the field.
+  describe("editorial contract + shot router wiring", () => {
+    const editorial = (r: ReturnType<typeof runReelPreflight>) =>
+      r.findings.filter((f) => /frame one|one idea per card|one CTA|end card held/.test(f.message));
+    const routed = (r: ReturnType<typeof runReelPreflight>) => r.findings.filter((f) => /declared (?:ai_illustrative|real)/.test(f.message));
+
+    it("CONTROL: the sample brief raises neither an editorial nor a route finding", () => {
+      const r = runReelPreflight(sample());
+      expect(editorial(r)).toEqual([]);
+      expect(routed(r)).toEqual([]);
+    });
+
+    it("a generic opening frame is a structural WARN that names frame one, and still passes", () => {
+      const b = structuredClone(sample());
+      b.storyboardBeats[0].visual = "generic moving car on a highway at dusk";
+      const r = runReelPreflight(b);
+      const f = editorial(r);
+      expect(f).toHaveLength(1);
+      expect(f[0]).toMatchObject({ category: "structural", severity: "warn" });
+      expect(f[0].message).toMatch(/^beat 1: opens on generic footage/);
+      expect(r.status).toBe("pass");
+    });
+
+    it("a call to action before the last beat is a structural WARN", () => {
+      const b = structuredClone(sample());
+      b.storyboardBeats[1].onScreenText = "BOOK AN INSPECTION TODAY";
+      const r = runReelPreflight(b);
+      expect(editorial(r).map((f) => f.message)).toEqual([
+        expect.stringMatching(/^beat 2: a call to action before the last beat/),
+      ]);
+    });
+
+    it("a beat declared ai_illustrative that describes a measurement is a production WARN; the same beat declared real is not", () => {
+      const b = structuredClone(sample());
+      b.storyboardBeats[1].visual = "the measurement on the rotor face, shown as an illustration";
+      b.storyboardBeats[1].source = "ai_illustrative";
+      const r = runReelPreflight(b);
+      const f = routed(r);
+      expect(f).toHaveLength(1);
+      expect(f[0]).toMatchObject({ category: "production", severity: "warn" });
+      expect(f[0].message).toMatch(/^beat 2: declared ai_illustrative but describes real work/);
+
+      b.storyboardBeats[1].source = "real";
+      expect(routed(runReelPreflight(b))).toEqual([]);
+    });
+  });
 });
 
 describe("conditioning-aware compiler", () => {

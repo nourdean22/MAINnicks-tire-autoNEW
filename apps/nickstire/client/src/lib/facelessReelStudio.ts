@@ -26,6 +26,8 @@ import {
   type DuaFinding,
 } from "@shared/dua";
 import { askLeakageProblem } from "@shared/reelAsk";
+import { checkEditorialContract } from "@shared/editorialContract";
+import { shotRouteProblems, type ShotSource } from "@shared/shotRouter";
 import { classifyHookGrammar, saturatedHookGrammar } from "@shared/reelHookGrammar";
 import { BUSINESS } from "@shared/business";
 
@@ -457,6 +459,16 @@ export interface StoryboardBeat {
   purpose: string; // why this beat exists
   audioCue: string; // sfx/music direction (works muted regardless)
   safeZoneNotes: string; // IG UI safe-zone guidance
+  /**
+   * The source this beat is produced from (shot router, 2026-10-08): real
+   * footage, a deterministic card/diagram, an approved still with motion, or
+   * an AI shot labelled illustrative. Optional — the 196 committed packs
+   * predate it, and the proof packs declare it in the leading REAL /
+   * DETERMINISTIC tag of `visual` as well. Preflight only checks that a
+   * declared source does not contradict what the beat claims to show; the
+   * provider pick does not honour it yet (doctrine §8).
+   */
+  source?: ShotSource;
   /** Higgsfield API request already submitted; resume polling after ambiguity. */
   higgsfieldRequestId?: string;
 }
@@ -1397,6 +1409,13 @@ export function runReelPreflight(brief: ReelBrief): PreflightReport {
   const readability = validateOnScreenReadability(brief.storyboardBeats);
   for (const m of readability.blocking) push("structural", "block", m);
   for (const m of readability.warnings) push("structural", "warn", m);
+  // Editorial contract (2026-10-08): frame one carries the subject (never a
+  // logo, plate or generic car), one idea per card, one CTA and it comes last,
+  // an end card never outstays two seconds. WARN, not block: these are the
+  // rules an editor executes, and a pack that opens on a logo still renders —
+  // the Studio says why it should not, before anything is bought. The $0
+  // storyboard is the only place they can be read; the renderer sees pixels.
+  for (const f of checkEditorialContract(brief.storyboardBeats ?? [])) push("structural", "warn", f.message);
   // Keyword FORMAT is a caption/CTA concern, not a render-blocking defect — a
   // warning, not a pre-spend block (it never garbles the generated video).
   const kw = validateCampaignKeyword(brief.campaignKeyword);
@@ -1490,6 +1509,14 @@ export function runReelPreflight(brief: ReelBrief): PreflightReport {
   for (const p of buildHiggsfieldReelPromptPack(brief)) {
     if (p.sceneStatus === "corrected") push("production", "warn", `beat ${p.beatNumber}: provider scene auto-corrected (${(p.sceneFindings ?? []).join("; ")})`);
   }
+
+  // Production: a beat whose DECLARED source contradicts what it claims to show
+  // (an "AI illustrative" beat describing a measurement or repair; a "real"
+  // beat asking for a generated shot). Silent for beats that declare nothing —
+  // the committed packs predate the field, and a warning on every one of them
+  // would be noise, not a guard. WARN: the provider pick does not read
+  // `source` yet, so nothing downstream would act on a block (doctrine §8).
+  for (const m of shotRouteProblems(brief.storyboardBeats ?? [])) push("production", "warn", m);
 
   // Truth: Delightfully Useful Absurdity. Every brief here carries an absurd
   // frame (`usefulAbsurdity`) and until now nothing checked that the frame

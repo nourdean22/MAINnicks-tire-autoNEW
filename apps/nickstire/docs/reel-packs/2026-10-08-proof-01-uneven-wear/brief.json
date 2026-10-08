@@ -1,0 +1,79 @@
+{
+  "id": "proof-01-uneven-wear",
+  "family": "evidence_diagnosis",
+  "objective": "Prove macro evidence, deterministic overlays and accurate education from real footage plus graphics; no generated vehicle parts.",
+  "campaignKeyword": "TREAD",
+  "mechanicTruth": "Uneven wear can point to alignment, inflation, worn suspension parts or skipped rotations; an inspection tells which. A tire worn on one edge is evidence that something changed how it meets the road, not a diagnosis by itself.",
+  "loopIdea": "The closing beat settles back on the same macro of the worn edge under the same inspection light, so the loop restarts on the evidence the hook opened with.",
+  "selectedCaption": "One edge of this tire wore smooth. That is the tire telling on something: alignment, pressure, a worn part or skipped rotations. A 10-minute inspection says which. Comment TREAD or book an inspection — Nick's Tire & Auto, Euclid Ave, Cleveland.",
+  "hashtags": [
+    "#ClevelandAuto",
+    "#TireWear",
+    "#WheelAlignment",
+    "#NicksTireAndAuto",
+    "#EuclidAve"
+  ],
+  "voiceoverScript": "One edge of this tire wore smooth. A tread gauge shows the difference. Uneven wear can point to alignment, pressure, a worn part, or skipped rotations. The tire shows the pattern; the inspection says which. One edge worn? Get it checked.",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "hook: the evidence on frame one, no logo, no generic car",
+      "visual": "REAL macro of a tire tread, inspection light raking across it, the inner edge worn smooth while the outer blocks still stand tall",
+      "motion": "slow lateral track across the tread face, left to right, following the light",
+      "onScreenText": "ONE EDGE WORN SMOOTH. WHY?",
+      "narration": "One edge of this tire wore smooth.",
+      "audioCue": "inspection-light switch click, shop room tone; VO starts at 0.4s",
+      "safeZoneNotes": "hook caption centred; keep the worn edge inside the central 60% of the frame so the IG UI never covers it"
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "measurement: a tread gauge makes the difference a number",
+      "visual": "REAL close-up: a tread depth gauge pressed into the worn inner groove, then into a healthy outer groove, both readings legible",
+      "motion": "static camera, the gauge moves; a 0.5s hold on each reading",
+      "onScreenText": "INNER 3/32. OUTER 7/32.",
+      "narration": "A tread gauge shows the difference.",
+      "audioCue": "gauge click on each reading",
+      "safeZoneNotes": "readings sit in the centre band; caption below the gauge, above the bottom 35% reserve"
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "explanation: deterministic top-down tire diagram, four possible causes, no single verdict",
+      "visual": "DETERMINISTIC card: top-down tire outline, the inner edge shaded, four labels fanning out: alignment, pressure, worn part, rotations",
+      "motion": "labels appear one per 0.6s; no camera move",
+      "onScreenText": "FOUR THINGS CAN DO THIS",
+      "narration": "Uneven wear can point to alignment, pressure, a worn part, or skipped rotations.",
+      "audioCue": "soft tick per label; music bed low",
+      "safeZoneNotes": "diagram occupies the central 50% height; labels never enter the outer 6%"
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "what inspection determines: the alignment screen or a technician hand on the suspension, honest uncertainty kept",
+      "visual": "REAL: alignment rack screen with live readings, or a technician's gloved hand checking a tie rod end on the lift (whichever the shop can capture)",
+      "motion": "slow push-in on the screen or the hand",
+      "onScreenText": "THE INSPECTION SAYS WHICH",
+      "narration": "The tire shows the pattern; the inspection says which.",
+      "audioCue": "ratchet click, room tone",
+      "safeZoneNotes": "no customer plate, VIN or paperwork in frame"
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "CTA: one action, restrained; loop back to the hook macro",
+      "visual": "REAL: the same worn-edge macro from beat 1 under the same light, then the shop exterior or bay door for the last second",
+      "motion": "hold on the macro, cut to a static exterior",
+      "onScreenText": "ONE EDGE WORN? GET IT CHECKED",
+      "narration": "One edge worn? Get it checked.",
+      "audioCue": "music bed resolves; VO ends by 19.5s",
+      "safeZoneNotes": "CTA caption centred; logo and address only on the end card, never a standalone opening"
+    }
+  ]
+}

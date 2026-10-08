@@ -6010,6 +6010,16 @@
       "file": "apps/nickstire/server/services/cameraHealthAlerts.ts",
       "symbol": "recordDerivedHealthTransition",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The health timeline's second writer (camera audit N6): compares the state the 5-minute pass derived with the last camera_health_events row and writes one transition when they differ, skips a missing table once, and propagates any other failure. cameraHealthAlerts.test.ts imports it to drive those four branches against a fake db, because the only other route to it is runCameraHealthAlerts' live camera_runtime read. Its runtime consumer is runCameraHealthAlerts in the same module (called before each camera's page), so the writer is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/shared/shotRouter.ts",
+      "symbol": "declaredBeatSource",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The explicit source a brief declares for a beat (the `source` field, else the leading REAL / DETERMINISTIC / STILL / AI tag the proof packs write at the start of `visual`; never a guess from prose). shotRouter.test.ts imports it to pin each tag spelling and the 'unspecified' default, which shotRouteProblems only exposes indirectly (it is silent on undeclared beats by design). Its runtime consumer is shotRouteProblems in the same module, reached by runReelPreflight in client/src/lib/facelessReelStudio.ts on every brief, so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/shared/shotRouter.ts",
+      "symbol": "routeShot",
+      "reason": "DOCTRINE TABLE WITH NO RUNTIME CONSUMER YET — stated, not laundered. The production audit's seven-step shot router as a pure decision table (facts in, route + deciding step out); shotRouter.test.ts pins the order (real > deterministic > approved still > do-not-generate > reuse > ai_illustrative > delete). Its intended consumer is the provider pick honouring StoryboardBeat.source, a change to a live workflow presented for operator sign-off in docs/reels-engine-v2/02-PRODUCTION-DOCTRINE.md §8 and deliberately NOT made in the same PR. Until that lands this export is a documented, test-pinned contract and nothing else; if the design item is dropped, delete the export rather than keep this entry."
     }
   ]
 }
