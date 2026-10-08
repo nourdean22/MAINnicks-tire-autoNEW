@@ -12,6 +12,7 @@
  * status `assets_ready`. Voiceover (ElevenLabs), ffmpeg assembly, and the
  * gated publish (publishToSocial / REEL_PUBLISH_ENABLED) are later stages.
  */
+import type { ClipProbe } from "../../shared/clipDrift";
 import { createLogger } from "../lib/logger";
 import type { ReelAssemblyBrief } from "./reelAssembly";
 import type { CtaType } from "../../shared/instagramStudio";
@@ -1533,9 +1534,14 @@ export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
     assertDurableStorageForGeneration(`reel job ${job.id} assembly`);
 
     const { assembleReel } = await import("./reelAssembly");
-    const { mp4Url, durationSec } = await assembleReel(brief, clipUrls, job.id);
+    const { mp4Url, durationSec, clipProbes } = await assembleReel(brief, clipUrls, job.id);
 
     await d.update(reelJobs).set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), mp4Url, error: null, productionReadyAt: new Date() }).where(eq(reelJobs.id, job.id));
+    // Provider drift evidence (shared/clipDrift.ts): each clip's probed shape,
+    // labelled with the provider that rendered it, merged onto the row's
+    // CURRENT payload (assembly itself re-reads and writes audioQa). Best
+    // effort — an assembled Reel is never failed over its bookkeeping.
+    await persistClipProbes(d, job.id, clipProbes);
     // Rendered creative QA (flag-gated; default OFF so prod behavior is
     // unchanged until the operator arms it). Best-effort: QA never fails an
     // assembled job - its verdict is evidence for the approve gate.
@@ -1842,4 +1848,36 @@ export async function recoverStuckReelJobs(): Promise<{ recovered: number }> {
     }
   }
   return { recovered };
+}
+
+/**
+ * Attach each beat's provider (its last succeeded providerOp; "local" for an
+ * ffmpeg render with no op) to the probes assembly measured, and write them to
+ * the payload as `clipProbes`. reelLaneHealth reads them across the week.
+ */
+async function persistClipProbes(
+  d: NonNullable<Awaited<ReturnType<typeof import("../db").getDb>>>,
+  jobId: number,
+  probes: Array<Omit<ClipProbe, "provider">>,
+): Promise<void> {
+  if (!probes.length) return;
+  try {
+    const { reelJobs } = await import("../../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    const [row] = await d.select({ payload: reelJobs.payload }).from(reelJobs).where(eq(reelJobs.id, jobId)).limit(1);
+    if (!row) return;
+    const payload = JSON.parse(row.payload ?? "{}") as {
+      storyboardBeats?: Array<{ beatNumber: number; providerOps?: Array<{ provider: string; outcome: string }> }>;
+      clipProbes?: ClipProbe[];
+    };
+    const providerOf = (beatNumber: number): string => {
+      const ops = payload.storyboardBeats?.find((b) => b.beatNumber === beatNumber)?.providerOps ?? [];
+      const last = [...ops].reverse().find((o) => o.outcome === "succeeded");
+      return last?.provider ?? "local";
+    };
+    payload.clipProbes = probes.map((p) => ({ ...p, provider: providerOf(p.beatNumber) }));
+    await d.update(reelJobs).set({ payload: JSON.stringify(payload) }).where(eq(reelJobs.id, jobId));
+  } catch (e) {
+    log.warn("could not persist clip probes (assembly unaffected)", { jobId, e: e instanceof Error ? e.message : String(e) });
+  }
 }

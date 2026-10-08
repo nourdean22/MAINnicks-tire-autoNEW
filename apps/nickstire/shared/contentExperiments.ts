@@ -43,8 +43,8 @@ export const MIN_SAMPLES_PER_ARM = 4;
  * posts per arm and 80.8% at 8 (contentExperimentsValidity.test.ts keeps the
  * old rule as its control). With the test the same A/A runs produce a winner in
  * 2.8% and 4.2% of runs. The price is power: a genuinely doubled share rate at
- * 12 posts per arm is called 58% of the time and reads as a tie otherwise,
- * never as the wrong arm.
+ * 12 posts per arm is called 58% of the time; otherwise the experiment keeps
+ * running (insufficient_data), never concludes on the wrong arm.
  */
 const WINNER_ALPHA = 0.05;
 
@@ -438,10 +438,17 @@ export function evaluateExperiment(
       .filter((o) => o.armId === armId && o.horizonHours === horizonHours && o.metricValue !== null)
       .map((o) => perPostValue(spec, o));
   const p = Math.min(1, permutationP(values(top.armId), values(second.armId)) * (scored.length - 1));
+  // A lead that noise could explain is NOT a tie. The resolver CONCLUDES an
+  // experiment on a tie and proposes retiring the variable, so reporting
+  // "not enough evidence yet" as a tie would end a live experiment and kill a
+  // possibly-real effect. It is insufficient data: the experiment keeps
+  // running and the next round of posts is the "needed".
   if (p > WINNER_ALPHA) {
     return {
-      status: "tie",
-      note: `top arm leads by ${Number.isFinite(lift) ? `${(lift * 100).toFixed(1)}%` : "an undefined margin"} but a permutation test cannot tell it from noise (p=${p.toFixed(3)} > ${WINNER_ALPHA}) — keep running`,
+      status: "insufficient_data",
+      needed: smallest + MIN_SAMPLES_PER_ARM,
+      have: smallest,
+      note: `top arm leads by ${Number.isFinite(lift) ? `${(lift * 100).toFixed(1)}%` : "an undefined margin"} but a permutation test cannot yet tell it from noise (p=${p.toFixed(3)} > ${WINNER_ALPHA}); keep running`,
     };
   }
 
@@ -498,11 +505,15 @@ export function assignArm(def: ExperimentDefinition, episodeKey: string): Experi
 // startExperiment is ON DUPLICATE KEY UPDATE on experiment_id, so a changed id
 // would start a second experiment beside the live one instead of re-asserting it.
 //
-// Only duration_v1 is WIRED (reelBriefGen reads the lane and sets the brief's
-// target). The others are EXPOSED: startable, assigned at enqueue, resolvable
-// by the daily cron — but nothing in generation reads their arm yet. Each
-// carries a `wiring` note saying exactly that, so the experiment card never
-// implies an intervention that is not happening.
+// hook_style_v1 and duration_v1 are WIRED (dailyReelPost reads the hook arm;
+// reelBriefGen reads the lane and sets the brief's target). The others are
+// EXPOSED: defined, so the design is reviewed and kept, but nothing in
+// generation reads their arm. Since 2026-10-08 an exposed preset cannot be
+// STARTED (routers/content.ts), is not judged if one is already running
+// (contentExperimentResolve) and receives no assignments: both arms would get
+// identical content, so the "experiment" is an A/A test under a treatment's
+// name, and the resolver would conclude a false tie ("retire this variable")
+// or, 5% of the time, a false winner.
 // ─────────────────────────────────────────────────────────────────────────
 
 export const EXPERIMENT_PRESET_IDS = [
@@ -572,13 +583,14 @@ export function buildExperimentPreset(preset: ExperimentPresetId, startedAt: str
         ],
         startedAt,
         hypothesis: "30-40 s explainers hold the 20 s 3-s survival with higher sends; then 45-60 s.",
-        // §R names 3-s skip, watch/duration and sends/reach. The resolver
-        // (contentExperimentResolve.GATHERABLE_METRIC) has no skip-rate column
-        // mapping and the snapshot stores skipRate as a DECIMAL string the
-        // gatherer would read as null; watch/duration needs the reel's own
-        // length, which no snapshot stores. sends/reach is the one of the three
-        // that is both duration-neutral and decidable today.
-        metricNote: "sends/reach (shares_per_reach). 3-s skip and watch/duration are not gatherable by the resolver yet. " +
+        // §R names 3-s skip, watch/duration and sends/reach. This preset was
+        // defined when only sends/reach was decidable, and a running
+        // experiment must keep the metric it started on (switching after the
+        // data arrives is choosing the metric that wins). Skip rate became
+        // gatherable on 2026-10-08, so a duration_v2 can decide on it;
+        // watch/duration still needs the reel's own length, which no snapshot
+        // stores.
+        metricNote: "sends/reach (shares_per_reach), kept for the experiment already defined on it. 3-s skip is gatherable since 2026-10-08 (use it in a v2); watch/duration is not. " +
           "Under REEL_OUTPUT_RULES (35 s storyboard ceiling, 6 beats x 4 s = 24 s render cap) the 30-40 s and 45-60 s arms both clamp to a 30-35 s declared target — raise the ceiling and the clip cap before reading those two arms apart.",
         wiring: "wired",
       };
@@ -588,14 +600,17 @@ export function buildExperimentPreset(preset: ExperimentPresetId, startedAt: str
         experimentId: "opening-asset-v1",
         primaryVariable: "content_origin",
         objective: "discovery",
-        primaryMetric: "shares_per_reach",
+        // 3-s survival IS the hypothesis, and skip rate is gatherable since
+        // 2026-10-08. Never started (exposed presets cannot be), so moving it
+        // off the sends/reach stand-in changes no running experiment.
+        primaryMetric: "skip_rate",
         arms: [
           { armId: "open-ai", variantValue: "ai_generated", contentOrigin: "ai_generated" },
           { armId: "open-real", variantValue: "real_shop", contentOrigin: "real_shop" },
         ],
         startedAt,
         hypothesis: "A real-shop opening frame beats an AI opening frame on 3-s survival.",
-        metricNote: "sends/reach stands in for 3-s skip (not gatherable yet). Non-follower reach is not stored.",
+        metricNote: "skip_rate (lower wins) is the 3-s survival reading. Non-follower reach is not stored.",
         wiring: "exposed",
       };
     case "carousel_cover_v1":
@@ -647,4 +662,18 @@ export function buildExperimentPreset(preset: ExperimentPresetId, startedAt: str
         wiring: "exposed",
       };
   }
+}
+
+let unwiredIds: Set<string> | null = null;
+
+/**
+ * True when this experiment id belongs to an EXPOSED preset: no generator
+ * applies its arm, so measuring it measures nothing (see PRESETS above). Ids
+ * that are not presets are not this function's business and read false.
+ */
+export function isUnwiredExperimentId(experimentId: string): boolean {
+  unwiredIds ??= new Set(
+    EXPERIMENT_PRESET_IDS.map((id) => buildExperimentPreset(id, "")).filter((d) => d.wiring !== "wired").map((d) => d.experimentId),
+  );
+  return unwiredIds.has(experimentId);
 }

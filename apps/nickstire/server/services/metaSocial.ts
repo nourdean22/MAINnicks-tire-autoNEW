@@ -1525,6 +1525,30 @@ export async function getMediaBasicFields(mediaId: string): Promise<{
 }
 
 /**
+ * The URL of the rendition Instagram actually serves for a post (2026-10-08),
+ * for QA on the delivered copy (services/deliveredReelQa.ts). Read-only, never
+ * throws; `media_url` can be absent (copyright-flagged audio, processing).
+ */
+export async function getMediaDeliveryUrl(mediaId: string): Promise<{ ok: boolean; mediaUrl?: string; mediaType?: string; error?: string }> {
+  await ensurePageTokenLoaded();
+  const token = getPageToken();
+  if (!token) return { ok: false, error: "Instagram not configured (need META_PAGE_ACCESS_TOKEN)" };
+  try {
+    const url = `${GRAPH_URL}/${encodeURIComponent(mediaId)}?fields=media_url,media_type,media_product_type`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || data.error) return { ok: false, error: data?.error?.message || `HTTP ${res.status}` };
+    return {
+      ok: true,
+      mediaUrl: typeof data.media_url === "string" ? data.media_url : undefined,
+      mediaType: typeof data.media_type === "string" ? data.media_type : undefined,
+    };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
  * Which permissions the stored Page token actually carries, read from Graph.
  *
  * A token's SCOPES are not knowable from the token itself, and this repo has

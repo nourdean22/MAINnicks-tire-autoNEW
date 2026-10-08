@@ -5965,6 +5965,31 @@
       "file": "apps/nickstire/shared/contentExperiments.ts",
       "symbol": "permutationP",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The two-sided permutation test that now gates every content-experiment winner (evaluateExperiment in this module is its runtime consumer, called by contentExperimentStore for the content-experiment-resolve cron), so the rule is live, not vacuous. Exported so shared/contentExperimentsValidity.test.ts can pin the exact-enumeration path on a hand-countable case (3 v 3 perfectly separated = 2/20) and the fixed-seed Monte Carlo path's determinism; driving those through evaluateExperiment alone cannot isolate them. Tests are excluded from knip project globs by design, which is why a test-only importer reads as an orphan. Added 2026-10-08 with the A/A calibration (identical arms crowned a winner 85.8% of runs before, 2.8% after)."
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "validateOnScreenReadability",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The $0 previs readability rule (words per second a viewer can read on screen) that runReelPreflight in this module applies to every dynamic brief before any paid clip, so it is live, not vacuous. Exported so shared/previsReadability.test.ts can pin the block (>4 words/s) and warn (>3 words/s after a 0.3 s eye-landing) thresholds on exact beats and scan the 68 committed reel packs (341 beats) for a false-block rate; through runReelPreflight alone the thresholds cannot be isolated from the other preflight rules. Tests are excluded from knip project globs by design. Added 2026-10-08."
+    },
+    {
+      "file": "apps/nickstire/server/services/deliveredReelQa.ts",
+      "symbol": "compareDelivered",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The pure comparison between the master's probe and Instagram's delivered rendition; checkDeliveredReel in this module is its runtime consumer inside the 8-hourly Instagram analytics pipeline (runDeliveredReelQaPass), so it is live. Exported so deliveredReelQa.test.ts can name every issue code on a hand-built pair without ffprobe. Added 2026-10-08."
+    },
+    {
+      "file": "apps/nickstire/server/services/deliveredReelQa.ts",
+      "symbol": "probeFromFfprobeJson",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The pure ffprobe-JSON to MediaProbe mapping used by this module's own ffprobe shell; exported so deliveredReelQa.test.ts can pin the frame-rate fraction, duration and audio-presence parsing on a fixture document rather than a rendered file. Added 2026-10-08."
+    },
+    {
+      "file": "apps/nickstire/server/services/deliveredReelQa.ts",
+      "symbol": "checkDeliveredReel",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. One Reel's delivered-copy check; runDeliveredReelQaPass in this module calls it for every unchecked posted Reel, so it is live. Exported so deliveredReelQa.test.ts can run it against real ffmpeg-rendered master/delivered pairs (downscaled, silent, unreadable master) and the no-token path, which the pass loop's bounded fake database cannot exercise. Added 2026-10-08."
+    },
+    {
+      "file": "apps/nickstire/server/services/pairwiseReview.ts",
+      "symbol": "pickRecordFromAuditChanges",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The strict parser for the audit_log `changes` shape logAdminAction writes for a blind pairwise pick; loadPickRecords in this module is its runtime consumer (contentAdmin.pairwiseNext), so it is live. Exported so pairwiseReview.test.ts can pin that a malformed or foreign changes blob reads as no record rather than a pick. Added 2026-10-08."
     }
   ]
 }

@@ -42,8 +42,8 @@ Verified on the combined tree: `pnpm run check` 0 errors · lint/lint:source/bra
 | GSC rising queries | `gsc-data.getRisingQueries` (Eastern-cut windows, throws on no-db) | wired |
 | Topic graph | `shared/topicGraph.ts` | consumed by the miner, realAssetFirst, trend intel |
 | Real-asset-first + enrichment + capture card | `realAssetFirst.ts`, `mediaEnrichment.ts`, `instagramAdmin.getCaptureOpportunities` | wired; enrichment needs `GEMINI_API_KEY` (prod has it) |
-| Creative Assistant (5 cards, "why" lines) | `creativeAssistant.ts`, Today tab | wired, deterministic, no LLM |
-| Experiments: 6 presets | `shared/contentExperiments.buildExperimentPreset` | `hook_style_v1`, `duration_v1` **wired**; `opening_asset_v1`, `carousel_cover_v1`, `audio_v1`, `fb_format_v1` **exposed only** (assigned + resolved, no generator reads the arm yet) |
+| Creative Assistant (up to 6 cards, "why" lines) | `creativeAssistant.ts`, Today tab | wired, deterministic, no LLM; `quality` card and real-evidence share since 2026-10-08 |
+| Experiments: 6 presets | `shared/contentExperiments.buildExperimentPreset` | `hook_style_v1`, `duration_v1` **wired**; `opening_asset_v1`, `carousel_cover_v1`, `audio_v1`, `fb_format_v1` **exposed only** — defined, but refused at start, not judged and not assigned until a generator reads the arm (2026-10-08) |
 | Repetition ledger +4 dims · Pattern Lab objective scores | `reelRepetitionHistory.ts`, `shared/reelStructureLearning.ts` | wired; production ranking unchanged until an objective is passed |
 | $0 pixel checks + craft score + adaptive specialist | `renderedPixelStats.ts`, `renderedQa.ts`, `criticPanel.ts` | wired; specialist behind `RENDERED_QA_SPECIALIST` |
 | Visual language (16 grammars) | `shared/visualLanguage.ts` | mapping only; renders byte-identical (parity test) |
@@ -473,17 +473,17 @@ the same day. Status words follow the ladder: built / wired / tested / deployed 
 
 | # | Review item | Verdict | Where / what |
 |---|---|---|---|
-| 1 | Previs (storyboard + timed animatic) before paid generation | PARTIAL — NEXT | Approved packs are human-reviewed beats before render; dynamic briefs pass the M10 preflight and claim bank (one LLM call per rejected brief) before any paid clip; the contact sheet comes only AFTER render. Missing: a $0 timed animatic (beat cards + VO timing) for dynamic briefs. |
-| 2 | Pairwise blind human preference | PARTIAL — PROTOCOL below | Store: statenour `POST /api/proof/taste` (two candidates, winner, reason codes, mirrored to BrainMemory). Decision rule: the paired permutation gate in `server/services/promptEvolutionGate.ts`. Missing: a review screen that randomises sides. |
-| 3 | QA on the platform-delivered copy | MISSING — NEXT | `metaSocial.ts` already reads `media_url` back; nothing compares the delivered rendition with the master. Needs a live token to verify, so it is not built blind. |
+| 1 | Previs (storyboard + timed animatic) before paid generation | BUILT + TESTED | Approved packs are human-reviewed beats before render; dynamic briefs pass the M10 preflight, the claim bank and, since 2026-10-08, the readability gate (`validateOnScreenReadability`: > 4 words/s blocks) before any paid clip. No animatic: the dynamic lane has no human gate before generation, so a timed preview would have no viewer; the timing rule is what a viewer would have caught. |
+| 2 | Pairwise blind human preference | BUILT + WIRED + TESTED | Today tab "Which post is better?" (`services/pairwiseReview.ts`): two judged photo posts, no scores, sides by hash; picks in `audit_log` (`content.pairwise_pick`) with judge totals snapshotted; operator-vs-judge agreement shown. Cross-app taste store stays statenour `POST /api/proof/taste`. Protocol below still governs how to read it. |
+| 3 | QA on the platform-delivered copy | BUILT + TESTED; unverified live | `services/deliveredReelQa.ts` in the 8-hourly Instagram pipeline: Graph `media_url` → ffprobe master + delivered → flash scan → `payload.deliveredQa`; morning-brief line. Needs a live `META_PAGE_ACCESS_TOKEN` run to prove it against Instagram. |
 | 4 | Mechanical truth packets | BUILT + WIRED + TESTED | `shared/mechanicalTruth.ts`; refused at the Reel publish door (`reelClaimAudit.condemnedContentProblem`), given to the brief generator up front. Technician sign-off: none yet. |
 | 5 | Experiment validity (A/A, power, SRM, stopping) | BUILT + TESTED (content); EXISTED (web) | Content experiments: permutation gate, A/A 85.8% → 2.8% false winners, power stated (58% for a doubled rate at 12 posts/arm). Web: `shared/experimentKernel.ts` already had mSPRT, SRM and a calibration harness. |
 | 6 | Unbranded recognition test with Cleveland drivers | PROTOCOL — operator | People, not code. Below. |
 | 7 | Calibrated real-shop capture | PROTOCOL — operator | Below. The DVI photo pairs (migration 0143) are the first capture stream to calibrate. |
-| 8 | Agent and upload threat model | EXISTS, partial | Evaluator separation + Night Shift identity boundary (`docs/DREAM-TO-PROOF.md`), AI disclosure gate (`shared/reelDisclosure.ts`), external-content fencing (statenour). Not audited here: media upload MIME / size validation. |
-| 9 | Provider drift canaries | LATER | Image provider circuit breaker exists (`imageProviderCircuit`); no fixed-brief canary suite. |
+| 8 | Agent and upload threat model | BUILT (uploads); EXISTS (agents) | Evaluator separation + Night Shift identity boundary (`docs/DREAM-TO-PROOF.md`), AI disclosure gate (`shared/reelDisclosure.ts`), external-content fencing (statenour). Uploads: the bytes decide (`server/lib/imageSignature.ts`) on all three routes; non-images refused, HEIC/HEIF accepted. Size limits were already zod-bounded. |
+| 9 | Provider drift canaries | BUILT + TESTED ($0) | `shared/clipDrift.ts`: assembly probes every clip it downloads; a provider whose clips drift from its own modal shape/length (≥ 2 in 7 d) is named in the morning brief. No fixed-brief paid canary — the clips already paid for are the canary. |
 | 10 | Content incident response | PROTOCOL below | Lineage exists: `content_runs`, `reel_jobs.igPostId`, `ig_metric_snapshots`. |
-| 11 | Shop adoption loop | PROTOCOL — operator | Below. Without it the system drifts to synthetic media because it is easier to get. |
+| 11 | Shop adoption loop | MEASURED + PROTOCOL | The fourth number below is now read live: Creative Assistant `inputs.realEvidence` and the capture card carry "N/M published pieces in 30d carried real shop evidence". The rest is the protocol below. |
 | 12 | Accessibility beyond captions | BUILT (flash); EXISTED (caption obstruction) | `server/services/flashRisk.ts` → `PHOTOSENSITIVE_FLASH` block; `CAPTION_OBSTRUCTION` + pixel `CAPTION_BOX_BUSY` already ran. Not measured: localized or red flashes, caption contrast ratio. |
 
 **Also found and fixed in the same wave:** the nightly Reel had not posted since 10-04 (approved queue

@@ -24,6 +24,7 @@ import { serializeThesisForPrompt, type CreativeThesis } from "../../client/src/
 import { applyCreativeSkills } from "./skillRouter";
 import { buildBrandBibleFragment } from "../../shared/brandBible";
 import { buildTruthPacketFragment } from "../../shared/mechanicalTruth";
+import { buildHookFatigueFragment, type HookSaturation } from "../../shared/reelHookGrammar";
 import { assessEvidence, evidenceDirective, type EvidenceFact } from "../../shared/evidenceSufficiency";
 import { PUBLIC_SOURCE_REGISTRY } from "./evidenceResolver";
 import { buildFranchiseFragment, type FranchiseId } from "../../shared/contentFranchises";
@@ -67,6 +68,9 @@ export interface GenerateReelBriefInput {
   factBucket?: string;
   archetype?: string;
   avoidTopics?: string[];
+  /** The opening-line grammar that took over the recent window
+   *  (shared/reelHookGrammar.ts). Steers, never bans. */
+  hookFatigue?: HookSaturation | null;
   /**
    * Machine-supplied topics that are ALWAYS merged with whatever steer is in
    * play, never substituted for it. Distinct from `avoidTopics`, which is the
@@ -1126,6 +1130,11 @@ STRUCTURE REFERENCE — "${h.label}" (Pattern Lab, id ${h.patternId}). ` +
       err: err instanceof Error ? err.message : String(err),
     });
   }
+
+  // HOOK FATIGUE after the scoreboard: evidence first, then the one shape the
+  // feed is drowning in. Empty when nothing is saturated.
+  const fatigue = buildHookFatigueFragment(input.hookFatigue ?? null);
+  if (fatigue) systemPrompt += `\n\n${fatigue}`;
 
   const skillPayload = await applyCreativeSkills({ type: "reel_brief" });
   if ("fragment" in skillPayload && skillPayload.fragment) {

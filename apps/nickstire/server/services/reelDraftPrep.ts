@@ -19,6 +19,7 @@ import { generateReelBriefAI, type GenerateReelBriefInput } from "./reelBriefGen
 import { attachAutonomousVisualWorld } from "./visualWorld";
 import { buildHiggsfieldReelPromptPack, buildRepetitionChecks, runReelPreflight } from "../../client/src/lib/facelessReelStudio";
 import { DEFAULT_REPETITION_WINDOW_DAYS, getRecentReelSignals } from "./reelRepetitionHistory";
+import { saturatedHookGrammar } from "../../shared/reelHookGrammar";
 import { createLogger } from "../lib/logger";
 import type { RealAssetRef } from "../../shared/reelJobPayload";
 
@@ -95,11 +96,15 @@ export async function prepareCleanReelBrief(
   // outcome learner as a prior while retaining exploration. A null hint still
   // leaves the brief exactly as it was before Pattern Lab existed.
   const { pickStructureHint, recordStructureUse } = await import("./reelStructurePrior");
-  // No hook-type exclusion: RecentReelSignals tracks topics/keywords/archetypes/
-  // lenses/characters, not hook shape, and inventing a field here would mean
-  // passing something the repetition ledger never actually measured. Rotation
-  // by least-used already spreads hook types in practice.
+  // No hook-type EXCLUSION on the structure pick: rotation by least-used
+  // already spreads the lab's hook types. The opening line's measured shape
+  // is steered separately below (hookFatigue), from what actually shipped.
   const structure = await pickStructureHint();
+  // HOOK FATIGUE: RecentReelSignals has recorded each Reel's beat-1 grammar
+  // since 2026-10-01 and nothing read it back. When one shape opened most of
+  // the recent window, the generator is told so (shared/reelHookGrammar.ts).
+  // An unreadable history steers nothing.
+  const hookFatigue = recent.available === false ? null : saturatedHookGrammar(recent.hookGrammars);
   // TWO CHANNELS, because they mean different things.
   //
   // `avoidTopics` keeps its original contract: an operator-supplied list WINS
@@ -131,6 +136,7 @@ export async function prepareCleanReelBrief(
       ...input,
       avoidTopics,
       ...(structure ? { structureHint: structure } : {}),
+      ...(hookFatigue ? { hookFatigue } : {}),
     });
     const pre = runReelPreflight(brief);
     const repetition = buildRepetitionChecks(brief, recent);

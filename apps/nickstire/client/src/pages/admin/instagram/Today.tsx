@@ -11,6 +11,7 @@ import type { IgView } from "./igViews";
 import { writeCreateHandoff } from "./igViews";
 import { HQ } from "./HQ";
 import { CreativeAssistantCards } from "./CreativeAssistantCards";
+import { PairwisePick } from "./PairwisePick";
 
 /**
  * TODAY — the command center the audit found missing. One ranked list of what
@@ -109,6 +110,10 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
           audit found missing from Today. Sits above the decision list so the
           day opens on the strongest opportunity, not only on what is broken. */}
       <CreativeAssistantCards onNavigate={onNavigate} />
+
+      {/* Blind pairwise review (2026-10-08): one tap a day calibrates the
+          judge that gates live photo posts against the shop's own taste. */}
+      <PairwisePick />
 
       <Card className="border-primary/30">
         <CardHeader className="pb-3">

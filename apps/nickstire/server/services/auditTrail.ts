@@ -48,6 +48,9 @@ export type AuditAction =
   | "invoice.created"
   // 2026-05-30 · control-plane actions (operator levers, not entity CRUD)
   | "flag.toggled"
+  // 2026-10-08 · blind pairwise review: one operator pick between two judged
+  // photo posts, with both judge totals snapshotted (services/pairwiseReview.ts)
+  | "content.pairwise_pick"
   // 2026-07-29 · SMS Revenue Agent OS — global pause arm/lift (smsOps.setPause)
   | "sms.global_pause"
   // 2026-07-29 · Autopilot Wave 1 — failed-row replay (smsOps.replayFailed)

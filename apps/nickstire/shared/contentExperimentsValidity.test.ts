@@ -91,3 +91,21 @@ describe("permutationP", () => {
     expect(permutationP(a, b)).toBe(permutationP(a, b));
   });
 });
+
+describe("a lead noise could explain keeps the experiment running", () => {
+  // The resolver concludes on "tie" and proposes retiring the variable, so a
+  // not-yet-significant lead must never be reported as one.
+  const obs = (armId: string, values: number[]): ArmObservation[] =>
+    values.map((v, k) => ({ armId, mediaId: `${armId}-${k}`, horizonHours: 72, reach: 1000, metricValue: v }));
+  const [control, variant] = def.arms.map((a) => a.armId);
+
+  it("a 30% lead on overlapping posts is insufficient_data, not tie or winner", () => {
+    const v = evaluateExperiment(def, [...obs(control, [10, 30, 20, 25]), ...obs(variant, [40, 15, 28, 21])], 72);
+    expect(v.status).toBe("insufficient_data");
+  });
+
+  it("arms within 10% of each other are still a tie (a real no-difference result)", () => {
+    const v = evaluateExperiment(def, [...obs(control, [20, 21, 22, 20]), ...obs(variant, [21, 21, 22, 21])], 72);
+    expect(v.status).toBe("tie");
+  });
+});

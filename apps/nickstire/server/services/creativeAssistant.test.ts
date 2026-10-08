@@ -1,7 +1,7 @@
 /**
  * Creative Assistant — deterministic ranking + the omission rule.
  *
- * Positive control first: the fixture below produces all five card types
+ * Positive control first: the fixture below produces the five everyday card types
  * from real-shaped signals, so a later refactor that silently drops a card
  * fails here rather than rendering an emptier Today tab. The error tests
  * then prove a failed read becomes `inputs.<source> = "error: …"` and
@@ -58,6 +58,8 @@ function fixture(over: Partial<GatheredInputs> = {}): GatheredInputs {
     }),
     ledger: ok(ledger),
     posts: ok(posts),
+    qaOutcomes: ok([]),
+    realEvidence: ok({ windowDays: 30, published: 14, withReal: 2 }),
     realAssets: ok({ count: 12, assets: [{ id: 7, label: "brake-rotor-worn real-brake-pads.jpg" }], captures: [] }),
     experiments: ok([]),
     articles: ok({
@@ -245,6 +247,8 @@ describe("buildCreativeAssistant with injected readers", () => {
       experiments: async () => [],
       articles: async () => ({ articles: [], social: [] }),
       weather: async () => { throw new Error("NWS 503"); },
+      qaOutcomes: async () => [],
+      realEvidence: async () => ({ windowDays: 30, published: 0, withReal: 0 }),
     };
     const r = await buildCreativeAssistant(readers, new Date("2026-10-01T12:00:00Z"));
     expect(r.generatedAt).toBe("2026-10-01T12:00:00.000Z");
@@ -269,5 +273,54 @@ describe("buildCreativeAssistant with injected readers", () => {
 describe("significantWords", () => {
   it("drops stopwords and short tokens", () => {
     expect(significantWords("Why is my E-Check not ready in Cleveland?")).toEqual(["check", "ready"]);
+  });
+});
+
+describe("quality card: a critic finding the audience has priced (2026-10-08)", () => {
+  const qa = (code: string, skips: number[], clean: number[]) => ok([
+    ...skips.map((s, i) => ({ postId: `w${i}`, codes: [code], skipRate: s })),
+    ...clean.map((s, i) => ({ postId: `c${i}`, codes: [], skipRate: s })),
+  ]);
+
+  it("appears only for a code whose posts are skipped significantly more, with the measured numbers", () => {
+    const r = composeCreativeCards(fixture({ qaOutcomes: qa("PLASTIC_AI_LOOK", [88, 91, 86, 90, 89], [52, 48, 55, 50, 47, 53]) }));
+    const card = r.cards.find((c) => c.type === "quality");
+    expect(card?.title).toBe('Critic finding "PLASTIC_AI_LOOK" costs viewers');
+    expect(card?.why[0]).toMatch(/PLASTIC_AI_LOOK: 5 posts with it skip 88\.8% vs 50\.8% for 6 without \(\+38\.0 pts, p=0\.\d{3} <= 0\.0500\)/);
+    expect(card?.firstAction).toContain("PLASTIC_AI_LOOK");
+    expect(r.inputs.qaOutcomes).toBe(11);
+    expect(r.cards.length).toBeLessThanOrEqual(6);
+  });
+
+  it("a gap noise could explain, or too few posts, renders no card", () => {
+    expect(composeCreativeCards(fixture({ qaOutcomes: qa("WEAK_COMPOSITION", [62, 58, 70, 55], [60, 57, 66, 54, 63]) })).cards.find((c) => c.type === "quality")).toBeUndefined();
+    expect(composeCreativeCards(fixture({ qaOutcomes: qa("PLASTIC_AI_LOOK", [95, 96, 97], [40, 41, 42, 43]) })).cards.find((c) => c.type === "quality")).toBeUndefined();
+  });
+
+  it("a failed read is an error input, never a clean bill of health", () => {
+    const r = composeCreativeCards(fixture({ qaOutcomes: err("reel_jobs read failed") }));
+    expect(r.inputs.qaOutcomes).toBe("error: reel_jobs read failed");
+    expect(r.cards.find((c) => c.type === "quality")).toBeUndefined();
+  });
+});
+
+describe("real-evidence share: the shop adoption number (2026-10-08)", () => {
+  it("is a provenance input and a line on the capture card, with the measured share", () => {
+    const r = composeCreativeCards(fixture());
+    expect(r.inputs.realEvidence).toBe("2/14 published pieces in 30d carried real shop evidence (14%)");
+    expect(r.cards.find((c) => c.type === "capture")?.why).toContain("2/14 published pieces in 30d carried real shop evidence (14%)");
+  });
+
+  it("an empty window is unmeasured, never 0%", () => {
+    const r = composeCreativeCards(fixture({ realEvidence: ok({ windowDays: 30, published: 0, withReal: 0 }) }));
+    expect(r.inputs.realEvidence).toBe("no pieces published in 30d, so real-evidence share is unmeasured");
+  });
+
+  it("a failed read is an error input; the capture card still renders without the line", () => {
+    const r = composeCreativeCards(fixture({ realEvidence: err("reel_jobs read failed") }));
+    expect(r.inputs.realEvidence).toBe("error: reel_jobs read failed");
+    const capture = r.cards.find((c) => c.type === "capture");
+    expect(capture).toBeTruthy();
+    expect(capture?.why.some((w) => w.includes("real shop evidence"))).toBe(false);
   });
 });

@@ -275,11 +275,16 @@ ${(pendingCallbacks[0]?.count ?? 0) > 0 ? `- 📞 ${pendingCallbacks[0]?.count} 
         }
       } catch { parts.push("queue/suppression counts UNKNOWN (read failed)"); }
       try {
-        const { readReelLane, renderReelLaneException } = await import("../../services/reelLaneHealth");
+        const { readReelLane, renderReelLaneException, renderDeliveredQaException, renderProviderDriftException } = await import("../../services/reelLaneHealth");
         const { getDb } = await import("../../db");
         const rdb = await getDb();
-        const line = renderReelLaneException(rdb ? await readReelLane(rdb) : { kind: "unreadable" });
+        const lane = rdb ? await readReelLane(rdb) : ({ kind: "unreadable" } as const);
+        const line = renderReelLaneException(lane);
         if (line) parts.push(line);
+        const delivered = renderDeliveredQaException(lane);
+        if (delivered) parts.push(delivered);
+        const drift = renderProviderDriftException(lane);
+        if (drift) parts.push(drift);
       } catch { parts.push("Instagram Reel lane UNKNOWN (read failed — check Instagram → Queue)"); }
       if (parts.length > 0) {
         exceptionsBlock = "\nEXCEPTIONS (needs Nick — everything else is handled):\n- " + parts.join("\n- ");

@@ -20,13 +20,41 @@
  * a missed alarm on one morning, never a false one.
  */
 import { sql } from "drizzle-orm";
+import { clipDriftReport, type ClipDrift, type ClipProbe } from "../../shared/clipDrift";
 
 /** A Reel publishes nightly; 36 h without one means at least one night was missed. */
 const REEL_STALL_HOURS = 36;
 
 export type ReelLaneReading =
-  | { kind: "measured"; hoursSinceLastPost: number | null; readyAwaitingApproval: number }
+  | {
+      kind: "measured";
+      hoursSinceLastPost: number | null;
+      readyAwaitingApproval: number;
+      /** Reels posted in the last 7 days whose Instagram-delivered copy failed QA (services/deliveredReelQa.ts). */
+      deliveredIssues?: Array<{ jobId: number; issues: string[] }>;
+      /** Per-provider clip-shape drift over the last 7 days of assembled/posted Reels (shared/clipDrift.ts). */
+      providerDrift?: ClipDrift[];
+    }
   | { kind: "unreadable" };
+
+/** The delivered-copy line, or null when every checked Reel looked right. */
+export function renderDeliveredQaException(r: ReelLaneReading): string | null {
+  if (r.kind !== "measured" || !r.deliveredIssues?.length) return null;
+  const detail = r.deliveredIssues.slice(0, 3).map((d) => `job ${d.jobId}: ${d.issues.join(", ")}`).join("; ");
+  return `${r.deliveredIssues.length} posted Reel(s) look worse on Instagram than the master — ${detail}`;
+}
+
+/** Two or more drifted clips from one provider in a week is a change, not a glitch. */
+const DRIFT_MIN_CLIPS = 2;
+
+/** The provider-drift line, or null when every provider's clips still match its own recent shape. */
+export function renderProviderDriftException(r: ReelLaneReading): string | null {
+  if (r.kind !== "measured") return null;
+  const hit = (r.providerDrift ?? []).find((d) => d.drifted.length >= DRIFT_MIN_CLIPS);
+  if (!hit) return null;
+  const eg = hit.drifted[0];
+  return `Provider drift: ${hit.drifted.length} of ${hit.total} ${hit.provider} clips this week came back off its ${hit.baseline} / ${hit.baselineDurationSec}s baseline (e.g. ${eg.signature} ${eg.durationSec}s, job ${eg.jobId} beat ${eg.beatNumber}) — check the provider before the next paid run`;
+}
 
 export function renderReelLaneException(r: ReelLaneReading): string | null {
   if (r.kind === "unreadable") return "Instagram Reel lane UNKNOWN (read failed — check Instagram → Queue)";
@@ -63,10 +91,38 @@ export async function readReelLane(db: Executor): Promise<ReelLaneReading> {
           AND (a.expires_at IS NULL OR a.expires_at > NOW())
       )
   `));
+  // Parsed here rather than with JSON_EXTRACT: one malformed payload would fail
+  // the SQL function for the whole query and turn the line into UNKNOWN.
+  // Assembled rows carry clip probes (provider drift); posted rows also carry
+  // the delivered-copy verdict. One read serves both.
+  const recent = await db.execute(sql`
+    SELECT id, payload FROM reel_jobs
+    WHERE status IN ('assembled', 'posted') AND updatedAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    ORDER BY id DESC LIMIT 40
+  `);
+  const recentRows = (Array.isArray(recent) && Array.isArray(recent[0]) ? recent[0] : []) as Array<{ id: number; payload: string | null }>;
+  const deliveredIssues: Array<{ jobId: number; issues: string[] }> = [];
+  const probes: Array<ClipProbe & { jobId: number }> = [];
+  for (const row of recentRows) {
+    try {
+      const payload = (row.payload ? JSON.parse(row.payload) : {}) as { deliveredQa?: { verdict?: string; issues?: unknown }; clipProbes?: unknown };
+      const qa = payload.deliveredQa;
+      if (qa?.verdict === "issues") deliveredIssues.push({ jobId: Number(row.id), issues: Array.isArray(qa.issues) ? qa.issues.map(String) : [] });
+      if (Array.isArray(payload.clipProbes)) {
+        for (const p of payload.clipProbes as ClipProbe[]) {
+          if (typeof p?.width === "number" && typeof p?.height === "number" && typeof p?.durationSec === "number") probes.push({ ...p, jobId: Number(row.id) });
+        }
+      }
+    } catch {
+      // A payload this module cannot parse says nothing about delivery or shape.
+    }
+  }
   const hours = last?.hoursSince;
   return {
     kind: "measured",
     hoursSinceLastPost: hours === null || hours === undefined ? null : Number(hours),
     readyAwaitingApproval: Number(ready?.n ?? 0),
+    deliveredIssues,
+    providerDrift: clipDriftReport(probes),
   };
 }

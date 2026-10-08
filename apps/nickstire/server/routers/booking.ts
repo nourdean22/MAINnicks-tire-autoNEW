@@ -468,11 +468,17 @@ export const bookingRouter = router({
     .mutation(async ({ input }) => {
       const { randomInt } = await import("crypto");
       const buffer = Buffer.from(input.base64, "base64");
+      // The declared mimeType is the client's claim; the bytes decide
+      // (server/lib/imageSignature.ts). A mislabelled real photo is stored under
+      // its true type; a non-image is refused before it reaches storage.
+      const { sniffImageMime, NOT_AN_IMAGE_MESSAGE } = await import("../lib/imageSignature");
+      const mime = sniffImageMime(buffer);
+      if (!mime) throw new TRPCError({ code: "BAD_REQUEST", message: NOT_AN_IMAGE_MESSAGE });
       // Strip path traversal and unsafe chars from filename
       const safeFilename = input.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
       const suffix = randomInt(100000, 999999).toString();
       const key = `booking-photos/${Date.now()}-${suffix}-${safeFilename}`;
-      const { url } = await storagePut(key, buffer, input.mimeType);
+      const { url } = await storagePut(key, buffer, mime);
       return { url };
     }),
 

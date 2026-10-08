@@ -14,23 +14,17 @@
  *
  * Wave B (2026-10-01): three more dimensions — hook grammar, Pattern Lab
  * structure id, CTA family — plus per-topic ages and declared-duration
- * buckets. The five original arrays are what buildRepetitionChecks scores;
- * the new ones are READ by the Creative Assistant's fatigue card and are
- * available to the distinctiveness scorer, which does not consume them yet
- * (facelessReelStudio.ts distinctPart scores exactly DISTINCT_SIGNALS = 5).
+ * buckets. The five original arrays are what buildRepetitionChecks scores.
+ * Hook grammars also reach the distinctiveness scorer and the generator as
+ * HOOK FATIGUE (shared/reelHookGrammar.ts, 2026-10-08); CTA family and
+ * structure are read by the Creative Assistant's fatigue card only, and that
+ * file says why they are not penalised.
  */
 import { createLogger } from "../lib/logger";
 import { parseReelJobPayload } from "../../shared/reelJobPayload";
+import { classifyHookGrammar, type HookGrammar } from "../../shared/reelHookGrammar";
 
 const log = createLogger("services:reel-repetition-history");
-
-export type HookGrammar =
-  | "symptom_question"
-  | "customer_quote"
-  | "number_lead"
-  | "command"
-  | "direct_statement"
-  | "unknown";
 
 export type CtaFamily = "profile" | "dm" | "save" | "visit" | "send" | "call" | "book" | "none";
 
@@ -89,29 +83,6 @@ function emptySignals(available: boolean): RecentReelSignals {
     topicAges: [],
     available,
   };
-}
-
-/**
- * Deterministic hook-grammar classifier over beat 1's on-screen text. Small
- * on purpose — it names the grammars §R hypothesis 3 compares
- * (customer_quote vs symptom_question) plus the three other shapes the
- * corpus actually uses. Order matters: a quoted question is a quote.
- */
-export function classifyHookGrammar(text: string | null | undefined): HookGrammar {
-  const t = String(text ?? "").replace(/\s+/g, " ").trim();
-  if (!t) return "unknown";
-  // A quotation mark, or first-person speech ("My car shakes at 60").
-  if (/^["'“‘]/.test(t) || /["“][^"”]{6,}["”]/.test(t) || /^(my|i|we|our)\b/i.test(t)) {
-    return "customer_quote";
-  }
-  if (/\?\s*$/.test(t) || /^(why|what|when|how|is|are|does|do|can|should|ever|did)\b/i.test(t)) {
-    return "symptom_question";
-  }
-  if (/^[$]?\d/.test(t)) return "number_lead";
-  if (/^(stop|check|don'?t|never|look|listen|watch|send|grab|pull|push|press|try|turn|open|feel|smell|hear)\b/i.test(t)) {
-    return "command";
-  }
-  return "direct_statement";
 }
 
 /**

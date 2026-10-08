@@ -890,6 +890,7 @@ export async function runInstagramPipeline(): Promise<{
   sync: { processed: number; newPosts: number; errors: number };
   followerGrowth: FollowerGrowth;
   topPostType: string | null;
+  deliveredQa: { checked: number; issues: number; unmeasured: number; jobs: string[] } | { error: string };
 }> {
   const sync = await syncInstagramPosts();
   const followerGrowth = await getFollowerGrowth();
@@ -898,7 +899,19 @@ export async function runInstagramPipeline(): Promise<{
   const byType = await getEngagementByType();
   const topPostType = byType.length > 0 ? byType[0].type : null;
 
-  return { sync, followerGrowth, topPostType };
+  // QA on the copy Instagram delivers, for Reels posted since the last pass
+  // (services/deliveredReelQa.ts). Bounded to two Reels; its failure is
+  // reported in the result, never allowed to fail the analytics sync.
+  let deliveredQa: { checked: number; issues: number; unmeasured: number; jobs: string[] } | { error: string };
+  try {
+    const { runDeliveredReelQaPass } = await import("../services/deliveredReelQa");
+    const d = await db();
+    deliveredQa = d ? await runDeliveredReelQaPass(d) : { error: "no database" };
+  } catch (err) {
+    deliveredQa = { error: err instanceof Error ? err.message.slice(0, 200) : String(err) };
+  }
+
+  return { sync, followerGrowth, topPostType, deliveredQa };
 }
 
 /**
