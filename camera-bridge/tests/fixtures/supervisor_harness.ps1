@@ -510,7 +510,10 @@ switch ($Scenario) {
 }
 
 $logLines = @()
-if (Test-Path -LiteralPath $log) { $logLines = @(Get-Content -LiteralPath $log) }
+# [string] strips the PSPath/PSDrive/... notes Get-Content attaches to each line: Windows PowerShell
+# 5.1's ConvertTo-Json serializes them, so every line came out as an object (pwsh 7 drops them),
+# and every log assertion failed under 5.1 (first run on NicksMax, 2026-10-08: 18 of 52).
+if (Test-Path -LiteralPath $log) { $logLines = @(Get-Content -LiteralPath $log | ForEach-Object { [string]$_ }) }
 [pscustomobject]@{
   scenario = $Scenario
   calls    = @($calls)
