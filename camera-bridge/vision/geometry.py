@@ -34,6 +34,40 @@ def point_in_poly(pt: Point, poly: Sequence[Point]) -> bool:
     return inside
 
 
+def portal_straddles(lot: Sequence[Point], portal: Sequence[Point]) -> dict:
+    """Does the driveway portal actually sit across the lot boundary?
+
+    An entry is "outside, then inside, having touched the portal". A portal drawn wholly
+    inside the lot can be touched only by cars that are already in; one drawn wholly outside
+    only by cars that never enter. Either way `EntryPortal` can never fire and the lane reports
+    zero arrivals while every health surface stays green -- the 2026-10-07 audit's B5 question.
+    Sampled at each portal vertex, each edge midpoint and the centroid; straddling means at
+    least one sample inside the lot polygon and at least one outside. Returns
+    {ok, inside, outside, samples, reason}; callers that get ok=False must not claim arrivals.
+    """
+    lot_pts = [(float(x), float(y)) for x, y in lot]
+    portal_pts = [(float(x), float(y)) for x, y in portal]
+    if len(lot_pts) < 3:
+        return {"ok": False, "inside": 0, "outside": 0, "samples": 0, "reason": "lot polygon has fewer than 3 points"}
+    if len(portal_pts) < 3:
+        return {"ok": False, "inside": 0, "outside": 0, "samples": 0, "reason": "portal polygon has fewer than 3 points"}
+    samples: list[Point] = list(portal_pts)
+    n = len(portal_pts)
+    for i in range(n):
+        (x1, y1), (x2, y2) = portal_pts[i], portal_pts[(i + 1) % n]
+        samples.append(((x1 + x2) / 2.0, (y1 + y2) / 2.0))
+    samples.append((sum(p[0] for p in portal_pts) / n, sum(p[1] for p in portal_pts) / n))
+    inside = sum(1 for s in samples if point_in_poly(s, lot_pts))
+    outside = len(samples) - inside
+    if inside and outside:
+        reason = "portal straddles the lot boundary"
+    elif inside:
+        reason = "portal lies wholly inside the lot: only cars already on the lot can touch it"
+    else:
+        reason = "portal lies wholly outside the lot: a car touching it never becomes inside"
+    return {"ok": bool(inside and outside), "inside": inside, "outside": outside, "samples": len(samples), "reason": reason}
+
+
 @dataclass
 class Zone:
     name: str

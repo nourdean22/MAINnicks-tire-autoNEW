@@ -21,9 +21,8 @@ The two web products are independent — different frameworks, databases, domain
 `pnpm-lock.yaml` affects both web apps — build the package before testing a consumer.** Vendored, non-workspace:
 `camera-bridge/`, `MoneyPrinterTurbo/`, `last30days-skill/`, `ad-factory/`.
 
-**These no longer exist — do not go looking:** `apps/voice` + its Railway service, the `perplexica-mcp` sidecar
-(2026-08-05), and `perplexica` + `searxng-perplexica` (no caller since #2599, out of IaC since #2613). **`ls apps/`
-still shows `voice/`: a husk with zero tracked files** (git does not track empty dirs) — check membership with `git ls-files`.
+**These no longer exist — do not go looking:** `apps/voice` + its Railway service, the `perplexica-mcp` sidecar (2026-08-05),
+`perplexica` + `searxng-perplexica` (no caller since #2599). **`ls apps/` still shows `voice/`, a husk with zero tracked files.**
 
 ## Source-of-truth hierarchy
 
@@ -121,16 +120,20 @@ Root shortcuts: `pnpm nick <script>` · `pnpm stn <script>` · `pnpm worker <scr
 Single test, either app: `pnpm exec vitest run <path>`. Deps or `pnpm-lock.yaml` changed?
 `pnpm install --frozen-lockfile --filter "<app>..."` — WITH the `...`; a bare `--filter` skips
 workspace deps and yields phantom import failures.
-**Don't run full-repo sweeps "for a baseline"** — sibling sessions share this machine. Verify your
-change's blast radius and let CI be the sweep.
+**No full-repo sweeps "for a baseline"** — sibling sessions share this machine; verify your change's blast radius.
 
 ## Verify gates
 
 - **statenour** `pnpm verify:hard` · **nickstire** `pnpm run verify` · **worker** `pnpm check` + `pnpm build`.
   Piping vitest to `tail` masks the exit code — read the summary line, not `$?`.
 - Supply chain: `powershell scripts/security-scan.ps1` (advisory; `-FailOnCritical` to gate).
-- **Report with receipts** — `417 files, 4,670 passed, exit 0`, never "tests pass". Say so if a check was
-  skipped or red, and stop.
+- **Report with receipts** — `417 files, 4,670 passed, exit 0`, never "tests pass"; say if a check was skipped or red.
+
+## CI cost — every push and every merge is billed
+
+Measured 2026-10-08: a PR push ~30-60 runner-min (node 7-15 min + ~10 one-minute jobs, each rounded UP); a merge ~45-65 and
+redeploys both services; scheduled jobs ~65/day. ONE validated push per PR (verify locally; CI is not your test runner);
+fold docs/deps/handoffs into the open PR; batch merges; no `update branch`, bot rebase, re-run or dispatch "to see"; drafts bill too.
 
 ## Ship the canary, not just the control
 
@@ -185,16 +188,13 @@ loads nothing while still passing a substring check. Registry + design notes:
 
 ## Memory / handoff
 
-- Agent memory `~/.claude/projects/C--Users-nourd-NOURCITY/memory/MEMORY.md` is machine-local (absent on NattyNour +
-  nicksmax 2026-10-02) and sibling-edited: re-read first. Durable handoff goes in `apps/<app>/.remember/` (every checkout).
+- Agent `MEMORY.md` in `~/.claude/projects/` is machine-local + sibling-edited: re-read first. Durable handoff: `apps/<app>/.remember/`.
 - statenour's own "brain" (BrainMemory + pgvector recall) is a PRODUCT feature, separate from agent memory; do not conflate.
 <!-- Do NOT delete this section without checking who points at it (deleted once 2026-08-21; docs/agent-audit/AUDIT-2026-08-21.md). -->
 
 ## Operating frameworks
 
 - [`AGENT-OPERATING-PROFILE.md`](./AGENT-OPERATING-PROFILE.md) — operator identity, response shape, §11 multi-agent safety.
-- [`NOUR-COMMAND.md`](./NOUR-COMMAND.md) — **read before every non-trivial task**: infer outcome, recover context, define proof,
-  route modes, run authorized work to empty, falsify success, simplify, and report evidence-backed completion.
-- [`.agents/frameworks/ciitty/SKILL.md`](.agents/frameworks/ciitty/SKILL.md) — CIITTY v2.1: **Blind Spot
-  Check** + **Forgotten Factor Protocol** (what route/cron/webhook/env var depends on what I changed?).
+- [`NOUR-COMMAND.md`](./NOUR-COMMAND.md) — **read before every non-trivial task**: infer outcome, define proof, run to empty, falsify.
+- [`.agents/frameworks/ciitty/SKILL.md`](.agents/frameworks/ciitty/SKILL.md) — CIITTY v2.1: Blind Spot Check + Forgotten Factor Protocol.
 - [`docs/UPSTREAMS.md`](docs/UPSTREAMS.md) — adoption verdicts; check before proposing a new platform, library, or MCP.

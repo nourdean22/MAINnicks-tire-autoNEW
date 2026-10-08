@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "nickstire/weekly-gsc-digest adds server/cron/jobs/weeklyGscDigest.ts and registers `weekly-gsc-digest` in the hourly tier of server/cron/scheduler.ts (oncePerShopDay, requiresEnv GOOGLE_SEARCH_CONSOLE_KEY — the presence marker _core/index.ts derives from the service-account creds, same gate as gsc-pipeline). Fail-closed arms pinned in server/cron/jobs/weeklyGscDigest.test.ts, all driven through runWeeklyGscDigest (the only export): the Google call throws -> rejects `digest failed: ...`, no Telegram send; Google returns no official total for the window -> rejects, the search_performance mirror is never consulted, no send; a schema error on the mirror query -> rejects `SCHEMA BUG — ...`; Telegram returns false -> rejects; a non-Monday (shop TZ) returns recordsProcessed 0 with `skip · not Monday (shop TZ)` and touches nothing; POSITIVE CONTROL: a Monday run sends once and returns the receipts in details. An EMPTY or BEHIND mirror is named in the message instead of rendering empty insight lists as `none`. Re-run for THIS diff on 2026-10-08: server/cron/jobs/weeklyGscDigest.test.ts (18) + weeklyRevenueDigest.test.ts (28) + cron/cronInventoryParity.test.ts (10) + __tests__/cronNoSwallowedFailure.test.ts (7) + jobs/cronRethrow2026.test.ts (16) + jobs/cron-rethrow.test.ts (3) -> 6 files, 82 passed, exit 0; shuffled file order seeds 7 and 41 -> 4 files, 57 passed, exit 0 each; tsc exit 0; lint:cron-wiring 127 tier jobs, 0 faults; lint:orphans 0 NEW."
+    }
+  }
+}

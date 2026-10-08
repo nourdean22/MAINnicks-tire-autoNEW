@@ -1744,6 +1744,56 @@ def canonical_size_from(calibration_path):
     return (int(size[0]), int(size[1]))
 
 
+class CalibrationLoad:
+    """What `load_calibration` decided: the polygons to run with, the version to report, and the
+    fault (if any) that made it refuse the file. `lot is None` means census mode."""
+
+    __slots__ = ("version", "lot", "portal", "bays", "fault", "straddle")
+
+    def __init__(self, version, lot, portal, bays, fault, straddle=None):
+        self.version = version
+        self.lot = lot
+        self.portal = portal
+        self.bays = bays
+        self.fault = fault
+        self.straddle = straddle
+
+
+def load_calibration(calibration_path) -> CalibrationLoad:
+    """Read a calibration file and refuse it when its portal cannot be crossed.
+
+    The version is the file's sha256 prefix, as before. A portal is checked with
+    `vision.geometry.portal_straddles`: it must have samples both inside and outside the lot
+    polygon, or `EntryPortal` can never record an entry and the producer would count nothing
+    while reporting healthy (audit 2026-10-07, B5). A refused file is reported exactly like a
+    missing one -- no version, no lot, so the caller runs census mode and the heartbeat's
+    `calibrationVersion` is null -- with the reason in `fault` for the log. A calibration with
+    no portal at all is still allowed through unchanged: that is the deliberate "census only"
+    shape, and the caller already refuses to claim arrivals for it.
+    """
+    if not calibration_path or not os.path.exists(calibration_path):
+        return CalibrationLoad(None, None, [], {}, None)
+    import hashlib
+    import json as _json
+
+    from vision.geometry import portal_straddles
+
+    raw = open(calibration_path, "rb").read()
+    version = "sha256:" + hashlib.sha256(raw).hexdigest()[:12]
+    cal = _json.loads(raw.decode("utf-8"))
+    lot = [tuple(p) for p in cal["lot"]]
+    portal = [tuple(p) for p in (cal.get("portal") or [])]
+    bays = {k: [tuple(p) for p in v] for k, v in (cal.get("bays") or {}).items()}
+    straddle = None
+    if portal:
+        straddle = portal_straddles(lot, portal)
+        if not straddle["ok"]:
+            fault = (f"portal does not straddle the lot boundary ({straddle['reason']}; "
+                     f"{straddle['inside']} of {straddle['samples']} samples inside)")
+            return CalibrationLoad(None, None, [], {}, fault, straddle)
+    return CalibrationLoad(version, lot, portal, bays, None, straddle)
+
+
 def build_edge(cfg: Config, args: argparse.Namespace):
     """Build the visitd pipeline first, then hand ITS tracker to the vision pipeline.
 
@@ -1794,19 +1844,18 @@ def build_edge(cfg: Config, args: argparse.Namespace):
                           canonical_size=(canonical_size_from(args.calibration)
                                           if args.scene_atlas else None))
 
-    calibration_version = None
-    lot_poly = portal_poly = None
-    bays: dict = {}
-    if args.calibration and os.path.exists(args.calibration):
-        import hashlib
-        import json as _json
-
-        raw = open(args.calibration, "rb").read()
-        calibration_version = "sha256:" + hashlib.sha256(raw).hexdigest()[:12]
-        cal = _json.loads(raw.decode("utf-8"))
-        lot_poly = [tuple(p) for p in cal["lot"]]
-        portal_poly = [tuple(p) for p in (cal.get("portal") or [])]
-        bays = {k: [tuple(p) for p in v] for k, v in (cal.get("bays") or {}).items()}
+    loaded = load_calibration(args.calibration)
+    if loaded.fault:
+        # B5 (audit 2026-10-07): a portal that does not straddle the lot boundary can never be
+        # crossed, so the lane would report zero arrivals under green health for as long as the
+        # file stayed wrong. Refuse the calibration instead: census mode below, and the heartbeat
+        # carries no calibrationVersion, which the shop renders as CALIBRATION_INVALID.
+        log.error("CALIBRATION_INVALID %s: %s -- running in census mode, arrivals are NOT claimed",
+                  args.calibration, loaded.fault)
+    calibration_version = loaded.version
+    lot_poly = loaded.lot
+    portal_poly = loaded.portal
+    bays = loaded.bays
 
     arrival_zone = (cam.arrival_zones or ("front_lot",))[0]
     if lot_poly:

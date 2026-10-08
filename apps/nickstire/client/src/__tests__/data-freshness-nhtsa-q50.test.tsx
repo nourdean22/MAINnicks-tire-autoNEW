@@ -24,7 +24,7 @@ vi.mock("@/lib/trpc", () => ({
 }));
 
 import { DataFreshness } from "../pages/admin/today/DataFreshness";
-import { nhtsaWarrantyRow } from "../pages/admin/today/dataFreshness";
+import { nhtsaWarrantyRow } from "../pages/admin/today/freshnessRows";
 
 afterEach(() => {
   cleanup();

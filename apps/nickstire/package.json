@@ -164,7 +164,7 @@
     "fast-check": "3.23.2",
     "jsdom": "^29.0.2",
     "mysql-memory-server": "1.16.0",
-    "pnpm": "^10.34.5",
+    "pnpm": "^10.34.6",
     "postcss": "^8.5.28",
     "prettier": "^3.9.9",
     "tailwindcss": "catalog:",

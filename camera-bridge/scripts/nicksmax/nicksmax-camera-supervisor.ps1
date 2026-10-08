@@ -24,7 +24,9 @@ $ErrorActionPreference = "Continue"
 #      ESCALATE; listening coverage under 50% while READY -> WARN.
 #   2. Eufy bridge (:3000) + agent (:3601) tasks: duplicates -> keep the port owner; not running
 #      -> start (reclaiming an orphan first); port closed three ticks in a row -> restart.
-#   3. sign pipeline: relay -> MediaMTX -> crop -> production edge (decoded-frame proof).
+#   3. sign pipeline: relay -> MediaMTX -> crop -> production edge (decoded-frame proof). An
+#      armed, healthy edge whose Python modules changed on disk is ended once so the same start
+#      path reloads it: a `git pull` is the deploy for the edge too (2026-10-08).
 #   4. disk floor: under 1 GB free -> rotate this log, prune raw office audio past the worker's
 #      own retention, ESCALATE. (Measured 0.10 GB free on 2026-10-05.)
 # Every restart is recorded per component; more than $escalateRestartsPerHour in an hour logs
@@ -73,11 +75,19 @@ try {
   exit 0
 }
 
+# Logging must never break supervision -- and a log that cannot be written must not silence it
+# either. 2026-10-08 07:34-07:5x: a remote-admin session's reverse read left an exclusive handle
+# on this file, Add-Content failed every tick, and the supervisor restarted workers for 20 minutes
+# with nothing on record. Lines that cannot reach $log go to $log.overflow; read both.
+# -ErrorAction Stop on both writes is load-bearing: this script runs under "Continue" (line 1),
+# where a sharing violation is a NON-terminating error that never reaches a catch. The first
+# version of this fallback shipped without it and wrote nothing anywhere for the 07:48 restart.
 function Log([string]$m) {
+  $line = "{0} {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $m
   try {
-    Add-Content -Path $log -Value ("{0} {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $m) -Encoding utf8
+    Add-Content -Path $log -Value $line -Encoding utf8 -ErrorAction Stop
   } catch {
-    # Logging must never break supervision across privilege-context races.
+    try { Add-Content -Path ($log + ".overflow") -Value $line -Encoding utf8 -ErrorAction Stop } catch {}
   }
 }
 
@@ -216,22 +226,50 @@ function Stop-PortOwner([int]$port,[string]$label) {
 
 # Two copies of one worker is never right: both post, both write the same heartbeat file, and the
 # newer one cannot bind the port. Keep the listener (else the oldest) and end the rest.
+#
+# Count process TREES, never processes. A venv python.exe is a LAUNCHER: it runs the real
+# interpreter as its child with the same command line (two matches, 50-360 ms apart, witnessed
+# 2026-10-08). The first per-process dedupe killed that child under every venv worker, the launcher
+# exited, the task went Ready, and this supervisor restarted the office worker and the Eufy agent
+# every two minutes (14 an hour each) until a human read the log. A tree whose member owns the port
+# is the one to keep; otherwise the oldest root. Ending a duplicate ends its whole tree.
 function Remove-DuplicateProcesses([string]$needle,[int]$port,[string]$label) {
   $procs = @(Get-ProcessesMatching $needle)
   if ($procs.Count -le 1) { return 0 }
+  $ids = @($procs | ForEach-Object { [int64]$_.ProcessId })
+  $roots = @($procs | Where-Object { $ids -notcontains [int64]$_.ParentProcessId })
+  if ($roots.Count -le 1) { return 0 }
   $owner = $null
   if ($port -gt 0) {
     $owner = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
       Select-Object -First 1 -ExpandProperty OwningProcess
   }
-  $keep = $procs | Where-Object { $_.ProcessId -eq $owner } | Select-Object -First 1
-  if (-not $keep) { $keep = $procs | Sort-Object CreationDate | Select-Object -First 1 }
+  $trees = @(foreach ($r in $roots) {
+    $members = @($r)
+    $grew = $true
+    while ($grew) {
+      $grew = $false
+      $memberIds = @($members | ForEach-Object { [int64]$_.ProcessId })
+      foreach ($p in $procs) {
+        if (($memberIds -contains [int64]$p.ParentProcessId) -and ($memberIds -notcontains [int64]$p.ProcessId)) {
+          $members += $p
+          $grew = $true
+        }
+      }
+    }
+    $memberIds = @($members | ForEach-Object { [int64]$_.ProcessId })
+    [pscustomobject]@{ Root = $r; Members = $members; OwnsPort = [bool]($owner -and ($memberIds -contains [int64]$owner)) }
+  })
+  $keep = @($trees | Where-Object { $_.OwnsPort }) | Select-Object -First 1
+  if (-not $keep) { $keep = @($trees | Sort-Object { $_.Root.CreationDate }) | Select-Object -First 1 }
   $stopped = 0
-  foreach ($p in $procs) {
-    if ($p.ProcessId -eq $keep.ProcessId) { continue }
-    Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
-    Log ("ACTION stopped duplicate {0} pid={1}; keeping pid={2}" -f $label,$p.ProcessId,$keep.ProcessId)
-    $stopped++
+  foreach ($t in $trees) {
+    if ($t.Root.ProcessId -eq $keep.Root.ProcessId) { continue }
+    foreach ($p in $t.Members) {
+      Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
+      Log ("ACTION stopped duplicate {0} pid={1}; keeping pid={2}" -f $label,$p.ProcessId,$keep.Root.ProcessId)
+      $stopped++
+    }
   }
   return $stopped
 }
@@ -286,6 +324,53 @@ function Get-OfficeCodeFingerprint([string]$dir) {
     $parts = foreach ($f in $files) { $f.Name + ":" + [BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($f.FullName))) }
   } finally { $sha.Dispose() }
   return ($parts -join "|")
+}
+
+# Fingerprint of the sign edge's Python modules: edge_main.py, edge_health.py, visitd\*.py and
+# vision\*.py minus the office worker's own office*.py (those belong to the rule above). Same
+# ledger convention: the fingerprint on record is the one the running edge was started on.
+function Get-EdgeCodeFingerprint([string]$dir) {
+  $files = @()
+  foreach ($name in @("edge_main.py","edge_health.py")) {
+    $p = Join-Path $dir $name
+    if (Test-Path -LiteralPath $p) { $files += Get-Item -LiteralPath $p }
+  }
+  $files += @(Get-ChildItem -Path (Join-Path $dir "visitd") -Filter "*.py" -File -ErrorAction SilentlyContinue)
+  $files += @(Get-ChildItem -Path (Join-Path $dir "vision") -Filter "*.py" -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike "office*.py" })
+  if (-not $files -or @($files).Count -eq 0) { return "" }
+  $sha = [Security.Cryptography.SHA256]::Create()
+  try {
+    $parts = foreach ($f in @($files | Sort-Object FullName)) { $f.Name + ":" + [BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($f.FullName))) }
+  } finally { $sha.Dispose() }
+  return ($parts -join "|")
+}
+
+# A long-running edge keeps the code it started with. When `git pull` changes its modules, end the
+# production edge once between ticks and let the arm path below start it again on the new code,
+# behind the same decoded-frame proof as any other start (2026-10-08: #2920's phantom re-arrival
+# fix sat on disk unloaded while the old edge kept running). Scope, deliberately narrow:
+#   * armed and healthy only -- a missing edge is already the start path's business, and the
+#     fingerprint is recorded whenever that path starts one, since it loads what is on disk;
+#   * never within 10 min of another sign-edge restart (a stale-lease kill, a fresh start). The
+#     launcher wrapper ($prodStarting) is NOT a guard here: run-sign-rtsp-production.ps1 stays
+#     alive as the edge's parent for the edge's whole life (pid 28568 under the 01:51 edge on
+#     2026-10-08), so "a launcher is alive" means "the edge is running", which is the case this
+#     rule exists for. The start path below reads it the same way: alive -> do not start another.
+#   * the fingerprint is recorded only when the restart is actually issued, so a throttled tick
+#     retries instead of forgetting the change. First sight of a tree counts as changed.
+# Returns $true when it ended the edge, so the caller re-probes :9095 before deciding to start.
+function Heal-EdgeCode([bool]$armed,[bool]$prodHealthy) {
+  if (-not $armed) { return $false }
+  $fp = Get-EdgeCodeFingerprint $root
+  if (-not $fp) { return $false }
+  $e = Get-Entry "edge-code-version"
+  if ($e.fingerprint -eq $fp) { return $false }
+  if (-not $prodHealthy) { return $false }
+  if ((Restarts-InLastMinutes "sign-edge" 10) -gt 0) { return $false }
+  Stop-ProcessesByCommand "python.*config-nicksmax-sign-production\.yaml" "production edge running stale code"
+  Record-Restart "sign-edge" "edge code changed on disk; ended the production edge so the start path reloads it"
+  $e.fingerprint = $fp
+  return $true
 }
 
 function Get-OfficeStatus {
@@ -500,6 +585,12 @@ if ($prodHealthy -and -not $leaseFresh) {
   $prodHealthy = Port-Open 9095
 }
 $prodStarting = Find-ProcessByCommand "run-sign-rtsp-production\.ps1"
+if (Heal-EdgeCode $armed $prodHealthy) {
+  # The launcher wrapper exits with its child; re-read both so this same tick can start the edge.
+  Start-Sleep -Milliseconds 900
+  $prodHealthy = Port-Open 9095
+  $prodStarting = Find-ProcessByCommand "run-sign-rtsp-production\.ps1"
+}
 
 if ($armed) {
   # Fail closed: production marker means there may be ONE direct sign edge, never shadow + production.
@@ -511,6 +602,8 @@ if ($armed) {
         Set-Content -Path $prodStartMarker -Value (Get-Date -Format o) -Encoding ascii
         Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @("-NoProfile","-ExecutionPolicy","Bypass","-File",$productionLauncher)
         Record-Restart "sign-edge" "authoritative RTSP sign producer started after decoded-frame proof"
+        # This start loads whatever is on disk right now; that is the code the edge runs from here.
+        (Get-Entry "edge-code-version").fingerprint = Get-EdgeCodeFingerprint $root
       } else {
         Log "WAIT production RTSP decode proof failed; refusing early edge start"
       }

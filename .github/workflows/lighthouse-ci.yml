@@ -12,6 +12,15 @@ name: Lighthouse CI
 on:
   push:
     branches: [main]
+    # Only merges that can change the storefront. statenour-only, docs-only,
+    # dependency and camera merges were each paying ~7 billable minutes to
+    # re-measure an unchanged site (2026-10-08).
+    paths:
+      - "apps/nickstire/client/**"
+      - "apps/nickstire/shared/**"
+      - "apps/nickstire/server/**"
+      - "apps/nickstire/package.json"
+      - ".github/workflows/lighthouse-ci.yml"
   workflow_dispatch:
   schedule:
     - cron: "0 14 * * 1" # Monday 09:00 ET — weekly snapshot

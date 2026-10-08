@@ -24,7 +24,7 @@
 
 **NicksMax** is on `main` (clean). The supervisor runs from `camera-bridge/scripts/nicksmax/` through the `data\` shim; its ledger is `data\.nicksmax-supervisor-state.json`; its log is `logs\nicksmax-camera-supervisor.log` (grep ESCALATE). The office worker task now has WorkingDirectory = `NOURCITY\camera-bridge`.
 
-**Pending operator decision:** ~~office "watch" - A (cloud VLM stills, own switch) or B (on-box detection only).~~ Closed 2026-10-07: both shipped 2026-10-02 (#2898 A, #2901 B); this line outlived the decision. The open operator decisions now are in `docs/agent-audit/CAMERA-INTELLIGENCE-AUDIT-2026-10-07.md` section 14 (disk reclaim, desktop agents off NicksMax, decoder revert, the two pending migrations).
+**Pending operator decision:** ~~office "watch" - A (cloud VLM stills, own switch) or B (on-box detection only).~~ Closed 2026-10-07: both shipped 2026-10-02 (#2898 A, #2901 B); this line outlived the decision. The open operator decisions were in `docs/agent-audit/CAMERA-INTELLIGENCE-AUDIT-2026-10-07.md` section 14; the operator approved all of them on 2026-10-08 and the statenour part is done: `20261007120000_device_events_identity_indexes` applied and recorded (see RECONCILIATION, 10-07 entry, closing note). Decoder: `small.en-q5_1` via camera-bridge's `whisper-model.override`, not a revert to `base.en`.
 
 **Findings not fixed:**
 - `tool_telemetry` stale 50h: suspect the alternate chat paths skip `recordToolInvocation`;

@@ -225,7 +225,7 @@ read the way `cron/jobs/cronSkipWatchdog.ts` reads `cron_log`.
 > "unavailable". Code: `server/services/nhtsaWarrantyRead.ts`.
 
 Once the ingest has run, the same freshness reading can become a row on Intelligence HQ's Data
-freshness card (`client/src/pages/admin/today/dataFreshness.ts`, Q-23 phase 9); that is a
+freshness card (`client/src/pages/admin/today/freshnessRows.ts`, Q-23 phase 9); that is a
 follow-up, not part of phase 2.
 
 > **Built in phase 3 (2026-10-01).** The row is `nhtsaWarrantyRow` in that file, read through

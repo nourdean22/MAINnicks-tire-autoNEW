@@ -1,5 +1,10 @@
 /**
- * dataFreshness — Q-23 phase 9 · how current the shop data on this screen is.
+ * freshnessRows — Q-23 phase 9 · how current the shop data on this screen is.
+ *
+ * Was `dataFreshness.ts` until 2026-10-08: it sat beside `DataFreshness.tsx` and
+ * the two names differ only in case, which tsc rejects on a case-insensitive
+ * filesystem (TS1149/TS1261 on every Windows checkout). Renamed, not merged, so
+ * the pure row builders stay separate from the component.
  *
  * Estate plan §9 item 4: the money radar has to say how old its inputs are, or
  * every other tile reads as live when it may be days behind. Three inputs feed

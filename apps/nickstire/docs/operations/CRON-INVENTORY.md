@@ -4,7 +4,7 @@ Every background job in `server/cron/scheduler.ts` (tiered scheduler) and the
 HTTP-triggerable registry in `server/cron/index.ts`. **This file is generated** from
 those two sources — `server/cron/cronInventoryParity.test.ts` fails when they drift.
 
-**Last regenerated: 2026-10-01 by `scripts/gen-cron-inventory.mts`.**
+**Last regenerated: 2026-10-08 by `scripts/gen-cron-inventory.mts`.**
 
 > The code is the source of truth. To add or change a job, edit the scheduler and
 > re-run the generator in the same commit; write the job's purpose in the last column.
@@ -17,11 +17,11 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 |---|---|---|
 | heartbeat | every 5m | 4 / 2 |
 | pulse | every 15m | 24 / 0 |
-| hourly | every 2h | 36 / 1 |
+| hourly | every 2h | 37 / 1 |
 | daily | every 1d | 53 / 0 |
 | briefings | every 12h | 6 / 0 |
 
-**Total: 126 tiered jobs (123 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
+**Total: 127 tiered jobs (124 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
 
 ## heartbeat (every 5m)
 
@@ -102,6 +102,7 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `sync-visit-dates` | no | no | yes | — |
 | `vip-auto-recognition` | yes | yes | yes | — |
 | `voice-recovery` | no | no | yes | — |
+| `weekly-gsc-digest` | no | yes | yes | Monday Telegram push: official 28-day GSC totals vs prior 28 days, top queries/pages, CTR opportunities + 7-day ranking moves from the search_performance mirror (labels the mirror empty/stale rather than "none"); fails closed without an official total |
 | `weekly-revenue-digest` | no | yes | yes | — |
 | `winback-auto-process` | yes | no | yes | — |
 

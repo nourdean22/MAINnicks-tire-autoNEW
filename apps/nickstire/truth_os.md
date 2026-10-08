@@ -57,6 +57,12 @@ detailed in `docs/CURRENT-TRUTH.md`:
   arrivals→invoice receipts — `server/cron/jobs/weeklyRevenueDigest.ts`,
   contract in `docs/CURRENT-TRUTH.md`. The weekly intelligence report
   previously never read `invoices` at all.
+- **A weekly Search Console digest now exists** (2026-10-08): Monday Telegram push
+  of the official 28-day GSC totals vs the prior 28 days, top queries/pages, and
+  CTR opportunities + 7-day ranking moves from the `search_performance` mirror
+  (which it labels empty/stale instead of rendering as "none") —
+  `server/cron/jobs/weeklyGscDigest.ts`, `weekly-gsc-digest` in the hourly tier.
+  GSC numbers previously reached the operator only by pull.
 - **The ScanFinish wave landed (2026-08-13, #1552/#1553):** the reel lane's
   independent judge runs **shadow/log-only** (image-lane gate unchanged,
   fail-closed); reel brief feedback is REELS-first with a disclosed fallback;
