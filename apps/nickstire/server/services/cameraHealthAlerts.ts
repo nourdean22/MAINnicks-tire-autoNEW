@@ -27,6 +27,8 @@ import { createLogger } from "../lib/logger";
 import { deriveCameraState, shopOpenAt } from "../lib/cameraHealth";
 import { solarExpectedOffline } from "../lib/solar";
 import { cameraRuntimeHasColumns } from "../lib/heartbeatStorableColumns";
+import { derivedTransition } from "../lib/cameraTimeline";
+import { isMissingTableError } from "../lib/dbErrors";
 import { EXPECTED_CAMERAS, cameraPowerFor } from "../../shared/cameras";
 import {
   cameraAlertClaim,
@@ -169,6 +171,57 @@ async function latestCameraAlert(
   return { key: String(row.alert_key), ageSeconds: numberOrNull(row.ageSeconds) };
 }
 
+/**
+ * The health TIMELINE's second writer (audit N6). The heartbeat ingest logs the producer's own
+ * state changes into `camera_health_events`; it cannot log STALE, PRODUCER_OFFLINE or
+ * EXPECTED_SOLAR_OFFLINE, because no heartbeat arrives to log them, so until this pass the
+ * table read HEALTHY straight through every outage. Each tick compares the state this job
+ * DERIVES with the last row for the camera and writes one transition when they differ.
+ *
+ * A missing table is logged once and skipped (the table is hand-applied, like every migration
+ * here); any other failure propagates to the caller, which pages first and throws after -- a
+ * timeline that stopped must not pass as a quiet tick.
+ */
+let timelineTableMissingLogged = false;
+export async function recordDerivedHealthTransition(
+  db: Db,
+  camera: string,
+  verdict: { state: HealthState; reason: string },
+  producerInstanceId: string | null,
+): Promise<boolean> {
+  try {
+    const [rows] = await db.execute(sql`
+      SELECT toState FROM camera_health_events
+       WHERE camera = ${camera}
+       ORDER BY at DESC, id DESC
+       LIMIT 1
+    `);
+    const latest = (rows as Array<Record<string, unknown>>)[0];
+    const latestToState = latest?.toState == null ? null : String(latest.toState);
+    const transition = derivedTransition(latestToState, verdict);
+    if (!transition) return false;
+    await db.execute(sql`
+      INSERT INTO camera_health_events (camera, fromState, toState, reason, producerInstanceId, sourceGeneration)
+      VALUES (${camera}, ${transition.from}, ${transition.to}, ${transition.reason}, ${producerInstanceId}, ${null})
+    `);
+    log.info("camera health timeline: derived transition recorded", {
+      camera,
+      from: transition.from,
+      to: transition.to,
+    });
+    return true;
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      if (!timelineTableMissingLogged) {
+        timelineTableMissingLogged = true;
+        log.warn("camera_health_events is missing; derived transitions are not recorded until it is applied", { camera });
+      }
+      return false;
+    }
+    throw err;
+  }
+}
+
 export async function runCameraHealthAlerts(): Promise<{
   recordsProcessed: number;
   details: string;
@@ -190,6 +243,7 @@ export async function runCameraHealthAlerts(): Promise<{
   const cameraNames = commissioned.map((camera) => camera.camera);
   const [rows] = await db.execute(sql`
     SELECT camera,
+           producerInstanceId,
            UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt) AS ageSeconds,
            UNIX_TIMESTAMP(observedAtEdge) AS observedAtEdgeEpoch,
            UNIX_TIMESTAMP(receivedAt) AS receivedAtEpoch,
@@ -219,6 +273,8 @@ export async function runCameraHealthAlerts(): Promise<{
 
   let sent = 0;
   let held = 0;
+  let recorded = 0;
+  let timelineFailure: unknown = null;
   const observed: string[] = [];
 
   for (const expected of commissioned) {
@@ -255,6 +311,24 @@ export async function runCameraHealthAlerts(): Promise<{
       { solar: cameraPowerFor(expected.camera) === "solar" ? solar : null },
     );
     observed.push(`${expected.camera}=${verdict.state}`);
+
+    // The timeline row for the state this pass derived (audit N6), written before the page so
+    // the two agree on what happened. A failure is kept, not thrown here: every camera is still
+    // judged and paged, then the run fails loudly at the end.
+    try {
+      if (
+        await recordDerivedHealthTransition(
+          db,
+          expected.camera,
+          verdict,
+          row?.producerInstanceId == null ? null : String(row.producerInstanceId),
+        )
+      ) {
+        recorded++;
+      }
+    } catch (err) {
+      timelineFailure = err;
+    }
 
     const latest = await latestCameraAlert(db, expected.camera);
     const decision = cameraAlertDecision(
@@ -323,8 +397,16 @@ export async function runCameraHealthAlerts(): Promise<{
     }
   }
 
+  if (timelineFailure) {
+    throw new Error(
+      `camera-health-alerts: ${sent} alert(s) sent, then the health timeline write failed: ${
+        timelineFailure instanceof Error ? timelineFailure.message : String(timelineFailure)
+      }`,
+    );
+  }
+
   return {
     recordsProcessed: sent,
-    details: `${sent} alert(s)${held ? `, ${held} held by the ${Math.round(cameraAlertCooldownSeconds() / 60)}-minute cooldown` : ""}; ${observed.join(", ")}`,
+    details: `${sent} alert(s)${held ? `, ${held} held by the ${Math.round(cameraAlertCooldownSeconds() / 60)}-minute cooldown` : ""}${recorded ? `, ${recorded} timeline transition(s) recorded` : ""}; ${observed.join(", ")}`,
   };
 }

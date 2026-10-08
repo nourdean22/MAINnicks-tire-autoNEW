@@ -63,6 +63,9 @@ import {
   machineEventsFromVisit, QUIESCENCE_HEARTBEAT_MAX_AGE_S, TRUTH_EVENTS,
 } from "../lib/commissioningReport";
 import { EXPECTED_CAMERAS, cameraPowerFor } from "../../shared/cameras";
+import { BUSINESS } from "../../shared/business";
+import { shopDayWindow } from "../../shared/shopState";
+import { buildCameraTimeline, businessHourWindows, coverageByBusinessHour, type HealthEventRow } from "../lib/cameraTimeline";
 import { VISIT_MARKS } from "../../shared/visitMarks";
 import { deriveVisitMarkState, type VisitMarkRow } from "../lib/visitMarks";
 import { isDuplicateKeyError, isMissingTableError, logSafeErrorMessage } from "../lib/dbErrors";
@@ -1043,6 +1046,85 @@ export const lotRouter = router({
       `));
       const byStability = new Map(stability.map((s) => [String(s.camera), s]));
 
+      // THE DAY AS A TIMELINE, and how much of business time the lot was WATCHED (audit N2 + N6).
+      //
+      // "steady today" above counts rows; this reads them as time. The day's rows plus the one
+      // row before the day (the anchor) give each camera a contiguous set of state segments
+      // from local midnight to now; the vehicle-truth camera's HEALTHY share of the business
+      // hours so far is the coverage every count on this page should be read against.
+      // The read-derived states (STALE / PRODUCER_OFFLINE / EXPECTED_SOLAR_OFFLINE) are in the
+      // table since the 5-minute alert pass started writing them; before that the timeline
+      // could only show what the producer itself reported.
+      const nowMs = Date.now();
+      const dayWindow = shopDayWindow(new Date(nowMs), BUSINESS.timezone, BUSINESS.hours.structured);
+      const dayStartEpoch = Math.floor(dayWindow.dayStartMs / 1000);
+      const todayEvents = rowsOf(await d.execute(sql`
+        SELECT camera, fromState, toState, reason, UNIX_TIMESTAMP(at) AS atEpoch
+        FROM camera_health_events
+        WHERE at >= FROM_UNIXTIME(${dayStartEpoch})
+        ORDER BY at ASC, id ASC
+      `));
+      // The last row before the day, per expected camera. One indexed LIMIT 1 read each, ordered
+      // by time first: TiDB ids are allocated in per-node ranges and are NOT time-ordered, so
+      // MAX(id) could name a row from an hour earlier (server/__tests__/latestByIdOrdering).
+      const anchorByCamera = new Map<string, Record<string, unknown>>();
+      for (const c of EXPECTED_CAMERAS) {
+        const [anchor] = rowsOf(await d.execute(sql`
+          SELECT camera, toState, reason, UNIX_TIMESTAMP(at) AS atEpoch
+          FROM camera_health_events
+          WHERE camera = ${c.camera} AND at < FROM_UNIXTIME(${dayStartEpoch})
+          ORDER BY at DESC, id DESC
+          LIMIT 1
+        `));
+        if (anchor) anchorByCamera.set(c.camera, anchor);
+      }
+      const eventRow = (e: Record<string, unknown>): HealthEventRow => ({
+        toState: String(e.toState),
+        fromState: str(e.fromState),
+        reason: str(e.reason),
+        atMs: num(e.atEpoch) * 1000,
+      });
+      const timelineFor = (camera: string) => {
+        const a = anchorByCamera.get(camera);
+        return buildCameraTimeline({
+          anchor: a ? eventRow(a) : null,
+          events: todayEvents.filter((e) => String(e.camera) === camera).map(eventRow),
+          dayStartMs: dayWindow.dayStartMs,
+          nowMs,
+        });
+      };
+      const truthCamera = EXPECTED_CAMERAS.find((c) => c.role === "vehicle_truth") ?? null;
+      const minutes = (ms: number) => Math.round(ms / 60_000);
+      const coverage =
+        truthCamera && dayWindow.openMs !== null && dayWindow.closeMs !== null
+          ? (() => {
+              const tl = timelineFor(truthCamera.camera);
+              const cov = coverageByBusinessHour(tl.segments, businessHourWindows(dayWindow.openMs, dayWindow.closeMs), nowMs);
+              return {
+                camera: truthCamera.camera,
+                weekday: dayWindow.weekday,
+                openMs: dayWindow.openMs,
+                closeMs: dayWindow.closeMs,
+                nowMs,
+                /** False when no row predates today: the morning before the first row is UNKNOWN, counted as not watched. */
+                anchorKnown: tl.anchorKnown,
+                /** HEALTHY share of business time so far; null before the shop opens. */
+                pct: cov.pct,
+                elapsedMinutes: minutes(cov.elapsedMs),
+                watchedMinutes: minutes(cov.watchedMs),
+                unknownMinutes: minutes(cov.unknownMs),
+                hours: cov.hours.map((h) => ({
+                  startMs: h.startMs,
+                  endMs: h.endMs,
+                  elapsedMinutes: minutes(h.elapsedMs),
+                  watchedMinutes: minutes(h.watchedMs),
+                  unknownMinutes: minutes(h.unknownMs),
+                  pct: h.pct,
+                })),
+              };
+            })()
+          : null;
+
       const byCamera = new Map(runtime.map((r) => [String(r.camera), r]));
       const bool = (v: unknown): boolean | null =>
         v === null || v === undefined ? null : Boolean(Number(v));
@@ -1170,6 +1252,10 @@ export const lotRouter = router({
             ? { outboxDepth: numOrNull(r.outboxDepth), oldestOutboxAgeSeconds: numOrNull(r.oldestOutboxAgeSeconds), deadLetterDepth: numOrNull(r.deadLetterDepth), cloudAckAgeSeconds: numOrNull(r.cloudAckAgeSeconds), diskFreeBytes: numOrNull(r.diskFreeBytes) }
             : null,
           openVisits: r ? num(r.openVisits) : 0,
+          // Today as state segments (audit N6): what "steady today" could not say. `current`
+          // is the state in force and its real start; `anchorKnown` false means the day opened
+          // on UNKNOWN because nothing was recorded before midnight.
+          timeline: timelineFor(camera),
         };
       };
 
@@ -1203,6 +1289,8 @@ export const lotRouter = router({
         cameras,
         healthy: cameras.filter((c) => c.state === "HEALTHY").length,
         expected: expected.length,
+        /** Vehicle-truth camera's HEALTHY share of business time so far, per hour (audit N2); null without hours today. */
+        coverage,
         transitions: transitions.map((t) => ({
           camera: String(t.camera),
           from: str(t.fromState),

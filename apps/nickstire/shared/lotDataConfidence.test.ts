@@ -151,3 +151,56 @@ describe("lotDataConfidence", () => {
     expect(v.level).toBe("OK");
   });
 });
+
+// Mirrors LOT_CONFIDENCE_RULES.minCoverage (audit N2), restated by value like the two above.
+const LOT_CONFIDENCE_MIN_COVERAGE = 0.8;
+
+describe("lotDataConfidence -- observation coverage (audit N2)", () => {
+  const normalMorning = activity({ today: { 8: 4, 9: 4, 10: 4, 11: 4 } });
+
+  it(`below ${LOT_CONFIDENCE_MIN_COVERAGE * 100}% of business time watched the comparison is withheld: UNKNOWN, with the minutes, never OK`, () => {
+    const v = lotDataConfidence({
+      activity: normalMorning,
+      sign: healthySign,
+      clock: noon,
+      coverage: { pct: 0.55, watchedMinutes: 132, elapsedMinutes: 240 },
+    });
+    expect(v.level).toBe("UNKNOWN");
+    expect(v.headline).toContain("comparison withheld");
+    expect(v.headline).toContain("55%");
+    expect(v.reasons.join(" ")).toContain("132 of 240 min");
+    expect(v.expectedSoFar).toBeNull();
+    expect(v.observedArrivals).toBe(16);
+  });
+
+  it("a LOW reason that does not depend on the comparison (drive-bys) survives low coverage as LOW", () => {
+    const v = lotDataConfidence({
+      activity: activity({ today: { 8: 2, 9: 2 }, passThroughs: 20 }),
+      sign: healthySign,
+      clock: noon,
+      coverage: { pct: 0.4, watchedMinutes: 96, elapsedMinutes: 240 },
+    });
+    expect(v.level).toBe("LOW");
+    expect(v.reasons[0]).toContain("drive-bys");
+    expect(v.reasons.join(" ")).toContain("40%");
+  });
+
+  it("at or above the floor the expectation is scaled to the share watched, and the reason says so", () => {
+    // 16 arrivals by noon against 16 expected: OK unscaled. Watched 85%: expected 13.6, still OK, and named.
+    const v = lotDataConfidence({ activity: normalMorning, sign: healthySign, clock: noon, coverage: { pct: 0.85, watchedMinutes: 204, elapsedMinutes: 240 } });
+    expect(v.level).toBe("OK");
+    expect(v.expectedSoFar).toBeCloseTo(16 * 0.85, 6);
+    expect(v.reasons.join(" ")).toContain("scaled to the 85% of business time watched");
+    // The scale is what keeps a watched-85% morning from reading LOW: 7 seen of 16 is LOW, 7 of 13.6 is OK? No: 7 < 6.8 is false -> OK.
+    const seven = lotDataConfidence({ activity: activity({ today: { 8: 2, 9: 2, 10: 2, 11: 1 } }), sign: healthySign, clock: noon, coverage: { pct: 0.85, watchedMinutes: 204, elapsedMinutes: 240 } });
+    expect(seven.level).toBe("OK");
+    const sevenUnscaled = lotDataConfidence({ activity: activity({ today: { 8: 2, 9: 2, 10: 2, 11: 1 } }), sign: healthySign, clock: noon });
+    expect(sevenUnscaled.level).toBe("LOW");
+  });
+
+  it("coverage not measured (absent, null, or pct null before open) changes nothing", () => {
+    const base = lotDataConfidence({ activity: normalMorning, sign: healthySign, clock: noon });
+    expect(lotDataConfidence({ activity: normalMorning, sign: healthySign, clock: noon, coverage: null })).toEqual(base);
+    expect(lotDataConfidence({ activity: normalMorning, sign: healthySign, clock: noon, coverage: { pct: null, watchedMinutes: 0, elapsedMinutes: 0 } })).toEqual(base);
+  });
+});

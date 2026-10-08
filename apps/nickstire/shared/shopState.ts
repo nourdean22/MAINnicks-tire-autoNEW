@@ -223,13 +223,41 @@ export function nextOpeningLabel(now: Date, timezone: string, hours: Record<stri
  * offset and then corrects for any UTC-offset shift the jump crossed, so the
  * result lands on the intended local wall-clock minute.
  */
+/**
+ * The shop's business window for the local calendar day that contains `now`, as epoch ms:
+ * `dayStartMs` is local midnight; `openMs` / `closeMs` are the configured hours for that
+ * weekday, null when the day has none. Built for the camera coverage read (lot.health, camera
+ * audit N2): "watched 83% of business time so far" must be measured against the same
+ * `BUSINESS.hours.structured` everything else reads, never a second definition of the day.
+ * DST-safe through shiftLocalMinutes, like nextOpenAt; minute-accurate like the hours.
+ */
+export function shopDayWindow(
+  now: Date,
+  timezone: string,
+  hours: Record<string, string>,
+): { weekday: string; dayStartMs: number; openMs: number | null; closeMs: number | null } {
+  const { weekday, minutes } = localClock(now, timezone);
+  const subMinute = now.getUTCSeconds() * 1000 + now.getUTCMilliseconds();
+  const dayStartMs = shiftLocalMinutes(now, timezone, -minutes).getTime() - subMinute;
+  const range = parseRange(hours[weekday]);
+  return {
+    weekday,
+    dayStartMs,
+    openMs: range ? shiftLocalMinutes(now, timezone, range.open - minutes).getTime() - subMinute : null,
+    closeMs: range ? shiftLocalMinutes(now, timezone, range.close - minutes).getTime() - subMinute : null,
+  };
+}
+
 function shiftLocalMinutes(now: Date, timezone: string, deltaMinutes: number): Date {
   const naive = new Date(now.getTime() + deltaMinutes * 60_000);
   const before = localClock(now, timezone).minutes;
   const after = localClock(naive, timezone).minutes;
-  // Expected local minutes-of-day after the shift, modulo the day.
-  const expected = (before + deltaMinutes) % 1440;
-  const drift = after - expected;
+  // Expected local minutes-of-day after the shift, modulo the day (negative deltas too).
+  const expected = (((before + deltaMinutes) % 1440) + 1440) % 1440;
+  // Wrapped into [-720, 720): a shift that lands on the far side of midnight (back to 00:00
+  // on the spring-forward day reads 23:00 the day before) is a one-hour drift, not a 23-hour
+  // one, and must be corrected like any other DST jump.
+  const drift = ((((after - expected) + 720) % 1440) + 1440) % 1440 - 720;
   // A DST jump shows up as a whole-hour drift; correct it back.
   if (drift !== 0 && Math.abs(drift) <= 120) {
     return new Date(naive.getTime() - drift * 60_000);

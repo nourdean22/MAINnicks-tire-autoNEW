@@ -374,7 +374,17 @@ type CameraHealth = {
    *  as a steady day, and must not render as one. */
   stability: { dropsToday: number; transitionsToday: number } | null;
   openVisits: number;
+  /** Today as state segments from local midnight to now (audit N6); `current` is the state in force and its real start. */
+  timeline: CameraTimeline | null;
 };
+
+type CameraTimeline = {
+  anchorKnown: boolean;
+  segments: Array<{ state: string; fromMs: number; toMs: number; open: boolean; reason: string | null }>;
+  current: { state: string; sinceMs: number; forSeconds: number } | null;
+};
+
+type BusinessWindow = { openMs: number; closeMs: number };
 
 /** Seconds -> "12s" / "4m" / "2h"; null -> em dash. Never "0s" for unknown. */
 function formatAgo(sec: number | null): string {
@@ -458,7 +468,78 @@ function TrustChip({ label, value, tone, detail }: { label: string; value: strin
   );
 }
 
-function CameraCard({ c }: { c: CameraHealth }) {
+/** Tone per state on the day strip. UNKNOWN is the grey of "no row says", never a verdict colour. */
+function timelineTone(state: string): string {
+  if (state === "HEALTHY") return "bg-emerald-500/70";
+  if (state === "EXPECTED_SOLAR_OFFLINE") return "bg-sky-500/50";
+  if (state === "UNKNOWN") return "bg-foreground/15";
+  if (state === "STALE" || state === "UNVERIFIED_CAPABILITIES") return "bg-amber-500/60";
+  return "bg-red-500/60";
+}
+
+/** "8:51 AM" in the shop's clock, for strip titles and the coverage chip. */
+function shopClock(ms: number): string {
+  return new Date(ms).toLocaleTimeString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", minute: "2-digit" });
+}
+
+/**
+ * TODAY AS TIME, not as a count (audit N6). "steady today" counted rows, and an offline producer
+ * never changes its reported state, so a camera could be HEALTHY in every row straight through
+ * an outage. The strip reads the day's `camera_health_events` as segments (the 5-minute pass
+ * now writes the read-derived states, the ingest writes the resumption), spans the business
+ * window when there is one, and shows UNKNOWN as grey: the stretch no row covers.
+ */
+function HealthTimeline({ timeline, stability, window }: { timeline: CameraTimeline; stability: CameraHealth["stability"]; window: BusinessWindow | null }) {
+  const segments = timeline.segments;
+  const first = segments[0]?.fromMs ?? 0;
+  const last = segments[segments.length - 1]?.toMs ?? first;
+  const spanStart = window ? Math.min(window.openMs, last) : first;
+  const spanEnd = window ? Math.max(window.closeMs, last) : last;
+  const span = Math.max(1, spanEnd - spanStart);
+  const current = timeline.current;
+  const currentLabel = current ? current.state.replace(/_/g, " ").toLowerCase() : null;
+  const record =
+    stability === null
+      ? timeline.anchorKnown
+        ? "no change recorded today"
+        : "no record before today"
+      : `${stability.transitionsToday} change${stability.transitionsToday === 1 ? "" : "s"}, ${stability.dropsToday} drop${stability.dropsToday === 1 ? "" : "s"} today`;
+  return (
+    <div className="mt-1 w-[9.5rem] max-w-full">
+      <div
+        className="text-[10px] text-foreground/60 text-right truncate"
+        title={current ? `${currentLabel} since ${shopClock(current.sinceMs)}` : "nothing recorded for this camera today or before it"}
+      >
+        {current ? `${currentLabel} for ${formatAgo(current.forSeconds)}` : "no record today"}
+      </div>
+      <div
+        className="mt-0.5 flex h-1.5 w-full overflow-hidden rounded-sm bg-foreground/5"
+        role="img"
+        aria-label={`today's camera states${window ? " over business hours" : ""}`}
+      >
+        {segments.map((s) => {
+          const a = Math.max(s.fromMs, spanStart);
+          const b = Math.min(s.toMs, spanEnd);
+          if (b <= a) return null;
+          const label = s.state.replace(/_/g, " ").toLowerCase();
+          return (
+            <div
+              key={`${s.state}-${s.fromMs}`}
+              className={`${timelineTone(s.state)} h-full`}
+              style={{ width: `${((b - a) / span) * 100}%` }}
+              title={`${shopClock(a)} to ${s.open ? "now" : shopClock(b)}: ${label}${s.reason ? ` (${s.reason})` : ""}`}
+            />
+          );
+        })}
+      </div>
+      <div className="text-[10px] text-foreground/40 text-right truncate" title="A drop is any move to offline, degraded, stale or calibration-invalid; returning to healthy is not counted.">
+        {record}
+      </div>
+    </div>
+  );
+}
+
+function CameraCard({ c, window }: { c: CameraHealth; window: BusinessWindow | null }) {
   const stateLabel = c.state.replace(/_/g, " ").toLowerCase();
   const facets: Array<[string, string]> = [
     ["producer", c.facets.producer],
@@ -512,17 +593,11 @@ function CameraCard({ c }: { c: CameraHealth }) {
           {/* TODAY'S RECORD, beside the badge that only knows about NOW.
               The badge above said "healthy" all morning on 2026-09-18 while this camera
               dropped 17 times, because whoever looked happened to look during an up phase.
-              A steady source and a flapping one are indistinguishable from a single glance,
-              and the count is the only thing on this card that can tell them apart. */}
-          {c.stability !== null && c.state !== "NEVER_INGESTED" && (
-            <span
-              className={`text-[10px] ${c.stability.dropsToday === 0 ? "text-foreground/40" : "text-amber-400/80"}`}
-              title={`${c.stability.transitionsToday} state change(s) recorded today, of which ${c.stability.dropsToday} left the camera unusable. A drop is any move to offline, degraded, stale or calibration-invalid; returning to healthy is not counted.`}
-            >
-              {c.stability.dropsToday === 0
-                ? "steady today"
-                : `${c.stability.dropsToday} drop${c.stability.dropsToday === 1 ? "" : "s"} today`}
-            </span>
+              A steady source and a flapping one are indistinguishable from a single glance.
+              The strip is the day as time (audit N6): every state segment, including the
+              read-derived ones no heartbeat could report, with the drops count beneath it. */}
+          {c.timeline !== null && c.state !== "NEVER_INGESTED" && (
+            <HealthTimeline timeline={c.timeline} stability={c.stability} window={window} />
           )}
         </div>
       </div>
@@ -1570,6 +1645,10 @@ export default function LotSection() {
   const windowColumnsStored = health.data?.ok === true ? health.data.windowColumnsStored : null;
   const shopOpenNow = health.data?.ok === true ? health.data.shopOpen : null;
   const signSolarNight = signCamera !== null && signCamera.state === "EXPECTED_SOLAR_OFFLINE";
+  // The vehicle-truth camera's HEALTHY share of business time so far (audit N2), and the
+  // business window every camera strip is drawn over.
+  const coverage = health.data?.ok === true ? health.data.coverage : null;
+  const businessWindow: BusinessWindow | null = coverage ? { openMs: coverage.openMs, closeMs: coverage.closeMs } : null;
 
   const badge: { label: string; variant: "success" | "warning" | "danger" | "neutral" } =
     nowFailed
@@ -1627,7 +1706,28 @@ export default function LotSection() {
       ? { state: signCamera.state, stateForSeconds: signCamera.stateForSeconds, dropsToday: signCamera.stability?.dropsToday ?? null }
       : null,
     clock: { hour: Math.floor(clock.minutes / 60), minute: clock.minutes % 60 },
+    // Comparisons are withheld under 80% of business time watched, scaled above it (audit N2).
+    coverage: coverage ? { pct: coverage.pct, watchedMinutes: coverage.watchedMinutes, elapsedMinutes: coverage.elapsedMinutes } : null,
   });
+
+  // WATCHED TODAY: the share of the shop's business time the sign camera spent HEALTHY, from
+  // the day's health events. The chip carries one cell per business hour so a blind 10 o'clock
+  // is visible beside a watched afternoon instead of averaged into it.
+  const watchedChip: { value: string; tone: ChipTone; detail: string | null } = !signLoaded
+    ? { value: health.isPending ? "loading" : "unknown", tone: "muted", detail: "camera health could not be read" }
+    : !coverage
+      ? { value: "no business hours today", tone: "muted", detail: "coverage is measured over the shop's configured hours" }
+      : coverage.pct === null
+        ? { value: "shop not open yet", tone: "muted", detail: `coverage starts at ${shopClock(coverage.openMs)}` }
+        : {
+            value: `watched ${Math.round(coverage.pct * 100)}% of business time`,
+            tone: coverage.pct >= 0.8 ? "ok" : "warn",
+            detail:
+              `${coverage.watchedMinutes} of ${coverage.elapsedMinutes} min since ${shopClock(coverage.openMs)}` +
+              (coverage.unknownMinutes > 0 ? `; ${coverage.unknownMinutes} min with no record` : "") +
+              (!coverage.anchorKnown ? "; nothing recorded before today" : "") +
+              (coverage.pct < 0.8 ? "; comparisons with the baseline are withheld under 80%" : ""),
+          };
 
   // Office mic: coverage is a NUMBER about the last hour, or it is unknown. A fresh worker
   // with no number is "not stored yet" while the 0144 migration lags; a stale worker's
@@ -1726,8 +1826,34 @@ export default function LotSection() {
         subtitle="Camera, baseline, floor-board completeness and office listening, in words"
         padding="sm"
       >
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
           <TrustChip label="Sign camera" value={signChip.value} tone={signChip.tone} detail={signChip.detail} />
+          <div className={`rounded-lg border px-3 py-2 min-w-0 ${CHIP_TONE[watchedChip.tone]}`} title={watchedChip.detail ?? undefined}>
+            <div className="text-[10px] uppercase tracking-wide opacity-70">Watched today</div>
+            <div className="text-[12px] font-medium leading-snug break-words">{watchedChip.value}</div>
+            {coverage && coverage.hours.length > 0 && (
+              <div className="mt-1 flex gap-px" role="img" aria-label="coverage per business hour">
+                {coverage.hours.map((h) => (
+                  <div
+                    key={h.startMs}
+                    className={`h-1.5 flex-1 rounded-sm ${
+                      h.pct === null
+                        ? "bg-foreground/10"
+                        : h.pct >= 0.8
+                          ? "bg-emerald-500/70"
+                          : h.pct > 0
+                            ? "bg-amber-500/70"
+                            : "bg-red-500/60"
+                    }`}
+                    title={`${shopClock(h.startMs)}: ${
+                      h.pct === null ? "not yet" : `${Math.round(h.pct * 100)}% watched (${h.watchedMinutes} of ${h.elapsedMinutes} min${h.unknownMinutes > 0 ? `, ${h.unknownMinutes} min no record` : ""})`
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
+            {watchedChip.detail && <div className="mt-0.5 text-[11px] opacity-75 leading-snug break-words">{watchedChip.detail}</div>}
+          </div>
           <TrustChip label="Today's counts" value={confidenceChip.value} tone={confidenceChip.tone} detail={confidence.headline} />
           <TrustChip
             label="On the lot"
@@ -2049,7 +2175,7 @@ export default function LotSection() {
         ) : (
           <div className="space-y-2">
             {healthCameras.map((c) => (
-              <CameraCard key={c.camera} c={c} />
+              <CameraCard key={c.camera} c={c} window={businessWindow} />
             ))}
             {health.data.transitions.length > 0 && (
               <div className="pt-1 space-y-0.5 text-[12px] text-foreground/50">

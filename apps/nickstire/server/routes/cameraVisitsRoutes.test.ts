@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 import {
   COLUMNS, GUARDED_SET, HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS,
   HEARTBEAT_GUARDED_SET, activeRunField, parseHeartbeat, plateTextToStore,
@@ -563,5 +565,28 @@ describe("camera heartbeat — interaction transport proofs (0134)", () => {
         `\`${field}\` = IF(${HEARTBEAT_ACCEPT}, VALUES(\`${field}\`), \`${field}\`)`,
       );
     }
+  });
+});
+
+/**
+ * The health timeline's RESUMPTION writer (audit N6). The ingest's transition branch compares
+ * the producer's reported state with its previous one, so a producer coming back after
+ * PRODUCER_OFFLINE (a state only the 5-minute pass can record) logged nothing and the outage
+ * never closed in `camera_health_events`. The route now reads the last event -- only after a
+ * gap past the stale threshold -- and writes the resumption at the heartbeat.
+ */
+describe("camera heartbeat ingest - resumption after a read-derived outage reaches the timeline", () => {
+  const route = fs.readFileSync(path.join(__dirname, "cameraVisitsRoutes.ts"), "utf8");
+
+  it("reads the previous row's gap, consults the last event only past the stale threshold, and writes through the pure rule", () => {
+    expect(route).toContain("UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt) AS gapSeconds");
+    expect(route).toContain("gapSeconds > HEALTH_THRESHOLDS.staleAfterSeconds");
+    expect(route).toContain("SELECT toState FROM camera_health_events");
+    expect(route).toContain("resumptionTransition({");
+    // The resumption is a fallback of the producer-transition branch, never a replacement.
+    const branch = route.indexOf("if (!transition) {");
+    const write = route.indexOf("INSERT INTO camera_health_events", branch);
+    expect(branch).toBeGreaterThan(route.indexOf('reason: "producer restarted (new instance id)"'));
+    expect(write).toBeGreaterThan(branch);
   });
 });

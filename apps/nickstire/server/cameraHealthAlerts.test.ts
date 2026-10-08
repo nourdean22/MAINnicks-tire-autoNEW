@@ -11,7 +11,7 @@ import {
   episodeFromAlertKey,
   formatCameraHealthAlert,
 } from "./services/cameraHealthAlertPolicy";
-import { runCameraHealthAlertSelfTest } from "./services/cameraHealthAlerts";
+import { recordDerivedHealthTransition, runCameraHealthAlertSelfTest } from "./services/cameraHealthAlerts";
 
 const CAMERA_ALERT_COOLDOWN_SECONDS = cameraAlertCooldownSeconds();
 
@@ -519,5 +519,80 @@ describe("camera health alert policy — solar-aware expected offline (audit N3)
 
   it("is keyed on the last heartbeat like the other read-derived liveness states", () => {
     expect(cameraAlertEpisode({ state: "EXPECTED_SOLAR_OFFLINE", stateSinceEpoch: 1_759_800_000, receivedAtEpoch: 1_759_800_600 })).toBe(1_759_800_600);
+  });
+});
+
+/**
+ * The health timeline's second writer (audit N6): the 5-minute pass records the state it
+ * DERIVES when it differs from the last `camera_health_events` row. Without it the table read
+ * HEALTHY straight through every outage, because an offline producer never changes its
+ * reported state and no heartbeat arrives to log STALE / PRODUCER_OFFLINE / EXPECTED_SOLAR_OFFLINE.
+ */
+describe("camera health timeline — derived transitions from the 5-minute pass (audit N6)", () => {
+  function flat(q: { queryChunks: unknown[] }): { text: string; params: unknown[] } {
+    const text: string[] = [];
+    const params: unknown[] = [];
+    const walk = (chunks: unknown[]) => {
+      for (const c of chunks) {
+        if (c && typeof c === "object" && "queryChunks" in (c as object)) walk((c as { queryChunks: unknown[] }).queryChunks);
+        else if (c && typeof c === "object" && "value" in (c as object) && Array.isArray((c as { value: unknown }).value)) text.push((c as { value: string[] }).value.join(""));
+        else { params.push(c); text.push("?"); }
+      }
+    };
+    walk(q.queryChunks);
+    return { text: text.join("").replace(/\s+/g, " ").trim(), params };
+  }
+  const fakeDb = (latestToState: string | null | undefined) => {
+    const execute = vi.fn()
+      .mockResolvedValueOnce([latestToState === undefined ? [] : [{ toState: latestToState }]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
+    return { db: { execute } as unknown as Parameters<typeof recordDerivedHealthTransition>[0], execute };
+  };
+  const offline = { state: "PRODUCER_OFFLINE" as const, reason: "no heartbeat for 184 s" };
+
+  it("writes one row when the derived state differs from the last recorded one, with the camera, both states and the producer", async () => {
+    const { db, execute } = fakeDb("HEALTHY");
+    await expect(recordDerivedHealthTransition(db, "sign", offline, "0f0abbba26066a27")).resolves.toBe(true);
+    expect(execute).toHaveBeenCalledTimes(2);
+    const read = flat(execute.mock.calls[0][0]);
+    expect(read.text).toContain("SELECT toState FROM camera_health_events WHERE camera = ? ORDER BY at DESC, id DESC LIMIT 1");
+    expect(read.params).toEqual(["sign"]);
+    const write = flat(execute.mock.calls[1][0]);
+    expect(write.text).toContain("INSERT INTO camera_health_events (camera, fromState, toState, reason, producerInstanceId, sourceGeneration)");
+    expect(write.params).toEqual(["sign", "HEALTHY", "PRODUCER_OFFLINE", "derived on the 5-minute pass: no heartbeat for 184 s", "0f0abbba26066a27", null]);
+  });
+
+  it("writes nothing when the last row already says what this pass derived", async () => {
+    const { db, execute } = fakeDb("PRODUCER_OFFLINE");
+    await expect(recordDerivedHealthTransition(db, "sign", offline, null)).resolves.toBe(false);
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("anchors an empty history with a first derived state, and never times a camera that never ingested", async () => {
+    const empty = fakeDb(undefined);
+    await expect(recordDerivedHealthTransition(empty.db, "sign", { state: "HEALTHY", reason: "ok" }, null)).resolves.toBe(true);
+    expect(flat(empty.execute.mock.calls[1][0]).params.slice(0, 3)).toEqual(["sign", null, "HEALTHY"]);
+    const never = fakeDb(undefined);
+    await expect(recordDerivedHealthTransition(never.db, "office", { state: "NEVER_INGESTED", reason: "no row" }, null)).resolves.toBe(false);
+    expect(never.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("a missing table is skipped (logged once), any other failure propagates: a stopped timeline is not a quiet tick", async () => {
+    const missing = { execute: vi.fn().mockRejectedValue({ code: "ER_NO_SUCH_TABLE", errno: 1146 }) };
+    await expect(recordDerivedHealthTransition(missing as unknown as Parameters<typeof recordDerivedHealthTransition>[0], "sign", offline, null)).resolves.toBe(false);
+    const broken = { execute: vi.fn().mockRejectedValue(new Error("connection lost")) };
+    await expect(recordDerivedHealthTransition(broken as unknown as Parameters<typeof recordDerivedHealthTransition>[0], "sign", offline, null)).rejects.toThrow("connection lost");
+  });
+
+  it("is wired into the pass before the page, with the failure thrown after every camera is judged", () => {
+    const service = fs.readFileSync(path.join(__dirname, "services", "cameraHealthAlerts.ts"), "utf8");
+    const record = service.indexOf("await recordDerivedHealthTransition(");
+    const page = service.indexOf("const latest = await latestCameraAlert(db, expected.camera);");
+    expect(record).toBeGreaterThanOrEqual(0);
+    expect(page).toBeGreaterThan(record);
+    expect(service).toContain("timelineFailure = err;");
+    expect(service).toContain("if (timelineFailure) {");
+    expect(service.indexOf("if (timelineFailure) {")).toBeGreaterThan(service.lastIndexOf("await deliverClaimedAlert({"));
+    expect(service).toContain("producerInstanceId,\n           UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt) AS ageSeconds");
   });
 });

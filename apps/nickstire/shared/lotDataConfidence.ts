@@ -52,6 +52,11 @@ export interface LotConfidenceInput {
   sign: LotConfidenceSign | null | undefined;
   /** Shop-local clock, from `localClock(now, BUSINESS.timezone)`. */
   clock: { hour: number; minute: number };
+  /**
+   * The sign camera's HEALTHY share of business time so far (`lot.health` coverage, audit N2).
+   * `pct` null = the shop has not opened; absent or null = not measured (an older server).
+   */
+  coverage?: { pct: number | null; watchedMinutes: number; elapsedMinutes: number } | null;
 }
 
 export interface LotConfidence {
@@ -82,6 +87,13 @@ const LOT_CONFIDENCE_RULES = {
   drops: 5,
   /** Earlier days that must have reported before today is compared with anything. */
   minPriorDays: 2,
+  /**
+   * Below this share of business time watched, today is not compared with the baseline at all
+   * (audit N2: "comparisons withheld below 80%"). At or above it the expectation is scaled to
+   * the share actually watched, so a camera that missed 10% of the morning is not read as a
+   * 10% slow day.
+   */
+  minCoverage: 0.8,
 } as const;
 
 const R = LOT_CONFIDENCE_RULES;
@@ -146,6 +158,27 @@ export function lotDataConfidence(input: LotConfidenceInput): LotConfidence {
     reasons.push(`${passThroughs} of ${crossings} crossings today read as drive-bys; the portal may be calling stays pass-throughs`);
   }
 
+  // COVERAGE GATE (audit N2). The counts can only be compared with the usual pace over the
+  // minutes the camera actually watched. Below the floor the comparison is withheld, in
+  // words, with the minutes; the LOW reasons above (drops, drive-bys) stand on their own.
+  const coverage = input.coverage ?? null;
+  const watchedShare = coverage && coverage.pct !== null ? Math.min(1, Math.max(0, coverage.pct)) : null;
+  if (watchedShare !== null && watchedShare < R.minCoverage) {
+    const pctText = `${Math.round(watchedShare * 100)}%`;
+    reasons.push(
+      `sign camera watched only ${pctText} of business time so far (${coverage!.watchedMinutes} of ${coverage!.elapsedMinutes} min); today is not compared with the baseline`,
+    );
+    return {
+      level: level === "LOW" ? "LOW" : "UNKNOWN",
+      headline: level === "LOW"
+        ? `${observed} arrivals so far; ${reasons[0]}.`
+        : `${observed} arrivals so far; comparison withheld: the sign camera watched only ${pctText} of business time so far.`,
+      reasons,
+      expectedSoFar: null,
+      observedArrivals: observed,
+    };
+  }
+
   if (activity.history.priorDaysWithData < R.minPriorDays) {
     const days = activity.history.priorDaysWithData;
     reasons.push(`only ${days} earlier day${days === 1 ? "" : "s"} of history; nothing to compare today against`);
@@ -160,9 +193,12 @@ export function lotDataConfidence(input: LotConfidenceInput): LotConfidence {
     };
   }
 
-  const expected = expectedArrivalsSoFar(activity.hours, input.clock);
+  // Scaled to the share of business time watched (1 when coverage is not measured): the
+  // baseline predicts arrivals the camera would have SEEN, not arrivals that happened.
+  const expected = expectedArrivalsSoFar(activity.hours, input.clock) * (watchedShare ?? 1);
   const expectedRounded = Math.round(expected);
   const days = activity.history.priorDaysWithData;
+  const scaledNote = watchedShare !== null && watchedShare < 1 ? `, scaled to the ${Math.round(watchedShare * 100)}% of business time watched` : "";
 
   if (expected < R.minExpected) {
     if (level === "LOW") {
@@ -180,9 +216,9 @@ export function lotDataConfidence(input: LotConfidenceInput): LotConfidence {
 
   if (observed < expected * R.lowRatio) {
     level = "LOW";
-    reasons.unshift(`${observed} arrivals so far vs about ${expectedRounded} usual by now (last ${days} days)`);
+    reasons.unshift(`${observed} arrivals so far vs about ${expectedRounded} usual by now (last ${days} days${scaledNote})`);
   } else {
-    reasons.push(`${observed} arrivals so far vs about ${expectedRounded} usual by now (last ${days} days)`);
+    reasons.push(`${observed} arrivals so far vs about ${expectedRounded} usual by now (last ${days} days${scaledNote})`);
   }
 
   return {
