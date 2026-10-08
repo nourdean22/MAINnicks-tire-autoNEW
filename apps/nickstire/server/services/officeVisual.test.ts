@@ -42,7 +42,7 @@ describe("analyzeOfficeFrames", () => {
   it("uses Ollama first and returns its description", async () => {
     const describe_ = vi.fn().mockResolvedValue({ ok: true, text: '{"summary":"Two people at the counter."}', provider: "ollama", model: "gemma", latencyMs: 3 });
     const v = await analyzeOfficeFrames([IMG, IMG], describe_);
-    expect(v).toMatchObject({ status: "DONE", provider: "ollama", frameCount: 2 });
+    expect(v).toMatchObject({ status: "DONE", provider: "ollama", frameCount: 2, prompted: true });
     expect(describe_).toHaveBeenCalledTimes(1);
     expect(describe_.mock.calls[0][0]).toMatchObject({ provider: "ollama" });
   });
@@ -58,6 +58,8 @@ describe("analyzeOfficeFrames", () => {
     expect(v.status).toBe("FAILED");
     expect(v.error).toContain("ollama: down");
     expect(v.error).toContain("gemini: down");
+    // Both providers were called with the prompt: a failed reply is not a call that never fired.
+    expect(v.prompted).toBe(true);
   });
 
   it("no provider key is a FAILED visual with the reason, and no call is made", async () => {
@@ -67,6 +69,15 @@ describe("analyzeOfficeFrames", () => {
     const v = await analyzeOfficeFrames([IMG], describe_);
     expect(v.status).toBe("FAILED");
     expect(v.error).toMatch(/no vision provider/);
+    expect(describe_).not.toHaveBeenCalled();
+    // Nothing was prompted, so nothing downstream may claim the calibration reached a call.
+    expect(v.prompted).toBe(false);
+  });
+
+  it("no frames is a FAILED visual that prompted nothing", async () => {
+    const describe_ = vi.fn();
+    const v = await analyzeOfficeFrames([], describe_);
+    expect(v).toMatchObject({ status: "FAILED", prompted: false });
     expect(describe_).not.toHaveBeenCalled();
   });
 

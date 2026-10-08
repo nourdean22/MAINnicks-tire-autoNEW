@@ -1763,9 +1763,10 @@ def load_calibration(calibration_path) -> CalibrationLoad:
     """Read a calibration file and refuse it when its portal cannot be crossed.
 
     The version is the file's sha256 prefix, as before. A portal is checked with
-    `vision.geometry.portal_straddles`: it must have samples both inside and outside the lot
-    polygon, or `EntryPortal` can never record an entry and the producer would count nothing
-    while reporting healthy (audit 2026-10-07, B5). A refused file is reported exactly like a
+    `vision.geometry.portal_straddles`: it must reach both sides of the lot boundary (an edge
+    crossing it, a lot vertex held inside the portal, or sampled points on both sides), or
+    `EntryPortal` can never record an entry and the producer would count nothing while
+    reporting healthy (audit 2026-10-07, B5). `vision.run_live` applies the same check. A refused file is reported exactly like a
     missing one -- no version, no lot, so the caller runs census mode and the heartbeat's
     `calibrationVersion` is null -- with the reason in `fault` for the log. A calibration with
     no portal at all is still allowed through unchanged: that is the deliberate "census only"

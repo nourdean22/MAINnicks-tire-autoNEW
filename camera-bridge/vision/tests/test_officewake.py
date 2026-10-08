@@ -759,6 +759,75 @@ def test_override_bare_name_resolves_beside_the_environment_decoder(tmp_path):
     assert resolve_whisper_model(str(env_model), str(tmp_path)) == (str(small), "override-file")
 
 
+# Codex on #2925: Windows PowerShell 5.1's `>` writes UTF-16LE with a BOM; the UTF-8-only read
+# raised UnicodeDecodeError past the `except OSError`, startup answered invalid_config, and the
+# supervisor restarted a worker that could never start. Positive control: the first two cases
+# below raised UnicodeDecodeError on the pre-fix reader; the garbage case too.
+
+
+def test_override_written_by_windows_powershell_51_is_read(tmp_path):
+    # `'small.en-q5_1' > whisper-model.override` in Windows PowerShell 5.1: BOM + UTF-16LE + CRLF.
+    (tmp_path / WHISPER_MODEL_OVERRIDE_FILE).write_bytes(b"\xff\xfe" + "small.en-q5_1\r\n".encode("utf-16-le"))
+    assert read_whisper_model_override(str(tmp_path)) == "small.en-q5_1"
+
+
+def test_override_with_a_utf8_bom_or_a_bomless_utf16_body_is_read(tmp_path):
+    (tmp_path / WHISPER_MODEL_OVERRIDE_FILE).write_bytes(b"\xef\xbb\xbf# decoder\nbase.en-q5_1\n")
+    assert read_whisper_model_override(str(tmp_path)) == "base.en-q5_1"
+    (tmp_path / WHISPER_MODEL_OVERRIDE_FILE).write_bytes("large-v3-turbo-q5_0\n".encode("utf-16-le"))
+    assert read_whisper_model_override(str(tmp_path)) == "large-v3-turbo-q5_0"
+
+
+def test_override_bytes_that_decode_as_nothing_mean_no_override_not_a_crash(tmp_path):
+    (tmp_path / WHISPER_MODEL_OVERRIDE_FILE).write_bytes(b"\x80\x81\xfe\xfd\x90")
+    assert read_whisper_model_override(str(tmp_path)) is None
+
+
+# Codex on #2925: the restart waited for an empty backlog while still accepting wakes, so with
+# the old decoder slower than the wake rate (the case the override exists for) it never came.
+# Positive control: the pre-fix daemon had no drain state; this scenario's refused wake was
+# accepted and queued instead.
+def test_decoder_override_change_drains_before_restart_and_refuses_new_wakes(tmp_path):
+    async def scenario():
+        ledger = MemoryLedger()
+        cfg = config(
+            capture_mode=True,
+            capture_enabled=True,
+            policy_acknowledged=True,
+            source_url="rtsp://verified-media-source",
+        )
+        daemon = OfficeWakeDaemon(cfg, ledger=ledger, clock=lambda: MONDAY_10AM)
+
+        class ChangedWatch:
+            initial = "large-v3-turbo-q5_0"
+            out_dir = str(tmp_path)
+
+            def changed(self):
+                return True
+
+        daemon.model_override_watch = ChangedWatch()
+        _override(tmp_path, "small.en-q5_1\n")
+        # One capture is already waiting on the slow decoder.
+        daemon.transcribe_queue.put_nowait(object())  # type: ignore[arg-type]
+
+        assert daemon.observe_model_override() == "draining"
+        assert daemon.restart_pending is True
+        assert any(
+            kind == "whisper_model_override_changed" and row.get("to") == "small.en-q5_1" and row.get("backlog") == 1
+            for kind, row in ledger.rows
+        )
+        # New wakes are refused while the backlog drains.
+        refused = await daemon.offer({"event": "personDetected", "deviceSn": OFFICE})
+        assert refused.action == "drop" and "restart pending" in refused.reason
+        assert daemon.queue.qsize() == 0
+        assert daemon.observe_model_override() is None  # the backlog is still 1
+        daemon.transcribe_queue.get_nowait()
+        daemon.transcribe_queue.task_done()
+        assert daemon.observe_model_override() == "restart"
+
+    asyncio.run(scenario())
+
+
 def test_override_explicit_path_wins_over_the_environment_decoder(tmp_path):
     env_model = _models(tmp_path)
     explicit = tmp_path / "elsewhere" / "ggml-base.en-q5_1.bin"
@@ -845,7 +914,11 @@ def test_status_worker_exits_cleanly_on_override_change_but_never_mid_capture(tm
         asyncio.run(scenario())
     assert exit_info.value.code == 0
     notes = [payload for kind, payload in ledger.rows if kind == "whisper_model_override_changed"]
-    assert notes == [{"from": None, "to": "small.en-q5_1"}]
+    # Noted ONCE, at the moment the change is seen (the drain starts there), with the backlog and
+    # state it found; the exit itself comes later, once nothing is capturing and the backlog is empty.
+    assert len(notes) == 1
+    assert notes[0]["from"] is None and notes[0]["to"] == "small.en-q5_1"
+    assert notes[0]["backlog"] == 0 and notes[0]["state"] == "CAPTURING"
     # The receipt on disk says RESTARTING, so the supervisor's "task not Running -> start" rule
     # brings the worker back and nothing reads the gap as a crash.
     written = json.loads((tmp_path / "status.json").read_text(encoding="utf-8"))
@@ -872,7 +945,11 @@ def test_status_worker_waits_for_the_transcribe_backlog_before_exiting(tmp_path)
             pass
 
     asyncio.run(scenario())
-    assert not [kind for kind, _ in ledger.rows if kind == "whisper_model_override_changed"]
+    # The change is seen and the drain starts (noted once, with the backlog it found), but the
+    # worker does not exit while a capture is still being decoded.
+    notes = [payload for kind, payload in ledger.rows if kind == "whisper_model_override_changed"]
+    assert len(notes) == 1 and notes[0]["backlog"] == 1
+    assert daemon.restart_pending is True
 
 
 def test_override_lives_beside_the_status_file_never_in_the_pruned_audio_dir():

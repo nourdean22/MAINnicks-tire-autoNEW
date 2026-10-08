@@ -1305,6 +1305,20 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
     };
   },
 
+  // ─── Lot brief (camera audit N4, 2026-10-08) ────────
+  // One shop day as the lot camera saw it, in at most three material lines for StateNour's
+  // morning brief: traffic against the same weekday (gated by how much of the day the camera
+  // watched), long stays nobody explains, lot traffic with few tickets. filters.date
+  // (YYYY-MM-DD, default yesterday). Reads: server/services/lotBriefRead.ts; rules:
+  // server/lib/lotBrief.ts. A failed read is `{ ok: false, error }`, never a quiet day.
+  "lot_brief": async (filters) => {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return { ok: false, error: "No DB" };
+    const { readLotBrief } = await import("../services/lotBriefRead");
+    return readLotBrief(d, filters, { freshness: await getMirrorFreshness() });
+  },
+
   // ─── Estimates Conversion (added 2026-06-12) ────────
   "estimates_conversion": async (filters) => {
     const { getDb } = await import("../db");

@@ -309,7 +309,14 @@ export async function runAlternatePaths(args: {
           const { getDashboardSummary } = await import(
             "@/lib/services/business-intel"
           );
-          const snap = await getDashboardSummary();
+          // Redacted like the getDashboardSummary tool: a section whose bridge
+          // read failed is null with a reason, never its zero defaults. Unredacted,
+          // `customer_stats` (no nickstire handler, ever) put `customers: { total: 0 }`
+          // under the "real ... reason from THESE numbers" header on every deep turn.
+          const { redactUnreadableSections } = await import(
+            "@/lib/ai/tools/bridge-honesty"
+          );
+          const snap = redactUnreadableSections(await getDashboardSummary());
           liveSnapshot =
             `## LIVE DATA SNAPSHOT (real, as of this turn — reason from THESE numbers; do NOT invent figures)\n` +
             `${JSON.stringify(snap)}\n(snapshot captured ${new Date().toISOString()} — most figures are live. ` +

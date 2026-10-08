@@ -53,12 +53,21 @@ export interface OfficeVisual {
   review?: OfficeVisualReview | null;
   /**
    * The reviewed episodes whose Right/Wrong notes were in the prompt that produced THIS
-   * description (audit 2026-10-07, N5). Empty = no reviews existed yet; absent = an older
-   * server. This is the consumption receipt: a Wrong review has demonstrably reached a later
-   * call when a later visual names its episode here, and only then.
+   * description (audit 2026-10-07, N5). Empty = no reviewed note reached a provider (none
+   * existed yet, or no vision call fired); absent = an older server. This is the consumption
+   * receipt: a Wrong review has demonstrably reached a later call when a later visual names
+   * its episode here, and only then.
    */
   calibrationFrom?: string[];
 }
+
+/**
+ * `analyzeOfficeFrames`' result: the visual plus whether any provider was actually called with
+ * the prompt. Not stored. The route reads it to decide whether the calibration receipt is true:
+ * with no vision key the call returns FAILED before any provider, and a receipt attached anyway
+ * claimed the reviews reached a call that never fired (Codex on #2927).
+ */
+export type AnalyzedOfficeVisual = OfficeVisual & { prompted: boolean };
 
 export interface OfficeVisualReview {
   verdict: "correct" | "wrong";
@@ -157,15 +166,18 @@ export async function analyzeOfficeFrames(
   images: VisionImage[],
   describe: typeof describeImagesOpenAiCompatible = describeImagesOpenAiCompatible,
   opts: { calibration?: string[]; onBoxPeople?: number | null } = {},
-): Promise<OfficeVisual> {
+): Promise<AnalyzedOfficeVisual> {
   const frames = images.slice(0, OFFICE_VISUAL_MAX_FRAMES);
-  if (frames.length === 0) return failed(0, "no frames");
+  if (frames.length === 0) return { ...failed(0, "no frames"), prompted: false };
   const prompt = buildPrompt(frames.length, opts);
   const lanes: Array<"ollama" | "gemini"> = [];
   if (process.env.OLLAMA_API_KEY) lanes.push("ollama");
   if (process.env.GEMINI_API_KEY) lanes.push("gemini");
-  if (lanes.length === 0) return failed(frames.length, "no vision provider configured (OLLAMA_API_KEY / GEMINI_API_KEY)");
+  if (lanes.length === 0) {
+    return { ...failed(frames.length, "no vision provider configured (OLLAMA_API_KEY / GEMINI_API_KEY)"), prompted: false };
+  }
 
+  // From here every return follows at least one describe() call carrying `prompt`.
   const errors: string[] = [];
   for (const provider of lanes) {
     const model = provider === "ollama"
@@ -174,14 +186,14 @@ export async function analyzeOfficeFrames(
     const r = await describe({ provider, images: frames, prompt, model, timeoutMs: 40_000, maxTokens: 500 });
     if (r.ok) {
       const v = parseVisualReply(r.text, { frameCount: frames.length, provider, model: r.model, latencyMs: r.latencyMs });
-      if (v.status === "DONE") return v;
+      if (v.status === "DONE") return { ...v, prompted: true };
       errors.push(`${provider}: ${v.error}`);
     } else {
       errors.push(`${provider}: ${r.error}`);
     }
   }
   log.warn("office visual analysis failed on every lane", { errors });
-  return failed(frames.length, errors.join(" | "));
+  return { ...failed(frames.length, errors.join(" | ")), prompted: true };
 }
 
 const readyCache = new Map<string, { ok: boolean; at: number }>();

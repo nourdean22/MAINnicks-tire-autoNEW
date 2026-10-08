@@ -84,6 +84,11 @@ const ACTIONS: ActionSpec[] = [
   },
   { query: "shop_pulse", tier: "production", consumer: "HQ SituationCard" },
   { query: "attention_needed", tier: "production", consumer: "morning brief" },
+  {
+    query: "lot_brief",
+    tier: "production",
+    consumer: "morning brief shop slice (camera audit N4, 2026-10-08)",
+  },
   { query: "bookings_today", tier: "production", consumer: "EOD debrief" },
   { query: "leads_today", tier: "production", consumer: "EOD debrief" },
   { query: "leads_urgent", tier: "production", consumer: "morning brief" },
@@ -132,6 +137,17 @@ const ACTIONS: ActionSpec[] = [
     query: "leads_week_count",
     tier: "newly-required",
     consumer: "pipeline-controller lead-surge",
+  },
+  {
+    query: "revenue_top_services",
+    filters: { limit: 5 },
+    tier: "newly-required",
+    consumer: "business-intel getTopServices (Nick getTopServices tool)",
+  },
+  {
+    query: "customer_stats",
+    tier: "newly-required",
+    consumer: "business-intel getCustomerStats (dashboard summary)",
   },
 ];
 
