@@ -16,6 +16,8 @@
     "apps/nickstire/server/routes/analyticsRoutes.ts",
     "apps/nickstire/server/cron/jobs/webExperimentResolve.ts",
     "apps/nickstire/server/services/evidenceLedger.ts",
+    "apps/nickstire/server/services/ghostReplay.ts",
+    "apps/nickstire/server/services/promptEvolutionGate.ts",
     "apps/nickstire/scripts/lint-brand-voice.ts",
     "apps/nickstire/scripts/lint-source.mjs",
     "apps/nickstire/scripts/proof/",

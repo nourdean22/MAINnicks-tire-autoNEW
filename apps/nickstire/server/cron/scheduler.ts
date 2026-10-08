@@ -2281,8 +2281,10 @@ function buildTiers(): void {
       },
       // 2026-08-06 · the R&D gated-edit loop, self-sustaining: every Monday,
       // ghost-replay the served VAPI prompt against fresh Ossuary failures,
-      // let the optimizer propose bounded edits, accept only on strict
-      // holdout improvement, and PROPOSE the winner (kv + Telegram). The
+      // let the optimizer propose bounded edits, accept only when the paired
+      // permutation test on repeated holdout replays clears alpha with no
+      // reliably-handled call broken (services/promptEvolutionGate.ts), and
+      // PROPOSE the winner (kv + Telegram). The
       // served prompt is never written — Push Config stays the serving gate.
       {
         name: "prompt-evolution-weekly",

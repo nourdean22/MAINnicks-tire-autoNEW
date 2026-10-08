@@ -722,10 +722,19 @@ serving gate** — nothing here ever writes the live assistant.
    manufacture a pass.
 4. **The weekly optimizer** (`promptEvolutionWeekly` cron) proposes bounded edits
    from a different model family, guards the compliance spine with
-   `violatedInvariants`, and accepts a candidate **only on strict holdout
-   improvement**. Output is a PROPOSAL (kv + Telegram — not files; Railway's
-   filesystem is ephemeral). Seeds exclude verified conversions so the optimizer
-   never trains on a mislabeled win.
+   `violatedInvariants`, and accepts a candidate **only through the holdout gate**
+   (`services/promptEvolutionGate.ts`, 2026-10-08): each holdout seed is replayed
+   3 times per prompt, an exact paired sign-flip permutation test must clear
+   alpha 0.05, and any call the served prompt passes on every replay that the
+   candidate fails on every replay vetoes it. The rule it replaced
+   (`candidate passRate > baseline passRate`, one replay, ~5 holdout seeds)
+   accepted two IDENTICAL prompts in 28.7% of seeded simulated runs — it
+   proposed noise. The weekly run now uses 30 seeds (~12 on the holdout) and
+   logs its verdict as one `[evolve] result` line; before that a normal run
+   logged nothing, so the 2026-10-05 run (118.6s) left no outcome in Railway.
+   Output is a PROPOSAL (kv + Telegram — not files; Railway's filesystem is
+   ephemeral). Seeds exclude verified conversions so the optimizer never trains
+   on a mislabeled win.
 5. **The cage match** (`scripts/cage-match.ts`) is the *discovery* instrument: an
    adversarial LLM caller red-teams the prompt offline, zero customer contact.
 
