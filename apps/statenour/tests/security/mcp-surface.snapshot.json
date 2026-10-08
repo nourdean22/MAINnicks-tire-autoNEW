@@ -286,17 +286,6 @@
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {
-    "name": "get_top_services",
-    "camelName": "getTopServices",
-    "category": "business_read",
-    "riskClass": "low",
-    "riskDeclared": false,
-    "sideEffecting": false,
-    "requiredEnv": [],
-    "descriptionSha256": "b9969070b112f980",
-    "inputSchemaSha256": "efddc7bd8bbcef73"
-  },
-  {
     "name": "get_weekly_targets",
     "camelName": "getWeeklyTargets",
     "category": "planning",

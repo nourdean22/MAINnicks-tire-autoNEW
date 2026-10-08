@@ -29,6 +29,7 @@ const h = vi.hoisted(() => ({
   findFirst: vi.fn(),
   consultBoard: vi.fn(),
   warn: vi.fn(),
+  getRevenueStats: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -46,8 +47,10 @@ vi.mock("@/lib/logger", () => ({
 vi.mock("@/lib/services/meta-scoreboard", () => ({
   buildMetaScoreboard: vi.fn().mockResolvedValue({}),
 }));
+vi.mock("@/lib/services/business-intel", () => ({ getRevenueStats: h.getRevenueStats }));
 
 import {
+  buildBusinessContextBlock,
   consultBoardAndPersist,
   listRecentBoardConsultations,
 } from "@/lib/services/board-consult-record";
@@ -100,6 +103,47 @@ beforeEach(() => {
   h.findFirst.mockReset().mockResolvedValue(null);
   h.consultBoard.mockReset();
   h.warn.mockReset();
+  h.getRevenueStats.mockReset();
+});
+
+describe("the advisors' business context never states an unread month as $0", () => {
+  // getRevenueStats' two real outcomes (lib/services/business-intel.ts): a bridge
+  // reading, and a failed read that still carries computed zeros beside
+  // `bridgeAvailable: false`. The context used to paste either one in as "live numbers".
+  const QUESTION = "should we raise our pricing on alignments";
+
+  it("PLANTED POSITIVE · a month the bridge read goes in with its real figure", async () => {
+    h.getRevenueStats.mockResolvedValue({
+      period: "month",
+      totalRevenue: "4210.50",
+      jobCount: 7,
+      avgTicket: "601.50",
+      bridgeAvailable: true,
+    });
+    const block = await buildBusinessContextBlock(QUESTION);
+    expect(h.getRevenueStats).toHaveBeenCalledWith("month");
+    expect(block).toContain("Revenue (month):");
+    expect(block).toContain("4210.50");
+    expect(block).not.toMatch(/UNKNOWN/);
+  });
+
+  it("an unreadable month is stated as unknown, and no zero reaches the advisors", async () => {
+    h.getRevenueStats.mockResolvedValue({
+      period: "month",
+      totalRevenue: "0.00",
+      jobCount: 0,
+      avgTicket: "0.00",
+      bridgeAvailable: false,
+    });
+    const block = await buildBusinessContextBlock(QUESTION);
+    expect(block).toMatch(/Revenue \(month\): UNKNOWN/);
+    expect(block).not.toContain("0.00");
+  });
+
+  it("a question that is not about money never reads revenue at all", async () => {
+    await buildBusinessContextBlock("who should run the Saturday shift");
+    expect(h.getRevenueStats).not.toHaveBeenCalled();
+  });
 });
 
 describe("consultBoardAndPersist · the mood gate leaves a record", () => {

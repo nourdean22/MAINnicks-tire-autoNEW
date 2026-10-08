@@ -96,9 +96,16 @@ const ACTIONS: ActionSpec[] = [
   { query: "work_orders_active", tier: "production", consumer: "Ultron pulse" },
   {
     query: "customer_search",
-    filters: { phone: "555-0000", limit: 1 },
+    // `term`, not `phone`: the handler reads only `term` and answers 200 { error:
+    // "Search term required" } without it, which this probe used to count as available.
+    filters: { term: "555-0000" },
     tier: "production",
     consumer: "repeat-customer detection",
+  },
+  {
+    query: "customer_stats",
+    tier: "production",
+    consumer: "business-intel getCustomerStats (dashboard summary); built 2026-10-08",
   },
 
   // ── Newly required (nickstire-side may not have shipped yet) ──────
@@ -138,17 +145,8 @@ const ACTIONS: ActionSpec[] = [
     tier: "newly-required",
     consumer: "pipeline-controller lead-surge",
   },
-  {
-    query: "revenue_top_services",
-    filters: { limit: 5 },
-    tier: "newly-required",
-    consumer: "business-intel getTopServices (Nick getTopServices tool)",
-  },
-  {
-    query: "customer_stats",
-    tier: "newly-required",
-    consumer: "business-intel getCustomerStats (dashboard summary)",
-  },
+  // `revenue_top_services` was listed here until 2026-10-08; its only consumer
+  // (getTopServices) was retired, so nothing calls it.
 ];
 
 interface ProbeResult {
@@ -174,6 +172,22 @@ async function probe(action: ActionSpec): Promise<ProbeResult> {
       status: isUnknownQuery ? "unknown-query" : "error",
       durationMs,
       errorMessage: result.error.slice(0, 200),
+    };
+  }
+
+  // A handler that could not do its job often answers 200 with the failure in the
+  // body ({ error: "No DB" }, { error: "Search term required" }). That is not available.
+  const body = result.data as unknown;
+  const bodyError =
+    body && typeof body === "object" ? (body as { error?: unknown }).error : undefined;
+  if (bodyError) {
+    return {
+      query: action.query,
+      tier: action.tier,
+      consumer: action.consumer,
+      status: "error",
+      durationMs,
+      errorMessage: `200 with an error body: ${String(bodyError).slice(0, 180)}`,
     };
   }
 

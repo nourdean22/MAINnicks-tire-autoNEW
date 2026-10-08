@@ -881,10 +881,9 @@ export async function pruneTools(
   if (/\b(review stats|feedback ratings?|review count|shop reviews?|google reviews?)\b/.test(text)) {
     addMatching(/getReviewStats/i);
   }
-  // Top Services
-  if (/\b(top services|popular services|common jobs|most frequent jobs|highest volume services)\b/.test(text)) {
-    addMatching(/getTopServices/i);
-  }
+  // Top Services: retired 2026-10-08 with the getTopServices tool. Its bridge query
+  // (revenue_top_services) was never built, and invoice service descriptions have mostly
+  // stopped arriving (1 of 30 in Aug 2026), so a ranked list would describe ~3% of tickets.
   // Pricing Advisory
   if (/\b(pricing advisory|price advice|pricing advice|pricing review|competitive pricing|pricing guide|what should we charge)\b/.test(text)) {
     addMatching(/pricingAdvisorySummary/i);

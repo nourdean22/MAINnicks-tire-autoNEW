@@ -192,7 +192,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "getEstimateLeaks",             category: "business_read",  battle: true, cost: "free" },
   { name: "getReviewStats",               category: "business_read",  battle: true, cost: "free" },
   { name: "getRevenueStats",              category: "business_read",  battle: true, cost: "free" },
-  { name: "getTopServices",               category: "business_read",  battle: true, cost: "free" },
 
   // ── business_write ───────────────────────────────────────────────
   // v7 cleanup · Apr 28 · createPaymentLink + triggerFollowUp removed

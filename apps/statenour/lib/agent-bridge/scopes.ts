@@ -98,7 +98,6 @@ const READ_TOOLS: readonly string[] = [
   "compareLiveRevenue",
   "getDashboardSummary",
   "getReviewStats",
-  "getTopServices",
   "getEstimateLeaks",
   "compareCompetitors",
   "pricingAdvisorySummary",
