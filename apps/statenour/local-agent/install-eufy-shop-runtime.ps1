@@ -417,7 +417,9 @@ $env:BRIDGE_DEBUG = "0"
 $env:PATH = "__BRIDGE_ROOT__;__FFMPEG_DIR__;$env:PATH"
 New-Item -ItemType Directory -Force -Path (Join-Path $StateRoot "state") | Out-Null
 Set-Location "__BRIDGE_ROOT__"
-& "__NODE__" server.mjs
+# server.mjs by its absolute path: node.exe is the system node, so the script path is the only part
+# of the command line that says whose process this is (camera-bridge nicksmax-camera-supervisor.ps1).
+& "__NODE__" "__BRIDGE_ROOT__\server.mjs"
 '@
 
 $agentTemplate = @'
