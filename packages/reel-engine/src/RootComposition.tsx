@@ -13,9 +13,11 @@ export const RootComposition: React.FC = () => {
         fps={30}
         width={1080}
         height={1920}
+        // Studio preview only: the worker always passes every prop (apps/worker/src/renderPlan.ts),
+        // so these never reach a render. Placeholders, never a sample review or an offer.
         defaultProps={{
-          reviewerName: "John Doe",
-          reviewText: "Great customer service! The team was super fast and very transparent about pricing. Will definitely bring my car back.",
+          reviewerName: "PREVIEW",
+          reviewText: "Preview placeholder. A real render shows the review exactly as the reviewer wrote it.",
           stars: 5,
           companyName: "Nick's Tire & Auto",
         } as ReviewVideoReelProps}
@@ -28,9 +30,9 @@ export const RootComposition: React.FC = () => {
         width={1080}
         height={1920}
         defaultProps={{
-          alertTitle: "Pothole Season Warning",
-          alertDetails: "Early spring temperatures cause road surfaces to crack. Hit a deep pothole? Bring your car in for a free wheel alignment inspection.",
-          location: "Chicago Metro Area",
+          alertTitle: "PREVIEW",
+          alertDetails: "Preview placeholder. A real render shows the approved alert text.",
+          location: "Cleveland, OH",
           companyName: "Nick's Tire & Auto",
         } as ServiceAlertReelProps}
       />

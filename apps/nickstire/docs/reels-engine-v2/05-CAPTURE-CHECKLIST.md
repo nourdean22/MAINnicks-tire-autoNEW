@@ -11,6 +11,11 @@ reads through `realAssetFirst.ts`. Print it; clip it near the inspection station
 - Small diffused LED inspection light; rake it across tread, rotors and threads.
 - Macro attachment only if the phone cannot focus inside ~8 cm.
 - Neutral cleaning cloth and a small dark background card.
+- A printed evidence card (business-card size, matte black, gold type, laminated): a case
+  number, a 1/32-inch and millimetre scale strip along one edge, and a blank line for one word
+  in grease pencil (INSPECT · MEASURE · REPAIRABLE AREA · REPLACE). Set it beside the defect in
+  clips 2 and 3. It is the scale reference a viewer needs to read a macro, and it carries no
+  customer data: never the plate, the name or the invoice number.
 - This page.
 
 ## Six clips for every usable job (5–8 s each, with handles before and after the action)

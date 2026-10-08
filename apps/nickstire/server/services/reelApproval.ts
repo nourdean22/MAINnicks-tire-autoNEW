@@ -564,7 +564,15 @@ export async function listReelPublishQueue(limit = 25): Promise<{
               : `the approval for reel job ${row.id} was withdrawn by ${revokedBy}. A withdrawn yes is a no.`,
           }
         : approvalProblem(
-            { jobId: row.id, captionFingerprint: captionFingerprint(caption), videoUrl },
+            {
+              jobId: row.id,
+              captionFingerprint: captionFingerprint(caption),
+              videoUrl,
+              // The digest the publish door compares (reelApprovalProblem). Without it every
+              // approval bound to a digest listed as asset_digest_unverifiable: approved reels
+              // looked unapproved in the Queue, and auto-approval logged that code every pass.
+              assetSha256: approval?.assetSha256 ? await loadAssetDigest(videoUrl) : null,
+            },
             approval,
           ),
       approvedBy: approval?.approvedBy ?? null,

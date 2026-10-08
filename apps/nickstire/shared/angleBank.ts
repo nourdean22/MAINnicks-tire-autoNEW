@@ -22,7 +22,7 @@
  * are not in that array yet — a list for the operator, never an automatic
  * append.
  */
-import type { TruthTopic } from "./mechanicalTruth";
+import { TRUTH_TOPICS, type TruthTopic } from "./mechanicalTruth";
 import { ORIGINALITY_BLOCK_THRESHOLD, jaccardSimilarity, normalizeForComparison } from "./reelOriginality";
 
 const ANGLE_CATEGORIES = [
@@ -80,7 +80,6 @@ const PILOT_COUNT = 8;
 /** No category repeats inside any window of this many consecutive production-ready angles. */
 const CATEGORY_SPACING = 6;
 
-const TRUTH_TOPICS: readonly TruthTopic[] = ["puncture_repair", "tread_depth", "uneven_wear", "vibration", "pothole_damage"];
 const FAMILIES: readonly AngleFamily[] = ["A", "B", "C", "D", "E", "F", "G", "H"];
 const ROUTES: readonly AngleRoute[] = ["real", "real+deterministic", "deterministic", "still_motion", "ai_illustrative+deterministic"];
 const FEASIBILITIES: readonly AngleFeasibility[] = ["A", "B", "C", "D"];

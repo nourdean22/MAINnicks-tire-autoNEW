@@ -13,8 +13,10 @@
  *
  * STATUS IS STATED, NOT IMPLIED. Each packet records who approved it. Until a
  * Nick's technician signs a packet, `technicianApproval` is null: the sourced
- * regulator / trade facts still apply (they come from NHTSA and USTMA, not from
- * us), but nothing here claims shop sign-off it does not have. Packets carry a
+ * regulator / trade facts still apply (they come from NHTSA, USTMA, Ohio EPA and
+ * the Car Care Council, not from us), but nothing here claims shop sign-off it
+ * does not have. A packet with no source states only cautious, multi-cause
+ * facts and prohibits certainty. Packets carry a
  * review-by date; a stale packet is a reason to re-read the sources, not a
  * reason to stop blocking.
  *
@@ -24,7 +26,15 @@
  * usually not repairable" is never blocked.
  */
 
-export type TruthTopic = "puncture_repair" | "tread_depth" | "uneven_wear" | "vibration" | "pothole_damage";
+export type TruthTopic =
+  | "puncture_repair"
+  | "tread_depth"
+  | "uneven_wear"
+  | "vibration"
+  | "pothole_damage"
+  | "brake_wear"
+  | "echeck_readiness"
+  | "no_start";
 
 export interface ProhibitedClaim {
   id: string;
@@ -173,7 +183,94 @@ const TRUTH_PACKETS: readonly TruthPacket[] = [
     technicianApproval: null,
     reviewBy: "2027-04-08",
   },
+  {
+    // Pilot A004 (inner pad gone, outer pad still thick), A049, A054.
+    topic: "brake_wear",
+    version: "2026-10-08",
+    sources: [
+      { name: "Car Care Council — Stop and Check Your Brakes", url: "https://www.carcare.org/?p=65", tier: "trade" },
+    ],
+    allowed: [
+      "Pulling to one side, odd noises when braking, a brake warning light, grabbing, vibration, or a pedal that feels low or hard are reasons to have the brakes inspected (Car Care Council).",
+      "An inspection measures pad wear and rotor thickness and checks the fluid, hoses and lines; the pad you can see through the wheel is only one of the pads.",
+      "Brakes should never be run down to metal-to-metal: it is unsafe and makes the repair cost more (Car Care Council).",
+    ],
+    prohibited: [
+      {
+        id: "grinding_is_normal",
+        // "isn't normal", "is not normal" and "can't wait" are the correct
+        // statements and must pass.
+        pattern: /\bgrind(?:s|ing)?\b[^.!\n]{0,30}\b(?:is|are|it(?:['’]s| is)|sounds?) (?:normal|harmless|fine|nothing to worry about)\b|\bgrind(?:s|ing)?\b[^.!\n]{0,40}\bcan wait\b/i,
+        reason: "Grinding can mean the pads are worn to metal, and the Car Care Council says brakes should never reach metal-to-metal; it is not normal and not something to wait on.",
+      },
+      {
+        id: "visible_pad_means_brakes_fine",
+        pattern: /\b(?:if|when) (?:the |your )?(?:outer |outside )?pads? (?:look|looks|is|are) (?:fine|good|thick|okay|ok)\b[^.!\n]{0,40}\b(?:(?:your |the )?brakes? (?:are|is)|you(?:['’]re| are)) (?:fine|good|okay|ok|good to go)\b/i,
+        reason: "The pad you can see through the wheel is only one of the pads; the inner pad can be worn out while the outer one looks thick, so an inspection measures them all.",
+      },
+    ],
+    technicianApproval: null,
+    reviewBy: "2027-04-08",
+  },
+  {
+    // Pilot A007 (E-Check says not ready).
+    topic: "echeck_readiness",
+    version: "2026-10-08",
+    sources: [
+      { name: "Ohio EPA — OBD Vehicle \"Readiness\" Fact Sheet", url: "https://dam.assets.ohio.gov/image/upload/epa.ohio.gov/Portals/27/echeck/docs/Readiness-fact-sheet.pdf", tier: "regulator" },
+      { name: "Ohio E-Check — Preparing for an Inspection", url: "https://www.ohioecheck.info/pages/preparing-for-an-inspection", tier: "regulator" },
+    ],
+    allowed: [
+      "Clearing trouble codes or disconnecting the battery resets the readiness monitors to not ready, and a vehicle that is not ready is rejected from the E-Check test (Ohio EPA).",
+      "Clearing the codes also turns the check engine light off, so a dark light does not show the monitors are ready; an OBD scan tool does (Ohio EPA).",
+      "The monitors set again through normal driving, usually two or three days of city and highway miles, longer on some older vehicles (Ohio EPA).",
+    ],
+    prohibited: [
+      {
+        id: "clear_codes_to_pass",
+        // An outcome is required ("and you'll pass", "gets you through"), and a
+        // negated one ("won't get you through", "can't pass") is the correct
+        // statement, so it is excluded.
+        pattern: /\b(?:clear(?:s|ed|ing)?|reset(?:s|ting)?|eras(?:e|es|ed|ing)|disconnect(?:s|ed|ing)?)\b[^.!\n]{0,40}\b(?:codes?|battery|light)\b[^.!\n]{0,40}(?<!(?:n['’]t|not|never) )\b(?:(?:and )?(?:you|it)(?:['’]ll| will) (?:pass|get through)|gets? you through|passes)\b[^.!\n]{0,20}\b(?:e-?check|emissions?|inspection|the test)\b/i,
+        reason: "Clearing codes or disconnecting the battery leaves the monitors not ready, and Ohio rejects a vehicle that is not ready (Ohio EPA); it never gets a car through E-Check.",
+      },
+      {
+        id: "light_off_means_ready",
+        pattern: /\blight(?:['’]s| is| went| goes| turned| turns)? (?:off|out)\b[^.!\n]{0,30}(?<!(?:n['’]t|not|never) )\b(?:means?|so) (?:you(?:['’]re| are) |it(?:['’]s| is) |the car(?:['’]s| is) )?(?:ready|good to go|set to pass|going to pass)\b/i,
+        reason: "Clearing the codes turns the light off before the monitors are ready (Ohio EPA); only an OBD scan tool or the test itself shows readiness.",
+      },
+    ],
+    technicianApproval: null,
+    reviewBy: "2027-04-08",
+  },
+  {
+    // Pilot A006 (clicks but will not start), A059, A060.
+    topic: "no_start",
+    version: "2026-10-08",
+    sources: [],
+    allowed: [
+      "A click with no crank can come from a weak battery, a loose or corroded connection, the starter or the charging system; a battery, starting and charging test tells which.",
+      "Lights and the radio can still work on a battery too weak to crank the engine.",
+    ],
+    prohibited: [
+      {
+        id: "no_start_single_certain_cause",
+        pattern: /\bclick(?:s|ing)?\b[^.!\n]{0,40}(?<!almost )\b(?:always|definitely|100%|guaranteed|for sure)\b[^.!\n]{0,25}\b(?:battery|starter|alternator|solenoid)\b/i,
+        reason: "A click with no crank has several causes (battery, connection, starter, charging); naming one as certain is a diagnosis without a test.",
+      },
+      {
+        id: "lights_work_battery_fine",
+        pattern: /\b(?:if|when|since) (?:the |your )?(?:lights?|headlights?|radio|dash(?:board)?(?: lights)?)\b[^.!\n]{0,25}\b(?:work|works|come on|comes on|turn on|turns on)\b[^.!\n]{0,30}\b(?:(?:the |your )?battery(?:['’]s| is) (?:fine|good|ok|okay|not the problem)|it(?:['’]s| is)(?:n['’]t| not) the battery)\b/i,
+        reason: "Lights can work on a battery too weak to crank the engine; working lights do not clear the battery.",
+      },
+    ],
+    technicianApproval: null,
+    reviewBy: "2027-04-08",
+  },
 ];
+
+/** The topics that have a packet, in packet order: the one list the angle bank validates against. */
+export const TRUTH_TOPICS: readonly TruthTopic[] = TRUTH_PACKETS.map((p) => p.topic);
 
 export interface TruthViolation {
   topic: TruthTopic;

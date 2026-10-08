@@ -2213,3 +2213,39 @@ measurement. Every proposal below cites the moment in this wave that produced it
   the same matches (2,191,382 old-vs-new comparisons over the corpus, 0 diffs). With an exact line-pass memo, the scan went from
   52 s to about 7.5 s. `shared/voiceRuleShape.test.ts` now fails on any variable-width leading lookbehind (mutation-checked
   against the old patterns: red, naming both rules).
+
+## 2026-10-08 (evening) · after #2933: pilot truth packets, Queue verdict, worker review guard
+
+### P1 · `nickstire-reel-operator` / cost work — price the hypothesis with the vendor's no-submit preflight before building
+- **Trigger (witnessed):** I built "request Seedance clips silent" (assembly discards clip audio; ByteDance's own API
+  prices audio-off at about half) with a test and a mutation check, then priced it with Higgsfield's `get_cost:true`
+  preflight, which submits no job and was already recorded in `docs/UPSTREAMS.md` (2026-08-29): audio off costs the
+  same as on (12 credits at 1080p, 4.8 at 720p). The change was reverted.
+- **Cost:** one built-and-reverted slice; no credits.
+- **Proposed edit:** "Before changing a paid request to save money, quote both settings with the vendor's no-submit
+  preflight (`get_cost:true` on the Higgsfield MCP) and keep the change only if the quote moves. A reseller's price
+  structure is not the vendor's."
+- **Confidence:** medium (once)
+- **Status:** proposed
+
+### P2 · any script that rewrites a committed data file — a round-trip check must abort, not print
+- **Trigger (witnessed):** a Python edit of `docs/reels-engine-v2/angle-bank.json` printed `round-trip identical: False`
+  and wrote anyway; the file is one-angle-per-line, so `json.dumps(indent=2)` turned a 7-line change into a 1,515-line
+  diff. Restored from HEAD and redone as a line edit (7 lines).
+- **Proposed edit:** under the ledger round-trip note in `nickstire-verify`: "the check is `sys.exit` on mismatch, never
+  a print; a file with its own layout gets a line edit."
+- **Confidence:** medium (once)
+- **Status:** proposed
+
+### Correction to 2026-10-08 P3 (`nickstire-reel-operator`, real footage declared on the beat)
+- The "9 of the 133 rotation packs say 'Real vehicle and tire footage only.'" count does not reproduce: that exact
+  phrase is in one pack (`2026-09-25-sidewall-max-psi-vs-placard`). Measured over `modelRecommendation`: **22 rotation
+  packs** (the 2026-09-25 batch) ask for real footage in varied wording ("Real tire only; no generated date-code
+  text", "synthetic footage would weaken believability"), and no beat declares it. The proposal stands with the larger
+  number. Declaring them would hold all 22 at enqueue (`approvedReelPackRotation.test.ts` asserts no rotation pack is
+  held), so it is the operator's content decision, not a data fix.
+
+### Recurrence note · "prove the instrument fired" (root AGENTS.md)
+- A hook-grammar measurement over the rotation returned `unknown` for 133 of 133 packs: it read `brief.storyboardBeats`
+  from a pack object that has only `slug` and `topic`. Re-run through `buildBriefFromApprovedProductionPack` with a
+  positive control (`built > 100`): 119 of 133 hooks are direct statements, longest run 26.
