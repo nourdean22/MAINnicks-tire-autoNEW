@@ -2082,6 +2082,26 @@ function buildTiers(): void {
         },
       },
       {
+        // 2026-10-08 · weekly Search Console digest (Mondays) — the search-side
+        // twin of the revenue digest above. Official 28-day GSC totals vs the
+        // prior 28 days, top queries/pages, plus CTR opportunities and 7-day
+        // ranking moves from the search_performance mirror, pushed via
+        // Telegram. GSC numbers had reached the operator only by pull (admin
+        // Market card, `pnpm gsc:report`, the bridge); the daily gsc-pipeline
+        // alert fires only on a 5-position drop. Same tier + claim (ROS-081);
+        // self-gates to shop-TZ Mondays inside the job. Fails closed: no
+        // official total → nothing sent, run rejects. The env gate is the
+        // presence marker _core/index.ts derives from the service-account
+        // creds at boot, the same one gsc-pipeline uses.
+        name: "weekly-gsc-digest",
+        requiresEnv: "GOOGLE_SEARCH_CONSOLE_KEY",
+        oncePerShopDay: true,
+        handler: async () => {
+          const { runWeeklyGscDigest } = await import("./jobs/weeklyGscDigest");
+          return runWeeklyGscDigest();
+        },
+      },
+      {
         // 2026-09-01 (audit F-4) · kpi_snapshots had NO writer for the life of
         // the schema; kpi.history returned [] to every caller. One row per
         // completed shop week, idempotent, once per shop day.
