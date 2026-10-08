@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   parseVisualReply, analyzeOfficeFrames, officeVisualColumnReady, storedVisual,
   __resetOfficeVisualReadyCache, OFFICE_VISUAL_MAX_FRAMES,
-  buildPrompt, calibrationNote, conversationEpisodeColumnReady, loadVisualCalibration, __resetOfficeVisualCalibration, type OfficeVisual,
+  buildPrompt, calibrationNote, conversationEpisodeColumnReady, loadVisualCalibration, loadVisualCalibrationDetailed, __resetOfficeVisualCalibration, type OfficeVisual,
 } from "./officeVisual";
 
 const META = { frameCount: 2, provider: "ollama", model: "m", latencyMs: 9 };
@@ -173,5 +173,33 @@ describe("conversationEpisodeColumnReady (0140 visual, 0141 gist)", () => {
     await conversationEpisodeColumnReady({ execute }, "visual", 1_000);
     await conversationEpisodeColumnReady({ execute }, "gist", 1_000);
     expect(execute).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("office visual calibration receipt (audit N5)", () => {
+  const base2: OfficeVisual = {
+    status: "DONE", summary: "one person", peopleCount: 1, activities: [], waitingUnattended: null,
+    frameCount: 1, provider: "ollama", model: "m", latencyMs: 1, error: null,
+  };
+  it("returns one episode id per note, corrections first, and the cache keeps the pairing", async () => {
+    __resetOfficeVisualCalibration();
+    const row = (episodeId: string, verdict: "correct" | "wrong", summary: string, note: string | null = null) =>
+      ({ episodeId, visual: JSON.stringify({ ...base2, summary, review: { verdict, note, at: "t" } }) });
+    const execute = vi.fn().mockResolvedValue([[
+      row("ep-ok-1", "correct", "ok one"), row("ep-wrong-1", "wrong", "bad one", "really two people"), row("ep-ok-2", "correct", "ok two"),
+    ]]);
+    const first = await loadVisualCalibrationDetailed({ execute }, 1_000);
+    expect(first.episodeIds).toEqual(["ep-wrong-1", "ep-ok-1", "ep-ok-2"]);
+    expect(first.notes).toHaveLength(3);
+    expect(first.notes[0]).toContain("really two people");
+    const cached = await loadVisualCalibrationDetailed({ execute }, 2_000);
+    expect(cached.episodeIds).toEqual(first.episodeIds);
+    expect(execute).toHaveBeenCalledTimes(1);
+    // The plain loader is the same read: notes only.
+    expect(await loadVisualCalibration({ execute }, 2_500)).toEqual(first.notes);
+
+    __resetOfficeVisualCalibration();
+    const broken = vi.fn().mockRejectedValue(new Error("db down"));
+    expect(await loadVisualCalibrationDetailed({ execute: broken }, 3_000)).toEqual({ notes: [], episodeIds: [] });
   });
 });

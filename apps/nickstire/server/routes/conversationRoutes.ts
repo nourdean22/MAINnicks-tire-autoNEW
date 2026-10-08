@@ -29,7 +29,7 @@ import { sql } from "drizzle-orm";
 
 import { extractConversationFacts, type TranscriptSegment } from "../services/conversationFacts";
 import {
-  analyzeOfficeFrames, conversationEpisodeColumnReady, loadVisualCalibration, officeVisualColumnReady,
+  analyzeOfficeFrames, conversationEpisodeColumnReady, loadVisualCalibrationDetailed, officeVisualColumnReady,
   OFFICE_VISUAL_MAX_FRAMES,
   type OfficeVisual,
 } from "../services/officeVisual";
@@ -153,19 +153,27 @@ export function registerConversationEpisodeRoute(app: Express): void {
     const visualPromise: Promise<OfficeVisual | null> = visualReady
       ? (async () => {
           let calibration: string[] = [];
+          let calibrationFrom: string[] = [];
           try {
             const { getDb } = await import("../db");
             const dc = await getDb();
-            calibration = dc ? await loadVisualCalibration(dc) : [];
+            if (dc) {
+              const loaded = await loadVisualCalibrationDetailed(dc);
+              calibration = loaded.notes;
+              calibrationFrom = loaded.episodeIds;
+            }
           } catch {
             calibration = [];
+            calibrationFrom = [];
           }
           const v = await analyzeOfficeFrames(
             frames.map((f) => ({ mime: f.mime, base64: f.base64 })),
             undefined,
             { calibration, onBoxPeople },
           );
-          return { ...v, onBoxPeople };
+          // The receipt (audit N5): which reviewed episodes shaped this description. Stored on
+          // the visual and logged below, so a Wrong review's consumption is a row, not a hope.
+          return { ...v, onBoxPeople, calibrationFrom };
         })()
       : Promise.resolve(null);
     // Extraction waits for the camera context at most VISUAL_CONTEXT_WAIT_MS. Vision's own worst
@@ -285,6 +293,8 @@ export function registerConversationEpisodeRoute(app: Express): void {
         episodeId: e.episodeId, frames: frames.length, visualStatus,
         provider: visual?.provider ?? null, model: visual?.model ?? null,
         latencyMs: visual?.latencyMs ?? null, error: visual?.error ?? null, onBoxPeople,
+        // Which operator reviews were in the prompt (ids, never their text): the N5 receipt.
+        calibrationFrom: visual?.calibrationFrom ?? [],
       };
       if (visualStatus === "DONE") log.info("office visual stored", meta);
       else log.warn("office visual not stored", meta);

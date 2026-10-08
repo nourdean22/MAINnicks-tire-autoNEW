@@ -500,3 +500,24 @@ describe("camera health alert wiring", () => {
     expect(adminRoutes).toContain("MANUAL_TRIGGER_STAGED");
   });
 });
+
+describe("camera health alert policy — solar-aware expected offline (audit N3)", () => {
+  it("EXPECTED_SOLAR_OFFLINE never pages, and a HEALTHY morning after it is not a recovery page", () => {
+    const night = cameraAlertDecision("EXPECTED_SOLAR_OFFLINE", "sign:2026-10-07:e1:HEALTHY", null, null);
+    expect(night).toEqual({ notify: false, recovery: false, held: false });
+    // The latest alert key still ends in HEALTHY because nothing fired overnight.
+    const morning = cameraAlertDecision("HEALTHY", "sign:2026-10-07:e1:HEALTHY", null, null);
+    expect(morning).toEqual({ notify: false, recovery: false, held: false });
+  });
+
+  it("a daytime outage that ran into dusk keeps its paged key, so the real recovery still pages once", () => {
+    const dusk = cameraAlertDecision("EXPECTED_SOLAR_OFFLINE", "sign:2026-10-07:e2:PRODUCER_OFFLINE", null, null);
+    expect(dusk.notify).toBe(false);
+    const morning = cameraAlertDecision("HEALTHY", "sign:2026-10-07:e2:PRODUCER_OFFLINE", null, null);
+    expect(morning).toEqual({ notify: true, recovery: true, held: false });
+  });
+
+  it("is keyed on the last heartbeat like the other read-derived liveness states", () => {
+    expect(cameraAlertEpisode({ state: "EXPECTED_SOLAR_OFFLINE", stateSinceEpoch: 1_759_800_000, receivedAtEpoch: 1_759_800_600 })).toBe(1_759_800_600);
+  });
+});

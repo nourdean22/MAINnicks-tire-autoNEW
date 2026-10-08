@@ -56,13 +56,16 @@ import { sql } from "drizzle-orm";
 import { router, adminProcedure } from "../_core/trpc";
 import { dbTyped } from "../lib/db-helper";
 import { deriveCameraState, HEALTH_THRESHOLDS, shopOpenAt } from "../lib/cameraHealth";
+import { solarExpectedOffline } from "../lib/solar";
 import { CAMERA_RUNTIME_WINDOW_COLUMNS_0144, cameraRuntimeHasColumns } from "../lib/heartbeatStorableColumns";
 import {
   assessEdgeQuiescence, buildCommissioningReport, EDGE_SETTLE_MS, estimateClockOffset,
   machineEventsFromVisit, QUIESCENCE_HEARTBEAT_MAX_AGE_S, TRUTH_EVENTS,
 } from "../lib/commissioningReport";
-import { EXPECTED_CAMERAS } from "../../shared/cameras";
-import { isDuplicateKeyError } from "../lib/dbErrors";
+import { EXPECTED_CAMERAS, cameraPowerFor } from "../../shared/cameras";
+import { VISIT_MARKS } from "../../shared/visitMarks";
+import { deriveVisitMarkState, type VisitMarkRow } from "../lib/visitMarks";
+import { isDuplicateKeyError, isMissingTableError } from "../lib/dbErrors";
 import { writeResult } from "../lib/dbResult";
 import { createLogger } from "../lib/logger";
 import { jsonArray, transcriptCoverage } from "../lib/conversationQuality";
@@ -538,6 +541,42 @@ export const lotRouter = router({
       const r = agg[0];
       if (!r) return { ok: false as const, reason: "vehicle_visits returned no aggregate row" };
 
+      // OPERATOR MARKS on the cars currently on the property (migration 0145; audit N1): how
+      // many of them anyone has said anything about, and what. `available: false` means the
+      // table is not there yet -- shown as such, never as zero marks.
+      const marks = {
+        available: false,
+        openMarked: 0,
+        customerWaiting: 0,
+        serviceStarted: 0,
+        serviceDone: 0,
+        notAJob: 0,
+      };
+      try {
+        const byMark = rowsOf(await d.execute(sql`
+          SELECT m.mark, COUNT(DISTINCT m.visitId) AS n
+          FROM vehicle_visit_marks m
+          JOIN vehicle_visits v ON v.visitId = m.visitId
+          WHERE v.departedAt IS NULL AND v.dataClass = 'PRODUCTION'
+          GROUP BY m.mark
+        `));
+        const openMarked = rowsOf(await d.execute(sql`
+          SELECT COUNT(DISTINCT m.visitId) AS n
+          FROM vehicle_visit_marks m
+          JOIN vehicle_visits v ON v.visitId = m.visitId
+          WHERE v.departedAt IS NULL AND v.dataClass = 'PRODUCTION'
+        `));
+        const countOf = (mark: string) => num(byMark.find((row) => String(row.mark) === mark)?.n ?? 0);
+        marks.available = true;
+        marks.openMarked = num(openMarked[0]?.n ?? 0);
+        marks.customerWaiting = countOf("CUSTOMER_WAITING");
+        marks.serviceStarted = countOf("SERVICE_STARTED");
+        marks.serviceDone = countOf("SERVICE_DONE");
+        marks.notAJob = countOf("NOT_A_JOB");
+      } catch (err) {
+        if (!isMissingTableError(err)) throw err;
+      }
+
       const waits = rowsOf(await d.execute(sql`
         SELECT ${sql.raw("FLOOR((UNIX_TIMESTAMP(bayEnteredAt) - UNIX_TIMESTAMP(COALESCE(waitStartedAt, arrivedAt))) / 60)")} AS m
         FROM vehicle_visits
@@ -626,6 +665,11 @@ export const lotRouter = router({
           // must never be auto-bound to one.
           customerConfusable: num(r.customerConfusable),
           customerAmbiguous: num(r.customerAmbiguous),
+        },
+        marks: {
+          ...marks,
+          // The share never ships without its denominator: cars on the property right now.
+          markedShare: marks.available && onProperty > 0 ? marks.openMarked / onProperty : null,
         },
       };
     } catch (err) {
@@ -791,7 +835,9 @@ export const lotRouter = router({
                  ${minutesBetween("arrivedAt", ["departedAt", "NOW()"])} AS onPropertyMinutes,
                  ${minutesBetween("createdAt", ["departedAt", "NOW()"])} AS sinceFirstSeenMinutes,
                  ${minutesBetween("COALESCE(waitStartedAt, arrivedAt)", ["bayEnteredAt", "departedAt", "NOW()"])} AS waitMinutes,
-                 ${minutesBetween("bayEnteredAt", ["bayExitedAt", "departedAt", "NOW()"])} AS bayMinutes
+                 ${minutesBetween("bayEnteredAt", ["bayExitedAt", "departedAt", "NOW()"])} AS bayMinutes,
+                 ${sql.raw("UNIX_TIMESTAMP(bayEnteredAt)")} AS bayEnteredEpoch,
+                 ${sql.raw("UNIX_TIMESTAMP(departedAt)")} AS departedEpoch
           FROM vehicle_visits
           WHERE ${input.includeCommissioning ? sql`1 = 1` : sql`dataClass = 'PRODUCTION'`}
             ${input.openOnly ? sql`AND departedAt IS NULL` : sql``}
@@ -799,10 +845,56 @@ export const lotRouter = router({
           LIMIT ${input.limit}
         `));
 
+        // OPERATOR MARKS (migration 0145; audit N1), read in one query for the page of visits
+        // and derived per visit against the camera's clocks in server/lib/visitMarks.ts. The
+        // clocks go through UNIX_TIMESTAMP so no driver time-zone shift reaches the derivation.
+        // A missing table is reported as `marksAvailable: false` -- the floor board then shows
+        // no buttons and says why -- never as "no marks", which would read as a quiet lot.
+        const marksByVisit = new Map<string, VisitMarkRow[]>();
+        let marksAvailable = true;
+        if (list.length) {
+          try {
+            const ids = list.map((v) => String(v.visitId));
+            const markRows = rowsOf(await d.execute(sql`
+              SELECT visitId, mark, ${sql.raw("UNIX_TIMESTAMP(markedAt)")} AS markedEpoch, note
+              FROM vehicle_visit_marks
+              WHERE visitId IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})
+              ORDER BY markedAt ASC, id ASC
+            `));
+            for (const m of markRows) {
+              const key = String(m.visitId);
+              const bucket = marksByVisit.get(key) ?? [];
+              bucket.push({
+                mark: String(m.mark),
+                markedAtMs: num(m.markedEpoch) * 1000,
+                note: (m.note as string | null) ?? null,
+              });
+              marksByVisit.set(key, bucket);
+            }
+          } catch (err) {
+            if (!isMissingTableError(err)) throw err;
+            marksAvailable = false;
+          }
+        }
+        const nowMs = Date.now();
+        const epochMs = (v: unknown): number | null => {
+          const n = numOrNull(v);
+          return n === null ? null : n * 1000;
+        };
+
         const iso = (v: unknown) => (v ? new Date(v as string | Date).toISOString() : null);
         return {
           ok: true as const,
+          marksAvailable,
           rows: list.map((v) => ({
+            marks: marksAvailable
+              ? deriveVisitMarkState(
+                  { bayEnteredAtMs: epochMs(v.bayEnteredEpoch), departedAtMs: epochMs(v.departedEpoch) },
+                  marksByVisit.get(String(v.visitId)) ?? [],
+                  nowMs,
+                )
+              : null,
+            markHistory: (marksByVisit.get(String(v.visitId)) ?? []).map((m) => ({ mark: m.mark, atMs: m.markedAtMs, note: m.note })),
             visitId: String(v.visitId),
             camera: String(v.camera),
             state: String(v.state),
@@ -867,6 +959,9 @@ export const lotRouter = router({
       // the deploy must cost eight NULLs on the cards, not the whole Lot page.
       const windowColumnsStored = await cameraRuntimeHasColumns(d, CAMERA_RUNTIME_WINDOW_COLUMNS_0144);
       const shopOpen = shopOpenAt();
+      // One sky for the whole read: a solar camera (registry `power`) dark inside this window
+      // reads EXPECTED_SOLAR_OFFLINE instead of a fault (audit N3). Mains cameras get null.
+      const solar = solarExpectedOffline(new Date());
       const runtime = rowsOf(await d.execute(sql`
         SELECT r.camera, r.producerInstanceId, r.producerVersion, r.gitSha, r.heartbeatSeq,
                r.mode, r.commissioningRunId,
@@ -988,6 +1083,7 @@ export const lotRouter = router({
                 deadLetterDepth: numOrNull(r.deadLetterDepth),
               },
           healthProfile,
+          { solar: cameraPowerFor(camera) === "solar" ? solar : null },
         );
         return {
           camera,
@@ -1239,6 +1335,48 @@ export const lotRouter = router({
         return { ok: true as const, runId, clock };
       } catch (err) {
         return { ok: false as const, reason: err instanceof Error ? err.message : "could not start the run" };
+      }
+    }),
+
+  /**
+   * OPERATOR MARK on a visit (migration 0145; camera audit 2026-10-07, N1). One tap on the
+   * floor board for what the camera cannot see: customer waiting, service started (in the
+   * lot, no bay), service done, not a job. Same shape as `recordTruth`: the SERVER clock is the
+   * mark's time, and a tap on a car that has already left is refused rather than appended --
+   * a late tap would move a closed record. The table missing (0145 not applied) is refused BY
+   * NAME, never swallowed into "ok". Nothing here binds a phone, a customer or an invoice, and
+   * no customer-facing mutation (work order, booking) is called.
+   */
+  markVisit: adminProcedure
+    .input(z.object({
+      visitId: z.string().min(1).max(64),
+      mark: z.enum(VISIT_MARKS),
+      note: z.string().max(191).nullish(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const d = await dbTyped();
+      if (!d) return { ok: false as const, reason: "database unavailable" };
+      try {
+        const visit = rowsOf(await d.execute(sql`
+          SELECT visitId, departedAt FROM vehicle_visits WHERE visitId = ${input.visitId} LIMIT 1
+        `))[0];
+        if (!visit) return { ok: false as const, reason: `no visit ${input.visitId}` };
+        if (visit.departedAt) return { ok: false as const, reason: "this car has left; marks are for cars on the property" };
+        const note = input.note?.trim() ? input.note.trim().slice(0, 191) : null;
+        await d.execute(sql`
+          INSERT INTO vehicle_visit_marks (visitId, mark, markedBy, note)
+          VALUES (${input.visitId}, ${input.mark}, ${ctx.user.openId}, ${note})
+        `);
+        const stamped = rowsOf(await d.execute(sql`
+          SELECT ${sql.raw("UNIX_TIMESTAMP(markedAt)")} AS markedEpoch
+          FROM vehicle_visit_marks WHERE visitId = ${input.visitId} ORDER BY id DESC LIMIT 1
+        `))[0];
+        return { ok: true as const, mark: input.mark, markedAtMs: num(stamped?.markedEpoch ?? 0) * 1000 };
+      } catch (err) {
+        if (isMissingTableError(err)) {
+          return { ok: false as const, reason: "visit marks need migration 0145 (vehicle_visit_marks) applied first" };
+        }
+        return { ok: false as const, reason: err instanceof Error ? err.message : "could not record the mark" };
       }
     }),
 

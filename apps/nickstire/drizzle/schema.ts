@@ -4789,6 +4789,29 @@ export const vehicleVisits = mysqlTable("vehicle_visits", {
 ]);
 
 /**
+ * Operator marks on a visit (migration 0145; camera audit 2026-10-07, N1). The camera sees a
+ * car arrive, park and enter a bay; it cannot see that the customer is waiting in the lobby,
+ * that a technician started on it in the lot, that the job is done and the car awaits pickup,
+ * or that the car was never a job. Those are one tap on the floor board. Rows are appended,
+ * never edited: the derivation in `server/lib/visitMarks.ts` reads the history, and the
+ * history is the audit trail. `mark` is VARCHAR, never ENUM (nickstire-tidb-ddl: an
+ * out-of-enum write loses the row); the vocabulary lives in `shared/visitMarks.ts`.
+ * `markedBy` is the admin's openId for audit and is never sent to the browser. Nothing here
+ * binds a phone, a customer or an invoice.
+ */
+export const vehicleVisitMarks = mysqlTable("vehicle_visit_marks", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  visitId: varchar("visitId", { length: 64 }).notNull(),
+  mark: varchar("mark", { length: 32 }).notNull(),
+  /** Server clock at the tap, never the phone's (a phone clock is a claim, not a fact). */
+  markedAt: timestamp("markedAt").defaultNow().notNull(),
+  markedBy: varchar("markedBy", { length: 191 }).notNull(),
+  note: varchar("note", { length: 191 }),
+}, (table) => [
+  index("idx_vehicle_visit_marks_visit").on(table.visitId, table.markedAt),
+]);
+
+/**
  * Latest heartbeat per camera producer (migration 0120). Producer health is an
  * INFRASTRUCTURE fact and lives here; zero visits is a BUSINESS fact and lives in
  * `vehicle_visits`. Before this table the two shared one timestamp, and a healthy

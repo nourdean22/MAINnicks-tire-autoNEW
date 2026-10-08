@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "deferred": "operator-pending (2026-10-08, camera N-series PR A): the floor board gains four two-tap mark buttons per open visit (Customer waiting / Service started / Service done / Not a job, 48 px, in-DOM arm-then-confirm, no window.confirm), a one-line mark summary per card, a marked-share line above the grid, and a calm sky-blue tone for EXPECTED_SOLAR_OFFLINE. What the operator sees before migration 0145 is applied: the buttons are absent and the board says 'Marks need migration 0145 (vehicle_visit_marks) before the buttons appear.' Receipts this diff: server/lib/visitMarks.test.ts 10 passed; server/lib/solar.test.ts 7 passed against the published Cleveland table; server/lib/cameraHealth.test.ts 45 passed; server/cameraHealthAlerts.test.ts 33 passed; server/routes/conversationRoutes.test.ts + server/services/officeVisual.test.ts 44 passed; migration-journal, rawSqlTablesExist, tableWriterCoverage, lotDurations, lotVisualReview green; pnpm run check 0 errors; lint:source, lint:hooks, validate:routes, lint:sql, lint:pii green. A live tap on the deployed Admin is the walkthrough and needs the operator's phone."
+    }
+  }
+}

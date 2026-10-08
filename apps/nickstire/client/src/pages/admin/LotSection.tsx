@@ -39,6 +39,7 @@ import { useEffect, useState } from "react";
 
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
+import { VISIT_MARKS, VISIT_MARK_LABELS, type VisitMark } from "@shared/visitMarks";
 import { summarizeCameraFleet, WORKER_STALE_AFTER_SECONDS } from "@shared/cameraFleetHealth";
 import { lotDataConfidence, type LotConfidence } from "@shared/lotDataConfidence";
 import { localClock } from "@shared/shopState";
@@ -159,6 +160,25 @@ type VisitRow = {
   waitMinutes: number | null;
   bayMinutes: number | null;
   open: boolean;
+  /**
+   * Operator marks (migration 0145, audit N1), derived server-side in server/lib/visitMarks.ts.
+   * `undefined` = an older server; `null` = the table is not applied yet (no buttons, say why).
+   */
+  marks?: VisitMarkState | null;
+  markHistory?: Array<{ mark: string; atMs: number; note: string | null }>;
+};
+
+type VisitMarkState = {
+  latest: { mark: VisitMark; atMs: number; note: string | null } | null;
+  customerWaiting: boolean;
+  notAJob: boolean;
+  serviceStartedAtMs: number | null;
+  serviceStartedBy: "camera" | "mark" | null;
+  serviceDoneAtMs: number | null;
+  serviceMinutes: number | null;
+  pickupPending: boolean;
+  pickupWaitMinutes: number | null;
+  markCount: number;
 };
 
 type ConversationRow = {
@@ -395,6 +415,10 @@ function stateTone(state: string, commissioned: boolean): string {
     case "CONTROL_DEGRADED":
     case "MEDIA_DEGRADED":
       return "border-red-500/40 bg-red-500/10 text-red-300";
+    case "EXPECTED_SOLAR_OFFLINE":
+      // Dark on its battery between civil dusk and about two hours after sunrise: a fact
+      // about the sky, not a fault. Calm, never red, never green -- the lot is still unwatched.
+      return "border-sky-500/30 bg-sky-500/10 text-sky-200/80";
     default:
       // NEVER_INGESTED: a fault for a commissioned camera, an expectation for a planned one.
       return commissioned
@@ -671,6 +695,14 @@ type Stage = { label: string; tone: string };
  * it cannot prove whether the car is queueing or being serviced where it stands.
  */
 function stageOf(v: VisitRow): Stage {
+  // An operator's word outranks the camera's inference about WHAT the car is doing here; the
+  // camera still owns WHERE it is (the bay/lot facts below stay as observed).
+  if (v.marks?.notAJob) {
+    return { label: "Not a job", tone: "bg-foreground/10 text-foreground/55 border-foreground/20" };
+  }
+  if (v.marks?.pickupPending) {
+    return { label: "Done · waiting for pickup", tone: "bg-sky-500/15 text-sky-300 border-sky-500/30" };
+  }
   if (v.bayEnteredAt && !v.bayExitedAt) {
     return {
       label: v.bay ? `Inside service · ${v.bay}` : "Inside service",
@@ -827,7 +859,108 @@ function ActivityPanel({ a }: { a: ActivityData }) {
   );
 }
 
-function FloorCard({ v, fetchedAt, now }: { v: VisitRow; fetchedAt: number; now: number }) {
+/**
+ * The operator's four taps (audit N1). Two-tap, in-DOM: the first tap arms the button and
+ * relabels it "Tap again", the second sends; it disarms itself after a few seconds. Never
+ * window.confirm (silently suppressed in the iOS PWA). 48 px minimum targets. A mark the
+ * state already implies is disabled rather than hidden, so the row keeps its shape.
+ */
+function MarkControls({ v, onMarked }: { v: VisitRow; onMarked: () => void }) {
+  const [armed, setArmed] = useState<VisitMark | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const mark = trpc.lot.markVisit.useMutation({
+    onSuccess: (r) => {
+      if (r.ok) {
+        setArmed(null);
+        setError(null);
+        onMarked();
+      } else {
+        setArmed(null);
+        setError(r.reason);
+      }
+    },
+    onError: (e) => {
+      setArmed(null);
+      setError(e.message);
+    },
+  });
+  useEffect(() => {
+    if (armed === null) return;
+    const t = setTimeout(() => setArmed(null), 5000);
+    return () => clearTimeout(t);
+  }, [armed]);
+
+  const m = v.marks;
+  if (m === null) {
+    return <div className="mt-2.5 text-[11px] text-foreground/35">Marks need migration 0145 (vehicle_visit_marks) before these buttons work.</div>;
+  }
+  if (m === undefined) return null;
+  const disabled: Record<VisitMark, boolean> = {
+    CUSTOMER_WAITING: m.customerWaiting || m.notAJob,
+    SERVICE_STARTED: m.notAJob || (m.serviceStartedAtMs !== null && m.serviceDoneAtMs === null),
+    SERVICE_DONE: m.notAJob || m.serviceDoneAtMs !== null,
+    NOT_A_JOB: m.notAJob,
+  };
+  return (
+    <div className="mt-2.5">
+      <div className="flex flex-wrap gap-1.5">
+        {VISIT_MARKS.map((k) => {
+          const isArmed = armed === k;
+          return (
+            <button
+              key={k}
+              type="button"
+              disabled={disabled[k] || mark.isPending}
+              aria-pressed={isArmed}
+              className={`min-h-12 min-w-12 rounded-md border px-2.5 text-[12px] active:scale-95 disabled:opacity-40 ${
+                isArmed
+                  ? "border-amber-400/60 bg-amber-500/15 text-amber-200"
+                  : "border-foreground/15 bg-foreground/[0.03] text-foreground/75"
+              }`}
+              onClick={() => {
+                if (isArmed) mark.mutate({ visitId: v.visitId, mark: k });
+                else setArmed(k);
+              }}
+            >
+              {isArmed ? `Tap again: ${VISIT_MARK_LABELS[k]}` : VISIT_MARK_LABELS[k]}
+            </button>
+          );
+        })}
+      </div>
+      {error && <div className="mt-1 text-[11px] text-red-300">{error}</div>}
+    </div>
+  );
+}
+
+/** What the marks say about this car, in one line. Clocks keep advancing between polls. */
+function MarkSummary({ m, open, fetchedAt, now }: { m: VisitMarkState; open: boolean; fetchedAt: number; now: number }) {
+  const stampMs = (ms: number) => stamp(new Date(ms).toISOString());
+  const serviceRunning = open && m.serviceStartedAtMs !== null && m.serviceDoneAtMs === null;
+  const service = advanceOpenDuration(m.serviceMinutes, serviceRunning, fetchedAt, now);
+  const pickup = advanceOpenDuration(m.pickupWaitMinutes, open && m.pickupPending, fetchedAt, now);
+  if (m.notAJob) {
+    return (
+      <div className="mt-2 text-[11px] text-foreground/55">
+        Marked not a job{m.latest?.note ? `: ${m.latest.note}` : ""}
+      </div>
+    );
+  }
+  if (!m.customerWaiting && m.serviceStartedAtMs === null && m.serviceDoneAtMs === null) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground/55">
+      {m.customerWaiting && <span className="text-amber-300">Customer waiting</span>}
+      {m.serviceStartedAtMs !== null && (
+        <span>
+          Service {formatDuration(service)} · started {stampMs(m.serviceStartedAtMs)} {m.serviceStartedBy === "mark" ? "(tap)" : "(camera)"}
+        </span>
+      )}
+      {m.serviceDoneAtMs !== null && m.serviceStartedAtMs === null && <span>Done {stampMs(m.serviceDoneAtMs)}</span>}
+      {m.pickupPending && <span className="text-sky-300">Pickup pending {formatDuration(pickup)}</span>}
+    </div>
+  );
+}
+
+function FloorCard({ v, fetchedAt, now, onMarked }: { v: VisitRow; fetchedAt: number; now: number; onMarked: () => void }) {
   const stage = stageOf(v);
 
   // Prefer the OBSERVED arrival. Fall back to first-seen and say so — an unobserved
@@ -913,6 +1046,9 @@ function FloorCard({ v, fetchedAt, now }: { v: VisitRow; fetchedAt: number; now:
           <span className="text-amber-400/70">{v.estimatedFields.length} estimated</span>
         )}
       </div>
+
+      {v.marks ? <MarkSummary m={v.marks} open={v.open} fetchedAt={fetchedAt} now={now} /> : null}
+      {v.open ? <MarkControls v={v} onMarked={onMarked} /> : null}
     </div>
   );
 }
@@ -1673,9 +1809,30 @@ export default function LotSection() {
               </div>
             ) : (
               <>
+                {/* Marked share, with its denominator (audit N1). Unavailable is said, never zero. */}
+                {n.marks ? (
+                  <div className="mb-2.5 text-[11px] text-foreground/50">
+                    {n.marks.available
+                      ? `Marked ${n.marks.openMarked} of ${n.counts.onProperty} on the property` +
+                        (n.marks.serviceDone > 0 ? ` · ${n.marks.serviceDone} waiting for pickup` : "") +
+                        (n.marks.customerWaiting > 0 ? ` · ${n.marks.customerWaiting} customer${n.marks.customerWaiting === 1 ? "" : "s"} waiting` : "") +
+                        (n.marks.notAJob > 0 ? ` · ${n.marks.notAJob} not a job` : "")
+                      : "Marks need migration 0145 (vehicle_visit_marks) before the buttons appear."}
+                  </div>
+                ) : null}
                 <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                   {onLot.map((v) => (
-                    <FloorCard key={v.visitId} v={v} fetchedAt={onLotVisits.dataUpdatedAt} now={tick} />
+                    <FloorCard
+                      key={v.visitId}
+                      v={v}
+                      fetchedAt={onLotVisits.dataUpdatedAt}
+                      now={tick}
+                      onMarked={() => {
+                        void onLotVisits.refetch();
+                        void visits.refetch();
+                        void now.refetch();
+                      }}
+                    />
                   ))}
                 </div>
                 {notShown !== null && notShown > 0 && (

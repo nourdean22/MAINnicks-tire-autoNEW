@@ -584,6 +584,10 @@ export async function handleRunMigrations() {
       `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationCaptureFailuresLast60m INT NULL`,
       `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationWakeTriggersLast60m INT NULL`,
       `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationTranscribeBacklog INT NULL`,
+      // 2026-10-08 - operator visit marks (matches drizzle/0145 + schema.ts). One tap on the Lot
+      // floor board for what the camera cannot see: customer waiting, service started, service
+      // done, not a job. VARCHAR, never ENUM (an out-of-enum write loses the row on TiDB).
+      `CREATE TABLE IF NOT EXISTS vehicle_visit_marks (id BIGINT AUTO_INCREMENT PRIMARY KEY, visitId VARCHAR(64) NOT NULL, mark VARCHAR(32) NOT NULL, markedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, markedBy VARCHAR(191) NOT NULL, note VARCHAR(191) NULL, INDEX idx_vehicle_visit_marks_visit (visitId, markedAt))`,
       // 2026-09-23 · candidates recruiting funnel (matches drizzle/0129 + schema.ts). All
       // nullable, all IF NOT EXISTS. createCandidate falls back to the pre-0129 columns on
       // ER_BAD_FIELD_ERROR, so deploy order does not matter; until this runs, intent and

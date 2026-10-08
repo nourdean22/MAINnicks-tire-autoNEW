@@ -51,6 +51,13 @@ export interface OfficeVisual {
   onBoxPeople?: number | null;
   /** Operator's verdict on `summary`, set from Admin -> Lot. Feeds calibration (below). */
   review?: OfficeVisualReview | null;
+  /**
+   * The reviewed episodes whose Right/Wrong notes were in the prompt that produced THIS
+   * description (audit 2026-10-07, N5). Empty = no reviews existed yet; absent = an older
+   * server. This is the consumption receipt: a Wrong review has demonstrably reached a later
+   * call when a later visual names its episode here, and only then.
+   */
+  calibrationFrom?: string[];
 }
 
 export interface OfficeVisualReview {
@@ -259,7 +266,14 @@ function storedReview(raw: unknown): OfficeVisualReview | null {
 
 const CALIBRATION_MAX = 8;
 const CALIBRATION_TTL_MS = 5 * 60 * 1000;
-let calibrationCache: { notes: string[]; at: number } | null = null;
+let calibrationCache: { notes: string[]; episodeIds: string[]; at: number } | null = null;
+
+export type VisualCalibration = {
+  /** The prompt lines, corrections first. */
+  notes: string[];
+  /** The reviewed episodes those lines came from, in the same order -- the receipt (N5). */
+  episodeIds: string[];
+};
 
 /** One calibration line per reviewed description. Exported for tests. */
 export function calibrationNote(v: OfficeVisual): string | null {
@@ -281,25 +295,48 @@ export async function loadVisualCalibration(
   d: { execute: (q: SQL) => Promise<unknown> },
   now = Date.now(),
 ): Promise<string[]> {
-  if (calibrationCache && now - calibrationCache.at < CALIBRATION_TTL_MS) return calibrationCache.notes;
+  return (await loadVisualCalibrationDetailed(d, now)).notes;
+}
+
+/**
+ * The calibration with its receipt: which reviewed episodes the notes came from, one id per
+ * note, in order. `conversationRoutes` stores the ids as `calibrationFrom` on the visual it
+ * produces, so "did the operator's Wrong reach the next call?" is answered by a row, not by
+ * reading this cache's TTL off a clock (audit 2026-10-07, N5).
+ */
+export async function loadVisualCalibrationDetailed(
+  d: { execute: (q: SQL) => Promise<unknown> },
+  now = Date.now(),
+): Promise<VisualCalibration> {
+  if (calibrationCache && now - calibrationCache.at < CALIBRATION_TTL_MS) {
+    return { notes: calibrationCache.notes, episodeIds: calibrationCache.episodeIds };
+  }
   try {
     const rows = readRows(await d.execute(sql`
-      SELECT visual FROM conversation_episodes
+      SELECT episodeId, visual FROM conversation_episodes
        WHERE visual IS NOT NULL
          AND JSON_EXTRACT(visual, '$.review.verdict') IS NOT NULL
        ORDER BY createdAt DESC
        LIMIT 40
     `));
-    const reviewed = rows.map((r) => storedVisual(r.visual)).filter((v): v is OfficeVisual => !!v?.review);
-    const wrong = reviewed.filter((v) => v.review!.verdict === "wrong");
-    const right = reviewed.filter((v) => v.review!.verdict === "correct");
-    const notes = [...wrong.slice(0, 6), ...right.slice(0, 2)]
-      .map(calibrationNote).filter((n): n is string => !!n).slice(0, CALIBRATION_MAX);
-    calibrationCache = { notes, at: now };
-    return notes;
+    const reviewed = rows
+      .map((r) => ({ episodeId: String(r.episodeId ?? ""), visual: storedVisual(r.visual) }))
+      .filter((r): r is { episodeId: string; visual: OfficeVisual } => !!r.visual?.review);
+    const wrong = reviewed.filter((r) => r.visual.review!.verdict === "wrong");
+    const right = reviewed.filter((r) => r.visual.review!.verdict === "correct");
+    const notes: string[] = [];
+    const episodeIds: string[] = [];
+    for (const r of [...wrong.slice(0, 6), ...right.slice(0, 2)]) {
+      const note = calibrationNote(r.visual);
+      if (!note || notes.length >= CALIBRATION_MAX) continue;
+      notes.push(note);
+      episodeIds.push(r.episodeId);
+    }
+    calibrationCache = { notes, episodeIds, at: now };
+    return { notes, episodeIds };
   } catch (err) {
     log.warn("office visual calibration read failed", { error: err instanceof Error ? err.message : String(err) });
-    return [];
+    return { notes: [], episodeIds: [] };
   }
 }
 
