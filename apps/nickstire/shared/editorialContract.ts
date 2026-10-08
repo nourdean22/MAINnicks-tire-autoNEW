@@ -55,7 +55,9 @@ const CTA = new RegExp(
   [
     "\\bbook\\s+(?:now|online|today|an?|your|it|with)\\b",
     "\\bcall\\s+(?:us|now|today|ahead|the shop|nick'?s)\\b",
-    "\\bcomment\\s+(?:below|[\"']?[A-Z]{3,}\\b)",
+    // No "comment" branch: askSignals' comment-keyword pattern already matches
+    // "comment" + any word ("COMMENT BELOW" included), and those beats are left
+    // to askLeakageProblem.
     "\\bdm\\s+(?:us|me|nick'?s)\\b",
     "\\bvisit\\s+(?:us|our|the shop|nick'?s)\\b",
     "\\bbring\\s+(?:it|your|the|them)\\b",

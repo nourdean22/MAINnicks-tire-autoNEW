@@ -198,5 +198,8 @@ describe("scheduler.ts wires it", () => {
   it("stopping the scheduler clears a pending due check", () => {
     const stop = sliceBlock(src, "export function stopTieredScheduler", "Tiered scheduler stopped", { label: "scheduler.ts" });
     expect(stop).toContain("if (tier.dueCheck) clearTimeout(tier.dueCheck);");
+    // and forgets both, or startRecurring (which refuses a tier with a handle) would keep a restarted tier silent
+    expect(stop).toContain("tier.handle = undefined;");
+    expect(stop).toContain("tier.dueCheck = undefined;");
   });
 });

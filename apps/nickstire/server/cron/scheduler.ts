@@ -3346,6 +3346,10 @@ export function stopTieredScheduler(): void {
   for (const tier of tiers) {
     if (tier.handle) clearInterval(tier.handle);
     if (tier.dueCheck) clearTimeout(tier.dueCheck);
+    // Cleared, not just cancelled: startRecurring refuses a tier that still has
+    // a handle, so a stale one would keep a restarted scheduler's tier silent.
+    tier.handle = undefined;
+    tier.dueCheck = undefined;
   }
   log.info("Tiered scheduler stopped");
 }
