@@ -329,8 +329,9 @@ switch ($Scenario) {
   "log-read-by-a-sharing-reader" {
     # The 2026-10-08 holder exactly: a reader that shares Read, Write and Delete, as Node's fs.open
     # does (Desktop Commander's tail, pid 9580). Windows PowerShell 5.1's Add-Content refused to
-    # open the log beside it for 11 hours. Linux .NET does not enforce read-sharing, so this probe
-    # only bites on Windows; CI pins the writer through the text contract instead.
+    # open the log beside it for 11 hours. This probe bites only under Windows PowerShell 5.1:
+    # pwsh 6.2+ opens with read sharing (PowerShell PR #8091) and Linux .NET does not enforce it,
+    # so CI pins the writer through the text contract instead.
     Set-Content -LiteralPath $log -Value "existing" -Encoding ascii
     $h = [IO.File]::Open($log, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
     $saved = $ErrorActionPreference
@@ -363,11 +364,32 @@ switch ($Scenario) {
     $ErrorActionPreference = "Continue"
     try {
       Restore-Overflow
-      $markers["restoringWhileLocked"] = [bool](Test-Path -LiteralPath ($log + ".overflow.restoring"))
+      $markers["restoringWhileLocked"] = @(Get-ChildItem -Path ($log + ".overflow.restoring.*")).Count -eq 1
       Log "queued while locked" 2>$null
     } finally { $h.Dispose(); $ErrorActionPreference = $saved }
     Restore-Overflow
     Restore-Overflow
+    Log "after"
+    $markers["leftovers"] = @(Get-ChildItem -Path ($log + ".overflow*") | ForEach-Object { $_.Name })
+  }
+  "overflow-batch-held-by-a-reader-lands-once" {
+    # A pending batch (its append failed while the log was blocked) is then held open by a reader
+    # that refuses delete-sharing, as 5.1's Get-Content -Wait does. Moving the batch BEFORE appending
+    # it is what keeps it from landing again on every tick while that reader stays open. Bites only
+    # under Windows PowerShell 5.1: Linux allows the move, so there the batch simply lands at once.
+    Set-Content -LiteralPath $log -Value "2026-10-08 07:00:00 before" -Encoding ascii
+    Set-Content -LiteralPath ($log + ".overflow") -Value "2026-10-08 08:00:00 stranded one" -Encoding ascii
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+      $h = [IO.File]::Open($log, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+      try { Restore-Overflow } finally { $h.Dispose() }
+      $pending = @(Get-ChildItem -Path ($log + ".overflow.restoring.*"))
+      $markers["pendingAfterBlockedAppend"] = $pending.Count
+      $r = [IO.File]::Open($pending[0].FullName, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+      try { Restore-Overflow; Restore-Overflow } finally { $r.Dispose() }
+      Restore-Overflow
+    } finally { $ErrorActionPreference = $saved }
     Log "after"
     $markers["leftovers"] = @(Get-ChildItem -Path ($log + ".overflow*") | ForEach-Object { $_.Name })
   }
@@ -381,8 +403,8 @@ switch ($Scenario) {
     $markers["portMissesOnDisk"] = [int]((Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json)."eufy-bridge".portMisses)
   }
   "state-write-failure-is-logged" {
-    # Under "Continue" a Set-Content sharing violation never reached the catch: the ledger simply
-    # was not saved, every rate limit reset, and nothing said so.
+    # A ledger that cannot be written must say so. Pins the WARN for a holder that refuses writers
+    # (the old Set-Content also warned here: under 5.1 its failure is terminating).
     $state["eufy-bridge"] = @{ restarts = @(); escalatedAt = 0; portMisses = 1; fingerprint = "" }
     Set-Content -LiteralPath $statePath -Value "{}" -Encoding ascii
     $h = [IO.File]::Open($statePath, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)

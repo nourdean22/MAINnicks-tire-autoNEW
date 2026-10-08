@@ -20,6 +20,7 @@ failed (no Heal-* functions, 400 ms probe, two-miss restart, warn-only disk floo
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -41,7 +42,10 @@ def source() -> str:
 
 
 def _pwsh() -> str:
-    exe = shutil.which("pwsh") or shutil.which("powershell.exe") or shutil.which("powershell")
+    # On Windows, Windows PowerShell 5.1 first: it is what runs the supervisor on NicksMax, and its
+    # file-sharing rules differ from pwsh 7's (the 2026-10-08 log outage happened only under 5.1).
+    order = ("powershell.exe", "pwsh") if os.name == "nt" else ("pwsh", "powershell.exe", "powershell")
+    exe = next((found for found in map(shutil.which, order) if found), None)
     assert exe, "supervisor probes require PowerShell 7 or Windows PowerShell"
     return exe
 
@@ -336,8 +340,12 @@ def test_logger_falls_back_to_an_overflow_file_when_the_log_is_locked(tmp_path: 
 # whose read handle shares Read, Write and Delete; Windows PowerShell 5.1's Add-Content opens
 # without read sharing, so it refused to open beside ANY reader, while a FileStream sharing all
 # three opened the same file. Linux .NET does not enforce read-sharing, so on CI the sharing-reader
-# probes pass for the old writer too; the text contract below is what pins the writer there, and
-# the Windows behaviour was proven on the box under 5.1 (old script red, this one green).
+# probes pass for the old writer too, and so would pwsh 7 on Windows (it opens with read sharing
+# since 6.2). The text contract below is what pins the writer on CI. Receipt under Windows
+# PowerShell 5.1.19041 on NicksMax, 2026-10-08 19:29 ET (this suite copied out of the box's
+# checkout): this script 52 passed; main's script 7 failed, exactly the 7 tests added here (the
+# sharing-reader probe red on overflowExists True, the box's symptom), 45 passed; the ledger
+# planted back to Set-Content red on the sharing-reader ledger probe (portMissesOnDisk 0).
 
 
 def _code_lines() -> list[str]:
@@ -394,6 +402,15 @@ def test_a_restore_waits_for_a_locked_log_and_lands_each_line_once(tmp_path: Pat
         "before", "stranded one", "stranded two", "queued while locked", "after",
     ], out["log"]
     assert [re.search(r"restored (\d+) line", n).group(1) for n in notes] == ["2", "1"]
+    assert out["markers"]["leftovers"] in (None, [])
+
+
+def test_a_pending_batch_held_by_a_reader_lands_exactly_once(tmp_path: Path):
+    out = run_scenario("overflow-batch-held-by-a-reader-lands-once", tmp_path)
+    assert out["markers"]["pendingAfterBlockedAppend"] == 1
+    body = [line[20:] for line in out["log"] if " NOTE restored " not in line]
+    assert body == ["before", "stranded one", "after"], out["log"]
+    assert sum(" NOTE restored 1 line(s) " in line for line in out["log"]) == 1
     assert out["markers"]["leftovers"] in (None, [])
 
 

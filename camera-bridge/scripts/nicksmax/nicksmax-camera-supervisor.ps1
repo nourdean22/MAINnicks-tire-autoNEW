@@ -110,30 +110,39 @@ function Log([string]$m) {
 }
 
 # Runs once at the start of a tick, before anything is logged, so restored lines land ahead of
-# this tick's own. The claim is a rename: it fails while a holder refuses delete-sharing (that
-# tick retries later), and it keeps a NEW overflow from mixing with the batch being restored.
-#   .overflow -> .overflow.restoring -> appended to $log -> .overflow.restored.<guid> -> deleted
-# A batch is renamed out of ".restoring" BEFORE it is deleted, so a delete Windows leaves pending
-# under an open reader can never be appended twice. A batch whose append fails stays
-# ".restoring" and is retried first next tick, ahead of any newer overflow. The one way to append
-# a batch twice is to lose the rename after the append (the tick killed in between, or a reader
-# that refuses delete-sharing opening ".restoring" in those milliseconds): a duplicate, never a
-# loss. Restore failures are not logged: they would only feed the overflow they try to empty.
+# this tick's own. Every step that can fail comes BEFORE the append, so a batch is appended once:
+#   claim     .overflow            -> .overflow.restoring.<guid>   (a newer overflow cannot mix in)
+#   attempt   .restoring.<guid>    -> .restoring.<new guid>        (proves the batch can be moved
+#             before a line of it is written: a reader that refuses delete-sharing -- 5.1's
+#             Get-Content -Wait is one -- blocks it here, and the batch waits instead of landing twice)
+#   append    NOTE + the batch     -> $log                         (fails: the batch stays pending)
+#   retire    .restoring.<guid>    -> .overflow.restored.<guid>    -> deleted
+# A pending batch is restored before any newer overflow is claimed. The retire is a rename first so
+# a delete Windows leaves pending under an open reader can never be read as pending again. The one
+# way to append a batch twice is to lose the retire to a reader that opens the brand-new attempt name
+# in the milliseconds after the append (or the tick being killed right there): a duplicate, never a
+# loss. Failures are not logged: they would only feed the overflow they try to empty.
 function Restore-Overflow {
   $overflow = $log + ".overflow"
-  $restoring = $overflow + ".restoring"
+  $share = [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete
   foreach ($stale in @(Get-ChildItem -Path ($overflow + ".restored.*") -ErrorAction SilentlyContinue)) {
     try { [IO.File]::Delete($stale.FullName) } catch {}
   }
   foreach ($pass in 1, 2) {
-    if (-not (Test-Path -LiteralPath $restoring)) {
+    $pending = @(Get-ChildItem -Path ($overflow + ".restoring.*") -ErrorAction SilentlyContinue |
+      Sort-Object CreationTimeUtc | Select-Object -First 1)
+    if ($pending.Count -gt 0) {
+      $batch = $pending[0].FullName
+    } else {
       if (-not (Test-Path -LiteralPath $overflow)) { return }
-      try { [IO.File]::Move($overflow, $restoring) } catch { return }
+      $batch = "{0}.restoring.{1}" -f $overflow, [guid]::NewGuid().ToString("n")
+      try { [IO.File]::Move($overflow, $batch) } catch { return }
     }
+    $attempt = "{0}.restoring.{1}" -f $overflow, [guid]::NewGuid().ToString("n")
+    try { [IO.File]::Move($batch, $attempt) } catch { return }
     try {
       $reader = [IO.StreamReader]::new(
-        [IO.FileStream]::new($restoring, [IO.FileMode]::Open, [IO.FileAccess]::Read,
-          ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete)),
+        [IO.FileStream]::new($attempt, [IO.FileMode]::Open, [IO.FileAccess]::Read, $share),
         [Text.Encoding]::UTF8, $true)
       try { $text = $reader.ReadToEnd() } finally { $reader.Dispose() }
     } catch { return }
@@ -146,7 +155,7 @@ function Restore-Overflow {
       try { Write-SharedFile $log ($note + (($lines -join "`r`n") + "`r`n")) -Append } catch { return }
     }
     $done = "{0}.restored.{1}" -f $overflow, [guid]::NewGuid().ToString("n")
-    try { [IO.File]::Move($restoring, $done) } catch { return }
+    try { [IO.File]::Move($attempt, $done) } catch { return }
     try { [IO.File]::Delete($done) } catch {}
   }
 }
@@ -771,8 +780,10 @@ function Invoke-DiskFloor([double]$free) {
 }
 Invoke-DiskFloor ([double](Get-PSDrive C).Free)
 
-# The restart ledger carries every rate limit and ESCALATE decision across ticks; a write that
-# failed silently would reset them each tick. Set-Content failed the same way Add-Content did.
+# The restart ledger carries every rate limit and ESCALATE decision across ticks. Set-Content
+# refused to open it beside a reader exactly as Add-Content refused the log, so that tick's ledger
+# was lost; its failure (unlike Add-Content's) is terminating, so the WARN below did fire
+# (probed on NicksMax under 5.1, 2026-10-08).
 function Save-State {
   try {
     Write-SharedFile $statePath (($state | ConvertTo-Json -Depth 4) + "`r`n")
