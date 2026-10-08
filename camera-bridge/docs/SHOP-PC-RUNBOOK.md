@@ -169,14 +169,20 @@ junctions every `node_modules`; an install inside one offers to wipe the shared 
 other worktree points at, and the prompt defaults to yes. On a fresh box that has its own
 clone this does not apply — it applies the moment you make a worktree.
 
-**Do not tail the supervisor log with a remote file reader (added 2026-10-08).** Desktop
-Commander's `read_file` with a negative offset left an exclusive handle on
-`logs\nicksmax-camera-supervisor.log` at 07:34; every `Add-Content` in the supervisor then
-failed silently for 20+ minutes while it kept restarting workers, and only the restart stamps
-in `data\.nicksmax-supervisor-state.json` showed it was alive. Read it through a shell
-(`powershell -NoProfile -Command "Get-Content -Tail 40 <path>"`), which closes its handle. The
-supervisor now writes lines it cannot land to `<log>.overflow` — read both, and treat a log
-that stops while the state file keeps changing as a locked file, not a dead supervisor. The
+**Do not tail the supervisor log with a remote file reader (added 2026-10-08, corrected the
+same evening).** Desktop Commander's `read_file` with a negative offset left a read handle open
+on `logs\nicksmax-camera-supervisor.log` at 07:34 in its node process (Restart Manager named it:
+pid 9580). The handle was NOT exclusive: it shares read, write and delete, and a FileStream
+opened the log beside it fine. The fault was the writer. Windows PowerShell 5.1's `Add-Content`
+and `Set-Content` open a file without read sharing, so they fail beside ANY open reader. Every
+supervisor line went to `<log>.overflow` from 08:20 to the fix, and nothing at all landed
+07:34-08:20, before the overflow existed. The supervisor now writes the log, its state file and
+the production start marker through one FileStream that shares all three. An open reader no
+longer blocks it: only a holder that refuses writers can, and then the line goes to
+`<log>.overflow`. The next tick that can write the log moves those lines back into it under a
+`NOTE restored N line(s)` header. The box-local `data\` loop and shim still use `Add-Content`
+for their own lines. Read logs through a shell
+(`powershell -NoProfile -Command "Get-Content -Tail 40 <path>"`), which closes its handle. A
 leaked handle clears when the Desktop Commander agent restarts or the box reboots.
 
 ---

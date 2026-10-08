@@ -326,6 +326,70 @@ switch ($Scenario) {
     $markers["overflowExists"] = [bool](Test-Path -LiteralPath ($log + ".overflow"))
     $markers["overflowText"] = if ($markers["overflowExists"]) { [string](Get-Content -LiteralPath ($log + ".overflow") -Raw) } else { "" }
   }
+  "log-read-by-a-sharing-reader" {
+    # The 2026-10-08 holder exactly: a reader that shares Read, Write and Delete, as Node's fs.open
+    # does (Desktop Commander's tail, pid 9580). Windows PowerShell 5.1's Add-Content refused to
+    # open the log beside it for 11 hours. Linux .NET does not enforce read-sharing, so this probe
+    # only bites on Windows; CI pins the writer through the text contract instead.
+    Set-Content -LiteralPath $log -Value "existing" -Encoding ascii
+    $h = [IO.File]::Open($log, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { Log "while read" 2>$null } finally { $h.Dispose(); $ErrorActionPreference = $saved }
+    $markers["overflowExists"] = [bool](Test-Path -LiteralPath ($log + ".overflow"))
+  }
+  "overflow-restored-into-log" {
+    # The box's file shape: Windows PowerShell 5.1's Add-Content -Encoding utf8 opened the overflow
+    # with a BOM. The lines go back into the log in order, under one NOTE, without the BOM.
+    Set-Content -LiteralPath $log -Value "2026-10-08 07:34:08 last line before the lock" -Encoding ascii
+    $bom = [byte[]](0xEF, 0xBB, 0xBF)
+    $body = [Text.Encoding]::ASCII.GetBytes("2026-10-08 08:20:14 ACTION first stranded`r`n2026-10-08 18:51:13 ACTION last stranded`r`n")
+    [IO.File]::WriteAllBytes($log + ".overflow", $bom + $body)
+    Restore-Overflow
+    Log "after restore"
+    $bytes = [IO.File]::ReadAllBytes($log)
+    $inner = $false
+    for ($i = 1; $i -le $bytes.Length - 3; $i++) { if ($bytes[$i] -eq 0xEF -and $bytes[$i + 1] -eq 0xBB -and $bytes[$i + 2] -eq 0xBF) { $inner = $true } }
+    $markers["innerBom"] = $inner
+    $markers["leftovers"] = @(Get-ChildItem -Path ($log + ".overflow*") | ForEach-Object { $_.Name })
+  }
+  "overflow-restore-waits-for-the-log" {
+    # The log is held by a reader that refuses writers. The claimed batch must wait, newer lines
+    # must queue behind it, and once the log opens both land in order exactly once.
+    Set-Content -LiteralPath $log -Value "2026-10-08 07:00:00 before" -Encoding ascii
+    Set-Content -LiteralPath ($log + ".overflow") -Value @("2026-10-08 08:00:00 stranded one", "2026-10-08 08:00:30 stranded two") -Encoding ascii
+    $h = [IO.File]::Open($log, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+      Restore-Overflow
+      $markers["restoringWhileLocked"] = [bool](Test-Path -LiteralPath ($log + ".overflow.restoring"))
+      Log "queued while locked" 2>$null
+    } finally { $h.Dispose(); $ErrorActionPreference = $saved }
+    Restore-Overflow
+    Restore-Overflow
+    Log "after"
+    $markers["leftovers"] = @(Get-ChildItem -Path ($log + ".overflow*") | ForEach-Object { $_.Name })
+  }
+  "state-write-beside-a-sharing-reader" {
+    $state["eufy-bridge"] = @{ restarts = @(1759999000.0); escalatedAt = 0; portMisses = 2; fingerprint = "" }
+    Set-Content -LiteralPath $statePath -Value "{}" -Encoding ascii
+    $h = [IO.File]::Open($statePath, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { Save-State 2>$null } finally { $h.Dispose(); $ErrorActionPreference = $saved }
+    $markers["portMissesOnDisk"] = [int]((Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json)."eufy-bridge".portMisses)
+  }
+  "state-write-failure-is-logged" {
+    # Under "Continue" a Set-Content sharing violation never reached the catch: the ledger simply
+    # was not saved, every rate limit reset, and nothing said so.
+    $state["eufy-bridge"] = @{ restarts = @(); escalatedAt = 0; portMisses = 1; fingerprint = "" }
+    Set-Content -LiteralPath $statePath -Value "{}" -Encoding ascii
+    $h = [IO.File]::Open($statePath, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { Save-State 2>$null } finally { $h.Dispose(); $ErrorActionPreference = $saved }
+  }
   "disk-floor" {
     New-Item -ItemType Directory -Force -Path $officeAudioDir | Out-Null
     $stale = Join-Path $officeAudioDir "stale.wav"
