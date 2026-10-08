@@ -47,13 +47,13 @@ export interface CameraTimeline {
 }
 
 /** The state of a stretch of the day for which no row says anything. Never counted as watched. */
-export const UNKNOWN_STATE = "UNKNOWN";
+const UNKNOWN_STATE = "UNKNOWN";
 
 /** States the READ side derives from heartbeat age or the sky; the producer never reports them. */
-export const READ_DERIVED_STATES: ReadonlySet<string> = new Set(["STALE", "PRODUCER_OFFLINE", "EXPECTED_SOLAR_OFFLINE"]);
+const READ_DERIVED_STATES: ReadonlySet<string> = new Set(["STALE", "PRODUCER_OFFLINE", "EXPECTED_SOLAR_OFFLINE"]);
 
 /** The one state in which the lot is being watched. Every other state is time the counts did not see. */
-export const WATCHING_STATE = "HEALTHY";
+const WATCHING_STATE = "HEALTHY";
 
 export function buildCameraTimeline(input: {
   anchor: HealthEventRow | null;

@@ -5970,6 +5970,11 @@
       "file": "apps/nickstire/server/lib/solar.ts",
       "symbol": "solarDay",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The NOAA sunrise / sunset / civil dawn / civil dusk computation for one local day at the shop. solar.test.ts imports it to pin the result against the published Cleveland table for 2026-10-08 (sunrise 07:29, sunset 18:58, civil 07:03 / 19:25 EDT), the shortening of October days, and the two measured camera recoveries at about sunrise + 2 h; sunset and civil dawn are reachable only this way, since solarExpectedOffline exposes just dusk and sunrise + lag. Its runtime consumer is solarExpectedOffline in the same module, reached by lot.health and the camera-health-alerts cron for the solar sign camera, so the computation is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/cameraHealthAlerts.ts",
+      "symbol": "recordDerivedHealthTransition",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The health timeline's second writer (camera audit N6): compares the state the 5-minute pass derived with the last camera_health_events row and writes one transition when they differ, skips a missing table once, and propagates any other failure. cameraHealthAlerts.test.ts imports it to drive those four branches against a fake db, because the only other route to it is runCameraHealthAlerts' live camera_runtime read. Its runtime consumer is runCameraHealthAlerts in the same module (called before each camera's page), so the writer is live, not vacuous."
     }
   ]
 }
