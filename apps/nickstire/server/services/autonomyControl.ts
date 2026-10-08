@@ -11,6 +11,7 @@ import {
   DEFAULT_AUTONOMY_POLICY,
   evaluateAutonomyAction,
   resolveBoundaryOutcome,
+  AUTONOMY_COUNT_LIMIT_KEYS,
   type AutonomyActionContext,
   type AutonomyLimitKey,
   type AutonomyPolicy,
@@ -367,6 +368,14 @@ export class PolicyValidationError extends Error {
   }
 }
 
+/** An edit made against bounds the stored policy no longer has: the operator must see the new ones first. */
+export class PolicyConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PolicyConflictError";
+  }
+}
+
 function strictFailure(error: z.ZodError): string {
   return `${error.issues[0]?.path.join(".")} ${error.issues[0]?.message}`;
 }
@@ -499,8 +508,14 @@ export async function setKillSwitch(scope: "global" | "generation" | "publishing
   );
 }
 
-/** One limit (budget, caps, spacing). Bounds are the strict schema's; out of range is a PolicyValidationError. */
+/**
+ * One limit (budget, caps, spacing). Bounds are the strict schema's; out of
+ * range is a PolicyValidationError, and so is a fraction for a count limit.
+ */
 export async function setPolicyLimit(key: AutonomyLimitKey, value: number, createdBy: string): Promise<{ version: number }> {
+  if ((AUTONOMY_COUNT_LIMIT_KEYS as readonly string[]).includes(key) && !Number.isInteger(value)) {
+    throw new PolicyValidationError(`${key} counts whole items: ${value} is not a whole number`);
+  }
   return editPolicy(
     (current) => ({ ...current, limits: { ...current.limits, [key]: value } }),
     (current) => `${key} ${current.limits[key]} -> ${value}`,
@@ -508,14 +523,48 @@ export async function setPolicyLimit(key: AutonomyLimitKey, value: number, creat
   );
 }
 
+/** The bounds a paid-repair consent was given under, as the confirm showed them. */
+interface PaidRepairConsentLimits {
+  maxGenerationCostPerDayUsd: number;
+  maxRepairAttemptsPerAsset: number;
+}
+
 /**
  * Whether a paid beat repair runs on its own ("auto": within the generation
  * budget and the repairs-per-asset limit) or waits for the operator. The one
  * reader is cron/jobs/dailyReelPost.ts, which spends only on "auto".
+ *
+ * Turning it ON is consent to spend, and that consent is bound to the budget
+ * and repair limit the operator was shown (Codex review on #2933): the check
+ * runs inside the edit, against the policy that edit re-reads, so a limit
+ * raised from another device since the confirm is a PolicyConflictError and
+ * nothing is written. Turning it OFF never needs a confirmation.
  */
-export async function setPaidRepairPermission(permission: "auto" | "approval_required", createdBy: string): Promise<{ version: number }> {
+export async function setPaidRepairPermission(
+  permission: "auto" | "approval_required",
+  createdBy: string,
+  confirmed?: PaidRepairConsentLimits,
+): Promise<{ version: number }> {
+  if (permission === "auto" && !confirmed) {
+    throw new PolicyValidationError("turning paid repairs on needs the budget and repair limit the operator confirmed");
+  }
   return editPolicy(
-    (current) => ({ ...current, autonomousRepair: { paidBeatRegeneration: permission } }),
+    (current) => {
+      if (
+        permission === "auto" && confirmed &&
+        (current.limits.maxGenerationCostPerDayUsd !== confirmed.maxGenerationCostPerDayUsd ||
+          current.limits.maxRepairAttemptsPerAsset !== confirmed.maxRepairAttemptsPerAsset)
+      ) {
+        // This process's 30 s cache may be what the panel showed: drop it so the
+        // refetch after this refusal shows the stored limits.
+        clearPolicyCache();
+        throw new PolicyConflictError(
+          `the limits changed since you confirmed: now $${current.limits.maxGenerationCostPerDayUsd}/day and ` +
+            `${current.limits.maxRepairAttemptsPerAsset} repairs per Reel. Review them and confirm again.`,
+        );
+      }
+      return { ...current, autonomousRepair: { paidBeatRegeneration: permission } };
+    },
     (current) => `paid beat repair ${current.autonomousRepair?.paidBeatRegeneration ?? "approval_required"} -> ${permission}`,
     createdBy,
   );

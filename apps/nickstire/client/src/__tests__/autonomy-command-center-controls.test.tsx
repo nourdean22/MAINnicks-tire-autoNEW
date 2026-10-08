@@ -84,6 +84,17 @@ describe("Autonomy control: one change per tap, to the server", () => {
     expect(h.limitMutate).toHaveBeenCalledWith({ key: "maxGenerationCostPerDayUsd", value: 0 });
   });
 
+  it("a count limit cannot be saved as a fraction; a whole number can (Codex on #2933)", () => {
+    render(<AutonomyCommandCenter />);
+    fireEvent.click(screen.getByRole("button", { name: "2/day" }));
+    const box = screen.getByLabelText("Feed posts (/day)");
+    fireEvent.change(box, { target: { value: "1.5" } });
+    expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+    // CONTROL: the same box accepts a whole number.
+    fireEvent.change(box, { target: { value: "1" } });
+    expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it("an empty budget field cannot be saved as $0", () => {
     render(<AutonomyCommandCenter />);
     fireEvent.click(screen.getByRole("button", { name: "12$/day" }));
@@ -112,7 +123,12 @@ describe("Paid repairs switch", () => {
     render(<AutonomyCommandCenter />);
     fireEvent.click(automatic());
     await waitFor(() => expect(h.paidMutate).toHaveBeenCalledTimes(1));
-    expect(h.paidMutate).toHaveBeenCalledWith({ permission: "auto" });
+    // The limits the dialog showed travel with the consent (Codex on #2933): the
+    // server refuses them if the stored policy has moved since.
+    expect(h.paidMutate).toHaveBeenCalledWith({
+      permission: "auto",
+      confirmedLimits: { maxGenerationCostPerDayUsd: 12, maxRepairAttemptsPerAsset: DEFAULT_AUTONOMY_POLICY.limits.maxRepairAttemptsPerAsset },
+    });
   });
 
   it("Ask me first stops paid repairs in one tap, with no confirm", () => {

@@ -866,6 +866,27 @@ export async function releaseFailedJobReservation(payloadJson: string | null, jo
   }
 }
 
+/**
+ * Close the generation reservation of a job refused after its claim and before
+ * any provider call: a condemned script, or a beat declared real or
+ * deterministic. spendSinceUsd counts a `reserved` row as spend, so leaving it
+ * held until the 6 h stale sweep let a refusal that bought nothing turn later
+ * Reels away at the daily budget (Codex review on #2933, 2026-10-08). Nothing
+ * bought yet: release. A resumed job that already holds clips keeps the
+ * conservative estimate as its spend record (fail), as every other failure does.
+ */
+async function closeRefusedJobReservation(jobId: number, clipUrlsJson: string | null): Promise<void> {
+  let clips: unknown = [];
+  try { clips = clipUrlsJson ? JSON.parse(clipUrlsJson) : []; } catch { clips = []; }
+  const bought = Array.isArray(clips) && clips.some((u) => typeof u === "string" && u.startsWith("http"));
+  try {
+    const { release, fail } = await import("./generationLedger");
+    await (bought ? fail : release)(`reel_job_${jobId}`);
+  } catch (e) {
+    log.warn("could not close the generation reservation of a refused job", { jobId, e: e instanceof Error ? e.message : String(e) });
+  }
+}
+
 export async function processNextReelJob(scopeJobId?: number): Promise<{
   processed: boolean;
   jobId?: number;
@@ -1000,6 +1021,7 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
           })
           .where(eq(reelJobs.id, job.id));
         await releaseFailedJobReservation(job.payload, job.id);
+        await closeRefusedJobReservation(job.id, job.clipUrlsJson);
         log.error("condemned script BLOCKED at generation — legacy queued row, no clips generated", {
           jobId: job.id, briefId: job.briefId, reason: condemned,
         });
@@ -1027,6 +1049,7 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
           .set({ status: "failed", queueState: queueStateForReelStatus("failed"), error: reason.slice(0, 1000) })
           .where(eq(reelJobs.id, job.id));
         await releaseFailedJobReservation(job.payload, job.id);
+        await closeRefusedJobReservation(job.id, job.clipUrlsJson);
         log.error("declared real/deterministic beats BLOCKED at generation — no clips generated", {
           jobId: job.id, briefId: job.briefId, beats: blocked.map((b) => `${b.beatNumber}:${b.route}`).join(","),
         });

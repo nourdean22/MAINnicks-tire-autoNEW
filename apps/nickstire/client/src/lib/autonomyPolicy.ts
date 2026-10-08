@@ -119,6 +119,19 @@ export const AUTONOMY_LIMIT_KEYS = [
 ] as const satisfies ReadonlyArray<keyof AutonomyPolicy["limits"]>;
 export type AutonomyLimitKey = (typeof AUTONOMY_LIMIT_KEYS)[number];
 
+/**
+ * Limits that count whole things. The governor compares a whole count with >=,
+ * so a fraction would act as the next whole number (1.5 posts a day allows two).
+ * Spacing and money keep decimals.
+ */
+export const AUTONOMY_COUNT_LIMIT_KEYS = [
+  "maxFeedPostsPerDay",
+  "maxStoriesPerDay",
+  "maxCampaignsPerWeek",
+  "maxRepairAttemptsPerAsset",
+  "maxModelCallsPerCampaign",
+] as const satisfies ReadonlyArray<AutonomyLimitKey>;
+
 /** Today's real operating posture, written down and versioned. */
 export const DEFAULT_AUTONOMY_POLICY: AutonomyPolicy = {
   version: 1,

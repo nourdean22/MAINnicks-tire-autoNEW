@@ -64,6 +64,7 @@ vi.mock("../services/adminSecurity", async (importOriginal) => ({
 }));
 
 import {
+  PolicyConflictError,
   PolicyValidationError,
   clearPolicyCache,
   getActivePolicy,
@@ -151,6 +152,19 @@ describe("a limit edit changes one limit against the stored policy", () => {
   });
 });
 
+describe("count limits take whole numbers (Codex on #2933)", () => {
+  it("a fraction is refused for a count and nothing is written; spacing and money keep decimals", async () => {
+    // A cap of 1.5 posts a day acts as two: the governor compares a whole count with >=.
+    await expect(setPolicyLimit("maxFeedPostsPerDay", 1.5, "op")).rejects.toBeInstanceOf(PolicyValidationError);
+    await expect(setPolicyLimit("maxRepairAttemptsPerAsset", 0.5, "op")).rejects.toBeInstanceOf(PolicyValidationError);
+    expect(state.rows.map((r) => r.version)).toEqual([5]);
+    // CONTROL: decimals stay legal where they mean something, and a whole count still saves.
+    await expect(setPolicyLimit("minimumFeedSpacingHours", 2.5, "op")).resolves.toEqual({ version: 6 });
+    await expect(setPolicyLimit("maxGenerationCostPerDayUsd", 12.5, "op")).resolves.toEqual({ version: 7 });
+    await expect(setPolicyLimit("maxFeedPostsPerDay", 1, "op")).resolves.toEqual({ version: 8 });
+  });
+});
+
 describe("the paid-repair switch", () => {
   it("auto -> approval_required changes only that field", async () => {
     await setPaidRepairPermission("approval_required", "op");
@@ -163,9 +177,49 @@ describe("the paid-repair switch", () => {
   it("a policy written before the field existed reads as approval_required in the note", async () => {
     const { autonomousRepair: _omit, ...legacy } = chosen;
     state.rows = [stored(5, legacy as AutonomyPolicy)];
-    await setPaidRepairPermission("auto", "op");
+    await setPaidRepairPermission("auto", "op", {
+      maxGenerationCostPerDayUsd: chosen.limits.maxGenerationCostPerDayUsd,
+      maxRepairAttemptsPerAsset: chosen.limits.maxRepairAttemptsPerAsset,
+    });
     expect(latest().autonomousRepair).toEqual({ paidBeatRegeneration: "auto" });
     expect(state.rows.at(-1)?.note).toBe("paid beat repair approval_required -> auto");
+  });
+
+  // Codex on #2933: consent to spend is bound to the bounds the operator saw.
+  const off: AutonomyPolicy = { ...chosen, autonomousRepair: { paidBeatRegeneration: "approval_required" } };
+  const confirmed = (budget: number) => ({ maxGenerationCostPerDayUsd: budget, maxRepairAttemptsPerAsset: chosen.limits.maxRepairAttemptsPerAsset });
+
+  it("turning paid repairs on under a budget raised since the confirm is a conflict, and nothing is written", async () => {
+    state.rows = [stored(5, off), stored(6, { ...off, limits: { ...off.limits, maxGenerationCostPerDayUsd: 200 } })];
+    await expect(setPaidRepairPermission("auto", "op", confirmed(12))).rejects.toBeInstanceOf(PolicyConflictError);
+    expect(state.rows.map((r) => r.version)).toEqual([5, 6]);
+    // CONTROL: confirming what is actually stored turns it on.
+    await expect(setPaidRepairPermission("auto", "op", confirmed(200))).resolves.toEqual({ version: 7 });
+    expect(latest().autonomousRepair).toEqual({ paidBeatRegeneration: "auto" });
+  });
+
+  it("the check runs against the re-read policy when another edit takes the version first", async () => {
+    state.rows = [stored(5, off)];
+    state.beforeInsert = () => { state.rows.push(stored(6, { ...off, limits: { ...off.limits, maxGenerationCostPerDayUsd: 200 } })); };
+    await expect(setPaidRepairPermission("auto", "op", confirmed(12))).rejects.toBeInstanceOf(PolicyConflictError);
+    expect(state.rows.map((r) => r.version)).toEqual([5, 6]);
+  });
+
+  it("after a conflict the next read shows the new limits, not this process's 30 s cache", async () => {
+    state.rows = [stored(5, off)];
+    await getActivePolicy(); // this process caches v5 ($12/day)
+    state.rows.push(stored(6, { ...off, limits: { ...off.limits, maxGenerationCostPerDayUsd: 200 } })); // another instance's edit
+    await expect(setPaidRepairPermission("auto", "op", confirmed(12))).rejects.toBeInstanceOf(PolicyConflictError);
+    // The panel refetches on the conflict; it must see $200 now, or the operator re-confirms $12 forever.
+    expect((await getActivePolicy()).limits.maxGenerationCostPerDayUsd).toBe(200);
+  });
+
+  it("turning them on with no confirmation is refused; turning them off needs none", async () => {
+    state.rows = [stored(5, off)];
+    await expect(setPaidRepairPermission("auto", "op")).rejects.toBeInstanceOf(PolicyValidationError);
+    expect(state.rows.map((r) => r.version)).toEqual([5]);
+    state.rows = [stored(5, chosen)];
+    await expect(setPaidRepairPermission("approval_required", "op")).resolves.toEqual({ version: 6 });
   });
 });
 
@@ -211,6 +265,7 @@ describe("router", () => {
     const caller = contentAdminRouter.createCaller(adminCtx());
     await expect(caller.setAutonomyLimit({ key: "maxGenerationCostPerDayUsd", value: 0 })).resolves.toEqual({ version: 6 });
     await expect(caller.setAutonomyLimit({ key: "maxGenerationCostPerDayUsd", value: 5000 })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(caller.setAutonomyLimit({ key: "maxFeedPostsPerDay", value: 1.5 })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     expect(state.rows.map((r) => r.version)).toEqual([5, 6]);
   });
 
@@ -220,5 +275,14 @@ describe("router", () => {
     // @ts-expect-error — "manual" is a valid PublishPermission, but not a choice on this switch
     await expect(caller.setAutonomyPaidRepair({ permission: "manual" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     expect(latest().autonomousRepair).toEqual({ paidBeatRegeneration: "approval_required" });
+  });
+
+  it("setAutonomyPaidRepair: auto carries the confirmed limits, and stale ones are a CONFLICT", async () => {
+    state.rows = [stored(5, { ...chosen, autonomousRepair: { paidBeatRegeneration: "approval_required" } })];
+    const caller = contentAdminRouter.createCaller(adminCtx());
+    await expect(caller.setAutonomyPaidRepair({ permission: "auto" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    const limits = (budget: number) => ({ maxGenerationCostPerDayUsd: budget, maxRepairAttemptsPerAsset: chosen.limits.maxRepairAttemptsPerAsset });
+    await expect(caller.setAutonomyPaidRepair({ permission: "auto", confirmedLimits: limits(99) })).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(caller.setAutonomyPaidRepair({ permission: "auto", confirmedLimits: limits(12) })).resolves.toEqual({ version: 6 });
   });
 });

@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { trpc } from "@/lib/trpc";
+import { AUTONOMY_COUNT_LIMIT_KEYS } from "@/lib/autonomyPolicy";
 
 function SwitchRow({ label, on, scope, busy, onToggle }: { label: string; on: boolean; scope: "global" | "generation" | "publishing"; busy: boolean; onToggle: (scope: "global" | "generation" | "publishing", next: boolean) => void }) {
   return (
@@ -56,7 +57,8 @@ export default function AutonomyCommandCenter() {
       });
       center.refetch();
     },
-    onError: (err) => toast.error("Paid repairs not changed", { description: err.message }),
+    // A CONFLICT means the limits moved since the confirm: refetch so the new ones show.
+    onError: (err) => { toast.error("Paid repairs not changed", { description: err.message }); center.refetch(); },
   });
 
   const killSwitch = trpc.contentAdmin.setAutonomyKillSwitch.useMutation({
@@ -130,6 +132,7 @@ export default function AutonomyCommandCenter() {
                 const current = (s.policy.limits as Record<string, number>)[key];
                 if (current === undefined) return null;
                 const isEditing = editingLimit === key;
+                const wholeOnly = (AUTONOMY_COUNT_LIMIT_KEYS as readonly string[]).includes(key);
                 return (
                   <div key={key} className="flex items-center justify-between gap-2 text-xs">
                     <span className="text-muted-foreground">{label}</span>
@@ -147,13 +150,13 @@ export default function AutonomyCommandCenter() {
                         <Input
                           value={limitDraft}
                           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLimitDraft(e.target.value)}
-                          inputMode="decimal"
+                          inputMode={wholeOnly ? "numeric" : "decimal"}
                           className="h-7 w-20 text-xs font-mono"
                           aria-label={`${label} (${unit})`}
                         />
                         <Button
                           size="sm" className="h-7 text-[11px]"
-                          disabled={setLimit.isPending || limitDraft.trim() === "" || !Number.isFinite(Number(limitDraft)) || Number(limitDraft) < min || Number(limitDraft) > max}
+                          disabled={setLimit.isPending || limitDraft.trim() === "" || !Number.isFinite(Number(limitDraft)) || Number(limitDraft) < min || Number(limitDraft) > max || (wholeOnly && !Number.isInteger(Number(limitDraft)))}
                           onClick={() => setLimit.mutate({ key, value: Number(limitDraft) })}
                         >
                           {setLimit.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
@@ -185,12 +188,18 @@ export default function AutonomyCommandCenter() {
                     disabled={paidRepair.isPending}
                     onClick={async () => {
                       if (s.policy.paidBeatRegeneration === "auto") return;
+                      // The consent travels with the bounds it was given under; the
+                      // server refuses it if the stored policy has moved since.
+                      const confirmedLimits = {
+                        maxGenerationCostPerDayUsd: s.policy.limits.maxGenerationCostPerDayUsd,
+                        maxRepairAttemptsPerAsset: s.policy.limits.maxRepairAttemptsPerAsset,
+                      };
                       const ok = await confirmDialog({
                         title: "Let paid repairs run on their own?",
-                        message: `When the critic finds a flaw that costs credits to fix, the system pays for the fix itself, within the generation budget ($${s.policy.limits.maxGenerationCostPerDayUsd}/day) and ${s.policy.limits.maxRepairAttemptsPerAsset} repairs per Reel. You can switch back here at any time.`,
+                        message: `When the critic finds a flaw that costs credits to fix, the system pays for the fix itself, within the generation budget ($${confirmedLimits.maxGenerationCostPerDayUsd}/day) and ${confirmedLimits.maxRepairAttemptsPerAsset} repairs per Reel. You can switch back here at any time.`,
                         confirmLabel: "Allow paid repairs",
                       });
-                      if (ok) paidRepair.mutate({ permission: "auto" });
+                      if (ok) paidRepair.mutate({ permission: "auto", confirmedLimits });
                     }}
                   >
                     Automatic

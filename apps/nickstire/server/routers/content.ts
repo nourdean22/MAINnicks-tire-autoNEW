@@ -575,10 +575,20 @@ export const contentAdminRouter = router({
 
   /** Paid beat repairs: "auto" spends within the budget; "approval_required" waits for the operator. */
   setAutonomyPaidRepair: adminProcedure
-    .input(z.object({ permission: z.enum(["auto", "approval_required"]) }))
+    .input(z.object({
+      permission: z.enum(["auto", "approval_required"]),
+      /** Turning paid repairs on: the budget and repair limit the confirm showed. */
+      confirmedLimits: z.object({
+        maxGenerationCostPerDayUsd: z.number().finite(),
+        maxRepairAttemptsPerAsset: z.number().finite(),
+      }).optional(),
+    }))
     .mutation(async ({ input, ctx }) => {
-      const { setPaidRepairPermission } = await import("../services/autonomyControl");
-      return setPaidRepairPermission(input.permission, ctx.user?.email ?? "admin");
+      const { setPaidRepairPermission, PolicyValidationError, PolicyConflictError } = await import("../services/autonomyControl");
+      return setPaidRepairPermission(input.permission, ctx.user?.email ?? "admin", input.confirmedLimits).catch((err: unknown) => {
+        if (err instanceof PolicyConflictError) throw new TRPCError({ code: "CONFLICT", message: err.message });
+        throw err instanceof PolicyValidationError ? new TRPCError({ code: "BAD_REQUEST", message: err.message }) : err;
+      });
     }),
 
   runConceptTournament: adminProcedure

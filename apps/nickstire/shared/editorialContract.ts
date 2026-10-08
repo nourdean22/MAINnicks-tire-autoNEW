@@ -46,6 +46,8 @@ export interface EditorialFinding {
 
 const OPENING_PLATE = /\b(logo|brand plate|end card|title card|intro animation|watermark)\b/i;
 const GENERIC_OPENING = /\b(generic (?:moving )?car|stock footage|b-roll|random traffic)\b/i;
+/** What the shop sells, as the object of "book" / "schedule" ("BOOK SERVICE", not "BOOK VALUE"). */
+const SERVICE_OBJECT = "service|appointments?|inspections?|repairs?|alignments?|tires?|brakes?|oil\\s+changes?";
 /**
  * The shop's CTA verbs, in their imperative form only (a bare "visit" or "tap"
  * is as often a noun). SAVE is the platform-native mid-reel prompt and is
@@ -53,16 +55,16 @@ const GENERIC_OPENING = /\b(generic (?:moving )?car|stock footage|b-roll|random 
  */
 const CTA = new RegExp(
   [
-    "\\bbook\\s+(?:now|online|today|an?|your|it|with)\\b",
-    "\\bcall\\s+(?:us|now|today|ahead|the shop|nick'?s)\\b",
+    `\\bbook\\s+(?:now|online|today|an?|your|it|with|${SERVICE_OBJECT})\\b`,
+    "\\bcall\\s+(?:us|now|today|ahead|the shop|nick'?s|\\(?\\d{3})\\b",
     // No "comment" branch: askSignals' comment-keyword pattern already matches
     // "comment" + any word ("COMMENT BELOW" included), and those beats are left
     // to askLeakageProblem.
     "\\bdm\\s+(?:us|me|nick'?s)\\b",
-    "\\bvisit\\s+(?:us|our|the shop|nick'?s)\\b",
+    "\\bvisit\\s+(?:us|our|the shop|nick'?s|nickstire)\\b",
     "\\bbring\\s+(?:it|your|the|them)\\b",
     "\\bget\\s+(?:it|yours|them)\\s+checked\\b",
-    "\\bschedule\\s+(?:an?|your|it|now|today|online)\\b",
+    `\\bschedule\\s+(?:an?|your|it|now|today|online|${SERVICE_OBJECT})\\b`,
     "\\btap\\s+(?:the|here|to|now|below)\\b",
     "\\bmessage\\s+us\\b",
   ].join("|"),

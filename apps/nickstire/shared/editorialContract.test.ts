@@ -63,6 +63,17 @@ describe("checkEditorialContract", () => {
     const asks = clean(); asks[4] = beat(5, "REAL", "VISIT US BEFORE YOU GO"); asks[1] = beat(2, "REAL", "BRING IT IN THIS WEEK");
     expect(rules(asks)).toEqual(["cta_in_beat", "cta_in_beat"]);
   });
+  it("an imperative with an ordinary service object is an ask; BOOK VALUE is not (Codex on #2933)", () => {
+    // Neither askSignals nor the first imperative list caught these, so the ask shipped in the beat.
+    for (const text of ["BOOK SERVICE ONLINE", "BOOK APPOINTMENT", "SCHEDULE SERVICE", "CALL 216 862 0005", "VISIT NICKSTIRE.ORG"]) {
+      expect(askSignals(text), text).toEqual([]);
+      const b = clean(); b[4] = beat(5, "REAL", text);
+      expect(rules(b), text).toEqual(["cta_in_beat"]);
+    }
+    // CONTROL: the noun reading stays quiet.
+    const noun = clean(); noun[1] = beat(2, "REAL", "BOOK VALUE DROPS AFTER A CRASH");
+    expect(rules(noun)).toEqual([]);
+  });
   it("an end card held past two seconds is flagged; a closing evidence shot of any length is not", () => {
     const b = clean(); b[4] = { ...beat(5, "end card with logo and address", "NICK'S TIRE & AUTO"), startSecond: 16, endSecond: 20 };
     expect(rules(b)).toEqual(["end_card_length"]);
