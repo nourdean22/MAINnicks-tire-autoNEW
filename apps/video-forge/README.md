@@ -107,5 +107,8 @@ category has at least 3 cases: tires, brakes, rotors, suspension, oil,
 batteries, alignment/wheels, mechanical macro, object character, shop
 environment, abstract/educational, rapid action, slow cinematic, and
 fluids/engine. Seeds are fixed, every case carries a sha256, and beats containing
-phone numbers or emails are filtered out. Rebuild it with
-`python3 bench/build_corpus.py`; the output is deterministic.
+phone numbers or emails are filtered out. Beats a brief declares real footage or
+deterministic graphics (the `source` field, or a leading `REAL` / `DETERMINISTIC`
+tag in `visual`, as in nickstire's `shared/shotRouter.ts`) are skipped too: they
+are captured or rendered, never generated, so they are not generator workload.
+Rebuild it with `python3 bench/build_corpus.py`; the output is deterministic.
