@@ -40,9 +40,25 @@ const CAMERA_STATES = [
   "CALIBRATION_INVALID",
   "DEGRADED_VISION",
   "CLOUD_BACKLOG",
+  /**
+   * A solar-powered camera dark between civil dusk and about two hours after sunrise (audit
+   * 2026-10-07, N3). The loss is real and is still shown; what changes is the verdict: it is
+   * the camera's battery, not a fault, so it does not page and does not count as a drop.
+   * The window comes from `server/lib/solar.ts`; the same loss at noon is PRODUCER_OFFLINE.
+   */
+  "EXPECTED_SOLAR_OFFLINE",
   "HEALTHY",
 ] as const;
 type CameraState = (typeof CAMERA_STATES)[number];
+
+/**
+ * Read-time context the producer cannot report about itself. `solar` is set only for a camera
+ * the registry marks solar-powered (`shared/cameras.ts` `power`), from
+ * `solarExpectedOffline(now)`; null or absent means "judge the loss as a loss".
+ */
+export interface DeriveContext {
+  solar?: { expectedOffline: boolean; reason: string } | null;
+}
 
 /** Initial SLO thresholds: proposed, not yet measured against a 30-day run. */
 export const HEALTH_THRESHOLDS = {
@@ -183,6 +199,7 @@ function neverFacets(profile: CameraHealthProfile): HealthFacets {
 export function deriveCameraState(
   r: RuntimeSnapshot | null,
   profile: CameraHealthProfile = "fixed_geometry",
+  context: DeriveContext | null = null,
 ): HealthVerdict {
   if (r === null || r.receivedAtEpoch === null) {
     return {
@@ -310,20 +327,33 @@ export function deriveCameraState(
     cloud,
   };
 
+  // The three ways a dark solar camera presents: the edge exits on stall and the heartbeat
+  // ages out (PRODUCER_OFFLINE / STALE), or the edge is up with no stream (CAMERA_OFFLINE).
+  // Inside the expected window each becomes EXPECTED_SOLAR_OFFLINE, facets untouched, the
+  // underlying reason kept so the operator still sees WHAT is dark. Everything below the
+  // liveness/source rungs (pose, vision, cloud) is unaffected: a camera that is awake and
+  // sending frames is judged exactly as before, night or day.
+  const lossReason =
+    producer === "offline"
+      ? `last heartbeat ${Math.round(age ?? 0)}s ago (offline after ${T.offlineAfterSeconds}s)`
+      : producer === "stale"
+        ? (age === null ? "heartbeat age unknown" : `last heartbeat ${Math.round(age)}s ago (stale after ${T.staleAfterSeconds}s)`)
+        : source === "disconnected"
+          ? "producer alive but its capture source is disconnected"
+          : frames === "stale"
+            ? `no healthy frame for more than ${T.frameStaleAfterSeconds}s on the producer's clock`
+            : null;
+  if (lossReason !== null && context?.solar?.expectedOffline) {
+    return { state: "EXPECTED_SOLAR_OFFLINE", facets, reason: `${context.solar.reason}; ${lossReason}` };
+  }
   if (producer === "offline") {
-    return { state: "PRODUCER_OFFLINE", facets, reason: `last heartbeat ${Math.round(age ?? 0)}s ago (offline after ${T.offlineAfterSeconds}s)` };
+    return { state: "PRODUCER_OFFLINE", facets, reason: lossReason ?? "producer offline" };
   }
   if (producer === "stale") {
-    return { state: "STALE", facets, reason: age === null ? "heartbeat age unknown" : `last heartbeat ${Math.round(age)}s ago (stale after ${T.staleAfterSeconds}s)` };
+    return { state: "STALE", facets, reason: lossReason ?? "heartbeat stale" };
   }
   if (source === "disconnected" || frames === "stale") {
-    return {
-      state: "CAMERA_OFFLINE",
-      facets,
-      reason: source === "disconnected"
-        ? "producer alive but its capture source is disconnected"
-        : `no healthy frame for more than ${T.frameStaleAfterSeconds}s on the producer's clock`,
-    };
+    return { state: "CAMERA_OFFLINE", facets, reason: lossReason ?? "camera offline" };
   }
   if (pose === "invalid" || calibration === "missing") {
     return {

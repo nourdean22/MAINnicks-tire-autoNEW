@@ -59,6 +59,23 @@ export interface CameraFleetVerdict {
 /** Same set the Lot page's Office panel paints red (LotSection.tsx OfficeIntelligence). */
 const WORKER_BAD = new Set(["DEGRADED", "MISSING", "STALE", "ERROR", "STOPPED"]);
 
+/**
+ * Camera states that are a fact about the world, not a fault: shown, never paged, never an
+ * alert. EXPECTED_SOLAR_OFFLINE is the solar sign camera dark on its battery between civil dusk
+ * and about two hours after sunrise (server/lib/solar.ts).
+ */
+const EXPECTED_CAMERA_STATES = new Set(["EXPECTED_SOLAR_OFFLINE"]);
+
+/** How loudly Settings > Status should treat a camera problem: an expected state is a warning. */
+export function cameraProblemSeverity(state: string): "alert" | "warning" {
+  if (EXPECTED_CAMERA_STATES.has(state)) return "warning";
+  return /OFFLINE|NEVER_INGESTED|PRODUCER_OFFLINE|UNREGISTERED/.test(state) ? "alert" : "warning";
+}
+
+export function isExpectedCameraState(state: string): boolean {
+  return EXPECTED_CAMERA_STATES.has(state);
+}
+
 export function summarizeCameraFleet(
   payload: { ok: true; cameras: readonly CameraFleetInputCamera[] } | { ok: false; reason?: string } | null | undefined,
 ): CameraFleetVerdict {

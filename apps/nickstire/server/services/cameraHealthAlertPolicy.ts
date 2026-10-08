@@ -5,14 +5,19 @@ export type CameraHealthState = ReturnType<typeof deriveCameraState>["state"];
 export type CameraHealthVerdict = ReturnType<typeof deriveCameraState>;
 export type CameraHealthFacets = CameraHealthVerdict["facets"];
 
-const NON_PAGING_STATES = new Set<CameraHealthState>(["HEALTHY", "STALE"]);
+// EXPECTED_SOLAR_OFFLINE (audit N3): a solar camera dark between civil dusk and about two
+// hours after sunrise is its battery, not a fault. Nobody is paged, and because it never
+// fires, a HEALTHY morning after it is not a "recovery" page either (the latest alert key
+// still ends in whatever last PAGED). A daytime outage that runs into dusk keeps its paged
+// key, so the real recovery next morning still pages once.
+const NON_PAGING_STATES = new Set<CameraHealthState>(["HEALTHY", "STALE", "EXPECTED_SOLAR_OFFLINE"]);
 
 /**
- * States the READ side derives from heartbeat age. The producer never reports them, so the
- * row's `stateSince` does not move when one begins; the last heartbeat's time is the only
- * clock that identifies the outage.
+ * States the READ side derives from heartbeat age (or, for the solar window, from the clock).
+ * The producer never reports them, so the row's `stateSince` does not move when one begins;
+ * the last heartbeat's time is the only clock that identifies the outage.
  */
-const LIVENESS_STATES = new Set<CameraHealthState>(["STALE", "PRODUCER_OFFLINE"]);
+const LIVENESS_STATES = new Set<CameraHealthState>(["STALE", "PRODUCER_OFFLINE", "EXPECTED_SOLAR_OFFLINE"]);
 
 /**
  * Minimum gap between two pages about one camera. The 2026-09-18 sign camera dropped 17
