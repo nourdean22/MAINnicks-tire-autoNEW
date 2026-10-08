@@ -166,14 +166,16 @@ export function registerConversationEpisodeRoute(app: Express): void {
             calibration = [];
             calibrationFrom = [];
           }
-          const v = await analyzeOfficeFrames(
+          const { prompted, ...v } = await analyzeOfficeFrames(
             frames.map((f) => ({ mime: f.mime, base64: f.base64 })),
             undefined,
             { calibration, onBoxPeople },
           );
           // The receipt (audit N5): which reviewed episodes shaped this description. Stored on
           // the visual and logged below, so a Wrong review's consumption is a row, not a hope.
-          return { ...v, onBoxPeople, calibrationFrom };
+          // Only when a provider was actually called with them in its prompt: with no vision key
+          // nothing fired, and the receipt would prove a consumption that never happened.
+          return { ...v, onBoxPeople, calibrationFrom: prompted ? calibrationFrom : [] };
         })()
       : Promise.resolve(null);
     // Extraction waits for the camera context at most VISUAL_CONTEXT_WAIT_MS. Vision's own worst

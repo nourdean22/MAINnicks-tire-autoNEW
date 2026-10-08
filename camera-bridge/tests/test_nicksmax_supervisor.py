@@ -356,3 +356,107 @@ def test_two_venv_trees_end_the_whole_newer_tree_and_keep_the_port_owner(tmp_pat
 def test_office_venv_launcher_pair_is_left_alone(tmp_path: Path):
     out = run_scenario("office-venv-launcher-pair-not-deduped", tmp_path)
     assert out["calls"] == [], out["log"]
+
+
+# ---- port-owner identity (Codex on #2920) and fingerprint only after a verified restart (Codex on #2925)
+# Positive control (2026-10-08): with the harness knobs in place and the PRE-FIX supervisor, the
+# three probes below went red (every port owner ended by image name alone; the fingerprint recorded
+# after a refused stop and after a failed start) and the three text contracts failed; all green after.
+
+
+def test_port_owner_kill_verifies_the_command_line_and_fails_closed():
+    text = source()
+    block = text[text.index("function Stop-PortOwner") : text.index("function Remove-DuplicateProcesses")]
+    assert "[string[]]$needles" in block
+    assert "no child specification to verify it against" in block
+    assert "has no readable command line" in block
+    assert "is not this task's child by command line" in block
+    # Stop-TaskChildren hands the task's needles over; a port is never probed without them.
+    stop_children = text[text.index("function Stop-TaskChildren") : text.index("function Kick-Task")]
+    assert 'Stop-PortOwner $port ("{0} :{1} owner" -f $key,$port) $spec.Needles' in stop_children
+
+
+def test_port_owner_identity_is_the_command_line_not_the_image_name(tmp_path: Path):
+    out = run_scenario("port-owner-identity", tmp_path)
+    assert out["calls"] == ["stop-pid:11"]
+    log = "\n".join(out["log"])
+    assert "pid=61 is not this task's child by command line" in log
+    assert "pid=62 has no readable command line" in log
+    assert "pid=12: no child specification to verify it against" in log
+
+
+def test_an_unrelated_go2rtc_survives_a_bridge_restart(tmp_path: Path):
+    # Codex on #2931: the go2rtc needle was the bare image, so the needle sweep in
+    # Stop-TaskChildren ended every go2rtc on the host before the guarded port pass ran.
+    out = run_scenario("unrelated-go2rtc-survives-bridge-restart", tmp_path)
+    calls = out["calls"]
+    assert _index(calls, "stop-pid:11") < _index(calls, f"start-task:{BRIDGE_TASK}")
+    assert _index(calls, "stop-pid:12") < _index(calls, f"start-task:{BRIDGE_TASK}")
+    # Same command line as the bridge's go2rtc, another install, holding a managed port.
+    assert "stop-pid:63" not in calls
+    # Unreadable: the sweep no longer ends what the port pass refuses to guess about.
+    assert "stop-pid:62" not in calls
+    assert ":8655 owner pid=63 is not this task's child by command line" in "\n".join(out["log"])
+
+
+def test_an_unrelated_go2rtc_is_not_a_duplicate_of_the_bridges(tmp_path: Path):
+    # With the bare-image needle, the bridge's go2rtc and an older unrelated one were two roots of
+    # one worker, neither owning :3000, so every healthy tick ended the newer one: the bridge's.
+    out = run_scenario("unrelated-go2rtc-is-not-a-duplicate", tmp_path)
+    assert out["calls"] == []
+
+
+def test_every_kill_path_reads_one_process_identity():
+    text = source()
+    # Built once, in Get-ProcessIdentity; no kill path formats its own.
+    assert "-f $p.Name,$p.CommandLine" in text
+    assert "-f $_.Name,$_.CommandLine" not in text
+    assert "-f $cim.Name,$cim.CommandLine" not in text
+    matching = text[text.index("function Get-ProcessesMatching") : text.index("function Find-ProcessByCommand")]
+    assert "Get-ProcessIdentity $_" in matching
+    port_owner = text[text.index("function Stop-PortOwner") : text.index("function Remove-DuplicateProcesses")]
+    assert "$identity = Get-ProcessIdentity $cim" in port_owner
+
+
+def test_edge_fingerprint_is_recorded_only_after_the_stale_edge_is_gone():
+    text = source()
+    heal = text[text.index("function Heal-EdgeCode") : text.index("function Get-OfficeStatus")]
+    stop = heal.index("Stop-ProcessesByCommand $edgeNeedle")
+    verify = heal.index("$left = @(Get-ProcessesMatching $edgeNeedle)")
+    record = heal.index("$e.fingerprint = $fp")
+    assert stop < verify < record
+    assert "fingerprint not recorded, retrying next tick" in heal
+
+
+def test_edge_code_rule_keeps_the_old_fingerprint_when_the_stop_fails(tmp_path: Path):
+    out = run_scenario("edge-code-stop-fails-keeps-old-fingerprint", tmp_path)
+    m = out["markers"]
+    assert m["first"] is False
+    assert m["fingerprintAfterFailedStop"] == ""
+    assert m["restartsAfterFailedStop"] == 0
+    assert any("still running after stop (pid=41)" in line for line in out["log"])
+    # The next tick, with the process killable, ends it and records the fingerprint.
+    assert m["second"] is True
+    assert m["fingerprintAfterSecond"].startswith("edge_main.py:")
+    assert out["calls"] == ["stop-pid:41:refused", "stop-pid:41"]
+
+
+def test_kick_task_reports_whether_it_started_and_the_office_rule_records_only_then():
+    text = source()
+    kick = text[text.index("function Kick-Task") : text.index("function Reclaim-Orphan")]
+    assert "return $true" in kick and kick.count("return $false") == 2
+    office = text[text.index("function Heal-OfficeWorker") : text.index("function Heal-EufyTask")]
+    assert 'if (Kick-Task $officeTask "office-worker" "office worker code changed on disk; restarting to load it" $true 2) {' in office
+    # Every other kick discards the flag, so no boolean leaks into the script's output stream.
+    bare = [
+        line for line in text.splitlines()
+        if "Kick-Task " in line and "function Kick-Task" not in line and "[void](Kick-Task" not in line and "if (Kick-Task" not in line
+    ]
+    assert bare == []
+
+
+def test_office_code_change_keeps_the_old_fingerprint_when_the_start_fails(tmp_path: Path):
+    out = run_scenario("office-code-change-start-fails-keeps-old-fingerprint", tmp_path)
+    assert out["markers"]["fingerprintAfterFailedStart"] == ""
+    assert any("start FAILED" in line for line in out["log"])
+    assert f"start-task:{OFFICE_TASK}" not in out["calls"]

@@ -47,6 +47,20 @@ const log = logger.withSurface("services/vehicle-detection");
  *  · The visit window is 7 days, not 12 hours: a car dropped Friday evening
  *    and finished Monday is ONE visit. The same migration adds the visitId
  *    expression index that keeps that lookup cheap.
+ *
+ * Hardened again 2026-10-08 (Codex P1 on #2920): finishing a pending page is a
+ * CLAIM, never a read-then-update. Two retries that both found the marker both
+ * paged. The writer now records a lease (`alertClaimedAt`) beside the marker; a
+ * retry inside the lease does nothing, and one past it takes the row over with a
+ * compare-and-swap pinned on the marker and the deadline it read (the marker
+ * becomes "paging"), so exactly one caller pages. The clear is pinned the same
+ * way, and a lease lost mid-page is logged instead of silently overwritten.
+ *
+ * And again (Codex P1 on #2931): a retry that finds the page in another caller's
+ * hands is answered 503, never 2xx. The edge outbox acknowledges a 2xx for good,
+ * so when the holder had died before paging, the retry inside its lease was the
+ * last one, and the page was lost. A 503 keeps the retry coming until the marker
+ * is cleared (acknowledged) or the lease lapses (it claims the page itself).
  */
 
 // The payload schema lives in vehicle-event-contract.ts (shared with the
@@ -81,6 +95,23 @@ const TRACK_WINDOW_MS = 10 * 60 * 1000;
  * finds this knows the process died between INSERT and page, and finishes the page once.
  */
 const ALERT_PENDING = "pending";
+/** `alertSuppressedReason` once a RETRY has claimed a pending row's page (the writer's lease lapsed). */
+const ALERT_PAGING = "paging";
+/**
+ * How long the process holding a pending or paging row is trusted to finish its page before
+ * a retry may take the row over. One Telegram call plus one push takes seconds; the lease is
+ * the long-stop for a process that died in between, not a budget the happy path spends.
+ */
+const ALERT_LEASE_MS = 60_000;
+
+/**
+ * The answer to a retry whose row has an unconfirmed page in another caller's hands. 503 because
+ * the edge retries it (camera-bridge/visitd/cloud_client.py: any 5xx is transient) and dead-letters
+ * most 4xx; never a 2xx, which the edge acknowledges for good.
+ */
+function pageNotYetConfirmed(rowId: string): ServiceError {
+  return new ServiceError("The arrival page for this event is still in flight; retry.", 503, { existing: rowId });
+}
 /**
  * eventId idempotency spans the whole DeviceEvent retention (data-cleanup
  * deletes after 90 days): the edge outbox is durable and can legitimately
@@ -235,11 +266,24 @@ export async function handleVehicleEvent(deviceId: string, payload: unknown): Pr
       log.warn("arrival_push_failed", { error: err instanceof Error ? err.message : String(err) });
     }
 
+    const cleared = { ...currentData, telegramMessageId, alertSuppressedReason: null } as Prisma.InputJsonObject;
+    const lease = typeof currentData.alertClaimedAt === "number" ? currentData.alertClaimedAt : null;
     try {
-      await prisma.deviceEvent.update({
-        where: { id: rowId },
-        data: { data: { ...currentData, telegramMessageId, alertSuppressedReason: null } as Prisma.InputJsonObject },
-      });
+      if (lease === null) {
+        // A row written before leases existed: nothing to pin, clear it as before.
+        await prisma.deviceEvent.update({ where: { id: rowId }, data: { data: cleared } });
+      } else {
+        // Pinned on OUR lease: if a retry took the row over while this page was in flight (the
+        // page outran the lease), the clear belongs to the new holder. count 0 is a fact to
+        // record, never a reason to overwrite the other caller's marker.
+        const r = await prisma.deviceEvent.updateMany({
+          where: { id: rowId, data: { path: ["alertClaimedAt"], equals: lease } },
+          data: { data: cleared },
+        });
+        if (r.count !== 1) {
+          log.warn("alert_marker_lease_lost", { rowId, eventId: event.eventId ?? null, lease, telegramMessageId });
+        }
+      }
     } catch (err) {
       // The one remaining double-page window: the page went out and the marker could not be
       // cleared, so a retry of this eventId will page again. Say so where it can be found.
@@ -247,6 +291,36 @@ export async function handleVehicleEvent(deviceId: string, payload: unknown): Pr
       throw err;
     }
     return { telegramMessageId, text };
+  };
+
+  /**
+   * Take over a pending (or stale paging) row's page -- exactly one caller wins. A read that
+   * found the marker is not a claim: two retries read the same row. The swap is pinned on
+   * every field the decision read, the marker value and the lease deadline (a row written
+   * before leases existed has no deadline, and its marker alone is the pin: the swap moves it
+   * to "paging", so the second retry's swap finds no "pending" and loses). `count === 1` wins;
+   * anything else means another caller holds the page, and this one does nothing.
+   */
+  const claimPendingPage = async (
+    rowId: string,
+    currentData: Record<string, unknown>,
+  ): Promise<Record<string, unknown> | null> => {
+    const now = Date.now();
+    const marker = currentData.alertSuppressedReason;
+    const lease = typeof currentData.alertClaimedAt === "number" ? currentData.alertClaimedAt : null;
+    if (lease !== null && now - lease < ALERT_LEASE_MS) return null; // the holder is still paging
+    const next = { ...currentData, alertSuppressedReason: ALERT_PAGING, alertClaimedAt: now };
+    const r = await prisma.deviceEvent.updateMany({
+      where: {
+        id: rowId,
+        AND: [
+          { data: { path: ["alertSuppressedReason"], equals: marker as string } },
+          ...(lease !== null ? [{ data: { path: ["alertClaimedAt"], equals: lease } }] : []),
+        ],
+      },
+      data: { data: next as Prisma.InputJsonObject },
+    });
+    return r.count === 1 ? next : null;
   };
 
   // 0. Idempotency: a repeated eventId is a retry from the edge outbox.
@@ -262,10 +336,20 @@ export async function handleVehicleEvent(deviceId: string, payload: unknown): Pr
     });
     if (duplicate) {
       const dupData = (duplicate.data as Record<string, unknown> | null) || {};
-      if (dupData.alertSuppressedReason === ALERT_PENDING) {
-        // The row landed and the page after it never completed: finish it, once.
+      if (dupData.alertSuppressedReason === ALERT_PENDING || dupData.alertSuppressedReason === ALERT_PAGING) {
+        // The row landed and the page after it has not completed. Either its holder is still
+        // paging (lease fresh: leave it), or the process died in between (lease lapsed, or a row
+        // from before leases): claim the page with a compare-and-swap and finish it, once.
+        const claimed = await claimPendingPage(duplicate.id, dupData);
+        if (!claimed) {
+          // Another caller holds the page: its lease is fresh, or it just won the swap. Until that
+          // page is confirmed this retry must stay retryable, or a holder that died takes the
+          // page with it.
+          log.info("duplicate_event_page_in_progress", { deviceId, eventId: event.eventId, existing: duplicate.id });
+          throw pageNotYetConfirmed(duplicate.id);
+        }
         log.info("duplicate_event_completing_alert", { deviceId, eventId: event.eventId, existing: duplicate.id });
-        await pageAndRecord(duplicate.id, dupData);
+        await pageAndRecord(duplicate.id, claimed);
         return duplicate.id;
       }
       log.info("duplicate_event_ignored", { deviceId, eventId: event.eventId, existing: duplicate.id });
@@ -381,6 +465,9 @@ export async function handleVehicleEvent(deviceId: string, payload: unknown): Pr
     schemaVersion: event.schemaVersion ?? 1,
     telegramMessageId: null,
     alertSuppressedReason: alertSuppressedReason ?? ALERT_PENDING,
+    // The writer's lease on the page it is about to send: a retry inside ALERT_LEASE_MS leaves
+    // the row alone; one past it may claim the page (claimPendingPage).
+    ...(alertSuppressedReason === null ? { alertClaimedAt: Date.now() } : {}),
   };
 
   let newEvent: { id: string };
@@ -398,6 +485,13 @@ export async function handleVehicleEvent(deviceId: string, payload: unknown): Pr
         orderBy: { createdAt: "desc" },
       });
       if (winner) {
+        // The twin is still paging (its row carries the marker): the same unconfirmed page as
+        // a retry inside a lease, and the same retryable answer.
+        const winnerMarker = (winner.data as Record<string, unknown> | null)?.alertSuppressedReason;
+        if (winnerMarker === ALERT_PENDING || winnerMarker === ALERT_PAGING) {
+          log.info("duplicate_event_lost_race_page_in_flight", { deviceId, eventId: event.eventId, existing: winner.id });
+          throw pageNotYetConfirmed(winner.id);
+        }
         log.info("duplicate_event_lost_race", { deviceId, eventId: event.eventId, existing: winner.id });
         return winner.id;
       }

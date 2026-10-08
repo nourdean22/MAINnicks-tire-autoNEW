@@ -807,11 +807,43 @@ class OfficeWakeDaemon:
         self._capture_windows: deque[tuple[float, float, bool]] = deque()
         # Operator decoder switch without an elevated shell: see resolve_whisper_model.
         self.model_override_watch = WhisperModelOverrideWatch(config.model_override_dir or config.out_dir)
+        # True once the override file was seen to change: intake refuses new wakes while the
+        # transcription backlog drains, then the status worker exits (observe_model_override).
+        self.restart_pending = False
 
     # ---- listening counters ---------------------------------------------------------------------
 
     def transcribe_backlog(self) -> int:
         return self.transcribe_queue.qsize() + (1 if self.processing_phase is not None else 0)
+
+    def observe_model_override(self) -> Optional[str]:
+        """The decoder-override watch, as a two-step drain (Codex on #2925).
+
+        "draining" the first time the file is seen to differ from startup: from here `offer`
+        refuses new wakes, so the backlog can only shrink. The old rule waited for an empty
+        backlog while still accepting wakes, and when the old decoder was slower than the wake
+        rate (the exact case the override exists for) the backlog never emptied and the new
+        decoder never loaded. "restart" once nothing is capturing and the backlog is empty: the
+        caller exits and the supervisor starts the task again on the new file. None otherwise.
+        """
+        watch = self.model_override_watch
+        if not self.restart_pending:
+            if watch is None or not watch.changed():
+                return None
+            self.restart_pending = True
+            self.ledger.note(
+                "whisper_model_override_changed",
+                {
+                    "from": watch.initial,
+                    "to": read_whisper_model_override(watch.out_dir),
+                    "backlog": self.transcribe_backlog(),
+                    "state": self.runtime_state,
+                },
+            )
+            return "draining"
+        if self.runtime_state != "CAPTURING" and self.transcribe_backlog() == 0:
+            return "restart"
+        return None
 
     def record_trigger(self, at: float) -> None:
         self._trigger_times.append(float(at))
@@ -883,6 +915,19 @@ class OfficeWakeDaemon:
             )
         if decision.action != "capture":
             return decision
+
+        if self.restart_pending:
+            # Draining for a decoder restart: a wake accepted now would feed the backlog the
+            # restart is waiting to empty (Codex on #2925). The drop is ledgered like any other.
+            dropped = WakeDecision(
+                "drop",
+                "decoder restart pending; draining the transcription backlog",
+                trigger.event,
+                trigger.device_sn,
+                trigger.received_at,
+            )
+            self.ledger.note("wake_decision", asdict(dropped))
+            return dropped
 
         if (
             self.last_capture_started_at is not None
@@ -1323,20 +1368,12 @@ async def runtime_status_worker(
                 **daemon.window_counters(now),
             )
             last_error = None
-            # The decoder override file changed: leave cleanly between captures so the supervisor
-            # starts the task again with the new model. SystemExit is not an Exception, so the
-            # guard below does not swallow it.
-            watch = getattr(daemon, "model_override_watch", None)
-            if (
-                watch is not None
-                and watch.changed()
-                and daemon.runtime_state != "CAPTURING"
-                and daemon.transcribe_backlog() == 0
-            ):
-                daemon.ledger.note(
-                    "whisper_model_override_changed",
-                    {"from": watch.initial, "to": read_whisper_model_override(watch.out_dir)},
-                )
+            # The decoder override file changed: stop taking new wakes, let the backlog drain,
+            # then leave cleanly so the supervisor starts the task again with the new model
+            # (observe_model_override). Waiting for an empty backlog while still accepting wakes
+            # never converged under a sustained wake rate (Codex on #2925). SystemExit is not an
+            # Exception, so the guard below does not swallow it.
+            if daemon.observe_model_override() == "restart":
                 daemon.runtime.update(conversationWorkerOk=True, conversationWorkerState="RESTARTING")
                 raise SystemExit(0)
         except Exception as exc:  # noqa: BLE001
@@ -1483,14 +1520,47 @@ def read_whisper_model_override(out_dir: str) -> Optional[str]:
     """
     path = Path(out_dir) / WHISPER_MODEL_OVERRIDE_FILE
     try:
-        text = path.read_text(encoding="utf-8")
+        raw = path.read_bytes()
     except OSError:
+        return None
+    text = decode_override_text(raw)
+    if text is None:
         return None
     for line in text.splitlines():
         value = line.strip()
         if value and not value.startswith("#"):
             return value
     return None
+
+
+def decode_override_text(raw: bytes) -> Optional[str]:
+    """Decode an operator-written text file whatever shell wrote it.
+
+    Windows PowerShell 5.1's `>` redirection writes UTF-16LE with a BOM, `Out-File` too; pwsh 7
+    and Notepad write UTF-8, sometimes with a BOM. A UTF-8-only read raised UnicodeDecodeError on
+    the 5.1 file, which `except OSError` did not catch: startup answered `invalid_config` and the
+    supervisor restarted a worker that could never start (Codex on #2925). The BOM decides; a
+    BOM-less file that carries the NUL bytes of UTF-16LE ASCII is read as UTF-16LE, anything else
+    as UTF-8. The NUL pattern is checked FIRST: UTF-16LE ASCII is also valid UTF-8 (NUL is a legal
+    UTF-8 byte), so a UTF-8 attempt "succeeded" with a NUL between every character and the model
+    name never matched a file. Bytes that are none of these return None: no override, never a crash.
+    """
+    if raw.startswith(b"\xef\xbb\xbf"):
+        return raw[3:].decode("utf-8", errors="replace")
+    if raw.startswith(b"\xff\xfe"):
+        return raw[2:].decode("utf-16-le", errors="replace")
+    if raw.startswith(b"\xfe\xff"):
+        return raw[2:].decode("utf-16-be", errors="replace")
+    high_bytes = raw[1::2]
+    if len(raw) >= 2 and len(raw) % 2 == 0 and high_bytes.count(0) * 4 >= len(high_bytes) * 3:
+        try:
+            return raw.decode("utf-16-le")
+        except UnicodeDecodeError:
+            return None
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
 
 
 def resolve_whisper_model(cli_model: Optional[str], out_dir: str) -> tuple[Optional[str], str]:

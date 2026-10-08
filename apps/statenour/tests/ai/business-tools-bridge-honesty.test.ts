@@ -98,6 +98,60 @@ describe("getRevenueStats tool — end to end through the real service", () => {
   });
 });
 
+describe("getTopServices tool — end to end through the real service", () => {
+  const topServicesTool = businessTools.getTopServices as unknown as Executable;
+
+  it("says unknown, not an empty list, when nickstire has no such query", async () => {
+    // What the bridge answers today: nickstire has never had a
+    // revenue_top_services handler, so it is a 400 "Unknown query".
+    queryNick.mockResolvedValue({
+      error: 'HTTP 400: {"error":"Unknown query: revenue_top_services"}',
+      statusCode: 400,
+    });
+
+    const out = (await topServicesTool.execute({ limit: 10 }, {})) as Record<string, unknown>;
+
+    expect(Array.isArray(out)).toBe(false);
+    expect(out.unavailable).toBe(true);
+    expect(String(out.reason)).toMatch(/UNKNOWN, not an empty list/);
+  });
+
+  it("says unknown when the answer has no services array", async () => {
+    queryNick.mockResolvedValue({ data: {}, query: "revenue_top_services", timestamp: "2026-10-08T00:00:00.000Z" });
+    const out = (await topServicesTool.execute({ limit: 10 }, {})) as Record<string, unknown>;
+    expect(out.unavailable).toBe(true);
+  });
+
+  it("returns real services, highest revenue first, when the bridge answers", async () => {
+    queryNick.mockResolvedValue({
+      data: {
+        services: [
+          { service: "Alignment", count: 4, revenue: 380 },
+          { service: "Tires", count: 9, revenue: 2140.5 },
+        ],
+      },
+      query: "revenue_top_services",
+      timestamp: "2026-10-08T00:00:00.000Z",
+    });
+
+    const out = (await topServicesTool.execute({ limit: 10 }, {})) as Array<Record<string, unknown>>;
+
+    expect(out.map((s) => s.service)).toEqual(["Tires", "Alignment"]);
+    expect(out[0].revenueFormatted).toBe("2140.50");
+  });
+
+  it("reports a GENUINE empty list as empty, not as unavailable", async () => {
+    // Measured empty != unmeasured: a shop day with no services is a real answer.
+    queryNick.mockResolvedValue({
+      data: { services: [] },
+      query: "revenue_top_services",
+      timestamp: "2026-10-08T00:00:00.000Z",
+    });
+    const out = await topServicesTool.execute({ limit: 10 }, {});
+    expect(out).toEqual([]);
+  });
+});
+
 describe("redactUnreadableSections", () => {
   const healthy = {
     bridgeHealth: { revenue: true, customers: true, jobsToday: true },

@@ -156,9 +156,10 @@ export const CARDS: HubCard[] = [
     title: "Arrival Intel",
     icon: Camera,
     group: "health",
+    // Demoted 2026-10-08 (camera audit N4): no longer featured. The lot view is the Lot section
+    // of Nick's Admin; this is the raw event log the arrival alerts link to.
     description:
-      "Real-time vehicle detection and automated license plate recognition cockpit",
-    featured: true,
+      "Raw vehicle-event log: arrival alerts and plate corrections (the lot view is Nick's Admin, Lot)",
     // 2026-07-25 honest-health: was a hardcoded `() => "live"/healthy` that
     // ignored the rollup entirely — a fabricated status. Now derived from
     // the measured smartDevice fleet (the cameras this surface runs on).

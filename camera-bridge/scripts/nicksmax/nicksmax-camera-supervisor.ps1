@@ -174,11 +174,19 @@ function Test-RtspFrame([string]$url) {
 }
 
 # ---- process discovery -----------------------------------------------------------------------
-# Matches "<image name> <command line>" so a child whose command line is hidden from this token
-# (elevated, other session) is still found by its image name; needles anchor on the image.
+# A process's identity is "<image name> <command line>", plus " exe=<executable path>" when this
+# token can read it. Needles anchor on the image. Every kill path (the needle sweep, the port
+# owner check, the duplicate sweep) reads this one identity, so they cannot disagree about whose
+# child a process is (Codex on #2931: the sweep ended any go2rtc the port check had refused).
+function Get-ProcessIdentity($p) {
+  $identity = "{0} {1}" -f $p.Name,$p.CommandLine
+  if (-not [string]::IsNullOrWhiteSpace([string]$p.ExecutablePath)) { $identity += " exe=" + $p.ExecutablePath }
+  return $identity
+}
+
 function Get-ProcessesMatching([string]$needle) {
   return @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
-    Where-Object { ("{0} {1}" -f $_.Name,$_.CommandLine) -match $needle })
+    Where-Object { (Get-ProcessIdentity $_) -match $needle })
 }
 
 function Find-ProcessByCommand([string]$needle) {
@@ -198,9 +206,12 @@ function Stop-ProcessesByCommand([string]$needle,[string]$label) {
 #   eufy-bridge : start-bridge-nicksmax.ps1 -> node server.mjs (:3000) -> go2rtc (1984/8654/8655)
 #   eufy-agent  : start-agent-nicksmax.ps1  -> python agent.py --eufy-only (:3601 health)
 #   office      : python -m vision.officewake --capture (no port; heartbeat file instead)
+# go2rtc's command line is `go2rtc -config ./go2rtc.yaml` (probed on NicksMax 2026-10-08), which
+# any go2rtc could print; only its executable, under the bridge install in StateNour\Eufy\, makes
+# it this task's child. An unrelated or unreadable go2rtc is a neighbour (Codex on #2931).
 function Get-TaskChildSpec([string]$key) {
   switch ($key) {
-    "eufy-bridge"   { return @{ Needles = @('^node(\.exe)?\s.*\bserver\.mjs\b', '^go2rtc(\.exe)?\b'); Ports = @(3000, 1984, 8654, 8655) } }
+    "eufy-bridge"   { return @{ Needles = @('^node(\.exe)?\s.*\bserver\.mjs\b', '^go2rtc(\.exe)?\s.*\sexe=.*\\StateNour\\Eufy\\.*\bgo2rtc\.exe$'); Ports = @(3000, 1984, 8654, 8655) } }
     "eufy-agent"    { return @{ Needles = @('^python\w*(\.exe)?\s.*\bagent\.py\s+--eufy-only\b'); Ports = @(3601) } }
     "office-worker" { return @{ Needles = @('^python\w*(\.exe)?\s.*-m\s+vision\.officewake\b'); Ports = @() } }
   }
@@ -209,7 +220,13 @@ function Get-TaskChildSpec([string]$key) {
 
 # End whatever holds a listening port -- but only a camera child. If something else took the
 # port, killing it would be a new outage, not a repair; say so and leave it.
-function Stop-PortOwner([int]$port,[string]$label) {
+#
+# The image name alone is not identity (Codex on #2920): an unrelated node, python or go2rtc on
+# a managed port is a neighbour, not an orphan. The owner must ALSO match one of the task's
+# child needles by "<image> <command line>", the same test Get-ProcessesMatching applies. A
+# command line this token cannot read is a refusal, not a pass: nothing is ended on a guess,
+# and the log names the pid so a human can decide.
+function Stop-PortOwner([int]$port,[string]$label,[string[]]$needles = @()) {
   $owners = @(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
     Select-Object -ExpandProperty OwningProcess -Unique)
   foreach ($owner in $owners) {
@@ -217,6 +234,24 @@ function Stop-PortOwner([int]$port,[string]$label) {
     $proc = Get-Process -Id $owner -ErrorAction SilentlyContinue
     if ($proc -and $proc.ProcessName -notmatch '^(node|python\w*|go2rtc)$') {
       Log ("WARN :{0} is owned by {1} pid={2}, not a camera child; leaving it" -f $port,$proc.ProcessName,$owner)
+      continue
+    }
+    if (@($needles).Count -eq 0) {
+      Log ("WARN :{0} owner pid={1}: no child specification to verify it against; leaving it" -f $port,$owner)
+      continue
+    }
+    $cim = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+      Where-Object { [int64]$_.ProcessId -eq [int64]$owner } | Select-Object -First 1
+    if (-not $cim -or [string]::IsNullOrWhiteSpace([string]$cim.CommandLine)) {
+      Log ("WARN :{0} owner pid={1} has no readable command line; cannot prove it is a camera child, leaving it" -f $port,$owner)
+      continue
+    }
+    $identity = Get-ProcessIdentity $cim
+    $isChild = $false
+    foreach ($needle in $needles) { if ($identity -match $needle) { $isChild = $true; break } }
+    if (-not $isChild) {
+      $shown = $identity.Substring(0, [Math]::Min(96, $identity.Length))
+      Log ("WARN :{0} owner pid={1} is not this task's child by command line ({2}); leaving it" -f $port,$owner,$shown)
       continue
     }
     Stop-Process -Id $owner -Force -ErrorAction SilentlyContinue
@@ -277,7 +312,7 @@ function Remove-DuplicateProcesses([string]$needle,[int]$port,[string]$label) {
 function Stop-TaskChildren([string]$key) {
   $spec = Get-TaskChildSpec $key
   foreach ($needle in $spec.Needles) { Stop-ProcessesByCommand $needle ("{0} child" -f $key) }
-  foreach ($port in $spec.Ports) { Stop-PortOwner $port ("{0} :{1} owner" -f $key,$port) }
+  foreach ($port in $spec.Ports) { Stop-PortOwner $port ("{0} :{1} owner" -f $key,$port) $spec.Needles }
   # Let the kernel release the listeners, or the new child dies on EADDRINUSE anyway.
   $deadline = (Get-Date).AddSeconds(5)
   while ((Get-Date) -lt $deadline -and (@($spec.Ports | Where-Object { Port-Open $_ 200 }).Count -gt 0)) {
@@ -287,8 +322,10 @@ function Stop-TaskChildren([string]$key) {
 
 # Start (or restart) a scheduled task, at most once per $minGapMinutes, and ledger it. A restart
 # ends the wrapper, then the children it left behind, then starts the task.
+# Returns $true only when the task was actually started, so a caller that records a fact about
+# the new process (a code fingerprint) records it only then; a throttled or failed kick is $false.
 function Kick-Task([string]$taskName,[string]$key,[string]$why,[bool]$restart,[int]$minGapMinutes = 1) {
-  if ((Restarts-InLastMinutes $key $minGapMinutes) -gt 0) { return }
+  if ((Restarts-InLastMinutes $key $minGapMinutes) -gt 0) { return $false }
   try {
     if ($restart) {
       Stop-ScheduledTask -TaskName $taskName -ErrorAction Stop
@@ -297,8 +334,10 @@ function Kick-Task([string]$taskName,[string]$key,[string]$why,[bool]$restart,[i
     }
     Start-ScheduledTask -TaskName $taskName -ErrorAction Stop
     Record-Restart $key $why
+    return $true
   } catch {
     Record-Restart $key ("{0}; start FAILED: {1}" -f $why,$_.Exception.Message)
+    return $false
   }
 }
 
@@ -309,7 +348,7 @@ function Reclaim-Orphan([string]$taskName,[string]$key,[string]$detail) {
   if ((Restarts-InLastMinutes $key 2) -gt 0) { return }
   Log ("RECLAIM {0}: {1}; ending the orphan and starting the task" -f $key,$detail)
   Stop-TaskChildren $key
-  Kick-Task $taskName $key ("reclaimed orphan: {0}" -f $detail) $false 2
+  [void](Kick-Task $taskName $key ("reclaimed orphan: {0}" -f $detail) $false 2)
 }
 
 # Fingerprint of the office worker's Python modules (vision\office*.py). The fingerprint recorded at
@@ -367,7 +406,17 @@ function Heal-EdgeCode([bool]$armed,[bool]$prodHealthy) {
   if ($e.fingerprint -eq $fp) { return $false }
   if (-not $prodHealthy) { return $false }
   if ((Restarts-InLastMinutes "sign-edge" 10) -gt 0) { return $false }
-  Stop-ProcessesByCommand "python.*config-nicksmax-sign-production\.yaml" "production edge running stale code"
+  $edgeNeedle = "python.*config-nicksmax-sign-production\.yaml"
+  Stop-ProcessesByCommand $edgeNeedle "production edge running stale code"
+  # Record the fingerprint only once the stale edge is PROVEN gone (Codex on #2925): a kill that
+  # failed, or a process discovery that missed it, would otherwise be ledgered as handled, the
+  # old code would keep serving :9095, and every later tick would read an equal fingerprint and
+  # never retry. Nothing is recorded here, so the next tick tries again.
+  $left = @(Get-ProcessesMatching $edgeNeedle)
+  if ($left.Count -gt 0) {
+    Log ("WARN production edge still running after stop (pid={0}); fingerprint not recorded, retrying next tick" -f (($left | ForEach-Object { $_.ProcessId }) -join ","))
+    return $false
+  }
   Record-Restart "sign-edge" "edge code changed on disk; ended the production edge so the start path reloads it"
   $e.fingerprint = $fp
   return $true
@@ -407,7 +456,7 @@ function Heal-OfficeWorker {
       $action = $ot.Actions | Select-Object -First 1
       $action.WorkingDirectory = $root
       Set-ScheduledTask -TaskName $officeTask -Action $action -ErrorAction Stop | Out-Null
-      Kick-Task $officeTask "office-worker" ("repointed from worktree {0} to {1}" -f $workDir,$root) $true 0
+      [void](Kick-Task $officeTask "office-worker" ("repointed from worktree {0} to {1}" -f $workDir,$root) $true 0)
       $ot = Get-ScheduledTask -TaskName $officeTask -ErrorAction SilentlyContinue
       $workDir = $root
     } catch {
@@ -426,7 +475,7 @@ function Heal-OfficeWorker {
     if ($orphan) {
       Reclaim-Orphan $officeTask "office-worker" ("task is {0} but officewake pid={1} is still running" -f $ot.State,$orphan.ProcessId)
     } else {
-      Kick-Task $officeTask "office-worker" ("task state {0}" -f $ot.State) $false 2
+      [void](Kick-Task $officeTask "office-worker" ("task state {0}" -f $ot.State) $false 2)
     }
   } elseif (($officeFp = Get-OfficeCodeFingerprint $workDir) -and ((Get-Entry "office-code-version").fingerprint -ne $officeFp)) {
     # A long-running Python process keeps the code it started with. When `git pull` changes the
@@ -434,11 +483,14 @@ function Heal-OfficeWorker {
     # fingerprint is recorded only when the restart is actually issued, so a throttled tick
     # retries instead of forgetting the change.
     if ((Restarts-InLastMinutes "office-worker" 2) -eq 0) {
-      Kick-Task $officeTask "office-worker" "office worker code changed on disk; restarting to load it" $true 2
-      (Get-Entry "office-code-version").fingerprint = $officeFp
+      # Recorded only when the task was actually started (Codex on #2925): a start that failed
+      # leaves the old fingerprint on record, so a later tick retries instead of forgetting.
+      if (Kick-Task $officeTask "office-worker" "office worker code changed on disk; restarting to load it" $true 2) {
+        (Get-Entry "office-code-version").fingerprint = $officeFp
+      }
     }
   } elseif ($null -ne $age -and $age -gt $officeHeartbeatStaleMinutes) {
-    Kick-Task $officeTask "office-worker" ("running but heartbeat {0:N0} min old" -f $age) $true 10
+    [void](Kick-Task $officeTask "office-worker" ("running but heartbeat {0:N0} min old" -f $age) $true 10)
   }
   # Listening coverage: a READY worker that recorded little of the last hour is quietly failing
   # ONLY when the hour explains it -- captures failed, or wakes arrived and none became a capture.
@@ -473,7 +525,7 @@ function Heal-EufyTask([hashtable]$et) {
     if ($portOpen) {
       Reclaim-Orphan $et.Name $et.Key ("task is {0} but :{1} is served by a child it no longer owns" -f $t.State,$et.Port)
     } else {
-      Kick-Task $et.Name $et.Key ("task state {0}" -f $t.State) $false 2
+      [void](Kick-Task $et.Name $et.Key ("task state {0}" -f $t.State) $false 2)
     }
   } elseif (-not $portOpen) {
     $e.portMisses = $e.portMisses + 1
@@ -481,7 +533,7 @@ function Heal-EufyTask([hashtable]$et) {
     # probe is not a restart vote.
     if ($e.portMisses -ge $eufyPortMissesBeforeRestart) {
       $e.portMisses = 0
-      Kick-Task $et.Name $et.Key ("running but :{0} closed {1} ticks in a row" -f $et.Port,$eufyPortMissesBeforeRestart) $true 5
+      [void](Kick-Task $et.Name $et.Key ("running but :{0} closed {1} ticks in a row" -f $et.Port,$eufyPortMissesBeforeRestart) $true 5)
     }
   } else {
     $e.portMisses = 0
