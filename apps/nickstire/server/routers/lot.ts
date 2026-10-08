@@ -1369,7 +1369,7 @@ export const lotRouter = router({
         `);
         const stamped = rowsOf(await d.execute(sql`
           SELECT ${sql.raw("UNIX_TIMESTAMP(markedAt)")} AS markedEpoch
-          FROM vehicle_visit_marks WHERE visitId = ${input.visitId} ORDER BY id DESC LIMIT 1
+          FROM vehicle_visit_marks WHERE visitId = ${input.visitId} ORDER BY markedAt DESC, id DESC LIMIT 1
         `))[0];
         return { ok: true as const, mark: input.mark, markedAtMs: num(stamped?.markedEpoch ?? 0) * 1000 };
       } catch (err) {
