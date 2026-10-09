@@ -6080,6 +6080,16 @@
       "file": "apps/nickstire/server/services/promptEvolutionManualRun.ts",
       "symbol": "summarizeLatestRow",
       "reason": "2026-10-09 receptionist prompt experiment manual door (#2945) · INTENTIONAL TEST-VISIBLE CONTRACT: the pure summariser behind readLatestPromptEvolutionSummary; promptEvolutionManualRun.test.ts feeds it a row carrying the full candidate prompt, the live prompt and caller text and asserts none of them leave. knip excludes *.test.ts as consumers."
+    },
+    {
+      "file": "apps/nickstire/server/services/promptEvolution.ts",
+      "symbol": "parseOptimizerReply",
+      "reason": "2026-10-09 receptionist prompt experiment, bounded optimizer edit · INTENTIONAL TEST-VISIBLE CONTRACT: the optimizer reply parser (FIND/REPLACE edit, legacy <PROMPT> whole prompt); promptEvolutionBoundedEdit.test.ts pins both shapes and the no-marker case. knip excludes *.test.ts as consumers."
+    },
+    {
+      "file": "apps/nickstire/server/services/promptEvolution.ts",
+      "symbol": "applyBoundedEdit",
+      "reason": "2026-10-09 receptionist prompt experiment, bounded optimizer edit · INTENTIONAL TEST-VISIBLE CONTRACT: applies one bounded edit to the full prompt and refuses a missing or ambiguous excerpt; promptEvolutionBoundedEdit.test.ts pins exact, line-trimmed, ambiguous, missing and over-cap cases, and that every other character survives. knip excludes *.test.ts as consumers."
     }
   ]
 }

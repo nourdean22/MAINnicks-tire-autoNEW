@@ -430,6 +430,93 @@ function failureBrief(trainFailures: Array<{ seed: Seed; grade: ScoredGrade }>):
  * prompt and the redacted, fenced failure brief -- nothing else. `beforeCall`
  * runs before every optimizer call (the run's budget check).
  */
+/** A bounded edit the optimizer proposed: replace exactly one verbatim excerpt of the current prompt. */
+export interface BoundedEdit {
+  find: string;
+  replace: string;
+}
+
+/** The excerpt the optimizer may ask to replace, and how much the replacement may grow it. One section, never the prompt. */
+const EDIT_FIND_MAX_CHARS = 4000;
+const EDIT_GROWTH_MAX_CHARS = 2500;
+
+/**
+ * What the optimizer answered, in order of preference: a bounded edit, or a
+ * whole prompt (the pre-2026-10-09 contract, still accepted when a model
+ * insists on re-emitting everything), or nothing usable.
+ */
+export function parseOptimizerReply(text: string): { rationale: string | null; edit: BoundedEdit | null; whole: string | null } {
+  const rationale = /RATIONALE:\s*(.+)/.exec(text)?.[1]?.trim() ?? null;
+  const find = /<FIND>([\s\S]*?)<\/FIND>/.exec(text)?.[1] ?? null;
+  const replace = /<REPLACE>([\s\S]*?)<\/REPLACE>/.exec(text)?.[1] ?? null;
+  const edit = find !== null && replace !== null && find.trim().length > 0 ? { find: stripOneNewline(find), replace: stripOneNewline(replace) } : null;
+  const whole = /<PROMPT>([\s\S]*?)<\/PROMPT>/.exec(text)?.[1]?.trim() ?? null;
+  return { rationale, edit, whole: whole && whole.length > 200 ? whole : null };
+}
+
+/** The markers sit on their own lines; the newline that follows <FIND> and precedes </FIND> is formatting, not content. */
+function stripOneNewline(block: string): string {
+  return block.replace(/^\r?\n/, "").replace(/\r?\n$/, "");
+}
+
+/**
+ * Apply one bounded edit to the full prompt. The excerpt must occur EXACTLY
+ * once: first verbatim, then with every line trimmed (a model reflows
+ * indentation and trailing spaces, never words). Zero or several occurrences
+ * return null with the reason: an edit the code cannot place is not a
+ * candidate. The result keeps every other character of the prompt, which is
+ * the whole point: the 2026-10-09 live runs rejected both candidates before
+ * replay because the optimizer, asked to re-emit a 32,000-character prompt,
+ * dropped 24 and 5 compliance clauses on the way.
+ */
+export function applyBoundedEdit(prompt: string, edit: BoundedEdit): { prompt: string } | { refused: string } {
+  if (edit.find.length > EDIT_FIND_MAX_CHARS) return { refused: `find excerpt is ${edit.find.length} chars; the cap is ${EDIT_FIND_MAX_CHARS}` };
+  if (edit.replace.length > edit.find.length + EDIT_GROWTH_MAX_CHARS) return { refused: `replacement grows the section by ${edit.replace.length - edit.find.length} chars; the cap is ${EDIT_GROWTH_MAX_CHARS}` };
+  const base = prompt.replace(/\r\n/g, "\n");
+  const find = edit.find.replace(/\r\n/g, "\n");
+  const replace = edit.replace.replace(/\r\n/g, "\n");
+
+  const exact = occurrences(base, find);
+  if (exact.length === 1) return { prompt: base.slice(0, exact[0]) + replace + base.slice(exact[0] + find.length) };
+  if (exact.length > 1) return { refused: `find excerpt occurs ${exact.length} times; it must be unique` };
+
+  // Line-trimmed match: the same lines, indentation and trailing spaces aside.
+  const baseLines = base.split("\n");
+  const findLines = find.split("\n").map((l) => l.trim());
+  while (findLines.length && findLines[0] === "") findLines.shift();
+  while (findLines.length && findLines[findLines.length - 1] === "") findLines.pop();
+  if (!findLines.length) return { refused: "find excerpt is blank" };
+  const starts: number[] = [];
+  for (let i = 0; i + findLines.length <= baseLines.length; i++) {
+    let ok = true;
+    for (let j = 0; j < findLines.length; j++) {
+      if (baseLines[i + j].trim() !== findLines[j]) { ok = false; break; }
+    }
+    if (ok) starts.push(i);
+  }
+  if (starts.length === 0) return { refused: "find excerpt not found in the current prompt (verbatim or line-trimmed)" };
+  if (starts.length > 1) return { refused: `find excerpt matches ${starts.length} places line-trimmed; it must be unique` };
+  const at = starts[0];
+  const out = [...baseLines.slice(0, at), ...replace.split("\n"), ...baseLines.slice(at + findLines.length)];
+  return { prompt: out.join("\n") };
+}
+
+function occurrences(haystack: string, needle: string): number[] {
+  const out: number[] = [];
+  let i = haystack.indexOf(needle);
+  while (i !== -1 && out.length < 3) {
+    out.push(i);
+    i = haystack.indexOf(needle, i + 1);
+  }
+  return out;
+}
+
+const OPTIMIZER_FORMAT =
+  'Output format, nothing else: one line "RATIONALE: <why this one edit>", then the excerpt to change between <FIND> and </FIND> ' +
+  "(copy it from CURRENT PROMPT verbatim, 1 to 30 lines, enough to be unique), then its replacement between <REPLACE> and </REPLACE>. " +
+  "To add a rule, put the line it follows in FIND and that same line plus the new rule in REPLACE. " +
+  "Never emit the whole prompt: every character outside FIND is kept exactly as it is.";
+
 async function proposeCandidates(
   basePrompt: string,
   trainFailures: Array<{ seed: Seed; grade: ScoredGrade }>,
@@ -439,13 +526,26 @@ async function proposeCandidates(
 ): Promise<Array<{ prompt: string; rationale: string }>> {
   const out: Array<{ prompt: string; rationale: string }> = [];
   const brief = failureBrief(trainFailures);
+  const resolve = (text: string): { prompt: string; rationale: string } | { refused: string } => {
+    const parsed = parseOptimizerReply(text);
+    const rationale = redactCallerText(parsed.rationale ?? "(no rationale emitted)", RATIONALE_MAX);
+    if (parsed.edit) {
+      const applied = applyBoundedEdit(basePrompt, parsed.edit);
+      if ("prompt" in applied) return { prompt: applied.prompt, rationale };
+      return { refused: applied.refused };
+    }
+    // The pre-2026-10-09 contract: a model that re-emits everything is still
+    // heard, and the policy guard downstream still judges what it dropped.
+    if (parsed.whole) return { prompt: parsed.whole, rationale };
+    return { refused: `no <FIND>/<REPLACE> edit and no <PROMPT> block (${text.trim().length} chars)` };
+  };
   for (let i = 0; i < k; i++) {
     beforeCall();
     const res = await invokeLLM({
       messages: [
         {
           role: "system",
-          content: `You optimize a phone-receptionist system prompt for a tire shop. Make ONE bounded improvement: add, delete, or rewrite exactly ONE section to fix the failure pattern shown. HARD CONSTRAINTS: keep the shop identity, keep every compliance rule (never quote repair prices, never guarantee outcomes, never diagnose by phone), start neutral and identify the caller's need before specializing; preserve strong tire handling but never assume used tires before the caller gives a tire signal. Output format: one line "RATIONALE: <why this one edit>" then the COMPLETE edited prompt between <PROMPT> and </PROMPT> markers. Attempt ${i + 1} of ${k} — make each attempt a DIFFERENT single edit.\n\n${UNTRUSTED_DATA_NOTICE}`,
+          content: `You optimize a phone-receptionist system prompt for a tire shop. Make ONE bounded improvement: add, delete, or rewrite exactly ONE section to fix the failure pattern shown. HARD CONSTRAINTS: keep the shop identity, keep every compliance rule (never quote repair prices, never guarantee outcomes, never diagnose by phone), start neutral and identify the caller's need before specializing; preserve strong tire handling but never assume used tires before the caller gives a tire signal. ${OPTIMIZER_FORMAT} Attempt ${i + 1} of ${k} — make each attempt a DIFFERENT single edit.\n\n${UNTRUSTED_DATA_NOTICE}`,
         },
         {
           role: "user",
@@ -459,17 +559,17 @@ async function proposeCandidates(
     });
     const raw = res.choices?.[0]?.message?.content ?? "";
     let text = typeof raw === "string" ? raw : JSON.stringify(raw);
-    let m = /<PROMPT>([\s\S]*?)<\/PROMPT>/.exec(text);
-    if (!(m && m[1].trim().length > 200)) {
+    let resolved = resolve(text);
+    if ("refused" in resolved) {
       // ONE bounded format retry — reasoning models sometimes spend the
-      // answer on analysis and skip the markers. A second failure is
-      // recorded, never patched around.
-      log(`candidate ${i + 1}: no <PROMPT> block (${text.trim().length} chars) — one format retry`);
+      // answer on analysis and skip the markers, or copy the excerpt loosely.
+      // A second failure is recorded, never patched around.
+      log(`candidate ${i + 1}: ${resolved.refused} — one format retry`);
       beforeCall();
       const retry = await invokeLLM({
         messages: [
-          { role: "system", content: `You return exactly one line starting with RATIONALE: and then the complete prompt between <PROMPT> and </PROMPT>. No other output.\n\n${UNTRUSTED_DATA_NOTICE}` },
-          { role: "user", content: `Your previous answer lacked the <PROMPT> markers. Here it is:\n\n${text.slice(0, 6000)}\n\nRe-emit it now as: RATIONALE: <one line>\n<PROMPT>\n<the complete edited prompt>\n</PROMPT>` },
+          { role: "system", content: `You return exactly one line starting with RATIONALE:, then the excerpt to change between <FIND> and </FIND> copied VERBATIM from the current prompt (unique, 1 to 30 lines), then its replacement between <REPLACE> and </REPLACE>. No other output.\n\n${UNTRUSTED_DATA_NOTICE}` },
+          { role: "user", content: `CURRENT PROMPT:\n${basePrompt}\n\nYour previous answer could not be applied (${resolved.refused}). Here it is:\n\n${text.slice(0, 6000)}\n\nRe-emit it now as: RATIONALE: <one line>\n<FIND>\n<verbatim excerpt>\n</FIND>\n<REPLACE>\n<replacement>\n</REPLACE>` },
         ],
         maxTokens: 8192,
         timeoutMs: 120000,
@@ -478,13 +578,10 @@ async function proposeCandidates(
       });
       const retryRaw = retry.choices?.[0]?.message?.content ?? "";
       text = typeof retryRaw === "string" ? retryRaw : JSON.stringify(retryRaw);
-      m = /<PROMPT>([\s\S]*?)<\/PROMPT>/.exec(text);
+      resolved = resolve(text);
     }
-    // Redacted before it is stored or sent anywhere: the optimizer saw only
-    // redacted caller words, but its own text is still model output.
-    const rationale = redactCallerText(/RATIONALE:\s*(.+)/.exec(text)?.[1]?.trim() ?? "(no rationale emitted)", RATIONALE_MAX);
-    if (m && m[1].trim().length > 200) out.push({ prompt: m[1].trim(), rationale });
-    else log(`candidate ${i + 1}: no usable <PROMPT> block after retry — recorded as a failed proposal`);
+    if ("prompt" in resolved) out.push(resolved);
+    else log(`candidate ${i + 1}: ${resolved.refused} after retry — recorded as a failed proposal`);
   }
   return out;
 }
