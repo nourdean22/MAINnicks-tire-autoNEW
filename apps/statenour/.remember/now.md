@@ -1,6 +1,24 @@
 # Session ledger — statenour
 
-**Updated: 2026-10-03 ET** (Sentry sweep + cron hygiene · #2904 `91fd5fb` + #2906 `eb36d6d` merged)
+**Updated: 2026-10-08 ET** (camera N-series PR C #2931 + dead bridge queries #2934, both merged and deployed; first section. The 10-03 Sentry sweep follows.)
+
+## 2026-10-08 · bridge honesty: dead queries resolved, lot brief in the morning brief
+
+- **#2931** (`9d316523`, web `7cf38ba4`): `readLotBriefLines` puts nickstire's `lot_brief` (at most three lines) in the morning brief's shop slice. `/system/camera` is demoted. A pending vehicle-alert page is claimed with a lease and a compare-and-swap (Codex P1 #2920). The bridge contract guard now reads nested generics.
+- **#2934** (`d679d066`, web `1ede6fef`):
+  - `getCustomerStats` reads nickstire's new `customer_stats`: LIVE, 2334 total and 10 new in October at 22:58:04Z.
+  - `bridgeAvailable` is false on a failed read, a 200 `{ error }` body, or a non-numeric count.
+  - `getTopServices` is retired with `revenue_top_services`: invoice descriptions have mostly stopped arriving.
+  - Revenue parsing reads `revenue_today`'s invoices: every payload had said 0 jobs and a $0.00 average ticket.
+  - The board consult says "Revenue (month): UNKNOWN" instead of $0 on an unread month.
+  - Redaction reasons no longer claim "did not answer".
+
+**Verify next** (Routine `trig_01YVMh3DeH3QkxWdKikYuyjd`, 2026-10-09 10:25Z): the first morning brief rendering a `Lot · ` line, or an honest unavailable line. A silent omission is not proof.
+
+**Flagged:**
+- `/api/analytics/dashboard` still returns customer zeros beside `bridgeHealth.customers: false`;
+- the contract guard cannot see a query name held in a variable;
+- `analyzeCustomers` / `analyzeNewCustomerVelocity` return zeros on failure.
 
 ## 2026-10-03 · chat em-dash 500, duplicate cron runs, brief compose bound
 

@@ -20,6 +20,7 @@ failed (no Heal-* functions, 400 ms probe, two-miss restart, warn-only disk floo
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -41,7 +42,10 @@ def source() -> str:
 
 
 def _pwsh() -> str:
-    exe = shutil.which("pwsh") or shutil.which("powershell.exe") or shutil.which("powershell")
+    # On Windows, Windows PowerShell 5.1 first: it is what runs the supervisor on NicksMax, and its
+    # file-sharing rules differ from pwsh 7's (the 2026-10-08 log outage happened only under 5.1).
+    order = ("powershell.exe", "pwsh") if os.name == "nt" else ("pwsh", "powershell.exe", "powershell")
+    exe = next((found for found in map(shutil.which, order) if found), None)
     assert exe, "supervisor probes require PowerShell 7 or Windows PowerShell"
     return exe
 
@@ -328,6 +332,128 @@ def test_logger_falls_back_to_an_overflow_file_when_the_log_is_locked(tmp_path: 
     assert "after unlock" not in out["markers"]["overflowText"]
     assert any("after unlock" in line for line in out["log"])
     assert not any("while locked" in line for line in out["log"])
+
+
+# ---- writes that a reader cannot block ------------------------------------------------------------
+# Witnessed 2026-10-08 on NicksMax: from 07:34 every Add-Content to the log failed; lines from 08:20
+# on went to .overflow, and 07:34-08:20 are lost. The holder (Restart Manager) was Desktop
+# Commander's node process, whose read handle shares Read, Write and Delete; Windows PowerShell 5.1's
+# Add-Content opens without read sharing, so it refused to open beside ANY reader, while a
+# FileStream sharing all three opened the same file. pwsh 6.2+ shares reads in Add-Content (PR #8091)
+# and Linux .NET does not enforce read-sharing, so on CI the log probe passes for the old writer too;
+# the text contracts below pin the writer there. The 5.1 receipts (this suite under powershell.exe on
+# NicksMax, the old script and planted defects) are in the PR that added these tests (#2935).
+
+
+def _code_lines() -> list[str]:
+    return [line for line in source().splitlines() if not line.lstrip().startswith("#")]
+
+
+def test_every_write_goes_through_the_shared_writer():
+    code = "\n".join(_code_lines())
+    for cmdlet in ("Add-Content", "Set-Content", "Out-File", "Tee-Object", "WriteAllText", "AppendAllText", "WriteAllLines"):
+        assert cmdlet not in code, f"{cmdlet} is back: it refuses to open beside a reader on 5.1"
+    # 5.1's aliases for the same cmdlets, used as commands
+    assert not re.search(r"(?m)(^|[;{(|]\s*|^\s*)(ac|sc|tee)\s+[-$('\"]", code), "an ac/sc/tee alias is back"
+    assert not re.search(r"\s>>?\s*\$", code), "a redirection writes with the cmdlet sharing rules"
+    writer = re.search(r"function Write-SharedFile\b.*?\n\}", code, re.S)
+    assert writer, "Write-SharedFile is gone"
+    body = writer.group(0)
+    # The share value AND the open that uses it: a stray [IO.FileShare]::Write in the constructor
+    # beside an untouched $share line is exactly the open that failed on the box.
+    assert re.findall(r"\$share\s*=\s*(.+)", body) == ["[IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete"]
+    assert "[IO.FileStream]::new($path, $mode, [IO.FileAccess]::Write, $share)" in body
+    # Nothing else opens a file for writing.
+    opens = re.findall(r"\[IO\.(?:FileStream\]::new|File\]::Open)\(([^\n]*)", code)
+    assert [o for o in opens if "Write" in o] == ["$path, $mode, [IO.FileAccess]::Write, $share)"], opens
+    assert "Write-SharedFile $prodStartMarker" in code
+
+
+def _top_level_index(code_lines: list[str], startswith: str) -> int:
+    hits = [i for i, line in enumerate(code_lines) if line.startswith(startswith)]
+    assert len(hits) == 1, f"{startswith!r} at {hits}"
+    return hits[0]
+
+
+def test_the_tick_restores_first_and_saves_the_ledger_last():
+    lines = _code_lines()
+    at = lambda s: _top_level_index(lines, s)
+    restore = at("$restoreBlocked = Restore-Overflow")
+    # After the lock and after every function it needs is defined (a call above its definition is
+    # "not recognized" under Continue and the tick carries on without it), before anything logs.
+    assert at("  $supervisorLockHandle = [IO.File]::Open(") < restore
+    for definition in ("function Write-SharedFile", "function Log(", "function Restore-Overflow"):
+        assert at(definition) < restore, definition
+    assert restore < at("$state = Read-State")
+    assert at("function Report-BlockedRestore") < at("Report-BlockedRestore $restoreBlocked")
+    assert at("$nowEpoch = ") < at("Report-BlockedRestore $restoreBlocked")
+    # The ledger is saved once, after the last heal, so every tick's restarts and port misses persist.
+    assert at("Invoke-DiskFloor (") < at("Save-State")
+    assert at("function Save-State") < at("Save-State")
+    assert [line for line in lines if line.strip()][-1].startswith("if ($supervisorLockHandle)")
+
+
+def test_the_log_is_written_beside_a_reader_that_shares_everything(tmp_path: Path):
+    out = run_scenario("log-read-by-a-sharing-reader", tmp_path)
+    assert out["markers"]["overflowExists"] is False
+    assert any(line.endswith(" while read") for line in out["log"])
+
+
+def test_stranded_overflow_lines_are_restored_into_the_log_in_order(tmp_path: Path):
+    out = run_scenario("overflow-restored-into-log", tmp_path)
+    log = out["log"]
+    assert log[0] == "2026-10-08 07:34:08 last line before the lock"
+    assert re.fullmatch(
+        r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d NOTE restored 2 line\(s\) written 2026-10-08 08:20:14 \.\. "
+        r"2026-10-08 18:51:13 to supervisor\.log\.overflow while this log could not be opened",
+        log[1],
+    ), log[1]
+    assert log[2:4] == ["2026-10-08 08:20:14 ACTION first stranded", "2026-10-08 18:51:13 ACTION last stranded"]
+    assert log[4].endswith(" after restore") and len(log) == 5
+    assert out["markers"]["innerBom"] is False
+    assert out["markers"]["leftovers"] in (None, [])
+
+
+def test_a_restore_waits_for_a_locked_log_and_lands_each_line_once(tmp_path: Path):
+    out = run_scenario("overflow-restore-waits-for-the-log", tmp_path)
+    assert out["markers"]["restoringWhileLocked"] is True
+    body = [line for line in out["log"] if " NOTE restored " not in line]
+    notes = [line for line in out["log"] if " NOTE restored " in line]
+    assert [line[20:] for line in body] == [
+        "before", "stranded one", "stranded two", "queued while locked", "after",
+    ], out["log"]
+    assert [re.search(r"restored (\d+) line", n).group(1) for n in notes] == ["2", "1"]
+    assert out["markers"]["leftovers"] in (None, [])
+
+
+def test_a_pending_batch_held_by_a_reader_lands_exactly_once(tmp_path: Path):
+    out = run_scenario("overflow-batch-held-by-a-reader-lands-once", tmp_path)
+    assert out["markers"]["pendingAfterBlockedAppend"] == 1
+    body = [line[20:] for line in out["log"] if " NOTE restored " not in line]
+    assert body == ["before", "stranded one", "after"], out["log"]
+    assert sum(" NOTE restored 1 line(s) " in line for line in out["log"]) == 1
+    assert out["markers"]["leftovers"] in (None, [])
+
+
+def test_a_restore_a_reader_keeps_refusing_is_reported_once_and_lands_later(tmp_path: Path):
+    out = run_scenario("restore-blocked-is-reported", tmp_path)
+    assert out["markers"]["why"], "the blocked restore returned no reason"
+    assert out["markers"]["afterRelease"] in (None, ""), "the restore after release still failed"
+    warns = [line for line in out["log"] if "WARN stranded log lines were not restored" in line]
+    assert len(warns) == 1, out["log"]
+    body = [line[20:] for line in out["log"] if " NOTE restored " not in line and " WARN " not in line]
+    assert body == ["before", "stranded", "after"], out["log"]
+
+
+def test_the_restart_ledger_is_saved_beside_a_reader_that_shares_everything(tmp_path: Path):
+    out = run_scenario("state-write-beside-a-sharing-reader", tmp_path)
+    assert out["markers"]["portMissesOnDisk"] == 2
+    assert not any("WARN" in line for line in out["log"])
+
+
+def test_a_ledger_that_cannot_be_saved_says_so(tmp_path: Path):
+    out = run_scenario("state-write-failure-is-logged", tmp_path)
+    assert any("WARN could not persist supervisor state" in line for line in out["log"]), out["log"]
 
 
 def test_edge_fingerprint_ignores_office_modules_but_sees_edge_modules(tmp_path: Path):
