@@ -1,6 +1,16 @@
 # Session ledger — statenour
 
-**Updated: 2026-10-08 ET** (camera N-series PR C #2931 + dead bridge queries #2934, both merged and deployed; first section. The 10-03 Sentry sweep follows.)
+**Updated: 2026-10-09 ET** (the flagged-items wave first; then camera N-series PR C #2931 + dead bridge queries #2934, both merged and deployed. The 10-03 Sentry sweep follows.)
+
+## 2026-10-09 · flagged-items wave (cross-app PR after #2935; RECONCILIATION top entry)
+
+- `/api/analytics/dashboard` redacts unread sections; the summary also redacts an unreadable review store (`reviews.ok: false`, reason names the review store) and a `revenue_today` body with no numeric `invoiceCount`.
+- The bridge contract guard is a TypeScript syntax-tree scanner: it resolves consts, local wrappers and renamed imports, fails closed on any other helper reference and on written parameters/lists, excuses exactly the 3 reviewed `DYNAMIC_BY_DESIGN` calls (counted, canaried), and found 3 `igRead` calls the regex never saw.
+- `friday_revenue_check` / `revenue_overconfidence_gate` send `from`/`to` (they sent `since`/`until`, which revenue_range ignores, and read TODAY). The cashflow forecast reads `data.totalDollars` (it read `total` off the envelope: every forecast was UNAVAILABLE) over 7-day inclusive weeks.
+
+**Verify after deploy:** the next Sunday weekly digest shows a forecast band instead of UNAVAILABLE (needs four readable trailing weeks); the next Friday 2pm check projects from month-to-date.
+
+**Flagged:** the forecast's `estimates_aging` / `bookings_status` fields still do not exist on the nickstire side; `operator.revenueStats` and `/api/analytics/revenue` return zeros beside `bridgeAvailable: false`.
 
 ## 2026-10-08 · bridge honesty: dead queries resolved, lot brief in the morning brief
 

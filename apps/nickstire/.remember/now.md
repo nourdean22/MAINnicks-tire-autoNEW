@@ -1,6 +1,20 @@
 # Session ledger - nickstire
 
-**Updated: 2026-10-08 23:30Z** (evening: #2934 merged + deployed, the supervisor log-writer fix, first section; then PR C, PR A + B history, the merged camera audit wave #2920 + #2925, the Search Console wave and the 2026-10-03 Sentry sweep.)
+**Updated: 2026-10-09 01:30Z** (the flagged-items wave first; then 10-08 evening: #2934 merged + deployed, the supervisor log-writer fix; then PR C, PR A + B history, the merged camera audit wave #2920 + #2925, the Search Console wave and the 2026-10-03 Sentry sweep.)
+
+## 2026-10-09 · flagged-items wave (branch `claude/dreamy-newton-0iob20`, PR after #2935)
+
+What #2934/#2935 flagged, plus what fixing it surfaced. CURRENT-TRUTH's top section has the contracts.
+- **Bridge day math:** `revenue_range` / `marketing_attribution` count the whole end day (half-open, shop-day defaults, refuse malformed dates). `invoiceDate` is read as the stored shop-local day by EVERY reader now: `revenue_today`, `cars_today`, the scheduler weekday-volume check and `kpi-snapshot` had converted it from UTC (date-only tickets landed a day early). `invoiceDateShopLocal.test.ts` guards both shapes.
+- **One `categorizeService`** (engines/shared); the report and payment classifiers are separate taxonomies, renamed and golden-pinned (153 rows).
+- **Failed reads are unknown, not zero:** `analyzeCustomers` / `analyzeNewCustomerVelocity` and six growth engines carry `unavailable: true`; brief, plan, alerts, debrief, bridge, StateNour sync, the master report, `intelligence.chatFunnel` and the churn-detection + pricing crons (now fail their run) all honour it. The master report's Chat funnel / referral reads used keys the engines never sent (always 0); fixed. Velocity counts the shop's month; booking buckets use the shop's clock.
+- **Report classifier:** `/a.*c/` A/C fixed in `reportIngestion.ts` AND the live `scripts/ingest-reports.mjs` (now byte-identical tables, test-held).
+- **Two cars, one episode (pre-existing Lot undercount):** `_emit` stamped one track's episode onto other visits' emissions; overlapping arrivals counted as one car. Fixed (own sighting only), red-then-green two-car tests.
+- **camera-bridge:** host scripts in the repo + installer + drift WARN + fallback refresh; the crop waits while the sign camera is dark; visitd stores the episode id (`visits.episode_id`), closing the restart double count.
+
+**After merge, on NicksMax:** `git pull --ff-only`, then `install-nicksmax-supervisor-host.ps1 -Check`, then without `-Check`. The edge restarts itself on the code change (that restart adds `visits.episode_id`; 0 open visits at 01:10Z). The loop takes effect at the next boot.
+
+**Flagged, not fixed:** `funnel_overview` reads keys the master report never sends (retire or rebuild); supervisor ticks killed at 45 s (task suggested); the `new Date()` invoice writers store UTC.
 
 ## 2026-10-08 evening · #2934 MERGED `d679d066` + DEPLOYED; supervisor log-writer fix (branch `claude/dreamy-newton-0iob20`, PR after #2934)
 
