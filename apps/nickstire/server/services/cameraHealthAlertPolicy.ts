@@ -1,5 +1,5 @@
 import { BUSINESS } from "../../shared/business";
-import type { deriveCameraState } from "../lib/cameraHealth";
+import { HEALTH_THRESHOLDS, type deriveCameraState } from "../lib/cameraHealth";
 
 export type CameraHealthState = ReturnType<typeof deriveCameraState>["state"];
 export type CameraHealthVerdict = ReturnType<typeof deriveCameraState>;
@@ -34,6 +34,52 @@ export function cameraAlertCooldownSeconds(): number {
 
 function isCameraPagingState(state: CameraHealthState): boolean {
   return !NON_PAGING_STATES.has(state);
+}
+
+/** The states that never page, for the service's flicker count (a SQL `NOT IN`). */
+export function cameraNonPagingStates(): CameraHealthState[] {
+  return [...NON_PAGING_STATES];
+}
+
+/**
+ * How long a state the PRODUCER reported must hold before it pages (2026-10-09). On the night
+ * of 2026-10-08 the sign heartbeat dipped out of HEALTHY for one heartbeat (~30 s) four times;
+ * the 08:15:22Z pass sampled the 08:15:18Z dip 4 s in and paged the owner at 04:15 ET, and the
+ * cooldown then held the recovery page until 04:45. The offline SLO the liveness states already
+ * wait out (120 s, four heartbeats) is the bar; a state still standing at the next five-minute
+ * pass pages then, against the same episode.
+ */
+const CAMERA_ALERT_MIN_STATE_SECONDS = HEALTH_THRESHOLDS.offlineAfterSeconds;
+/** ...unless the camera keeps flickering: this many entries into a paging state in the window. */
+const CAMERA_ALERT_FLICKER_ENTRIES = 3;
+const CAMERA_ALERT_FLICKER_WINDOW_SECONDS = 30 * 60;
+
+/** The flicker window, for the service's count query and the tests. */
+export function cameraAlertFlickerWindowSeconds(): number {
+  return CAMERA_ALERT_FLICKER_WINDOW_SECONDS;
+}
+
+/**
+ * True when a paging state should wait for the next pass instead of paging now: the producer
+ * reported it under 120 s ago and the camera has not flickered into a paging state three times
+ * in 30 minutes. Liveness states keep their own clock (the heartbeat age) and are never held;
+ * NEVER_INGESTED has no clock. An unknown state age or flicker count pages as before: unknown
+ * is never quiet.
+ */
+export function cameraAlertAwaitsPersistence(input: {
+  state: CameraHealthState;
+  /** Seconds since the producer's current state began (camera_runtime.stateSince); null = unknown. */
+  stateAgeSeconds: number | null;
+  /** Entries into a paging state over the flicker window (camera_health_events); null = unread. */
+  recentPagingEntries: number | null;
+}): boolean {
+  if (!isCameraPagingState(input.state) || LIVENESS_STATES.has(input.state) || input.state === "NEVER_INGESTED") {
+    return false;
+  }
+  const age = input.stateAgeSeconds;
+  const entries = input.recentPagingEntries;
+  if (age === null || !Number.isFinite(age) || entries === null || !Number.isFinite(entries)) return false;
+  return age < CAMERA_ALERT_MIN_STATE_SECONDS && entries < CAMERA_ALERT_FLICKER_ENTRIES;
 }
 
 export function cameraAlertDecision(

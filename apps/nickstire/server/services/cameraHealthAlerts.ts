@@ -15,6 +15,9 @@
  *   shop day, which deduped the second outage of a day against the first and re-paged
  *   an unchanged outage at midnight). A 30-minute cooldown per camera delays, never
  *   drops, so a flapping source cannot page 17 times in a morning.
+ * - a state the PRODUCER reported pages once it has held 120 s, or on the third entry into a
+ *   paging state in 30 minutes (2026-10-09: a single 30 s heartbeat dip paged at 04:15 ET).
+ *   Liveness states keep their own clock; an unknown age or count pages as before.
  * - HEALTHY sends a recovery only when the latest prior camera alert was degraded, and
  *   not when a blind camera merely stopped being judged because the shop closed.
  * - no new alert table: cron_alerts_fired already survives pod restarts + multi-pod.
@@ -24,17 +27,20 @@
 
 import { sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
-import { deriveCameraState, shopOpenAt } from "../lib/cameraHealth";
+import { HEALTH_THRESHOLDS, deriveCameraState, shopOpenAt } from "../lib/cameraHealth";
 import { solarExpectedOffline } from "../lib/solar";
 import { cameraRuntimeHasColumns } from "../lib/heartbeatStorableColumns";
 import { derivedStateBeganAtMs, derivedTransition } from "../lib/cameraTimeline";
 import { isMissingTableError } from "../lib/dbErrors";
 import { EXPECTED_CAMERAS, cameraPowerFor } from "../../shared/cameras";
 import {
+  cameraAlertAwaitsPersistence,
   cameraAlertClaim,
   cameraAlertCooldownSeconds,
   cameraAlertDecision,
   cameraAlertEpisode,
+  cameraAlertFlickerWindowSeconds,
+  cameraNonPagingStates,
   deliverCameraAlertExternally,
   deliverWithConfirmedNotification,
   episodeFromAlertKey,
@@ -188,6 +194,30 @@ async function latestCameraAlert(
 }
 
 /**
+ * How many times this camera entered a paging state in the flicker window, from the timeline
+ * (the heartbeat ingest logs every producer transition; the pass logs the liveness ones).
+ * Computed in SQL against the same clock that stamps `at`. A failed read is null -- the policy
+ * then pages as it did before, so a broken count can never silence a camera.
+ */
+async function recentPagingEntries(db: Db, camera: string): Promise<number | null> {
+  try {
+    const [rows] = await db.execute(sql`
+      SELECT COUNT(*) AS n FROM camera_health_events
+       WHERE camera = ${camera}
+         AND at >= NOW() - INTERVAL ${cameraAlertFlickerWindowSeconds()} SECOND
+         AND toState NOT IN (${sql.join(cameraNonPagingStates().map((s) => sql`${s}`), sql`, `)})
+    `);
+    return numberOrNull((rows as Array<Record<string, unknown>>)[0]?.n);
+  } catch (err) {
+    log.warn("camera health flicker count unreadable; paging without it", {
+      camera,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
+/**
  * The health TIMELINE's second writer (audit N6). The heartbeat ingest logs the producer's own
  * state changes into `camera_health_events`; it cannot log STALE, PRODUCER_OFFLINE or
  * EXPECTED_SOLAR_OFFLINE, because no heartbeat arrives to log them, so until this pass the
@@ -277,6 +307,7 @@ export async function runCameraHealthAlerts(): Promise<{
            UNIX_TIMESTAMP(observedAtEdge) AS observedAtEdgeEpoch,
            UNIX_TIMESTAMP(receivedAt) AS receivedAtEpoch,
            UNIX_TIMESTAMP(stateSince) AS stateSinceEpoch,
+           UNIX_TIMESTAMP() - UNIX_TIMESTAMP(stateSince) AS stateAgeSeconds,
            sourceConnected,
            UNIX_TIMESTAMP(lastHealthyFrameAt) AS lastHealthyFrameAtEpoch,
            frameOk,
@@ -302,6 +333,7 @@ export async function runCameraHealthAlerts(): Promise<{
 
   let sent = 0;
   let held = 0;
+  let awaiting = 0;
   let recorded = 0;
   let timelineFailure: unknown = null;
   // One camera's undeliverable page must not stop the next camera from being judged, recorded
@@ -370,6 +402,22 @@ export async function runCameraHealthAlerts(): Promise<{
       }
     } catch (err) {
       timelineFailure = err;
+    }
+
+    // A producer-reported state younger than 120 s waits for the next pass unless the camera
+    // keeps flickering (2026-10-09: a 30 s dip paged the owner at 04:15 ET). The flicker count
+    // is read only for a young state; with a count of 0 the policy says whether age alone holds.
+    const stateAgeSeconds = row ? numberOrNull(row.stateAgeSeconds) : null;
+    if (
+      cameraAlertAwaitsPersistence({ state: verdict.state, stateAgeSeconds, recentPagingEntries: 0 }) &&
+      cameraAlertAwaitsPersistence({
+        state: verdict.state,
+        stateAgeSeconds,
+        recentPagingEntries: await recentPagingEntries(db, expected.camera),
+      })
+    ) {
+      awaiting++;
+      continue;
     }
 
     const latest = await latestCameraAlert(db, expected.camera);
@@ -473,6 +521,6 @@ export async function runCameraHealthAlerts(): Promise<{
 
   return {
     recordsProcessed: sent,
-    details: `${sent} alert(s)${held ? `, ${held} held by the ${Math.round(cameraAlertCooldownSeconds() / 60)}-minute cooldown` : ""}${recorded ? `, ${recorded} timeline transition(s) recorded` : ""}; ${observed.join(", ")}`,
+    details: `${sent} alert(s)${held ? `, ${held} held by the ${Math.round(cameraAlertCooldownSeconds() / 60)}-minute cooldown` : ""}${awaiting ? `, ${awaiting} state(s) under ${HEALTH_THRESHOLDS.offlineAfterSeconds} s not paged yet` : ""}${recorded ? `, ${recorded} timeline transition(s) recorded` : ""}; ${observed.join(", ")}`,
   };
 }
