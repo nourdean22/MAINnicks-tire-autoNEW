@@ -340,7 +340,8 @@ export async function generateTemplateStockClip(input: {
   }
 }
 
-function runFfmpeg(args: string[], cwd: string): Promise<void> {
+/** Exported (2026-10-09) so the deterministic card lane renders through the same spawn, timeout and error shape. */
+export function runFfmpeg(args: string[], cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(ffmpegBin(), args, {
       cwd,

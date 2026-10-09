@@ -18,6 +18,7 @@ import { MOTION_LENSES, REEL_ARCHETYPES, type ReelBrief } from "../../client/src
 import type { MotionLens, ReelArchetype } from "../../client/src/lib/facelessReelStudio";
 import type { ApprovedPackPool } from "../../shared/reelJobPayload";
 import { parseShotSource } from "../../shared/shotRouter";
+import { parseCaptionStyle, parsePresenceProfile } from "../../shared/reelSourceProfile";
 import { briefEnqueueRefusals } from "./reelEnqueueRefusals";
 import { VISUAL_DIRECTION_LENSES, type VisualDirectionId } from "../../shared/contentExperiments";
 
@@ -491,8 +492,15 @@ export function buildBriefFromApprovedProductionPack(
       // runReelPreflight's route check sees every pack beat as "unspecified"
       // and silently skips it. Only the four declared values survive.
       ...(declaredSource ? { source: declaredSource } : {}),
+      // Source-aware production (2026-10-09): the registry asset a REAL beat
+      // binds, and the label lines a DETERMINISTIC beat's card draws. Both
+      // are operator-written in the pack; nothing is inferred from prose.
+      ...(stringValue(beat.realAssetId) ? { realAssetId: stringValue(beat.realAssetId) } : {}),
+      ...(arrayOfStrings(beat.cardLines).length ? { cardLines: arrayOfStrings(beat.cardLines).slice(0, 4) } : {}),
     };
   });
+  const presenceProfile = parsePresenceProfile(source.presenceProfile);
+  const captionStyle = parseCaptionStyle(source.captionStyle);
   const selectedCaption = stringValue(source.selectedCaption) || stringValue(source.caption) || primaryCaptionFromReadme(snapshot.files.readme);
   if (storyboardBeats.length < 4 || !selectedCaption) return null;
   const hashtags = arrayOfStrings(source.hashtags).length ? arrayOfStrings(source.hashtags).slice(0, 5) : hashtagsFromCaption(selectedCaption);
@@ -632,6 +640,10 @@ export function buildBriefFromApprovedProductionPack(
       : [],
     winningConceptId: packLoopIdea ? briefId : null,
     storyboardBeats,
+    // Only written when the pack declares them, so every existing pack's
+    // brief keeps its exact shape (the legacy object-only, uppercase contract).
+    ...(presenceProfile !== "object_only" ? { presenceProfile } : {}),
+    ...(captionStyle !== "legacy_upper" ? { captionStyle } : {}),
     productionGrammarFingerprint,
     ...(productionGrammarNovelty ? { productionGrammarNovelty } : {}),
     promptPack: [],
