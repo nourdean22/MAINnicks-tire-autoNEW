@@ -3611,14 +3611,16 @@
           "server/services/ghostReplay.test.ts (20), server/services/resolutionJudge.test.ts (26), server/services/successAudit.test.ts (6), server/cron/jobs/promptEvolutionWeekly.test.ts (17)",
           "apps/statenour (same command from apps/statenour): tests/api/proof-receptionist-experiments.test.ts (11), tests/api/proof-receptionist-receipt-key.test.ts (7), tests/components/proof-receptionist-section.test.ts (12), tests/events/proof-receptionist-registry.test.ts (14)"
         ],
-        "liveRuns": [],
-        "deploymentId": null
+        "liveRuns": [
+          "2026-10-09 20:33:53Z - first production run via POST /api/admin/run-prompt-evolution (deploy 88fba68c, commit 9421d816, a Friday): the door answered {status: started, budgetMs: 1800000}; Railway logged '[evolve] manual run requested' (day Friday) and 'live receptionist baseline resolved' (assistant 150fe622, prompt 06e0dbbd, parity identical, model gpt-4o); the cycle ran 30 usable seeds (train 14 / holdout 13 / confirm 8, success cohort 0), 27 replays, 18 judge calls, 2 optimizer calls, 319 s; outcome rejected-train (neither candidate beat the live prompt on the train cohort; baseline train 8/13, holdout 10/12, 2 unresolvable excluded); proxy lane (live gpt-4o 0.4/250/11 tools vs replay deepseek-v4-pro 0/700/no tools); receipt prompt-evolution:a46f96a6a93ad384 posted, disposition inconclusive, delivered true (bridge accepted); '[evolve/manual] run completed' 320120 ms; GET /api/admin/prompt-evolution-status then read last.status completed with details ending ' · manual run' and the latest row with trigger manual. Not observed by the agent: the Telegram message and the /proof row (both behind the operator's sign-in); the cron_log row itself was not queried (the status record is the in-process twin of it)."
+        ],
+        "deploymentId": "88fba68c-c72a-4bc8-87be-7fc292647026"
       },
       "blockers": [
         {
           "severity": "P2",
-          "description": "Not observed in production. The 2026-10-09 wiring is unmerged at lastVerifiedAt, so production runs #2923's loop (repository prompt as the baseline, holdout gate only), and that gate's own first scheduled run is Monday 2026-10-12. Live confirmation of the wiring, after merge and deploy: the first Monday run logs one `[evolve] result` line with `baseline.source: live_provider` and a parity label, cron_log details carry `live <hash> <parity>`, a `receptionist.prompt_experiment` row appears on StateNour /proof, and the run ends inside its 25-minute budget. A live-baseline refusal fails the run by design: check that Vapi routing reads `match` before reading it as a code defect. Whether the served prompt carries a lessons block or a nickBehaviorHash is unknown until that run.",
-          "source": "2026-10-08 AutoResearch audit; restated 2026-10-09"
+          "description": "The wiring is live (2026-10-09 manual run: baseline.source live_provider, parity identical, receipt posted and accepted) but no live run has yet reached the holdout, success-cohort or sealed-confirmation gate: both candidates lost on the train cohort (rejected-train, success cohort 0 won calls available). Promotion to live_verified needs one run whose deciding gate is holdout or later.",
+          "source": "2026-10-09 first live wired run"
         },
         {
           "severity": "P2",
@@ -3640,8 +3642,9 @@
       ],
       "lastVerifiedAt": "2026-10-09",
       "codeState": "merged",
-      "operationalState": "unit_verified",
-      "exposure": "internal"
+      "operationalState": "deployed",
+      "exposure": "internal",
+      "verificationExpiresAt": "2027-01-07"
     },
     {
       "capabilityId": "receptionist-prompt-evolution-manual-run",
@@ -3656,14 +3659,16 @@
           "client/src/__tests__/vapi-followup-push-confirm.test.tsx (9, +5): first tap opens the in-DOM confirm and starts nothing, a cancel starts nothing, a confirmed tap starts exactly once and leaves both pushes untouched, the button is disabled and says RUNNING while a run is active, an unreadable latest row reads unknown and never 'no experiment recorded yet', 48px target",
           "server/cronControlPlane.test.ts + server/cameraHealthAlerts.test.ts (91) still green: the staged-cron door and the bridge allowlist are untouched"
         ],
-        "liveRuns": [],
-        "deploymentId": null
+        "liveRuns": [
+          "2026-10-09 20:33:53Z - first production run via POST /api/admin/run-prompt-evolution (deploy 88fba68c, commit 9421d816, a Friday): the door answered {status: started, budgetMs: 1800000}; Railway logged '[evolve] manual run requested' (day Friday) and 'live receptionist baseline resolved' (assistant 150fe622, prompt 06e0dbbd, parity identical, model gpt-4o); the cycle ran 30 usable seeds (train 14 / holdout 13 / confirm 8, success cohort 0), 27 replays, 18 judge calls, 2 optimizer calls, 319 s; outcome rejected-train (neither candidate beat the live prompt on the train cohort; baseline train 8/13, holdout 10/12, 2 unresolvable excluded); proxy lane (live gpt-4o 0.4/250/11 tools vs replay deepseek-v4-pro 0/700/no tools); receipt prompt-evolution:a46f96a6a93ad384 posted, disposition inconclusive, delivered true (bridge accepted); '[evolve/manual] run completed' 320120 ms; GET /api/admin/prompt-evolution-status then read last.status completed with details ending ' · manual run' and the latest row with trigger manual. Not observed by the agent: the Telegram message and the /proof row (both behind the operator's sign-in); the cron_log row itself was not queried (the status record is the in-process twin of it)."
+        ],
+        "deploymentId": "88fba68c-c72a-4bc8-87be-7fc292647026"
       },
       "blockers": [
         {
-          "severity": "P2",
-          "description": "Not observed in production at lastVerifiedAt. Live confirmation: one manual start from the panel or `POST /api/admin/run-prompt-evolution` answers `started`, a `prompt-evolution-weekly` cron_log row lands with ' · manual run' in details inside 30 minutes, prompt_evolution_latest carries `trigger: manual`, the Telegram header reads 'manual run', and a `receptionist.prompt_experiment` row appears on StateNour /proof. In-process status is per dyno and forgotten on redeploy; cron_log is the durable record.",
-          "source": "2026-10-09 manual-door build"
+          "severity": "P3",
+          "description": "Telegram delivery and the /proof row for the 2026-10-09 manual run were not observed by the agent (both sit behind the operator's sign-in); the ledger bridge reported the receipt accepted. Operator confirms either on their phone.",
+          "source": "2026-10-09 first manual run"
         }
       ],
       "deferredScope": [
@@ -3672,8 +3677,9 @@
       ],
       "lastVerifiedAt": "2026-10-09",
       "codeState": "merged",
-      "operationalState": "unit_verified",
-      "exposure": "internal"
+      "operationalState": "live_verified",
+      "exposure": "internal",
+      "verificationExpiresAt": "2027-01-07"
     },
     {
       "capabilityId": "reel-lane-stall-exception",
