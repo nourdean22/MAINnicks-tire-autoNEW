@@ -90,6 +90,7 @@ class Pipeline:
         self.frigate_available: Optional[bool] = None
         self.next_prune_at: float = 0.0  # wall (monotonic) time of the next ledger prune; first one runs at once
         self._pending_rows: List[Tuple[str, str, str, Dict[str, object]]] = []  # outbox rows of a step whose commit failed
+        self._pending_episodes: Dict[str, str] = {}  # visit episode ids of a step whose commit failed
         self._continuations_counted = 0  # tracker max_age_continuations already added to the _total counter
         restored = self.tracker.restore_state(ledger.load_open_visits())
         self.metrics.set("visitd_open_visits", len(self.tracker.open_visits()))
@@ -230,6 +231,14 @@ class Pipeline:
         held = self._pending_rows
         rows = held + [row for _, row in rendered if row is not None]
         closed = self.tracker.closed_visits()
+        # The edge stamps the stitcher's episode id on its emissions; record it against the visit
+        # so a restart can hand it back (`Ledger.commit_step`, `edge_main.reconcile_restart`).
+        # Held through a failed commit exactly like the rows: it is a fact of the same step.
+        episodes = dict(self._pending_episodes)
+        for emission in emissions:
+            episode_id = getattr(emission, "episode_id", None)
+            if episode_id:
+                episodes[emission.visit_id] = str(episode_id)
         # The shop projection is queued in the SAME transaction as the ledger commit. Building the
         # tuples cannot touch the network and must not be able to fail the commit, so it is wrapped:
         # a mirror defect degrades the shop read model, never the authoritative lane.
@@ -248,12 +257,15 @@ class Pipeline:
                 log.warning("shop mirror raised while queueing error=%s; the outbox is unaffected", exc)
                 shop_rows = []
         try:
-            statuses, evicted = self.ledger.commit_step(list(self.tracker.open_visits()) + closed, rows, shop_rows)
+            statuses, evicted = self.ledger.commit_step(list(self.tracker.open_visits()) + closed, rows, shop_rows,
+                                                        episodes=episodes)
         except Exception as exc:
             self._pending_rows = rows
+            self._pending_episodes = episodes
             log.error("ledger commit failed error=%s; %s closed visit(s) and %s outbox row(s) retry on the next step", exc, len(closed), len(rows))
             raise
         self._pending_rows = []
+        self._pending_episodes = {}
         self.tracker.drain_closed()
         if evicted:
             self.metrics.inc("visitd_outbox_dropped_total", evicted)

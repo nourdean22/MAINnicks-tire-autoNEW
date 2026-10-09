@@ -1698,16 +1698,21 @@ def seed_track_ids(vision: Any, tracker: Any, camera: str) -> int:
     return highest
 
 
-def restored_rebind_entries(tracker: Any, camera: str) -> list:
+def restored_rebind_entries(tracker: Any, camera: str,
+                            episodes: Optional[Dict[str, str]] = None) -> list:
     """Where the dead process last saw each car it was still tracking on this camera.
 
     One `RestoredSighting` per OPEN sighting that still sat inside a zone, read BEFORE the
     restart force-end: `_force_end` advances `last_frame_time` to the shared anchor, and the
     rebind's downtime check needs the time this car was actually last seen. A sighting with
     no box or no open zone is left out; it departs exactly as before.
+
+    `episodes` ({visit_id: episode_id}, `Ledger.open_visit_episodes`) hands each entry its
+    visit's episode, so a continued car that is later lost and re-acquired stays ONE car.
     """
     from vision.pipeline import RestoredSighting
 
+    episodes = episodes or {}
     entries = []
     for visit in tracker.open_visits():
         for sighting in visit.open_sightings():
@@ -1721,6 +1726,7 @@ def restored_rebind_entries(tracker: Any, camera: str) -> list:
                 box=tuple(float(v) for v in sighting.last_box),
                 last_seen=float(sighting.last_frame_time), zones=zones,
                 arrived_at=float(visit.created_at),
+                episode_id=episodes.get(visit.visit_id),
             ))
     return entries
 
@@ -1767,8 +1773,17 @@ def reconcile_restart(pipeline: Any, camera: str, vision: Any = None,
         if not before:
             return 0
         if vision is not None and rebind_seconds > 0:
+            # The episode each restored visit carried. Optional: a ledger that cannot say
+            # costs only the episode (the continued car's later re-acquisition gets a new
+            # one, as before), never the continuation itself.
+            episodes: Dict[str, str] = {}
             try:
-                entries = restored_rebind_entries(pipeline.tracker, camera)
+                episodes = pipeline.ledger.open_visit_episodes()
+            except Exception:
+                log.exception("could not read the restored visits' episode ids; a continued car "
+                              "that is later re-acquired may be counted twice")
+            try:
+                entries = restored_rebind_entries(pipeline.tracker, camera, episodes)
             except Exception:
                 log.exception("could not read the restored cars' last positions; every restored "
                               "visit departs through the normal grace")
