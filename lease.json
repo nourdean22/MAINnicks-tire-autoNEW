@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/reel-lane-unjam-20261009",
-  "status": "active",
+  "status": "released",
   "sessionKind": "bridge",
   "sessionId": "b1a917f5-4fc5-4fbf-9dc8-3f04512b0763",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.worktrees\\reel-lane-unjam",
   "claimedBy": "worktree-setup.ps1",
   "claimedAt": "2026-10-09T11:16:48.613Z",
   "expiresAt": "2026-10-09T23:16:48.613Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-09T12:18:11.198Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "12a81bd47a3a37b5038f32756e50eb7888c944ca",
+  "releasedBy": "b1a917f5-4fc5-4fbf-9dc8-3f04512b0763",
+  "foreignReleaseReason": null
 }
