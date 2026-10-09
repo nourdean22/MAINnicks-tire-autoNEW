@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "docs/teardown-trap-fix-20261009",
-  "status": "active",
+  "status": "released",
   "sessionKind": "bridge",
   "sessionId": "b1a917f5-4fc5-4fbf-9dc8-3f04512b0763",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.worktrees\\teardown-trap-fix",
   "claimedBy": "worktree-setup.ps1",
   "claimedAt": "2026-10-09T12:52:49.423Z",
   "expiresAt": "2026-10-10T00:52:49.423Z",
-  "releasedAt": null,
+  "releasedAt": "2026-10-09T12:53:50.794Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "431cbc3934eacb297177876ef2c08baec4ae134e",
+  "releasedBy": "b1a917f5-4fc5-4fbf-9dc8-3f04512b0763",
+  "foreignReleaseReason": null
 }
