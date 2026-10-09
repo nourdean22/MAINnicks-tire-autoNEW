@@ -1,6 +1,18 @@
 # Session ledger - nickstire
 
-**Updated: 2026-10-09 11:30Z** (the routine's live proofs and the camera page gate first; then the flagged-items wave; then 10-08 evening: #2934 merged + deployed, the supervisor log-writer fix; then PR C, PR A + B history, the merged camera audit wave #2920 + #2925, the Search Console wave and the 2026-10-03 Sentry sweep.)
+**Updated: 2026-10-09 12:55Z** (the Reel lane unjam #2940 first; then the routine's live proofs and the camera page gate first; then the flagged-items wave; then 10-08 evening: #2934 merged + deployed, the supervisor log-writer fix; then PR C, PR A + B history, the merged camera audit wave #2920 + #2925, the Search Console wave and the 2026-10-03 Sentry sweep.)
+
+## 2026-10-09 · Reel lane unjam (#2940) MERGED + DEPLOYED; flagship production package; operator reports synthesized
+
+**Shipped:** main `8175758a`, deployment `0ab3d0e5` healthy 12:48Z. The READY count now reuses the drain's refusals and scan window (it held production at "usable READY buffer 2" for two jobs the drain skipped every pulse: 2040001 parked, 1770004 a repost). An autonomous paid repair runs only for one blocked beat the executor can repair (`selectiveRepair.beatRepairRefusal`, shared). `docs/reels-engine-v2/10-FLAGSHIP-PRODUCTION.md` is the synthesized plan (two operator reports, 2026-10-09).
+
+**Receipts:** `server/reelLaneUnjam.test.ts` 15 passed, nine mutations red; CI fully green on the merged head (node included); three Codex P2 threads fixed and resolved.
+
+**Owed:** live proof at the 2026-10-10 ET 06:00 pulse (an enqueue in `cron_log`); operator retires 2040001 + 1770004; operator decides `REEL_AUTOPOST_ENABLED` (about 60 credits per Reel); shop books capture day. Holds: pilot (no real footage, pool = 0), two slots (one a day must post first), 62-slot slate (Theft Manual freeze; operator will start the provisional draft later).
+
+**Facts read 2026-10-09:** no Reel posted since 2026-10-04 04:08Z; Higgsfield Ultra, 2,863 credits, grant of 3,000 on 10-07, pipeline CLI spends draw that pool (Seedance 1.5 Pro 12/clip, GPT Image 2.0 6.5); Reels publish about 00:08 ET (the drain's first pulse of the ET day), hour data confounded; E-Check still required in Cuyahoga pending U.S. EPA.
+
+**Traps on NattyNour:** shared node_modules turbo 2.11.4 vs lockfile 2.11.6 breaks `build:affected` and `pnpm run test` (run the build and `vitest run` directly; push the same commit from a hook-free clone); a merge that stages an AGENTS.md runs agent-os-verify, whose github-client and turbo canaries fail in the hook env (commit the merge in the hook-free clone); `mechanicalTruth` and `previsReadability` repo-scan tests cannot run on Windows (URL pathname cwd), CI runs them; delete a merged remote branch AFTER `worktree-teardown.ps1`, not before.
 
 ## 2026-10-09 morning · routine proofs; the camera page gate (branch `claude/dreamy-newton-0iob20`, PR after #2939)
 
