@@ -49,6 +49,14 @@ $eufyTasks = @(
   @{ Name = "StateNour-Eufy-Bridge-NicksMax"; Port = 3000; Key = "eufy-bridge" },
   @{ Name = "StateNour-Eufy-Agent-NicksMax";  Port = 3601; Key = "eufy-agent" }
 )
+# Tick phase timing: the script's own starting values, so Enter-Phase / Complete-Tick run as they do
+# at the top of a real tick. The clock itself is faked below (Get-TickElapsedMs).
+$slowTickMs = 30000
+$tickPhasePath = Join-Path $WorkDir "tick.phase"
+$tickStarted = Get-Date
+$tickPhases = [ordered]@{}
+$tickPhase = "startup"
+$tickPhaseAt = 0
 
 foreach ($fn in $functionAsts) { . ([scriptblock]::Create($fn.Extent.Text)) }
 
@@ -63,6 +71,13 @@ $killed = New-Object System.Collections.Generic.List[int]
 # the office code-change rule. Both default to the happy path.
 $unkillable = New-Object System.Collections.Generic.List[int]
 $failStart = $false
+# Every Get-ScheduledTask call, by kind: "list" (the whole task list) or "name:<task>". On NicksMax
+# each call costs ~0.95 s whatever it asks for, so the count is the cost. $failTaskList makes the
+# list read throw: the per-name fallback.
+$taskReads = New-Object System.Collections.Generic.List[string]
+$failTaskList = $false
+# The tick's clock, in ms since the process started. Scenarios move it by hand.
+$fakeElapsedMs = 0
 $markers = @{}
 
 function Add-FakeProcess([int]$processId, [string]$name, [string]$commandLine, [int]$ageSeconds, [int]$parentProcessId = 0, [string]$executablePath = '') {
@@ -101,15 +116,26 @@ function Start-ScheduledTask { param([string]$TaskName, $ErrorAction)
   $calls.Add("start-task:$TaskName")
 }
 function Set-ScheduledTask { param([string]$TaskName, $Action, $ErrorAction) $calls.Add("set-task:$TaskName") }
-function Get-ScheduledTask { param([string]$TaskName, $ErrorAction)
-  if ($taskStates.ContainsKey($TaskName)) {
-    return [pscustomobject]@{
-      TaskName = $TaskName
-      State    = $taskStates[$TaskName]
-      Actions  = @([pscustomobject]@{ WorkingDirectory = $root })
-    }
+function Disable-ScheduledTask { param([string]$TaskName, $ErrorAction) $calls.Add("disable-task:$TaskName") }
+function New-FakeTask([string]$name) {
+  return [pscustomobject]@{
+    TaskName = $name
+    TaskPath = "\"
+    State    = $taskStates[$name]
+    Actions  = @([pscustomobject]@{ WorkingDirectory = $root })
   }
 }
+# No -TaskName: the whole task list, as the real cmdlet returns it.
+function Get-ScheduledTask { param([string]$TaskName, $ErrorAction)
+  if (-not $TaskName) {
+    $taskReads.Add("list")
+    if ($failTaskList) { throw "Get-ScheduledTask refused by the harness" }
+    return @($taskStates.Keys | ForEach-Object { New-FakeTask $_ })
+  }
+  $taskReads.Add("name:$TaskName")
+  if ($taskStates.ContainsKey($TaskName)) { return New-FakeTask $TaskName }
+}
+function Get-TickElapsedMs { return [long]$fakeElapsedMs }
 function Start-Sleep { param($Milliseconds, $Seconds) }
 function Port-Open { param([int]$port, [int]$timeoutMs = 1500)
   if ($portOwners.ContainsKey($port)) { return ($killed -notcontains $portOwners[$port]) }
@@ -550,6 +576,88 @@ switch ($Scenario) {
     $failStart = $true
     Heal-OfficeWorker
     $markers["fingerprintAfterFailedStart"] = [string](Get-Entry "office-code-version").fingerprint
+  }
+  "slow-tick-names-the-slow-phase" {
+    # 37.2 s from process start, 34 s of it in the sign crop's frame probes: one NOTE, slowest first.
+    $fakeElapsedMs = 1500;  Enter-Phase "ledger"
+    $fakeElapsedMs = 2000;  Enter-Phase "task-list"
+    $fakeElapsedMs = 3000;  Enter-Phase "sign-crop"
+    $fakeElapsedMs = 37000; Enter-Phase "disk"
+    $fakeElapsedMs = 37100; Enter-Phase "save"
+    $fakeElapsedMs = 37200; Complete-Tick
+    $markers["breadcrumbLeft"] = [bool](Test-Path -LiteralPath $tickPhasePath)
+  }
+  "fast-tick-is-silent" {
+    # The same phases in 12 s: no log line at all, and nothing left behind for the next tick.
+    $fakeElapsedMs = 1500;  Enter-Phase "ledger"
+    $fakeElapsedMs = 2000;  Enter-Phase "task-list"
+    $fakeElapsedMs = 3000;  Enter-Phase "sign-crop"
+    $fakeElapsedMs = 11800; Enter-Phase "disk"
+    $fakeElapsedMs = 11900; Enter-Phase "save"
+    $fakeElapsedMs = 12000; Complete-Tick
+    $markers["breadcrumbLeft"] = [bool](Test-Path -LiteralPath $tickPhasePath)
+  }
+  "killed-tick-is-reported-by-the-next" {
+    # The loop kills a tick at 45 s, so it never reaches Complete-Tick. Its last phase boundary is on
+    # disk; the next tick names that phase once, then forgets it.
+    $fakeElapsedMs = 1500;  Enter-Phase "ledger"
+    $fakeElapsedMs = 2000;  Enter-Phase "task-list"
+    $fakeElapsedMs = 9000;  Enter-Phase "sign-crop"
+    $markers["breadcrumbWhileRunning"] = [bool](Test-Path -LiteralPath $tickPhasePath)
+    # The next tick: a fresh process, fresh phase table.
+    $tickPhases = [ordered]@{}; $tickPhase = "startup"; $tickPhaseAt = 0; $fakeElapsedMs = 900
+    Report-UnfinishedTick
+    Report-UnfinishedTick
+    $markers["breadcrumbAfterReport"] = [bool](Test-Path -LiteralPath $tickPhasePath)
+  }
+  "one-task-read-per-tick" {
+    # A healthy tick's task reads: the retired-task sweep, the office worker, both Eufy tasks. Nine
+    # Get-ScheduledTask calls before (~8.5 s on NicksMax); the list is read once now.
+    Install-OfficeCode
+    Add-FakeProcess 31 "python.exe" $officePython 600
+    Add-FakeProcess 11 "node.exe" $bridgeNode 600
+    Add-FakeProcess 12 "go2rtc.exe" $bridgeGo2rtcCmd 590 11 $bridgeGo2rtcExe
+    Add-FakeProcess 21 "python.exe" $agentPython 600
+    $portOwners[3000] = 11; $portOwners[3601] = 21
+    $taskStates[$officeTask] = "Running"
+    $taskStates["StateNour-Eufy-Bridge-NicksMax"] = "Running"
+    $taskStates["StateNour-Eufy-Agent-NicksMax"] = "Running"
+    $taskStates["StateNour-Eufy-Watchdog-NicksMax"] = "Ready"
+    $taskStates["NicksMaxCameraSupervisorUser"] = "Disabled"
+    Set-OfficeStatus 1 "READY" $null
+    Disable-RetiredTasks
+    Heal-OfficeWorker
+    foreach ($et in $eufyTasks) { Heal-EufyTask $et }
+    $markers["taskReads"] = @($taskReads)
+  }
+  "task-list-read-fails-falls-back-per-name" {
+    # The list read throws: every task must still be found by name, never seen as absent.
+    $failTaskList = $true
+    $taskStates["StateNour-Eufy-Bridge-NicksMax"] = "Ready"
+    Heal-EufyTask $eufyTasks[0]
+    Heal-EufyTask $eufyTasks[1]
+    $markers["taskReads"] = @($taskReads)
+  }
+  "relay-login-refusal-reads-the-tail" {
+    $filler = ("[VIDEO] rawType=0x29 codec=H265 keyframe=False " + ("x" * 60) + "`r`n") * 20000   # ~2.2 MB
+    $endsRefused = Join-Path $WorkDir "ends-refused.log"
+    Set-Content -LiteralPath $endsRefused -Value ($filler + "relay: login failed result: 1002") -Encoding ascii -NoNewline
+    $refusedThenStreamed = Join-Path $WorkDir "refused-then-streamed.log"
+    Set-Content -LiteralPath $refusedThenStreamed -Value ("Login FAILED result: 1002`r`n" + $filler) -Encoding ascii -NoNewline
+    $small = Join-Path $WorkDir "small.log"
+    Set-Content -LiteralPath $small -Value "LOGIN FAILED result: 1002" -Encoding ascii
+    $markers["endsRefused"] = [bool](Test-RelayLoginRefused $endsRefused)
+    $markers["refusedThenStreamed"] = [bool](Test-RelayLoginRefused $refusedThenStreamed)
+    $markers["small"] = [bool](Test-RelayLoginRefused $small)
+    $markers["missing"] = [bool](Test-RelayLoginRefused (Join-Path $WorkDir "no-such.log"))
+  }
+  "restart-saves-the-ledger-at-once" {
+    # A tick the loop kills never reaches the Save-State at its end; the restart it made must
+    # already be on disk, or the next tick's rate limit and ESCALATE count start short.
+    $taskStates["StateNour-Eufy-Bridge-NicksMax"] = "Ready"
+    Heal-EufyTask $eufyTasks[0]
+    $onDisk = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+    $markers["restartsOnDisk"] = @($onDisk."eufy-bridge".restarts).Count
   }
   default { throw "unknown scenario: $Scenario" }
 }
