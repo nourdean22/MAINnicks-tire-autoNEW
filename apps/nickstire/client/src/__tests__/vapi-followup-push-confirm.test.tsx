@@ -141,4 +141,24 @@ describe("RUN EXPERIMENT NOW is a two-tap confirm that starts the manual run onc
     render(<VapiPanel />);
     expect(runButton().className).toMatch(/\bmin-h-\[48px\]/);
   });
+
+  it("a candidate rejected before replay shows which invariants it broke; a scored one shows its train reading", () => {
+    h.evolutionStatus = {
+      active: null, last: null,
+      latest: { state: "ok", latest: {
+        ranAt: "2026-10-09T20:33:53.740Z", trigger: "manual", outcome: "rejected-train", promotionStage: "none", accepted: false, confirmed: false,
+        candidateHash: null, baselinePromptHash: "06e0dbbded11a3754ef992f4", baselineParity: "identical", laneParity: false,
+        experimentId: "prompt-evolution:a46f96a6a93ad384", receiptDelivered: true,
+        seeds: { usable: 30, train: 14, holdout: 13, confirm: 8, success: 0 },
+        gates: { holdout: null, success: null, confirmation: null }, durationMs: 319_090,
+        candidates: [
+          { promptHash: "deadbeef0001", train: "unscored", rejectedInvariants: ["clause-preservation"], trainMargin: null, trainUsable: null },
+          { promptHash: "cand1234abcd", train: "9/14", rejectedInvariants: [], trainMargin: -2, trainUsable: true },
+        ],
+      } },
+    };
+    render(<VapiPanel />);
+    expect(screen.getByText(/not replayed, broke clause-preservation/i)).toBeTruthy();
+    expect(screen.getByText(/train 9\/14 \(margin -2\)/i)).toBeTruthy();
+  });
 });

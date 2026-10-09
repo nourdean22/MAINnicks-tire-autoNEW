@@ -13,6 +13,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { sliceBlock } from "../testUtils/sourceBlock";
 
 // Serial mode shares ONE vi.mock registry across files (apps/nickstire/AGENTS.md
 // section 3): a predecessor's partial schema mock would leave cronLog or
@@ -196,9 +197,8 @@ describe("startPromptEvolutionManualRun", () => {
 
   it("the budget equals the tier job's timeoutMs in scheduler.ts (a drifted budget outlives its own lock)", () => {
     const src = readFileSync(resolve(__dirname, "../cron/scheduler.ts"), "utf8");
-    const at = src.indexOf(`name: "${PROMPT_EVOLUTION_JOB_NAME}"`);
-    expect(at).toBeGreaterThan(-1);
-    const block = src.slice(at, src.indexOf("handler:", at));
+    // sliceBlock throws on a missing anchor; a raw indexOf slice would widen to EOF and pass on unrelated text.
+    const block = sliceBlock(src, `name: "${PROMPT_EVOLUTION_JOB_NAME}"`, "handler:", { label: "scheduler.ts" });
     const m = /timeoutMs:\s*([0-9*\s]+),/.exec(block);
     expect(m, "the tier job must declare timeoutMs").not.toBeNull();
     // eslint-disable-next-line no-new-func
@@ -228,6 +228,10 @@ describe("summarizeLatestRow", () => {
       usableSeeds: 24, trainCount: 12, holdoutCount: 12,
       experimentId: "prompt-evolution:abc123", receiptDelivered: true,
       usage: { durationMs: 900_000 },
+      candidateSummaries: [
+        { rationale: "caller Maria wants a callback", train: "unscored", rejectedInvariants: ["clause-preservation", "reversal:price"], promptHash: "deadbeef0001" },
+        { rationale: "shorter greeting", train: "9/12", promptHash: "cand1234abcd", trainMargin: 3, trainUsable: true },
+      ],
     };
     const s = summarizeLatestRow(JSON.stringify(row))!;
     expect(s).toMatchObject({
@@ -236,15 +240,21 @@ describe("summarizeLatestRow", () => {
       experimentId: "prompt-evolution:abc123", receiptDelivered: true, durationMs: 900_000,
       seeds: { usable: 24, train: 12, holdout: 12, confirm: 8, success: 8 },
       gates: { holdout: "improved", success: "preserved", confirmation: "improved" },
+      candidates: [
+        { promptHash: "deadbeef0001", train: "unscored", rejectedInvariants: ["clause-preservation", "reversal:price"], trainMargin: null, trainUsable: null },
+        { promptHash: "cand1234abcd", train: "9/12", rejectedInvariants: [], trainMargin: 3, trainUsable: true },
+      ],
     });
     const json = JSON.stringify(s);
+    expect(json).not.toContain("callback");
+    expect(json).not.toContain("shorter greeting");
     expect(json).not.toContain("FULL CANDIDATE PROMPT TEXT");
     expect(json).not.toContain("FULL LIVE PROMPT");
     expect(json).not.toContain("Maria");
   });
 
   it("a row from before the trigger field reads 'unknown'; a missing or unparseable row is null", () => {
-    expect(summarizeLatestRow(JSON.stringify({ outcome: "rejected-holdout", accepted: null }))).toMatchObject({ trigger: "unknown", accepted: false, outcome: "rejected-holdout" });
+    expect(summarizeLatestRow(JSON.stringify({ outcome: "rejected-holdout", accepted: null }))).toMatchObject({ trigger: "unknown", accepted: false, outcome: "rejected-holdout", candidates: [] });
     expect(summarizeLatestRow(null)).toBeNull();
     expect(summarizeLatestRow("{not json")).toBeNull();
     expect(summarizeLatestRow("[]")).toBeNull();
