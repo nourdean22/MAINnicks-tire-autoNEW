@@ -2213,3 +2213,87 @@ measurement. Every proposal below cites the moment in this wave that produced it
   the same matches (2,191,382 old-vs-new comparisons over the corpus, 0 diffs). With an exact line-pass memo, the scan went from
   52 s to about 7.5 s. `shared/voiceRuleShape.test.ts` now fails on any variable-width leading lookbehind (mutation-checked
   against the old patterns: red, naming both rules).
+
+## 2026-10-08 (evening) · after #2933: pilot truth packets, Queue verdict, worker review guard
+
+### P1 · `nickstire-reel-operator` / cost work — price the hypothesis with the vendor's no-submit preflight before building
+- **Trigger (witnessed):** I built "request Seedance clips silent" (assembly discards clip audio; ByteDance's own API
+  prices audio-off at about half) with a test and a mutation check, then priced it with Higgsfield's `get_cost:true`
+  preflight, which submits no job and was already recorded in `docs/UPSTREAMS.md` (2026-08-29): audio off costs the
+  same as on (12 credits at 1080p, 4.8 at 720p). The change was reverted.
+- **Cost:** one built-and-reverted slice; no credits.
+- **Proposed edit:** "Before changing a paid request to save money, quote both settings with the vendor's no-submit
+  preflight (`get_cost:true` on the Higgsfield MCP) and keep the change only if the quote moves. A reseller's price
+  structure is not the vendor's."
+- **Confidence:** medium (once)
+- **Status:** proposed
+
+### P2 · any script that rewrites a committed data file — a round-trip check must abort, not print
+- **Trigger (witnessed):** a Python edit of `docs/reels-engine-v2/angle-bank.json` printed `round-trip identical: False`
+  and wrote anyway; the file is one-angle-per-line, so `json.dumps(indent=2)` turned a 7-line change into a 1,515-line
+  diff. Restored from HEAD and redone as a line edit (7 lines).
+- **Proposed edit:** under the ledger round-trip note in `nickstire-verify`: "the check is `sys.exit` on mismatch, never
+  a print; a file with its own layout gets a line edit."
+- **Confidence:** medium (once)
+- **Status:** proposed
+
+### Correction to 2026-10-08 P3 (`nickstire-reel-operator`, real footage declared on the beat)
+- The "9 of the 133 rotation packs say 'Real vehicle and tire footage only.'" count does not reproduce: that exact
+  phrase is in one pack (`2026-09-25-sidewall-max-psi-vs-placard`). Measured over `modelRecommendation`: **22 rotation
+  packs** (the 2026-09-25 batch) ask for real footage in varied wording ("Real tire only; no generated date-code
+  text", "synthetic footage would weaken believability"), and no beat declares it. The proposal stands with the larger
+  number. Declaring them would hold all 22 at enqueue (`approvedReelPackRotation.test.ts` asserts no rotation pack is
+  held), so it is the operator's content decision, not a data fix.
+
+### Recurrence note · "prove the instrument fired" (root AGENTS.md)
+- A hook-grammar measurement over the rotation returned `unknown` for 133 of 133 packs: it read `brief.storyboardBeats`
+  from a pack object that has only `slug` and `topic`. Re-run through `buildBriefFromApprovedProductionPack` with a
+  positive control (`built > 100`): 119 of 133 hooks are direct statements, longest run 26.
+
+## 2026-10-08 (late) · after #2934: subject-free packs out of the rotation, typed enqueue refusals
+
+### P1 · `nickstire-reel-operator` — an imported pack must name what the camera sees in every beat
+- **Trigger (witnessed):** both 2026-09-25 imports (34 packs, 26% of the rotation) filled every beat with one of two
+  five-shot templates ("Extreme macro of the physical subject…", "unbranded automotive component macro…"). Each pack's
+  real subject sat in `videoPrompt`, which the generator never reads, so the provider prompt for an XL-load-rating Reel
+  named no tire. The 31-day review saw "17 of 62 share one placeholder description" and the earlier P3 saw "real footage
+  in prose"; neither read the prompt the generator actually builds (`buildHiggsfieldReelPromptPack`), which is where
+  the defect showed in one line.
+- **Proposed edit:** "Before admitting packs, print beat 1's provider prompt for each and read its `Subject:` line. A
+  subject a viewer could not name is not a shot. `beatGenerationRoute` now holds such beats (`needs_subject`)."
+- **Confidence:** high (34 of 34, measured)
+- **Status:** proposed
+
+### P2 · `nickstire-verify` — a refusal the caller cannot type is a jam
+- **Trigger (witnessed):** four content refusals in `enqueueReelJob` threw a bare `Error`; `dailyReelPost` advances the
+  rotation only on `ReelPreflightBlockedError`, and the lane enqueues only at the production hour, so an approved pack
+  refused by any of them would have cost every following day's Reel. One of the four was this branch's own gate
+  (#2933), whose test pinned the bare throw. `reelEnqueueRefusalAdvance.test.ts` now fails on any new one.
+- **Proposed edit:** "When adding a refusal on a path a scheduler calls, find the caller's catch and throw what it
+  types. A test that pins the throw's text pins the bug with it."
+- **Confidence:** high (4 sites)
+- **Status:** proposed
+
+## 2026-10-09 · adversarial review of the peaceful-pascal branch (4 reviewers + skeptics + critic)
+
+### P1 · `nickstire-reel-operator` — a prohibited-claim pattern is tested on the denial and the hedge, not only the claim
+- **Trigger (witnessed):** the brake, E-Check and no-start packets (this branch) refused five correct myth-busting
+  lines ("Not always the starter", "that doesn't mean your brakes are fine") and passed eight hedged claims ("grinding is
+  perfectly normal", "you'll probably pass E-Check"). The older puncture packet refused its own reason, "A plug alone is
+  not a complete repair", which the generator is told verbatim. Every SAFE example had been written beside its pattern,
+  so none probed the shapes a script actually uses.
+- **Proposed edit:** "For each new pattern, add one denial ('not always X', 'doesn't mean Y') to SAFE and one softened
+  claim ('probably', 'usually', 'perfectly') to the hedged table; `mechanicalTruth.test.ts` also runs every packet's
+  own facts and reasons through every pattern."
+- **Confidence:** high (14 sentences, each reproduced against the real module)
+- **Status:** proposed
+
+### P2 · `nickstire-verifier-reel-pipeline` — an eligibility check must be the refusal the consumer applies
+- **Trigger (witnessed):** pack-variant eligibility checked "listed, loads, builds", while enqueue refuses on four more
+  brief-level checks and the daily lane skips a refused pack. One arm's bad variant would have decided which packs aired.
+  The miner's brief loop had the same gap: it regenerated on preflight only, so the other typed refusals cost the day.
+  Both now call `server/services/reelEnqueueRefusals.briefEnqueueRefusals`.
+- **Proposed edit:** "Before a pre-check that predicts a later gate, list what the gate refuses and call the same code;
+  a parallel re-implementation drifts the day the gate gains a rule."
+- **Confidence:** high (2 sites, both reproduced)
+- **Status:** proposed

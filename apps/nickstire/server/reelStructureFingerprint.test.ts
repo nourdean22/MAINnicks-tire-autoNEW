@@ -60,7 +60,7 @@ describe("reel production-grammar fingerprint", () => {
   });
 
   it("wires the novelty verdict into a real approved-pack production brief", () => {
-    const brief = buildApprovedPackBriefForTest("2026-09-25-xl-means-extra-load");
+    const brief = buildApprovedPackBriefForTest("2026-08-17-pothole-damage");
     expect(brief).not.toBeNull();
     const novelty = brief?.productionGrammarNovelty as {
       similarity?: number;

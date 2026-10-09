@@ -193,7 +193,16 @@ export type PrimaryVariable =
   // `content_origin`.
   | "cover_origin"
   | "audio_style"
-  | "fb_format";
+  | "fb_format"
+  // Mission experiment #3 (docs/reels-engine-v2/06-EXPERIMENTS.md): the camera
+  // direction of a pack-built Reel. The one arm the pack lane can carry with no
+  // new content: the lens is picked when the pack is built, not authored.
+  | "visual_direction"
+  // Mission experiments #1 and #4: an arm is an operator-approved VARIANT of an
+  // approved pack (docs/reel-packs/<slug>/variants/<arm>/brief.json, listed in
+  // approvedReelPackRotation.APPROVED_PACK_VARIANTS). One variable for every
+  // variant experiment: a Reel is built from one brief, so only one can apply.
+  | "pack_variant";
 
 /** Everything recorded about one published episode, so a result can be traced
  *  back to every input that produced it. */
@@ -219,6 +228,8 @@ export interface ExperimentArm {
   coverOrigin?: string;
   audioStyle?: string;
   fbFormat?: string;
+  visualDirection?: string;
+  packVariant?: string;
 }
 
 export interface ExperimentDefinition {
@@ -257,7 +268,7 @@ export function findConfounds(def: ExperimentDefinition): string[] {
   const controlled: (keyof ExperimentArm)[] = [
     "franchiseId", "ctaType", "postingSlot", "contentOrigin", "provider", "model", "promptVersion",
     "hookStyle", "narrativeFormat", "lengthBand", "voiceMode",
-    "coverOrigin", "audioStyle", "fbFormat",
+    "coverOrigin", "audioStyle", "fbFormat", "visualDirection", "packVariant",
   ];
   // The field the experiment is legitimately varying is exempt. Every
   // PrimaryVariable must appear here, or its own arm field would be reported as
@@ -274,6 +285,8 @@ export function findConfounds(def: ExperimentDefinition): string[] {
     cover_origin: "coverOrigin",
     audio_style: "audioStyle",
     fb_format: "fbFormat",
+    visual_direction: "visualDirection",
+    pack_variant: "packVariant",
   };
   const exempt = varying[def.primaryVariable];
   const confounds: string[] = [];
@@ -621,8 +634,22 @@ export function horizonForSnapshot(publishedAt: Date, capturedAt: Date): 24 | 72
 export function assignArm(def: ExperimentDefinition, episodeKey: string): ExperimentArm {
   let h = 0;
   for (let i = 0; i < episodeKey.length; i++) h = (h * 31 + episodeKey.charCodeAt(i)) >>> 0;
-  return def.arms[h % def.arms.length];
+  if (!MIXED_HASH_VARIABLES.has(def.primaryVariable)) return def.arms[h % def.arms.length];
+  // For two arms the index above is just the parity of the key's character
+  // codes, so two 2-arm experiments over the same Reels would put arm 0 with arm
+  // 0 on every episode (measured: 120 of 120 daily keys) and each would measure
+  // the other. Salting inside the same polynomial does not help (still 120/120).
+  // A bit-mixed draw seeded on experiment + key is independent of the parity
+  // arm. Only for variables no running experiment used before, so no live
+  // assignment moves.
+  let seed = 0;
+  const salted = `${def.experimentId}::${episodeKey}`;
+  for (let i = 0; i < salted.length; i++) seed = (seed * 31 + salted.charCodeAt(i)) >>> 0;
+  return def.arms[Math.floor(mulberry32(seed)() * def.arms.length)];
 }
+
+/** Variables whose arms are drawn with the bit-mixed hash (see assignArm). */
+export const MIXED_HASH_VARIABLES: ReadonlySet<PrimaryVariable> = new Set<PrimaryVariable>(["pack_variant"]);
 
 // ─────────────────────────────────────────────────────────────────────────
 // PRESETS (README §R, Wave B). One place for every operator-startable
@@ -650,6 +677,8 @@ export const EXPERIMENT_PRESET_IDS = [
   "carousel_cover_v1",
   "audio_v1",
   "fb_format_v1",
+  "visual_direction_v1",
+  "opening_mechanism_v1",
 ] as const;
 export type ExperimentPresetId = typeof EXPERIMENT_PRESET_IDS[number];
 
@@ -669,6 +698,25 @@ export function isDurationLaneId(v: unknown): v is DurationLaneId {
   return typeof v === "string" && Object.prototype.hasOwnProperty.call(DURATION_LANES, v);
 }
 
+/**
+ * Lens families for visual_direction_v1. The arm's variantValue IS the family
+ * id, and the pack builder picks the Reel's lens from that family alone (still
+ * deterministic per brief). Both families are photographic, so the arms differ
+ * in direction, not in medium: the stylised lenses (claymation, neon, morph,
+ * surreal scale, miniature, personified parts, cutaway, blueprint, radar,
+ * warning-light world) are in neither arm, which keeps them out of the
+ * comparison instead of letting one arm draw them.
+ */
+export const VISUAL_DIRECTION_LENSES = {
+  documentary: ["extreme_macro_push_in", "forensic_evidence_scan"],
+  cinematic: ["hyperreal_cinematic", "product_ad_macro"],
+} as const;
+export type VisualDirectionId = keyof typeof VISUAL_DIRECTION_LENSES;
+
+export function isVisualDirectionId(v: unknown): v is VisualDirectionId {
+  return typeof v === "string" && Object.prototype.hasOwnProperty.call(VISUAL_DIRECTION_LENSES, v);
+}
+
 export interface ExperimentPreset extends ExperimentDefinition {
   preset: ExperimentPresetId;
   hypothesis: string;
@@ -676,6 +724,15 @@ export interface ExperimentPreset extends ExperimentDefinition {
   metricNote: string;
   /** WIRED: the arm changes generation. EXPOSED: recorded + resolvable, not yet read by any generator. */
   wiring: "wired" | "exposed";
+  /**
+   * Which Reels the arm can reach, so enqueue records only those (2026-10-08).
+   * A brief-writing arm (hook, duration) never reaches a pack Reel, whose brief
+   * is used verbatim; a pack-build arm (camera direction) never reaches an
+   * AI-written brief, which picks its own lens. Two wired experiments that
+   * reach the SAME Reels must have coprime arm counts (assignArm hashes every
+   * episode key the same way); two that reach disjoint Reels cannot correlate.
+   */
+  reaches: "ai_written_briefs" | "pack_reels" | "none";
 }
 
 export function buildExperimentPreset(preset: ExperimentPresetId, startedAt: string = new Date().toISOString()): ExperimentPreset {
@@ -695,6 +752,7 @@ export function buildExperimentPreset(preset: ExperimentPresetId, startedAt: str
         hypothesis: "A direct opener (no warm-up) beats the baseline on sends/reach.",
         metricNote: "shares_per_reach resolves to the `shares` snapshot column.",
         wiring: "wired",
+        reaches: "ai_written_briefs",
       };
     case "duration_v1":
       return {
@@ -720,6 +778,7 @@ export function buildExperimentPreset(preset: ExperimentPresetId, startedAt: str
         metricNote: "sends/reach (shares_per_reach), kept for the experiment already defined on it. 3-s skip is gatherable since 2026-10-08 (use it in a v2); watch/duration is not. " +
           "Under REEL_OUTPUT_RULES (35 s storyboard ceiling, 6 beats x 4 s = 24 s render cap) the 30-40 s and 45-60 s arms both clamp to a 30-35 s declared target — raise the ceiling and the clip cap before reading those two arms apart.",
         wiring: "wired",
+        reaches: "ai_written_briefs",
       };
     case "opening_asset_v1":
       return {
@@ -739,6 +798,7 @@ export function buildExperimentPreset(preset: ExperimentPresetId, startedAt: str
         hypothesis: "A real-shop opening frame beats an AI opening frame on 3-s survival.",
         metricNote: "skip_rate (lower wins) is the 3-s survival reading. Non-follower reach is not stored.",
         wiring: "exposed",
+        reaches: "none",
       };
     case "carousel_cover_v1":
       return {
@@ -755,6 +815,7 @@ export function buildExperimentPreset(preset: ExperimentPresetId, startedAt: str
         hypothesis: "A carousel with a real cover photo earns more saves/reach than the deterministic cover.",
         metricNote: "saves_per_reach resolves to the `saved` snapshot column.",
         wiring: "exposed",
+        reaches: "none",
       };
     case "audio_v1":
       return {
@@ -771,6 +832,41 @@ export function buildExperimentPreset(preset: ExperimentPresetId, startedAt: str
         hypothesis: "Foley + VO beats music-bed + VO on completion.",
         metricNote: "avg_watch_time (reach-weighted) stands in for completion; replays are not stored.",
         wiring: "exposed",
+        reaches: "none",
+      };
+    case "visual_direction_v1":
+      return {
+        preset,
+        experimentId: "visual-direction-v1",
+        primaryVariable: "visual_direction",
+        objective: "discovery",
+        primaryMetric: "avg_watch_time",
+        arms: [
+          { armId: "direction-documentary", variantValue: "documentary", visualDirection: "documentary" },
+          { armId: "direction-cinematic", variantValue: "cinematic", visualDirection: "cinematic" },
+        ],
+        startedAt,
+        hypothesis: "A documentary camera (macro push-in, forensic scan) holds watch time better than a cinematic one (film look, product-ad lighting) on the same approved packs.",
+        metricNote: "avg_watch_time (reach-weighted). Pack Reels only: the arm sets the lens when an approved pack is built, so an AI-written brief is never recorded in it.",
+        wiring: "wired",
+        reaches: "pack_reels",
+      };
+    case "opening_mechanism_v1":
+      return {
+        preset,
+        experimentId: "opening-mechanism-v1",
+        primaryVariable: "pack_variant",
+        objective: "discovery",
+        primaryMetric: "shares_per_reach",
+        arms: [
+          { armId: "open-reveal", variantValue: "reveal", packVariant: "reveal" },
+          { armId: "open-question", variantValue: "question", packVariant: "question" },
+        ],
+        startedAt,
+        hypothesis: "A Reel that opens on the visual reveal earns more sends per reach than the same pack opening on the driver's question.",
+        metricNote: "shares_per_reach (the 06-EXPERIMENTS spec); skip_rate is the secondary read for an opening. Each arm is an approved variant of an unpublished pack (APPROVED_PACK_VARIANTS); a pack joins only when BOTH arms are approved and build, and a Reel is recorded only when its arm's variant was the one built.",
+        wiring: "wired",
+        reaches: "pack_reels",
       };
     case "fb_format_v1":
       return {
@@ -787,6 +883,7 @@ export function buildExperimentPreset(preset: ExperimentPresetId, startedAt: str
         hypothesis: "An FB album (4-6 photos) beats a cross-posted image on local reach and comments.",
         metricNote: "reach (raw total). Comments are not a gatherable snapshot metric for the resolver.",
         wiring: "exposed",
+        reaches: "none",
       };
   }
 }

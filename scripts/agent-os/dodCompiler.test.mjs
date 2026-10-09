@@ -266,3 +266,47 @@ test("FAILS-ON-OLD: a --base starting with '-' is refused, never handed to git a
   assert.equal(r.status, 2, r.out);
   assert.match(r.out, /--base must be a git revision/);
 });
+
+// ── A diff-satisfied pass never prints another PR's evidence (2026-10-08) ──────
+// `capability-ledger-updated` passes when the ledger JSON is in the diff. The
+// printed evidence used to be whatever the legacy manifest held, so a PR showed
+// an unrelated earlier PR's ref beside its own pass.
+const SERVICE = "apps/nickstire/server/services/someService.ts";
+const LEDGER = "apps/nickstire/docs/operations/capability-ledger.json";
+const LEGACY_LEDGER = { ref: "ledger evidence written for an EARLIER PR" };
+const withLegacyLedger = {
+  ".completion/evidence.json": { evidence: { "cron-fail-closed": LEGACY_CRON, "capability-ledger-updated": LEGACY_LEDGER } },
+  [LEDGER]: { capabilities: [] },
+};
+
+test("FAILS-ON-OLD: ledger in the diff, legacy entry untouched -> GREEN, prints '(satisfied by diff)', never the earlier PR's text", (t) => {
+  const dir = scratch(t, { baseFiles: withLegacyLedger });
+  write(dir, SERVICE, "export {};\n");
+  write(dir, LEDGER, { capabilities: [{ capabilityId: "x" }] });
+  commit(dir);
+  const r = run(dir);
+  assert.equal(r.status, 0, r.out);
+  const l = line(r.out, "capability-ledger-updated");
+  assert.match(l, /PASSED — \(satisfied by diff\)/);
+  assert.doesNotMatch(l, /EARLIER PR/);
+});
+
+test("PINS: ledger in the diff AND the legacy entry rewritten by this branch -> GREEN, prints this branch's text", (t) => {
+  const dir = scratch(t, { baseFiles: withLegacyLedger });
+  write(dir, SERVICE, "export {};\n");
+  write(dir, LEDGER, { capabilities: [{ capabilityId: "x" }] });
+  write(dir, ".completion/evidence.json", { evidence: { "cron-fail-closed": LEGACY_CRON, "capability-ledger-updated": { ref: "ledger rows for THIS change" } } });
+  commit(dir);
+  const r = run(dir);
+  assert.equal(r.status, 0, r.out);
+  assert.match(line(r.out, "capability-ledger-updated"), /PASSED — ledger rows for THIS change/);
+});
+
+test("PINS (control: the pass/fail rule is unchanged): service touched, ledger NOT in the diff, legacy entry untouched -> RED, STALE", (t) => {
+  const dir = scratch(t, { baseFiles: withLegacyLedger });
+  write(dir, SERVICE, "export {};\n");
+  commit(dir);
+  const r = run(dir);
+  assert.equal(r.status, 1, r.out);
+  assert.match(line(r.out, "capability-ledger-updated"), /STALE/);
+});

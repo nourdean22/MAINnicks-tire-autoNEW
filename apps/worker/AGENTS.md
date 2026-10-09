@@ -20,8 +20,8 @@ Cross-cutting repo rules (branching, worktrees, Windows, verify gates): root
 
 ## What this service actually is
 
-An Express 4 + node-cron process on Railway's internal network. **Three source files** —
-`src/index.ts`, `src/scheduler.ts`, `src/storage.ts`. It does two things:
+An Express 4 + node-cron process on Railway's internal network. **Four source files** —
+`src/index.ts`, `src/scheduler.ts`, `src/storage.ts`, `src/renderPlan.ts`. It does two things:
 
 1. **Forwards the four worker-owned cron ticks** to statenour-web. It holds no business logic for
    those jobs: each tick is an authenticated `GET ${STATENOUR_WEB_URL}/api/cron/<name>` with a
@@ -31,12 +31,18 @@ An Express 4 + node-cron process on Railway's internal network. **Three source f
    **There are no worker `POST /cron/mega*` entry points anymore.** Q-36 removed them after live
    Railway inspection on 2026-09-29 showed zero Railway cron services/jobs in the project and no
    cron schedule on the worker itself. Daily/weekly mega ownership lives in StateNour/Inngest.
-2. **Renders approved videos in-process — every 15 minutes** (`RENDER_SCHEDULE`, `scheduler.ts:179`;
-   cron registered at `:423`, tick at `:426`):
-   polls `/api/sync/queue/render` for approved drafts, renders MP4 locally via `renderReelVideo`
-   from `@nour/reel-engine` (Remotion), uploads through `storage.ts` (S3 + CloudFront URL or 24h
-   presigned GET; local-fs fallback to `data/generated/` when `S3_BUCKET` is unset), then POSTs
-   `/api/sync/queue/render-complete`. On failure the item reverts to `approved`.
+2. **Renders approved videos in-process — every 15 minutes** (`RENDER_SCHEDULE`, `scheduler.ts:189`;
+   cron registered at `:422`, tick at `:426`):
+   polls `/api/sync/queue/render` for approved drafts, picks the template with `planRender`
+   (`renderPlan.ts`: a customer-review video only from a declared review with a name, a 1-5 rating
+   and the text; an alert as before; anything else is refused before rendering), renders MP4 locally
+   via `renderReelVideo` from `@nour/reel-engine` (Remotion), uploads through `storage.ts` (S3 +
+   CloudFront URL or 24h presigned GET; local-fs fallback to `data/generated/` when `S3_BUCKET` is
+   unset), then POSTs `/api/sync/queue/render-complete`. **A failed or refused render is recovered
+   by the render lease, not by the worker:** its "reset to approved" POST is refused (409) because
+   `approveDraft` will not touch a row in `rendering`, so the row is re-claimed when its 30-minute
+   lease expires and rejected after `MAX_RENDER_ATTEMPTS` (3) claims
+   (`apps/statenour/app/api/sync/queue/render/route.ts`).
 
    > **Cadence changed 2026-08-19 (#1696, `d8675b42b`)** from `*/2` to `*/15` — *"stop the 2-min
    > render poll pinning Neon awake."* A queued reel now waits up to ~13 minutes longer to start.
@@ -71,13 +77,13 @@ This section is canonical: if you change the env contract, change it here first,
   authority that checks derived state turns a blip into a restart storm. Scheduler freshness rides
   in the BODY as diagnostics only.
 - **`GET /health/scheduler` is the freshness signal** — 503 when the newest tick is older than
-  `SCHEDULER_STALE_MS`. **Derived, never a literal**: `deriveStaleWindowMs()` (`scheduler.ts:109`,
-  input `TICK_WRITING_SCHEDULES` `:185`) takes the fastest schedule that writes `lastTickAt` and
+  `SCHEDULER_STALE_MS`. **Derived, never a literal**: `deriveStaleWindowMs()` (`scheduler.ts:110`,
+  input `TICK_WRITING_SCHEDULES` `:195`) takes the fastest schedule that writes `lastTickAt` and
   allows two missed fires plus 5 min jitter — today `*/15` -> **35 min**. Change a cron and the
   window follows. **Never point `healthcheckPath` at this endpoint.** Safe to alert on; nothing
   restarts on it.
 - **Graceful drain on SIGTERM/SIGINT** — `drainInFlight(30_000)` bounded, `35_000` hard exit
-  (`index.ts:209`, `:205`, handlers at `:216-217`). Keep it, or a deploy can kill a render mid-write.
+  (`index.ts:170`, `:166`, handlers at `:177-178`). Keep it, or a deploy can kill a render mid-write.
 - `STATENOUR_SYNC_KEY` must match across statenour-web, nickstire and worker — a drift shows up as
   bridge 401s.
 

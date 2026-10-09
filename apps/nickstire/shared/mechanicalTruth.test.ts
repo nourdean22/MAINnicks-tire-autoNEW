@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
-import { buildTruthPacketFragment, mechanicalTruthViolations } from "./mechanicalTruth";
+import { TRUTH_TOPICS, buildTruthPacketFragment, mechanicalTruthViolations } from "./mechanicalTruth";
 import { condemnedContentProblem } from "./reelClaimAudit";
 
 /** One unsafe sentence per prohibited claim — every pattern must fire on something. */
@@ -16,6 +16,12 @@ const UNSAFE: Record<string, string> = {
   vibration_single_certain_cause: "That shake at 60 is definitely wheel balance.",
   pothole_certain_damage: "Hit a pothole? It will always bend your rim.",
   pothole_no_feel_no_damage: "If you don't feel anything after the hit, you're fine.",
+  grinding_is_normal: "A little grinding when you stop is normal on older cars.",
+  visible_pad_means_brakes_fine: "If the pad looks thick through the wheel, your brakes are fine.",
+  clear_codes_to_pass: "Just clear the codes the night before and you'll pass E-Check.",
+  light_off_means_ready: "Check engine light is off, so you're ready for E-Check.",
+  no_start_single_certain_cause: "If it clicks but won't crank, it's definitely the starter.",
+  lights_work_battery_fine: "If the headlights come on, the battery is fine.",
 };
 
 /** Correct statements already in the repo's own content — none may be blocked. */
@@ -28,6 +34,34 @@ const SAFE = [
   "uneven tread wear on a sedan almost always means alignment",
   "vibration is almost always related to tire balance",
   "A hard pothole hit can damage a wheel even when you feel nothing.",
+  "Grinding isn't normal. Grinding can't wait: it can mean metal on metal.",
+  "Grinding is not normal, so have the brakes checked.",
+  "The outer pad looked fine. The inner pad was gone.",
+  "If the outer pad looks fine, check the inner one before you call the brakes good.",
+  "Clearing the codes won't get you through E-Check: the monitors reset to not ready.",
+  "Disconnecting the battery to pass E-Check backfires.",
+  "The light is off, but that doesn't mean the monitors are ready.",
+  "A click with no crank is almost always the battery or a connection, but test it.",
+  "The lights can still work on a battery too weak to crank.",
+  // Myth-busting lines that deny the claim (review 2026-10-08: each was refused
+  // by the first draft of the brake, E-Check and no-start patterns).
+  "Car just clicks when you turn the key? That's not always a dead battery. A starting and charging test tells you which part it is.",
+  "Click, no crank? Not always the starter.",
+  "If the outer pad looks good, that doesn't mean your brakes are fine.",
+  "Since the radio works, don't assume the battery is fine.",
+  "Clearing codes doesn't mean it passes the inspection.",
+];
+
+/** A softener in front of the claim is still the claim (review 2026-10-08: each one passed the first draft). */
+const HEDGED_UNSAFE: Array<[string, string]> = [
+  ["grinding_is_normal", "A little grinding is perfectly normal."],
+  ["grinding_is_normal", "Grinding is totally normal on older cars."],
+  ["grinding_is_normal", "That grinding is usually harmless."],
+  ["grinding_is_normal", "Brake grinding can usually wait."],
+  ["visible_pad_means_brakes_fine", "If the outer pad looks thick, your brakes are probably fine."],
+  ["clear_codes_to_pass", "Clear the codes and you'll probably pass E-Check."],
+  ["light_off_means_ready", "Check engine light is off, so you're probably ready for E-Check."],
+  ["lights_work_battery_fine", "If the headlights come on, the battery is probably fine."],
 ];
 
 describe("mechanical truth packets", () => {
@@ -47,6 +81,20 @@ describe("mechanical truth packets", () => {
     for (const s of SAFE) expect(mechanicalTruthViolations(s), s).toEqual([]);
   });
 
+  it("no packet's own facts or reasons trip a pattern (the generator is told them verbatim)", () => {
+    const fragment = buildTruthPacketFragment();
+    expect(fragment.split("\n").length).toBe(TRUTH_TOPICS.length + 1);
+    // Sentence by sentence, then whole lines as the prompt carries them.
+    const sentences = fragment.split("\n").slice(1).flatMap((line) => line.replace(/^- [a-z ]+: /, "").split(/(?<=[.!?])\s+|Never imply: /));
+    expect(sentences.length).toBeGreaterThan(30);
+    for (const s of sentences) expect(mechanicalTruthViolations(s), s).toEqual([]);
+    for (const line of fragment.split("\n")) expect(mechanicalTruthViolations(line), line.slice(0, 60)).toEqual([]);
+  });
+
+  it("a hedge in front of the claim does not get it past the packet", () => {
+    for (const [id, sentence] of HEDGED_UNSAFE) expect(mechanicalTruthViolations(sentence).map((v) => v.id), sentence).toContain(id);
+  });
+
   it("no approved reel pack, concept, blog or guide in the repo trips a packet", () => {
     const files = execSync(
       "git ls-files docs/reel-packs shared/absurdityConcepts.ts shared/blog.ts shared/guides.ts shared/seo-pages.ts shared/tireSizeContent.ts server/cron/jobs/dailyReelPost.ts",
@@ -63,7 +111,10 @@ describe("mechanical truth packets", () => {
 
   it("no packet claims a technician sign-off it does not have", () => {
     const src = readFileSync(new URL("./mechanicalTruth.ts", import.meta.url), "utf8");
-    expect([...src.matchAll(/technicianApproval: ([^,\n]+),/g)].map((m) => m[1])).toEqual(Array(5).fill("null"));
+    // One approval line per packet, every one null: counted against TRUTH_TOPICS
+    // so a new packet cannot ship without its line being read here.
+    expect([...src.matchAll(/technicianApproval: ([^,\n]+),/g)].map((m) => m[1])).toEqual(Array(TRUTH_TOPICS.length).fill("null"));
+    expect(TRUTH_TOPICS.length).toBe(8);
   });
 
   it("the generator is told the packets before it writes (reelBriefGen system prompt)", () => {
@@ -81,6 +132,7 @@ describe("wired into the reel publish door", () => {
   it("condemnedContentProblem refuses a script teaching an unsafe shortcut, from voiceover or on-screen text", () => {
     expect(condemnedContentProblem({ voiceover: "Good news: a plug is a permanent fix.", onScreenText: "" })).toMatch(/puncture repair truth packet/);
     expect(condemnedContentProblem({ voiceover: "", onScreenText: "4/32 is the legal minimum" })).toMatch(/tread depth truth packet/);
+    expect(condemnedContentProblem({ voiceover: "Clear the codes and you'll pass E-Check.", onScreenText: "" })).toMatch(/echeck readiness truth packet/);
   });
   it("a correct script still passes the door", () => {
     expect(condemnedContentProblem({ voiceover: SAFE[0], onScreenText: "Tread nail: often fixable" })).toBeNull();

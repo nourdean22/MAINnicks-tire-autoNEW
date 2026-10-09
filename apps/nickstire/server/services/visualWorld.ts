@@ -19,6 +19,7 @@ import {
   LENS_PALETTES,
   BRAND_ACCENT_RULE,
   OBJECT_CHARACTERS,
+  heroPersona,
   VISUAL_WORLD_STYLES,
   type ReelBrief,
   type ReelVisualWorld,
@@ -44,11 +45,12 @@ export type VisualWorldBriefInput = Pick<
 /** Deterministic 9:16 reference-frame prompt per style. */
 export function buildReferenceFramePrompt(brief: VisualWorldBriefInput, style: VisualWorldStyle): string {
   const character = OBJECT_CHARACTERS[brief.objectCharacter];
+  const persona = heroPersona(brief.objectCharacter);
   const lens = MOTION_LENSES[brief.motionLens];
   const heroAnchor = brief.storyboardBeats[0]?.visual.trim() || character.essence;
   return [
     `Single 9:16 vertical hero frame establishing the visual world of a short automotive film.`,
-    `Hero subject: ${character.label} — ${character.essence} Established as: ${heroAnchor}`,
+    persona ? `Hero subject: ${persona.label} — ${persona.essence} Established as: ${heroAnchor}` : `Hero subject: ${heroAnchor}`,
     `Visual grammar: ${lens.grammar}`,
     `Style: ${STYLE_DIRECTIVES[style]}`,
     // THE PALETTE COMES FROM THE LENS, not from one house look.
@@ -83,7 +85,7 @@ export function buildReferenceFramePrompt(brief: VisualWorldBriefInput, style: V
  *  Compiled from the EXACT prompt that produced the approved frame, so the
  *  lock describes what the operator actually saw and chose. */
 export function compileLockedInvariants(brief: VisualWorldBriefInput, style: VisualWorldStyle, framePrompt: string): string {
-  const character = OBJECT_CHARACTERS[brief.objectCharacter];
+  const persona = heroPersona(brief.objectCharacter);
   return [
     `VISUAL WORLD (operator-approved reference frame — match it EXACTLY in every shot):`,
     `The approved hero frame was generated from: "${framePrompt}"`,
@@ -97,7 +99,7 @@ export function compileLockedInvariants(brief: VisualWorldBriefInput, style: Vis
     // describe an old frame as something it is not, while hardcoding the old
     // one contradicts every new frame. Pointing at the quoted prompt is correct
     // for both, and cannot drift again.
-    `Every shot shows the SAME ${character.label.toLowerCase()} — same geometry, same surface/tread pattern, same damage in the same location, same environment, same lighting direction, same ${style} styling, and the SAME palette and colour grade as the approved frame prompt quoted above.`,
+    `Every shot shows the SAME ${persona ? persona.label.toLowerCase() : "hero subject"} — same geometry, same surface/tread pattern, same damage in the same location, same environment, same lighting direction, same ${style} styling, and the SAME palette and colour grade as the approved frame prompt quoted above.`,
     `Never introduce a different vehicle, wheel design, environment, weather, or color grade between shots.`,
   ].join("\n");
 }

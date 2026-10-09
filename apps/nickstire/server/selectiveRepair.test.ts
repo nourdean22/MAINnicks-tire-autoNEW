@@ -129,19 +129,24 @@ describe("requestBeatRepair (P1: nothing renders on the request path; P2: stale 
     expect(payload.repairQueue[0]).toMatchObject({ beatNumber: 2, state: "queued", attempts: [] });
   });
 
-  it("refuses a beat declared REAL or DETERMINISTIC before any spend check or write; an undeclared beat still queues", async () => {
+  it("refuses a beat declared REAL or DETERMINISTIC, or naming no object, before any spend check or write; an undeclared beat still queues", async () => {
     const declared = (visual: string) => {
       const p = JSON.parse(baseJob().payload as string);
       p.storyboardBeats[1] = { ...p.storyboardBeats[1], visual };
       return baseJob({ payload: JSON.stringify(p) });
     };
-    for (const [visual, word] of [["REAL: the gauge in the inner tread", "real"], ["DETERMINISTIC card: the repair zones", "deterministic"]] as const) {
+    for (const [visual, why] of [
+      ["REAL: the gauge in the inner tread", "is declared real"],
+      ["DETERMINISTIC card: the repair zones", "is declared deterministic"],
+      // 2026-10-08 import template: names no object, so a second paid clip shows the topic no better.
+      ["Extreme macro of the physical subject under clean shop inspection light", "names no object (a placeholder visual)"],
+    ] as const) {
       const { db, updates, inserts } = repairDb(declared(visual));
       vi.doMock("./db", () => ({ getDb: vi.fn().mockResolvedValue(db) }));
       vi.doMock("./services/higgsfieldStudio", () => ({ generateReelClipVideo: vi.fn() }));
       vi.resetModules();
       const { requestBeatRepair } = await import("./services/selectiveRepair");
-      await expect(requestBeatRepair({ jobId: 7, beatNumber: 2 })).rejects.toThrow(`beat 2 of job 7 is declared ${word} — a provider never regenerates it`);
+      await expect(requestBeatRepair({ jobId: 7, beatNumber: 2 })).rejects.toThrow(`beat 2 of job 7 ${why} — a provider never regenerates it`);
       expect(updates).toEqual([]);
       expect(inserts).toEqual([]);
       vi.doUnmock("./db");

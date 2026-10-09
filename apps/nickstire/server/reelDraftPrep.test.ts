@@ -53,6 +53,24 @@ describe("prepareCleanReelBrief", () => {
     expect(res.brief.higgsfieldPromptPack).toBeTruthy();
   });
 
+  it("regenerates past a brief that passes preflight but enqueue would refuse (placeholder beat, unsafe claim)", async () => {
+    // Review 2026-10-08: these are typed refusals at enqueue, so a brief that
+    // reached enqueue with one cost the miner lane its day instead of a retry.
+    const placeholder = cleanBrief();
+    placeholder.storyboardBeats[1].visual = "Close inspection of the relevant components under clean shop light";
+    const unsafe = cleanBrief();
+    unsafe.voiceoverScript = "Clear the codes and you'll pass E-Check.";
+    genMock
+      .mockResolvedValueOnce({ brief: placeholder, rawModel: "m" })
+      .mockResolvedValueOnce({ brief: unsafe, rawModel: "m" })
+      .mockResolvedValueOnce({ brief: cleanBrief(), rawModel: "m" });
+    const res = await prepareCleanReelBrief({ topic: "t" }, { maxAttempts: 3 });
+    expect(res.attempts).toBe(3);
+    expect(res.rejectedForPreflight[0].join(" ")).toMatch(/ungeneratable beats: 2:needs_subject/);
+    expect(res.rejectedForPreflight[1].join(" ")).toMatch(/condemned script: .*echeck readiness truth packet/);
+    expect(attachMock).toHaveBeenCalledTimes(1);
+  });
+
   it("does not attach the visual world (no credit spend) for rejected briefs", async () => {
     genMock.mockResolvedValueOnce({ brief: blockingBrief(), rawModel: "m" }).mockResolvedValueOnce({ brief: cleanBrief(), rawModel: "m" });
     await prepareCleanReelBrief({ topic: "t" }, { maxAttempts: 3 });

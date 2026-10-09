@@ -59,6 +59,81 @@ describe("the refusal is typed, so the caller can tell it from an outage", () =>
   });
 });
 
+describe("every content verdict inside enqueueReelJob is typed (2026-10-08)", () => {
+  // The catch above advances the rotation only for ReelPreflightBlockedError.
+  // Four content refusals in enqueueReelJob threw a bare Error — the condemned
+  // script, the declared-source / no-subject hold, the episode contract and the
+  // over-long caption — so an approved pack refused by any of them would have
+  // failed the cron every production hour without moving the cursor. Only an
+  // infrastructure fault may throw a bare Error here.
+  const INFRA_ONLY = ['"DB not available"', '"REEL_EPISODE_CONTRACT_INVALID: '];
+  const bareThrows = (src: string): string[] => {
+    const a = src.indexOf("export async function enqueueReelJob");
+    const b = src.indexOf("\nexport async function processNextReelJob", a);
+    expect(a, "enqueueReelJob not found").toBeGreaterThan(-1);
+    expect(b, "enqueueReelJob end not found").toBeGreaterThan(a);
+    const body = src.slice(a, b);
+    return [...body.matchAll(/throw new Error\(\s*([^\n]{0,60})/g)].map((m) => m[1]);
+  };
+  const isInfra = (arg: string) => INFRA_ONLY.some((p) => arg.startsWith(p));
+
+  it("only infrastructure faults throw a bare Error", () => {
+    const bare = bareThrows(PIPELINE);
+    expect(bare.length, "the scan found no throw at all — anchor moved").toBeGreaterThan(0);
+    expect(bare.filter((arg) => !isInfra(arg))).toEqual([]);
+    for (const reason of ["REEL_SCRIPT_CONDEMNED", "generationHoldReason(blocked, \"enqueue\")", "Episode contract blocked", "over Instagram's"]) {
+      expect(PIPELINE, reason).toContain(reason);
+    }
+  });
+
+  // DRIFT ALARM (2026-10-09): the miner's brief loop and pack-variant
+  // eligibility predict these refusals with reelEnqueueRefusals.
+  // briefEnqueueRefusals. A new typed refusal here that it does not mirror
+  // would cost the miner its day and let one variant arm decide which packs air.
+  const typedRefusals = (src: string): string[] => {
+    const a = src.indexOf("export async function enqueueReelJob");
+    const b = src.indexOf("\nexport async function processNextReelJob", a);
+    expect(a, "enqueueReelJob not found").toBeGreaterThan(-1);
+    expect(b, "enqueueReelJob end not found").toBeGreaterThan(a);
+    return [...src.slice(a, b).matchAll(/throw new ReelPreflightBlockedError\(\s*([^\n]{0,40})/g)].map((m) => m[1].trim());
+  };
+  // The first 40 characters of each throw's argument.
+  const MIRRORED = [
+    "pre.blocking.map((f) => f.message));", // runReelPreflight
+    "[`REEL_SCRIPT_CONDEMNED: ${condemned}`])", // condemnedContentProblem
+    "[generationHoldReason(blocked, \"enqueue\"", // beatsTheGeneratorMustNotRender
+    "[", // the caption limit (its message starts on the next line)
+  ];
+  const NEEDS_CONTEXT = ["[`Episode contract blocked (${pre.blocks"]; // needs the day's claim packet
+
+  it("every typed refusal in enqueueReelJob is mirrored by briefEnqueueRefusals or named as needing the day's context", () => {
+    const found = typedRefusals(PIPELINE);
+    expect(found.length, "the scan found no typed refusal — anchor moved").toBeGreaterThan(0);
+    expect([...found].sort(), "a new typed refusal: add it to server/services/reelEnqueueRefusals.ts, or to NEEDS_CONTEXT with why").toEqual([...MIRRORED, ...NEEDS_CONTEXT].sort());
+    const helper = readFileSync(path.join(__dirname, "services", "reelEnqueueRefusals.ts"), "utf8");
+    for (const call of ["runReelPreflight(", "condemnedContentProblem(", "beatsTheGeneratorMustNotRender(", "CAPTION_LIMIT", "HASHTAG_CAP"]) expect(helper, call).toContain(call);
+  });
+
+  it("CONTROL: a new typed refusal the helper does not know about is reported", () => {
+    const planted = PIPELINE.replace(
+      "throw new ReelPreflightBlockedError([`REEL_SCRIPT_CONDEMNED: ${condemned}`]);",
+      "throw new ReelPreflightBlockedError([`REEL_SCRIPT_CONDEMNED: ${condemned}`]);\n    throw new ReelPreflightBlockedError([`NEW_RULE`]);",
+    );
+    expect(planted).not.toBe(PIPELINE);
+    expect(typedRefusals(planted)).toContain("[`NEW_RULE`]);");
+    expect([...typedRefusals(planted)].sort()).not.toEqual([...MIRRORED, ...NEEDS_CONTEXT].sort());
+  });
+
+  it("CONTROL: a content refusal written as a bare Error is caught by the scan", () => {
+    const planted = PIPELINE.replace(
+      "throw new ReelPreflightBlockedError([generationHoldReason(blocked, \"enqueue\")]);",
+      "throw new Error(generationHoldReason(blocked, \"enqueue\"));",
+    );
+    expect(planted).not.toBe(PIPELINE);
+    expect(bareThrows(planted).filter((arg) => !isInfra(arg))).toEqual(['generationHoldReason(blocked, "enqueue"));']);
+  });
+});
+
 describe("an approved pack refused at enqueue advances the rotation", () => {
   it("catches the refusal and moves the cursor past that pack", () => {
     const b = enqueueBlock();

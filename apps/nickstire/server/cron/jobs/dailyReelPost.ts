@@ -40,6 +40,7 @@ import {
   ACTIVE_REEL_SLATE_CURSOR_KEY,
   APPROVED_REEL_PACKS,
   advanceRotationPastRefusedPack,
+  approvedVariantSnapshot,
   buildBriefFromApprovedProductionPack,
   loadApprovedProductionPack,
   readActiveReelSlate,
@@ -762,10 +763,30 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     if (approvedPack) {
       // An approved pack is already production input. Do not reduce it to a
       // topic and ask a fresh model to replace the reviewed beats/caption.
-      const snapshot = loadApprovedProductionPack(approvedPack.slug);
-      const packBrief = snapshot
-        ? buildBriefFromApprovedProductionPack(approvedPack, snapshot, briefId)
+      const baseSnapshot = loadApprovedProductionPack(approvedPack.slug);
+      // Pack-build experiments (06-EXPERIMENTS): visual_direction_v1 picks the
+      // lens family, a pack_variant experiment (#1/#4) builds an approved variant.
+      // Both are resolved here, before the build, on the episode key enqueue
+      // records with; undefined (the default, or an unreadable store) builds the
+      // base pack with the full lens pick. The arms actually applied are stamped
+      // on the brief, and enqueue records only those (recorded must equal built).
+      const { visualDirectionForEpisode, packVariantForEpisode } = await import("../../services/contentExperimentStore");
+      const visual = baseSnapshot ? await visualDirectionForEpisode(briefId) : undefined;
+      const variantArm = baseSnapshot ? await packVariantForEpisode(briefId) : undefined;
+      const variantSnapshot = variantArm
+        ? approvedVariantSnapshot(variantArm.applied.experimentId, approvedPack.slug, variantArm.applied.armId, variantArm.armIds)
         : null;
+      const snapshot = variantSnapshot ?? baseSnapshot;
+      const packBrief = snapshot
+        ? buildBriefFromApprovedProductionPack(approvedPack, snapshot, briefId, false, visual?.direction)
+        : null;
+      if (packBrief) {
+        const appliedPackArms = [
+          ...(visual ? [visual.applied] : []),
+          ...(variantSnapshot && variantArm ? [variantArm.applied] : []),
+        ];
+        if (appliedPackArms.length) (packBrief as { appliedPackArms?: typeof appliedPackArms }).appliedPackArms = appliedPackArms;
+      }
       if (!snapshot || !packBrief) {
         return {
           recordsProcessed: 0,
@@ -918,9 +939,11 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       const { ReelPreflightBlockedError } = await import("../../services/reelPipeline");
       if (!(err instanceof ReelPreflightBlockedError)) throw err;
       if (!approvedPack) {
-        // Miner lane: prepareCleanReelBrief already regenerates on a block, so
-        // reaching here means the attempt loop is exhausted. No cursor to move.
-        log.warn("daily reel: mined brief refused at enqueue preflight", { briefId, blocking: err.blocking });
+        // Miner lane: prepareCleanReelBrief regenerates on every refusal enqueue
+        // can make from the brief alone (reelEnqueueRefusals), so reaching here
+        // is a check it cannot run first (the episode contract's claim checks).
+        // No cursor to move; logged as an error so a lost day is not a quiet skip.
+        log.error("daily reel: mined brief refused at enqueue preflight", { briefId, blocking: err.blocking });
         return { recordsProcessed: 0, details: `skipped — enqueue preflight blocked: ${err.message}` };
       }
       await advanceRotationPastRefusedPack({

@@ -58,6 +58,7 @@ vi.mock("../services/contentExperimentStore", async (importOriginal) => {
 });
 
 import { assignEpisodeToActiveExperiment } from "../services/contentExperimentStore";
+import { assignArm } from "../../shared/contentExperiments";
 import { contentAdminRouter } from "../routers/content";
 
 const row = (experimentId: string, primaryVariable: string, startedAt: string, arms = 2) => ({
@@ -102,6 +103,24 @@ describe("assignEpisodeToActiveExperiment — what generation applies is what is
     const written = await assignEpisodeToActiveExperiment(9, { briefId: "studio-2026-10-09" });
     expect(written.map((o) => o.experimentId)).toEqual(["hook-style-direct-v1", "duration-lane-v1"]);
   });
+
+  it("a pack-build arm is recorded ONLY for a pack Reel built with the arm its key draws", async () => {
+    state.running = [row("visual-direction-v1", "visual_direction", "2026-10-08")];
+    const def = { experimentId: "visual-direction-v1", primaryVariable: "visual_direction" as const, objective: "discovery" as const, primaryMetric: "shares_per_reach", arms: state.running[0].armsJson as Array<{ armId: string; variantValue: string }>, startedAt: "" };
+    const key = "daily-2026-10-10";
+    const drawn = assignArm(def, key).armId;
+    const other = def.arms.find((a) => a.armId !== drawn)!.armId;
+    const pack = { briefId: key, approvedPackSlug: "2026-08-17-pothole-damage" };
+    // Built with the drawn arm: recorded.
+    expect((await assignEpisodeToActiveExperiment(10, { ...pack, appliedPackArms: [{ experimentId: "visual-direction-v1", armId: drawn }] })).map((o) => o.armId)).toEqual([drawn]);
+    expect(state.inserts.map((i) => i.episodeKey)).toEqual([key]);
+    // A regenerate re-keys the brief, a seeded pack carries no arm: the key alone files nothing.
+    expect(await assignEpisodeToActiveExperiment(11, { ...pack, appliedPackArms: [{ experimentId: "visual-direction-v1", armId: other }] })).toEqual([]);
+    expect(await assignEpisodeToActiveExperiment(12, pack)).toEqual([]);
+    // CONTROL: an AI-written brief chooses its own lens, so it is not recorded even with a stamp.
+    expect(await assignEpisodeToActiveExperiment(13, { briefId: "studio-2026-10-10", appliedPackArms: [{ experimentId: "visual-direction-v1", armId: drawn }] })).toEqual([]);
+    expect(state.inserts).toHaveLength(1);
+  });
 });
 
 const adminCtx = (): TrpcContext => ({
@@ -127,6 +146,19 @@ describe("contentAdmin.startContentExperiment — only wired presets start", () 
     const r = await caller.startContentExperiment({ preset: "hook_style_v1" });
     expect(r.wiring).toBe("wired");
     expect(state.started).toEqual(["hook-style-direct-v1"]);
+  });
+
+  it("a pack-variant preset with no approved variant pair is refused, and starts nothing", async () => {
+    const caller = contentAdminRouter.createCaller(adminCtx());
+    await expect(caller.startContentExperiment({ preset: "opening_mechanism_v1" })).rejects.toThrow(/no approved variant pairs/);
+    expect(state.started).toEqual([]);
+  });
+
+  it("visual_direction_v1 is wired and starts (the pack lane's first runnable experiment)", async () => {
+    const caller = contentAdminRouter.createCaller(adminCtx());
+    const r = await caller.startContentExperiment({ preset: "visual_direction_v1" });
+    expect(r.wiring).toBe("wired");
+    expect(state.started).toEqual(["visual-direction-v1"]);
   });
 });
 

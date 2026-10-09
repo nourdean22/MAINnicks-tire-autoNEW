@@ -484,7 +484,7 @@ the same day. Status words follow the ladder: built / wired / tested / deployed 
 | 9 | Provider drift canaries | BUILT + TESTED ($0) | `shared/clipDrift.ts`: assembly probes every clip it downloads; a provider whose clips drift from its own modal shape/length (≥ 2 in 7 d) is named in the morning brief. No fixed-brief paid canary — the clips already paid for are the canary. |
 | 10 | Content incident response | PROTOCOL below | Lineage exists: `content_runs`, `reel_jobs.igPostId`, `ig_metric_snapshots`. |
 | 11 | Shop adoption loop | MEASURED + PROTOCOL | The fourth number below is now read live: Creative Assistant `inputs.realEvidence` and the capture card carry "N/M published pieces in 30d carried real shop evidence". The rest is the protocol below. |
-| 12 | Accessibility beyond captions | BUILT (flash); EXISTED (caption obstruction) | `server/services/flashRisk.ts` → `PHOTOSENSITIVE_FLASH` block; `CAPTION_OBSTRUCTION` + pixel `CAPTION_BOX_BUSY` already ran. Not measured: localized or red flashes, caption contrast ratio. |
+| 12 | Accessibility beyond captions | BUILT (flash); EXISTED (caption obstruction) | `server/services/flashRisk.ts` → `PHOTOSENSITIVE_FLASH` block; `CAPTION_OBSTRUCTION` + pixel `CAPTION_BOX_BUSY` already ran. Caption contrast measured 2026-10-08 from the burned-in styles (`server/captionContrast.test.ts`): gold on its black stroke or the ASS opaque box 12.1:1, on the 60% drawtext box over white footage 3.3:1 (bars 7:1 and 3:1, large text). Not measured: localized or red flashes. |
 
 **Also found and fixed in the same wave:** the nightly Reel had not posted since 10-04 (approved queue
 drained, nothing told the operator — the morning brief now does), and `content-auto-gen` had failed on

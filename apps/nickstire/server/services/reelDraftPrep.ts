@@ -17,7 +17,8 @@
  */
 import { generateReelBriefAI, type GenerateReelBriefInput } from "./reelBriefGen";
 import { attachAutonomousVisualWorld } from "./visualWorld";
-import { buildHiggsfieldReelPromptPack, buildRepetitionChecks, runReelPreflight } from "../../client/src/lib/facelessReelStudio";
+import { buildHiggsfieldReelPromptPack, buildRepetitionChecks } from "../../client/src/lib/facelessReelStudio";
+import { briefEnqueueRefusals } from "./reelEnqueueRefusals";
 import { DEFAULT_REPETITION_WINDOW_DAYS, getRecentReelSignals } from "./reelRepetitionHistory";
 import { saturatedHookGrammar } from "../../shared/reelHookGrammar";
 import { createLogger } from "../lib/logger";
@@ -138,9 +139,13 @@ export async function prepareCleanReelBrief(
       ...(structure ? { structureHint: structure } : {}),
       ...(hookFatigue ? { hookFatigue } : {}),
     });
-    const pre = runReelPreflight(brief);
+    // Everything enqueue would refuse from the brief alone, not only the
+    // preflight (2026-10-08): the condemned-script check, a placeholder beat and
+    // the caption limit are typed refusals at enqueue too, and one of those
+    // used to cost the day instead of a regeneration here.
+    const refusals = briefEnqueueRefusals(brief);
     const repetition = buildRepetitionChecks(brief, recent);
-    if (pre.status !== "block" && !repetition.topicRepeated) {
+    if (!refusals.length && !repetition.topicRepeated) {
       // Clean brief. Attach the visual world + build the prompt pack ONLY now, so
       // a preflight-rejected brief never spends a hero-frame image credit.
       await attachAutonomousVisualWorld(brief);
@@ -165,10 +170,10 @@ export async function prepareCleanReelBrief(
       }
       return { brief: prepared, attempts: attempt, rejectedForPreflight: rejected };
     }
-    const blocking = pre.status === "block" ? pre.blocking.map((f) => f.message) : [];
+    const blocking = [...refusals];
     if (repetition.topicRepeated) {
       blocking.push(`topic repeats a reel from the last ${DEFAULT_REPETITION_WINDOW_DAYS} days: "${brief.topic}"`);
-      if (pre.status !== "block") repetitionOnlyRejections++;
+      if (!refusals.length) repetitionOnlyRejections++;
       if (!avoidTopics.includes(brief.topic)) avoidTopics.push(brief.topic);
     }
     rejected.push(blocking);

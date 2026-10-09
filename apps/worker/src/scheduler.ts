@@ -31,6 +31,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { storagePut } from "./storage.js";
+import { planRender } from "./renderPlan.js";
 import { renderReelVideo } from "@nour/reel-engine";
 
 const STATENOUR_WEB_URL = (process.env.STATENOUR_WEB_URL ?? "").trim();
@@ -238,26 +239,15 @@ async function processVideoRenders(): Promise<void> {
     const { id, content, kind, sourceMetadata } = body.item;
     console.log(`[scheduler-video] found render task for queue item ${id}`);
 
-    const isAlert =
-      sourceMetadata?.type === "alert" ||
-      content?.toLowerCase().includes("warning") ||
-      content?.toLowerCase().includes("alert");
-    const template = isAlert ? "alert" : "review";
-
-    const data =
-      template === "alert"
-        ? {
-            alertTitle: sourceMetadata?.alertTitle || "Service Alert",
-            alertDetails: sourceMetadata?.alertDetails || content || "",
-            location: sourceMetadata?.location || "Local Road Safety",
-            companyName: sourceMetadata?.companyName || "Nick's Tire & Auto",
-          }
-        : {
-            reviewerName: sourceMetadata?.reviewerName || "Verified Customer",
-            reviewText: sourceMetadata?.reviewText || content || "",
-            stars: Number(sourceMetadata?.stars ?? 5),
-            companyName: sourceMetadata?.companyName || "Nick's Tire & Auto",
-          };
+    // A review video only from a declared review; anything that is neither a
+    // review nor an alert is refused before rendering (renderPlan.ts). The row
+    // keeps its lease, so the lease reclaim retires it after MAX_RENDER_ATTEMPTS.
+    const plan = planRender(content, sourceMetadata);
+    if ("refuse" in plan) {
+      console.warn(`[scheduler-video] refusing queue item ${id} (kind ${kind}): ${plan.refuse}`);
+      return;
+    }
+    const { template, data } = plan;
 
     const tempDir = os.tmpdir();
     const tempFile = path.join(tempDir, `render_${id}.mp4`);

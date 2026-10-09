@@ -27,7 +27,12 @@ const log = createLogger("services:generation-ledger");
  *  are operator-tunable stand-ins and every row they touch is FLAGGED
  *  isEstimate until a real provider-usage feed replaces them. */
 export const COST_ESTIMATES_USD = {
-  seedance_clip: 0.25, // ASSUMPTION (unverified): believed ~12 credits/clip; Higgsfield publishes no per-call USD - operator-tunable
+  // 12 credits per 4 s 1080p clip is VERIFIED (every seedance1_5 row in the account's transaction history,
+  // 2026-09-08..10-08, audio on). Higgsfield's no-submit cost preflight (get_cost, 2026-10-08) quoted audio off
+  // at the same 12 at 1080p, and 4.8 at 720p with audio on or off, so silencing clips saves nothing; 720p is
+  // the lever, a quality call. The dollar figure is still an ASSUMPTION: Higgsfield publishes no per-call USD, and a credit's
+  // price depends on the plan - operator-tunable.
+  seedance_clip: 0.25,
   /** template_stock renders with local ffmpeg — no API call, no credits, no marginal cost. */
   template_stock_clip: 0,
   gpt_image_2: 0.1,

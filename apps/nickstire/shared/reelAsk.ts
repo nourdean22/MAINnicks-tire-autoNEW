@@ -139,7 +139,9 @@ const ASK_PATTERNS: Array<{ id: string; re: RegExp }> = [
   { id: "share-this", re: /\bshare\s+th(is|ese)\b/i },
   { id: "link-in-bio", re: /\b(link|more|full\s+\w+)\s+in\s+(our\s+)?bio\b/i },
   { id: "tap-follow", re: /\b(tap|click|swipe)\s+(the\s+)?(link|up|here)\b|\bfollow\s+us\b/i },
-  { id: "call-us", re: /\bcall\s+us\b|\(\d{3}\)\s*\d{3}-\d{4}|\b\d{3}-\d{3}-\d{4}\b/ },
+  // Case-insensitive since 2026-10-08: without the flag only an all-lowercase
+  // "call us" matched, so "Call us" and an on-card "CALL US" slipped through.
+  { id: "call-us", re: /\bcall\s+us\b|\(\d{3}\)\s*\d{3}-\d{4}|\b\d{3}-\d{3}-\d{4}\b/i },
   { id: "stop-by", re: /\bstop\s+by\b|\bcome\s+(in|see\s+us)\b|\bbook\s+now\b/i },
 ];
 

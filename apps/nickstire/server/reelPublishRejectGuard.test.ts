@@ -24,7 +24,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createHash } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
 import { getTableConfig } from "drizzle-orm/mysql-core";
-import { reelJobs, reelPublishApprovals, socialContentInventory } from "../drizzle/schema";
+import { mediaAssets, reelJobs, reelPublishApprovals, socialContentInventory } from "../drizzle/schema";
 
 // ─── in-memory MySQL subset ────────────────────────────────────────────────
 type Row = Record<string, unknown>;
@@ -577,5 +577,51 @@ describe("daily reel cron honours the inventory row", () => {
     expect(h.publishCalls[0].videoUrl).toBe(`https://cdn.example/reels/${B}.mp4`);
     expect(job(A)!.status).toBe("assembled");
     expect(inv("autopost-2026-09-20")!.status).toBe("rejected");
+  });
+});
+
+// ─── The Queue reads the asset digest a bound approval needs (2026-10-08) ────
+// listReelPublishQueue built its permit check without the candidate's asset
+// digest, so every approval bound to one listed as asset_digest_unverifiable:
+// the Queue showed approved reels as unapproved, and auto-approval logged the
+// same code every pass (job 2040001 at 10:53Z, twenty minutes after it was
+// auto-approved). The publish door (reelApprovalProblem) always loaded it.
+describe("the Queue's approval verdict matches the publish door's", () => {
+  const APPROVED = "a".repeat(64);
+  const REPAIRED = "b".repeat(64);
+  function seedAsset(sha: string, jobId = JOB) {
+    put(mediaAssets, {
+      id: `ma-${jobId}-${sha.slice(0, 4)}`,
+      runtimeUrl: `https://cdn.example/reels/${jobId}.mp4`,
+      checksumSha256: sha,
+      createdAt: ts(-30),
+    });
+  }
+  async function verdicts() {
+    const { listReelPublishQueue, reelApprovalProblem } = await import("./services/reelApproval");
+    const { entries } = await listReelPublishQueue();
+    const queue = entries.find((e) => e.jobId === JOB)!.approvalProblem?.code ?? null;
+    const door = (await reelApprovalProblem({ jobId: JOB, caption: String(job()!.caption), videoUrl: String(job()!.mp4Url) }))?.code ?? null;
+    return { queue, door };
+  }
+
+  it("POSITIVE CONTROL: an approval bound to the bytes on file lists as approved", async () => {
+    seedReel({ invStatus: "review_ready" });
+    seedApproval(JOB, { assetSha256: APPROVED });
+    seedAsset(APPROVED);
+    expect(await verdicts()).toEqual({ queue: null, door: null });
+  });
+
+  it("bytes repaired after the approval list as asset_bytes_changed_since_approval, in both places", async () => {
+    seedReel({ invStatus: "review_ready" });
+    seedApproval(JOB, { assetSha256: APPROVED });
+    seedAsset(REPAIRED);
+    expect(await verdicts()).toEqual({ queue: "asset_bytes_changed_since_approval", door: "asset_bytes_changed_since_approval" });
+  });
+
+  it("with no digest on file, both still refuse: the bytes cannot be shown to be the approved ones", async () => {
+    seedReel({ invStatus: "review_ready" });
+    seedApproval(JOB, { assetSha256: APPROVED });
+    expect(await verdicts()).toEqual({ queue: "asset_digest_unverifiable", door: "asset_digest_unverifiable" });
   });
 });

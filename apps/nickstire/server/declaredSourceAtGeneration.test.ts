@@ -66,7 +66,10 @@ describe("and one layer earlier, at enqueue, before a slot or budget is reserved
     const slot = enqueue.indexOf("await requestReservation(");
     expect(check).toBeGreaterThan(-1);
     expect(slot).toBeGreaterThan(check);
-    expect(enqueue).toContain('throw new Error(generationHoldReason(blocked, "enqueue"))');
+    // Typed, so dailyReelPost advances the rotation past an approved pack refused
+    // here instead of rethrowing every production hour (reelEnqueueRefusalAdvance).
+    expect(enqueue).toContain('throw new ReelPreflightBlockedError([generationHoldReason(blocked, "enqueue")])');
+    expect(enqueue).not.toContain("throw new Error(generationHoldReason");
   });
 
   it("the condemned-script gate is still first — this adds a layer, it moves none", () => {

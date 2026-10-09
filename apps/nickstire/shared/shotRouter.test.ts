@@ -117,6 +117,52 @@ describe("the generator's route for a declared source", () => {
   });
 });
 
+describe("a visual that names no object is not generated (2026-10-08)", () => {
+  // The ten placeholder shots two 2026-09-25 imports wrote into 34 packs, verbatim.
+  const TEMPLATE = [
+    "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+    "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+    "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+    "Close inspection view that reveals the mechanical distinction through shape, position, surface, or motion.",
+    "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+    "unbranded automotive component macro under clean shop light",
+    "two matching physical comparison samples on a clean bench",
+    "wordless mechanical cross-section model of the relevant component",
+    "second physical comparison angle under the same lighting",
+    "return to the opening component macro from the same angle",
+  ];
+
+  it("every placeholder shot is held: there is no subject to generate", () => {
+    for (const visual of TEMPLATE) expect(beatGenerationRoute({ visual }), visual).toBe("needs_subject");
+  });
+
+  it("CONTROL: the same phrasing that names a part is a subject, and ordinary shots generate", () => {
+    for (const visual of [
+      "Extreme macro of the brake caliper slide pin, the relevant component, under shop light",
+      "Second angle on the same physical subject: the tire sidewall bulge",
+      "Extreme macro on a rubber tire valve stem where it meets the alloy wheel",
+      "a tire on the lift",
+      "",
+    ]) expect(beatGenerationRoute({ visual }), visual).toBe("generate");
+    expect(beatGenerationRoute({ visual: null })).toBe("generate");
+  });
+
+  it("a declaration still decides first: a REAL placeholder needs footage, not a subject", () => {
+    expect(beatGenerationRoute({ visual: "REAL: macro of the physical subject" })).toBe("needs_real_footage");
+    expect(beatGenerationRoute({ visual: TEMPLATE[0], source: "deterministic" })).toBe("needs_deterministic_render");
+  });
+
+  it("the refusal names the placeholder beats and what to do", () => {
+    const beats = TEMPLATE.slice(0, 5).map((visual, i) => ({ beatNumber: i + 1, visual }));
+    const held = beatsTheGeneratorMustNotRender(beats, []);
+    expect(held.map((b) => b.route)).toEqual(Array(5).fill("needs_subject"));
+    expect(generationHoldReason([{ beatNumber: 2, route: "needs_subject" }])).toContain("beat 2 is a placeholder that names no object");
+    expect(generationHoldReason(held, "enqueue")).toBe(
+      'BEAT_SOURCE_NOT_GENERATABLE (blocked at enqueue, nothing reserved): beats 1, 2, 3, 4, 5 are placeholders that name no object ("the physical subject"): write what the camera sees, or capture it. Nothing was generated.',
+    );
+  });
+});
+
 describe("shotRouteProblems — contradictions only, silent on undeclared beats", () => {
   it("an AI beat that describes a measurement or repair is flagged", () => {
     const p = shotRouteProblems([{ beatNumber: 2, visual: "AI: a technician reads the gauge on the rotor", purpose: "measurement" }]);

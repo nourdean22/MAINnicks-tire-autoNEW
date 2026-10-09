@@ -336,10 +336,10 @@ describe("real-evidence share: the shop adoption number (2026-10-08)", () => {
 });
 
 describe("angle bank: the inventory's state is a provenance line (2026-10-08)", () => {
-  it("prints the counts with zeros as zeros and names the packs awaiting rotation approval", () => {
+  it("prints the counts with zeros as zeros and names the packs held out of the rotation", () => {
     const r = composeCreativeCards(fixture());
     expect(r.inputs.angleBank).toBe(
-      "20 production-ready angles of 100: 20 with a pack, 16 in rotation, 0 published; awaiting rotation approval: proof-01-uneven-wear, proof-02-highway-shake",
+      "20 production-ready angles of 100: 20 with a pack, 16 in rotation, 0 published; held out of the rotation: proof-01-uneven-wear, proof-02-highway-shake",
     );
   });
 

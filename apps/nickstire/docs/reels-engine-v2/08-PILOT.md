@@ -12,16 +12,27 @@ publish (stock guard, `02-PRODUCTION-DOCTRINE.md` §1).
 | A001 | One edge worn smooth (`2026-10-08-proof-01-uneven-wear`) | A | clip 2 tread macro with the worn edge; clip 3 gauge in both grooves; clip 4 rack screen or hand on the tie rod | none on evidence beats; the four-cause card is deterministic | real + deterministic | TREAD | `uneven_wear` |
 | A002 | Highway shake (`2026-10-08-proof-02-highway-shake`) | A | clip 1/2 wheel on the balancer; clip 3 balancer display; clip 4 hands rocking the wheel; clip 2 flat-spot or bulge macro | none; the three-cause card is deterministic | real + deterministic | SHAKE | `vibration` |
 | A003 | Patch or replace (`2026-10-08-proof-03-patch-or-replace`) | A | clip 2 nail macro; clip 3 quarter-inch gauge; clip 4 buffed liner + plug-patch; clip 2 shoulder puncture on a scrap tire | none; the repair-zone card is deterministic | real + deterministic | NAIL | `puncture_repair` |
-| A004 | Inner pad gone, outer thick (`2026-09-25-inner-outer-brake-pad-wear`) | A | clip 5 both pads side by side on the bench; clip 4 the slide pin; clip 2 rotor scoring macro | none | real | per pack | — |
+| A004 | Inner pad gone, outer thick (`2026-09-25-inner-outer-brake-pad-wear`) | A | clip 5 both pads side by side on the bench; clip 4 the slide pin; clip 2 rotor scoring macro | none | real | per pack | `brake_wear` |
 | A005 | One Cleveland pothole (`2026-08-17-pothole-damage`) | D | a real pothole still (Euclid Ave); clip 2 sidewall bulge; clip 3 bent inner lip on the balancer; the alignment printout | an impact visualisation, labelled, on one beat at most | real + deterministic | per pack | `pothole_damage` |
-| A006 | Clicks but will not start (`2026-08-19-wont-start-battery-starter-alternator`) | C | clip 3 tester number on the battery; voltage while cranking; alternator output at idle | none for any number | real + deterministic | per pack | — |
-| A007 | E-Check says not ready (`2026-08-20-echeck-readiness-monitors`) | D | clip 3 scan tool readiness screen; the E-Check station from the curb | the drive-cycle card is deterministic | real + deterministic | per pack | — |
+| A006 | Clicks but will not start (`2026-08-19-wont-start-battery-starter-alternator`) | C | clip 3 tester number on the battery; voltage while cranking; alternator output at idle | none for any number | real + deterministic | per pack | `no_start` |
+| A007 | E-Check says not ready (`2026-08-20-echeck-readiness-monitors`) | D | clip 3 scan tool readiness screen; the E-Check station from the curb | the drive-cycle card is deterministic | real + deterministic | per pack | `echeck_readiness` |
 | A008 | Worn tire and new tire in the rain (`2026-08-17-tread-depth-rain-vs-snow`) | C | clip 3 gauge in a 2/32 groove and a 10/32 groove under one light; both tires side by side | none for the numbers; the depth card is deterministic | real + deterministic | per pack | `tread_depth` |
 
 Hooks, scripts, beats, captions and audio for A001–A003 are in each pack's `brief.json`,
-`README.md` and `captions.srt`; for A004–A008 they are the committed briefs the daily lane already
-builds from (`buildBriefFromApprovedProductionPack`). Nothing is restated here so the pack stays the
-single source.
+`README.md` and `captions.srt`; for A004–A008 they are the committed briefs the builder accepts
+(`buildBriefFromApprovedProductionPack`). Nothing is restated here so the pack stays the single
+source. **A004's pack left the daily rotation on 2026-10-08**: like every pack of the 2026-09-25
+imports, its beats are placeholders that name no object ("Extreme macro of the physical subject"),
+so the generator could not show the pads. A004 is made from its real capture or not at all, which
+its row already says.
+
+**A ninth, the cheapest real Reel to capture: A027, finding a slow leak with soapy water**
+(`2026-08-20-slow-leak-soap-test`, in the rotation, truth packet `puncture_repair`). The Car
+Forensics proof batch has five Reels; four are A003, A004, A005 and A007 here, and this is the fifth.
+Its evidence is one spray bottle on any tire that comes in low: soap film on the bead seat, the valve
+stem and the tread, bubbles growing at the leak (clip 2), the marked spot (clip 3), the plug-patch or
+the valve core that fixes it (clip 4/5). Its generated version stays in the rotation; a captured one
+replaces it when the operator admits real footage to publishing.
 
 ## What each Reel needs before it is a Reel (the gates, in the order they fire)
 
