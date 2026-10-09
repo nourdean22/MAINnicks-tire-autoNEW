@@ -117,7 +117,15 @@ export interface CronLogRow {
   completedAt: Date;
 }
 
-let active: { startedAt: Date; promise: Promise<void> } | null = null;
+/**
+ * The in-process slot. CLAIMED SYNCHRONOUSLY, before the first await (2026-10-09
+ * review): the guard used to be read before `await import` and the lock
+ * round-trip and written only after them, so two starts landing inside that
+ * window both passed it, and under lock fallback (db-null, table-missing,
+ * query-error: cron/index.ts proceeds on all three) both ran. `promise` is
+ * null while the claim is being turned into a run.
+ */
+let active: { startedAt: Date; promise: Promise<void> | null } | null = null;
 let last: ManualRunRecord | null = null;
 
 /** Tests only. */
@@ -165,8 +173,12 @@ export async function startPromptEvolutionManualRun(deps: ManualRunDeps = {}): P
   if (active) {
     return { status: "running", startedAt: active.startedAt.toISOString(), elapsedMs: startedAt.getTime() - active.startedAt.getTime() };
   }
+  // Claim before act: from here every early return hands the slot back.
+  active = { startedAt, promise: null };
+  const release = <T extends ManualRunStart>(r: T): T => { active = null; return r; };
+
   if (!env[PROMPT_EVOLUTION_REQUIRED_ENV]) {
-    return { status: "refused", reason: `${PROMPT_EVOLUTION_REQUIRED_ENV} is not set on this service; the scheduler skips this job without it, and so does the manual door` };
+    return release({ status: "refused", reason: `${PROMPT_EVOLUTION_REQUIRED_ENV} is not set on this service; the scheduler skips this job without it, and so does the manual door` });
   }
 
   const cron = await import("../cron/index");
@@ -180,18 +192,18 @@ export async function startPromptEvolutionManualRun(deps: ManualRunDeps = {}): P
   const clearTimer = deps.clearTimer ?? ((h) => clearTimeout(h as NodeJS.Timeout));
 
   if (isDraining()) {
-    return { status: "skipped", reason: "server shutting down - no new job starts" };
+    return release({ status: "skipped", reason: "server shutting down - no new job starts" });
   }
 
   // Same lock, same TTL rule as runTier and runJobByName: twice the budget.
   const lock = await acquireLock(PROMPT_EVOLUTION_JOB_NAME, PROMPT_EVOLUTION_BUDGET_MS * 2);
   if (lock.status === "held-by-other") {
-    return { status: "skipped", reason: "cross-dyno lock held by another process: the scheduler or another manual run owns this job right now" };
+    return release({ status: "skipped", reason: "cross-dyno lock held by another process: the scheduler or another manual run owns this job right now" });
   }
   // The drain flag can flip during the lock await; re-check before starting.
   if (isDraining()) {
     if (lock.status === "acquired") await releaseLock(lock);
-    return { status: "skipped", reason: "server shutting down - no new job starts" };
+    return release({ status: "skipped", reason: "server shutting down - no new job starts" });
   }
 
   const promise = (async () => {
@@ -207,7 +219,8 @@ export async function startPromptEvolutionManualRun(deps: ManualRunDeps = {}): P
       ]);
       const finishedAt = now();
       const durationMs = finishedAt.getTime() - startedAt.getTime();
-      const details = `${result.details} · manual run`;
+      // The cycle's own details already end in " · manual run" (promptEvolutionWeekly.ts names the trigger).
+      const details = result.details;
       record = { startedAt: startedAt.toISOString(), finishedAt: finishedAt.toISOString(), durationMs, status: "completed", recordsProcessed: result.recordsProcessed, details };
       await logRun({ jobName: PROMPT_EVOLUTION_JOB_NAME, status: "completed", durationMs, recordsProcessed: result.recordsProcessed, details, errorMessage: null, startedAt, completedAt: finishedAt });
       log.info("[evolve/manual] run completed", { durationMs, recordsProcessed: result.recordsProcessed });
@@ -234,7 +247,7 @@ export async function startPromptEvolutionManualRun(deps: ManualRunDeps = {}): P
     last = record!;
   })();
 
-  active = { startedAt, promise };
+  active.promise = promise;
   // Never an unhandled rejection: every path above records and swallows.
   promise.catch(() => undefined);
   return { status: "started", startedAt: startedAt.toISOString(), budgetMs: PROMPT_EVOLUTION_BUDGET_MS };
@@ -242,7 +255,7 @@ export async function startPromptEvolutionManualRun(deps: ManualRunDeps = {}): P
 
 /** Awaits the active run, if any. Tests and graceful shutdown; the HTTP door never calls it. */
 export async function whenPromptEvolutionManualRunSettled(): Promise<void> {
-  if (active) await active.promise;
+  if (active?.promise) await active.promise;
 }
 
 export function promptEvolutionManualRunStatus(now: Date = new Date()): ManualRunStatus {

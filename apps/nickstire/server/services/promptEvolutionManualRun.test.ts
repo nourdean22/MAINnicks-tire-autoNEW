@@ -13,6 +13,14 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Serial mode shares ONE vi.mock registry across files (apps/nickstire/AGENTS.md
+// section 3): a predecessor's partial schema mock would leave cronLog or
+// shopSettings undefined for the runner's static import. Hoisted, so the real
+// schema is in place before the import below.
+vi.unmock("../../drizzle/schema");
+vi.unmock("drizzle-orm");
+
 import {
   PROMPT_EVOLUTION_BUDGET_MS,
   PROMPT_EVOLUTION_JOB_NAME,
@@ -65,12 +73,14 @@ describe("startPromptEvolutionManualRun", () => {
     expect(promptEvolutionManualRunStatus(new Date("2026-10-09T14:05:00Z")).active).toEqual({ startedAt: "2026-10-09T14:00:00.000Z", elapsedMs: 300_000, budgetMs: PROMPT_EVOLUTION_BUDGET_MS });
 
     h.advance(10 * 60_000);
-    finish({ recordsProcessed: 1, details: "outcome: accepted · receipt prompt-evolution:abc" });
+    // The cycle names its own trigger (promptEvolutionWeekly.ts); the runner must not append it again.
+    finish({ recordsProcessed: 1, details: "outcome: accepted · receipt prompt-evolution:abc · manual run" });
     await whenPromptEvolutionManualRunSettled();
 
     expect(h.rows).toHaveLength(1);
     expect(h.rows[0]).toMatchObject({ jobName: PROMPT_EVOLUTION_JOB_NAME, status: "completed", recordsProcessed: 1, durationMs: 600_000, errorMessage: null });
     expect(h.rows[0].details).toBe("outcome: accepted · receipt prompt-evolution:abc · manual run");
+    expect(h.rows[0].details.split("manual run")).toHaveLength(2);
     expect(h.released).toEqual([acquired]);
     expect(h.deps.clearTimer).toHaveBeenCalledWith("timer");
     const s = promptEvolutionManualRunStatus();
@@ -90,6 +100,39 @@ describe("startPromptEvolutionManualRun", () => {
     expect(h.deps.acquireLock).toHaveBeenCalledTimes(1);
     finish({ recordsProcessed: 0, details: "x" });
     await whenPromptEvolutionManualRunSettled();
+  });
+
+  it("two starts in the same tick under lock FALLBACK run the cycle once: the slot is claimed before the first await", async () => {
+    // 2026-10-09 review: the guard was read before `await import` and the lock
+    // round-trip and written after them. acquireCronLock proceeds on fallback
+    // (db-null, table-missing, query-error), so two starts inside that window
+    // both ran, both spending the sealed confirmation seeds.
+    let finish!: (r: { recordsProcessed: number; details: string }) => void;
+    const run = vi.fn(() => new Promise<{ recordsProcessed: number; details: string }>((res) => { finish = res; }));
+    const h = harness({ run, acquireLock: vi.fn(async () => ({ status: "fallback" as const, reason: "query-error" as const })) });
+    const [a, b] = await Promise.all([startPromptEvolutionManualRun(h.deps), startPromptEvolutionManualRun(h.deps)]);
+    expect(a.status).toBe("started");
+    expect(b).toEqual({ status: "running", startedAt: "2026-10-09T14:00:00.000Z", elapsedMs: 0 });
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(h.deps.acquireLock).toHaveBeenCalledTimes(1);
+    finish({ recordsProcessed: 0, details: "x · manual run" });
+    await whenPromptEvolutionManualRunSettled();
+    expect(h.rows).toHaveLength(1);
+    expect(promptEvolutionManualRunStatus().active).toBeNull();
+  });
+
+  it("every early return hands the slot back: a refusal, a drain skip or a held lock never leaves the door stuck", async () => {
+    const refused = harness({ env: {} as NodeJS.ProcessEnv });
+    await startPromptEvolutionManualRun(refused.deps);
+    expect(promptEvolutionManualRunStatus().active).toBeNull();
+    const held = harness({ acquireLock: vi.fn(async () => ({ status: "held-by-other" as const })) });
+    await startPromptEvolutionManualRun(held.deps);
+    expect(promptEvolutionManualRunStatus().active).toBeNull();
+    const run = vi.fn(async () => ({ recordsProcessed: 0, details: "x · manual run" }));
+    const ok = harness({ run });
+    expect((await startPromptEvolutionManualRun(ok.deps)).status).toBe("started");
+    await whenPromptEvolutionManualRunSettled();
+    expect(run).toHaveBeenCalledTimes(1);
   });
 
   it("the scheduler's lock wins: held-by-other is a skip, no cycle, no cron_log row", async () => {
