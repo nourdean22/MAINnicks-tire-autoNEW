@@ -940,7 +940,10 @@ run in production yet.
    row's hashes and counts. One run per process at a time; a scheduled run that
    holds the lock makes the door skip. The Telegram header, the
    `prompt_evolution_latest` row and the cron_log details all say `manual`.
-   Still propose-only. In run order:
+   Still propose-only. First live run 2026-10-09 20:33Z (deploy 88fba68c):
+   319 s, `rejected-train`, live baseline `06e0dbbd` parity identical, 30
+   seeds, success cohort 0, receipt `prompt-evolution:a46f96a6a93ad384`
+   accepted; the sealed seeds were not spent. In run order:
    - **Baseline = the prompt callers hear.** `resolveLiveReceptionistBaseline`
      (`receptionistBaseline.ts`) proves which assistant answers the shop line
      (`getAssistantRoutingTruth`, state `match` only), reads that assistant's
