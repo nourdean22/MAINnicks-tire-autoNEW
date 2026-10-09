@@ -1,6 +1,12 @@
 # Session ledger — statenour
 
-**Updated: 2026-10-09 ET** (the flagged-items wave first; then camera N-series PR C #2931 + dead bridge queries #2934, both merged and deployed. The 10-03 Sentry sweep follows.)
+**Updated: 2026-10-09 11:45Z** (the outcome-ledger lock and #2939 first; then the flagged-items wave; then camera N-series PR C #2931 + dead bridge queries #2934, both merged and deployed. The 10-03 Sentry sweep follows.)
+
+## 2026-10-09 · the outcome ledger was write-dead for 7 days; #2939 deploy block (RECONCILIATION top two entries)
+
+- **`intelligence_outcomes` had no row after 2026-10-02 16:00:11Z.** #2888's advisory lock went through `$queryRaw`; the lock returns void, Prisma threw on every miss, `recordShown` swallowed it. Fixed with `$executeRaw` in the cross-app PR after #2939; `tests/repo/void-function-query-raw.test.ts` guards the class. **Verify after deploy:** a new `intelligence_outcomes` row (next Home render / 06:00 ET brief).
+- **bdnick.info served #2935 from 01:43Z to 10:46Z**: the Dockerfiles' global `turbo@2.9.14` rejected `agentGuidance`. #2939 pins 2.11.6 (test-held). The flagged-items wave's StateNour half went live at 10:46Z.
+- **N4 is LIVE:** the 2026-10-09 brief's shop slice carried `Lot · Thursday: 6 cars came in; coverage not measured ...`.
 
 ## 2026-10-09 · flagged-items wave (cross-app PR after #2935; RECONCILIATION top entry)
 

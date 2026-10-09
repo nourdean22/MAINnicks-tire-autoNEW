@@ -1,6 +1,14 @@
 # Session ledger - nickstire
 
-**Updated: 2026-10-09 01:30Z** (the flagged-items wave first; then 10-08 evening: #2934 merged + deployed, the supervisor log-writer fix; then PR C, PR A + B history, the merged camera audit wave #2920 + #2925, the Search Console wave and the 2026-10-03 Sentry sweep.)
+**Updated: 2026-10-09 11:30Z** (the routine's live proofs and the camera page gate first; then the flagged-items wave; then 10-08 evening: #2934 merged + deployed, the supervisor log-writer fix; then PR C, PR A + B history, the merged camera audit wave #2920 + #2925, the Search Console wave and the 2026-10-03 Sentry sweep.)
+
+## 2026-10-09 morning · routine proofs; the camera page gate (branch `claude/dreamy-newton-0iob20`, PR after #2939)
+
+- **#2938 merged `a2e2f772`, deployed** (nickstire `129b2620`, now `15ddc015` on the refresh `fac599f5`). **StateNour was stuck on #2935 from 01:43Z to 10:46Z**: its Dockerfiles' global `turbo@2.9.14` could not parse #2936's `agentGuidance`; #2939 (`69bb331b`) pins 2.11.6 with a test. Web `7cd81d0a`, worker `84a76e23`.
+- **N4 lot brief LIVE-VERIFIED:** the 06:00 ET brief carried `Lot · Thursday: 6 cars came in; coverage not measured ...` (ledger `camera-lot-brief-20261008` -> `live_verified`).
+- **Overnight camera:** the sign stayed HEALTHY (no dark night), one-heartbeat dips only; ONE page, a 33 s UNVERIFIED_CAPABILITIES dip at 04:15 ET (+ recovery 04:45). Fixed in this PR: producer-reported states page after 120 s or on the third flicker in 30 min (`cameraAlertAwaitsPersistence`). The pass's derived timeline writer still has not fired.
+- **Supervisor log:** clean overnight (19 lines, 0 overflow, 0 stranded). **NicksMax install done** (see `nicksmax.md`); the crop's dark-camera branch is proven only at tonight's dusk.
+- **Restart continuity still unproven:** the 10:55Z code-change restart restored 0 open visits. Needs a restart with a parked car (the launcher now keeps `.prev` logs, so the next one's log survives).
 
 ## 2026-10-09 · flagged-items wave (branch `claude/dreamy-newton-0iob20`, PR after #2935)
 

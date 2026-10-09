@@ -1,5 +1,30 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-09 · The outcome ledger writes again (cross-app PR after #2939) · `recordShown` took a void advisory lock through `$queryRaw` · 1 statenour ship inside a cross-app PR
+>
+> **Incident.** #2888 (2026-10-02) made `recordShown` take a per-hash advisory lock with `tx.$queryRaw\`SELECT pg_advisory_xact_lock(...)\``. The function returns void and `$queryRaw` deserializes every column, so every ledger miss threw `Failed to deserialize column of type 'void'`; `recordShown` logs `intel.outcome-ledger` and returns null. `intelligence_outcomes`' last row is 2026-10-02 16:00:11Z (prod read 2026-10-09), three minutes before #2888 deployed: for seven days every surface that ledgers through `recordShown` (12 callers: the Home brief's lead, the Missions deck, the morning and intelligence briefs, proactive pushes, discoveries, Nick's suggestions, the journal, the weekly digest, the Telegram and rating routes) was shown with no ledger row, so accepts, dismissals and ratings on anything new recorded nothing. The unit test mocked `$queryRaw` to return undefined and pinned the bug as the contract.
+>
+> - **Fix** (`lib/services/outcome-ledger.ts`): `$executeRaw`, as the app's other two advisory locks already did.
+> - **The test now answers like production** (`tests/services/outcome-ledger-resultref.test.ts`): its `$queryRaw` mock rejects a void lock with Prisma's message, with a control.
+> - **Guard** (`tests/repo/void-function-query-raw.test.ts`): a syntax-tree scan of `lib/`, `app/`, `scripts/` fails on a void-returning function (`pg_advisory_*lock*`, `pg_sleep*`, `pg_notify`) selected as a column through `$queryRaw`/`$queryRawUnsafe`; a cast or a FROM-clause call passes. Controls for each shape.
+> - **Positive control:** with `$queryRaw` restored, `recordShown` returns null (`expected null to be 'led-new'`) and the guard names the line; 6 red (one a mock-queue cascade from the previous red), 13 green after.
+> - **Live proof owed:** the first `intelligence_outcomes` row after this deploys (the next Home render or 06:00 ET brief).
+>
+> **Flagged · NOT fixed:** the seven days of unrecorded decisions are not recoverable; nothing backfills them.
+
+> ## 2026-10-09 · Deploy images prune with the lockfile's turbo (#2939, squash `69bb331b`) · statenour-web and statenour-worker build again · 1 statenour ship
+>
+> **Incident.** Both deploy Dockerfiles installed `turbo@2.9.14` globally in the pruner stage and ran `turbo prune` before any `pnpm install`, so the lockfile's turbo (2.11.6 since #2915) never parsed `turbo.json` in the image. #2936 added `"agentGuidance": false`, a key 2.9.14 rejects; from 01:43Z every statenour-web build (#2936 `fae770d0`, #2938 `7bb1d3ad`) and the statenour-worker build for #2938 failed at `turbo prune`, and bdnick.info served #2935 (`339a4007`) for nine hours. Local runs and CI never run that turbo, so only the deploy saw it.
+>
+> - **Fix** (`apps/statenour/Dockerfile`, `apps/worker/Dockerfile`): `npm install -g turbo@2.11.6`, the lockfile's version. `tests/repo/dockerfile-turbo-pin.test.ts` fails when a deploy Dockerfile pins a turbo the lockfile does not resolve (or pins none, or the lockfile resolves two), with a control for each shape.
+> - **Proof on a clean `git archive` export** (a repo checkout's local turbo answers for the global one): 2.9.14 `turbo prune` exit 1 with production's error, 2.11.6 exit 0 for both packages.
+> - **Deployed:** worker `84a76e23` SUCCESS 10:44:41Z, web `7cd81d0a` SUCCESS 10:46:57Z; `/api/version` serves `69bb331b`. StateNour's half of #2938 (dashboard redaction, the revenue rules' windows, the forecast) went live then, not at #2938's merge (03:25Z).
+> - **The 2026-10-09 morning brief ran on #2935** (10:00:44Z) and carried the N4 lot line: `Lot · Thursday: 6 cars came in; coverage not measured ...` (`brain_memories` `morning_brief` / `2026-10-09`).
+>
+> **Flagged · NOT fixed:**
+> - Nothing gates a deploy-only failure before merge: a Dockerfile build is not in CI. The pin test catches this one shape (a stale turbo); any other image-only break still surfaces at deploy.
+> - (The `intel.outcome-ledger` error seen in the same 10:00Z logs is the entry above.)
+
 > ## 2026-10-09 · Flagged-items wave (cross-app PR, staged commits) · dashboard route redacts, contract guard reads variables, revenue rules ask for the days they mean, the cashflow forecast reads real totals · 1 statenour ship inside a cross-app PR
 >
 > The two items flagged at the end of the 2026-10-08 entry, plus the consumers of nickstire's `revenue_range` fix (same PR) that fixing it exposed.

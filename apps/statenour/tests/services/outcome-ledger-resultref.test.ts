@@ -16,7 +16,17 @@ const mocks = vi.hoisted(() => ({
   updateMany: vi.fn(),
   findMany: vi.fn(),
   queryRaw: vi.fn(),
+  executeRaw: vi.fn(),
 }));
+
+/**
+ * Production's answer to a void-returning function through $queryRaw (2026-10-09). The mock used to
+ * return undefined for any $queryRaw, so this file pinned `$queryRaw` for the advisory lock while
+ * every production miss threw this and the ledger wrote no row for seven days.
+ */
+const VOID_DESERIALIZE =
+  "Raw query failed. Code: `N/A`. Message: `Failed to deserialize column of type 'void'. If you're using $queryRaw and this column is explicitly marked as `Unsupported` in your Prisma schema, try casting this column to any supported Prisma type such as `String`.`";
+const sqlOf = (call: unknown[]) => (call[0] as TemplateStringsArray).join("?");
 
 vi.mock("@/lib/prisma", () => {
   const client = {
@@ -26,7 +36,11 @@ vi.mock("@/lib/prisma", () => {
       updateMany: (...a: unknown[]) => mocks.updateMany(...a),
       findMany: (...a: unknown[]) => mocks.findMany(...a),
     },
-    $queryRaw: (...a: unknown[]) => mocks.queryRaw(...a),
+    $queryRaw: (...a: unknown[]) => {
+      if (/pg_advisory_(xact_)?lock/.test(sqlOf(a))) return Promise.reject(new Error(VOID_DESERIALIZE));
+      return mocks.queryRaw(...a);
+    },
+    $executeRaw: (...a: unknown[]) => mocks.executeRaw(...a),
     // The interactive transaction hands the callback the same model surface.
     $transaction: (fn: (tx: unknown) => unknown) => fn(client),
   };
@@ -76,16 +90,23 @@ describe("recordShownBounded", () => {
 describe("recordShown · two tabs cannot both insert", () => {
   const input = { kind: "suggestion" as const, sourceEngine: "home", summary: "same card", shownSurface: "home" };
 
-  it("a miss takes the per-hash advisory lock before re-checking and inserting", async () => {
+  it("a miss takes the per-hash advisory lock (through $executeRaw: it returns void) before re-checking and inserting", async () => {
     mocks.findFirst.mockResolvedValue(null);
     mocks.create.mockResolvedValue({ id: "led-new" });
+    mocks.executeRaw.mockResolvedValue(1);
     expect(await recordShown(input)).toBe("led-new");
-    expect(mocks.queryRaw).toHaveBeenCalledOnce();
-    const sql = (mocks.queryRaw.mock.calls[0][0] as TemplateStringsArray).join("?");
-    expect(sql).toContain("pg_advisory_xact_lock");
+    expect(mocks.executeRaw).toHaveBeenCalledOnce();
+    expect(sqlOf(mocks.executeRaw.mock.calls[0])).toContain("pg_advisory_xact_lock");
     // fast-path read + the re-check under the lock
     expect(mocks.findFirst).toHaveBeenCalledTimes(2);
-    expect(mocks.queryRaw.mock.invocationCallOrder[0]).toBeLessThan(mocks.create.mock.invocationCallOrder[0]);
+    expect(mocks.executeRaw.mock.invocationCallOrder[0]).toBeLessThan(mocks.create.mock.invocationCallOrder[0]);
+  });
+
+  it("CONTROL: the lock through $queryRaw fails as production did, and the miss writes nothing", async () => {
+    const { prisma } = await import("@/lib/prisma");
+    await expect(
+      (prisma as unknown as { $queryRaw: (s: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }).$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${"k"}))`,
+    ).rejects.toThrow(/deserialize column of type 'void'/);
   });
 
   it("the tab that loses the race returns the winner's row instead of a second one", async () => {
@@ -97,7 +118,7 @@ describe("recordShown · two tabs cannot both insert", () => {
   it("a fast-path hit never opens a transaction", async () => {
     mocks.findFirst.mockResolvedValue({ id: "led-old" });
     expect(await recordShown(input)).toBe("led-old");
-    expect(mocks.queryRaw).not.toHaveBeenCalled();
+    expect(mocks.executeRaw).not.toHaveBeenCalled();
   });
 });
 

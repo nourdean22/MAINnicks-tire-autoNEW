@@ -7,7 +7,7 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-10-09 · flagged-items wave (dashboard redaction, contract guard, revenue consumers) · see RECONCILIATION.
+**Last refreshed:** 2026-10-09 · flagged wave, turbo pin, outcome-ledger lock (#2938, #2939, next) · see RECONCILIATION.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--
