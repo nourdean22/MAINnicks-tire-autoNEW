@@ -16,6 +16,7 @@ state; a gap is a design item, not a promise. Nothing here spends money or publi
 | `07-PRODUCTION-METRICS.md` | Twelve production numbers mapped to their instrument; MISSING named | reference |
 | `08-PILOT.md` | The 8-Reel pilot: required real asset, synthetic allowance, route, gates, exit criteria | plan |
 | `09-90-DAY-MODEL.md` | Three layers with their reality state; the status surface in the existing admin; the operator handoff | plan + handoff |
+| `10-FLAGSHIP-PRODUCTION.md` | The three flagship Reels (C, B, A in that order), the 90-minute capture day, memory devices, review sheet, staged 120-credit envelope; synthesized 2026-10-09 from 01-09, two operator reports and production reads | plan; blocked on capture day |
 | `angle-bank.json` | 100 feasibility-graded angles over the committed packs (every named pack passes the production builder); rank = production order; A001–A008 = pilot | BUILT + TESTED + WIRED (read-only line) |
 
 Code on this branch, all tested. The first six rows add warnings, a read-only line and docs; the last
