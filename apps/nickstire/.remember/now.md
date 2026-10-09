@@ -1,6 +1,18 @@
 # Session ledger - nickstire
 
-**Updated: 2026-10-09 12:55Z** (the Reel lane unjam #2940 first; then the routine's live proofs and the camera page gate first; then the flagged-items wave; then 10-08 evening: #2934 merged + deployed, the supervisor log-writer fix; then PR C, PR A + B history, the merged camera audit wave #2920 + #2925, the Search Console wave and the 2026-10-03 Sentry sweep.)
+**Updated: 2026-10-09 21:00Z** (the receptionist experiment manual door #2945 first, run live the same day; then the Reel lane unjam #2940; then the routine's live proofs and the camera page gate; then the flagged-items wave; then 10-08 evening: #2934 merged + deployed, the supervisor log-writer fix; then PR C, PR A + B history, the merged camera audit wave #2920 + #2925, the Search Console wave and the 2026-10-03 Sentry sweep.)
+
+## 2026-10-09 evening · receptionist prompt experiment on demand (#2945) MERGED + DEPLOYED; first live run the same day
+
+**Shipped:** main `9421d816` (deployment `88fba68c`, healthy 20:33Z). `processPromptEvolutionWeekly(now, { trigger: "manual" })` is the only thing that bypasses the Monday gate. `services/promptEvolutionManualRun.ts` runs the same cycle under the scheduler's own cross-dyno lock (TTL 2x budget, slot claimed synchronously before the first await), OLLAMA_API_KEY requirement, 30-minute budget and cron_log columns, and answers as soon as the run is started. Doors: VAPI panel card "Prompt experiment · propose-only" (tRPC `vapi.runPromptEvolutionNow` / `vapi.promptEvolutionStatus`, two-tap confirm) and `POST /api/admin/run-prompt-evolution` + `GET /api/admin/prompt-evolution-status` (admin API key). Propose-only unchanged.
+
+**First live run (20:33:53Z, 319 s):** outcome `rejected-train` (both candidates lost to the live prompt on the train cohort); live baseline prompt `06e0dbbd` parity identical, assistant `150fe622`, gpt-4o; 30 seeds (train 14 / holdout 13 / confirm 8), success cohort 0 won calls; 27 replays, 18 judge calls, 2 optimizer calls; proxy lane; receipt `prompt-evolution:a46f96a6a93ad384` accepted (disposition inconclusive). Sealed confirmation seeds were not spent. Ledger (#2947, `76c24d54`): manual door `live_verified`, gate entry `deployed`, both expire 2027-01-07.
+
+**Receipts:** vitest promptEvolutionManualRun 13, promptEvolutionWeekly 19, vapi panel 9, control-plane canaries 98, all green; CI fully green on the merged head (node included); three Codex threads fixed and resolved; an adversarial workflow (18 agents) found the pre-await slot race and the doubled " · manual run" suffix before merge, both fixed.
+
+**Owed:** operator confirms the Telegram message ("PROMPT EVOLUTION (manual run · propose-only)") and the /proof row (both behind sign-in; an agent gets a 307 on /proof). Watch the success cohort on the next run: 0 won calls were available, so the success-cohort veto cannot fire until the pool fills. The scheduled Monday 2026-10-12 run is unchanged. Lane parity (live gpt-4o with tools vs replay deepseek-v4-pro without) is still an operator cost decision.
+
+**Traps added:** `git add --sparse` in the hook-free clone; `git read-tree HEAD` after `git update-ref` in a harness worktree; knip orphan gate needs a baseline reason for every test-only export; `completion-authority` also fails on any unresolved Codex P0-P2 thread (resolve via GraphQL after the fix push).
 
 ## 2026-10-09 · Reel lane unjam (#2940) MERGED + DEPLOYED; flagship production package; operator reports synthesized
 
