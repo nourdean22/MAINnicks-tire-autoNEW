@@ -889,7 +889,7 @@ export function validateBeatCount(beats: StoryboardBeat[]): { ok: boolean; reaso
  * a tool are the evidence the beat exists to show.
  */
 const FACE_ONLY_PATTERN =
-  /\b(?:human\s+face|person'?s?\s+face|talking\s+head|man|woman|mechanic\s+(?:smiling|talking|speaking|on\s+camera)|customer\s+(?:smiling|talking|face)|selfie|presenter|spokesperson|face\s+to\s+camera|shop\s+tour)\b/i;
+  /\b(?:human\s+face|(?:person|technician|tech|mechanic|customer|driver|worker|owner|employee|man|woman|guy|someone)'?s?\s+(?:face|head|eyes|smile|mouth|beard|hair)|(?:visible|full|partial|half)\s+(?:face|figure|body)|face\s+(?:visible|in\s+frame|in\s+shot|turned|looking)|talking\s+head|man|woman|mechanic\s+(?:smiling|talking|speaking|on\s+camera|standing|leaning)|technician\s+(?:smiling|talking|speaking|on\s+camera|standing|leaning)|customer\s+(?:smiling|talking|face|standing)|selfie|presenter|spokesperson|silhouette|figure\s+of\s+a|face\s+to\s+camera|shop\s+tour|torso|shoulders?\s+and\s+head|uniform(?:ed)?\s+(?:tech|technician|mechanic|worker))\b/i;
 
 /** Faceless contract: no human face / talking head / shop tour as the subject. */
 export function validateFacelessSubject(texts: string[], opts: { allowHands?: boolean } = {}): { ok: boolean; reason?: string } {

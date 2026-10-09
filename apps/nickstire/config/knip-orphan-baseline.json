@@ -6140,6 +6140,16 @@
       "file": "apps/nickstire/server/services/renderedQa.ts",
       "symbol": "cardBeats",
       "reason": "2026-10-09 source-aware route: exported for reelSourceAware.test.ts; consumed internally by evaluateRenderedReel (drawn-card beats in the critic prompt and the text-artifact exemption)"
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "describesOnlyPermittedLimbs",
+      "reason": "2026-10-09 source-aware route (Codex review of #2946): positive limb recognition, exported for reelSourceAware.test.ts; consumed internally by applyPresenceExemptions"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "expectedClipProof",
+      "reason": "2026-10-09 source-aware route (Codex review of #2946): tri-state lineage proof, exported for reelSourceAware.test.ts; consumed internally by assembleReel and expectedClipSha256"
     }
   ]
 }

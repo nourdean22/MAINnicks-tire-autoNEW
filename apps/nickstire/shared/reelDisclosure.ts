@@ -278,6 +278,8 @@ export function allShotsNonGenerative(clipUrlsJson: string | null | undefined, s
   if (beats.size !== clips.length) return false;
   return rows.every((r) => {
     if (r.origin !== "registry_real_shop" && r.origin !== "local_card") return false;
+    // A local row without a valid hash is unverified evidence, not proof.
+    if (!/^[a-f0-9]{64}$/.test(String(r.sha256 ?? "").toLowerCase())) return false;
     const clip = clips[r.beatNumber - 1];
     return typeof r.url === "string" && r.url.length > 0 && clip === r.url;
   });

@@ -660,16 +660,32 @@ export function cardBeats(brief: Pick<EvaluateRenderedReelInput["brief"], "shotL
   return parseShotLineage(brief.shotLineage).filter((r) => r.origin === "local_card").map((r) => r.beatNumber);
 }
 
-const HANDS_ONLY_DESCRIPTION = /\b(hand|hands|glove|gloves|gloved|finger|fingers|arm|arms|wrist|forearm)\b/i;
-const FACE_OR_FIGURE_DESCRIPTION = /\b(face|faces|head|eyes?|mouth|person|people|figure|silhouette|body|torso|man|woman|technician standing|customer)\b/i;
+/**
+ * Positive recognition of what a HUMAN_PRESENT description names (review of
+ * #2946): every human noun in the description is collected, and the finding is
+ * exempted only when the set is non-empty AND every noun is a permitted limb.
+ * "a gloved hand and shoulder" names a shoulder, which is not permitted, so it
+ * stays a block; a description that names no human noun at all stays a block
+ * too (the critic saw something it could not name). A finite forbidden list
+ * can never prove absence; a permitted list can prove presence.
+ */
+const PERMITTED_LIMB_NOUNS = new Set(["hand", "hands", "glove", "gloves", "gloved", "finger", "fingers", "fingertip", "fingertips", "thumb", "thumbs", "palm", "palms", "knuckle", "knuckles", "wrist", "wrists", "forearm", "forearms", "arm", "arms", "sleeve", "sleeves", "elbow", "elbows"]);
+const HUMAN_NOUN_PATTERN = /\b(hand|hands|glove|gloves|gloved|finger|fingers|fingertip|fingertips|thumb|thumbs|palm|palms|knuckle|knuckles|wrist|wrists|forearm|forearms|arm|arms|sleeve|sleeves|elbow|elbows|face|faces|head|heads|eye|eyes|mouth|nose|beard|hair|neck|shoulder|shoulders|chest|back|torso|body|bodies|leg|legs|knee|knees|foot|feet|boot|boots|uniform|figure|figures|silhouette|silhouettes|person|people|man|men|woman|women|technician|mechanic|worker|customer|driver|guy|someone|human|humans)\b/gi;
+
+export function describesOnlyPermittedLimbs(description: string): boolean {
+  const nouns = (description.match(HUMAN_NOUN_PATTERN) ?? []).map((w) => w.toLowerCase());
+  if (!nouns.length) return false;
+  return nouns.every((n) => PERMITTED_LIMB_NOUNS.has(n));
+}
 
 /**
- * Drop (1) a HUMAN_PRESENT finding whose description names only hands/gloves/
- * arms on a beat where hands are expected — a face, head, figure or body stays
- * a block everywhere; (2) a GENERATED_TEXT_ARTIFACT finding on a drawn-card
- * beat, where no model drew anything, so lettering there cannot be a model
- * artifact. Returns the kept findings and the exempted ones (persisted on the
- * verdict so the exemption is visible, never silent). Pure.
+ * Drop (1) a HUMAN_PRESENT finding that names only permitted limbs on a beat
+ * where hands are expected — a face, head, shoulder, figure or body, or a
+ * description naming nothing recognisable, stays a block everywhere; (2) a
+ * GENERATED_TEXT_ARTIFACT finding on a drawn-card beat, where no model drew
+ * anything, so lettering there cannot be a model artifact. Returns the kept
+ * findings and the exempted ones (persisted on the verdict so the exemption
+ * is visible, never silent). Pure.
  */
 export function applyPresenceExemptions(
   findings: RenderedFinding[],
@@ -681,7 +697,7 @@ export function applyPresenceExemptions(
   const exempted: RenderedFinding[] = [];
   for (const f of findings) {
     const onHandsBeat = typeof f.beatNumber === "number" && handsBeats.includes(f.beatNumber);
-    const handsOnly = HANDS_ONLY_DESCRIPTION.test(f.description) && !FACE_OR_FIGURE_DESCRIPTION.test(f.description);
+    const handsOnly = describesOnlyPermittedLimbs(f.description);
     const onDrawnBeat = typeof f.beatNumber === "number" && drawnBeats.includes(f.beatNumber);
     if (f.code === "HUMAN_PRESENT" && onHandsBeat && handsOnly) exempted.push(f);
     else if (f.code === "GENERATED_TEXT_ARTIFACT" && onDrawnBeat) exempted.push(f);
@@ -750,7 +766,7 @@ export async function evaluateRenderedReel(input: EvaluateRenderedReelInput): Pr
     ].join("");
     const parsed = await callVisionCritic({
       frames: input.frames,
-      system: `You are a ruthless creative QA inspector for automotive reels. Frames are labeled in order: first, per-beat midpoints, final. Judge ONLY what is visible. Emit findings ONLY with these exact codes:\n${codeDoc}\n\n${worldBlock}\n\nPLANNED BEATS:\n${beatsDoc}${presenceBlock}\n\n${pixelBlock}\n\nCALIBRATION (from a real miss — the first live verdict approved frames a human immediately rejected):\n- GENERATED_TEXT_ARTIFACT: the ONLY legitimate text is the deterministic caption overlay — UPPERCASE gold letters on a solid black box, plus a gold "SAVE THIS" style pill. ANY other lettering is a defect: fake UI status bars, watermark-like strings, gibberish signage, pseudo-HUD readouts, misspelled screen text on devices (e.g. a tester showing "Vbort"), license-plate-like smears. Inspect frame edges and any screens/devices CLOSELY.\n- BEAT_SEMANTIC_MISMATCH: compare EACH labeled frame against its planned beat and burned-in claim. If the beat says belts/hoses and the frame shows a spare tire, or the beat says pressure gauge and the frame shows an unrelated wheel, BLOCK it. A beautiful frame of the wrong thing is still wrong.\n- MECHANICAL_MISREPRESENTATION: block only concrete automotive falsehoods visible in the frame — anatomy, damage, diagnosis, or repair that would teach a viewer the wrong thing even if the geometry looks plausible. Examples: a tire repair cross-section that depicts the plug/patch path incorrectly, a "brake line" that is visibly a frame rail, or an impossible belt routing presented as instructional. Do not use this for mere stylistic ambiguity.\n- IDENTITY DRIFT: if the same logical object (a battery, a car, a tool) changes design, brand, color, or shape between beats, flag it — "similar object" is not "same object".\n- NARRATOR_EMBODIED: the narrator (NICK-01) is a gold scanning beam and an icy-blue reticle — LIGHT AND MOTION ONLY. If any frame draws it as a figure, silhouette, uniform, visor, or any body, that is a defect even when no face is visible. A body-shaped presence is not an acceptable narrator here.\n- PALETTE: the world for THIS reel is ${reelPaletteSpec}. Judge PALETTE_DRIFT against THAT, not against a generic "cinematic" look and not against any other reel. Each reel declares its own world, so a bright daylight world is not drift.\n- CRAFT (record these when you see them; they are evidence, and not grounds for "repair" on their own): PLASTIC_AI_LOOK - rubber, rust and brake dust must read as those materials rather than as smooth tinted plastic, so look for absent pore, grain and scratch detail, and for one uniform sheen across surfaces that should differ. IMPOSSIBLE_PHYSICALITY - every object needs a contact shadow, every reflection needs a visible source, and tread blocks, lug nuts and bolt patterns must stay countable and consistent between beats. GENERIC_STOCK_LOOK - ask whether this frame could be any shop in any city, and if nothing in it is specific to this vehicle, this damage or this place, say so.\nFor each finding give beatNumber (the beat whose frame shows it, or null for first/final), a concrete description, preserve[] (what the repair must keep), change[] (the minimal change). If the render is clean, decision "approve" with zero findings. Do not invent codes. Do not praise. A miss is worse than a false alarm: when unsure whether lettering is the caption overlay, flag it. For EVERY finding also give confidence (0-1): how sure you are the defect is real from the pixels you were shown. The deterministic PIXEL_STATS pre-flags above are not findings; confirm them with your own eyes or say nothing.`,
+      system: `You are a ruthless creative QA inspector for automotive reels. Frames are labeled in order: first, per-beat midpoints, final. Judge ONLY what is visible. Emit findings ONLY with these exact codes:\n${codeDoc}\n\n${worldBlock}\n\nPLANNED BEATS:\n${beatsDoc}${presenceBlock}\n\n${pixelBlock}\n\nCALIBRATION (from a real miss — the first live verdict approved frames a human immediately rejected):\n- GENERATED_TEXT_ARTIFACT: the ONLY legitimate text is the deterministic caption overlay — ${sentenceCase ? "sentence-case" : "UPPERCASE"} gold letters on a solid black box, plus a gold "SAVE THIS" style pill${drawnBeats.length ? `, and on beats ${drawnBeats.join(", ")} the drawn card's white labels and gold "Illustration" badge` : ""}. ANY other lettering is a defect: fake UI status bars, watermark-like strings, gibberish signage, pseudo-HUD readouts, misspelled screen text on devices (e.g. a tester showing "Vbort"), license-plate-like smears. Inspect frame edges and any screens/devices CLOSELY.\n- BEAT_SEMANTIC_MISMATCH: compare EACH labeled frame against its planned beat and burned-in claim. If the beat says belts/hoses and the frame shows a spare tire, or the beat says pressure gauge and the frame shows an unrelated wheel, BLOCK it. A beautiful frame of the wrong thing is still wrong.\n- MECHANICAL_MISREPRESENTATION: block only concrete automotive falsehoods visible in the frame — anatomy, damage, diagnosis, or repair that would teach a viewer the wrong thing even if the geometry looks plausible. Examples: a tire repair cross-section that depicts the plug/patch path incorrectly, a "brake line" that is visibly a frame rail, or an impossible belt routing presented as instructional. Do not use this for mere stylistic ambiguity.\n- IDENTITY DRIFT: if the same logical object (a battery, a car, a tool) changes design, brand, color, or shape between beats, flag it — "similar object" is not "same object".\n- NARRATOR_EMBODIED: the narrator (NICK-01) is a gold scanning beam and an icy-blue reticle — LIGHT AND MOTION ONLY. If any frame draws it as a figure, silhouette, uniform, visor, or any body, that is a defect even when no face is visible. A body-shaped presence is not an acceptable narrator here.\n- PALETTE: the world for THIS reel is ${reelPaletteSpec}. Judge PALETTE_DRIFT against THAT, not against a generic "cinematic" look and not against any other reel. Each reel declares its own world, so a bright daylight world is not drift.\n- CRAFT (record these when you see them; they are evidence, and not grounds for "repair" on their own): PLASTIC_AI_LOOK - rubber, rust and brake dust must read as those materials rather than as smooth tinted plastic, so look for absent pore, grain and scratch detail, and for one uniform sheen across surfaces that should differ. IMPOSSIBLE_PHYSICALITY - every object needs a contact shadow, every reflection needs a visible source, and tread blocks, lug nuts and bolt patterns must stay countable and consistent between beats. GENERIC_STOCK_LOOK - ask whether this frame could be any shop in any city, and if nothing in it is specific to this vehicle, this damage or this place, say so.\nFor each finding give beatNumber (the beat whose frame shows it, or null for first/final), a concrete description, preserve[] (what the repair must keep), change[] (the minimal change). If the render is clean, decision "approve" with zero findings. Do not invent codes. Do not praise. A miss is worse than a false alarm: when unsure whether lettering is the caption overlay, flag it. For EVERY finding also give confidence (0-1): how sure you are the defect is real from the pixels you were shown. The deterministic PIXEL_STATS pre-flags above are not findings; confirm them with your own eyes or say nothing.`,
       user: `Evaluate these ${input.frames.length} frames (order: ${input.frames.map((f) => f.label).join(", ")}). Topic: ${input.brief.topic ?? "unknown"}. Hero: ${heroForCritic(input.brief.objectCharacter)}.`,
     });
     // The schema requires approve or repair. A reply without one (a bare "{}")

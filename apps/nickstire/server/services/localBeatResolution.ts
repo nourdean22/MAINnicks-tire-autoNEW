@@ -67,6 +67,22 @@ export async function resolveLocalBeats(input: {
       log.error("real beat(s) refused at binding — job held before spend", { jobId: input.jobId, reason });
       return { ok: false, reason, holds: refusals.map((r) => ({ beatNumber: r.beatNumber, route: "needs_real_footage" as const })) };
     }
+    // A bound clip must carry the beat it was planned for (review of #2946):
+    // enqueue budgeted narration and readability against the authored beat
+    // (capped at the generated 4 s), so a shorter clip would silently shrink
+    // the Reel under its own voice track. Refuse it; never pad or freeze it.
+    const { MAX_CLIP_SECONDS } = await import("./reelAssembly");
+    const short = bindings.flatMap((b) => {
+      const beat = beats.find((x) => x.beatNumber === b.beatNumber);
+      const declared = Number(beat?.endSecond) - Number(beat?.startSecond);
+      const required = Math.min(Number.isFinite(declared) && declared > 0 ? declared : MAX_CLIP_SECONDS, MAX_CLIP_SECONDS);
+      return b.sourceDurationSec + 0.05 < required ? [{ ...b, required }] : [];
+    });
+    if (short.length) {
+      const reason = `REAL_ASSET_TOO_SHORT (blocked at generation, before spend): ${short.map((s) => `beat ${s.beatNumber} (asset ${s.assetId}) is ${s.sourceDurationSec.toFixed(2)} s but the beat needs ${s.required.toFixed(2)} s`).join("; ")}. Capture a longer clip or shorten the beat; nothing was padded. Nothing was generated.`;
+      log.error("real beat(s) bound to a clip shorter than the beat — job held before spend", { jobId: input.jobId, reason });
+      return { ok: false, reason, holds: short.map((s) => ({ beatNumber: s.beatNumber, route: "needs_real_footage" as const })) };
+    }
     for (const b of bindings) {
       const beat = beats.find((x) => x.beatNumber === b.beatNumber);
       if (beat) beat.sourceDurationSec = b.sourceDurationSec;

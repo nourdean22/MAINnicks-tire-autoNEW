@@ -288,15 +288,29 @@ export function segmentsTotalSeconds(segs: ReelSegment[]): number {
 }
 
 /**
- * The sha256 the job's lineage binds to a beat's clip (registry footage or a
- * drawn card), or null when the beat was generated / predates lineage. Pure;
- * read by assembleReel's exact-bytes check.
+ * What the job's lineage says about a beat's clip bytes (pure; read by
+ * assembleReel's exact-bytes check). Three honest answers, never collapsed
+ * (review of #2946): `none` — no local lineage, a generated or legacy beat;
+ * `sha` — a registry/card row with a valid 64-hex hash to verify against;
+ * `invalid` — a local row whose proof is missing or malformed, which assembly
+ * must refuse rather than skip, because the disclosure path would otherwise
+ * publish that beat as non-generative on a URL nothing verified.
  */
-export function expectedClipSha256(brief: { shotLineage?: unknown }, beatNumber: number): string | null {
+export type ExpectedClipProof = { kind: "none" } | { kind: "sha"; sha256: string } | { kind: "invalid"; detail: string };
+
+export function expectedClipProof(brief: { shotLineage?: unknown }, beatNumber: number): ExpectedClipProof {
   const rows = Array.isArray(brief.shotLineage) ? (brief.shotLineage as Array<{ beatNumber?: unknown; origin?: unknown; sha256?: unknown }>) : [];
   const row = rows.find((r) => r && Number(r.beatNumber) === beatNumber && (r.origin === "registry_real_shop" || r.origin === "local_card"));
-  const sha = typeof row?.sha256 === "string" ? row.sha256.toLowerCase() : "";
-  return /^[a-f0-9]{64}$/.test(sha) ? sha : null;
+  if (!row) return { kind: "none" };
+  const sha = typeof row.sha256 === "string" ? row.sha256.toLowerCase() : "";
+  if (/^[a-f0-9]{64}$/.test(sha)) return { kind: "sha", sha256: sha };
+  return { kind: "invalid", detail: `lineage row for beat ${beatNumber} (${String(row.origin)}) has no valid sha256 (${JSON.stringify(row.sha256 ?? null).slice(0, 24)})` };
+}
+
+/** Back-compat reader: the valid hash or null. Callers that must fail closed use expectedClipProof. */
+export function expectedClipSha256(brief: { shotLineage?: unknown }, beatNumber: number): string | null {
+  const p = expectedClipProof(brief, beatNumber);
+  return p.kind === "sha" ? p.sha256 : null;
 }
 
 /**
@@ -982,11 +996,14 @@ export async function assembleReel(
       // re-hosted copy, a swapped URL or a stale CDN object is a different
       // shot, and a Reel that claims real evidence must not ship it.
       {
-        const expected = expectedClipSha256(brief, segs[i].beatNumber);
-        if (expected) {
+        const proof = expectedClipProof(brief, segs[i].beatNumber);
+        if (proof.kind === "invalid") {
+          throw new Error(`clip ${i} (beat ${segs[i].beatNumber}) is bound by lineage but its proof is unusable — ${proof.detail}; refusing to assemble an unverifiable local shot`);
+        }
+        if (proof.kind === "sha") {
           const actual = createHash("sha256").update(await fs.promises.readFile(p)).digest("hex");
-          if (actual !== expected) {
-            throw new Error(`clip ${i} (beat ${segs[i].beatNumber}) sha256 ${actual.slice(0, 12)} does not match its bound lineage ${expected.slice(0, 12)} — the exact asset did not reach assembly; refusing`);
+          if (actual !== proof.sha256) {
+            throw new Error(`clip ${i} (beat ${segs[i].beatNumber}) sha256 ${actual.slice(0, 12)} does not match its bound lineage ${proof.sha256.slice(0, 12)} — the exact asset did not reach assembly; refusing`);
           }
         }
       }

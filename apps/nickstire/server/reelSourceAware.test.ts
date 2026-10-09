@@ -21,8 +21,8 @@ import { runSafetyChecks, validateFacelessSubject, type ReelBrief } from "../cli
 import { lineageForBinding, realShotRefusalReason, verifyRealShopVideoRow, type RealShopRowLike } from "./services/realShotBinding";
 import { buildCardSvg, cardSpecFromBeat, lineageForCard } from "./services/deterministicCard";
 import { locallyResolvedClipCount, mergeShotLineage } from "./services/localBeatResolution";
-import { applyPresenceExemptions, cardBeats, handsExpectedBeats, type RenderedFinding } from "./services/renderedQa";
-import { expectedClipSha256 } from "./services/reelAssembly";
+import { applyPresenceExemptions, cardBeats, describesOnlyPermittedLimbs, handsExpectedBeats, type RenderedFinding } from "./services/renderedQa";
+import { expectedClipProof, expectedClipSha256 } from "./services/reelAssembly";
 import { allShotsNonGenerative, shouldDiscloseAi } from "../shared/reelDisclosure";
 
 const beat = (n: number, visual: string, extra: Record<string, unknown> = {}) => ({
@@ -125,6 +125,20 @@ describe("presence profile: hands on real beats, faces nowhere", () => {
     expect(f?.where).toBe("beat 1");
     expect(f?.match).toContain("a face or a figure is not");
   });
+  it.each([
+    "REAL: a technician's face beside their gloved hands",
+    "REAL: the mechanic's face while tightening the wheel",
+    "REAL: a gloved hand, the worker's head in the background",
+    "REAL: half body of the tech leaning on the lift",
+    "REAL: a silhouette walks past the bay door",
+  ])("new: role-possessive faces and figures are blocked on real beats: %s", (visual) => {
+    expect(validateFacelessSubject([visual], { allowHands: true }).ok).toBe(false);
+  });
+  it("new: hands on a tool with no face wording pass the hands-only check", () => {
+    expect(validateFacelessSubject(["REAL: gloved hands seat the plug-patch on the inner liner"], { allowHands: true }).ok).toBe(true);
+    // "sidewall face" is a tire surface, not a person.
+    expect(validateFacelessSubject(["REAL macro: the sidewall face under raking light, a gloved hand steadies the tire"], { allowHands: true }).ok).toBe(true);
+  });
 });
 
 describe("real-shot binding verifies the registry row, never the URL", () => {
@@ -214,6 +228,17 @@ describe("rendered QA under the presence profile", () => {
     expect(kept.map((f) => [f.beatNumber, f.description.split(" ")[0]])).toEqual([[1, "a"], [2, "a"], [null, "a"]]);
     expect(kept.every((f) => f.severity === "block")).toBe(true);
   });
+  it("new: the exemption recognises permitted limbs positively — a shoulder, a boot, a nameless presence all stay blocks", () => {
+    expect(describesOnlyPermittedLimbs("a mechanic's gloved hand and shoulder are visible")).toBe(false);
+    expect(describesOnlyPermittedLimbs("a gloved hand and a boot at the frame edge")).toBe(false);
+    expect(describesOnlyPermittedLimbs("something human-shaped in the reflection")).toBe(false);
+    expect(describesOnlyPermittedLimbs("")).toBe(false);
+    expect(describesOnlyPermittedLimbs("a gloved hand and forearm on the ratchet")).toBe(true);
+    expect(describesOnlyPermittedLimbs("fingertips press the gauge into the groove")).toBe(true);
+    const { kept, exempted } = applyPresenceExemptions([finding(1, "a mechanic's gloved hand and shoulder are visible")], [1]);
+    expect(exempted).toEqual([]);
+    expect(kept).toHaveLength(1);
+  });
   it("new: lettering on a drawn-card beat is exempted from GENERATED_TEXT_ARTIFACT; the same code on a generated beat still blocks", () => {
     const text = (beatNumber: number, description: string): RenderedFinding => ({ beatNumber, code: "GENERATED_TEXT_ARTIFACT", severity: "block", description, preserve: [], change: [] });
     expect(cardBeats({ shotLineage: [{ beatNumber: 3, origin: "local_card" }, { beatNumber: 1, origin: "registry_real_shop" }] })).toEqual([3]);
@@ -235,6 +260,22 @@ describe("assembly verifies the exact bytes a bound beat was given", () => {
     expect(expectedClipSha256(brief, 3)).toBeNull();
     expect(expectedClipSha256({}, 1)).toBeNull();
     expect(expectedClipSha256({ shotLineage: "x" }, 1)).toBeNull();
+  });
+  it("distinguishes no local lineage from a local row with an unusable proof (assembly refuses the latter)", () => {
+    const brief = { shotLineage: [
+      { beatNumber: 1, origin: "registry_real_shop", sha256: "AB".repeat(32), url: "https://x/1" },
+      { beatNumber: 2, origin: "provider" },
+      { beatNumber: 3, origin: "local_card", sha256: "nope", url: "https://x/3" },
+      { beatNumber: 4, origin: "registry_real_shop", url: "https://x/4" },
+    ] };
+    expect(expectedClipProof(brief, 1)).toEqual({ kind: "sha", sha256: "ab".repeat(32) });
+    expect(expectedClipProof(brief, 2)).toEqual({ kind: "none" });
+    expect(expectedClipProof(brief, 3).kind).toBe("invalid");
+    expect(expectedClipProof(brief, 4).kind).toBe("invalid");
+    expect(expectedClipProof({}, 9)).toEqual({ kind: "none" });
+    // The disclosure path refuses the same rows as non-generative proof.
+    const clips = JSON.stringify(["https://x/1", "https://x/3"]);
+    expect(allShotsNonGenerative(clips, [brief.shotLineage[0], { beatNumber: 2, origin: "local_card", sha256: "nope", url: "https://x/3" }])).toBe(false);
   });
 });
 
