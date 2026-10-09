@@ -64,8 +64,16 @@ export function readyCandidateIsUsable(input: {
   hasBlockingError: boolean;
   hasLiveApproval: boolean;
   skippedByDrain?: boolean;
+  /**
+   * The drain scans a bounded window (DRAIN_SCAN_LIMIT). An assembled job it did
+   * not reach this pulse is unproven: its drain-only checks (repost, inventory
+   * hold, condemned script, parked QA) never ran, so it is not counted (PR #2940
+   * review). Undefined keeps the old reading for other callers.
+   */
+  evaluatedByDrain?: boolean;
 }): boolean {
   if (input.skippedByDrain) return false;
+  if (input.status === "assembled" && input.evaluatedByDrain === false) return false;
   if (input.hasBlockingError || !input.hasAsset) return false;
   if (input.status === "assets_ready") return true;
   return input.status === "assembled" && input.hasLiveApproval;
