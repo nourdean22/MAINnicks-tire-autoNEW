@@ -630,3 +630,73 @@ def test_office_code_change_keeps_the_old_fingerprint_when_the_start_fails(tmp_p
     assert out["markers"]["fingerprintAfterFailedStart"] == ""
     assert any("start FAILED" in line for line in out["log"])
     assert f"start-task:{OFFICE_TASK}" not in out["calls"]
+
+
+# ---- the sign crop at dusk ------------------------------------------------------------------------
+# Witnessed 2026-10-08 18:01-18:10: the relay stayed up while the solar sign camera sent no frames,
+# and the supervisor restarted the crop 8 times in 9 minutes, then ESCALATEd "needs a human". A crop
+# restart cannot make frames the camera is not sending: the crop now asks the relay's stack first.
+
+SIGN = "rtsp://127.0.0.1:8555/sign"
+RELAY = "rtsp://127.0.0.1:8554/live"
+
+
+def test_a_dark_camera_does_not_restart_the_crop_and_says_so_once_an_hour(tmp_path: Path):
+    out = run_scenario("crop-dark-upstream-at-night", tmp_path)
+    assert out["markers"] == {"first": False, "second": False}
+    assert not any(c.startswith("start-process:") for c in out["calls"]), out["calls"]
+    assert out["calls"].count(f"probe:{RELAY}") == 2
+    notes = [line for line in out["log"] if "sign camera sends no frames" in line]
+    assert len(notes) == 1 and " NOTE " in notes[0] and "expected" in notes[0], out["log"]
+    assert "sign-crop" not in out["state"], "a dark camera must not count as crop restarts"
+
+
+def test_a_dark_camera_in_daylight_escalates_with_what_to_check(tmp_path: Path):
+    out = run_scenario("crop-dark-upstream-in-daylight", tmp_path)
+    assert out["markers"]["ready"] is False
+    assert not any(c.startswith("start-process:") for c in out["calls"])
+    assert any("ESCALATE sign camera sends no frames in DAYLIGHT" in line and "V380" in line for line in out["log"]), out["log"]
+
+
+def test_a_broken_crop_beside_a_live_relay_is_restarted(tmp_path: Path):
+    out = run_scenario("crop-broken-while-upstream-has-frames", tmp_path)
+    assert "start-process:run-sign-crop.ps1" in out["calls"], out["calls"]
+    assert out["calls"].index(f"probe:{RELAY}") < out["calls"].index("start-process:run-sign-crop.ps1")
+    assert any("ACTION restart sign-crop" in line for line in out["log"])
+    assert len(out["state"]["sign-crop"]["restarts"]) == 1
+
+
+def test_a_healthy_crop_costs_no_relay_probe(tmp_path: Path):
+    out = run_scenario("crop-healthy", tmp_path)
+    assert out["markers"]["ready"] is True
+    assert out["calls"] == [f"probe:{SIGN}"], out["calls"]
+
+
+# ---- host scripts: drift and the fallback ----------------------------------------------------------
+
+
+def test_an_installed_host_script_that_differs_from_the_repo_is_reported_once_a_day(tmp_path: Path):
+    out = run_scenario("host-script-drift", tmp_path)
+    warns = [line for line in out["log"] if " WARN installed " in line]
+    shim = [w for w in warns if "installed shim script" in w]
+    crop = [w for w in warns if "installed crop script" in w]
+    assert len(shim) == 2, warns  # once, then again a day later; never on the repeat within the day
+    assert len(crop) == 1 and "missing" in crop[0], warns
+    assert all("install-nicksmax-supervisor-host.ps1" in w for w in warns)
+
+
+def test_the_fallback_is_the_last_version_that_completed_a_tick(tmp_path: Path):
+    out = run_scenario("fallback-refreshed-from-a-completed-tick", tmp_path)
+    assert out["markers"]["fallbackAfter"].strip() == "# tick v2"
+    assert len([line for line in out["log"] if "refreshed the fallback copy" in line]) == 1
+    # A tick running AS the fallback (the repo file did not parse) never rewrites it.
+    assert out["markers"]["fallbackWhenRunningAsFallback"].strip() == "# hand edit"
+    assert out["markers"]["leftovers"] in (None, [])
+
+
+def test_the_tick_heals_the_crop_through_the_function_and_refreshes_the_fallback_last():
+    lines = _code_lines()
+    at = lambda s: _top_level_index(lines, s)
+    assert at("$signFrameReady = Heal-SignCrop (Get-Date).Hour") < at("$directReady = ")
+    assert at("try { Update-FallbackCopy $PSCommandPath $fallbackTick }") > at("Save-State")
+    assert at("try { Test-HostScriptDrift }") > at("$state = Read-State")

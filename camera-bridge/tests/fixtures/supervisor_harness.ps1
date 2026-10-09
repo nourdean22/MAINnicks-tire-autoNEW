@@ -49,6 +49,14 @@ $eufyTasks = @(
   @{ Name = "StateNour-Eufy-Bridge-NicksMax"; Port = 3000; Key = "eufy-bridge" },
   @{ Name = "StateNour-Eufy-Agent-NicksMax";  Port = 3601; Key = "eufy-agent" }
 )
+$cropLauncher = Join-Path $WorkDir "run-sign-crop.ps1"
+$relayStackUrl = "rtsp://127.0.0.1:8554/live"
+$signUrl = "rtsp://127.0.0.1:8555/sign"
+$fallbackTick = Join-Path $WorkDir "supervisor.fallback.ps1"
+$hostScripts = @(
+  @{ Name = "shim"; Repo = (Join-Path $WorkDir "repo-shim.ps1"); Installed = (Join-Path $WorkDir "installed-shim.ps1") },
+  @{ Name = "crop"; Repo = (Join-Path $WorkDir "repo-crop.ps1"); Installed = (Join-Path $WorkDir "installed-crop.ps1") }
+)
 
 foreach ($fn in $functionAsts) { . ([scriptblock]::Create($fn.Extent.Text)) }
 
@@ -111,6 +119,13 @@ function Get-ScheduledTask { param([string]$TaskName, $ErrorAction)
   }
 }
 function Start-Sleep { param($Milliseconds, $Seconds) }
+# Decoded-frame probes answer from $frames (url -> bool) and are recorded; Start-Process records
+# the launcher it would have started.
+$frames = @{}
+function Test-RtspFrame { param([string]$url) $calls.Add("probe:$url"); return [bool]$frames[$url] }
+function Start-Process { param($FilePath, $ArgumentList, $WindowStyle, [switch]$PassThru)
+  $calls.Add("start-process:" + (Split-Path ([string]@($ArgumentList)[-1]) -Leaf))
+}
 function Port-Open { param([int]$port, [int]$timeoutMs = 1500)
   if ($portOwners.ContainsKey($port)) { return ($killed -notcontains $portOwners[$port]) }
   return $false
@@ -415,6 +430,55 @@ switch ($Scenario) {
       $markers["afterRelease"] = [string](Restore-Overflow)
     } finally { $ErrorActionPreference = $saved }
     Log "after"
+  }
+  "crop-dark-upstream-at-night" {
+    # 2026-10-08 18:01-18:10: relay up, the solar camera dark, the crop restarted 8 times in 9 min.
+    Set-Content -LiteralPath $cropLauncher -Value "# crop" -Encoding ascii
+    $portOwners[8554] = 41; $portOwners[8555] = 42
+    $frames[$signUrl] = $false; $frames[$relayStackUrl] = $false
+    $markers["first"] = Heal-SignCrop 21
+    $markers["second"] = Heal-SignCrop 21
+  }
+  "crop-dark-upstream-in-daylight" {
+    Set-Content -LiteralPath $cropLauncher -Value "# crop" -Encoding ascii
+    $portOwners[8554] = 41; $portOwners[8555] = 42
+    $frames[$signUrl] = $false; $frames[$relayStackUrl] = $false
+    $markers["ready"] = Heal-SignCrop 11
+  }
+  "crop-broken-while-upstream-has-frames" {
+    Set-Content -LiteralPath $cropLauncher -Value "# crop" -Encoding ascii
+    $portOwners[8554] = 41; $portOwners[8555] = 42
+    $frames[$signUrl] = $false; $frames[$relayStackUrl] = $true
+    $markers["ready"] = Heal-SignCrop 11
+  }
+  "crop-healthy" {
+    Set-Content -LiteralPath $cropLauncher -Value "# crop" -Encoding ascii
+    $portOwners[8554] = 41; $portOwners[8555] = 42
+    $frames[$signUrl] = $true
+    $markers["ready"] = Heal-SignCrop 11
+  }
+  "host-script-drift" {
+    Set-Content -LiteralPath (Join-Path $WorkDir "repo-shim.ps1") -Value "# shim v2" -Encoding ascii
+    Set-Content -LiteralPath (Join-Path $WorkDir "installed-shim.ps1") -Value "# shim v1" -Encoding ascii
+    Set-Content -LiteralPath (Join-Path $WorkDir "repo-crop.ps1") -Value "# crop" -Encoding ascii
+    Set-Content -LiteralPath (Join-Path $WorkDir "installed-crop.ps1") -Value "# crop" -Encoding ascii
+    Test-HostScriptDrift
+    Test-HostScriptDrift
+    Remove-Item -LiteralPath (Join-Path $WorkDir "installed-crop.ps1")
+    $nowEpoch += 86401
+    Test-HostScriptDrift
+  }
+  "fallback-refreshed-from-a-completed-tick" {
+    $self = Join-Path $WorkDir "tick.ps1"
+    Set-Content -LiteralPath $self -Value "# tick v2" -Encoding ascii
+    Set-Content -LiteralPath $fallbackTick -Value "# tick v1" -Encoding ascii
+    Update-FallbackCopy $self $fallbackTick
+    $markers["fallbackAfter"] = [string](Get-Content -LiteralPath $fallbackTick -Raw)
+    Update-FallbackCopy $self $fallbackTick
+    Set-Content -LiteralPath $fallbackTick -Value "# hand edit" -Encoding ascii
+    Update-FallbackCopy $fallbackTick $fallbackTick
+    $markers["fallbackWhenRunningAsFallback"] = [string](Get-Content -LiteralPath $fallbackTick -Raw)
+    $markers["leftovers"] = @(Get-ChildItem -Path ($fallbackTick + ".*") | ForEach-Object { $_.Name })
   }
   "state-write-beside-a-sharing-reader" {
     $state["eufy-bridge"] = @{ restarts = @(1759999000.0); escalatedAt = 0; portMisses = 2; fingerprint = "" }

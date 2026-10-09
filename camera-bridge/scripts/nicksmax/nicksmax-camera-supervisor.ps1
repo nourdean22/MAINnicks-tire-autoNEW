@@ -40,11 +40,25 @@ $relayLauncher = if ($isSystem) { "C:\Users\nourd\NicksMax\lab\v380-cloud-relay\
 $relaySecret = if ($isSystem) { "C:\ProgramData\NicksMaxCamera\shopsign-machine.dpapi" } else { "C:\Users\nourd\NicksMax\lab\secrets\machine\shopsign-device.machine" }
 $mediaLauncher = "C:\Users\nourd\NicksMax\lab\v380-cloud-relay\run-mediamtx-sign.ps1"
 $cropLauncher = "C:\Users\nourd\NicksMax\lab\v380-cloud-relay\run-sign-crop.ps1"
+# The crop republishes the middle lens of the relay's stack; this is the stack it reads.
+$relayStackUrl = "rtsp://127.0.0.1:8554/live"
+$signUrl = "rtsp://127.0.0.1:8555/sign"
 $shadowLauncher = Join-Path $root "data\run-sign-rtsp-candidate.ps1"
 $productionLauncher = Join-Path $root "data\run-sign-rtsp-production.ps1"
 $productionMarker = Join-Path $root "data\NICKSMAX-SIGN-PRODUCTION-ARMED"
 $prodStartMarker = Join-Path $root "data\.nicksmax-prod-start-last"
 $statePath = Join-Path $root "data\.nicksmax-supervisor-state.json"
+$fallbackTick = Join-Path $root "data\nicksmax-camera-supervisor.fallback.ps1"
+# Host scripts that run from outside this checkout's tracked files (2026-10-09): the repo copy is
+# canonical, scripts\nicksmax\install-nicksmax-supervisor-host.ps1 installs it, and a tick that
+# finds an installed copy different from the repo says so once a day.
+$hostScripts = @(
+  @{ Name = "loop";    Repo = Join-Path $root "scripts\nicksmax\nicksmax-camera-supervisor-loop.ps1"; Installed = Join-Path $root "data\nicksmax-camera-supervisor-loop.ps1" },
+  @{ Name = "shim";    Repo = Join-Path $root "scripts\nicksmax\nicksmax-camera-supervisor-shim.ps1"; Installed = Join-Path $root "data\nicksmax-camera-supervisor.ps1" },
+  @{ Name = "edge";    Repo = Join-Path $root "scripts\nicksmax\run-sign-rtsp-production.ps1";       Installed = Join-Path $root "data\run-sign-rtsp-production.ps1" },
+  @{ Name = "crop";    Repo = Join-Path $root "scripts\nicksmax\run-sign-crop.ps1";                  Installed = "C:\Users\nourd\NicksMax\lab\v380-cloud-relay\run-sign-crop.ps1" },
+  @{ Name = "eufy-bridge"; Repo = Join-Path $root "scripts\nicksmax\start-bridge-nicksmax.ps1";        Installed = "C:\Users\nourd\AppData\Local\StateNour\Eufy\start-bridge-nicksmax.ps1" }
+)
 
 $officeTask = "StateNour-OfficeIntelligence-NicksMax"
 $officeStatusPath = "C:\Users\nourd\AppData\Local\StateNour\OfficeIntelligence\office-conversation-status.json"
@@ -204,6 +218,24 @@ function Report-BlockedRestore([string]$why) {
   }
 }
 Report-BlockedRestore $restoreBlocked
+
+# An installed host script that differs from its repo copy is a change that never deployed (or a
+# hand edit that will be lost): the edge and crop launchers, the loop and the shim run from files
+# outside the tracked tree. Once a day per script; the installer is the fix, never this tick.
+function Test-HostScriptDrift {
+  foreach ($h in $hostScripts) {
+    if (-not (Test-Path -LiteralPath $h.Repo)) { continue }
+    $repoHash = (Get-FileHash -LiteralPath $h.Repo -Algorithm SHA256).Hash
+    $installedHash = if (Test-Path -LiteralPath $h.Installed) { (Get-FileHash -LiteralPath $h.Installed -Algorithm SHA256).Hash } else { "missing" }
+    if ($installedHash -eq $repoHash) { continue }
+    $e = Get-Entry ("host-drift-" + $h.Name)
+    if ($e.escalatedAt -lt ($nowEpoch - 86400)) {
+      $e.escalatedAt = $nowEpoch
+      Log ("WARN installed {0} script {1} differs from the repo copy ({2}); run scripts\nicksmax\install-nicksmax-supervisor-host.ps1 to install it" -f $h.Name, $h.Installed, $(if ($installedHash -eq "missing") { "missing" } else { "sha256 " + $installedHash.Substring(0, 12) + " vs " + $repoHash.Substring(0, 12) }))
+    }
+  }
+}
+try { Test-HostScriptDrift } catch { Log ("WARN host script drift check failed: {0}" -f $_.Exception.Message) }
 
 function Record-Restart([string]$key,[string]$why) {
   $e = Get-Entry $key
@@ -695,14 +727,33 @@ if (-not $mediaReady -and (Test-Path $mediaLauncher)) {
 }
 
 # 3c. Crop middle 1920x1080 lens from the 1920x3240 cloud stack -> 640x360 @ 4fps.
-# A decoded frame, not process visibility, proves the crop publisher is actually healthy.
-$signFrameReady = (Port-Open 8555) -and (Test-RtspFrame "rtsp://127.0.0.1:8555/sign")
-if ((Port-Open 8554) -and -not $signFrameReady -and (Test-Path $cropLauncher)) {
+# A decoded frame, not process visibility, proves the crop publisher is actually healthy. When the
+# crop has no frame, ask the relay's stack before blaming the crop: the sign camera is solar, and at
+# dusk (2026-10-08 18:01-18:10) the relay stayed up with no frames while the crop was restarted 8
+# times in 9 minutes and then ESCALATEd as "needs a human". A crop restart cannot make frames the
+# camera is not sending. The upstream probe runs only on this failure path (a probe is up to 12 s).
+function Heal-SignCrop([int]$hour) {
+  $ready = (Port-Open 8555) -and (Test-RtspFrame $signUrl)
+  if ($ready -or -not (Port-Open 8554) -or -not (Test-Path $cropLauncher)) { return $ready }
+  if (-not (Test-RtspFrame $relayStackUrl)) {
+    $e = Get-Entry "sign-camera-dark"
+    if ($e.escalatedAt -lt ($nowEpoch - 3600)) {
+      $e.escalatedAt = $nowEpoch
+      # Same daylight rule as the relay's login hold above.
+      if ($hour -ge 8 -and $hour -lt 18) {
+        Log "ESCALATE sign camera sends no frames in DAYLIGHT (relay up, its stack dark); not restarting the crop -- check the solar shop-sign camera is online in the V380 app and that its battery is charging"
+      } else {
+        Log "NOTE sign camera sends no frames (relay up, its stack dark); expected for the solar shop-sign camera at dusk and overnight -- not restarting the crop until frames return"
+      }
+    }
+    return $false
+  }
   Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @("-NoProfile","-ExecutionPolicy","Bypass","-File",$cropLauncher)
-  Record-Restart "sign-crop" "no decodable frame on 8555/sign"
+  Record-Restart "sign-crop" "no decodable frame on 8555/sign while the relay's stack has frames"
   Start-Sleep -Milliseconds 900
-  $signFrameReady = (Port-Open 8555) -and (Test-RtspFrame "rtsp://127.0.0.1:8555/sign")
+  return ((Port-Open 8555) -and (Test-RtspFrame $signUrl))
 }
+$signFrameReady = Heal-SignCrop (Get-Date).Hour
 
 $directReady = (Port-Open 8554) -and $signFrameReady
 $authorityModeFile = Join-Path $root "data\nicksmax-camera-authority.mode"
@@ -741,7 +792,7 @@ if ($armed) {
   if ($directReady -and -not $prodHealthy -and -not $prodStarting -and (Test-Path $productionLauncher)) {
     $startDue = (-not (Test-Path $prodStartMarker)) -or ((Get-Item $prodStartMarker).LastWriteTime -lt (Get-Date).AddSeconds(-30))
     if ($startDue) {
-      if (Test-RtspFrame "rtsp://127.0.0.1:8555/sign") {
+      if (Test-RtspFrame $signUrl) {
         try { Write-SharedFile $prodStartMarker ((Get-Date -Format o) + "`r`n") }
         catch { Log ("WARN could not stamp the production start marker: {0}" -f $_.Exception.Message) }
         Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @("-NoProfile","-ExecutionPolicy","Bypass","-File",$productionLauncher)
@@ -807,5 +858,21 @@ function Save-State {
   }
 }
 Save-State
+
+# The shim falls back to data\nicksmax-camera-supervisor.fallback.ps1 when this file does not parse
+# (a half-finished pull). A copy written by hand once goes stale: on 2026-10-08 it still carried the
+# Add-Content writer this file had replaced. So the fallback is the last version that ran a whole
+# tick: this one, refreshed here once it differs. A fallback run is a no-op by the same hash check:
+# its own file is the fallback.
+function Update-FallbackCopy([string]$self, [string]$fallback) {
+  if (-not $self -or -not (Test-Path -LiteralPath $self)) { return }
+  $mine = (Get-FileHash -LiteralPath $self -Algorithm SHA256).Hash
+  if ((Test-Path -LiteralPath $fallback) -and ((Get-FileHash -LiteralPath $fallback -Algorithm SHA256).Hash -eq $mine)) { return }
+  $staged = $fallback + ".new"
+  [IO.File]::Copy($self, $staged, $true)
+  if (Test-Path -LiteralPath $fallback) { [IO.File]::Replace($staged, $fallback, [NullString]::Value) } else { [IO.File]::Move($staged, $fallback) }
+  Log ("ACTION refreshed the fallback copy from this tick's script (sha256 {0})" -f $mine.Substring(0, 12))
+}
+try { Update-FallbackCopy $PSCommandPath $fallbackTick } catch { Log ("WARN could not refresh the fallback copy: {0}" -f $_.Exception.Message) }
 
 if ($supervisorLockHandle) { $supervisorLockHandle.Dispose() }
