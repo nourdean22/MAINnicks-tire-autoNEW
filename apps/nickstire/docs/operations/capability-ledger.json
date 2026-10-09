@@ -4651,6 +4651,38 @@
       ],
       "lastVerifiedAt": "2026-10-09",
       "verificationExpiresAt": "2026-11-08"
+    },
+    {
+      "capabilityId": "reel-source-aware-route-20261009",
+      "name": "Reels source-aware route: a REAL beat binds the registry clip it names (exact bytes), a DETERMINISTIC beat is drawn locally, hands-only presence profile on real beats, sentence captions, per-shot lineage drives the AI label and the ledger",
+      "owner": "operator",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "branch nickstire/reels-source-aware-route (2026-10-09), PR after #2944. shared/shotRouter.ts: bound_real / render_card local routes (a real beat with no realAssetId still holds). server/services/realShotBinding.ts: verifyRealShopVideoRow (real_shop, reuse_allowed, is_current, bindable lifecycle, video mime, 64-hex checksum, duration_ms) + resolveRealBeatAssets. server/services/deterministicCard.ts: SVG -> sharp PNG -> templateStockStudio.buildBeatClipArgs + runFfmpeg (exported) -> storagePut reels/deterministic-card/ -> sha256. server/services/localBeatResolution.ts: runs in processNextReelJob after the hold and before the provider loop, writes sourceDurationSec on the beat and shotLineage on the payload; durable-storage assert before a card render; locallyResolvedClipCount for settlement. reelPipeline: enqueue verifies a named realAssetId read-only (typed ReelPreflightBlockedError, rotation advances), reservation prices only generate beats, settlement counts lineage-backed clips free. reelAssembly: segmentCapSeconds (real min(12 s, probed), card 8 s, generated 4 s unchanged), sanitizeCaptionStyled + drawtext expansion=none for sentence style, expectedClipSha256 exact-bytes check in assembleReel. facelessReelStudio: presenceProfile hands_only_real (FACE_ONLY_PATTERN on real beats only). renderedQa: handsExpectedBeats / cardBeats in the critic prompt, applyPresenceExemptions recorded as presenceExemptions. reelDisclosure.allShotsNonGenerative (lineage covers every slot, origins registry/card, bound URL equals the slot clip) used by shouldDiscloseAi in dailyReelPost (veto AND transmitted flag) and instagramAdmin. selectiveRepair refuses paid regen of bound/drawn beats. approvedReelPackRotation carries realAssetId, cardLines, presenceProfile, captionStyle from the pack brief.",
+        "tests": [
+          "server/reelSourceAware.test.ts (42) + shared/reelSourceProfile.test.ts (11): legacy controls (4 s clamp, uppercase caption byte-identical, gloves rejected by default, no-lineage settlement 0) and the new cases (7 s real beat holds 7 s and a 12 s declaration trims to the clip, 12 s cap, card 8 s; sentence caption keeps 50% and 3/32 in with expansion=none; hands pass only on real beats under hands_only_real, a face blocks everywhere; ten registry refusal shapes; card lines parsed from explicit cardLines else the pack labels; hands-only and card-beat critic exemptions; lineage-driven AI label with URL cross-check; settlement counts bound clips free).",
+          "Updated pins: shared/shotRouter.test.ts (deterministic -> render_card, bound_real with an id, reworded hold reasons), server/approvedReelPackRotation.test.ts (proof packs: every REAL beat still holds, the one DETERMINISTIC beat is local), server/reelEnqueueRefusalAdvance.test.ts (the new typed refusal needs the registry row).",
+          "Full vitest run on NattyNour 2026-10-09: 996 files passed, 2 failed = shared/mechanicalTruth.test.ts and shared/previsReadability.test.ts, the known Windows-only repo-scan files (CI runs them). tsc exit 0. lint:source, lint:hooks, lint:pii, lint:orphans (11 reasoned baseline entries), validate:routes, lint:cron-wiring green. pnpm run build exit 0."
+        ],
+        "liveRuns": "None. No job has bound a registry clip yet: media_assets has 0 real_shop video rows (read-only probe 2026-10-09 20:28Z), and the three proof packs name no realAssetId, so they still hold at enqueue with needs_real_footage. The first bound Reel (capture day -> register as real_shop video -> id on the beat) is the integration proof; its first sentence-style render proves drawtext expansion=none on the production ffmpeg.",
+        "deploymentId": "not deployed (PR open)"
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "No real_shop VIDEO row exists and the Studio upload does not probe video duration yet, so a clip must be registered through mediaRegistry directly (or the upload path extended) before any beat can bind.",
+          "source": "2026-10-09"
+        },
+        {
+          "severity": "P3",
+          "description": "Studio has no control for realAssetId / cardLines / presenceProfile / captionStyle; they are pack-file fields. The approval Queue does not show the per-shot lineage lines yet.",
+          "source": "2026-10-09"
+        }
+      ],
+      "lastVerifiedAt": "2026-10-09",
+      "verificationExpiresAt": "2026-11-08"
     }
   ],
   "axes": {

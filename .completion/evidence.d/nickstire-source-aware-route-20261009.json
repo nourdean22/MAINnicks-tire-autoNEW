@@ -2,6 +2,18 @@
   "evidence": {
     "operator-walkthrough": {
       "ref": "2026-10-09 source-aware route (PR after #2944). The only client/ file touched is client/src/lib/facelessReelStudio.ts: two optional type fields (StoryboardBeat.realAssetId, cardLines; ReelBrief.presenceProfile, captionStyle), FACE_ONLY_PATTERN, an opts arg on validateFacelessSubject, and a per-beat branch in runSafetyChecks that runs ONLY when presenceProfile is hands_only_real. No component, page, route or style changed, so the operator sees nothing new: the object_only (default) branch is the original single call, pinned by client/src/__tests__/faceless-reel-studio.test.ts (65 passed) and server/reelSourceAware.test.ts (legacy cases: gloved hands still rejected, finding where=storyboard). Zero importers of the new fields in client/src/pages or client/src/components (grep realAssetId|cardLines|presenceProfile|captionStyle client/src/pages client/src/components: 0 hits)."
+    },
+    "render-spend-trajectory": {
+      "ref": "2026-10-09 source-aware route: the spend path changes are (1) the hold now runs BEFORE local binding so closeRefusedJobReservation never reads a bound http clip as bought (server/reelSourceAware.test.ts + server/refusedJobReservation.test.ts, server/reelReservationRelease.test.ts green), (2) enqueue reserves only beats whose beatGenerationRoute is generate (reelPipeline enqueueReelJob), (3) settlement adds locallyResolvedClipCount(brief.shotLineage, clipUrls, beats) to freeLaneClips before paidClips is computed — server/reelSourceAware.test.ts 'settlement counts bound clips as free' (no lineage -> 0, the original expression; registry + card rows with an http slot -> counted; provider rows and empty slots -> not). server/reelPipelinePulseBudget.test.ts and server/reelPipeline.test.ts green on the tree. No provider call is added; a bound real beat and a drawn card never reach a provider."
+    },
+    "visual-world-trajectory": {
+      "ref": "2026-10-09 source-aware route: reelPipeline.ts is touched for ReelJobBrief fields (realAssetId, cardLines, sourceDurationSec, presenceProfile, captionStyle, shotLineage), the enqueue registry check, the local-resolution block and the settlement count; the visualWorld field, buildHiggsfieldReelPromptPack and the locked-invariants path are not edited (git diff reelPipeline.ts contains no visualWorld or lockedInvariants hunk). Existing pins stay green: server/reelPipeline.test.ts, server/reelPipelineProviderGuard.test.ts, server/reelPipelinePromotion.test.ts."
+    },
+    "cron-fail-closed": {
+      "ref": "2026-10-09 source-aware route: server/cron/jobs/dailyReelPost.ts changes only the two shouldDiscloseAi calls (veto and transmitted flag) to pass { shotLineage } from parseReelJobPayload(job.payload); no gate, cap, authorization or error path moves. server/cron/jobs/dailyReelPost.test.ts and server/reelDisclosureWiring.test.ts green on the tree; shared/reelDisclosure.ts 'allShotsNonGenerative' fails closed: no lineage, a partial lineage, a provider row, a provider URL in the clips, or a bound URL that is not the clip in its slot all keep is_ai_generated (server/reelSourceAware.test.ts 'AI disclosure follows the lineage')."
+    },
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json: reel-source-aware-route-20261009 added (codeState in_progress, operationalState unit_verified, exposure internal, two blockers: no real_shop video row exists yet; no Studio control for the new fields). docs/operations/REALITY-LEDGER.md re-rendered with scripts/render-reality-ledger.mjs in the same diff."
     }
   }
 }
