@@ -4593,7 +4593,7 @@
       "owner": "operator",
       "codeState": "merged",
       "operationalState": "unit_verified",
-      "exposure": "production",
+      "exposure": "internal",
       "evidence": {
         "codeCommit": "branch nickstire/reel-lane-unjam-20261009 (2026-10-09). server/cron/jobs/dailyReelPost.ts: the drain records every approved job it refuses on a pulse (drainSkippedIds) and countUsableReadyEpisodes(d, drainSkippedIds) passes skippedByDrain to shared/reelQueue.readyCandidateIsUsable, which returns false for it. Before, the count re-derived 3 of the drain's 6 checks (asset, error, live approval) and missed inventory hold, condemned script, repost and parked rendered QA. server/services/repairRouter.ts: paidRepairCanClearVerdict (blocking regenerable findings must all name a beat, and the distinct blocked beats must fit maxRepairAttemptsPerAsset minus payload.repairQueue length) gates the cron's policy-authorized paid repair; pickRepairTarget picks the lowest blocked regenerable beat. The free auto_repair lane is unchanged.",
         "tests": [
