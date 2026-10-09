@@ -436,9 +436,35 @@ export interface BoundedEdit {
   replace: string;
 }
 
-/** The excerpt the optimizer may ask to replace, and how much the replacement may grow it. One section, never the prompt. */
-const EDIT_FIND_MAX_CHARS = 4000;
+/**
+ * The excerpt the optimizer may ask to replace, and how much the replacement
+ * may grow it. One section, never the prompt: the live prompt is ~32,000
+ * chars with single lines over 1,000 chars (vapi.ts ASSISTANT_SYSTEM_PROMPT),
+ * so the cap is stated to the model in CHARACTERS, not lines (2026-10-09
+ * review: "30 lines" and a 4,000-char cap contradicted each other on 111 of
+ * this prompt's 140 possible 30-line windows).
+ */
+const EDIT_FIND_MAX_CHARS = 6000;
 const EDIT_GROWTH_MAX_CHARS = 2500;
+const EDIT_FIND_ASK = "usually 1 to 10 lines and never more than about 5,000 characters";
+
+/**
+ * The LAST block whose markers sit on their own lines. Prose that mentions the
+ * markers ("I put the excerpt between <FIND> and </FIND> as asked") never
+ * matches, so it cannot capture " and " and spend the one retry (2026-10-09
+ * review). A one-line <TAG>text</TAG> is accepted only when no line-anchored
+ * block exists.
+ */
+function lastMarkedBlock(text: string, tag: string): string | null {
+  const anchored = new RegExp(`^<${tag}>[ \\t]*\\r?\\n([\\s\\S]*?)\\r?\\n<\\/${tag}>[ \\t]*$`, "gm");
+  let last: string | null = null;
+  for (const m of text.matchAll(anchored)) last = m[1];
+  if (last !== null) return last;
+  // Inline fallback only when the block IS the line: prose around the markers never counts.
+  const inline = new RegExp(`^<${tag}>([^\n]*?)<\/${tag}>[ \t]*$`, "gm");
+  for (const m of text.matchAll(inline)) last = m[1];
+  return last;
+}
 
 /**
  * What the optimizer answered, in order of preference: a bounded edit, or a
@@ -447,16 +473,11 @@ const EDIT_GROWTH_MAX_CHARS = 2500;
  */
 export function parseOptimizerReply(text: string): { rationale: string | null; edit: BoundedEdit | null; whole: string | null } {
   const rationale = /RATIONALE:\s*(.+)/.exec(text)?.[1]?.trim() ?? null;
-  const find = /<FIND>([\s\S]*?)<\/FIND>/.exec(text)?.[1] ?? null;
-  const replace = /<REPLACE>([\s\S]*?)<\/REPLACE>/.exec(text)?.[1] ?? null;
-  const edit = find !== null && replace !== null && find.trim().length > 0 ? { find: stripOneNewline(find), replace: stripOneNewline(replace) } : null;
-  const whole = /<PROMPT>([\s\S]*?)<\/PROMPT>/.exec(text)?.[1]?.trim() ?? null;
+  const find = lastMarkedBlock(text, "FIND");
+  const replace = lastMarkedBlock(text, "REPLACE");
+  const edit = find !== null && replace !== null && find.trim().length > 0 ? { find, replace } : null;
+  const whole = lastMarkedBlock(text, "PROMPT")?.trim() ?? null;
   return { rationale, edit, whole: whole && whole.length > 200 ? whole : null };
-}
-
-/** The markers sit on their own lines; the newline that follows <FIND> and precedes </FIND> is formatting, not content. */
-function stripOneNewline(block: string): string {
-  return block.replace(/^\r?\n/, "").replace(/\r?\n$/, "");
 }
 
 /**
@@ -513,7 +534,8 @@ function occurrences(haystack: string, needle: string): number[] {
 
 const OPTIMIZER_FORMAT =
   'Output format, nothing else: one line "RATIONALE: <why this one edit>", then the excerpt to change between <FIND> and </FIND> ' +
-  "(copy it from CURRENT PROMPT verbatim, 1 to 30 lines, enough to be unique), then its replacement between <REPLACE> and </REPLACE>. " +
+  `(each marker on its own line; copy the excerpt from CURRENT PROMPT verbatim, keeping its line breaks, ${EDIT_FIND_ASK}, enough to be unique), ` +
+  "then its replacement between <REPLACE> and </REPLACE>. " +
   "To add a rule, put the line it follows in FIND and that same line plus the new rule in REPLACE. " +
   "Never emit the whole prompt: every character outside FIND is kept exactly as it is.";
 
@@ -531,8 +553,11 @@ async function proposeCandidates(
     const rationale = redactCallerText(parsed.rationale ?? "(no rationale emitted)", RATIONALE_MAX);
     if (parsed.edit) {
       const applied = applyBoundedEdit(basePrompt, parsed.edit);
-      if ("prompt" in applied) return { prompt: applied.prompt, rationale };
-      return { refused: applied.refused };
+      if ("refused" in applied) return { refused: applied.refused };
+      // An edit that changes nothing (REPLACE equal to FIND, or indentation
+      // only) would be replayed at full cost and read as margin 0.
+      if (applied.prompt.replace(/\s+/g, " ") === basePrompt.replace(/\s+/g, " ")) return { refused: "the edit changes nothing" };
+      return { prompt: applied.prompt, rationale };
     }
     // The pre-2026-10-09 contract: a model that re-emits everything is still
     // heard, and the policy guard downstream still judges what it dropped.
@@ -568,7 +593,7 @@ async function proposeCandidates(
       beforeCall();
       const retry = await invokeLLM({
         messages: [
-          { role: "system", content: `You return exactly one line starting with RATIONALE:, then the excerpt to change between <FIND> and </FIND> copied VERBATIM from the current prompt (unique, 1 to 30 lines), then its replacement between <REPLACE> and </REPLACE>. No other output.\n\n${UNTRUSTED_DATA_NOTICE}` },
+          { role: "system", content: `You return exactly one line starting with RATIONALE:, then the excerpt to change between <FIND> and </FIND> (each marker on its own line) copied VERBATIM from the current prompt with its own line breaks (unique, ${EDIT_FIND_ASK}), then its replacement between <REPLACE> and </REPLACE>. No other output.\n\n${UNTRUSTED_DATA_NOTICE}` },
           { role: "user", content: `CURRENT PROMPT:\n${basePrompt}\n\nYour previous answer could not be applied (${resolved.refused}). Here it is:\n\n${text.slice(0, 6000)}\n\nRe-emit it now as: RATIONALE: <one line>\n<FIND>\n<verbatim excerpt>\n</FIND>\n<REPLACE>\n<replacement>\n</REPLACE>` },
         ],
         maxTokens: 8192,

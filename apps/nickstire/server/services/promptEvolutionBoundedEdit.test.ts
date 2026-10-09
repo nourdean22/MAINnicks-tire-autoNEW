@@ -42,6 +42,16 @@ describe("parseOptimizerReply", () => {
     expect(r.whole).toBeNull();
   });
 
+  it("prose that mentions the markers never captures; the LAST line-anchored block wins; a one-line block is the fallback", () => {
+    const narrated = "RATIONALE: fix routing\nI put the excerpt between <FIND> and </FIND> as asked.\n<FIND>\nNever quote repair prices.\n</FIND>\n<REPLACE>\nNever quote repair prices, ever.\n</REPLACE>\nThat is the whole edit between <FIND> and </FIND>.";
+    expect(parseOptimizerReply(narrated).edit).toEqual({ find: "Never quote repair prices.", replace: "Never quote repair prices, ever." });
+    const twoBlocks = "<FIND>\nfirst draft\n</FIND>\n<REPLACE>\nx\n</REPLACE>\nActually:\n<FIND>\nfinal\n</FIND>\n<REPLACE>\ny\n</REPLACE>";
+    expect(parseOptimizerReply(twoBlocks).edit).toEqual({ find: "final", replace: "y" });
+    expect(parseOptimizerReply("RATIONALE: r\n<FIND>a line</FIND>\n<REPLACE>a line, rewritten</REPLACE>").edit).toEqual({ find: "a line", replace: "a line, rewritten" });
+    // Markers mid-prose only: nothing usable.
+    expect(parseOptimizerReply("I would put it between <FIND> and </FIND> then <REPLACE> and </REPLACE>.").edit).toBeNull();
+  });
+
   it("still reads the legacy whole-prompt block, and reads nothing from analysis-only text", () => {
     const whole = parseOptimizerReply(`RATIONALE: x\n<PROMPT>\n${PROMPT}\n</PROMPT>`);
     expect(whole.edit).toBeNull();
@@ -82,7 +92,7 @@ describe("applyBoundedEdit", () => {
     const twice = `${PROMPT}\n\n# NOTE\nAsk before transferring. Never transfer when closed.`;
     expect(applyBoundedEdit(twice, { find: "Ask before transferring. Never transfer when closed.", replace: "x" })).toMatchObject({ refused: expect.stringContaining("occurs 2 times") });
     expect(applyBoundedEdit(PROMPT, { find: "   \n  ", replace: "x" })).toMatchObject({ refused: expect.stringContaining("blank") });
-    expect(applyBoundedEdit(PROMPT, { find: "x".repeat(4001), replace: "x" })).toMatchObject({ refused: expect.stringContaining("cap is 4000") });
+    expect(applyBoundedEdit(PROMPT, { find: "x".repeat(6001), replace: "x" })).toMatchObject({ refused: expect.stringContaining("cap is 6000") });
     expect(applyBoundedEdit(PROMPT, { find: "# PRICING", replace: "# PRICING\n" + "y".repeat(2600) })).toMatchObject({ refused: expect.stringContaining("grows the section") });
   });
 
