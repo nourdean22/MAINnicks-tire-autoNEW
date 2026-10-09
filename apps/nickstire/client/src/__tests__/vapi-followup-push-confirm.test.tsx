@@ -16,6 +16,8 @@ import React from "react";
 const h = vi.hoisted(() => ({
   followUpMutate: vi.fn(),
   receptionistMutate: vi.fn(),
+  evolutionMutate: vi.fn(),
+  evolutionStatus: { active: null as null | { startedAt: string; elapsedMs: number; budgetMs: number }, last: null, latest: { state: "ok", latest: null } } as Record<string, unknown>,
   confirmAnswer: false,
   confirmDialog: vi.fn(),
 }));
@@ -34,6 +36,8 @@ vi.mock("@/lib/trpc", () => ({
       createAssistant: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
       updateAssistant: { useMutation: () => ({ mutate: h.receptionistMutate, isPending: false }) },
       updateFollowUpAssistant: { useMutation: () => ({ mutate: h.followUpMutate, isPending: false }) },
+      promptEvolutionStatus: { useQuery: () => ({ data: h.evolutionStatus }) },
+      runPromptEvolutionNow: { useMutation: () => ({ mutate: h.evolutionMutate, isPending: false }) },
     },
   },
 }));
@@ -43,6 +47,8 @@ import VapiPanel from "../pages/admin/settings/VapiPanel";
 beforeEach(() => {
   h.followUpMutate.mockClear();
   h.receptionistMutate.mockClear();
+  h.evolutionMutate.mockClear();
+  h.evolutionStatus = { active: null, last: null, latest: { state: "ok", latest: null } };
   h.confirmDialog.mockReset();
   h.confirmDialog.mockImplementation(async () => h.confirmAnswer);
 });
@@ -81,5 +87,58 @@ describe("PUSH FOLLOW-UP ASSISTANT is a two-tap confirm with a 48px target", () 
   it("the button is a 48px touch target", () => {
     render(<VapiPanel />);
     expect(followUpButton().className).toMatch(/\bmin-h-\[48px\]/);
+  });
+});
+
+/**
+ * RUN EXPERIMENT NOW starts a 25-minute offline replay that spends the week's
+ * sealed confirmation seeds. Same contract as the follow-up push: in-DOM
+ * confirm, a cancel starts nothing, one confirmed tap starts exactly once, 48px.
+ */
+const runButton = () => screen.getByRole("button", { name: /run experiment now/i });
+
+describe("RUN EXPERIMENT NOW is a two-tap confirm that starts the manual run once", () => {
+  it("the first tap opens the in-DOM confirm and starts nothing; a cancel starts nothing", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm");
+    try {
+      h.confirmAnswer = false;
+      render(<VapiPanel />);
+      fireEvent.click(runButton());
+      await waitFor(() => expect(h.confirmDialog).toHaveBeenCalledTimes(1));
+      expect(h.confirmDialog.mock.calls[0][0]).toMatchObject({ title: expect.stringMatching(/prompt experiment/i) });
+      expect(h.evolutionMutate).not.toHaveBeenCalled();
+      expect(confirmSpy).not.toHaveBeenCalled();
+    } finally {
+      confirmSpy.mockRestore();
+    }
+  });
+
+  it("a confirmed second tap starts exactly once, and the follow-up push is untouched", async () => {
+    h.confirmAnswer = true;
+    render(<VapiPanel />);
+    fireEvent.click(runButton());
+    await waitFor(() => expect(h.evolutionMutate).toHaveBeenCalledTimes(1));
+    expect(h.followUpMutate).not.toHaveBeenCalled();
+    expect(h.receptionistMutate).not.toHaveBeenCalled();
+  });
+
+  it("while a run is active the button is disabled and says RUNNING", () => {
+    h.evolutionStatus = { active: { startedAt: "2026-10-09T14:00:00.000Z", elapsedMs: 180_000, budgetMs: 1_800_000 }, last: null, latest: { state: "ok", latest: null } };
+    render(<VapiPanel />);
+    const b = screen.getByRole("button", { name: /running/i });
+    expect(b).toBeDisabled();
+    expect(screen.getByText(/running for 3 min of a 30-minute budget/i)).toBeTruthy();
+  });
+
+  it("an unreadable latest row reads as unknown, never as no runs yet", () => {
+    h.evolutionStatus = { active: null, last: null, latest: { state: "unavailable", reason: "db down" } };
+    render(<VapiPanel />);
+    expect(screen.getByText(/latest result unknown/i)).toBeTruthy();
+    expect(screen.queryByText(/no experiment recorded yet/i)).toBeNull();
+  });
+
+  it("the button is a 48px touch target", () => {
+    render(<VapiPanel />);
+    expect(runButton().className).toMatch(/\bmin-h-\[48px\]/);
   });
 });

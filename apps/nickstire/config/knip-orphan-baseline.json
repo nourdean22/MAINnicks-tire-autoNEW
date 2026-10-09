@@ -6057,6 +6057,31 @@
       "reason": "2026-10-09 receptionist research integrity (#2944) · INTENTIONAL TEST-VISIBLE CONTRACT: replayPolicy.test.ts checks these number words stay in parity with voiceClaimGuard private money words, so the replay grader cannot drift from the live guard. knip excludes *.test.ts as consumers."
     },
     {
+      "file": "apps/nickstire/server/services/promptEvolutionManualRun.ts",
+      "symbol": "PROMPT_EVOLUTION_JOB_NAME",
+      "reason": "2026-10-09 receptionist prompt experiment manual door (#2945) · INTENTIONAL TEST-VISIBLE CONTRACT: the one job this door runs; promptEvolutionManualRun.test.ts asserts the lock is taken under exactly this name and parses the scheduler.ts tier entry by it. knip excludes *.test.ts as consumers."
+    },
+    {
+      "file": "apps/nickstire/server/services/promptEvolutionManualRun.ts",
+      "symbol": "PROMPT_EVOLUTION_BUDGET_MS",
+      "reason": "2026-10-09 receptionist prompt experiment manual door (#2945) · INTENTIONAL TEST-VISIBLE CONTRACT: the budget the door races the cycle against; promptEvolutionManualRun.test.ts parses the prompt-evolution-weekly timeoutMs out of scheduler.ts and fails when the two drift (a manual run that outlives its own lock is the hole runJobByName warns about). knip excludes *.test.ts as consumers."
+    },
+    {
+      "file": "apps/nickstire/server/services/promptEvolutionManualRun.ts",
+      "symbol": "_resetPromptEvolutionManualRunForTests",
+      "reason": "2026-10-09 receptionist prompt experiment manual door (#2945) · TEST SEAM: clears the in-process active/last state between cases. Only *.test.ts calls it, by design."
+    },
+    {
+      "file": "apps/nickstire/server/services/promptEvolutionManualRun.ts",
+      "symbol": "whenPromptEvolutionManualRunSettled",
+      "reason": "2026-10-09 receptionist prompt experiment manual door (#2945) · TEST SEAM: awaits the background run so a test can assert the cron_log row and the lock release. Production shutdown already waits through trackCronRun/whenCronRunsSettled (cron/index.ts), so no runtime caller is needed. Only *.test.ts calls it."
+    },
+    {
+      "file": "apps/nickstire/server/services/promptEvolutionManualRun.ts",
+      "symbol": "summarizeLatestRow",
+      "reason": "2026-10-09 receptionist prompt experiment manual door (#2945) · INTENTIONAL TEST-VISIBLE CONTRACT: the pure summariser behind readLatestPromptEvolutionSummary; promptEvolutionManualRun.test.ts feeds it a row carrying the full candidate prompt, the live prompt and caller text and asserts none of them leave. knip excludes *.test.ts as consumers."
+    },
+    {
       "file": "apps/nickstire/shared/reelDisclosure.ts",
       "symbol": "allShotsNonGenerative",
       "reason": "2026-10-09 source-aware route: exported for reelSourceAware.test.ts; consumed internally by shouldDiscloseAi (cron + admin publish door)"
