@@ -29,7 +29,10 @@
 FROM node:24-alpine3.23 AS pruner
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
-RUN npm install -g turbo@2.9.14
+# turbo here must be the lockfile's turbo (apps/statenour/tests/repo/dockerfile-turbo-pin.test.ts):
+# 2.9.14 cannot parse turbo.json's `agentGuidance` (#2936), so every build from 01:43Z on
+# 2026-10-09 failed at `turbo prune` and production stayed on #2935.
+RUN npm install -g turbo@2.11.6
 COPY . .
 RUN turbo prune @statenour/web --docker
 
