@@ -144,13 +144,22 @@ See `07-PRODUCTION-METRICS.md` — each metric mapped to a source table or marke
    proof packs clear it (test).
 3. **BUILT.** The capture card asks for the six-shot set (stills first — the pool the lane reads is
    image-only; a 5–8 s clip when easy).
-4. Publish-policy decision (operator): the real-evidence prefix vs the stock guard (§1). NOT STARTED.
-5. Diagram/measurement card renderer (deterministic) — only after two proof Reels need the same card.
-   NOT STARTED.
-6. **BUILT + WIRED as a refusal (2026-10-08, after #2932).** A beat declared real or deterministic is
-   never sent to a generator: refused at enqueue, at generation (before the paid provider anchor) and
-   at the single-beat repair entry (`shotRouter.beatsTheGeneratorMustNotRender`). ROUTING such a beat
-   (real footage, a card renderer, a `still_motion` beat to `templateStockStudio`) waits on item 4:
-   the stock guard refuses every locally hosted clip.
+4. **BUILT + WIRED (2026-10-09, `13-SOURCE-AWARE-ROUTE.md`).** The real-evidence route is the
+   media registry, not a storage prefix: a beat's `realAssetId` must resolve to a `real_shop`,
+   reusable, current VIDEO row with a checksum and a duration (`services/realShotBinding.ts`), the
+   exact bytes are re-hashed at assembly, and the stock guard is untouched (registry footage never
+   carries the `template-stock` path it refuses).
+5. **BUILT + WIRED (2026-10-09).** `services/deterministicCard.ts` draws a labelled card (explicit
+   `cardLines`, else the capitalised labels the pack writes) through the template_stock ffmpeg lane,
+   re-hosted under `reels/deterministic-card/` and bound with its sha256. A diagram with real
+   geometry (cross-section, force arrows) is still a hand-drawn asset, not this renderer.
+6. **BUILT + WIRED (2026-10-08 refusal; 2026-10-09 routing).** A beat declared real with no registry
+   asset, or naming no object, is still never sent to a generator (refused at enqueue, at generation
+   and at the repair entry). A real beat WITH a registry asset and every deterministic beat are now
+   resolved locally before the provider loop (`shotRouter.beatsToResolveLocally`,
+   `services/localBeatResolution.ts`): the clip lands in its slot with a `shotLineage` row, the
+   generator renders only the remaining beats, settlement bills none of the local clips, and the
+   disclosure gate reads the lineage. A `still_motion` beat to `templateStockStudio` is not routed.
 
-Items 4–5 are the remaining multi-workflow changes; `09-90-DAY-MODEL.md` carries them in the operator handoff.
+Remaining: a Studio control for `realAssetId` / `cardLines` (pack-file fields today), video duration
+probing on the Studio upload, and the lineage lines in the approval Queue.

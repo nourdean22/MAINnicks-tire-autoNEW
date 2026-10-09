@@ -21,6 +21,8 @@
  */
 
 /** Video providers whose output is synthetic. */
+import { parseShotLineage } from "./reelSourceProfile";
+
 export const GENERATIVE_PROVIDERS = [
   "higgsfield",
   "veo",
@@ -245,11 +247,42 @@ export function clipProvenance(clipUrlsJson: string | null | undefined): ClipPro
 export function shouldDiscloseAi(
   clipUrlsJson: string | null | undefined,
   envProvider: string | null | undefined,
+  opts: { shotLineage?: unknown } = {},
 ): boolean {
   const provenance = clipProvenance(clipUrlsJson);
   if (provenance === "generative") return true;
+  // Source-aware production (2026-10-09): when the job's lineage accounts for
+  // EVERY clip and each one is registry-backed shop footage or a locally drawn
+  // card, nothing in the Reel is model-generated — labelling it AI would be the
+  // false claim in the other direction. A provider URL among the clips (above)
+  // still wins over any lineage row, and a partial lineage proves nothing.
+  if (allShotsNonGenerative(clipUrlsJson, opts.shotLineage)) return false;
   if (provenance === "stock") return false;
   return isGenerativeProvider(envProvider);
+}
+
+/**
+ * True only when a lineage row covers every clip slot, none is a provider
+ * shot, and each row's bound URL is the clip actually in that slot (beat N
+ * sits at clipUrls[N-1]; validateBeatCount pins that numbering). A lineage
+ * row is payload JSON, so the URL cross-check is what stops an edited row
+ * from relabelling a generated clip as real.
+ */
+export function allShotsNonGenerative(clipUrlsJson: string | null | undefined, shotLineage: unknown): boolean {
+  let clips: unknown[] = [];
+  try { clips = clipUrlsJson ? JSON.parse(clipUrlsJson) : []; } catch { clips = []; }
+  if (!Array.isArray(clips) || !clips.length) return false;
+  const rows = parseShotLineage(shotLineage);
+  if (rows.length !== clips.length) return false;
+  const beats = new Set(rows.map((r) => r.beatNumber));
+  if (beats.size !== clips.length) return false;
+  return rows.every((r) => {
+    if (r.origin !== "registry_real_shop" && r.origin !== "local_card") return false;
+    // A local row without a valid hash is unverified evidence, not proof.
+    if (!/^[a-f0-9]{64}$/.test(String(r.sha256 ?? "").toLowerCase())) return false;
+    const clip = clips[r.beatNumber - 1];
+    return typeof r.url === "string" && r.url.length > 0 && clip === r.url;
+  });
 }
 
 /**

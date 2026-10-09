@@ -18,7 +18,7 @@ import {
 import { askLeakageProblem, askProblem, askSignals, type ReelAsk } from "../shared/reelAsk";
 import { readdirSync } from "node:fs";
 import path from "node:path";
-import { beatsTheGeneratorMustNotRender, declaredBeatSource, generationHoldReason } from "../shared/shotRouter";
+import { beatsTheGeneratorMustNotRender, beatsToResolveLocally, declaredBeatSource, generationHoldReason } from "../shared/shotRouter";
 
 describe("approved Reel-pack rotation", () => {
   it("contains every explicitly approved pack exactly once", () => {
@@ -269,11 +269,18 @@ describe("proof packs and the declared beat source", () => {
   it("the generator refuses every proof pack before spend, and holds no rotation pack", () => {
     // The proof packs tag every evidence beat REAL and every card DETERMINISTIC;
     // built for the lane, each is refused at enqueue and at generation.
+    // Since 2026-10-09 the DETERMINISTIC card beat is drawn locally
+    // (beatsToResolveLocally), so it is no longer a hold; every REAL beat
+    // still is, because no proof pack names a registry asset yet — so each
+    // pack is still refused before spend.
     for (const slug of PROOF) {
       const beats = build(slug, loadApprovedProductionPack(slug)!)!.storyboardBeats as Array<{ beatNumber: number; visual: string }>;
       const blocked = beatsTheGeneratorMustNotRender(beats, []);
-      expect(blocked.map((b) => b.beatNumber)).toEqual(beats.map((b) => b.beatNumber));
-      expect(blocked.filter((b) => b.route === "needs_deterministic_render")).toHaveLength(1);
+      const local = beatsToResolveLocally(beats, []);
+      expect(blocked.length + local.length).toBe(beats.length);
+      expect(blocked.every((b) => b.route === "needs_real_footage")).toBe(true);
+      expect(local.filter((b) => b.route === "render_card")).toHaveLength(1);
+      expect(blocked.length).toBeGreaterThan(0);
     }
     // CONTROL, over the whole daily rotation: not one beat is held, so the gate cannot stall the lane.
     const held: string[] = [];

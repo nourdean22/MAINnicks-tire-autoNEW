@@ -99,11 +99,14 @@ rights (`real_shop`, reuse allowed). An unusable clip is marked unusable, never 
 
 ## Production route
 
-The registered `real_shop` pool reads stills only today, and the generator refuses beats declared
-real. Flagship edits are therefore cut by hand from the capture files, assembled and verified on
-this machine with the ffmpeg and ffprobe that ship in `@remotion/compositor-win32-x64-msvc`, and
-handed to the operator as exact MP4 files. Wiring real video into the assembly lane is the next
-build, and it starts only once captured footage exists to test it against.
+Since 2026-10-09 the assembly lane carries real footage and drawn cards itself
+(`13-SOURCE-AWARE-ROUTE.md`): a beat declared REAL binds the registry clip named by its
+`realAssetId` (verified `real_shop` video, exact sha256, probed duration, up to 12 s on screen), a
+beat declared DETERMINISTIC is drawn locally from its `cardLines`, and the finished MP4 carries a
+per-shot lineage the disclosure gate reads. What it still needs is the footage: register each capture
+as a `real_shop` video row and put its id on the beat. Until then the proof packs hold at enqueue
+with `needs_real_footage`, by design. A hand cut with the bundled ffmpeg remains a valid fallback
+for a one-off, but it carries no lineage and must not claim the lane's provenance.
 
 Each finished Reel ships with a 1080×1920 faststart MP4, a cover, both captions, a source manifest
 (real or synthetic per shot, model and prompt version, credits), safe-zone, muted-first and audio

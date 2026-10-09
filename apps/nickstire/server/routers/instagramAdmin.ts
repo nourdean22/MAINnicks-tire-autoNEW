@@ -1786,6 +1786,8 @@ Keep it under 200 characters.`;
             }
             let clipUrlsJson: string | null = null;
             let onScreenText = "";
+            /** Per-shot provenance (2026-10-09): lets a Reel made only of registry footage and drawn cards publish without the AI label. */
+            let shotLineage: unknown = undefined;
             if (resolvedReelJobId !== null) {
               const { reelJobs } = await import("../../drizzle/schema");
               const [reelJob] = await database
@@ -1808,7 +1810,9 @@ Keep it under 200 characters.`;
               }
               clipUrlsJson = reelJob.clipUrlsJson ?? null;
               const { parseReelJobPayload } = await import("@shared/reelJobPayload");
-              onScreenText = (parseReelJobPayload(reelJob.payload).storyboardBeats ?? [])
+              const reelPayload = parseReelJobPayload(reelJob.payload);
+              shotLineage = reelPayload.shotLineage;
+              onScreenText = (reelPayload.storyboardBeats ?? [])
                 .map((b) => b?.onScreenText ?? "")
                 .filter(Boolean)
                 .join(" ");
@@ -1821,7 +1825,7 @@ Keep it under 200 characters.`;
             // cannot be added after the container is created. Any client value
             // is ignored. The disclosure gate judges the value that will be sent.
             const { shouldDiscloseAi, publishDisclosureProblem } = await import("@shared/reelDisclosure");
-            const willDiscloseAi = shouldDiscloseAi(clipUrlsJson, process.env.REEL_VIDEO_PROVIDER);
+            const willDiscloseAi = shouldDiscloseAi(clipUrlsJson, process.env.REEL_VIDEO_PROVIDER, { shotLineage });
             const disclosureViolation = publishDisclosureProblem({
               jobId: resolvedReelJobId ?? draft.id,
               caption: approvedCaption,

@@ -86,8 +86,20 @@ export function declaredBeatSource(beat: { visual?: string | null; source?: Shot
   return "unspecified";
 }
 
-/** What the clip generator does with a beat that has no clip yet. */
-export type BeatGenerationRoute = "generate" | "needs_real_footage" | "needs_deterministic_render" | "needs_subject";
+/**
+ * What the clip generator does with a beat that has no clip yet.
+ *   generate                    send it to the video provider
+ *   bound_real                  declared real AND names a registry asset: bind the exact clip (realShotBinding)
+ *   render_card                 declared deterministic: draw it locally (deterministicCard), never a model
+ *   needs_real_footage          declared real with no asset named: hold, nothing spent
+ *   needs_deterministic_render  the card lane refused or failed: hold
+ *   needs_subject               the visual names no object: hold
+ */
+export type BeatGenerationRoute = "generate" | "bound_real" | "render_card" | "needs_real_footage" | "needs_deterministic_render" | "needs_subject";
+/** Routes resolved on this machine before the provider loop (2026-10-09). */
+export type LocalBeatRoute = Extract<BeatGenerationRoute, "bound_real" | "render_card">;
+/** Routes that stop the job before any spend. */
+export type HoldBeatRoute = Exclude<BeatGenerationRoute, "generate" | LocalBeatRoute>;
 
 /**
  * A visual that names no object (2026-10-08). Two 2026-09-25 import batches wrote
@@ -119,43 +131,80 @@ function isSubjectFreeVisual(visual: string | null | undefined): boolean {
  * model to show. still_motion, ai_illustrative and undeclared beats with a
  * subject generate as before.
  */
-export function beatGenerationRoute(beat: { visual?: string | null; source?: ShotSource | null }): BeatGenerationRoute {
+export interface RoutableBeat {
+  beatNumber: number;
+  visual?: string | null;
+  source?: ShotSource | null;
+  /** media_assets.id of the captured clip a real beat binds (2026-10-09). A URL never self-asserts real; the registry row does. */
+  realAssetId?: string | null;
+}
+
+export function beatGenerationRoute(beat: Omit<RoutableBeat, "beatNumber">): BeatGenerationRoute {
   const source = declaredBeatSource(beat);
-  if (source === "real") return "needs_real_footage";
-  if (source === "deterministic") return "needs_deterministic_render";
+  if (source === "real") return typeof beat.realAssetId === "string" && beat.realAssetId.trim() ? "bound_real" : "needs_real_footage";
+  if (source === "deterministic") return "render_card";
   if (isSubjectFreeVisual(beat.visual)) return "needs_subject";
   return "generate";
 }
 
-/** The beats the generator must not render: declared real or deterministic, or naming no subject, with no clip yet (a resumed job keeps its clips). */
+const isHttpClip = (clip: unknown): boolean => typeof clip === "string" && clip.startsWith("http");
+
+/**
+ * The beats the generator must not render: declared real with no asset bound,
+ * or naming no subject, with no clip yet (a resumed job keeps its clips). A
+ * beat declared real WITH a registry asset, or declared deterministic, is not
+ * a hold any more — it is resolved locally first (beatsToResolveLocally) and
+ * reaches this list only if that resolution fails.
+ */
 export function beatsTheGeneratorMustNotRender(
-  beats: ReadonlyArray<{ beatNumber: number; visual?: string | null; source?: ShotSource | null }>,
+  beats: ReadonlyArray<RoutableBeat>,
   existingClipUrls: unknown,
-): Array<{ beatNumber: number; route: Exclude<BeatGenerationRoute, "generate"> }> {
+): Array<{ beatNumber: number; route: HoldBeatRoute }> {
   const clips = Array.isArray(existingClipUrls) ? existingClipUrls : [];
-  const out: Array<{ beatNumber: number; route: Exclude<BeatGenerationRoute, "generate"> }> = [];
+  const out: Array<{ beatNumber: number; route: HoldBeatRoute }> = [];
   beats.forEach((beat, i) => {
-    const clip = clips[i];
-    if (typeof clip === "string" && clip.startsWith("http")) return;
+    if (isHttpClip(clips[i])) return;
     const route = beatGenerationRoute(beat);
-    if (route !== "generate") out.push({ beatNumber: beat.beatNumber, route });
+    if (route === "generate" || route === "bound_real" || route === "render_card") return;
+    out.push({ beatNumber: beat.beatNumber, route });
+  });
+  return out;
+}
+
+/**
+ * The beats this machine resolves before the provider loop (2026-10-09): a real
+ * beat whose registry asset gets bound, and a deterministic beat that gets
+ * drawn. `index` is the clipUrls slot. A beat that already has an http clip
+ * (a resumed job) is skipped, exactly like the generator skips it.
+ */
+export function beatsToResolveLocally(
+  beats: ReadonlyArray<RoutableBeat>,
+  existingClipUrls: unknown,
+): Array<{ beatNumber: number; index: number; route: LocalBeatRoute; realAssetId?: string }> {
+  const clips = Array.isArray(existingClipUrls) ? existingClipUrls : [];
+  const out: Array<{ beatNumber: number; index: number; route: LocalBeatRoute; realAssetId?: string }> = [];
+  beats.forEach((beat, i) => {
+    if (isHttpClip(clips[i])) return;
+    const route = beatGenerationRoute(beat);
+    if (route === "bound_real") out.push({ beatNumber: beat.beatNumber, index: i, route, realAssetId: String(beat.realAssetId).trim() });
+    else if (route === "render_card") out.push({ beatNumber: beat.beatNumber, index: i, route });
   });
   return out;
 }
 
 /** The refusal line, at enqueue or at generation: which beats, and what each needs. */
 export function generationHoldReason(
-  blocked: ReadonlyArray<{ beatNumber: number; route: Exclude<BeatGenerationRoute, "generate"> }>,
+  blocked: ReadonlyArray<{ beatNumber: number; route: HoldBeatRoute }>,
   stage: "enqueue" | "generation" = "generation",
 ): string {
-  const list = (route: Exclude<BeatGenerationRoute, "generate">) => blocked.filter((b) => b.route === route).map((b) => b.beatNumber);
+  const list = (route: HoldBeatRoute) => blocked.filter((b) => b.route === route).map((b) => b.beatNumber);
   const real = list("needs_real_footage");
   const drawn = list("needs_deterministic_render");
   const blank = list("needs_subject");
   const beatWord = (n: number[]) => (n.length === 1 ? `beat ${n[0]} is` : `beats ${n.join(", ")} are`);
   const parts: string[] = [];
-  if (real.length) parts.push(`${beatWord(real)} declared real: capture the footage (docs/reels-engine-v2/05-CAPTURE-CHECKLIST.md)`);
-  if (drawn.length) parts.push(`${beatWord(drawn)} declared deterministic: no publishable card renderer yet`);
+  if (real.length) parts.push(`${beatWord(real)} declared real with no registry asset bound: capture the footage, register it as real_shop, and name its asset id on the beat (docs/reels-engine-v2/05-CAPTURE-CHECKLIST.md)`);
+  if (drawn.length) parts.push(`${beatWord(drawn)} declared deterministic: the local card could not be rendered (see the job log)`);
   if (blank.length) {
     const what = blank.length === 1 ? "a placeholder that names no object" : "placeholders that name no object";
     parts.push(`${beatWord(blank)} ${what} ("the physical subject"): write what the camera sees, or capture it`);

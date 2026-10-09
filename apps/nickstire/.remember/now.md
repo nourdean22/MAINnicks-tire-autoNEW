@@ -2,6 +2,17 @@
 
 **Updated: 2026-10-09 21:00Z** (the receptionist experiment manual door #2945 first, run live the same day; then the Reel lane unjam #2940; then the routine's live proofs and the camera page gate; then the flagged-items wave; then 10-08 evening: #2934 merged + deployed, the supervisor log-writer fix; then PR C, PR A + B history, the merged camera audit wave #2920 + #2925, the Search Console wave and the 2026-10-03 Sentry sweep.)
 
+## 2026-10-09 evening · Reels source-aware route (branch `nickstire/reels-source-aware-route`, PR after #2944) BUILT + TESTED
+
+**Built:** doctrine 02 §8 items 4-6 (`docs/reels-engine-v2/13-SOURCE-AWARE-ROUTE.md`, CURRENT-TRUTH top section): real beats bind registry footage, deterministic beats draw cards, hands-only presence profile, sentence captions, per-shot lineage, lineage-driven AI label, ledger counts local clips free. Docs: 62-slot provisional slate, nine flagship hooks. Nothing spent, published or scheduled.
+
+**Receipts:** tsc exit 0; full vitest 995 files passed / 2 known Windows-only red; the reel suites green; lint gates green; build exit 0. An independent 9-agent cross-check found 2 real defects (ledger `fail` on a hold after binding; settlement billing bound clips) and 4 more worth fixing (enqueue lane jam on a bad id, disclosure flag divergence, critic text calibration for cards, storage assert) — all fixed before commit.
+
+**Reel #1 ("Looks fine. Look closer.", `Nicks_Pilot_01_Tread_Illustration.mp4`) — BLOCKED, asset not found:** not on this machine (Downloads/Desktop/Documents/Videos/repo), not in Google Drive (title search), not in `reel_jobs` (last 25 read 20:28Z: 2040001 "GRAB A PENNY" parked, 1980001 posted 09-28), not in `media_assets` (0 pilot/tread/real_shop rows), no claude.ai artifact. The operator must supply the MP4 (or its URL) and the publication request before anything is published; the publisher path is `instagramAdmin.publishPost` (hash-checked approval door), `isAiGenerated` derived server-side.
+
+**Next:** merge the PR; capture day; register captures as `real_shop` video rows and put ids on the proof-pack beats; first sentence-style render proves `expansion=none` on the production ffmpeg.
+
+
 ## 2026-10-09 evening · receptionist prompt experiment on demand (#2945) MERGED + DEPLOYED; first live run the same day
 
 **Shipped:** main `9421d816` (deployment `88fba68c`, healthy 20:33Z). `processPromptEvolutionWeekly(now, { trigger: "manual" })` is the only thing that bypasses the Monday gate. `services/promptEvolutionManualRun.ts` runs the same cycle under the scheduler's own cross-dyno lock (TTL 2x budget, slot claimed synchronously before the first await), OLLAMA_API_KEY requirement, 30-minute budget and cron_log columns, and answers as soon as the run is started. Doors: VAPI panel card "Prompt experiment · propose-only" (tRPC `vapi.runPromptEvolutionNow` / `vapi.promptEvolutionStatus`, two-tap confirm) and `POST /api/admin/run-prompt-evolution` + `GET /api/admin/prompt-evolution-status` (admin API key). Propose-only unchanged.

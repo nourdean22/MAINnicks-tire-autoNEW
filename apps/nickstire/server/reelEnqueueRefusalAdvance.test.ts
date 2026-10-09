@@ -104,7 +104,10 @@ describe("every content verdict inside enqueueReelJob is typed (2026-10-08)", ()
     "[generationHoldReason(blocked, \"enqueue\"", // beatsTheGeneratorMustNotRender
     "[", // the caption limit (its message starts on the next line)
   ];
-  const NEEDS_CONTEXT = ["[`Episode contract blocked (${pre.blocks"]; // needs the day's claim packet
+  const NEEDS_CONTEXT = [
+    "[`Episode contract blocked (${pre.blocks", // needs the day's claim packet
+    "[reason]);", // REAL_ASSET_NOT_BINDABLE (2026-10-09): needs the media registry row the beat names — a DB read, not a brief-only verdict
+  ];
 
   it("every typed refusal in enqueueReelJob is mirrored by briefEnqueueRefusals or named as needing the day's context", () => {
     const found = typedRefusals(PIPELINE);

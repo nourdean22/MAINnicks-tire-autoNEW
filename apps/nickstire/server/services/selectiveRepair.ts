@@ -112,9 +112,11 @@ export function beatRepairRefusal(payload: unknown, beatNumber: number, jobId: n
   // the first.
   const declaredRoute = beatGenerationRoute(beat);
   if (declaredRoute !== "generate") {
-    const why = declaredRoute === "needs_real_footage"
+    // bound_real / render_card (2026-10-09) are resolved locally, not by a
+    // provider: a defect there means recapture or redraw, never a paid regen.
+    const why = declaredRoute === "needs_real_footage" || declaredRoute === "bound_real"
       ? "is declared real"
-      : declaredRoute === "needs_deterministic_render"
+      : declaredRoute === "needs_deterministic_render" || declaredRoute === "render_card"
         ? "is declared deterministic"
         : "names no object (a placeholder visual)";
     return `beat ${beatNumber} of job ${jobId} ${why} — a provider never regenerates it`;
