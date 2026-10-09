@@ -24,6 +24,13 @@ export const REALITY_EVENT_RETENTION_CLASSES = [
 export type RealityEventRetentionClass =
   (typeof REALITY_EVENT_RETENTION_CLASSES)[number];
 
+/**
+ * The authenticated door a batch came through (reality-ledger.ts
+ * EvidenceProducer, derived from the credential, never from the body).
+ * Restated here because reality-ledger.ts imports this module.
+ */
+export type RealityEventProducer = "ledger" | "bridge" | "operator";
+
 export interface RealityEventContract {
   family: string;
   eventVersion: number;
@@ -31,6 +38,15 @@ export interface RealityEventContract {
   payloadSchema: z.ZodType<Record<string, unknown>>;
   matches: (eventType: string) => boolean;
   canonicalType: (eventType: string) => string;
+  /**
+   * 2026-10-09 - Optional door scope. Absent = any authenticated door may
+   * write the type (every family registered before this date). Present = only
+   * these doors; any other door, or a caller that does not say which door it
+   * is, is refused (fail closed). Used where a reader presents the rows as one
+   * specific producer's output, so a different key holder cannot write a row
+   * that renders exactly like it.
+   */
+  producers?: readonly RealityEventProducer[];
 }
 
 const recordPayload = z.record(z.string(), z.unknown());
@@ -57,6 +73,29 @@ const episodePayload = z
   .passthrough();
 
 const darwinPayload = recordPayload;
+
+/**
+ * receptionist.prompt_experiment v1 (2026-10-09) - one receipt per weekly
+ * prompt-evolution run in nickstire (source.uri "cron:prompt-evolution-weekly").
+ * The producer's full payload is outcome, promotionStage, baseline,
+ * candidate, lanes, cohorts, gates, previousProposal, usage. Only
+ * `outcome` is required here, the way experiment.verdict requires only
+ * `status`: the /proof reader (recentPromptExperiments) tolerates every other
+ * key being absent or null, and a stricter write schema would drop a whole
+ * weekly receipt over one renamed sub-field. Everything else passes through.
+ *
+ * Door: bridge only. nickstire posts with STATENOUR_SYNC_KEY
+ * (apps/nickstire/server/services/evidenceLedger.ts), which the evidence route
+ * resolves to "bridge". /proof labels these rows as that cron's receipts, and
+ * the scoped EVIDENCE_LEDGER_KEY is held by Night Shift (an LLM), so without
+ * the scope a ledger-door post would render exactly like the cron's.
+ */
+const receptionistPromptExperimentPayload = z
+  .object({
+    outcome: z.string().min(1).max(64),
+    promotionStage: z.string().max(64).nullable().optional(),
+  })
+  .passthrough();
 
 const EPISODE_TYPE =
   /^episode\.(decision|tool|tool_gap|mission|worker|content|experiment|business_outcome)\.([a-z0-9_]+)$/;
@@ -115,6 +154,16 @@ export const REALITY_EVENT_REGISTRY: readonly RealityEventContract[] = [
     matches: (eventType) => eventType === "shopstate.transition",
     canonicalType: () => eventTypeName("shopstate", "shop", "transition", 1),
   },
+  {
+    family: "receptionist",
+    eventVersion: 1,
+    retentionClass: "evidence",
+    payloadSchema: receptionistPromptExperimentPayload,
+    matches: (eventType) => eventType === "receptionist.prompt_experiment",
+    canonicalType: () =>
+      eventTypeName("receptionist", "prompt_experiment", "recorded", 1),
+    producers: ["bridge"],
+  },
 ] as const;
 
 export function realityEventContract(
@@ -128,6 +177,8 @@ export interface RealityEventRegistrationInput {
   eventVersion?: number;
   retentionClass?: RealityEventRetentionClass;
   payload?: Record<string, unknown>;
+  /** The door the batch came through; required only by a contract with `producers`. */
+  producer?: RealityEventProducer;
 }
 
 export type RealityEventRegistrationResult =
@@ -154,6 +205,16 @@ export function validateRealityEventRegistration(
     return {
       ok: false,
       error: `unregistered RealityEvent type "${input.eventType}"`,
+    };
+  }
+
+  if (
+    contract.producers &&
+    (input.producer === undefined || !contract.producers.includes(input.producer))
+  ) {
+    return {
+      ok: false,
+      error: `${input.eventType} is accepted only through the ${contract.producers.join("/")} door (this request: ${input.producer ?? "unknown door"})`,
     };
   }
 

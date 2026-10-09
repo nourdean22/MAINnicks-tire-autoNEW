@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "apps/nickstire/server/cron/jobs/promptEvolutionWeekly.test.ts (this diff): 'an infrastructure failure (no DB, dead LLM lane) fails the cron run - no kv row, no Telegram, never a quiet zero'; 'the live baseline is resolved first and passed in; a refusal fails the run before any replay, kv write or Telegram'; 'an unparseable consumed list disables confirmation ... a DB read error fails the run'. Best-effort paths that must NOT fail the run are pinned too: 'a receipt that cannot be delivered never fails the run', 'a receipt that cannot be BUILT never fails the run'. The scheduler's 30-minute budget is unchanged; the runner stops itself at 25 minutes with outcome inconclusive-budget (promptEvolution.integration.test.ts). server/__tests__/cronNoSwallowedFailure.test.ts + server/cron/jobs/cronRethrow2026.test.ts still pass in the full suite."
+    }
+  }
+}

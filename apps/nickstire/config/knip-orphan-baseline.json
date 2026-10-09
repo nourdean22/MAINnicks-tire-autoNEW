@@ -6025,6 +6025,36 @@
       "file": "apps/nickstire/server/services/repairRouter.ts",
       "symbol": "routeFinding",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (2026-10-09). The per-code routing table (method, unit, costsProviderCredits) is pinned by repairRouter.test.ts, reelCraftCritic.test.ts and reelSelfHostedSpendTrajectory.test.ts. Its runtime consumers are in-module: planRepairs, pickRepairTarget and paidRepairCanClearVerdict, which the daily-reel cron and the publish gate call. The cron imported it directly until its repair target moved to pickRepairTarget (lowest blocked beat first)."
+    },
+    {
+      "file": "apps/nickstire/server/services/smsReplayScope.ts",
+      "symbol": "REPLAY_ENV_ONLY_ALARM_ID",
+      "reason": "2026-10-09 receptionist research integrity (#2944) · INTENTIONAL TEST-VISIBLE CONTRACT: the errorId logged when REPLAY_DRY_RUN alone (no replay scope) suppresses an SMS side effect; smsReplayScope.test.ts asserts the alarm by this id. knip excludes *.test.ts as consumers."
+    },
+    {
+      "file": "apps/nickstire/server/services/smsReplayScope.ts",
+      "symbol": "__resetReplayEnvAlarmForTests",
+      "reason": "2026-10-09 receptionist research integrity (#2944) · TEST HOOK by design: resets the once-per-process env-only alarm latch so smsReplayScope.test.ts can assert it fires exactly once. No runtime caller should exist."
+    },
+    {
+      "file": "apps/nickstire/server/services/smsReplayScope.ts",
+      "symbol": "isPreEventOptInReplay",
+      "reason": "2026-10-09 receptionist research integrity (#2944) · INTENTIONAL TEST-VISIBLE CONTRACT: the classifier used inside this module to label a replayed START/YES that predates the opt-out it would undo; exported so smsReplayScope.test.ts pins it directly. knip excludes *.test.ts as consumers."
+    },
+    {
+      "file": "apps/nickstire/server/services/ghostReplay.ts",
+      "symbol": "splitSeeds",
+      "reason": "2026-10-09 receptionist research integrity (#2944) · REFERENCE SPLIT kept deliberately: runPromptEvolution now uses promptEvolutionCohorts.splitSeedsThreeWay, and promptEvolutionCohorts.test.ts pins its holdout to exactly splitSeeds(seeds, 0.4) so no seed changes holdout membership. Deleting it would delete that oracle."
+    },
+    {
+      "file": "apps/nickstire/server/services/promptEvolutionCohorts.ts",
+      "symbol": "seedBucket",
+      "reason": "2026-10-09 receptionist research integrity (#2944) · INTENTIONAL TEST-VISIBLE CONTRACT: the 0..99 bucket the three-way split cuts on; promptEvolutionCohorts.test.ts and promptEvolution.integration.test.ts build seeds in exact buckets with it. knip excludes *.test.ts as consumers."
+    },
+    {
+      "file": "apps/nickstire/server/services/replayPolicy.ts",
+      "symbol": "REPLAY_MONEY_WORDS",
+      "reason": "2026-10-09 receptionist research integrity (#2944) · INTENTIONAL TEST-VISIBLE CONTRACT: replayPolicy.test.ts checks these number words stay in parity with voiceClaimGuard private money words, so the replay grader cannot drift from the live guard. knip excludes *.test.ts as consumers."
     }
   ]
 }

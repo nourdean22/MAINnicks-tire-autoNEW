@@ -3595,14 +3595,21 @@
     },
     {
       "capabilityId": "receptionist-prompt-evolution-gate",
-      "name": "Weekly receptionist prompt evolution proposes a candidate only through a calibrated holdout gate",
+      "name": "Weekly receptionist prompt evolution proposes a candidate only through calibrated offline gates",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "branch claude/peaceful-pascal-988w9o (094cb418): server/services/promptEvolutionGate.ts replaces the holdout rule in services/promptEvolution.ts. Was `candidate passRate > baseline passRate` over ~5 holdout seeds with one ghost replay each; now 3 replays per seed per prompt, an exact one-sided sign-flip permutation test on per-seed pass-rate differences (alpha 0.05), a veto when a call the served prompt passes on every replay is failed on every replay, and an explicit underpowered outcome. The weekly cron (cron/jobs/promptEvolutionWeekly.ts) runs 30 seeds (~12 on the holdout), logs one structured `[evolve] result` line and writes the gate reading into cron_log details and Telegram. Still PROPOSE-ONLY: the served prompt is never written; applying a proposal is an operator edit + Push Config. ghostReplay.ts and promptEvolutionGate.ts are evaluator paths (config/agent-os/evaluator-paths.json).",
+        "codeCommit": "MERGED #2923 (0f9453df, 2026-10-08): server/services/promptEvolutionGate.ts replaced `candidate passRate > baseline passRate` (~5 holdout seeds, one replay) with 3 replays per seed per prompt, an exact one-sided sign-flip permutation test (alpha 0.05), a veto when a call the served prompt passes on every replay is failed on every replay, and an explicit underpowered outcome; the weekly cron runs 30 seeds and logs one `[evolve] result` line. NOT MERGED as of 2026-10-09, branch claude/karpathy-autoresearch-apps-c6f34c (autoresearch audit follow-ups): (1) the baseline is the LIVE served prompt (receptionistBaseline.resolveLiveReceptionistBaseline: routing state `match` only, GET /assistant/:id, parity identical / code_plus_lessons / diverged; a refusal fails the cron run, never a fallback to ASSISTANT_SYSTEM_PROMPT); (2) every result records describeLaneParity against REPLAY_LANE; (3) the judge also reads regex HITS (verifyHits, off for train only) and has a `deflected` verdict; (4) gradeReplies adds claimViolations from voiceClaimGuard plus replay-only classes; (5) the prompt guard is replayPolicy.violatedPromptPolicy(candidate, servedPrompt): legacy invariants + clause preservation + reversal deny-list; (6) train selection is comparePairedTrain; (7) judge outages are read at their worst for the candidate (evaluator-unavailable above a 25% share, on lost power, or on a possible hidden regression); (8) an evaluator-only success cohort of 8 won calls (judgeSuccessCohort) and a sealed confirmation set (promptEvolutionCohorts confirm buckets from a 90-call read, at most 8 per run, consumed ids in kv prompt_evolution_confirmation_consumed written before the first sealed replay); (9) caller turns reach the optimizer only through callerTextRedaction (redact whole, cut to 140, fence); (10) one Reality Ledger receipt per run (promptEvolutionReceipt.ts: `receptionist.prompt_experiment` event + one H2 claim, supported only when accepted AND confirmed), posted with STATENOUR_SYNC_KEY, accepted by StateNour through the bridge door only, rendered on /proof 'Receptionist experiments'; (11) a 25-minute run budget (outcome inconclusive-budget). Still PROPOSE-ONLY: the served prompt is never written; applying a proposal is an operator edit + Push Config. Evaluator paths (config/agent-os/evaluator-paths.json) add promptEvolution.ts, promptEvolutionCohorts.ts, promptEvolutionReceipt.ts, resolutionJudge.ts, receptionistBaseline.ts, replayPolicy.ts and cron/jobs/promptEvolutionWeekly.ts.",
         "tests": [
-          "server/services/promptEvolutionGate.test.ts (13): seeded calibration in the experimentKernelCalibration style. CONTROL: the replaced rule accepts two identical prompts in > 20% of runs (measured 28.7% at 5 seeds, 36.9% at 12; 20,000 runs, mulberry32 seed 99); the gate holds A/A acceptance <= 5% (measured 0.7%); power >= 75% for a candidate fixing 5 of 12 always-failing calls (measured 82.4%; a plain sign test 45.0%, kept as a second CONTROL); regression veto; a candidate's own 'unresolvable' loss counts as a loss; exact permutation p on hand-countable cases. Six mutations each turn the file red (no significance, veto removed, either-arm unresolvable exclusion, permutation DP broken, magnitude dropped, unresolvable replay counted as a pass).",
-          "server/cron/jobs/promptEvolutionWeekly.test.ts (4): the gate's reason, +improved/-worsened and p reach cron_log details; a regressed call id reaches Telegram",
-          "server/vapi.customer-corpus-tuning.test.ts: the Telegram summary still labels an accepted candidate OFFLINE and 'NOT a production/business winner'"
+          "measured 2026-10-09 on the branch, `pnpm exec vitest run <file>` from apps/nickstire, all green:",
+          "server/services/promptEvolutionGate.test.ts (79): #2923's seeded calibration (CONTROL: the replaced rule accepts two identical prompts in 28.7% of runs at 5 seeds, 36.9% at 12; the gate 0.7%; power 82.4% for a candidate fixing 5 of 12) plus judge-outage worst-case reads (the 010/011/111 unverified-hit cases refuse), comparePairedTrain (a candidate that only got its losses ruled unresolvable reads margin 0, not 83% vs 50%), judgeSuccessCohort vetoes, judgeConfirmation equal to judgeHoldout",
+          "server/services/promptEvolutionCohorts.test.ts (13): holdout membership identical to splitSeeds(seeds, 0.4); confirm-slice size on hashed pools",
+          "server/services/promptEvolution.integration.test.ts (35): the real modules wired, only the LLM lane, DB, provider reads, Telegram and ledger mocked; accepted+confirmed, accepted-unconfirmed, success veto, outage, budget, policy rejection before replay, paired train, redacted and fenced optimizer brief, won-call text never in an optimizer prompt, write-ahead consumed list surviving a mid-confirmation throw, kv row under its TEXT column",
+          "server/services/receptionistBaseline.test.ts (46): a routing mismatch, unknown or failed routing read throws before any assistant fetch, and each failed or malformed provider read throws naming its cause; parity labels against the real getPromptLessons formatter; REPLAY_LANE checked against what the real ghostReplay sends",
+          "server/services/replayPolicy.test.ts (373): reversal and paraphrase probes caught, benign probes and the served prompt reworded six ways clean; measured misses pinned as it.fails KNOWN GAPS",
+          "server/services/callerTextRedaction.test.ts (160): PII cases with a no-op-redactor positive control, fence breakouts with a naive-fence control, redact-before-cut order",
+          "server/services/promptEvolutionReceipt.test.ts (98): disposition per deciding gate, PII-shape mirror of StateNour's findPii parsed from its source, idempotency key carries disposition and gate readings",
+          "server/services/ghostReplay.test.ts (20), server/services/resolutionJudge.test.ts (26), server/services/successAudit.test.ts (6), server/cron/jobs/promptEvolutionWeekly.test.ts (17)",
+          "apps/statenour (same command from apps/statenour): tests/api/proof-receptionist-experiments.test.ts (11), tests/api/proof-receptionist-receipt-key.test.ts (7), tests/components/proof-receptionist-section.test.ts (12), tests/events/proof-receptionist-registry.test.ts (14)"
         ],
         "liveRuns": [],
         "deploymentId": null
@@ -3610,15 +3617,28 @@
       "blockers": [
         {
           "severity": "P2",
-          "description": "Not observed in production under the new gate yet. The first Monday run after deploy is the live confirmation: Railway shows one `[evolve] result` line with a non-null gate reading (or a named earlier outcome), cron_log details carry `gate <reason> +N/-M p=`, and the run finishes inside the job's 30-minute budget at 30 seeds (the 12-seed run took 118.6s on 2026-10-05). That 2026-10-05 run's own outcome was never logged; it is readable only from cron_log details or shop_settings key prompt_evolution_latest.",
-          "source": "2026-10-08 AutoResearch audit"
+          "description": "Not observed in production. The 2026-10-09 wiring is unmerged at lastVerifiedAt, so production runs #2923's loop (repository prompt as the baseline, holdout gate only), and that gate's own first scheduled run is Monday 2026-10-12. Live confirmation of the wiring, after merge and deploy: the first Monday run logs one `[evolve] result` line with `baseline.source: live_provider` and a parity label, cron_log details carry `live <hash> <parity>`, a `receptionist.prompt_experiment` row appears on StateNour /proof, and the run ends inside its 25-minute budget. A live-baseline refusal fails the run by design: check that Vapi routing reads `match` before reading it as a code defect. Whether the served prompt carries a lessons block or a nickBehaviorHash is unknown until that run.",
+          "source": "2026-10-08 AutoResearch audit; restated 2026-10-09"
+        },
+        {
+          "severity": "P2",
+          "description": "The replay is a proxy lane: GHOST_AGENT_MODEL (default deepseek-v4-pro), temperature 0, 700 tokens, no tools, while the code pushes gpt-4o at 0.4, 250 tokens, with tools (vapi.ts buildAssistantConfig). Moving the replay onto the live lane is an operator cost decision. Until then every verdict is a proxy-lane verdict, and the lane record names the requested replay model only (ghostReplay discards the model that served, so an AI_FORCE_* reroute is invisible).",
+          "source": "2026-10-09 autoresearch follow-ups"
+        },
+        {
+          "severity": "P3",
+          "description": "Calibration is simulated: the A/A and power figures come from seeded simulations, not real traces, and the resolution judge has no labelled calibration set. Each sealed confirmation holds alpha 0.05 for the candidate it confirms; the share of false confirmations across many weeks is not bounded (it would need a persisted confirmation count).",
+          "source": "2026-10-09 autoresearch follow-ups"
         }
       ],
       "deferredScope": [
         "a frozen, versioned seed corpus: unnecessary for the gate, because the comparison is paired on the same seeds within one run, so weekly pool rotation cannot bias it",
-        "measuring the replay noise of the production model lanes directly (the simulation uses the CURRENT-TRUTH +/-1-2 seed description; the per-run `baseline self-disagreement` count in the verdict is the live reading)"
+        "measuring the replay noise of the production model lanes directly (the simulation uses the CURRENT-TRUTH +/-1-2 seed description; the per-run `baseline self-disagreement` count in the verdict is the live reading)",
+        "recording the served replay model (InvokeResult.model) per replay, so lane parity names the observed lane rather than the requested one",
+        "a labelled calibration set for the resolution judge",
+        "a family-wise bound on false confirmations across weeks"
       ],
-      "lastVerifiedAt": "2026-10-08",
+      "lastVerifiedAt": "2026-10-09",
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"

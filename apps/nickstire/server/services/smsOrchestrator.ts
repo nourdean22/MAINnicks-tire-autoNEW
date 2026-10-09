@@ -34,6 +34,17 @@ import { describeDbError } from "../lib/dbErrors";
 import { eq, and, desc, gte, sql, like, or, inArray } from "drizzle-orm";
 import { getTemplateVariant, assignVariantWithExperiment, REPLY_CONFIGS } from "./smsMessageCatalog";
 import { runNickgptPreflightGuard, PreflightResult } from "./nickgptPreflightGuard";
+import type { SmsResult } from "../sms";
+// 2026-10-09 (autoresearch audit, SMS replay isolation): EVERY write or send in
+// this file goes through smsEffect(name, run, onReplay). Live traffic gets
+// run() unchanged; a replay (runInSmsReplayScope, or REPLAY_DRY_RUN=true) gets
+// the onReplay fallback and nothing is written, sent or notified. Before this,
+// the dry-run flag faked only sendSms, and a replay wrote orchestration rows
+// (which the live cooldown reads), opt-outs, bookings and arrivals to prod.
+// A new write here MUST be wrapped: __tests__/smsReplayIsolation.structure
+// .test.ts parses this file and fails on an unwrapped one. Why: smsReplayScope.ts.
+// isSmsReplayActive only bounds what a replay PRINTS (no message bodies).
+import { smsEffect, isSmsReplayActive, REPLAY_FAKE_SEND_SID } from "./smsReplayScope";
 // 2026-09-01 (audit F-18): the Nexus audit sampler + nexus_audit_jobs enqueue
 // are gone. The consumer (nexusAuditor.ts) was never scheduled and was deleted
 // in #1329; this file kept filling a queue nothing read. See
@@ -694,20 +705,25 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
     relatedConversationId = event.conversationId;
     if (db) {
       try {
-        const [row] = await db.insert(smsOrchestrations).values({
-          eventType: "inbound_sms",
-          customerPhone: normalizedPhone,
-          messageBody: event.body,
-          variantKey: "none",
-          shouldAutoSend: false,
-          requiresHumanApproval: false,
-          reason: "inbound_message_received",
-          providerUsed: "none",
-          status: "received",
-          statusReason: "inbound_message_received",
-          relatedConversationId: event.conversationId,
-          sourceTable: "sms_messages"
-        }).$returningId();
+        const [row] = await smsEffect(
+          "sms_orchestrations.insert",
+          () => db.insert(smsOrchestrations).values({
+            eventType: "inbound_sms",
+            customerPhone: normalizedPhone,
+            messageBody: event.body,
+            variantKey: "none",
+            shouldAutoSend: false,
+            requiresHumanApproval: false,
+            reason: "inbound_message_received",
+            providerUsed: "none",
+            status: "received",
+            statusReason: "inbound_message_received",
+            relatedConversationId: event.conversationId,
+            sourceTable: "sms_messages"
+          }).$returningId(),
+          [],
+          { phase: "inbound_received", phoneSuffix: phone10.slice(-4) },
+        );
         orchestrationId = row?.id;
       } catch (err) {
         log.warn("Failed to write received log to sms_orchestrations", { error: describeDbError(err) });
@@ -737,7 +753,14 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
     if (parsedConsent.intent === "unsubscribe" || parsedConsent.autoAction === "unsubscribe-customer") {
       try {
         const { markPhoneFullyOptedOut } = await import("../sms");
-        const persisted = await markPhoneFullyOptedOut(normalizedPhone);
+        // Replay fallback `true`: nothing was attempted, so there is no failed
+        // durable write to report.
+        const persisted = await smsEffect(
+          "sms.markPhoneFullyOptedOut",
+          () => markPhoneFullyOptedOut(normalizedPhone),
+          true,
+          { phoneSuffix: phone10.slice(-4) },
+        );
         if (!persisted) {
           log.error("[smsOrchestrator] explicit opt-out was cached but durable preference write failed", {
             customerPhoneSuffix: normalizedPhone.slice(-4),
@@ -745,17 +768,27 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
           });
         }
         if (db && phone10.length === 10) {
-          await db.update(customers).set({ smsOptOut: 1 }).where(like(customers.phone, `%${phone10}`));
+          await smsEffect(
+            "customers.update_sms_opt_out",
+            () => db.update(customers).set({ smsOptOut: 1 }).where(like(customers.phone, `%${phone10}`)),
+            undefined,
+            { smsOptOut: 1, phoneSuffix: phone10.slice(-4) },
+          );
         }
         const { logSmsOptOut } = await import("./complianceLog");
-        await logSmsOptOut({
-          phone: normalizedPhone,
-          via: "keyword",
-          keyword: event.body,
-          evidenceRef,
-          ledgerScope: "all",
-          ledgerMethod: "sms_reply",
-        });
+        await smsEffect(
+          "complianceLog.logSmsOptOut",
+          () => logSmsOptOut({
+            phone: normalizedPhone,
+            via: "keyword",
+            keyword: event.body,
+            evidenceRef,
+            ledgerScope: "all",
+            ledgerMethod: "sms_reply",
+          }),
+          undefined,
+          { phoneSuffix: phone10.slice(-4) },
+        );
       } catch (err) {
         // The in-process suppression write happens before its first await;
         // never let evidence persistence make the inbound reply disappear.
@@ -783,19 +816,34 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
         try {
           // Restores texting only: a spoken do-not-call survives it.
           const { markPhoneOptedIn } = await import("../sms");
-          await markPhoneOptedIn(normalizedPhone);
+          await smsEffect(
+            "sms.markPhoneOptedIn",
+            () => markPhoneOptedIn(normalizedPhone),
+            undefined,
+            { phoneSuffix: phone10.slice(-4) },
+          );
           if (db && phone10.length === 10) {
-            await db.update(customers).set({ smsOptOut: 0 }).where(like(customers.phone, `%${phone10}`));
+            await smsEffect(
+              "customers.update_sms_opt_out",
+              () => db.update(customers).set({ smsOptOut: 0 }).where(like(customers.phone, `%${phone10}`)),
+              undefined,
+              { smsOptOut: 0, phoneSuffix: phone10.slice(-4) },
+            );
           }
           const { logSmsOptIn } = await import("./complianceLog");
           const { SMS_KEYWORD_GRANT_SCOPES } = await import("./consentLedger");
-          await logSmsOptIn({
-            phone: normalizedPhone,
-            source: `start_keyword:${keyword}`,
-            evidenceRef,
-            ledgerScopes: SMS_KEYWORD_GRANT_SCOPES,
-            ledgerMethod: "sms_reply",
-          });
+          await smsEffect(
+            "complianceLog.logSmsOptIn",
+            () => logSmsOptIn({
+              phone: normalizedPhone,
+              source: `start_keyword:${keyword}`,
+              evidenceRef,
+              ledgerScopes: SMS_KEYWORD_GRANT_SCOPES,
+              ledgerMethod: "sms_reply",
+            }),
+            undefined,
+            { keyword, phoneSuffix: phone10.slice(-4) },
+          );
         } catch (err) {
           log.error("[smsOrchestrator] explicit opt-in evidence write failed", {
             customerPhoneSuffix: normalizedPhone.slice(-4),
@@ -852,7 +900,13 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
       noSendReason,
     };
     if (db && orchestrationId) {
-      await db.update(smsOrchestrations).set({ status, statusReason, reason, noSendReason }).where(eq(smsOrchestrations.id, orchestrationId));
+      const rowId = orchestrationId;
+      await smsEffect(
+        "sms_orchestrations.update",
+        () => db.update(smsOrchestrations).set({ status, statusReason, reason, noSendReason }).where(eq(smsOrchestrations.id, rowId)),
+        undefined,
+        { phase: "rollout_off", status },
+      );
     }
     return finalResult;
   }
@@ -871,14 +925,17 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
       const isReminder = event.type === "booking_reminder" || event.type === "review_request";
       const isTransactional = isVapi || (isReminder && event.type !== "booking_reminder" || (event.type === "booking_reminder" && event.reminderType !== "maintenance-reminder"));
 
-      const sendResult = (process.env.REPLAY_DRY_RUN === "true")
-        ? { success: true, queued: false, sid: "SM_replay_dry_run" }
-        : await sendSms(normalizedPhone, body, {
-            via: "shop",
-            variantKey: "legacy",
-            skipPersist: false,
-            sendNowOrDrop: event.type === "after_hours_capture",
-          });
+      const sendResult = await smsEffect(
+        "sms.sendSms",
+        () => sendSms(normalizedPhone, body, {
+          via: "shop",
+          variantKey: "legacy",
+          skipPersist: false,
+          sendNowOrDrop: event.type === "after_hours_capture",
+        }),
+        (): SmsResult => ({ success: true, queued: false, sid: REPLAY_FAKE_SEND_SID }),
+        { phase: "legacy_passthrough", phoneSuffix: phone10.slice(-4) },
+      );
       if (sendResult.success) {
         // `uncertain` = attempted, deliberately NOT retried, never confirmed
         // (shop-gateway timeout). It must not read as "sent" — the same call
@@ -938,10 +995,21 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
           updatedAt: new Date(),
         };
         if (event.type === "inbound_sms" && orchestrationId) {
-          await db.update(smsOrchestrations).set(payload).where(eq(smsOrchestrations.id, orchestrationId));
+          const rowId = orchestrationId;
+          await smsEffect(
+            "sms_orchestrations.update",
+            () => db.update(smsOrchestrations).set(payload).where(eq(smsOrchestrations.id, rowId)),
+            undefined,
+            { phase: "legacy_passthrough", status },
+          );
           finalResult.id = orchestrationId;
         } else {
-          const [row] = await db.insert(smsOrchestrations).values(payload).$returningId();
+          const [row] = await smsEffect(
+            "sms_orchestrations.insert",
+            () => db.insert(smsOrchestrations).values(payload).$returningId(),
+            [],
+            { phase: "legacy_passthrough", status, phoneSuffix: phone10.slice(-4) },
+          );
           finalResult.id = row?.id;
         }
       } catch (err) {
@@ -974,15 +1042,20 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
           const vehicle = ctx.customerRecord
             ? [ctx.customerRecord.vehicleYear, ctx.customerRecord.vehicleMake, ctx.customerRecord.vehicleModel].filter(Boolean).join(" ") || undefined
             : ctx.activeBooking?.vehicle ?? undefined;
-          await recordExpectedArrival({
-            phone: normalizedPhone,
-            name: ctx.customerRecord?.firstName,
-            vehicle,
-            service: ctx.activeBooking?.service ?? ctx.activeLead?.problem ?? undefined,
-            preferredDay: arrival.whenText,
-            source: "sms",
-            sourceRef: event.conversationId ? String(event.conversationId) : undefined,
-          });
+          await smsEffect(
+            "expectedArrivals.recordExpectedArrival",
+            () => recordExpectedArrival({
+              phone: normalizedPhone,
+              name: ctx.customerRecord?.firstName,
+              vehicle,
+              service: ctx.activeBooking?.service ?? ctx.activeLead?.problem ?? undefined,
+              preferredDay: arrival.whenText,
+              source: "sms",
+              sourceRef: event.conversationId ? String(event.conversationId) : undefined,
+            }),
+            null,
+            { whenText: arrival.whenText ?? null, phoneSuffix: phone10.slice(-4) },
+          );
         }
       } catch (err) {
         log.warn("Expected-arrival SMS capture failed", { error: err instanceof Error ? err.message : String(err) });
@@ -1016,31 +1089,42 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
         };
 
         if (db && event.type === "inbound_sms" && orchestrationId) {
-          await db.update(smsOrchestrations).set({
-            status,
-            statusReason,
-            reason,
-            noSendReason,
-            customerContext: finalResult.customerContext,
-          }).where(eq(smsOrchestrations.id, orchestrationId));
+          const rowId = orchestrationId;
+          await smsEffect(
+            "sms_orchestrations.update",
+            () => db.update(smsOrchestrations).set({
+              status,
+              statusReason,
+              reason,
+              noSendReason,
+              customerContext: finalResult.customerContext,
+            }).where(eq(smsOrchestrations.id, rowId)),
+            undefined,
+            { phase: "customer_opted_out", status },
+          );
         } else if (db) {
-          const [row] = await db.insert(smsOrchestrations).values({
-            eventType: source,
-            customerPhone: normalizedPhone,
-            messageBody: "",
-            variantKey,
-            shouldAutoSend,
-            requiresHumanApproval,
-            reason,
-            customerContext: finalResult.customerContext,
-            providerUsed: "none",
-            status,
-            statusReason,
-            noSendReason,
-            journeyId,
-            correlationId,
-            idempotencyKey,
-          }).$returningId();
+          const [row] = await smsEffect(
+            "sms_orchestrations.insert",
+            () => db.insert(smsOrchestrations).values({
+              eventType: source,
+              customerPhone: normalizedPhone,
+              messageBody: "",
+              variantKey,
+              shouldAutoSend,
+              requiresHumanApproval,
+              reason,
+              customerContext: finalResult.customerContext,
+              providerUsed: "none",
+              status,
+              statusReason,
+              noSendReason,
+              journeyId,
+              correlationId,
+              idempotencyKey,
+            }).$returningId(),
+            [],
+            { phase: "customer_opted_out", status, phoneSuffix: phone10.slice(-4) },
+          );
           finalResult.id = row?.id;
         }
         return finalResult;
@@ -1060,9 +1144,14 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
       const parsed = parseSmsResponse(event.body);
       if (parsed.intent === "unsubscribe" || (parsed.autoAction === "unsubscribe-customer")) {
         if (db && phone10.length === 10) {
-          await db.update(customers)
-            .set({ smsOptOut: 1 })
-            .where(like(customers.phone, `%${phone10}`));
+          await smsEffect(
+            "customers.update_sms_opt_out",
+            () => db.update(customers)
+              .set({ smsOptOut: 1 })
+              .where(like(customers.phone, `%${phone10}`)),
+            undefined,
+            { smsOptOut: 1, phoneSuffix: phone10.slice(-4) },
+          );
 
           // forensic-audit CRITICAL · the DB UPDATE alone left sendSms's
           // in-memory opt-out cache stale (next automated send still went
@@ -1072,17 +1161,33 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
           // Best-effort: a failure here must NEVER downgrade the opt-out.
           try {
             const { markPhoneOptedOut } = await import("../sms");
-            markPhoneOptedOut?.(phone10);
+            smsEffect(
+              "sms.markPhoneOptedOut",
+              () => markPhoneOptedOut?.(phone10),
+              undefined,
+              { phoneSuffix: phone10.slice(-4) },
+            );
           } catch (e) {
             log.warn("[smsOrchestrator] opt-out cache invalidation failed", { error: e instanceof Error ? e.message : String(e) });
           }
-          import("./complianceLog")
-            .then(({ logSmsOptOut }) => logSmsOptOut?.({ phone: phone10, via: "keyword", keyword: event.body }))
-            .catch((e) => log.warn("[smsOrchestrator] opt-out compliance log failed", { error: e instanceof Error ? e.message : String(e) }));
+          smsEffect(
+            "complianceLog.logSmsOptOut",
+            () => import("./complianceLog")
+              .then(({ logSmsOptOut }) => logSmsOptOut?.({ phone: phone10, via: "keyword", keyword: event.body }))
+              .catch((e) => log.warn("[smsOrchestrator] opt-out compliance log failed", { error: e instanceof Error ? e.message : String(e) })),
+            undefined,
+            { phase: "inbound_unsubscribe", phoneSuffix: phone10.slice(-4) },
+          );
 
           if (orchestrationId) {
+            const rowId = orchestrationId;
             const { trackOrchestrationOutcome } = await import("./smsLearningEngine");
-            await trackOrchestrationOutcome(orchestrationId, "customer_opted_out", "1", "customers", String(ctx.customerRecord?.id || ""));
+            await smsEffect(
+              "smsLearningEngine.trackOrchestrationOutcome",
+              () => trackOrchestrationOutcome(rowId, "customer_opted_out", "1", "customers", String(ctx.customerRecord?.id || "")),
+              undefined,
+              { outcome: "customer_opted_out" },
+            );
           }
         }
         status = "blocked";
@@ -1094,13 +1199,25 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
       } 
       else if (parsed.intent === "confirm" && ctx.activeBooking) {
         if (db) {
-          await db.update(bookings)
-            .set({ status: "confirmed" })
-            .where(eq(bookings.id, ctx.activeBooking.id));
+          const bookingId = ctx.activeBooking.id;
+          await smsEffect(
+            "bookings.update_status",
+            () => db.update(bookings)
+              .set({ status: "confirmed" })
+              .where(eq(bookings.id, bookingId)),
+            undefined,
+            { bookingId, status: "confirmed" },
+          );
 
           if (orchestrationId) {
+            const rowId = orchestrationId;
             const { trackOrchestrationOutcome } = await import("./smsLearningEngine");
-            await trackOrchestrationOutcome(orchestrationId, "booking_created", "1", "bookings", String(ctx.activeBooking.id));
+            await smsEffect(
+              "smsLearningEngine.trackOrchestrationOutcome",
+              () => trackOrchestrationOutcome(rowId, "booking_created", "1", "bookings", String(bookingId)),
+              undefined,
+              { outcome: "booking_created", bookingId },
+            );
           }
         }
         // ROS-058 action receipts: a successful state change used to return
@@ -1123,11 +1240,22 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
       // customer's visit. A question ABOUT cancelling routes to the drafter.
       else if (parsed.intent === "cancel" && ctx.activeBooking && !isCancellationPolicyQuestion(event.body)) {
         if (db) {
-          await db.update(bookings)
-            .set({ status: "cancelled" })
-            .where(eq(bookings.id, ctx.activeBooking.id));
+          const bookingId = ctx.activeBooking.id;
+          await smsEffect(
+            "bookings.update_status",
+            () => db.update(bookings)
+              .set({ status: "cancelled" })
+              .where(eq(bookings.id, bookingId)),
+            undefined,
+            { bookingId, status: "cancelled" },
+          );
           const { cancelBookingReminders } = await import("./sms-scheduler");
-          await cancelBookingReminders(ctx.activeBooking.id);
+          await smsEffect(
+            "smsScheduler.cancelBookingReminders",
+            () => cancelBookingReminders(bookingId),
+            undefined,
+            { bookingId },
+          );
         }
         // Receipt doubles as disambiguation for the CANCEL keyword overload:
         // the shop's deliberate rule (#982 era) is that a lone "cancel" at an
@@ -1145,16 +1273,28 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
       }
       else if (parsed.intent === "approve-estimate" && ctx.activeEstimate) {
         if (db) {
+          const estimate = ctx.activeEstimate;
           const { sendNotification } = await import("../email-notify");
-          await sendNotification({
-            category: "booking",
-            subject: `Estimate Approved by Customer (***${normalizedPhone.slice(-4)})`,
-            body: `Customer approved estimate #${ctx.activeEstimate.externalId} via SMS reply.`,
-          });
-          
+          await smsEffect(
+            "emailNotify.sendNotification",
+            () => sendNotification({
+              category: "booking",
+              subject: `Estimate Approved by Customer (***${normalizedPhone.slice(-4)})`,
+              body: `Customer approved estimate #${estimate.externalId} via SMS reply.`,
+            }),
+            undefined,
+            { category: "booking", estimateId: estimate.id },
+          );
+
           if (orchestrationId) {
+            const rowId = orchestrationId;
             const { trackOrchestrationOutcome } = await import("./smsLearningEngine");
-            await trackOrchestrationOutcome(orchestrationId, "lead_converted", "1", "alg_estimates", String(ctx.activeEstimate.id));
+            await smsEffect(
+              "smsLearningEngine.trackOrchestrationOutcome",
+              () => trackOrchestrationOutcome(rowId, "lead_converted", "1", "alg_estimates", String(estimate.id)),
+              undefined,
+              { outcome: "lead_converted", estimateId: estimate.id },
+            );
           }
         }
         const receiptFlagApprove = await isEnabled("smart_sms_auto_reply");
@@ -1415,7 +1555,7 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
 
             if (db) {
               try {
-                const [draftRow] = await db.insert(nickgptDrafts).values({
+                const [draftRow] = await smsEffect("nickgpt_drafts.insert", () => db.insert(nickgptDrafts).values({
                   customerPhone: normalizedPhone,
                   inboundMessage: event.body,
                   draftReply: body,
@@ -1447,7 +1587,7 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
                     classifier: { intent: detectedIntent, confidence: confScore },
                     provider: draftResult.source,
                   }),
-                }).$returningId();
+                }).$returningId(), [], { intent: detectedIntent, autoSent: shouldAutoSend, phoneSuffix: phone10.slice(-4) });
                 nickgptDraftId = draftRow?.id ?? null;
               } catch (err) {
                 log.warn("Failed to log draft to nickgpt_drafts", err);
@@ -1699,13 +1839,17 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
       finalBodyToSend = legacyBody;
       finalVariantKey = "legacy_shadow";
       statusReason = "shadow_mode_legacy_send";
-      log.info(`[Shadow Mode] Would send orchestrator body: "${body}" but sending legacy instead: "${legacyBody}"`);
+      // 2026-10-09: a replay re-runs up to 300 real rows and these bodies carry
+      // customer first names, so a replay logs lengths only. Live logging is unchanged.
+      if (isSmsReplayActive()) log.info(`[Shadow Mode] Would send orchestrator body (${body.length} chars) but sending legacy instead (${legacyBody.length} chars)`);
+      else log.info(`[Shadow Mode] Would send orchestrator body: "${body}" but sending legacy instead: "${legacyBody}"`);
     } else if (rolloutMode === "draft_only") {
       shouldAutoSend = false;
       status = "drafted";
       statusReason = "draft_only_rollout_mode";
       noSendReason = "draft_only_mode";
-      log.info(`[Draft Only Mode] Computed body: "${body}" - saved as draft.`);
+      if (isSmsReplayActive()) log.info(`[Draft Only Mode] Computed body (${body.length} chars) - saved as draft.`);
+      else log.info(`[Draft Only Mode] Computed body: "${body}" - saved as draft.`);
     }
 
     if (shouldAutoSend && finalBodyToSend && status !== "skipped" && status !== "blocked" && rolloutMode !== "draft_only") {
@@ -1724,22 +1868,25 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
       status = "sending";
       statusReason = "sending_to_gateway";
 
-      const sendResult = (process.env.REPLAY_DRY_RUN === "true")
-        ? { success: true, queued: false, sid: "SM_replay_dry_run" }
-        : await sendSms(normalizedPhone, finalBodyToSend, {
-            via: "shop",
-            messageClass: msgClass,
-            // forensic-audit MEDIUM · inbound auto-replies bypass the 5-min
-            // cooldown (not the daily cap) so a customer's rapid follow-up
-            // question still gets answered.
-            skipShortCooldown: event.type === "inbound_sms",
-            variantKey: finalVariantKey,
-            skipPersist: false,
-            // audit 2026-09-29: "we're closed right now" is true only when it
-            // is sent. Never park it for a sending window that can open after
-            // the shop does.
-            sendNowOrDrop: event.type === "after_hours_capture",
-          });
+      const sendResult = await smsEffect(
+        "sms.sendSms",
+        () => sendSms(normalizedPhone, finalBodyToSend, {
+          via: "shop",
+          messageClass: msgClass,
+          // forensic-audit MEDIUM · inbound auto-replies bypass the 5-min
+          // cooldown (not the daily cap) so a customer's rapid follow-up
+          // question still gets answered.
+          skipShortCooldown: event.type === "inbound_sms",
+          variantKey: finalVariantKey,
+          skipPersist: false,
+          // audit 2026-09-29: "we're closed right now" is true only when it
+          // is sent. Never park it for a sending window that can open after
+          // the shop does.
+          sendNowOrDrop: event.type === "after_hours_capture",
+        }),
+        (): SmsResult => ({ success: true, queued: false, sid: REPLAY_FAKE_SEND_SID }),
+        { phase: "orchestrated", messageClass: msgClass, variantKey: finalVariantKey, phoneSuffix: phone10.slice(-4) },
+      );
 
       if (sendResult.success) {
         // `uncertain` = attempted, deliberately NOT retried, never confirmed
@@ -1848,12 +1995,23 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
       };
 
       if (event.type === "inbound_sms" && orchestrationId) {
-        await db.update(smsOrchestrations)
-          .set(payload)
-          .where(eq(smsOrchestrations.id, orchestrationId));
+        const rowId = orchestrationId;
+        await smsEffect(
+          "sms_orchestrations.update",
+          () => db.update(smsOrchestrations)
+            .set(payload)
+            .where(eq(smsOrchestrations.id, rowId)),
+          undefined,
+          { phase: "final", status },
+        );
         finalResult.id = orchestrationId;
       } else {
-        const [row] = await db.insert(smsOrchestrations).values(payload).$returningId();
+        const [row] = await smsEffect(
+          "sms_orchestrations.insert",
+          () => db.insert(smsOrchestrations).values(payload).$returningId(),
+          [],
+          { phase: "final", status, phoneSuffix: phone10.slice(-4) },
+        );
         finalResult.id = row?.id;
       }
 

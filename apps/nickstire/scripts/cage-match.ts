@@ -206,7 +206,9 @@ async function runMatch(seed: SeedRow, maxTurns: number): Promise<MatchResult> {
       agentLines.map((l) => l.slice(4)),
     );
     judgeReason = `${judged.verdict}: ${judged.reason}`;
-    resolutionOffered = judged.verdict !== "unresolved";
+    // 2026-10-09: "deflected" (a generic next step that ignores the caller's
+    // actual request) is a loss here exactly as in ghost replay.
+    resolutionOffered = judged.verdict !== "unresolved" && judged.verdict !== "deflected";
   }
   return {
     vapiCallId: seed.vapiCallId,

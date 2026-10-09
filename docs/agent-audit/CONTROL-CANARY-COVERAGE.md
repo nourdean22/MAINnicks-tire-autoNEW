@@ -331,7 +331,7 @@ complete — an unlisted control is not a covered one.
 
 | Surface | Controls | With a canary | Notes |
 |---|---:|---:|---|
-| Claude policy **matcher** — `policy.mjs`, 17 rules / 143 denyExamples | 1 | **1** | Proven by `policy.test.mjs` (+ `nightShiftPolicy.test.mjs`, which probes the four night-shift rules through the real hook, 2026-09-15 — the fourth is the shell-write arm added after Codex #2335 P1 showed a redirect/tee/sed/cp/Set-Content could rewrite a judge past the Write/Edit-only rule) |
+| Claude policy **matcher** — `policy.mjs`, 17 rules / 144 denyExamples | 1 | **1** | Proven by `policy.test.mjs` (+ `nightShiftPolicy.test.mjs`, which probes the four night-shift rules through the real hook, 2026-09-15 — the fourth is the shell-write arm added after Codex #2335 P1 showed a redirect/tee/sed/cp/Set-Content could rewrite a judge past the Write/Edit-only rule) |
 | Claude hook **wiring** — `pretool.mjs` exit-2, `settings.json` registration, `notebook_path`→`filePath` | 1 | 0 | **Never exercised.** See [proven ≠ connected](#proven-is-not-connected) |
 | Claude hooks — `Stop`, `SessionStart` | 2 | 0 | `stop-check.mjs` fails **open** on its own bugs |
 | agent-os parity — `check-adapters.mjs` | 1 | **1** | 142 checks, proven as of this PR |
@@ -378,7 +378,7 @@ complete — an unlisted control is not a covered one.
 
 | Control | Guards | Canary | Runs in |
 |---|---|---|---|
-| `config/agent-os/policy.json` (17 rules, 143 denyExamples) | destructive git/DB/install commands | `scripts/agent-os/policy.test.mjs` — *"every denyExample is actually blocked, **by its own rule**"* | `pnpm agent:verify`, CI |
+| `config/agent-os/policy.json` (17 rules, 144 denyExamples) | destructive git/DB/install commands | `scripts/agent-os/policy.test.mjs` — *"every denyExample is actually blocked, **by its own rule**"* | `pnpm agent:verify`, CI |
 | `scripts/agent-os/check-adapters.mjs` (142 checks) | adapter parity, line caps, line length, `@`-imports, stale claims | `scripts/agent-os/adapters.test.mjs` — 24 tests: the prior 17 plus 7 Nour Command routing/file-presence canaries | `pnpm agent:verify`, lefthook, CI |
 | nickstire `lint:brand-voice` | claim safety on staged content | `server/lintGateFailClosed.test.ts` — *"an UNREADABLE staged diff exits non-zero and prints NO pass line"* | `pnpm run verify`, lefthook |
 | nickstire `lint:curdate` | no NEW calendar date computed from the UTC DB clock in `server/` SQL (the NT-009 class) | `scripts/lintCurdate.test.ts` — *"a site planted after the real shopDriverMirror.ts Accept header is counted"*, plus a case that holds the lexer to the TypeScript parser on every scanned file | `pnpm run verify`, `test.yml`, `adoption-gates.yml` |

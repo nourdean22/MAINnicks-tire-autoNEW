@@ -1,14 +1,17 @@
 /**
  * /proof — mission control for the Dream-to-Proof loop.
  *
- * One screen, top to bottom: how much evidence exists at each grade, what
- * reality reported most recently, which claims stand, what Nour decided
- * between candidates, and what Night Shift proposed. Server component
- * reading the ledger directly (the same query /api/proof/summary serves).
+ * One screen, top to bottom: how much evidence exists at each grade, which
+ * claims stand, what reality reported most recently, the judged commits
+ * (Repo Time Machine), the weekly receptionist prompt experiments, what Nour
+ * decided between candidates, and what Night Shift proposed. Server component
+ * reading the ledger directly. /api/proof/summary serves the proofSummary()
+ * part and /api/proof/timeline serves proofTimeline(); the receptionist
+ * section (recentPromptExperiments) has no API equivalent yet.
  * Empty-state tolerant by design: on a fresh ledger every list says so.
  */
 import { StandardPage } from "@/components/layout/standard-page";
-import { proofSummary } from "@/lib/services/reality-ledger";
+import { proofSummary, recentPromptExperiments, type PromptExperimentGateView, type PromptExperimentRow } from "@/lib/services/reality-ledger";
 import { proofTimeline, type ProofCommitRow } from "@/lib/services/proof-timeline";
 
 const REPO_COMMIT_URL = "https://github.com/nourdean22/MAINnicks-tire-autoNEW/commit/";
@@ -24,6 +27,44 @@ function holdoutText(h: ProofCommitRow["holdout"], d: number | null): string {
   if (h.outcome === "unmeasured") return "holdout: unmeasured";
   const counts = h.total !== null ? ` ${h.unexpected ?? "?"}/${h.total} failed` : "";
   return `holdout: ${h.outcome}${counts}${delta(d)}`;
+}
+
+/**
+ * Receptionist experiments (2026-10-09): one line per weekly prompt-evolution
+ * run. A gate the run never reached reads "not run", an absent number is
+ * omitted (never printed as 0), and an unreadable lane parity is "unknown".
+ */
+function gateVerdict(g: PromptExperimentGateView): string {
+  if (!g.ran) return "not run";
+  return g.verdict ?? "unknown";
+}
+
+/**
+ * Rose = this gate blocked the candidate or names harm, so the operator sees it
+ * at a glance on a phone. Vocabulary from nickstire promptEvolutionGate.ts:
+ * the success cohort vetoes on EVERY reason except "preserved" (judgeSuccessCohort,
+ * veto = reason !== "preserved"; success-empty included: no evidence of harm from
+ * no evidence is a false green); holdout and confirmation name harm only as
+ * "regressed-seed". Not run and unknown stay grey: neither is a veto claim.
+ */
+function gateAlarm(kind: "holdout" | "success" | "confirmation", g: PromptExperimentGateView): boolean {
+  if (!g.ran || g.verdict === null) return false;
+  return kind === "success" ? g.verdict !== "preserved" : g.verdict === "regressed-seed";
+}
+
+function holdoutGateText(x: PromptExperimentRow): string {
+  const g = x.holdout;
+  if (!g.ran) return "holdout: not run";
+  const p = g.pValue !== null ? ` p=${g.pValue.toFixed(3)}` : "";
+  const seeds = g.comparable !== null ? ` · +${g.improved ?? "?"} -${g.worsened ?? "?"} of ${g.comparable} seeds` : "";
+  const cohort = x.cohorts.holdout !== null ? ` (cohort ${x.cohorts.holdout})` : "";
+  return `holdout: ${gateVerdict(g)}${p}${seeds}${cohort}`;
+}
+
+function laneText(x: PromptExperimentRow): string {
+  if (x.laneParity === "match") return "lanes: parity";
+  if (x.laneParity === "unknown") return "lanes: parity unknown";
+  return `lanes: MISMATCH${x.laneDifferences.length > 0 ? ` (${x.laneDifferences.slice(0, 4).join(", ")})` : ""}`;
 }
 
 export const dynamic = "force-dynamic";
@@ -42,7 +83,7 @@ function when(d: Date | string): string {
 }
 
 export default async function ProofPage() {
-  const [s, timeline] = await Promise.all([proofSummary(12), proofTimeline(10)]);
+  const [s, timeline, experiments] = await Promise.all([proofSummary(12), proofTimeline(10), recentPromptExperiments(8)]);
   const totalClaims = Object.values(s.byGrade).reduce((a, b) => a + b, 0);
 
   return (
@@ -139,6 +180,37 @@ export default async function ProofPage() {
                     {c.deltas.fixedFailures.length > 0 && <> · fixed since previous: {c.deltas.fixedFailures.join(", ")}</>}
                   </p>
                 )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section aria-labelledby="receptionist" className="mb-8">
+        <h2 id="receptionist" className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-3">Receptionist experiments &middot; weekly prompt evolution</h2>
+        {experiments.status === "unavailable" ? (
+          <p role="status" data-experiments-state="unavailable" className="text-sm text-fg-secondary">
+            {experiments.reason === "not_migrated"
+              ? "Couldn't load receptionist experiments: the ledger is not migrated here. State unknown, not empty."
+              : "Couldn't load receptionist experiments: the ledger read failed. State unknown, not empty."}
+          </p>
+        ) : experiments.rows.length === 0 ? (
+          <p data-experiments-state="empty" className="text-sm text-fg-secondary">No receptionist experiments recorded yet. Each weekly prompt-evolution run in Nick&apos;s posts one receipt here; approving a candidate stays the Push Config in Nick&apos;s admin.</p>
+        ) : (
+          <ul data-experiments-state="rows" className="divide-y divide-edge-subtle">
+            {experiments.rows.map((x) => (
+              <li key={x.id} className="py-3 text-sm">
+                <div className="flex flex-wrap gap-x-3 items-baseline">
+                  <span className="font-mono text-xs">{x.outcome ?? "outcome unknown"}</span>
+                  <span className="font-mono text-xs text-fg-secondary">stage: {x.promotionStage ?? "unknown"}</span>
+                  <span className={`font-mono text-xs ${gateAlarm("holdout", x.holdout) ? "text-rose-300" : "text-fg-secondary"}`}>{holdoutGateText(x)}</span>
+                  <span className="text-fg-secondary text-xs ml-auto">{when(x.occurredAt)}</span>
+                </div>
+                <p className="text-[11px] text-fg-secondary mt-1">
+                  <span className={gateAlarm("success", x.success) ? "text-rose-300" : undefined}>{`success cohort: ${gateVerdict(x.success)}`}</span> &middot;{" "}
+                  <span className={gateAlarm("confirmation", x.confirmation) ? "text-rose-300" : undefined}>{`confirmation: ${gateVerdict(x.confirmation)}`}</span> &middot;{" "}
+                  <span className={x.laneParity === "mismatch" ? "text-rose-300" : undefined}>{laneText(x)}</span> &middot; previous proposal: {x.previousProposalStatus ?? "not reported"}
+                </p>
               </li>
             ))}
           </ul>
