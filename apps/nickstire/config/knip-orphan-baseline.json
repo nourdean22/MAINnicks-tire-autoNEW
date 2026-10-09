@@ -6185,6 +6185,11 @@
       "file": "apps/nickstire/server/services/renderedQa.ts",
       "symbol": "renderedQaVoteCount",
       "reason": "2026-10-09 critic update for external masters: RENDERED_QA_VOTES reader; exported for reelSourceAware.test.ts, consumed internally by evaluateRenderedReel / applyPresenceExemptions"
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "reportsGarbledText",
+      "reason": "2026-10-09 critic update (Codex review of #2952): garbled-lettering detector exported for reelSourceAware.test.ts; consumed internally by describesDeclaredText"
     }
   ]
 }

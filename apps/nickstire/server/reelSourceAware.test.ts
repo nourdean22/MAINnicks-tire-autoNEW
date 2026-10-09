@@ -21,7 +21,8 @@ import { runSafetyChecks, validateFacelessSubject, type ReelBrief } from "../cli
 import { lineageForBinding, realShotRefusalReason, verifyRealShopVideoRow, type RealShopRowLike } from "./services/realShotBinding";
 import { buildCardSvg, cardSpecFromBeat, lineageForCard } from "./services/deterministicCard";
 import { locallyResolvedClipCount, mergeShotLineage } from "./services/localBeatResolution";
-import { applyPresenceExemptions, cardBeats, describesDeclaredText, describesOnlyPermittedLimbs, handsExpectedBeats, isCaptionTimingMismatch, normalizedTextSurfaces, renderedQaVoteCount, voteVerdicts, type RenderedFinding, type RenderedQaVerdict } from "./services/renderedQa";
+import { applyPresenceExemptions, cardBeats, describesDeclaredText, describesOnlyPermittedLimbs, handsExpectedBeats, isCaptionTimingMismatch, normalizedTextSurfaces, renderedQaVoteCount, reportsGarbledText, voteVerdicts, type RenderedFinding, type RenderedQaVerdict } from "./services/renderedQa";
+import { beatRepairRefusal } from "./services/selectiveRepair";
 import { expectedClipProof, expectedClipSha256 } from "./services/reelAssembly";
 import { allShotsNonGenerative, shouldDiscloseAi } from "../shared/reelDisclosure";
 
@@ -260,6 +261,15 @@ describe("rendered QA on an external master (2026-10-09 pilot lessons)", () => {
   it("new: a text-artifact finding that quotes a declared surface is exempted; one that quotes undeclared lettering stays a block", () => {
     expect(describesDeclaredText("The text 'AI illustration | Not a customer case' is baked into the 'first' frame.", surfaces)).toBe(true);
     expect(describesDeclaredText("A watermark-like string 'Vbort 2000' on the tester screen", surfaces)).toBe(false);
+    // Separator- and apostrophe-proof (review of #2952): a transcription with an em
+    // dash, no separator, or "Nick s" still matches the declared line.
+    expect(describesDeclaredText("The badge reads \"AI illustration — Not a customer case\" at the bottom", surfaces)).toBe(true);
+    expect(describesDeclaredText("text AI illustration Not a customer case burned in", surfaces)).toBe(true);
+    expect(describesDeclaredText("a header bar reading Nick s / PATCH OR REPLACE", surfaces)).toBe(true);
+    // A declared line reported as GARBLED stays a defect.
+    expect(describesDeclaredText("The declared badge 'AI illustration | Not a customer case' is garbled and misspelled", surfaces)).toBe(false);
+    expect(reportsGarbledText("the lettering is illegible")).toBe(true);
+    expect(reportsGarbledText("the badge is present and crisp")).toBe(false);
     const { kept, exempted } = applyPresenceExemptions([
       text(null, "The text 'AI illustration | Not a customer case' is baked into the 'first' frame."),
       text(2, "Gibberish signage 'TRIE SHOPE' on the back wall"),
@@ -270,6 +280,11 @@ describe("rendered QA on an external master (2026-10-09 pilot lessons)", () => {
   it("new: on an external master a caption-timing mismatch is exempted; a subject mismatch still blocks", () => {
     expect(isCaptionTimingMismatch("The hook card 'A nail is a clue.' is still present in the 'beat2' frame, but the planned beat states this card has ended.")).toBe(true);
     expect(isCaptionTimingMismatch("The planned caption 'before a repair decision.' is missing from beat 3.")).toBe(true);
+    // Positive timing evidence is required (review of #2952): an action mismatch
+    // phrased around a caption is not a timing note.
+    expect(isCaptionTimingMismatch("The caption says the wheel is spinning, but the frame shows it stationary.")).toBe(false);
+    expect(isCaptionTimingMismatch("The caption text does not match: the frame shows a spare tire instead of the belt.")).toBe(false);
+    expect(isCaptionTimingMismatch("The caption and the frame disagree about the damage shown.")).toBe(false);
     expect(isCaptionTimingMismatch("The beat says pressure gauge and the frame shows an unrelated wheel.")).toBe(false);
     expect(isCaptionTimingMismatch("Beat 3 shows a spare tire instead of the belt routing the caption text describes")).toBe(false);
     const { kept, exempted } = applyPresenceExemptions([
@@ -302,6 +317,22 @@ describe("rendered QA on an external master (2026-10-09 pilot lessons)", () => {
     const soft = voteVerdicts([v([text(1, "a")]), v([warn(1, "PLASTIC_AI_LOOK")], "repair"), v([warn(2, "PLASTIC_AI_LOOK")], "repair")], null);
     expect(soft.decision).toBe("approve");
     expect(soft.craftOnlyRepairDeclined).toBe(true);
+    // Review of #2952: a majority of "repair" over blocks that did NOT agree, plus a
+    // non-craft warn, is still approve — the decision rests on agreed blocks alone.
+    const disagree = voteVerdicts([v([text(1, "a")]), v([mismatch(2, "b")]), v([warn(1, "LIGHTING_DRIFT")])], null);
+    expect(disagree.decision).toBe("approve");
+    expect(disagree.voting).toEqual({ runs: 3, agreedBlocks: 0, droppedBlocks: 2 });
+    // A null-beat finding keys on the frame it names: one on the opening frame and
+    // one on the end card are two different defects, not a 2-of-3 agreement.
+    const nulls = voteVerdicts([
+      v([text(null, "lettering baked into the first frame")]),
+      v([text(null, "lettering baked into the final end card")]),
+      v([]),
+    ], null);
+    expect(nulls.decision).toBe("approve");
+    expect(nulls.voting).toEqual({ runs: 3, agreedBlocks: 0, droppedBlocks: 2 });
+    const sameFrame = voteVerdicts([v([text(null, "the first frame shows a watermark")]), v([text(null, "watermark on the opening frame")]), v([])], null);
+    expect(sameFrame.voting?.agreedBlocks).toBe(1);
     // One run is the identity.
     expect(voteVerdicts([runs[0]], null)).toBe(runs[0]);
   });
@@ -310,6 +341,15 @@ describe("rendered QA on an external master (2026-10-09 pilot lessons)", () => {
     expect(renderedQaVoteCount({ RENDERED_QA_VOTES: "3" })).toBe(3);
     expect(renderedQaVoteCount({ RENDERED_QA_VOTES: "9" })).toBe(5);
     expect(renderedQaVoteCount({ RENDERED_QA_VOTES: "x" })).toBe(1);
+  });
+});
+
+describe("an external master is never regenerated beat by beat", () => {
+  it("refuses a paid repair on any beat of an external master; a pipeline job with a generatable beat is unchanged", () => {
+    const beats = [{ beatNumber: 1, visual: "AI ILLUSTRATIVE: a tire" }];
+    const pack = [{ beatNumber: 1, prompt: "p" }];
+    expect(beatRepairRefusal({ storyboardBeats: beats, promptPack: pack, externalMaster: { textSurfaces: [] } }, 1, 7)).toMatch(/external master/);
+    expect(beatRepairRefusal({ storyboardBeats: beats, promptPack: pack }, 1, 7)).toBeNull();
   });
 });
 

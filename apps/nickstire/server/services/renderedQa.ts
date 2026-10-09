@@ -722,9 +722,15 @@ export function applyPresenceExemptions(
   return { kept, exempted };
 }
 
-/** Lower-case, quotes and punctuation out, whitespace collapsed — the shape both a declared line and a critic's quote of it reduce to. */
+/**
+ * Letters and digits only, lower-case. A declared line and a vision model's
+ * transcription of it differ in exactly the things this drops: separators
+ * (`|` vs an em dash vs nothing), apostrophes ("NICK'S" vs "Nick s"), case and
+ * spacing. Review of #2952: the earlier normalizer kept `|./-` and so missed
+ * ordinary transcription variants of legitimate text.
+ */
 function normalizeText(s: string): string {
-  return s.toLowerCase().replace(/[‘’“”"'`]/g, "").replace(/[^a-z0-9|#&%/+.-]+/g, " ").replace(/\s+/g, " ").trim();
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
 /** Declared surfaces, normalized, at least 6 characters (a shorter line would match almost anything). */
@@ -733,29 +739,46 @@ export function normalizedTextSurfaces(surfaces: ReadonlyArray<string>): string[
 }
 
 /**
- * Does a text-artifact finding quote a line the master declares? Positive
- * recognition, like the limb check: the description must contain the declared
- * line (or its first 24 normalized characters, because the critic truncates
- * long quotes), and a finding that names no declared line stays a block.
+ * A finding that says the lettering itself is broken — the one GENERATED_TEXT_ARTIFACT
+ * report that must survive even when it quotes a declared line (review of #2952:
+ * "Declared badge 'AI illustration | Not a customer case' is garbled" is a real
+ * defect, not a false artifact report).
  */
-export function describesDeclaredText(description: string, normalizedSurfaces: ReadonlyArray<string>): boolean {
-  if (!normalizedSurfaces.length) return false;
-  const d = normalizeText(description);
-  return normalizedSurfaces.some((s) => d.includes(s) || (s.length > 24 && d.includes(s.slice(0, 24))));
+const GARBLED_TEXT_WORDS = /\b(garbled|garble|misspell(?:ed|ing)?|misspelt|illegible|unreadable|gibberish|corrupt(?:ed)?|distorted|malformed|mangled|smeared|typo|wrong spelling|missing letters?|extra letters?|duplicated letters?)\b/i;
+export function reportsGarbledText(description: string): boolean {
+  return GARBLED_TEXT_WORDS.test(description);
 }
 
 /**
- * A BEAT_SEMANTIC_MISMATCH that is about WHICH CAPTION/CARD IS ON SCREEN
- * (presence, timing, wording), not about the mechanical subject. On an external
- * master the plan is written after the fact from the frames, so this class of
- * finding reports the plan's accuracy, not the video's. A mismatch that names a
- * different object, part, action or damage stays a block: that is the defect
- * the code exists for ("a beautiful frame of the wrong thing is still wrong").
+ * Does a text-artifact finding quote a line the master declares, AND report it
+ * only as present (not as garbled)? Positive recognition, like the limb check:
+ * the description must contain the declared line (or its first 20 normalized
+ * characters, because the critic truncates long quotes); a finding that names
+ * no declared line, or says a declared line is garbled, stays a block.
  */
-const TEXT_SURFACE_WORDS = /\b(caption|captions|card|cards|hook card|end card|overlay|overlays|on-screen text|onscreen text|lettering|badge|title|subtitle|text)\b/i;
-const SUBJECT_MISMATCH_WORDS = /\b(instead of (a|an|the) (tire|wheel|nail|rotor|brake|belt|battery|gauge|tool|part|component|car|vehicle)|different (object|subject|part|component|tire|wheel|action|scene|location)|wrong (object|subject|part|component|tire|wheel)|shows (a|an) (spare|unrelated|different)|no (tire|wheel|nail|gauge|tool) (is|appears)|unrelated (wheel|tire|object|scene)|does not show the (tire|wheel|nail|gauge|part|tool|damage|repair))\b/i;
+export function describesDeclaredText(description: string, normalizedSurfaces: ReadonlyArray<string>): boolean {
+  if (!normalizedSurfaces.length) return false;
+  if (reportsGarbledText(description)) return false;
+  const d = normalizeText(description);
+  return normalizedSurfaces.some((s) => d.includes(s) || (s.length > 20 && d.includes(s.slice(0, 20))));
+}
+
+/**
+ * A BEAT_SEMANTIC_MISMATCH that is about WHEN a caption/card is on screen
+ * (present too early or late, missing, still showing), not about what the frame
+ * shows. On an external master the plan is written after the fact from the
+ * frames, so this class of finding reports the plan's accuracy, not the video's.
+ * Three positive conditions (review of #2952: absence from a subject blacklist
+ * was not evidence): the description names a text surface, carries a timing or
+ * presence marker, and names no mismatch of object, action or damage. "The
+ * caption says the wheel is spinning but the frame shows it stationary" has no
+ * timing marker and does name an action, so it stays a block.
+ */
+const TEXT_SURFACE_WORDS = /\b(caption|captions|card|cards|hook card|end card|overlay|overlays|on-screen text|onscreen text|lettering|badge|title|subtitle)\b/i;
+const TIMING_MARKER_WORDS = /\b(still present|still showing|still visible|is present|appears (?:in|on|at|earlier|later|already)|already (?:present|visible|showing)|is missing|missing from|absent|not present|not visible|has (?:not )?(?:ended|appeared)|should have (?:ended|appeared)|planned for beat|planned as (?:a|an|the)|planned (?:caption|card|text)|wrong beat|earlier than|later than|too early|too late|no longer|instead of the planned (?:caption|card|text)|(?:caption|card|text) (?:is|was) (?:present|missing|absent|shown|displayed) (?:in|on|at|during))\b/i;
+const SUBJECT_OR_ACTION_MISMATCH_WORDS = /\b(instead of (?:a|an|the) (?:tire|wheel|nail|rotor|brake|belt|battery|gauge|tool|part|component|car|vehicle|machine)|different (?:object|subject|part|component|tire|wheel|action|scene|location|machine)|wrong (?:object|subject|part|component|tire|wheel|action)|shows (?:a|an) (?:spare|unrelated|different)|no (?:tire|wheel|nail|gauge|tool|balancer) (?:is|appears)|unrelated (?:wheel|tire|object|scene)|does not show the (?:tire|wheel|nail|gauge|part|tool|damage|repair)|(?:spinning|rotating|moving|stationary|still|stopped|turning|lifted|removed|mounted|installed|inflated|deflated|leaking|cracked|bulging|worn|new) (?:but|while|yet|whereas) (?:the )?frame|frame shows (?:it|the \w+) (?:stationary|still|spinning|moving|stopped|intact|undamaged|new|worn)|says the \w+ is \w+ing)\b/i;
 export function isCaptionTimingMismatch(description: string): boolean {
-  return TEXT_SURFACE_WORDS.test(description) && !SUBJECT_MISMATCH_WORDS.test(description);
+  return TEXT_SURFACE_WORDS.test(description) && TIMING_MARKER_WORDS.test(description) && !SUBJECT_OR_ACTION_MISMATCH_WORDS.test(description);
 }
 
 /**
@@ -770,7 +793,18 @@ export function isCaptionTimingMismatch(description: string): boolean {
 export function voteVerdicts(runs: ReadonlyArray<RenderedQaVerdict>, pixelStats?: PixelStats | null): RenderedQaVerdict {
   if (runs.length === 1) return runs[0];
   if (!runs.length) throw new Error("voteVerdicts: no runs");
-  const key = (f: RenderedFinding) => `${f.code}:${f.beatNumber ?? "null"}`;
+  // A null beat is the first OR the final frame (the prompt says so); the
+  // description names which. Keying both as "null" would let a defect seen
+  // once on the opening frame and once on the end card count as agreement
+  // (review of #2952), so the frame identity is part of the key.
+  const frameOf = (f: RenderedFinding): string => {
+    if (typeof f.beatNumber === "number") return String(f.beatNumber);
+    const d = f.description;
+    const first = /\b(first|opening|establishing)\b/i.test(d);
+    const final = /\b(final|last|end card|closing)\b/i.test(d);
+    return first && !final ? "first" : final && !first ? "final" : first && final ? "first+final" : "null";
+  };
+  const key = (f: RenderedFinding) => `${f.code}:${frameOf(f)}`;
   const needed = Math.floor(runs.length / 2) + 1;
   const blockVotes = new Map<string, { count: number; finding: RenderedFinding }>();
   const warns = new Map<string, RenderedFinding>();
@@ -790,14 +824,17 @@ export function voteVerdicts(runs: ReadonlyArray<RenderedQaVerdict>, pixelStats?
   const agreed = [...blockVotes.values()].filter((v) => v.count >= needed).map((v) => v.finding);
   const dropped = blockVotes.size - agreed.length;
   const findings = [...agreed, ...warns.values()];
+  // The voted decision rests on agreed blocks ALONE (review of #2952): a majority
+  // of runs saying "repair" for blocks that did not agree with each other is
+  // exactly the instability the vote exists to remove, and warns never order a
+  // repair. A declined majority "repair" is recorded, never acted on.
   const repairVotes = runs.filter((r) => r.decision === "repair").length;
-  const craftOnly = findings.length > 0 && findings.every((f) => CRAFT_CODES.has(f.code));
-  const decision: RenderedQaVerdict["decision"] = agreed.length ? "repair" : repairVotes >= needed && !craftOnly && findings.length > 0 ? "repair" : "approve";
+  const decision: RenderedQaVerdict["decision"] = agreed.length ? "repair" : "approve";
   const base = runs[0];
   return {
     ...base,
     decision,
-    craftOnlyRepairDeclined: !agreed.length && repairVotes >= needed && craftOnly,
+    craftOnlyRepairDeclined: !agreed.length && repairVotes >= needed,
     findings,
     droppedUnknownCodes: Math.max(...runs.map((r) => r.droppedUnknownCodes ?? 0)),
     presenceExemptions: runs.flatMap((r) => r.presenceExemptions ?? []),
@@ -818,6 +855,10 @@ export function renderedQaVoteCount(env: NodeJS.ProcessEnv = process.env): numbe
  *  wrapper (Gemini image_url parts). Never throws into the pipeline — a
  *  critic failure returns a skipped verdict the operator can see. */
 export async function evaluateRenderedReel(input: EvaluateRenderedReelInput): Promise<RenderedQaVerdict> {
+  // Vision calls ATTEMPTED, counted outside the all-or-nothing block so a voted
+  // pass that fails on its second run still reports the quota it spent
+  // (review of #2952: the skipped verdict used to say 0).
+  let attemptedCalls = 0;
   try {
     const codeDoc = Object.entries(RENDERED_DEFECT_CODES)
       .filter(([code]) => !DETERMINISTIC_CODES.has(code))
@@ -882,6 +923,7 @@ export async function evaluateRenderedReel(input: EvaluateRenderedReelInput): Pr
     const user = `Evaluate these ${input.frames.length} frames (order: ${input.frames.map((f) => f.label).join(", ")}). Topic: ${input.brief.topic ?? "unknown"}. Hero: ${heroForCritic(input.brief.objectCharacter)}.`;
 
     const runOnce = async (): Promise<RenderedQaVerdict> => {
+      attemptedCalls++;
       const parsed = await callVisionCritic({ frames: input.frames, system, user });
       // The schema requires approve or repair. A reply without one (a bare "{}")
       // is not a verdict; clampVerdict would read it as an approve.
@@ -912,8 +954,11 @@ export async function evaluateRenderedReel(input: EvaluateRenderedReelInput): Pr
   } catch (err) {
     log.warn("vision critic unavailable — verdict skipped, not fabricated", {
       err: err instanceof Error ? err.message.slice(0, 400) : String(err),
+      attemptedCalls,
     });
-    return clampVerdict({ decision: "approve", findings: [] }, input.frames.length, "skipped", input.pixelStats);
+    const skipped = clampVerdict({ decision: "approve", findings: [] }, input.frames.length, "skipped", input.pixelStats);
+    skipped.visionCalls = attemptedCalls;
+    return skipped;
   }
 }
 
