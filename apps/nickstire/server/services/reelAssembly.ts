@@ -9,6 +9,7 @@
  */
 import type { ClipProbe } from "../../shared/clipDrift";
 import { spawn } from "child_process";
+import { createHash } from "crypto";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -16,6 +17,8 @@ import { createLogger } from "../lib/logger";
 import { askProblem, askLeakageProblem, renderAskText, resolveReelAsk, type ReelAsk } from "@shared/reelAsk";
 import { declaredTextSurfaces, undeclaredTextProblem } from "@shared/reelTextSurfaces";
 import { REEL_OUTPUT_RULES } from "../../client/src/lib/facelessReelStudio";
+import { parseCaptionStyle, type CaptionStyle } from "../../shared/reelSourceProfile";
+import { declaredBeatSource, type ShotSource } from "../../shared/shotRouter";
 
 const log = createLogger("services:reel-assembly");
 
@@ -25,6 +28,14 @@ export interface AssemblyBeat {
   endSecond?: number;
   onScreenText?: string;
   visual?: string;
+  /** Declared shot source (shared/shotRouter.ts). Drives the per-beat duration cap below. */
+  source?: ShotSource | null;
+  /**
+   * Probed duration of the bound real clip, seconds — written by the pipeline
+   * at bind time (realShotBinding). A real beat may run this long, up to
+   * REAL_CLIP_MAX_SECONDS; a generated beat never grows past MAX_CLIP_SECONDS.
+   */
+  sourceDurationSec?: number | null;
 }
 
 export interface ReelAssemblyBrief {
@@ -32,6 +43,10 @@ export interface ReelAssemblyBrief {
   selectedCaption?: string;
   hashtags?: string[];
   voiceoverScript?: string;
+  /** Caption sanitising + drawtext mode (shared/reelSourceProfile.ts). Absent = legacy uppercase. */
+  captionStyle?: CaptionStyle | null;
+  /** Per-shot provenance (shared/reelSourceProfile.ts); assembly verifies bound clips' bytes against it. */
+  shotLineage?: unknown;
   storyboardBeats: AssemblyBeat[];
   /**
    * The declared end-card ask. Undeclared renders NO card — there is
@@ -49,6 +64,8 @@ export interface ReelSegment {
   dur: number;
   caption: string;
   fontSize: number;
+  /** Absent = legacy_upper (every segment built before 2026-10-09). */
+  captionStyle?: CaptionStyle;
 }
 
 /**
@@ -69,6 +86,29 @@ const DEFAULT_BEAT_SECONDS = 3;
  *  Re-exported, not redeclared: the preflight voiceover gate has to budget
  *  against `beats + this`, because that is what the voice track is trimmed to. */
 export const SAVE_FREEZE_SECONDS: number = REEL_OUTPUT_RULES.saveFreezeSeconds;
+
+/**
+ * Source-aware caps (2026-10-09). The 4 s clamp exists because PROVIDER clips
+ * are ~4 s and padding past the source freezes the frame. A captured clip
+ * carries its own probed duration, so a real beat may hold up to its source
+ * length (capped here so one beat cannot swallow the Reel); a deterministic
+ * card is drawn at exactly the requested length. Neither raises the generated
+ * cap: `segmentCapSeconds` picks per beat, and a beat with no declared source,
+ * or a real beat with no probed duration, keeps MAX_CLIP_SECONDS.
+ */
+export const REAL_CLIP_MAX_SECONDS = 12;
+export const CARD_CLIP_MAX_SECONDS = 8;
+
+export function segmentCapSeconds(beat: Pick<AssemblyBeat, "visual" | "source" | "sourceDurationSec">): number {
+  const source = declaredBeatSource(beat);
+  if (source === "real") {
+    const probed = Number(beat.sourceDurationSec);
+    if (Number.isFinite(probed) && probed > 0) return Math.min(REAL_CLIP_MAX_SECONDS, probed);
+    return MAX_CLIP_SECONDS;
+  }
+  if (source === "deterministic") return CARD_CLIP_MAX_SECONDS;
+  return MAX_CLIP_SECONDS;
+}
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
@@ -97,6 +137,24 @@ export function sanitizeCaption(raw: string): string {
     .replace(/\s+/g, " ")
     .trim()
     .toUpperCase();
+}
+
+/**
+ * Caption text by style (2026-10-09). `legacy_upper` is sanitizeCaption, byte
+ * for byte. `sentence` keeps the case as written and keeps `%`, `/` and units
+ * ("50%", "3/32 in", "11.8 V") because buildFfmpegArgs draws that style with
+ * drawtext `expansion=none`, so nothing in the text is re-parsed; only `\`
+ * and control characters are dropped.
+ */
+export function sanitizeCaptionStyled(raw: string, style: CaptionStyle): string {
+  if (style !== "sentence") return sanitizeCaption(raw);
+  return (raw ?? "")
+    .replace(/\\/g, "")
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
+    .replace(/[\r\n]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** Longest word-count target per line for a comfortable mobile caption. */
@@ -209,20 +267,36 @@ export function capFontSizeToSafeWidth(caption: string, proposedSize: number): n
 export function briefToSegments(brief: ReelAssemblyBrief): ReelSegment[] {
   const beats = [...(brief.storyboardBeats ?? [])].sort((a, b) => a.beatNumber - b.beatNumber);
   if (!beats.length) throw new Error("reel brief has no storyboardBeats — nothing to assemble");
+  const style = parseCaptionStyle(brief.captionStyle);
   return beats.map((b) => {
     const raw = Number(b.endSecond) - Number(b.startSecond);
     const dur = clamp(
       Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_BEAT_SECONDS,
       MIN_BEAT_SECONDS,
-      MAX_CLIP_SECONDS,
+      segmentCapSeconds(b),
     );
-    const caption = wrapCaption(sanitizeCaption(b.onScreenText ?? ""));
-    return { beatNumber: b.beatNumber, dur: Number(dur.toFixed(2)), caption, fontSize: captionFontSize(caption) };
+    const caption = wrapCaption(sanitizeCaptionStyled(b.onScreenText ?? "", style));
+    const seg: ReelSegment = { beatNumber: b.beatNumber, dur: Number(dur.toFixed(2)), caption, fontSize: captionFontSize(caption) };
+    // Legacy segments stay shape-identical: the style rides along only when it is not the default.
+    if (style !== "legacy_upper") seg.captionStyle = style;
+    return seg;
   });
 }
 
 export function segmentsTotalSeconds(segs: ReelSegment[]): number {
   return Number(segs.reduce((a, s) => a + s.dur, 0).toFixed(2));
+}
+
+/**
+ * The sha256 the job's lineage binds to a beat's clip (registry footage or a
+ * drawn card), or null when the beat was generated / predates lineage. Pure;
+ * read by assembleReel's exact-bytes check.
+ */
+export function expectedClipSha256(brief: { shotLineage?: unknown }, beatNumber: number): string | null {
+  const rows = Array.isArray(brief.shotLineage) ? (brief.shotLineage as Array<{ beatNumber?: unknown; origin?: unknown; sha256?: unknown }>) : [];
+  const row = rows.find((r) => r && Number(r.beatNumber) === beatNumber && (r.origin === "registry_real_shop" || r.origin === "local_card"));
+  const sha = typeof row?.sha256 === "string" ? row.sha256.toLowerCase() : "";
+  return /^[a-f0-9]{64}$/.test(sha) ? sha : null;
 }
 
 /**
@@ -379,6 +453,10 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
       // caption_<beat>_<line>.txt, stacked at a 1.2em line height.
       const lines = s.caption.split("\n");
       const lineH = Math.round(size * 1.2);
+      // Sentence-style captions keep `%` and `/` literally: drawtext's expander
+      // is switched off for them (2026-10-09). The legacy style keeps the exact
+      // filter string it has always produced.
+      const expansion = s.captionStyle === "sentence" ? ":expansion=none" : "";
       lines.forEach((_line, j) => {
         const stepIn = j === 0 ? label : `d${i}l${j}`;
         const stepOut = j === lines.length - 1 ? next : `d${i}l${j + 1}`;
@@ -386,7 +464,7 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
           ? `(h-${lines.length * lineH})/2+${j * lineH}`
           : `h*${CAPTION_BEAT_Y_FRAC}+${j * lineH}`;
         fc.push(
-          `[${stepIn}]drawtext=fontfile='${fontEsc}':textfile='caption_${i}_${j}.txt':fontsize=${size}:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=${yExpr}:enable='gte(t,${start.toFixed(2)})*lt(t,${end.toFixed(2)})'[${stepOut}]`,
+          `[${stepIn}]drawtext=fontfile='${fontEsc}':textfile='caption_${i}_${j}.txt'${expansion}:fontsize=${size}:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=${yExpr}:enable='gte(t,${start.toFixed(2)})*lt(t,${end.toFixed(2)})'[${stepOut}]`,
         );
       });
       label = next;
@@ -897,6 +975,20 @@ export async function assembleReel(
         const buf = Buffer.from(await resp.arrayBuffer());
         if (buf.length < 1024) throw new Error(`clip ${i} fetched only ${buf.length} bytes — refusing to assemble a truncated clip`);
         await fs.promises.writeFile(p, buf);
+      }
+      // EXACT-BYTES PROOF (2026-10-09). A beat the pipeline bound to a registry
+      // asset or a locally drawn card carries that clip's sha256 in the job's
+      // shotLineage. The bytes that reach ffmpeg must be those bytes — a
+      // re-hosted copy, a swapped URL or a stale CDN object is a different
+      // shot, and a Reel that claims real evidence must not ship it.
+      {
+        const expected = expectedClipSha256(brief, segs[i].beatNumber);
+        if (expected) {
+          const actual = createHash("sha256").update(await fs.promises.readFile(p)).digest("hex");
+          if (actual !== expected) {
+            throw new Error(`clip ${i} (beat ${segs[i].beatNumber}) sha256 ${actual.slice(0, 12)} does not match its bound lineage ${expected.slice(0, 12)} — the exact asset did not reach assembly; refusing`);
+          }
+        }
       }
       clipPaths.push(p);
       // PROVIDER DRIFT PROBE (2026-10-08, shared/clipDrift.ts). The bytes are

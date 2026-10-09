@@ -5,6 +5,8 @@
   "campaignKeyword": "TREAD",
   "mechanicTruth": "Uneven wear can point to alignment, inflation, worn suspension parts or skipped rotations; an inspection tells which. A tire worn on one edge is evidence that something changed how it meets the road, not a diagnosis by itself.",
   "loopIdea": "The closing beat settles back on the same macro of the worn edge under the same inspection light, so the loop restarts on the evidence the hook opened with.",
+  "presenceProfile": "hands_only_real",
+  "captionStyle": "legacy_upper",
   "selectedCaption": "One edge of this tire wore smooth. That is the tire telling on something: alignment, pressure, a worn part or skipped rotations. An inspection says which. Stop by Nick's Tire & Auto, Euclid Ave, Cleveland.",
   "ask": {
     "kind": "visit"
@@ -52,7 +54,13 @@
       "onScreenText": "FOUR THINGS CAN DO THIS",
       "narration": "Uneven wear can point to alignment, pressure, a worn part, or skipped rotations.",
       "audioCue": "soft tick per label; music bed low",
-      "safeZoneNotes": "diagram occupies the central 50% height; labels never enter the outer 6%"
+      "safeZoneNotes": "diagram occupies the central 50% height; labels never enter the outer 6%",
+      "cardLines": [
+        "TOE",
+        "CAMBER",
+        "PRESSURE",
+        "PARTS"
+      ]
     },
     {
       "beatNumber": 4,

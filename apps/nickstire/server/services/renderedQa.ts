@@ -24,6 +24,8 @@
 import { spawn } from "child_process";
 import { NOIR_PALETTE, BRAND_BIBLE_VERSION } from "../../shared/brandBible";
 import { parseReelJobPayload, renderedQaRunsSoFar } from "../../shared/reelJobPayload";
+import { beatAllowsHands, parseCaptionStyle, parsePresenceProfile, parseShotLineage } from "../../shared/reelSourceProfile";
+import { declaredBeatSource, parseShotSource } from "../../shared/shotRouter";
 import { promises as fs } from "fs";
 import path from "path";
 import os from "os";
@@ -307,6 +309,12 @@ export interface RenderedQaVerdict {
   craftScore?: CraftScore;
   /** The one specialist lens this verdict asks for (README §L.2), or "none". */
   escalate?: EscalationLens;
+  /**
+   * HUMAN_PRESENT findings the presence profile exempted (2026-10-09): hands
+   * or gloves on a beat declared real under hands_only_real. Kept on the
+   * verdict so the exemption is countable, never a silent drop.
+   */
+  presenceExemptions?: RenderedFinding[];
   /** Deterministic pre-flags the critic was shown (renderedPixelStats). */
   pixelStats?: PixelStats;
   /** Vision calls spent on this verdict: 1 for the general critic, +1 when a
@@ -539,7 +547,20 @@ export interface EvaluateRenderedReelInput {
      *  persisted job payload (reelPipeline stores the whole brief), and
      *  optional here so an older payload degrades to the brand palette. */
     motionLens?: string;
-    storyboardBeats?: Array<{ beatNumber: number; visual: string }>;
+    storyboardBeats?: Array<{ beatNumber: number; visual: string; source?: string | null }>;
+    /**
+     * Source-aware presence (2026-10-09, shared/reelSourceProfile.ts). Under
+     * `hands_only_real` the critic is told which beats are captured footage,
+     * where hands and tools are the evidence and only a face or a figure is
+     * HUMAN_PRESENT; a hands-only HUMAN_PRESENT finding on such a beat is
+     * dropped by clampVerdict's caller (presenceExemptions). Generated beats
+     * keep the object-only rule whatever the profile says.
+     */
+    presenceProfile?: string | null;
+    /** Caption style (shared/reelSourceProfile.ts): the critic's "legitimate text" calibration names the case it will see. */
+    captionStyle?: string | null;
+    /** Per-shot lineage: beats drawn as local cards carry deterministic text by construction. */
+    shotLineage?: unknown;
   };
   /** Deterministic pre-flags from renderedPixelStats; shown to the critic as
    *  PIXEL_STATS and folded into the craft score. Optional so the operator
@@ -622,6 +643,53 @@ export function beatsDocFor(brief: EvaluateRenderedReelInput["brief"]): string {
   return (brief.storyboardBeats ?? []).map((b) => `beat ${b.beatNumber}: ${b.visual}`).join("\n");
 }
 
+/**
+ * Beats where real hands and tools are expected (2026-10-09): the brief's
+ * presence profile is hands_only_real AND the beat is declared real. Pure;
+ * drives both the critic's instruction and the post-verdict exemption.
+ */
+export function handsExpectedBeats(brief: Pick<EvaluateRenderedReelInput["brief"], "presenceProfile" | "storyboardBeats">): number[] {
+  if (parsePresenceProfile(brief.presenceProfile) !== "hands_only_real") return [];
+  return (brief.storyboardBeats ?? [])
+    .filter((b) => beatAllowsHands("hands_only_real", declaredBeatSource({ visual: b.visual, source: parseShotSource(b.source) })))
+    .map((b) => b.beatNumber);
+}
+
+/** Beats whose clip is a locally drawn card (lineage origin local_card): every letter on them is ours, drawn, never generated. */
+export function cardBeats(brief: Pick<EvaluateRenderedReelInput["brief"], "shotLineage">): number[] {
+  return parseShotLineage(brief.shotLineage).filter((r) => r.origin === "local_card").map((r) => r.beatNumber);
+}
+
+const HANDS_ONLY_DESCRIPTION = /\b(hand|hands|glove|gloves|gloved|finger|fingers|arm|arms|wrist|forearm)\b/i;
+const FACE_OR_FIGURE_DESCRIPTION = /\b(face|faces|head|eyes?|mouth|person|people|figure|silhouette|body|torso|man|woman|technician standing|customer)\b/i;
+
+/**
+ * Drop (1) a HUMAN_PRESENT finding whose description names only hands/gloves/
+ * arms on a beat where hands are expected — a face, head, figure or body stays
+ * a block everywhere; (2) a GENERATED_TEXT_ARTIFACT finding on a drawn-card
+ * beat, where no model drew anything, so lettering there cannot be a model
+ * artifact. Returns the kept findings and the exempted ones (persisted on the
+ * verdict so the exemption is visible, never silent). Pure.
+ */
+export function applyPresenceExemptions(
+  findings: RenderedFinding[],
+  handsBeats: ReadonlyArray<number>,
+  drawnBeats: ReadonlyArray<number> = [],
+): { kept: RenderedFinding[]; exempted: RenderedFinding[] } {
+  if (!handsBeats.length && !drawnBeats.length) return { kept: findings, exempted: [] };
+  const kept: RenderedFinding[] = [];
+  const exempted: RenderedFinding[] = [];
+  for (const f of findings) {
+    const onHandsBeat = typeof f.beatNumber === "number" && handsBeats.includes(f.beatNumber);
+    const handsOnly = HANDS_ONLY_DESCRIPTION.test(f.description) && !FACE_OR_FIGURE_DESCRIPTION.test(f.description);
+    const onDrawnBeat = typeof f.beatNumber === "number" && drawnBeats.includes(f.beatNumber);
+    if (f.code === "HUMAN_PRESENT" && onHandsBeat && handsOnly) exempted.push(f);
+    else if (f.code === "GENERATED_TEXT_ARTIFACT" && onDrawnBeat) exempted.push(f);
+    else kept.push(f);
+  }
+  return { kept, exempted };
+}
+
 /** Vision critic over the actual frames. Requires image support in the LLM
  *  wrapper (Gemini image_url parts). Never throws into the pipeline — a
  *  critic failure returns a skipped verdict the operator can see. */
@@ -663,16 +731,46 @@ export async function evaluateRenderedReel(input: EvaluateRenderedReelInput): Pr
       }
     })();
     const beatsDoc = beatsDocFor(input.brief);
+    // Source-aware presence (2026-10-09): on beats that are captured shop
+    // footage under hands_only_real, hands and tools ARE the evidence. The
+    // critic is told so; a face or a figure stays HUMAN_PRESENT everywhere.
+    const handsBeats = handsExpectedBeats(input.brief);
+    const drawnBeats = cardBeats(input.brief);
+    const sentenceCase = parseCaptionStyle(input.brief.captionStyle) === "sentence";
+    const presenceBlock = [
+      handsBeats.length
+        ? `\n\nPRESENCE PROFILE: beats ${handsBeats.join(", ")} are REAL captured shop footage where a technician's hands, gloves and tools are expected and are NOT a defect. On those beats emit HUMAN_PRESENT only for a face, head, figure, silhouette or body. On every other beat the faceless rule is unchanged: any hand, glove or figure is HUMAN_PRESENT.`
+        : "",
+      drawnBeats.length
+        ? `\n\nDRAWN CARDS: beats ${drawnBeats.join(", ")} are deterministic cards drawn by our own renderer, not by a video model: white label lines and a small gold "Illustration" badge on black are legitimate text there and never GENERATED_TEXT_ARTIFACT. Judge those beats for legibility and for a wrong or misleading label (MECHANICAL_MISREPRESENTATION), nothing else about their lettering.`
+        : "",
+      sentenceCase
+        ? `\n\nCAPTION STYLE: this Reel's caption overlay is SENTENCE CASE gold letters on a solid black box (not uppercase); the same legitimate-text rule applies to it.`
+        : "",
+    ].join("");
     const parsed = await callVisionCritic({
       frames: input.frames,
-      system: `You are a ruthless creative QA inspector for automotive reels. Frames are labeled in order: first, per-beat midpoints, final. Judge ONLY what is visible. Emit findings ONLY with these exact codes:\n${codeDoc}\n\n${worldBlock}\n\nPLANNED BEATS:\n${beatsDoc}\n\n${pixelBlock}\n\nCALIBRATION (from a real miss — the first live verdict approved frames a human immediately rejected):\n- GENERATED_TEXT_ARTIFACT: the ONLY legitimate text is the deterministic caption overlay — UPPERCASE gold letters on a solid black box, plus a gold "SAVE THIS" style pill. ANY other lettering is a defect: fake UI status bars, watermark-like strings, gibberish signage, pseudo-HUD readouts, misspelled screen text on devices (e.g. a tester showing "Vbort"), license-plate-like smears. Inspect frame edges and any screens/devices CLOSELY.\n- BEAT_SEMANTIC_MISMATCH: compare EACH labeled frame against its planned beat and burned-in claim. If the beat says belts/hoses and the frame shows a spare tire, or the beat says pressure gauge and the frame shows an unrelated wheel, BLOCK it. A beautiful frame of the wrong thing is still wrong.\n- MECHANICAL_MISREPRESENTATION: block only concrete automotive falsehoods visible in the frame — anatomy, damage, diagnosis, or repair that would teach a viewer the wrong thing even if the geometry looks plausible. Examples: a tire repair cross-section that depicts the plug/patch path incorrectly, a "brake line" that is visibly a frame rail, or an impossible belt routing presented as instructional. Do not use this for mere stylistic ambiguity.\n- IDENTITY DRIFT: if the same logical object (a battery, a car, a tool) changes design, brand, color, or shape between beats, flag it — "similar object" is not "same object".\n- NARRATOR_EMBODIED: the narrator (NICK-01) is a gold scanning beam and an icy-blue reticle — LIGHT AND MOTION ONLY. If any frame draws it as a figure, silhouette, uniform, visor, or any body, that is a defect even when no face is visible. A body-shaped presence is not an acceptable narrator here.\n- PALETTE: the world for THIS reel is ${reelPaletteSpec}. Judge PALETTE_DRIFT against THAT, not against a generic "cinematic" look and not against any other reel. Each reel declares its own world, so a bright daylight world is not drift.\n- CRAFT (record these when you see them; they are evidence, and not grounds for "repair" on their own): PLASTIC_AI_LOOK - rubber, rust and brake dust must read as those materials rather than as smooth tinted plastic, so look for absent pore, grain and scratch detail, and for one uniform sheen across surfaces that should differ. IMPOSSIBLE_PHYSICALITY - every object needs a contact shadow, every reflection needs a visible source, and tread blocks, lug nuts and bolt patterns must stay countable and consistent between beats. GENERIC_STOCK_LOOK - ask whether this frame could be any shop in any city, and if nothing in it is specific to this vehicle, this damage or this place, say so.\nFor each finding give beatNumber (the beat whose frame shows it, or null for first/final), a concrete description, preserve[] (what the repair must keep), change[] (the minimal change). If the render is clean, decision "approve" with zero findings. Do not invent codes. Do not praise. A miss is worse than a false alarm: when unsure whether lettering is the caption overlay, flag it. For EVERY finding also give confidence (0-1): how sure you are the defect is real from the pixels you were shown. The deterministic PIXEL_STATS pre-flags above are not findings; confirm them with your own eyes or say nothing.`,
+      system: `You are a ruthless creative QA inspector for automotive reels. Frames are labeled in order: first, per-beat midpoints, final. Judge ONLY what is visible. Emit findings ONLY with these exact codes:\n${codeDoc}\n\n${worldBlock}\n\nPLANNED BEATS:\n${beatsDoc}${presenceBlock}\n\n${pixelBlock}\n\nCALIBRATION (from a real miss — the first live verdict approved frames a human immediately rejected):\n- GENERATED_TEXT_ARTIFACT: the ONLY legitimate text is the deterministic caption overlay — UPPERCASE gold letters on a solid black box, plus a gold "SAVE THIS" style pill. ANY other lettering is a defect: fake UI status bars, watermark-like strings, gibberish signage, pseudo-HUD readouts, misspelled screen text on devices (e.g. a tester showing "Vbort"), license-plate-like smears. Inspect frame edges and any screens/devices CLOSELY.\n- BEAT_SEMANTIC_MISMATCH: compare EACH labeled frame against its planned beat and burned-in claim. If the beat says belts/hoses and the frame shows a spare tire, or the beat says pressure gauge and the frame shows an unrelated wheel, BLOCK it. A beautiful frame of the wrong thing is still wrong.\n- MECHANICAL_MISREPRESENTATION: block only concrete automotive falsehoods visible in the frame — anatomy, damage, diagnosis, or repair that would teach a viewer the wrong thing even if the geometry looks plausible. Examples: a tire repair cross-section that depicts the plug/patch path incorrectly, a "brake line" that is visibly a frame rail, or an impossible belt routing presented as instructional. Do not use this for mere stylistic ambiguity.\n- IDENTITY DRIFT: if the same logical object (a battery, a car, a tool) changes design, brand, color, or shape between beats, flag it — "similar object" is not "same object".\n- NARRATOR_EMBODIED: the narrator (NICK-01) is a gold scanning beam and an icy-blue reticle — LIGHT AND MOTION ONLY. If any frame draws it as a figure, silhouette, uniform, visor, or any body, that is a defect even when no face is visible. A body-shaped presence is not an acceptable narrator here.\n- PALETTE: the world for THIS reel is ${reelPaletteSpec}. Judge PALETTE_DRIFT against THAT, not against a generic "cinematic" look and not against any other reel. Each reel declares its own world, so a bright daylight world is not drift.\n- CRAFT (record these when you see them; they are evidence, and not grounds for "repair" on their own): PLASTIC_AI_LOOK - rubber, rust and brake dust must read as those materials rather than as smooth tinted plastic, so look for absent pore, grain and scratch detail, and for one uniform sheen across surfaces that should differ. IMPOSSIBLE_PHYSICALITY - every object needs a contact shadow, every reflection needs a visible source, and tread blocks, lug nuts and bolt patterns must stay countable and consistent between beats. GENERIC_STOCK_LOOK - ask whether this frame could be any shop in any city, and if nothing in it is specific to this vehicle, this damage or this place, say so.\nFor each finding give beatNumber (the beat whose frame shows it, or null for first/final), a concrete description, preserve[] (what the repair must keep), change[] (the minimal change). If the render is clean, decision "approve" with zero findings. Do not invent codes. Do not praise. A miss is worse than a false alarm: when unsure whether lettering is the caption overlay, flag it. For EVERY finding also give confidence (0-1): how sure you are the defect is real from the pixels you were shown. The deterministic PIXEL_STATS pre-flags above are not findings; confirm them with your own eyes or say nothing.`,
       user: `Evaluate these ${input.frames.length} frames (order: ${input.frames.map((f) => f.label).join(", ")}). Topic: ${input.brief.topic ?? "unknown"}. Hero: ${heroForCritic(input.brief.objectCharacter)}.`,
     });
     // The schema requires approve or repair. A reply without one (a bare "{}")
     // is not a verdict; clampVerdict would read it as an approve.
     const decision = (parsed as { decision?: unknown } | null)?.decision;
     if (decision !== "approve" && decision !== "repair") throw new Error("vision critic reply has no approve/repair decision");
-    return clampVerdict(parsed, input.frames.length, "vision", input.pixelStats);
+    if (!handsBeats.length && !drawnBeats.length) return clampVerdict(parsed, input.frames.length, "vision", input.pixelStats);
+    // Exempt hands-only HUMAN_PRESENT findings on the real beats and text
+    // artifacts on drawn cards, then clamp AGAIN so the decision and craft
+    // score are computed from the kept findings (a block that was exempted
+    // must not still order a repair).
+    const first = clampVerdict(parsed, input.frames.length, "vision", input.pixelStats);
+    const { kept, exempted } = applyPresenceExemptions(first.findings, handsBeats, drawnBeats);
+    if (!exempted.length) return first;
+    const rawDecision = (parsed as { decision?: unknown }).decision;
+    const verdict = clampVerdict({ decision: rawDecision, findings: kept }, input.frames.length, "vision", input.pixelStats);
+    verdict.droppedUnknownCodes = first.droppedUnknownCodes;
+    verdict.presenceExemptions = exempted;
+    log.info("source profile exempted finding(s): hands on real beats, lettering on drawn cards", { codes: exempted.map((f) => `${f.beatNumber}:${f.code}`) });
+    return verdict;
   } catch (err) {
     log.warn("vision critic unavailable — verdict skipped, not fabricated", {
       err: err instanceof Error ? err.message.slice(0, 400) : String(err),

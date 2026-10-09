@@ -14,6 +14,7 @@
  */
 import type { ClipProbe } from "../../shared/clipDrift";
 import type { ShotSource } from "../../shared/shotRouter";
+import type { CaptionStyle, PresenceProfile, ShotLineage } from "../../shared/reelSourceProfile";
 import { createLogger } from "../lib/logger";
 import type { ReelAssemblyBrief } from "./reelAssembly";
 import type { CtaType } from "../../shared/instagramStudio";
@@ -253,6 +254,12 @@ export interface ReelJobBrief {
      * deterministic, the beat is never sent to a generation provider.
      */
     source?: ShotSource;
+    /** media_assets.id a real beat binds (2026-10-09, services/realShotBinding.ts). */
+    realAssetId?: string | null;
+    /** Label lines a deterministic beat's local card draws (services/deterministicCard.ts). */
+    cardLines?: string[] | null;
+    /** Probed duration of the bound real clip, written at binding; assembly's per-beat cap reads it. */
+    sourceDurationSec?: number | null;
     /** Higgsfield API request already submitted; resume polling, never resubmit. */
     higgsfieldRequestId?: string;
     /** Video Forge idempotency key, persisted BEFORE submit (Forge dedupes on it). */
@@ -291,6 +298,11 @@ export interface ReelJobBrief {
   promptPack?: Array<{ beatNumber: number; prompt: string; negativePrompt?: string }>;
   higgsfieldPromptPack?: Array<{ beatNumber: number; prompt: string; negativePrompt?: string }>;
   voiceoverScript?: string;
+  /** Source-aware production (2026-10-09, shared/reelSourceProfile.ts); absent = legacy contract. */
+  presenceProfile?: PresenceProfile;
+  captionStyle?: CaptionStyle;
+  /** Per-shot provenance, written by processNextReelJob when a beat is bound or drawn locally. */
+  shotLineage?: ShotLineage[];
   /** campaign lineage — the creative_genomes row this brief descends from */
   genomeId?: string | null;
   /** durable parent for the whole make→publish journey; optional for legacy callers */
@@ -514,6 +526,24 @@ export async function enqueueReelJob(
         briefId: brief.id, source, beats: blocked.map((b) => `${b.beatNumber}:${b.route}`).join(","),
       });
       throw new ReelPreflightBlockedError([generationHoldReason(blocked, "enqueue")]);
+    }
+  }
+
+  // A real beat that names a registry asset is verified HERE too, read-only
+  // (2026-10-09). The generator-time binding would refuse a wrong id after the
+  // row is queued, and dailyReelPost does not advance the rotation on a
+  // generation failure — so a mistyped asset id would re-enqueue the same pack
+  // every production hour. The same typed refusal as the hold keeps the lane moving.
+  {
+    const named = (brief.storyboardBeats ?? []).filter((b) => typeof b.realAssetId === "string" && b.realAssetId.trim());
+    if (named.length) {
+      const { resolveRealBeatAssets, realShotRefusalReason } = await import("./realShotBinding");
+      const { refusals } = await resolveRealBeatAssets(d, named);
+      if (refusals.length) {
+        const reason = realShotRefusalReason(refusals).replace("blocked at generation, before spend", "blocked at enqueue, nothing reserved");
+        log.error("real beat(s) name an asset the registry cannot bind — BLOCKED at enqueue", { briefId: brief.id, source, reason: reason.slice(0, 300) });
+        throw new ReelPreflightBlockedError([reason]);
+      }
     }
   }
 
@@ -781,7 +811,11 @@ export async function enqueueReelJob(
   {
     const { reserve, reelClipCostUsd } = await import("./generationLedger");
     const { getActivePolicy } = await import("./autonomyControl");
-    const beatsCount = brief.storyboardBeats?.length ?? 6;
+    // Only beats the provider will actually render are priced (2026-10-09):
+    // a bound real beat or a drawn card costs no provider money, and reserving
+    // for it could trip BUDGET_DAILY_EXCEEDED on a Reel that spends nothing.
+    const { beatGenerationRoute: routeOf } = await import("../../shared/shotRouter");
+    const beatsCount = brief.storyboardBeats ? brief.storyboardBeats.filter((b) => routeOf(b) === "generate").length : 6;
     const policy = await getActivePolicy();
     // The provider is chosen at RUN time by selectReelVideoProvider, but this
     // reservation used to hardcode higgsfield/seedance1_5 — so a Veo render was
@@ -1052,9 +1086,12 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
     // before any clip is bought, naming each beat and what it needs. A beat
     // whose visual names no object ("the physical subject") stops here too.
     {
-      const { beatsTheGeneratorMustNotRender, generationHoldReason } = await import("../../shared/shotRouter");
+      const { beatsTheGeneratorMustNotRender, beatsToResolveLocally, generationHoldReason } = await import("../../shared/shotRouter");
       let existingClips: unknown = [];
       try { existingClips = job.clipUrlsJson ? JSON.parse(job.clipUrlsJson) : []; } catch { existingClips = []; }
+      // The hold runs FIRST, on the row as it is. closeRefusedJobReservation
+      // reads any http clip as "bought", so binding a real clip and then
+      // holding the job on another beat would ledger a refusal as spend.
       const blocked = beatsTheGeneratorMustNotRender(beats, existingClips);
       if (blocked.length) {
         const reason = generationHoldReason(blocked);
@@ -1064,10 +1101,46 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
           .where(eq(reelJobs.id, job.id));
         await releaseFailedJobReservation(job.payload, job.id);
         await closeRefusedJobReservation(job.id, job.clipUrlsJson);
-        log.error("ungeneratable beats (declared real/deterministic, or naming no object) BLOCKED at generation — no clips generated", {
+        log.error("ungeneratable beats (declared real with no asset, or naming no object) BLOCKED at generation — no clips generated", {
           jobId: job.id, briefId: job.briefId, beats: blocked.map((b) => `${b.beatNumber}:${b.route}`).join(","),
         });
         return { processed: true, jobId: job.id, status: "failed" };
+      }
+      // Source-aware production (2026-10-09): a real beat that names a registry
+      // asset is BOUND here (exact bytes, verified real_shop video), and a
+      // deterministic beat is DRAWN here, both before the provider loop and
+      // before any spend. The clip lands in its slot, so the generator's own
+      // "already has an http clip" skip leaves it alone; the lineage lands on
+      // the payload so the disclosure can say what each shot is. A refusal is
+      // the same hold as above, named per beat; nothing is persisted before it.
+      const local = beatsToResolveLocally(beats, existingClips);
+      if (local.length) {
+        const { resolveLocalBeats, mergeShotLineage } = await import("./localBeatResolution");
+        const resolved = await resolveLocalBeats({
+          database: d, jobId: job.id, beats: beats as never, existingClipUrls: existingClips, local,
+          captionStyle: (brief as { captionStyle?: unknown }).captionStyle,
+        });
+        const { eq } = await import("drizzle-orm");
+        if (!resolved.ok) {
+          await d.update(reelJobs)
+            .set({ status: "failed", queueState: queueStateForReelStatus("failed"), error: resolved.reason.slice(0, 1000) })
+            .where(eq(reelJobs.id, job.id));
+          await releaseFailedJobReservation(job.payload, job.id);
+          await closeRefusedJobReservation(job.id, job.clipUrlsJson);
+          log.error("local beat resolution refused — job held before spend", { jobId: job.id, briefId: job.briefId, holds: resolved.holds.map((h) => `${h.beatNumber}:${h.route}`).join(",") });
+          return { processed: true, jobId: job.id, status: "failed" };
+        }
+        // Persist the bindings now: the probed source duration rides on each beat
+        // (assembly's per-beat cap reads it) and the lineage on the brief.
+        resolved.patchedBeats.forEach((pb, i) => { if (beats[i]) Object.assign(beats[i], { sourceDurationSec: pb.sourceDurationSec }); });
+        brief.shotLineage = mergeShotLineage(brief.shotLineage, resolved.lineage);
+        existingClips = resolved.clipUrls;
+        job.clipUrlsJson = JSON.stringify(resolved.clipUrls);
+        job.payload = JSON.stringify(brief);
+        await d.update(reelJobs)
+          .set({ clipUrlsJson: job.clipUrlsJson, payload: job.payload, updatedAt: new Date() })
+          .where(eq(reelJobs.id, job.id));
+        log.info("local beats resolved before spend", { jobId: job.id, bound: local.map((l) => `${l.beatNumber}:${l.route}`).join(",") });
       }
     }
 
@@ -1410,6 +1483,13 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
       // resumed from an earlier run) is priced at the selected provider's rate.
       // When no flip happened freeLaneClips is 0 and this is the original
       // expression unchanged.
+      // Locally resolved clips (registry footage, drawn cards; 2026-10-09) cost
+      // no provider money. Counted from the persisted lineage, so a resumed
+      // job settles the same way as the pulse that bound them.
+      {
+        const { locallyResolvedClipCount } = await import("./localBeatResolution");
+        freeLaneClips += locallyResolvedClipCount(brief.shotLineage, clipUrls, beats);
+      }
       const paidClips = Math.max(0, clipUrls.length - freeLaneClips);
       const settledUsd =
         videoProvider === "self_hosted"

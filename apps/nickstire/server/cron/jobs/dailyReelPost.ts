@@ -1358,12 +1358,13 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // re-derivation — a gate that checks a different value than the one
     // transmitted is checking nothing.
     {
-      const dBeats = parseReelJobPayload(job.payload).storyboardBeats ?? [];
+      const dPayload = parseReelJobPayload(job.payload);
+      const dBeats = dPayload.storyboardBeats ?? [];
       const violation = publishDisclosureProblem({
         jobId: job.id,
         caption,
         onScreenText: dBeats.map((b) => b?.onScreenText ?? "").filter(Boolean).join(" "),
-        willDiscloseAi: shouldDiscloseAi(job.clipUrlsJson, process.env.REEL_VIDEO_PROVIDER),
+        willDiscloseAi: shouldDiscloseAi(job.clipUrlsJson, process.env.REEL_VIDEO_PROVIDER, { shotLineage: dPayload.shotLineage }),
       });
       if (violation) {
         const note = `BLOCKED by disclosure gate: ${violation}`.slice(0, 1000);
@@ -1508,7 +1509,9 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       // no is_ai_generated at all - a Meta policy violation on the owner's
       // business account. The clip storage path is unforgeable and is already
       // the evidence the stock guard trusts; it decides this too.
-      const isAiGenerated = shouldDiscloseAi(job.clipUrlsJson, process.env.REEL_VIDEO_PROVIDER);
+      // The SAME derivation the disclosure veto above judged, lineage included —
+      // a gate that checks a different value than the one transmitted checks nothing.
+      const isAiGenerated = shouldDiscloseAi(job.clipUrlsJson, process.env.REEL_VIDEO_PROVIDER, { shotLineage: parseReelJobPayload(job.payload).shotLineage });
       outcome = await publishToSocial({
         platforms,
         videoUrl,

@@ -31,6 +31,7 @@ import type { ApprovedProductionPackSnapshot, EpisodeContract, ProductionSlot } 
 import type { ReelStructureFingerprint } from "./reelStructureFingerprint";
 import type { RenderedQaVerdict } from "../server/services/renderedQa";
 import type { ClipProbe } from "./clipDrift";
+import type { CaptionStyle, PresenceProfile, ShotLineage } from "./reelSourceProfile";
 
 /** Durable provenance for which approved-pack cursor owns this Reel job. */
 export type ApprovedPackPool = "active_slate" | "full_approved_library";
@@ -132,6 +133,15 @@ export interface ReelJobPayloadView {
    * clips changed shape week over week (shared/clipDrift.ts).
    */
   clipProbes?: ClipProbe[];
+  /**
+   * Source-aware production (2026-10-09, shared/reelSourceProfile.ts). Absent
+   * on every job enqueued before it, which reads as the legacy object-only,
+   * uppercase-caption contract — nothing older changes shape.
+   */
+  presenceProfile?: PresenceProfile;
+  captionStyle?: CaptionStyle;
+  /** Per-shot provenance written by the pipeline when a beat is bound to a registry asset, drawn locally, or generated. */
+  shotLineage?: ShotLineage[];
 }
 
 /**

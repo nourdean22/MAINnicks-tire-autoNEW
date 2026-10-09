@@ -27,7 +27,8 @@ import {
 } from "@shared/dua";
 import { askLeakageProblem } from "@shared/reelAsk";
 import { checkEditorialContract } from "@shared/editorialContract";
-import { shotRouteProblems, type ShotSource } from "@shared/shotRouter";
+import { declaredBeatSource, shotRouteProblems, type ShotSource } from "@shared/shotRouter";
+import { beatAllowsHands, parsePresenceProfile, type CaptionStyle, type PresenceProfile } from "@shared/reelSourceProfile";
 import { classifyHookGrammar, saturatedHookGrammar } from "@shared/reelHookGrammar";
 import { BUSINESS } from "@shared/business";
 
@@ -489,6 +490,14 @@ export interface StoryboardBeat {
    * provider pick does not honour it yet (doctrine §8).
    */
   source?: ShotSource;
+  /**
+   * For a beat declared real (2026-10-09): the media_assets.id of the captured
+   * clip to bind. The pipeline verifies the row is real_shop video and binds its
+   * exact bytes (server/services/realShotBinding.ts); a URL never self-asserts.
+   */
+  realAssetId?: string;
+  /** For a beat declared deterministic: the label lines the local card draws (server/services/deterministicCard.ts). */
+  cardLines?: string[];
   /** Higgsfield API request already submitted; resume polling after ambiguity. */
   higgsfieldRequestId?: string;
 }
@@ -619,6 +628,14 @@ export interface ReelBrief {
    * rotation into ranking later.
    */
   structurePatternId?: string;
+  /**
+   * Source-aware production (2026-10-09, shared/reelSourceProfile.ts). Absent
+   * means the legacy contract: object-only presence, uppercase captions.
+   * `hands_only_real` admits real hands/tools ONLY on beats declared real;
+   * faces stay blocked everywhere and generated beats keep the object-only rule.
+   */
+  presenceProfile?: PresenceProfile;
+  captionStyle?: CaptionStyle;
   id: string;
   createdAt: string;
   updatedAt: string;
@@ -864,11 +881,26 @@ export function validateBeatCount(beats: StoryboardBeat[]): { ok: boolean; reaso
   return { ok: true };
 }
 
+/**
+ * The faceless rule for a beat that may show real hands (2026-10-09,
+ * presenceProfile hands_only_real on a beat declared real): faces, talking
+ * heads, presenters and shop tours stay blocked; the limb and glove
+ * alternatives of FACE_SUBJECT_PATTERN are dropped, because captured hands on
+ * a tool are the evidence the beat exists to show.
+ */
+const FACE_ONLY_PATTERN =
+  /\b(?:human\s+face|person'?s?\s+face|talking\s+head|man|woman|mechanic\s+(?:smiling|talking|speaking|on\s+camera)|customer\s+(?:smiling|talking|face)|selfie|presenter|spokesperson|face\s+to\s+camera|shop\s+tour)\b/i;
+
 /** Faceless contract: no human face / talking head / shop tour as the subject. */
-export function validateFacelessSubject(texts: string[]): { ok: boolean; reason?: string } {
+export function validateFacelessSubject(texts: string[], opts: { allowHands?: boolean } = {}): { ok: boolean; reason?: string } {
+  const pattern = opts.allowHands ? FACE_ONLY_PATTERN : FACE_SUBJECT_PATTERN;
   for (const t of texts) {
-    const m = t.match(FACE_SUBJECT_PATTERN);
-    if (m) return { ok: false, reason: `Faceless rule violated by "${m[0]}" — recast with an object character (no faces, hands, gloves, or arms)` };
+    const m = t.match(pattern);
+    if (m) {
+      return opts.allowHands
+        ? { ok: false, reason: `Faceless rule violated by "${m[0]}" — real hands and tools are allowed on this beat, a face or a figure is not` }
+        : { ok: false, reason: `Faceless rule violated by "${m[0]}" — recast with an object character (no faces, hands, gloves, or arms)` };
+    }
   }
   return { ok: true };
 }
@@ -1173,9 +1205,30 @@ export function runSafetyChecks(brief: ReelBrief, now: () => string = () => new 
   // the clean-scene directive's own "no hands / no logos / no text" wording and
   // would self-trigger these patterns, blocking every reel.
   const designInputs = brief.storyboardBeats.flatMap((b) => [b.visual, b.motion]);
-  const faceless = validateFacelessSubject(designInputs);
-  if (!faceless.ok) {
-    findings.push({ severity: "block", rule: "no-human-face", match: faceless.reason ?? "face subject", where: "storyboard", fix: "Recast the beat with an object character (no faces, hands, gloves, or arms) — the format is faceless." });
+  const presence = parsePresenceProfile(brief.presenceProfile);
+  if (presence === "object_only") {
+    // Legacy path, unchanged: one check over every beat, one finding.
+    const faceless = validateFacelessSubject(designInputs);
+    if (!faceless.ok) {
+      findings.push({ severity: "block", rule: "no-human-face", match: faceless.reason ?? "face subject", where: "storyboard", fix: "Recast the beat with an object character (no faces, hands, gloves, or arms) — the format is faceless." });
+    }
+  } else {
+    // hands_only_real (2026-10-09): per beat, because the rule depends on the
+    // beat's declared source. Real beats may show hands on a tool; a generated
+    // beat keeps the object-only rule, and a face blocks everywhere.
+    for (const b of brief.storyboardBeats) {
+      const allowHands = beatAllowsHands(presence, declaredBeatSource(b));
+      const faceless = validateFacelessSubject([b.visual, b.motion], { allowHands });
+      if (!faceless.ok) {
+        findings.push({
+          severity: "block", rule: "no-human-face", match: faceless.reason ?? "face subject", where: `beat ${b.beatNumber}`,
+          fix: allowHands
+            ? "Keep the hands and the tool; remove the face, figure or presenter — the format is faceless."
+            : "Recast the beat with an object character (no faces, hands, gloves, or arms), or declare it REAL and bind captured footage.",
+        });
+        break;
+      }
+    }
   }
   const inFrameText = validateNoInFrameText(designInputs);
   if (!inFrameText.ok) {

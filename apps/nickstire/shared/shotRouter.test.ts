@@ -76,7 +76,10 @@ describe("the generator's route for a declared source", () => {
   it("real and deterministic are never generated; everything else generates as before", () => {
     expect(beatGenerationRoute({ visual: "REAL: the gauge in the tread" })).toBe("needs_real_footage");
     expect(beatGenerationRoute({ visual: "a tire", source: "real" })).toBe("needs_real_footage");
-    expect(beatGenerationRoute({ visual: "DETERMINISTIC card: three columns" })).toBe("needs_deterministic_render");
+    // 2026-10-09: a deterministic beat is drawn locally (render_card), never held and never generated.
+    expect(beatGenerationRoute({ visual: "DETERMINISTIC card: three columns" })).toBe("render_card");
+    // A real beat that names its registry asset is bound locally; without one it is still held.
+    expect(beatGenerationRoute({ visual: "REAL: the gauge in the tread", realAssetId: "ma_gauge" })).toBe("bound_real");
     expect(beatGenerationRoute({ visual: "STILL-MOTION push" })).toBe("generate");
     expect(beatGenerationRoute({ visual: "AI illustrative: fog" })).toBe("generate");
     expect(beatGenerationRoute({ visual: "a tire on the lift" })).toBe("generate");
@@ -91,28 +94,26 @@ describe("the generator's route for a declared source", () => {
       { beatNumber: 3, visual: "DETERMINISTIC card: the zones" },
       { beatNumber: 4, visual: "REAL: the gauge" },
     ];
+    // Beat 3 (deterministic) is no longer a hold since 2026-10-09: the card lane draws it (beatsToResolveLocally).
     expect(beatsTheGeneratorMustNotRender(beats, [])).toEqual([
       { beatNumber: 1, route: "needs_real_footage" },
-      { beatNumber: 3, route: "needs_deterministic_render" },
       { beatNumber: 4, route: "needs_real_footage" },
     ]);
-    expect(beatsTheGeneratorMustNotRender(beats, ["https://cdn/real-1.mp4", null, "", "https://cdn/real-4.mp4"])).toEqual([
-      { beatNumber: 3, route: "needs_deterministic_render" },
-    ]);
-    expect(beatsTheGeneratorMustNotRender(beats, "{not an array}")).toHaveLength(3);
+    expect(beatsTheGeneratorMustNotRender(beats, ["https://cdn/real-1.mp4", null, "", "https://cdn/real-4.mp4"])).toEqual([]);
+    expect(beatsTheGeneratorMustNotRender(beats, "{not an array}")).toHaveLength(2);
     expect(beatsTheGeneratorMustNotRender([{ beatNumber: 1, visual: "a tire" }], [])).toEqual([]);
   });
 
   it("the refusal line says which beats, what each needs, and where it stopped", () => {
     expect(generationHoldReason([{ beatNumber: 2, route: "needs_real_footage" }])).toBe(
-      "BEAT_SOURCE_NOT_GENERATABLE (blocked at generation, before spend): beat 2 is declared real: capture the footage (docs/reels-engine-v2/05-CAPTURE-CHECKLIST.md). Nothing was generated.",
+      "BEAT_SOURCE_NOT_GENERATABLE (blocked at generation, before spend): beat 2 is declared real with no registry asset bound: capture the footage, register it as real_shop, and name its asset id on the beat (docs/reels-engine-v2/05-CAPTURE-CHECKLIST.md). Nothing was generated.",
     );
     expect(generationHoldReason([
       { beatNumber: 1, route: "needs_real_footage" },
       { beatNumber: 3, route: "needs_deterministic_render" },
       { beatNumber: 4, route: "needs_real_footage" },
     ], "enqueue")).toBe(
-      "BEAT_SOURCE_NOT_GENERATABLE (blocked at enqueue, nothing reserved): beats 1, 4 are declared real: capture the footage (docs/reels-engine-v2/05-CAPTURE-CHECKLIST.md); beat 3 is declared deterministic: no publishable card renderer yet. Nothing was generated.",
+      "BEAT_SOURCE_NOT_GENERATABLE (blocked at enqueue, nothing reserved): beats 1, 4 are declared real with no registry asset bound: capture the footage, register it as real_shop, and name its asset id on the beat (docs/reels-engine-v2/05-CAPTURE-CHECKLIST.md); beat 3 is declared deterministic: the local card could not be rendered (see the job log). Nothing was generated.",
     );
   });
 });
@@ -149,7 +150,7 @@ describe("a visual that names no object is not generated (2026-10-08)", () => {
 
   it("a declaration still decides first: a REAL placeholder needs footage, not a subject", () => {
     expect(beatGenerationRoute({ visual: "REAL: macro of the physical subject" })).toBe("needs_real_footage");
-    expect(beatGenerationRoute({ visual: TEMPLATE[0], source: "deterministic" })).toBe("needs_deterministic_render");
+    expect(beatGenerationRoute({ visual: TEMPLATE[0], source: "deterministic" })).toBe("render_card");
   });
 
   it("the refusal names the placeholder beats and what to do", () => {

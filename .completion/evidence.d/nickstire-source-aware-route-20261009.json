@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "2026-10-09 source-aware route (PR after #2944). The only client/ file touched is client/src/lib/facelessReelStudio.ts: two optional type fields (StoryboardBeat.realAssetId, cardLines; ReelBrief.presenceProfile, captionStyle), FACE_ONLY_PATTERN, an opts arg on validateFacelessSubject, and a per-beat branch in runSafetyChecks that runs ONLY when presenceProfile is hands_only_real. No component, page, route or style changed, so the operator sees nothing new: the object_only (default) branch is the original single call, pinned by client/src/__tests__/faceless-reel-studio.test.ts (65 passed) and server/reelSourceAware.test.ts (legacy cases: gloved hands still rejected, finding where=storyboard). Zero importers of the new fields in client/src/pages or client/src/components (grep realAssetId|cardLines|presenceProfile|captionStyle client/src/pages client/src/components: 0 hits)."
+    }
+  }
+}

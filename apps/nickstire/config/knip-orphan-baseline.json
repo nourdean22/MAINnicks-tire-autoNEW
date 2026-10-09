@@ -6055,6 +6055,61 @@
       "file": "apps/nickstire/server/services/replayPolicy.ts",
       "symbol": "REPLAY_MONEY_WORDS",
       "reason": "2026-10-09 receptionist research integrity (#2944) · INTENTIONAL TEST-VISIBLE CONTRACT: replayPolicy.test.ts checks these number words stay in parity with voiceClaimGuard private money words, so the replay grader cannot drift from the live guard. knip excludes *.test.ts as consumers."
+    },
+    {
+      "file": "apps/nickstire/shared/reelDisclosure.ts",
+      "symbol": "allShotsNonGenerative",
+      "reason": "2026-10-09 source-aware route: exported for reelSourceAware.test.ts; consumed internally by shouldDiscloseAi (cron + admin publish door)"
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "handsExpectedBeats",
+      "reason": "2026-10-09 source-aware route: exported for reelSourceAware.test.ts; consumed internally by evaluateRenderedReel"
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "applyPresenceExemptions",
+      "reason": "2026-10-09 source-aware route: exported for reelSourceAware.test.ts; consumed internally by evaluateRenderedReel"
+    },
+    {
+      "file": "apps/nickstire/shared/reelSourceProfile.ts",
+      "symbol": "describeShotLineage",
+      "reason": "2026-10-09 source-aware route: manifest line builder, exported for reelSourceProfile.test.ts; the approval Queue is the intended reader (not wired yet)"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "REAL_CLIP_MAX_SECONDS",
+      "reason": "2026-10-09 source-aware route: the per-beat real-footage cap, exported for reelSourceAware.test.ts; consumed internally by segmentCapSeconds"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "segmentCapSeconds",
+      "reason": "2026-10-09 source-aware route: exported for reelSourceAware.test.ts; consumed internally by briefToSegments"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "sanitizeCaptionStyled",
+      "reason": "2026-10-09 source-aware route: exported for reelSourceAware.test.ts; consumed internally by briefToSegments"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "expectedClipSha256",
+      "reason": "2026-10-09 source-aware route: exported for reelSourceAware.test.ts; consumed internally by assembleReel (exact-bytes check)"
+    },
+    {
+      "file": "apps/nickstire/server/services/realShotBinding.ts",
+      "symbol": "verifyRealShopVideoRow",
+      "reason": "2026-10-09 source-aware route: pure verifier exported for reelSourceAware.test.ts; consumed internally by resolveRealBeatAssets"
+    },
+    {
+      "file": "apps/nickstire/server/services/deterministicCard.ts",
+      "symbol": "CARD_RENDERER_ID",
+      "reason": "2026-10-09 source-aware route: renderer id exported for lineage readers; consumed internally by lineageForCard"
+    },
+    {
+      "file": "apps/nickstire/server/services/deterministicCard.ts",
+      "symbol": "buildCardSvg",
+      "reason": "2026-10-09 source-aware route: pure SVG builder exported for reelSourceAware.test.ts; consumed internally by renderDeterministicCardClip"
     }
   ]
 }

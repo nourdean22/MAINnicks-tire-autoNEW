@@ -7,6 +7,21 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Reels source-aware route: real beats bind registry footage, deterministic beats draw cards, hands-only profile, sentence captions, per-shot lineage (2026-10-09, PR after #2944) -- BUILT + TESTED; PR open
+
+Doctrine 02 section 8 items 4-6 are built (`docs/reels-engine-v2/13-SOURCE-AWARE-ROUTE.md` is the map). Contracts:
+
+- **A beat declared REAL binds the registry row its `realAssetId` names, or holds** (`shared/shotRouter.beatsToResolveLocally`, `services/realShotBinding.ts`, `services/localBeatResolution.ts` in `processNextReelJob`): the row must be `rights_status = real_shop`, `reuse_allowed`, current, VIDEO, with a 64-hex checksum and `duration_ms`; the exact URL + sha256 + probed duration bind to the beat, and assembly re-hashes the downloaded bytes (`reelAssembly.expectedClipSha256`). Enqueue verifies the id read-only with the same typed refusal, so a mistyped id advances the rotation instead of jamming the lane. A real beat with no id still holds (`needs_real_footage`); the three proof packs name no id yet, so they still hold.
+- **A beat declared DETERMINISTIC is drawn, never generated** (`services/deterministicCard.ts`): explicit `cardLines` (else the capitalised labels after "labels" in the visual) on an SVG, rasterised by sharp, moved through the template_stock ffmpeg lane, re-hosted under `reels/deterministic-card/`, bound with its sha256. Durable storage is asserted before the render.
+- **Per-beat duration follows the source** (`reelAssembly.segmentCapSeconds`): a bound real clip holds up to `min(12 s, probed)`, a card up to 8 s, a generated or undeclared beat the unchanged 4 s.
+- **Presence profile** (`shared/reelSourceProfile.ts`): `presenceProfile: "hands_only_real"` admits hands/gloves/tools only on beats declared real, in the brief check (`runSafetyChecks`) and at the critic (`renderedQa.applyPresenceExemptions`, recorded as `presenceExemptions` on the verdict); faces and figures block everywhere; absent = the legacy object-only rule. The critic is also told which beats are drawn cards (their lettering is ours) and when captions are sentence case.
+- **Caption style** `captionStyle: "sentence"` keeps case, `%`, `/` and units and is drawn with drawtext `expansion=none`; the legacy uppercase filter string is byte-identical.
+- **Lineage drives the AI label** (`reelDisclosure.allShotsNonGenerative`): every clip slot covered by a registry/card row whose bound URL is the clip in that slot means `is_ai_generated` is not sent; a provider URL, a provider row or a partial lineage keeps it. The veto and the transmitted flag use the same call (`dailyReelPost`, `instagramAdmin`).
+- **Ledger**: enqueue reserves only beats the provider will render; settlement counts lineage-backed clips as free-lane.
+- **Not built**: Studio controls for the new fields (pack-file fields today), video duration probing on the Studio upload, lineage lines in the approval Queue. `expansion=none` is asserted on the filter string, not yet proven on the production ffmpeg (first sentence-style render is the proof).
+
+Docs: `11-SLATE-62-PROVISIONAL.md` (62 slots + 6 substitutes, every slot brief-ready or footage-needed, 0 credits spent), `12-FLAGSHIP-HOOKS.md` (nine openings, three per flagship).
+
 ## Reel lane unjam: READY count agrees with the drain; paid repair only when it can clear the verdict (2026-10-09, PR #2940) -- MERGED (main `8175758a`), DEPLOYED (`0ab3d0e5`, healthy 12:48Z); live proof owed at the 2026-10-10 ET 06:00 pulse
 
 Production read on 2026-10-09: no Reel posted since 2026-10-04 04:08Z, and none was produced either. At the ET 06:00 production hour `daily-reel-post` logged `production held: usable READY buffer 2 (hold_above_low_watermark)` while the drain skipped both of those jobs on every pulse (2040001 `qa_parked:needs_paid_repair`, 1770004 `repost:caption`).
