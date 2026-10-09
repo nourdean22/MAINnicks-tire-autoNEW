@@ -2,6 +2,17 @@
 
 
 
+## 2026-10-09 - The outcome ledger had written nothing since 2026-10-02 16:00Z (fixed, PR after #2939)
+
+- **BUILT + TESTED; deploy pending.** `recordShown` took its advisory lock through `$queryRaw`; the lock returns void, so every miss threw and was swallowed. `intelligence_outcomes` received no row for seven days. It now uses `$executeRaw`, and `tests/repo/void-function-query-raw.test.ts` guards the class. Proof after deploy: a new `intelligence_outcomes` row.
+
+## 2026-10-09 - Deploy images use the lockfile's turbo (#2939); bdnick.info was on #2935 from 01:43Z to 10:46Z
+
+- **Deploy path:** `apps/statenour/Dockerfile` and `apps/worker/Dockerfile` prune in a stage that installs turbo globally before `pnpm install`; that turbo must be the lockfile's (2.11.6), and `tests/repo/dockerfile-turbo-pin.test.ts` holds it there. With 2.9.14 every build since #2936 failed at `turbo prune` on `turbo.json`'s `agentGuidance` key, so production stayed on #2935 while #2936 and #2938 merged.
+- **LIVE:** worker `84a76e23` 10:44:41Z, web `7cd81d0a` 10:46:57Z, `/api/version` on `69bb331b`. "Merged" was not "deployed" for those nine hours: check `/api/version` by ancestry after every merge.
+
+Ship record: `docs/RECONCILIATION.md` top entry.
+
 ## 2026-10-02 - Agent follow-ups deliver; the thinking engine runs nightly again; NicksMax cameras self-heal (#2892, #2894, #2896)
 
 - **Agent follow-ups: LIVE + PROVEN.** All three switches are on, and the 17:45Z run went through with no skip.

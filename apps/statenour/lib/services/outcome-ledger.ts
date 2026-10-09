@@ -103,8 +103,12 @@ export async function recordShown(input: RecordShownInput): Promise<string | nul
     // operator's decision then landed on one and the twin stayed undecided
     // forever. The lock serialises only writers of the SAME text, is released
     // at commit, and needs no schema change.
+    // $executeRaw, never $queryRaw: pg_advisory_xact_lock returns void, which
+    // $queryRaw cannot deserialize, so every miss threw and the ledger wrote
+    // no row from 2026-10-02 16:03Z (this lock's deploy) to the fix
+    // (tests/repo/void-function-query-raw.test.ts).
     return await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`intelligence_outcome:${contentHash}`}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`intelligence_outcome:${contentHash}`}))`;
       const again = await tx.intelligenceOutcome.findFirst({
         where: { contentHash, shownAt: { gte: dayAgo } },
         select: { id: true },
