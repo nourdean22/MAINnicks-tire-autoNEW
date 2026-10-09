@@ -20,6 +20,7 @@ import { getDb } from "../db";
 import { invoices, customers, customerMetrics, leads, bookings, chatSessions, callEvents, workOrders, reviewRequests, algEstimates } from "../../drizzle/schema";
 import { sql, eq, gte, lte, and, asc } from "drizzle-orm";
 import { BUSINESS } from "@shared/business";
+import { SERVICE_CATEGORIES, categorizeService } from "./engines/shared";
 
 import { createLogger } from "../lib/logger";
 
@@ -169,22 +170,8 @@ export async function forecastRevenue() {
 // #2 SERVICE CROSS-SELL ENGINE
 // ═══════════════════════════════════════════════════════════
 
-const SERVICE_CATEGORIES = [
-  { key: "brakes", pattern: /brake|rotor|pad|caliper/i },
-  { key: "tires", pattern: /tire|mount|balance|rotation|alignment/i },
-  { key: "oil", pattern: /oil.?change|lube|filter/i },
-  { key: "suspension", pattern: /strut|shock|spring|suspension|control.?arm|ball.?joint|tie.?rod/i },
-  { key: "engine", pattern: /engine|timing|head.?gasket|valve|compression/i },
-  { key: "electrical", pattern: /battery|alternator|starter|wiring|fuse/i },
-  { key: "exhaust", pattern: /exhaust|muffler|catalytic|pipe/i },
-  { key: "cooling", pattern: /coolant|radiator|thermostat|water.?pump|heater.?core/i },
-  { key: "transmission", pattern: /transmission|trans.?fluid|clutch/i },
-  { key: "diagnostic", pattern: /diagnos|check.?engine|scan|inspect/i },
-];
-
-function categorizeService(desc: string): string[] {
-  return SERVICE_CATEGORIES.filter(c => c.pattern.test(desc)).map(c => c.key);
-}
+// SERVICE_CATEGORIES + categorizeService come from ./engines/shared (imported
+// above): this file used to carry an identical private copy of both.
 
 export async function generateCrossSellRecommendations() {
   // Get all invoices with customer linkage

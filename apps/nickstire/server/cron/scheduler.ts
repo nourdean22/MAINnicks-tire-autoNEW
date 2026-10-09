@@ -809,8 +809,10 @@ function buildTiers(): void {
               return { current, history };
             };
 
+            // invoiceDate is the stored shop-local day (2026-10-09): converting it from UTC
+            // moved every date-only ticket onto the day before, so today's count read near zero.
             const [invoiceDailyRaw] = await d.execute(sql`
-              SELECT DATE(CONVERT_TZ(invoiceDate, '+00:00', 'America/New_York')) AS day, COUNT(*) AS cnt
+              SELECT DATE(invoiceDate) AS day, COUNT(*) AS cnt
               FROM invoices
               WHERE source = 'shopdriver' AND invoiceDate >= DATE_SUB(NOW(), INTERVAL 70 DAY)
               GROUP BY day
@@ -2626,6 +2628,8 @@ function buildTiers(): void {
           try {
             const { analyzeCustomers, getCustomerActionPlan } = await import("../services/customerIntelligence");
             const data = await analyzeCustomers();
+            // A failed customer read is not "0 at-risk, 0% retention": fail the run so cron_log says so.
+            if (data.unavailable) throw new Error("customer read failed: at-risk and retention are unknown, not zero");
             const plan = await getCustomerActionPlan();
             if (data.atRiskCustomers.length > 0) {
               const { sendTelegram } = await import("../services/telegram");
@@ -2653,7 +2657,8 @@ function buildTiers(): void {
               }
               if (enrolled > 0) log.info(`Enrolled ${enrolled} at-risk customers in drip`);
             }
-            return { recordsProcessed: data.atRiskCustomers.length, details: `${data.atRiskCustomers.length} at-risk, ${data.retentionRate}% retention` };
+            const atRisk = data.atRiskUnavailable ? "at-risk unknown (lapsed read failed)" : `${data.atRiskCustomers.length} at-risk`;
+            return { recordsProcessed: data.atRiskCustomers.length, details: `${atRisk}, ${data.retentionRate}% retention` };
           } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },

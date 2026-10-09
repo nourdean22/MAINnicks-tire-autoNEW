@@ -13,6 +13,7 @@ import type { Express, Request, Response } from "express";
 import { timingSafeEqual } from "crypto";
 import { createLogger } from "../lib/logger";
 import { maskPlate } from "../lib/plate";
+import { getBusinessDateKey } from "../lib/timezoneAssert";
 
 const log = createLogger("nour-os-query");
 
@@ -110,6 +111,48 @@ function safeDays(d: number): number {
     throw new Error(`statenour-bridge: invalid days=${d}`);
   }
   return d;
+}
+
+const CALENDAR_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A real calendar date as YYYY-MM-DD. 2026-02-30 has the shape and is no day. */
+function isCalendarDate(v: unknown): v is string {
+  if (typeof v !== "string" || !CALENDAR_DATE_RE.test(v)) return false;
+  const ms = Date.parse(`${v}T12:00:00Z`);
+  return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === v;
+}
+
+/** Calendar arithmetic on a YYYY-MM-DD, at UTC noon, so no zone or DST change can move it a day. */
+function addCalendarDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * The `from`/`to` filters of a date-range query: shop-local calendar days (America/New_York),
+ * BOTH inclusive. An absent bound defaults from the shop's day, never the UTC day, which is
+ * already tomorrow in Cleveland from 20:00 ET. Handlers put the bounds into SQL as a half-open
+ * range, `col >= from AND col < DATE_ADD(to, INTERVAL 1 DAY)`: a date string compared with a
+ * DATETIME means midnight, so `BETWEEN from AND to` stopped at 00:00 on the end day and dropped
+ * every row timed after it. A bound that is not a calendar date, or a reversed range, is
+ * refused here, before any query runs.
+ */
+function shopDayRange(
+  filters: Record<string, unknown>,
+  defaultDaysBack: number,
+): { from: string; to: string } | { error: string } {
+  const given = (v: unknown) => v !== undefined && v !== null && v !== "";
+  const BAD = { error: "from and to must be calendar dates as YYYY-MM-DD (shop-local)" };
+  const to = given(filters.to) ? filters.to : getBusinessDateKey();
+  if (!isCalendarDate(to)) return BAD;
+  // A missing `from` is the default window ending on `to` (given or today), so a to-only call
+  // reads the window it names rather than one anchored on today.
+  const from = given(filters.from) ? filters.from : addCalendarDays(to, -defaultDaysBack);
+  if (!isCalendarDate(from)) return BAD;
+  if (from > to) {
+    const note = given(filters.to) ? "" : " (defaulted to the shop's today)";
+    return { error: `from (${from}) is after to (${to}${note})` };
+  }
+  return { from, to };
 }
 
 interface QueryRequest {
@@ -286,34 +329,41 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
     const { sql } = await import("drizzle-orm");
     const d = await getDb();
     if (!d) return { error: "No DB" };
-    // v1.7.6 · ET-anchored "today". Prior code used CURDATE() which
-    // runs in the DB server's timezone (UTC). Cleveland is ET — late
-    // evening ET, UTC has already rolled to the next day, so the
-    // query missed all of "today's" invoices and Nour's daily-driver
-    // showed $0. CONVERT_TZ pins the comparison to America/New_York
-    // for both sides of the equation; matches the controlCenter.ts
-    // getTodayET() pattern used elsewhere in the codebase.
+    // v1.7.6 · ET-anchored "today" (CURDATE() is the UTC day, already tomorrow in Cleveland
+    // from 20:00 ET). 2026-10-09 · `invoiceDate` is the stored shop-local day (the contract
+    // revenue_range, lot_brief, shopSales and customerStatsRead keep), so it is compared with
+    // the shop's date as stored. This converted it FROM UTC, which moved every date-only ALG
+    // ticket (stored at that day's midnight) onto the day before: today's revenue counted only
+    // timed tickets, and disagreed with revenue_range(today, today).
+    const today = getBusinessDateKey();
     const [rows] = await d.execute(sql`
       SELECT COALESCE(SUM(totalAmount), 0) as totalCents, COUNT(*) as invoiceCount
       FROM invoices
-      WHERE DATE(CONVERT_TZ(invoiceDate, '+00:00', 'America/New_York'))
-          = DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))
+      WHERE invoiceDate >= ${today} AND invoiceDate < DATE_ADD(${today}, INTERVAL 1 DAY)
     `);
     const r = (rows as Record<string, unknown>[])?.[0] || rows as Record<string, unknown>;
     return { totalCents: Number(r.totalCents || 0), totalDollars: Number(r.totalCents || 0) / 100, invoiceCount: Number(r.invoiceCount || 0) };
   },
 
+  // 2026-10-09 · `from`/`to` are shop-local days, both inclusive (shopDayRange). `invoiceDate`
+  // holds the stored shop-local day, the contract lotBriefRead, shopSales and customerStatsRead
+  // keep, so the bounds compare with it directly and the upper bound is the start of the day
+  // AFTER `to`. This read was `BETWEEN from AND to`, which ends at 00:00 on `to`: month-to-date
+  // revenue omitted every ticket timed on the last day. Both defaults were the UTC day.
+  // Exception: the few writers that stamp `new Date()` (gatewayTire.placeOrder, booking, a manual
+  // invoice) store the UTC wall clock, so such a row written after 20:00 ET lands on the next day.
   "revenue_range": async (filters) => {
+    const range = shopDayRange(filters, 0);
+    if ("error" in range) return range;
+    const { from, to } = range;
     const { getDb } = await import("../db");
     const { sql } = await import("drizzle-orm");
     const d = await getDb();
     if (!d) return { error: "No DB" };
-    const from = String(filters.from || new Date().toISOString().split("T")[0]);
-    const to = String(filters.to || new Date().toISOString().split("T")[0]);
     const [rows] = await d.execute(sql`
       SELECT COALESCE(SUM(totalAmount), 0) as totalCents, COUNT(*) as invoiceCount,
              AVG(totalAmount) as avgTicketCents
-      FROM invoices WHERE invoiceDate BETWEEN ${from} AND ${to}
+      FROM invoices WHERE invoiceDate >= ${from} AND invoiceDate < DATE_ADD(${to}, INTERVAL 1 DAY)
     `);
     const r = (rows as Record<string, unknown>[])?.[0] || rows as Record<string, unknown>;
     return {
@@ -966,18 +1016,23 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
   // question. statenour-side tool registration mirrors the GSC
   // pattern at v10.0.487.
   "marketing_attribution": async (filters) => {
+    // Default: the 30 shop days ending today (29 days before it, through it).
+    const range = shopDayRange(filters, 29);
+    if ("error" in range) return range;
+    const { from, to } = range;
     const { getDb } = await import("../db");
     const { sql } = await import("drizzle-orm");
     const d = await getDb();
     if (!d) return { error: "No DB" };
-    const today = new Date().toISOString().slice(0, 10);
-    const thirtyAgo = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
-    const from = String(filters.from || thirtyAgo);
-    const to = String(filters.to || today);
 
     // Per-source rollup of leads + conversion + revenue. Joins
     // leads → invoices via the invoiceId FK (set on conversion).
     // Cents → dollars done in JS to keep SQL readable.
+    //
+    // 2026-10-09 · `leads.createdAt` is the database's NOW() at insert, a UTC instant (leads_today
+    // converts it from +00:00 the same way), so the shop-local day bounds are converted to UTC
+    // and the column is left bare for idx_lead_created. Was `BETWEEN from AND to` on the raw date
+    // strings: the end day was cut at 00:00 UTC, and each edge was 4-5 hours off New York.
     const [rows] = await d.execute(sql`
       SELECT
         l.source                                            AS source,
@@ -991,7 +1046,8 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
         COALESCE(AVG(i.totalAmount), 0)                      AS avgTicketCents
       FROM leads l
       LEFT JOIN invoices i ON i.id = l.invoiceId
-      WHERE l.createdAt BETWEEN ${from} AND ${to}
+      WHERE l.createdAt >= CONVERT_TZ(${from}, 'America/New_York', '+00:00')
+        AND l.createdAt < CONVERT_TZ(DATE_ADD(${to}, INTERVAL 1 DAY), 'America/New_York', '+00:00')
       GROUP BY l.source, l.utmSource
       ORDER BY totalCents DESC, leadCount DESC
       LIMIT 50
@@ -1248,6 +1304,8 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
     const d = await getDb();
     if (!d) return { error: "No DB" };
 
+    // Invoices on the stored shop-local day (see revenue_today); bookings keep their own clock.
+    const today = getBusinessDateKey();
     const [bookingRows, invoiceRows] = await Promise.all([
       exec(d, sql`
         SELECT
@@ -1263,7 +1321,7 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
       exec(d, sql`
         SELECT COUNT(*) AS paid, COALESCE(SUM(totalAmount), 0) AS totalCents, COALESCE(AVG(totalAmount), 0) AS avgCents
         FROM invoices
-        WHERE DATE(CONVERT_TZ(invoiceDate, '+00:00', 'America/New_York')) = DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))
+        WHERE invoiceDate >= ${today} AND invoiceDate < DATE_ADD(${today}, INTERVAL 1 DAY)
           AND paymentStatus = 'paid'
       `),
     ]);
@@ -1282,7 +1340,7 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
     const paymentBreakdown = await exec(d, sql`
       SELECT paymentMethod, COUNT(*) AS cnt, COALESCE(SUM(totalAmount), 0) AS totalCents
       FROM invoices
-      WHERE DATE(CONVERT_TZ(invoiceDate, '+00:00', 'America/New_York')) = DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))
+      WHERE invoiceDate >= ${today} AND invoiceDate < DATE_ADD(${today}, INTERVAL 1 DAY)
         AND paymentStatus = 'paid'
       GROUP BY paymentMethod
     `);

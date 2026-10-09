@@ -56,19 +56,22 @@ function normalizeName(raw) {
   };
 }
 
+// The same table as server/services/reportIngestion.ts, kept byte-identical by
+// serviceCategorizers.golden.test.ts (this script runs main() on import, so it cannot be imported).
 const SERVICE_CATEGORIES = {
   brakes: /brake|pad|rotor|caliper|drum|shoe|bleed|abs|parking.*cable/i,
   tires: /tire|mount.*balance|balance.*tire|replace.*tire|used tire|new tire|plug|flat|tpms|valve.*stem|rotation/i,
   alignment: /align/i,
   suspension: /strut|shock|control.*arm|sway.*bar|stab.*link|ball.*joint|tie.*rod|spring|bushing|bearing|hub/i,
-  engine: /tune.*up|spark.*plug|oxygen.*sensor|alternator|starter|belt|timing|valve.*cover|gasket|motor.*mount|oil.*filter.*housing|catalytic|exhaust|muffler|weld.*exhaust|flex.*pipe|manifold/i,
+  engine: /tune.*up|spark.*plug|oxygen.*sensor|alternator|starter|belt|timing|valve.*cover|gasket|motor.*mount|oil.*filter.*housing|catalytic|exhaust|muffler|weld.*exhaust|flex.*pipe|manifold|camshaft|crankshaft|engine/i,
   oil_change: /oil.*change|oil.*filter|lube|synthetic/i,
-  cooling: /radiator|thermostat|coolant|water.*pump|heater.*core|cooling|flush.*system/i,
-  electrical: /battery|wiper|window.*regulator|fuse|sensor|module|relay|light|headlight/i,
+  cooling: /radiator|thermostat|coolant|water.*pump|heater.*core|cooling|overheat|flush.*system/i,
+  electrical: /battery|alternator|wiper|window.*regulator|fuse|sensor|module|relay|light|headlight/i,
   steering: /power.*steering|steering.*pump|steering.*rack|steering.*hose/i,
   transmission: /transmission|trans.*fluid|trans.*filter|cv.*axle|axle|drive.*shaft/i,
-  ac_heat: /a.*c|ac.*charge|ac.*compressor|freon|vacuum.*recharge|heater/i,
+  ac_heat: /\ba\/?c\b|air.?condition|freon|vacuum.*recharge|heater/i,
   inspection: /inspect|diagnos|check|scan/i,
+  other: /.*/,
 };
 
 function categorizeService(desc) {

@@ -68,6 +68,11 @@ export function analyzeObjections(
 /**
  * Known service categories and their keyword matchers.
  * Invoices are categorized by matching serviceDescription against these.
+ *
+ * A SEPARATE taxonomy, not a copy of engines/shared.ts categorizeService:
+ * Title Case labels printed in the collections alert, lowercase substring
+ * keywords, first match wins. Outputs are pinned row by row, known
+ * misclassifications included, in serviceCategorizers.golden.test.ts.
  */
 const SERVICE_CATEGORIES: Record<string, string[]> = {
   "Oil Change": ["oil change", "oil & filter", "lube", "synthetic oil"],
@@ -84,9 +89,9 @@ const SERVICE_CATEGORIES: Record<string, string[]> = {
 };
 
 /**
- * Categorize a service description into a known category.
+ * Categorize a service description into one payment-alert label.
  */
-function categorizeService(description: string): string {
+function paymentAlertCategory(description: string): string {
   const lower = (description || "").toLowerCase();
   for (const [category, keywords] of Object.entries(SERVICE_CATEGORIES)) {
     if (keywords.some((kw) => lower.includes(kw))) {
@@ -117,7 +122,9 @@ export async function getServicePaymentBreakdown(days = 30): Promise<Array<{
     const { getDb } = await import("../db");
     const { sql } = await import("drizzle-orm");
     const db = await getDb();
-    if (!db) return [];
+    // A database it cannot reach is not "no invoices": throw, so the cron records a failure
+    // (2026-10-09). An empty array below means a real read found nothing to analyze.
+    if (!db) throw new Error("database not available: payment state is unknown, not empty");
 
     const [rows] = await db.execute(sql`
       SELECT serviceDescription, paymentStatus
@@ -134,7 +141,7 @@ export async function getServicePaymentBreakdown(days = 30): Promise<Array<{
     const categoryStats: Record<string, { paidOrPartial: number; unpaid: number }> = {};
 
     for (const row of invoiceRows) {
-      const category = categorizeService(row.serviceDescription);
+      const category = paymentAlertCategory(row.serviceDescription);
       if (!categoryStats[category]) {
         categoryStats[category] = { paidOrPartial: 0, unpaid: 0 };
       }
@@ -156,8 +163,10 @@ export async function getServicePaymentBreakdown(days = 30): Promise<Array<{
       .filter((r) => r.total >= 3) // Need at least 3 data points
       .sort((a, b) => b.total - a.total);
   } catch (err: unknown) {
+    // Rethrow: returning [] here read as "No invoice data to analyze" and cron_log recorded the
+    // run as completed while the read had failed.
     log.error("Failed to compute payment breakdown:", { error: (err as Error).message });
-    return [];
+    throw err;
   }
 }
 

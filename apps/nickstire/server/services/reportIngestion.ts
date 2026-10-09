@@ -18,7 +18,15 @@ import { eq, sql } from "drizzle-orm";
 const log = createLogger("report-ingestion");
 
 // ─── SERVICE CATEGORIES ────────────────────────────────
-// Map service descriptions to categories for analytics
+// Map service descriptions to categories for analytics.
+// A SEPARATE taxonomy, not a copy of engines/shared.ts categorizeService:
+// different keys (alignment, oil_change, steering, ac_heat, inspection,
+// other), first match wins, one label per line. scripts/ingest-reports.mjs,
+// the live report path, carries the same table byte for byte (it had drifted
+// until 2026-10-09; the golden test now holds them identical). ac_heat is a
+// word-bounded A/C since 2026-10-09: `/a.*c/` took "Diagnostic Service" and
+// "LABOR CHARGE". Outputs are pinned row by row, known misclassifications
+// included, in serviceCategorizers.golden.test.ts.
 const SERVICE_CATEGORIES: Record<string, RegExp> = {
   brakes: /brake|pad|rotor|caliper|drum|shoe|bleed|abs|parking.*cable/i,
   tires: /tire|mount.*balance|balance.*tire|replace.*tire|used tire|new tire|plug|flat|tpms|valve.*stem|rotation/i,
@@ -30,12 +38,12 @@ const SERVICE_CATEGORIES: Record<string, RegExp> = {
   electrical: /battery|alternator|wiper|window.*regulator|fuse|sensor|module|relay|light|headlight/i,
   steering: /power.*steering|steering.*pump|steering.*rack|steering.*hose/i,
   transmission: /transmission|trans.*fluid|trans.*filter|cv.*axle|axle|drive.*shaft/i,
-  ac_heat: /a.*c|ac.*charge|ac.*compressor|freon|vacuum.*recharge|heater/i,
+  ac_heat: /\ba\/?c\b|air.?condition|freon|vacuum.*recharge|heater/i,
   inspection: /inspect|diagnos|check|scan/i,
   other: /.*/,
 };
 
-function categorizeService(description: string): string {
+function reportServiceCategory(description: string): string {
   if (!description) return "other";
   for (const [category, pattern] of Object.entries(SERVICE_CATEGORIES)) {
     if (pattern.test(description)) return category;
@@ -250,7 +258,7 @@ export function parseTotalSalesReport(content: string): { invoices: ParsedInvoic
       const { firstName, lastName, normalized } = normalizeName(customerRaw);
 
       // Categorize service
-      const serviceCategory = categorizeService(description);
+      const serviceCategory = reportServiceCategory(description);
 
       // Payment type
       const { method, isFinanced, financeProvider } = normalizePaymentType(payTypeRaw);
@@ -373,7 +381,7 @@ export function parseTechReport(content: string): TechProfile[] {
         currentHours += hours;
         currentLabor += total;
 
-        const cat = categorizeService(description);
+        const cat = reportServiceCategory(description);
         currentServices[cat] = (currentServices[cat] || 0) + 1;
       }
     }
@@ -420,7 +428,7 @@ export function parseLaborReport(content: string): LaborService[] {
           hours,
           avgRate: rate,
           revenue,
-          category: categorizeService(description),
+          category: reportServiceCategory(description),
         });
       }
     }

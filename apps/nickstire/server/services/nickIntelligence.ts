@@ -312,7 +312,10 @@ export async function generateProactiveAlerts(): Promise<string[]> {
   try {
     const { analyzeCustomers } = await import("./customerIntelligence");
     const ci = await analyzeCustomers();
-    if (ci.atRiskCustomers.length > 0) {
+    // A failed read is said once, not read as "nobody at risk" (2026-10-09).
+    if (ci.unavailable || ci.atRiskUnavailable) {
+      alerts.push(`⚠️ At-risk customer check did not run: the customer read failed`);
+    } else if (ci.atRiskCustomers.length > 0) {
       const topRisk = ci.atRiskCustomers[0];
       alerts.push(`💸 AT-RISK CUSTOMER: ${topRisk.name} (${topRisk.daysSince}d since last visit) — call ${topRisk.phone} before they go elsewhere`);
     }
@@ -576,7 +579,9 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
         `- Did you work out today? Body affects business.\n` +
         `- Did you follow up on yesterday's priorities?\n` +
         `- Are you building or drifting? Boring repetition > intensity spikes.\n\n` +
-        (ci.atRiskCustomers.length > 0 ? `⚠️ ${ci.atRiskCustomers.length} at-risk customers — call them FIRST tomorrow\n` : "") +
+        (ci.unavailable || ci.atRiskUnavailable
+          ? `⚠️ At-risk customers: unknown — the customer read failed\n`
+          : ci.atRiskCustomers.length > 0 ? `⚠️ ${ci.atRiskCustomers.length} at-risk customers — call them FIRST tomorrow\n` : "") +
         (plan ? `\n${plan.slice(0, 300)}` : "") +
         `\n\n${pulse.shopInsight}`
       );

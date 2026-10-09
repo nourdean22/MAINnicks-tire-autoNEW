@@ -41,15 +41,18 @@ export async function processKpiSnapshot(): Promise<{ recordsProcessed: number; 
   const existing = rows(await db.execute(sql`SELECT id FROM kpi_snapshots WHERE weekStart = ${weekStart} LIMIT 1`));
   if (existing.length > 0) return { recordsProcessed: 0, details: `Skipped · week ${weekStart} already snapshotted` };
 
-  // All windows are [weekStart, weekStart + 7 days) in shop time, converted to UTC for comparison.
+  // All windows are [weekStart, weekStart + 7 days) in shop time. The UTC columns below
+  // (createdAt, sentAt, created_at) compare with the bounds converted to UTC; `invoiceDate` is the
+  // stored shop-local day (2026-10-09), so it compares with them as they are. Converting them for
+  // invoices too dropped Monday's date-only tickets and took the next Monday's.
   const rev = rows(await db.execute(sql`
     SELECT COALESCE(SUM(totalAmount), 0) AS revenue, COUNT(*) AS jobs,
            CASE WHEN COUNT(*) > 0 THEN ROUND(SUM(totalAmount) / COUNT(*)) ELSE 0 END AS avgTicket
     FROM invoices
     WHERE paymentStatus = 'paid'
       AND invoiceNumber NOT LIKE 'Estimate#%'
-      AND invoiceDate >= CONVERT_TZ(${weekStart}, 'America/New_York', '+00:00')
-      AND invoiceDate <  CONVERT_TZ(DATE_ADD(${weekStart}, INTERVAL 7 DAY), 'America/New_York', '+00:00')
+      AND invoiceDate >= ${weekStart}
+      AND invoiceDate <  DATE_ADD(${weekStart}, INTERVAL 7 DAY)
   `))[0] ?? {};
   const newCust = rows(await db.execute(sql`
     SELECT COUNT(*) AS c FROM customers

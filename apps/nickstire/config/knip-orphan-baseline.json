@@ -3232,11 +3232,6 @@
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
-      "file": "apps/nickstire/server/services/engines/shared.ts",
-      "symbol": "SERVICE_CATEGORIES",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
       "file": "apps/nickstire/server/pipelines/instagram-data.ts",
       "symbol": "pickTopThemes",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
