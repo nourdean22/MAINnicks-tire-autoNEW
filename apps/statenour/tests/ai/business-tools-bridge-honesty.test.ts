@@ -219,6 +219,36 @@ describe("redactUnreadableSections", () => {
     expect(out.unavailable).toEqual(["revenue", "customers", "jobsToday"]);
   });
 
+  it("blanks reviews on their OWN ok:false, and says the review store, not the bridge", () => {
+    const out = redactUnreadableSections({
+      ...healthy,
+      reviews: { average: 0, total: 0, unresponded: 0, ok: false },
+    }) as Record<string, unknown>;
+
+    expect(out.reviews).toBeNull();
+    expect(out.unavailable).toEqual(["reviews"]);
+    expect(out.revenue).toEqual({ totalRevenue: "4210.50" });
+    expect(String(out.reason)).toMatch(/review store could not be read/);
+    expect(String(out.reason)).not.toMatch(/shop bridge/);
+    expect(String(out.reason)).toMatch(/UNKNOWN, not zero/);
+  });
+
+  it("names both causes when the bridge and the review store both failed", () => {
+    const out = redactUnreadableSections({
+      ...healthy,
+      bridgeHealth: { revenue: false, customers: true, jobsToday: true },
+      reviews: { average: 0, total: 0, unresponded: 0, ok: false },
+    }) as Record<string, unknown>;
+    expect(out.unavailable).toEqual(["revenue", "reviews"]);
+    expect(String(out.reason)).toMatch(/shop bridge: revenue\./);
+    expect(String(out.reason)).toMatch(/review store could not be read/);
+  });
+
+  it("keeps readable reviews (ok: true) untouched", () => {
+    const withOk = { ...healthy, reviews: { average: 4.8, total: 120, unresponded: 2, ok: true } };
+    expect(redactUnreadableSections(withOk)).toBe(withOk);
+  });
+
   it("leaves unrelated sections alone — reviews do not come from the shop bridge", () => {
     const out = redactUnreadableSections({
       ...healthy,

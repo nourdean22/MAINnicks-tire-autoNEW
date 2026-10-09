@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
 import { sendEmail } from "@/lib/services/email";
 import { brainMemory } from "@/lib/brain/memory-manager";
-import { today, daysAgo, toDateString, hourET, weekdayET, startOfMonthET } from "@/lib/utils/datetime";
+import { today, daysAgo, toDateString, hourET, weekdayET } from "@/lib/utils/datetime";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { computeIsoWeekKey } from "@/lib/ai/context/command-center-state";
@@ -469,13 +469,19 @@ const RULES: ActionRule[] = [
       const day = weekdayET();
       const hour = hourET();
       if (day !== 5 || hour !== 14) return []; // Friday 2pm
-      const monthStart = startOfMonthET();
+      // revenue_range takes shop-local days as `from`/`to`, both inclusive. This sent
+      // `since`, which the handler never read, so it got TODAY's revenue at 2pm and
+      // projected the month from one part-day: a "behind pace" alert nearly every Friday.
+      const todayET = today();
+      const parts = todayET.split("-");
       const data = await fetchBridge<{ totalDollars?: number }>("revenue_range", {
-        since: monthStart.toISOString(),
+        from: `${parts[0]}-${parts[1]}-01`,
+        to: todayET,
       });
       if (data == null) return []; // bridge dead → don't false-alarm
-      const monthRevenue = Number(data.totalDollars ?? 0);
-      const parts = today().split("-");
+      // A body without a numeric total is not a reading either: never project from a 0.
+      if (typeof data.totalDollars !== "number" || !Number.isFinite(data.totalDollars)) return [];
+      const monthRevenue = data.totalDollars;
       const year = Number(parts[0]);
       const month = Number(parts[1]);
       const dayOfMonth = Number(parts[2]);
@@ -818,14 +824,17 @@ const RULES: ActionRule[] = [
     trigger: async () => {
       const hour = hourET();
       if (hour < 8 || hour > 10) return []; // Morning after a big day
+      // Yesterday as one shop-local day (revenue_range's `from`/`to` are inclusive days).
+      // This sent `since`/`until`, which the handler never read, so it got this
+      // morning's near-zero and the gate could not fire.
       const yesterdayET = toDateString(daysAgo(1));
-      const todayET = toDateString(daysAgo(0));
       const data = await fetchBridge<{ totalDollars?: number }>("revenue_range", {
-        since: `${yesterdayET}T00:00:00`,
-        until: `${todayET}T00:00:00`,
+        from: yesterdayET,
+        to: yesterdayET,
       });
       if (data == null) return [];
-      const rev = Number(data.totalDollars ?? 0);
+      if (typeof data.totalDollars !== "number" || !Number.isFinite(data.totalDollars)) return [];
+      const rev = data.totalDollars;
       if (rev < 2000) return [];
       return [{ revenue: rev }];
     },
@@ -955,6 +964,12 @@ export function listRuleNames(): Array<{
     approval: r.approval,
     targetType: r.targetType,
   }));
+}
+
+/** Test seam: one rule's real trigger, by name. The rule loop wraps triggers in a
+ *  transaction, an idempotent create and a bus emit, none of which a trigger needs. */
+export function __ruleTriggerForTest(name: string): (() => Promise<unknown[]>) | undefined {
+  return RULES.find((r) => r.name === name)?.trigger;
 }
 
 /**

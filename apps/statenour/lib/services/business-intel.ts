@@ -217,23 +217,32 @@ export async function getDashboardSummary() {
     fetchBridge<{ invoiceCount?: number }>("revenue_today"),
   ]);
 
-  const todayJobs = Number(todayJobsData?.invoiceCount ?? 0);
+  // revenue_today always sends invoiceCount as a number. A body without one is not a
+  // reading either (the same rule as getCustomerStats): it must not count as 0 jobs, readable.
+  const invoiceCount = todayJobsData?.invoiceCount;
+  const jobsReadable = typeof invoiceCount === "number" && Number.isFinite(invoiceCount);
 
   return {
     revenue,
     customers: { total: customers.total, newThisMonth: customers.newThisMonth },
+    // ok / stale / freshnessNote travel with the counts: an unreadable review store answers
+    // zeros with ok: false, and dropping the flag here served those zeros as a measurement.
+    // redactUnreadableSections nulls the section on ok: false.
     reviews: {
       average: reviewStats.average,
       total: reviewStats.total,
       unresponded: reviewStats.unresponded,
+      ok: reviewStats.ok,
+      stale: reviewStats.stale,
+      freshnessNote: reviewStats.freshnessNote,
     },
-    jobs: { today: todayJobs },
+    jobs: { today: jobsReadable ? invoiceCount : 0 },
     // Surface bridge health so the dashboard can show a "shop offline"
     // banner if both shop-side reads failed.
     bridgeHealth: {
       revenue: revenue.bridgeAvailable,
       customers: customers.bridgeAvailable,
-      jobsToday: todayJobsData != null,
+      jobsToday: jobsReadable,
     },
   };
 }
