@@ -228,6 +228,10 @@ describe("summarizeLatestRow", () => {
       usableSeeds: 24, trainCount: 12, holdoutCount: 12,
       experimentId: "prompt-evolution:abc123", receiptDelivered: true,
       usage: { durationMs: 900_000 },
+      candidateSummaries: [
+        { rationale: "caller Maria wants a callback", train: "unscored", rejectedInvariants: ["clause-preservation", "reversal:price"], promptHash: "deadbeef0001" },
+        { rationale: "shorter greeting", train: "9/12", promptHash: "cand1234abcd", trainMargin: 3, trainUsable: true },
+      ],
     };
     const s = summarizeLatestRow(JSON.stringify(row))!;
     expect(s).toMatchObject({
@@ -236,15 +240,21 @@ describe("summarizeLatestRow", () => {
       experimentId: "prompt-evolution:abc123", receiptDelivered: true, durationMs: 900_000,
       seeds: { usable: 24, train: 12, holdout: 12, confirm: 8, success: 8 },
       gates: { holdout: "improved", success: "preserved", confirmation: "improved" },
+      candidates: [
+        { promptHash: "deadbeef0001", train: "unscored", rejectedInvariants: ["clause-preservation", "reversal:price"], trainMargin: null, trainUsable: null },
+        { promptHash: "cand1234abcd", train: "9/12", rejectedInvariants: [], trainMargin: 3, trainUsable: true },
+      ],
     });
     const json = JSON.stringify(s);
+    expect(json).not.toContain("callback");
+    expect(json).not.toContain("shorter greeting");
     expect(json).not.toContain("FULL CANDIDATE PROMPT TEXT");
     expect(json).not.toContain("FULL LIVE PROMPT");
     expect(json).not.toContain("Maria");
   });
 
   it("a row from before the trigger field reads 'unknown'; a missing or unparseable row is null", () => {
-    expect(summarizeLatestRow(JSON.stringify({ outcome: "rejected-holdout", accepted: null }))).toMatchObject({ trigger: "unknown", accepted: false, outcome: "rejected-holdout" });
+    expect(summarizeLatestRow(JSON.stringify({ outcome: "rejected-holdout", accepted: null }))).toMatchObject({ trigger: "unknown", accepted: false, outcome: "rejected-holdout", candidates: [] });
     expect(summarizeLatestRow(null)).toBeNull();
     expect(summarizeLatestRow("{not json")).toBeNull();
     expect(summarizeLatestRow("[]")).toBeNull();
