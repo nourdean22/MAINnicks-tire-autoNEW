@@ -6020,6 +6020,11 @@
       "file": "apps/nickstire/shared/shotRouter.ts",
       "symbol": "routeShot",
       "reason": "DOCTRINE TABLE WITH NO RUNTIME CONSUMER YET — stated, not laundered. The production audit's seven-step shot router as a pure decision table (facts in, route + deciding step out); shotRouter.test.ts pins the order (real > deterministic > approved still > do-not-generate > reuse > ai_illustrative > delete). Its intended consumer is the provider pick honouring StoryboardBeat.source, a change to a live workflow presented for operator sign-off in docs/reels-engine-v2/02-PRODUCTION-DOCTRINE.md §8 and deliberately NOT made in the same PR. Until that lands this export is a documented, test-pinned contract and nothing else; if the design item is dropped, delete the export rather than keep this entry."
+    },
+    {
+      "file": "apps/nickstire/server/services/repairRouter.ts",
+      "symbol": "routeFinding",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (2026-10-09). The per-code routing table (method, unit, costsProviderCredits) is pinned by repairRouter.test.ts, reelCraftCritic.test.ts and reelSelfHostedSpendTrajectory.test.ts. Its runtime consumers are in-module: planRepairs, pickRepairTarget and paidRepairCanClearVerdict, which the daily-reel cron and the publish gate call. The cron imported it directly until its repair target moved to pickRepairTarget (lowest blocked beat first)."
     }
   ]
 }
