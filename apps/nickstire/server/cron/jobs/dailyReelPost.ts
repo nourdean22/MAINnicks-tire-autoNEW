@@ -88,8 +88,16 @@ function hasReadyClipManifest(value: unknown): boolean {
   }
 }
 
-/** Count only inventory that can actually advance through the next gate. */
-async function countUsableReadyEpisodes(d: any): Promise<number> {
+/**
+ * Count only inventory that can actually advance through the next gate.
+ *
+ * `drainSkippedIds` is every approved job the publish drain refused on THIS pulse.
+ * The drain runs first and applies six checks; this count used to re-derive
+ * only three of them, so on 2026-10-09 it called two drain-refused jobs
+ * "usable", held production at the low watermark, and the lane neither
+ * published nor produced. Reusing the drain's own verdict keeps one rule.
+ */
+async function countUsableReadyEpisodes(d: any, drainSkippedIds: ReadonlySet<number>): Promise<number> {
   const rows = await d
     .select({
       id: reelJobs.id,
@@ -114,10 +122,11 @@ async function countUsableReadyEpisodes(d: any): Promise<number> {
     // out of the usable buffer until an operator or a repair clears them.
     const error = typeof row.error === "string" ? row.error.trim() : "";
     const hasBlockingError = Boolean(error && !error.startsWith("HELD awaiting approval"));
-    const hasLiveApproval = assembled && hasAsset && !hasBlockingError
+    const skippedByDrain = drainSkippedIds.has(Number(row.id));
+    const hasLiveApproval = assembled && hasAsset && !hasBlockingError && !skippedByDrain
       ? (await reelApprovalProblem({ jobId: Number(row.id), caption: String(row.caption), videoUrl: String(row.mp4Url) })) === null
       : false;
-    if (readyCandidateIsUsable({ status: String(row.status), hasAsset, hasBlockingError, hasLiveApproval })) usable += 1;
+    if (readyCandidateIsUsable({ status: String(row.status), hasAsset, hasBlockingError, hasLiveApproval, skippedByDrain })) usable += 1;
     if (usable >= REEL_READY_TARGET) break;
   }
   return usable;
@@ -416,6 +425,9 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
   // entirely — a master approved at 10am waited until tomorrow. That is the
   // same head-of-line pathology the drain was written to remove, reintroduced
   // one branch upstream. An approved, finished reel outranks starting a new one.
+  // Every approved job the drain refuses on this pulse, by id. The READY count
+  // further down reads it so production and the drain agree on what is usable.
+  let drainSkippedIds: ReadonlySet<number> = new Set();
   {
     let approvedJobIds: number[] = [];
     try {
@@ -602,6 +614,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       break;
     }
 
+    drainSkippedIds = new Set(skipped.map((s) => s.jobId));
     if (skipped.length) {
       // Visible, because a queue that silently skips is how the last one hid.
       log.info("daily reel: skipped ineligible approved jobs while draining", {
@@ -707,7 +720,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // is intentionally separate from the publication schedule: an assembled
     // episode can wait for its exact human approval while production remains
     // paused once usable inventory is above the low-watermark.
-    const usableReadyCount = await countUsableReadyEpisodes(d);
+    const usableReadyCount = await countUsableReadyEpisodes(d, drainSkippedIds);
     const readyDecision = decideReadyBuffer(usableReadyCount, REEL_READY_TARGET, REEL_READY_LOW_WATERMARK);
     if (readyDecision !== "refill") {
       return {
@@ -1067,11 +1080,16 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
         // Reading policy failure as "do not spend" is deliberate: an unreadable
         // policy must never authorize money.
         let paidRepairAllowed = false;
+        // The per-asset repair cap the publish gate also reads; 2 is that gate's
+        // own fallback when the policy is unreadable.
+        let paidRepairCap = 2;
         if (g.gate === "needs_paid_repair") {
           try {
             const { getActivePolicy } = await import("../../services/autonomyControl");
             const pol = await getActivePolicy();
             paidRepairAllowed = pol?.autonomousRepair?.paidBeatRegeneration === "auto";
+            const cap = Number(pol?.limits?.maxRepairAttemptsPerAsset);
+            if (Number.isInteger(cap) && cap >= 0) paidRepairCap = cap;
           } catch (polErr) {
             log.warn("daily reel: could not read autonomousRepair policy — treating as approval_required", {
               err: polErr instanceof Error ? polErr.message : String(polErr),
@@ -1080,10 +1098,29 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
         }
         if (g.gate === "auto_repair" || paidRepairAllowed) {
           try {
-            const { routeFinding } = await import("../../services/repairRouter");
-            const target = g.findings.find(
-              (f) => f.severity === "block" && f.beatNumber != null && routeFinding(f).method === "regenerate",
-            );
+            const { pickRepairTarget, paidRepairCanClearVerdict } = await import("../../services/repairRouter");
+            // SPEND ONLY ON A REPAIR THAT CAN WORK. Each paid attempt regenerates
+            // one beat. If the blocking findings span more beats than attempts
+            // remain, or name no beat at all, the re-render cannot pass and the
+            // credits are waste: job 2040001 (2026-10-08) had blocks on beats
+            // 1, 2, 4, 5 plus asset-level blocks, spent 12 credits on beat 2,
+            // and scored worse. Hold it for a human instead: rebuild or retire.
+            if (g.gate === "needs_paid_repair") {
+              const plan = paidRepairCanClearVerdict(g.findings, { repairAttempts: g.repairAttempts, maxRepairAttempts: paidRepairCap });
+              if (!plan.clearable) {
+                log.warn(`daily reel: paid repair declined for job ${job.id} — ${plan.reason}`, {
+                  blockedBeats: plan.blockedBeats,
+                  assetLevelBlocks: plan.assetLevelBlocks,
+                  remainingAttempts: plan.remainingAttempts,
+                });
+                return {
+                  recordsProcessed: 0,
+                  details: `held: paid repair cannot clear job ${job.id}'s verdict (${plan.reason}); rebuild or retire it; index not advanced`,
+                };
+              }
+            }
+            // Lowest blocked beat first: later beats are judged against it.
+            const target = pickRepairTarget(g.findings);
             if (target) {
               const { requestBeatRepair } = await import("../../services/selectiveRepair");
               // The cron is NOT an operator. Passing the real actor keeps the

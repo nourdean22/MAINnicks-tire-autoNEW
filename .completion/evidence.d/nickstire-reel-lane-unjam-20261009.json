@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "apps/nickstire/server/reelLaneUnjam.test.ts: the cron's new path is fail-closed for the non-operator actor. A policy-authorized paid repair is refused (held, index not advanced) unless paidRepairCanClearVerdict says every blocking finding fits the remaining repair budget; an unreadable policy still leaves paidRepairAllowed false and the cap at the gate's own default of 2. The READY-count change only removes drain-refused jobs from inventory and cannot publish or spend; the free auto_repair lane and every publish gate are unchanged. 10 tests plus four mutations that each turn the file red."
+    }
+  }
+}

@@ -7,6 +7,16 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Reel lane unjam: READY count agrees with the drain; paid repair only when it can clear the verdict (2026-10-09, branch `nickstire/reel-lane-unjam-20261009`) -- BUILT + TESTED; merge and deploy follow
+
+Production read on 2026-10-09: no Reel posted since 2026-10-04 04:08Z, and none was produced either. At the ET 06:00 production hour `daily-reel-post` logged `production held: usable READY buffer 2 (hold_above_low_watermark)` while the drain skipped both of those jobs on every pulse (2040001 `qa_parked:needs_paid_repair`, 1770004 `repost:caption`).
+
+- **The READY count reuses the drain's refusals** (`server/cron/jobs/dailyReelPost.ts`, `shared/reelQueue.readyCandidateIsUsable`). The drain runs first each pulse and records every approved job it refuses (`drainSkippedIds`); `countUsableReadyEpisodes` passes `skippedByDrain`, and a refused job is not inventory. Before, the count re-derived three of the drain's six checks and missed inventory hold, condemned script, repost and parked rendered QA. The operator's manual re-approval of 2040001 (01:24Z) is what made it count.
+- **A paid beat repair runs only when it can clear the whole verdict** (`server/services/repairRouter.paidRepairCanClearVerdict`, checked by the cron before `requestBeatRepair` on the `needs_paid_repair` gate). Every blocking regenerable finding must name a beat, and the distinct blocked beats must fit `maxRepairAttemptsPerAsset` minus the attempts already in `payload.repairQueue`. Otherwise the job is held with `held: paid repair cannot clear job N's verdict (...); rebuild or retire it`. 2040001's 12-credit beat-2 repair (2026-10-08 17:27Z) faced blocks on beats 1, 2, 4, 5 plus three asset-level blocks and scored worse.
+- **Repairs start at the lowest blocked beat** (`pickRepairTarget`). The critic judges continuity against the establishing beat; repairing beat 2 toward a broken beat 1 copies the defect.
+- **Unchanged:** the free `auto_repair` lane, the drain's six checks, every publish gate, the one-Reel-per-day cap. Job 2040001 still needs the operator's disposition (recommended: retire).
+- **Live proof owed:** the first ET 06:00 pulse after deploy logs an enqueue, not `production held`.
+
 ## Flagged-items wave (2026-10-09, after #2935; branch `claude/dreamy-newton-0iob20`) -- BUILT + TESTED; merge, deploy and the NicksMax install follow
 
 The items flagged at the end of #2934/#2935, plus what fixing them surfaced.

@@ -4586,6 +4586,36 @@
       ],
       "lastVerifiedAt": "2026-10-08",
       "verificationExpiresAt": "2026-11-07"
+    },
+    {
+      "capabilityId": "reel-lane-ready-buffer-and-repair-economics-20261009",
+      "name": "Reel lane: the READY count reuses the drain's refusals, and a paid beat repair runs only when it can clear the whole verdict (lowest blocked beat first)",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "production",
+      "evidence": {
+        "codeCommit": "branch nickstire/reel-lane-unjam-20261009 (2026-10-09). server/cron/jobs/dailyReelPost.ts: the drain records every approved job it refuses on a pulse (drainSkippedIds) and countUsableReadyEpisodes(d, drainSkippedIds) passes skippedByDrain to shared/reelQueue.readyCandidateIsUsable, which returns false for it. Before, the count re-derived 3 of the drain's 6 checks (asset, error, live approval) and missed inventory hold, condemned script, repost and parked rendered QA. server/services/repairRouter.ts: paidRepairCanClearVerdict (blocking regenerable findings must all name a beat, and the distinct blocked beats must fit maxRepairAttemptsPerAsset minus payload.repairQueue length) gates the cron's policy-authorized paid repair; pickRepairTarget picks the lowest blocked regenerable beat. The free auto_repair lane is unchanged.",
+        "tests": [
+          "server/reelLaneUnjam.test.ts (10): the 2026-10-09 READY deadlock reproduced (2 drain-refused jobs -> hold_above_low_watermark before, refill after), positive controls for an eligible job and a clearable one-beat verdict, job 2040001's persisted 2026-10-08T17:44Z findings as the not-clearable fixture, lowest-beat targeting, and source wiring order (drain scan -> drainSkippedIds -> count; clearability check before requestBeatRepair, paid gate only). Four mutations (drop skippedByDrain, count ignores the drain, asset-level blocks allowed, critic-order target) each turn it red.",
+          "25 existing files that pin the drain, approvals, publish doors, repair routing and the quality gate: 380 passed, 0 failed (2026-10-09, NattyNour)."
+        ],
+        "liveRuns": "None yet. Production evidence of the defect, read-only on 2026-10-09: cron_log daily-reel-post 10:10Z-10:55Z 'production held: usable READY buffer 2 (hold_above_low_watermark)'; the drain skipped 2040001 (qa_parked:needs_paid_repair) and 1770004 (repost:caption) on every pulse; no reel_jobs row created since 2026-10-08 10:02Z; last posted Reel 2026-10-04 04:08Z. Live proof after deploy: the first ET 06:00 production pulse logs an enqueue instead of 'production held'."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Job 2040001 itself still needs the operator's disposition in Instagram > Queue (recommended: retire; 13 blocking findings, misleading penny-test frames). The fix makes it stop holding production, not disappear.",
+          "source": "2026-10-09"
+        },
+        {
+          "severity": "P3",
+          "description": "The drain scans at most 25 approved candidates; a refused job beyond that window is still counted by the old three checks until the window reaches it.",
+          "source": "2026-10-09"
+        }
+      ],
+      "lastVerifiedAt": "2026-10-09",
+      "verificationExpiresAt": "2026-11-08"
     }
   ],
   "axes": {

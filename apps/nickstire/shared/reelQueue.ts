@@ -47,13 +47,25 @@ export function normalizeProductionTargetHour(hour: number): number {
   return hour < PRODUCTION_SLOT_WINDOWS.morning.startHour ? PRODUCTION_SLOT_WINDOWS.morning.startHour : hour;
 }
 
-/** A row counts toward READY only when its current asset and gate facts are usable. */
+/**
+ * A row counts toward READY only when its current asset and gate facts are usable.
+ *
+ * `skippedByDrain`: the publish drain refused this job on the same pulse (parked
+ * rendered QA, caption repost, inventory hold, condemned script, approval
+ * problem). A job the drain will not publish is not inventory. Without this the
+ * READY count and the drain disagreed: on 2026-10-09 the count held production
+ * at "usable READY buffer 2" for two jobs the drain skipped on every pulse
+ * (2040001 parked on needs_paid_repair, 1770004 a caption repost), so the lane
+ * neither published nor produced.
+ */
 export function readyCandidateIsUsable(input: {
   status: string;
   hasAsset: boolean;
   hasBlockingError: boolean;
   hasLiveApproval: boolean;
+  skippedByDrain?: boolean;
 }): boolean {
+  if (input.skippedByDrain) return false;
   if (input.hasBlockingError || !input.hasAsset) return false;
   if (input.status === "assets_ready") return true;
   return input.status === "assembled" && input.hasLiveApproval;

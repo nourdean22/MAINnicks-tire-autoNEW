@@ -111,6 +111,73 @@ export function routeFinding(f: RenderedFinding, opts: RepairRouteOptions = {}):
   };
 }
 
+/**
+ * The beat a beat-regeneration repair targets first: the LOWEST-numbered blocked
+ * beat whose finding routes to "regenerate". The critic judges continuity
+ * against the establishing beat, so repairing beat 2 to match a broken beat 1
+ * copies the defect forward. That is what job 2040001's paid repair did on
+ * 2026-10-08: beat 1 showed a gouged hole instead of tread wear, the critic asked
+ * beat 2 to "match beat 1's specific damage and large hole", and the re-render
+ * scored worse. Ties keep the critic's order (Array.prototype.sort is stable).
+ */
+export function pickRepairTarget(findings: RenderedFinding[], opts: RepairRouteOptions = {}): RenderedFinding | undefined {
+  return findings
+    .filter((f) => f.severity === "block" && f.beatNumber != null && routeFinding(f, opts).method === "regenerate")
+    .sort((a, b) => (a.beatNumber as number) - (b.beatNumber as number))[0];
+}
+
+export interface PaidRepairClearability {
+  clearable: boolean;
+  reason: string;
+  /** distinct beats carrying a blocking, regenerable finding (ascending) */
+  blockedBeats: number[];
+  /** blocking, regenerable findings that name no beat */
+  assetLevelBlocks: number;
+  remainingAttempts: number;
+}
+
+/**
+ * Can paid beat regenerations clear EVERY blocking finding within the repair
+ * budget left on this asset? Each repair attempt regenerates one beat, and the
+ * budget is per asset (`limits.maxRepairAttemptsPerAsset`, counted the way the
+ * publish gate counts it: entries in `payload.repairQueue`). A verdict with
+ * blocks on more beats than attempts remain, or with blocking defects that name
+ * no beat, cannot pass after the spend, so the spend is waste. Job 2040001
+ * (2026-10-08): blocks on beats 1, 2, 4 and 5 plus three asset-level blocks; one
+ * paid beat-2 repair could never have passed it.
+ *
+ * Free routes (reassemble, regrade) are not counted: they cost no attempt.
+ * Conservative on purpose: a "no" here holds the Reel for the operator, who can
+ * still authorize a repair by hand. It never publishes anything.
+ */
+export function paidRepairCanClearVerdict(
+  findings: RenderedFinding[],
+  budget: { repairAttempts: number; maxRepairAttempts: number },
+  opts: RepairRouteOptions = {},
+): PaidRepairClearability {
+  const regen = findings.filter((f) => f.severity === "block" && routeFinding(f, opts).method === "regenerate");
+  const assetLevelBlocks = regen.filter((f) => f.beatNumber == null).length;
+  const blockedBeats = [...new Set(regen.filter((f) => f.beatNumber != null).map((f) => f.beatNumber as number))].sort((a, b) => a - b);
+  const used = Number.isFinite(budget.repairAttempts) ? Math.max(0, budget.repairAttempts) : 0;
+  const cap = Number.isFinite(budget.maxRepairAttempts) ? Math.max(0, budget.maxRepairAttempts) : 0;
+  const remainingAttempts = Math.max(0, cap - used);
+  const base = { blockedBeats, assetLevelBlocks, remainingAttempts };
+  if (assetLevelBlocks > 0) {
+    return { clearable: false, reason: `${assetLevelBlocks} blocking finding(s) name no beat, so no beat regeneration can clear them`, ...base };
+  }
+  if (blockedBeats.length === 0) {
+    return { clearable: false, reason: "no blocking finding is a regenerable beat defect", ...base };
+  }
+  if (blockedBeats.length > remainingAttempts) {
+    return {
+      clearable: false,
+      reason: `blocks on beat(s) ${blockedBeats.join(", ")} need ${blockedBeats.length} regeneration(s); ${remainingAttempts} repair attempt(s) remain`,
+      ...base,
+    };
+  }
+  return { clearable: true, reason: `${blockedBeats.length} blocked beat(s) fit ${remainingAttempts} remaining attempt(s)`, ...base };
+}
+
 export interface RepairPlan {
   routes: RepairRoute[];
   paidRegenerations: number;
