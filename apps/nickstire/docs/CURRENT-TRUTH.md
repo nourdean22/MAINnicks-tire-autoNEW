@@ -15,7 +15,8 @@ camera-bridge only; no nickstire code change.
 - **Fix.**
   - `Write-SharedFile` is now the one writer for the log, its overflow, the restart-ledger state (`Save-State`) and the production start marker. It is a FileStream that shares all three.
   - The restart ledger had the same weakness. Beside a reader, `Set-Content` saved nothing, so that tick's restart rate limits were lost. Its failure is terminating, so the existing WARN did fire, unlike `Add-Content`'s silent one.
-  - `Restore-Overflow` runs at the start of each tick and moves stranded overflow lines back into the log under a `NOTE restored N line(s)` header.
+  - `Restore-Overflow` runs at the start of each tick and moves stranded overflow lines back into the log under a `NOTE restored N line(s)` header. It renames the batch before appending it, so a reader holding the batch makes it wait instead of landing twice. If a reader keeps refusing the restore, the supervisor logs `WARN stranded log lines were not restored`, once an hour.
+  - A reader with read-only sharing (.NET's `File.OpenRead`) can still block the writer, and its lines then go to the overflow.
 - **Not covered.** The box-local `data\` loop and shim still write their own lines with `Add-Content`.
 
 ## Dead bridge queries, sign-edge restart continuity, Eufy bridge node identity (2026-10-08, after PR C; PR #2934) -- MERGED (main `d679d066`), DEPLOYED (nickstire `e56a8726`, StateNour web `1ede6fef`, worker `f3385162`); NicksMax pulled 22:50:37Z; `customer_stats` LIVE-VERIFIED; restart continuity's live proof still owed

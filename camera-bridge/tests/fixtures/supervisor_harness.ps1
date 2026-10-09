@@ -367,16 +367,19 @@ switch ($Scenario) {
       $markers["restoringWhileLocked"] = @(Get-ChildItem -Path ($log + ".overflow.restoring.*")).Count -eq 1
       Log "queued while locked" 2>$null
     } finally { $h.Dispose(); $ErrorActionPreference = $saved }
-    Restore-Overflow
-    Restore-Overflow
+    # One restore per tick, as the supervisor runs it: the newer lines must land in THIS tick,
+    # ahead of its own line, then a second tick must change nothing.
+    Restore-Overflow | Out-Null
     Log "after"
+    Restore-Overflow | Out-Null
     $markers["leftovers"] = @(Get-ChildItem -Path ($log + ".overflow*") | ForEach-Object { $_.Name })
   }
   "overflow-batch-held-by-a-reader-lands-once" {
     # A pending batch (its append failed while the log was blocked) is then held open by a reader
     # that refuses delete-sharing, as 5.1's Get-Content -Wait does. Moving the batch BEFORE appending
-    # it is what keeps it from landing again on every tick while that reader stays open. Bites only
-    # under Windows PowerShell 5.1: Linux allows the move, so there the batch simply lands at once.
+    # it is what keeps it from landing again on every tick while that reader stays open. Bites on
+    # Windows under any PowerShell (Windows enforces delete-sharing); Linux allows the move, so
+    # there the batch simply lands at once.
     Set-Content -LiteralPath $log -Value "2026-10-08 07:00:00 before" -Encoding ascii
     Set-Content -LiteralPath ($log + ".overflow") -Value "2026-10-08 08:00:00 stranded one" -Encoding ascii
     $saved = $ErrorActionPreference
@@ -392,6 +395,26 @@ switch ($Scenario) {
     } finally { $ErrorActionPreference = $saved }
     Log "after"
     $markers["leftovers"] = @(Get-ChildItem -Path ($log + ".overflow*") | ForEach-Object { $_.Name })
+  }
+  "restore-blocked-is-reported" {
+    # A reader holds the overflow so the restore cannot take it (Windows: the claim rename is
+    # refused; Linux: the read is). The tick must say so once an hour, not leave the lines stranded
+    # beside a log that looks healthy, and restore them once the reader lets go.
+    Set-Content -LiteralPath $log -Value "2026-10-08 07:00:00 before" -Encoding ascii
+    Set-Content -LiteralPath ($log + ".overflow") -Value "2026-10-08 08:00:00 stranded" -Encoding ascii
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+      $h = [IO.File]::Open($log + ".overflow", [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::None)
+      try {
+        $why = Restore-Overflow
+        $markers["why"] = [string]$why
+        Report-BlockedRestore $why
+        Report-BlockedRestore (Restore-Overflow)
+      } finally { $h.Dispose() }
+      $markers["afterRelease"] = [string](Restore-Overflow)
+    } finally { $ErrorActionPreference = $saved }
+    Log "after"
   }
   "state-write-beside-a-sharing-reader" {
     $state["eufy-bridge"] = @{ restarts = @(1759999000.0); escalatedAt = 0; portMisses = 2; fingerprint = "" }

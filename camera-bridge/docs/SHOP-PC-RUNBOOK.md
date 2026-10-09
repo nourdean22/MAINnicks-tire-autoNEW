@@ -177,10 +177,13 @@ opened the log beside it fine. The fault was the writer. Windows PowerShell 5.1'
 and `Set-Content` open a file without read sharing, so they fail beside ANY open reader. Every
 supervisor line went to `<log>.overflow` from 08:20 to the fix, and nothing at all landed
 07:34-08:20, before the overflow existed. The supervisor now writes the log, its state file and
-the production start marker through one FileStream that shares all three. An open reader no
-longer blocks it: only a holder that refuses writers can, and then the line goes to
-`<log>.overflow`. The next tick that can write the log moves those lines back into it under a
-`NOTE restored N line(s)` header. The box-local `data\` loop and shim still use `Add-Content`
+the production start marker through one FileStream that shares all three. A reader that shares
+write access no longer blocks it: Node, PowerShell's `Get-Content` and Python's `open` all share
+write. A reader that opens with read-only sharing still does (.NET's `File.OpenRead` default), and
+then the line goes to `<log>.overflow`. The next tick that can write the log AND rename the
+overflow moves those lines back into it under a `NOTE restored N line(s)` header. A reader holding
+the overflow without delete-sharing (`Get-Content -Wait`) holds that restore. The supervisor then
+logs `WARN stranded log lines were not restored`, once an hour. The box-local `data\` loop and shim still use `Add-Content`
 for their own lines. Read logs through a shell
 (`powershell -NoProfile -Command "Get-Content -Tail 40 <path>"`), which closes its handle. A
 leaked handle clears when the Desktop Commander agent restarts or the box reboots.

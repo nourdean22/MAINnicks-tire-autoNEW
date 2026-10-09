@@ -81,10 +81,12 @@ try {
 # 2026-10-08: Desktop Commander's tail of this log at 07:34 left a read handle open in its node
 # process, and every Add-Content to the log failed from then on (the 18:51 restarts too) while
 # a FileStream sharing Read+Write+Delete opened the same file fine (probed on the box 19:07). This
-# shares all three, so only a holder that refuses writers can block it, and a failure is a .NET
-# exception -- caught under "Continue" too, where a cmdlet's sharing violation is a NON-terminating
-# error that never reaches a catch (how the first overflow fallback wrote nothing at 07:48).
-# UTF-8 without a BOM: appends never carry one, and ASCII content is byte-identical to before.
+# shares all three, so only a holder that refuses writers can block it (one that opens with
+# read-only sharing, as .NET's File.OpenRead does, still can), and a failure is a .NET exception --
+# caught under "Continue" too, where Add-Content's sharing violation is a NON-terminating error
+# that never reaches a catch (how the first overflow fallback wrote nothing at 07:48).
+# UTF-8 without a BOM: an appended ASCII line is byte-identical to before; a NEW file (after the
+# disk-floor rotation) no longer starts with the BOM Add-Content -Encoding utf8 wrote.
 function Write-SharedFile([string]$path, [string]$text, [switch]$Append) {
   $mode = if ($Append) { [IO.FileMode]::Append } else { [IO.FileMode]::Create }
   $share = [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete
@@ -110,7 +112,7 @@ function Log([string]$m) {
 }
 
 # Runs once at the start of a tick, before anything is logged, so restored lines land ahead of
-# this tick's own. Every step that can fail comes BEFORE the append, so a batch is appended once:
+# this tick's own. Every step but the retire comes BEFORE the append, so a batch is appended once:
 #   claim     .overflow            -> .overflow.restoring.<guid>   (a newer overflow cannot mix in)
 #   attempt   .restoring.<guid>    -> .restoring.<new guid>        (proves the batch can be moved
 #             before a line of it is written: a reader that refuses delete-sharing -- 5.1's
@@ -121,7 +123,9 @@ function Log([string]$m) {
 # a delete Windows leaves pending under an open reader can never be read as pending again. The one
 # way to append a batch twice is to lose the retire to a reader that opens the brand-new attempt name
 # in the milliseconds after the append (or the tick being killed right there): a duplicate, never a
-# loss. Failures are not logged: they would only feed the overflow they try to empty.
+# loss. It returns why a batch could not be claimed, moved, read or retired; Report-BlockedRestore
+# logs that once an hour after the ledger loads. A failed append returns nothing: the log itself is
+# blocked, and the overflow those lines go to already says so.
 function Restore-Overflow {
   $overflow = $log + ".overflow"
   $share = [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete
@@ -136,16 +140,16 @@ function Restore-Overflow {
     } else {
       if (-not (Test-Path -LiteralPath $overflow)) { return }
       $batch = "{0}.restoring.{1}" -f $overflow, [guid]::NewGuid().ToString("n")
-      try { [IO.File]::Move($overflow, $batch) } catch { return }
+      try { [IO.File]::Move($overflow, $batch) } catch { return ("claim of {0} refused: {1}" -f (Split-Path $overflow -Leaf), $_.Exception.Message) }
     }
     $attempt = "{0}.restoring.{1}" -f $overflow, [guid]::NewGuid().ToString("n")
-    try { [IO.File]::Move($batch, $attempt) } catch { return }
+    try { [IO.File]::Move($batch, $attempt) } catch { return ("move of {0} refused: {1}" -f (Split-Path $batch -Leaf), $_.Exception.Message) }
     try {
       $reader = [IO.StreamReader]::new(
         [IO.FileStream]::new($attempt, [IO.FileMode]::Open, [IO.FileAccess]::Read, $share),
         [Text.Encoding]::UTF8, $true)
       try { $text = $reader.ReadToEnd() } finally { $reader.Dispose() }
-    } catch { return }
+    } catch { return ("read of {0} failed: {1}" -f (Split-Path $attempt -Leaf), $_.Exception.Message) }
     $lines = @($text -split "`r?`n" | Where-Object { $_ -ne "" })
     if ($lines.Count -gt 0) {
       $first = $lines[0].Substring(0, [Math]::Min(19, $lines[0].Length))
@@ -155,11 +159,11 @@ function Restore-Overflow {
       try { Write-SharedFile $log ($note + (($lines -join "`r`n") + "`r`n")) -Append } catch { return }
     }
     $done = "{0}.restored.{1}" -f $overflow, [guid]::NewGuid().ToString("n")
-    try { [IO.File]::Move($attempt, $done) } catch { return }
+    try { [IO.File]::Move($attempt, $done) } catch { return ("retire of {0} refused (it may be restored twice): {1}" -f (Split-Path $attempt -Leaf), $_.Exception.Message) }
     try { [IO.File]::Delete($done) } catch {}
   }
 }
-Restore-Overflow
+$restoreBlocked = Restore-Overflow
 
 # ---- restart ledger --------------------------------------------------------------------------
 # { "<component>": { "restarts": [epoch...], "escalatedAt": epoch, "portMisses": n, "fingerprint": s } }
@@ -189,6 +193,17 @@ function Get-Entry([string]$key) {
   if (-not $state.ContainsKey($key)) { $state[$key] = @{ restarts = @(); escalatedAt = 0; portMisses = 0; fingerprint = "" } }
   return $state[$key]
 }
+
+# A restore a reader keeps refusing would leave lines stranded beside a log that looks healthy.
+function Report-BlockedRestore([string]$why) {
+  if (-not $why) { return }
+  $e = Get-Entry "log-restore"
+  if ($e.escalatedAt -lt ($nowEpoch - 3600)) {
+    $e.escalatedAt = $nowEpoch
+    Log ("WARN stranded log lines were not restored: {0} -- a reader holding the file without delete-sharing (Get-Content -Wait is one) blocks it" -f $why)
+  }
+}
+Report-BlockedRestore $restoreBlocked
 
 function Record-Restart([string]$key,[string]$why) {
   $e = Get-Entry $key
@@ -780,10 +795,10 @@ function Invoke-DiskFloor([double]$free) {
 }
 Invoke-DiskFloor ([double](Get-PSDrive C).Free)
 
-# The restart ledger carries every rate limit and ESCALATE decision across ticks. Set-Content
-# refused to open it beside a reader exactly as Add-Content refused the log, so that tick's ledger
-# was lost; its failure (unlike Add-Content's) is terminating, so the WARN below did fire
-# (probed on NicksMax under 5.1, 2026-10-08).
+# The restart ledger carries every rate limit and ESCALATE decision across ticks. A planted probe
+# on NicksMax (5.1, 2026-10-08) showed Set-Content saves nothing beside a reader, as Add-Content
+# refused the log; its failure, unlike Add-Content's, is terminating, so the WARN below fired.
+# Not seen on the box itself: the state file kept being rewritten through the log outage.
 function Save-State {
   try {
     Write-SharedFile $statePath (($state | ConvertTo-Json -Depth 4) + "`r`n")
