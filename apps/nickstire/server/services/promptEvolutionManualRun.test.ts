@@ -13,6 +13,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { sliceBlock } from "../testUtils/sourceBlock";
 
 // Serial mode shares ONE vi.mock registry across files (apps/nickstire/AGENTS.md
 // section 3): a predecessor's partial schema mock would leave cronLog or
@@ -196,9 +197,8 @@ describe("startPromptEvolutionManualRun", () => {
 
   it("the budget equals the tier job's timeoutMs in scheduler.ts (a drifted budget outlives its own lock)", () => {
     const src = readFileSync(resolve(__dirname, "../cron/scheduler.ts"), "utf8");
-    const at = src.indexOf(`name: "${PROMPT_EVOLUTION_JOB_NAME}"`);
-    expect(at).toBeGreaterThan(-1);
-    const block = src.slice(at, src.indexOf("handler:", at));
+    // sliceBlock throws on a missing anchor; a raw indexOf slice would widen to EOF and pass on unrelated text.
+    const block = sliceBlock(src, `name: "${PROMPT_EVOLUTION_JOB_NAME}"`, "handler:", { label: "scheduler.ts" });
     const m = /timeoutMs:\s*([0-9*\s]+),/.exec(block);
     expect(m, "the tier job must declare timeoutMs").not.toBeNull();
     // eslint-disable-next-line no-new-func

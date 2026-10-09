@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "CI-only fix for the three files #2945 turned red on main (fabricatedAdminReadGate, failOpenSliceGate, proc-census). The one ledger line this diff makes stale is in 'receptionist-prompt-evolution-manual-run' codeCommit: 'vapi.promptEvolutionStatus (adminProcedure)' is now dbAdminProcedure (ROS-083 dead-handle guard on the same admin tier). States and exposure are unchanged. The correction rides #2950 (open, same hunk in vapi.ts), which already rewrites that entry's codeCommit and tests lines; rewriting the same lines here would hand that PR a same-line conflict on top of the one-line generatedAt conflict in proc-census.json. If #2950 is closed without merging, the one-line ledger edit is owed by the next PR touching this capability."
+    }
+  }
+}
