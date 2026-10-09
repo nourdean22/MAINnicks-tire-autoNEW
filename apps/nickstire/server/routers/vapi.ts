@@ -264,7 +264,7 @@ export const vapiRouter = router({
     return startPromptEvolutionManualRun();
   }),
 
-  promptEvolutionStatus: adminProcedure.query(async () => {
+  promptEvolutionStatus: dbAdminProcedure.query(async () => {
     const { promptEvolutionManualRunStatus, readLatestPromptEvolutionSummary } = await import("../services/promptEvolutionManualRun");
     const latest = await readLatestPromptEvolutionSummary();
     return { ...promptEvolutionManualRunStatus(), latest };
