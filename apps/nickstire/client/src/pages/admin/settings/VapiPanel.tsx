@@ -394,6 +394,18 @@ export default function VapiPanel() {
                 {evolution.latest.latest.candidateHash ? <> · candidate <span className="font-mono">{evolution.latest.latest.candidateHash.slice(0, 8)}</span></> : null}
                 {evolution.latest.latest.experimentId ? <> · receipt <span className="font-mono">{evolution.latest.latest.experimentId}</span>{evolution.latest.latest.receiptDelivered === false ? " (not delivered)" : ""}</> : " · no receipt"}
               </p>
+              {evolution.latest.latest.candidates.length > 0 && (
+                <ul data-testid="prompt-evolution-candidates" className="list-disc pl-4">
+                  {evolution.latest.latest.candidates.map((c, i) => (
+                    <li key={c.promptHash ?? i}>
+                      Candidate <span className="font-mono">{c.promptHash?.slice(0, 8) ?? "?"}</span>:{" "}
+                      {c.rejectedInvariants.length > 0
+                        ? `not replayed, broke ${c.rejectedInvariants.join(", ")}`
+                        : `train ${c.train ?? "?"}${c.trainMargin !== null ? ` (margin ${c.trainMargin > 0 ? "+" : ""}${c.trainMargin}${c.trainUsable === false ? ", unusable" : ""})` : ""}`}
+                    </li>
+                  ))}
+                </ul>
+              )}
               <p>Applying a candidate stays your call: edit the prompt, then Push Latest Config.</p>
             </div>
           ) : evolution?.latest.state === "ok" ? (

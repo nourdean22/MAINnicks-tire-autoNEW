@@ -6150,6 +6150,16 @@
       "file": "apps/nickstire/server/services/reelAssembly.ts",
       "symbol": "expectedClipProof",
       "reason": "2026-10-09 source-aware route (Codex review of #2946): tri-state lineage proof, exported for reelSourceAware.test.ts; consumed internally by assembleReel and expectedClipSha256"
+    },
+    {
+      "file": "apps/nickstire/server/services/promptEvolution.ts",
+      "symbol": "parseOptimizerReply",
+      "reason": "2026-10-09 receptionist prompt experiment, bounded optimizer edit · INTENTIONAL TEST-VISIBLE CONTRACT: the optimizer reply parser (FIND/REPLACE edit, legacy <PROMPT> whole prompt); promptEvolutionBoundedEdit.test.ts pins both shapes and the no-marker case. knip excludes *.test.ts as consumers."
+    },
+    {
+      "file": "apps/nickstire/server/services/promptEvolution.ts",
+      "symbol": "applyBoundedEdit",
+      "reason": "2026-10-09 receptionist prompt experiment, bounded optimizer edit · INTENTIONAL TEST-VISIBLE CONTRACT: applies one bounded edit to the full prompt and refuses a missing or ambiguous excerpt; promptEvolutionBoundedEdit.test.ts pins exact, line-trimmed, ambiguous, missing and over-cap cases, and that every other character survives. knip excludes *.test.ts as consumers."
     }
   ]
 }

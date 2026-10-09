@@ -53,6 +53,11 @@ const LESSONS =
   "- Give the cross street when giving the address.";
 /** What callers hear: the code prompt plus a pushed lessons block. Never the bare constant. */
 const LIVE_PROMPT = ASSISTANT_SYSTEM_PROMPT + LESSONS;
+/** The last non-empty line of the code prompt: the excerpt an "edit"-shaped optimizer reply asks to extend. */
+const EDIT_ANCHOR = ASSISTANT_SYSTEM_PROMPT.trimEnd().split("\n").pop()!;
+/** What applying that edit to the live prompt yields: the section lands before the lessons block. */
+const editedCandidate = (c: CandidateSpec) =>
+  LIVE_PROMPT.replace(EDIT_ANCHOR, `${EDIT_ANCHOR}\n\n## ${c.marker}\n- ${c.extra ?? "Offer a free brake check and invite a walk-in."}`);
 const PINNED = "150fe622-0b9f-4b03-b8c7-3063812717ae";
 const LIVE_LANE: ReceptionistLane = {
   provider: "openai",
@@ -115,6 +120,14 @@ interface Scenario {
   onReplay?: (who: Who, seed: string) => void;
   /** Optimizer call n (1-based, format retries included) answers with analysis only: no <PROMPT> block. */
   optimizerNoMarkers?: (n: number) => boolean;
+  /**
+   * The reply shape for optimizer call n. "edit" is the production contract
+   * since 2026-10-09: one FIND/REPLACE excerpt that inserts the candidate's
+   * section after the last line of the code prompt (so before the lessons
+   * block: a code edit). "edit-missing" asks to replace a line the prompt does
+   * not contain. Default "whole": the legacy <PROMPT> re-emit.
+   */
+  optimizerShape?: (n: number) => "edit" | "edit-missing" | "whole";
   /** The served prompt when a test's baseline is not LIVE_PROMPT (routes its replays as "base"). */
   basePrompt?: string;
 }
@@ -144,6 +157,12 @@ function installLlm(s: Scenario): Trace {
       s.onOptimizer?.();
       if (s.optimizerNoMarkers?.(trace.optimizer.length)) return llm("RATIONALE: thinking it through first\n(analysis only; the edited prompt is not emitted)");
       const c = s.candidates[(trace.optimizer.length - 1) % s.candidates.length];
+      const shape = s.optimizerShape?.(trace.optimizer.length) ?? "whole";
+      if (shape !== "whole") {
+        const find = shape === "edit-missing" ? "THIS LINE IS NOT IN THE PROMPT" : EDIT_ANCHOR;
+        const section = `## ${c.marker}\n- ${c.extra ?? "Offer a free brake check and invite a walk-in."}`;
+        return llm(`RATIONALE: ${c.rationale ?? `add the ${c.marker} section`}\n<FIND>\n${find}\n</FIND>\n<REPLACE>\n${EDIT_ANCHOR}\n\n${section}\n</REPLACE>`);
+      }
       return llm(`RATIONALE: ${c.rationale ?? `add the ${c.marker} section`}\n<PROMPT>\n${candidateText(c)}\n</PROMPT>`);
     }
     if (system === judgePrompt) {
@@ -867,6 +886,51 @@ describe("runPromptEvolution, wired", () => {
     expect(r.outcome).toBe(outcome);
     expect(r).toMatchObject({ accepted: null, promotionStage: "none" });
     expect(queries.some((q) => q.includes("'hard_conversion'"))).toBe(false);
+  });
+
+  it("PRODUCTION SHAPE: one FIND/REPLACE excerpt is applied in code, reaches the policy guard, every gate and the diff as a code edit", async () => {
+    // The anchor must be unique in the live prompt, or the edit is refused as ambiguous and this test proves nothing.
+    expect(LIVE_PROMPT.split(EDIT_ANCHOR)).toHaveLength(2);
+    const p = pool();
+    installDb(p);
+    const trace = installLlm({ ...fixesEverything, optimizerShape: () => "edit" });
+    const r = await runPromptEvolution(base());
+    expect(r.outcome).toBe("accepted");
+    expect(r.accepted?.confirmed).toBe(true);
+    // The candidate is the LIVE prompt with the one section inserted: nothing else moved.
+    expect(r.accepted?.prompt).toBe(editedCandidate(fixesEverything.candidates[0]));
+    expect(trace.replays.some((x) => x.who === "candA")).toBe(true);
+    expect(trace.replays.filter((x) => x.who === "candA").every((x) => x.system.trimEnd() === editedCandidate(fixesEverything.candidates[0]).trimEnd())).toBe(true);
+    // Before the lessons block, so a verbatim code edit; the diff is exactly the added section.
+    expect(r.candidateDiff).toMatchObject({ removedCount: 0, codeEdit: true, truncated: false });
+    expect(r.candidateDiff?.added.join("\n")).toContain("## CANDIDATE-A-MARKER");
+    expect(r.usage.optimizerCalls).toBe(1);
+    // The instruction asks for the excerpt, never the complete prompt.
+    expect(trace.optimizer[0].system).toContain("<FIND>");
+    expect(trace.optimizer[0].system).not.toContain("COMPLETE edited prompt");
+  });
+
+  it("PRODUCTION SHAPE: an excerpt the code cannot place is refused, the one retry carries the current prompt and the reason, and a placeable retry yields the candidate", async () => {
+    const p = pool();
+    installDb(p);
+    const trace = installLlm({ ...fixesEverything, optimizerShape: (n) => (n === 1 ? "edit-missing" : "edit") });
+    const r = await runPromptEvolution(base());
+    expect(trace.optimizer).toHaveLength(2);
+    expect(trace.optimizer[1].system.startsWith("You return exactly one line")).toBe(true);
+    expect(trace.optimizer[1].user).toContain("CURRENT PROMPT:");
+    expect(trace.optimizer[1].user).toContain("not found in the current prompt");
+    expect(r.usage.optimizerCalls).toBe(2);
+    expect(r.candidateSummaries).toHaveLength(1);
+    expect(r.outcome).toBe("accepted");
+    expect(r.accepted?.prompt).toBe(editedCandidate(fixesEverything.candidates[0]));
+
+    // Both answers unplaceable: no candidate, nothing replayed under one.
+    installDb(p);
+    const t2 = installLlm({ ...fixesEverything, optimizerShape: () => "edit-missing" });
+    const r2 = await runPromptEvolution(base());
+    expect(t2.optimizer).toHaveLength(2);
+    expect(r2).toMatchObject({ outcome: "no-candidates", candidateSummaries: [], usage: { optimizerCalls: 2 } });
+    expect(t2.replays.every((x) => x.who === "base")).toBe(true);
   });
 
   it("the optimizer's format retry is budgeted and counted, and its system message carries the untrusted-data notice too", async () => {
