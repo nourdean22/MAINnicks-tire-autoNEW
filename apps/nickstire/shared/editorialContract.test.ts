@@ -48,12 +48,17 @@ describe("checkEditorialContract", () => {
     expect(askSignals("DM US FOR THE CHECKLIST")).toEqual(["dm-us"]); // askLeakageProblem owns it
     expect(rules(b)).toEqual([]);
   });
-  it("a phrasing that detector misses is this rule's to flag — uppercase CALL US among them", () => {
-    // askSignals' call-us pattern is case-sensitive, so "CALL US" on a card reaches no one else
-    // (reported 2026-10-08; changing assembly's hard stop is a separate decision).
-    expect(askSignals("CALL US OR BOOK ONLINE")).toEqual([]);
+  it("uppercase CALL US is the one-ask detector's now, so this rule leaves it to it", () => {
+    // askSignals' call-us pattern was case-sensitive until 2026-10-08, so "CALL US" (and "Call us")
+    // reached no one but this rule. No committed pack's beats, voiceover or caption say "call us" in
+    // any case, so the fix changed no verdict.
+    expect(askSignals("CALL US OR BOOK ONLINE")).toEqual(["call-us"]);
+    expect(askSignals("Call us today")).toEqual(["call-us"]);
     const b = clean(); b[4] = beat(5, "REAL macro", "CALL US OR BOOK ONLINE");
-    expect(rules(b)).toEqual(["cta_in_beat"]);
+    expect(rules(b)).toEqual([]);
+    // CONTROL: a phrasing askSignals still misses stays this rule's to flag.
+    const c = clean(); c[4] = beat(5, "REAL macro", "BOOK SERVICE ONLINE");
+    expect(rules(c)).toEqual(["cta_in_beat"]);
   });
   it("the verbs count only as imperatives: a noun is not an ask", () => {
     // Both texts are on committed packs (2026-08-17-roadtrip-tire-check, 2026-09-04-blind-spot-sensor-light).

@@ -15,12 +15,14 @@ import {
   metricSpec,
   SNAPSHOT_COLUMN_FOR_METRIC,
   assignArm,
+  MIXED_HASH_VARIABLES,
 } from "./contentExperiments";
 
 describe("buildExperimentPreset", () => {
-  it("covers all six §R presets and each is decidable", () => {
+  it("covers the six §R presets plus the two pack-build presets, and each is decidable", () => {
     expect([...EXPERIMENT_PRESET_IDS]).toEqual([
       "hook_style_v1", "duration_v1", "opening_asset_v1", "carousel_cover_v1", "audio_v1", "fb_format_v1",
+      "visual_direction_v1", "opening_mechanism_v1",
     ]);
     for (const id of EXPERIMENT_PRESET_IDS) {
       const def = buildExperimentPreset(id, "2026-10-01T00:00:00.000Z");
@@ -59,11 +61,15 @@ describe("buildExperimentPreset", () => {
     expect(assignArm(def, "autopost-2026-10-01")).toEqual(assignArm(def, "autopost-2026-10-01"));
   });
 
-  it("only hook_style_v1 and duration_v1 claim to be wired; the rest say exposed", () => {
-    const wiring = Object.fromEntries(EXPERIMENT_PRESET_IDS.map((id) => [id, buildExperimentPreset(id, "x").wiring]));
-    expect(wiring).toEqual({
-      hook_style_v1: "wired", duration_v1: "wired",
+  it("hook_style_v1, duration_v1, visual_direction_v1 and opening_mechanism_v1 are wired; the rest say exposed, and reach nothing", () => {
+    const presets = EXPERIMENT_PRESET_IDS.map((id) => buildExperimentPreset(id, "x"));
+    expect(Object.fromEntries(presets.map((d) => [d.preset, d.wiring]))).toEqual({
+      hook_style_v1: "wired", duration_v1: "wired", visual_direction_v1: "wired", opening_mechanism_v1: "wired",
       opening_asset_v1: "exposed", carousel_cover_v1: "exposed", audio_v1: "exposed", fb_format_v1: "exposed",
+    });
+    expect(Object.fromEntries(presets.map((d) => [d.preset, d.reaches]))).toEqual({
+      hook_style_v1: "ai_written_briefs", duration_v1: "ai_written_briefs", visual_direction_v1: "pack_reels", opening_mechanism_v1: "pack_reels",
+      opening_asset_v1: "none", carousel_cover_v1: "none", audio_v1: "none", fb_format_v1: "none",
     });
   });
 
@@ -92,14 +98,36 @@ describe("wired vs exposed (2026-10-08)", () => {
     expect(isUnwiredExperimentId("some-other-experiment")).toBe(false);
   });
 
-  it("wired presets have pairwise coprime arm counts, so concurrent ones are not confounded", () => {
+  it("wired presets that reach the SAME Reels have pairwise coprime arm counts, so concurrent ones are not confounded", () => {
     // assignArm hashes every experiment's episode key the same way, so two
     // running experiments with 2 arms each would put arm 0 with arm 0 on EVERY
-    // episode: each would measure the other. Coprime counts make the joint
-    // assignment uniform. Wiring a preset that breaks this needs a salted hash.
+    // episode they share: each would measure the other. Coprime counts make the
+    // joint assignment uniform. Presets that reach disjoint Reels (a pack-build
+    // arm and a brief-writing arm) share no episode, so their counts are free;
+    // contentExperimentWiringGate.test.ts proves enqueue keeps them disjoint.
+    // Wiring a preset that breaks this within one population needs a salted hash.
     const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
-    const counts = EXPERIMENT_PRESET_IDS.map((id) => buildExperimentPreset(id, "x")).filter((d) => d.wiring === "wired").map((d) => d.arms.length);
-    for (let i = 0; i < counts.length; i++) for (let j = i + 1; j < counts.length; j++) expect(gcd(counts[i], counts[j])).toBe(1);
+    type P = ReturnType<typeof buildExperimentPreset>;
+    const violations = (presets: P[]) => {
+      const out: string[] = [];
+      let shared = 0;
+      for (let i = 0; i < presets.length; i++) for (let j = i + 1; j < presets.length; j++) {
+        if (presets[i].reaches !== presets[j].reaches) continue;
+        // A bit-mixed draw is independent of the parity arm whatever the counts
+        // (packVariantExperiment.test.ts measures it over 120 daily keys).
+        if (MIXED_HASH_VARIABLES.has(presets[i].primaryVariable) !== MIXED_HASH_VARIABLES.has(presets[j].primaryVariable)) continue;
+        shared++;
+        if (gcd(presets[i].arms.length, presets[j].arms.length) !== 1) out.push(`${presets[i].preset} vs ${presets[j].preset}`);
+      }
+      return { out, shared };
+    };
+    const wired = EXPERIMENT_PRESET_IDS.map((id) => buildExperimentPreset(id, "x")).filter((d) => d.wiring === "wired");
+    const live = violations(wired);
+    expect(live.shared).toBeGreaterThan(0); // the check ran on at least one shared population
+    expect(live.out).toEqual([]);
+    // CONTROL: a second 2-arm pack-build preset beside visual_direction_v1 is caught.
+    const direction = buildExperimentPreset("visual_direction_v1", "x");
+    expect(violations([...wired, { ...direction, preset: "hook_style_v1" as P["preset"] }]).out).toEqual(["visual_direction_v1 vs hook_style_v1"]);
   });
 
   it("opening_asset_v1 decides on its own hypothesis, 3-s survival, where lower skip wins", () => {

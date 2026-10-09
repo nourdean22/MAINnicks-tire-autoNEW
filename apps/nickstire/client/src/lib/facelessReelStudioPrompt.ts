@@ -219,7 +219,9 @@ ${VOICEOVER_WORD_BUDGET_TABLE}
   sections.push(`# FACT BUCKETS (pick one)\n${listOf(FACT_BUCKETS)}`);
   sections.push(`# ARCHETYPES (pick one)\n${listOf(REEL_ARCHETYPES)}`);
   sections.push(`# MOTION LENSES (pick one)\n${listOf(MOTION_LENSES)}`);
-  sections.push(`# OBJECT CHARACTERS (pick one)\n${listOf(OBJECT_CHARACTERS)}`);
+  // plain_part is the pack lane's no-persona hero; a Studio concept picks a persona.
+  const { plain_part: _packOnly, ...studioCharacters } = OBJECT_CHARACTERS;
+  sections.push(`# OBJECT CHARACTERS (pick one)\n${listOf(studioCharacters)}`);
 
   sections.push(`# CONCEPT IDEATION
 Generate 7 distinct concepts. Each must carry: hook (first-second idea), coreFact, factBucket, driverEmotion, campaignKeyword, archetype, motionLens, objectCharacter, usefulAbsurdity, localAngle, beatOutline (${REEL_OUTPUT_RULES.minBeats}-${REEL_OUTPUT_RULES.maxBeats} one-liners), loopIdea, captionAngle, saveShareReason, nickFitReason, nonGenericReason, rejectionRisk, and scores.`);

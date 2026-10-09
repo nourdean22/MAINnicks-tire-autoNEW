@@ -491,22 +491,29 @@ export async function enqueueReelJob(
       log.error("condemned script BLOCKED at enqueue — no clips generated, no spend reserved", {
         briefId: brief.id, source, reason: condemned,
       });
-      throw new Error(`REEL_SCRIPT_CONDEMNED: ${condemned}`);
+      // Typed: a condemned script is a content verdict, terminal for that
+      // brief, so the daily lane advances past an approved pack refused here
+      // instead of re-picking it at every production hour
+      // (reelEnqueueRefusalAdvance.test.ts).
+      throw new ReelPreflightBlockedError([`REEL_SCRIPT_CONDEMNED: ${condemned}`]);
     }
   }
 
   // The generator's declared-source rule, one layer earlier (2026-10-08): a
-  // Reel whose beats are declared real or deterministic has no publishable lane
-  // yet, so it is refused before a content slot or generation budget is held.
-  // processNextReelJob applies the same rule to rows that are already queued.
+  // Reel whose beats are declared real or deterministic, or name no object,
+  // has no publishable lane yet, so it is refused before a content slot or
+  // generation budget is held. processNextReelJob applies the same rule to rows
+  // that are already queued. The refusal is typed for the same reason as the
+  // condemned check above: a plain Error here escaped dailyReelPost's catch, so
+  // an approved pack refused at enqueue would have failed every production hour.
   {
     const { beatsTheGeneratorMustNotRender, generationHoldReason } = await import("../../shared/shotRouter");
     const blocked = beatsTheGeneratorMustNotRender(brief.storyboardBeats ?? [], []);
     if (blocked.length) {
-      log.error("declared real/deterministic beats BLOCKED at enqueue — no spend reserved", {
+      log.error("ungeneratable beats (declared real/deterministic, or naming no object) BLOCKED at enqueue — no spend reserved", {
         briefId: brief.id, source, beats: blocked.map((b) => `${b.beatNumber}:${b.route}`).join(","),
       });
-      throw new Error(generationHoldReason(blocked, "enqueue"));
+      throw new ReelPreflightBlockedError([generationHoldReason(blocked, "enqueue")]);
     }
   }
 
@@ -528,7 +535,8 @@ export async function enqueueReelJob(
       log.warn("episode contract BLOCKED enqueue — no spend reserved", {
         briefId: brief.id, source, blocks: pre.blocks,
       });
-      throw new Error(`Episode contract blocked (${pre.blocks.length}): ${pre.detail.join("; ")}`);
+      // Typed: a contract verdict is terminal for the brief (see the condemned check).
+      throw new ReelPreflightBlockedError([`Episode contract blocked (${pre.blocks.length}): ${pre.detail.join("; ")}`]);
     }
     (brief as { episodeContract?: EpisodeContract }).episodeContract = contract;
   }
@@ -668,10 +676,11 @@ export async function enqueueReelJob(
   if (brief.selectedCaption) {
     const composed = `${brief.selectedCaption}\n\n${(brief.hashtags ?? []).join(" ")}`.trim();
     if (composed.length > INSTAGRAM_CAPTION_LIMIT) {
-      throw new Error(
+      // Typed: the same brief always composes the same caption, so this is terminal for it.
+      throw new ReelPreflightBlockedError([
         `caption + hashtags is ${composed.length} chars, over Instagram's ${INSTAGRAM_CAPTION_LIMIT} limit — ` +
           `shorten the caption or drop hashtags upstream; refusing to truncate and lose the CTA/disclosure`,
-      );
+      ]);
     }
     caption = composed;
   }
@@ -830,10 +839,14 @@ export async function enqueueReelJob(
     // A brief built from an approved pack says so: its content origin is the
     // pack, and an arm applied only while a brief is written never reaches it.
     const approvedPackSlug = (brief as { approvedPackSlug?: string }).approvedPackSlug;
+    // The pack-build arms the brief was BUILT with (dailyReelPost stamps them);
+    // a pack-build experiment records the Reel only when this matches its key.
+    const appliedPackArms = (brief as { appliedPackArms?: Array<{ experimentId: string; armId: string }> }).appliedPackArms;
     await assignEpisodeToActiveExperiment(jobId, {
       contentOrigin: approvedPackSlug ? "approved_pack" : "ai_generated",
       briefId: brief.id,
       ...(approvedPackSlug ? { approvedPackSlug } : {}),
+      ...(Array.isArray(appliedPackArms) ? { appliedPackArms } : {}),
     });
   }
 
@@ -1036,7 +1049,8 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
     // one thing the production doctrine forbids. Neither declared route has a
     // publishable lane yet (the stock guard refuses every locally hosted clip;
     // a real-evidence route is the operator's decision), so the job stops here,
-    // before any clip is bought, naming each beat and what it needs.
+    // before any clip is bought, naming each beat and what it needs. A beat
+    // whose visual names no object ("the physical subject") stops here too.
     {
       const { beatsTheGeneratorMustNotRender, generationHoldReason } = await import("../../shared/shotRouter");
       let existingClips: unknown = [];
@@ -1050,7 +1064,7 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
           .where(eq(reelJobs.id, job.id));
         await releaseFailedJobReservation(job.payload, job.id);
         await closeRefusedJobReservation(job.id, job.clipUrlsJson);
-        log.error("declared real/deterministic beats BLOCKED at generation — no clips generated", {
+        log.error("ungeneratable beats (declared real/deterministic, or naming no object) BLOCKED at generation — no clips generated", {
           jobId: job.id, briefId: job.briefId, beats: blocked.map((b) => `${b.beatNumber}:${b.route}`).join(","),
         });
         return { processed: true, jobId: job.id, status: "failed" };

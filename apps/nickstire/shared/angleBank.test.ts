@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { PRODUCTION_READY_COUNT, angleBankLine, angleBankStatus, parseAngleBank, type AngleBank } from "./angleBank";
 import { ORIGINALITY_BLOCK_THRESHOLD, jaccardSimilarity, normalizeForComparison } from "./reelOriginality";
-import { APPROVED_REEL_PACK_SLUGS, packBuildsForLane } from "../server/services/approvedReelPackRotation";
+import { APPROVED_REEL_PACK_SLUGS, ROTATION_EXCLUDED, packBuildsForLane } from "../server/services/approvedReelPackRotation";
 
 const BANK_URL = new URL("../docs/reels-engine-v2/angle-bank.json", import.meta.url);
 const PACKS_URL = new URL("../docs/reel-packs/", import.meta.url);
@@ -57,24 +57,32 @@ describe("angle bank — the committed inventory", () => {
     expect(restated).toEqual([]);
   });
 
-  it("ROTATION CANARY: the production-ready packs outside the daily rotation are exactly the three proof packs", () => {
-    // They stay out on purpose (ROTATION_EXCLUDED carries the reason) until the
-    // real-shop pool holds their shots and the pipeline honours
-    // StoryboardBeat.source: appended today, the daily lane would GENERATE
-    // the beats their briefs declare REAL — a synthetic shot documenting real
-    // work, the one thing the doctrine forbids. Every other builder-accepted
-    // pack is already in the rotation (reelPackRotationCoverage.test.ts keeps
-    // it so). If this list changes, 09-90-DAY-MODEL.md's handoff must say why.
+  it("ROTATION CANARY: the production-ready packs outside the daily rotation are the proof packs and the five subject-free imports, each excluded with a reason", () => {
+    // They stay out on purpose, and ROTATION_EXCLUDED says why. The three proof
+    // packs declare their evidence beats REAL and the real-shop pool does not
+    // hold those shots yet. A004, A009, A012, A014 and A015 name packs from the
+    // 2026-09-25 imports whose every beat is a placeholder that names no object
+    // ("the physical subject"): generated, they could not show their topic, so
+    // they left the rotation on 2026-10-08 and wait for real capture. Every
+    // other builder-accepted pack is in the rotation (reelPackRotationCoverage
+    // keeps it so). If this list changes, 09-90-DAY-MODEL.md's handoff must say why.
     const buildablePacks = new Set(packDirs().filter(packBuildsForLane));
     const status = angleBankStatus(bank, { buildablePacks, rotation: new Set(APPROVED_REEL_PACK_SLUGS), publishedPackSlugs: new Set() });
     expect(status.missingPacks).toEqual([]);
     expect(status.withPack).toBe(PRODUCTION_READY_COUNT);
-    expect(status.inRotation).toBe(PRODUCTION_READY_COUNT - 3);
+    expect(status.inRotation).toBe(PRODUCTION_READY_COUNT - 8);
     expect(status.nextToApprove).toEqual([
       "2026-10-08-proof-01-uneven-wear",
       "2026-10-08-proof-02-highway-shake",
       "2026-10-08-proof-03-patch-or-replace",
+      "2026-09-25-inner-outer-brake-pad-wear",
+      "2026-09-25-tpms-flash-vs-steady",
+      "2026-09-25-rotor-surface-rust-overnight",
+      "2026-09-25-two-new-tires-rear-axle",
+      "2026-09-25-hidden-inner-lip-wheel-bend",
     ]);
+    // Held out means EXCLUDED WITH A REASON, never merely missing from the list.
+    for (const slug of status.nextToApprove) expect(ROTATION_EXCLUDED[slug], slug).toMatch(/\S/);
   });
 });
 
@@ -120,7 +128,7 @@ describe("angleBankStatus + angleBankLine", () => {
     const s = angleBankStatus(bank, facts({ rotation: [top[3].packSlug!], published: [top[3].packSlug!] }));
     expect(s).toMatchObject({ total: 100, productionReady: 20, pilot: 8, stubs: 12, withPack: 20, inRotation: 1, published: 1, missingPacks: [] });
     expect(s.nextToApprove).toHaveLength(19);
-    expect(angleBankLine(s)).toMatch(/^20 production-ready angles of 100: 20 with a pack, 1 in rotation, 1 published; awaiting rotation approval: proof-01-uneven-wear, /);
+    expect(angleBankLine(s)).toMatch(/^20 production-ready angles of 100: 20 with a pack, 1 in rotation, 1 published; held out of the rotation: proof-01-uneven-wear, /);
   });
   it("a production-ready pack that is missing or rejected is BROKEN, named, and never counted as awaiting approval", () => {
     const s = angleBankStatus(bank, facts({ packs: top.slice(1).map((a) => a.packSlug!) }));
@@ -142,7 +150,7 @@ describe("angleBankStatus + angleBankLine", () => {
     expect(s.inRotation).toBe(2);
     expect(s.activeSlate).toEqual({ size: 2, state: "active" });
     expect(s.nextToApprove).toEqual(top.slice(0, 3).map((a) => a.packSlug!));
-    expect(angleBankLine(s)).toMatch(/^20 production-ready angles of 100: 20 with a pack, 2 in rotation \(active slate of 2\), 0 published; awaiting rotation approval: proof-01-uneven-wear, /);
+    expect(angleBankLine(s)).toMatch(/^20 production-ready angles of 100: 20 with a pack, 2 in rotation \(active slate of 2\), 0 published; held out of the rotation: proof-01-uneven-wear, /);
     // Control: the same library without a slate counts all seventeen.
     expect(angleBankStatus(bank, facts({ rotation: library })).inRotation).toBe(17);
   });

@@ -22,7 +22,9 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { MOTION_LENSES, REEL_ARCHETYPES } from "../client/src/lib/facelessReelStudio";
+import { MOTION_LENSES, OBJECT_CHARACTERS, REEL_ARCHETYPES, buildHiggsfieldReelPromptPack, type ReelBrief } from "../client/src/lib/facelessReelStudio";
+import { SAMPLE_REEL_BRIEFS } from "../client/src/lib/facelessReelStudioSamples";
+import { buildApprovedPackBriefForTest } from "./services/approvedReelPackRotation";
 
 const SRC = readFileSync(path.join(__dirname, "services", "approvedReelPackRotation.ts"), "utf8");
 
@@ -47,11 +49,30 @@ describe("the pack lane no longer stamps one look on everything", () => {
     expect(SRC).toContain("pickForPack");
   });
 
-  it("the hero object is deliberately NOT rotated", () => {
+  it("the hero object is deliberately NOT rotated, and it is no persona", () => {
     // Lens and archetype are grammar and apply to any subject. objectCharacter
     // names the hero of the frame; rotating it would describe a different
-    // object from the one the pack's storyboard is actually about.
-    expect(SRC).toContain(`objectCharacter: "rust_creeping_villain"`);
+    // object from the one the pack's storyboard is actually about. It was fixed
+    // to rust, which named rust as the hero of every pack Reel (2026-10-08).
+    expect(SRC).toContain(`objectCharacter: "plain_part"`);
+    expect(SRC).not.toContain(`objectCharacter: "rust_creeping_villain"`);
+  });
+
+  it("BEHAVIOUR: a penny-test pack's provider prompt names no persona at all; beat 1 is the hero", () => {
+    const brief = buildApprovedPackBriefForTest("2026-08-14-penny-test") as unknown as ReelBrief;
+    expect(brief.objectCharacter).toBe("plain_part");
+    const prompt = buildHiggsfieldReelPromptPack(brief)[0].prompt;
+    expect(prompt).not.toMatch(/Rust, Creeping Villain/);
+    expect(prompt).not.toMatch(/Character energy:/);
+    expect(prompt).not.toMatch(/The Part Itself/);
+    const hero = prompt.split("\n").find((l) => l.startsWith("Hero subject: "));
+    expect(hero).toBeDefined();
+    expect(hero).not.toMatch(/First established as/);
+    expect(hero!.length).toBeGreaterThan("Hero subject: ".length + 10);
+    // CONTROL: the Studio persona path is untouched — a sample brief keeps its character line.
+    const studio = buildHiggsfieldReelPromptPack(SAMPLE_REEL_BRIEFS[0])[0].prompt;
+    expect(studio).toContain(`Character energy: ${OBJECT_CHARACTERS[SAMPLE_REEL_BRIEFS[0].objectCharacter].label}`);
+    expect(studio).toMatch(/Hero subject: .+ First established as: /);
   });
 
   it("reaches EVERY lens across a realistic corpus, not just a few", () => {
@@ -98,5 +119,35 @@ describe("the pack lane no longer stamps one look on everything", () => {
     // measuring nothing.
     const used = new Set(PACKS.map((p) => pick(p, "lens", ["extreme_macro_push_in"])));
     expect(used.size).toBe(1);
+  });
+});
+
+describe("no persona reaches any reader of a pack Reel's hero (2026-10-08)", () => {
+  it("the visual-world reference frame and its lock name beat 1, not a persona", async () => {
+    const { buildReferenceFramePrompt, compileLockedInvariants } = await import("./services/visualWorld");
+    const brief = buildApprovedPackBriefForTest("2026-08-14-penny-test") as unknown as ReelBrief;
+    const frame = buildReferenceFramePrompt(brief, "safe");
+    expect(frame).toMatch(/Hero subject: (?!The Part Itself)/);
+    expect(frame).not.toMatch(/The Part Itself|Rust, Creeping Villain/);
+    expect(compileLockedInvariants(brief, "safe", frame)).toContain("SAME hero subject");
+    // CONTROL: a persona brief keeps its label in both.
+    const studio = SAMPLE_REEL_BRIEFS[0];
+    const label = OBJECT_CHARACTERS[studio.objectCharacter].label;
+    expect(buildReferenceFramePrompt(studio, "safe")).toContain(`Hero subject: ${label}`);
+  });
+
+  it("the vision critic is told a pack Reel has no persona, never the slug", async () => {
+    const { heroForCritic } = await import("./services/renderedQa");
+    expect(heroForCritic("plain_part")).toBe("no persona; the subject is what the planned beats show");
+    expect(heroForCritic("penny_test_inspector")).toBe("penny_test_inspector");
+    expect(heroForCritic(undefined)).toBe("unknown");
+  });
+
+  it("a Studio concept is never offered the pack lane's no-persona hero", async () => {
+    const { buildFacelessReelSystemPrompt } = await import("../client/src/lib/facelessReelStudioPrompt");
+    const prompt = buildFacelessReelSystemPrompt();
+    expect(prompt).toContain("# OBJECT CHARACTERS (pick one)");
+    expect(prompt).not.toContain("The Part Itself");
+    expect(prompt).toContain(OBJECT_CHARACTERS.penny_test_inspector.label);
   });
 });

@@ -32,7 +32,7 @@ The background worker process utilizes `node-cron` to trigger the following jobs
 *   **`outbox-drain`** (`*/15 * * * *`): Runs every 15 minutes. Replays orphaned post-turn chat work.
 *   **`device-heartbeat-sentinel`** (`*/15 * * * *`): Runs every 15 minutes. Flips cameras/bridges silent >20 min to OFFLINE (ADR-0017).
 *   **`inngest-liveness`** (`0 13 * * *`): Daily 13:00 UTC. Out-of-band check that the Inngest scheduler is alive.
-*   **Video render loop** (`*/15 * * * *`, `RENDER_SCHEDULE`, `scheduler.ts:179`): runs **in-process**, not forwarded. Polls `/api/sync/queue/render` for approved video drafts and renders them using the Remotion engine locally. (Was every 2 minutes until #1696.)
+*   **Video render loop** (`*/15 * * * *`, `RENDER_SCHEDULE`, `scheduler.ts:189`): runs **in-process**, not forwarded. Polls `/api/sync/queue/render` for approved video drafts and renders them using the Remotion engine locally. (Was every 2 minutes until #1696.) Since 2026-10-08 `renderPlan.ts` makes a customer-review video only from a declared review (name, 1-5 rating, text) and refuses anything that is neither a review nor an alert; it used to render every other draft as a five-star "Verified Customer" review of its own text.
 
 The earlier list here (`brain-bus-backfill`, `calendar-premeeting`, `bus-exhaustion-watch`, `provider-ping`) forwarded to routes deleted on 2026-05-28 and was removed from the worker on 2026-07-28 (`scheduler.ts:125-130`).
 

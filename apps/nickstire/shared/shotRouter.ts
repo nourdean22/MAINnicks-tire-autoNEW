@@ -87,7 +87,25 @@ export function declaredBeatSource(beat: { visual?: string | null; source?: Shot
 }
 
 /** What the clip generator does with a beat that has no clip yet. */
-export type BeatGenerationRoute = "generate" | "needs_real_footage" | "needs_deterministic_render";
+export type BeatGenerationRoute = "generate" | "needs_real_footage" | "needs_deterministic_render" | "needs_subject";
+
+/**
+ * A visual that names no object (2026-10-08). Two 2026-09-25 import batches wrote
+ * the same two sets of five placeholder shots into 34 packs ("Extreme macro of the physical
+ * subject…", "…the relevant physical components…", "unbranded automotive
+ * component macro…"), and the generator sent them verbatim: the Subject line of
+ * a Reel about XL load ratings or a TPMS light named no tire and no light, so
+ * the clip could not show the topic. A generic referent counts only when the
+ * visual also names no concrete part, so "macro of the caliper, the relevant
+ * component" is a subject and stays generatable.
+ */
+const GENERIC_REFERENT = /\b(?:physical subject|relevant (?:physical )?components?|mechanical distinction|automotive component|physical comparison|opening component)\b/i;
+const CONCRETE_SUBJECT = /\b(?:tires?|tyres?|tread|sidewall|bead|valve|stem|wheels?|rims?|lugs?|studs?|hub|rotors?|brakes?|pads?|calipers?|drums?|batter(?:y|ies)|terminals?|cables?|alternator|starter|belts?|pulleys?|hoses?|coolant|radiator|reservoir|dipstick|oil|filters?|spark|plugs?|coils?|sensors?|gauges?|meters?|tester|scan tool|dashboard|cluster|windshield|wipers?|struts?|shocks?|springs?|tie rods?|ball joints?|bearings?|axles?|cv|exhaust|muffler|nails?|screws?|patch|placard|engine|pump|gaskets?|fan|thermostat|fuses?|relays?|fob|headlights?|bulbs?|caps?|nuts?|sockets?|wrench|torque|balancer|alignment|lift|jack|pothole|road|pavement|puddle)\b/i;
+
+function isSubjectFreeVisual(visual: string | null | undefined): boolean {
+  const v = String(visual ?? "");
+  return GENERIC_REFERENT.test(v) && !CONCRETE_SUBJECT.test(v);
+}
 
 /**
  * The generator's reading of a DECLARED source (2026-10-08). A beat declared
@@ -96,17 +114,20 @@ export type BeatGenerationRoute = "generate" | "needs_real_footage" | "needs_det
  * is the lettering artifact the critic blocks. Neither has a publishable route
  * today (the publish door's stock guard refuses every clip the free local lane
  * hosts, and opening a real-evidence route is the operator's decision), so the
- * generator holds such a job before it spends. still_motion, ai_illustrative
- * and undeclared beats generate as before.
+ * generator holds such a job before it spends. A beat whose visual names no
+ * object (isSubjectFreeVisual) is held the same way: there is nothing for the
+ * model to show. still_motion, ai_illustrative and undeclared beats with a
+ * subject generate as before.
  */
 export function beatGenerationRoute(beat: { visual?: string | null; source?: ShotSource | null }): BeatGenerationRoute {
   const source = declaredBeatSource(beat);
   if (source === "real") return "needs_real_footage";
   if (source === "deterministic") return "needs_deterministic_render";
+  if (isSubjectFreeVisual(beat.visual)) return "needs_subject";
   return "generate";
 }
 
-/** The beats the generator must not render: declared real or deterministic, with no clip yet (a resumed job keeps its clips). */
+/** The beats the generator must not render: declared real or deterministic, or naming no subject, with no clip yet (a resumed job keeps its clips). */
 export function beatsTheGeneratorMustNotRender(
   beats: ReadonlyArray<{ beatNumber: number; visual?: string | null; source?: ShotSource | null }>,
   existingClipUrls: unknown,
@@ -130,10 +151,15 @@ export function generationHoldReason(
   const list = (route: Exclude<BeatGenerationRoute, "generate">) => blocked.filter((b) => b.route === route).map((b) => b.beatNumber);
   const real = list("needs_real_footage");
   const drawn = list("needs_deterministic_render");
+  const blank = list("needs_subject");
   const beatWord = (n: number[]) => (n.length === 1 ? `beat ${n[0]} is` : `beats ${n.join(", ")} are`);
   const parts: string[] = [];
   if (real.length) parts.push(`${beatWord(real)} declared real: capture the footage (docs/reels-engine-v2/05-CAPTURE-CHECKLIST.md)`);
   if (drawn.length) parts.push(`${beatWord(drawn)} declared deterministic: no publishable card renderer yet`);
+  if (blank.length) {
+    const what = blank.length === 1 ? "a placeholder that names no object" : "placeholders that name no object";
+    parts.push(`${beatWord(blank)} ${what} ("the physical subject"): write what the camera sees, or capture it`);
+  }
   const where = stage === "enqueue" ? "blocked at enqueue, nothing reserved" : "blocked at generation, before spend";
   return `BEAT_SOURCE_NOT_GENERATABLE (${where}): ${parts.join("; ")}. Nothing was generated.`;
 }

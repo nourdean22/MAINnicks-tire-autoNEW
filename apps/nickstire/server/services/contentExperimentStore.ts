@@ -21,13 +21,17 @@
  */
 import { createLogger } from "../lib/logger";
 import {
+  EXPERIMENT_PRESET_IDS,
   assignArm,
+  buildExperimentPreset,
   evaluateExperiment,
   horizonForSnapshot,
   isDurationLaneId,
   isUnwiredExperimentId,
+  isVisualDirectionId,
   type ArmObservation,
   type DurationLaneId,
+  type VisualDirectionId,
   type ExperimentArm,
   type ExperimentDefinition,
   type ExperimentVerdict,
@@ -155,11 +159,35 @@ export function experimentEpisodeKey(reelJobId: number, briefId?: string | null)
  * lane draws every Reel from the pack library (resolveApprovedPackSelection), so
  * a hook or duration experiment collects only AI-written briefs (2026-10-08).
  */
-const BRIEF_WRITING_VARIABLES: ReadonlySet<string> = new Set(["hook_style", "length_band"]);
+const PRESETS = EXPERIMENT_PRESET_IDS.map((id) => buildExperimentPreset(id, ""));
+/** A pack-build arm a brief was built with, stamped by dailyReelPost and checked at enqueue. */
+export interface AppliedPackArm {
+  experimentId: string;
+  armId: string;
+}
+
+const BRIEF_WRITING_VARIABLES: ReadonlySet<string> = new Set(
+  PRESETS.filter((p) => p.reaches === "ai_written_briefs").map((p) => p.primaryVariable),
+);
+
+/**
+ * The mirror image: variables whose arm is applied only when an approved pack
+ * is BUILT. visual_direction picks the pack Reel's lens family
+ * (approvedReelPackRotation.buildBriefFromApprovedProductionPack); an
+ * AI-written brief chooses its own lens, so recording it would put a Reel the
+ * arm never touched into that arm.
+ */
+const PACK_BUILD_VARIABLES: ReadonlySet<string> = new Set(
+  PRESETS.filter((p) => p.reaches === "pack_reels").map((p) => p.primaryVariable),
+);
 
 export async function assignEpisodeToActiveExperiment(
   reelJobId: number,
-  context: { franchiseId?: string; contentOrigin?: string; postingSlot?: string; provider?: string; model?: string; briefId?: string; approvedPackSlug?: string } = {},
+  context: {
+    franchiseId?: string; contentOrigin?: string; postingSlot?: string; provider?: string; model?: string; briefId?: string; approvedPackSlug?: string;
+    /** The pack-build arms the brief was actually BUILT with (dailyReelPost stamps them). */
+    appliedPackArms?: ReadonlyArray<AppliedPackArm>;
+  } = {},
 ): Promise<Array<{ experimentId: string; armId: string; variantValue: string }>> {
   try {
     const { getDb } = await import("../db");
@@ -183,6 +211,7 @@ export async function assignEpisodeToActiveExperiment(
       seenVariables.add(row.primaryVariable);
       if (isUnwiredExperimentId(row.experimentId)) continue;
       if (context.approvedPackSlug && BRIEF_WRITING_VARIABLES.has(row.primaryVariable)) continue; // its arm never reaches a pack Reel
+      if (!context.approvedPackSlug && PACK_BUILD_VARIABLES.has(row.primaryVariable)) continue; // its arm reaches only a pack Reel
       const arms = (Array.isArray(row.armsJson) ? row.armsJson : []) as ExperimentDefinition["arms"];
       if (arms.length < 2) continue;
       defs.push({
@@ -197,10 +226,26 @@ export async function assignEpisodeToActiveExperiment(
 
     // The episode key must be STABLE for this job — assignment is derived from
     // it, so a changing key would re-roll the arm on every retry.
-    const { briefId, approvedPackSlug: _pack, ...rest } = context;
+    const { briefId, approvedPackSlug: _pack, appliedPackArms, ...rest } = context;
     const episodeKey = experimentEpisodeKey(reelJobId, briefId);
     const out: Array<{ experimentId: string; armId: string; variantValue: string }> = [];
     for (const def of defs) {
+      // RECORDED MUST EQUAL BUILT for a pack-build arm (2026-10-08). The arm is
+      // applied when the pack is built, on the key the lane had then; a
+      // regenerate re-keys the brief and a seeded pack is built with no arm, so
+      // the key alone would file a Reel under an arm its content never got.
+      // Record only when the brief says which arm it was built with and that is
+      // the arm this key draws.
+      if (PACK_BUILD_VARIABLES.has(def.primaryVariable)) {
+        const applied = (appliedPackArms ?? []).find((a) => a.experimentId === def.experimentId);
+        const drawn = assignArm(def, episodeKey);
+        if (!applied || applied.armId !== drawn.armId) {
+          log.info("pack-build arm not recorded: the brief was not built with the arm this key draws", {
+            reelJobId, experimentId: def.experimentId, drawn: drawn.armId, applied: applied?.armId ?? null,
+          });
+          continue;
+        }
+      }
       const assigned = await assignEpisode(def, episodeKey, { reelJobId, ...rest });
       if (!assigned) continue;
       log.info("episode assigned to experiment", { reelJobId, experimentId: def.experimentId, arm: assigned.armId });
@@ -244,6 +289,14 @@ async function runningArmForEpisode(
   primaryVariable: ExperimentDefinition["primaryVariable"],
   episodeKey: string,
 ): Promise<ExperimentArm | undefined> {
+  return (await runningExperimentArm(primaryVariable, episodeKey))?.arm;
+}
+
+/** runningArmForEpisode with the experiment it came from, for arms the brief must carry (AppliedPackArm). */
+async function runningExperimentArm(
+  primaryVariable: ExperimentDefinition["primaryVariable"],
+  episodeKey: string,
+): Promise<{ def: ExperimentDefinition; arm: ExperimentArm } | undefined> {
   try {
     const { getDb } = await import("../db");
     const d = await getDb();
@@ -268,7 +321,7 @@ async function runningArmForEpisode(
       startedAt: new Date(row.startedAt).toISOString(),
     };
     if (def.arms.length < 2) return undefined;
-    return assignArm(def, episodeKey);
+    return { def, arm: assignArm(def, episodeKey) };
   } catch (err) {
     log.warn("experiment arm lookup failed — treating as control", { primaryVariable, episodeKey, err: err instanceof Error ? err.message : String(err) });
     return undefined;
@@ -289,6 +342,43 @@ export async function durationLaneForEpisode(episodeKey: string): Promise<Durati
   if (isDurationLaneId(lane)) return lane;
   log.warn("length_band arm names no declared duration lane — generating at the default target", { episodeKey, armId: arm.armId, lane });
   return undefined;
+}
+
+/**
+ * Which camera direction this pack Reel is built with (visual_direction_v1),
+ * resolved BEFORE the pack brief is built, the same way the hook arm is.
+ * undefined when no visual_direction experiment is running (the default: the
+ * pack keeps its full lens pick) or when the arm names no declared family,
+ * which is logged rather than guessed at.
+ */
+export async function visualDirectionForEpisode(
+  episodeKey: string,
+): Promise<{ direction: VisualDirectionId; applied: AppliedPackArm } | undefined> {
+  const found = await runningExperimentArm("visual_direction", episodeKey);
+  if (!found) return undefined;
+  const direction = found.arm.visualDirection ?? found.arm.variantValue;
+  if (isVisualDirectionId(direction)) return { direction, applied: { experimentId: found.def.experimentId, armId: found.arm.armId } };
+  log.warn("visual_direction arm names no declared lens family — building with the full lens pick", { episodeKey, armId: found.arm.armId, direction });
+  return undefined;
+}
+
+/**
+ * Which approved pack VARIANT this episode is built from (pack_variant, e.g.
+ * opening_mechanism_v1), resolved before the build like the lens arm. Returns
+ * the arm drawn and every arm id, so the caller builds the variant only when
+ * the pack has an approved variant for EVERY arm (approvedReelPackRotation.
+ * approvedVariantSnapshot): if which arms exist decided which packs entered
+ * which arm, the comparison would be biased. undefined = no experiment running.
+ */
+export async function packVariantForEpisode(
+  episodeKey: string,
+): Promise<{ applied: AppliedPackArm; armIds: string[] } | undefined> {
+  const found = await runningExperimentArm("pack_variant", episodeKey);
+  if (!found) return undefined;
+  return {
+    applied: { experimentId: found.def.experimentId, armId: found.arm.armId },
+    armIds: found.def.arms.map((a) => a.armId),
+  };
 }
 
 /**

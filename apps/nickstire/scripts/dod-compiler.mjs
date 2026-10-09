@@ -235,9 +235,17 @@ for (const rule of RULES) {
     description: rule.description,
     touched: touched.length,
     status,
+    // A diff-satisfied pass prints a legacy entry only when THIS branch wrote it
+    // (2026-10-08). Before, it printed whatever the manifest held, so a PR
+    // touching server/services passed `capability-ledger-updated` with the text
+    // of an unrelated earlier PR beside it ("'today-owed-texts' is rewritten
+    // for the ROS-058 source") — the stale-evidence display the freshness rule
+    // above exists to stop, through the one branch that skipped it.
     evidence: status === "stale"
       ? `${staleFrag ? `${staleFrag.file} ` : ""}written for an EARLIER change, not this diff — ${String(evidenceRef(ev) ?? evidenceDeferred(ev)).slice(0, 90)}`
-      : evidenceRef(ev) ?? (fromDiff ? "(satisfied by diff)" : evidenceDeferred(ev) ? `DEFERRED: ${evidenceDeferred(ev)}` : null),
+      : fromDiff && !fresh
+        ? "(satisfied by diff)"
+        : evidenceRef(ev) ?? (evidenceDeferred(ev) ? `DEFERRED: ${evidenceDeferred(ev)}` : null),
   });
 }
 

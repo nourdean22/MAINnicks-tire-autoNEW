@@ -154,7 +154,7 @@ def test_solar_escalation_message_is_time_aware():
 
 def test_disk_floor_acts_instead_of_only_warning():
     text = source()
-    block = text[text.index("if ($free -lt $diskFloorBytes)") : text.index("$state | ConvertTo-Json")]
+    block = text[text.index("if ($free -lt $diskFloorBytes)") : text.index("Invoke-DiskFloor ([double]")]
     assert "$officeAudioDir" in block
     assert "AddHours(-6)" in block
     assert "Remove-Item -LiteralPath" in block
@@ -660,8 +660,9 @@ def test_a_dark_camera_in_daylight_escalates_with_what_to_check(tmp_path: Path):
 
 def test_a_broken_crop_beside_a_live_relay_is_restarted(tmp_path: Path):
     out = run_scenario("crop-broken-while-upstream-has-frames", tmp_path)
-    assert "start-process:run-sign-crop.ps1" in out["calls"], out["calls"]
-    assert out["calls"].index(f"probe:{RELAY}") < out["calls"].index("start-process:run-sign-crop.ps1")
+    starts = [c for c in out["calls"] if c.startswith("start-process:") and c.endswith("run-sign-crop.ps1")]
+    assert len(starts) == 1, out["calls"]
+    assert out["calls"].index(f"probe:{RELAY}") < out["calls"].index(starts[0])
     assert any("ACTION restart sign-crop" in line for line in out["log"])
     assert len(out["state"]["sign-crop"]["restarts"]) == 1
 
@@ -672,7 +673,7 @@ def test_a_healthy_crop_costs_no_relay_probe(tmp_path: Path):
     assert out["calls"] == [f"probe:{SIGN}"], out["calls"]
 
 
-# ---- host scripts: drift and the fallback ----------------------------------------------------------
+# ---- host scripts: drift ----------------------------------------------------------
 
 
 def test_an_installed_host_script_that_differs_from_the_repo_is_reported_once_a_day(tmp_path: Path):
@@ -685,18 +686,224 @@ def test_an_installed_host_script_that_differs_from_the_repo_is_reported_once_a_
     assert all("install-nicksmax-supervisor-host.ps1" in w for w in warns)
 
 
-def test_the_fallback_is_the_last_version_that_completed_a_tick(tmp_path: Path):
-    out = run_scenario("fallback-refreshed-from-a-completed-tick", tmp_path)
-    assert out["markers"]["fallbackAfter"].strip() == "# tick v2"
-    assert len([line for line in out["log"] if "refreshed the fallback copy" in line]) == 1
-    # A tick running AS the fallback (the repo file did not parse) never rewrites it.
-    assert out["markers"]["fallbackWhenRunningAsFallback"].strip() == "# hand edit"
-    assert out["markers"]["leftovers"] in (None, [])
-
-
-def test_the_tick_heals_the_crop_through_the_function_and_refreshes_the_fallback_last():
+def test_the_tick_heals_the_crop_through_the_function_and_checks_drift_after_reading_state():
     lines = _code_lines()
     at = lambda s: _top_level_index(lines, s)
-    assert at("$signFrameReady = Heal-SignCrop (Get-Date).Hour") < at("$directReady = ")
-    assert at("try { Update-FallbackCopy $PSCommandPath $fallbackTick }") > at("Save-State")
+    assert at('Enter-Phase "sign-crop"') < at("$signFrameReady = Heal-SignCrop (Get-Date).Hour") < at("$directReady = ")
     assert at("try { Test-HostScriptDrift }") > at("$state = Read-State")
+# ---- the tick ran past the loop's 45 s budget (2026-10-03..10-08) --------------------------------
+# data\nicksmax-camera-supervisor-loop.ps1 (box-local) kills a tick at 45 s: 422 kills on NicksMax,
+# 2026-10-03 to 10-08; 10-08's fell mostly at dawn (04:49-06:56) and dusk (19:22-20:54), the hours the
+# solar sign camera drops and the relay and crop recover. A killed tick never reaches its Save-State,
+# so its restarts and ESCALATE stamps were lost with it. Measured on the box 2026-10-08 21:05-21:10 ET
+# as nourd, one call at a time at 76-100% CPU:
+#   Get-ScheduledTask, any query          ~0.95 s each; a tick made 9 of them      ~8.5 s
+#   Test-RtspFrame on a HEALTHY 8555/sign  5.8 s (up to 12 s when it fails); a recovery tick made 3
+#   Select-String over relay-system.stderr.log (215 MB, ~18 MB/h of --debug) 2.5-2.7 s, every tick
+#   Get-CimInstance Win32_Process          ~0.25 s each; ~7 per tick
+# Summed, a healthy tick spent ~20 s on those calls alone; a crop recovery added two probes and went
+# over. The slow-tick NOTE lines below are what will say which phase it really was, as SYSTEM.
+
+
+def test_slow_tick_names_the_slow_phase_first(tmp_path: Path):
+    out = run_scenario("slow-tick-names-the-slow-phase", tmp_path)
+    notes = [line for line in out["log"] if " NOTE slow tick: " in line]
+    assert len(notes) == 1, out["log"]
+    m = re.search(r"NOTE slow tick: 37200 ms \(pid=\d+\); (.*)$", notes[0])
+    assert m, notes[0]
+    assert m.group(1).split(", ") == [
+        "sign-crop 34000", "startup 1500", "task-list 1000", "ledger 500", "disk 100", "save 100",
+    ]
+    assert out["markers"]["breadcrumbLeft"] is False
+
+
+def test_a_fast_tick_writes_nothing(tmp_path: Path):
+    out = run_scenario("fast-tick-is-silent", tmp_path)
+    assert out["log"] == []
+    assert out["markers"]["breadcrumbLeft"] is False
+
+
+def test_a_killed_tick_is_named_by_the_next_tick_once(tmp_path: Path):
+    out = run_scenario("killed-tick-is-reported-by-the-next", tmp_path)
+    assert out["markers"]["breadcrumbWhileRunning"] is True
+    notes = [line for line in out["log"] if " NOTE slow tick: " in line]
+    assert len(notes) == 1, out["log"]
+    assert re.search(
+        r"NOTE slow tick: pid=\d+ started \d\d:\d\d:\d\d did not finish: in sign-crop from 9000 ms; "
+        r"before that task-list 7000, startup 1500, ledger 500$",
+        notes[0],
+    ), notes[0]
+    assert out["markers"]["breadcrumbAfterReport"] is False
+
+
+def test_every_phase_of_the_tick_is_timed_in_order():
+    lines = _code_lines()
+    phases = [line for line in lines if line.startswith("Enter-Phase ") or "{ Enter-Phase $et.Key;" in line]
+    assert [p.split("#")[0].strip() for p in phases] == [
+        'Enter-Phase "ledger"',
+        'Enter-Phase "task-list"',
+        'Enter-Phase "retired-tasks"',
+        'Enter-Phase "office"',
+        "foreach ($et in $eufyTasks) { Enter-Phase $et.Key; Heal-EufyTask $et }",
+        'Enter-Phase "sign-relay"',
+        'Enter-Phase "sign-mediamtx"',
+        'Enter-Phase "sign-crop"',
+        'Enter-Phase "sign-edge"',
+        'Enter-Phase "disk"',
+        'Enter-Phase "fallback"',
+        'Enter-Phase "save"',
+    ]
+    at = lambda s: _top_level_index(lines, s)
+    # The predecessor's breadcrumb is read before this tick's first boundary overwrites it.
+    assert at("$restoreBlocked = Restore-Overflow") < at("Report-UnfinishedTick") < at('Enter-Phase "ledger"')
+    assert at("Save-State") < at("Complete-Tick") < at("if ($supervisorLockHandle)")
+    assert "$slowTickMs = 30000" in source()
+    # Measured from process start: the loop's 45 s clock starts at Start-Process, not at line 1.
+    assert "$tickStarted = [Diagnostics.Process]::GetCurrentProcess().StartTime" in source()
+
+
+def test_a_tick_reads_the_task_list_once(tmp_path: Path):
+    out = run_scenario("one-task-read-per-tick", tmp_path)
+    assert out["markers"]["taskReads"] == ["list"]
+    # The snapshot is not a blind spot: the retired task is still found and disabled.
+    assert out["calls"] == [
+        "stop-task:StateNour-Eufy-Watchdog-NicksMax",
+        "disable-task:StateNour-Eufy-Watchdog-NicksMax",
+    ]
+
+
+def test_a_failed_task_list_read_falls_back_to_per_name_reads(tmp_path: Path):
+    out = run_scenario("task-list-read-fails-falls-back-per-name", tmp_path)
+    # Unknown is not absent: the Ready bridge is still found and started.
+    assert out["calls"] == [f"start-task:{BRIDGE_TASK}"]
+    assert out["markers"]["taskReads"] == ["list", f"name:{BRIDGE_TASK}", f"name:{AGENT_TASK}"]
+
+
+def test_no_task_is_read_by_name_on_the_hot_path():
+    text = source()
+    code = "\n".join(_code_lines())
+    by_name = re.findall(r"Get-ScheduledTask -TaskName [^\n]*", code)
+    # Two left: the per-name fallback inside Get-Task, and the office re-read after a repoint.
+    assert len(by_name) == 2, by_name
+    retire = text[text.index("function Disable-RetiredTasks") : text.index('Enter-Phase "retired-tasks"')]
+    assert "Get-Task $taskName" in retire
+
+
+def test_relay_login_refusal_is_read_from_the_tail_only(tmp_path: Path):
+    out = run_scenario("relay-login-refusal-reads-the-tail", tmp_path)
+    assert out["markers"] == {"endsRefused": True, "refusedThenStreamed": False, "small": True, "missing": False}
+
+
+def test_relay_stderr_is_read_only_while_the_relay_is_down():
+    code = "\n".join(_code_lines())
+    assert "Select-String" not in code
+    assert (
+        '$relayAuthHold = (-not $relayReady) -and ((Restarts-InLastMinutes "sign-relay" 30) -gt 0) '
+        "-and (Test-RelayLoginRefused $relayErr)"
+    ) in code
+
+
+def test_the_edge_start_reuses_this_ticks_decoded_frame():
+    # $directReady is (8554 open) AND $signFrameReady, a frame this tick decoded seconds earlier. The
+    # start path probed it a third time (6-12 s) in exactly the recovery tick that ran out of budget.
+    code = "\n".join(_code_lines())
+    # The two 8555/sign probes are Heal-SignCrop's (the first look, and the re-check after a restart).
+    assert code.count("Test-RtspFrame $signUrl") == 2
+    assert 'Test-RtspFrame "rtsp://127.0.0.1:8555/sign"' not in code
+    start = code[code.index("if ($armed) {") : code.index("function Invoke-DiskFloor")]
+    assert "Test-RtspFrame" not in start
+    assert "refusing early edge start" not in code
+
+
+def test_a_restart_is_on_disk_before_the_tick_ends(tmp_path: Path):
+    out = run_scenario("restart-saves-the-ledger-at-once", tmp_path)
+    assert out["markers"]["restartsOnDisk"] == 1
+
+
+# ---- the shim's fallback copy (2026-10-09) -------------------------------------------------------
+# The box-local shim runs this file, or data\nicksmax-camera-supervisor.fallback.ps1 when it is missing
+# or does not parse. Found on NicksMax 2026-10-08: that copy was dated 2026-09-29 08:23 and nothing
+# refreshed it, so a half-finished pull would have rolled the supervisor back past every 10-07/10-08 fix.
+
+
+def test_a_completed_tick_refreshes_a_stale_fallback(tmp_path: Path):
+    out = run_scenario("fallback-refreshed-when-stale", tmp_path)
+    m = out["markers"]
+    assert m["text"] == "Write-Output 'v2'\n# the tick that ran\n"
+    assert m["firstTimeText"] == m["text"]
+    assert m["leftovers"] in (None, [])
+    refreshed = [line for line in out["log"] if "ACTION refreshed the fallback supervisor copy" in line]
+    assert len(refreshed) == 2, out["log"]
+
+
+def test_an_identical_fallback_is_not_rewritten(tmp_path: Path):
+    out = run_scenario("fallback-identical-is-left-alone", tmp_path)
+    assert out["markers"]["untouched"] is True
+    assert out["log"] == []
+
+
+def test_the_fallback_never_takes_a_text_that_does_not_parse(tmp_path: Path):
+    out = run_scenario("fallback-never-takes-an-unparseable-text", tmp_path)
+    assert out["markers"]["text"] == "Write-Output 'v1'"
+    assert out["log"] == []
+
+
+def test_a_failed_fallback_write_keeps_the_old_copy_and_says_so_once(tmp_path: Path):
+    out = run_scenario("fallback-write-failure-keeps-the-old-copy", tmp_path)
+    assert out["markers"]["text"] == "Write-Output 'v1'"
+    warns = [line for line in out["log"] if "WARN could not refresh the fallback supervisor copy" in line]
+    assert len(warns) == 1, out["log"]
+    assert not [line for line in out["log"] if "ACTION refreshed" in line]
+
+
+def test_the_tick_keeps_the_fallback_it_ran_from():
+    lines = _code_lines()
+    at = lambda s: _top_level_index(lines, s)
+    assert '$fallbackPath = Join-Path $root "data\\nicksmax-camera-supervisor.fallback.ps1"' in source()
+    # The text is read as the tick starts (what ran), and written only after the last heal.
+    assert at("try { $tickSource = Read-SharedText $PSCommandPath } catch {}") < at('Enter-Phase "ledger"')
+    assert at('Enter-Phase "fallback"') < at("Update-FallbackCopy $tickSource $fallbackPath") < at('Enter-Phase "save"')
+    update = source()[source().index("function Update-FallbackCopy") :]
+    update = update[: update.index("\n}\n") + 3]
+    # Staged then swapped: a truncated fallback is worse than a stale one.
+    assert "Write-SharedFile $staged $text" in update
+    assert "[IO.File]::Replace($staged, $target, [NullString]::Value)" in update
+    assert "ParseInput($text" in update
+
+
+# ---- a sign-crop restart that restarts the crop (2026-10-09) -------------------------------------
+# run-sign-crop.ps1 holds .sign-crop.lock for its ffmpeg's whole life; a second launcher exits on it.
+# The supervisor started one beside a live but undecodable crop and counted it: sign-crop-status.log
+# shows "SKIP duplicate sign crop; lock held" at 18:03:25 and 18:09:07 on 2026-10-08, beside
+# "restart sign-crop" lines and "ESCALATE sign-crop restarted 7 times in an hour".
+
+
+def test_a_crop_restart_ends_the_old_crop_before_starting_one(tmp_path: Path):
+    out = run_scenario("crop-restart-ends-the-old-crop", tmp_path)
+    calls = out["calls"]
+    start = _index(calls, r"start-process:C:\Users\nourd\NicksMax\lab\v380-cloud-relay\run-sign-crop.ps1")
+    assert _index(calls, "stop-pid:72") < start  # the crop ffmpeg
+    assert _index(calls, "stop-pid:71") < start  # its launcher, which holds the lock
+    # A publisher into 8554, a frame probe of 8555/sign, an unreadable ffmpeg, the MediaMTX launcher.
+    for neighbour in (73, 74, 75, 76):
+        assert f"stop-pid:{neighbour}" not in calls, calls
+    assert out["markers"]["started"] is True
+    assert len(out["state"]["sign-crop"]["restarts"]) == 1
+
+
+def test_a_crop_restart_waits_for_the_old_launchers_lock(tmp_path: Path):
+    out = run_scenario("crop-restart-waits-for-the-lock", tmp_path)
+    m = out["markers"]
+    assert m["startedWhileHeld"] is False
+    assert m["restartsWhileHeld"] == 0  # a launcher that would only exit on the lock is not a restart
+    assert m["startedAfter"] is True
+    assert sum(c.startswith("start-process:") for c in out["calls"]) == 1
+    assert any("WARN sign-crop restart held" in line for line in out["log"]), out["log"]
+
+
+def test_the_crop_is_only_started_through_its_restart():
+    code = "\n".join(_code_lines())
+    assert not [line for line in code.splitlines() if "Start-Process" in line and "$cropLauncher" in line]
+    crop = code[code.index('Enter-Phase "sign-crop"') : code.index('Enter-Phase "sign-edge"')]
+    assert "if (-not (Restart-SignCrop $cropLauncher $cropLock)) { return $false }" in crop
+    assert "Start-Process" not in crop

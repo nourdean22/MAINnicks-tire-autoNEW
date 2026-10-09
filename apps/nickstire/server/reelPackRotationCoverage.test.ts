@@ -171,8 +171,11 @@ describe("the rotation array's own invariants", () => {
  */
 // 2026-09-25: evening import added 23 distinct packs; the reconciled midday
 // import adds 11 more distinct lessons after removing 16 semantic duplicates.
-// The full 133-pack rotation must remain preflight-clean; never lower the floor.
-const PREFLIGHT_PASSING_FLOOR = 133;
+// The full rotation must remain preflight-clean; never lower the floor because
+// a pack broke. 2026-10-08: 133 -> 99 because 34 packs LEFT the rotation (the
+// two 2026-09-25 imports, every beat a placeholder that names no object; see
+// ROTATION_EXCLUDED), not because one stopped passing: all 99 that remain pass.
+const PREFLIGHT_PASSING_FLOOR = 99;
 
 /** Packs that clear the REAL pre-spend gate, not merely the builder. */
 function preflightVerdicts() {

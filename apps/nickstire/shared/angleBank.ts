@@ -22,7 +22,7 @@
  * are not in that array yet — a list for the operator, never an automatic
  * append.
  */
-import type { TruthTopic } from "./mechanicalTruth";
+import { TRUTH_TOPICS, type TruthTopic } from "./mechanicalTruth";
 import { ORIGINALITY_BLOCK_THRESHOLD, jaccardSimilarity, normalizeForComparison } from "./reelOriginality";
 
 const ANGLE_CATEGORIES = [
@@ -80,7 +80,6 @@ const PILOT_COUNT = 8;
 /** No category repeats inside any window of this many consecutive production-ready angles. */
 const CATEGORY_SPACING = 6;
 
-const TRUTH_TOPICS: readonly TruthTopic[] = ["puncture_repair", "tread_depth", "uneven_wear", "vibration", "pothole_damage"];
 const FAMILIES: readonly AngleFamily[] = ["A", "B", "C", "D", "E", "F", "G", "H"];
 const ROUTES: readonly AngleRoute[] = ["real", "real+deterministic", "deterministic", "still_motion", "ai_illustrative+deterministic"];
 const FEASIBILITIES: readonly AngleFeasibility[] = ["A", "B", "C", "D"];
@@ -218,7 +217,7 @@ export interface AngleBankStatus {
   activeSlate: { size: number; state: AngleBankSlate["state"] } | null;
   /** Production-ready angles whose pack has been published at least once. */
   published: number;
-  /** Production-ready pack slugs the builder accepts that are not in the approved library — the operator's list. */
+  /** Production-ready pack slugs the builder accepts that are not in the rotation; ROTATION_EXCLUDED says what each needs. */
   nextToApprove: string[];
   /** Production-ready pack slugs that are missing or that the builder rejects — a broken inventory entry. */
   missingPacks: string[];
@@ -270,7 +269,10 @@ export function angleBankLine(s: AngleBankStatus): string {
     : ` (active slate of ${sl.size})`;
   const head = `${s.productionReady} production-ready angles of ${s.total}: ${s.withPack} with a pack, ${s.inRotation} in rotation${slate}, ${s.published} published`;
   const parts = [head];
-  if (s.nextToApprove.length) parts.push(`awaiting rotation approval: ${s.nextToApprove.map(shortSlug).join(", ")}`);
+  // "Held out", not "awaiting approval" (2026-10-08): every pack here is in
+  // ROTATION_EXCLUDED for a reason (real shots not captured, or beats that
+  // name no object), so approving one as it stands is not the next step.
+  if (s.nextToApprove.length) parts.push(`held out of the rotation: ${s.nextToApprove.map(shortSlug).join(", ")}`);
   if (s.missingPacks.length) parts.push(`BROKEN entries (pack missing or rejected by the builder): ${s.missingPacks.join(", ")}`);
   return parts.join("; ");
 }

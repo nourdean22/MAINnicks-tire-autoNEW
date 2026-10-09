@@ -38,7 +38,7 @@
  * the next reader does not have to rediscover either.
  */
 import type { EscalationLens, EvaluateRenderedReelInput, ExtractedFrame, RenderedFinding, RenderedQaVerdict } from "./renderedQa";
-import { RENDERED_DEFECT_CODES, beatsDocFor, callVisionCritic, clampVerdict, craftScore } from "./renderedQa";
+import { RENDERED_DEFECT_CODES, beatsDocFor, callVisionCritic, clampVerdict, craftScore, heroForCritic } from "./renderedQa";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("services:critic-panel");
@@ -159,7 +159,7 @@ async function runSpecialistLens(lens: SpecialistLens, frames: ExtractedFrame[],
     `The general critic already reported:\n${priorDoc}\nYou were called because it was not sure. CONFIRM a prior finding by re-emitting it with your own confidence, REFUTE it by leaving it out, and ADD anything within your focus it missed.`,
     `For each finding give beatNumber (the beat whose frame shows it, or null for first/final), a concrete description, preserve[] (what the repair must keep), change[] (the minimal change) and confidence 0-1. Decision "repair" only for a block. Do not praise.`,
   ].join("\n\n");
-  const user = `Inspect these ${frames.length} frames (order: ${frames.map((f) => f.label).join(", ")}) through the ${lens} lens only. Topic: ${context.brief.topic ?? "unknown"}. Hero: ${context.brief.objectCharacter ?? "unknown"}.`;
+  const user = `Inspect these ${frames.length} frames (order: ${frames.map((f) => f.label).join(", ")}) through the ${lens} lens only. Topic: ${context.brief.topic ?? "unknown"}. Hero: ${heroForCritic(context.brief.objectCharacter)}.`;
   try {
     const parsed = await callVisionCritic({ frames, system, user });
     return clampVerdict(parsed, frames.length, "vision");

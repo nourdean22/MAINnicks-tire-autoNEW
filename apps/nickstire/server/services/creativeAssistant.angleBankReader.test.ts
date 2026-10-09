@@ -9,7 +9,9 @@
  */
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const BRAKE = "2026-09-25-inner-outer-brake-pad-wear";
+// A006's pack. A004's brake pack left the rotation on 2026-10-08 (its beats name no
+// object), so a slate of it would read as unreadable, not as a two-pack slate.
+const NO_START = "2026-08-19-wont-start-battery-starter-alternator";
 const POTHOLE = "2026-08-17-pothole-damage";
 
 const state = vi.hoisted(() => ({
@@ -81,24 +83,24 @@ beforeEach(() => {
 describe("Creative Assistant → Sources → angleBank, read from the database", () => {
   it("counts packs from Reels in EITHER live status, and asks for exactly those two", async () => {
     state.reelRows = [
-      { payload: JSON.stringify({ approvedPackSlug: BRAKE }) },
+      { payload: JSON.stringify({ approvedPackSlug: NO_START }) },
       { payload: JSON.stringify({ approvedPackSlug: POTHOLE }) },
-      { payload: JSON.stringify({ approvedPackSlug: BRAKE }) }, // the same pack twice is one pack
+      { payload: JSON.stringify({ approvedPackSlug: NO_START }) }, // the same pack twice is one pack
       { payload: "{corrupt" }, // unreadable payload: not evidence either way
       { payload: null },
     ];
     const line = await sources();
-    expect(line).toMatch(/^20 production-ready angles of 100: 20 with a pack, 17 in rotation, 2 published; awaiting rotation approval: proof-01-uneven-wear, /);
+    expect(line).toMatch(/^20 production-ready angles of 100: 20 with a pack, 12 in rotation, 2 published; held out of the rotation: proof-01-uneven-wear, /);
     expect(state.reelWhereParams).toContainEqual(["posted", "published"]);
   });
 
   it("an operator slate narrows 'in rotation' to its packs", async () => {
-    state.slateRows = slate([BRAKE, POTHOLE], "0");
+    state.slateRows = slate([NO_START, POTHOLE], "0");
     expect(await sources()).toContain("2 in rotation (active slate of 2), 0 published");
   });
 
   it("a slate whose cursor has passed its last pack is named as used up", async () => {
-    state.slateRows = slate([BRAKE, POTHOLE], "2");
+    state.slateRows = slate([NO_START, POTHOLE], "2");
     expect(await sources()).toContain("2 in rotation (active slate of 2, used up, so the lane holds)");
   });
 

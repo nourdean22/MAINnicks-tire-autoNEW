@@ -3967,6 +3967,11 @@
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The decision-look arithmetic of the sequential content-experiment rule (verdicts only at 12/24/48/96 reported posts per arm, then every 48). Its runtime consumer is evaluateExperiment in this same module, called by contentExperimentStore.recordVerdict for the content-experiment-resolve cron, so the rule is live, not vacuous. Exported so shared/contentExperimentsValidity.test.ts can pin the look schedule and the next-look arithmetic directly (isDecisionLook / nextDecisionLook on exact counts); through evaluateExperiment alone a wrong next look is only visible as a wrong `needed` after a full simulated walk. Tests are excluded from knip project globs by design. Added 2026-10-08 (pre-merge audit)."
     },
     {
+      "file": "apps/nickstire/shared/contentExperiments.ts",
+      "symbol": "MIXED_HASH_VARIABLES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The variables whose arms assignArm draws with the bit-mixed hash (pack_variant). Runtime consumer: assignArm in this module, on every experiment assignment and every arm read (contentExperimentStore), so it is live, not vacuous. shared/contentExperimentPresets.test.ts imports it so the coprime-arm gate compares only presets in the same hash family: two 2-arm experiments on the plain hash split the same Reels identically (120 of 120 daily keys), on different families they do not (58 of 120). Tests are excluded from knip project globs by design, which is why a test-only importer reads as an orphan. Added 2026-10-08 (pack-variant arms)."
+    },
+    {
       "file": "apps/nickstire/client/src/hooks/useFocusTrap.ts",
       "symbol": "default",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"

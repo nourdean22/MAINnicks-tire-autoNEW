@@ -124,10 +124,10 @@ It refuses a source that does not parse, keeps each replaced copy as
 `<file>.bak-<yyyyMMdd-HHmmss>`, swaps in place (a reader of the old copy keeps it), checks the
 hash afterwards and exits 1 if anything was refused. The supervisor compares each installed copy
 with the repo once a tick and logs `WARN installed <name> script ... differs from the repo copy`,
-at most once a day per script, until the installer is run. It also refreshes
-`data\nicksmax-camera-supervisor.fallback.ps1` from itself after a tick completes (`ACTION
-refreshed the fallback copy ...`), so the shim's fallback is the last version that ran to the end
-rather than a copy from 2026-10-02.
+at most once a day per script, until the installer is run. A tick that runs to its end also leaves
+the text it ran in `data\nicksmax-camera-supervisor.fallback.ps1` when that differs and parses
+(`ACTION refreshed the fallback supervisor copy ...`; #2937), so the shim's fallback is the last
+version that completed a tick rather than a copy from 2026-09-29.
 
 The three launchers now keep the previous run's stdout/stderr as `<log>.prev` instead of
 deleting them at start, so a crashed edge, crop or bridge leaves its own last words behind for
