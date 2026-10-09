@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "UPDATED, not deferred: docs/operations/capability-ledger.json 'receptionist-prompt-evolution-gate' codeCommit records the optimizer lane-failure fix (240 s per call; a timed-out call is the proposal's failure, not the run's) and its integration case. REALITY-LEDGER.md re-rendered."
+    }
+  }
+}

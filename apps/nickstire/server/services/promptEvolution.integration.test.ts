@@ -128,6 +128,8 @@ interface Scenario {
    * not contain. Default "whole": the legacy <PROMPT> re-emit.
    */
   optimizerShape?: (n: number) => "edit" | "edit-missing" | "whole";
+  /** Optimizer call n throws (the lane timed out or refused) instead of answering. */
+  optimizerThrows?: (n: number) => boolean;
   /** The served prompt when a test's baseline is not LIVE_PROMPT (routes its replays as "base"). */
   basePrompt?: string;
 }
@@ -155,6 +157,7 @@ function installLlm(s: Scenario): Trace {
     if (system.startsWith("You optimize a phone-receptionist") || system.startsWith("You return exactly one line")) {
       trace.optimizer.push({ system, user });
       s.onOptimizer?.();
+      if (s.optimizerThrows?.(trace.optimizer.length)) throw new Error("The operation was aborted due to timeout");
       if (s.optimizerNoMarkers?.(trace.optimizer.length)) return llm("RATIONALE: thinking it through first\n(analysis only; the edited prompt is not emitted)");
       const c = s.candidates[(trace.optimizer.length - 1) % s.candidates.length];
       const shape = s.optimizerShape?.(trace.optimizer.length) ?? "whole";
@@ -721,7 +724,7 @@ describe("runPromptEvolution, wired", () => {
     await runPromptEvolution(base({ deadlineMs: 5_000, now: () => y }));
     const timeouts = vi.mocked(invokeLLM).mock.calls.map((c) => (c[0] as { timeoutMs?: number }).timeoutMs);
     expect(timeouts[0]).toBe(5_000); // control: before the clock moved, the whole 5 s budget (under the 60 s cap)
-    const budgeted = timeouts.slice(1).filter((ms) => ms !== 120_000); // optimizer calls keep their own cap
+    const budgeted = timeouts.slice(1).filter((ms) => ms !== 240_000); // optimizer calls keep their own cap (OPTIMIZER_TIMEOUT_MS)
     expect(budgeted.length).toBeGreaterThan(0);
     expect(budgeted.every((ms) => ms === 1_000)).toBe(true);
 
@@ -930,6 +933,29 @@ describe("runPromptEvolution, wired", () => {
     const r2 = await runPromptEvolution(base());
     expect(t2.optimizer).toHaveLength(2);
     expect(r2).toMatchObject({ outcome: "no-candidates", candidateSummaries: [], usage: { optimizerCalls: 2 } });
+    expect(t2.replays.every((x) => x.who === "base")).toBe(true);
+  });
+
+  it("an optimizer call that times out is that proposal's failure, not the run's: the next proposal still runs, and two failures end no-candidates with the baseline kept", async () => {
+    // 2026-10-09 22:15Z live run: the first optimizer call hit its timeout and the
+    // run threw, losing eight minutes of baseline replays and writing nothing.
+    const p = pool();
+    installDb(p);
+    const trace = installLlm({ ...fixesEverything, optimizerShape: () => "edit", optimizerThrows: (n) => n === 1 });
+    const r = await runPromptEvolution(base({ candidates: 2 }));
+    expect(trace.optimizer).toHaveLength(2); // call 1 threw (no retry for a call that never answered); call 2 answered
+    expect(r.usage.optimizerCalls).toBe(2);
+    expect(r.candidateSummaries).toHaveLength(1);
+    expect(r.outcome).toBe("accepted");
+    expect(r.usage.optimizerCalls).toBe(trace.optimizer.length);
+
+    installDb(p);
+    const t2 = installLlm({ ...fixesEverything, optimizerShape: () => "edit", optimizerThrows: () => true });
+    const r2 = await runPromptEvolution(base({ candidates: 2 }));
+    expect(t2.optimizer).toHaveLength(2);
+    expect(r2).toMatchObject({ outcome: "no-candidates", candidateSummaries: [], usage: { optimizerCalls: 2 } });
+    // The baseline measurement survived the lane failure.
+    expect(r2.baselineTrain).not.toBe("");
     expect(t2.replays.every((x) => x.who === "base")).toBe(true);
   });
 
