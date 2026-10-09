@@ -60,6 +60,7 @@ import {
   gradeRepliesWithJudge,
   RESOLUTION_RX,
   violatedInvariants,
+  type ReplayBudget,
 } from "./ghostReplay";
 import { excludeConsumed, selectSuccessCohort, splitSeedsThreeWay } from "./promptEvolutionCohorts";
 import {
@@ -353,6 +354,8 @@ export interface ScoreOptions {
   verifyHits?: boolean;
   /** Called before each seed's replay; runPromptEvolution's budget check throws from here. */
   beforeSeed?: () => void;
+  /** Consulted before EVERY replay and judge call; caps each call's timeout at the time left (ghostReplay ReplayBudget). */
+  budget?: ReplayBudget;
   /** Incremented in place as replays and judge calls happen, so a scoring cut short is still counted. */
   tally?: { replays: number; judgeCalls: number };
 }
@@ -363,7 +366,7 @@ export async function scorePrompt(prompt: string, seeds: Seed[], opts: ScoreOpti
   const grades: ScoredPrompt["grades"] = [];
   for (const s of seeds) {
     opts.beforeSeed?.();
-    const replies = await ghostReplay(prompt, s.callerTurns, { priority: 3 });
+    const replies = await ghostReplay(prompt, s.callerTurns, { priority: 3, budget: opts.budget });
     usage.replays++;
     if (opts.tally) opts.tally.replays++;
     // gradeRepliesWithJudge asks the judge on every seed when hits are
@@ -374,7 +377,7 @@ export async function scorePrompt(prompt: string, seeds: Seed[], opts: ScoreOpti
       usage.judgeCalls++;
       if (opts.tally) opts.tally.judgeCalls++;
     }
-    const g = await gradeRepliesWithJudge(s.callerTurns, replies, { verifyHits });
+    const g = await gradeRepliesWithJudge(s.callerTurns, replies, { verifyHits, budget: opts.budget });
     grades.push({
       id: s.id, pass: g.pass, priceLeaks: g.priceLeaks, resolutionOffered: g.resolutionOffered,
       guarantees: g.guarantees, emptyReplies: g.emptyReplies, claimViolations: g.claimViolations,
@@ -827,7 +830,13 @@ export async function runPromptEvolution(opts: EvolutionOptions): Promise<Evolut
   /** One scoring pass: budget-checked before every seed, counted into usage and the exclusion sets. */
   const score = async (prompt: string, seeds: Seed[], arm: "baseline" | "candidate", stage: string, verifyHits: boolean) => {
     checkBudget(stage);
-    const scored = await scorePrompt(prompt, seeds, { verifyHits, beforeSeed: () => checkBudget(stage), tally: usage });
+    const scored = await scorePrompt(prompt, seeds, {
+      verifyHits,
+      beforeSeed: () => checkBudget(stage),
+      // Every replay turn, retry and judge call re-checks the budget and is capped at the time left.
+      budget: { remainingMs: () => (checkBudget(stage), deadlineMs === null ? Infinity : deadlineMs - (clock() - startedAt)) },
+      tally: usage,
+    });
     for (const g of scored.grades) {
       if (g.judgeUnavailable) outageIds.add(g.id);
       if (arm === "baseline" && g.unresolvable) unresolvableIds.add(g.id);

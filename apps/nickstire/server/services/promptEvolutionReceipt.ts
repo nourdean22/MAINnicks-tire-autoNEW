@@ -670,7 +670,10 @@ export async function postPromptEvolutionReceipt(receipt: PromptEvolutionReceipt
     const measured = JSON.stringify([event.payload?.gates ?? null, event.payload?.candidates ?? null]);
     // Null when a part breaks a key rule: the batch then goes unkeyed (the legacy write), never dropped.
     const idempotencyKey = bridgeKey(EVENT_TYPE, { opaque: receipt.experimentId }, outcome, disposition, { opaque: measured });
-    const delivered = await (deps.post ?? postToEvidenceLedger)({ events: [event], claims: [claim] }, { idempotencyKey });
+    // The default poster reads the body: StateNour answers HTTP 200 for a batch
+    // whose rows it rejected, and the cron tells Telegram "recorded" off this bit.
+    const post = deps.post ?? ((b, o) => postToEvidenceLedger(b, { ...o, requireAccepted: true }));
+    const delivered = await post({ events: [event], claims: [claim] }, { idempotencyKey });
     log.info("prompt-evolution receipt", { experimentId: receipt.experimentId, outcome, disposition, delivered, keyed: idempotencyKey !== null });
     return delivered === true;
   } catch (err) {

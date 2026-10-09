@@ -675,8 +675,11 @@ describe("runPromptEvolution, wired", () => {
     expect(r2.gates.success?.reason).toBe("preserved");
     expect([...r2.consumedConfirmationIds].sort()).toEqual([...p.confirm].sort());
 
-    // At the boundary: the deadline passes on the success cohort's last replay.
-    // The sealed set is neither read nor handed to the spend hook.
+    // At the boundary: the deadline passes on the success cohort's last replay
+    // TURN. Since 2026-10-09 (#2944 review) the budget is re-checked before
+    // every model call, so that seed's judge call is never made: the run stops
+    // inside the success cohort, its gate is never computed, and the sealed
+    // set is neither read nor handed to the spend hook.
     installDb(p);
     let v = 0;
     let wonTurns = 0;
@@ -684,10 +687,24 @@ describe("runPromptEvolution, wired", () => {
     installLlm({ ...fixesEverything, onReplay: (_who, seed) => void (seed.startsWith("s-w") && ++wonTurns === lastWonTurn && (v += 10_000)) });
     const hook = vi.fn(async () => undefined);
     const r3 = await runPromptEvolution(base({ deadlineMs: 5_000, now: () => v, onConfirmationSpend: hook }));
-    expect(wonTurns).toBe(lastWonTurn); // control: the success cohort ran to its last replay
-    expect(r3.gates.success?.reason).toBe("preserved");
-    expect(r3).toMatchObject({ outcome: "inconclusive-budget", budget: { exhaustedAt: "confirmation" }, consumedConfirmationIds: [] });
+    expect(wonTurns).toBe(lastWonTurn); // control: the success cohort ran to its last replay turn
+    expect(r3.gates.success ?? null).toBeNull();
+    expect(r3).toMatchObject({ outcome: "inconclusive-budget", budget: { exhaustedAt: "success-cohort" }, consumedConfirmationIds: [] });
     expect(hook).not.toHaveBeenCalled();
+
+    // Every replay and judge call is capped at the time left (floor 1 s): once
+    // the clock sits 500 ms before the deadline, no budgeted call may be sent
+    // with the old flat 60 s timeout, so a slow lane cannot carry the run past it.
+    installDb(p);
+    let y = 0;
+    installLlm({ ...fixesEverything, onReplay: () => void (y = 4_500) });
+    vi.mocked(invokeLLM).mockClear();
+    await runPromptEvolution(base({ deadlineMs: 5_000, now: () => y }));
+    const timeouts = vi.mocked(invokeLLM).mock.calls.map((c) => (c[0] as { timeoutMs?: number }).timeoutMs);
+    expect(timeouts[0]).toBe(5_000); // control: before the clock moved, the whole 5 s budget (under the 60 s cap)
+    const budgeted = timeouts.slice(1).filter((ms) => ms !== 120_000); // optimizer calls keep their own cap
+    expect(budgeted.length).toBeGreaterThan(0);
+    expect(budgeted.every((ms) => ms === 1_000)).toBe(true);
 
     // Checked per SEED, not per stage: the deadline passes on the first train
     // replay, and the second train seed is never replayed.

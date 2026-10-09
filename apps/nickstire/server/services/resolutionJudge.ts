@@ -187,7 +187,12 @@ export function parseJudgeVerdict(raw: string): { verdict: ResolutionVerdict; re
  * HIT unless the caller passed verifyHits: false. scripts/cage-match.ts calls
  * it directly on a miss.
  */
-export async function judgeResolution(callerTurns: string[], replies: string[]): Promise<JudgeResult> {
+export async function judgeResolution(
+  callerTurns: string[],
+  replies: string[],
+  /** timeoutMs: the caller's budget-capped timeout (ghostReplay budgetedTimeout); default 60 s. */
+  opts: { timeoutMs?: number } = {},
+): Promise<JudgeResult> {
   const { invokeLLM } = await import("../_core/llm");
   try {
     const res = await invokeLLM({
@@ -197,7 +202,7 @@ export async function judgeResolution(callerTurns: string[], replies: string[]):
       ],
       model: RESOLUTION_JUDGE_MODEL,
       maxTokens: 900,
-      timeoutMs: 60000,
+      timeoutMs: opts.timeoutMs ?? 60000,
       // Evaluation measures the dialogue, not the dice.
       temperature: 0,
       // P1 shadow evaluation: grading is background work and must yield to

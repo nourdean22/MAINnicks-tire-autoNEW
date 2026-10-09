@@ -159,7 +159,28 @@ export function gradeReplies(replies: string[]): ReplayGrade {
   };
 }
 
+/**
+ * A run's wall-clock budget, consulted before EVERY model call (2026-10-09,
+ * review on #2944): remainingMs() throws when the budget is spent (the
+ * runner's BudgetExhausted) and otherwise returns the ms left. Each call's
+ * timeout is then capped by what is left, so a seed begun near the deadline
+ * cannot run past it on a slow lane: ten 60 s replay turns, their retries and
+ * a judge call used to fit behind one pre-seed check.
+ */
+export interface ReplayBudget {
+  remainingMs: () => number;
+}
+
+/** min(cap, ms left), floored at 1 s so a call is never sent with a 0 timeout. Throws via remainingMs() once spent. */
+function budgetedTimeout(budget: ReplayBudget | undefined, capMs: number): number {
+  if (!budget) return capMs;
+  const left = budget.remainingMs();
+  return Math.max(1_000, Math.min(capMs, Math.floor(left)));
+}
+
 export interface GradeWithJudgeOptions {
+  /** Wall-clock budget for the judge call (see ReplayBudget). */
+  budget?: ReplayBudget;
   /**
    * Ask the judge about a regex HIT too (default true since 2026-10-09). The
    * regex rewards any stated next step, so "come by anytime" to a caller who
@@ -204,8 +225,11 @@ export async function gradeRepliesWithJudge(
   const verifyHits = opts.verifyHits !== false;
   if (base.resolutionOffered && !verifyHits) return base;
 
+  // Outside judgeResolution's catch on purpose: a spent budget must end the
+  // run as inconclusive-budget, never read as a judge outage.
+  const judgeTimeoutMs = budgetedTimeout(opts.budget, 60_000);
   const { judgeResolution } = await import("./resolutionJudge");
-  const judged = await judgeResolution(callerTurns, replies);
+  const judged = await judgeResolution(callerTurns, replies, { timeoutMs: judgeTimeoutMs });
 
   // Needed and unreachable: the regex verdict stands, loudly. Checked before
   // the verdict, because an unreachable judge's verdict is a placeholder.
@@ -280,7 +304,7 @@ export function violatedInvariants(candidatePrompt: string, baseline?: string): 
 export async function ghostReplay(
   candidatePrompt: string,
   callerTurns: string[],
-  opts: { model?: string; maxTokens?: number; priority?: 0 | 1 | 2 | 3 | 4 } = {},
+  opts: { model?: string; maxTokens?: number; priority?: 0 | 1 | 2 | 3 | 4; budget?: ReplayBudget } = {},
 ): Promise<string[]> {
   const { invokeLLM } = await import("../_core/llm");
   const replies: string[] = [];
@@ -299,7 +323,7 @@ export async function ghostReplay(
         },
       ],
       maxTokens: opts.maxTokens ?? 700,
-      timeoutMs: 60000,
+      timeoutMs: budgetedTimeout(opts.budget, 60000),
       model: opts.model ?? GHOST_AGENT_MODEL,
       priority: opts.priority ?? 3,
       // Temperature 0: evaluation must measure the prompt, not the dice — a
@@ -323,7 +347,7 @@ export async function ghostReplay(
           },
         ],
         maxTokens: 1400,
-        timeoutMs: 60000,
+        timeoutMs: budgetedTimeout(opts.budget, 60000),
         model: opts.model ?? GHOST_AGENT_MODEL,
         priority: opts.priority ?? 3,
         temperature: 0,
