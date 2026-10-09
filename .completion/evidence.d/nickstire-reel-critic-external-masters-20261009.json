@@ -1,0 +1,16 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json: reel-critic-external-masters-20261009 added (in_progress / unit_verified / disabled; blocker: RENDERED_QA_VOTES defaults to 1) and reel-source-aware-route-20261009 promoted to merged / internal after PR #2946 landed as main d4102efad; docs/operations/REALITY-LEDGER.md re-rendered with scripts/render-reality-ledger.mjs in the same diff."
+    },
+    "render-spend-trajectory": {
+      "ref": "2026-10-09 critic update: renderedQa.ts changes judge-side logic only — the critic prompt (EXTERNAL MASTER block, legitimate-text calibration), post-verdict exemptions (declared text, caption-timing on an external master) and voteVerdicts over RENDERED_QA_VOTES runs. No generation, repair or publish call is added or reordered; a majority vote can only REDUCE blocks reaching repairRouter (fewer paid regenerations), never add one. server/reelSourceAware.test.ts 'rendered QA on an external master' (5 cases) + server/qualityGate.test.ts, server/selectiveRepair.test.ts, server/reelLaneUnjam.test.ts green on the tree."
+    },
+    "visual-world-trajectory": {
+      "ref": "2026-10-09 critic update: visualWorld / lockedInvariants handling in renderedQa.evaluateRenderedReel is untouched (worldBlock built exactly as before and placed in the same prompt position); the diff adds externalMaster.textSurfaces and voting around the existing call. server/renderedQa.test.ts green on the tree."
+    },
+    "cron-fail-closed": {
+      "ref": "2026-10-09 critic update: no cron file changes; the only consumer path touched is evaluateRenderedReel, which still returns a skipped (qaState unavailable) verdict on any throw, so a failed vote run fails closed exactly as a failed single run did. server/cron/jobs/dailyReelPost.test.ts and server/qualityGate.test.ts green on the tree."
+    }
+  }
+}

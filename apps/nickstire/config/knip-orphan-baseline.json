@@ -6150,6 +6150,31 @@
       "file": "apps/nickstire/server/services/reelAssembly.ts",
       "symbol": "expectedClipProof",
       "reason": "2026-10-09 source-aware route (Codex review of #2946): tri-state lineage proof, exported for reelSourceAware.test.ts; consumed internally by assembleReel and expectedClipSha256"
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "normalizedTextSurfaces",
+      "reason": "2026-10-09 critic update for external masters: declared text surfaces normalizer; exported for reelSourceAware.test.ts, consumed internally by evaluateRenderedReel / applyPresenceExemptions"
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "describesDeclaredText",
+      "reason": "2026-10-09 critic update for external masters: positive match of a declared surface in a finding; exported for reelSourceAware.test.ts, consumed internally by evaluateRenderedReel / applyPresenceExemptions"
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "isCaptionTimingMismatch",
+      "reason": "2026-10-09 critic update for external masters: caption-timing vs subject mismatch classifier; exported for reelSourceAware.test.ts, consumed internally by evaluateRenderedReel / applyPresenceExemptions"
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "voteVerdicts",
+      "reason": "2026-10-09 critic update for external masters: majority vote across critic runs; exported for reelSourceAware.test.ts, consumed internally by evaluateRenderedReel / applyPresenceExemptions"
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "renderedQaVoteCount",
+      "reason": "2026-10-09 critic update for external masters: RENDERED_QA_VOTES reader; exported for reelSourceAware.test.ts, consumed internally by evaluateRenderedReel / applyPresenceExemptions"
     }
   ]
 }
