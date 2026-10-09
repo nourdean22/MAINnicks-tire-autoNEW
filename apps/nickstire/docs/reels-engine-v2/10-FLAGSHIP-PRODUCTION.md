@@ -10,7 +10,7 @@ spends money or publishes.
 | Fact | Evidence | Level |
 |---|---|---|
 | The real-shop media pool is empty | `media_assets` has 0 rows with `rights_status = 'real_shop'` | FACT |
-| No Reel has posted since 2026-10-04 04:08Z, and none was produced on 10-09 | `reel_jobs`, `cron_log` "production held: usable READY buffer 2"; fixed by the READY-count change in this PR | FACT |
+| No Reel has posted since 2026-10-04 04:08Z, and none was produced on 10-09 | `reel_jobs`, `cron_log` "production held: usable READY buffer 2"; fixed by #2940 (main `8175758a`, deployed 2026-10-09; live proof due at the 2026-10-10 ET 06:00 pulse) | FACT |
 | Higgsfield: Ultra plan, 2,863 credits; a 3,000 grant on 2026-10-07 03:26Z | account `balance` + `transactions`; balance = grant minus the 137 spent since | FACT |
 | The pipeline's CLI spends draw that same website-credit pool | Seedance 1.5 Pro at 12 credits per 4 s clip at the minutes job 2040001 generated (10:17–10:23Z) and repaired (17:27Z); GPT Image 2.0 at 6.5 | FACT (same ledger, same minutes) |
 | Unused credits reset at the next grant, about 2026-11-07 | balance equals the grant minus spend exactly; no carry-over visible | STRONG INFERENCE |
@@ -28,6 +28,19 @@ spends money or publishes.
 5. **Reel A third** — one hero shot through a bounded model benchmark.
 6. **Covers and first frames** tested on their own, at phone size, three variants each.
 7. Only after human review: the pilot (A001–A008 + A027), then two daily slots, then the 62-slot slate.
+
+## Where it stands (2026-10-09, end of day)
+
+| Item | State | Owner |
+|---|---|---|
+| READY deadlock and paid-repair economics (#2940) | deployed; live proof at the 2026-10-10 ET 06:00 pulse | code |
+| Jobs 2040001 and 1770004 | retire in Instagram > Queue | operator |
+| Old-style daily lane spend (about 60 credits per Reel) | keep, or hold with `REEL_AUTOPOST_ENABLED=false` | operator |
+| Capture day | not booked | shop |
+| Reels C, B, A | blocked on capture day | after capture |
+| Pilot | blocked: every pilot Reel needs real evidence and the pool is empty | after capture |
+| Two daily slots | on hold: one Reel a day must post reliably first, and the hour data is confounded | judgment call |
+| 62-slot slate | on hold per the Creative Theft Manual; a provisional draft from the angle bank costs 0 credits and was offered | operator's call |
 
 ## Memory devices (recur; never a template)
 
