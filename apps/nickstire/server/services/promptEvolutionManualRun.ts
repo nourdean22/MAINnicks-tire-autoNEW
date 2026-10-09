@@ -43,7 +43,7 @@ const log = createLogger("prompt-evolution:manual");
 
 export const PROMPT_EVOLUTION_JOB_NAME = "prompt-evolution-weekly";
 /** The env the tier job declares with `requiresEnv`; the scheduler skips the job without it. */
-export const PROMPT_EVOLUTION_REQUIRED_ENV = "OLLAMA_API_KEY";
+const PROMPT_EVOLUTION_REQUIRED_ENV = "OLLAMA_API_KEY";
 /** Must match the tier job's `timeoutMs` (cron/scheduler.ts). Canaried by the test. */
 export const PROMPT_EVOLUTION_BUDGET_MS = 30 * 60 * 1000;
 const LATEST_KEY = "prompt_evolution_latest";
