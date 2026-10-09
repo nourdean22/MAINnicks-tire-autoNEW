@@ -104,6 +104,34 @@ export function registerAdminRoutes(app: Express): void {
     });
   });
 
+  // ─── Receptionist prompt experiment, on demand (admin) ──
+  // 2026-10-09 · POST /api/admin/run-prompt-evolution starts the SAME cycle
+  // the prompt-evolution-weekly tier job runs on Mondays, today: same
+  // cross-dyno lock, same 30-minute budget, same cron_log row, same /proof
+  // receipt, propose-only. Returns as soon as the run is started (a full
+  // cycle takes up to 25 minutes). GET /api/admin/prompt-evolution-status
+  // reads the in-process state plus the latest row's summary (hashes and
+  // counts, never the candidate prompt). Both sit behind requireAdminApiKey,
+  // the same gate as /api/admin/cron-status above, so the operator can start
+  // and watch a run headlessly with one credential. The tRPC pair
+  // vapi.runPromptEvolutionNow / vapi.promptEvolutionStatus is the panel's.
+  app.post("/api/admin/run-prompt-evolution", requireAdminApiKey, async (_req, res) => {
+    try {
+      const { startPromptEvolutionManualRun } = await import("../services/promptEvolutionManualRun");
+      res.json({ ...(await startPromptEvolutionManualRun()), timestamp: new Date().toISOString() });
+    } catch (e) {
+      res.status(500).json({ status: "failed", error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+  app.get("/api/admin/prompt-evolution-status", requireAdminApiKey, async (_req, res) => {
+    try {
+      const { promptEvolutionManualRunStatus, readLatestPromptEvolutionSummary } = await import("../services/promptEvolutionManualRun");
+      res.json({ ...promptEvolutionManualRunStatus(), latest: await readLatestPromptEvolutionSummary(), timestamp: new Date().toISOString() });
+    } catch (e) {
+      res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
   // ─── Run pending migrations (admin · idempotent) ──────
   // POST /api/admin/run-migrations — applies the hand-written DDL array in
   // handleRunMigrations (all CREATE TABLE IF NOT EXISTS / INSERT IGNORE /
