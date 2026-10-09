@@ -4,10 +4,15 @@
  * analyzeChatFunnel, analyzeReviewSentiment, analyzeWebsiteJourneys,
  * analyzeCallPatterns, analyzeNewCustomerVelocity, analyzeReferralNetwork,
  * forecastPortfolioLTV
+ *
+ * A failed read resolves to the engine's empty shape marked `unavailable: true`
+ * (2026-10-09; the convention masterIntelligence's readFailed() consumes), never a
+ * bare empty shape that reads as a quiet week. A successful read never sets it.
  */
 
 import { sql } from "drizzle-orm";
 import { RawRow, extractRows, extractOne, db } from "./shared";
+import { shopMonthBounds } from "../customerStatsRead";
 
 // ═══════════════════════════════════════════════════════════
 // #44 CHAT CONVERSION FUNNEL
@@ -20,6 +25,7 @@ export async function analyzeChatFunnel(): Promise<{
   convertedToLead: number;
   booked: number;
   dropOffStage: string;
+  unavailable?: true;
 }> {
   try {
     const rows = await (await db()).execute(sql`
@@ -76,7 +82,7 @@ export async function analyzeChatFunnel(): Promise<{
 
     return { opened, engaged, sharedInfo, convertedToLead, booked, dropOffStage };
   } catch {
-    return { opened: 0, engaged: 0, sharedInfo: 0, convertedToLead: 0, booked: 0, dropOffStage: "Unknown" };
+    return { opened: 0, engaged: 0, sharedInfo: 0, convertedToLead: 0, booked: 0, dropOffStage: "Unknown", unavailable: true };
   }
 }
 
@@ -89,6 +95,7 @@ export async function analyzeReviewSentiment(): Promise<{
   overallSentiment: number;
   trendingPositive: string[];
   trendingNegative: string[];
+  unavailable?: true;
 }> {
   try {
     const TOPIC_PATTERNS: Record<string, RegExp> = {
@@ -144,7 +151,7 @@ export async function analyzeReviewSentiment(): Promise<{
 
     return { topics, overallSentiment, trendingPositive, trendingNegative };
   } catch {
-    return { topics: [], overallSentiment: 0, trendingPositive: [], trendingNegative: [] };
+    return { topics: [], overallSentiment: 0, trendingPositive: [], trendingNegative: [], unavailable: true };
   }
 }
 
@@ -155,6 +162,7 @@ export async function analyzeReviewSentiment(): Promise<{
 export async function analyzeWebsiteJourneys(): Promise<{
   topLandingPages: Array<{ page: string; leads: number; conversionRate: number }>;
   topConversionPaths: Array<{ path: string; count: number }>;
+  unavailable?: true;
 }> {
   try {
     // Landing pages that generate leads
@@ -196,7 +204,7 @@ export async function analyzeWebsiteJourneys(): Promise<{
 
     return { topLandingPages, topConversionPaths };
   } catch {
-    return { topLandingPages: [], topConversionPaths: [] };
+    return { topLandingPages: [], topConversionPaths: [], unavailable: true };
   }
 }
 
@@ -209,6 +217,7 @@ export async function analyzeCallPatterns(): Promise<{
   topSourcePages: Array<{ page: string; calls: number }>;
   callToBookingRate: number;
   peakCallHour: number;
+  unavailable?: true;
 }> {
   try {
     // Hourly distribution
@@ -268,7 +277,7 @@ export async function analyzeCallPatterns(): Promise<{
 
     return { hourlyVolume, topSourcePages, callToBookingRate, peakCallHour };
   } catch {
-    return { hourlyVolume: [], topSourcePages: [], callToBookingRate: 0, peakCallHour: 0 };
+    return { hourlyVolume: [], topSourcePages: [], callToBookingRate: 0, peakCallHour: 0, unavailable: true };
   }
 }
 
@@ -282,13 +291,24 @@ export async function analyzeNewCustomerVelocity(): Promise<{
   velocity: number;
   trend: "accelerating" | "decelerating" | "steady";
   projectedYearEnd: number;
+  /**
+   * Q-23 · true only when the read failed. The zeros beside it are then
+   * placeholders, not "0 new customers": masterIntelligence's readFailed()
+   * drops the engine from the health score and names it in `failures`
+   * instead of scoring "Customer growth -4 · 0 new customers this month".
+   */
+  unavailable?: true;
 }> {
   try {
+    // The SHOP's month (2026-10-09): DATE_FORMAT(NOW(), '%Y-%m-01') is the UTC month, which turns
+    // over at 20:00 ET on the last day, so that evening scored "0 new customers this month".
+    // Same bounds and stored-day comparison as customer_stats (customerStatsRead.ts).
+    const { lastMonthStart, monthStart, nextMonthStart } = shopMonthBounds(new Date());
     const rows = await (await db()).execute(sql`
       SELECT
-        SUM(CASE WHEN firstVisitDate >= DATE_FORMAT(NOW(), '%Y-%m-01') THEN 1 ELSE 0 END) as thisMonth,
-        SUM(CASE WHEN firstVisitDate >= DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 1 MONTH), '%Y-%m-01')
-                   AND firstVisitDate < DATE_FORMAT(NOW(), '%Y-%m-01') THEN 1 ELSE 0 END) as lastMonth,
+        SUM(CASE WHEN firstVisitDate >= ${monthStart} AND firstVisitDate < ${nextMonthStart} THEN 1 ELSE 0 END) as thisMonth,
+        SUM(CASE WHEN firstVisitDate >= ${lastMonthStart}
+                   AND firstVisitDate < ${monthStart} THEN 1 ELSE 0 END) as lastMonth,
         SUM(CASE WHEN firstVisitDate >= DATE_SUB(NOW(), INTERVAL 12 MONTH) THEN 1 ELSE 0 END) as lastYear
       FROM customers
       WHERE firstVisitDate IS NOT NULL
@@ -308,7 +328,7 @@ export async function analyzeNewCustomerVelocity(): Promise<{
 
     return { thisMonth, lastMonth, velocity, trend, projectedYearEnd };
   } catch {
-    return { thisMonth: 0, lastMonth: 0, velocity: 0, trend: "steady", projectedYearEnd: 0 };
+    return { thisMonth: 0, lastMonth: 0, velocity: 0, trend: "steady", projectedYearEnd: 0, unavailable: true };
   }
 }
 
@@ -320,6 +340,7 @@ export async function analyzeReferralNetwork(): Promise<{
   topReferrers: Array<{ name: string; phone: string; referralCount: number; convertedCount: number; totalRevenue: number }>;
   networkSize: number;
   avgReferralValue: number;
+  unavailable?: true;
 }> {
   try {
     // Single aggregated query: referrals + revenue in one pass (no N+1)
@@ -356,7 +377,7 @@ export async function analyzeReferralNetwork(): Promise<{
     topReferrers.sort((a, b) => b.totalRevenue - a.totalRevenue);
     return { topReferrers: topReferrers.slice(0, 15), networkSize, avgReferralValue };
   } catch {
-    return { topReferrers: [], networkSize: 0, avgReferralValue: 0 };
+    return { topReferrers: [], networkSize: 0, avgReferralValue: 0, unavailable: true };
   }
 }
 
@@ -369,6 +390,7 @@ export async function forecastPortfolioLTV(): Promise<{
   avgCustomerLTV: number;
   ltvBySegment: Array<{ segment: string; count: number; avgLTV: number; totalLTV: number }>;
   growthRate: number;
+  unavailable?: true;
 }> {
   try {
     const rows = await (await db()).execute(sql`
@@ -440,6 +462,6 @@ export async function forecastPortfolioLTV(): Promise<{
 
     return { totalProjectedLTV: Math.round(totalProjectedLTV), avgCustomerLTV, ltvBySegment, growthRate };
   } catch {
-    return { totalProjectedLTV: 0, avgCustomerLTV: 0, ltvBySegment: [], growthRate: 0 };
+    return { totalProjectedLTV: 0, avgCustomerLTV: 0, ltvBySegment: [], growthRate: 0, unavailable: true };
   }
 }

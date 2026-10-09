@@ -34,6 +34,13 @@ export async function db() {
   return d;
 }
 
+/**
+ * The one multi-label service classifier: engines/* and intelligenceEngines.ts
+ * classify through this table, directly or via categorizeService().
+ * reportIngestion.ts and pricingIntelligence.ts keep separate single-label
+ * taxonomies on purpose; all three are pinned in
+ * ../serviceCategorizers.golden.test.ts.
+ */
 export const SERVICE_CATEGORIES = [
   { key: "brakes", pattern: /brake|rotor|pad|caliper/i },
   { key: "tires", pattern: /tire|mount|balance|rotation|alignment/i },

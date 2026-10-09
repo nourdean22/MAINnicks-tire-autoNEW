@@ -54,7 +54,9 @@ export const habitsTools = {
     inputSchema: z.object({}),
     execute: async () => {
       const { queryNick } = await import("@/lib/nickstire/query");
-      const sevenAgo = toDateString(daysAgo(7));
+      // Seven shop days including today: revenue_range's `from`/`to` are both inclusive, so
+      // daysAgo(7)..today read eight (2026-10-09).
+      const sevenAgo = toDateString(daysAgo(6));
 
       const [revenue, scoreSnapshots, tasksCompleted, tasksCreated, dailyHabits, alerts] = await Promise.all([
         queryNick("revenue_range", { from: sevenAgo, to: today() }),

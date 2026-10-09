@@ -122,12 +122,6 @@
       "reason": "predictRepeatVisits(): daysSinceLast = DATEDIFF(NOW(), lastVisitDate) decides who is 'due soon' or overdue in the admin repeat-visit predictor, and reads one day high between 8 PM ET (7 PM in winter) and midnight."
     },
     {
-      "file": "server/services/engines/growth.ts",
-      "count": 3,
-      "effect": "staff-today",
-      "reason": "Admin growth engine: new customers this month vs last month from DATE_FORMAT(NOW(), '%Y-%m-01') and DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 1 MONTH), '%Y-%m-01'). UTC months start at 8 PM ET (7 PM in winter) on the previous month's last day, and after 8 PM ET on a month's last day 'this month' restarts near zero, which flips the trend and the year-end projection until midnight."
-    },
-    {
       "file": "server/services/engines/marketing.ts",
       "count": 3,
       "effect": "staff-today",

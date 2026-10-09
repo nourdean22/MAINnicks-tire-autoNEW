@@ -20,6 +20,7 @@ import { invokeLLM } from "../_core/llm";
 import { db } from "../lib/db-helper";
 
 import { BUSINESS } from "@shared/business";
+import { getBusinessDateKey } from "../lib/timezoneAssert";
 const log = createLogger("nick-intelligence");
 
 // ─── CROSS-PIPELINE ANALYTICS ─────────────────────────
@@ -222,6 +223,14 @@ export async function projectRevenue(): Promise<{
 
 // ─── PROACTIVE ALERTS ─────────────────────────────────
 
+/**
+ * The shop day a failed at-risk read was last put in the alerts. The proactive check runs every
+ * 2 hours and sends (with an LLM insight) whenever an alert exists, so a read that keeps failing
+ * would repeat all day; it is said once a shop day, and again after a measured read in between.
+ * The churn-detection run fails in cron_log on every failed read regardless.
+ */
+let atRiskReadFailureSaidOn: string | null = null;
+
 export async function generateProactiveAlerts(): Promise<string[]> {
   const d = await db();
   if (!d) return [];
@@ -312,9 +321,21 @@ export async function generateProactiveAlerts(): Promise<string[]> {
   try {
     const { analyzeCustomers } = await import("./customerIntelligence");
     const ci = await analyzeCustomers();
-    if (ci.atRiskCustomers.length > 0) {
-      const topRisk = ci.atRiskCustomers[0];
-      alerts.push(`💸 AT-RISK CUSTOMER: ${topRisk.name} (${topRisk.daysSince}d since last visit) — call ${topRisk.phone} before they go elsewhere`);
+    // A failed read is said, once a shop day, not read as "nobody at risk" (2026-10-09).
+    if (ci.unavailable || ci.atRiskUnavailable) {
+      const today = getBusinessDateKey(now);
+      if (atRiskReadFailureSaidOn !== today) {
+        alerts.push(`⚠️ At-risk customer check did not run: the customer read failed`);
+        atRiskReadFailureSaidOn = today;
+      } else {
+        log.warn("[intelligence:proactiveAlerts] at-risk customer read failed again (already said today)");
+      }
+    } else {
+      atRiskReadFailureSaidOn = null;
+      if (ci.atRiskCustomers.length > 0) {
+        const topRisk = ci.atRiskCustomers[0];
+        alerts.push(`💸 AT-RISK CUSTOMER: ${topRisk.name} (${topRisk.daysSince}d since last visit) — call ${topRisk.phone} before they go elsewhere`);
+      }
     }
     if (ci.lapsedCustomers > ci.activeCustomers && ci.totalCustomers > 20) {
       alerts.push(`📉 More lapsed (${ci.lapsedCustomers}) than active (${ci.activeCustomers}) customers — retention needs attention`);
@@ -576,7 +597,9 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
         `- Did you work out today? Body affects business.\n` +
         `- Did you follow up on yesterday's priorities?\n` +
         `- Are you building or drifting? Boring repetition > intensity spikes.\n\n` +
-        (ci.atRiskCustomers.length > 0 ? `⚠️ ${ci.atRiskCustomers.length} at-risk customers — call them FIRST tomorrow\n` : "") +
+        (ci.unavailable || ci.atRiskUnavailable
+          ? `⚠️ At-risk customers: unknown — the customer read failed\n`
+          : ci.atRiskCustomers.length > 0 ? `⚠️ ${ci.atRiskCustomers.length} at-risk customers — call them FIRST tomorrow\n` : "") +
         (plan ? `\n${plan.slice(0, 300)}` : "") +
         `\n\n${pulse.shopInsight}`
       );

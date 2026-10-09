@@ -6,6 +6,7 @@
  * autopilot calls them directly) — only the unused tRPC wrappers were removed.
  */
 import { adminProcedure, router } from "../_core/trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, desc } from "drizzle-orm";
 import { intelligenceDecisionLedger, socialContentInventory } from "../../drizzle/schema";
@@ -36,7 +37,15 @@ export const intelligenceRouter = router({
   competitorGap: adminProcedure.query(async () => analyzeCompetitorGap()),
 
   /** #44 Chat Conversion Funnel */
-  chatFunnel: adminProcedure.query(async () => analyzeChatFunnel()),
+  // A failed read is an error, not an empty funnel: the AI Ideas page then says
+  // "(not read)" instead of counting it as a payload with no topics.
+  chatFunnel: adminProcedure.query(async () => {
+    const funnel = await analyzeChatFunnel();
+    if (funnel.unavailable) {
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "chat funnel read failed: unknown, not empty" });
+    }
+    return funnel;
+  }),
 
   /** Master Intelligence Report — unified digest across all 50 engines */
   masterReport: adminProcedure.query(async () => {

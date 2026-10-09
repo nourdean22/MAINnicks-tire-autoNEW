@@ -15,6 +15,14 @@ export interface PaidVisitRow {
   customerId: number;
   invoiceDate: Date;
   totalAmount: number; // cents
+  /**
+   * The invoice's shop day as stored (`YYYY-MM-DD`). `invoiceDate` is stored in shop time, so the
+   * reader takes the day from SQL; re-deriving it from the driver's Date in New York time put a
+   * date-only ticket (stored at 00:00) on the day before, so it and a timed ticket of the same day
+   * counted as two purchase periods. Without it the day comes from `invoiceDate` (tests, callers
+   * holding true instants).
+   */
+  shopDay?: string;
 }
 
 export interface CustomerValueRank {
@@ -63,7 +71,7 @@ export function rankCustomerValueHistories(
       days = new Map();
       byCustomer.set(row.customerId, days);
     }
-    const day = shopDay(row.invoiceDate);
+    const day = row.shopDay ?? shopDay(row.invoiceDate);
     const existing = days.get(day);
     if (existing) existing.cents += row.totalAmount;
     else days.set(day, { at: row.invoiceDate, cents: row.totalAmount });
@@ -140,7 +148,7 @@ export async function getCustomerValueReferenceRanking(
     };
   }
   const raw = await d.execute(sql.raw(
-    "SELECT customerId, invoiceDate, totalAmount FROM invoices " +
+    "SELECT customerId, invoiceDate, DATE_FORMAT(invoiceDate, '%Y-%m-%d') AS shopDay, totalAmount FROM invoices " +
       "WHERE customerId IS NOT NULL AND invoiceDate IS NOT NULL " +
       "AND totalAmount > 0 AND paymentStatus = 'paid' " +
       "ORDER BY customerId ASC, invoiceDate ASC"
@@ -151,6 +159,7 @@ export async function getCustomerValueReferenceRanking(
       customerId: Number(row.customerId),
       invoiceDate: new Date(String(row.invoiceDate)),
       totalAmount: Number(row.totalAmount),
+      ...(typeof row.shopDay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(row.shopDay) ? { shopDay: row.shopDay } : {}),
     }))
     .filter((row) =>
       Number.isFinite(row.customerId) &&

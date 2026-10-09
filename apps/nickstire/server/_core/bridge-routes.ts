@@ -1295,6 +1295,9 @@ export function registerBridgeRoutes(app: Express): void {
       try {
         const { analyzeCustomers } = await import("../services/customerIntelligence");
         const ci = await analyzeCustomers();
+        // A failed customer read takes the same { error } shape as a thrown
+        // one below, never "total: 0, retentionRate: 0".
+        if (ci.unavailable) throw new Error("customer intelligence read failed — counts unknown, not zero");
         results.customers = {
           total: ci.totalCustomers,
           active: ci.activeCustomers,
@@ -1310,6 +1313,8 @@ export function registerBridgeRoutes(app: Express): void {
           servicePatterns: ci.servicePatterns.slice(0, 10),
           dayOfWeekPattern: ci.dayOfWeekPattern,
           peakHours: ci.peakHours,
+          ...(ci.atRiskUnavailable ? { atRiskUnavailable: true } : {}),
+          ...(ci.bookingPatternsUnavailable ? { bookingPatternsUnavailable: true } : {}),
         };
       } catch (e: unknown) {
         results.customers = { error: (e as Error).message };

@@ -17,8 +17,10 @@ const log = createLogger("master-intelligence");
 
 /**
  * Q-23 phase 7 · an engine can fail without rejecting. predictChurn,
- * predictRepeatVisits and analyzeLeadResponseTime catch their own read error
- * and resolve to an empty shape marked `unavailable: true`. Read as data, that
+ * predictRepeatVisits, analyzeLeadResponseTime, analyzeNewCustomerVelocity and
+ * (2026-10-09) analyzeChatFunnel, analyzeReviewSentiment, analyzeReferralNetwork
+ * and forecastPortfolioLTV catch their own read error and resolve to an empty
+ * shape marked `unavailable: true`. Read as data, that
  * empty shape scored as the best case ("0 high-risk customers": +8). It is a
  * failed engine: absent from the score and counted in `failures`.
  */
@@ -418,15 +420,28 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
     record("Revenue concentration", pts, 3, `Top 10% of customers drive ${top10Pct}% of revenue (healthy: 30-50%)`);
   }
 
-  // 12. Chat funnel conversion (±3)
+  // 12. Chat funnel conversion (±3). analyzeChatFunnel returns the funnel's counts over
+  // 90 days ({ opened, engaged, sharedInfo, convertedToLead, booked }). This read
+  // conversionRate / chatToBookingRate / totalSessions, keys it has never had, so it
+  // recorded "0% chat→booking conversion (0 sessions)" on every run (found 2026-10-09).
   if (chatFunnel) {
-    const conversionPct = num(chatFunnel, "conversionRate", "chatToBookingRate");
-    const totalSessions = num(chatFunnel, "totalSessions");
+    const totalSessions = num(chatFunnel, "opened");
+    const booked = num(chatFunnel, "booked");
+    const conversionPct = totalSessions > 0 ? Math.round((booked / totalSessions) * 100) : 0;
     let pts = 0;
-    if (conversionPct > 30) pts = 3;
-    else if (conversionPct > 15) pts = 1;
-    else if (conversionPct < 5 && totalSessions > 5) pts = -2;
-    record("Chat funnel", pts, 3, `${conversionPct}% chat→booking conversion (${totalSessions} sessions)`);
+    if (totalSessions > 0) {
+      if (conversionPct > 30) pts = 3;
+      else if (conversionPct > 15) pts = 1;
+      else if (conversionPct < 5 && totalSessions > 5) pts = -2;
+    }
+    record(
+      "Chat funnel",
+      pts, 3,
+      totalSessions > 0
+        ? `${conversionPct}% chat→booking conversion (${booked} booked of ${totalSessions} sessions, 90 days)`
+        : "No chat sessions in 90 days (skipped)",
+      totalSessions > 0,
+    );
   }
 
   // 13. Customer value trend (±3)
@@ -568,7 +583,9 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
 
   // Referral network
   if (referralNet) {
-    const totalRefs = num(referralNet, "totalReferrals", "count");
+    // analyzeReferralNetwork counts referrals as `networkSize`; "totalReferrals" / "count"
+    // never existed on it, so this opportunity could not fire (found 2026-10-09).
+    const totalRefs = num(referralNet, "networkSize");
     if (totalRefs > 5) {
       opportunityCandidates.push({ priority: 10, text: `Referral network active: ${totalRefs} referrals tracked — amplify with a bonus offer` });
     }

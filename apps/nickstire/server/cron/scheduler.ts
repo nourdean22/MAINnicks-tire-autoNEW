@@ -809,8 +809,10 @@ function buildTiers(): void {
               return { current, history };
             };
 
+            // invoiceDate is the stored shop-local day (2026-10-09): converting it from UTC
+            // moved every date-only ticket onto the day before, so today's count read near zero.
             const [invoiceDailyRaw] = await d.execute(sql`
-              SELECT DATE(CONVERT_TZ(invoiceDate, '+00:00', 'America/New_York')) AS day, COUNT(*) AS cnt
+              SELECT DATE(invoiceDate) AS day, COUNT(*) AS cnt
               FROM invoices
               WHERE source = 'shopdriver' AND invoiceDate >= DATE_SUB(NOW(), INTERVAL 70 DAY)
               GROUP BY day
@@ -2626,6 +2628,13 @@ function buildTiers(): void {
           try {
             const { analyzeCustomers, getCustomerActionPlan } = await import("../services/customerIntelligence");
             const data = await analyzeCustomers();
+            // A failed customer read is not "0 at-risk, 0% retention": fail the run so cron_log says so.
+            if (data.unavailable) throw new Error("customer read failed: at-risk and retention are unknown, not zero");
+            // The at-risk list is this job's whole output (the Telegram and the drip enrolment), so a
+            // failed at-risk read fails the run too, rather than completing with nothing done.
+            if (data.atRiskUnavailable) {
+              throw new Error(`at-risk read failed: the at-risk list is unknown, not empty (retention ${data.retentionRate}%)`);
+            }
             const plan = await getCustomerActionPlan();
             if (data.atRiskCustomers.length > 0) {
               const { sendTelegram } = await import("../services/telegram");

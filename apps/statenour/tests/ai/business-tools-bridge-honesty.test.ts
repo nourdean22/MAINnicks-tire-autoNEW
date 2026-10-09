@@ -219,6 +219,52 @@ describe("redactUnreadableSections", () => {
     expect(out.unavailable).toEqual(["revenue", "customers", "jobsToday"]);
   });
 
+  it("blanks reviews on their OWN ok:false, and says the review store, not the bridge", () => {
+    const out = redactUnreadableSections({
+      ...healthy,
+      reviews: { average: 0, total: 0, unresponded: 0, ok: false },
+    }) as Record<string, unknown>;
+
+    expect(out.reviews).toBeNull();
+    expect(out.unavailable).toEqual(["reviews"]);
+    expect(out.revenue).toEqual({ totalRevenue: "4210.50" });
+    expect(String(out.reason)).toMatch(/review store could not be read/);
+    expect(String(out.reason)).not.toMatch(/shop bridge/);
+    expect(String(out.reason)).toMatch(/UNKNOWN, not zero/);
+  });
+
+  it("names both causes when the bridge and the review store both failed", () => {
+    const out = redactUnreadableSections({
+      ...healthy,
+      bridgeHealth: { revenue: false, customers: true, jobsToday: true },
+      reviews: { average: 0, total: 0, unresponded: 0, ok: false },
+    }) as Record<string, unknown>;
+    expect(out.unavailable).toEqual(["revenue", "reviews"]);
+    expect(String(out.reason)).toMatch(/shop bridge: revenue\./);
+    expect(String(out.reason)).toMatch(/review store could not be read/);
+  });
+
+  it("blanks an EMPTY review store (no row ever written): its zeros are no data, not 0 reviews", () => {
+    const out = redactUnreadableSections({
+      ...healthy,
+      reviews: { average: 0, total: 0, unresponded: 0, ok: true, stale: true, lastWriteAt: null },
+    }) as Record<string, unknown>;
+    expect(out.reviews).toBeNull();
+    expect(out.unavailable).toEqual(["reviews"]);
+    expect(String(out.reason)).toMatch(/holds no review data/);
+    expect(String(out.reason)).not.toMatch(/could not be read/);
+  });
+
+  it("keeps a MEASURED zero: a store with rows whose count is 0 is not redacted", () => {
+    const measured = { ...healthy, reviews: { average: 0, total: 0, unresponded: 0, ok: true, lastWriteAt: "2026-10-01T12:00:00.000Z" } };
+    expect(redactUnreadableSections(measured)).toBe(measured);
+  });
+
+  it("keeps readable reviews (ok: true) untouched", () => {
+    const withOk = { ...healthy, reviews: { average: 4.8, total: 120, unresponded: 2, ok: true } };
+    expect(redactUnreadableSections(withOk)).toBe(withOk);
+  });
+
   it("leaves unrelated sections alone — reviews do not come from the shop bridge", () => {
     const out = redactUnreadableSections({
       ...healthy,

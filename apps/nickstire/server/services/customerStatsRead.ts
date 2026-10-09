@@ -35,14 +35,18 @@ export interface CustomerStats {
 }
 
 /** First day of the shop's calendar month containing `now`, and of the next one (YYYY-MM-DD). */
-function shopMonthBounds(now: Date): { monthStart: string; nextMonthStart: string } {
+/** The shop's calendar month around `now` (America/New_York), as stored shop-local days. */
+export function shopMonthBounds(now: Date): { lastMonthStart: string; monthStart: string; nextMonthStart: string } {
   const today = now.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
   const year = Number(today.slice(0, 4));
   const month = Number(today.slice(5, 7));
   const pad = (n: number) => String(n).padStart(2, "0");
   const nextYear = month === 12 ? year + 1 : year;
   const nextMonth = month === 12 ? 1 : month + 1;
+  const lastYear = month === 1 ? year - 1 : year;
+  const lastMonth = month === 1 ? 12 : month - 1;
   return {
+    lastMonthStart: `${lastYear}-${pad(lastMonth)}-01`,
     monthStart: `${year}-${pad(month)}-01`,
     nextMonthStart: `${nextYear}-${pad(nextMonth)}-01`,
   };

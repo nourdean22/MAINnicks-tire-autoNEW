@@ -342,6 +342,10 @@ describe("reconcileOpportunities · missed_call step 3a", () => {
     expect(cbQ).toContain("2026-09-28 15:00:00");
     const invQ = captured.find((t) => t.includes("FROM invoices") && t.includes("REGEXP_REPLACE"));
     expect(invQ).toContain("paymentStatus = 'paid'");
+    // invoiceDate is stored in shop time: read as stored, never converted from UTC (which put
+    // Friday's date-only ticket on Thursday evening, the same shop day as a Thursday call).
+    expect(invQ).toContain("DATE_FORMAT(invoiceDate, '%Y-%m-%d %H:%i:%s')");
+    expect(invQ).not.toContain("CONVERT_TZ(invoiceDate");
     const mutates = captured.some((t) => /UPDATE\s+(invoices|callback_requests|leads|bookings|vapi_call_logs)\b/i.test(t));
     expect(mutates).toBe(false);
   });

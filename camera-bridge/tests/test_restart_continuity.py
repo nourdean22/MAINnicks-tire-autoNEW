@@ -22,6 +22,13 @@ POSITIVE CONTROLS:
     disabled (`rebind_seconds=0`), so the instrument is proven able to see it;
   * the main test was run with the object-id alias removed from `VisionPipeline._emit`:
     red, because the restored visit departed and nothing continued it.
+
+THE EPISODE SEAM (`RestartEpisodeTest`, below). The stitcher's episode id lived only on
+emissions, never in the ledger, so a continued car's track carried NO episode. When that
+track later died and the car was re-acquired, the stitcher correctly called it the same
+car -- and handed the new visit the fragment's FALLBACK id, `"{camera}-{track_id}"`. The
+shop's Lot counts `COUNT(DISTINCT COALESCE(episodeId, visitId))`, so one car read as two.
+Measured red on the unfixed code: Lot arrivals 2, episodes `sign-1000016-1` vs `sign-2`.
 """
 from __future__ import annotations
 
@@ -61,7 +68,9 @@ def _box(x):
 class Process:
     """One producer process: visitd pipeline + the vision pipeline driving ITS tracker."""
 
-    def __init__(self, path, start_ts, restart=True, rebind_seconds=20.0, max_gap=120.0):
+    def __init__(self, path, start_ts, restart=True, rebind_seconds=20.0, max_gap=120.0,
+                 lot=None):
+        self.lot = lot
         self.pipe = make_pipeline(ledger=Ledger(path), raw=SIGN)
         self.vision = VisionPipeline(
             council=DetectorCouncil(primary=StubDetector([])),
@@ -93,6 +102,9 @@ class Process:
             emissions = list(out["emissions"])
             self.pipe.after_step(emissions)          # the durable boundary, as EdgeLoop does
             self.emissions.extend(emissions)
+            if self.lot is not None:
+                for em in emissions:                  # this process's OWN mirror, as a restart leaves it
+                    self.lot.deliver(self.pipe.shop.row_for(em))
             self.ts += 1.0
         assert self.vision.stats.suppressed_unhealthy == 0, "the replay clock broke"
 
@@ -279,6 +291,197 @@ class RestartContinuityTest(unittest.TestCase):
         self.assertEqual(got, {"sign-2"}, "only the car seen 40 s ago continues")
         self.assertIn(ids["sign-1"], {e.visit_id for e in p2.states("LEFT")},
                       "the car unseen for 240 s departs")
+
+
+class ShopLot:
+    """The shop's side of the episode seam, reduced to what the Lot's car count reads.
+
+    Rows are the producer's REAL `ShopMirror.row_for` output. They land the way the ingest
+    lands them (apps/nickstire/server/routes/cameraVisitsRoutes.ts): a seq-guarded full-row
+    replace in which `episodeId` is LEARNED_ONCE, i.e. `COALESCE(VALUES(episodeId), episodeId)`
+    -- a null never erases a stored episode, a non-null replaces it. `arrivals()` is the Lot's
+    `COUNT(DISTINCT CASE WHEN state <> 'PASS_THROUGH' THEN COALESCE(episodeId, visitId) END)`
+    (apps/nickstire/server/routers/lot.ts).
+    """
+
+    def __init__(self):
+        self.rows = {}
+
+    def deliver(self, row):
+        stored = self.rows.get(row["visitId"])
+        if stored is not None and row["seq"] < stored["seq"]:
+            return
+        landed = dict(row)
+        if stored is not None and landed.get("episodeId") is None:
+            landed["episodeId"] = stored.get("episodeId")
+        self.rows[row["visitId"]] = landed
+
+    def arrivals(self):
+        return len({r["episodeId"] or r["visitId"] for r in self.rows.values()
+                    if r["state"] != "PASS_THROUGH"})
+
+
+#: The car is unseen long enough for its PARKED track to die (parked_max_misses=150) and for
+#: visitd to close the visit through its 20 s grace -- then it drives in again, inside the
+#: stitcher's 60 s window from the death. visitd opens a SECOND visit (its own split-track
+#: join is 10 s); the stitcher judges it the SAME car. Same shape as
+#: vision/tests/test_vision.py::test_a_reacquired_car_keeps_its_original_arrival_instant.
+LOST_THEN_BACK = [[]] * 180 + [[x] for x in DRIVE_IN] + [[PARK]] * 60
+
+
+class RestartEpisodeTest(unittest.TestCase):
+    """A car that CONTINUED its visit across a restart keeps its episode when it is re-acquired."""
+
+    def setUp(self):
+        fd, self.path = tempfile.mkstemp(suffix=".sqlite")
+        os.close(fd)
+        logging.getLogger("edge").setLevel(logging.ERROR)
+        self.lot = ShopLot()
+
+    def tearDown(self):
+        try:
+            os.unlink(self.path)
+        except OSError:
+            pass
+
+    def _first_process(self):
+        p1 = Process(self.path, 1_000_000.0, restart=False, lot=self.lot)
+        p1.run([[]] * 10 + [[x] for x in DRIVE_IN] + [[PARK]] * 60)
+        p1.close()
+        episodes = {e.episode_id for e in p1.emissions}
+        self.assertEqual(len(episodes), 1, "precondition: one visit, one episode")
+        episode = episodes.pop()
+        self.assertTrue(episode, "precondition: the stitcher stamped the arrival's episode")
+        self.assertEqual(self.lot.arrivals(), 1)
+        return p1, episode
+
+    def _assert_one_car(self, last, episode, p1_visit):
+        self.assertEqual(last.continuations()[0]["visitId"], p1_visit,
+                         "precondition: the parked car continued its visit across the restart")
+        self.assertEqual(last.vision.summary()["stitch"]["stitched"], 1,
+                         "precondition: the stitcher judged the re-acquisition the SAME car")
+        self.assertEqual(len(self.lot.rows), 2,
+                         "precondition: visitd opened a second visit for the re-acquisition")
+        got = {vid[:8]: r["episodeId"] for vid, r in self.lot.rows.items()}
+        self.assertEqual(set(got.values()), {episode},
+                         f"the re-acquired visit lost the car's episode: {got}")
+        self.assertEqual(self.lot.arrivals(), 1, "ONE car on the Lot, counted twice")
+
+    def test_a_continued_car_reacquired_after_its_track_dies_is_ONE_car_on_the_Lot(self):
+        p1, episode = self._first_process()
+        p2 = Process(self.path, p1.ts + 30.0, lot=self.lot)
+        try:
+            p2.run([[PARK]] * 40 + LOST_THEN_BACK)
+            self._assert_one_car(p2, episode, p1.emissions[0].visit_id)
+        finally:
+            p2.close()
+
+    def test_the_episode_survives_a_SECOND_restart(self):
+        """The middle process continues the car but emits nothing for it, so the episode
+        reaches the third only if every re-save of the visit left the ledger's copy alone."""
+        p1, episode = self._first_process()
+        p2 = Process(self.path, p1.ts + 30.0, lot=self.lot)
+        p2.run([[PARK]] * 40)
+        p2.close()
+        self.assertEqual(p2.continuations()[0]["visitId"], p1.emissions[0].visit_id)
+        p3 = Process(self.path, p2.ts + 30.0, lot=self.lot)
+        try:
+            p3.run([[PARK]] * 40 + LOST_THEN_BACK)
+            self._assert_one_car(p3, episode, p1.emissions[0].visit_id)
+        finally:
+            p3.close()
+
+    def test_without_a_restart_the_same_reacquisition_is_ONE_car(self):
+        """CONTROL: the count this scenario must equal is the system's own, not the model's.
+        One process, the same park / lost / back drive: the stitcher keeps the episode."""
+        p = Process(self.path, 1_000_000.0, restart=False, lot=self.lot)
+        try:
+            p.run([[]] * 10 + [[x] for x in DRIVE_IN] + [[PARK]] * 100 + LOST_THEN_BACK)
+            self.assertEqual(p.vision.summary()["stitch"]["stitched"], 1)
+            self.assertEqual(len(self.lot.rows), 2, "visitd opened two visits")
+            self.assertEqual(self.lot.arrivals(), 1)
+        finally:
+            p.close()
+
+    def test_a_visit_with_NO_recorded_episode_still_continues(self):
+        """A ledger written before the episode column (or a visit that never had one) restores
+        with no episode: the car still continues its visit, exactly as before this fix."""
+        p1, _ = self._first_process()
+        led = Ledger(self.path)
+        led._conn.execute("UPDATE visits SET episode_id = NULL")
+        led.close()
+        p2 = Process(self.path, p1.ts + 30.0, lot=self.lot)
+        try:
+            p2.run([[PARK]] * 40)
+            self.assertEqual(p2.vision.stats.restart_continuations, 1)
+            self.assertEqual(p2.states("LEFT"), [])
+            self.assertEqual([tm.episode_id for tm in p2.vision.timings.values()], [None])
+        finally:
+            p2.close()
+
+
+#: A second car's path: in through the portal and on to x=500, clear of a car parked at PARK.
+DRIVE_IN_FAR = DRIVE_IN + [260.0, 290.0, 320.0, 350.0, 380.0, 410.0, 440.0, 470.0, 500.0]
+FAR = 500.0
+
+
+class TwoCarEpisodeTest(unittest.TestCase):
+    """Each car keeps ITS OWN episode when two cars share the lot (review of 2026-10-09).
+
+    `VisionPipeline._emit` stamped the calling track's episode onto EVERY emission visitd
+    returned for that event, including other visits' timer-driven promotions. So a second car's
+    CONFIRMED_ARRIVAL carried the first car's episode, the shop's COALESCE took it, and two cars
+    counted as one on the Lot. The ledger then kept the wrong episode, and a restart handed it to
+    the continuation.
+    """
+
+    def setUp(self):
+        fd, self.path = tempfile.mkstemp(suffix=".sqlite")
+        os.close(fd)
+        logging.getLogger("edge").setLevel(logging.ERROR)
+        self.lot = ShopLot()
+
+    def tearDown(self):
+        try:
+            os.unlink(self.path)
+        except OSError:
+            pass
+
+    def _own_episodes(self, proc):
+        led = Ledger(self.path)
+        try:
+            return led.open_visit_episodes()
+        finally:
+            led.close()
+
+    def test_two_overlapping_arrivals_are_TWO_cars_without_a_restart(self):
+        p = Process(self.path, 1_000_000.0, restart=False, lot=self.lot)
+        try:
+            p.run([[]] * 10 + [[x] for x in DRIVE_IN_FAR] + [[FAR]] * 30
+                  + [[FAR, x] for x in DRIVE_IN] + [[FAR, PARK]] * 60)
+            self.assertEqual(len(self.lot.rows), 2, "precondition: two visits")
+            self.assertEqual(self.lot.arrivals(), 2, f"two cars counted as one: {self.lot.rows}")
+            p.pipe.ledger._conn.commit()
+        finally:
+            p.close()
+        episodes = self._own_episodes(p)
+        self.assertEqual(len(set(episodes.values())), 2, f"each visit must keep its own episode: {episodes}")
+
+    def test_a_car_arriving_after_a_restart_is_not_merged_with_the_continued_one(self):
+        p1 = Process(self.path, 1_000_000.0, restart=False, lot=self.lot)
+        p1.run([[]] * 10 + [[x] for x in DRIVE_IN_FAR] + [[FAR]] * 60)
+        p1.close()
+        self.assertEqual(self.lot.arrivals(), 1)
+        p2 = Process(self.path, p1.ts + 30.0, lot=self.lot)
+        try:
+            p2.run([[FAR]] * 40 + [[FAR, x] for x in DRIVE_IN] + [[FAR, PARK]] * 60)
+            self.assertEqual(p2.vision.stats.restart_continuations, 1, "precondition: the parked car continued")
+            self.assertEqual(len(self.lot.rows), 2)
+            self.assertEqual(self.lot.arrivals(), 2, f"the new arrival took the continued car's episode: {self.lot.rows}")
+        finally:
+            p2.close()
+        episodes = self._own_episodes(p2)
+        self.assertEqual(len(set(episodes.values())), 2, f"each visit must keep its own episode: {episodes}")
 
 
 class ReconcileWithoutContinuityTest(unittest.TestCase):

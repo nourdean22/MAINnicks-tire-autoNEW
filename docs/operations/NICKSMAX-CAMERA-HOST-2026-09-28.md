@@ -99,6 +99,51 @@ Observed fail-closed receipt:
 
 Once the cropped stream was decodable, the authoritative edge returned to HEALTHY.
 
+### Host scripts: the repo is the source, the box runs installed copies (added 2026-10-09)
+
+Five scripts the supervisor depends on run from outside the tracked tree, so a `git pull` does
+not change them. Until 2026-10-09 they existed only on the box. Their canonical source is now
+`camera-bridge/scripts/nicksmax/`:
+
+| repo file | installed as | takes effect |
+|---|---|---|
+| `nicksmax-camera-supervisor-loop.ps1` | `camera-bridge\data\nicksmax-camera-supervisor-loop.ps1` (the SYSTEM task's action) | next boot, or an elevated restart of `NicksMaxCameraSupervisorSystem` |
+| `nicksmax-camera-supervisor-shim.ps1` | `camera-bridge\data\nicksmax-camera-supervisor.ps1` (what the loop starts every ~30 s) | next tick |
+| `run-sign-rtsp-production.ps1` | `camera-bridge\data\run-sign-rtsp-production.ps1` | next edge start |
+| `run-sign-crop.ps1` | `lab\v380-cloud-relay\run-sign-crop.ps1` | next crop start |
+| `start-bridge-nicksmax.ps1` | `%LOCALAPPDATA%\StateNour\Eufy\start-bridge-nicksmax.ps1` | next bridge start |
+
+Install or update them as `nourd` (no elevation needed; the files are nourd's):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File camera-bridge\scripts\nicksmax\install-nicksmax-supervisor-host.ps1 -Check   # report, write nothing
+powershell -NoProfile -ExecutionPolicy Bypass -File camera-bridge\scripts\nicksmax\install-nicksmax-supervisor-host.ps1
+```
+
+It refuses a source that does not parse, keeps each replaced copy as
+`<file>.bak-<yyyyMMdd-HHmmss>`, swaps in place (a reader of the old copy keeps it), checks the
+hash afterwards and exits 1 if anything was refused. The supervisor compares each installed copy
+with the repo once a tick and logs `WARN installed <name> script ... differs from the repo copy`,
+at most once a day per script, until the installer is run. A tick that runs to its end also leaves
+the text it ran in `data\nicksmax-camera-supervisor.fallback.ps1` when that differs and parses
+(`ACTION refreshed the fallback supervisor copy ...`; #2937), so the shim's fallback is the last
+version that completed a tick rather than a copy from 2026-09-29.
+
+The three launchers now keep the previous run's stdout/stderr as `<log>.prev` instead of
+deleting them at start, so a crashed edge, crop or bridge leaves its own last words behind for
+the run after it. The loop, shim and launchers write their own status lines through the
+supervisor's shared writer (Windows PowerShell 5.1's `Add-Content` fails beside any open reader).
+
+### The sign crop waits while the sign camera is dark (added 2026-10-09)
+
+The solar shop-sign camera goes dark at dusk. The relay's 8554 port stays open but carries no
+frames, so the crop on 8555 has none either. The supervisor used to restart the crop every tick
+in that state and called it a failure; it now probes the relay's own stack first
+(`rtsp://127.0.0.1:8554/live`). No frames there means the crop is not the problem: it logs a
+NOTE once an hour (an ESCALATE when it happens between 08:00 and 17:59, when the camera should
+have light) and leaves the crop alone. The crop is restarted only when the stack has frames and
+8555 does not.
+
 ## SYSTEM supervision / login independence
 
 A SYSTEM scheduled supervisor was successfully created on NicksMax with the receipt:

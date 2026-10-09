@@ -225,8 +225,19 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
         try {
           const { analyzeCustomers, getCustomerActionPlan } = await import("../../services/customerIntelligence");
           const ci = await analyzeCustomers();
+          // UNKNOWN IS NOT ZERO (same rule as `revenue` above): a failed customer
+          // read crosses the bridge as available:false with no numbers, never
+          // as "0 customers, 0% retention" that StateNour would persist.
+          if (ci.unavailable) {
+            log.warn("[jobs/statenourSync] customer read failed — sending available:false, not zeros");
+            return {
+              available: false as const,
+              reason: "customer intelligence read failed — counts unknown, not zero",
+            };
+          }
           const plan = await getCustomerActionPlan();
           return {
+            available: true as const,
             totalCustomers: ci.totalCustomers,
             activeCustomers: ci.activeCustomers,
             lapsedCustomers: ci.lapsedCustomers,
@@ -240,6 +251,8 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             servicePatterns: ci.servicePatterns.slice(0, 5),
             dayOfWeekPattern: ci.dayOfWeekPattern,
             peakHours: ci.peakHours,
+            ...(ci.atRiskUnavailable ? { atRiskUnavailable: true as const } : {}),
+            ...(ci.bookingPatternsUnavailable ? { bookingPatternsUnavailable: true as const } : {}),
             actionPlan: plan,
           };
         } catch (e) { log.warn("[jobs/statenourSync] customerIntelligence failed", { error: String(e) }); return null; }

@@ -127,6 +127,8 @@ class RestoredSighting:
     `object_id` is the visitd sighting id the dead process emitted under ("sign-120");
     `box` and `last_seen` are where and when that process last saw the car; `zones` are the
     zones its sighting was still inside. Built by `edge_main.restored_rebind_entries`.
+    `episode_id` is the stitcher episode the visit carried, read back from the ledger; None
+    when it had none recorded.
     """
 
     object_id: str
@@ -135,6 +137,7 @@ class RestoredSighting:
     last_seen: float
     zones: frozenset
     arrived_at: Optional[float] = None
+    episode_id: Optional[str] = None
 
 
 @dataclass
@@ -295,8 +298,13 @@ class VisionPipeline:
         stamped: list = []
         for em in emissions:
             self.stats.visitd_states[getattr(em, "state", "?")] += 1
+            # visitd answers ONE event with emissions for OTHER visits too (_evaluate_all's
+            # timer promotions, each carrying that visit's own sighting). Only this track's
+            # sighting is this track's: mapping or stamping the others gave a second car the
+            # first car's episode, so two cars counted as one on the Lot (review 2026-10-09).
+            own = getattr(em, "sighting_id", None) == after["id"]
             vid = getattr(em, "visit_id", None)
-            if vid:
+            if vid and own:
                 self._track_visit[track.track_id] = vid
             # STAMP THE EPISODE TRAIL ON THE EMISSION, not on a sink.
             # `ShopMirror.row_for()` is the DURABLE path -- `edge_main` never touches
@@ -305,7 +313,7 @@ class VisionPipeline:
             # tests drive the lab lane. `row_for` already lifts per-emission attributes
             # (source_generation, camera_pose, ...) off the emission, so this rides the
             # same seam instead of inventing a second one.
-            if tm is not None and (tm.episode_id or tm.member_track_ids):
+            if own and tm is not None and (tm.episode_id or tm.member_track_ids):
                 # `dataclasses.replace`, NOT setattr: `Emission` is frozen. The replaced
                 # copy goes back into the list so downstream readers see the trail.
                 stamped.append(replace(
@@ -524,10 +532,14 @@ class VisionPipeline:
             t.entry_reason = f"continues visit {entry.visit_id} across a producer restart"
             self._object_alias[t.track_id] = entry.object_id
             self._track_visit[t.track_id] = entry.visit_id
-            # Arrival time is the visit's own. No episode id is stamped: the original one lived
-            # only in the dead process, and the shop keeps the stored one when none is sent.
+            # Arrival time AND episode are the visit's own. The episode matters past this
+            # track: if it later dies and the car is re-acquired, the stitcher hands the new
+            # track the fragment's episode. Without the restored one the fragment fell back to
+            # a fresh "{camera}-{track_id}" id, so the re-acquired visit counted as a SECOND car
+            # on the shop's Lot. None (a visit with no recorded episode) keeps that old fallback.
             self.timings[t.track_id] = VisitTiming(arrived_at=entry.arrived_at,
-                                                   wait_started_at=entry.arrived_at)
+                                                   wait_started_at=entry.arrived_at,
+                                                   episode_id=entry.episode_id)
             self.stats.restart_continuations += 1
             out.setdefault("restartContinuations", []).append(
                 {"trackId": t.track_id, "visitId": entry.visit_id, "objectId": entry.object_id})

@@ -2082,6 +2082,8 @@ export async function reconcileOpportunities(): Promise<ReconcileStats> {
   try {
     // Two renderings per time, both formatted IN SQL: `raw` (the stored
     // value, for bounding later reads) and `et` (shop time, for deciding).
+    // `et` is for UTC columns only; `invoiceDate` is stored in shop time, so
+    // its `raw` rendering already is its shop time.
     const raw = (col: string) => sql.raw(`DATE_FORMAT(${col}, '%Y-%m-%d %H:%i:%s')`);
     const et = (col: string) =>
       sql.raw(`DATE_FORMAT(CONVERT_TZ(${col}, '+00:00', 'America/New_York'), '%Y-%m-%d %H:%i:%s')`);
@@ -2135,8 +2137,12 @@ export async function reconcileOpportunities(): Promise<ReconcileStats> {
           sql`RIGHT(REGEXP_REPLACE(${col}, '[^0-9]', ''), 10) IN (${sql.join(phones.map((p) => sql`${p}`), sql`, `)})`;
         const sources: Array<{ source: MissedCallEvidenceSource; query: ReturnType<typeof sql> }> = [
           // PAID only: a `pending` invoice is an open ALG ticket, not a served customer.
+          // `invoiceDate` is already shop time as stored (a date-only ticket is its day's
+          // 00:00), so it is read raw: converting it from UTC put Friday's ticket on
+          // Thursday evening, the same shop day as a Thursday call, and a paid customer
+          // closed as `duplicate` instead of `won` (2026-10-09).
           { source: "invoices", query: sql`
-            SELECT id, customerPhone AS phone, ${et("invoiceDate")} AS at FROM invoices
+            SELECT id, customerPhone AS phone, ${raw("invoiceDate")} AS at FROM invoices
             WHERE invoiceDate >= DATE_SUB(${since}, INTERVAL 1 DAY) AND paymentStatus = 'paid'
               AND customerPhone IS NOT NULL AND ${inPhones(sql.raw("customerPhone"))}
             ORDER BY invoiceDate ASC LIMIT 1000` },

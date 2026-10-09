@@ -71,6 +71,23 @@ export function forecastConfidence(
 const toDate = (d: Date) => d.toISOString().slice(0, 10);
 
 /**
+ * The dollars in a `revenue_range` answer, or null. queryNick answers
+ * `{ data, query, timestamp }` or `{ error }`, and a handler that could not read
+ * its database answers 200 with `{ data: { error } }`. This read `total` /
+ * `totalRevenue` off the envelope, fields no answer has ever carried, so every
+ * week was a gap and every forecast UNAVAILABLE (found 2026-10-09).
+ */
+function revenueDollars(res: unknown): number | null {
+  const data = (res as { data?: unknown } | null)?.data as { totalDollars?: unknown; error?: unknown } | undefined;
+  if (!data || typeof data !== "object" || data.error) return null;
+  const v = data.totalDollars;
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+/** `from` .. `to` is one week as revenue_range reads it: shop days, BOTH inclusive. */
+const WEEK_LAST_DAY_MS = 6 * 86_400_000;
+
+/**
  * Build the weekly forecast from the bridge. Every failed input becomes
  * a named data gap, never a silent zero.
  */
@@ -81,16 +98,19 @@ export async function buildCashflowForecast(now = new Date()): Promise<CashflowF
 
   for (let w = 4; w >= 1; w--) {
     const from = new Date(now.getTime() - w * 7 * 86_400_000);
-    const to = new Date(from.getTime() + 7 * 86_400_000);
+    // to = from + 6: `to` is inclusive, so from + 7 read 8 days and counted each
+    // boundary day in two consecutive weeks.
+    const to = new Date(from.getTime() + WEEK_LAST_DAY_MS);
     try {
       const r = (await queryNick("revenue_range", {
         from: toDate(from),
         to: toDate(to),
-      })) as { total?: number; totalRevenue?: number; freshness?: string } | null;
-      const total = r?.total ?? r?.totalRevenue;
-      if (typeof total === "number") {
+      })) as { data?: { freshness?: unknown } } | null;
+      const total = revenueDollars(r);
+      if (total !== null) {
         trailingWeeks.push(total);
-        if (typeof r?.freshness === "string") freshness = r.freshness;
+        // revenue_range carries no freshness label today; read one if it ever does.
+        if (typeof r?.data?.freshness === "string") freshness = r.data.freshness;
       } else {
         gaps.push(`revenue_range week -${w}: no numeric total`);
       }
@@ -99,6 +119,10 @@ export async function buildCashflowForecast(now = new Date()): Promise<CashflowF
     }
   }
 
+  // Known gap (2026-10-09): these two read fields off queryNick's envelope that
+  // nickstire's handlers do not send (estimates_aging answers buckets and, with
+  // scope "alg", totalDeclinedValue; bookings_status answers statusBreakdown), so
+  // both are always named data gaps. Which value is "the pipeline" is not decided.
   let estimatesPipeline: number | null = null;
   try {
     const est = (await queryNick("estimates_aging")) as {
@@ -250,11 +274,9 @@ export async function resolveForecastPredictions(
 
     let actual: number | null = null;
     try {
-      const r = (await queryNick("revenue_range", { from: weekStart, to: toDate(weekEnd) })) as
-        | { total?: number; totalRevenue?: number }
-        | null;
-      const total = r?.total ?? r?.totalRevenue;
-      if (typeof total === "number" && Number.isFinite(total)) actual = total;
+      // The week's last day, inclusive (weekEnd is the start of the next week).
+      const lastDay = toDate(new Date(weekEnd.getTime() - 86_400_000));
+      actual = revenueDollars(await queryNick("revenue_range", { from: weekStart, to: lastDay }));
     } catch {
       actual = null;
     }

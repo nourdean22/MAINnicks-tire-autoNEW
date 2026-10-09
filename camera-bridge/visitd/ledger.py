@@ -11,7 +11,7 @@ import sqlite3
 import threading
 import time
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from .state_machine import TERMINAL_STATES, Visit, plate_summary, visit_to_dict, VisitPolicy
 
@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS visits (
     plate_normalized TEXT,
     plate_status TEXT,
     json TEXT NOT NULL,
-    updated_at REAL NOT NULL
+    updated_at REAL NOT NULL,
+    episode_id TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_visits_state ON visits(state);
 CREATE INDEX IF NOT EXISTS idx_visits_created ON visits(created_at);
@@ -105,6 +106,11 @@ MIGRATIONS = (
     ("outbox", "http_failures", "INTEGER NOT NULL DEFAULT 0"),
     ("outbox", "visit_id", "TEXT"),
     ("outbox", "visit_state", "TEXT"),
+    # The vision stitcher's episode id for the visit (see `commit_step`). Nullable with no
+    # default, so on a ledger that already holds rows -- including OPEN visits mid-restart --
+    # this is a metadata-only ALTER: no row is rewritten and every existing visit reads NULL,
+    # which restores exactly as before the column existed.
+    ("visits", "episode_id", "TEXT"),
 )
 
 DEAD_LETTER_RETENTION_SECONDS = 7 * 86400.0
@@ -203,6 +209,7 @@ class Ledger:
         visits: Iterable[Visit],
         rows: Sequence[Tuple[str, str, str, Dict[str, object]]],
         shop_rows: Sequence[Tuple[str, int, str, Dict[str, object]]] = (),
+        episodes: Optional[Mapping[str, str]] = None,
     ) -> Tuple[List[str], int]:
         """Persist one pipeline step atomically: the visits it touched, the outbox rows it emitted AND the
         shop projection rows share one transaction, so a crash can never leave a reloaded visit one seq
@@ -210,6 +217,7 @@ class Ledger:
 
         `rows` are (event_id, device_id, url, payload). `shop_rows` are (visit_id, seq, url, payload) --
         see `_upsert_shop_row` for why the shop queue coalesces by visit instead of appending.
+        `episodes` maps visit_id -> the stitcher's episode id this step's emissions carried for it.
         Returns (per-row status in order: 'inserted' | 'duplicate' | 'refused', total rows evicted).
         """
         with self._lock:
@@ -217,6 +225,18 @@ class Ledger:
             try:
                 for visit in visits:
                     self._save_visit(visit)
+                # THE EPISODE ID LIVES ONLY ON EMISSIONS, so without this it lives only in the
+                # process that minted it. A restart that continues a parked car's visit then had
+                # no episode to give the continuing track, its next fragment fell back to a fresh
+                # id, and a stitched re-acquisition counted as a SECOND car on the shop's Lot
+                # (COUNT(DISTINCT COALESCE(episodeId, visitId))). Latest non-null wins, which is
+                # the shop's own rule (ShopMirror.row_for + COALESCE(VALUES(episodeId), episodeId)):
+                # a NULL is never written, and `_save_visit`'s upsert never names this column, so
+                # re-saving a visit can never erase it.
+                for visit_id, episode_id in (episodes or {}).items():
+                    if episode_id:
+                        self._conn.execute("UPDATE visits SET episode_id = ? WHERE visit_id = ?",
+                                           (str(episode_id), visit_id))
                 statuses: List[str] = []
                 evicted = 0
                 for event_id, device_id, url, payload in rows:
@@ -312,6 +332,19 @@ class Ledger:
             ).fetchall()
             closed = self._max_age_closed_rows()
         return {"visits": [json.loads(r["json"]) for r in rows], "max_age_closed": closed}
+
+    def open_visit_episodes(self) -> Dict[str, str]:
+        """{visit_id: episode_id} for every non-terminal visit that has one recorded (see `commit_step`).
+
+        Read at an edge restart so a car that continues its visit keeps that visit's episode.
+        A visit with no episode is absent, never mapped to an empty or invented value.
+        """
+        with self._lock:
+            rows = self._conn.execute(
+                f"SELECT visit_id, episode_id FROM visits WHERE episode_id IS NOT NULL"
+                f" AND state NOT IN ({_TERMINAL_PLACEHOLDERS})", tuple(TERMINAL_STATES)
+            ).fetchall()
+        return {str(r["visit_id"]): str(r["episode_id"]) for r in rows}
 
     def _max_age_closed_rows(self) -> List[List[object]]:
         """Max-aged, ended sightings of terminal visits closed within maxSightingSeconds of the newest close,
