@@ -2765,7 +2765,8 @@
           "Production camera_runtime readback: office mode=SHADOW, sourceConnected=1, authPlaneOk=1, eventPlaneOk=1, mediaPlaneOk=0, controlPlaneOk=NULL, ptzHomeOk=NULL; lastEventProofAt/lastControlProofAt/lastMediaProofAt/lastPtzNotifyAt all NULL at read time. Fixed sign remained independent in PRODUCTION.",
           "2026-09-27 18:16Z production alert receipt: sign transitioned HEALTHY -> CLOUD_BACKLOG and camera-health-alerts claimed the page. Resend rejected both attempts because nickstire.org was unverified; the log-only notifyOwner fallback was correctly rejected as external delivery; the claim was released and the job failed retryably. This proves detection/claim/retry behavior live, not owner delivery.",
           "2026-09-29 00:19:11Z office seq=1 transitioned MEDIA_DEGRADED -> UNVERIFIED_CAPABILITIES with mode=PRODUCTION against NICKS EUCLID (T8410P5225154105) after the target fix; corrected heartbeats reached seq=16 by 00:28:15Z. The 2026-09-27 mode=SHADOW readback above is historical.",
-          "2026-10-07 camera audit (Railway camera heartbeats read live): sign HEALTHY on the Session-0 lane and office UNVERIFIED_CAPABILITIES, independently, as designed. Also found: day-keyed alert claims paged 'Office PTZ degraded' and 'Shop sign recovered' every midnight ET and stayed silent on a second failure inside one day, and two interleaved office heartbeat owners (duplicate Eufy agents) posted since 2026-10-03. PR #2920 re-keys alerts per episode with a 30-minute cooldown and dedupes agents in the supervisor; both unit-verified, live proof pending the merge and a NicksMax git pull."
+          "2026-10-07 camera audit (Railway camera heartbeats read live): sign HEALTHY on the Session-0 lane and office UNVERIFIED_CAPABILITIES, independently, as designed. Also found: day-keyed alert claims paged 'Office PTZ degraded' and 'Shop sign recovered' every midnight ET and stayed silent on a second failure inside one day, and two interleaved office heartbeat owners (duplicate Eufy agents) posted since 2026-10-03. PR #2920 re-keys alerts per episode with a 30-minute cooldown and dedupes agents in the supervisor; both unit-verified, live proof pending the merge and a NicksMax git pull.",
+          "2026-10-09 08:15:22Z: the alert pass paged sign UNVERIFIED_CAPABILITIES ('camera health alert fired', episode 1791533718; logged only after a delivery rail accepted) and the recovery at 08:45:22Z, both externally delivered: the first real degradation/recovery pair delivered end to end. The state had lasted one heartbeat (08:15:19-52Z); the page should not have fired, and camera-alert-persistence-20261009 stops it. Dusk 2026-10-08: no PRODUCER_OFFLINE page at dusk and no recovery page at dawn; the sign camera stayed HEALTHY all night apart from one-heartbeat dips (EXPECTED_SOLAR_OFFLINE 23:33:10-37Z from the ingest's solar context, CALIBRATION_INVALID 00:42Z, 03:18Z, 09:00Z)."
         ],
         "databaseAssertions": [
           "Migration 0134 hash 108091f416b2b91e279ad9cbde3e781864d8a343a35410271b81ac55806686ab applied via scoped production DB guard; INFORMATION_SCHEMA re-read verified five nullable tinyint(1) transport flags + four nullable timestamp proof fields; __drizzle_migrations recorded created_at=1789301500000; strict reconciliation reports 0134 RECORDED_AND_MATCHED."
@@ -2789,13 +2790,13 @@
         },
         {
           "severity": "P2",
-          "description": "External owner delivery is still not fully proven for a REAL production degradation. PR #2715 added Telegram fallback after the observed Resend failure; PR #2720 adds a manual live-provider self-test so provider acceptance can be proven without manufacturing a camera outage. Clear the provider-rail portion after a post-deploy self-test receives an accepted external provider receipt; keep real degradation/recovery paging as a separate live proof until observed.",
-          "source": "2026-09-27 production alert failure + PR #2715 + PR #2720 candidate"
+          "description": "External owner delivery of a REAL production degradation and its recovery was observed 2026-10-09 (08:15:22Z page, 08:45:22Z recovery; liveRuns), but for a one-heartbeat dip that should not have paged. The remaining proof is a real, sustained degradation paging once and recovering once under the persistence gate (camera-alert-persistence-20261009).",
+          "source": "2026-09-27 production alert failure + PR #2715 + PR #2720 + 2026-10-09 overnight logs"
         },
         {
           "severity": "P3",
-          "description": "EXPECTED_SOLAR_OFFLINE is unit-verified only. Live proof is the first civil-dusk (about 19:25 EDT) to sunrise + 2 h cycle after the N-series PR A deploy: lot.health must read EXPECTED_SOLAR_OFFLINE for the sign camera overnight and the alert cron must log no PRODUCER_OFFLINE page at dusk and no recovery page at dawn. Before PR A, every dusk paged PRODUCER_OFFLINE and every morning paged a recovery (verified from the camera_health_events transitions in the 2026-10-07 audit).",
-          "source": "N-series PR A, 2026-10-08"
+          "description": "EXPECTED_SOLAR_OFFLINE overnight: on 2026-10-08/09 dusk paged nothing and dawn paged no recovery, but the sign camera never went dark (HEALTHY all night apart from a 27 s EXPECTED_SOLAR_OFFLINE at 23:33Z written by the ingest), so lot.health reading EXPECTED_SOLAR_OFFLINE through a dark night is still unobserved. Before PR A, every dusk paged PRODUCER_OFFLINE and every morning paged a recovery (2026-10-07 audit).",
+          "source": "N-series PR A, 2026-10-08; overnight logs 2026-10-09"
         }
       ],
       "deferredScope": [
@@ -2805,8 +2806,8 @@
         "first provider-accepted production camera-health degradation alert + recovery delivery receipt after #2715 (or verified Resend DNS)",
         "live EXPECTED_SOLAR_OFFLINE cycle (first dusk-to-dawn after the N-series PR A deploy)"
       ],
-      "lastVerifiedAt": "2026-10-07",
-      "verificationExpiresAt": "2026-11-06",
+      "lastVerifiedAt": "2026-10-09",
+      "verificationExpiresAt": "2026-11-08",
       "codeState": "merged",
       "operationalState": "live_verified",
       "exposure": "internal"
@@ -4181,14 +4182,14 @@
           "apps/nickstire/server/routes/cameraVisitsRoutes.test.ts (+3): the ingest reads the previous row's gap and receive time, consults the last event only past the stale threshold, writes the retro outage row stamped on the heartbeat clock before the resumption row and closes that row, asks the sky only for a solar camera, and derives the ingest-time state WITH the solar context; apps/nickstire/server/lib/cameraHealth.test.ts (+1): deriveStateAtIngest with the context reads a dark solar camera whose edge is up as EXPECTED_SOLAR_OFFLINE, without it CAMERA_OFFLINE, and an awake camera HEALTHY either way",
           "Every new or changed test was first run against the pushed head 2eee1c18: 38 reds across 7 files, each for the reason it names (receipts in the #2929 body); server/lotCardFieldDrift.test.ts, server/__tests__/latestByIdOrdering.test.ts and server/__tests__/proc-census.test.ts green; pnpm run check 0 errors"
         ],
-        "liveRuns": "NONE yet. Not deployed. The first derived transition lands at the first camera-health-alerts tick after deploy, stamped where the outage began rather than at the tick; a short outage between two ticks lands as a '(recorded at resumption)' row; until then the day's segments show only producer-reported transitions, with UNKNOWN before the day's first row, and 'Watched today' reads the HEALTHY share of what the rows say, its solar morning as expected dark.",
+        "liveRuns": "2026-10-08/09 overnight (nickstire deploy logs, deployments e56a8726, 2cfe001a, 19ba4f9f, 129b2620, 15ddc015): the ingest's resumption path ran at 00:16:22Z (sign 'EXPECTED_SOLAR_OFFLINE->HEALTHY') and 00:16:58Z (office 'STALE->UNVERIFIED_CAPABILITIES'); each is logged against a latest row the ingest itself must have written for the gap (retroOutageTransition, solar-aware for the sign), inferred from the logs, camera_health_events not read. The dusk EXPECTED_SOLAR_OFFLINE (23:33:10Z, 27 s) was written by the ingest with the solar context, not by the pass. The 5-minute pass's derived writer never fired (no 'camera health timeline: derived transition recorded' line 2026-10-08 22:48Z to 2026-10-09 11:15Z): no producer was silent when a pass ran.",
         "deploymentId": "Railway production MAINnicks-tire-auto deployment 3ce638b1-d8b1-46f1-af38-782ed66d17f5 (commit ed9a45d0, the #2929 merge) SUCCESS 2026-10-08T16:15:16Z: server:ready 16:15:11Z, schema guard 6/6, 26 column checks passed, office heartbeat seq 468 accepted on the new container; carried on by ancestry in deployment 0b43b9b0-ab87-40ab-bdc6-5cf7a2712e74 (weekly prerender refresh 4058c4bb) SUCCESS 16:36:21Z, where sign HEALTHY seq 363-384 and office seq 497-514 were accepted 16:32-16:43Z."
       },
       "blockers": [
         {
           "severity": "P2",
-          "description": "No production timeline rows from the 5-minute pass yet: the proof is the first PRODUCER_OFFLINE or EXPECTED_SOLAR_OFFLINE row with reason 'derived on the 5-minute pass' whose `at` precedes the tick that wrote it, then a row with reason 'producer resumed after ...' written by the ingest at the heartbeat (or a '(recorded at resumption)' row for an outage shorter than a tick), read from camera_health_events or the Lot card strip. Until the first outage after deploy the three writers are unit-verified only. Deployed 2026-10-08 16:15Z; through 16:43Z the sign camera stayed HEALTHY, so no derived row was due (the pass writes only on a change). Its dusk EXPECTED_SOLAR_OFFLINE is the first natural proof.",
-          "source": "N-series PR B, 2026-10-08"
+          "description": "No production timeline row from the 5-minute pass yet: the proof is the first PRODUCER_OFFLINE or EXPECTED_SOLAR_OFFLINE row with reason 'derived on the 5-minute pass' whose `at` precedes the tick that wrote it, read from camera_health_events or the Lot card strip. Overnight 2026-10-08/09 the sign camera stayed HEALTHY (it did not go dark at dusk) and the ingest wrote the dusk and resumption rows itself, so the pass had nothing to derive; a producer silent across a pass is still needed. The ingest's resumption rows ran (liveRuns), inferred from logs rather than a table read.",
+          "source": "N-series PR B, 2026-10-08; overnight logs 2026-10-09"
         },
         {
           "severity": "P2",
@@ -4199,7 +4200,7 @@
       "deferredScope": [
         "per-hour coverage history beyond today (the events table holds it; no reader yet)"
       ],
-      "lastVerifiedAt": "2026-10-08",
+      "lastVerifiedAt": "2026-10-09",
       "verificationExpiresAt": "2026-11-07"
     },
     {
@@ -4275,7 +4276,7 @@
       "name": "Owner brief over qualified lot events (camera audit N4): the lot camera's view of one shop day in at most three material lines -- traffic against the same weekday gated by coverage, long stays nobody explains, lot traffic with few tickets -- served by the nickstire lot_brief bridge action and rendered in StateNour's morning brief",
       "owner": "operator",
       "codeState": "merged",
-      "operationalState": "unit_verified",
+      "operationalState": "live_verified",
       "exposure": "internal",
       "evidence": {
         "codeCommit": "Camera N-series PR C (branch claude/dreamy-newton-0iob20, 2026-10-08). nickstire: server/lib/lotBrief.ts (pure rules: coverageForPastDay, unwatchedMinutes, longDwellAnomalies, composeLotBrief; TIMELINE_COMPLETE_FROM_MS = 2026-10-08 16:15:11Z, the #2929 deploy that gave camera_health_events its read-derived states, so a day that opened earlier is UNMEASURED, never zero) and server/services/lotBriefRead.ts (the reads: episodes per ET date for the day and the same weekday of the prior four weeks in one query, the vehicle-truth camera's health rows for the measured days with one anchor, tickets dated the day only when the ALG mirror synced after that day's close, candidate long stays with their marks; a missing vehicle_visit_marks table is tolerated; a failed read is { ok: false, error } with describeDbError, never a quiet day); QUERY_HANDLERS.lot_brief in server/routes/nour-os-query.ts; shared/bridgeShapes LotBriefShape; shared/lotDataConfidence exports LOT_CONFIDENCE_RULES so the brief gates on the Lot's own 80% coverage and two-prior-day rule. Material events, most material first, at most three: coverage under 80% (the count is a floor, nothing compared); traffic off the same-weekday mean by >= 3 cars and >= 30% (only earlier days that also passed the gate make the mean); lot traffic with few tickets (>= 8 arrivals, tickets under half); cars that stayed 3h+ of business time with no bay entry and no SERVICE_STARTED/SERVICE_DONE in force (deriveVisitMarkState; NOT_A_JOB excluded; a stay the camera missed > 30 min of is 'uncertain', not counted). A quiet day is one summary line. StateNour: lib/services/morning-brief.ts readLotBriefLines (queryNick 'lot_brief', 8 s per attempt and a 12 s deadline for the whole call, since queryNick's retries alone run about 35 s and the brief also answers a Telegram command, at most three 'Lot · ' lines, HTML-escaped; a bridge error, an ok:false reply, a malformed reply or a thrown call is ONE 'brief unavailable' line, never silence and never the whole shop slice's failure); the bridge contract guard now reads nested generics (queryNick<Record<string, unknown>>('x') was invisible to it). /system/camera demoted (not featured; a notice names the Lot section of Nick's Admin as the lot view).",
@@ -4287,14 +4288,10 @@
           "apps/statenour/tests/contracts/nick-bridge-query-contract.test.ts (2): green with lot_brief a live handler; a planted typo in the lot_brief call and in the draft_opportunity_sms call now fails it (both were invisible before the nested-generic fix)",
           "Positive controls (2026-10-08): eight defects planted in the nickstire brief (compare under the gate, gated-out days in the mean, no outage-record cutoff, unwatched stays counted, service marks ignored, tickets read regardless of mirror freshness, day end = start + 24h, a failed read thrown) each turned a named test red; the freshness one first SURVIVED (null < close is true in JS, so the second check withheld it anyway) until each refusal was pinned by its own reason; five defects in the StateNour slice each turned a test red"
         ],
-        "liveRuns": "None yet. The proof is the first morning brief after this deploy carrying a 'Lot · ' line, and lot_brief answering on the live bridge. Until days after 2026-10-08 16:15Z exist the line reads coverage not measured; the first same-weekday comparison can appear in the brief of 2026-10-24 (Friday 2026-10-23 against Fridays 10-09 and 10-16), and only if those days were watched at least 80% of business hours."
+        "liveRuns": "2026-10-09 morning brief: nickstire answered POST /api/nour-os/query 200 at 10:00:44.237Z (42 ms, Railway HTTP log); StateNour composed the brief at 10:00:44Z (brain_memories category morning_brief key 2026-10-09, created 10:00:44.517Z, source inngest/morning-brief). Its shop slice carries 'Lot · Thursday: 6 cars came in; coverage not measured (the camera's outage record starts 2026-10-08), so nothing was compared.' The unavailable path would have rendered 'Lot · brief unavailable (...)', so the line proves lot_brief answered. The count (6) is a floor for an unmeasured day and was not compared with Thursday's tickets. The first same-weekday comparison can appear in the brief of 2026-10-24, only if Friday 2026-10-23 and two of the prior Fridays were watched at least 80% of business hours.",
+        "deploymentId": "nickstire Railway production deployment 547b9ed1-ee15-4527-a073-b33b88187cab (b3a61b5d, the prerender refresh on #2931 9d316523) SUCCESS 2026-10-08T19:23:38Z, carried by ancestry to 15ddc015-77aa-42ee-ba48-3a36ef27eefd (fac599f5, on #2938) serving since 2026-10-09T03:45:46Z; StateNour web 339a4007-737d-4704-a94e-318ee8735594 (365842a2, #2935, which carries PR C) composed the 2026-10-09 brief."
       },
       "blockers": [
-        {
-          "severity": "P2",
-          "description": "No production brief has rendered the lot lines yet (see liveRuns for the proof).",
-          "source": "N-series PR C, 2026-10-08"
-        },
         {
           "severity": "P3",
           "description": "The few-tickets and long-stay thresholds are uncalibrated: staff cars count as arrivals and no stays are labelled yet. Calibrate against two to four weeks of measured days and operator marks; the lines state their numbers so the owner judges meanwhile.",
@@ -4305,8 +4302,8 @@
         "per-hour scaling of the brief's baseline (the Lot's lotDataConfidence scales per hour; the brief compares whole days with both sides gated at 80%)",
         "a tickets-per-arrival baseline per weekday, which would calibrate for staff cars by itself"
       ],
-      "lastVerifiedAt": "2026-10-08",
-      "verificationExpiresAt": "2026-11-07"
+      "lastVerifiedAt": "2026-10-09",
+      "verificationExpiresAt": "2026-11-08"
     },
     {
       "capabilityId": "autonomy-control-one-field-edits",
@@ -4489,7 +4486,7 @@
           "2026-10-09 episode seam: camera-bridge/tests/test_restart_continuity.py RestartEpisodeTest (4: one car after re-acquisition, a second restart, the no-restart control, a visit with no stored episode) and tests/test_visit_episode_ledger.py (8: migration on an old-schema ledger with an open visit, write and re-save rules, after_step holding through a failed commit). Reverting the fix turned the two Lot-count tests red ('sign-2': the re-acquired visit lost the car's episode); 5 planted defects, 5 caught. Suite: 981 passed, 3 skipped.",
           "2026-10-09 two cars: tests/test_restart_continuity.py TwoCarEpisodeTest (two overlapping arrivals without a restart; a car arriving after a restart beside the continued one): both red on the unfixed _emit (Lot arrivals 1 for 2 cars, both rows sign-1000016-1), green after; disabling the sighting filter turns both red again."
         ],
-        "liveRuns": "None yet. The only restart on the new code (2026-10-08 22:51:04Z, the code-change restart after the pull) had visitd_open_visits 0, so nothing could be continued. The proof is the first sign-edge restart with a parked car: the edge log line 'restart continuity: track ... continues visit ...' (or the window-closed summary with refusals) and that visit's vehicle_visits row keeping departedAt NULL."
+        "liveRuns": "None yet. Both sign-edge restarts on this code restored no open visit: 2026-10-08 22:51:04Z (the code-change restart after the #2934 pull; visitd_open_visits 0) and 2026-10-09 10:55:19Z (06:55 ET, the code-change restart after the #2938 pull; edge stderr 'visitd ledger restored open_visits=0'). The 22:51Z run's log was overwritten by the next start, before the launcher kept .prev logs (installed 2026-10-09 07:09:56 ET). The proof is the first sign-edge restart with a parked car: the edge log line 'restart continuity: track ... continues visit ...' (or the window-closed summary with refusals) and that visit's vehicle_visits row keeping departedAt NULL."
       },
       "blockers": [],
       "lastVerifiedAt": "2026-10-09",
@@ -4586,6 +4583,28 @@
       ],
       "lastVerifiedAt": "2026-10-08",
       "verificationExpiresAt": "2026-11-07"
+    },
+    {
+      "capabilityId": "camera-alert-persistence-20261009",
+      "name": "Camera pages wait for a producer-reported state to hold 120 s (or a third flicker in 30 minutes) before paging, so a one-heartbeat dip never pages the owner; liveness states keep their own clock and an unknown age or count pages as before",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "branch claude/dreamy-newton-0iob20 after #2939 (2026-10-09). server/services/cameraHealthAlertPolicy.ts cameraAlertAwaitsPersistence: a paging state that is not a liveness state (STALE, PRODUCER_OFFLINE, EXPECTED_SOLAR_OFFLINE) and not NEVER_INGESTED waits while its age (UNIX_TIMESTAMP() - UNIX_TIMESTAMP(camera_runtime.stateSince), in SQL) is under HEALTH_THRESHOLDS.offlineAfterSeconds (120) and the camera entered a paging state fewer than 3 times in 30 minutes (COUNT over camera_health_events, at >= NOW() - INTERVAL 1800 SECOND, read only for a young state). An unknown age or an unreadable count pages. server/services/cameraHealthAlerts.ts skips the claim for a held state (the timeline row is still written) and reports 'N state(s) under 120 s not paged yet'. Trigger: 2026-10-09 08:15:22Z the pass paged a 33 s UNVERIFIED_CAPABILITIES dip 4 s in (04:15 ET) and the cooldown held the recovery to 08:45:22Z.",
+        "tests": [
+          "server/cameraHealthAlertsFlicker.test.ts (8): the 08:15:22Z replay through the real runCameraHealthAlerts (state 4 s old, 1 flicker: no claim, timeline row written, the count query reads 30 minutes in SQL); the same state at 130 s pages on its episode without reading the count; 3 flickers page; an unreadable count and a null state age page; unit cases for the liveness states, NEVER_INGESTED and the 120 s / third-flicker boundaries. 4 failed against the unfixed service (the replay claimed the production page), 8 passed after. Mutations: gate removed (3 red), flicker override dropped (2 red), unknown count read as 0 (2 red), liveness gated (1 red)."
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not deployed at the time of writing (lands with this row's PR). The live proof is the first night after deploy with a one-heartbeat dip sampled by a pass: the run summary says '1 state(s) under 120 s not paged yet' and no 'camera health alert fired' line follows; and a sustained degradation (>= 120 s) still paging once.",
+          "source": "2026-10-09 overnight logs"
+        }
+      ],
+      "lastVerifiedAt": "2026-10-09"
     }
   ],
   "axes": {
