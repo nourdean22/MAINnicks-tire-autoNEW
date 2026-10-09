@@ -532,6 +532,17 @@ function occurrences(haystack: string, needle: string): number[] {
   return out;
 }
 
+/**
+ * Per optimizer call. 120 s was enough while the model re-emitted the whole
+ * prompt; asked for a verbatim excerpt of a 32,000-char prompt, gpt-oss:120b
+ * reasons longer, and the 2026-10-09 22:15Z live run died at exactly that
+ * timeout ("The operation was aborted due to timeout") before any candidate
+ * existed. Two candidates at two calls each fit the 25-minute run budget with
+ * the baseline replays (~8 min at the slow lane), and checkBudget still stops
+ * the run first.
+ */
+const OPTIMIZER_TIMEOUT_MS = 240_000;
+
 const OPTIMIZER_FORMAT =
   'Output format, nothing else: one line "RATIONALE: <why this one edit>", then the excerpt to change between <FIND> and </FIND> ' +
   `(each marker on its own line; copy the excerpt from CURRENT PROMPT verbatim, keeping its line breaks, ${EDIT_FIND_ASK}, enough to be unique), ` +
@@ -566,7 +577,15 @@ async function proposeCandidates(
   };
   for (let i = 0; i < k; i++) {
     beforeCall();
-    const res = await invokeLLM({
+    // A lane failure (timeout, 5xx, refusal) on ONE proposal is that
+    // proposal's failure, never the run's: the 22:15Z live run threw out of
+    // here on the first call and lost the baseline it had already measured.
+    // The format retry below stays for a reply that arrived but could not be
+    // placed; a call that never answered is not retried (it would cost the
+    // same timeout again), and checkBudget bounds the whole stage.
+    let res: Awaited<ReturnType<typeof invokeLLM>>;
+    try {
+      res = await invokeLLM({
       messages: [
         {
           role: "system",
@@ -578,10 +597,14 @@ async function proposeCandidates(
         },
       ],
       maxTokens: 8192,
-      timeoutMs: 120000,
+      timeoutMs: OPTIMIZER_TIMEOUT_MS,
       model: OPTIMIZER_MODEL,
       priority: 3,
-    });
+      });
+    } catch (err) {
+      log(`candidate ${i + 1}: optimizer call failed (${err instanceof Error ? err.message : String(err)}) — recorded as a failed proposal`);
+      continue;
+    }
     const raw = res.choices?.[0]?.message?.content ?? "";
     let text = typeof raw === "string" ? raw : JSON.stringify(raw);
     let resolved = resolve(text);
@@ -591,16 +614,22 @@ async function proposeCandidates(
       // A second failure is recorded, never patched around.
       log(`candidate ${i + 1}: ${resolved.refused} — one format retry`);
       beforeCall();
-      const retry = await invokeLLM({
+      let retry: Awaited<ReturnType<typeof invokeLLM>>;
+      try {
+        retry = await invokeLLM({
         messages: [
           { role: "system", content: `You return exactly one line starting with RATIONALE:, then the excerpt to change between <FIND> and </FIND> (each marker on its own line) copied VERBATIM from the current prompt with its own line breaks (unique, ${EDIT_FIND_ASK}), then its replacement between <REPLACE> and </REPLACE>. No other output.\n\n${UNTRUSTED_DATA_NOTICE}` },
           { role: "user", content: `CURRENT PROMPT:\n${basePrompt}\n\nYour previous answer could not be applied (${resolved.refused}). Here it is:\n\n${text.slice(0, 6000)}\n\nRe-emit it now as: RATIONALE: <one line>\n<FIND>\n<verbatim excerpt>\n</FIND>\n<REPLACE>\n<replacement>\n</REPLACE>` },
         ],
         maxTokens: 8192,
-        timeoutMs: 120000,
+        timeoutMs: OPTIMIZER_TIMEOUT_MS,
         model: OPTIMIZER_MODEL,
         priority: 3,
-      });
+        });
+      } catch (err) {
+        log(`candidate ${i + 1}: optimizer retry failed (${err instanceof Error ? err.message : String(err)}) — recorded as a failed proposal`);
+        continue;
+      }
       const retryRaw = retry.choices?.[0]?.message?.content ?? "";
       text = typeof retryRaw === "string" ? retryRaw : JSON.stringify(retryRaw);
       resolved = resolve(text);
