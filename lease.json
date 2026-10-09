@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "docs/reels-handoff-20261009",
+  "status": "active",
+  "sessionKind": "bridge",
+  "sessionId": "b1a917f5-4fc5-4fbf-9dc8-3f04512b0763",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.worktrees\\reels-handoff",
+  "claimedBy": "worktree-setup.ps1",
+  "claimedAt": "2026-10-09T12:48:47.806Z",
+  "expiresAt": "2026-10-10T00:48:47.806Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
