@@ -326,6 +326,115 @@ switch ($Scenario) {
     $markers["overflowExists"] = [bool](Test-Path -LiteralPath ($log + ".overflow"))
     $markers["overflowText"] = if ($markers["overflowExists"]) { [string](Get-Content -LiteralPath ($log + ".overflow") -Raw) } else { "" }
   }
+  "log-read-by-a-sharing-reader" {
+    # The 2026-10-08 holder exactly: a reader that shares Read, Write and Delete, as Node's fs.open
+    # does (Desktop Commander's tail, pid 9580). Windows PowerShell 5.1's Add-Content refused to
+    # open the log beside it for 11 hours. This probe bites only under Windows PowerShell 5.1:
+    # pwsh 6.2+ opens with read sharing (PowerShell PR #8091) and Linux .NET does not enforce it,
+    # so CI pins the writer through the text contract instead.
+    Set-Content -LiteralPath $log -Value "existing" -Encoding ascii
+    $h = [IO.File]::Open($log, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { Log "while read" 2>$null } finally { $h.Dispose(); $ErrorActionPreference = $saved }
+    $markers["overflowExists"] = [bool](Test-Path -LiteralPath ($log + ".overflow"))
+  }
+  "overflow-restored-into-log" {
+    # The box's file shape: Windows PowerShell 5.1's Add-Content -Encoding utf8 opened the overflow
+    # with a BOM. The lines go back into the log in order, under one NOTE, without the BOM.
+    Set-Content -LiteralPath $log -Value "2026-10-08 07:34:08 last line before the lock" -Encoding ascii
+    $bom = [byte[]](0xEF, 0xBB, 0xBF)
+    $body = [Text.Encoding]::ASCII.GetBytes("2026-10-08 08:20:14 ACTION first stranded`r`n2026-10-08 18:51:13 ACTION last stranded`r`n")
+    [IO.File]::WriteAllBytes($log + ".overflow", $bom + $body)
+    Restore-Overflow
+    Log "after restore"
+    $bytes = [IO.File]::ReadAllBytes($log)
+    $inner = $false
+    for ($i = 1; $i -le $bytes.Length - 3; $i++) { if ($bytes[$i] -eq 0xEF -and $bytes[$i + 1] -eq 0xBB -and $bytes[$i + 2] -eq 0xBF) { $inner = $true } }
+    $markers["innerBom"] = $inner
+    $markers["leftovers"] = @(Get-ChildItem -Path ($log + ".overflow*") | ForEach-Object { $_.Name })
+  }
+  "overflow-restore-waits-for-the-log" {
+    # The log is held by a reader that refuses writers. The claimed batch must wait, newer lines
+    # must queue behind it, and once the log opens both land in order exactly once.
+    Set-Content -LiteralPath $log -Value "2026-10-08 07:00:00 before" -Encoding ascii
+    Set-Content -LiteralPath ($log + ".overflow") -Value @("2026-10-08 08:00:00 stranded one", "2026-10-08 08:00:30 stranded two") -Encoding ascii
+    $h = [IO.File]::Open($log, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+      Restore-Overflow
+      $markers["restoringWhileLocked"] = @(Get-ChildItem -Path ($log + ".overflow.restoring.*")).Count -eq 1
+      Log "queued while locked" 2>$null
+    } finally { $h.Dispose(); $ErrorActionPreference = $saved }
+    # One restore per tick, as the supervisor runs it: the newer lines must land in THIS tick,
+    # ahead of its own line, then a second tick must change nothing.
+    Restore-Overflow | Out-Null
+    Log "after"
+    Restore-Overflow | Out-Null
+    $markers["leftovers"] = @(Get-ChildItem -Path ($log + ".overflow*") | ForEach-Object { $_.Name })
+  }
+  "overflow-batch-held-by-a-reader-lands-once" {
+    # A pending batch (its append failed while the log was blocked) is then held open by a reader
+    # that refuses delete-sharing, as 5.1's Get-Content -Wait does. Moving the batch BEFORE appending
+    # it is what keeps it from landing again on every tick while that reader stays open. Bites on
+    # Windows under any PowerShell (Windows enforces delete-sharing); Linux allows the move, so
+    # there the batch simply lands at once.
+    Set-Content -LiteralPath $log -Value "2026-10-08 07:00:00 before" -Encoding ascii
+    Set-Content -LiteralPath ($log + ".overflow") -Value "2026-10-08 08:00:00 stranded one" -Encoding ascii
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+      $h = [IO.File]::Open($log, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+      try { Restore-Overflow } finally { $h.Dispose() }
+      $pending = @(Get-ChildItem -Path ($log + ".overflow.restoring.*"))
+      $markers["pendingAfterBlockedAppend"] = $pending.Count
+      $r = [IO.File]::Open($pending[0].FullName, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+      try { Restore-Overflow; Restore-Overflow } finally { $r.Dispose() }
+      Restore-Overflow
+    } finally { $ErrorActionPreference = $saved }
+    Log "after"
+    $markers["leftovers"] = @(Get-ChildItem -Path ($log + ".overflow*") | ForEach-Object { $_.Name })
+  }
+  "restore-blocked-is-reported" {
+    # A reader holds the overflow so the restore cannot take it (Windows: the claim rename is
+    # refused; Linux: the read is). The tick must say so once an hour, not leave the lines stranded
+    # beside a log that looks healthy, and restore them once the reader lets go.
+    Set-Content -LiteralPath $log -Value "2026-10-08 07:00:00 before" -Encoding ascii
+    Set-Content -LiteralPath ($log + ".overflow") -Value "2026-10-08 08:00:00 stranded" -Encoding ascii
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+      $h = [IO.File]::Open($log + ".overflow", [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::None)
+      try {
+        $why = Restore-Overflow
+        $markers["why"] = [string]$why
+        Report-BlockedRestore $why
+        Report-BlockedRestore (Restore-Overflow)
+      } finally { $h.Dispose() }
+      $markers["afterRelease"] = [string](Restore-Overflow)
+    } finally { $ErrorActionPreference = $saved }
+    Log "after"
+  }
+  "state-write-beside-a-sharing-reader" {
+    $state["eufy-bridge"] = @{ restarts = @(1759999000.0); escalatedAt = 0; portMisses = 2; fingerprint = "" }
+    Set-Content -LiteralPath $statePath -Value "{}" -Encoding ascii
+    $h = [IO.File]::Open($statePath, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { Save-State 2>$null } finally { $h.Dispose(); $ErrorActionPreference = $saved }
+    $markers["portMissesOnDisk"] = [int]((Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json)."eufy-bridge".portMisses)
+  }
+  "state-write-failure-is-logged" {
+    # A ledger that cannot be written must say so. Pins the WARN for a holder that refuses writers
+    # (the old Set-Content also warned here: under 5.1 its failure is terminating).
+    $state["eufy-bridge"] = @{ restarts = @(); escalatedAt = 0; portMisses = 1; fingerprint = "" }
+    Set-Content -LiteralPath $statePath -Value "{}" -Encoding ascii
+    $h = [IO.File]::Open($statePath, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { Save-State 2>$null } finally { $h.Dispose(); $ErrorActionPreference = $saved }
+  }
   "disk-floor" {
     New-Item -ItemType Directory -Force -Path $officeAudioDir | Out-Null
     $stale = Join-Path $officeAudioDir "stale.wav"
@@ -446,7 +555,10 @@ switch ($Scenario) {
 }
 
 $logLines = @()
-if (Test-Path -LiteralPath $log) { $logLines = @(Get-Content -LiteralPath $log) }
+# [string] strips the PSPath/PSDrive/... notes Get-Content attaches to each line: Windows PowerShell
+# 5.1's ConvertTo-Json serializes them, so every line came out as an object (pwsh 7 drops them),
+# and every log assertion failed under 5.1 (first run on NicksMax, 2026-10-08: 18 of 52).
+if (Test-Path -LiteralPath $log) { $logLines = @(Get-Content -LiteralPath $log | ForEach-Object { [string]$_ }) }
 [pscustomobject]@{
   scenario = $Scenario
   calls    = @($calls)

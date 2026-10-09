@@ -77,6 +77,8 @@ Verified:
 
 Reason for pinning: an always-on recovery node should not silently resolve a new Commander release at every login.
 
+Known leak (2026-10-08): `read_file` with a negative offset (a tail) leaves its read handle open in Commander's node process until the agent restarts. That process was pid 9580, started 10-03, and it was still holding the supervisor log at 19:07 that evening. The handle shares read, write and delete, so it blocks only writers that refuse readers: Windows PowerShell 5.1's `Add-Content` and `Set-Content`. That is how the camera supervisor's log went dark from 07:34. The supervisor now writes through a shared FileStream. Read box logs through a shell (`Get-Content -Tail`), never `read_file`. To find a file's holder, ask the Restart Manager (`RmGetList`); `handle.exe` is not installed.
+
 ### SSH recovery path
 
 Verified:
