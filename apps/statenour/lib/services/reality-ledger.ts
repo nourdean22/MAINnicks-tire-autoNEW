@@ -14,12 +14,15 @@
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { logger as rootLogger } from "@/lib/logger";
 import { claimReceipt, isReceiptTableMissing, settleReceipt } from "@/lib/services/bridge-receipts";
 import {
   REALITY_EVENT_RETENTION_CLASSES,
   validateRealityEventRegistration,
   type RealityEventRegistrationResult,
 } from "@/lib/events/reality-event-registry";
+
+const log = rootLogger.withSurface("services/reality-ledger");
 
 export const EVIDENCE_GRADES = ["H0", "H1", "H2", "H3", "H4", "H5"] as const;
 
@@ -216,6 +219,9 @@ export async function recordEvidenceBatch(
       eventVersion: r.data.eventVersion,
       retentionClass: r.data.retentionClass,
       payload: r.data.payload,
+      // 2026-10-09: the door, so a door-scoped family (receptionist.*) can
+      // refuse other key holders. Families without a scope ignore it.
+      producer: ctx.producer,
     });
     if (!registration.ok) {
       receipt.rejected.push({ kind: "event", index, error: registration.error });
@@ -223,6 +229,7 @@ export async function recordEvidenceBatch(
     }
     events.push({ index, data: r.data, registration });
   });
+  const landable = new Set(events.map((e) => e.index));
 
   const claims: Array<{ index: number; data: EvidenceClaimInput }> = [];
   batch.claims.forEach((c, index) => {
@@ -242,6 +249,17 @@ export async function recordEvidenceBatch(
     const pii = findPii({ claimText: r.data.claimText });
     if (pii) {
       receipt.rejected.push({ kind: "claim", index, error: `${pii.path}: ${pii.reason} — the ledger is aggregate-only` });
+      return;
+    }
+    // 2026-10-09: lineage is checked HERE, before the batch decides whether to
+    // claim its Idempotency-Key. A claim resting on an event this batch refused
+    // (or never sent) can never land. Counted as valid, it used to claim the key
+    // and settle it "none", so a corrected resend under the same key came back
+    // duplicate:true with nothing written. The in-transaction check below is
+    // now only a backstop.
+    const dangling = (r.data.sourceEventIndexes ?? []).find((i) => !landable.has(i));
+    if (dangling !== undefined) {
+      receipt.rejected.push({ kind: "claim", index, error: `sourceEventIndexes[${dangling}] does not name an event written by this batch` });
       return;
     }
     claims.push({ index, data: r.data });
@@ -323,6 +341,7 @@ export async function recordEvidenceBatch(
         }
         if (broken !== null) {
           // A claim that says it rests on an event this batch did not land has no lineage — refuse it.
+          // Backstop only: the pre-validation above already refuses these before the key is claimed.
           receipt.rejected.push({ kind: "claim", index, error: `sourceEventIndexes[${broken}] does not name an event written by this batch` });
           continue;
         }
@@ -442,4 +461,158 @@ export async function proofSummary(limit = 12) {
     proposals,
     generatedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Receptionist prompt experiments (2026-10-09): the read side of the
+ * `receptionist.prompt_experiment` RealityEvent that nickstire's weekly
+ * prompt-evolution run posts (source.uri "cron:prompt-evolution-weekly"),
+ * one receipt per run. /proof renders these read-only; approving a candidate
+ * stays the operator's Push Config in Nick's admin, never a button here.
+ *
+ * Three states, never two (repo skill empty-vs-error):
+ *   ok, rows        the read succeeded; an EMPTY list is a measured "none yet".
+ *   unavailable     not_migrated (P2021/P2022, via ledgerRead) or read_failed
+ *                   (any other error, logged). Renders as "couldn't load",
+ *                   NEVER as "no experiments": a dead read must not look like
+ *                   a quiet week.
+ * This helper never throws, so one bad read cannot 500 the rest of /proof.
+ *
+ * Rows are mapped from untyped JSON, reading only the keys the producer
+ * writes (apps/nickstire/server/services/promptEvolutionReceipt.ts gateOf /
+ * lanes). A gate the run never reached (success / confirmation null or absent)
+ * is `ran: false`; a gate that ran without a readable `reason` is verdict null
+ * ("unknown" on the page), never a pass; an absent number is null, never 0; an
+ * unreadable lane parity is "unknown", never "match".
+ *
+ * Provenance: the registry scopes this type to the bridge door (nickstire's
+ * STATENOUR_SYNC_KEY), so another key holder cannot write a row here. Order
+ * is the server-set createdAt, newest first: occurredAt is producer-supplied,
+ * and one far-future value would otherwise hold the top row forever.
+ */
+export const RECEPTIONIST_EXPERIMENT_EVENT_TYPE = "receptionist.prompt_experiment";
+
+export interface PromptExperimentGateView {
+  /** false = the gate key was absent or null: the run never reached this gate. */
+  ran: boolean;
+  /** The gate's `reason` verbatim ("improved", "regressed-seed", "preserved", ...); null = ran but no readable reason. */
+  verdict: string | null;
+  pValue: number | null;
+  /** Seeds both arms resolved (the paired test's n), and how many moved up / down. */
+  comparable: number | null;
+  improved: number | null;
+  worsened: number | null;
+}
+
+export interface PromptExperimentRow {
+  /** RealityEvent id. */
+  id: string;
+  /** The `{ type: "experiment" }` object id, e.g. "prompt-evolution:<hex>"; null when the producer sent none. */
+  experimentId: string | null;
+  /** ISO; the event's canonical occurredAt (falls back to observedAt). */
+  occurredAt: string;
+  outcome: string | null;
+  promotionStage: string | null;
+  cohorts: { train: number | null; holdout: number | null; confirm: number | null; success: number | null };
+  holdout: PromptExperimentGateView;
+  success: PromptExperimentGateView;
+  confirmation: PromptExperimentGateView;
+  /** Replay lane vs live config. lanes.parity true = match; false (or any difference listed) = mismatch; anything else = unknown. */
+  laneParity: "match" | "mismatch" | "unknown";
+  laneDifferences: string[];
+  /** previousProposal.status verbatim (e.g. "applied"); null = not reported. */
+  previousProposalStatus: string | null;
+}
+
+export type PromptExperimentsRead =
+  | { status: "ok"; rows: PromptExperimentRow[] }
+  | { status: "unavailable"; reason: "not_migrated" | "read_failed" };
+
+export interface PromptExperimentEventLike {
+  id: string;
+  occurredAt?: Date | string | null;
+  observedAt: Date | string;
+  objects: unknown;
+  payload: unknown;
+}
+
+type JsonRec = Record<string, unknown>;
+const asRec = (v: unknown): JsonRec => (v && typeof v === "object" && !Array.isArray(v) ? (v as JsonRec) : {});
+const asNum = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+const asStr = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
+
+function gateView(raw: unknown): PromptExperimentGateView {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { ran: false, verdict: null, pValue: null, comparable: null, improved: null, worsened: null };
+  }
+  const g = raw as JsonRec;
+  return {
+    ran: true,
+    verdict: asStr(g.reason),
+    pValue: asNum(g.pValue),
+    comparable: asNum(g.comparable),
+    improved: asNum(g.improved),
+    worsened: asNum(g.worsened),
+  };
+}
+
+function laneDifferenceLabels(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((d) => (asStr(d) === null ? [] : [d as string]));
+}
+
+/** Pure: one ledger row -> the /proof view. Never throws on a malformed payload. */
+export function toPromptExperimentRow(e: PromptExperimentEventLike): PromptExperimentRow {
+  const p = asRec(e.payload);
+  const gates = asRec(p.gates);
+  const cohorts = asRec(p.cohorts);
+  const lanes = asRec(p.lanes);
+  const differences = laneDifferenceLabels(lanes.differences);
+  const parity = lanes.parity;
+  const laneParity: PromptExperimentRow["laneParity"] =
+    parity === true ? "match" : parity === false || differences.length > 0 ? "mismatch" : "unknown";
+  const experimentObject = Array.isArray(e.objects) ? e.objects.map(asRec).find((o) => o.type === "experiment") : undefined;
+  return {
+    id: e.id,
+    experimentId: asStr(experimentObject?.id),
+    occurredAt: new Date(e.occurredAt ?? e.observedAt).toISOString(),
+    outcome: asStr(p.outcome),
+    promotionStage: asStr(p.promotionStage),
+    cohorts: {
+      train: asNum(cohorts.train),
+      holdout: asNum(cohorts.holdout),
+      confirm: asNum(cohorts.confirm),
+      success: asNum(cohorts.success),
+    },
+    holdout: gateView(gates.holdout),
+    success: gateView(gates.success),
+    confirmation: gateView(gates.confirmation),
+    laneParity,
+    laneDifferences: differences,
+    previousProposalStatus: asStr(asRec(p.previousProposal).status),
+  };
+}
+
+/** Newest received first (server createdAt). `limit` is clamped to 1..50. Never throws (see the block comment above). */
+export async function recentPromptExperiments(limit = 8): Promise<PromptExperimentsRead> {
+  const take = Math.min(50, Math.max(1, Math.floor(limit) || 8));
+  const missing: string[] = [];
+  try {
+    const events = await ledgerRead<PromptExperimentEventLike[]>(
+      () =>
+        prisma.realityEvent.findMany({
+          where: { eventType: RECEPTIONIST_EXPERIMENT_EVENT_TYPE },
+          orderBy: { createdAt: "desc" },
+          take,
+          select: { id: true, occurredAt: true, observedAt: true, objects: true, payload: true },
+        }),
+      [],
+      missing,
+    );
+    if (missing.length > 0) return { status: "unavailable", reason: "not_migrated" };
+    return { status: "ok", rows: events.map(toPromptExperimentRow) };
+  } catch (err) {
+    log.error("prompt_experiments_read_failed", { error: err instanceof Error ? err.message : String(err) });
+    return { status: "unavailable", reason: "read_failed" };
+  }
 }

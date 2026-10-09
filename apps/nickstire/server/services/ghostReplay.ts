@@ -14,7 +14,15 @@
  * VAPI or customers and never writes; it is the evaluation half of the
  * prompt-evolution loop (scripts/prompt-evolve.ts), which itself only emits
  * PROPOSALS — Push Config remains the one serving gate.
+ *
+ * 2026-10-09 -- the policy half moved to replayPolicy.ts: the reply grader
+ * now also runs the LIVE voice claim guard (claimViolations), the prompt
+ * guard checks clause preservation and a reversal deny-list against the
+ * served baseline, and gradeRepliesWithJudge verifies regex HITS too, so a
+ * generic "come by" that ignores the caller's actual request (a deflection)
+ * no longer scores as resolved.
  */
+import { PROMPT_INVARIANTS, replyClaimViolations, stripApprovedAnchors, violatedPromptPolicy } from "./replayPolicy";
 
 /** Caller-line markers seen in vaulted VAPI transcripts + the simulator. */
 const CALLER_LINE = /^(User|Customer|Caller)\s*:\s*(.*)$/i;
@@ -69,7 +77,21 @@ export const GHOST_AGENT_MODEL = process.env.GHOST_AGENT_MODEL || "deepseek-v4-p
  *  Mark-targeted replay showed "let me get you over to him" graded as a
  *  failure, under-measuring every transfer-resolved call. */
 export const RESOLUTION_RX = /(walk[- ]?in|come (on )?(in|by|up)|swing by|stop by|pull up|we can get you in|book|schedule|call you back|text you|first[- ]come|transferr?(ing)?\b|connect(ing)? (you|the call)|put you through|get(ting)? you (over )?(to )?(him|her|them|someone|a person|the (shop|counter|floor|manager))|(let me |i'?ll )get (him|her|them|someone)\b)/i;
-/** Price-shaped leak: any $NN+ figure is a banned phone quote for repairs. */
+/**
+ * Price-shaped leak: a $NN+ figure, read AFTER the approved anchor prices are
+ * removed (replayPolicy.stripApprovedAnchors) -- each permitted price only for
+ * the product it belongs to: the nearest product named, one figure per mention
+ * (round 3: "Full synthetic is $80 and brake pads are $80 too" is a leak).
+ * Before 2026-10-09 the prompt's own scripted Beat 1, "Used tires start at $60
+ * installed", graded as a banned quote, so the served prompt failed for
+ * obeying itself.
+ *
+ * NOT the guard's allowlist: a first cut counted a leak only when the live
+ * guard also called the figure unapproved, and the guard clears 49 / 60 / 80
+ * by VALUE -- so "Brake pads are $80" and "Brakes run $60-$80" stopped being
+ * leaks (review 2026-10-09). An anchor value quoted for any other product, or
+ * with cents ("$49.99"), stays a leak here.
+ */
 export const PRICE_LEAK_RX = /\$\s*\d{2,}/;
 export const GUARANTEE_RX = /\bguarantee/i;
 
@@ -78,8 +100,22 @@ export interface ReplayGrade {
   priceLeaks: number;
   guarantees: number;
   emptyReplies: number;
+  /**
+   * Claim labels from the live voice guard plus the replay-only classes
+   * (replayPolicy.replyClaimViolations): unapproved/unit-less prices (an
+   * anchor value quoted for the wrong product included), hedged figures, wait
+   * estimates, outcome promises, invented warranties, diagnosis verdicts, ...
+   * Any entry fails the grade, and no judge verdict can clear it.
+   */
+  claimViolations: string[];
   /** The single pass bit the evolution gate optimizes. */
   pass: boolean;
+  /**
+   * Set by the judge only: the receptionist offered a GENERIC next step that
+   * ignored what the caller actually asked (a "come by" to a caller who asked
+   * whether the shop does motorcycle tires). Always pass=false.
+   */
+  deflected?: boolean;
   /**
    * Set by the semantic judge only: no concrete next step was POSSIBLE from
    * what the caller said (wrong number correctly redirected, or the caller
@@ -89,76 +125,114 @@ export interface ReplayGrade {
   unresolvable?: boolean;
   /** The judge's one-clause reason, when the judge was consulted. */
   judgeReason?: string;
-  /** The judge lane was unreachable; this grade is regex-only. */
+  /**
+   * The judge was NEEDED but its lane was unreachable, so this grade is
+   * regex-only. Set for a regex MISS (the regex fail stands) and, when hits
+   * are verified, for a regex HIT (the regex pass stands, unverified). Never
+   * set when the judge was not needed (verifyHits: false and a regex hit).
+   * The holdout gate treats a seed carrying this flag as invalid evidence:
+   * an outage must not hand either arm an unverified pass.
+   */
   judgeUnavailable?: boolean;
 }
 
 /** Pure: grade a candidate's replies to one ghost call. */
 export function gradeReplies(replies: string[]): ReplayGrade {
   const joined = replies.join("\n");
-  const priceLeaks = replies.filter((r) => PRICE_LEAK_RX.test(r)).length;
+  const priceLeaks = replies.filter((r) => PRICE_LEAK_RX.test(stripApprovedAnchors(r))).length;
   const guarantees = replies.filter((r) => GUARANTEE_RX.test(r)).length;
   const emptyReplies = replies.filter((r) => !r.trim()).length;
+  const claimViolations = replyClaimViolations(replies);
   const resolutionOffered = RESOLUTION_RX.test(joined);
   return {
     resolutionOffered,
     priceLeaks,
     guarantees,
     emptyReplies,
+    claimViolations,
     // A pass = the call got a concrete next step with zero violations and no
     // silent (empty) turns. Violations are disqualifying regardless of
     // resolution — a booked appointment won by quoting a banned price is a
     // compliance failure, not a win.
-    pass: resolutionOffered && priceLeaks === 0 && guarantees === 0 && emptyReplies === 0,
+    pass:
+      resolutionOffered && priceLeaks === 0 && guarantees === 0 && emptyReplies === 0 && claimViolations.length === 0,
   };
 }
 
+export interface GradeWithJudgeOptions {
+  /**
+   * Ask the judge about a regex HIT too (default true since 2026-10-09). The
+   * regex rewards any stated next step, so "come by anytime" to a caller who
+   * asked something else scored as resolved and could never be overturned.
+   * false restores the old free fast path: a hit returns without a judge call.
+   */
+  verifyHits?: boolean;
+}
+
 /**
- * gradeReplies + the semantic backstop (2026-08-07).
+ * gradeReplies + the semantic judge (2026-08-07; hit verification 2026-10-09).
  *
- * The pure grader above stays the fast path and the source of truth for
- * VIOLATIONS. This layer escalates ONLY a regex resolution-miss to the
- * family-diverse judge, which can turn it into:
- *   · resolved     — the receptionist offered a next step in wording the
- *                    enumerated regex does not know (vocabulary drift), or
+ * The pure grader above stays the source of truth for VIOLATIONS. The
+ * family-diverse judge rules on RESOLUTION, for a regex miss always and for a
+ * regex hit when `verifyHits` (the default):
+ *   · resolved     — a next step that fits the caller's request, in any
+ *                    wording (rescues a vocabulary miss; confirms a hit);
+ *   · deflected    — a generic next step that ignored the caller's actual
+ *                    request: pass=false, deflected=true, even on a regex hit;
+ *   · unresolved   — no way forward offered (also overturns a regex hit, e.g.
+ *                    "we don't book appointments" matched /book/);
  *   · unresolvable — no next step was possible from what the caller said
- *                    (wrong number, or the caller left before asking).
+ *                    (wrong number, or the caller left before asking): on a
+ *                    MISS the seed is marked for denominator exclusion,
+ *                    pass=false; on a HIT the regex verdict stands (a next
+ *                    step was offered anyway) and the seed stays counted.
  *
- * What the judge can NEVER do: overturn a price leak, a guarantee, or an
- * empty turn. Those stay deterministic and disqualifying — pinned by test.
- * A grader the prompt under test can talk its way past is not a grader.
+ * What the judge can NEVER do: overturn a price leak, a guarantee, an empty
+ * turn or a claim violation. Those stay deterministic and disqualifying —
+ * pinned by test. A grader the prompt under test can talk its way past is
+ * not a grader.
+ *
+ * A judge that was needed and unreachable leaves the regex verdict standing
+ * and sets judgeUnavailable (see ReplayGrade) — for hits and misses alike.
  */
-export async function gradeRepliesWithJudge(callerTurns: string[], replies: string[]): Promise<ReplayGrade> {
+export async function gradeRepliesWithJudge(
+  callerTurns: string[],
+  replies: string[],
+  opts: GradeWithJudgeOptions = { verifyHits: true },
+): Promise<ReplayGrade> {
   const base = gradeReplies(replies);
-  if (base.resolutionOffered) return base;
+  const verifyHits = opts.verifyHits !== false;
+  if (base.resolutionOffered && !verifyHits) return base;
 
   const { judgeResolution } = await import("./resolutionJudge");
   const judged = await judgeResolution(callerTurns, replies);
-  const violationsClean = base.priceLeaks === 0 && base.guarantees === 0 && base.emptyReplies === 0;
 
-  if (judged.verdict === "unresolvable") {
-    return {
-      ...base,
-      unresolvable: true,
-      judgeReason: judged.reason,
-      ...(judged.judgeUnavailable ? { judgeUnavailable: true } : {}),
-    };
-  }
-  if (judged.verdict === "resolved") {
-    return {
-      ...base,
-      resolutionOffered: true,
+  // Needed and unreachable: the regex verdict stands, loudly. Checked before
+  // the verdict, because an unreachable judge's verdict is a placeholder.
+  if (judged.judgeUnavailable) return { ...base, judgeReason: judged.reason, judgeUnavailable: true };
+
+  const violationsClean =
+    base.priceLeaks === 0 && base.guarantees === 0 && base.emptyReplies === 0 && base.claimViolations.length === 0;
+
+  switch (judged.verdict) {
+    case "unresolvable":
+      // On a regex HIT a next step WAS offered -- the prompt tells it to give
+      // even a misdialer a doorway -- so the regex verdict stands and the seed
+      // stays in the denominator. Verifying hits may catch a deflection; it
+      // must not shrink the denominator a hit always counted in, or a
+      // candidate that drops the doorway would stop being measured there.
+      if (base.resolutionOffered) return { ...base, judgeReason: judged.reason };
+      // On a miss: excluded from the denominator, NOT counted as a win.
+      return { ...base, pass: false, unresolvable: true, judgeReason: judged.reason };
+    case "resolved":
       // Violations still rule: a resolution won by quoting a banned price is
       // a compliance failure, not a win.
-      pass: violationsClean,
-      judgeReason: judged.reason,
-    };
+      return { ...base, resolutionOffered: true, pass: violationsClean, judgeReason: judged.reason };
+    case "deflected":
+      return { ...base, resolutionOffered: false, deflected: true, pass: false, judgeReason: judged.reason };
+    default:
+      return { ...base, resolutionOffered: false, pass: false, judgeReason: judged.reason };
   }
-  return {
-    ...base,
-    judgeReason: judged.reason,
-    ...(judged.judgeUnavailable ? { judgeUnavailable: true } : {}),
-  };
 }
 
 /**
@@ -181,15 +255,20 @@ export function splitSeeds<T extends { id: string }>(seeds: T[], holdoutRatio = 
 /**
  * Invariants a bounded edit must NEVER remove. A candidate prompt missing any
  * of these is rejected BEFORE scoring — the optimizer's freedom is bounded by
- * the compliance spine, not negotiated against it.
+ * the compliance spine, not negotiated against it. Defined in replayPolicy.ts
+ * since 2026-10-09; re-exported here so existing importers keep working.
  */
-export const PROMPT_INVARIANTS: Array<{ name: string; rx: RegExp }> = [
-  { name: "identity", rx: /Nick'?s Tire/i },
-  { name: "no-price-quotes", rx: /price|quote/i },
-  { name: "tire-capability", rx: /tire/i },
-];
+export { PROMPT_INVARIANTS };
 
-export function violatedInvariants(candidatePrompt: string): string[] {
+/**
+ * The prompt guard. WITH a baseline (the served prompt) it is the full policy
+ * check -- legacy invariants + clause preservation + reversal deny-list, see
+ * replayPolicy.violatedPromptPolicy. WITHOUT one it keeps the old three-regex
+ * reading for compatibility, which "Always quote prices and guarantee every
+ * repair" still passes: callers that can supply the baseline should.
+ */
+export function violatedInvariants(candidatePrompt: string, baseline?: string): string[] {
+  if (baseline !== undefined) return violatedPromptPolicy(candidatePrompt, baseline);
   return PROMPT_INVARIANTS.filter((i) => !i.rx.test(candidatePrompt)).map((i) => i.name);
 }
 

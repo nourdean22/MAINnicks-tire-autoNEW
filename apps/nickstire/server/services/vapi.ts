@@ -1198,6 +1198,25 @@ async function vapiFetch(path: string, init: RequestInit = {}): Promise<Response
 }
 
 /**
+ * Read ONE assistant from the provider (GET /assistant/:id) through the same
+ * authenticated, 15s-capped client every other call in this file uses.
+ *
+ * Added 2026-10-09 for services/receptionistBaseline.ts, which needs the
+ * prompt and model block callers actually hear (code prompt + learned lessons
+ * + dashboard settings, as updateAssistant pushed them) instead of the code
+ * constant. Exported as a thin GET rather than exporting vapiFetch itself so
+ * no new caller gains a write path to the provider.
+ *
+ * Read-only. Returns the raw Response so the CALLER owns the fail-closed
+ * policy for non-OK and malformed bodies. Throws only what vapiFetch throws
+ * (no API key, network error, timeout). The id is URL-encoded so a malformed
+ * id cannot address a different endpoint.
+ */
+export async function fetchAssistantById(assistantId: string): Promise<Response> {
+  return vapiFetch(`/assistant/${encodeURIComponent(assistantId)}`);
+}
+
+/**
  * wave-145 · The outbound caller-ID line. Defaults to Nick's registered VAPI
  * number — the same line callers reach inbound, so outbound calls show a
  * number customers recognize. Operator can point elsewhere via env override.

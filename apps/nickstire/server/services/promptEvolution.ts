@@ -11,19 +11,116 @@
  * serializable result; persistence and notification are the caller's job.
  * Nothing here ever writes the served prompt — Push Config stays the one
  * serving gate.
+ *
+ * WIRED 2026-10-09 (autoresearch audit, ledger items 2-7). What changed, and
+ * why each piece sits where it does:
+ *  - BASELINE. runPromptEvolution takes an explicit baseline artifact
+ *    (receptionistBaseline.ts) and no longer imports ASSISTANT_SYSTEM_PROMPT.
+ *    The weekly job passes the LIVE prompt (code + learned lessons as served);
+ *    the CLI passes the repository constant only behind an explicit flag. The
+ *    optimizer edits baseline.prompt, every baseline arm replays
+ *    baseline.prompt, and the policy guard reads candidate vs baseline.prompt,
+ *    so all three compare against the text callers hear. The operator gets a
+ *    compact line diff (candidateDiff) to apply as a code edit + Push Config.
+ *  - LANES. The replay lane (REPLAY_LANE) is not the live lane; every result
+ *    records describeLaneParity so a reader sees "proxy lane", never a claim
+ *    of parity the run did not have.
+ *  - GRADING COST. Train scoring uses verifyHits: false (train only picks
+ *    which candidate reaches a gate); holdout, success cohort and confirmation
+ *    scoring verify hits. Replays and judge calls are counted into usage.
+ *  - TRAIN SELECTION. comparePairedTrain margins on the same seeds, never
+ *    passRate vs passRate over each prompt's own denominator.
+ *  - STAGES. holdout (judgeHoldout) -> success cohort of WON calls
+ *    (judgeSuccessCohort, evaluator-only, loaded only after the holdout
+ *    accepts and after the optimizer has run) -> sealed confirmation
+ *    (judgeConfirmation on promptEvolutionCohorts' confirm buckets, read from
+ *    a larger failed-call pool than train/holdout, minus the seeds earlier
+ *    runs consumed, at most CONFIRM_MAX). The runner never writes kv: it hands
+ *    the sealed ids to the caller's onConfirmationSpend hook BEFORE reading
+ *    them (write-ahead, so a throw mid-confirmation cannot lose them) and
+ *    returns them in consumedConfirmationIds.
+ *  - DIFF. candidateDiff.codeEdit says whether the candidate kept the served
+ *    lessons block verbatim at its end, i.e. whether it can be applied as a
+ *    code edit + Push Config at all without serving a different text from
+ *    the one measured.
+ *  - REDACTION. Caller words reach the optimizer only through
+ *    redactCallerText + fenceUntrusted, with UNTRUSTED_DATA_NOTICE in the
+ *    system message; the optimizer's rationale is redacted before it is
+ *    stored or sent anywhere.
+ *  - BUDGET. opts.deadlineMs is checked before every stage and every seed; a
+ *    run past it returns "inconclusive-budget" with what it measured so far.
  */
+import { createHash } from "node:crypto";
 import { invokeLLM } from "../_core/llm";
+import { fenceUntrusted, redactCallerText, UNTRUSTED_DATA_NOTICE } from "./callerTextRedaction";
 import {
   extractCallerTurns,
   ghostReplay,
   gradeReplies,
   gradeRepliesWithJudge,
-  splitSeeds,
+  RESOLUTION_RX,
   violatedInvariants,
 } from "./ghostReplay";
-import { describeVerdict, judgeHoldout, toSeedTrials, type GateVerdict } from "./promptEvolutionGate";
+import { excludeConsumed, selectSuccessCohort, splitSeedsThreeWay } from "./promptEvolutionCohorts";
+import {
+  comparePairedTrain,
+  describeSuccessVerdict,
+  describeVerdict,
+  judgeConfirmation,
+  judgeHoldout,
+  judgeSuccessCohort,
+  minSeedsForAlpha,
+  toSeedTrials,
+  toSuccessTrials,
+  type GateVerdict,
+  type SuccessCohortVerdict,
+} from "./promptEvolutionGate";
+import type { PromptParity, ReceptionistBaseline, ReceptionistLane, ReplayLane } from "./receptionistBaseline";
+import { RESOLUTION_JUDGE_MODEL } from "./resolutionJudge";
 
 const OPTIMIZER_MODEL = process.env.PROMPT_EVOLVE_OPTIMIZER || "gpt-oss:120b";
+/**
+ * The evaluation protocol a receipt names (its contractHash). Bump it when a
+ * gate's meaning changes, so two receipts are comparable only when they were
+ * judged the same way. 2026-10-09: live baseline, paired train selection,
+ * holdout + success cohort + sealed confirmation, hit verification.
+ */
+const PROTOCOL_VERSION = "prompt-evolution/2026-10-09";
+/** Characters of one caller turn the optimizer sees, after redaction. */
+const CALLER_EXCERPT_MAX = 140;
+/** Characters of the optimizer's rationale kept, after redaction (the receipt's own cap). */
+const RATIONALE_MAX = 400;
+/** One-sided alpha every gate here runs at (promptEvolutionGate's default). */
+const GATE_ALPHA = 0.05;
+/**
+ * candidateDiff caps: lines per side, characters per line, and characters per
+ * side (2026-10-09 review). The diff rides in the prompt_evolution_latest kv
+ * row next to the full candidate, and shop_settings.value is TEXT (65,535
+ * bytes). Lines and line length alone allowed ~18k characters per side on the
+ * served prompt (27k characters, 28 lines over 300): a two-touch edit spans
+ * the whole prompt and put the row at 57k-61k bytes, ~13% under the column.
+ * DIFF_MAX_CHARS bounds the diff at ~12k whatever the prompt's shape; the full
+ * candidate is always in accepted.prompt.
+ */
+const DIFF_MAX_LINES = 80;
+const DIFF_MAX_LINE = 300;
+const DIFF_MAX_CHARS = 6000;
+/**
+ * Failed calls read to find sealed confirmation seeds (2026-10-09 review).
+ * The confirm buckets are 20% of any pool, so the train/holdout sample
+ * (seedCount, clamped to 40; the weekly job reads 30) holds the 5 seeds a
+ * confirmation needs only ~75% of the time, and fewer once earlier runs have
+ * consumed some (promptEvolutionCohorts.ts, SIZE). Membership is a hash of the
+ * call id, independent of pool size, so this larger read moves no train or
+ * holdout seed and never hands the optimizer a sealed one.
+ */
+const CONFIRM_POOL_SEEDS = 90;
+/**
+ * Sealed seeds one confirmation spends, at most: minSeedsForAlpha(0.05) = 5
+ * plus room for seeds the judge rules unresolvable. Sealed seeds are the
+ * scarce input, so a confirmation spends no more than it needs (most recent first).
+ */
+const CONFIRM_MAX = 8;
 
 export interface Seed {
   id: string;
@@ -53,13 +150,33 @@ export interface SeedLoad {
   excludedVerified: number;
 }
 
+/** One seed's grade under one prompt (ghostReplay.ReplayGrade, plus the seed id). */
+export interface ScoredGrade {
+  id: string;
+  pass: boolean;
+  priceLeaks: number;
+  resolutionOffered: boolean;
+  guarantees: number;
+  emptyReplies: number;
+  /** replayPolicy claim labels (ReplayGrade.claimViolations); any entry fails the grade. */
+  claimViolations: string[];
+  /** The judge ruled the next step generic, ignoring what the caller asked. */
+  deflected?: boolean;
+  replies?: string[];
+  unresolvable?: boolean;
+  judgeReason?: string;
+  judgeUnavailable?: boolean;
+}
+
 export interface ScoredPrompt {
   passRate: number;
   /** Seeds the judge ruled impossible — excluded from `total`, reported honestly. */
   unresolvable?: number;
   passes: number;
   total: number;
-  grades: Array<{ id: string; pass: boolean; priceLeaks: number; resolutionOffered: boolean; guarantees: number; emptyReplies: number; replies?: string[]; unresolvable?: boolean; judgeReason?: string; judgeUnavailable?: boolean }>;
+  grades: ScoredGrade[];
+  /** What this scoring cost: one replay per seed, and every judge call gradeRepliesWithJudge made. */
+  usage: { replays: number; judgeCalls: number };
 }
 
 export async function loadSeeds(seedCount: number, filterRx?: RegExp | null): Promise<SeedLoad> {
@@ -137,10 +254,15 @@ export const SUCCESS_OUTCOMES = ["hard_conversion", "walk_in_directed", "human_h
  * A call can convert DESPITE a bad turn, and a compliance breach inside a
  * won call is exactly the defect nobody is looking for.
  *
- * ★ These seeds are an AUDIT sample, NOT training data. They are deliberately
- * unreachable from runPromptEvolution: a won call is a mislabeled-win risk of
- * the #1410 class, and feeding "fix this" edits from calls that worked is how
- * an optimizer learns to break what already converts. Pinned by test.
+ * ★ These seeds are an AUDIT and EVALUATOR sample, NOT training data. A won
+ * call is a mislabeled-win risk of the #1410 class, and feeding "fix this"
+ * edits from calls that worked is how an optimizer learns to break what
+ * already converts. Since 2026-10-09 runPromptEvolution loads them for ONE
+ * purpose: the success-regression cohort (judgeSuccessCohort), replayed under
+ * both prompts AFTER the optimizer has run, so a won call can veto a
+ * candidate but can never shape one. Pinned structurally
+ * (successAudit.test.ts) and behaviourally (promptEvolution.integration.test.ts:
+ * no won-call text in any optimizer prompt).
  */
 export async function loadSuccessSeeds(seedCount: number, filterRx?: RegExp | null): Promise<Seed[]> {
   const { getDb } = await import("../db");
@@ -179,6 +301,8 @@ export interface SuccessAuditFinding {
   priceLeaks: number;
   guarantees: number;
   emptyReplies: number;
+  /** replayPolicy claim labels: an unapproved price, a wait estimate, an outcome promise, ... */
+  claimViolations: string[];
   resolutionOffered: boolean;
   replies: string[];
   callerTurns: string[];
@@ -203,26 +327,58 @@ export async function auditSuccessCalls(
     // won call's resolution is not in question, and spending a judge call per
     // seed to re-confirm it would be measurement theatre.
     const g = gradeReplies(replies);
-    const defective = g.priceLeaks > 0 || g.guarantees > 0 || g.emptyReplies > 0;
+    // claimViolations (2026-10-09): the live voice claim guard's labels are
+    // deterministic compliance checks too -- a wait estimate or an outcome
+    // promise inside a won call is the same class of defect as a price leak.
+    const defective = g.priceLeaks > 0 || g.guarantees > 0 || g.emptyReplies > 0 || g.claimViolations.length > 0;
     if (defective) {
       findings.push({
         id: s.id, evalOutcome: s.evalOutcome, priceLeaks: g.priceLeaks, guarantees: g.guarantees,
-        emptyReplies: g.emptyReplies, resolutionOffered: g.resolutionOffered, replies, callerTurns: s.callerTurns,
+        emptyReplies: g.emptyReplies, claimViolations: g.claimViolations, resolutionOffered: g.resolutionOffered,
+        replies, callerTurns: s.callerTurns,
       });
-      log(`DEFECT in a WON call ${s.id} (${s.evalOutcome}): priceLeaks=${g.priceLeaks} guarantees=${g.guarantees} empty=${g.emptyReplies}`);
+      log(`DEFECT in a WON call ${s.id} (${s.evalOutcome}): priceLeaks=${g.priceLeaks} guarantees=${g.guarantees} empty=${g.emptyReplies} claims=${g.claimViolations.join(",") || "none"}`);
     }
   }
   return { audited: seeds.length, clean: seeds.length - findings.length, findings };
 }
 
-export async function scorePrompt(prompt: string, seeds: Seed[], opts: { keepReplies?: boolean } = {}): Promise<ScoredPrompt> {
+export interface ScoreOptions {
+  /** Keep each seed's graded replies (the CLI's dialogue display). */
+  keepReplies?: boolean;
+  /**
+   * Ask the judge about regex HITS too (gradeRepliesWithJudge's verifyHits,
+   * default true). runPromptEvolution passes false for train scoring only.
+   */
+  verifyHits?: boolean;
+  /** Called before each seed's replay; runPromptEvolution's budget check throws from here. */
+  beforeSeed?: () => void;
+  /** Incremented in place as replays and judge calls happen, so a scoring cut short is still counted. */
+  tally?: { replays: number; judgeCalls: number };
+}
+
+export async function scorePrompt(prompt: string, seeds: Seed[], opts: ScoreOptions = {}): Promise<ScoredPrompt> {
+  const verifyHits = opts.verifyHits !== false;
+  const usage = { replays: 0, judgeCalls: 0 };
   const grades: ScoredPrompt["grades"] = [];
   for (const s of seeds) {
+    opts.beforeSeed?.();
     const replies = await ghostReplay(prompt, s.callerTurns, { priority: 3 });
-    const g = await gradeRepliesWithJudge(s.callerTurns, replies);
+    usage.replays++;
+    if (opts.tally) opts.tally.replays++;
+    // gradeRepliesWithJudge asks the judge on every seed when hits are
+    // verified, and on a regex MISS only otherwise (its resolutionOffered is
+    // exactly this test). The integration test pins the count to the judge
+    // calls the mocked lane actually received.
+    if (verifyHits || !RESOLUTION_RX.test(replies.join("\n"))) {
+      usage.judgeCalls++;
+      if (opts.tally) opts.tally.judgeCalls++;
+    }
+    const g = await gradeRepliesWithJudge(s.callerTurns, replies, { verifyHits });
     grades.push({
       id: s.id, pass: g.pass, priceLeaks: g.priceLeaks, resolutionOffered: g.resolutionOffered,
-      guarantees: g.guarantees, emptyReplies: g.emptyReplies,
+      guarantees: g.guarantees, emptyReplies: g.emptyReplies, claimViolations: g.claimViolations,
+      ...(g.deflected ? { deflected: true } : {}),
       ...(g.unresolvable ? { unresolvable: true } : {}),
       ...(g.judgeReason ? { judgeReason: g.judgeReason } : {}),
       ...(g.judgeUnavailable ? { judgeUnavailable: true } : {}),
@@ -245,29 +401,52 @@ export async function scorePrompt(prompt: string, seeds: Seed[], opts: { keepRep
     total: graded.length,
     unresolvable: grades.length - graded.length,
     grades,
+    usage,
   };
 }
 
+/**
+ * The failure brief the optimizer reads. Caller words are the one untrusted
+ * input in it: each first turn is redacted WHOLE and then cut
+ * (redactCallerText), and fenced (fenceUntrusted) so text a caller spoke can
+ * neither carry a phone number out nor pass as an instruction. Calls are
+ * labelled by position, not by call id: the optimizer needs no identifier.
+ */
+function failureBrief(trainFailures: Array<{ seed: Seed; grade: ScoredGrade }>): string {
+  return trainFailures.slice(0, 6).map((f, i) => {
+    const label = `call-${i + 1}`;
+    const humanLane = f.seed.revenueResolution === "manual_review" ? " · likely converted later via the HUMAN lane — the AI leg still failed" : "";
+    const excerpt = fenceUntrusted(label, redactCallerText(f.seed.callerTurns[0] ?? "", CALLER_EXCERPT_MAX));
+    const claims = f.grade.claimViolations.length ? f.grade.claimViolations.join(",") : "none";
+    return `- ${label} (${f.seed.evalOutcome}${humanLane}): caller said ${excerpt}; grade: resolution=${f.grade.resolutionOffered}${f.grade.deflected ? " (deflected)" : ""} priceLeaks=${f.grade.priceLeaks} claims=${claims}`;
+  }).join("\n");
+}
+
+/**
+ * Ask the optimizer for k bounded edits of `basePrompt`. Its input is the
+ * prompt and the redacted, fenced failure brief -- nothing else. `beforeCall`
+ * runs before every optimizer call (the run's budget check).
+ */
 async function proposeCandidates(
   basePrompt: string,
-  trainFailures: Array<{ seed: Seed; grade: ScoredPrompt["grades"][0] }>,
+  trainFailures: Array<{ seed: Seed; grade: ScoredGrade }>,
   k: number,
   log: (line: string) => void,
+  beforeCall: () => void,
 ): Promise<Array<{ prompt: string; rationale: string }>> {
   const out: Array<{ prompt: string; rationale: string }> = [];
+  const brief = failureBrief(trainFailures);
   for (let i = 0; i < k; i++) {
-    const failureBrief = trainFailures.slice(0, 6).map((f) =>
-      `- Call ${f.seed.id} (${f.seed.evalOutcome}${f.seed.revenueResolution === "manual_review" ? " · likely converted later via the HUMAN lane — the AI leg still failed" : ""}): caller said "${f.seed.callerTurns[0]?.slice(0, 140)}"; grade: resolution=${f.grade.resolutionOffered} priceLeaks=${f.grade.priceLeaks}`,
-    ).join("\n");
+    beforeCall();
     const res = await invokeLLM({
       messages: [
         {
           role: "system",
-          content: `You optimize a phone-receptionist system prompt for a tire shop. Make ONE bounded improvement: add, delete, or rewrite exactly ONE section to fix the failure pattern shown. HARD CONSTRAINTS: keep the shop identity, keep every compliance rule (never quote repair prices, never guarantee outcomes, never diagnose by phone), start neutral and identify the caller's need before specializing; preserve strong tire handling but never assume used tires before the caller gives a tire signal. Output format: one line "RATIONALE: <why this one edit>" then the COMPLETE edited prompt between <PROMPT> and </PROMPT> markers. Attempt ${i + 1} of ${k} — make each attempt a DIFFERENT single edit.`,
+          content: `You optimize a phone-receptionist system prompt for a tire shop. Make ONE bounded improvement: add, delete, or rewrite exactly ONE section to fix the failure pattern shown. HARD CONSTRAINTS: keep the shop identity, keep every compliance rule (never quote repair prices, never guarantee outcomes, never diagnose by phone), start neutral and identify the caller's need before specializing; preserve strong tire handling but never assume used tires before the caller gives a tire signal. Output format: one line "RATIONALE: <why this one edit>" then the COMPLETE edited prompt between <PROMPT> and </PROMPT> markers. Attempt ${i + 1} of ${k} — make each attempt a DIFFERENT single edit.\n\n${UNTRUSTED_DATA_NOTICE}`,
         },
         {
           role: "user",
-          content: `CURRENT PROMPT:\n${basePrompt}\n\nREAL FAILED CALLS the current prompt did not resolve under ghost replay:\n${failureBrief}\n\nPropose your single bounded edit now.`,
+          content: `CURRENT PROMPT:\n${basePrompt}\n\nREAL FAILED CALLS the current prompt did not resolve under ghost replay (caller words are fenced, redacted data):\n${brief}\n\nPropose your single bounded edit now.`,
         },
       ],
       maxTokens: 8192,
@@ -283,9 +462,10 @@ async function proposeCandidates(
       // answer on analysis and skip the markers. A second failure is
       // recorded, never patched around.
       log(`candidate ${i + 1}: no <PROMPT> block (${text.trim().length} chars) — one format retry`);
+      beforeCall();
       const retry = await invokeLLM({
         messages: [
-          { role: "system", content: "You return exactly one line starting with RATIONALE: and then the complete prompt between <PROMPT> and </PROMPT>. No other output." },
+          { role: "system", content: `You return exactly one line starting with RATIONALE: and then the complete prompt between <PROMPT> and </PROMPT>. No other output.\n\n${UNTRUSTED_DATA_NOTICE}` },
           { role: "user", content: `Your previous answer lacked the <PROMPT> markers. Here it is:\n\n${text.slice(0, 6000)}\n\nRe-emit it now as: RATIONALE: <one line>\n<PROMPT>\n<the complete edited prompt>\n</PROMPT>` },
         ],
         maxTokens: 8192,
@@ -297,11 +477,165 @@ async function proposeCandidates(
       text = typeof retryRaw === "string" ? retryRaw : JSON.stringify(retryRaw);
       m = /<PROMPT>([\s\S]*?)<\/PROMPT>/.exec(text);
     }
-    const rationale = /RATIONALE:\s*(.+)/.exec(text)?.[1]?.trim() ?? "(no rationale emitted)";
+    // Redacted before it is stored or sent anywhere: the optimizer saw only
+    // redacted caller words, but its own text is still model output.
+    const rationale = redactCallerText(/RATIONALE:\s*(.+)/.exec(text)?.[1]?.trim() ?? "(no rationale emitted)", RATIONALE_MAX);
     if (m && m[1].trim().length > 200) out.push({ prompt: m[1].trim(), rationale });
     else log(`candidate ${i + 1}: no usable <PROMPT> block after retry — recorded as a failed proposal`);
   }
   return out;
+}
+
+/**
+ * Content id of a prompt: sha256 hex, first 24 -- the same function as
+ * receptionistBaseline's promptHash (module-private there), so a candidate
+ * hash and a live prompt hash compare directly (pinned by test). The weekly
+ * job uses it to hash a pre-2026-10-09 proposal that carried no hash.
+ */
+export function promptHashOf(prompt: string): string {
+  return createHash("sha256").update(prompt).digest("hex").slice(0, 24);
+}
+
+/** A compact line diff for the operator: the changed region between the common prefix and suffix. */
+export interface CandidateDiff {
+  /** 1-based baseline line where the changed region starts. */
+  startLine: number;
+  removedCount: number;
+  addedCount: number;
+  /**
+   * Baseline lines the candidate removed or rewrote, from the top of the
+   * region: at most DIFF_MAX_LINES lines, each at most DIFF_MAX_LINE chars,
+   * DIFF_MAX_CHARS chars in all (newlines counted).
+   */
+  removed: string[];
+  /** Candidate lines that replace them, same caps. */
+  added: string[];
+  /** true when a cap cut either side; the full candidate is in accepted.prompt (kv only). */
+  truncated: boolean;
+  /**
+   * Whether the edit is a CODE edit (2026-10-09 review). The baseline is the
+   * live prompt: the repository prompt plus the learned-lessons block Push
+   * Config appends (baseline.lessonsSuffix). true = the candidate still ends
+   * with that block verbatim, so writing the text before it into
+   * ASSISTANT_SYSTEM_PROMPT and pushing serves what was measured, as long as
+   * Push Config still appends that same block (baseline.parityDetail says
+   * whether the served block was today's lessons).
+   * false = the edit changes the lessons block or follows it: applied as a
+   * code edit it would sit BEFORE the lessons, a different text from the one
+   * measured. null = the baseline diverged from the repository prompt, so
+   * there is no code/lessons boundary to check against.
+   */
+  codeEdit: boolean | null;
+}
+
+/**
+ * No dependency: trim the common leading and trailing lines; what is left is
+ * the changed region. A single bounded edit (the optimizer's contract) diffs
+ * exactly; several separate edits read as one region spanning them, which is
+ * a correct diff, just not a minimal one. null when the texts are identical.
+ * codeEdit compares with CRLF and trailing whitespace normalized: the
+ * optimizer's prompt block is trimmed, the served one may not be.
+ */
+function lineDiff(baseline: string, candidate: string, lessonsSuffix: string | null): CandidateDiff | null {
+  const a = baseline.replace(/\r\n/g, "\n").split("\n");
+  const b = candidate.replace(/\r\n/g, "\n").split("\n");
+  let pre = 0;
+  while (pre < a.length && pre < b.length && a[pre] === b[pre]) pre++;
+  let suf = 0;
+  while (suf < a.length - pre && suf < b.length - pre && a[a.length - 1 - suf] === b[b.length - 1 - suf]) suf++;
+  const removed = a.slice(pre, a.length - suf);
+  const added = b.slice(pre, b.length - suf);
+  if (!removed.length && !added.length) return null;
+  /** Leading lines of one side, each clipped, until a cap: true in `cut` when any cap removed text. */
+  const cap = (lines: string[]): { kept: string[]; cut: boolean } => {
+    const kept: string[] = [];
+    let chars = 0;
+    for (const l of lines.slice(0, DIFF_MAX_LINES)) {
+      const line = l.length > DIFF_MAX_LINE ? `${l.slice(0, DIFF_MAX_LINE - 3)}...` : l;
+      if (chars + line.length + 1 > DIFF_MAX_CHARS) break;
+      chars += line.length + 1;
+      kept.push(line);
+    }
+    return { kept, cut: kept.length < lines.length || kept.some((line, i) => line !== lines[i]) };
+  };
+  const r = cap(removed);
+  const ad = cap(added);
+  const norm = (s: string) => s.replace(/\r\n/g, "\n").trimEnd();
+  const codeEdit = lessonsSuffix === null ? null : norm(candidate).endsWith(norm(lessonsSuffix));
+  return { startLine: pre + 1, removedCount: removed.length, addedCount: added.length, removed: r.kept, added: ad.kept, truncated: r.cut || ad.cut, codeEdit };
+}
+
+/** Thrown by the budget check; runPromptEvolution turns it into "inconclusive-budget". */
+class BudgetExhausted extends Error {
+  constructor(readonly stage: string) {
+    super(`prompt evolution budget exhausted before stage ${stage}`);
+  }
+}
+
+export type EvolutionOutcome =
+  | "accepted"
+  | "accepted-unconfirmed"
+  | "rejected-holdout"
+  | "rejected-regression"
+  | "rejected-underpowered"
+  | "rejected-train"
+  | "rejected-success-regression"
+  | "rejected-success-violation"
+  | "rejected-success-degraded"
+  | "rejected-success-underpowered"
+  | "rejected-confirmation"
+  | "invalid-evaluator"
+  | "inconclusive-budget"
+  | "no-candidates"
+  | "baseline-clean";
+
+export type PromotionStage = "none" | "offline_candidate" | "offline_candidate_unconfirmed";
+
+export interface EvolutionUsage {
+  /** Ghost replays (one per seed per scoring), both arms, every stage. */
+  replays: number;
+  /** Resolution-judge calls those scorings made. */
+  judgeCalls: number;
+  /** Optimizer calls, format retries included. */
+  optimizerCalls: number;
+  durationMs: number;
+}
+
+export interface EvolutionOptions {
+  /**
+   * The prompt every baseline arm replays and the optimizer edits. Required:
+   * the weekly job passes resolveLiveReceptionistBaseline() (what callers
+   * hear); repositoryBaseline() is for an explicit offline CLI run only.
+   */
+  baseline: ReceptionistBaseline;
+  seedCount?: number;
+  candidates?: number;
+  /** Replays per seed per prompt on the holdout and the confirmation set (default 3). */
+  holdoutRepeats?: number;
+  /** Won calls in the evaluator-only success cohort (default 8; at least minSeedsForAlpha). */
+  successCohortSize?: number;
+  /** Replays per won call per prompt (default 2). */
+  successRepeats?: number;
+  /**
+   * Confirmation seed ids earlier runs spent (the caller's persisted list).
+   * null = the list could not be read: every confirm seed is treated as spent,
+   * so no sealed seed is ever re-read on a guess.
+   */
+  consumedConfirmationIds?: readonly string[] | null;
+  /**
+   * Write-ahead record of a sealed set. Awaited once, with the ids of the
+   * confirmation seeds about to be scored, BEFORE the first one is replayed;
+   * the weekly job persists them here. A run that then throws mid-confirmation
+   * (a lane error, a DB error) still leaves them marked spent; a hook that
+   * rejects fails the run with no sealed seed read. The runner itself never
+   * writes kv; the ids also come back in consumedConfirmationIds.
+   */
+  onConfirmationSpend?: (ids: readonly string[]) => Promise<void>;
+  /** Wall-clock budget in ms from the start of the run. Unset = no budget. */
+  deadlineMs?: number;
+  /** Clock for the budget (tests). Default Date.now. */
+  now?: () => number;
+  log?: (line: string) => void;
 }
 
 export interface EvolutionResult {
@@ -312,105 +646,355 @@ export interface EvolutionResult {
   holdoutCount: number;
   baselineTrain: string;
   baselineHoldout: string;
-  candidateSummaries: Array<{ rationale: string; train: string; rejectedInvariants?: string[] }>;
-  accepted: null | { rationale: string; holdout: string; prompt: string };
-  /** The holdout gate's full reading; null when no candidate reached the holdout. */
+  candidateSummaries: Array<{
+    rationale: string;
+    train: string;
+    rejectedInvariants?: string[];
+    promptHash?: string;
+    /** comparePairedTrain margin vs the baseline on the same train seeds. */
+    trainMargin?: number;
+    /** false = the train reading measured nothing actionable (outage share over the cap). */
+    trainUsable?: boolean;
+  }>;
+  /** The proposal: set for "accepted" and "accepted-unconfirmed" only. */
+  accepted: null | { rationale: string; holdout: string; prompt: string; promptHash: string; confirmed: boolean };
+  /** The holdout gate's full reading; null when no candidate reached the holdout. Same as gates.holdout. */
   gate: GateVerdict | null;
-  outcome:
-    | "accepted"
-    | "rejected-holdout"
-    | "rejected-regression"
-    | "rejected-underpowered"
-    | "rejected-train"
-    | "no-candidates"
-    | "baseline-clean";
+  gates: { holdout: GateVerdict | null; success: SuccessCohortVerdict | null; confirmation: GateVerdict | null };
+  outcome: EvolutionOutcome;
+  promotionStage: PromotionStage;
+  /** What was measured against -- never the prompt text itself. */
+  baseline: {
+    source: ReceptionistBaseline["source"];
+    assistantId: string | null;
+    promptHash: string;
+    promptChars: number;
+    providerBehaviorHash: string | null;
+    providerBehaviorSchema: string | null;
+    parity: PromptParity;
+    parityDetail: string;
+    fetchedAt: string;
+  };
+  /** parity false = the replay is a PROXY lane for the one callers ride. */
+  lanes: { live: ReceptionistLane; replay: ReplayLane; parity: boolean; differences: string[] };
+  cohorts: {
+    train: number;
+    holdout: number;
+    /** Sealed seeds scored (or that would have been): unconsumed confirm-bucket seeds, most recent first, at most CONFIRM_MAX. */
+    confirm: number;
+    /** Confirm-bucket seeds in the confirmation pool (CONFIRM_POOL_SEEDS failed calls) before the consumed exclusion and the cap. */
+    confirmEligible: number;
+    /** Comparable seeds judgeConfirmation needs to be able to reach alpha; a smaller cohort is not scored. */
+    confirmNeeded: number;
+    /** Won calls replayed in the success cohort (0 when the run never got there). */
+    success: number;
+  };
+  exclusions: {
+    /** Distinct seeds a BASELINE scoring ruled unresolvable (out of every denominator). */
+    unresolvable: number;
+    /** Distinct seeds with a judge outage in either arm, any stage. */
+    evaluatorUnavailable: number;
+    /** Confirm-bucket seeds left out as already consumed by an earlier run (all of them when the list was unreadable). */
+    consumedConfirmation: number;
+    /** true when the caller passed consumedConfirmationIds: null. */
+    consumedListUnknown: boolean;
+  };
+  usage: EvolutionUsage;
+  /** The candidate that reached the holdout (hash + redacted rationale), whatever the gates said. */
+  candidate: null | { promptHash: string; parentHash: string; rationale: string };
+  /** That candidate's line diff vs the baseline, for the operator (kv only, never logs). */
+  candidateDiff: CandidateDiff | null;
+  /** Confirmation seeds THIS run scored; the caller adds them to its persisted consumed list. */
+  consumedConfirmationIds: string[];
+  budget: { deadlineMs: number | null; exhaustedAt: string | null };
+  evaluator: { optimizerModel: string; judgeModel: string; ghostModel: string; protocolVersion: string };
 }
 
-/** One full gated evolution cycle. Throws on infrastructure failure (no DB,
- *  LLM lane down) — a failed run must be a failed cron run, never a quiet
- *  success. */
-export async function runPromptEvolution(
-  opts: { seedCount?: number; candidates?: number; holdoutRepeats?: number; log?: (line: string) => void } = {},
-): Promise<EvolutionResult> {
+/**
+ * Every success-cohort veto, named. success-empty and underpowered measured
+ * nothing (too few won calls to rule), so they share one name that says so;
+ * the receipt grades them inconclusive from the gate's own reason.
+ */
+const SUCCESS_VETO_OUTCOME: Record<Exclude<SuccessCohortVerdict["reason"], "preserved">, EvolutionOutcome> = {
+  "success-regressed-seed": "rejected-success-regression",
+  "success-new-violation": "rejected-success-violation",
+  "success-degraded": "rejected-success-degraded",
+  "evaluator-unavailable": "invalid-evaluator",
+  "success-empty": "rejected-success-underpowered",
+  underpowered: "rejected-success-underpowered",
+};
+
+/** "passes/total", with the exclusions inline. */
+function describeScore(s: ScoredPrompt): string {
+  // Report the exclusions inline — a denominator that silently shrank is
+  // the same class of lie as a run that measured nothing and printed zero.
+  return `${s.passes}/${s.total}${s.unresolvable ? ` (${s.unresolvable} unresolvable excluded)` : ""}`;
+}
+
+/**
+ * One full gated evolution cycle. Throws on infrastructure failure (no DB,
+ * LLM lane down, no baseline) — a failed run must be a failed cron run, never
+ * a quiet success. A budget overrun is not a failure: it returns
+ * "inconclusive-budget" carrying whatever was measured before it.
+ */
+export async function runPromptEvolution(opts: EvolutionOptions): Promise<EvolutionResult> {
+  const baseline = opts?.baseline;
+  if (!baseline || typeof baseline.prompt !== "string" || !baseline.prompt.trim()) {
+    throw new Error("runPromptEvolution needs an explicit baseline: resolveLiveReceptionistBaseline(), or repositoryBaseline() for an offline run");
+  }
   const seedCount = Math.max(4, Math.min(40, opts.seedCount ?? 12));
   // Replays per holdout seed per prompt. One replay is what let a single
   // nondeterministic seed flip pass as an improvement (promptEvolutionGate.ts).
   const repeats = Math.max(1, Math.min(5, opts.holdoutRepeats ?? 3));
   const k = Math.max(1, Math.min(3, opts.candidates ?? 2));
+  // Below this many comparable seeds no gate here can reach alpha.
+  const confirmNeeded = minSeedsForAlpha(GATE_ALPHA);
+  const successN = Math.max(confirmNeeded, Math.min(20, opts.successCohortSize ?? 8));
+  const successRepeats = Math.max(1, Math.min(3, opts.successRepeats ?? 2));
   const log = opts.log ?? (() => undefined);
-  const { ASSISTANT_SYSTEM_PROMPT } = await import("./vapi");
+  const clock = opts.now ?? Date.now;
+  const startedAt = clock();
+  const deadlineMs = typeof opts.deadlineMs === "number" && Number.isFinite(opts.deadlineMs) && opts.deadlineMs >= 0 ? opts.deadlineMs : null;
+  const consumedList = opts.consumedConfirmationIds === undefined ? [] : opts.consumedConfirmationIds;
 
-  const { seeds, excludedVerified } = await loadSeeds(seedCount);
-  if (seeds.length < 4) throw new Error(`only ${seeds.length} usable seeds — need >= 4`);
-  const { train, holdout } = splitSeeds(seeds);
-  if (!train.length || !holdout.length) throw new Error("degenerate split");
+  // Dynamic: receptionistBaseline imports vapi.ts, which this module only
+  // needs for the lane mirror -- the baseline itself arrives as an argument.
+  const { REPLAY_LANE, describeLaneParity } = await import("./receptionistBaseline");
+  const laneParity = describeLaneParity(baseline.liveLane, REPLAY_LANE);
 
-  const baseTrain = await scorePrompt(ASSISTANT_SYSTEM_PROMPT, train);
-  const baseHold = await scorePrompt(ASSISTANT_SYSTEM_PROMPT, holdout);
-  const base = {
-    usableSeeds: seeds.length,
-    excludedVerified,
-    trainCount: train.length,
-    holdoutCount: holdout.length,
-    // Report the exclusions inline — a denominator that silently shrank is
-    // the same class of lie as a run that measured nothing and printed zero.
-    baselineTrain: `${baseTrain.passes}/${baseTrain.total}${baseTrain.unresolvable ? ` (${baseTrain.unresolvable} unresolvable excluded)` : ""}`,
-    baselineHoldout: `${baseHold.passes}/${baseHold.total}${baseHold.unresolvable ? ` (${baseHold.unresolvable} unresolvable excluded)` : ""}`,
+  const usage: EvolutionUsage = { replays: 0, judgeCalls: 0, optimizerCalls: 0, durationMs: 0 };
+  const unresolvableIds = new Set<string>();
+  const outageIds = new Set<string>();
+  const gates: EvolutionResult["gates"] = { holdout: null, success: null, confirmation: null };
+  const cohorts: EvolutionResult["cohorts"] = { train: 0, holdout: 0, confirm: 0, confirmEligible: 0, confirmNeeded, success: 0 };
+  const measured = { usableSeeds: 0, excludedVerified: 0, baselineTrain: "unmeasured", baselineHoldout: "unmeasured" };
+  const summaries: EvolutionResult["candidateSummaries"] = [];
+  const consumedThisRun: string[] = [];
+  let consumedExcluded = 0;
+  let candidate: EvolutionResult["candidate"] = null;
+  let candidateDiff: CandidateDiff | null = null;
+  let accepted: EvolutionResult["accepted"] = null;
+  let exhaustedAt: string | null = null;
+
+  const finish = (outcome: EvolutionOutcome): EvolutionResult => ({
+    usableSeeds: measured.usableSeeds,
+    excludedVerified: measured.excludedVerified,
+    trainCount: cohorts.train,
+    holdoutCount: cohorts.holdout,
+    baselineTrain: measured.baselineTrain,
+    baselineHoldout: measured.baselineHoldout,
+    candidateSummaries: summaries,
+    accepted: outcome === "accepted" || outcome === "accepted-unconfirmed" ? accepted : null,
+    gate: gates.holdout,
+    gates: { ...gates },
+    outcome,
+    promotionStage: outcome === "accepted" ? "offline_candidate" : outcome === "accepted-unconfirmed" ? "offline_candidate_unconfirmed" : "none",
+    baseline: {
+      source: baseline.source,
+      assistantId: baseline.assistantId,
+      promptHash: baseline.promptHash,
+      promptChars: baseline.prompt.length,
+      providerBehaviorHash: baseline.providerBehaviorHash,
+      providerBehaviorSchema: baseline.providerBehaviorSchema,
+      parity: baseline.parity,
+      parityDetail: baseline.parityDetail,
+      fetchedAt: baseline.fetchedAt,
+    },
+    lanes: {
+      live: baseline.liveLane,
+      replay: { ...REPLAY_LANE, tools: [...REPLAY_LANE.tools] },
+      parity: laneParity.parity,
+      differences: laneParity.differences,
+    },
+    cohorts: { ...cohorts },
+    exclusions: {
+      unresolvable: unresolvableIds.size,
+      evaluatorUnavailable: outageIds.size,
+      consumedConfirmation: consumedExcluded,
+      consumedListUnknown: consumedList === null,
+    },
+    usage: { ...usage, durationMs: clock() - startedAt },
+    candidate,
+    candidateDiff,
+    consumedConfirmationIds: [...consumedThisRun],
+    budget: { deadlineMs, exhaustedAt },
+    evaluator: { optimizerModel: OPTIMIZER_MODEL, judgeModel: RESOLUTION_JUDGE_MODEL, ghostModel: REPLAY_LANE.model, protocolVersion: PROTOCOL_VERSION },
+  });
+
+  const checkBudget = (stage: string): void => {
+    if (deadlineMs !== null && clock() - startedAt >= deadlineMs) throw new BudgetExhausted(stage);
+  };
+  /** One scoring pass: budget-checked before every seed, counted into usage and the exclusion sets. */
+  const score = async (prompt: string, seeds: Seed[], arm: "baseline" | "candidate", stage: string, verifyHits: boolean) => {
+    checkBudget(stage);
+    const scored = await scorePrompt(prompt, seeds, { verifyHits, beforeSeed: () => checkBudget(stage), tally: usage });
+    for (const g of scored.grades) {
+      if (g.judgeUnavailable) outageIds.add(g.id);
+      if (arm === "baseline" && g.unresolvable) unresolvableIds.add(g.id);
+    }
+    return scored;
   };
 
-  // The optimizer must never see an unwinnable call. An unresolvable seed
-  // (wrong number, or the caller gone before asking) has pass=false like any
-  // other failure, so without this filter the failure brief would ask for a
-  // prompt edit to fix a hang-up — the mislabeled-LOSS twin of #1410's
-  // mislabeled-WIN poisoning.
-  const trainFailures = baseTrain.grades
-    .filter((g) => !g.pass && !g.unresolvable)
-    .map((g) => ({ seed: train.find((s) => s.id === g.id)!, grade: g }));
-  if (!trainFailures.length) {
-    return { ...base, candidateSummaries: [], accepted: null, gate: null, outcome: "baseline-clean" };
-  }
+  try {
+    checkBudget("load-seeds");
+    const { seeds, excludedVerified } = await loadSeeds(seedCount);
+    if (seeds.length < 4) throw new Error(`only ${seeds.length} usable seeds — need >= 4`);
+    // Holdout membership is exactly the old splitSeeds(seeds, 0.4)
+    // (promptEvolutionCohorts.test.ts pins it); the sealed confirmation
+    // buckets come out of what used to be train.
+    const { train, holdout } = splitSeedsThreeWay(seeds, { holdout: 0.4, confirm: 0.2 });
+    if (!train.length || !holdout.length) throw new Error("degenerate split");
+    // The sealed set is drawn from a LARGER read of the same failed-call pool
+    // (CONFIRM_POOL_SEEDS): same hash, so none of it is train or holdout, and
+    // enough of it survives the consumed exclusion for the stage to run.
+    const confirmPool = await loadSeeds(Math.max(seedCount, CONFIRM_POOL_SEEDS));
+    const confirmEligible = splitSeedsThreeWay(confirmPool.seeds, { holdout: 0.4, confirm: 0.2 }).confirm;
+    const unspent = consumedList === null ? [] : excludeConsumed(confirmEligible, consumedList);
+    const confirm = unspent.slice(0, CONFIRM_MAX);
+    consumedExcluded = confirmEligible.length - unspent.length;
+    Object.assign(cohorts, { train: train.length, holdout: holdout.length, confirm: confirm.length, confirmEligible: confirmEligible.length });
+    measured.usableSeeds = seeds.length;
+    measured.excludedVerified = excludedVerified;
 
-  const candidates = await proposeCandidates(ASSISTANT_SYSTEM_PROMPT, trainFailures, k, log);
-  const summaries: EvolutionResult["candidateSummaries"] = [];
-  let best: { prompt: string; rationale: string; train: ScoredPrompt } | null = null;
-  for (const c of candidates) {
-    const violated = violatedInvariants(c.prompt);
-    if (violated.length) {
-      summaries.push({ rationale: c.rationale, train: "unscored", rejectedInvariants: violated });
-      continue;
+    // Train is scored WITHOUT hit verification: it only picks which candidate
+    // reaches a gate, and every gate below verifies hits. Keeps judge cost
+    // bounded to the stages whose verdicts count.
+    const baseTrain = await score(baseline.prompt, train, "baseline", "baseline-train", false);
+    measured.baselineTrain = describeScore(baseTrain);
+    const baseHold = await score(baseline.prompt, holdout, "baseline", "baseline-holdout", true);
+    measured.baselineHoldout = describeScore(baseHold);
+
+    // The optimizer must never see an unwinnable call. An unresolvable seed
+    // (wrong number, or the caller gone before asking) has pass=false like any
+    // other failure, so without this filter the failure brief would ask for a
+    // prompt edit to fix a hang-up — the mislabeled-LOSS twin of #1410's
+    // mislabeled-WIN poisoning.
+    const trainFailures = baseTrain.grades
+      .filter((g) => !g.pass && !g.unresolvable)
+      .map((g) => ({ seed: train.find((s) => s.id === g.id)!, grade: g }));
+    if (!trainFailures.length) return finish("baseline-clean");
+
+    // The optimizer runs HERE, once, before any won call is loaded: the
+    // success cohort below can veto a candidate but can never shape one.
+    const candidates = await proposeCandidates(baseline.prompt, trainFailures, k, log, () => {
+      checkBudget("optimizer");
+      usage.optimizerCalls++;
+    });
+    let best: { prompt: string; rationale: string; promptHash: string; margin: number } | null = null;
+    let scoredAny = false;
+    let usableAny = false;
+    for (const c of candidates) {
+      const promptHash = promptHashOf(c.prompt);
+      // Checked against the prompt the optimizer edited, as replayPolicy requires.
+      const violated = violatedInvariants(c.prompt, baseline.prompt);
+      if (violated.length) {
+        summaries.push({ rationale: c.rationale, train: "unscored", rejectedInvariants: violated, promptHash });
+        continue;
+      }
+      const scored = await score(c.prompt, train, "candidate", "candidate-train", false);
+      // Paired on the SAME seeds (comparePairedTrain), never passRate vs
+      // passRate over each prompt's own denominator.
+      const cmp = comparePairedTrain(baseTrain.grades, scored.grades);
+      scoredAny = true;
+      usableAny ||= cmp.usable;
+      summaries.push({ rationale: c.rationale, train: `${scored.passes}/${scored.total}`, promptHash, trainMargin: cmp.margin, trainUsable: cmp.usable });
+      if (cmp.usable && cmp.margin > 0 && (!best || cmp.margin > best.margin)) best = { ...c, promptHash, margin: cmp.margin };
     }
-    const scored = await scorePrompt(c.prompt, train);
-    summaries.push({ rationale: c.rationale, train: `${scored.passes}/${scored.total}` });
-    if (!best || scored.passRate > best.train.passRate) best = { ...c, train: scored };
-  }
 
-  if (!candidates.length) return { ...base, candidateSummaries: summaries, accepted: null, gate: null, outcome: "no-candidates" };
-  if (!best || best.train.passRate <= baseTrain.passRate) {
-    return { ...base, candidateSummaries: summaries, accepted: null, gate: null, outcome: "rejected-train" };
-  }
+    if (!candidates.length) return finish("no-candidates");
+    // Every scored candidate's train reading drowned in judge outages: the
+    // run measured nothing, it did not refute anything.
+    if (!best) return finish(scoredAny && !usableAny ? "invalid-evaluator" : "rejected-train");
+    candidate = { promptHash: best.promptHash, parentHash: baseline.promptHash, rationale: best.rationale };
+    candidateDiff = lineDiff(baseline.prompt, best.prompt, baseline.lessonsSuffix);
 
-  // Paired, repeated holdout. The baseline's first scoring above is reused as
-  // replay 1, so a run that never reaches here pays nothing extra.
-  const baseRuns: ScoredPrompt[] = [baseHold];
-  const candRuns: ScoredPrompt[] = [];
-  for (let r = 0; r < repeats; r++) {
-    if (r > 0) baseRuns.push(await scorePrompt(ASSISTANT_SYSTEM_PROMPT, holdout));
-    candRuns.push(await scorePrompt(best.prompt, holdout));
+    // Paired, repeated holdout. The baseline's first scoring above is reused as
+    // replay 1, so a run that never reaches here pays nothing extra.
+    const baseRuns: ScoredPrompt[] = [baseHold];
+    const candRuns: ScoredPrompt[] = [];
+    for (let r = 0; r < repeats; r++) {
+      if (r > 0) baseRuns.push(await score(baseline.prompt, holdout, "baseline", "holdout", true));
+      candRuns.push(await score(best.prompt, holdout, "candidate", "holdout", true));
+    }
+    const gate = judgeHoldout(toSeedTrials(baseRuns), toSeedTrials(candRuns));
+    gates.holdout = gate;
+    log(`holdout gate: ${describeVerdict(gate)}`);
+    if (!gate.accept) {
+      return finish(
+        gate.reason === "regressed-seed" ? "rejected-regression"
+          : gate.reason === "underpowered" ? "rejected-underpowered"
+            : gate.reason === "evaluator-unavailable" ? "invalid-evaluator"
+              : "rejected-holdout",
+      );
+    }
+    const proposal = { rationale: best.rationale, holdout: describeVerdict(gate), prompt: best.prompt, promptHash: best.promptHash };
+
+    // SUCCESS COHORT, evaluator-only: won calls replayed under both prompts.
+    // Loaded only now -- after the holdout accepted (cost) and after the
+    // optimizer ran (a won call never reaches a failure brief).
+    checkBudget("success-cohort");
+    const wonCalls = await loadSuccessSeeds(successN * 3);
+    const successCohort = selectSuccessCohort(wonCalls, successN);
+    cohorts.success = successCohort.length;
+    const successBase: ScoredPrompt[] = [];
+    const successCand: ScoredPrompt[] = [];
+    for (let r = 0; r < successRepeats; r++) {
+      successBase.push(await score(baseline.prompt, successCohort, "baseline", "success-cohort", true));
+      successCand.push(await score(best.prompt, successCohort, "candidate", "success-cohort", true));
+    }
+    const success = judgeSuccessCohort(toSuccessTrials(successBase), toSuccessTrials(successCand), { alpha: GATE_ALPHA });
+    gates.success = success;
+    log(`success cohort: ${describeSuccessVerdict(success)}`);
+    if (success.veto) return finish(SUCCESS_VETO_OUTCOME[success.reason as keyof typeof SUCCESS_VETO_OUTCOME]);
+
+    // SEALED CONFIRMATION, once per candidate. A cohort smaller than
+    // confirmNeeded is guaranteed "underpowered", so it is not scored: that
+    // would spend sealed seeds to learn nothing. They stay sealed for a later
+    // candidate.
+    if (confirm.length < confirmNeeded) {
+      log(`confirmation not run: ${confirm.length} sealed seed(s) available, ${confirmNeeded} needed to reach alpha ${GATE_ALPHA}`);
+      accepted = { ...proposal, confirmed: false };
+      return finish("accepted-unconfirmed");
+    }
+    // Spent from the first replay on: a set that has been read is no longer
+    // sealed, whatever happens next. Recorded BEFORE that replay: the caller's
+    // hook persists it (write-ahead), so a throw below cannot lose it, and
+    // consumedThisRun returns it on every path that returns (budget included).
+    checkBudget("confirmation");
+    const spentIds = confirm.map((s) => s.id);
+    if (opts.onConfirmationSpend) await opts.onConfirmationSpend(spentIds);
+    consumedThisRun.push(...spentIds);
+    const confirmBase: ScoredPrompt[] = [];
+    const confirmCand: ScoredPrompt[] = [];
+    for (let r = 0; r < repeats; r++) {
+      confirmBase.push(await score(baseline.prompt, confirm, "baseline", "confirmation", true));
+      confirmCand.push(await score(best.prompt, confirm, "candidate", "confirmation", true));
+    }
+    // MULTIPLICITY (decision, 2026-10-09). Alpha stays GATE_ALPHA, not
+    // alpha / k: every confirmation reads a DISJOINT set (consumed seeds are
+    // never re-read), so each one is a fresh test on data no earlier candidate
+    // was selected on, and its 5% bound holds for the candidate it confirms.
+    // What it does not bound is the share of false confirmations across many
+    // weeks (family-wise); that would need a persisted confirmation count and
+    // is not a claim this result makes. Invalidated if consumed seeds are ever
+    // re-read or confirm sets overlap.
+    const confirmation = judgeConfirmation(toSeedTrials(confirmBase), toSeedTrials(confirmCand), { alpha: GATE_ALPHA });
+    gates.confirmation = confirmation;
+    log(`confirmation: ${describeVerdict(confirmation)}`);
+    if (confirmation.accept) {
+      accepted = { ...proposal, confirmed: true };
+      return finish("accepted");
+    }
+    if (confirmation.reason === "underpowered") {
+      accepted = { ...proposal, confirmed: false };
+      return finish("accepted-unconfirmed");
+    }
+    return finish(confirmation.reason === "evaluator-unavailable" ? "invalid-evaluator" : "rejected-confirmation");
+  } catch (err) {
+    if (!(err instanceof BudgetExhausted)) throw err;
+    exhaustedAt = err.stage;
+    log(`budget: ${deadlineMs} ms spent before stage ${err.stage}; stopping with what was measured (inconclusive-budget)`);
+    return finish("inconclusive-budget");
   }
-  const gate = judgeHoldout(toSeedTrials(baseRuns), toSeedTrials(candRuns));
-  log(`holdout gate: ${describeVerdict(gate)}`);
-  if (gate.accept) {
-    return {
-      ...base,
-      candidateSummaries: summaries,
-      accepted: { rationale: best.rationale, holdout: describeVerdict(gate), prompt: best.prompt },
-      gate,
-      outcome: "accepted",
-    };
-  }
-  const outcome: EvolutionResult["outcome"] =
-    gate.reason === "regressed-seed" ? "rejected-regression"
-      : gate.reason === "underpowered" ? "rejected-underpowered"
-        : "rejected-holdout";
-  return { ...base, candidateSummaries: summaries, accepted: null, gate, outcome };
 }
+

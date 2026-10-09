@@ -76,7 +76,12 @@ describe("VAPI corpus-grounded conversation rules", () => {
   });
   it("labels weekly prompt evolution as offline evidence, not a proven business winner", () => {
     const src = readFileSync(new URL("./cron/jobs/promptEvolutionWeekly.ts", import.meta.url), "utf8");
-    expect(src).toContain('promotionStage: result.outcome === "accepted" ? "offline_candidate" : "none"');
+    // 2026-10-09: the runner now owns the stage (a sealed confirmation can leave a
+    // candidate "offline_candidate_unconfirmed"); the job copies it through, and the
+    // runner can only ever emit offline stages -- never a served/production one.
+    expect(src).toContain("promotionStage: result.promotionStage");
+    const runner = readFileSync(new URL("./services/promptEvolution.ts", import.meta.url), "utf8");
+    expect(runner).toMatch(/promotionStage: outcome === "accepted" \? "offline_candidate" : outcome === "accepted-unconfirmed" \? "offline_candidate_unconfirmed" : "none"/);
     expect(src).toContain('businessOutcomeEvidence: "not_measured_candidate_has_not_served"');
     expect(src).toContain("OFFLINE CANDIDATE passed the paired holdout permutation test");
     expect(src).toContain("arrival/revenue impact is unmeasured");

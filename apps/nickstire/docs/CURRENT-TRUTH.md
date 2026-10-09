@@ -160,7 +160,7 @@ Production facts this wave was written against (Railway logs, read 2026-10-08): 
 - **Content experiment verdicts arrive only at planned looks** (`shared/contentExperiments.ts`): the resolver re-evaluates daily, so a rule valid at one look was being applied at every look (optional stopping — an A/A experiment concluded in 83% of simulated runs). Now a verdict is possible only at `DECISION_LOOKS` = 12 / 24 / 48 / 96 reported posts per arm (then every 48), the 5% budget is split across looks (0.0125 per look), the top two arms must lead by ≥ 10% AND differ at two-sided permutation p ≤ 0.0125 (× runners-up with more than two arms), a `tie` (< 10% lead, 'retire this variable') is called only from the 48-per-arm look, and every other day is `insufficient_data` naming the next look. For reach-weighted metrics (`avg_watch_time`) the permutation statistic is the reach-weighted gap armRates ranks on. Seeded simulation walked daily the way the cron runs (400 runs per condition): identical arms end as a false winner in 3.8% of experiments (69.5% tie); a doubled share rate is found 99.8% of the time (mean first verdict 27.5 posts/arm), a 1.5x rate 85.0% — never on the wrong arm. The old rule crowned a winner between identical arms 85.8% of the time at its first look.
 - **Mechanical truth packets** (`shared/mechanicalTruth.ts`): five topics (puncture repair, tread depth, uneven wear, vibration, pothole damage), sources NHTSA / USTMA on puncture repair, tread depth and uneven wear (vibration and pothole damage ship with `sources: []` until a citation is added), ten prohibited affirmative claims. The Reel publish door (`reelClaimAudit.condemnedContentProblem`) refuses a script that makes one, whatever was approved; the brief generator receives the allowed statements and reasons up front. No packet is technician-approved yet (`technicianApproval: null`). Zero matches across the 568 repo content files the test scans (reel packs, blog, guides, SEO pages, tire-size content, the reel manifest).
 - **Rendered QA measures flashing** (`services/flashRisk.ts`): one extra ffmpeg pass at 15 fps; more than three general flashes in any second (WCAG 2.2 SC 2.3.1, whole-frame average luminance — conservative toward passing) adds a `PHOTOSENSITIVE_FLASH` block finding, routed to a free re-assembly. A scan that cannot run is recorded as `flash.unmeasured`, never as a pass. The vision critic is never offered this code.
-- **Receptionist prompt evolution** (see "The weekly optimizer" below): paired permutation gate, 30 seeds, structured `[evolve] result` log.
+- **Receptionist prompt evolution** (see "The weekly optimizer" below, which also carries the 2026-10-09 follow-ups, not yet merged): paired permutation gate, 30 seeds, structured `[evolve] result` log.
 - **Evaluator paths** now include `ghostReplay.ts`, `promptEvolutionGate.ts`, `contentExperiments.ts`, `contentExperimentResolve.ts`, `mechanicalTruth.ts`, `renderedQaOutcomes.ts` and `pairwiseReview.ts`, mirrored in the Night Shift judge-edit rules.
 - **Delivered-copy QA** (`services/deliveredReelQa.ts`): inside the 8-hourly Instagram analytics pipeline, at most two posted Reels per pass (posted 30 min–7 d ago, unchecked): Graph `media_url` (read-only) → ffprobe master and delivered copy → flash scan on the delivered copy → `payload.deliveredQa` (`below_720p`, `resolution_dropped`, `aspect_changed`, `duration_changed`, `audio_lost`, `low_frame_rate`, `flash_on_delivered_copy`). The write keeps `updatedAt = updatedAt` so the stall timer never reads a QA write as a post. `unmeasured` is retried up to 3 passes; the morning brief names failing jobs. Needs a live `META_PAGE_ACCESS_TOKEN` to measure anything — not verified against Instagram yet.
 - **Skip rate reaches the experiment evaluator**: `ig_metric_snapshots.skip_rate` is DECIMAL (mysql2 returns `"83.6000"`); the gatherer read only numbers, so every skip rate was "not reported". `skip_rate` / `reels_skip_rate` / `skipRate` now resolve; `opening_asset_v1` decides on it (lower wins).
@@ -879,48 +879,154 @@ Automation success is valid only when the final system of record confirms the ac
   URL and auth header shape and was rejected as a source. Runbook:
   `docs/runbooks/higgsfield-session.md` section 6.
 
-### The AI receptionist improves from its own failed calls (2026-08-06/07)
+### The AI receptionist improves from its own failed calls (2026-08-06/07; follow-ups 2026-10-09)
 
 The voice prompt is no longer only hand-edited. A closed measurement loop reads
 real failed calls and proposes bounded edits; **Push Config remains the one
 serving gate** — nothing here ever writes the live assistant.
+
+**Status of the 2026-10-09 follow-ups (items 2-4): BUILT + WIRED on branch
+`claude/karpathy-autoresearch-apps-c6f34c`, not merged or deployed as of
+2026-10-09.** Until that branch deploys, production runs the #2923 loop: the
+repository prompt as the baseline, the holdout gate only. Nothing below has
+run in production yet.
 
 1. **The Call Ossuary** — `vapi_call_archives` (migration 0109) vaults full
    transcripts before VAPI's **14-day** retention purge. Without it every
    evaluation corpus older than two weeks is unrecoverable.
 2. **Ghost replay** (`server/services/ghostReplay.ts`) replays **real vaulted
    caller turns verbatim** against any candidate prompt. The caller side is
-   fixed and real, so only the receptionist's replies vary — a like-for-like
-   comparison. Grading is deterministic (resolution-offered + banned-claim
-   regexes) and cannot be sweet-talked by the prompt under test.
-3. **The semantic resolution judge** (`server/services/resolutionJudge.ts`,
-   2026-08-07) is a backstop *behind* the regex, never a softener. Regex first —
-   a match is a resolution, no API call. Only a MISS escalates to a
-   **different-model-family** judge, which answers the question a regex cannot:
-   was a concrete next step even *possible* from what the caller said, and was it
-   offered? A verdict of `unresolvable` (wrong number, or the caller gone before
-   asking) **excludes that seed from the pass-rate denominator** and hides it
-   from the optimizer — counting an unwinnable call as a prompt failure both
-   understates the score and trains the optimizer on a hang-up (ROS-087). The
-   judge can **never** overturn a price leak, a guarantee, or an empty turn;
-   those stay deterministic and disqualifying. A dead judge lane leaves the regex
-   verdict standing and marks the grade `judgeUnavailable` — it can never
-   manufacture a pass.
-4. **The weekly optimizer** (`promptEvolutionWeekly` cron) proposes bounded edits
-   from a different model family, guards the compliance spine with
-   `violatedInvariants`, and accepts a candidate **only through the holdout gate**
-   (`services/promptEvolutionGate.ts`, 2026-10-08): each holdout seed is replayed
-   3 times per prompt, an exact paired sign-flip permutation test must clear
-   alpha 0.05, and any call the served prompt passes on every replay that the
-   candidate fails on every replay vetoes it. The rule it replaced
-   (`candidate passRate > baseline passRate`, one replay, ~5 holdout seeds)
-   accepted two IDENTICAL prompts in 28.7% of seeded simulated runs — it
-   proposed noise. The weekly run now uses 30 seeds (~12 on the holdout) and
-   logs its verdict as one `[evolve] result` line; before that a normal run
-   logged nothing, so the 2026-10-05 run (118.6s) left no outcome in Railway.
-   Output is a PROPOSAL (kv + Telegram — not files; Railway's filesystem is
-   ephemeral). Seeds exclude verified conversions so the optimizer never trains
-   on a mislabeled win.
+   fixed and real, so only the receptionist's replies vary. Violations are
+   graded deterministically and cannot be talked past: a `$NN` figure (the
+   three permitted prices count only for the product they belong to, so the
+   prompt's own "Used tires start at $60 installed" no longer fails it), the
+   word "guarantee", an empty turn, and since 2026-10-09 `claimViolations`: the
+   live voice claim guard's labels (`voiceClaimGuard.voiceClaimViolations`)
+   plus replay-only classes such as a hedged or unit-less price and a promised
+   outcome (`replayPolicy.replyClaimViolations`). Any one fails the call.
+   **The replay is a proxy lane:** `GHOST_AGENT_MODEL` (default
+   `deepseek-v4-pro`), temperature 0, 700 tokens, no tools, while the code
+   pushes `gpt-4o`, temperature 0.4, 250 tokens, with tools (`vapi.ts`
+   `buildAssistantConfig`). Every run records the differences
+   (`receptionistBaseline.describeLaneParity`); nothing closes them yet.
+3. **The semantic resolution judge** (`server/services/resolutionJudge.ts`)
+   rules on resolution from a **different model family**. Since 2026-10-09 it
+   reads regex HITS as well as misses (`gradeRepliesWithJudge` `verifyHits`,
+   default on; only train scoring turns it off): the regex rewards any stated
+   next step, so a generic "come on by" to a caller who asked whether the shop
+   does motorcycle tires scored as resolved and could never be overturned.
+   Verdicts: `resolved` (a next step that fits the request), `deflected` (a
+   generic one that ignored it; fails, even on a regex hit), `unresolved`, and
+   `unresolvable` (wrong number, or the caller gone before asking). On a regex
+   MISS, `unresolvable` **excludes the seed from the pass-rate denominator** and
+   hides it from the optimizer (ROS-087); on a HIT the regex verdict stands and
+   the seed stays counted. The judge can **never** overturn a price leak, a
+   guarantee, an empty turn or a claim violation. A judge that was needed and
+   is unreachable or unparseable leaves the regex verdict standing and marks
+   the grade `judgeUnavailable`; every gate in item 4 reads those replays at
+   their worst for the candidate. Each turn is rendered on one line with role
+   labels defused, so a reply cannot write a "Caller:" line into its own
+   evidence.
+4. **The weekly optimizer** (`services/promptEvolution.ts`, run by the
+   `promptEvolutionWeekly` cron on Mondays) proposes bounded edits. In run order:
+   - **Baseline = the prompt callers hear.** `resolveLiveReceptionistBaseline`
+     (`receptionistBaseline.ts`) proves which assistant answers the shop line
+     (`getAssistantRoutingTruth`, state `match` only), reads that assistant's
+     served prompt and model block (`GET /assistant/:id`), and labels the
+     prompt against the code: `identical`, `code_plus_lessons` (the
+     learned-lessons block Push Config appends) or `diverged`. Any refusal
+     throws and fails the cron run; it never falls back to the repository
+     prompt. `scripts/prompt-evolve.ts` defaults to the same read;
+     `--baseline repository` measures the code constant and prints that
+     callers do not hear it.
+   - **Seeds:** 30 recent failed calls, verified conversions excluded, split by
+     a hash of the call id: 40% holdout (the same calls as #2923's split), 20%
+     sealed confirmation, 40% train.
+   - **Optimizer** (`PROMPT_EVOLVE_OPTIMIZER`, default `gpt-oss:120b`) edits the
+     live prompt. It sees up to 6 failed train calls labelled `call-N`; each
+     first caller turn is redacted whole (phones, emails, VINs, card numbers,
+     street addresses, introduced names; `callerTextRedaction.ts`), then cut to
+     140 characters and fenced as untrusted data. Its rationale is redacted
+     before it is stored or sent.
+   - **Policy guard**, before any replay: `violatedInvariants(candidate,
+     servedPrompt)` runs `replayPolicy.violatedPromptPolicy`: the three legacy
+     regexes, every compliance clause the served prompt states (as many times
+     as it states it; prices and hours read from the served prompt), and a
+     reversal deny-list. "Always quote prices and guarantee every repair"
+     passed the old three regexes; it is rejected now.
+   - **Train selection** is a paired margin on the same seeds
+     (`comparePairedTrain`), not passRate vs passRate over each prompt's own
+     denominator.
+   - **Holdout gate** (`promptEvolutionGate.ts`, 2026-10-08): each holdout seed
+     is replayed 3 times per prompt, an exact paired sign-flip permutation test
+     must clear alpha 0.05, and a call the served prompt passes on every replay
+     that the candidate fails on every replay vetoes it. The rule it replaced
+     (`candidate passRate > baseline passRate`, one replay, ~5 holdout seeds)
+     accepted two IDENTICAL prompts in 28.7% of seeded simulated runs. Since
+     2026-10-09 a judge outage cannot help a candidate: outage seeds leave the
+     judged comparison and are re-read at their worst for the candidate, and
+     the gate refuses as `evaluator-unavailable` when outages pass 25% of the
+     seeds, cost the test its power, or could hide a regression.
+   - **Success cohort**, evaluator-only: 8 WON calls (`hard_conversion`,
+     `walk_in_directed`, `human_handoff`, `resolved_info`) picked by hash,
+     replayed twice per prompt, and loaded only after the holdout accepted and
+     the optimizer has run, so a won call can veto a candidate but never shape
+     one. It vetoes a reliably won call now reliably lost, any critical
+     violation the baseline did not have, a significant overall drop, an
+     outage that could hide one, or too few calls to tell.
+   - **Sealed confirmation:** confirm-bucket seeds from a 90-call read of the
+     same failed-call pool, minus every seed an earlier run spent (kv
+     `prompt_evolution_confirmation_consumed`, written BEFORE the first sealed
+     replay, so a crash cannot leave a read seed looking sealed), at most 8 per
+     run, judged by the holdout rule on calls no candidate was selected on.
+     With fewer than the 5 that alpha 0.05 needs it does not run:
+     `accepted-unconfirmed`, nothing spent. A CLI run never spends one.
+   - **Outcomes:** `accepted` (confirmed), `accepted-unconfirmed`,
+     `rejected-train|holdout|regression|underpowered|confirmation`,
+     `rejected-success-regression|violation|degraded|underpowered`,
+     `invalid-evaluator` (the judge was down on too much evidence: nothing
+     measured, nothing refuted), `inconclusive-budget` (the run stops itself at
+     25 minutes; the scheduler kills it at 30), `no-candidates`,
+     `baseline-clean`.
+
+   **Output is a PROPOSAL.** kv `prompt_evolution_latest` points at the latest
+   run: hashes, gate readings, lane differences, the full candidate, and a
+   capped line diff whose `codeEdit: false` warns that the edit sits in or
+   after the learned-lessons block, so pasting it into the code would serve a
+   different text from the one measured (diff lines are dropped first if the
+   row passes 60,000 bytes; the TEXT column holds 65,535). Logs and Telegram
+   carry hashes, gate statistics and the redacted rationale, never the prompt
+   or caller text; Telegram
+   says "Offline evidence only (H2)", names the proxy lane, and says whether
+   last week's proposal is live verbatim. The durable history is one **Reality
+   Ledger receipt** per run (`promptEvolutionReceipt.ts`): a
+   `receptionist.prompt_experiment` event plus one H2 claim, posted with
+   `STATENOUR_SYNC_KEY` (StateNour accepts the type through the bridge door
+   only) and listed on StateNour `/proof` under "Receptionist experiments".
+   The claim is `supported` only when the candidate was accepted AND
+   confirmed, `refuted` only when a gate measured evidence against it, and
+   `inconclusive` otherwise. PII-shaped strings are withheld before sending; a
+   failed post never fails the run. The loop's files (runner, gate, cohorts,
+   receipt, baseline, replay policy, judge, weekly job) are evaluator paths in
+   `config/agent-os/evaluator-paths.json`.
+
+   **Not done, or the operator's call:**
+   - **Not observed in production.** Live proof: the first Monday run after the
+     deploy logs `[evolve] result` with `baseline.source: live_provider` and a
+     parity label, and a row appears on `/proof`. Whether the served prompt
+     carries a lessons block or a `nickBehaviorHash` is unknown until then.
+   - **Replay lane parity** (item 2): moving the replay onto `gpt-4o` with
+     tools is an operator cost decision; see the proxy-lane rule below.
+   - **Calibration.** The A/A and power figures are seeded simulations, not
+     measurements on real traces; the resolution judge has no labelled
+     calibration set. Each confirmation holds alpha 0.05 for the candidate it
+     confirms; the share of false confirmations across many weeks is not
+     bounded.
+   - **Known misses** are pinned, not fixed: the prompt guard is lexical
+     (`replayPolicy.test.ts` "KNOWN GAPS"), and redaction misses a lowercase
+     name after "this is" and a bare name with no introduction
+     (`callerTextRedaction.ts`, "Known limits").
+   - **Applying a proposal** stays an operator edit + Push Config.
 5. **The cage match** (`scripts/cage-match.ts`) is the *discovery* instrument: an
    adversarial LLM caller red-teams the prompt offline, zero customer contact.
 
@@ -943,6 +1049,29 @@ serving gate** — nothing here ever writes the live assistant.
 - Aggregate pass rates are **not** an A/B — the seed pool rotates as new calls
   vault. Same-seed movement is the only controlled comparison, and deepseek stays
   ±1–2 seeds nondeterministic even at temperature 0.
+- **A ghost-replay verdict is a proxy-lane verdict.** It says how a candidate
+  does on the replay model with no tools, not on the lane callers ride (item 2).
+  The lane record names the REQUESTED replay model only: `ghostReplay` discards
+  the model that served, so an `AI_FORCE_*` reroute is invisible. Read every
+  accepted candidate as offline evidence (H2) until it has served.
+- **Every replay instrument reads production.** Each nickstire worktree binds
+  the production `DATABASE_URL`. `scripts/prompt-evolve.ts` reads vaulted calls
+  and the live assistant (read-only; it writes only local files under
+  `eval-datasets/prompt-evolution/`). `scripts/replay-sms-orchestrator.ts`
+  reads up to 50 real `sms_orchestrations` rows per event type, and on `main`
+  it also WRITES: `REPLAY_DRY_RUN` fakes only the send, so each replayed event
+  inserts a `sent` row with the real phone and cooldown key (which the live
+  cooldown reads), and replayed STOP / START / YES / CANCEL rewrite opt-outs,
+  consent, bookings and reminders. On the branch above (not merged as of
+  2026-10-09) it refuses to start without `--i-understand-this-reads-production`,
+  runs every `orchestrateSms` inside `runInSmsReplayScope` (each write, send
+  and notify is skipped and listed; `smsReplayScope.ts`), denies all `fetch`,
+  and exits 1 when its read-only post-checks find a leaked or unexplained row.
+  Those post-checks count orchestration and draft rows only; customers,
+  bookings and the consent ledger rest on the scope and its tests.
+  There `REPLAY_DRY_RUN=true` skips every orchestrator effect, STOP persistence
+  included, so it must never be set on a Railway service. Run either script
+  only with the operator's go-ahead (`prod-db-guard`).
 
 **Four defect classes have been found by this loop and pushed live** (each
 verified on its own failing seed before merge, and read-back verified on the
