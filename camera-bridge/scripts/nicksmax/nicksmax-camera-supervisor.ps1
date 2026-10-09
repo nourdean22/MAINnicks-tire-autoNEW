@@ -39,6 +39,8 @@ $ErrorActionPreference = "Continue"
 #      path reloads it: a `git pull` is the deploy for the edge too (2026-10-08).
 #   4. disk floor: under 1 GB free -> rotate this log, prune raw office audio past the worker's
 #      own retention, ESCALATE. (Measured 0.10 GB free on 2026-10-05.)
+#   5. the shim's fallback copy: a tick that runs to its end leaves the text it ran in
+#      data\nicksmax-camera-supervisor.fallback.ps1 (2026-10-09; it had sat at 2026-09-29).
 # Every restart is recorded per component; more than $escalateRestartsPerHour in an hour logs
 # ESCALATE (once per component per hour) instead of looping silently.
 
@@ -50,11 +52,15 @@ $relayLauncher = if ($isSystem) { "C:\Users\nourd\NicksMax\lab\v380-cloud-relay\
 $relaySecret = if ($isSystem) { "C:\ProgramData\NicksMaxCamera\shopsign-machine.dpapi" } else { "C:\Users\nourd\NicksMax\lab\secrets\machine\shopsign-device.machine" }
 $mediaLauncher = "C:\Users\nourd\NicksMax\lab\v380-cloud-relay\run-mediamtx-sign.ps1"
 $cropLauncher = "C:\Users\nourd\NicksMax\lab\v380-cloud-relay\run-sign-crop.ps1"
+# run-sign-crop.ps1 holds this, FileShare None, for its ffmpeg's whole life; a second launcher exits on it.
+$cropLock = Join-Path (Split-Path $cropLauncher) ".sign-crop.lock"
 $shadowLauncher = Join-Path $root "data\run-sign-rtsp-candidate.ps1"
 $productionLauncher = Join-Path $root "data\run-sign-rtsp-production.ps1"
 $productionMarker = Join-Path $root "data\NICKSMAX-SIGN-PRODUCTION-ARMED"
 $prodStartMarker = Join-Path $root "data\.nicksmax-prod-start-last"
 $statePath = Join-Path $root "data\.nicksmax-supervisor-state.json"
+# What the box-local shim runs when this file is missing or does not parse (its $fallbackTick).
+$fallbackPath = Join-Path $root "data\nicksmax-camera-supervisor.fallback.ps1"
 
 $officeTask = "StateNour-OfficeIntelligence-NicksMax"
 $officeStatusPath = "C:\Users\nourd\AppData\Local\StateNour\OfficeIntelligence\office-conversation-status.json"
@@ -107,6 +113,15 @@ function Write-SharedFile([string]$path, [string]$text, [switch]$Append) {
   } finally {
     $stream.Dispose()
   }
+}
+
+# The read side of the same rule: share Read, Write and Delete, so no writer or rename is refused.
+function Read-SharedText([string]$path) {
+  $share = [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete
+  $reader = [IO.StreamReader]::new(
+    [IO.FileStream]::new($path, [IO.FileMode]::Open, [IO.FileAccess]::Read, $share),
+    [Text.Encoding]::UTF8, $true)
+  try { return $reader.ReadToEnd() } finally { $reader.Dispose() }
 }
 
 # Logging must never break supervision, and a log that cannot be written must not silence it
@@ -227,17 +242,14 @@ function Complete-Tick {
 function Report-UnfinishedTick {
   if (-not (Test-Path -LiteralPath $tickPhasePath)) { return }
   $text = ""
-  try {
-    $share = [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete
-    $reader = [IO.StreamReader]::new(
-      [IO.FileStream]::new($tickPhasePath, [IO.FileMode]::Open, [IO.FileAccess]::Read, $share),
-      [Text.Encoding]::UTF8, $true)
-    try { $text = $reader.ReadToEnd().Trim() } finally { $reader.Dispose() }
-  } catch {}
+  try { $text = (Read-SharedText $tickPhasePath).Trim() } catch {}
   try { [IO.File]::Delete($tickPhasePath) } catch {}
   if ($text) { Log ("NOTE slow tick: {0}" -f $text) }
 }
 Report-UnfinishedTick
+# The text this tick runs, read as it starts: what Update-FallbackCopy keeps once the tick completes.
+$tickSource = ""
+try { $tickSource = Read-SharedText $PSCommandPath } catch {}
 Enter-Phase "ledger"
 
 # ---- restart ledger --------------------------------------------------------------------------
@@ -837,15 +849,52 @@ if (-not $mediaReady -and (Test-Path $mediaLauncher)) {
   Start-Sleep -Milliseconds 700
 }
 
+# Can a lock file be opened exclusively? Missing counts as free. Read access, so nothing is written.
+function Test-FileUnlocked([string]$path, [int]$tries = 12) {
+  for ($i = 0; $i -lt $tries; $i++) {
+    if (-not (Test-Path -LiteralPath $path)) { return $true }
+    try {
+      $probe = [IO.File]::Open($path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::None)
+      $probe.Dispose()
+      return $true
+    } catch {}
+    Start-Sleep -Milliseconds 250
+  }
+  return $false
+}
+
+# 3c's restart. run-sign-crop.ps1 holds $cropLock for its ffmpeg's whole life and a second launcher exits
+# on it, so starting one beside a live but undecodable crop restarted nothing: sign-crop-status.log
+# shows "SKIP duplicate sign crop; lock held" at 18:03:25 and 18:09:07 on 2026-10-08, beside "restart
+# sign-crop" lines that still counted toward "ESCALATE sign-crop restarted 7 times in an hour". End the
+# old crop first -- its ffmpeg, known by reading 8554/live and publishing 8555/sign, and the launcher
+# that waits on it, known by its script path -- then start one only when the lock is free. Identity is
+# the command line (Get-ProcessIdentity): a publisher INTO 8554, a frame probe of 8555/sign, or an ffmpeg
+# this token cannot read is not the crop. Returns $true only when a launcher was started.
+function Restart-SignCrop([string]$launcher, [string]$lockPath) {
+  $cropNeedles = @(
+    '^ffmpeg(\.exe)?\s.*\s-i\s+"?rtsp://127\.0\.0\.1:8554/live\b.*\srtsp://127\.0\.0\.1:8555/sign\b',
+    ('^powershell(\.exe)?\s.*' + [regex]::Escape($launcher))
+  )
+  foreach ($needle in $cropNeedles) { Stop-ProcessesByCommand $needle "sign-crop" }
+  if (-not (Test-FileUnlocked $lockPath)) {
+    Log ("WARN sign-crop restart held: {0} is still locked after the old crop was stopped; a launcher started now would only exit on it" -f (Split-Path $lockPath -Leaf))
+    return $false
+  }
+  Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @("-NoProfile","-ExecutionPolicy","Bypass","-File",$launcher)
+  Record-Restart "sign-crop" "no decodable frame on 8555/sign"
+  return $true
+}
+
 Enter-Phase "sign-crop"
 # 3c. Crop middle 1920x1080 lens from the 1920x3240 cloud stack -> 640x360 @ 4fps.
 # A decoded frame, not process visibility, proves the crop publisher is actually healthy.
 $signFrameReady = (Port-Open 8555) -and (Test-RtspFrame "rtsp://127.0.0.1:8555/sign")
 if ((Port-Open 8554) -and -not $signFrameReady -and (Test-Path $cropLauncher)) {
-  Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @("-NoProfile","-ExecutionPolicy","Bypass","-File",$cropLauncher)
-  Record-Restart "sign-crop" "no decodable frame on 8555/sign"
-  Start-Sleep -Milliseconds 900
-  $signFrameReady = (Port-Open 8555) -and (Test-RtspFrame "rtsp://127.0.0.1:8555/sign")
+  if (Restart-SignCrop $cropLauncher $cropLock) {
+    Start-Sleep -Milliseconds 900
+    $signFrameReady = (Port-Open 8555) -and (Test-RtspFrame "rtsp://127.0.0.1:8555/sign")
+  }
 }
 
 Enter-Phase "sign-edge"
@@ -940,6 +989,40 @@ function Invoke-DiskFloor([double]$free) {
 
 Enter-Phase "disk"
 Invoke-DiskFloor ([double](Get-PSDrive C).Free)
+
+# ---- 5. the shim's fallback copy ------------------------------------------------------------------
+# The box-local shim (data\nicksmax-camera-supervisor.ps1) runs this file, or $fallbackPath when this
+# file is missing or does not parse, as in a half-finished `git pull`. That copy was written once on
+# 2026-09-29 and nothing refreshed it (found 2026-10-08), so a bad pull would have rolled the box back
+# past every 10-07/10-08 fix. A tick that reaches this point leaves the text it started from there, when
+# that differs and parses. It is staged beside as .new and swapped in, so a full disk (0.04 GB free on
+# 2026-10-07) or a kill mid-write leaves the old copy whole rather than a truncated one the shim would run.
+function Update-FallbackCopy([string]$text, [string]$target) {
+  if (-not $text) { return }
+  try { if ((Test-Path -LiteralPath $target) -and ((Read-SharedText $target) -ceq $text)) { return } } catch {}
+  $parseErrors = $null
+  [void][Management.Automation.Language.Parser]::ParseInput($text, [ref]$null, [ref]$parseErrors)
+  if ($parseErrors -and $parseErrors.Count -gt 0) { return }
+  $staged = $target + ".new"
+  # No backup file: [NullString]::Value, because PowerShell hands a .NET string parameter "" for $null
+  # and Replace refuses an empty path (the harness caught it).
+  try {
+    Write-SharedFile $staged $text
+    if (Test-Path -LiteralPath $target) { [IO.File]::Replace($staged, $target, [NullString]::Value) } else { [IO.File]::Move($staged, $target) }
+    Log ("ACTION refreshed the fallback supervisor copy {0}" -f (Split-Path $target -Leaf))
+  } catch {
+    $why = $_.Exception.Message
+    try { [IO.File]::Delete($staged) } catch {}
+    $e = Get-Entry "fallback-copy"
+    if ($e.escalatedAt -lt ($nowEpoch - 3600)) {
+      $e.escalatedAt = $nowEpoch
+      Log ("WARN could not refresh the fallback supervisor copy: {0}" -f $why)
+    }
+  }
+}
+
+Enter-Phase "fallback"
+Update-FallbackCopy $tickSource $fallbackPath
 
 Enter-Phase "save"
 Save-State

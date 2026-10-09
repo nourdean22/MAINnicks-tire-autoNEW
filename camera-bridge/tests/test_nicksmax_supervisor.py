@@ -691,6 +691,7 @@ def test_every_phase_of_the_tick_is_timed_in_order():
         'Enter-Phase "sign-crop"',
         'Enter-Phase "sign-edge"',
         'Enter-Phase "disk"',
+        'Enter-Phase "fallback"',
         'Enter-Phase "save"',
     ]
     at = lambda s: _top_level_index(lines, s)
@@ -756,3 +757,92 @@ def test_the_edge_start_reuses_this_ticks_decoded_frame():
 def test_a_restart_is_on_disk_before_the_tick_ends(tmp_path: Path):
     out = run_scenario("restart-saves-the-ledger-at-once", tmp_path)
     assert out["markers"]["restartsOnDisk"] == 1
+
+
+# ---- the shim's fallback copy (2026-10-09) -------------------------------------------------------
+# The box-local shim runs this file, or data\nicksmax-camera-supervisor.fallback.ps1 when it is missing
+# or does not parse. Found on NicksMax 2026-10-08: that copy was dated 2026-09-29 08:23 and nothing
+# refreshed it, so a half-finished pull would have rolled the supervisor back past every 10-07/10-08 fix.
+
+
+def test_a_completed_tick_refreshes_a_stale_fallback(tmp_path: Path):
+    out = run_scenario("fallback-refreshed-when-stale", tmp_path)
+    m = out["markers"]
+    assert m["text"] == "Write-Output 'v2'\n# the tick that ran\n"
+    assert m["firstTimeText"] == m["text"]
+    assert m["leftovers"] in (None, [])
+    refreshed = [line for line in out["log"] if "ACTION refreshed the fallback supervisor copy" in line]
+    assert len(refreshed) == 2, out["log"]
+
+
+def test_an_identical_fallback_is_not_rewritten(tmp_path: Path):
+    out = run_scenario("fallback-identical-is-left-alone", tmp_path)
+    assert out["markers"]["untouched"] is True
+    assert out["log"] == []
+
+
+def test_the_fallback_never_takes_a_text_that_does_not_parse(tmp_path: Path):
+    out = run_scenario("fallback-never-takes-an-unparseable-text", tmp_path)
+    assert out["markers"]["text"] == "Write-Output 'v1'"
+    assert out["log"] == []
+
+
+def test_a_failed_fallback_write_keeps_the_old_copy_and_says_so_once(tmp_path: Path):
+    out = run_scenario("fallback-write-failure-keeps-the-old-copy", tmp_path)
+    assert out["markers"]["text"] == "Write-Output 'v1'"
+    warns = [line for line in out["log"] if "WARN could not refresh the fallback supervisor copy" in line]
+    assert len(warns) == 1, out["log"]
+    assert not [line for line in out["log"] if "ACTION refreshed" in line]
+
+
+def test_the_tick_keeps_the_fallback_it_ran_from():
+    lines = _code_lines()
+    at = lambda s: _top_level_index(lines, s)
+    assert '$fallbackPath = Join-Path $root "data\\nicksmax-camera-supervisor.fallback.ps1"' in source()
+    # The text is read as the tick starts (what ran), and written only after the last heal.
+    assert at("try { $tickSource = Read-SharedText $PSCommandPath } catch {}") < at('Enter-Phase "ledger"')
+    assert at('Enter-Phase "fallback"') < at("Update-FallbackCopy $tickSource $fallbackPath") < at('Enter-Phase "save"')
+    update = source()[source().index("function Update-FallbackCopy") :]
+    update = update[: update.index("\n}\n") + 3]
+    # Staged then swapped: a truncated fallback is worse than a stale one.
+    assert "Write-SharedFile $staged $text" in update
+    assert "[IO.File]::Replace($staged, $target, [NullString]::Value)" in update
+    assert "ParseInput($text" in update
+
+
+# ---- a sign-crop restart that restarts the crop (2026-10-09) -------------------------------------
+# run-sign-crop.ps1 holds .sign-crop.lock for its ffmpeg's whole life; a second launcher exits on it.
+# The supervisor started one beside a live but undecodable crop and counted it: sign-crop-status.log
+# shows "SKIP duplicate sign crop; lock held" at 18:03:25 and 18:09:07 on 2026-10-08, beside
+# "restart sign-crop" lines and "ESCALATE sign-crop restarted 7 times in an hour".
+
+
+def test_a_crop_restart_ends_the_old_crop_before_starting_one(tmp_path: Path):
+    out = run_scenario("crop-restart-ends-the-old-crop", tmp_path)
+    calls = out["calls"]
+    start = _index(calls, r"start-process:C:\Users\nourd\NicksMax\lab\v380-cloud-relay\run-sign-crop.ps1")
+    assert _index(calls, "stop-pid:72") < start  # the crop ffmpeg
+    assert _index(calls, "stop-pid:71") < start  # its launcher, which holds the lock
+    # A publisher into 8554, a frame probe of 8555/sign, an unreadable ffmpeg, the MediaMTX launcher.
+    for neighbour in (73, 74, 75, 76):
+        assert f"stop-pid:{neighbour}" not in calls, calls
+    assert out["markers"]["started"] is True
+    assert len(out["state"]["sign-crop"]["restarts"]) == 1
+
+
+def test_a_crop_restart_waits_for_the_old_launchers_lock(tmp_path: Path):
+    out = run_scenario("crop-restart-waits-for-the-lock", tmp_path)
+    m = out["markers"]
+    assert m["startedWhileHeld"] is False
+    assert m["restartsWhileHeld"] == 0  # a launcher that would only exit on the lock is not a restart
+    assert m["startedAfter"] is True
+    assert sum(c.startswith("start-process:") for c in out["calls"]) == 1
+    assert any("WARN sign-crop restart held" in line for line in out["log"]), out["log"]
+
+
+def test_the_crop_is_only_started_through_its_restart():
+    code = "\n".join(_code_lines())
+    assert not [line for line in code.splitlines() if "Start-Process" in line and "$cropLauncher" in line]
+    crop = code[code.index('Enter-Phase "sign-crop"') : code.index('Enter-Phase "sign-edge"')]
+    assert "if (Restart-SignCrop $cropLauncher $cropLock) {" in crop
+    assert "Start-Process" not in crop

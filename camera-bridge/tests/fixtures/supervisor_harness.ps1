@@ -136,6 +136,10 @@ function Get-ScheduledTask { param([string]$TaskName, $ErrorAction)
   if ($taskStates.ContainsKey($TaskName)) { return New-FakeTask $TaskName }
 }
 function Get-TickElapsedMs { return [long]$fakeElapsedMs }
+# Records the script a launcher start would run (its -File argument, the last one).
+function Start-Process { param($FilePath, $WindowStyle, $ArgumentList)
+  $calls.Add("start-process:" + [string](@($ArgumentList)[-1]))
+}
 function Start-Sleep { param($Milliseconds, $Seconds) }
 function Port-Open { param([int]$port, [int]$timeoutMs = 1500)
   if ($portOwners.ContainsKey($port)) { return ($killed -notcontains $portOwners[$port]) }
@@ -180,6 +184,27 @@ $bridgeGo2rtcExe = 'C:\Users\nourd\AppData\Local\StateNour\Eufy\ha-eufy-sdk-brid
 $agentPython = 'C:\Users\nourd\venv\Scripts\python.exe agent.py --eufy-only'
 $officePython = 'C:\Users\nourd\python\python.exe -m vision.officewake --capture'
 $edgePython = 'C:\Users\nourd\venv\Scripts\python.exe edge_main.py --config data\config-nicksmax-sign-production.yaml'
+
+# The sign crop as run-sign-crop.ps1 starts it: Start-Process joins its argument list, none of which
+# holds a space. Rebuilt from the launcher's source (read on NicksMax 2026-10-08); the SYSTEM command
+# line itself is not readable from the nourd token the box was probed with.
+$cropLauncherPath = 'C:\Users\nourd\NicksMax\lab\v380-cloud-relay\run-sign-crop.ps1'
+$ffmpegExe = 'C:\Users\nourd\NicksMax\lab\ffmpeg-essentials\ffmpeg-9.0.2-essentials_build\bin\ffmpeg.exe'
+$cropWrapper = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File ' + $cropLauncherPath
+$cropFfmpeg = '"' + $ffmpegExe + '" -hide_banner -loglevel warning -use_wallclock_as_timestamps 1 -fflags +genpts+discardcorrupt -rtsp_transport tcp -timeout 5000000 -i rtsp://127.0.0.1:8554/live -an -vf crop=1920:1080:0:1080,scale=640:360,fps=4,setpts=N/(4*TB) -c:v libx264 -preset ultrafast -tune zerolatency -pix_fmt yuv420p -g 8 -keyint_min 8 -sc_threshold 0 -fps_mode cfr -f rtsp -rtsp_transport tcp rtsp://127.0.0.1:8555/sign'
+# Neighbours that must survive a crop restart: a publisher INTO 8554 (the relay's side), the
+# supervisor's own frame probe reading 8555/sign, and the MediaMTX launcher.
+$relayFfmpeg = '"' + $ffmpegExe + '" -f h264 -i pipe:0 -c copy -f rtsp -rtsp_transport tcp rtsp://127.0.0.1:8554/live'
+$probeFfmpeg = '"' + $ffmpegExe + '" -hide_banner -loglevel error -rtsp_transport tcp -timeout 5000000 -i "rtsp://127.0.0.1:8555/sign" -frames:v 1 -f null NUL'
+$mediaWrapper = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File C:\Users\nourd\NicksMax\lab\v380-cloud-relay\run-mediamtx-sign.ps1'
+function Add-CropNeighbourhood {
+  Add-FakeProcess 71 "powershell.exe" $cropWrapper 600
+  Add-FakeProcess 72 "ffmpeg.exe" $cropFfmpeg 599 71 $ffmpegExe
+  Add-FakeProcess 73 "ffmpeg.exe" $relayFfmpeg 3600 0 $ffmpegExe
+  Add-FakeProcess 74 "ffmpeg.exe" $probeFfmpeg 2 0 $ffmpegExe
+  Add-FakeProcess 75 "ffmpeg.exe" '' 900
+  Add-FakeProcess 76 "powershell.exe" $mediaWrapper 900
+}
 
 function Install-EdgeCode([string]$version) {
   # Get-EdgeCodeFingerprint hashes edge_main.py at the root (plus visitd\ and vision\ modules when
@@ -658,6 +683,69 @@ switch ($Scenario) {
     Heal-EufyTask $eufyTasks[0]
     $onDisk = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
     $markers["restartsOnDisk"] = @($onDisk."eufy-bridge".restarts).Count
+  }
+  "fallback-refreshed-when-stale" {
+    # The box's copy dates from 2026-09-29. A completed tick writes the text it ran over it, and
+    # creates it when it is missing; nothing staged is left behind.
+    $target = Join-Path $WorkDir "fallback.ps1"
+    Set-Content -LiteralPath $target -Value "Write-Output 'v1'" -Encoding ascii
+    $ran = "Write-Output 'v2'`n# the tick that ran`n"
+    Update-FallbackCopy $ran $target
+    $markers["text"] = [IO.File]::ReadAllText($target)
+    $missing = Join-Path $WorkDir "first-time.ps1"
+    Update-FallbackCopy $ran $missing
+    $markers["firstTimeText"] = [IO.File]::ReadAllText($missing)
+    $markers["leftovers"] = @(Get-ChildItem -Path (Join-Path $WorkDir "*.new") | ForEach-Object { $_.Name })
+  }
+  "fallback-identical-is-left-alone" {
+    $target = Join-Path $WorkDir "fallback.ps1"
+    $ran = "Write-Output 'v2'`n"
+    [IO.File]::WriteAllText($target, $ran)
+    $old = [DateTime]::new(2026, 9, 29, 12, 23, 15, [DateTimeKind]::Utc)
+    (Get-Item -LiteralPath $target).LastWriteTimeUtc = $old
+    Update-FallbackCopy $ran $target
+    $markers["untouched"] = ((Get-Item -LiteralPath $target).LastWriteTimeUtc -eq $old)
+  }
+  "fallback-never-takes-an-unparseable-text" {
+    # Read mid-pull, say: a text that does not parse would be no fallback at all.
+    $target = Join-Path $WorkDir "fallback.ps1"
+    Set-Content -LiteralPath $target -Value "Write-Output 'v1'" -Encoding ascii
+    Update-FallbackCopy "function Broken {`n  if ( {`n" $target
+    $markers["text"] = [IO.File]::ReadAllText($target).Trim()
+  }
+  "fallback-write-failure-keeps-the-old-copy" {
+    # The staged write fails (a directory stands where .new goes; a full disk on the box): the old
+    # copy stays whole, the tick carries on, and it says so once an hour, not every tick.
+    $target = Join-Path $WorkDir "fallback.ps1"
+    Set-Content -LiteralPath $target -Value "Write-Output 'v1'" -Encoding ascii
+    New-Item -ItemType Directory -Force -Path ($target + ".new") | Out-Null
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+      Update-FallbackCopy "Write-Output 'v2'`n" $target
+      Update-FallbackCopy "Write-Output 'v2'`n" $target
+    } finally { $ErrorActionPreference = $saved }
+    $markers["text"] = [IO.File]::ReadAllText($target).Trim()
+  }
+  "crop-restart-ends-the-old-crop" {
+    # A live crop whose frames do not decode: end its ffmpeg and its launcher, then start a new one.
+    # The neighbours (73-76) survive.
+    $lock = Join-Path $WorkDir ".sign-crop.lock"
+    Set-Content -LiteralPath $lock -Value "" -Encoding ascii
+    Add-CropNeighbourhood
+    $markers["started"] = [bool](Restart-SignCrop $cropLauncherPath $lock)
+  }
+  "crop-restart-waits-for-the-lock" {
+    # The old launcher's lock is still held after the stop: a new launcher would only log "SKIP
+    # duplicate sign crop; lock held" and exit (2026-10-08 18:03:25, 18:09:07), so none is started and
+    # no restart is counted. Once the lock is free, the next try starts one.
+    $lock = Join-Path $WorkDir ".sign-crop.lock"
+    Set-Content -LiteralPath $lock -Value "" -Encoding ascii
+    Add-CropNeighbourhood
+    $h = [IO.File]::Open($lock, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    try { $markers["startedWhileHeld"] = [bool](Restart-SignCrop $cropLauncherPath $lock) } finally { $h.Dispose() }
+    $markers["restartsWhileHeld"] = @((Get-Entry "sign-crop").restarts).Count
+    $markers["startedAfter"] = [bool](Restart-SignCrop $cropLauncherPath $lock)
   }
   default { throw "unknown scenario: $Scenario" }
 }
