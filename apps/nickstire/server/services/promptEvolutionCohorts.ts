@@ -46,7 +46,7 @@
  */
 
 /** The splitSeeds hash, unreduced. Iterates code points, reads the first UTF-16 unit of each -- exactly as splitSeeds does. */
-export function seedHash(id: string): number {
+function seedHash(id: string): number {
   let h = 0;
   for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return h;
