@@ -37,6 +37,22 @@ export default function VapiPanel() {
     staleTime: 60_000,
     enabled: status?.connected ?? false,
   });
+  // The receptionist prompt experiment (propose-only). Polls while a run is
+  // active on the server; a finished run shows its row summary here, lands in
+  // Telegram and on /proof, and never changes what callers hear.
+  const { data: evolution } = trpc.vapi.promptEvolutionStatus.useQuery(undefined, {
+    enabled: status?.connected ?? false,
+    refetchInterval: (q) => (q.state.data?.active ? 30_000 : false),
+  });
+  const runEvolution = trpc.vapi.runPromptEvolutionNow.useMutation({
+    onSuccess: (r) => {
+      if (r.status === "started") toast.success("Experiment started · result in ~25 min (Telegram, /proof, and here)");
+      else if (r.status === "running") toast.message(`Already running · started ${Math.round(r.elapsedMs / 60000)} min ago`);
+      else toast.error(`Not started: ${r.reason}`);
+      utils.vapi.promptEvolutionStatus.invalidate();
+    },
+    onError: (err: { message: string }) => toast.error("Start failed: " + err.message),
+  });
   const createAssistant = trpc.vapi.createAssistant.useMutation({
     onSuccess: (result) => {
       if (result.success) {
@@ -330,6 +346,60 @@ export default function VapiPanel() {
             })}
           </div>
         </details>
+      )}
+
+      {/* RECEPTIONIST PROMPT EXPERIMENT · propose-only, on demand. Three
+          states, never two: an unreadable latest row says "unknown", never
+          "no runs yet". */}
+      {connected && (
+        <div data-testid="prompt-evolution" className="border border-border/40 bg-background/40 p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-foreground/50">Prompt experiment · propose-only</p>
+            <button
+              onClick={async () => {
+                const ok = await confirmDialog({
+                  title: "Run the receptionist prompt experiment now?",
+                  message: "Offline replay of real failed calls against the live prompt, up to 25 minutes. Proposes at most one candidate; nothing callers hear changes. Spends this week's sealed confirmation seeds. Result lands in Telegram, on /proof and here.",
+                  confirmLabel: "Run experiment",
+                });
+                if (ok) runEvolution.mutate();
+              }}
+              disabled={runEvolution.isPending || !!evolution?.active}
+              className="flex items-center gap-1.5 min-h-[48px] border border-primary/30 text-primary bg-primary/5 px-3 py-1 text-[10px] font-bold tracking-wide hover:bg-primary/10 disabled:opacity-50"
+            >
+              {runEvolution.isPending || evolution?.active ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+              {evolution?.active ? "RUNNING..." : "RUN EXPERIMENT NOW"}
+            </button>
+          </div>
+          {evolution?.active && (
+            <p className="text-[11px] text-foreground/60">
+              Running for {Math.round(evolution.active.elapsedMs / 60000)} min of a {Math.round(evolution.active.budgetMs / 60000)}-minute budget. This panel refreshes every 30s.
+            </p>
+          )}
+          {evolution?.last && !evolution.active && (
+            <p className="text-[11px] text-foreground/60">
+              Last manual run {evolution.last.status} in {Math.round(evolution.last.durationMs / 60000)} min · {evolution.last.details}
+            </p>
+          )}
+          {evolution?.latest.state === "unavailable" ? (
+            <p className="text-[11px] text-foreground/60">Latest result unknown: the row could not be read ({evolution.latest.reason}). Unknown, not empty.</p>
+          ) : evolution?.latest.state === "ok" && evolution.latest.latest ? (
+            <div className="text-[11px] text-foreground/60 space-y-0.5">
+              <p>
+                Latest ({evolution.latest.latest.trigger}) {evolution.latest.latest.ranAt ? new Date(evolution.latest.latest.ranAt).toLocaleString("en-US", { timeZone: "America/New_York" }) : "date unknown"}: outcome <span className="font-mono">{evolution.latest.latest.outcome ?? "unknown"}</span>
+                {evolution.latest.latest.accepted ? (evolution.latest.latest.confirmed ? " · candidate CONFIRMED on the sealed set" : " · candidate accepted, unconfirmed") : ""}
+              </p>
+              <p>
+                Seeds {evolution.latest.latest.seeds.usable ?? "?"} (train {evolution.latest.latest.seeds.train ?? "?"} / holdout {evolution.latest.latest.seeds.holdout ?? "?"} / confirm {evolution.latest.latest.seeds.confirm ?? "?"}) · live prompt <span className="font-mono">{evolution.latest.latest.baselinePromptHash?.slice(0, 8) ?? "?"}</span> {evolution.latest.latest.baselineParity ?? ""}
+                {evolution.latest.latest.candidateHash ? <> · candidate <span className="font-mono">{evolution.latest.latest.candidateHash.slice(0, 8)}</span></> : null}
+                {evolution.latest.latest.experimentId ? <> · receipt <span className="font-mono">{evolution.latest.latest.experimentId}</span>{evolution.latest.latest.receiptDelivered === false ? " (not delivered)" : ""}</> : " · no receipt"}
+              </p>
+              <p>Applying a candidate stays your call: edit the prompt, then Push Latest Config.</p>
+            </div>
+          ) : evolution?.latest.state === "ok" ? (
+            <p className="text-[11px] text-foreground/60">No experiment recorded yet. The weekly run is Monday; the button runs it today.</p>
+          ) : null}
+        </div>
       )}
 
       {connected && callsData?.calls && callsData.calls.length === 0 && (

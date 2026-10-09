@@ -253,6 +253,23 @@ export const vapiRouter = router({
   // so the operator sees the delta before pushing. Only lessons reinforced to
   // >=0.65 qualify (a fresh daily lesson starts at 0.6, so nothing shows until a
   // pattern has recurred).
+  // 2026-10-09 · the receptionist prompt experiment, on demand. The weekly
+  // cron gates itself to Mondays; this starts the SAME cycle (same lock, same
+  // 30-minute budget, same cron_log row, same /proof receipt) on any day and
+  // answers at once - the run takes up to 25 minutes and no request survives
+  // that. Propose-only: nothing customers hear changes. The panel polls
+  // promptEvolutionStatus while a run is active.
+  runPromptEvolutionNow: adminProcedure.mutation(async () => {
+    const { startPromptEvolutionManualRun } = await import("../services/promptEvolutionManualRun");
+    return startPromptEvolutionManualRun();
+  }),
+
+  promptEvolutionStatus: adminProcedure.query(async () => {
+    const { promptEvolutionManualRunStatus, readLatestPromptEvolutionSummary } = await import("../services/promptEvolutionManualRun");
+    const latest = await readLatestPromptEvolutionSummary();
+    return { ...promptEvolutionManualRunStatus(), latest };
+  }),
+
   promptLessons: adminProcedure.query(async () => {
     const { topPromptLessons } = await import("../services/nickMemory");
     const lessons = await topPromptLessons();

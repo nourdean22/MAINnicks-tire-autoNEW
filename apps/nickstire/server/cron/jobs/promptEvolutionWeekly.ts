@@ -11,7 +11,12 @@
  *
  * Rides the daily tier and self-gates to Monday ("Skipped · not Monday"
  * matches the loop-shape whole-run-skip vocabulary, so the shape observer
- * never reads the six quiet days as dormancy).
+ * never reads the six quiet days as dormancy). The gate binds the SCHEDULED
+ * trigger only: a manual run (services/promptEvolutionManualRun.ts, behind the
+ * admin session and the admin API key) passes `trigger: "manual"` and runs the
+ * same cycle on any day, under the same cross-dyno lock and budget. The row,
+ * the Telegram header and the cron_log details all name the trigger, so a
+ * Thursday receipt is never mistaken for the Monday cadence.
  *
  * WIRED 2026-10-09 (autoresearch audit). In run order:
  *  1. READS. shop_settings key prompt_evolution_confirmation_consumed (the
@@ -80,6 +85,13 @@ const LATEST_MAX_BYTES = 60_000;
 interface ProcessResult {
   recordsProcessed: number;
   details: string;
+}
+
+/** Who started this run. The scheduler never passes one; the manual door passes "manual". */
+export type PromptEvolutionTrigger = "scheduled" | "manual";
+
+export interface PromptEvolutionRunOptions {
+  trigger?: PromptEvolutionTrigger;
 }
 
 async function getKv(key: string): Promise<string | null> {
@@ -241,7 +253,7 @@ function outcomeLines(result: EvolutionResult): string[] {
 
 function telegramSummary(
   result: EvolutionResult,
-  ctx: { experimentId: string | null; receiptDelivered: boolean; previousStatus: PreviousProposalStatus },
+  ctx: { experimentId: string | null; receiptDelivered: boolean; previousStatus: PreviousProposalStatus; trigger: PromptEvolutionTrigger },
 ): string {
   const b = result.baseline;
   const baselineLine =
@@ -268,7 +280,7 @@ function telegramSummary(
         : "unknown";
   const u = result.usage;
   return [
-    `PROMPT EVOLUTION (weekly · propose-only)`,
+    `PROMPT EVOLUTION (${ctx.trigger === "manual" ? "manual run" : "weekly"} · propose-only)`,
     `Offline evidence only (H2); not served to customers.`,
     baselineLine,
     laneLine,
@@ -284,11 +296,13 @@ function telegramSummary(
   ].join("\n");
 }
 
-export async function processPromptEvolutionWeekly(now: Date = new Date()): Promise<ProcessResult> {
+export async function processPromptEvolutionWeekly(now: Date = new Date(), options: PromptEvolutionRunOptions = {}): Promise<ProcessResult> {
+  const trigger: PromptEvolutionTrigger = options.trigger ?? "scheduled";
   const day = now.toLocaleString("en-US", { timeZone: "America/New_York", weekday: "long" });
-  if (day !== "Monday") {
+  if (trigger === "scheduled" && day !== "Monday") {
     return { recordsProcessed: 0, details: "Skipped · not Monday (weekly cadence)" };
   }
+  if (trigger === "manual") log.info("[evolve] manual run requested", { day });
 
   // 1 · Reads. A DB error on the consumed list propagates: the run fails.
   const consumedBefore = parseConsumed(await getKv(CONSUMED_KEY));
@@ -377,6 +391,7 @@ export async function processPromptEvolutionWeekly(now: Date = new Date()): Prom
     budget: result.budget,
     experimentId: receipt?.experimentId ?? null,
     previousProposal: previousStatus,
+    trigger,
   });
 
   // 4 · Writes, integrity first: a sealed seed this run read must never be
@@ -393,6 +408,7 @@ export async function processPromptEvolutionWeekly(now: Date = new Date()): Prom
     latestRowJson({
       ...result,
       ranAt: now.toISOString(),
+      trigger,
       experimentId: receipt?.experimentId ?? null,
       receiptDelivered,
       evidenceGrade: "H2",
@@ -402,7 +418,7 @@ export async function processPromptEvolutionWeekly(now: Date = new Date()): Prom
     "Prompt evolution — latest weekly result (propose-only)",
   );
 
-  const summary = telegramSummary(result, { experimentId: receipt?.experimentId ?? null, receiptDelivered, previousStatus });
+  const summary = telegramSummary(result, { experimentId: receipt?.experimentId ?? null, receiptDelivered, previousStatus, trigger });
   const { sendTelegram } = await import("../../services/telegram");
   await sendTelegram(summary).catch(() => undefined);
 
@@ -416,6 +432,7 @@ export async function processPromptEvolutionWeekly(now: Date = new Date()): Prom
       (result.gates.confirmation ? ` · confirm ${result.gates.confirmation.reason}` : "") +
       ` · live ${short(result.baseline.promptHash)} ${result.baseline.parity}` +
       (result.lanes.parity ? "" : " · proxy lane") +
-      (receipt ? ` · receipt ${receipt.experimentId}` : ""),
+      (receipt ? ` · receipt ${receipt.experimentId}` : "") +
+      (trigger === "manual" ? " · manual run" : ""),
   };
 }

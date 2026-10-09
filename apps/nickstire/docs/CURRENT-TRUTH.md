@@ -928,7 +928,19 @@ run in production yet.
    labels defused, so a reply cannot write a "Caller:" line into its own
    evidence.
 4. **The weekly optimizer** (`services/promptEvolution.ts`, run by the
-   `promptEvolutionWeekly` cron on Mondays) proposes bounded edits. In run order:
+   `promptEvolutionWeekly` cron on Mondays) proposes bounded edits. **On demand
+   since 2026-10-09** (`services/promptEvolutionManualRun.ts`): the admin VAPI
+   panel's "Run experiment now" (`vapi.runPromptEvolutionNow`, two-tap in-DOM
+   confirm) and `POST /api/admin/run-prompt-evolution` (admin API key) start the
+   SAME cycle with `trigger: "manual"`, the only thing that bypasses the Monday
+   gate - same cross-dyno lock, same 30-minute budget, same `cron_log` row, same
+   ledger receipt. The door answers as soon as the run is started (a cycle takes
+   up to 25 minutes); `vapi.promptEvolutionStatus` / `GET
+   /api/admin/prompt-evolution-status` read the in-process state and the latest
+   row's hashes and counts. One run per process at a time; a scheduled run that
+   holds the lock makes the door skip. The Telegram header, the
+   `prompt_evolution_latest` row and the cron_log details all say `manual`.
+   Still propose-only. In run order:
    - **Baseline = the prompt callers hear.** `resolveLiveReceptionistBaseline`
      (`receptionistBaseline.ts`) proves which assistant answers the shop line
      (`getAssistantRoutingTruth`, state `match` only), reads that assistant's

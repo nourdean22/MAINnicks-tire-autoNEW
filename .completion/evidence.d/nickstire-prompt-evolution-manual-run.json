@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "admin-ui": {
+      "ref": "apps/nickstire/server/services/promptEvolutionManualRun.test.ts (this diff): the door starts the same cycle with trigger manual and answers before it ends; one run at a time; held-by-other lock is a skip; OLLAMA_API_KEY required; drain is a skip; completed run writes cron_log + releases; thrown run writes failed + releases; timeout holds the lock; budget equals scheduler.ts timeoutMs; admin REST door is behind requireAdminApiKey. VapiPanel card: in-DOM confirmDialog (never window.confirm), 48px target, three states for the latest row (ok / empty / unavailable=unknown). Browser verification deferred: the panel needs an authenticated admin session against production TiDB; the first real manual run is the runtime proof and is recorded in cron_log, prompt_evolution_latest, Telegram and /proof."
+    },
+    "cron-fail-closed": {
+      "ref": "apps/nickstire/server/cron/jobs/promptEvolutionWeekly.test.ts (this diff): a scheduled run on a non-Monday still skips with the whole-run-skip vocabulary; a manual run on a Wednesday runs the full cycle and its Telegram header, latest row and cron_log details all say manual. The infrastructure-failure, baseline-refusal and consumed-list cases are unchanged and still pass."
+    }
+  }
+}
