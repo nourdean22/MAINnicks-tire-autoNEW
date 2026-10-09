@@ -49,6 +49,14 @@ $eufyTasks = @(
   @{ Name = "StateNour-Eufy-Bridge-NicksMax"; Port = 3000; Key = "eufy-bridge" },
   @{ Name = "StateNour-Eufy-Agent-NicksMax";  Port = 3601; Key = "eufy-agent" }
 )
+# Tick phase timing: the script's own starting values, so Enter-Phase / Complete-Tick run as they do
+# at the top of a real tick. The clock itself is faked below (Get-TickElapsedMs).
+$slowTickMs = 30000
+$tickPhasePath = Join-Path $WorkDir "tick.phase"
+$tickStarted = Get-Date
+$tickPhases = [ordered]@{}
+$tickPhase = "startup"
+$tickPhaseAt = 0
 
 foreach ($fn in $functionAsts) { . ([scriptblock]::Create($fn.Extent.Text)) }
 
@@ -63,6 +71,13 @@ $killed = New-Object System.Collections.Generic.List[int]
 # the office code-change rule. Both default to the happy path.
 $unkillable = New-Object System.Collections.Generic.List[int]
 $failStart = $false
+# Every Get-ScheduledTask call, by kind: "list" (the whole task list) or "name:<task>". On NicksMax
+# each call costs ~0.95 s whatever it asks for, so the count is the cost. $failTaskList makes the
+# list read throw: the per-name fallback.
+$taskReads = New-Object System.Collections.Generic.List[string]
+$failTaskList = $false
+# The tick's clock, in ms since the process started. Scenarios move it by hand.
+$fakeElapsedMs = 0
 $markers = @{}
 
 function Add-FakeProcess([int]$processId, [string]$name, [string]$commandLine, [int]$ageSeconds, [int]$parentProcessId = 0, [string]$executablePath = '') {
@@ -101,14 +116,29 @@ function Start-ScheduledTask { param([string]$TaskName, $ErrorAction)
   $calls.Add("start-task:$TaskName")
 }
 function Set-ScheduledTask { param([string]$TaskName, $Action, $ErrorAction) $calls.Add("set-task:$TaskName") }
-function Get-ScheduledTask { param([string]$TaskName, $ErrorAction)
-  if ($taskStates.ContainsKey($TaskName)) {
-    return [pscustomobject]@{
-      TaskName = $TaskName
-      State    = $taskStates[$TaskName]
-      Actions  = @([pscustomobject]@{ WorkingDirectory = $root })
-    }
+function Disable-ScheduledTask { param([string]$TaskName, $ErrorAction) $calls.Add("disable-task:$TaskName") }
+function New-FakeTask([string]$name) {
+  return [pscustomobject]@{
+    TaskName = $name
+    TaskPath = "\"
+    State    = $taskStates[$name]
+    Actions  = @([pscustomobject]@{ WorkingDirectory = $root })
   }
+}
+# No -TaskName: the whole task list, as the real cmdlet returns it.
+function Get-ScheduledTask { param([string]$TaskName, $ErrorAction)
+  if (-not $TaskName) {
+    $taskReads.Add("list")
+    if ($failTaskList) { throw "Get-ScheduledTask refused by the harness" }
+    return @($taskStates.Keys | ForEach-Object { New-FakeTask $_ })
+  }
+  $taskReads.Add("name:$TaskName")
+  if ($taskStates.ContainsKey($TaskName)) { return New-FakeTask $TaskName }
+}
+function Get-TickElapsedMs { return [long]$fakeElapsedMs }
+# Records the script a launcher start would run (its -File argument, the last one).
+function Start-Process { param($FilePath, $WindowStyle, $ArgumentList)
+  $calls.Add("start-process:" + [string](@($ArgumentList)[-1]))
 }
 function Start-Sleep { param($Milliseconds, $Seconds) }
 function Port-Open { param([int]$port, [int]$timeoutMs = 1500)
@@ -154,6 +184,27 @@ $bridgeGo2rtcExe = 'C:\Users\nourd\AppData\Local\StateNour\Eufy\ha-eufy-sdk-brid
 $agentPython = 'C:\Users\nourd\venv\Scripts\python.exe agent.py --eufy-only'
 $officePython = 'C:\Users\nourd\python\python.exe -m vision.officewake --capture'
 $edgePython = 'C:\Users\nourd\venv\Scripts\python.exe edge_main.py --config data\config-nicksmax-sign-production.yaml'
+
+# The sign crop as run-sign-crop.ps1 starts it: Start-Process joins its argument list, none of which
+# holds a space. Rebuilt from the launcher's source (read on NicksMax 2026-10-08); the SYSTEM command
+# line itself is not readable from the nourd token the box was probed with.
+$cropLauncherPath = 'C:\Users\nourd\NicksMax\lab\v380-cloud-relay\run-sign-crop.ps1'
+$ffmpegExe = 'C:\Users\nourd\NicksMax\lab\ffmpeg-essentials\ffmpeg-9.0.2-essentials_build\bin\ffmpeg.exe'
+$cropWrapper = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File ' + $cropLauncherPath
+$cropFfmpeg = '"' + $ffmpegExe + '" -hide_banner -loglevel warning -use_wallclock_as_timestamps 1 -fflags +genpts+discardcorrupt -rtsp_transport tcp -timeout 5000000 -i rtsp://127.0.0.1:8554/live -an -vf crop=1920:1080:0:1080,scale=640:360,fps=4,setpts=N/(4*TB) -c:v libx264 -preset ultrafast -tune zerolatency -pix_fmt yuv420p -g 8 -keyint_min 8 -sc_threshold 0 -fps_mode cfr -f rtsp -rtsp_transport tcp rtsp://127.0.0.1:8555/sign'
+# Neighbours that must survive a crop restart: a publisher INTO 8554 (the relay's side), the
+# supervisor's own frame probe reading 8555/sign, and the MediaMTX launcher.
+$relayFfmpeg = '"' + $ffmpegExe + '" -f h264 -i pipe:0 -c copy -f rtsp -rtsp_transport tcp rtsp://127.0.0.1:8554/live'
+$probeFfmpeg = '"' + $ffmpegExe + '" -hide_banner -loglevel error -rtsp_transport tcp -timeout 5000000 -i "rtsp://127.0.0.1:8555/sign" -frames:v 1 -f null NUL'
+$mediaWrapper = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File C:\Users\nourd\NicksMax\lab\v380-cloud-relay\run-mediamtx-sign.ps1'
+function Add-CropNeighbourhood {
+  Add-FakeProcess 71 "powershell.exe" $cropWrapper 600
+  Add-FakeProcess 72 "ffmpeg.exe" $cropFfmpeg 599 71 $ffmpegExe
+  Add-FakeProcess 73 "ffmpeg.exe" $relayFfmpeg 3600 0 $ffmpegExe
+  Add-FakeProcess 74 "ffmpeg.exe" $probeFfmpeg 2 0 $ffmpegExe
+  Add-FakeProcess 75 "ffmpeg.exe" '' 900
+  Add-FakeProcess 76 "powershell.exe" $mediaWrapper 900
+}
 
 function Install-EdgeCode([string]$version) {
   # Get-EdgeCodeFingerprint hashes edge_main.py at the root (plus visitd\ and vision\ modules when
@@ -550,6 +601,151 @@ switch ($Scenario) {
     $failStart = $true
     Heal-OfficeWorker
     $markers["fingerprintAfterFailedStart"] = [string](Get-Entry "office-code-version").fingerprint
+  }
+  "slow-tick-names-the-slow-phase" {
+    # 37.2 s from process start, 34 s of it in the sign crop's frame probes: one NOTE, slowest first.
+    $fakeElapsedMs = 1500;  Enter-Phase "ledger"
+    $fakeElapsedMs = 2000;  Enter-Phase "task-list"
+    $fakeElapsedMs = 3000;  Enter-Phase "sign-crop"
+    $fakeElapsedMs = 37000; Enter-Phase "disk"
+    $fakeElapsedMs = 37100; Enter-Phase "save"
+    $fakeElapsedMs = 37200; Complete-Tick
+    $markers["breadcrumbLeft"] = [bool](Test-Path -LiteralPath $tickPhasePath)
+  }
+  "fast-tick-is-silent" {
+    # The same phases in 12 s: no log line at all, and nothing left behind for the next tick.
+    $fakeElapsedMs = 1500;  Enter-Phase "ledger"
+    $fakeElapsedMs = 2000;  Enter-Phase "task-list"
+    $fakeElapsedMs = 3000;  Enter-Phase "sign-crop"
+    $fakeElapsedMs = 11800; Enter-Phase "disk"
+    $fakeElapsedMs = 11900; Enter-Phase "save"
+    $fakeElapsedMs = 12000; Complete-Tick
+    $markers["breadcrumbLeft"] = [bool](Test-Path -LiteralPath $tickPhasePath)
+  }
+  "killed-tick-is-reported-by-the-next" {
+    # The loop kills a tick at 45 s, so it never reaches Complete-Tick. Its last phase boundary is on
+    # disk; the next tick names that phase once, then forgets it.
+    $fakeElapsedMs = 1500;  Enter-Phase "ledger"
+    $fakeElapsedMs = 2000;  Enter-Phase "task-list"
+    $fakeElapsedMs = 9000;  Enter-Phase "sign-crop"
+    $markers["breadcrumbWhileRunning"] = [bool](Test-Path -LiteralPath $tickPhasePath)
+    # The next tick: a fresh process, fresh phase table.
+    $tickPhases = [ordered]@{}; $tickPhase = "startup"; $tickPhaseAt = 0; $fakeElapsedMs = 900
+    Report-UnfinishedTick
+    Report-UnfinishedTick
+    $markers["breadcrumbAfterReport"] = [bool](Test-Path -LiteralPath $tickPhasePath)
+  }
+  "one-task-read-per-tick" {
+    # A healthy tick's task reads: the retired-task sweep, the office worker, both Eufy tasks. Nine
+    # Get-ScheduledTask calls before (~8.5 s on NicksMax); the list is read once now.
+    Install-OfficeCode
+    Add-FakeProcess 31 "python.exe" $officePython 600
+    Add-FakeProcess 11 "node.exe" $bridgeNode 600
+    Add-FakeProcess 12 "go2rtc.exe" $bridgeGo2rtcCmd 590 11 $bridgeGo2rtcExe
+    Add-FakeProcess 21 "python.exe" $agentPython 600
+    $portOwners[3000] = 11; $portOwners[3601] = 21
+    $taskStates[$officeTask] = "Running"
+    $taskStates["StateNour-Eufy-Bridge-NicksMax"] = "Running"
+    $taskStates["StateNour-Eufy-Agent-NicksMax"] = "Running"
+    $taskStates["StateNour-Eufy-Watchdog-NicksMax"] = "Ready"
+    $taskStates["NicksMaxCameraSupervisorUser"] = "Disabled"
+    Set-OfficeStatus 1 "READY" $null
+    Disable-RetiredTasks
+    Heal-OfficeWorker
+    foreach ($et in $eufyTasks) { Heal-EufyTask $et }
+    $markers["taskReads"] = @($taskReads)
+  }
+  "task-list-read-fails-falls-back-per-name" {
+    # The list read throws: every task must still be found by name, never seen as absent.
+    $failTaskList = $true
+    $taskStates["StateNour-Eufy-Bridge-NicksMax"] = "Ready"
+    Heal-EufyTask $eufyTasks[0]
+    Heal-EufyTask $eufyTasks[1]
+    $markers["taskReads"] = @($taskReads)
+  }
+  "relay-login-refusal-reads-the-tail" {
+    $filler = ("[VIDEO] rawType=0x29 codec=H265 keyframe=False " + ("x" * 60) + "`r`n") * 20000   # ~2.2 MB
+    $endsRefused = Join-Path $WorkDir "ends-refused.log"
+    Set-Content -LiteralPath $endsRefused -Value ($filler + "relay: login failed result: 1002") -Encoding ascii -NoNewline
+    $refusedThenStreamed = Join-Path $WorkDir "refused-then-streamed.log"
+    Set-Content -LiteralPath $refusedThenStreamed -Value ("Login FAILED result: 1002`r`n" + $filler) -Encoding ascii -NoNewline
+    $small = Join-Path $WorkDir "small.log"
+    Set-Content -LiteralPath $small -Value "LOGIN FAILED result: 1002" -Encoding ascii
+    $markers["endsRefused"] = [bool](Test-RelayLoginRefused $endsRefused)
+    $markers["refusedThenStreamed"] = [bool](Test-RelayLoginRefused $refusedThenStreamed)
+    $markers["small"] = [bool](Test-RelayLoginRefused $small)
+    $markers["missing"] = [bool](Test-RelayLoginRefused (Join-Path $WorkDir "no-such.log"))
+  }
+  "restart-saves-the-ledger-at-once" {
+    # A tick the loop kills never reaches the Save-State at its end; the restart it made must
+    # already be on disk, or the next tick's rate limit and ESCALATE count start short.
+    $taskStates["StateNour-Eufy-Bridge-NicksMax"] = "Ready"
+    Heal-EufyTask $eufyTasks[0]
+    $onDisk = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+    $markers["restartsOnDisk"] = @($onDisk."eufy-bridge".restarts).Count
+  }
+  "fallback-refreshed-when-stale" {
+    # The box's copy dates from 2026-09-29. A completed tick writes the text it ran over it, and
+    # creates it when it is missing; nothing staged is left behind.
+    $target = Join-Path $WorkDir "fallback.ps1"
+    Set-Content -LiteralPath $target -Value "Write-Output 'v1'" -Encoding ascii
+    $ran = "Write-Output 'v2'`n# the tick that ran`n"
+    Update-FallbackCopy $ran $target
+    $markers["text"] = [IO.File]::ReadAllText($target)
+    $missing = Join-Path $WorkDir "first-time.ps1"
+    Update-FallbackCopy $ran $missing
+    $markers["firstTimeText"] = [IO.File]::ReadAllText($missing)
+    $markers["leftovers"] = @(Get-ChildItem -Path (Join-Path $WorkDir "*.new") | ForEach-Object { $_.Name })
+  }
+  "fallback-identical-is-left-alone" {
+    $target = Join-Path $WorkDir "fallback.ps1"
+    $ran = "Write-Output 'v2'`n"
+    [IO.File]::WriteAllText($target, $ran)
+    $old = [DateTime]::new(2026, 9, 29, 12, 23, 15, [DateTimeKind]::Utc)
+    (Get-Item -LiteralPath $target).LastWriteTimeUtc = $old
+    Update-FallbackCopy $ran $target
+    $markers["untouched"] = ((Get-Item -LiteralPath $target).LastWriteTimeUtc -eq $old)
+  }
+  "fallback-never-takes-an-unparseable-text" {
+    # Read mid-pull, say: a text that does not parse would be no fallback at all.
+    $target = Join-Path $WorkDir "fallback.ps1"
+    Set-Content -LiteralPath $target -Value "Write-Output 'v1'" -Encoding ascii
+    Update-FallbackCopy "function Broken {`n  if ( {`n" $target
+    $markers["text"] = [IO.File]::ReadAllText($target).Trim()
+  }
+  "fallback-write-failure-keeps-the-old-copy" {
+    # The staged write fails (a directory stands where .new goes; a full disk on the box): the old
+    # copy stays whole, the tick carries on, and it says so once an hour, not every tick.
+    $target = Join-Path $WorkDir "fallback.ps1"
+    Set-Content -LiteralPath $target -Value "Write-Output 'v1'" -Encoding ascii
+    New-Item -ItemType Directory -Force -Path ($target + ".new") | Out-Null
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+      Update-FallbackCopy "Write-Output 'v2'`n" $target
+      Update-FallbackCopy "Write-Output 'v2'`n" $target
+    } finally { $ErrorActionPreference = $saved }
+    $markers["text"] = [IO.File]::ReadAllText($target).Trim()
+  }
+  "crop-restart-ends-the-old-crop" {
+    # A live crop whose frames do not decode: end its ffmpeg and its launcher, then start a new one.
+    # The neighbours (73-76) survive.
+    $lock = Join-Path $WorkDir ".sign-crop.lock"
+    Set-Content -LiteralPath $lock -Value "" -Encoding ascii
+    Add-CropNeighbourhood
+    $markers["started"] = [bool](Restart-SignCrop $cropLauncherPath $lock)
+  }
+  "crop-restart-waits-for-the-lock" {
+    # The old launcher's lock is still held after the stop: a new launcher would only log "SKIP
+    # duplicate sign crop; lock held" and exit (2026-10-08 18:03:25, 18:09:07), so none is started and
+    # no restart is counted. Once the lock is free, the next try starts one.
+    $lock = Join-Path $WorkDir ".sign-crop.lock"
+    Set-Content -LiteralPath $lock -Value "" -Encoding ascii
+    Add-CropNeighbourhood
+    $h = [IO.File]::Open($lock, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    try { $markers["startedWhileHeld"] = [bool](Restart-SignCrop $cropLauncherPath $lock) } finally { $h.Dispose() }
+    $markers["restartsWhileHeld"] = @((Get-Entry "sign-crop").restarts).Count
+    $markers["startedAfter"] = [bool](Restart-SignCrop $cropLauncherPath $lock)
   }
   default { throw "unknown scenario: $Scenario" }
 }

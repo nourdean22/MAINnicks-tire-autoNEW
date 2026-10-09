@@ -17,6 +17,16 @@ $ErrorActionPreference = "Continue"
 # tests\test_nicksmax_supervisor.py through tests\fixtures\supervisor_harness.ps1 -- keep the
 # machine-touching work inside the Heal-* / Stop-* / Invoke-* functions so it stays testable.
 #
+# 2026-10-09 - the tick fits the loop's 45 s budget again. The box-local loop killed 422 ticks from
+# 10-03 to 10-08, clustered on sign-crop and relay recoveries, and a killed tick never saves its
+# ledger. Measured on NicksMax (2026-10-08 21:05 ET, one call at a time, 76-100% CPU): nine
+# Get-ScheduledTask calls at ~0.95 s each whatever they asked (~8.5 s), a 2.5 s Select-String through
+# a 215 MB relay stderr log, and a 5.8 s frame probe on a HEALTHY stream -- ~20 s summed before any
+# repair; a crop recovery then ran two more probes (6-12 s each). Now the task list is read once a tick, the relay
+# log only while the relay is down (its tail), the edge start reuses this tick's decoded frame, and a
+# restart is saved the moment it is recorded. Every phase is timed: a tick past $slowTickMs logs one
+# "NOTE slow tick" line naming the slowest phase first, and a tick the loop kills is named by the next.
+#
 # What it heals, in order (cheap checks first, slow RTSP decode probes last):
 #   0. single tick at a time (file lock) -- two supervisors once fought over the relay.
 #   1. office conversation worker (StateNour-OfficeIntelligence-NicksMax): not running -> start
@@ -29,6 +39,8 @@ $ErrorActionPreference = "Continue"
 #      path reloads it: a `git pull` is the deploy for the edge too (2026-10-08).
 #   4. disk floor: under 1 GB free -> rotate this log, prune raw office audio past the worker's
 #      own retention, ESCALATE. (Measured 0.10 GB free on 2026-10-05.)
+#   5. the shim's fallback copy: a tick that runs to its end leaves the text it ran in
+#      data\nicksmax-camera-supervisor.fallback.ps1 (2026-10-09; it had sat at 2026-09-29).
 # Every restart is recorded per component; more than $escalateRestartsPerHour in an hour logs
 # ESCALATE (once per component per hour) instead of looping silently.
 
@@ -40,11 +52,15 @@ $relayLauncher = if ($isSystem) { "C:\Users\nourd\NicksMax\lab\v380-cloud-relay\
 $relaySecret = if ($isSystem) { "C:\ProgramData\NicksMaxCamera\shopsign-machine.dpapi" } else { "C:\Users\nourd\NicksMax\lab\secrets\machine\shopsign-device.machine" }
 $mediaLauncher = "C:\Users\nourd\NicksMax\lab\v380-cloud-relay\run-mediamtx-sign.ps1"
 $cropLauncher = "C:\Users\nourd\NicksMax\lab\v380-cloud-relay\run-sign-crop.ps1"
+# run-sign-crop.ps1 holds this, FileShare None, for its ffmpeg's whole life; a second launcher exits on it.
+$cropLock = Join-Path (Split-Path $cropLauncher) ".sign-crop.lock"
 $shadowLauncher = Join-Path $root "data\run-sign-rtsp-candidate.ps1"
 $productionLauncher = Join-Path $root "data\run-sign-rtsp-production.ps1"
 $productionMarker = Join-Path $root "data\NICKSMAX-SIGN-PRODUCTION-ARMED"
 $prodStartMarker = Join-Path $root "data\.nicksmax-prod-start-last"
 $statePath = Join-Path $root "data\.nicksmax-supervisor-state.json"
+# What the box-local shim runs when this file is missing or does not parse (its $fallbackTick).
+$fallbackPath = Join-Path $root "data\nicksmax-camera-supervisor.fallback.ps1"
 
 $officeTask = "StateNour-OfficeIntelligence-NicksMax"
 $officeStatusPath = "C:\Users\nourd\AppData\Local\StateNour\OfficeIntelligence\office-conversation-status.json"
@@ -97,6 +113,15 @@ function Write-SharedFile([string]$path, [string]$text, [switch]$Append) {
   } finally {
     $stream.Dispose()
   }
+}
+
+# The read side of the same rule: share Read, Write and Delete, so no writer or rename is refused.
+function Read-SharedText([string]$path) {
+  $share = [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete
+  $reader = [IO.StreamReader]::new(
+    [IO.FileStream]::new($path, [IO.FileMode]::Open, [IO.FileAccess]::Read, $share),
+    [Text.Encoding]::UTF8, $true)
+  try { return $reader.ReadToEnd() } finally { $reader.Dispose() }
 }
 
 # Logging must never break supervision, and a log that cannot be written must not silence it
@@ -165,6 +190,68 @@ function Restore-Overflow {
 }
 $restoreBlocked = Restore-Overflow
 
+# ---- tick phase timing ------------------------------------------------------------------------
+# data\nicksmax-camera-supervisor-loop.ps1 (box-local, not in the repo) starts this tick in a fresh
+# powershell.exe and kills it at 45 s, so the clock starts at process start, not at line 1. Each phase
+# boundary records where the tick is in $tickPhasePath: a tick the loop kills never reaches its end,
+# and those are the ticks worth explaining, so the next tick logs that breadcrumb as the tick that did
+# not finish (its pid matches the loop's "killed pid="). A tick that completes removes it, and logs a
+# line of its own only past $slowTickMs: a healthy tick writes nothing to the log.
+$slowTickMs = 30000
+$tickPhasePath = Join-Path $root "data\.nicksmax-supervisor-tick.phase"
+$tickStarted = [Diagnostics.Process]::GetCurrentProcess().StartTime
+$tickPhases = [ordered]@{}
+$tickPhase = "startup"
+$tickPhaseAt = 0
+
+function Get-TickElapsedMs { return [long]([DateTime]::Now - $tickStarted).TotalMilliseconds }
+
+# "<phase> <ms>, ..." slowest first; ties keep the order the tick ran them in.
+function Format-TickPhases {
+  $names = @($tickPhases.Keys)
+  $rows = for ($i = 0; $i -lt $names.Count; $i++) { [pscustomobject]@{ Name = $names[$i]; Ms = [long]$tickPhases[$names[$i]]; At = $i } }
+  $sorted = @($rows | Sort-Object @{ Expression = "Ms"; Descending = $true }, @{ Expression = "At"; Ascending = $true })
+  return (($sorted | ForEach-Object { "{0} {1}" -f $_.Name, $_.Ms }) -join ", ")
+}
+
+# Closes the current phase and opens $name ("" closes without opening). Timing never breaks a tick.
+function Enter-Phase([string]$name) {
+  $now = Get-TickElapsedMs
+  if ($script:tickPhase) {
+    $spent = $now - $script:tickPhaseAt
+    if ($tickPhases.Contains($script:tickPhase)) { $tickPhases[$script:tickPhase] += $spent } else { $tickPhases[$script:tickPhase] = $spent }
+  }
+  $script:tickPhase = $name
+  $script:tickPhaseAt = $now
+  if (-not $name) { return }
+  try {
+    Write-SharedFile $tickPhasePath ("pid={0} started {1:HH:mm:ss} did not finish: in {2} from {3} ms; before that {4}`r`n" -f `
+      $PID, $tickStarted, $name, $now, (Format-TickPhases))
+  } catch {}
+}
+
+function Complete-Tick {
+  Enter-Phase ""
+  # Blank it if it cannot be deleted, or the next tick would report this completed tick as killed.
+  try { [IO.File]::Delete($tickPhasePath) } catch { try { Write-SharedFile $tickPhasePath "" } catch {} }
+  $total = $script:tickPhaseAt
+  if ($total -lt $slowTickMs) { return }
+  Log ("NOTE slow tick: {0} ms (pid={1}); {2}" -f $total, $PID, (Format-TickPhases))
+}
+
+function Report-UnfinishedTick {
+  if (-not (Test-Path -LiteralPath $tickPhasePath)) { return }
+  $text = ""
+  try { $text = (Read-SharedText $tickPhasePath).Trim() } catch {}
+  try { [IO.File]::Delete($tickPhasePath) } catch {}
+  if ($text) { Log ("NOTE slow tick: {0}" -f $text) }
+}
+Report-UnfinishedTick
+# The text this tick runs, read as it starts: what Update-FallbackCopy keeps once the tick completes.
+$tickSource = ""
+try { $tickSource = Read-SharedText $PSCommandPath } catch {}
+Enter-Phase "ledger"
+
 # ---- restart ledger --------------------------------------------------------------------------
 # { "<component>": { "restarts": [epoch...], "escalatedAt": epoch, "portMisses": n, "fingerprint": s } }
 function Read-State {
@@ -194,6 +281,19 @@ function Get-Entry([string]$key) {
   return $state[$key]
 }
 
+# The restart ledger carries every rate limit and ESCALATE decision across ticks. A planted probe
+# on NicksMax (5.1, 2026-10-08) showed Set-Content saves nothing beside a reader, as Add-Content
+# refused the log; its failure, unlike Add-Content's, is terminating, so the WARN below fired.
+# Not seen on the box itself: the state file kept being rewritten through the log outage.
+# Defined up here because Record-Restart saves too: the end of a tick is not guaranteed.
+function Save-State {
+  try {
+    Write-SharedFile $statePath (($state | ConvertTo-Json -Depth 4) + "`r`n")
+  } catch {
+    Log ("WARN could not persist supervisor state: {0}" -f $_.Exception.Message)
+  }
+}
+
 # A restore a reader keeps refusing would leave lines stranded beside a log that looks healthy.
 function Report-BlockedRestore([string]$why) {
   if (-not $why) { return }
@@ -213,6 +313,9 @@ function Record-Restart([string]$key,[string]$why) {
     $e.escalatedAt = $nowEpoch
     Log ("ESCALATE {0} restarted {1} times in an hour; self-heal is not converging -- needs a human" -f $key,$e.restarts.Count)
   }
+  # Saved now, not only at the end: the loop kills a tick at 45 s, and a killed tick's restarts used to
+  # vanish with it, so the next tick's rate limit and ESCALATE count started short.
+  Save-State
 }
 
 function Restarts-InLastMinutes([string]$key,[int]$minutes) {
@@ -256,6 +359,49 @@ function Test-RtspFrame([string]$url) {
   } finally {
     if ($p) { $p.Dispose() }
   }
+}
+
+# Did the relay's last run end on a refused cloud login? Only its tail can say, and only the tail is
+# read: relay-system.stderr.log was 215 MB on 2026-10-08 (the relay runs with --debug, ~18 MB/h; its
+# launcher truncates it on each start), and Select-String took 2.5 s to reach its first match at line
+# 960,716 -- on every tick, healthy or not. A relay that exits on "login failed" writes that last. A
+# file that cannot be read says nothing, as Select-String's non-terminating error said nothing.
+function Test-RelayLoginRefused([string]$path, [int]$tailBytes = 1MB) {
+  if (-not (Test-Path -LiteralPath $path)) { return $false }
+  try {
+    $share = [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete
+    $stream = [IO.FileStream]::new($path, [IO.FileMode]::Open, [IO.FileAccess]::Read, $share)
+    try {
+      if ($stream.Length -gt $tailBytes) { [void]$stream.Seek(-$tailBytes, [IO.SeekOrigin]::End) }
+      $tail = [IO.StreamReader]::new($stream, [Text.Encoding]::UTF8, $false).ReadToEnd()
+    } finally { $stream.Dispose() }
+    return ($tail.IndexOf("login failed", [StringComparison]::OrdinalIgnoreCase) -ge 0)
+  } catch { return $false }
+}
+
+# ---- scheduled tasks ---------------------------------------------------------------------------
+# One Task Scheduler read per tick. On NicksMax every Get-ScheduledTask call costs ~0.95 s whatever it
+# asks for -- one name, a missing name, or all 161 tasks (measured 2026-10-08 21:10 ET) -- and a tick
+# made nine of them: ~8.5 s of the loop's 45 s before any healing. Each heal reads its own task once,
+# so a list taken at the start of the tick is as fresh as the per-name reads were. A list that cannot
+# be read falls back to those per-name reads: unknown is not absent.
+function Read-TaskList {
+  $script:taskListRead = $true
+  $script:taskList = $null
+  try {
+    $list = @{}
+    foreach ($t in @(Get-ScheduledTask -ErrorAction Stop)) {
+      # Same name in two folders: the root one, where every camera task is registered.
+      if (-not $list.ContainsKey($t.TaskName) -or $t.TaskPath -eq "\") { $list[$t.TaskName] = $t }
+    }
+    $script:taskList = $list
+  } catch {}
+}
+
+function Get-Task([string]$name) {
+  if (-not $script:taskListRead) { Read-TaskList }
+  if ($null -ne $script:taskList) { return $script:taskList[$name] }
+  return Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
 }
 
 # ---- process discovery -----------------------------------------------------------------------
@@ -532,7 +678,7 @@ function Get-HeartbeatAgeMinutes($status) {
 
 # ---- 1. office conversation worker ----------------------------------------------------------
 function Heal-OfficeWorker {
-  $ot = Get-ScheduledTask -TaskName $officeTask -ErrorAction SilentlyContinue
+  $ot = Get-Task $officeTask
   if (-not $ot -or $ot.State -eq "Disabled") { return }
   $spec = Get-TaskChildSpec "office-worker"
   [void](Remove-DuplicateProcesses $spec.Needles[0] 0 "office-worker")
@@ -604,7 +750,7 @@ function Heal-OfficeWorker {
 
 # ---- 2. Eufy bridge + agent -------------------------------------------------------------------
 function Heal-EufyTask([hashtable]$et) {
-  $t = Get-ScheduledTask -TaskName $et.Name -ErrorAction SilentlyContinue
+  $t = Get-Task $et.Name
   if (-not $t -or $t.State -eq "Disabled") { return }
   $e = Get-Entry $et.Key
   $spec = Get-TaskChildSpec $et.Key
@@ -638,21 +784,29 @@ function Heal-EufyTask([hashtable]$et) {
 # started the same two Eufy tasks with the wrapper-only primitive this file replaced; a second
 # authority over one port is how orphans and duplicate agents are made. This supervisor is the
 # only one (2026-10-07).
-foreach ($taskName in @("V380Watchdog","NickEdgeProducer","NickEdgeProducerRight","NickEdgeSignCandidate","NicksMaxCameraSupervisorUser","StateNour-Eufy-Watchdog-NicksMax")) {
-  $t = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-  if ($t -and $t.State -ne "Disabled") {
-    Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-    Disable-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue | Out-Null
-    Log ("SAFETY disabled retired task {0}" -f $taskName)
+function Disable-RetiredTasks {
+  foreach ($taskName in @("V380Watchdog","NickEdgeProducer","NickEdgeProducerRight","NickEdgeSignCandidate","NicksMaxCameraSupervisorUser","StateNour-Eufy-Watchdog-NicksMax")) {
+    $t = Get-Task $taskName
+    if ($t -and $t.State -ne "Disabled") {
+      Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+      Disable-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue | Out-Null
+      Log ("SAFETY disabled retired task {0}" -f $taskName)
+    }
   }
 }
 
+Enter-Phase "task-list"
+Read-TaskList
+Enter-Phase "retired-tasks"
+Disable-RetiredTasks
+Enter-Phase "office"
 Heal-OfficeWorker
-foreach ($et in $eufyTasks) { Heal-EufyTask $et }
+foreach ($et in $eufyTasks) { Enter-Phase $et.Key; Heal-EufyTask $et }
 
 # Do not kill V380 if the operator manually opens it; it simply is no longer infrastructure.
 
 # ---- 3. sign pipeline -------------------------------------------------------------------------
+Enter-Phase "sign-relay"
 # 3a. Cloud/P2P relay -> localhost full three-lens stack on 8554.
 # Listener health is authoritative here. An elevated/System relay can hide its command line
 # from this token, so command-line discovery alone causes duplicate restart attempts.
@@ -661,9 +815,9 @@ $relayReady = (Port-Open 8554) -and (Port-Open 8080)
 # relay exited "login failed result: 1002" and this loop re-tried the cloud login ~120x/hour
 # for 11+ hours, which risks locking the account. On a login refusal, retry once per 30 min
 # and escalate it. 1002 follows a dropped stream: the sign camera is solar and goes offline when its battery runs out.
+# The stderr log is read last, and only while the relay is down (Test-RelayLoginRefused).
 $relayErr = Join-Path (Split-Path $relayLauncher) $(if ($isSystem) { "relay-system.stderr.log" } else { "relay.stderr.log" })
-$relayAuthFailed = (Test-Path $relayErr) -and (Select-String -Path $relayErr -Pattern 'login failed' -SimpleMatch -Quiet)
-$relayAuthHold = (-not $relayReady) -and $relayAuthFailed -and ((Restarts-InLastMinutes "sign-relay" 30) -gt 0)
+$relayAuthHold = (-not $relayReady) -and ((Restarts-InLastMinutes "sign-relay" 30) -gt 0) -and (Test-RelayLoginRefused $relayErr)
 if ($relayAuthHold) {
   $e = Get-Entry "sign-relay"
   if ($e.escalatedAt -lt ($nowEpoch - 3600)) {
@@ -685,6 +839,7 @@ if (-not $relayReady -and -not $relayAuthHold -and (Test-Path $relaySecret) -and
   Start-Sleep -Milliseconds 900
 }
 
+Enter-Phase "sign-mediamtx"
 # 3b. Loopback RTSP broker for the isolated sign lens.
 # Port health is privilege-agnostic; elevated process command lines may be invisible.
 $mediaReady = Port-Open 8555
@@ -694,16 +849,55 @@ if (-not $mediaReady -and (Test-Path $mediaLauncher)) {
   Start-Sleep -Milliseconds 700
 }
 
+# Can a lock file be opened exclusively? Missing counts as free. Read access, so nothing is written.
+function Test-FileUnlocked([string]$path, [int]$tries = 12) {
+  for ($i = 0; $i -lt $tries; $i++) {
+    if (-not (Test-Path -LiteralPath $path)) { return $true }
+    try {
+      $probe = [IO.File]::Open($path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::None)
+      $probe.Dispose()
+      return $true
+    } catch {}
+    Start-Sleep -Milliseconds 250
+  }
+  return $false
+}
+
+# 3c's restart. run-sign-crop.ps1 holds $cropLock for its ffmpeg's whole life and a second launcher exits
+# on it, so starting one beside a live but undecodable crop restarted nothing: sign-crop-status.log
+# shows "SKIP duplicate sign crop; lock held" at 18:03:25 and 18:09:07 on 2026-10-08, beside "restart
+# sign-crop" lines that still counted toward "ESCALATE sign-crop restarted 7 times in an hour". End the
+# old crop first -- its ffmpeg, known by reading 8554/live and publishing 8555/sign, and the launcher
+# that waits on it, known by its script path -- then start one only when the lock is free. Identity is
+# the command line (Get-ProcessIdentity): a publisher INTO 8554, a frame probe of 8555/sign, or an ffmpeg
+# this token cannot read is not the crop. Returns $true only when a launcher was started.
+function Restart-SignCrop([string]$launcher, [string]$lockPath) {
+  $cropNeedles = @(
+    '^ffmpeg(\.exe)?\s.*\s-i\s+"?rtsp://127\.0\.0\.1:8554/live\b.*\srtsp://127\.0\.0\.1:8555/sign\b',
+    ('^powershell(\.exe)?\s.*' + [regex]::Escape($launcher))
+  )
+  foreach ($needle in $cropNeedles) { Stop-ProcessesByCommand $needle "sign-crop" }
+  if (-not (Test-FileUnlocked $lockPath)) {
+    Log ("WARN sign-crop restart held: {0} is still locked after the old crop was stopped; a launcher started now would only exit on it" -f (Split-Path $lockPath -Leaf))
+    return $false
+  }
+  Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @("-NoProfile","-ExecutionPolicy","Bypass","-File",$launcher)
+  Record-Restart "sign-crop" "no decodable frame on 8555/sign"
+  return $true
+}
+
+Enter-Phase "sign-crop"
 # 3c. Crop middle 1920x1080 lens from the 1920x3240 cloud stack -> 640x360 @ 4fps.
 # A decoded frame, not process visibility, proves the crop publisher is actually healthy.
 $signFrameReady = (Port-Open 8555) -and (Test-RtspFrame "rtsp://127.0.0.1:8555/sign")
 if ((Port-Open 8554) -and -not $signFrameReady -and (Test-Path $cropLauncher)) {
-  Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @("-NoProfile","-ExecutionPolicy","Bypass","-File",$cropLauncher)
-  Record-Restart "sign-crop" "no decodable frame on 8555/sign"
-  Start-Sleep -Milliseconds 900
-  $signFrameReady = (Port-Open 8555) -and (Test-RtspFrame "rtsp://127.0.0.1:8555/sign")
+  if (Restart-SignCrop $cropLauncher $cropLock) {
+    Start-Sleep -Milliseconds 900
+    $signFrameReady = (Port-Open 8555) -and (Test-RtspFrame "rtsp://127.0.0.1:8555/sign")
+  }
 }
 
+Enter-Phase "sign-edge"
 $directReady = (Port-Open 8554) -and $signFrameReady
 $authorityModeFile = Join-Path $root "data\nicksmax-camera-authority.mode"
 $authorityMode = if (Test-Path $authorityModeFile) { (Get-Content $authorityModeFile -Raw).Trim().ToLowerInvariant() } else { "shadow" }
@@ -741,16 +935,15 @@ if ($armed) {
   if ($directReady -and -not $prodHealthy -and -not $prodStarting -and (Test-Path $productionLauncher)) {
     $startDue = (-not (Test-Path $prodStartMarker)) -or ((Get-Item $prodStartMarker).LastWriteTime -lt (Get-Date).AddSeconds(-30))
     if ($startDue) {
-      if (Test-RtspFrame "rtsp://127.0.0.1:8555/sign") {
-        try { Write-SharedFile $prodStartMarker ((Get-Date -Format o) + "`r`n") }
-        catch { Log ("WARN could not stamp the production start marker: {0}" -f $_.Exception.Message) }
-        Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @("-NoProfile","-ExecutionPolicy","Bypass","-File",$productionLauncher)
-        Record-Restart "sign-edge" "authoritative RTSP sign producer started after decoded-frame proof"
-        # This start loads whatever is on disk right now; that is the code the edge runs from here.
-        (Get-Entry "edge-code-version").fingerprint = Get-EdgeCodeFingerprint $root
-      } else {
-        Log "WAIT production RTSP decode proof failed; refusing early edge start"
-      }
+      # The decoded-frame proof is $directReady's own: 3c decoded a frame from 8555/sign seconds ago in
+      # this tick. Probing again cost 5.8 s on a healthy stream and up to 12 s on a failing one, in the
+      # recovery tick that already ran two probes -- the third is what took it past the loop's 45 s.
+      try { Write-SharedFile $prodStartMarker ((Get-Date -Format o) + "`r`n") }
+      catch { Log ("WARN could not stamp the production start marker: {0}" -f $_.Exception.Message) }
+      Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @("-NoProfile","-ExecutionPolicy","Bypass","-File",$productionLauncher)
+      Record-Restart "sign-edge" "authoritative RTSP sign producer started after decoded-frame proof"
+      # This start loads whatever is on disk right now; that is the code the edge runs from here.
+      (Get-Entry "edge-code-version").fingerprint = Get-EdgeCodeFingerprint $root
     }
   }
 } else {
@@ -793,19 +986,46 @@ function Invoke-DiskFloor([double]$free) {
     Log ("WARN disk free below 2 GB: {0:N2} GB" -f ($free/1GB))
   }
 }
+
+Enter-Phase "disk"
 Invoke-DiskFloor ([double](Get-PSDrive C).Free)
 
-# The restart ledger carries every rate limit and ESCALATE decision across ticks. A planted probe
-# on NicksMax (5.1, 2026-10-08) showed Set-Content saves nothing beside a reader, as Add-Content
-# refused the log; its failure, unlike Add-Content's, is terminating, so the WARN below fired.
-# Not seen on the box itself: the state file kept being rewritten through the log outage.
-function Save-State {
+# ---- 5. the shim's fallback copy ------------------------------------------------------------------
+# The box-local shim (data\nicksmax-camera-supervisor.ps1) runs this file, or $fallbackPath when this
+# file is missing or does not parse, as in a half-finished `git pull`. That copy was written once on
+# 2026-09-29 and nothing refreshed it (found 2026-10-08), so a bad pull would have rolled the box back
+# past every 10-07/10-08 fix. A tick that reaches this point leaves the text it started from there, when
+# that differs and parses. It is staged beside as .new and swapped in, so a full disk (0.04 GB free on
+# 2026-10-07) or a kill mid-write leaves the old copy whole rather than a truncated one the shim would run.
+function Update-FallbackCopy([string]$text, [string]$target) {
+  if (-not $text) { return }
+  try { if ((Test-Path -LiteralPath $target) -and ((Read-SharedText $target) -ceq $text)) { return } } catch {}
+  $parseErrors = $null
+  [void][Management.Automation.Language.Parser]::ParseInput($text, [ref]$null, [ref]$parseErrors)
+  if ($parseErrors -and $parseErrors.Count -gt 0) { return }
+  $staged = $target + ".new"
+  # No backup file: [NullString]::Value, because PowerShell hands a .NET string parameter "" for $null
+  # and Replace refuses an empty path (the harness caught it).
   try {
-    Write-SharedFile $statePath (($state | ConvertTo-Json -Depth 4) + "`r`n")
+    Write-SharedFile $staged $text
+    if (Test-Path -LiteralPath $target) { [IO.File]::Replace($staged, $target, [NullString]::Value) } else { [IO.File]::Move($staged, $target) }
+    Log ("ACTION refreshed the fallback supervisor copy {0}" -f (Split-Path $target -Leaf))
   } catch {
-    Log ("WARN could not persist supervisor state: {0}" -f $_.Exception.Message)
+    $why = $_.Exception.Message
+    try { [IO.File]::Delete($staged) } catch {}
+    $e = Get-Entry "fallback-copy"
+    if ($e.escalatedAt -lt ($nowEpoch - 3600)) {
+      $e.escalatedAt = $nowEpoch
+      Log ("WARN could not refresh the fallback supervisor copy: {0}" -f $why)
+    }
   }
 }
+
+Enter-Phase "fallback"
+Update-FallbackCopy $tickSource $fallbackPath
+
+Enter-Phase "save"
 Save-State
+Complete-Tick
 
 if ($supervisorLockHandle) { $supervisorLockHandle.Dispose() }
