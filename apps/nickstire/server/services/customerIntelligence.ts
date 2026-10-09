@@ -16,8 +16,6 @@ import { sql, eq, desc, gte, asc, and } from "drizzle-orm";
 
 import { db } from "../lib/db-helper";
 import { lapsedCondition } from "../lib/customer-segments";
-import { getBusinessHour } from "../lib/timezoneAssert";
-import { BUSINESS } from "@shared/business";
 
 const log = createLogger("customer-intelligence");
 
@@ -149,25 +147,27 @@ export async function analyzeCustomers(): Promise<CustomerInsight> {
       log.warn("Failed to query at-risk customers", { error: String(err) });
     }
 
-    // Day-of-week (Sun=0 ... Sat=6) and hour patterns, on the SHOP's clock: createdAt is a UTC
-    // instant, and getDay()/getHours() on a UTC server put a 10:00 ET booking at 14:00 and a
-    // Friday-evening one on Saturday (2026-10-09).
-    const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const shopWeekday = new Intl.DateTimeFormat("en-US", { timeZone: BUSINESS.timezone, weekday: "short" });
+    // Day-of-week (Sun=0 ... Sat=6) and hour patterns, on the SHOP's clock, bucketed IN SQL:
+    // createdAt is a UTC instant, and getDay()/getHours() on a UTC server put a 10:00 ET booking
+    // at 14:00 and a Friday-evening one on Saturday; converting the driver's Date in JS is right
+    // only while the process runs in UTC (2026-10-09; AGENTS.md "Time").
     const dayOfWeekPattern = [0,0,0,0,0,0,0];
     const peakHoursArr = new Array(24).fill(0);
     let bookingPatternsUnavailable = false;
     try {
-      const allBookings = await d.select({ createdAt: bookings.createdAt }).from(bookings)
-        .where(gte(bookings.createdAt, ninetyDaysAgo));
+      const shopDow = sql<number>`DAYOFWEEK(CONVERT_TZ(${bookings.createdAt}, '+00:00', 'America/New_York'))`; // 1=Sun
+      const shopHour = sql<number>`HOUR(CONVERT_TZ(${bookings.createdAt}, '+00:00', 'America/New_York'))`;
+      const buckets = await d.select({ dow: shopDow, hour: shopHour, n: sql<number>`COUNT(*)` }).from(bookings)
+        .where(gte(bookings.createdAt, ninetyDaysAgo))
+        .groupBy(shopDow, shopHour);
 
-      for (const b of allBookings) {
-        if (b.createdAt) {
-          const dt = new Date(b.createdAt);
-          const dow = WEEKDAYS.indexOf(shopWeekday.format(dt)); // 0=Sun
-          if (dow >= 0) dayOfWeekPattern[dow]++;
-          peakHoursArr[getBusinessHour(dt)]++;
-        }
+      for (const b of buckets) {
+        const dow = Number(b.dow) - 1; // NULL createdAt -> NULL -> NaN: skipped
+        const hour = Number(b.hour);
+        const n = Number(b.n);
+        if (!Number.isInteger(dow) || dow < 0 || dow > 6 || !Number.isInteger(hour) || hour < 0 || hour > 23 || !(n > 0)) continue;
+        dayOfWeekPattern[dow] += n;
+        peakHoursArr[hour] += n;
       }
     } catch (err) {
       bookingPatternsUnavailable = true;

@@ -54,11 +54,16 @@ export function redactUnreadableSections<T extends RedactableSummary>(
     .map(([name]) => name);
   // Reviews come from StateNour's own review store, not the shop bridge, so they carry their
   // own `ok`: getReviewStats answers zeros with ok: false when the store cannot be read. Only
-  // an explicit false redacts; a section without the flag is left alone.
-  const reviews = summary.reviews as { ok?: unknown } | null | undefined;
+  // an explicit false redacts; a section without the flag is left alone. A store that answered
+  // but has never had a row written (an explicit `lastWriteAt: null`) is no data either: its
+  // zeros are not "0 reviews". A store with rows whose count is 0 stays a measured 0.
+  const reviews = summary.reviews as { ok?: unknown; lastWriteAt?: unknown } | null | undefined;
   const reviewsUnreadable = !!reviews && typeof reviews === "object" && reviews.ok === false;
+  const reviewsEmpty =
+    !reviewsUnreadable && !!reviews && typeof reviews === "object" && "lastWriteAt" in reviews && reviews.lastWriteAt === null;
+  const reviewsRedacted = reviewsUnreadable || reviewsEmpty;
 
-  if (unreadable.length === 0 && !reviewsUnreadable) return summary;
+  if (unreadable.length === 0 && !reviewsRedacted) return summary;
 
   // "Could not be read", not "did not answer": a read also fails when the bridge answers
   // with an error (an unregistered query, an unreadable shop database). The verdict is
@@ -66,14 +71,15 @@ export function redactUnreadableSections<T extends RedactableSummary>(
   const causes: string[] = [];
   if (unreadable.length > 0) causes.push(`These could not be read from the shop bridge: ${unreadable.join(", ")}.`);
   if (reviewsUnreadable) causes.push("The review store could not be read: reviews.");
+  if (reviewsEmpty) causes.push("The review store holds no review data (no row has ever been written): reviews.");
 
   return {
     ...summary,
     revenue: summary.bridgeHealth.revenue ? summary.revenue : null,
     customers: summary.bridgeHealth.customers ? summary.customers : null,
     jobs: summary.bridgeHealth.jobsToday ? summary.jobs : null,
-    ...(reviewsUnreadable ? { reviews: null } : {}),
-    unavailable: reviewsUnreadable ? [...unreadable, "reviews"] : unreadable,
+    ...(reviewsRedacted ? { reviews: null } : {}),
+    unavailable: reviewsRedacted ? [...unreadable, "reviews"] : unreadable,
     reason: `${causes.join(" ")} Those are UNKNOWN, not zero — do not state figures for them.`,
   };
 }

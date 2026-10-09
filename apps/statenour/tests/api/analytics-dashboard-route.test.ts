@@ -175,6 +175,23 @@ describe("GET /api/analytics/dashboard", () => {
     expect(data.customers).toEqual({ total: 2334, newThisMonth: 10 });
   });
 
+  it("an empty review store (no row ever written) is no review data, never 0 reviews", async () => {
+    // getReviewStats' real shape for an empty store: ok: true, zeros, lastWriteAt: null.
+    vi.mocked(getReviewStats).mockResolvedValueOnce({
+      total: 0, average: 0, breakdown: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, responded: 0, unresponded: 0,
+      ok: true, lastWriteAt: null, ageDays: null, stale: true,
+      freshnessNote: "No review rows have EVER been written — there is no review data to quote.",
+    } as Awaited<ReturnType<typeof getReviewStats>>);
+    nickstire({ revenue_range: REVENUE_RANGE, revenue_today: REVENUE_TODAY, customer_stats: CUSTOMERS });
+
+    const { data, raw } = await dashboard();
+
+    expect(data.reviews).toBeNull();
+    expect(data.unavailable).toEqual(["reviews"]);
+    expect(String(data.reason)).toMatch(/holds no review data/);
+    expect(raw).not.toMatch(/"(average|unresponded)":0\b/);
+  });
+
   it("keeps a MEASURED zero as a zero: a read that answered 0 is not an unread one", async () => {
     // A month with no new customers yet is a real 0, and must not be blanked.
     nickstire({

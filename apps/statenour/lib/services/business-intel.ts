@@ -50,6 +50,8 @@ import {
   startOfWeekET,
   startOfMonthET,
   startOfYearET,
+  today as todayET,
+  toDateString,
 } from "@/lib/utils/datetime";
 
 const log = rootLogger.withSurface("services/business-intel");
@@ -116,9 +118,10 @@ export async function getRevenueStats(period: "day" | "week" | "month" | "year" 
   //   collapsed week-specific path · revenue_week was never in the
   //   contract (NICKSTIRE-QUERY-CONTRACT.md), nickstire returned
   //   "Unknown query" every call.
-  const today = new Date();
-  const fromIso = since.toISOString().slice(0, 10); // YYYY-MM-DD
-  const toIso = today.toISOString().slice(0, 10);
+  // revenue_range reads `from`/`to` as shop-local days, both inclusive. Both are New York
+  // dates: the UTC date of "now" is tomorrow from 20:00 ET (2026-10-09).
+  const fromIso = toDateString(since); // YYYY-MM-DD
+  const toIso = todayET();
   const data: BridgeRevenuePayload | null =
     period === "day"
       ? await fetchBridge<BridgeRevenuePayload>("revenue_today")
@@ -225,9 +228,9 @@ export async function getDashboardSummary() {
   return {
     revenue,
     customers: { total: customers.total, newThisMonth: customers.newThisMonth },
-    // ok / stale / freshnessNote travel with the counts: an unreadable review store answers
-    // zeros with ok: false, and dropping the flag here served those zeros as a measurement.
-    // redactUnreadableSections nulls the section on ok: false.
+    // ok / stale / freshnessNote / lastWriteAt travel with the counts: an unreadable review store
+    // answers zeros with ok: false, and dropping the flag here served those zeros as a measurement.
+    // redactUnreadableSections nulls the section on ok: false and on an empty store.
     reviews: {
       average: reviewStats.average,
       total: reviewStats.total,
@@ -235,6 +238,9 @@ export async function getDashboardSummary() {
       ok: reviewStats.ok,
       stale: reviewStats.stale,
       freshnessNote: reviewStats.freshnessNote,
+      // null when no review row has ever been written: the zeros are then no data, not
+      // "0 reviews", and redactUnreadableSections nulls the section for that too.
+      lastWriteAt: reviewStats.lastWriteAt,
     },
     jobs: { today: jobsReadable ? invoiceCount : 0 },
     // Surface bridge health so the dashboard can show a "shop offline"

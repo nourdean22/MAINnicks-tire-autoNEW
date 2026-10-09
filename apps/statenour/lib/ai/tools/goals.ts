@@ -44,11 +44,13 @@ export const goalsTools = {
           // revenue_range filters on { from, to } date strings (ET), NOT
           // `since` — sending `since` was silently ignored, so from/to both
           // defaulted to today and the "30-day × 12" projection was really a
-          // 1-day window × 12 (wildly understated). Send the real 30-day span.
-          const fromIso = new Date(Date.now() - 30 * 86400000)
-            .toISOString()
-            .slice(0, 10);
-          const toIso = new Date().toISOString().slice(0, 10);
+          // 1-day window × 12 (wildly understated). Send the real 30-day span:
+          // the 30 complete shop days before today, both bounds inclusive New
+          // York dates (UTC dates and "30 days ago through today" read 31
+          // days, one of them part-done, and shifted a day after 20:00 ET).
+          const { daysAgo, toDateString } = await import("@/lib/utils/datetime");
+          const fromIso = toDateString(daysAgo(30));
+          const toIso = toDateString(daysAgo(1));
           const res = await queryNick<{ totalDollars?: number }>(
             "revenue_range",
             { from: fromIso, to: toIso },

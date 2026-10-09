@@ -244,6 +244,22 @@ describe("redactUnreadableSections", () => {
     expect(String(out.reason)).toMatch(/review store could not be read/);
   });
 
+  it("blanks an EMPTY review store (no row ever written): its zeros are no data, not 0 reviews", () => {
+    const out = redactUnreadableSections({
+      ...healthy,
+      reviews: { average: 0, total: 0, unresponded: 0, ok: true, stale: true, lastWriteAt: null },
+    }) as Record<string, unknown>;
+    expect(out.reviews).toBeNull();
+    expect(out.unavailable).toEqual(["reviews"]);
+    expect(String(out.reason)).toMatch(/holds no review data/);
+    expect(String(out.reason)).not.toMatch(/could not be read/);
+  });
+
+  it("keeps a MEASURED zero: a store with rows whose count is 0 is not redacted", () => {
+    const measured = { ...healthy, reviews: { average: 0, total: 0, unresponded: 0, ok: true, lastWriteAt: "2026-10-01T12:00:00.000Z" } };
+    expect(redactUnreadableSections(measured)).toBe(measured);
+  });
+
   it("keeps readable reviews (ok: true) untouched", () => {
     const withOk = { ...healthy, reviews: { average: 4.8, total: 120, unresponded: 2, ok: true } };
     expect(redactUnreadableSections(withOk)).toBe(withOk);

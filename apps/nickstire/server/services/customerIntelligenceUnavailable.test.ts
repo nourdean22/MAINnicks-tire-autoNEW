@@ -21,12 +21,14 @@ const h = vi.hoisted(() => ({
   hasDb: true,
   /** One step per d.select() call, consumed in call order. */
   steps: [] as Array<() => Promise<unknown>>,
+  /** The fields object of each d.select() call, in call order. */
+  fields: [] as unknown[],
 }));
 
 /** A drizzle-shaped select chain: every builder method returns itself; awaiting it runs the step. */
 function selectChain(step: Step) {
   const q: Record<string, unknown> = {};
-  for (const m of ["from", "where", "orderBy", "limit"]) q[m] = () => q;
+  for (const m of ["from", "where", "orderBy", "limit", "groupBy"]) q[m] = () => q;
   q.then = (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) => step().then(resolve, reject);
   return q;
 }
@@ -35,7 +37,8 @@ vi.mock("../db", () => ({
   getDb: async () =>
     h.hasDb
       ? {
-          select: () => {
+          select: (fields?: unknown) => {
+            h.fields.push(fields);
             const step = h.steps.shift();
             if (!step) throw new Error("test harness: unexpected extra select()");
             return selectChain(step);
@@ -50,6 +53,25 @@ const ok = (rows: unknown): Step => () => Promise.resolve(rows);
 const fail: Step = () => Promise.reject(new Error("TiDB timeout"));
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000);
+
+/** The literal SQL text in a select's fields object (drizzle `sql` chunks; column refs drop out). */
+function sqlText(fields: unknown): string {
+  const out: string[] = [];
+  const walk = (node: unknown) => {
+    if (!node || typeof node !== "object") return;
+    if ("queryChunks" in node) {
+      for (const c of (node as { queryChunks: unknown[] }).queryChunks) {
+        if (c && typeof c === "object" && "value" in c && Array.isArray((c as { value: unknown }).value)) {
+          out.push((c as { value: string[] }).value.join(""));
+        } else walk(c);
+      }
+      return;
+    }
+    for (const v of Object.values(node as Record<string, unknown>)) if (v && typeof v === "object" && "queryChunks" in v) walk(v);
+  };
+  walk(fields);
+  return out.join(" ");
+}
 
 /**
  * A healthy read, in analyzeCustomers' select order: total, active, lapsed,
@@ -69,7 +91,8 @@ function healthy(overrides: Partial<Record<"atRisk" | "bookings", Step>> = {}): 
       { customerName: "Cy", totalAmount: 5000, serviceDescription: "Oil change" },
     ]),
     overrides.atRisk ?? ok([{ firstName: "Dee", lastName: "Lapsed", phone: "2165550100", lastVisit: daysAgo(200) }]),
-    overrides.bookings ?? ok([{ createdAt: daysAgo(3) }, { createdAt: daysAgo(10) }]),
+    // 90-day bookings, already bucketed by SQL: DAYOFWEEK (1=Sun) and HOUR on the shop's clock.
+    overrides.bookings ?? ok([{ dow: 3, hour: 10, n: 2 }, { dow: 5, hour: 14, n: 1 }]),
   ];
 }
 
@@ -212,12 +235,19 @@ describe("a MEASURED empty population names no day, no rate and no risk level (2
 });
 
 describe("the brief and plan on the shop's clock, and the plan on a failed at-risk read (2026-10-09)", () => {
-  it("buckets a booking by its New York day and hour (21:30 EDT Friday, 01:30Z Saturday)", async () => {
-    h.steps = healthy({ bookings: ok([{ createdAt: new Date("2026-10-10T01:30:00Z") }]) });
+  it("buckets bookings by their New York day and hour, in SQL", async () => {
+    // A 21:30 EDT Friday booking (01:30Z Saturday) comes back as DAYOFWEEK 6, HOUR 21.
+    h.fields = [];
+    h.steps = healthy({ bookings: ok([{ dow: 6, hour: 21, n: 1 }, { dow: null, hour: null, n: 4 }]) });
     const r = await analyzeCustomers();
     expect(r.dayOfWeekPattern).toEqual([0, 0, 0, 0, 0, 1, 0]);
     expect(r.peakHours[21]).toBe(1);
-    expect(r.peakHours[1]).toBe(0);
+    expect(r.peakHours.reduce((a: number, b: number) => a + b, 0)).toBe(1); // a NULL bucket is not a booking hour
+    // The conversion happens in the query, not on the driver's Date (which shifts when the process runs in ET).
+    const bookingFields = sqlText(h.fields[h.fields.length - 1]);
+    expect(bookingFields).toContain("DAYOFWEEK(CONVERT_TZ(");
+    expect(bookingFields).toContain("HOUR(CONVERT_TZ(");
+    expect(bookingFields).toContain("'+00:00', 'America/New_York'");
   });
 
   it("the plan says the at-risk list is unknown when its read failed", async () => {
