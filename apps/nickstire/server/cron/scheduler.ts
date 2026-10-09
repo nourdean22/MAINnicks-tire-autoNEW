@@ -2630,6 +2630,11 @@ function buildTiers(): void {
             const data = await analyzeCustomers();
             // A failed customer read is not "0 at-risk, 0% retention": fail the run so cron_log says so.
             if (data.unavailable) throw new Error("customer read failed: at-risk and retention are unknown, not zero");
+            // The at-risk list is this job's whole output (the Telegram and the drip enrolment), so a
+            // failed at-risk read fails the run too, rather than completing with nothing done.
+            if (data.atRiskUnavailable) {
+              throw new Error(`at-risk read failed: the at-risk list is unknown, not empty (retention ${data.retentionRate}%)`);
+            }
             const plan = await getCustomerActionPlan();
             if (data.atRiskCustomers.length > 0) {
               const { sendTelegram } = await import("../services/telegram");
@@ -2657,8 +2662,7 @@ function buildTiers(): void {
               }
               if (enrolled > 0) log.info(`Enrolled ${enrolled} at-risk customers in drip`);
             }
-            const atRisk = data.atRiskUnavailable ? "at-risk unknown (lapsed read failed)" : `${data.atRiskCustomers.length} at-risk`;
-            return { recordsProcessed: data.atRiskCustomers.length, details: `${atRisk}, ${data.retentionRate}% retention` };
+            return { recordsProcessed: data.atRiskCustomers.length, details: `${data.atRiskCustomers.length} at-risk, ${data.retentionRate}% retention` };
           } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },

@@ -2,6 +2,9 @@
   "evidence": {
     "cron-fail-closed": {
       "ref": "Flagged-items wave (2026-10-09), three cron changes, each test red on the old code first. churn-detection (scheduler.ts): server/cron/churnDetectionReadFailed.test.ts, 3 tests through runTierJobHandlerUnlocked; on the old code a failed customer read resolved as a completed run with '0 at-risk, 0% retention', now it throws 'customer read failed' and sends no Telegram; a lapsed-only failure reads 'at-risk unknown'; a measured quiet day still completes (control). statenourSync.ts: server/customerIntelligenceBridgeUnavailable.test.ts, a failed customer read crosses the bridge as available:false with no numbers instead of zeros. kpiSnapshot.ts: server/__tests__/invoiceDateShopLocal.test.ts, a source scan of every server reader (UTC_CONVERSION + UTC_BOUND, planted-shape control) is red on the old week bounds (invoiceDate >= CONVERT_TZ(weekStart, ...)) and green now that invoiceDate, the stored shop-local day, compares with the bounds as they are."
+    },
+    "operator-walkthrough": {
+      "ref": "One client line (client/src/pages/admin/content/AIIdeasEngine.tsx): Admin > Content > AI Ideas. When the chat-funnel read fails (intelligence.chatFunnel now errors instead of returning an empty funnel), the page keeps its seasonal and competitor ideas and the 'From Intelligence' card reads '0 (not read)'; before this line the whole tab was replaced by 'Couldn't load intelligence data'. With every read resolved nothing changes ('0 (payloads carry no topics)'), and a failed competitor or content read still shows the page error. Proven by client/src/__tests__/ai-ideas-chat-funnel-error.test.tsx (3 render tests through the real component, tRPC mocked; the first is red with the old isError line restored). Not walked live: needs the deployed admin after merge."
     }
   }
 }

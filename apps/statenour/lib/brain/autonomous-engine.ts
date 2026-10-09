@@ -472,21 +472,23 @@ const RULES: ActionRule[] = [
       // revenue_range takes shop-local days as `from`/`to`, both inclusive. This sent
       // `since`, which the handler never read, so it got TODAY's revenue at 2pm and
       // projected the month from one part-day: a "behind pace" alert nearly every Friday.
-      const todayET = today();
-      const parts = todayET.split("-");
+      // It reads the COMPLETE days, the 1st through yesterday: today is half over at 2pm
+      // (and the ALG mirror lags), so counting it as a whole day understated the pace.
+      const parts = today().split("-");
+      const year = Number(parts[0]);
+      const month = Number(parts[1]);
+      const completeDays = Number(parts[2]) - 1;
+      if (!(completeDays >= 1)) return []; // the 1st: no complete day this month yet
       const data = await fetchBridge<{ totalDollars?: number }>("revenue_range", {
         from: `${parts[0]}-${parts[1]}-01`,
-        to: todayET,
+        to: toDateString(daysAgo(1)),
       });
       if (data == null) return []; // bridge dead → don't false-alarm
       // A body without a numeric total is not a reading either: never project from a 0.
       if (typeof data.totalDollars !== "number" || !Number.isFinite(data.totalDollars)) return [];
       const monthRevenue = data.totalDollars;
-      const year = Number(parts[0]);
-      const month = Number(parts[1]);
-      const dayOfMonth = Number(parts[2]);
       const daysInMonth = new Date(year, month, 0).getDate();
-      const projectedMonthly = dayOfMonth > 0 ? (monthRevenue / dayOfMonth) * daysInMonth : 0;
+      const projectedMonthly = (monthRevenue / completeDays) * daysInMonth;
       const { MONTHLY_REVENUE_TARGET } = await import("@/lib/config/business");
       const target = MONTHLY_REVENUE_TARGET;
       if (projectedMonthly >= target * 0.9) return []; // On pace

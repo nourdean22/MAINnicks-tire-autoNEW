@@ -4,7 +4,8 @@
  * analyzeCustomers marks a failed read `unavailable: true` (its zeros are placeholders), and a
  * failed lapsed/at-risk sub-read `atRiskUnavailable: true`. The job ignored both and returned
  * `{ recordsProcessed: 0, details: "0 at-risk, 0% retention" }`, which cron_log records as a
- * completed run with confident zeros. Driven through the real job handler
+ * completed run with confident zeros. A failed at-risk sub-read alone fails the run too: the
+ * at-risk list (the Telegram and the drip enrolment) is the job's whole output. Driven through the real job handler
  * (runTierJobHandlerUnlocked), with the customer read mocked.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -46,9 +47,10 @@ describe("churn-detection on a failed customer read", () => {
     expect(sendTelegram).not.toHaveBeenCalled();
   });
 
-  it("says the at-risk count is unknown when only that sub-read failed", async () => {
-    const r = await runChurn(customers({ totalCustomers: 900, retentionRate: 41, atRiskUnavailable: true }));
-    expect(r.details).toBe("at-risk unknown (lapsed read failed), 41% retention");
+  it("fails the run when only the at-risk read failed: the at-risk list is the job's output", async () => {
+    await expect(runChurn(customers({ totalCustomers: 900, retentionRate: 41, atRiskUnavailable: true })))
+      .rejects.toThrow("at-risk read failed: the at-risk list is unknown, not empty (retention 41%)");
+    expect(sendTelegram).not.toHaveBeenCalled();
   });
 
   it("control: a measured quiet day still completes with its numbers", async () => {

@@ -101,6 +101,27 @@ describe("a failed at-risk read is said, not dropped", () => {
     expect(alerts).toContain("⚠️ At-risk customer check did not run: the customer read failed");
   });
 
+  it("says it once a shop day, and again after a measured read in between", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const failed = { ...base, atRiskCustomers: [], atRiskUnavailable: true };
+    const said = (alerts: string[]) => alerts.filter((a) => a.includes("did not run")).length;
+
+    h.customers = failed;
+    vi.setSystemTime(new Date("2026-10-08T14:00:00Z")); // Thursday 10:00 ET
+    expect(said(await generateProactiveAlerts())).toBe(1);
+    vi.setSystemTime(new Date("2026-10-08T16:00:00Z")); // the next 2-hour check, same shop day
+    expect(said(await generateProactiveAlerts())).toBe(0);
+
+    vi.setSystemTime(new Date("2026-10-13T14:00:00Z")); // Tuesday: a new shop day
+    expect(said(await generateProactiveAlerts())).toBe(1);
+    h.customers = { ...base, atRiskCustomers: [] }; // a measured read
+    vi.setSystemTime(new Date("2026-10-13T16:00:00Z"));
+    expect(said(await generateProactiveAlerts())).toBe(0);
+    h.customers = failed; // failing again the same day is new news
+    vi.setSystemTime(new Date("2026-10-13T18:00:00Z"));
+    expect(said(await generateProactiveAlerts())).toBe(1);
+  });
+
   it("control: a readable at-risk list still raises its customer", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(WEDNESDAY);

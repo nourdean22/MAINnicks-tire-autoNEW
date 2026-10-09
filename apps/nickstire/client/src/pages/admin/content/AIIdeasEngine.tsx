@@ -74,7 +74,11 @@ export function AIIdeasEngine() {
   });
 
   const isLoading = chatLoading || seasonalLoading || compLoading || contentLoading;
-  const isError = chatError || seasonalError || compError || contentError;
+  // A failed chat-funnel read does not take the page down: no idea on this page comes from the
+  // funnel's payload, and the "From Intelligence" card already says "(not read)" for it. (Since
+  // 2026-10-09 a failed read errors instead of returning an empty funnel; folding that error in
+  // here replaced the seasonal and competitor ideas with an error screen.)
+  const isError = seasonalError || compError || contentError;
   const refetchAll = () => { refetchChat(); refetchSeasonal(); refetchComp(); refetchContent(); };
 
   // Build ideas from intelligence data

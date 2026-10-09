@@ -205,7 +205,9 @@ type Resolution =
  *   · a parameter of a non-exported function in this file: that function becomes a helper too,
  *     and each call to it is checked the same way (igRead, both `fetchBridge`s).
  * Anything else is UNRESOLVED and fails the guard unless DYNAMIC_BY_DESIGN names it. That covers
- * a wrapper parameter or a const batch list that is written after it is bound, and every reference
+ * a wrapper parameter or a const batch list that is written after it is bound (assigned, ++/--,
+ * mutated, a destructuring target or a for-of/for-in target), a batch entry with a spread after
+ * its `query:`, and every reference
  * to a helper that is not a direct call, an import/export/destructuring name, a declaration name,
  * a property key or a type position (`.call`, `.bind`, a conditional callee, an assignment). A
  * renamed import (`queryNick as qn`) and a string element access (`m["queryNick"](...)`) are
@@ -255,7 +257,10 @@ function scanSource(file: string, text: string): Scan {
   function isWritten(symbol: ts.Symbol | undefined): boolean {
     if (!symbol) return false;
     return ids.some((id) => {
-      if (checker.getSymbolAtLocation(id) !== symbol) return false;
+      // `{ q }` names the property's symbol; the variable it reads or writes is its value symbol.
+      const shorthand = ts.isShorthandPropertyAssignment(id.parent) && id.parent.name === id;
+      const own = shorthand ? checker.getShorthandAssignmentValueSymbol(id.parent) : checker.getSymbolAtLocation(id);
+      if (own !== symbol) return false;
       let n: ts.Node = id;
       while ((ts.isPropertyAccessExpression(n.parent) || ts.isElementAccessExpression(n.parent)) && n.parent.expression === n) {
         const acc = n.parent;
@@ -264,7 +269,20 @@ function scanSource(file: string, text: string): Scan {
         }
         n = acc;
       }
+      // A destructuring target (`[q] = ...`, `({ q } = o)`, `({ a: q } = o)`) is written the same as `q = ...`.
+      while (
+        ts.isArrayLiteralExpression(n.parent) ||
+        ts.isObjectLiteralExpression(n.parent) ||
+        ts.isShorthandPropertyAssignment(n.parent) ||
+        ts.isSpreadElement(n.parent) ||
+        ts.isSpreadAssignment(n.parent) ||
+        ts.isParenthesizedExpression(n.parent) ||
+        (ts.isPropertyAssignment(n.parent) && n.parent.initializer === n)
+      ) {
+        n = n.parent;
+      }
       const p = n.parent;
+      if ((ts.isForOfStatement(p) || ts.isForInStatement(p)) && p.initializer === n) return true;
       if (ts.isBinaryExpression(p) && p.left === n) {
         const k = p.operatorToken.kind;
         return k >= ts.SyntaxKind.FirstAssignment && k <= ts.SyntaxKind.LastAssignment;
@@ -346,6 +364,10 @@ function scanSource(file: string, text: string): Scan {
       const prop = ts.isObjectLiteralExpression(entry)
         ? entry.properties.find((p) => p.name && ts.isIdentifier(p.name) && p.name.text === "query")
         : undefined;
+      if (prop && ts.isObjectLiteralExpression(entry) && entry.properties.slice(entry.properties.indexOf(prop) + 1).some(ts.isSpreadAssignment)) {
+        unresolved(el, "a batch entry with a spread after `query:`: the spread can replace the name");
+        continue;
+      }
       const r =
         prop && ts.isPropertyAssignment(prop)
           ? resolveName(prop.initializer)
@@ -656,7 +678,18 @@ describe("nickstire bridge query contract", () => {
         names: [],
         blind: ["L"],
       });
+      // Written by destructuring or as a for-of/for-in target (found by review 2026-10-09).
+      for (const write of [`[q] = [dyn];`, `({ q } = o);`, `({ a: q } = o);`, `for (q of [dyn]) {}`, `for (q in o) {}`]) {
+        expect(scan(`async function read(q: string) { ${write} return queryNick(q); }\nread("revenue_today");`), write).toMatchObject({
+          names: [],
+          blind: ["q"],
+        });
+      }
       // Control: the same shapes, unwritten, are read.
+      expect(scan(`async function read(q: string) { const [a] = [q]; const o2 = { q }; for (const x of [q]) {} return queryNick(q); }\nread("revenue_today");`)).toMatchObject({
+        names: ["revenue_today"],
+        blind: [],
+      });
       expect(scan(`async function read(q: string) { return queryNick(q.trim()); }`).blind).toEqual(["q.trim()"]);
       expect(scan(`const L = [{ query: "revenue_today" }];\nconsole.info(L.length);\nawait queryNickBatch(L);`).names).toEqual(["revenue_today"]);
     });
@@ -669,6 +702,15 @@ describe("nickstire bridge query contract", () => {
       expect(scan(`const L = [{ query: "revenue_today" }]; await queryNickBatch(L);`).names).toEqual(["revenue_today"]);
       expect(scan(`const query = "callbacks_pending"; await queryNickBatch([{ query }]);`).names).toEqual(["callbacks_pending"]);
       expect(scan(`await queryNickBatch(list);`).blind).toEqual(["list"]);
+      // A spread after `query:` can replace it; one before it cannot (found by review 2026-10-09).
+      expect(scan(`await queryNickBatch([{ query: "revenue_today", ...over }]);`)).toMatchObject({
+        names: [],
+        blind: [`{ query: "revenue_today", ...over }`],
+      });
+      expect(scan(`await queryNickBatch([{ ...defaults, query: "revenue_today" }]);`)).toMatchObject({
+        names: ["revenue_today"],
+        blind: [],
+      });
     });
 
     it("keeps the earlier fixes: nested generics, multi-line calls, both branches of a conditional", () => {

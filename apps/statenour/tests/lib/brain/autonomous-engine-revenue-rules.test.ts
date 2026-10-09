@@ -5,7 +5,8 @@
  * (apps/nickstire/server/routes/nour-os-query.ts, shopDayRange). Both rules sent
  * `since` / `until`, which the handler never read, so each got TODAY:
  *   - friday_revenue_check projected the month from one part-day at 2pm and
- *     sent "behind pace" nearly every Friday;
+ *     sent "behind pace" nearly every Friday (it now reads the complete days, the
+ *     1st through yesterday: today at 2pm is half a day);
  *   - revenue_overconfidence_gate read this morning's near-zero and never fired.
  * And a body without a numeric total (`{ error: "No DB" }` answers 200) read as $0.
  *
@@ -45,18 +46,24 @@ describe("friday_revenue_check", () => {
   // Friday 2026-10-09, 14:10 EDT.
   const FRIDAY_2PM = new Date("2026-10-09T18:10:00Z");
 
-  it("asks for month-to-date as shop days, the 1st through today", async () => {
+  it("asks for the month's complete shop days, the 1st through yesterday", async () => {
     vi.setSystemTime(FRIDAY_2PM);
-    queryNick.mockResolvedValue(answer({ from: "2026-10-01", to: "2026-10-09", totalDollars: 4000, invoiceCount: 9 }));
+    queryNick.mockResolvedValue(answer({ from: "2026-10-01", to: "2026-10-08", totalDollars: 4000, invoiceCount: 9 }));
 
     const items = (await trigger("friday_revenue_check")()) as Array<{ actual: number; projected: number }>;
 
     expect(queryNick).toHaveBeenCalledTimes(1);
-    expect(queryNick).toHaveBeenCalledWith("revenue_range", { from: "2026-10-01", to: "2026-10-09" });
-    // $4,000 over 9 days projects $13,778 for October: behind a $20,000 target, so it fires.
+    expect(queryNick).toHaveBeenCalledWith("revenue_range", { from: "2026-10-01", to: "2026-10-08" });
+    // $4,000 over 8 complete days projects $15,500 for October: behind a $20,000 target, so it fires.
     expect(items).toHaveLength(1);
     expect(items[0].actual).toBe(4000);
-    expect(Math.round(items[0].projected)).toBe(13778);
+    expect(Math.round(items[0].projected)).toBe(15500);
+  });
+
+  it("does not project on the 1st, which has no complete day yet", async () => {
+    vi.setSystemTime(new Date("2027-01-01T19:10:00Z")); // Friday, Jan 1 2027, 14:10 EST
+    expect(await trigger("friday_revenue_check")()).toEqual([]);
+    expect(queryNick).not.toHaveBeenCalled();
   });
 
   it("stays quiet when the month is on pace", async () => {
