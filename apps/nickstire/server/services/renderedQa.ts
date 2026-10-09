@@ -30,6 +30,18 @@ import os from "os";
 import { createLogger } from "../lib/logger";
 import type { PixelStats } from "./renderedPixelStats";
 
+/**
+ * What a vision critic is told the hero is (2026-10-08): the brief's persona
+ * key, or for a pack Reel (plain_part) no persona at all. Every pack Reel used
+ * to reach the critic as "Hero: rust_creeping_villain". Not "the part in beat
+ * 1": a few packs open on a scene (a dashboard, a highway through the
+ * windshield), so the subject is whatever the planned beats show.
+ */
+export function heroForCritic(key: string | null | undefined): string {
+  if (key === "plain_part") return "no persona; the subject is what the planned beats show";
+  return key || "unknown";
+}
+
 const log = createLogger("services:rendered-qa");
 
 /** Defect vocabulary — the ONLY codes a critic verdict may carry. Severity
@@ -654,7 +666,7 @@ export async function evaluateRenderedReel(input: EvaluateRenderedReelInput): Pr
     const parsed = await callVisionCritic({
       frames: input.frames,
       system: `You are a ruthless creative QA inspector for automotive reels. Frames are labeled in order: first, per-beat midpoints, final. Judge ONLY what is visible. Emit findings ONLY with these exact codes:\n${codeDoc}\n\n${worldBlock}\n\nPLANNED BEATS:\n${beatsDoc}\n\n${pixelBlock}\n\nCALIBRATION (from a real miss — the first live verdict approved frames a human immediately rejected):\n- GENERATED_TEXT_ARTIFACT: the ONLY legitimate text is the deterministic caption overlay — UPPERCASE gold letters on a solid black box, plus a gold "SAVE THIS" style pill. ANY other lettering is a defect: fake UI status bars, watermark-like strings, gibberish signage, pseudo-HUD readouts, misspelled screen text on devices (e.g. a tester showing "Vbort"), license-plate-like smears. Inspect frame edges and any screens/devices CLOSELY.\n- BEAT_SEMANTIC_MISMATCH: compare EACH labeled frame against its planned beat and burned-in claim. If the beat says belts/hoses and the frame shows a spare tire, or the beat says pressure gauge and the frame shows an unrelated wheel, BLOCK it. A beautiful frame of the wrong thing is still wrong.\n- MECHANICAL_MISREPRESENTATION: block only concrete automotive falsehoods visible in the frame — anatomy, damage, diagnosis, or repair that would teach a viewer the wrong thing even if the geometry looks plausible. Examples: a tire repair cross-section that depicts the plug/patch path incorrectly, a "brake line" that is visibly a frame rail, or an impossible belt routing presented as instructional. Do not use this for mere stylistic ambiguity.\n- IDENTITY DRIFT: if the same logical object (a battery, a car, a tool) changes design, brand, color, or shape between beats, flag it — "similar object" is not "same object".\n- NARRATOR_EMBODIED: the narrator (NICK-01) is a gold scanning beam and an icy-blue reticle — LIGHT AND MOTION ONLY. If any frame draws it as a figure, silhouette, uniform, visor, or any body, that is a defect even when no face is visible. A body-shaped presence is not an acceptable narrator here.\n- PALETTE: the world for THIS reel is ${reelPaletteSpec}. Judge PALETTE_DRIFT against THAT, not against a generic "cinematic" look and not against any other reel. Each reel declares its own world, so a bright daylight world is not drift.\n- CRAFT (record these when you see them; they are evidence, and not grounds for "repair" on their own): PLASTIC_AI_LOOK - rubber, rust and brake dust must read as those materials rather than as smooth tinted plastic, so look for absent pore, grain and scratch detail, and for one uniform sheen across surfaces that should differ. IMPOSSIBLE_PHYSICALITY - every object needs a contact shadow, every reflection needs a visible source, and tread blocks, lug nuts and bolt patterns must stay countable and consistent between beats. GENERIC_STOCK_LOOK - ask whether this frame could be any shop in any city, and if nothing in it is specific to this vehicle, this damage or this place, say so.\nFor each finding give beatNumber (the beat whose frame shows it, or null for first/final), a concrete description, preserve[] (what the repair must keep), change[] (the minimal change). If the render is clean, decision "approve" with zero findings. Do not invent codes. Do not praise. A miss is worse than a false alarm: when unsure whether lettering is the caption overlay, flag it. For EVERY finding also give confidence (0-1): how sure you are the defect is real from the pixels you were shown. The deterministic PIXEL_STATS pre-flags above are not findings; confirm them with your own eyes or say nothing.`,
-      user: `Evaluate these ${input.frames.length} frames (order: ${input.frames.map((f) => f.label).join(", ")}). Topic: ${input.brief.topic ?? "unknown"}. Hero: ${input.brief.objectCharacter ?? "unknown"}.`,
+      user: `Evaluate these ${input.frames.length} frames (order: ${input.frames.map((f) => f.label).join(", ")}). Topic: ${input.brief.topic ?? "unknown"}. Hero: ${heroForCritic(input.brief.objectCharacter)}.`,
     });
     // The schema requires approve or repair. A reply without one (a bare "{}")
     // is not a verdict; clampVerdict would read it as an approve.

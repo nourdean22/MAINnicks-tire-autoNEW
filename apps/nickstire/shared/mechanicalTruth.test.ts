@@ -43,6 +43,25 @@ const SAFE = [
   "The light is off, but that doesn't mean the monitors are ready.",
   "A click with no crank is almost always the battery or a connection, but test it.",
   "The lights can still work on a battery too weak to crank.",
+  // Myth-busting lines that deny the claim (review 2026-10-08: each was refused
+  // by the first draft of the brake, E-Check and no-start patterns).
+  "Car just clicks when you turn the key? That's not always a dead battery. A starting and charging test tells you which part it is.",
+  "Click, no crank? Not always the starter.",
+  "If the outer pad looks good, that doesn't mean your brakes are fine.",
+  "Since the radio works, don't assume the battery is fine.",
+  "Clearing codes doesn't mean it passes the inspection.",
+];
+
+/** A softener in front of the claim is still the claim (review 2026-10-08: each one passed the first draft). */
+const HEDGED_UNSAFE: Array<[string, string]> = [
+  ["grinding_is_normal", "A little grinding is perfectly normal."],
+  ["grinding_is_normal", "Grinding is totally normal on older cars."],
+  ["grinding_is_normal", "That grinding is usually harmless."],
+  ["grinding_is_normal", "Brake grinding can usually wait."],
+  ["visible_pad_means_brakes_fine", "If the outer pad looks thick, your brakes are probably fine."],
+  ["clear_codes_to_pass", "Clear the codes and you'll probably pass E-Check."],
+  ["light_off_means_ready", "Check engine light is off, so you're probably ready for E-Check."],
+  ["lights_work_battery_fine", "If the headlights come on, the battery is probably fine."],
 ];
 
 describe("mechanical truth packets", () => {
@@ -60,6 +79,20 @@ describe("mechanical truth packets", () => {
 
   it("correct statements pass", () => {
     for (const s of SAFE) expect(mechanicalTruthViolations(s), s).toEqual([]);
+  });
+
+  it("no packet's own facts or reasons trip a pattern (the generator is told them verbatim)", () => {
+    const fragment = buildTruthPacketFragment();
+    expect(fragment.split("\n").length).toBe(TRUTH_TOPICS.length + 1);
+    // Sentence by sentence, then whole lines as the prompt carries them.
+    const sentences = fragment.split("\n").slice(1).flatMap((line) => line.replace(/^- [a-z ]+: /, "").split(/(?<=[.!?])\s+|Never imply: /));
+    expect(sentences.length).toBeGreaterThan(30);
+    for (const s of sentences) expect(mechanicalTruthViolations(s), s).toEqual([]);
+    for (const line of fragment.split("\n")) expect(mechanicalTruthViolations(line), line.slice(0, 60)).toEqual([]);
+  });
+
+  it("a hedge in front of the claim does not get it past the packet", () => {
+    for (const [id, sentence] of HEDGED_UNSAFE) expect(mechanicalTruthViolations(sentence).map((v) => v.id), sentence).toContain(id);
   });
 
   it("no approved reel pack, concept, blog or guide in the repo trips a packet", () => {

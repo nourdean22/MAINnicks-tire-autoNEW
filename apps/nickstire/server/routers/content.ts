@@ -683,6 +683,19 @@ export const contentAdminRouter = router({
           message: `${def.preset} is not wired yet: nothing in generation applies its arm, so both arms would be the same content and the result would mean nothing. Wire the arm into generation first.`,
         });
       }
+      // A pack-variant experiment builds only approved variant PAIRS; with none
+      // approved every Reel would build the base pack and record nothing, so a
+      // start would run an empty experiment that looks live (2026-10-08).
+      if (def.primaryVariable === "pack_variant") {
+        const { eligibleVariantPacks } = await import("../services/approvedReelPackRotation");
+        const armIds = def.arms.map((a) => a.armId);
+        if (eligibleVariantPacks(def.experimentId, armIds).length === 0) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `${def.preset} has no approved variant pairs the daily lane can build: approve a variant for every arm (${armIds.join(", ")}) of at least one rotation pack the lane has not reached yet, in APPROVED_PACK_VARIANTS, first.`,
+          });
+        }
+      }
       const { startExperiment } = await import("../services/contentExperimentStore");
       const ok = await startExperiment(def);
       if (!ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "experiment registry unavailable (no DB)" });

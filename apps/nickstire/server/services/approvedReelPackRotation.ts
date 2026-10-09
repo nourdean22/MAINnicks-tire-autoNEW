@@ -14,10 +14,12 @@ import {
   type ReelStructureFingerprint,
 } from "../../shared/reelStructureFingerprint";
 import { resolvePacksDir } from "./reelPackRegistry";
-import { MOTION_LENSES, REEL_ARCHETYPES } from "../../client/src/lib/facelessReelStudio";
+import { MOTION_LENSES, REEL_ARCHETYPES, type ReelBrief } from "../../client/src/lib/facelessReelStudio";
 import type { MotionLens, ReelArchetype } from "../../client/src/lib/facelessReelStudio";
 import type { ApprovedPackPool } from "../../shared/reelJobPayload";
 import { parseShotSource } from "../../shared/shotRouter";
+import { briefEnqueueRefusals } from "./reelEnqueueRefusals";
+import { VISUAL_DIRECTION_LENSES, type VisualDirectionId } from "../../shared/contentExperiments";
 
 /**
  * EVERY PACK-DERIVED REEL LOOKED THE SAME, AND THIS IS WHY.
@@ -41,6 +43,14 @@ import { parseShotSource } from "../../shared/shotRouter";
  * how the camera moves, how the story is shaped - and apply to any subject. The
  * object character names the HERO of the frame, and rotating it would describe a
  * different object from the one the pack's own storyboard is about.
+ *
+ * For the same reason it is "plain_part", no persona (2026-10-08). It was fixed
+ * to "rust_creeping_villain", which named rust as the hero of every pack Reel:
+ * the provider prompt for a penny test carried "Character energy: Rust, Creeping
+ * Villain" and, with no locked visual world, "Hero subject: Rust, Creeping
+ * Villain" in its continuity block. A persona per pack would not fix it either:
+ * the characters are metaphors ("a balloonist whose altitude is your PSI"), and
+ * a video model reads the noun. The pack's beat 1 visual is the hero.
  */
 /** A pack's declared ask, if it declared one in the shape reelAsk defines. */
 function isReelAskShape(value: unknown): value is { kind: string; keyword?: string | null } {
@@ -55,6 +65,15 @@ function pickForPack<T>(briefId: string, salt: string, options: readonly T[]): T
 }
 
 const ROTATABLE_LENSES = Object.keys(MOTION_LENSES) as MotionLens[];
+
+/** The lenses a pack Reel may draw: every lens, or only the running visual_direction arm's family. */
+function lensPoolFor(direction: VisualDirectionId | undefined): readonly MotionLens[] {
+  if (!direction) return ROTATABLE_LENSES;
+  const family: readonly string[] = VISUAL_DIRECTION_LENSES[direction];
+  const pool = ROTATABLE_LENSES.filter((lens) => family.includes(lens));
+  // A family naming no real lens would leave nothing to pick; fall back rather than throw a pack away.
+  return pool.length ? pool : ROTATABLE_LENSES;
+}
 const ROTATABLE_ARCHETYPES = Object.keys(REEL_ARCHETYPES) as ReelArchetype[];
 export const APPROVED_REEL_PACK_SLUGS = [
   "2026-08-16-wheel-bearing-hum",
@@ -216,11 +235,17 @@ const SUBJECT_FREE_IMPORT =
   "could not show the topic (shared/shotRouter.isSubjectFreeVisual; the generator also refuses such beats).";
 const SUBJECT_FREE_REAL =
   SUBJECT_FREE_IMPORT +
-  " The pack's own production note asks for real shop footage (its videoPrompt), so it waits for that " +
+  " The pack's own production note asks for real shop footage (its videoPrompt / modelRecommendation), so it waits for that " +
   "capture (05-CAPTURE-CHECKLIST.md) and the operator's real-evidence publish decision.";
 const SUBJECT_FREE_NO_ROUTE =
   SUBJECT_FREE_IMPORT +
-  " The pack names no route at all: write what the camera sees in each beat (operator-approved), or capture it.";
+  " The pack names only its batch's generic route (original footage first, a generated connector shot if one " +
+  "is missing) and no shot for any beat: write what the camera sees in each beat (operator-approved), or capture it.";
+const SUBJECT_FREE_DETERMINISTIC =
+  SUBJECT_FREE_IMPORT +
+  " The pack's note asks for a deterministic cutaway first (its videoPrompt / modelRecommendation), which has no " +
+  "publishable lane yet (the generator refuses a declared deterministic beat): write what the camera sees in each " +
+  "beat (operator-approved), or wait for the card renderer.";
 
 export const ROTATION_EXCLUDED: Readonly<Record<string, string>> = {
   "2026-08-20-tire-sidewall-numbers":
@@ -257,7 +282,7 @@ export const ROTATION_EXCLUDED: Readonly<Record<string, string>> = {
   "2026-09-25-driven-flat-hidden-internal-damage": SUBJECT_FREE_REAL,
   "2026-09-25-epdm-belt-wear-no-cracks": SUBJECT_FREE_REAL,
   "2026-09-25-swollen-capped-lug-nuts": SUBJECT_FREE_REAL,
-  "2026-09-25-run-flat-limited-mobility": SUBJECT_FREE_NO_ROUTE,
+  "2026-09-25-run-flat-limited-mobility": SUBJECT_FREE_DETERMINISTIC,
   "2026-09-06-nitrogen-vs-air-tire-fill": SUBJECT_FREE_NO_ROUTE,
   "2026-08-27-foggy-windshield-recirculate-trick": SUBJECT_FREE_NO_ROUTE,
   "2026-09-25-locking-lug-roadside-tool": SUBJECT_FREE_NO_ROUTE,
@@ -270,6 +295,65 @@ export const ROTATION_EXCLUDED: Readonly<Record<string, string>> = {
   "2026-09-25-sidewall-indent-vs-bulge": SUBJECT_FREE_NO_ROUTE,
   "2026-09-25-ms-vs-3pmsf": SUBJECT_FREE_NO_ROUTE,
 };
+
+/**
+ * Operator-approved pack VARIANTS, by experiment, then pack slug, then the arm
+ * ids a variant exists for (docs/reel-packs/<slug>/variants/<armId>/brief.json).
+ *
+ * The list, not the folder, is the approval (2026-10-08). Agents commit packs for
+ * review, and with reel auto-approval on the per-job approval is recorded by
+ * policy, so naming a variant here is the only human review of its wording.
+ * A pack joins an experiment only when EVERY arm is listed and builds
+ * (approvedVariantSnapshot). Variants suit packs not yet published: the
+ * idempotency key is per pack, and the publish door blocks a near-repeat.
+ * Empty until the operator approves the first pair.
+ */
+export const APPROVED_PACK_VARIANTS: Readonly<Record<string, Readonly<Record<string, readonly string[]>>>> = {};
+
+/**
+ * The snapshot to build this episode from when a pack_variant experiment is
+ * running: the drawn arm's variant, or null (build the base pack, record no
+ * arm) unless the pack has an approved variant for every arm and each one
+ * loads, builds and clears what enqueue would refuse. All arms or none: if one
+ * arm's variant were refused at enqueue, the arm a day drew would decide
+ * whether the pack aired or was skipped (review 2026-10-08).
+ */
+export function approvedVariantSnapshot(
+  experimentId: string,
+  slug: string,
+  armId: string,
+  armIds: readonly string[],
+  approved: typeof APPROVED_PACK_VARIANTS = APPROVED_PACK_VARIANTS,
+): ApprovedProductionPackSnapshot | null {
+  const listed = approved[experimentId]?.[slug] ?? [];
+  if (!armIds.length || !armIds.includes(armId) || !armIds.every((id) => listed.includes(id))) return null;
+  let chosen: ApprovedProductionPackSnapshot | null = null;
+  for (const id of armIds) {
+    const snapshot = loadApprovedProductionPack(slug, id);
+    const built = snapshot ? buildBriefFromApprovedProductionPack({ slug: slug as ApprovedReelPack["slug"], topic: "" }, snapshot, `variant-check-${id}`, true) : null;
+    if (!snapshot || !built || briefEnqueueRefusals(built as unknown as ReelBrief).length) return null;
+    if (id === armId) chosen = snapshot;
+  }
+  return chosen;
+}
+
+/**
+ * The rotation packs a pack_variant experiment can actually build from: in
+ * APPROVED_REEL_PACK_SLUGS (the only slugs the daily lane selects) with a full,
+ * eligible pair. startContentExperiment refuses a preset with none, so an
+ * approval for a pack the lane never picks cannot start an experiment that
+ * records nothing (review 2026-10-08).
+ */
+export function eligibleVariantPacks(
+  experimentId: string,
+  armIds: readonly string[],
+  approved: typeof APPROVED_PACK_VARIANTS = APPROVED_PACK_VARIANTS,
+): string[] {
+  const rotation = new Set<string>(APPROVED_REEL_PACK_SLUGS);
+  return Object.keys(approved[experimentId] ?? {}).filter(
+    (slug) => rotation.has(slug) && armIds.length > 0 && approvedVariantSnapshot(experimentId, slug, armIds[0], armIds, approved) !== null,
+  );
+}
 
 export interface ApprovedReelPack {
   slug: (typeof APPROVED_REEL_PACK_SLUGS)[number];
@@ -285,10 +369,14 @@ function readOptionalFile(dir: string, name: string): string | null {
 }
 
 /** Load the exact reviewed files; no topic-only fallback is allowed. */
-export function loadApprovedProductionPack(slug: string): ApprovedProductionPackSnapshot | null {
+export function loadApprovedProductionPack(slug: string, variantArmId?: string): ApprovedProductionPackSnapshot | null {
   const packsDir = resolvePacksDir();
   if (!packsDir) return null;
-  const packDir = path.join(packsDir, slug);
+  // A variant is read from <slug>/variants/<armId>/ and keeps the parent's packId
+  // (episode preflight binds the snapshot to the approved slug), while its own
+  // bytes are what contentSha256 and sourcePath describe.
+  if (variantArmId !== undefined && !/^[a-z0-9][a-z0-9-]{0,59}$/.test(variantArmId)) return null;
+  const packDir = variantArmId ? path.join(packsDir, slug, "variants", variantArmId) : path.join(packsDir, slug);
   const briefJson = readOptionalFile(packDir, "brief.json");
   if (!briefJson) return null;
   let parsed: Record<string, unknown>;
@@ -306,7 +394,7 @@ export function loadApprovedProductionPack(slug: string): ApprovedProductionPack
     .digest("hex");
   return {
     packId: slug,
-    sourcePath: `apps/nickstire/docs/reel-packs/${slug}`,
+    sourcePath: `apps/nickstire/docs/reel-packs/${slug}${variantArmId ? `/variants/${variantArmId}` : ""}`,
     contentSha256,
     files: { briefJson, readme, captionsSrt },
     parsed,
@@ -372,6 +460,8 @@ export function buildBriefFromApprovedProductionPack(
   snapshot: ApprovedProductionPackSnapshot,
   briefId: string,
   skipStructureNovelty = false,
+  /** visual_direction_v1's arm for this episode (contentExperimentStore.visualDirectionForEpisode); absent = the full lens pick. */
+  visualDirection?: VisualDirectionId,
 ): Record<string, unknown> | null {
   const source = snapshot.parsed;
   const rawBeats = Array.isArray(source.storyboardBeats)
@@ -499,8 +589,8 @@ export function buildBriefFromApprovedProductionPack(
     factBucket: "invisible_killers",
     campaignKeyword,
     archetype: pickForPack(briefId, "archetype", ROTATABLE_ARCHETYPES),
-    motionLens: pickForPack(briefId, "lens", ROTATABLE_LENSES),
-    objectCharacter: "rust_creeping_villain",
+    motionLens: pickForPack(briefId, "lens", lensPoolFor(visualDirection)),
+    objectCharacter: "plain_part",
     usefulAbsurdity: stringValue(source.usefulAbsurdity),
     /**
      * A reviewed pack IS a selected concept, so the brief carries one - which is
@@ -526,8 +616,8 @@ export function buildBriefFromApprovedProductionPack(
           driverEmotion: "",
           campaignKeyword: campaignKeyword as never,
           archetype: pickForPack(briefId, "archetype", ROTATABLE_ARCHETYPES),
-          motionLens: pickForPack(briefId, "lens", ROTATABLE_LENSES),
-          objectCharacter: "rust_creeping_villain" as const,
+          motionLens: pickForPack(briefId, "lens", lensPoolFor(visualDirection)),
+          objectCharacter: "plain_part" as const,
           usefulAbsurdity: stringValue(source.usefulAbsurdity),
           localAngle: stringValue(source.clevelandAngle),
           beatOutline: storyboardBeats.map((b) => b.onScreenText || b.purpose),
@@ -853,8 +943,10 @@ export function resolveApprovedPackProgressTarget(
  * (`2026-08-16-check-engine-light`) since the last successful post on
  * 2026-08-29, with the held queue being that one topic attempted repeatedly.
  *
- * A ROTATION, NOT A DISCARD: the pack keeps its slot and comes back around
- * after the others, by which time the published corpus has moved.
+ * SKIPPED, NOT DELETED: the pack keeps its slot in the list, but the cursor
+ * has no wrap (corrected 2026-10-08; this said it "comes back around"). It airs
+ * again only if an operator moves reel_approved_pack_rotation_index back, and
+ * past the last pack the daily lane falls to the topic miner.
  *
  * It writes ONLY the index. `setApprovedPackProgress` also stamps
  * `reel_autopost_last_date`, the one-post-per-day guard; stamping that here

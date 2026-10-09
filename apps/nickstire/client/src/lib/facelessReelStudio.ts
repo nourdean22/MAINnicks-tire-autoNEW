@@ -366,7 +366,8 @@ export type ObjectCharacter =
   | "valve_stem_traffic_controller"
   | "rotor_alarm_bell"
   | "wiper_blade_on_strike"
-  | "road_salt_quiet_thief";
+  | "road_salt_quiet_thief"
+  | "plain_part";
 
 export const OBJECT_CHARACTERS: Record<ObjectCharacter, { label: string; essence: string }> = {
   penny_test_inspector: { label: "Penny-Test Inspector", essence: "A penny that audits tread depth like a building inspector." },
@@ -383,7 +384,26 @@ export const OBJECT_CHARACTERS: Record<ObjectCharacter, { label: string; essence
   rotor_alarm_bell: { label: "Rotor As Alarm Bell", essence: "When pads wear out, the rotor rings the bell you can hear." },
   wiper_blade_on_strike: { label: "Wiper Blade On Strike", essence: "Cracked rubber walks off the job mid-storm." },
   road_salt_quiet_thief: { label: "Road Salt, Quiet Thief", essence: "It pays for traction in metal — invoiced years later." },
+  // No persona (2026-10-08). The approved-pack lane used to give every Reel
+  // "Rust, Creeping Villain", so a penny test or a TPMS light went to the video
+  // model with rust as its hero. A pack's beats already describe the real part;
+  // this lets beat 1's visual be the hero, as the continuity block anchors it.
+  plain_part: { label: "The Part Itself", essence: "The real component, shown plainly as it is: its true material, wear and scale." },
 };
+
+/**
+ * The persona a brief's hero carries, or null for plain_part: a pack Reel names
+ * no persona anywhere a model reads it. Its continuity anchor is beat 1's visual
+ * alone, there is no "Character energy" line, and the vision critic is told
+ * there is no persona (renderedQa.heroForCritic). Some packs open on a scene,
+ * not a part (a dashboard, a highway through the windshield), so even
+ * "The Part Itself" would mislabel them; their anchor is that opening scene,
+ * as before.
+ */
+export function heroPersona(key: ObjectCharacter): { label: string; essence: string } | null {
+  return key === "plain_part" ? null : OBJECT_CHARACTERS[key];
+}
+
 
 // ─── Sources (same research standard as the Carousel Studio) ───────
 
@@ -1705,12 +1725,15 @@ export function buildReelContinuityBlock(
     return brief.visualWorld.lockedInvariants.trim();
   }
   const character = OBJECT_CHARACTERS[brief.objectCharacter];
+  const persona = heroPersona(brief.objectCharacter);
   // M6: neutralize renderable tokens in the anchor so the continuity block never
   // seeds the generator with a label/code/brand to (mis)spell.
   const heroAnchor = transformToProviderSafeScene(brief.storyboardBeats[0]?.visual.trim() || character.essence);
   return [
     `VISUAL CONTINUITY (identical in every shot of this reel):`,
-    `Hero subject: ${character.label} - ${character.essence} First established as: ${heroAnchor}`,
+    persona
+      ? `Hero subject: ${persona.label} - ${persona.essence} First established as: ${heroAnchor}`
+      : `Hero subject: ${heroAnchor}`,
     `Palette: ${LENS_PALETTES[brief.motionLens] ?? LENS_PALETTES.hyperreal_cinematic}`,
     BRAND_ACCENT_RULE,
     `Same hero object design, same environment, same lighting direction, and same weather in every shot.`,
@@ -1849,7 +1872,7 @@ export function resolveConditioningMode(brief: Pick<ReelBrief, "visualWorld">): 
 
 export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatPrompt[] {
   const lens = MOTION_LENSES[brief.motionLens];
-  const character = OBJECT_CHARACTERS[brief.objectCharacter];
+  const persona = heroPersona(brief.objectCharacter);
   const continuity = buildReelContinuityBlock(brief);
   const beats = brief.storyboardBeats;
   const conditioningMode = resolveConditioningMode(brief);
@@ -1872,7 +1895,8 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
       prompt: [
         `Vertical 9:16 cinematic clip. Generate a ${REEL_OUTPUT_RULES.maxClipSeconds}-second source clip; the final edit uses only the first ${trimDurationSec.toFixed(1)} seconds.`,
         `Subject: ${providerScene.scene}`,
-        `Character energy: ${character.label} - ${character.essence}`,
+        // A pack Reel's hero has no persona (heroPersona): no Character line at all.
+        ...(persona ? [`Character energy: ${persona.label} - ${persona.essence}`] : []),
         // Motion is a provider-facing field too — run it through the SAME
         // token/label neutralization as Subject so a code/label/logo placed in
         // motion (e.g. "the FTD913 badge rotates") cannot bypass the zero-

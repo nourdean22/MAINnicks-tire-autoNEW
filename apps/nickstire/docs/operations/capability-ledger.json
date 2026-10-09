@@ -3711,7 +3711,7 @@
       "evidence": {
         "codeCommit": "shared/mechanicalTruth.ts — eight topics. Five from the creative control gates (puncture repair, tread depth, uneven wear, vibration, pothole damage; NHTSA and USTMA on the first three) and three added 2026-10-08 after #2933 for the pilot's A004/A006/A007: brake wear (Car Care Council), E-Check readiness (Ohio EPA readiness fact sheet + ohioecheck.info) and no-start (no citation; cautious multi-cause facts only). Sixteen prohibited affirmative claims, among them 'grinding is normal / can wait', 'the visible pad means the brakes are fine', 'clear the codes and you'll pass E-Check', 'light off means ready', a certain single cause for a click-no-crank, and 'the lights work so the battery is fine'. TRUTH_TOPICS is exported and is the one list shared/angleBank.ts validates against (it kept its own copy). Enforced in shared/reelClaimAudit.ts condemnedContentProblem (dailyReelPost drain and gate chain, reelPipeline generation and assembly); allowed statements and reasons injected into the reel brief system prompt (reelBriefGen.ts).",
         "tests": [
-          "shared/mechanicalTruth.test.ts (7): every prohibited id has an unsafe example it catches (ids read from source, 16); seventeen correct statements pass, including the negated forms of each new claim ('won't get you through E-Check', 'doesn't mean the monitors are ready', 'isn't normal', 'can't wait'); zero matches across docs/reel-packs, blog, guides, seo pages, tire-size content and the reel manifest (300+ files scanned line by line); no packet claims technician sign-off (counted against TRUTH_TOPICS, 8); the brief prompt carries the reasons but never the unsafe sentences; the publish door refuses voiceover and on-screen violations, now including an E-Check one, and passes a correct script. shared/angleBank.test.ts (15) with seven angles pointed at the new topics (A004, A049, A054 brake wear; A006, A059, A060 no-start; A007 E-Check readiness). First probe pass (2026-10-08 creative gates) found 23 false positives and a question-then-answer bypass; both fixed before shipping."
+          "shared/mechanicalTruth.test.ts (9): every prohibited id has an unsafe example it catches (ids read from source, 16); twenty-two correct statements pass, including the negated forms of each new claim ('won't get you through E-Check', 'doesn't mean the monitors are ready', 'isn't normal', 'can't wait') and five myth-busting denials the first draft refused ('Not always the starter', 'that doesn't mean your brakes are fine', 'don't assume the battery is fine'; adversarial review 2026-10-08); a softener in front of a claim does not get it past (eight hedged sentences such as 'perfectly normal', 'probably fine', 'can usually wait', which the first draft passed); no packet's own allowed facts or reasons trip any pattern, sentence by sentence and as the prompt line (the puncture packet's reason 'A plug alone is not a complete repair' tripped plug_alone_is_proper_repair, so a script echoing the generator's own instruction was condemned; fixed with the same negation guard); mutations: the hedge slot removed (1 red), the negation guard removed (1 red), the plug pattern's guard removed (1 red); zero matches across docs/reel-packs, blog, guides, seo pages, tire-size content and the reel manifest (300+ files scanned line by line); no packet claims technician sign-off (counted against TRUTH_TOPICS, 8); the brief prompt carries the reasons but never the unsafe sentences; the publish door refuses voiceover and on-screen violations, now including an E-Check one, and passes a correct script. shared/angleBank.test.ts (15) with seven angles pointed at the new topics (A004, A049, A054 brake wear; A006, A059, A060 no-start; A007 E-Check readiness). First probe pass (2026-10-08 creative gates) found 23 false positives and a question-then-answer bypass; both fixed before shipping."
         ],
         "liveRuns": [],
         "deploymentId": null
@@ -4260,7 +4260,7 @@
       "blockers": [
         {
           "severity": "P2",
-          "description": "The Sources line has not been seen rendered: this session has no browser against a running admin. First live proof is the Creative Assistant's Sources row on Today showing 'angleBank 20 production-ready angles of 100: 20 with a pack, 17 in rotation, 0 published; awaiting rotation approval: proof-01-uneven-wear, proof-02-highway-shake, proof-03-patch-or-replace' after deploy, or 'N in rotation (active slate of M)' while an operator slate is set.",
+          "description": "The Sources line has not been seen rendered: this session has no browser against a running admin. First live proof is the Creative Assistant's Sources row on Today showing 'angleBank 20 production-ready angles of 100: 20 with a pack, 12 in rotation, 0 published; held out of the rotation: proof-01-uneven-wear, proof-02-highway-shake, proof-03-patch-or-replace, inner-outer-brake-pad-wear, tpms-flash-vs-steady, rotor-surface-rust-overnight, two-new-tires-rear-axle, hidden-inner-lip-wheel-bend' (computed 2026-10-08 from the committed bank and rotation) after deploy, or 'N in rotation (active slate of M)' while an operator slate is set.",
           "source": "2026-10-08 branch self-audit"
         }
       ],
@@ -4370,7 +4370,7 @@
       "operationalState": "unit_verified",
       "exposure": "internal",
       "evidence": {
-        "codeCommit": "branch claude/peaceful-pascal-988w9o after #2932 (2026-10-08). shared/shotRouter.ts: beatGenerationRoute, beatsTheGeneratorMustNotRender (a resumed job keeps its clips), generationHoldReason; declaredBeatSource reads a tag only as written in capitals (prose such as 'Real-world pothole damage' was a declaration before). server/services/reelPipeline.ts: refused in enqueueReelJob before the governor reservation, and in processNextReelJob after the claim and before the paid provider anchor (job failed with BEAT_SOURCE_NOT_GENERATABLE, reservation released); selectiveRepair.requestBeatRepair refuses such a beat before any spend check or write. Neither declared route has a publishable lane: the stock guard (qualityGate.reelClipsIncludeStock) refuses every locally hosted clip, so routing waits on the real-evidence decision. Codex review round on #2933: a refusal before any provider call (this gate and the condemned-script gate) now closes the job's generation reservation (closeRefusedJobReservation: release when nothing was bought, fail when a resumed job already holds clips); a reserved row counted as spend in spendSinceUsd until the 6 h sweep. 2026-10-08 (same branch, after #2934): beatGenerationRoute returns needs_subject for a visual that names no object (shotRouter.isSubjectFreeVisual: a generic referent such as 'the physical subject' or 'the relevant physical components' and no concrete part from a vocabulary). The two 2026-09-25 imports wrote ten such placeholder shots into every beat of 34 packs, all in the rotation; the generator sent 'Subject: Extreme macro of the physical subject…', with only the builder's fixed 'Rust, Creeping Villain' character beside it, so none of those Reels could show its topic. The 34 left APPROVED_REEL_PACK_SLUGS for ROTATION_EXCLUDED (22: the pack's own note asks for real footage; 12: no route named): they were the tail, indices 99-132, and the production cursor read 32 (Railway log 10:02Z), so no index at or below it moved. The rotation is 99 packs, all preflight-clean. The enqueue refusals for a condemned script, an ungeneratable beat, an episode-contract block and an over-long caption threw a bare Error, which dailyReelPost's catch rethrows (it advances only on ReelPreflightBlockedError): an approved pack refused by any of them would have failed the cron at every production hour without moving the cursor. All four are typed now. requestBeatRepair names the reason per route.",
+        "codeCommit": "branch claude/peaceful-pascal-988w9o after #2932 (2026-10-08). shared/shotRouter.ts: beatGenerationRoute, beatsTheGeneratorMustNotRender (a resumed job keeps its clips), generationHoldReason; declaredBeatSource reads a tag only as written in capitals (prose such as 'Real-world pothole damage' was a declaration before). server/services/reelPipeline.ts: refused in enqueueReelJob before the governor reservation, and in processNextReelJob after the claim and before the paid provider anchor (job failed with BEAT_SOURCE_NOT_GENERATABLE, reservation released); selectiveRepair.requestBeatRepair refuses such a beat before any spend check or write. Neither declared route has a publishable lane: the stock guard (qualityGate.reelClipsIncludeStock) refuses every locally hosted clip, so routing waits on the real-evidence decision. Codex review round on #2933: a refusal before any provider call (this gate and the condemned-script gate) now closes the job's generation reservation (closeRefusedJobReservation: release when nothing was bought, fail when a resumed job already holds clips); a reserved row counted as spend in spendSinceUsd until the 6 h sweep. 2026-10-08 (same branch, after #2934): beatGenerationRoute returns needs_subject for a visual that names no object (shotRouter.isSubjectFreeVisual: a generic referent such as 'the physical subject' or 'the relevant physical components' and no concrete part from a vocabulary). The two 2026-09-25 imports wrote ten such placeholder shots into every beat of 34 packs, all in the rotation; the generator sent 'Subject: Extreme macro of the physical subject…', with only the builder's fixed 'Rust, Creeping Villain' character beside it, so none of those Reels could show its topic. The 34 left APPROVED_REEL_PACK_SLUGS for ROTATION_EXCLUDED (22: the pack's own note asks for real footage; 12 name no shot for any beat, 11 of them only a generic batch route and one a deterministic cutaway): they were the tail, indices 99-132, and the production cursor read 32 (Railway log 10:02Z), so no index at or below it moved. The rotation is 99 packs, all preflight-clean. The enqueue refusals for a condemned script, an ungeneratable beat, an episode-contract block and an over-long caption threw a bare Error, which dailyReelPost's catch rethrows (it advances only on ReelPreflightBlockedError): an approved pack refused by any of them would have failed the cron at every production hour without moving the cursor. All four are typed now. requestBeatRepair names the reason per route.",
         "tests": [
           "shared/shotRouter.test.ts (+5): capitals-only tags with controls; routes; resume; the refusal line at both stages.",
           "server/approvedReelPackRotation.test.ts (+1): every proof pack is refused before spend; CONTROL over all approved rotation packs (>100): not one beat held.",
@@ -4493,6 +4493,98 @@
           "severity": "P3",
           "description": "The episode id lives only on emitted events, never in the visitd ledger, so if a continued car's track later dies and is re-acquired, the re-acquired visit gets a new episode id and the Lot can count that car twice.",
           "source": "restart continuity, 2026-10-08"
+        }
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "verificationExpiresAt": "2026-11-07"
+    },
+    {
+      "capabilityId": "pack-reel-neutral-hero-20261008",
+      "name": "Pack-built Reels name no persona hero anywhere a model reads it: the provider prompt, the visual-world frame and the vision critic anchor on beat 1 instead of 'Rust, Creeping Villain'",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o after #2934 (2026-10-08, operator-approved). Every pack brief carried objectCharacter rust_creeping_villain, so buildHiggsfieldReelPromptPack wrote 'Character energy: Rust, Creeping Villain' and, with no locked visual world, 'Hero subject: Rust, Creeping Villain - ... First established as: <beat 1>' into every pack Reel's provider prompt (enqueueReelJob rebuilds the prompt pack from the brief), and renderedQa / criticPanel told the vision critic 'Hero: rust_creeping_villain'. Now: client/src/lib/facelessReelStudio.ts ObjectCharacter gains plain_part ('The Part Itself') and heroPersona() returns null for it; the prompt pack omits the Character line, the continuity block reads 'Hero subject: <beat 1 visual>'; server/services/visualWorld.ts reference frame and locked invariants do the same ('SAME hero subject'); renderedQa.heroForCritic tells both critics 'no persona; the subject is what the planned beats show' (some packs open on a scene, not a part); the Studio concept prompt never offers plain_part. server/services/approvedReelPackRotation.ts sets plain_part on the brief and its concept. Per-pack personas were rejected on evidence (workflow map 2026-10-08): 13 of 99 packs fit a persona strongly, 67 fit none, ~8 open on a scene rather than a part, and persona labels put human nouns (inspector, lifeguard, tightrope walker) into a prompt line no faceless gate checks; the penny-test pack deliberately says 'small copper coin', which penny_test_inspector would undo.",
+        "tests": [
+          "server/packRotationVariety.test.ts (12): BEHAVIOUR — the penny-test pack's provider prompt has no 'Character energy' line, no persona label, and 'Hero subject: <beat 1>'; CONTROL: a Studio sample keeps 'Character energy: <label>' and 'First established as'. The visual-world frame and lock name the hero subject, not a persona (persona control keeps the label); heroForCritic tells the critic a pack Reel has no persona; the Studio concept prompt lists the personas but not 'The Part Itself'. Mutations, each red then restored byte-identical: builder back to rust (2 red), heroPersona returning a persona for plain_part (2 red). 23 prompt / visual-world / critic test files: 486 passed."
+        ],
+        "liveRuns": "None. The proof is the next generated pack Reel's stored prompt pack (reel_jobs.payload.promptPack[0].prompt): no 'Character energy:' line, no 'Rust, Creeping Villain', no 'The Part Itself', and a 'Hero subject: <beat 1 visual>' line with no 'First established as'."
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Pack Reels recorded rust_creeping_villain in the repetition history until this deploys; plain_part takes its place, so a pack Reel still repeats its object signal (as before). Not a gate in the pack lane.",
+          "source": "2026-10-08"
+        }
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "verificationExpiresAt": "2026-11-07"
+    },
+    {
+      "capabilityId": "reel-visual-direction-experiment-20261008",
+      "name": "visual_direction_v1: a documentary vs cinematic camera experiment the pack lane can run with no new content, recorded only when built with the arm (wired, not started)",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o after #2934 (2026-10-08, operator-approved; 06-EXPERIMENTS.md mission experiment #3). shared/contentExperiments.ts: PrimaryVariable visual_direction, ExperimentArm.visualDirection (confound-checked), VISUAL_DIRECTION_LENSES (documentary: extreme_macro_push_in, forensic_evidence_scan; cinematic: hyperreal_cinematic, product_ad_macro; both photographic, the stylised lenses in neither), preset visual_direction_v1 (wired, avg_watch_time), and a declared `reaches` per preset (ai_written_briefs / pack_reels / none). server/services/contentExperimentStore.ts: visualDirectionForEpisode (runningArmForEpisode, undefined on no experiment / unreadable store / undeclared family); BRIEF_WRITING_VARIABLES and PACK_BUILD_VARIABLES are derived from the presets' `reaches`, and assignment skips a pack-build variable for an AI-written brief. server/services/approvedReelPackRotation.ts: buildBriefFromApprovedProductionPack takes the arm and picks the lens from that family only (lensPoolFor; no arm = every lens, unchanged). server/cron/jobs/dailyReelPost.ts: resolves visualDirectionForEpisode(briefId) before the pack build and passes it; the same briefId is the episode key enqueue records. The coprime-arm rule now applies within a population: pack-build and brief-writing experiments share no episode. RECORDED MUST EQUAL BUILT: dailyReelPost stamps the arms it applied on the pack brief (appliedPackArms); enqueueReelJob passes them, and assignEpisodeToActiveExperiment records a pack-build arm only when the stamped arm is the one the job's episode key draws (a regenerate re-keys the brief and the seed script builds with no arm, so the key alone would have filed those Reels under an arm their content never got; found by the 2026-10-08 variants map).",
+        "tests": [
+          "server/visualDirectionExperiment.test.ts (9): preset wired, no confounds, families real/disjoint/photographic; on every rotation pack each arm draws only its family and the concept agrees; CONTROL no arm keeps the default pick (>30 packs outside both families); the reader returns assignArm's family and the applied arm for 40 keys, undefined with no experiment / a failing read / an undeclared family; the lane resolves before building, passes the arm and stamps it, with a planted unwired control.",
+          "server/__tests__/contentExperimentWiringGate.test.ts (10): a pack-build arm is recorded only for a pack Reel whose stamped arm matches its key (matched recorded; mismatched, unstamped and AI-brief controls not recorded); visual_direction_v1 starts through contentAdmin.startContentExperiment.",
+          "shared/contentExperimentPresets.test.ts (11): eight presets, four wired, reaches per preset; coprime arm counts within a shared population and hash family, with a planted 2-arm pack-build preset the check reports.",
+          "Mutations, each red then restored byte-identical: the lane drops the arm (1 red), the lens pick ignores the arm (1 red), AI briefs recorded in visual_direction (1 red), the applied-arm check removed (1 red)."
+        ],
+        "liveRuns": "None, and none until the operator starts it (contentAdmin.startContentExperiment({ preset: 'visual_direction_v1' }); no phone button exists for any preset). First proof: a pack Reel's job carries a lens from its arm's family and a content_experiment_assignments row for visual-direction-v1."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "06-EXPERIMENTS.md sequences experiments after stable publication; no Reel has posted since 2026-10-04, so starting it now would measure a lane that is not publishing.",
+          "source": "2026-10-08"
+        },
+        {
+          "severity": "P3",
+          "description": "A regenerated pack Reel (contentAdmin regenerate re-keys the brief) is recorded only when its new key draws the arm it was built with, about half the time; otherwise it is not measured. Never mis-measured, and the loss does not depend on the arm. Carrying the original key across a regenerate would recover it.",
+          "source": "adversarial review 2026-10-08"
+        }
+      ],
+      "lastVerifiedAt": "2026-10-08",
+      "verificationExpiresAt": "2026-11-07"
+    },
+    {
+      "capabilityId": "reel-pack-variant-experiment-20261008",
+      "name": "Pack-variant experiment arms (06-EXPERIMENTS #1, #4): an arm is an operator-approved variant of an approved pack; built and inert, no pair approved",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "branch claude/peaceful-pascal-988w9o after #2934 (2026-10-08, operator-approved design). server/services/approvedReelPackRotation.ts: loadApprovedProductionPack(slug, armId) reads docs/reel-packs/<slug>/variants/<armId>/ (arm id /^[a-z0-9][a-z0-9-]{0,59}$/, so no path escape; pack id stays the slug, sourcePath and digest are the variant's); APPROVED_PACK_VARIANTS (experiment id -> slug -> arm ids, ships empty: the list is the approval, never the folder); approvedVariantSnapshot returns the drawn arm's snapshot only when every arm is listed, loads, builds and clears what enqueue would refuse from the brief alone (server/services/reelEnqueueRefusals.briefEnqueueRefusals: preflight, condemned script, ungeneratable beats, caption and hashtag limits), else null (base pack, no arm recorded). All arms or none: otherwise a variant refused at enqueue would advance the rotation past its pack on the days its arm was drawn, and the drawn arm would decide which packs air (adversarial review 2026-10-08). The episode contract's claim checks need the day's claim packet and are not pre-checked. eligibleVariantPacks counts only rotation packs (APPROVED_REEL_PACK_SLUGS) with an eligible pair. shared/contentExperiments.ts: PrimaryVariable pack_variant, ExperimentArm.packVariant (confound-checked), preset opening_mechanism_v1 (open-reveal vs open-question, shares_per_reach, reaches pack_reels), and MIXED_HASH_VARIABLES: a pack_variant arm is drawn with mulberry32 seeded on experiment id + key, because the plain hash splits two 2-arm experiments identically on every key. server/services/contentExperimentStore.ts: packVariantForEpisode. server/cron/jobs/dailyReelPost.ts: resolves the variant arm before the build, builds variant ?? base, stamps the arm only when its variant was built. server/routers/content.ts: startContentExperiment refuses a pack_variant preset with no eligible rotation pack (PRECONDITION_FAILED), so a pair approved for a pack the lane never selects cannot start an experiment that records nothing.",
+        "tests": [
+          "server/packVariantExperiment.test.ts (12), against a temporary REEL_PACKS_DIR (no variant committed): the loader reads a variant under the parent's pack id and rejects path-escaping or missing arms; only a fully approved, buildable pair yields the drawn variant (folder without approval, half-approved pair, foreign arm and missing file each build the base); one arm with a placeholder shot keeps the whole pack out for both arms, with a named-object control; only a rotation pack counts toward a start (CONTROL: the same bytes under an off-rotation slug build but do not count); the committed list is empty; every approved variant passes the builder, briefEnqueueRefusals and the truth-claim scan with the base's beat timings, and its pack is in the rotation, with a planted prohibited-claim / moved-timing control; the variant and camera arms agree on 58 of 120 daily keys (CONTROL: the plain hash agrees on 120 of 120); the lane resolves, builds and stamps in order.",
+          "server/__tests__/contentExperimentWiringGate.test.ts: a pack_variant preset with no approved pair is refused and nothing is written.",
+          "Mutations, each red then restored byte-identical: a half-approved pair accepted (1 red), the applied-arm check removed (1 red, wiring gate), the mixed hash switched off (2 red), the enqueue check dropped from eligibility (1 red), rotation membership dropped from the start count (1 red)."
+        ],
+        "liveRuns": "None, and none possible until a variant pair is written and approved (APPROVED_PACK_VARIANTS is empty and the start is refused). First proof: a pack Reel's job sourcePath ends in /variants/<arm> and a content_experiment_assignments row for opening-mechanism-v1 carries that arm."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Supply: no variant pair is written or approved. Each pack in the test needs a reviewed variant per arm (beat 1 as the reveal and as the question), on packs the rotation has not reached yet.",
+          "source": "2026-10-08"
+        },
+        {
+          "severity": "P2",
+          "description": "06-EXPERIMENTS.md sequences experiments after stable publication; no Reel has posted since 2026-10-04.",
+          "source": "2026-10-08"
+        },
+        {
+          "severity": "P3",
+          "description": "A regenerated pack Reel (contentAdmin regenerate re-keys the brief) is recorded only when its new key draws the arm it was built with, about half the time; otherwise it is not measured. Never mis-measured, and the loss does not depend on the arm. Carrying the original key across a regenerate would recover it.",
+          "source": "adversarial review 2026-10-08"
         }
       ],
       "lastVerifiedAt": "2026-10-08",

@@ -54,6 +54,18 @@ export interface TruthPacket {
   reviewBy: string;
 }
 
+/**
+ * Shared by the 2026-10-08 packets (brakes, E-Check, no-start). HEDGE is an
+ * optional softener a claim survives ("perfectly normal", "probably fine"); it
+ * is a closed list because `\w+ly` would also take "hardly" and "rarely", which
+ * negate. unnegated(max) is a gap of up to max characters holding no negation,
+ * so the correct myth-busting line ("that doesn't mean your brakes are fine",
+ * "don't assume the battery is fine") is not read as the claim it denies.
+ */
+const HEDGE = String.raw`(?:(?:perfectly|totally|completely|usually|probably|pretty|just|still|generally|mostly|likely|easily|actually|really|basically) )?`;
+const unnegated = (max: number) =>
+  String.raw`(?:(?!\b(?:doesn['’]t|does not|don['’]t|do not|isn['’]t|is not|not|never|won['’]t)\b)[^.!\n]){0,${max}}`;
+
 const TRUTH_PACKETS: readonly TruthPacket[] = [
   {
     topic: "puncture_repair",
@@ -70,7 +82,11 @@ const TRUTH_PACKETS: readonly TruthPacket[] = [
     prohibited: [
       {
         id: "plug_alone_is_proper_repair",
-        pattern: /\bplug(?:s|ged|ging)?\b[^.!\n]{0,40}\b(?:is|are|=|makes? (?:it|for))\b[^.!\n]{0,20}\b(?:permanent|proper|complete|full|real|safe) (?:fix|repair)/i,
+        // The packet's own reason ("A plug alone is not a complete repair") is
+        // the correct statement and must pass (review 2026-10-08: it tripped
+        // this pattern, so a script echoing the generator's own instruction
+        // was condemned).
+        pattern: new RegExp(String.raw`\bplug(?:s|ged|ging)?\b[^.!\n]{0,40}\b(?:is|are|=|makes? (?:it|for))\b${unnegated(20)}\b(?:permanent|proper|complete|full|real|safe) (?:fix|repair)`, "i"),
         reason: "A plug alone is not a complete repair: the tire must come off the wheel and get a plug plus an inside patch (USTMA).",
       },
       {
@@ -200,12 +216,12 @@ const TRUTH_PACKETS: readonly TruthPacket[] = [
         id: "grinding_is_normal",
         // "isn't normal", "is not normal" and "can't wait" are the correct
         // statements and must pass.
-        pattern: /\bgrind(?:s|ing)?\b[^.!\n]{0,30}\b(?:is|are|it(?:['’]s| is)|sounds?) (?:normal|harmless|fine|nothing to worry about)\b|\bgrind(?:s|ing)?\b[^.!\n]{0,40}\bcan wait\b/i,
+        pattern: new RegExp(String.raw`\bgrind(?:s|ing)?\b[^.!\n]{0,30}\b(?:is|are|it(?:['’]s| is)|sounds?) ${HEDGE}(?:normal|harmless|fine|nothing to worry about)\b|\bgrind(?:s|ing)?\b[^.!\n]{0,40}\bcan ${HEDGE}wait\b`, "i"),
         reason: "Grinding can mean the pads are worn to metal, and the Car Care Council says brakes should never reach metal-to-metal; it is not normal and not something to wait on.",
       },
       {
         id: "visible_pad_means_brakes_fine",
-        pattern: /\b(?:if|when) (?:the |your )?(?:outer |outside )?pads? (?:look|looks|is|are) (?:fine|good|thick|okay|ok)\b[^.!\n]{0,40}\b(?:(?:your |the )?brakes? (?:are|is)|you(?:['’]re| are)) (?:fine|good|okay|ok|good to go)\b/i,
+        pattern: new RegExp(String.raw`\b(?:if|when) (?:the |your )?(?:outer |outside )?pads? (?:look|looks|is|are) ${HEDGE}(?:fine|good|thick|okay|ok)\b${unnegated(40)}\b(?:(?:your |the )?brakes? (?:are|is)|you(?:['’]re| are)) ${HEDGE}(?:fine|good|okay|ok|good to go)\b`, "i"),
         reason: "The pad you can see through the wheel is only one of the pads; the inner pad can be worn out while the outer one looks thick, so an inspection measures them all.",
       },
     ],
@@ -231,12 +247,12 @@ const TRUTH_PACKETS: readonly TruthPacket[] = [
         // An outcome is required ("and you'll pass", "gets you through"), and a
         // negated one ("won't get you through", "can't pass") is the correct
         // statement, so it is excluded.
-        pattern: /\b(?:clear(?:s|ed|ing)?|reset(?:s|ting)?|eras(?:e|es|ed|ing)|disconnect(?:s|ed|ing)?)\b[^.!\n]{0,40}\b(?:codes?|battery|light)\b[^.!\n]{0,40}(?<!(?:n['’]t|not|never) )\b(?:(?:and )?(?:you|it)(?:['’]ll| will) (?:pass|get through)|gets? you through|passes)\b[^.!\n]{0,20}\b(?:e-?check|emissions?|inspection|the test)\b/i,
+        pattern: new RegExp(String.raw`\b(?:clear(?:s|ed|ing)?|reset(?:s|ting)?|eras(?:e|es|ed|ing)|disconnect(?:s|ed|ing)?)\b[^.!\n]{0,40}\b(?:codes?|battery|light)\b${unnegated(40)}(?<!(?:n['’]t|not|never) )\b(?:(?:and )?(?:you|it)(?:['’]ll| will) ${HEDGE}(?:pass|get through)|gets? you through|passes)\b[^.!\n]{0,20}\b(?:e-?check|emissions?|inspection|the test)\b`, "i"),
         reason: "Clearing codes or disconnecting the battery leaves the monitors not ready, and Ohio rejects a vehicle that is not ready (Ohio EPA); it never gets a car through E-Check.",
       },
       {
         id: "light_off_means_ready",
-        pattern: /\blight(?:['’]s| is| went| goes| turned| turns)? (?:off|out)\b[^.!\n]{0,30}(?<!(?:n['’]t|not|never) )\b(?:means?|so) (?:you(?:['’]re| are) |it(?:['’]s| is) |the car(?:['’]s| is) )?(?:ready|good to go|set to pass|going to pass)\b/i,
+        pattern: new RegExp(String.raw`\blight(?:['’]s| is| went| goes| turned| turns)? (?:off|out)\b[^.!\n]{0,30}(?<!(?:n['’]t|not|never) )\b(?:means?|so) (?:you(?:['’]re| are) |it(?:['’]s| is) |the car(?:['’]s| is) )?${HEDGE}(?:ready|good to go|set to pass|going to pass)\b`, "i"),
         reason: "Clearing the codes turns the light off before the monitors are ready (Ohio EPA); only an OBD scan tool or the test itself shows readiness.",
       },
     ],
@@ -255,12 +271,12 @@ const TRUTH_PACKETS: readonly TruthPacket[] = [
     prohibited: [
       {
         id: "no_start_single_certain_cause",
-        pattern: /\bclick(?:s|ing)?\b[^.!\n]{0,40}(?<!almost )\b(?:always|definitely|100%|guaranteed|for sure)\b[^.!\n]{0,25}\b(?:battery|starter|alternator|solenoid)\b/i,
+        pattern: /\bclick(?:s|ing)?\b[^.!\n]{0,40}(?<!(?:almost|not|n['’]t|never) )\b(?:always|definitely|100%|guaranteed|for sure)\b[^.!\n]{0,25}\b(?:battery|starter|alternator|solenoid)\b/i,
         reason: "A click with no crank has several causes (battery, connection, starter, charging); naming one as certain is a diagnosis without a test.",
       },
       {
         id: "lights_work_battery_fine",
-        pattern: /\b(?:if|when|since) (?:the |your )?(?:lights?|headlights?|radio|dash(?:board)?(?: lights)?)\b[^.!\n]{0,25}\b(?:work|works|come on|comes on|turn on|turns on)\b[^.!\n]{0,30}\b(?:(?:the |your )?battery(?:['’]s| is) (?:fine|good|ok|okay|not the problem)|it(?:['’]s| is)(?:n['’]t| not) the battery)\b/i,
+        pattern: new RegExp(String.raw`\b(?:if|when|since) (?:the |your )?(?:lights?|headlights?|radio|dash(?:board)?(?: lights)?)\b[^.!\n]{0,25}\b(?:work|works|come on|comes on|turn on|turns on)\b${unnegated(30)}\b(?:(?:the |your )?battery(?:['’]s| is) ${HEDGE}(?:fine|good|ok|okay|not the problem)|it(?:['’]s| is)(?:n['’]t| not) the battery)\b`, "i"),
         reason: "Lights can work on a battery too weak to crank the engine; working lights do not clear the battery.",
       },
     ],

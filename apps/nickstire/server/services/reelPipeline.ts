@@ -839,10 +839,14 @@ export async function enqueueReelJob(
     // A brief built from an approved pack says so: its content origin is the
     // pack, and an arm applied only while a brief is written never reaches it.
     const approvedPackSlug = (brief as { approvedPackSlug?: string }).approvedPackSlug;
+    // The pack-build arms the brief was BUILT with (dailyReelPost stamps them);
+    // a pack-build experiment records the Reel only when this matches its key.
+    const appliedPackArms = (brief as { appliedPackArms?: Array<{ experimentId: string; armId: string }> }).appliedPackArms;
     await assignEpisodeToActiveExperiment(jobId, {
       contentOrigin: approvedPackSlug ? "approved_pack" : "ai_generated",
       briefId: brief.id,
       ...(approvedPackSlug ? { approvedPackSlug } : {}),
+      ...(Array.isArray(appliedPackArms) ? { appliedPackArms } : {}),
     });
   }
 

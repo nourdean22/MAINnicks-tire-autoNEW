@@ -2273,3 +2273,27 @@ measurement. Every proposal below cites the moment in this wave that produced it
   types. A test that pins the throw's text pins the bug with it."
 - **Confidence:** high (4 sites)
 - **Status:** proposed
+
+## 2026-10-09 · adversarial review of the peaceful-pascal branch (4 reviewers + skeptics + critic)
+
+### P1 · `nickstire-reel-operator` — a prohibited-claim pattern is tested on the denial and the hedge, not only the claim
+- **Trigger (witnessed):** the brake, E-Check and no-start packets (this branch) refused five correct myth-busting
+  lines ("Not always the starter", "that doesn't mean your brakes are fine") and passed eight hedged claims ("grinding is
+  perfectly normal", "you'll probably pass E-Check"). The older puncture packet refused its own reason, "A plug alone is
+  not a complete repair", which the generator is told verbatim. Every SAFE example had been written beside its pattern,
+  so none probed the shapes a script actually uses.
+- **Proposed edit:** "For each new pattern, add one denial ('not always X', 'doesn't mean Y') to SAFE and one softened
+  claim ('probably', 'usually', 'perfectly') to the hedged table; `mechanicalTruth.test.ts` also runs every packet's
+  own facts and reasons through every pattern."
+- **Confidence:** high (14 sentences, each reproduced against the real module)
+- **Status:** proposed
+
+### P2 · `nickstire-verifier-reel-pipeline` — an eligibility check must be the refusal the consumer applies
+- **Trigger (witnessed):** pack-variant eligibility checked "listed, loads, builds", while enqueue refuses on four more
+  brief-level checks and the daily lane skips a refused pack. One arm's bad variant would have decided which packs aired.
+  The miner's brief loop had the same gap: it regenerated on preflight only, so the other typed refusals cost the day.
+  Both now call `server/services/reelEnqueueRefusals.briefEnqueueRefusals`.
+- **Proposed edit:** "Before a pre-check that predicts a later gate, list what the gate refuses and call the same code;
+  a parallel re-implementation drifts the day the gate gains a rule."
+- **Confidence:** high (2 sites, both reproduced)
+- **Status:** proposed

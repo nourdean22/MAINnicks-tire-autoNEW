@@ -86,6 +86,44 @@ describe("every content verdict inside enqueueReelJob is typed (2026-10-08)", ()
     }
   });
 
+  // DRIFT ALARM (2026-10-09): the miner's brief loop and pack-variant
+  // eligibility predict these refusals with reelEnqueueRefusals.
+  // briefEnqueueRefusals. A new typed refusal here that it does not mirror
+  // would cost the miner its day and let one variant arm decide which packs air.
+  const typedRefusals = (src: string): string[] => {
+    const a = src.indexOf("export async function enqueueReelJob");
+    const b = src.indexOf("\nexport async function processNextReelJob", a);
+    expect(a, "enqueueReelJob not found").toBeGreaterThan(-1);
+    expect(b, "enqueueReelJob end not found").toBeGreaterThan(a);
+    return [...src.slice(a, b).matchAll(/throw new ReelPreflightBlockedError\(\s*([^\n]{0,40})/g)].map((m) => m[1].trim());
+  };
+  // The first 40 characters of each throw's argument.
+  const MIRRORED = [
+    "pre.blocking.map((f) => f.message));", // runReelPreflight
+    "[`REEL_SCRIPT_CONDEMNED: ${condemned}`])", // condemnedContentProblem
+    "[generationHoldReason(blocked, \"enqueue\"", // beatsTheGeneratorMustNotRender
+    "[", // the caption limit (its message starts on the next line)
+  ];
+  const NEEDS_CONTEXT = ["[`Episode contract blocked (${pre.blocks"]; // needs the day's claim packet
+
+  it("every typed refusal in enqueueReelJob is mirrored by briefEnqueueRefusals or named as needing the day's context", () => {
+    const found = typedRefusals(PIPELINE);
+    expect(found.length, "the scan found no typed refusal — anchor moved").toBeGreaterThan(0);
+    expect([...found].sort(), "a new typed refusal: add it to server/services/reelEnqueueRefusals.ts, or to NEEDS_CONTEXT with why").toEqual([...MIRRORED, ...NEEDS_CONTEXT].sort());
+    const helper = readFileSync(path.join(__dirname, "services", "reelEnqueueRefusals.ts"), "utf8");
+    for (const call of ["runReelPreflight(", "condemnedContentProblem(", "beatsTheGeneratorMustNotRender(", "CAPTION_LIMIT", "HASHTAG_CAP"]) expect(helper, call).toContain(call);
+  });
+
+  it("CONTROL: a new typed refusal the helper does not know about is reported", () => {
+    const planted = PIPELINE.replace(
+      "throw new ReelPreflightBlockedError([`REEL_SCRIPT_CONDEMNED: ${condemned}`]);",
+      "throw new ReelPreflightBlockedError([`REEL_SCRIPT_CONDEMNED: ${condemned}`]);\n    throw new ReelPreflightBlockedError([`NEW_RULE`]);",
+    );
+    expect(planted).not.toBe(PIPELINE);
+    expect(typedRefusals(planted)).toContain("[`NEW_RULE`]);");
+    expect([...typedRefusals(planted)].sort()).not.toEqual([...MIRRORED, ...NEEDS_CONTEXT].sort());
+  });
+
   it("CONTROL: a content refusal written as a bare Error is caught by the scan", () => {
     const planted = PIPELINE.replace(
       "throw new ReelPreflightBlockedError([generationHoldReason(blocked, \"enqueue\")]);",
