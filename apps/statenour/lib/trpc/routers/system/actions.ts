@@ -39,7 +39,7 @@ export const actionsProcedures = {
    */
   getApprovalsNeedingReview: operatorProcedure.query(async () => {
     const now = Date.now();
-    return prisma.approvalRequest.findMany({
+    const rows = await prisma.approvalRequest.findMany({
       where: {
         OR: [
           { status: "needs_review", updatedAt: { gte: new Date(now - APPROVAL_REVIEW_WINDOW_MS) } },
@@ -50,6 +50,8 @@ export const actionsProcedures = {
       orderBy: { updatedAt: "desc" },
       take: 50,
     });
+    // resultPayload as unknown: the inferred Prisma Json type is too deep for the client (TS2589).
+    return rows.map((r) => ({ ...r, resultPayload: r.resultPayload as unknown }));
   }),
 
   /**
