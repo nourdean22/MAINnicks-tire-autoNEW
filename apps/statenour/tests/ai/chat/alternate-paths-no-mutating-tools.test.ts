@@ -1,0 +1,198 @@
+/**
+ * tests/ai/chat/alternate-paths-no-mutating-tools.test.ts · 2026-10-10
+ * (audit 04-F5, 04-F7 server half)
+ *
+ * THE DEFECT: the sampled lanes (verified regen: up to 2 generations;
+ * self-consistency: 3) spread `genBase`, whose `tools` was the turn's full
+ * prunedTools, so every sample could EXECUTE a write (createTask ran once per
+ * sample). Then an empty winner or a throw fell through to the main
+ * streamText path, which got the same tools and could run it again.
+ *
+ * Pinned:
+ *   1. Regen and self-consistency samples never see a mutating tool (they
+ *      still see reads), so a write runs 0 times across the samples.
+ *   2. With no write executed, the fall-through leaves the main stream's tools
+ *      intact (its single execution is the only one).
+ *   3. The single-generation pre-flush lane keeps its tools, but if it ran a
+ *      write and then fell through (empty text or a throw), the main stream
+ *      gets the read-only set, so the write is not offered a second time.
+ */
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const flags: Record<string, boolean> = {};
+vi.mock("@/lib/feature-flags", () => ({ getFlag: (k: string) => ({ isOn: flags[k] ?? false }) }));
+
+const generateText = vi.fn();
+vi.mock("ai", () => ({ generateText: (...a: unknown[]) => generateText(...a), stepCountIs: () => () => false }));
+vi.mock("@/lib/observability/langfuse", () => ({ langfuseTelemetry: () => ({}) }));
+vi.mock("@/lib/services/chat/persist-assistant-turn", () => ({ buildOnFinish: () => async () => undefined }));
+vi.mock("@/lib/ai/chat/simulate-stream-from-text", () => ({
+  simulateStreamFromText: () => new Response("stream"),
+  simulateReasoningStream: () => new Response("reasoning"),
+}));
+vi.mock("@/lib/services/chat/response-shape", () => ({ buildChatResponse: ({ streamResponse }: { streamResponse: Response }) => streamResponse }));
+vi.mock("@/lib/ai/chat/pre-stream-regen", () => ({
+  shouldGateForIntent: () => true,
+  // Drive BOTH generations, then return an empty winner so the turn falls through.
+  maybePreStreamRegen: async (o: { generateOnce: () => Promise<string>; regenOnce: (a: { suggestedSystemPrefix: string }) => Promise<string> }) => {
+    await o.generateOnce();
+    await o.regenOnce({ suggestedSystemPrefix: "be better" });
+    return {
+      text: "",
+      regenFired: true,
+      regenScore: null,
+      regenWasBetter: false,
+      selectionReason: "test",
+      firstScore: { overall: 0 },
+      firstAssessment: { severity: "low" },
+      regenAssessment: null,
+    };
+  },
+  formatRegenTelemetry: () => ({ metric: "m", value: 0, unit: "count", tags: {}, source: "test" }),
+}));
+vi.mock("@/lib/services/metrics", () => ({ recordMetric: async () => undefined }));
+vi.mock("@/lib/ai/chat/self-consistency", () => ({
+  selfConsistentAnswer: async ({ samples, generate }: { samples: number; generate: () => Promise<string> }) => {
+    for (let i = 0; i < samples; i++) await generate();
+    return { answer: "", agreed: false, samples };
+  },
+}));
+vi.mock("@/lib/ai/chat/multi-agent-detect", () => ({ isMultiPartQuestion: () => false, runAutoDecompose: vi.fn() }));
+vi.mock("@/lib/ai/chat/named-source-claims", () => ({ checkNamedSources: () => ({ claims: [], unreceipted: [], blind: false }) }));
+vi.mock("@/lib/ai/chat/output-guardian", () => ({ shapeCeiling: () => 400 }));
+vi.mock("@/lib/ai/chat/gate-enforcement", () => ({
+  enforceGate: ({ draft }: { draft: string }) => ({ text: draft, verdict: "pass", usedFallback: false, actions: [] }),
+}));
+
+import { runAlternatePaths } from "@/app/api/ai/chat/alternate-paths";
+
+type ToolLike = { execute: (a: unknown, o?: unknown) => Promise<unknown> };
+let createTaskRuns = 0;
+let readRuns = 0;
+function freshTools(): Record<string, ToolLike> {
+  return {
+    createTask: { execute: async () => ((createTaskRuns += 1), { ok: true, id: "task_1" }) },
+    getHealthToday: { execute: async () => ((readRuns += 1), { steps: 1 }) },
+  };
+}
+
+/** A model that calls every tool it is offered, then answers with `text`. */
+function modelThatUsesItsTools(text: string, thenThrow = false) {
+  return async (cfg: { tools?: Record<string, ToolLike> }) => {
+    const offered = Object.keys(cfg.tools ?? {});
+    for (const name of offered) await cfg.tools![name].execute({ title: "x" }, {});
+    if (thenThrow) throw new Error("provider dropped the stream");
+    return { text, toolCalls: offered.map((toolName) => ({ toolName })), toolResults: [] };
+  };
+}
+
+const log = { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() };
+const base = (userContent: string, prunedTools: Record<string, ToolLike>, intent = "factual") =>
+  ({
+    persistBase: {},
+    provider: "openai",
+    modelId: "m",
+    model: {},
+    sanitizedModelMessages: [],
+    prunedTools,
+    mode: "standard",
+    maxOutputTokens: 0,
+    userContent,
+    finalSystemPrompt: "sys",
+    turnSignal: { intent, complexity: "simple", outputShape: "prose", urgency: "low", domain: "personal", temperature: 0.4, useChainOfThought: false, useTwoPassCritique: false, reasons: [] },
+    actionIntent: null,
+    toolsExpected: false,
+    convId: "c1",
+    traceId: "t1",
+    modeOverride: undefined,
+    personality: "x",
+    classification: {},
+    recalledHits: [],
+    detectedContradictions: [],
+    deeperContextCount: 0,
+    deeperContextTypes: [],
+    contextBlocksFired: {},
+    privateMode: false,
+    log,
+  }) as unknown as Parameters<typeof runAlternatePaths>[0];
+
+const offeredTools = () => generateText.mock.calls.map((c) => Object.keys((c[0] as { tools?: object }).tools ?? {}));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  for (const k of Object.keys(flags)) delete flags[k];
+  createTaskRuns = 0;
+  readRuns = 0;
+  generateText.mockImplementation(modelThatUsesItsTools(""));
+});
+
+describe("sampled lanes never execute a write", () => {
+  it("verified regen: both generations see reads but no createTask; 0 executions; the fall-through keeps the main stream's tools", async () => {
+    flags.NICK_VERIFIED_REGEN = true;
+    const tools = freshTools();
+    expect(await runAlternatePaths(base("what did I decide about the shop hours", tools, "decision"))).toBeNull();
+    expect(generateText).toHaveBeenCalledTimes(2);
+    for (const offered of offeredTools()) {
+      expect(offered).toContain("getHealthToday");
+      expect(offered).not.toContain("createTask");
+    }
+    expect(createTaskRuns).toBe(0);
+    expect(readRuns).toBe(2);
+    // Nothing was written, so the main stream may still make the one real call.
+    expect(Object.keys(tools)).toEqual(["createTask", "getHealthToday"]);
+  });
+
+  it("self-consistency: three samples, none sees createTask, 0 executions", async () => {
+    flags.NICK_SELF_CONSISTENCY = true;
+    const tools = freshTools();
+    expect(await runAlternatePaths(base("how many open tasks do I have", tools, "factual"))).toBeNull();
+    expect(generateText).toHaveBeenCalledTimes(3);
+    for (const offered of offeredTools()) expect(offered).not.toContain("createTask");
+    expect(createTaskRuns).toBe(0);
+  });
+});
+
+describe("a lane that already wrote is not re-run by the main stream", () => {
+  const HIGH = "recommend 5 podcasts on stoicism worth following";
+
+  it("pre-flush ran createTask, then produced no text: the main stream gets the read-only set", async () => {
+    flags.NICK_EVIDENCE_PREFLUSH = true;
+    flags.NICK_EVIDENCE_ENFORCEMENT = true;
+    const tools = freshTools();
+    expect(await runAlternatePaths(base(HIGH, tools))).toBeNull();
+    expect(createTaskRuns).toBe(1);
+    expect(Object.keys(tools)).toEqual(["getHealthToday"]);
+    expect(log.warn).toHaveBeenCalledWith("alt_lane_write_fallthrough", expect.objectContaining({ ran: ["createTask"] }));
+  });
+
+  it("pre-flush ran createTask, then threw: the main stream gets the read-only set", async () => {
+    flags.NICK_EVIDENCE_PREFLUSH = true;
+    flags.NICK_EVIDENCE_ENFORCEMENT = true;
+    generateText.mockImplementation(modelThatUsesItsTools("", true));
+    const tools = freshTools();
+    expect(await runAlternatePaths(base(HIGH, tools))).toBeNull();
+    expect(createTaskRuns).toBe(1);
+    expect(Object.keys(tools)).toEqual(["getHealthToday"]);
+  });
+
+  it("positive control: pre-flush that only READ and fell through leaves the tools alone", async () => {
+    flags.NICK_EVIDENCE_PREFLUSH = true;
+    flags.NICK_EVIDENCE_ENFORCEMENT = true;
+    const tools = { getHealthToday: freshTools().getHealthToday, createTask: { execute: async () => ({}) } };
+    generateText.mockImplementation(async (cfg: { tools?: Record<string, ToolLike> }) => {
+      await cfg.tools!.getHealthToday.execute({}, {});
+      return { text: "", toolCalls: [{ toolName: "getHealthToday" }], toolResults: [] };
+    });
+    expect(await runAlternatePaths(base(HIGH, tools))).toBeNull();
+    expect(Object.keys(tools).sort()).toEqual(["createTask", "getHealthToday"]);
+  });
+
+  it("positive control: pre-flush that wrote AND answered ships its reply (no fall-through, nothing to strip)", async () => {
+    flags.NICK_EVIDENCE_PREFLUSH = true;
+    flags.NICK_EVIDENCE_ENFORCEMENT = true;
+    generateText.mockImplementation(modelThatUsesItsTools("Here are five podcasts."));
+    const tools = freshTools();
+    expect(await runAlternatePaths(base(HIGH, tools))).toBeInstanceOf(Response);
+    expect(createTaskRuns).toBe(1);
+  });
+});
