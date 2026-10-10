@@ -7,6 +7,15 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Pipeline controls: run any cron job now, advance one reel now (2026-10-10, PR after #2971) -- BUILT + TESTED; PR open
+
+Live proofs landed the same morning: the lane fix (#2966) parked Reel #1 as `qa_parked:unavailable_stale` on the 13:01Z pulse (selected: none) after a day of hourly re-selection; the voted critic (#2952) judged its first pipeline reel with `runs 3 / agreedBlocks 3 / droppedBlocks 2`; the Seedance 2.5 test reel 2070005 (craft 80) was published on the operator's instruction under a recorded override as https://www.instagram.com/reel/DeUMKRVgnQl/.
+
+Operator: "that seems obsolete, make it an option, full controllability". The 15-minute pulse was the only server-side trigger; reel-pipeline is not on the staged-trigger list, so even the admin key could not fire it.
+
+- **Action Center > Pipeline controls:** reels in flight lead (status, age in state, clips/beats, which verdicts exist) with one button each for the one step the status allows (Generate now / Assemble now / Run QA now); then Run the pipeline tick, Run the daily post pulse, and every registered job on demand. Steps start in the background and run the tick's own code scoped to one job; no gate is skipped.
+- **`contentAdmin.listCronJobs / runCronJobNow / reelJobsInFlight / advanceReelJobNow`**, policy in `services/pipelineControls.ts` (refuses by name). **`POST /api/admin/run-cron`** behind the admin key for headless use; 404 names the registered jobs.
+- Pins: `server/pipelineControls.test.ts` (6), `server/pipelineControlsWiring.test.ts` (7).
 ## One ask per reel is enforced before the spend (2026-10-10, PR #2972) -- MERGED (main `d03914ae3`, 13:40Z); Railway deployment `427b8c18` SUCCESS, `/api/health` healthy on `d03914ae3` with the database up at 13:51:38Z (uptime 29 s)
 
 The Seedance 2.5 test reel #2 (reel_jobs 2070005, brief ai-1791631412867) was refused by assembly's ask-consistency gate after five clips were rendered and paid for: the generator declared `ask.kind = profile` (end card "MORE IN OUR BIO") while its caption read "Send this to someone whose tires look smooth." -- two different asks on two surfaces (`shared/reelAsk.ts`). Enqueue preflight did not look at the caption, the refusal recurred three times inside one pulse (the pulse re-picks the same oldest `assets_ready` row), and the attempts ladder parked the job `failed` with the clips intact. The operator repaired it by hand.
