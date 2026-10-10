@@ -1338,6 +1338,8 @@ export const brainRouter = router({
           event: ActionEvent,
           /** 2026-10-02 · the chip's IntelligenceOutcome row (census E11). */
           ledgerId: z.string().min(1).max(64).optional(),
+          /** 2026-10-10 · audit 06-F2: the chip's ledger summary, sent when `ledgerId` is null. */
+          ledgerSummary: z.string().min(1).max(2000).optional(),
           delaySeconds: z
             .number()
             .int()
@@ -1370,11 +1372,12 @@ export const brainRouter = router({
         // write, which stays the 7d suppression source and the calibration
         // readers' input.
         const decision = input.event === "dismissed" ? "dismissed" : input.event === "deferred" ? null : "accepted";
-        if (input.ledgerId && decision) {
-          const ledgerId = input.ledgerId;
+        if ((input.ledgerId || input.ledgerSummary) && decision) {
+          const ledgerId = input.ledgerId ?? null;
+          const ledgerSummary = input.ledgerSummary ?? null;
           void (async () => {
             const { recordDecisionFromEvidence } = await import("@/lib/services/outcome-ledger");
-            await recordDecisionFromEvidence(ledgerId, decision);
+            await recordDecisionFromEvidence(ledgerId, decision, ledgerSummary);
           })().catch(() => {
             /* ledger failure never fails the tap */
           });

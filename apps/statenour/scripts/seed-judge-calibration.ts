@@ -12,7 +12,38 @@ Module._resolveFilename = function (request: string, ...args: unknown[]) {
 import { prisma } from "../lib/prisma";
 import { BRAIN_CATEGORIES } from "../lib/brain/categories";
 
+/**
+ * Guard (audit 2026-10-10, 06-F6). This script writes 30 FABRICATED thumbs and
+ * 30 comparisons tuned to 86.7% agreement, and every worktree binds the
+ * production DATABASE_URL. Refuse unless ALLOW_CALIBRATION_SEED=1 AND the host
+ * is not Neon (production) -- a Neon dev branch is allowed only when
+ * CALIBRATION_SEED_NON_PROD_HOST names that exact host. Fails closed on a
+ * missing or unparseable URL. Returns the refusal reason, or null to proceed.
+ */
+export function calibrationSeedRefusal(env: Record<string, string | undefined>): string | null {
+  if (env.ALLOW_CALIBRATION_SEED !== "1") {
+    return "refusing: set ALLOW_CALIBRATION_SEED=1 to seed fabricated calibration labels";
+  }
+  let host: string;
+  try {
+    host = new URL(env.DATABASE_URL ?? "").hostname.toLowerCase();
+  } catch {
+    return "refusing: DATABASE_URL is missing or unparseable (fail closed)";
+  }
+  if (!host) return "refusing: DATABASE_URL has no host (fail closed)";
+  if (host.includes("neon.tech") && env.CALIBRATION_SEED_NON_PROD_HOST?.toLowerCase() !== host) {
+    return `refusing: ${host} is a Neon host (production); set CALIBRATION_SEED_NON_PROD_HOST=${host} only if it is a non-prod branch`;
+  }
+  return null;
+}
+
 async function main() {
+  const refusal = calibrationSeedRefusal(process.env);
+  if (refusal) {
+    console.error(refusal);
+    process.exitCode = 1;
+    return;
+  }
   console.log("Seeding calibration data...");
   const since = new Date(Date.now() - 30 * 86_400_000); // 30 days ago
 
@@ -135,6 +166,9 @@ async function main() {
   console.log("Calibration seeding complete!");
 }
 
-main()
-  .catch(console.error)
-  .finally(() => prisma.$disconnect());
+// Run only as a script, never on import (tests import the guard).
+if (/seed-judge-calibration\.[cm]?[jt]s$/.test(process.argv[1] ?? "")) {
+  main()
+    .catch(console.error)
+    .finally(() => prisma.$disconnect());
+}

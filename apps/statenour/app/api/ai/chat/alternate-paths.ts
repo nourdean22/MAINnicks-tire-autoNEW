@@ -508,8 +508,8 @@ export async function runAlternatePaths(args: {
             turnSignal.intent as Parameters<typeof formatRegenTelemetry>[1],
             turnSignal.outputShape,
           );
-          const { recordMetric } = await import("@/lib/services/metrics");
-          await recordMetric(regenMetric.metric, regenMetric.value, {
+          const { recordMetricStrict } = await import("@/lib/services/metrics");
+          await recordMetricStrict(regenMetric.metric, regenMetric.value, {
             unit: regenMetric.unit,
             tags: { ...regenMetric.tags, traceId },
             source: regenMetric.source,

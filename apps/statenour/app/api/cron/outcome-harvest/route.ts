@@ -45,7 +45,11 @@ export const GET = cronHandler(async () => {
     where: CORRECTION_WHERE,
   });
 
-  // Supplementary correction-shaped labels (same sources as the script).
+  // Supplementary correction-shaped labels: the operator pushed BACK. An
+  // `acted` tap and a thumbs-up are agreement, not corrections, and the seeded
+  // calibration rows (scripts/seed-judge-calibration.ts: msg_calibration_* /
+  // comparison_calibration_*) are not operator labels (audit 2026-10-10,
+  // 06 §4 + F6). scripts/corpus-odometer.ts still counts the old way.
   const suggestionRows = await prisma.brainMemory.findMany({
     where: { category: "suggestion_loop", deletedAt: null },
     select: { metadata: true },
@@ -61,11 +65,14 @@ export const GET = cronHandler(async () => {
     const action = String(meta?.event ?? meta?.action ?? "none");
     tapCounts[action] = (tapCounts[action] ?? 0) + 1;
   }
-  const suggestionVerdicts =
-    (tapCounts.acted ?? 0) + (tapCounts.dismissed ?? 0) + (tapCounts.modified ?? 0);
+  const suggestionVerdicts = (tapCounts.dismissed ?? 0) + (tapCounts.modified ?? 0);
 
   const comparisonRows = await prisma.brainMemory.findMany({
-    where: { category: "prompt_comparison_run", deletedAt: null },
+    where: {
+      category: "prompt_comparison_run",
+      deletedAt: null,
+      NOT: { key: { startsWith: "comparison_calibration_" } },
+    },
     select: { metadata: true },
     take: 5000,
   });
@@ -75,7 +82,7 @@ export const GET = cronHandler(async () => {
   }).length;
 
   const thumbs = await prisma.chatMessage.count({
-    where: { feedbackScore: { not: null } },
+    where: { feedbackScore: -1, NOT: { id: { startsWith: "msg_calibration_" } } },
   });
 
   const supplementary = suggestionVerdicts + abLabels + thumbs;
@@ -100,7 +107,7 @@ export const GET = cronHandler(async () => {
     ` labeled eval cases ${labeledCases < 0 ? "unknown (count failed)" : `${labeledCases}/${LABELED_TRIGGER}`}` +
     ` (noise-verdict discoveries -> forbiddenKeys — the eval decision-grade gate);` +
     ` supplementary correction-shaped labels ${supplementary}` +
-    ` (suggestion verdicts ${suggestionVerdicts} · A/B labels ${abLabels} · chat thumbs ${thumbs});` +
+    ` (suggestion dismiss/modify ${suggestionVerdicts} · A/B labels ${abLabels} · chat thumbs-down ${thumbs});` +
     ` 30d ledger flow: shown ${stats?.shown ?? "unknown"} · decided ${stats?.decided ?? "unknown"}` +
     ` · useful true/false ${stats?.usefulTrue ?? "?"}/${stats?.usefulFalse ?? "?"}.`;
 

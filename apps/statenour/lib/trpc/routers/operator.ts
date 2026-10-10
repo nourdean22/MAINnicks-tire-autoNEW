@@ -1764,19 +1764,26 @@ export const operatorRouter = router({
    */
   recordRecommendationDecision: operatorProcedure
     .input(
-      z.object({
-        ledgerId: z.string().min(1).max(64),
-        decision: z.enum(["accepted", "dismissed"]),
-        resultRef: z.string().min(1).max(200).optional(),
-      }),
+      z
+        .object({
+          // Absent when the bounded ledger write answered late (audit 2026-10-10,
+          // 06-F2): the client then sends the summary the row was ledgered under.
+          ledgerId: z.string().min(1).max(64).optional(),
+          summary: z.string().min(1).max(2000).optional(),
+          decision: z.enum(["accepted", "dismissed"]),
+          resultRef: z.string().min(1).max(200).optional(),
+        })
+        .refine((v) => Boolean(v.ledgerId || v.summary), { message: "ledgerId or summary required" }),
     )
     .mutation(async ({ input }) => {
-      const { recordDecision } = await import("@/lib/services/outcome-ledger");
-      const recorded = await recordDecision({
-        id: input.ledgerId,
-        decision: input.decision,
-        resultRef: input.resultRef ?? null,
-      });
+      const { recordDecision, recordDecisionByContent } = await import("@/lib/services/outcome-ledger");
+      const recorded = input.ledgerId
+        ? await recordDecision({
+            id: input.ledgerId,
+            decision: input.decision,
+            resultRef: input.resultRef ?? null,
+          })
+        : await recordDecisionByContent(input.summary ?? "", input.decision, input.resultRef ?? null);
       return { ok: true, recorded };
     }),
 

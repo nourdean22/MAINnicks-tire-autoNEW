@@ -16,7 +16,7 @@
  * from the service worker, so the session cookie rides along.
  */
 import { requireSession } from "@/lib/auth-guard";
-import { recordOutcome } from "@/lib/services/outcome-ledger";
+import { recordOutcomeResult } from "@/lib/services/outcome-ledger";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -40,9 +40,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "useful must be boolean" }, { status: 400 });
   }
 
-  // recordOutcome only updates rows with `outcomeAt: null`, so a second tap on
-  // the same notification returns false rather than overwriting the first
-  // verdict. Report that distinctly instead of as a failure.
-  const recorded = await recordOutcome({ id, useful: body.useful });
-  return NextResponse.json({ ok: true, recorded, alreadyRated: !recorded });
+  // First verdict wins: a second tap on the same notification is `already`,
+  // reported distinctly. A failed write (DB error, unknown id) is NOT "already
+  // rated" (audit 2026-10-10, 06-F8) -- it is a 503 the caller can retry.
+  const result = await recordOutcomeResult({ id, useful: body.useful });
+  if (result === "failed") {
+    return NextResponse.json({ ok: false, recorded: false, alreadyRated: false, error: "could not record" }, { status: 503 });
+  }
+  return NextResponse.json({ ok: true, recorded: result === "recorded", alreadyRated: result === "already" });
 }

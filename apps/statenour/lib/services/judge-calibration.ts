@@ -226,6 +226,8 @@ export async function buildJudgeCalibration(
         category: BRAIN_CATEGORIES.PROMPT_COMPARISON_RUN,
         deletedAt: null,
         createdAt: { gte: since },
+        // scripts/seed-judge-calibration.ts fabricates these (audit 06-F6).
+        NOT: { key: { startsWith: "comparison_calibration_" } },
       },
       orderBy: { createdAt: "desc" },
       take: 5000,
@@ -261,7 +263,7 @@ export async function buildJudgeCalibration(
     // 2. Batch-fetch feedback scores for the source messages we have.
     const sourceIds = tuples
       .map((t) => t.sourceMessageId)
-      .filter((id): id is string => Boolean(id));
+      .filter((id): id is string => typeof id === "string" && id.length > 0 && !id.startsWith("msg_calibration_"));
 
     const feedbackByMessageId = new Map<string, number | null>();
     if (sourceIds.length > 0) {

@@ -131,20 +131,26 @@ function MissionsPageInner() {
   // alternate is `dismissed`. Fire-and-forget beside the action — the 2-week
   // client telemetry below stays as the surface-usage instrument; this is the
   // durable learning row (docs/design/outcome-ledger-coverage-2026-10-02.md §5).
+  // No id (the bounded ledger write answered late) → send the summary the row
+  // was ledgered under and the server decides by content (audit 2026-10-10,
+  // 06-F2); it must match nextMoveLedgerSummary in lib/missions/deck.ts.
   const decideRecommendation = trpc.operator.recordRecommendationDecision.useMutation();
   const recordDeckDecision = useCallback(
-    (decision: "accepted" | "dismissed", taskId: string | null) => {
-      const ledgerId = deck?.nextMove?.ledgerId;
-      if (!ledgerId) return;
-      decideRecommendation.mutate({ ledgerId, decision, ...(taskId ? { resultRef: `task:${taskId}` } : {}) });
+    (decision: "accepted" | "dismissed", resultRef: string | null) => {
+      const nextMove = deck?.nextMove;
+      if (!nextMove) return;
+      const target = nextMove.ledgerId
+        ? { ledgerId: nextMove.ledgerId }
+        : { summary: `${nextMove.kind === "resume" ? "resume" : "next move"}: ${nextMove.task.title}` };
+      decideRecommendation.mutate({ ...target, decision, ...(resultRef ? { resultRef } : {}) });
     },
-    [deck?.nextMove?.ledgerId, decideRecommendation],
+    [deck?.nextMove, decideRecommendation],
   );
 
   const handleStartMove = useCallback(
     async (taskId: string) => {
       telemetry.event("deckStartMove", { taskId });
-      if (taskId === deck?.nextMove?.task.id) recordDeckDecision("accepted", taskId);
+      if (taskId === deck?.nextMove?.task.id) recordDeckDecision("accepted", `task:${taskId}`);
       setQueuedTaskId(taskId);
       await actions.handleStartTask(taskId);
       setExecutionModeActive(true);
@@ -155,10 +161,11 @@ function MissionsPageInner() {
   const handlePickDifferent = useCallback(
     (taskId: string) => {
       telemetry.event("deckPickDifferent", { taskId });
-      // No resultRef on a dismissal: `task:<alt>` on the HERO's row let the
+      // Never `task:<alt>` on a dismissal: on the HERO's row it let the
       // alternate's completion rating close the dismissed recommendation as
-      // useful (recordOutcomeByResultRef matches resultRef alone).
-      recordDeckDecision("dismissed", null);
+      // useful. The reason `alternative` keeps it out of CORRECTION_WHERE
+      // (choosing another move is not a verdict on this one, audit 06-F5).
+      recordDeckDecision("dismissed", "dismiss:alternative");
       setQueuedTaskId(taskId);
       const alt = tasks.find((t) => t.id === taskId);
       toast.success(`“${alt?.title ?? "Task"}” is the move — start when ready.`);

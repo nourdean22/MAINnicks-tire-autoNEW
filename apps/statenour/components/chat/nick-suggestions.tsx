@@ -76,6 +76,8 @@ interface NickSuggestion {
   label: string;
   seedPrompt: string;
   ledgerId?: string | null;
+  /** The summary the chip was ledgered under; decides by content when the id is null. */
+  ledgerSummary?: string;
   actionHint?: string;
 }
 
@@ -162,7 +164,9 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
   // 2026-10-02 · outcome-ledger census E11: the chip's ledger row id rides
   // along so the tap decides the row in the main ledger too (server derives
   // the task resultRef from the row's evidence).
-  type ChipMeta = { kind: NickSuggestion["kind"]; id: string; ledgerId?: string | null };
+  // 2026-10-10 · audit 06-F2: a late ledger hands the chip a null id; the tap
+  // then carries the chip's ledger summary and the server decides by content.
+  type ChipMeta = { kind: NickSuggestion["kind"]; id: string; ledgerId?: string | null; ledgerSummary?: string };
   const recordTap = useCallback(
     (meta: ChipMeta) => {
       signalMutation.mutate({
@@ -170,7 +174,7 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
         suggestionId: meta.id,
         suggestionKind: meta.kind,
         event: "acted",
-        ...(meta.ledgerId ? { ledgerId: meta.ledgerId } : {}),
+        ...(meta.ledgerId ? { ledgerId: meta.ledgerId } : meta.ledgerSummary ? { ledgerSummary: meta.ledgerSummary } : {}),
       });
     },
     [signalMutation],
@@ -183,7 +187,7 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
         suggestionId: meta.id,
         suggestionKind: meta.kind,
         event: "dismissed",
-        ...(meta.ledgerId ? { ledgerId: meta.ledgerId } : {}),
+        ...(meta.ledgerId ? { ledgerId: meta.ledgerId } : meta.ledgerSummary ? { ledgerSummary: meta.ledgerSummary } : {}),
       });
     },
     [signalMutation],
@@ -274,7 +278,7 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
           >
             <button
               type="button"
-              onClick={() => handleSeed(s.seedPrompt, { kind: s.kind, id: s.id, ledgerId: s.ledgerId })}
+              onClick={() => handleSeed(s.seedPrompt, { kind: s.kind, id: s.id, ledgerId: s.ledgerId, ledgerSummary: s.ledgerSummary })}
               aria-label={`${s.label} · tap to ${s.actionHint ?? "ask"}`}
               title={s.seedPrompt}
               className="inline-flex min-h-11 items-center gap-1.5 px-3 py-1.5 focus:outline-none sm:min-h-8"
@@ -297,7 +301,7 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
             <button
               type="button"
               onClick={() => {
-                recordDismiss({ kind: s.kind, id: s.id, ledgerId: s.ledgerId });
+                recordDismiss({ kind: s.kind, id: s.id, ledgerId: s.ledgerId, ledgerSummary: s.ledgerSummary });
                 setDismissedIds((prev) => {
                   const next = new Set(prev);
                   next.add(s.id);

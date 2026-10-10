@@ -86,13 +86,21 @@ export function caseFromRejectedOutcome(row: {
   summary: string;
   decision: string | null;
   outcomeUseful: boolean | null;
+  evidenceRefs?: unknown;
 }): RecallEvalCase {
   const why = row.decision === "dismissed" ? "dismissed" : "marked not useful";
+  // 2026-10-10 (audit 06-F12): the memory row(s) the rejected recommendation
+  // surfaced are the distractors a good retriever must not inject. Without
+  // them the case can never fail. No producer writes memoryKey(s) yet.
+  const ev = (row.evidenceRefs ?? {}) as { memoryKey?: unknown; memoryKeys?: unknown };
+  const forbiddenKeys = [ev.memoryKey, ...(Array.isArray(ev.memoryKeys) ? ev.memoryKeys : [])].filter(
+    (k): k is string => typeof k === "string" && k.length > 0,
+  );
   return {
     id: `real-outcome-${slug(row.id)}`,
     query: row.summary.slice(0, 240),
     relevantKeys: [],
-    forbiddenKeys: [],
+    forbiddenKeys,
     kind: "abstention",
     provenance: `outcome:${row.id} · ${row.sourceEngine} ${row.kind} ${why}`,
     acceptableAbstention: true,
@@ -559,6 +567,7 @@ export async function buildRealRecallCases(): Promise<RealCorpusResult> {
           summary: true,
           decision: true,
           outcomeUseful: true,
+          evidenceRefs: true,
         },
       }),
     ),

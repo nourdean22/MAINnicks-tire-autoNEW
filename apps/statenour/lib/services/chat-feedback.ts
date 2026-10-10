@@ -8,19 +8,19 @@
  * function · drift between the two consumers is structurally
  * impossible. Same shared-service pattern as Z / DD / EE / GG.
  *
- * Records a thumbs up/down on an assistant message · feeds the router
- * learning loop ground truth. On a non-null score it ALSO writes a
- * fire-and-forget BrainMemory row (today's contextual recall reads
- * it) + an AuditEvent row (the nightly learner cron joins on it).
+ * Records a thumbs up/down on an assistant message. Every write (set, flip
+ * or clear) ALSO fires a Langfuse `operator_thumb` score (a clear is 0), an
+ * upserted BrainMemory `feedback:<messageId>` row (today's contextual recall
+ * reads it) and an append-only AuditEvent. No cron reads the AuditEvent
+ * stream today: the weekly preference tuner that did was orphaned by the cron
+ * prune f87fb7e62 and deleted 2026-10-10 (audit 06-F10).
  *
- * Behaviour preserved verbatim from the route (v10.0.515-518):
  *   · score null / 0 → clears the score
  *   · score ±1       → sets it
  *   · invalid score  → InvalidFeedbackScoreError (route 400)
- *   · 3-tier messageId resolution:
- *       1. by exact id
- *       2. by conversationId · latest assistant
- *       3. latest assistant message created in the last 60s
+ *   · messageId resolution: 1. by exact id; 2. by conversationId · latest
+ *     assistant. (The third tier, "latest assistant message anywhere in the
+ *     last 60s", could label another conversation's reply; removed 06-F9.)
  *   · unresolved id  → MessageFeedbackNotFoundError (route 404)
  */
 
@@ -35,7 +35,7 @@ export class InvalidFeedbackScoreError extends Error {
   }
 }
 
-/** Thrown when no message resolves via any of the 3 fallback tiers. */
+/** Thrown when no message resolves by id or by the named conversation. */
 export class MessageFeedbackNotFoundError extends Error {
   constructor(message = "message not found") {
     super(message);
@@ -87,16 +87,8 @@ export async function recordMessageFeedback(
       select: { id: true, conversationId: true, role: true },
     });
   }
-  if (!existing) {
-    existing = await prisma.chatMessage.findFirst({
-      where: {
-        role: "assistant",
-        createdAt: { gte: new Date(Date.now() - 60_000) },
-      },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, conversationId: true, role: true },
-    });
-  }
+  // No third tier (audit 2026-10-10, 06-F9): "the latest assistant message
+  // anywhere in the last 60 s" could label another conversation's reply.
   if (!existing) {
     throw new MessageFeedbackNotFoundError();
   }
@@ -108,83 +100,84 @@ export async function recordMessageFeedback(
   });
 
   // Fire-and-forget: persist a brain_memory note + AuditEvent for the
-  // learning loop. Negative feedback gets higher confidence.
-  if (nextScore != null) {
-    const fullMsg = await prisma.chatMessage
-      .findUnique({
-        where: { id: updated.id },
-        select: { tokenUsage: true, model: true, content: true },
-      })
-      .catch(() => null);
-    const usage = (fullMsg?.tokenUsage ?? {}) as Record<string, unknown>;
+  // learning loop. Negative feedback gets higher confidence. A CLEAR is
+  // recorded too (audit 2026-10-10, 06-F9): the retraction must reach the
+  // AuditEvent stream and Langfuse, or the old verdict stands there forever.
+  const fullMsg = await prisma.chatMessage
+    .findUnique({
+      where: { id: updated.id },
+      select: { tokenUsage: true, model: true, content: true },
+    })
+    .catch(() => null);
+  const usage = (fullMsg?.tokenUsage ?? {}) as Record<string, unknown>;
 
-    const reason =
-      typeof args.reason === "string" && args.reason.length > 0
-        ? args.reason.slice(0, 1000)
-        : null;
-    const snippet =
-      typeof args.snippet === "string" && args.snippet.length > 0
-        ? args.snippet.slice(0, 200)
-        : (fullMsg?.content ?? "").slice(0, 200);
+  const reason =
+    typeof args.reason === "string" && args.reason.length > 0
+      ? args.reason.slice(0, 1000)
+      : null;
+  const snippet =
+    typeof args.snippet === "string" && args.snippet.length > 0
+      ? args.snippet.slice(0, 200)
+      : (fullMsg?.content ?? "").slice(0, 200);
 
-    const payload = {
-      messageId: updated.id,
-      conversationId: updated.conversationId,
-      score: nextScore,
-      rating: nextScore > 0 ? "up" : "down",
-      reason,
-      snippet,
-      model: fullMsg?.model ?? null,
-      provider: typeof usage.provider === "string" ? usage.provider : null,
-      persona: typeof usage.persona === "string" ? usage.persona : null,
-      traceId: typeof usage.traceId === "string" ? usage.traceId : null,
-      at: new Date().toISOString(),
-    };
+  const payload = {
+    messageId: updated.id,
+    conversationId: updated.conversationId,
+    score: nextScore,
+    rating: nextScore == null ? "cleared" : nextScore > 0 ? "up" : "down",
+    reason,
+    snippet,
+    model: fullMsg?.model ?? null,
+    provider: typeof usage.provider === "string" ? usage.provider : null,
+    persona: typeof usage.persona === "string" ? usage.persona : null,
+    traceId: typeof usage.traceId === "string" ? usage.traceId : null,
+    at: new Date().toISOString(),
+  };
 
-    // U6 (2026-09-08) · the same verdict reaches Langfuse as a score on the
-    // turn's trace, so prompt/model quality can be asked THERE. Fire-and-forget.
-    void sendLangfuseScore({ traceId: payload.traceId, name: "operator_thumb", value: nextScore, comment: reason ?? undefined });
+  // U6 (2026-09-08) · the same verdict reaches Langfuse as a score on the
+  // turn's trace, so prompt/model quality can be asked THERE. A clear is 0.
+  void sendLangfuseScore({ traceId: payload.traceId, name: "operator_thumb", value: nextScore ?? 0, comment: reason ?? undefined });
 
-    // Q-32 · a thumbs-down is deterministic high-value review material.
-    // Queue the existing TRACE in the single configured Langfuse annotation
-    // queue. Missing queue config is a clean no-op.
-    if (nextScore < 0 && payload.traceId) {
-      void import("@/lib/observability/langfuse-annotation-queue")
-        .then(({ enqueueLangfuseTraceForAnnotation }) =>
-          enqueueLangfuseTraceForAnnotation(payload.traceId),
-        )
-        .catch(() => false);
-    }
-
-    // Brain memory · today's contextual recall reads this.
-    void prisma.brainMemory
-      .create({
-        data: {
-          category: "chat_feedback",
-          key: `feedback:${updated.id}`,
-          source: "chat_ui",
-          content: `score=${nextScore} on message ${updated.id} in conv ${updated.conversationId.slice(0, 8)}${reason ? ` · reason: ${reason}` : ""}`,
-          confidence: nextScore < 0 ? 0.85 : 0.6,
-          metadata: payload as unknown as Parameters<
-            typeof prisma.brainMemory.create
-          >[0]["data"]["metadata"],
-        },
-      })
-      .catch(() => undefined);
-
-    // AuditEvent stream for the learner cron · append-only · pinned
-    // to messageId so the cron can join back to ChatMessage.
-    void prisma.auditEvent
-      .create({
-        data: {
-          actor: "operator",
-          eventType: "chat_feedback",
-          detail: `${payload.rating} · ${updated.id}`,
-          payload,
-        },
-      })
-      .catch(() => undefined);
+  // Q-32 · a thumbs-down is deterministic high-value review material.
+  // Queue the existing TRACE in the single configured Langfuse annotation
+  // queue. Missing queue config is a clean no-op.
+  if (nextScore != null && nextScore < 0 && payload.traceId) {
+    void import("@/lib/observability/langfuse-annotation-queue")
+      .then(({ enqueueLangfuseTraceForAnnotation }) =>
+        enqueueLangfuseTraceForAnnotation(payload.traceId),
+      )
+      .catch(() => false);
   }
+
+  // Brain memory · today's contextual recall reads this. Upsert, not create:
+  // on a flip the create hit the (category, key) unique and was swallowed, so
+  // recall kept the first verdict (06-F9).
+  const memory = {
+    content: `score=${nextScore ?? "cleared"} on message ${updated.id} in conv ${updated.conversationId.slice(0, 8)}${reason ? ` · reason: ${reason}` : ""}`,
+    confidence: nextScore != null && nextScore < 0 ? 0.85 : 0.6,
+    metadata: payload as unknown as Parameters<typeof prisma.brainMemory.upsert>[0]["create"]["metadata"],
+  };
+  // brain-memory-direct-write: per-message feedback telemetry keyed by message id, not a semantic memory
+  void prisma.brainMemory
+    .upsert({
+      where: { category_key: { category: "chat_feedback", key: `feedback:${updated.id}` } },
+      create: { category: "chat_feedback", key: `feedback:${updated.id}`, source: "chat_ui", ...memory },
+      update: memory,
+    })
+    .catch(() => undefined);
+
+  // AuditEvent stream · append-only · pinned to messageId so a reader can
+  // join back to ChatMessage. A clear carries score null, rating "cleared".
+  void prisma.auditEvent
+    .create({
+      data: {
+        actor: "operator",
+        eventType: "chat_feedback",
+        detail: `${payload.rating} · ${updated.id}`,
+        payload,
+      },
+    })
+    .catch(() => undefined);
 
   return {
     ok: true,

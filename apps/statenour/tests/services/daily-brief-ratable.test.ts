@@ -17,11 +17,11 @@ import { join } from "node:path";
 
 const m = vi.hoisted(() => ({
   requireSession: vi.fn(),
-  recordOutcome: vi.fn(),
+  recordOutcomeResult: vi.fn(),
 }));
 
 vi.mock("@/lib/auth-guard", () => ({ requireSession: m.requireSession }));
-vi.mock("@/lib/services/outcome-ledger", () => ({ recordOutcome: m.recordOutcome }));
+vi.mock("@/lib/services/outcome-ledger", () => ({ recordOutcomeResult: m.recordOutcomeResult }));
 
 import { POST } from "@/app/api/outcomes/rate/route";
 
@@ -36,19 +36,19 @@ const post = (body: unknown) =>
 beforeEach(() => {
   vi.clearAllMocks();
   m.requireSession.mockResolvedValue({ ok: true });
-  m.recordOutcome.mockResolvedValue(true);
+  m.recordOutcomeResult.mockResolvedValue("recorded");
 });
 
 describe("POST /api/outcomes/rate", () => {
   it("records a verdict against the ledger row", async () => {
     const res = await post({ id: "led-1", useful: true });
     expect(await res.json()).toMatchObject({ ok: true, recorded: true });
-    expect(m.recordOutcome).toHaveBeenCalledWith({ id: "led-1", useful: true });
+    expect(m.recordOutcomeResult).toHaveBeenCalledWith({ id: "led-1", useful: true });
   });
 
   it("records a NEGATIVE verdict as false, not as absence", async () => {
     await post({ id: "led-1", useful: false });
-    expect(m.recordOutcome).toHaveBeenCalledWith({ id: "led-1", useful: false });
+    expect(m.recordOutcomeResult).toHaveBeenCalledWith({ id: "led-1", useful: false });
   });
 
   it("REFUSES a missing verdict rather than defaulting to useful", async () => {
@@ -56,25 +56,25 @@ describe("POST /api/outcomes/rate", () => {
     // rate computed from this table would inherit it.
     const res = await post({ id: "led-1" });
     expect(res.status).toBe(400);
-    expect(m.recordOutcome).not.toHaveBeenCalled();
+    expect(m.recordOutcomeResult).not.toHaveBeenCalled();
   });
 
   it("refuses a non-boolean verdict", async () => {
     const res = await post({ id: "led-1", useful: "yes" });
     expect(res.status).toBe(400);
-    expect(m.recordOutcome).not.toHaveBeenCalled();
+    expect(m.recordOutcomeResult).not.toHaveBeenCalled();
   });
 
   it("refuses a missing id", async () => {
     const res = await post({ useful: true });
     expect(res.status).toBe(400);
-    expect(m.recordOutcome).not.toHaveBeenCalled();
+    expect(m.recordOutcomeResult).not.toHaveBeenCalled();
   });
 
   it("reports a second tap as alreadyRated, not as failure", async () => {
-    // recordOutcome only updates rows with outcomeAt:null, so re-tapping must
+    // recordOutcomeResult only updates rows with outcomeAt:null, so re-tapping must
     // not read as an error — nor overwrite the first verdict.
-    m.recordOutcome.mockResolvedValue(false);
+    m.recordOutcomeResult.mockResolvedValue("already");
     const res = await post({ id: "led-1", useful: true });
     expect(await res.json()).toMatchObject({ ok: true, recorded: false, alreadyRated: true });
   });
@@ -82,7 +82,7 @@ describe("POST /api/outcomes/rate", () => {
   it("is session-gated", async () => {
     m.requireSession.mockRejectedValue(new Error("unauthorized"));
     await expect(post({ id: "led-1", useful: true })).rejects.toThrow();
-    expect(m.recordOutcome).not.toHaveBeenCalled();
+    expect(m.recordOutcomeResult).not.toHaveBeenCalled();
   });
 });
 

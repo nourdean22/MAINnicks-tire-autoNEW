@@ -55,11 +55,20 @@ export function BriefLead({
   // 2026-10-02 · the lead is a ledgered recommendation (operator-brief.ts
   // ledgerLeadShown). Taking the CTA is `accepted`; picking an alternative is
   // `dismissed`. Fire-and-forget beside the navigation — a ledger failure must
-  // never cost the operator the move. No id → nothing to decide against.
+  // never cost the operator the move. No id (the bounded ledger write answered
+  // late) → send the summary the row was ledgered under and the server decides
+  // by content (audit 2026-10-10, 06-F2); it must match leadLedgerSummary in
+  // lib/home/operator-brief.ts (pinned by tests/home/lost-click-decide-by-content.test.ts).
   const decide = trpc.operator.recordRecommendationDecision.useMutation();
   const recordDecision = (decision: "accepted" | "dismissed", resultRef: string | null) => {
-    if (!lead?.ledgerId) return;
-    decide.mutate({ ledgerId: lead.ledgerId, decision, ...(resultRef ? { resultRef } : {}) });
+    if (!lead) return;
+    const target = lead.ledgerId
+      ? { ledgerId: lead.ledgerId }
+      : lead.cta
+        ? { summary: `${lead.headline}: ${lead.cta.label}` }
+        : null;
+    if (!target) return;
+    decide.mutate({ ...target, decision, ...(resultRef ? { resultRef } : {}) });
   };
 
   if (loading) {
@@ -165,7 +174,7 @@ export function BriefLead({
             <li key={alt.href + alt.label}>
               <Link
                 href={alt.href}
-                onClick={() => recordDecision("dismissed", null)}
+                onClick={() => recordDecision("dismissed", "dismiss:alternative")}
                 data-lead-decision="dismissed"
                 className={cn(
                   "group flex min-h-[52px] flex-col justify-center py-2 transition-colors duration-150",

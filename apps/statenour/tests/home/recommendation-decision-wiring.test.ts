@@ -35,14 +35,15 @@ describe("Home lead → decision", () => {
   it("the CTA records accepted with the task as resultRef; an alternative records dismissed", () => {
     expect(lead).toContain("trpc.operator.recordRecommendationDecision.useMutation()");
     expect(lead).toContain('recordDecision("accepted", lead.taskId ? `task:${lead.taskId}` : lead.cta?.href ?? null)');
-    // A dismissal carries no resultRef (bug-hunt 2026-10-02).
-    expect(lead).toContain('recordDecision("dismissed", null)');
+    // A dismissal never carries a task ref (bug-hunt 2026-10-02); since
+    // 2026-10-10 it carries its reason instead (audit 06-F5).
+    expect(lead).toContain('recordDecision("dismissed", "dismiss:alternative")');
     expect(lead).toContain('data-lead-decision="accepted"');
     expect(lead).toContain('data-lead-decision="dismissed"');
   });
 
-  it("no ledger id → no decision call (never a decision against a look-alike row)", () => {
-    expect(lead).toContain("if (!lead?.ledgerId) return;");
+  it("no ledger id → decide by the ledgered summary (audit 2026-10-10, 06-F2; tests/home/lost-click-decide-by-content.test.ts)", () => {
+    expect(lead).toMatch(/lead\.ledgerId\s*\?\s*\{ ledgerId: lead\.ledgerId \}/);
   });
 });
 
@@ -51,13 +52,13 @@ describe("Missions deck → decision", () => {
 
   it("Start on the hero records accepted; pick-different records dismissed; both carry task:<id>", () => {
     expect(page).toContain("trpc.operator.recordRecommendationDecision.useMutation()");
-    expect(page).toContain('if (taskId === deck?.nextMove?.task.id) recordDeckDecision("accepted", taskId);');
+    expect(page).toContain('if (taskId === deck?.nextMove?.task.id) recordDeckDecision("accepted", `task:${taskId}`);');
     // Pick-different dismisses the HERO with no resultRef: `task:<alternate>`
     // on the hero's row let the alternate's rating close it as useful.
-    expect(page).toContain('recordDeckDecision("dismissed", null);');
+    expect(page).toContain('recordDeckDecision("dismissed", "dismiss:alternative");');
     expect(page).not.toContain('recordDeckDecision("dismissed", taskId);');
-    expect(page).toContain("...(taskId ? { resultRef: `task:${taskId}` } : {})");
-    expect(page).toContain("if (!ledgerId) return;");
+    expect(page).toContain("...(resultRef ? { resultRef } : {})");
+    expect(page).toMatch(/nextMove\.ledgerId\s*\?\s*\{ ledgerId: nextMove\.ledgerId \}/);
   });
 });
 
@@ -139,10 +140,11 @@ describe("the census closes (wave 4: E5 scored, E6 deleted, E11 folded)", () => 
   it("E11 · the chip tap decides the chip's own ledger row; the component passes the id on tap and on dismiss", () => {
     const router = read("lib/trpc/routers/brain.ts");
     expect(router).toContain("ledgerId: z.string().min(1).max(64).optional()");
-    expect(router).toContain("recordDecisionFromEvidence(ledgerId, decision)");
+    // `, ledgerSummary` once the task-11 router patch lands (null-id tap, audit 06-F2).
+    expect(router).toMatch(/recordDecisionFromEvidence\(ledgerId, decision(, ledgerSummary)?\)/);
     const chips = read("components/chat/nick-suggestions.tsx");
-    expect(chips).toContain("handleSeed(s.seedPrompt, { kind: s.kind, id: s.id, ledgerId: s.ledgerId })");
-    expect(chips).toContain("recordDismiss({ kind: s.kind, id: s.id, ledgerId: s.ledgerId })");
+    expect(chips).toContain("handleSeed(s.seedPrompt, { kind: s.kind, id: s.id, ledgerId: s.ledgerId, ledgerSummary: s.ledgerSummary })");
+    expect(chips).toContain("recordDismiss({ kind: s.kind, id: s.id, ledgerId: s.ledgerId, ledgerSummary: s.ledgerSummary })");
     const producer = read("lib/services/nick-suggestions.ts");
     expect(producer).toContain("await ledgerChips(shown)");
   });
