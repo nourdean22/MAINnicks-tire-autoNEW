@@ -4,6 +4,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import { apiHandler } from "@/lib/utils/http";
 import { buildSituation } from "@/lib/services/ultron-situation";
 
 /**
@@ -24,7 +25,7 @@ import { buildSituation } from "@/lib/services/ultron-situation";
 
 export const revalidate = 120;
 
-export async function GET() {
+export const GET = apiHandler(async () => {
   try {
     const payload = await buildSituation();
     return NextResponse.json({ data: payload });
@@ -53,4 +54,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+}, { auth: "owner" });

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { cached } from "@/lib/utils/cache";
 import { daysAgo, toDateString } from "@/lib/utils/datetime";
@@ -71,7 +72,7 @@ async function domainPulse(domain: string, since: Date): Promise<{ score: number
   };
 }
 
-export async function GET() {
+export const GET = apiHandler(async () => {
   try {
     const payload = await cached<PulsePayload>("ultron_pulse_v1", 60, async () => {
       const fourteen = daysAgo(14);
@@ -247,4 +248,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+}, { auth: "owner" });

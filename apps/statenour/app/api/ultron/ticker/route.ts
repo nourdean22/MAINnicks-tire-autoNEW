@@ -4,6 +4,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import { apiHandler } from "@/lib/utils/http";
 import { buildTickerFeed } from "@/lib/services/ultron-ticker";
 
 /**
@@ -24,7 +25,7 @@ import { buildTickerFeed } from "@/lib/services/ultron-ticker";
 
 export const revalidate = 300;
 
-export async function GET() {
+export const GET = apiHandler(async () => {
   try {
     const payload = await buildTickerFeed();
     return NextResponse.json({ data: payload });
@@ -40,4 +41,4 @@ export async function GET() {
       { status: 200 },
     );
   }
-}
+}, { auth: "owner" });

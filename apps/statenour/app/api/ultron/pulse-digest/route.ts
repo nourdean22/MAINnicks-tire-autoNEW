@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { apiHandler } from "@/lib/utils/http";
 import { buildPulseDigest } from "@/lib/services/pulse-digest";
 
 // CP7 · Railway build cannot reach Neon during static prerender. Force
@@ -22,7 +23,7 @@ export const dynamic = "force-dynamic";
 
 export const revalidate = 60;
 
-export async function GET() {
+export const GET = apiHandler(async () => {
   try {
     return NextResponse.json({ data: await buildPulseDigest() });
   } catch (err) {
@@ -41,4 +42,4 @@ export async function GET() {
       { status: 200 },
     );
   }
-}
+}, { auth: "owner" });
