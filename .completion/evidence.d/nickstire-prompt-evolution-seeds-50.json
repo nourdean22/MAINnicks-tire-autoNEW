@@ -1,0 +1,1 @@
+{ "evidence": { "cron-fail-closed": { "ref": "apps/nickstire/server/cron/jobs/promptEvolutionWeekly.test.ts: the runner is called with seedCount 50 and the full option set; the infrastructure-failure, baseline-refusal and consumed-list cases are unchanged. No change to any fail-closed path: only the seed read grew." } } }

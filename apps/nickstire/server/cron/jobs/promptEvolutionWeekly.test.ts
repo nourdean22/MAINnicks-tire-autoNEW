@@ -253,7 +253,7 @@ describe("processPromptEvolutionWeekly", () => {
     await processPromptEvolutionWeekly(MONDAY);
     expect(mocks.runPromptEvolution).toHaveBeenCalledWith(
       expect.objectContaining({
-        baseline, seedCount: 30, candidates: 2, holdoutRepeats: 3, replayConcurrency: 2, deadlineMs: 45 * 60 * 1000,
+        baseline, seedCount: 50, candidates: 2, holdoutRepeats: 3, replayConcurrency: 2, deadlineMs: 45 * 60 * 1000,
         consumedConfirmationIds: [], onConfirmationSpend: expect.any(Function),
       }),
     );
