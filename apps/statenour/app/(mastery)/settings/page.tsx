@@ -16,8 +16,8 @@ export default function SettingsPage() {
   return (
     <StandardPage
       eyebrow="Mastery"
-      title="settings"
-      description="identity · scoring · ai · flags · notifications"
+      title="Settings"
+      description="Identity · scoring · AI · flags · notifications"
       rhythm="loose"
     >
       <SettingsConsole />

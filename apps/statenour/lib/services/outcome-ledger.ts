@@ -50,15 +50,32 @@ export type OutcomeKind =
 export type OutcomeDecision = "accepted" | "dismissed" | "ignored";
 
 /**
- * THE correction predicate — a recommendation the operator dismissed or rated
+ * Dismissal reasons that are NOT a verdict on the recommendation: "not now"
+ * (timing) and "I took a different move" (alternative). Surfaces that know the
+ * reason store it as `resultRef dismiss:<reason>` (audit 2026-10-10, 06-F5).
+ */
+export const NON_CORRECTION_DISMISS_REFS = ["dismiss:timing", "dismiss:alternative"];
+
+/**
+ * THE correction predicate — a recommendation the OPERATOR dismissed or rated
  * not useful. One owner (2026-10-02): the harvest cron, the odometer script,
  * the eval-dataset exporter and the recall-corpus builder each carried their
  * own copy, so "what counts as a correction" could drift four ways silently.
  * `tests/services/correction-where-single-owner.test.ts` pins that the literal
  * exists nowhere else.
+ *
+ * 2026-10-10 (audit 06-F1, F5): `prediction` rows are scored by the machine
+ * (a forecast band miss), never by the operator, so they are excluded; a
+ * dismissal whose reason is timing or alternative is not a correction (a
+ * not-useful rating on the same row still is). `resultRef: null` is spelled
+ * out because SQL `NOT IN` drops NULL rows.
  */
 export const CORRECTION_WHERE: Prisma.IntelligenceOutcomeWhereInput = {
-  OR: [{ decision: "dismissed" }, { outcomeUseful: false }],
+  kind: { not: "prediction" },
+  OR: [
+    { decision: "dismissed", OR: [{ resultRef: null }, { resultRef: { notIn: NON_CORRECTION_DISMISS_REFS } }] },
+    { outcomeUseful: false },
+  ],
 };
 
 /** Stable 16-hex hash of the normalized summary — exported for tests. */
@@ -81,19 +98,35 @@ export interface RecordShownInput {
 }
 
 /**
- * Record a recommendation the operator was SHOWN. Dedup: an identical
- * summary re-shown within 24h reuses the existing row (re-surfacing is
- * not a new recommendation — counting it as one would be the
- * refresh-as-production defect all over again).
+ * Record a recommendation the operator was SHOWN. Dedup: the same summary from
+ * the same engine about the same task (`evidenceRefs.taskId`), re-shown within
+ * 24h, reuses the existing row (re-surfacing is not a new recommendation —
+ * counting it as one would be the refresh-as-production defect all over
+ * again). The surface is not in the key: one recommendation shown on two
+ * surfaces is one row.
+ *
+ * 2026-10-10 (audit 06-F3): the key was the summary alone, so "stuck on A" and
+ * "stuck on B" (both `chip: stuck-doing`) shared A's row and B's accept closed
+ * task A. The stored `contentHash` stays the summary hash: the by-content
+ * joins (nudges, journal, the task-title bridge) know the text, not the engine.
  */
 export async function recordShown(input: RecordShownInput): Promise<string | null> {
   try {
     const contentHash = outcomeContentHash(input.summary);
     const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const taskId = input.evidenceRefs?.taskId;
+    // shortcut: a row WITHOUT a task can still match a same-text row that has
+    // one; producers that show both shapes put the task in the summary (chips).
+    const dedupWhere: Prisma.IntelligenceOutcomeWhereInput = {
+      contentHash,
+      sourceEngine: input.sourceEngine,
+      shownAt: { gte: dayAgo },
+      ...(typeof taskId === "string" && taskId ? { evidenceRefs: { path: ["taskId"], equals: taskId } } : {}),
+    };
     // Fast path, no lock: a re-show inside the dedup window (the 60 s polls of
     // Home, the deck and the chips) is one indexed read.
     const existing = await prisma.intelligenceOutcome.findFirst({
-      where: { contentHash, shownAt: { gte: dayAgo } },
+      where: dedupWhere,
       select: { id: true },
     });
     if (existing) return existing.id;
@@ -110,7 +143,7 @@ export async function recordShown(input: RecordShownInput): Promise<string | nul
     return await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`intelligence_outcome:${contentHash}`}))`;
       const again = await tx.intelligenceOutcome.findFirst({
-        where: { contentHash, shownAt: { gte: dayAgo } },
+        where: dedupWhere,
         select: { id: true },
       });
       if (again) return again.id;
@@ -211,11 +244,26 @@ export async function recordDecision(params: {
  * completion rating can close it (recordOutcomeByResultRef). Used where the
  * decider only holds the row id — a chat chip tap — and the producer, not the
  * client, knows which task the recommendation was about.
+ *
+ * 2026-10-10 (audit 06-F2): `recordShownBounded` hands the client a null id
+ * when the ledger answers late, and that tap was lost. With no id the caller
+ * passes the summary the chip was ledgered under and the row is found by
+ * content (newest first, as in recordDecisionByContent).
  */
 export async function recordDecisionFromEvidence(
-  id: string,
+  idOrNull: string | null,
   decision: OutcomeDecision,
+  summary?: string | null,
 ): Promise<boolean> {
+  let id = idOrNull;
+  if (!id && summary) {
+    try {
+      id = await ledgerIdByContent(summary);
+    } catch (err) {
+      logError("intel.outcome-ledger", err, { stage: "record-decision-from-evidence:by-content" }, "warn");
+    }
+  }
+  if (!id) return false;
   let resultRef: string | null = null;
   // Only an ACCEPTED recommendation becomes the task it names. A dismissed row
   // carrying task:<id> was closed by that task's completion rating as
@@ -232,6 +280,25 @@ export async function recordDecisionFromEvidence(
     logError("intel.outcome-ledger", err, { stage: "record-decision-from-evidence", id }, "warn");
   }
   return recordDecision({ id, decision, resultRef });
+}
+
+/**
+ * The newest row shown with this text in the last 30 days, decided/rated or
+ * not (bug-hunt 2026-10-02): with `decision: null` in the filter, a second act
+ * on today's already-decided row silently decided YESTERDAY's — e.g.
+ * accept-then-dismiss on a nudge planted a false correction on a row the
+ * operator never dismissed. The CAS writers then refuse an already-set row.
+ * Throws on a DB error; callers own the fail-soft.
+ */
+async function ledgerIdByContent(summary: string): Promise<string | null> {
+  const trimmed = summary.trim();
+  if (!trimmed) return null;
+  const row = await prisma.intelligenceOutcome.findFirst({
+    where: { contentHash: outcomeContentHash(trimmed), shownAt: { gte: new Date(Date.now() - 30 * 86_400_000) } },
+    orderBy: { shownAt: "desc" },
+    select: { id: true },
+  });
+  return row?.id ?? null;
 }
 
 /**
@@ -259,22 +326,9 @@ export async function recordDecisionByContent(
   resultRef?: string | null,
 ): Promise<boolean> {
   try {
-    const trimmed = summary.trim();
-    if (!trimmed) return false;
-    const contentHash = outcomeContentHash(trimmed);
-    const since = new Date(Date.now() - 30 * 86_400_000);
-    // The NEWEST row for this text, decided or not (bug-hunt 2026-10-02). With
-    // `decision: null` in the filter, a second act on today's already-decided
-    // row silently decided YESTERDAY's — e.g. accept-then-dismiss on a nudge
-    // planted a false correction on a row the operator never dismissed.
-    // recordDecision's CAS then refuses an already-decided row.
-    const row = await prisma.intelligenceOutcome.findFirst({
-      where: { contentHash, shownAt: { gte: since } },
-      orderBy: { shownAt: "desc" },
-      select: { id: true },
-    });
-    if (!row) return false;
-    return await recordDecision({ id: row.id, decision, resultRef });
+    const id = await ledgerIdByContent(summary);
+    if (!id) return false;
+    return await recordDecision({ id, decision, resultRef });
   } catch (err) {
     logError("intel.outcome-ledger", err, { stage: "record-decision-by-content" }, "warn");
     return false;
@@ -302,19 +356,9 @@ export async function recordOutcomeByContent(
   resultRef?: string | null,
 ): Promise<boolean> {
   try {
-    const trimmed = summary.trim();
-    if (!trimmed) return false;
-    const contentHash = outcomeContentHash(trimmed);
-    const since = new Date(Date.now() - 30 * 86_400_000);
-    // Newest row for this text, rated or not — same reason as
-    // recordDecisionByContent: never walk back onto an older surfacing.
-    const row = await prisma.intelligenceOutcome.findFirst({
-      where: { contentHash, shownAt: { gte: since } },
-      orderBy: { shownAt: "desc" },
-      select: { id: true },
-    });
-    if (!row) return false;
-    return await recordOutcome({ id: row.id, useful, resultRef });
+    const id = await ledgerIdByContent(summary);
+    if (!id) return false;
+    return await recordOutcome({ id, useful, resultRef });
   } catch (err) {
     logError("intel.outcome-ledger", err, { stage: "record-outcome-by-content" }, "warn");
     return false;
@@ -336,6 +380,21 @@ export async function recordOutcome(params: {
   useful: boolean;
   resultRef?: string | null;
 }): Promise<boolean> {
+  return (await recordOutcomeResult(params)) === "recorded";
+}
+
+/**
+ * `recordOutcome` with the reason a write did not land (audit 2026-10-10,
+ * 06-F8): `already` = the row exists and carries an earlier verdict (that one
+ * stands); `failed` = the write threw or the id names no row. A rating surface
+ * must not tell the operator "already rated" when the write failed.
+ * (`recordOutcome` keeps its boolean: two callers branch on its truthiness.)
+ */
+export async function recordOutcomeResult(params: {
+  id: string;
+  useful: boolean;
+  resultRef?: string | null;
+}): Promise<"recorded" | "already" | "failed"> {
   try {
     const res = await prisma.intelligenceOutcome.updateMany({
       where: { id: params.id, outcomeAt: null },
@@ -345,10 +404,15 @@ export async function recordOutcome(params: {
         ...(params.resultRef ? { resultRef: params.resultRef } : {}),
       },
     });
-    return res.count === 1;
+    if (res.count === 1) return "recorded";
+    const winner = await prisma.intelligenceOutcome.findUnique({
+      where: { id: params.id },
+      select: { outcomeAt: true },
+    });
+    return winner?.outcomeAt ? "already" : "failed";
   } catch (err) {
     logError("intel.outcome-ledger", err, { stage: "record-outcome", id: params.id }, "warn");
-    return false;
+    return "failed";
   }
 }
 

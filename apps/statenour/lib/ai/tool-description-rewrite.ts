@@ -35,6 +35,7 @@ import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getToolStats, type ToolStat } from "@/lib/ai/tool-telemetry";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("ai/tool-description-rewrite");
@@ -363,6 +364,12 @@ export async function runToolDescriptionRewrite(): Promise<RewriteRunResult> {
         ],
         "fast",
       );
+      // An outage RETURNS a non-empty apology. Storing it would also stamp the
+      // fingerprint, so every later run would skip this tool as already drafted.
+      if (isAiSentinel(llm)) {
+        result.failed.push(`${name}: provider_unavailable`);
+        continue;
+      }
       const draft = llm.content.trim().slice(0, 600);
       if (draft.length < 20) {
         result.failed.push(`${name}: draft too short (${draft.length} chars)`);

@@ -12,6 +12,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { SettledState } from "@/lib/services/action-attempts";
+import { escapeHtml } from "@/lib/utils/escape-html";
 
 /**
  * fenceContent (lib/ai/tool-result-fencing.ts) caps its body at 4000
@@ -187,9 +188,11 @@ export const socialTools = {
             },
           });
 
+          // SN-07 - parse_mode HTML: every model-supplied slot is escaped, or a
+          // `<tg-spoiler>` hides part of the text the operator is approving.
           const text = `📬 <b>Staged SMS Outreach</b>\n\n` +
-            `<b>To:</b> ${verificationPayload.customerName} (${phone})\n` +
-            `<b>Message:</b> "${message}"\n\n` +
+            `<b>To:</b> ${escapeHtml(verificationPayload.customerName)} (${escapeHtml(phone)})\n` +
+            `<b>Message:</b> "${escapeHtml(message)}"\n\n` +
             `Awaiting your confirmation to send via Twilio SMS:`;
 
           const buttons = [
@@ -295,8 +298,8 @@ export const socialTools = {
 
           const text =
             `📬 <b>Opportunity SMS — approval needed</b>\n\n` +
-            `<b>To:</b> ${verificationPayload.customerLabel}\n` +
-            `<b>Text:</b> "${body}"\n\n` +
+            `<b>To:</b> ${escapeHtml(verificationPayload.customerLabel)}\n` +
+            `<b>Text:</b> "${escapeHtml(body)}"\n\n` +
             `Sends through Nick's Tire's full gate stack (consent, caps, quiet hours) and receipts the opportunity:`;
 
           const buttons = [

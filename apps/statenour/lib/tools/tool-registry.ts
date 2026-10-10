@@ -662,7 +662,9 @@ function generateDynamicCapability(id: string): ToolCapability | null {
   }
 
   if (prefix === "memory") {
-    const isWrite = /pin|write|log|resolve|create|update|delete/i.test(suffix);
+    // remember|forget: the nick-agent action-block verbs (05-M3, 2026-10-10).
+    // Without them both resolved as reads and the policy returned "allow".
+    const isWrite = /pin|write|log|resolve|create|update|delete|remember|forget/i.test(suffix);
     const isResolve = /resolve/i.test(suffix);
     return {
       id,

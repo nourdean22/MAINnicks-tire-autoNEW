@@ -26,6 +26,7 @@ import { toast } from "sonner";
 // (mutation).
 import { trpc } from "@/lib/trpc/client";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
+import { scrollBehavior } from "@/lib/ui/scroll-behavior";
 
 interface StoredContradiction {
   key: string;
@@ -127,7 +128,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
   useEffect(() => {
     if (!focusKey || !rows) return;
     const el = document.getElementById(`contradiction-row-${focusKey}`);
-    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    el?.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
   }, [focusKey, rows]);
 
   return (

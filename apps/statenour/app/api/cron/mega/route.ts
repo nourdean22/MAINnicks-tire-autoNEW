@@ -42,26 +42,17 @@ export async function GET(req: NextRequest) {
   // v10.0.114 audit fix · the previous 'x-vercel-cron: 1' bypass was
   // a CRITICAL spoofable hole — Vercel does NOT sign that header, so
   // any public HTTP client could trigger this fan-out by adding it.
-  // Now require a real Bearer secret (CRON_SECRET or STATENOUR_SYNC_KEY)
-  // unconditionally. Vercel cron requests already include the bearer
-  // when CRON_SECRET is set in env, so this doesn't break the schedule.
+  // Now require a real Bearer CRON_SECRET unconditionally.
+  // 2026-10-10 audit SN-01 · STATENOUR_SYNC_KEY is no longer accepted: it is
+  // the cross-app bridge key (nickstire server, unattended device agents), and
+  // this route fires EVERY child cron. No caller sent it; cron-control and the
+  // schedule send CRON_SECRET. An unset CRON_SECRET is therefore a 401 here,
+  // which also covers the old "refuse to fan out with an empty Bearer" guard.
   const authHeader = req.headers.get('authorization') ?? '';
-  const hasCronSecret = process.env.CRON_SECRET && safeEqual(authHeader, `Bearer ${process.env.CRON_SECRET}`);
-  const hasSyncKey = process.env.STATENOUR_SYNC_KEY ? safeEqual(authHeader, `Bearer ${process.env.STATENOUR_SYNC_KEY}`) : false;
+  const hasCronSecret = Boolean(process.env.CRON_SECRET) && safeEqual(authHeader, `Bearer ${process.env.CRON_SECRET}`);
 
-  if (!hasCronSecret && !hasSyncKey) {
+  if (!hasCronSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  // v10.0.114 audit fix · refuse to fan-out if CRON_SECRET is missing.
-  // Pre-fix the children received `Bearer ` (empty) and all 401'd
-  // silently — partial-success log made the cron look healthy while
-  // every child was a no-op. Better to fail loudly here.
-  if (!process.env.CRON_SECRET) {
-    return NextResponse.json(
-      { error: 'CRON_SECRET unset — refusing to fan out with empty Bearer to children' },
-      { status: 503 },
-    );
   }
 
   const slot = req.nextUrl.searchParams.get('slot') || 'morning';

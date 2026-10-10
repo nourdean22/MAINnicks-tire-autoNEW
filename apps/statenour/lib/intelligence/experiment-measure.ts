@@ -20,10 +20,13 @@
  */
 import { prisma } from "@/lib/prisma";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
 import { recentShopJobs } from "@/lib/brain/legacy-shims";
 import { logError } from "@/lib/utils/error-log";
+import { logger as rootLogger } from "@/lib/logger";
 
 const aiChat = makeTracedAiChat("experiment-measure");
+const log = rootLogger.withSurface("intelligence/experiment-measure");
 
 /** EWMA learning rate / damping: one resolved outcome moves authScore by at most
  *  ALPHA*100 = 8 pts (≈2.4 from a 70 baseline), so a single soft AI score can never
@@ -127,6 +130,22 @@ Did the hypothesis hold up?`,
         ],
         "fast",
       );
+
+      // aiChat RETURNS an outage sentinel instead of throwing. It has no
+      // VERDICT line, so it used to be written `inconclusive` and consume the
+      // experiment forever. Release the claim and stop: every later call in
+      // this run would hit the same dead provider chain.
+      if (isAiSentinel(result)) {
+        await prisma.experiment.updateMany({
+          where: { id: exp.id, status: "measuring" },
+          data: { status: "running" },
+        });
+        log.warn("experiment_measure_provider_unavailable", {
+          experimentId: exp.id,
+          provider: result?.provider ?? null,
+        });
+        break;
+      }
 
       const lines = result.content.split("\n");
       const verdict = (lines.find((l) => l.toUpperCase().includes("VERDICT")) ?? "").toUpperCase();

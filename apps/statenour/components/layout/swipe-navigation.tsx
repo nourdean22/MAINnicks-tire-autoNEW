@@ -4,6 +4,38 @@ import { useEffect, useRef, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { BOTTOM_TABS } from "./nav-items";
 
+/** The slice of a DOM Element the swipe guard reads (pure, so tests pass plain objects). */
+export interface SwipeNode {
+  tagName: string;
+  isContentEditable?: boolean;
+  scrollWidth: number;
+  clientWidth: number;
+  parentElement: SwipeNode | null;
+  hasAttribute(name: string): boolean;
+}
+
+/**
+ * A touch that starts in text entry, inside a horizontal scroller that actually overflows, or in
+ * an opted-out `[data-no-swipe]` region belongs to that element, not to tab navigation
+ * (audit 09-F26: a flick across a code block or chip row used to change tabs).
+ */
+export function swipeStartsInExemptZone(
+  target: SwipeNode | null,
+  overflowX: (el: SwipeNode) => string = (el) => getComputedStyle(el as unknown as Element).overflowX,
+): boolean {
+  for (let el = target; el; el = el.parentElement) {
+    if (el.hasAttribute("data-no-swipe")) return true;
+    if (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable) return true;
+    if (el.scrollWidth > el.clientWidth && /^(auto|scroll)$/.test(overflowX(el))) return true;
+  }
+  return false;
+}
+
+/** /chat pins its shell (window.scrollY stays 0), so a downward history drag read as a pull. */
+export function pullToRefreshAllowed(pathname: string): boolean {
+  return pathname !== "/chat" && !pathname.startsWith("/chat/");
+}
+
 /**
  * SwipeNavigation — enables swipe left/right between mobile tabs
  * and pull-to-refresh on all pages.
@@ -37,7 +69,11 @@ export function SwipeNavigation() {
     // edge. Pre-Wave-39 this handler also fired and pushed the previous
     // tab on top of the history stack · corrupting navigation. Same
     // guard on the right edge for forward-swipe symmetry.
-    if (touch.clientX < 20 || touch.clientX > window.innerWidth - 20) {
+    if (
+      touch.clientX < 20 ||
+      touch.clientX > window.innerWidth - 20 ||
+      swipeStartsInExemptZone(e.target instanceof Element ? e.target : null)
+    ) {
       touchStartRef.current = null;
       pullRef.current = { startY: 0, pulling: false };
       return;
@@ -45,10 +81,10 @@ export function SwipeNavigation() {
     touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
 
     // Pull-to-refresh: only if at top of page
-    if (window.scrollY <= 0) {
+    if (window.scrollY <= 0 && pullToRefreshAllowed(pathname)) {
       pullRef.current = { startY: touch.clientY, pulling: true };
     }
-  }, []);
+  }, [pathname]);
 
   const handleTouchEnd = useCallback((e: TouchEvent) => {
     if (!touchStartRef.current) return;

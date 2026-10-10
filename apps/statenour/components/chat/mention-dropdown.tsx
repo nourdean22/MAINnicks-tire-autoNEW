@@ -31,6 +31,7 @@ export function MentionDropdown({
         filtered.map((m) => (
           <button
             key={m.key}
+            type="button"
             onClick={() => onPick(m)}
             className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-surface-hover"
           >

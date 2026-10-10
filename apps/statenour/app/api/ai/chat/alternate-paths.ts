@@ -27,6 +27,7 @@
 import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { stepCountIs } from "ai";
 import { getFlag } from "@/lib/feature-flags";
+import { isReadSafeTool, stripMutatingTools } from "@/lib/ai/capability-registry";
 import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
 import type { getModel, ProviderName } from "@/lib/ai/provider";
 import type { classifyTurn } from "@/lib/ai/turn-intelligence";
@@ -35,6 +36,31 @@ import type { ChatMode } from "@/lib/ai/chat-mode";
 import type { logger as rootLogger } from "@/lib/logger";
 
 type Logger = ReturnType<typeof rootLogger.withSurface>;
+
+type ExecutableTool = { execute?: (...a: unknown[]) => unknown };
+
+/**
+ * The same tools, with every WRITE (not read-safe) recording its name in
+ * `ran` before it executes: an execution that started may have landed even
+ * if it throws.
+ */
+function recordWrites(tools: Record<string, unknown>, ran: Set<string>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [name, t] of Object.entries(tools)) {
+    const tool = t as ExecutableTool;
+    out[name] =
+      typeof tool?.execute === "function" && !isReadSafeTool(name)
+        ? {
+            ...tool,
+            execute: (...a: unknown[]) => {
+              ran.add(name);
+              return tool.execute!(...a);
+            },
+          }
+        : t;
+  }
+  return out;
+}
 
 /** The route's persistBase bundle — everything buildOnFinish needs
  *  except the per-call-site provider/modelId/model (+ onWorkComplete). */
@@ -49,6 +75,12 @@ export async function runAlternatePaths(args: {
   modelId: string;
   model: ReturnType<typeof getModel>;
   sanitizedModelMessages: unknown;
+  /**
+   * The turn's tools. MUTATED IN PLACE in one case: a lane ran a write and
+   * then fell through (returns null). The route hands this same object to the
+   * main stream, which must not be offered that write a second time, so every
+   * non-read-safe tool is removed from it before returning.
+   */
   prunedTools: unknown;
   mode: ChatMode;
   maxOutputTokens: number;
@@ -143,6 +175,10 @@ export async function runAlternatePaths(args: {
   ) {
     return null;
   }
+
+  // 2026-10-10 (audit 04-F5, 04-F7 server half): writes a lane EXECUTED. On
+  // a fall-through the main stream must not be offered them again.
+  const lanesRanWrites = new Set<string>();
 
   try {
     const { shouldGateForIntent, maybePreStreamRegen } = await import(
@@ -279,10 +315,16 @@ export async function runAlternatePaths(args: {
       // Shared generateText config for the regen + self-consistency
       // branches (identical shape) — hoisted so a new field is added
       // once, not in two places that could silently disagree.
+      //
+      // 2026-10-10 (audit 04-F5): READ-ONLY tools. Regen generates up to
+      // twice and self-consistency three times, and only one generation
+      // becomes the reply; with the full set every sample could execute the
+      // same write. The pre-flush lane (one generation) overrides `tools`
+      // with the full set, wrapped so its writes are recorded.
       const genBase = {
         model,
         messages: sanitizedModelMessages as never,
-        tools: prunedTools as never,
+        tools: stripMutatingTools(prunedTools as Record<string, unknown>).tools as never,
         stopWhen: stepCountIs(mode === "deep" ? 5 : 3),
         ...(maxOutputTokens ? { maxOutputTokens } : {}),
       };
@@ -466,8 +508,8 @@ export async function runAlternatePaths(args: {
             turnSignal.intent as Parameters<typeof formatRegenTelemetry>[1],
             turnSignal.outputShape,
           );
-          const { recordMetric } = await import("@/lib/services/metrics");
-          await recordMetric(regenMetric.metric, regenMetric.value, {
+          const { recordMetricStrict } = await import("@/lib/services/metrics");
+          await recordMetricStrict(regenMetric.metric, regenMetric.value, {
             unit: regenMetric.unit,
             tags: { ...regenMetric.tags, traceId },
             source: regenMetric.source,
@@ -518,6 +560,7 @@ export async function runAlternatePaths(args: {
         const webSearchPinned = Boolean(args.webSearchIntent);
         const r = await generateText({
           ...genBase,
+          tools: recordWrites(prunedTools as Record<string, unknown>, lanesRanWrites) as never,
           experimental_telemetry: langfuseTelemetry({ functionId: "chat-evidence-preflush", privateMode }),
           system: finalSystemPrompt,
           temperature: turnSignal.temperature,
@@ -717,5 +760,11 @@ export async function runAlternatePaths(args: {
     // fall through to the normal streamText path — the turn still works
   }
 
+  if (lanesRanWrites.size > 0) {
+    const tools = prunedTools as Record<string, unknown>;
+    const withheld = Object.keys(tools).filter((name) => !isReadSafeTool(name));
+    for (const name of withheld) delete tools[name];
+    log.warn("alt_lane_write_fallthrough", { ran: [...lanesRanWrites], withheld });
+  }
   return null;
 }

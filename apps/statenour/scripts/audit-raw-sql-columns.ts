@@ -1,9 +1,9 @@
 /**
  * scripts/audit-raw-sql-columns.ts
  *
- * Static scan for Prisma raw SQL (`prisma.$queryRaw`) that references
- * camelCase columns on tables WITHOUT a corresponding Prisma `@map`
- * directive. Postgres lowercases unquoted identifiers so `created_at`
+ * Static scan for Prisma raw SQL (`prisma.$queryRaw` / `$queryRawUnsafe`)
+ * that references camelCase columns on tables WITHOUT a corresponding
+ * Prisma `@map` directive. Postgres lowercases unquoted identifiers so `created_at`
  * in raw SQL against a table whose real column is `createdAt` fails
  * with `42703: column "created_at" does not exist`.
  *
@@ -14,7 +14,11 @@
  *   2. Walk every .ts under app/ and lib/ that mentions $queryRaw.
  *      Extract the SQL strings, find `FROM <table>` references, and
  *      flag any unquoted `<camelCase-col>` appearance.
- *   3. Report findings. Exit 1 if any found → blocks CI.
+ *   3. The inverse shape (audit 2026-10-10, 06-F15): a QUOTED field name
+ *      ("feedbackScore") whose column is @map'ed to another name
+ *      (feedback_score) also fails with 42703 — and a `.catch(() => [])`
+ *      around it renders "no data" forever. Flag those too.
+ *   4. Report findings. Exit 1 if any found → blocks CI.
  *
  * Run: `pnpm tsx scripts/audit-raw-sql-columns.ts`
  */
@@ -26,9 +30,10 @@ interface ModelInfo {
   modelName: string;
   tableName: string; // from @@map or fallback to modelName
   camelCaseColumns: Set<string>; // fields WITHOUT @map, in camelCase
+  mappedColumns: Set<string>; // fields whose @map names a DIFFERENT column
 }
 
-function parseSchema(schemaPath: string): Map<string, ModelInfo> {
+export function parseSchema(schemaPath: string): Map<string, ModelInfo> {
   const raw = fs.readFileSync(schemaPath, "utf8");
   const out = new Map<string, ModelInfo>();
   const modelRegex = /^model\s+(\w+)\s*\{([\s\S]*?)^\}/gm;
@@ -38,6 +43,7 @@ function parseSchema(schemaPath: string): Map<string, ModelInfo> {
     const mapMatch = body.match(/@@map\("([^"]+)"\)/);
     const tableName = mapMatch?.[1] ?? modelName;
     const camelCase = new Set<string>();
+    const mapped = new Set<string>();
     for (const line of body.split("\n")) {
       // Skip @@ directives, comments, and empty lines.
       const trimmed = line.trim();
@@ -46,15 +52,17 @@ function parseSchema(schemaPath: string): Map<string, ModelInfo> {
       const fieldMatch = trimmed.match(/^([A-Za-z][A-Za-z0-9]*)\s+\w/);
       if (!fieldMatch) continue;
       const fieldName = fieldMatch[1];
-      const hasMap = /@map\("([^"]+)"\)/.test(trimmed);
+      const mapTo = trimmed.match(/@map\("([^"]+)"\)/)?.[1];
+      const hasMap = mapTo !== undefined;
+      if (mapTo && mapTo !== fieldName) mapped.add(fieldName);
       // A field is "camelCase-kept" when the name has uppercase letters
       // AND no @map directive redirects it to snake_case.
       if (!hasMap && /[A-Z]/.test(fieldName)) {
         camelCase.add(fieldName);
       }
     }
-    if (camelCase.size > 0) {
-      out.set(tableName, { modelName, tableName, camelCaseColumns: camelCase });
+    if (camelCase.size > 0 || mapped.size > 0) {
+      out.set(tableName, { modelName, tableName, camelCaseColumns: camelCase, mappedColumns: mapped });
     }
   }
   return out;
@@ -68,7 +76,7 @@ interface Finding {
   context: string;
 }
 
-function scanFile(
+export function scanFile(
   filePath: string,
   models: Map<string, ModelInfo>,
 ): Finding[] {
@@ -118,12 +126,27 @@ function scanFile(
           });
         }
       }
+      for (const col of info.mappedColumns) {
+        // A quoted field name is case-preserved by Postgres, so it must be
+        // the real column; for an @map'ed field it never is. An output alias
+        // (`pinned_summary AS "pinnedSummary"`) is fine.
+        if (new RegExp(`(?<!\\bAS\\s+)"${col}"`, "i").test(sql)) {
+          const lineNum = content.slice(0, sqlStart).split("\n").length;
+          findings.push({
+            file: filePath,
+            line: lineNum,
+            table,
+            column: col,
+            context: sql.trim().split("\n").slice(0, 3).join(" ").slice(0, 160),
+          });
+        }
+      }
     }
   }
   return findings;
 }
 
-function walk(dir: string, out: string[] = []): string[] {
+export function walk(dir: string, out: string[] = []): string[] {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
     const full = path.join(dir, entry.name);
@@ -186,7 +209,10 @@ async function main() {
   process.exit(1);
 }
 
-main().catch((err) => {
-  console.error("audit failed:", err);
-  process.exit(1);
-});
+// Run only as a script (`tsx scripts/audit-raw-sql-columns.ts`), not on import from a test.
+if (/audit-raw-sql-columns\.[cm]?[jt]s$/.test(process.argv[1] ?? "")) {
+  main().catch((err) => {
+    console.error("audit failed:", err);
+    process.exit(1);
+  });
+}

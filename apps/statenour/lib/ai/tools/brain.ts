@@ -19,6 +19,7 @@ import { detectBlindSpots } from "@/lib/brain/blind-spot-detector";
 import { classifyThought as classifyThoughtFn } from "@/lib/brain/journal-ingest";
 import { runKnowledgeSync } from "@/lib/brain/knowledge-sync";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { storeMemoryEmbedding } from "@/lib/brain/embedding-utils";
 import { buildBroadSearchFtsQuery, normalizeMemoryKeyQuery } from "@/lib/brain/search-query";
 import { fenceContent } from "@/lib/ai/tool-result-fencing";
 
@@ -725,6 +726,13 @@ export const brainTools = {
           seenCount: { increment: 1 },
         },
       });
+      // The vector must follow the content (05-M7); same text shape as
+      // services/pins.ts. Identical content is a no-op inside the helper.
+      void storeMemoryEmbedding(row.id, `[pinned_user] ${slug}: ${content}`).catch((err) =>
+        void import("@/lib/utils/error-log").then(({ logError }) =>
+          logError("ai.tools.brain", err, { fn: "pinMemory.embed" }, "warn"),
+        ),
+      );
       return { pinned: true, id: row.id, key: slug, content };
     },
   }),

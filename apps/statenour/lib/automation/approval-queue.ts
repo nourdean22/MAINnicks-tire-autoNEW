@@ -181,6 +181,26 @@ export async function decidePendingAction(
     );
   }
 
+  // 2026-10-10 (SN-04) - CLAIM before acting. The check above is a read; two
+  // approve clicks both passed it and both replayed the side effect (the lane
+  // includes auto_followup_expired_quote, which emails a lead), and a reject
+  // racing an approve overwrote an executed row. The swap pins every mutable
+  // field the decision read (`approval`; expiry derives from the immutable
+  // actionType + createdAt). count===1 wins; the loser re-reads and reports
+  // the real state. A crash after the claim leaves "processing" -- fail closed,
+  // never a second execution.
+  const claim = await prisma.autonomousAction.updateMany({
+    where: { id, approval: "pending" },
+    data: { approval: "processing" },
+  });
+  if (claim.count !== 1) {
+    const winner = await prisma.autonomousAction.findUnique({ where: { id }, select: { approval: true } });
+    throw new ServiceError(
+      `action "${id}" is not pending (current: ${winner?.approval ?? "unknown"})`,
+      409,
+    );
+  }
+
   // v10.0.157 · execute the deferred side effect on approve. Done
   // BEFORE the row update so the executionResult merges into the
   // payload alongside the operator's approvalNote. If execution

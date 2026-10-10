@@ -15,7 +15,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
-    autonomousAction: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+    autonomousAction: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(async () => ({ count: 1 })) },
     automationPolicy: { findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn() },
   },
 }));

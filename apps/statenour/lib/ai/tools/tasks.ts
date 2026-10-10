@@ -33,6 +33,22 @@ import { financeTools } from "@/lib/ai/tools/finance";
 import { calendarTools } from "@/lib/ai/tools/calendar";
 import { getUnresolvedAlerts } from "@/lib/mastery/drift-engine";
 
+/** A read that failed, as Nick sees it: never an empty list or a 0. */
+const UNKNOWN = "unknown (read failed)";
+
+/** Each bridge batch entry as its data, or `{ status: "unknown", reason }` when the read failed. */
+function shopView(
+  batch: Record<string, unknown>,
+  readBridge: typeof import("@/lib/nickstire/query").readBridge,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(batch).map(([name, res]) => {
+      const r = readBridge(res);
+      return [name, r.status === "ok" ? r.data : r];
+    }),
+  );
+}
+
 const tasksCoreTools = {
   getMasteryScores: tool({
     description: "Get current mastery domain scores",
@@ -1199,17 +1215,14 @@ const tasksCoreTools = {
   // ENRICHMENT TOOLS v1 — writes for daily-driver ops
   //
   // Added after the 2026-04 tool audit. Each one closes a gap where
-  // Nick had read access but no way to actually write the thing. The
-  // setMit/clearMit tools return a clientAction payload that the chat
-  // page watches for and mirrors to localStorage (MIT is client-owned
-  // state — see components/actions/mit-contract.tsx).
+  // Nick had read access but no way to actually write the thing.
   // ═══════════════════════════════════════════════════════════════
 
   /**
-   * Lock today's MIT (Most Important Thing). Returns a client-action
-   * directive that the chat page applies to localStorage (same shape
-   * as MitContract). Nour's MIT is client-owned, so the tool is a
-   * thin adapter — the authoritative write happens in the browser.
+   * Lock today's MIT (Most Important Thing) through lib/services/mit.ts, the
+   * store /api/mit and operator.setMit use. 2026-10-10 (audit 03-F1): this
+   * returned a `clientAction` whose only consumer was deleted in 616a4ac4d,
+   * so it told Nour "MIT set" and persisted nothing.
    */
   setMit: tool({
     description: "Lock today's Most Important Thing (MIT). Nour picks ONE commitment per day; this tool writes it. Example args: { text: 'Close the Smith estimate before EOD' }",
@@ -1217,26 +1230,33 @@ const tasksCoreTools = {
       text: z.string().min(1).max(200).describe("The single most important thing to get done today"),
     }),
     execute: async ({ text }) => {
-      const trimmed = text.trim().slice(0, 140);
-      return {
-        clientAction: "setMit" as const,
-        text: trimmed,
-        message: `MIT set: "${trimmed}". Locked until midnight Cleveland.`,
-      };
+      const { setMit } = await import("@/lib/services/mit");
+      try {
+        const res = await setMit(text);
+        if ("cleared" in res) return { success: true, cleared: true, message: "MIT cleared. Pick a new one." };
+        return { success: true, text: res.text, message: `MIT set: "${res.text}". Saved for today (${res.key}).` };
+      } catch (err) {
+        await recordError("ai:tool-exec", err);
+        return { success: false, message: "MIT NOT saved: the write failed. Tell Nour it did not stick." };
+      }
     },
   }),
 
   /**
-   * Clear today's MIT. Same client-mirror pattern as setMit.
+   * Clear today's MIT (setMit with empty text soft-deletes today's row).
    */
   clearMit: tool({
     description: "Clear today's MIT so Nour can pick a new one. Usually only called if Nour explicitly says the MIT is wrong.",
     inputSchema: z.object({}),
     execute: async () => {
-      return {
-        clientAction: "clearMit" as const,
-        message: "MIT cleared. Pick a new one.",
-      };
+      const { setMit } = await import("@/lib/services/mit");
+      try {
+        await setMit("");
+        return { success: true, message: "MIT cleared. Pick a new one." };
+      } catch (err) {
+        await recordError("ai:tool-exec", err);
+        return { success: false, message: "MIT NOT cleared: the write failed." };
+      }
     },
   }),
 
@@ -1292,6 +1312,9 @@ const tasksCoreTools = {
       const shop = await fetchShopSnapshot().catch((): null => null);
 
       const suggestions: string[] = [];
+      // A failed bridge read (no snapshot, or a degraded one whose count is null)
+      // is UNKNOWN: it must never become "All clear" (2026-10-10, 08-F6).
+      const shopUnknown = shop?.leads?.urgentCount == null || shop?.callbacks?.pendingCount == null;
       if (shop?.leads?.urgentCount && shop.leads.urgentCount > 0)
         suggestions.push(`🔴 ${shop.leads.urgentCount} urgent shop leads need contact NOW`);
       if (shop?.callbacks?.pendingCount && shop.callbacks.pendingCount > 3)
@@ -1316,8 +1339,11 @@ const tasksCoreTools = {
       const engagedToday = !!snap && !snap.deletedAt && snap.updatedAt >= todayStartET;
       if (!engagedToday) suggestions.push("⚡ Daily score not started — complete non-negotiables");
 
+      if (shopUnknown) {
+        suggestions.push("❔ Shop leads/callbacks: unknown — the nickstire read failed, so they were not checked");
+      }
       return suggestions.length > 0
-        ? { mit: suggestions[0], others: suggestions.slice(1) }
+        ? { mit: suggestions[0], others: suggestions.slice(1), ...(shopUnknown ? { shop: "unknown" } : {}) }
         : { mit: "All clear — no critical items. Use this time for strategic work.", others: [] };
     },
   }),
@@ -1326,7 +1352,7 @@ const tasksCoreTools = {
     description: "One-shot daily status — everything Nour needs in 30 seconds. Revenue + alerts + leads + callbacks + work orders + bookings + tasks + score + drift. Use when Nour says 'status', 'pulse', 'how are we doing', 'what's up', 'how's the shop', or 'what's going on today'. v10.0.79 supersedes the narrower getShopBriefing.",
     inputSchema: z.object({}),
     execute: async () => {
-      const { queryNickBatch } = await import("@/lib/nickstire/query");
+      const { queryNickBatch, readBridge } = await import("@/lib/nickstire/query");
       const [shopData, todayScore, criticalTasks, driftAlerts] = await Promise.all([
         // v10.0.79 · expanded to 6 shop queries to fully cover the
         // retired getShopBriefing's surface (added work_orders_active
@@ -1369,23 +1395,23 @@ const tasksCoreTools = {
             }
           })
           .catch((): null => null),
-        prisma.task.findMany({ where: { status: { in: ["READY", "DOING"] }, deletedAt: null }, orderBy: { autoPriority: { sort: "desc", nulls: "last" } }, take: 5 }).catch((): never[] => []),
+        prisma.task.findMany({ where: { status: { in: ["READY", "DOING"] }, deletedAt: null }, orderBy: { autoPriority: { sort: "desc", nulls: "last" } }, take: 5 }).catch((): null => null),
         (async () => {
           const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
-          return getUnresolvedAlerts().catch(() => []);
+          return getUnresolvedAlerts().catch((): null => null);
         })(),
       ]);
 
       return {
-        shop: shopData,
+        shop: shopView(shopData, readBridge),
         personal: {
           dailyScore: todayScore?.overallScore ?? "not logged",
           energy: todayScore?.energyLevel ?? "?",
           focus: todayScore?.focusQuality ?? "?",
           mood: todayScore?.mood ?? "?",
         },
-        tasks: criticalTasks.map(t => ({ title: t.title, status: t.status, priority: t.autoPriority })),
-        driftAlerts: driftAlerts.map(a => ({ rule: a.ruleName, severity: a.severity, msg: a.message })),
+        tasks: criticalTasks ? criticalTasks.map(t => ({ title: t.title, status: t.status, priority: t.autoPriority })) : UNKNOWN,
+        driftAlerts: driftAlerts ? driftAlerts.map(a => ({ rule: a.ruleName, severity: a.severity, msg: a.message })) : UNKNOWN,
       };
     },
   }),
@@ -1394,7 +1420,7 @@ const tasksCoreTools = {
     description: "End-of-day debrief — revenue summary, what got done, what's still open, drift check. Use when Nour says 'EOD', 'end of day', 'closing time', 'wrap up'",
     inputSchema: z.object({}),
     execute: async () => {
-      const { queryNickBatch } = await import("@/lib/nickstire/query");
+      const { queryNickBatch, readBridge } = await import("@/lib/nickstire/query");
       const [shopData, todayScore, completedToday, stillOpen, commitments] = await Promise.all([
         queryNickBatch([
           { query: "revenue_today" },
@@ -1418,22 +1444,22 @@ const tasksCoreTools = {
             }
           })
           .catch((): null => null),
-        prisma.task.findMany({ where: { status: "DONE", updatedAt: { gte: daysAgo(0) }, deletedAt: null } }).catch((): never[] => []),
-        prisma.task.findMany({ where: { status: { in: ["READY", "DOING"] }, deletedAt: null } }).catch((): never[] => []),
-        prisma.commitment.findMany({ where: { status: { in: ["active", "in_progress"] }, deletedAt: null } }).catch((): Array<{ id: number; deadline: string | null; description: string; status: string }> => []),
+        prisma.task.findMany({ where: { status: "DONE", updatedAt: { gte: daysAgo(0) }, deletedAt: null } }).catch((): null => null),
+        prisma.task.findMany({ where: { status: { in: ["READY", "DOING"] }, deletedAt: null } }).catch((): null => null),
+        prisma.commitment.findMany({ where: { status: { in: ["active", "in_progress"] }, deletedAt: null } }).catch((): null => null),
       ]);
 
       return {
-        shop: shopData,
+        shop: shopView(shopData, readBridge),
         personal: {
           dailyScore: todayScore?.overallScore ?? "not scored yet — log your day",
-          tasksCompleted: completedToday.length,
-          tasksRemaining: stillOpen.length,
-          activeCommitments: commitments.length,
+          tasksCompleted: completedToday ? completedToday.length : UNKNOWN,
+          tasksRemaining: stillOpen ? stillOpen.length : UNKNOWN,
+          activeCommitments: commitments ? commitments.length : UNKNOWN,
         },
-        completedTasks: completedToday.map(t => t.title),
-        openTasks: stillOpen.slice(0, 5).map(t => ({ title: t.title, status: t.status })),
-        commitmentsDue: commitments.filter(c => c.deadline && new Date(c.deadline) <= daysAgo(-1)).map(c => c.description),
+        completedTasks: completedToday ? completedToday.map(t => t.title) : UNKNOWN,
+        openTasks: stillOpen ? stillOpen.slice(0, 5).map(t => ({ title: t.title, status: t.status })) : UNKNOWN,
+        commitmentsDue: commitments ? commitments.filter(c => c.deadline && new Date(c.deadline) <= daysAgo(-1)).map(c => c.description) : UNKNOWN,
       };
     },
   }),

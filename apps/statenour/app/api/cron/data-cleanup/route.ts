@@ -233,22 +233,33 @@ export const GET = cronHandler(async () => {
   // CronJobLog: 30d, but keep last success + last failure per jobName
   // forever. Two-step: find the keepers, then delete everything else
   // older than 30d.
+  // 2026-10-10 · CronJobLog has no @map, so the columns are "jobName" /
+  // "createdAt"; the old job_name / created_at raised 42703 every night and
+  // `.catch(() => [])` read that as "no keepers", deleting with no exclusion.
+  // A failed keeper read now SKIPS the delete and files the run as failed.
   const keepers = await prisma.$queryRaw<{ id: string }[]>`
     SELECT id FROM cron_job_logs WHERE id IN (
-      SELECT DISTINCT ON (job_name, status) id
+      SELECT DISTINCT ON ("jobName", status) id
       FROM cron_job_logs
       WHERE status IN ('success', 'failed')
-      ORDER BY job_name, status, created_at DESC
+      ORDER BY "jobName", status, "createdAt" DESC
     )
-  `.catch(() => [] as { id: string }[]);
-  const keeperIds = keepers.map((k) => k.id);
-  const cronLogs = await prisma.cronJobLog.deleteMany({
-    where: {
-      createdAt: { lt: daysAgo(30) },
-      ...(keeperIds.length > 0 ? { id: { notIn: keeperIds } } : {}),
-    },
+  `.catch((err: unknown) => {
+    logError("cron.data-cleanup", err, { fn: "cronJobLogKeepers" }, "warn");
+    return null;
   });
-  deletedByTable.cron_job_logs = cronLogs.count;
+  if (keepers === null) {
+    deletedByTable.cron_job_logs = 0;
+  } else {
+    const keeperIds = keepers.map((k) => k.id);
+    const cronLogs = await prisma.cronJobLog.deleteMany({
+      where: {
+        createdAt: { lt: daysAgo(30) },
+        ...(keeperIds.length > 0 ? { id: { notIn: keeperIds } } : {}),
+      },
+    });
+    deletedByTable.cron_job_logs = cronLogs.count;
+  }
 
   // StateLog: 30d
   const stateLogs = await prisma.stateLog.deleteMany({
@@ -420,6 +431,7 @@ export const GET = cronHandler(async () => {
 
   const failureReasons = [
     ...blockedSweeps.map((b) => b.reason),
+    ...(keepers === null ? ["cron_job_logs keeper read failed; retention delete skipped, see error_logs"] : []),
     ...(shadowSweep === null ? ["embedding shadow sweep threw — see error_logs"] : []),
     ...(shadowSweep?.refused && shadowSweep.refusedReason
       ? [`embedding shadow sweep refused — ${shadowSweep.refusedReason}`]

@@ -107,24 +107,6 @@ export function dailySummaryEmail(data: {
   };
 }
 
-export function deviceOfflineEmail(deviceName: string, platform: string, lastSeen: string): EmailOptions {
-  return {
-    subject: `🔴 Device Offline: ${deviceName}`,
-    text: `${deviceName} (${platform}) has been offline for over 24 hours.\nLast seen: ${lastSeen}\n\nCheck at https://bdnick.info/devices`,
-    html: `
-      <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #0a0a0a; color: #e5e5e5; padding: 24px; border-radius: 12px;">
-        <h2 style="color: #ef4444; font-size: 18px; margin: 0 0 16px;">🔴 Device Offline</h2>
-        <div style="background: #1a1a1a; padding: 16px; border-radius: 8px; border-left: 3px solid #ef4444;">
-          <div style="font-size: 16px; font-weight: 600;">${deviceName}</div>
-          <div style="font-size: 13px; color: #a1a1aa; margin-top: 4px;">Platform: ${platform}</div>
-          <div style="font-size: 13px; color: #a1a1aa;">Last seen: ${lastSeen}</div>
-        </div>
-        <a href="https://bdnick.info/devices" style="display: inline-block; margin-top: 16px; background: #ef4444; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 600;">Check Devices →</a>
-      </div>
-    `,
-  };
-}
-
 export function budgetWarningEmail(spent: number, limit: number, percentUsed: number): EmailOptions {
   return {
     subject: `💰 AI Budget at ${percentUsed}% — NOUR OS`,

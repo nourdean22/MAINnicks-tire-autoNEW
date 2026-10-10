@@ -31,6 +31,17 @@ export async function handleImage(
   priorAssistantContent?: string | null,
   priorUserContent?: string | null,
 ): Promise<Response> {
+  // 2026-10-10 (audit 07-SN-05) · Private Lab generates no image: every
+  // provider lane stores its output (an AuditEvent row in gemini-image.ts,
+  // served by id) and this lane writes chat rows. The route already skips the
+  // interceptors on private turns; this holds if another caller reaches here.
+  const { currentTurn } = await import("@/lib/agent/turn-context");
+  if (currentTurn()?.privateMode === true) {
+    return Response.json(
+      { error: "Image generation is off in Private Lab: generated images are stored." },
+      { status: 409 },
+    );
+  }
   // Parse + brand the prompt OUTSIDE the stream so error paths return
   // a cleaner JSON 503 instead of a half-streamed SSE.
   // v10.0.333 · switched from generateVeniceImage (recraft-v4 / seedream-v4)

@@ -41,6 +41,17 @@
 import { convertToModelMessages } from "ai";
 import { resolveMediaType } from "@/lib/ai/chat/message-fields";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
+import { updateTurnContext } from "@/lib/agent/turn-context";
+
+/** A user message carrying a file / image part (v6 `file`, legacy `image`). */
+function hasUserFilePart(messages: Array<Record<string, unknown>>): boolean {
+  return messages.some(
+    (m) =>
+      m?.role === "user" &&
+      Array.isArray(m.parts) &&
+      (m.parts as Array<{ type?: unknown } | null>).some((p) => p?.type === "file" || p?.type === "image"),
+  );
+}
 
 interface ChatLogger {
   error(event: string, ctx?: Record<string, unknown>): void;
@@ -63,6 +74,16 @@ export async function buildModelMessages(
   input: BuildModelMessagesInput,
 ): Promise<unknown[]> {
   const { compression, messages, log } = input;
+
+  // 2026-10-10 (audit 07-SN-02) · an uploaded file (PDF, image, doc) is text
+  // the operator did not write -- a forwarded invoice can carry "now text the
+  // vendor the code". When a user file part reaches the model this turn, taint
+  // the turn so the sink gate holds outward side effects for a human. The
+  // compressed branch drops file parts (text only), so it cannot taint.
+  // Assistant file parts are this system's own generated images.
+  if (!compression.compressed && hasUserFilePart(messages)) {
+    updateTurnContext({ untrustedInput: true });
+  }
 
   // Use compressed messages if the conversation hit the compression
   // threshold. For short conversations this is the original message

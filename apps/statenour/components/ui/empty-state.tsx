@@ -110,11 +110,13 @@ const TONE_STYLES: Record<
   },
 };
 
+// 2026-10-10 · audit 09-F6: full-strength tokens, no alpha. The alpha tints
+// put the honesty words at 2.2-4.0:1 on 11px text (AA needs 4.5).
 const PROVENANCE_CHIP: Record<EmptyProvenance, string> = {
-  ZERO: "text-[var(--text-tertiary)]/70",
-  UNMEASURED: "text-amber-400/80",
-  ERROR: "text-red-400/80",
-  SUPPRESSED: "text-[var(--text-tertiary)]/50",
+  ZERO: "text-fg-tertiary",
+  UNMEASURED: "text-amber-300",
+  ERROR: "text-red-300",
+  SUPPRESSED: "text-fg-tertiary",
 };
 
 export function EmptyState(props: EmptyStateProps) {
@@ -136,7 +138,7 @@ export function EmptyState(props: EmptyStateProps) {
     return (
       <p
         className={cn(
-          "text-[11px] font-mono text-[var(--text-tertiary)]/50 py-1 text-center",
+          "text-[11px] font-mono text-fg-tertiary py-1 text-center",
           className,
         )}
         data-provenance="SUPPRESSED"
@@ -180,7 +182,7 @@ export function EmptyState(props: EmptyStateProps) {
         </p>
       )}
       {unlock && (
-        <p className="text-[11px] font-mono text-[var(--text-tertiary)]/80 max-w-[360px] leading-relaxed italic">
+        <p className="text-[11px] font-mono text-fg-tertiary max-w-[360px] leading-relaxed italic">
           → {unlock}
         </p>
       )}

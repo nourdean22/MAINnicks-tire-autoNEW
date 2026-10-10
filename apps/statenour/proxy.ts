@@ -102,7 +102,9 @@ export default auth((req) => {
       return withCsp(NextResponse.json({ error: "Unauthorized" }, { status: 401 }));
     }
     const signInUrl = new URL("/auth/sign-in", req.url);
-    signInUrl.searchParams.set("callbackUrl", pathname);
+    // Audit 2026-10-10 F10 · keep the query so /brain?tab=memory comes back to
+    // the memory tab after sign-in. The sign-in page re-validates the value.
+    signInUrl.searchParams.set("callbackUrl", pathname + req.nextUrl.search);
     return withCsp(NextResponse.redirect(signInUrl));
   }
 

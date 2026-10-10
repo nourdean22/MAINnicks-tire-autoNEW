@@ -21,6 +21,8 @@
  */
 
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
+import { AiUnavailableError } from "@/lib/ai/structured";
 import { applyOperatorStyle } from "@/lib/ai/style-adapter";
 import { prisma } from "@/lib/prisma";
 import { RECALL_EXCLUDE_CATEGORIES } from "@/lib/brain/categories";
@@ -227,6 +229,8 @@ You're coaching Nour on this goal. Cold, specific, no fluff. Return ONLY valid J
     ],
     "deep",
   );
+  // An outage would otherwise append a "Parse failed" entry to coachLog.
+  if (isAiSentinel(result)) throw new AiUnavailableError("coach-goal: provider sentinel", "provider_unavailable");
 
   let parsed: Record<string, unknown> = {};
   try {

@@ -301,11 +301,17 @@ export function tallyCronWindow(
   return byJob;
 }
 
-/** Map a raw CronJobLog.status onto that tri-state. Never collapse. */
-export function normalizeCronStatus(status: string): CronLastStatus {
+/**
+ * Map a raw CronJobLog.status onto that tri-state. Never collapse.
+ *
+ * 2026-10-10 · positive list, like isHardFailure: `started` (in flight) and
+ * `duplicate` used to fall through to "failed", so the healer re-fired live
+ * runs. Anything that is neither ok nor a named failure is null (unclassified).
+ */
+export function normalizeCronStatus(status: string): CronLastStatus | null {
   if (status === "success") return "success";
   if (status === "partial") return "partial";
-  return "failed";
+  return isHardFailure(status) ? "failed" : null;
 }
 
 export async function runManifestCron(

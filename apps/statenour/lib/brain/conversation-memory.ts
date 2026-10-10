@@ -24,6 +24,30 @@ import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("brain/conversation-memory");
 
+// 2026-10-10 · audit 05-M4. Recompiling used to revive EVERY soft-deleted
+// row, so a memory the operator forgot came back on the next digest. Only a
+// row the merge grinder deleted may be revived; the grinder stamps who and
+// when into metadata (BrainMemory has no deletedBy column).
+const MERGE_GRINDER = "merge-grinder";
+
+/** metadata for a row the merge grinder soft-deletes at `at`. */
+export function stampGrinderDelete(metadata: unknown, at: Date): Record<string, unknown> {
+  const prev =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)
+      : {};
+  return { ...prev, deletedBy: MERGE_GRINDER, deletedAt: at.toISOString() };
+}
+
+/** True only when THIS deletion is the grinder's: the stamp's time must match
+ *  the row's deletedAt, so a stamp left behind by a restore never covers a
+ *  later operator delete. */
+export function grinderDeleted(row: { deletedAt: Date | null; metadata: unknown }): boolean {
+  if (!row.deletedAt) return false;
+  const m = row.metadata as { deletedBy?: unknown; deletedAt?: unknown } | null;
+  return m?.deletedBy === MERGE_GRINDER && m.deletedAt === row.deletedAt.toISOString();
+}
+
 interface ConversationDigest {
   conversationId: string;
   date: string;
@@ -223,10 +247,10 @@ export async function summarizeAndStoreConversation(
   // row (whose failure was swallowed), one bad upsert lost a conversation
   // permanently. The guard is now the summary row itself: recompile when
   // the conversation moved after the row was written, debounced 30min so
-  // the per-turn caller doesn't burn a digest per message. A soft-deleted
-  // row does NOT count as fresh — recompiling revives it (pre-fix the
-  // nightly merge grinder had soft-deleted 158 of 173 summaries, and
-  // nothing could ever write them back).
+  // the per-turn caller doesn't burn a digest per message. A row the merge
+  // grinder soft-deleted does NOT count as fresh — recompiling revives it
+  // (pre-fix the grinder had soft-deleted 158 of 173 summaries, and nothing
+  // could ever write them back). Anyone else's delete stands: no digest.
   const conversation = await prisma.chatConversation.findUnique({
     where: { id: conversationId },
     select: { updatedAt: true },
@@ -238,8 +262,9 @@ export async function summarizeAndStoreConversation(
         key: `conv_${conversationId}`,
       },
     },
-    select: { updatedAt: true, deletedAt: true },
+    select: { updatedAt: true, deletedAt: true, metadata: true },
   });
+  if (summaryRow?.deletedAt && !grinderDeleted(summaryRow)) return "skipped";
   if (summaryRow && !summaryRow.deletedAt) {
     const fresh =
       conversation != null &&
@@ -334,8 +359,9 @@ export async function summarizeAndStoreConversation(
         metadata: { conversationId },
         lastSeen: new Date(),
         seenCount: { increment: 1 },
-        // Revive a merge-ground row — recompiling IS the undelete.
-        deletedAt: null,
+        // Revive a merge-ground row — recompiling IS the undelete. Only when
+        // the read above saw one: a delete during the digest call stands.
+        ...(summaryRow?.deletedAt ? { deletedAt: null } : {}),
       },
     });
 
@@ -394,6 +420,11 @@ export async function summarizeAndStoreConversation(
   }
   for (const item of fanOut) {
     try {
+      const prior = await prisma.brainMemory.findUnique({
+        where: { category_key: { category: item.category, key: item.key } },
+        select: { deletedAt: true, metadata: true },
+      });
+      if (prior?.deletedAt && !grinderDeleted(prior)) continue; // forgotten stays forgotten
       // Direct upsert, not remember(): the auditEvent guard above makes
       // this a once-per-conversation write, remember()'s (category,key)
       // upsert semantics add nothing here, and its 24h new-row probation
@@ -415,11 +446,11 @@ export async function summarizeAndStoreConversation(
           content: item.content,
           metadata: { conversationId },
           lastSeen: new Date(),
-          // Revive a soft-deleted row — same revival contract as the
+          // Revive a merge-ground row — same revival contract as the
           // summary upsert above (review 2026-08-20 caught this half
           // missing: merge-ground decision_log/insight rows were being
           // content-updated while staying recall-invisible forever).
-          deletedAt: null,
+          ...(prior?.deletedAt ? { deletedAt: null } : {}),
         },
       });
       void (async () => {
@@ -768,21 +799,23 @@ export async function findCompileEligibleConversations(
   const withEnough = candidates;
   if (withEnough.length === 0) return [];
 
+  // Deleted rows are read too: a merge-ground summary = recompile; anyone
+  // else's delete = not eligible (it would otherwise be picked every night).
   const existing = await prisma.brainMemory.findMany({
     where: {
       category: BRAIN_CATEGORIES.CONVERSATION_SUMMARY,
       key: { in: withEnough.map((c) => `conv_${c.id}`) },
-      deletedAt: null, // soft-deleted (merge-ground) summary = recompile
     },
-    select: { key: true, updatedAt: true },
+    select: { key: true, updatedAt: true, deletedAt: true, metadata: true },
   });
-  const summarized = new Map(existing.map((e) => [e.key, e.updatedAt]));
+  const summarized = new Map(existing.map((e) => [e.key, e]));
 
   return withEnough
     .filter((c) => {
-      const at = summarized.get(`conv_${c.id}`);
-      if (!at) return true;
-      return c.updatedAt.getTime() > at.getTime();
+      const row = summarized.get(`conv_${c.id}`);
+      if (!row) return true;
+      if (row.deletedAt) return grinderDeleted(row);
+      return c.updatedAt.getTime() > row.updatedAt.getTime();
     })
     .slice(0, limit)
     .map((c) => c.id);

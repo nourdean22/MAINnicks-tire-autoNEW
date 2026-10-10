@@ -51,6 +51,8 @@ import { classifyReasoning } from "./classifier";
 import { TIER_CONFIG } from "./tier-config";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
+import { AiUnavailableError } from "@/lib/ai/structured";
 import { sanitizeForPrompt } from "@/lib/ai/prompt/sanitize";
 import { logError } from "@/lib/utils/error-log";
 
@@ -570,6 +572,9 @@ If the context is empty or contradicts itself, say so explicitly and proceed wit
     { signal },
   );
   recordReply(acc, reply);
+  // aiChat RETURNS the outage apology instead of throwing. Throw so the
+  // engine takes its honest draft_failed path instead of shipping it.
+  if (isAiSentinel(reply)) throw new AiUnavailableError("draft: provider sentinel", "provider_unavailable");
   return (reply?.content ?? "").trim();
 }
 
@@ -679,6 +684,8 @@ OUTPUT: the refined answer only · no commentary · no preamble.`,
     { signal },
   );
   recordReply(acc, reply);
+  // A sentinel never replaces the draft: throw so the caller ships the draft.
+  if (isAiSentinel(reply)) throw new AiUnavailableError("refine: provider sentinel", "provider_unavailable");
   return (reply?.content ?? draft).trim();
 }
 
@@ -806,6 +813,17 @@ PLAN: ${plan || "(no plan)"}`,
 
 // ── The main engine ────────────────────────────────────────────────
 
+/** Runs whose answer is a failure notice (no provider answered, or the
+ *  draft step failed). The bookkeeping trace is still written (cost and
+ *  telemetry read it); the recallable reasoning_conclusion is not. */
+const FAILED_RUNS = new WeakSet<ReasoningResult>();
+function markFailedRun(result: ReasoningResult): ReasoningResult {
+  FAILED_RUNS.add(result);
+  return result;
+}
+const PROVIDER_DOWN_ANSWER =
+  "I couldn't reach a model provider for this one, so there is no answer yet. Try re-asking in a moment.";
+
 /**
  * Run the Nick reasoning engine for a given question.
  *
@@ -881,6 +899,12 @@ async function runReasoningEngine(
     );
     recordReply(acc, reply);
     callCount += 1;
+    if (isAiSentinel(reply)) {
+      rec.push("deliver", "quick reply failed - no provider answered", null, Date.now() - t);
+      return markFailedRun(
+        buildResult(rec, PROVIDER_DOWN_ANSWER, 0.2, startedAt, tier, verdict.reason, callCount, acc),
+      );
+    }
     rec.push("deliver", "quick reply", null, Date.now() - t);
     const answer = (reply?.content ?? "").trim();
     return buildResult(rec, answer, 0.7, startedAt, tier, verdict.reason, callCount, acc);
@@ -1306,15 +1330,17 @@ async function runReasoningEngine(
       ? `\n\n---\n\nRaw reasoning notes (engine couldn't compose them into prose):\n${context.slice(0, 800)}${context.length > 800 ? "…" : ""}`
       : "";
     const fallback = `I gathered context for this but the synthesis step failed — likely a provider hiccup. Try re-asking (the engine cached nothing, so this is a fresh shot). If it fails again, drop the tier from "${tier}" to "standard" — it routes through different providers.${contextPreview}`;
-    return buildResult(
-      rec,
-      fallback,
-      0.2, // honest low confidence
-      startedAt,
-      tier,
-      verdict.reason,
-      callCount,
-      acc,
+    return markFailedRun(
+      buildResult(
+        rec,
+        fallback,
+        0.2, // honest low confidence
+        startedAt,
+        tier,
+        verdict.reason,
+        callCount,
+        acc,
+      ),
     );
   }
 
@@ -1433,15 +1459,19 @@ async function persistTrace(
     // recall deliberately can't) — this writes the distilled, EMBEDDED
     // reasoning_conclusion so Nick can recall what he concluded instead
     // of re-reasoning from scratch. Fire-and-forget; never blocks.
-    void import("@/lib/ai/reasoning/persist-conclusion").then(({ persistReasoningConclusion }) =>
-      persistReasoningConclusion({
-        question,
-        answer: result.trace.answer,
-        confidence: result.trace.confidence,
-        tier: result.tier,
-        traceKey: key,
-      }),
-    ).catch(() => { /* bookkeeping only */ });
+    // A failed run (no provider answered / draft failed) concluded nothing:
+    // its failure notice must never become a recallable conclusion.
+    if (!FAILED_RUNS.has(result)) {
+      void import("@/lib/ai/reasoning/persist-conclusion").then(({ persistReasoningConclusion }) =>
+        persistReasoningConclusion({
+          question,
+          answer: result.trace.answer,
+          confidence: result.trace.confidence,
+          tier: result.tier,
+          traceKey: key,
+        }),
+      ).catch(() => { /* bookkeeping only */ });
+    }
 
     // H.4.2 + H.7.4 · DETERMINISTIC rotation · every 10th write since
     // module load triggers a prune. Pre-H.7 was Math.random() < 0.1

@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { daysAgo } from "@/lib/utils/datetime";
+import { apiHandler } from "@/lib/utils/http";
 
 import { requireSession } from "@/lib/auth-guard";
 /**
@@ -48,7 +49,7 @@ const CALIBRATABLE_CATEGORIES = [
   "identity",
 ];
 
-export async function GET() {
+export const GET = apiHandler(async () => {
   try {
     const now = Date.now();
     // Two candidate pools — combine and pick 3 diverse ones
@@ -159,7 +160,7 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+}, { auth: "owner" });
 
 export async function PATCH(req: Request) {
   await requireSession(req);

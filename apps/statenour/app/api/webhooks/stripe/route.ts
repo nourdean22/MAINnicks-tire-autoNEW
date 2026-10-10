@@ -130,7 +130,9 @@ export const POST = apiHandler(
             productId: product.id,
             stripeSessionId,
             amountCents: amountCents || 0,
-            status: "paid",
+            // A delayed method (ACH, SEPA...) completes Checkout "unpaid"; the
+            // money settles later via async_payment_succeeded / _failed below.
+            status: session.payment_status === "paid" ? "paid" : "pending",
             metadata: {
               currency: session.currency,
               customerDetails: session.customer_details,
@@ -146,25 +148,29 @@ export const POST = apiHandler(
         throw err;
       }
 
-      log.info("stripe_order_recorded", { orderId: order.id, contactId: contact.id, productId: product.id });
+      // Terminal step: the Order is written above, in this request. There is
+      // no downstream fulfilment workflow. The old `stripe/checkout.completed`
+      // Inngest send had no listener (03-F5) and only shipped the customer's
+      // email/name to Inngest for nothing.
+      log.info("stripe_order_recorded", { orderId: order.id, status: order.status, contactId: contact.id, productId: product.id });
+    }
 
-      // 4. Send event to Inngest for down-stream workflows
-      try {
-        const { getInngest } = await import("@/lib/inngest/client");
-        await getInngest().send({
-          name: "stripe/checkout.completed",
-          data: {
-            orderId: order.id,
-            contactId: contact.id,
-            productId: product.id,
-            email,
-            name,
-            amountCents,
-          },
-        });
-        log.info("inngest_stripe_event_dispatched", { orderId: order.id });
-      } catch (e) {
-        log.error("failed_dispatching_inngest_stripe_event", { error: String(e) });
+    if (event.type === "checkout.session.async_payment_succeeded" || event.type === "checkout.session.async_payment_failed") {
+      const stripeSessionId = event.data.object.id;
+      const to = event.type === "checkout.session.async_payment_succeeded" ? "paid" : "failed";
+      // Compare-and-swap from "pending": a replayed event, or one for an order
+      // already settled, changes nothing.
+      const settled = await prisma.order.updateMany({
+        where: { stripeSessionId, status: "pending" },
+        data: { status: to },
+      });
+      if (settled.count === 0) {
+        const existing = await prisma.order.findUnique({ where: { stripeSessionId }, select: { status: true } });
+        // Delivered before checkout.session.completed: a non-2xx makes Stripe redeliver.
+        if (!existing) throw new ServiceError("Order for this session is not recorded yet", 409);
+        log.info("stripe_async_payment_already_settled", { stripeSessionId, status: existing.status, event: event.type });
+      } else {
+        log.info("stripe_async_payment_settled", { stripeSessionId, status: to });
       }
     }
 

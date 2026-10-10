@@ -78,6 +78,28 @@ export const KNOWN_INSTRUMENTS: readonly string[] = [
 /** The per-turn heartbeat of the deferred post-turn path. See KNOWN_INSTRUMENTS. */
 export const DEFERRED_TURN_INSTRUMENT = "chat.deferred_turn";
 
+/**
+ * Writers that log their failures under their OWN `logError` scope rather than
+ * `instrumentScope(...)`, whose rows this reader must still name.
+ *
+ * 2026-10-10 audit (01-F1): the outcome ledger logs `[intel.outcome-ledger]` and
+ * wrote zero rows 2026-10-03 -> 10-08 while this reader, matching only
+ * `[instrument.`, showed nothing. Not in KNOWN_INSTRUMENTS: it has no liveness
+ * source here (instrument-liveness would call it NEVER_RAN); its SILENCE is
+ * watched by fleet-truth's `intelligence-outcomes` probe.
+ */
+export const EXTRA_INSTRUMENT_SCOPES: readonly string[] = ["intel.outcome-ledger"];
+
+/** Instrument name for an errorLog message, or null when it is not an instrument failure. */
+function instrumentOf(message: string): { name: string; rest: string } | null {
+  const match = /^\[([^\]]+)\]\s*(.*)$/.exec(message);
+  if (!match) return null;
+  const [, scope, rest] = match;
+  const prefix = `${INSTRUMENT_SCOPE_PREFIX}.`;
+  if (scope.startsWith(prefix)) return scope.length > prefix.length ? { name: scope.slice(prefix.length), rest } : null;
+  return EXTRA_INSTRUMENT_SCOPES.includes(scope) ? { name: scope, rest } : null;
+}
+
 export interface InstrumentFailureRow {
   instrument: string;
   failures: number;
@@ -122,21 +144,22 @@ export function assembleInstrumentFailures(
   const byInstrument = new Map<string, InstrumentFailureRow>();
 
   for (const row of rows) {
-    // logError writes `[${source}] ${message}`; source is `instrument.<metric>`.
-    const match = /^\[instrument\.([^\]]+)\]\s*(.*)$/.exec(row.message);
-    if (!match) continue;
-    const name = match[1];
+    // logError writes `[${source}] ${message}`; source is `instrument.<metric>`
+    // or one of EXTRA_INSTRUMENT_SCOPES.
+    const parsed = instrumentOf(row.message);
+    if (!parsed) continue;
+    const { name, rest } = parsed;
     const existing = byInstrument.get(name);
     const at = row.createdAt.toISOString();
     if (!existing) {
-      byInstrument.set(name, { instrument: name, failures: 1, lastAt: at, lastMessage: match[2] || null });
+      byInstrument.set(name, { instrument: name, failures: 1, lastAt: at, lastMessage: rest || null });
       continue;
     }
     existing.failures += 1;
     // Rows arrive newest-first, but do not depend on it — compare.
     if (!existing.lastAt || at > existing.lastAt) {
       existing.lastAt = at;
-      existing.lastMessage = match[2] || null;
+      existing.lastMessage = rest || null;
     }
   }
 
@@ -168,7 +191,10 @@ export async function buildInstrumentFailures(windowHours = 24): Promise<Instrum
   const rows = await prisma.errorLog.findMany({
     where: {
       createdAt: { gte: since },
-      message: { startsWith: `[${INSTRUMENT_SCOPE_PREFIX}.` },
+      OR: [
+        { message: { startsWith: `[${INSTRUMENT_SCOPE_PREFIX}.` } },
+        ...EXTRA_INSTRUMENT_SCOPES.map((s) => ({ message: { startsWith: `[${s}]` } })),
+      ],
     },
     select: { message: true, createdAt: true },
     orderBy: { createdAt: "desc" },

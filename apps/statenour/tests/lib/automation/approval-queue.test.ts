@@ -18,6 +18,8 @@ const { mockPrisma } = vi.hoisted(() => ({
       findMany: vi.fn(),
       findUnique: vi.fn(),
       update: vi.fn(),
+      // 2026-10-10 (SN-04) - decidePendingAction claims pending -> processing first.
+      updateMany: vi.fn(async () => ({ count: 1 })),
     },
     automationPolicy: {
       findMany: vi.fn(),

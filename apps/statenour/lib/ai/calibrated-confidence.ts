@@ -129,14 +129,14 @@ export async function calibrateAdvice(
       }>
     >(
       `SELECT cm.id::text,
-              cm."feedbackScore"::int AS feedback_score,
+              cm.feedback_score::int AS feedback_score,
               (ve.embedding_vec_1536 <=> '${vecLit}'::vector(${TARGET_DIM})) AS distance
        FROM chat_messages cm
        JOIN vector_embeddings ve
          ON ve."sourceType" = 'chat_message'
         AND ve."sourceId" = cm.id
        WHERE cm.role = 'assistant'
-         AND cm."feedbackScore" IS NOT NULL
+         AND cm.feedback_score IS NOT NULL
          AND ve.embedding_vec_1536 IS NOT NULL
        ORDER BY ve.embedding_vec_1536 <=> '${vecLit}'::vector(${TARGET_DIM})
        LIMIT ${KNN_TOP}`,

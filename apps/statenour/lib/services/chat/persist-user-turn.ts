@@ -27,7 +27,9 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { currentTurn } from "@/lib/agent/turn-context";
 import type { ErrorDomain } from "@/lib/errors/record-error";
+import type { ChatActionPermission } from "@/lib/ai/chat/gate";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -49,6 +51,12 @@ export interface PersistUserTurnInput {
    * directly without an adapter shim.
    */
   recordError?: (domain: ErrorDomain, err: unknown, ctx?: Record<string, unknown>) => void;
+  /**
+   * The turn's action permission (gate.ts). "read" = no autonomous change:
+   * the task-completion detector may SUGGEST, never complete. When absent the
+   * turn context is consulted.
+   */
+  actionPermission?: ChatActionPermission;
 }
 
 export async function persistUserTurn(input: PersistUserTurnInput): Promise<string> {
@@ -255,8 +263,16 @@ export async function persistUserTurn(input: PersistUserTurnInput): Promise<stri
         try {
           const { detectTaskCompletion } = await import("@/lib/brain/task-completion-detector");
           const match = await detectTaskCompletion(userContent);
+          // 2026-10-10 (audit 04-F11): Read permission = no autonomous
+          // change, so a high-confidence match is only SUGGESTED below.
+          // Read from the input, else the turn. As of this change the chat
+          // route passes neither (TurnContext has no actionPermission field),
+          // so this check fires only once one of them is wired.
+          const readOnly =
+            (input.actionPermission ??
+              (currentTurn() as { actionPermission?: unknown } | null)?.actionPermission) === "read";
           if (match) {
-            if (match.confidence >= 0.8) {
+            if (match.confidence >= 0.8 && !readOnly) {
               // Auto-complete via direct prisma update — don't
               // fire the internal /api/tasks/check (which would
               // re-trigger skills/ghost/etc). Those will pick up

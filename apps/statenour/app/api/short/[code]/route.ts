@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
  * Anonymizes client IP, logs referrer/User-Agent, appends UTM params,
  * and performs a 302 redirect.
  */
+// public: anonymous short-link redirector; unknown codes 404.
 export const GET = apiHandler(
   async (req, { params }) => {
     const { code } = await params!;

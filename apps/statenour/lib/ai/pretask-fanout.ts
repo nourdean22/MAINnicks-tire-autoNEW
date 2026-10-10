@@ -31,6 +31,8 @@
  */
 
 import { withGuardian } from "@/lib/tools/guardian";
+import { isAiSentinel } from "@/lib/ai/provider";
+import { AiUnavailableError } from "@/lib/ai/structured";
 import { logger as rootLogger } from "@/lib/logger";
 import {
   RESEARCH_ANALYST,
@@ -93,6 +95,8 @@ async function callLens(systemPrompt: string, userPrompt: string): Promise<strin
     ],
     "fast",
   );
+  // An outage apology is not a sub-result: throw so the caller marks it failed.
+  if (isAiSentinel(reply)) throw new AiUnavailableError("pretask-lens: provider sentinel", "provider_unavailable");
   return (reply?.content ?? "").trim();
 }
 

@@ -14,7 +14,10 @@ import { describe, expect, it } from "vitest";
 import { CORRECTION_WHERE } from "@/lib/services/outcome-ledger";
 
 const APP = join(__dirname, "../..");
-const LITERAL = /OR:\s*\[\s*\{\s*decision:\s*"dismissed"\s*\}\s*,\s*\{\s*outcomeUseful:\s*false\s*\}\s*\]/;
+// The pre-2026-10-10 predicate, or the current one's dismissal arm: either
+// hand-typed outside the service is a second owner.
+const LITERAL =
+  /OR:\s*\[\s*\{\s*decision:\s*"dismissed"\s*\}\s*,\s*\{\s*outcomeUseful:\s*false\s*\}\s*\]|decision:\s*"dismissed",\s*OR:/;
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -27,8 +30,16 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 describe("CORRECTION_WHERE · one owner", () => {
-  it("is the dismissed-or-not-useful predicate", () => {
-    expect(CORRECTION_WHERE).toEqual({ OR: [{ decision: "dismissed" }, { outcomeUseful: false }] });
+  it("is the operator dismissed-or-not-useful predicate: no machine predictions, no timing/alternative dismissals", () => {
+    expect(CORRECTION_WHERE).toEqual({
+      kind: { not: "prediction" },
+      OR: [
+        { decision: "dismissed", OR: [{ resultRef: null }, { resultRef: { notIn: ["dismiss:timing", "dismiss:alternative"] } }] },
+        { outcomeUseful: false },
+      ],
+    });
+    // Row-level semantics (a prediction row, a dismiss:timing row) are pinned in
+    // tests/services/outcome-ledger-contract-task11.test.ts.
   });
 
   it("the literal appears in exactly one source file — the service", () => {
@@ -41,5 +52,6 @@ describe("CORRECTION_WHERE · one owner", () => {
 
   it("MUTATION — the detector sees the literal when it is present", () => {
     expect(LITERAL.test('where: { OR: [{ decision: "dismissed" }, { outcomeUseful: false }] }')).toBe(true);
+    expect(LITERAL.test('{ decision: "dismissed", OR: [{ resultRef: null }] }')).toBe(true);
   });
 });

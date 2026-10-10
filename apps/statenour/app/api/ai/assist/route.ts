@@ -4,6 +4,8 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
+import { AiUnavailableError } from "@/lib/ai/structured";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { safeParseBody, aiRouteError } from "@/lib/utils/http";
@@ -312,6 +314,9 @@ Respond with JSON:
       messages,
       "reason",
     );
+
+    // The non-JSON fallback below would serve the outage apology as the answer.
+    if (isAiSentinel(result)) throw new AiUnavailableError("assist: provider sentinel", "provider_unavailable");
 
     let parsed: Record<string, unknown>;
     try { parsed = JSON.parse(result.content.replace(/```json|```/g, "").trim()); }

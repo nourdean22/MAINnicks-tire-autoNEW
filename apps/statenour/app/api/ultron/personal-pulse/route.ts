@@ -4,6 +4,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import { apiHandler } from "@/lib/utils/http";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { buildPersonalPulse } from "@/lib/services/personal-pulse";
 
@@ -25,7 +26,7 @@ import { buildPersonalPulse } from "@/lib/services/personal-pulse";
 
 export const revalidate = 90;
 
-export async function GET() {
+export const GET = apiHandler(async () => {
   try {
     const payload = await buildPersonalPulse();
     return NextResponse.json({ data: payload });
@@ -41,4 +42,4 @@ export async function GET() {
       { status: 200 },
     );
   }
-}
+}, { auth: "owner" });

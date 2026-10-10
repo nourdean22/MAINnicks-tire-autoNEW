@@ -3,9 +3,14 @@
  *
  * Watches every thumbs-up / thumbs-down on assistant replies and
  * infers an 8-axis style preference vector for the operator. The
- * vector is applied as a system-prompt addendum on every turn,
- * self-tuning weekly via a folded cron inside mega-evening (Sunday
- * only).
+ * vector is applied as a system-prompt addendum on every turn
+ * (lib/ai/style-adapter.ts).
+ *
+ * 2026-10-10 (audit 06-F10): NOTHING tunes the vector automatically. The
+ * weekly tuner (runWeeklyTune + aggregateRecentFeedback) lost its cron in the
+ * prune f87fb7e62 and was deleted; the only writer is the operator's manual
+ * override (lib/services/preference-vector.ts savePreferenceVectorOverride).
+ * The axis math below is kept for that override and for a future tuner.
  *
  * NO NEW TABLES. The vector lives inside `OperatorPreference.
  * voiceToneBoundaries` (existing `Json?` column) under the key
@@ -238,8 +243,7 @@ export async function inferDeltaFromFeedback(
 }
 
 /**
- * Pure axis-math · feature-strength × feedback sign. Exported for
- * tests + the weekly aggregate cron.
+ * Pure axis-math · feature-strength × feedback sign. Exported for tests.
  */
 export function deltaFromFeaturesAndScore(
   features: StyleFeatures,
@@ -263,8 +267,8 @@ export function deltaFromFeaturesAndScore(
  *   next[axis] = clamp(current[axis] + delta[axis] × learningRate)
  *
  * learningRate defaults to 0.1 so a single +1 / -1 thumbs nudges
- * each axis by at most 10% of the observed signal. Over a week of
- * feedback this is plenty to converge but immune to one noisy turn.
+ * each axis by at most 10% of the observed signal, so one noisy turn
+ * cannot flip the vector.
  */
 export function applyDeltaWithDecay(
   current: PreferenceVector,
@@ -401,104 +405,4 @@ export function buildSystemPromptAddendum(vec: PreferenceVector): string {
     ...tells.map((t) => `- ${t}`),
     `These are learned tells · not rigid rules. If the turn's intent demands a different shape (e.g. urgent debug → blunt + technical), follow the intent.`,
   ].join("\n");
-}
-
-/**
- * Aggregate the last N days of chat_feedback audit events and
- * return one cumulative delta vector. Used by the weekly cron.
- *
- * Each feedback event contributes deltaFromFeaturesAndScore(features,
- * score) where features are scored against the ChatMessage body.
- * The cron then applies the SUM scaled by a small rate so a busy
- * week doesn't whiplash the vector.
- */
-export async function aggregateRecentFeedback(daysBack: number = 7): Promise<{
-  delta: PreferenceVector;
-  sampleSize: number;
-}> {
-  const since = new Date(Date.now() - daysBack * 86_400_000);
-  const events = await prisma.auditEvent
-    .findMany({
-      where: { eventType: "chat_feedback", createdAt: { gte: since } },
-      select: { payload: true, createdAt: true },
-      take: 500,
-    })
-    .catch(() => [] as Array<{ payload: unknown; createdAt: Date }>);
-
-  if (events.length === 0) {
-    return { delta: { ...DEFAULT_VECTOR }, sampleSize: 0 };
-  }
-
-  // Pull the assistant message bodies in one batch.
-  const messageIds: string[] = [];
-  const scoresByMsg = new Map<string, 1 | -1>();
-  for (const e of events) {
-    const payload = e.payload as Record<string, unknown> | null;
-    if (!payload) continue;
-    const id = typeof payload.messageId === "string" ? payload.messageId : null;
-    const score = payload.score === 1 || payload.score === -1 ? (payload.score as 1 | -1) : null;
-    if (!id || score === null) continue;
-    if (!scoresByMsg.has(id)) {
-      scoresByMsg.set(id, score);
-      messageIds.push(id);
-    }
-  }
-
-  if (messageIds.length === 0) {
-    return { delta: { ...DEFAULT_VECTOR }, sampleSize: 0 };
-  }
-
-  const msgs = await prisma.chatMessage
-    .findMany({
-      where: { id: { in: messageIds }, role: "assistant" },
-      select: { id: true, content: true },
-    })
-    .catch(() => [] as Array<{ id: string; content: string }>);
-
-  let accum: PreferenceVector = { ...DEFAULT_VECTOR };
-  let counted = 0;
-  for (const m of msgs) {
-    const score = scoresByMsg.get(m.id);
-    if (!score) continue;
-    const features = scoreReplyFeatures(m.content || "");
-    const d = deltaFromFeaturesAndScore(features, score);
-    for (const axis of AXES) {
-      accum[axis] += d[axis];
-    }
-    counted += 1;
-  }
-
-  if (counted === 0) {
-    return { delta: { ...DEFAULT_VECTOR }, sampleSize: 0 };
-  }
-
-  // Average so a week with 50 events doesn't shove the vector to
-  // the rails. Per-axis mean stays in [-1, 1].
-  const avg: PreferenceVector = { ...DEFAULT_VECTOR };
-  for (const axis of AXES) {
-    avg[axis] = clamp(accum[axis] / counted);
-  }
-
-  return { delta: avg, sampleSize: counted };
-}
-
-/**
- * Run the full weekly tune: load → aggregate → apply → save.
- * Returns a summary blob for the cron heartbeat.
- */
-export async function runWeeklyTune(opts: { learningRate?: number } = {}): Promise<{
-  prev: PreferenceVector;
-  next: PreferenceVector;
-  sampleSize: number;
-  learningRate: number;
-}> {
-  const learningRate = opts.learningRate ?? DEFAULT_LEARNING_RATE;
-  const prev = await loadPreferenceVector();
-  const { delta, sampleSize } = await aggregateRecentFeedback(7);
-  if (sampleSize === 0) {
-    return { prev, next: prev, sampleSize: 0, learningRate };
-  }
-  const next = applyDeltaWithDecay(prev, delta, learningRate);
-  await savePreferenceVector(next);
-  return { prev, next, sampleSize, learningRate };
 }

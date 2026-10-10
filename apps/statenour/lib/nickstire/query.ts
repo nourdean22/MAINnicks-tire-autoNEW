@@ -117,6 +117,35 @@ export async function queryNick<T = unknown>(
   return { error: "Exhausted retry limits due to persistent transient failures." };
 }
 
+/** One bridge read, with a failed read kept apart from an empty one. */
+export type BridgeRead<T> = { status: "ok"; data: T } | { status: "unknown"; reason: string };
+
+/**
+ * Classify one queryNick / queryNickBatch answer. Three failure shapes all
+ * read as UNKNOWN, never as data: a transport error or non-2xx (`{ error }`,
+ * which includes the 400 "Unknown query" for a handler nickstire has not
+ * shipped), a handler error inside a 200 (`{ data: { error: "No DB" } }`),
+ * and an answer with no `data` at all. Pass the value as `readBridge(await
+ * queryNick("x"))` so the contract guard still reads the query name.
+ */
+export function readBridge<T = unknown>(res: unknown): BridgeRead<T> {
+  if (!res || typeof res !== "object") return { status: "unknown", reason: "no answer from the bridge" };
+  const r = res as Record<string, unknown>;
+  if (r.error !== undefined && r.error !== null) {
+    const msg = String(r.error);
+    return {
+      status: "unknown",
+      reason: /Unknown query/i.test(msg) ? `nickstire has no handler for this query (${msg.slice(0, 120)})` : msg.slice(0, 200),
+    };
+  }
+  if (!("data" in r)) return { status: "unknown", reason: "bridge answer carried no data" };
+  const d = r.data;
+  if (d && typeof d === "object" && !Array.isArray(d) && (d as { error?: unknown }).error) {
+    return { status: "unknown", reason: String((d as { error: unknown }).error).slice(0, 200) };
+  }
+  return { status: "ok", data: d as T };
+}
+
 /**
  * POST to a mutating nickstire bridge endpoint (e.g. /api/bridge/bulk-sms-send).
  *

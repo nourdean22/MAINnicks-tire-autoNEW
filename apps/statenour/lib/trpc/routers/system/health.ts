@@ -368,7 +368,8 @@ export const healthProcedures = {
 
   /**
    * Mutation to manually trigger the full Autonomic Healer pipeline (cron healing,
-   * DB vacuum, work item rescue, logs pruning).
+   * Ollama quota check + stalled work-item rescue, task janitor, stalled-task
+   * decomposition). No DB maintenance and no table retention since 2026-10-10.
    */
   runMaintenance: operatorProcedure.mutation(async () => {
     return runAutonomicOrchestrator();

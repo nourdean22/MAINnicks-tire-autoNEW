@@ -4,6 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { TRPCError } from "@trpc/server";
 import { executeApprovedToolAsync } from "@/lib/tools/guardian";
 import { expiredApprovalMessage, isApprovalRequestExpired } from "@/lib/automation/approval-freshness";
+import { APPROVAL_REVIEW_WINDOW_MS, EXCEPTION_WINDOW_MS } from "@/lib/system/owner-panel";
+
+/** Approved requests that did not end `executed`; only these may be dismissed. */
+const REVIEWABLE = ["needs_review", "failed"];
 
 export const actionsProcedures = {
   getCurrentUser: operatorProcedure.query(async ({ ctx }) => {
@@ -26,6 +30,66 @@ export const actionsProcedures = {
     const now = new Date();
     return rows.map((r) => ({ ...r, expired: isApprovalRequestExpired(r, now) }));
   }),
+
+  /**
+   * 2026-10-10 · approved requests that did not end `executed`: `needs_review`
+   * (the tool may have run; never auto re-run) and `failed`. Same windows as
+   * the Owner Panel (lib/system/owner-panel-data.ts), so the rows it pages
+   * about are the rows /system/actions lets you dismiss.
+   */
+  getApprovalsNeedingReview: operatorProcedure.query(async () => {
+    const now = Date.now();
+    const rows = await prisma.approvalRequest.findMany({
+      where: {
+        OR: [
+          { status: "needs_review", updatedAt: { gte: new Date(now - APPROVAL_REVIEW_WINDOW_MS) } },
+          { status: "failed", updatedAt: { gte: new Date(now - EXCEPTION_WINDOW_MS) } },
+        ],
+      },
+      select: { id: true, toolId: true, status: true, resultPayload: true, updatedAt: true },
+      orderBy: { updatedAt: "desc" },
+      take: 50,
+    });
+    // resultPayload as unknown: the inferred Prisma Json type is too deep for the client (TS2589).
+    return rows.map((r) => ({ ...r, resultPayload: r.resultPayload as unknown }));
+  }),
+
+  /**
+   * Mark a needs_review / failed approval as reviewed. Moves it to the existing
+   * terminal status "rejected" (no schema change; "executed" would claim it
+   * ran) and keeps the original error beside a `reviewed` note. Never re-runs.
+   * Compare-and-swap on the row read: if the executor finished in between, the
+   * update matches nothing and the caller is told to reload.
+   */
+  dismissApprovalReview: operatorProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const row = await prisma.approvalRequest.findUnique({
+        where: { id: input.id },
+        select: { status: true, resultPayload: true, updatedAt: true },
+      });
+      if (!row || !REVIEWABLE.includes(row.status)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Only a needs_review or failed approval can be dismissed" });
+      }
+      const prior =
+        row.resultPayload && typeof row.resultPayload === "object" && !Array.isArray(row.resultPayload)
+          ? (row.resultPayload as Record<string, unknown>)
+          : {};
+      const res = await prisma.approvalRequest.updateMany({
+        where: { id: input.id, status: { in: REVIEWABLE }, updatedAt: row.updatedAt },
+        data: {
+          status: "rejected",
+          resultPayload: {
+            ...prior,
+            reviewed: { from: row.status, by: ctx.session.email ?? "Operator", at: new Date().toISOString() },
+          } as never,
+        },
+      });
+      if (res.count === 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "This approval changed since it was read; reload and check it again" });
+      }
+      return { success: true };
+    }),
 
   approveApprovalRequest: operatorProcedure
     .input(z.object({ id: z.string(), editedPayload: z.any().optional() }))

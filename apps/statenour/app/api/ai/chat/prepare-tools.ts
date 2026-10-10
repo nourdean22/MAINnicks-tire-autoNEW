@@ -91,6 +91,11 @@ export async function prepareTools(args: {
   finalSystemPromptLength: number;
   /** WP-14 · read-mode hard enforcement strips mutating tools LAST. */
   actionPermission?: string;
+  /**
+   * Private Lab (2026-10-10, audit 05-M1): strip mutating tools at ANY
+   * permission, and write no tool-census / selection-telemetry rows.
+   */
+  privateMode?: boolean;
   /** Prompt-compilation turns must be structurally unable to research or act. */
   researchCompilerMode?: ResearchCompilerMode | null;
   /** Current turn identity for selection and recovery telemetry. */
@@ -109,11 +114,15 @@ export async function prepareTools(args: {
     queryShape,
     finalSystemPromptLength,
     actionPermission,
+    privateMode = false,
     researchCompilerMode = null,
-    traceId,
     conversationId,
     log,
   } = args;
+  // Every telemetry writer below keys on traceId (selection rows, recovery-lane
+  // markers, the tool.surfaced row). A private turn leaves no trace, so it has
+  // none to hand them.
+  const traceId = privateMode ? undefined : args.traceId;
 
   // Why a tool was force-surfaced matters as much as THAT it surfaced.
   // This is a per-turn receipt, not another selector. Entries that are later
@@ -244,12 +253,16 @@ export async function prepareTools(args: {
   // mutating tool behind it. Fail-closed via the capability registry
   // (no catalog entry ⇒ stripped). The stripped list is logged — a
   // read-mode turn should say what it refused, not silently shrink.
-  if (!researchCompilerMode && actionPermission === "read") {
+  // Private Lab (2026-10-10, audit 05-M1) rides the same LAST strip at ANY
+  // permission: a private turn leaves no trace, and the default permission is
+  // draft, so read-mode alone never covered it. tool-policy and the tool
+  // wrapper deny the same writes at execution time (defence in depth).
+  if (!researchCompilerMode && (actionPermission === "read" || privateMode)) {
     const { stripMutatingTools } = await import("@/lib/ai/capability-registry");
     const result = stripMutatingTools(prunedTools as Record<string, unknown>);
     prunedTools = result.tools as unknown as typeof nourTools;
     if (result.stripped.length > 0) {
-      log.info("read_mode_stripped_tools", {
+      log.info(privateMode ? "private_mode_stripped_tools" : "read_mode_stripped_tools", {
         count: result.stripped.length,
         stripped: result.stripped.slice(0, 30),
       });
@@ -310,7 +323,9 @@ export async function prepareTools(args: {
   // rejects, and the rejection is logged under the shared instrument scope so
   // `buildInstrumentFailures()` can name this instrument instead of leaving a
   // silence for someone to misread.
-  {
+  //
+  // 2026-10-10 · skipped on a Private Lab turn (it leaves no system_metrics row).
+  if (!privateMode) {
     const surfacedNames = Object.keys(prunedTools).sort();
     // `instrumentScope` is imported statically from the prisma-free
     // `instrument-scope` module; pulling it from `instrument-failures` would

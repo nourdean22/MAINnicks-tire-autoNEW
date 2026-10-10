@@ -343,8 +343,8 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Semantic search across Drive + archive…",
     icon: Search,
     color: "blue",
-    // v10.0.529.88 · Wave 32 · /system/audit doesn't exist · was 404.
-    link: { href: "/system/coverage", label: "Corpus" },
+    // 2026-10-10 · audit 02-F20: no link. "Corpus" pointed at /system/coverage,
+    // a redirect to /system/calibration, which has no corpus or cold-memory card.
     subtitle: (out) => {
       const o = out as {
         count?: number;

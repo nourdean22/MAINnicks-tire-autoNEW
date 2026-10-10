@@ -4,6 +4,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { cached } from "@/lib/utils/cache";
 import { daysAgo, toDateString } from "@/lib/utils/datetime";
@@ -36,7 +37,7 @@ interface WorkContextPayload {
 
 export const revalidate = 60;
 
-export async function GET() {
+export const GET = apiHandler(async () => {
   try {
     const payload = await cached<WorkContextPayload>("ultron_work_context_v1", 60, async () => {
       const today = new Date();
@@ -129,4 +130,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+}, { auth: "owner" });

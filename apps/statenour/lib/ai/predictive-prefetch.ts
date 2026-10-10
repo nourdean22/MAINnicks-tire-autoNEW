@@ -43,9 +43,11 @@ export async function prefetchIntents(
   // stubbed these prefetches to []; this wire-up routes them through
   // the queryNick bridge so Nick actually has answers when Nour asks
   // about revenue / quotes / leads. If a nickstire action isn't
-  // implemented yet, the wrapper returns `{ error }` and we degrade
-  // gracefully to the empty shape.
-  const { queryNickBatch } = await import("@/lib/nickstire/query");
+  // implemented yet (2026-10-10: all five quotes_ and leads_ queries below
+  // still are not), the read is UNKNOWN and the block says so -- it used to
+  // degrade to count 0 / $0, which Nick read as an empty pipeline.
+  const { queryNickBatch, readBridge } = await import("@/lib/nickstire/query");
+  const unknown = (reason: string) => ({ status: "unknown" as const, reason });
 
   // ─── Revenue / quotes / aging ───
   if (/\b(revenue|money|sales?|quote|estimate|aging|stale|pending|pipeline)\b/.test(text)) {
@@ -58,23 +60,23 @@ export async function prefetchIntents(
             { query: "quotes_booked_week" },
             { query: "quotes_stale", filters: { olderThanDays: 7 } },
           ]);
-          const extract = (r: unknown): any[] => {
-            if (!r || typeof r !== "object") return [];
-            const w = r as { data?: unknown; error?: string };
-            if (w.error) return [];
-            if (Array.isArray(w.data)) return w.data as any[];
-            if (w.data && typeof w.data === "object" && Array.isArray((w.data as any).rows)) return (w.data as any).rows as any[];
-            return [];
+          const rows = (r: unknown): any[] | { status: "unknown"; reason: string } => {
+            const read = readBridge(r);
+            if (read.status !== "ok") return unknown(read.reason);
+            const d = read.data as any;
+            if (Array.isArray(d)) return d;
+            if (d && typeof d === "object" && Array.isArray(d.rows)) return d.rows;
+            return unknown("bridge answer carried no rows");
           };
-          const pending = extract(batch["quotes_pending"]);
-          const recent = extract(batch["quotes_booked_week"]);
-          const stale = extract(batch["quotes_stale"]);
+          const pending = rows(batch["quotes_pending"]);
+          const recent = rows(batch["quotes_booked_week"]);
+          const stale = rows(batch["quotes_stale"]);
 
-          const sum = (rows: any[]) => rows.reduce((s, q) => s + (q.grandTotal || 0), 0);
+          const sum = (rs: any[]) => rs.reduce((s, q) => s + (q.grandTotal || 0), 0);
           return {
-            pending: { count: pending.length, totalValue: sum(pending), samples: pending.slice(0, 5) },
-            weeklyBooked: { count: recent.length, total: sum(recent) },
-            staleOver7d: { count: stale.length, totalAtRisk: sum(stale), oldest: stale[0] || null },
+            pending: Array.isArray(pending) ? { count: pending.length, totalValue: sum(pending), samples: pending.slice(0, 5) } : pending,
+            weeklyBooked: Array.isArray(recent) ? { count: recent.length, total: sum(recent) } : recent,
+            staleOver7d: Array.isArray(stale) ? { count: stale.length, totalAtRisk: sum(stale), oldest: stale[0] || null } : stale,
           };
         })()
       )
@@ -91,17 +93,15 @@ export async function prefetchIntents(
             { query: "leads_open" },
             { query: "leads_overdue_count" },
           ]);
-          const openWrap = batch["leads_open"] as { data?: unknown; error?: string } | undefined;
-          const overdueWrap = batch["leads_overdue_count"] as { data?: unknown; error?: string } | undefined;
-          const open: any[] = Array.isArray(openWrap?.data) ? (openWrap!.data as any[]) : [];
-          const overdue: number =
-            typeof overdueWrap?.data === "number"
-              ? (overdueWrap!.data as number)
-              : (overdueWrap?.data as { count?: number })?.count ?? 0;
+          const openRead = readBridge(batch["leads_open"]);
+          const overdueRead = readBridge(batch["leads_overdue_count"]);
+          const open: any[] | null = openRead.status === "ok" && Array.isArray(openRead.data) ? (openRead.data as any[]) : null;
+          const od = overdueRead.status === "ok" ? (overdueRead.data as any) : undefined;
+          const overdue: number | null = typeof od === "number" ? od : typeof od?.count === "number" ? od.count : null;
           return {
-            openCount: open.length,
-            overdue,
-            samples: open.slice(0, 5).map((l) => ({
+            openCount: open ? open.length : unknown(openRead.status === "ok" ? "bridge answer carried no lead list" : openRead.reason),
+            overdue: overdue ?? unknown(overdueRead.status === "ok" ? "bridge answer carried no count" : overdueRead.reason),
+            samples: (open ?? []).slice(0, 5).map((l) => ({
               name: l.fullName,
               status: l.status,
               urgency: l.urgency,

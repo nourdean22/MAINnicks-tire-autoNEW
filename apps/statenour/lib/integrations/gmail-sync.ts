@@ -16,7 +16,34 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { brainMemory } from "@/lib/brain/memory-manager";
+import { gmailSourceUrl, intakeExternalMemory } from "@/lib/brain/external-memory-intake";
+
+// 2026-10-10 · audit 05-M9. Email text is written by whoever sent it. It
+// used to land via remember() with source "manual" (= OPERATOR, recalled as
+// "you stated") or "device_analysis"; it now takes the external-content door
+// (quarantine first). The "email:" prefix classifies as EXTERNAL_CONTENT.
+const SOURCE = "email:gmail-sync";
+
+/** One email into memory through the policy layer. True when it was written
+ *  (stored, or already committed from review); false when quarantined. */
+async function intakeEmail(
+  item: GmailItem,
+  category: string,
+  key: string,
+  content: string,
+  metadata?: Record<string, unknown>,
+): Promise<boolean> {
+  const r = await intakeExternalMemory({
+    category,
+    key,
+    content,
+    source: SOURCE,
+    sourceType: "gmail_sync",
+    sourceUrl: gmailSourceUrl(item.id),
+    metadata,
+  });
+  return r.outcome !== "quarantined";
+}
 
 export interface GmailItem {
   id: string;
@@ -35,22 +62,26 @@ export async function processGmailItems(items: GmailItem[]): Promise<{
   memoriesCreated: number;
   leadsCreated: number;
   actionsCreated: number;
+  /** Held in the review inbox (/system/inbox), not yet memory. */
+  quarantined: number;
 }> {
   let memoriesCreated = 0;
   let leadsCreated = 0;
   let actionsCreated = 0;
+  let quarantined = 0;
 
   for (const item of items) {
     switch (item.category) {
       case "invoice": {
-        await brainMemory.remember(
+        const written = await intakeEmail(
+          item,
           "insight",
           `email_invoice_${item.id}`,
           `Invoice from ${item.from}: ${item.subject}. ${item.snippet.slice(0, 200)}`,
-          "device_analysis",
-          { emailId: item.id, date: item.date }
+          { emailId: item.id, date: item.date },
         );
-        memoriesCreated++;
+        if (written) memoriesCreated++;
+        else quarantined++;
         break;
       }
       case "customer_request": {
@@ -65,14 +96,15 @@ export async function processGmailItems(items: GmailItem[]): Promise<{
         // roiScore, finishCondition...) that can't be inferred from
         // an email subject; the brainMemory entry surfaces in
         // search results when the operator triages the inbox.
-        await brainMemory.remember(
+        const written = await intakeEmail(
+          item,
           "lead_intent",
           `email_lead_${item.id}`,
           `Customer-request email from ${item.from} — Subject: ${item.subject} — Snippet: ${item.snippet.slice(0, 240)}. Date: ${item.date}.`,
-          "gmail-sync",
           { emailId: item.id, from: item.from, subject: item.subject, date: item.date },
         );
-        leadsCreated++;
+        if (written) leadsCreated++;
+        else quarantined++;
         break;
       }
       case "appointment": {
@@ -91,25 +123,22 @@ export async function processGmailItems(items: GmailItem[]): Promise<{
         break;
       }
       case "follow_up": {
-        await brainMemory.remember(
+        const written = await intakeEmail(
+          item,
           "routine",
           `email_followup_${item.id}`,
           `Follow up needed: ${item.subject} from ${item.from}`,
-          "manual",
-          { emailId: item.id }
+          { emailId: item.id },
         );
-        memoriesCreated++;
+        if (written) memoriesCreated++;
+        else quarantined++;
         break;
       }
       default: {
         // General — just create a brain memory
-        await brainMemory.remember(
-          "insight",
-          `email_${item.id}`,
-          `Email: ${item.subject} from ${item.from}`,
-          "device_analysis"
-        );
-        memoriesCreated++;
+        const written = await intakeEmail(item, "insight", `email_${item.id}`, `Email: ${item.subject} from ${item.from}`);
+        if (written) memoriesCreated++;
+        else quarantined++;
       }
     }
   }
@@ -121,16 +150,17 @@ export async function processGmailItems(items: GmailItem[]): Promise<{
       data: {
         actor: "gmail-sync",
         eventType: "sync_run",
-        detail: `Processed ${items.length} email(s): ${memoriesCreated} memories, ${leadsCreated} lead-intent, ${actionsCreated} actions.`,
+        detail: `Processed ${items.length} email(s): ${memoriesCreated} memories, ${leadsCreated} lead-intent, ${actionsCreated} actions, ${quarantined} held for review.`,
         payload: {
           memoriesCreated,
           leadsCreated,
           actionsCreated,
+          quarantined,
           itemCount: items.length,
         } as any,
       },
     })
     .catch(() => undefined);
 
-  return { memoriesCreated, leadsCreated, actionsCreated };
+  return { memoriesCreated, leadsCreated, actionsCreated, quarantined };
 }

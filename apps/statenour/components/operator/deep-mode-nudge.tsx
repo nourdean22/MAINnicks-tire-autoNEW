@@ -133,7 +133,9 @@ export function DeepModeNudge() {
       onClick={() => {
         router.push(`/brain?tab=reason&q=${encodeURIComponent(verdict.text)}`);
       }}
-      className="fixed bottom-4 right-4 z-50 inline-flex items-center gap-2 px-3 py-2 ui-material rounded-full border border-edge-default text-fg text-[13px] font-medium shadow-l1 transition-colors duration-[var(--motion-state)] hover:border-edge-strong"
+      // Docked above the measured bottom chrome (bottom-4 sat under the z-[55] tab bar) and, on
+      // md+, left of the NICK FAB lane, which shares this height (audit 09-F27).
+      className="fixed bottom-[calc(var(--bottom-chrome-h)+0.5rem)] right-4 md:right-[calc(var(--nick-fab-lane,0px)_+_1rem)] xl:right-[calc(var(--nick-fab-lane,0px)_+_var(--inspector-lane,0px)_+_1rem)] z-50 inline-flex items-center gap-2 px-3 py-2 ui-material rounded-full border border-edge-default text-fg text-[13px] font-medium shadow-l1 transition-colors duration-[var(--motion-state)] hover:border-edge-strong"
       title={`Classifier sees this as ${verdict.tier}-tier. Click to send to Nick's reasoning engine.`}
     >
       <span

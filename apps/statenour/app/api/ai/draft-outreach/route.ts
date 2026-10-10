@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
 import { logger as rootLogger } from "@/lib/logger";
 import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 
@@ -119,6 +120,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       ],
       "reason",
     );
+
+    // An outage must not come back as a sendable outreach draft.
+    if (isAiSentinel(result)) return NextResponse.json({ draft: "" }, { status: 200 });
 
     const draft = (result.content ?? "")
       .trim()

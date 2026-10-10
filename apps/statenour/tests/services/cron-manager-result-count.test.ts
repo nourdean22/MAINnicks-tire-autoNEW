@@ -28,12 +28,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const h = vi.hoisted(() => ({
   create: vi.fn().mockResolvedValue({ id: "row" }),
+  update: vi.fn().mockResolvedValue({ id: "row" }),
   findMany: vi.fn().mockResolvedValue([]),
   publishDurable: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { cronJobLog: { create: h.create, findMany: h.findMany } },
+  prisma: { cronJobLog: { create: h.create, update: h.update, findMany: h.findMany } },
 }));
 vi.mock("@/lib/db/brain-bus-durable", () => ({
   publishDurable: h.publishDurable,
@@ -41,14 +42,19 @@ vi.mock("@/lib/db/brain-bus-durable", () => ({
 
 import { logCronRun } from "@/lib/services/cron-manager";
 
-/** The `data` object logCronRun handed to prisma on its most recent write. */
+/**
+ * The row as stored after logCronRun's most recent run: the `started` row it
+ * created, overlaid with the terminal update that settled it (2026-10-10).
+ */
 function lastRow(): Record<string, unknown> {
-  const call = h.create.mock.calls.at(-1);
-  return (call?.[0] as { data: Record<string, unknown> }).data;
+  const started = (h.create.mock.calls.at(-1)?.[0] as { data: Record<string, unknown> }).data;
+  const settled = (h.update.mock.calls.at(-1)?.[0] as { data: Record<string, unknown> }).data;
+  return { ...started, ...settled };
 }
 
 beforeEach(() => {
   h.create.mockClear();
+  h.update.mockClear();
   h.publishDurable.mockClear();
 });
 

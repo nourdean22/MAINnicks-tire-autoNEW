@@ -221,7 +221,7 @@ export function MissionTaskRow({
         "group flex flex-wrap items-start gap-2 py-2.5 pl-2 pr-2.5 sm:pr-3 border-l-2 border-l-transparent transition-colors scroll-mt-24",
         "data-[entity-focused=true]:border-l-accent/60 data-[entity-selected=true]:bg-accent-soft",
         isDoing
-          ? "border-l-amber-400 bg-amber-500/[0.03] animate-breath"
+          ? "border-l-amber-400 bg-amber-500/[0.03]"
           : "hover:bg-raised/40",
         isDone && "opacity-50",
         indent === 1 && "ml-6 pl-3",

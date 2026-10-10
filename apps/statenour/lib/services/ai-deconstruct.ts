@@ -1,4 +1,6 @@
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
+import { AiUnavailableError } from "@/lib/ai/structured";
 import { applyOperatorStyle } from "@/lib/ai/style-adapter";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { logger as rootLogger } from "@/lib/logger";
@@ -57,6 +59,8 @@ Return ONLY a valid JSON array of strings:
     ],
     "fast",
   );
+  // The outage apology must not be served as a normal answer.
+  if (isAiSentinel(result)) throw new AiUnavailableError("deconstruct: provider sentinel", "provider_unavailable");
 
   let steps: string[] = [];
   try {

@@ -4,7 +4,11 @@ import { getWorkerFreshness } from "@/lib/observability/worker-freshness";
 
 /**
  * GET /api/system/heartbeat — Uptime monitor endpoint
- * Returns 200 if healthy, 503 if degraded.
+ * Returns 503 when the DB is down. A worker that is not fresh (stale, or no
+ * readable receipt) returns 200 with `status: "degraded"`: this path is also
+ * Railway's deploy healthcheck (.railway/railway.ts) and the CI dev-server
+ * probe, so a 503 for the worker would block deploying the fix it needs.
+ * Monitors that page on the worker read `status` / `worker.status`.
  * Designed for external monitors (UptimeRobot, etc.)
  *
  * // public: external uptime monitors hit this without a session.
@@ -23,7 +27,8 @@ export const GET = apiHandler(async () => {
 
   const worker = await getWorkerFreshness();
   return {
-    status: "ok",
+    // 2026-10-10 · was a literal "ok": a dead worker paged nobody.
+    status: worker.status === "fresh" ? "ok" : "degraded",
     db_latency_ms: db.latency_ms,
     worker: {
       status: worker.status,

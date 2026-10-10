@@ -32,6 +32,7 @@ import { logError } from "@/lib/utils/error-log";
 const log = rootLogger.withSurface("brain/pipeline-controller");
 // v10.0.64 · AgentTrace coverage.
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
 const aiChat = makeTracedAiChat("pipeline-controller");
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { VALID_MOODS, simpleHash } from "@/lib/brain/journal-ingest";
@@ -166,7 +167,7 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
   // of empty stubs. Graceful degradation: unknown query actions
   // return { error }, causing insights to simply not fire — never
   // throws, never breaks the event flow.
-  const { queryNick, queryNickBatch } = await import("@/lib/nickstire/query");
+  const { queryNick, queryNickBatch, readBridge } = await import("@/lib/nickstire/query");
 
   // 4. Cross-reference with existing data for deeper insights
   if (event.type === "lead" || event.type === "booking") {
@@ -228,16 +229,22 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
       { query: "leads_today_count" },
       { query: "leads_week_count" },
     ]);
-    const todayWrap = batch["leads_today_count"] as { data?: unknown } | undefined;
-    const weekWrap = batch["leads_week_count"] as { data?: unknown } | undefined;
-    const todayCount =
-      typeof todayWrap?.data === "number"
-        ? (todayWrap!.data as number)
-        : ((todayWrap?.data as { count?: number } | undefined)?.count ?? 0);
-    const weekTotal =
-      typeof weekWrap?.data === "number"
-        ? (weekWrap!.data as number)
-        : ((weekWrap?.data as { count?: number } | undefined)?.count ?? 0);
+    // Both queries are still unregistered nickstire-side (2026-10-10), so they
+    // fail on every call. A failed count is UNKNOWN: no trend is judged, and a
+    // false "NO LEADS TODAY" is never stored (it fired every afternoon).
+    const countOf = (r: unknown): number | null => {
+      const read = readBridge(r);
+      if (read.status !== "ok") return null;
+      const d = read.data as number | { count?: unknown } | null;
+      return typeof d === "number" ? d : typeof d?.count === "number" ? d.count : null;
+    };
+    const todayCount = countOf(batch["leads_today_count"]);
+    const weekTotal = countOf(batch["leads_week_count"]);
+    if (todayCount === null || weekTotal === null) {
+      log.warn("lead_trend_unknown", { todayCount, weekTotal });
+      actions.push("trend.unknown");
+      return { processed: true, actions };
+    }
     const weekAvg = Math.round(weekTotal / 7);
 
     if (todayCount > weekAvg * 1.5 && weekAvg > 0) {
@@ -596,6 +603,8 @@ Focus on: what to do TODAY, what money is on the table, what risks to watch.`,
     { role: "user", content: context },
   ], "fast");
 
+  // Provider outage: no brief rather than the outage text dressed as one.
+  if (isAiSentinel(result)) return { brief: "", actions };
   actions.push("brief.generated");
 
   return { brief: result.content, actions };

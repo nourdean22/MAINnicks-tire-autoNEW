@@ -15,6 +15,13 @@
  * bounded and idempotent-or-harmless on replay (upserts, dedup guards,
  * fire-and-forget audits), so a rare double-run after a crash is safe;
  * a LOST run (the pre-outbox failure mode) was not.
+ *
+ * 2026-10-10 (audit 04-F12, 08-F2): the action-block phase was the
+ * exception: it ran executeActions before checking its traceId marker, and
+ * it was not awaited, so the row could read done mid-execution. It now claims
+ * `chat-action-blocks:<traceId>` in action_attempts BEFORE acting (a replay
+ * finds the claim and skips the phase) and is awaited, so the done-mark below
+ * lands only after the actions returned or hit their 15 s budget.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -83,7 +90,8 @@ export async function completePostTurnWork(id: string | null): Promise<void> {
   await prisma.postTurnOutbox
     .update({ where: { id }, data: { status: "done" } })
     .catch((e: unknown) => {
-      // A lost completion mark makes the sweeper re-run this post-turn work.
+      // A lost completion mark makes the sweeper re-run this post-turn work
+      // (the action-block phase is a no-op on that replay: its claim exists).
       if ((e as { code?: string })?.code !== "P2025") {
         logError("chat.post-turn-outbox", e, { stage: "complete-mark", outboxId: id }, "warn");
       }

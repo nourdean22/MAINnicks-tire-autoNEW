@@ -4,7 +4,7 @@
  * Checks that the rule loop runs idempotentCreate() to lock the slot
  * before firing the side-effect (action).
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   autonomousAction: {
@@ -109,6 +109,13 @@ describe("autonomous engine lock-first-then-fire", () => {
     vi.clearAllMocks();
     mocks.autonomousAction.groupBy.mockResolvedValue([]);
     vi.stubGlobal("prisma", prismaStub);
+    // The quote follow-up these tests drive is customer-facing and quiet
+    // outside 08-20 ET; pin the clock so the test does not depend on when it runs.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-10T14:00:00Z")); // Sat 10:00 EDT
+  });
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("checks lock first and executes action only if lock is acquired (created = true)", async () => {

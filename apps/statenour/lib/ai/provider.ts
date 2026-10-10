@@ -1107,6 +1107,19 @@ export interface AiResponse {
   costUsd?: number;
 }
 
+/**
+ * True when an aiChat / tracedAiChat result is NOT a model reply: the
+ * total-failure "emergency" sentinel (non-empty apology prose, see the end of
+ * aiChat), the lane-budget "none" sentinel, or empty content. aiChat never
+ * throws on a provider outage, so every consumer that stores the content or
+ * marks work done must check this first and treat true as a failure.
+ */
+export function isAiSentinel(result: { provider?: string; content?: string } | null | undefined): boolean {
+  if (!result) return true;
+  if (result.provider === "emergency" || result.provider === "none") return true;
+  return !result.content || result.content.trim().length === 0;
+}
+
 /** H.4.7 · per-provider per-1M-token rates (USD). Conservative numbers
  *  · we'd rather over-attribute cost than miss spend. Venice + Ollama
  *  are local/cheap so set near-zero; OpenAI + Anthropic use rough

@@ -38,6 +38,9 @@ export interface HealthReport {
       failed: number;
       avgMs: number;
       healthy: boolean;
+      /** An expected job (cron-heartbeat expectedJobs) with NO run in the window
+       *  although its max silence fits inside it: stopped, not "no data". */
+      silent?: true;
     }>;
   };
   errors: {
@@ -422,7 +425,7 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
   // `started` row was a current failure compared against a prior window that
   // had already stopped counting it.
   const cronByJob = tallyCronWindow(cronLogs);
-  const cronSummary = [...cronByJob.entries()].map(([jobName, s]) => ({
+  const cronSummary: HealthReport["cron"]["jobs"] = [...cronByJob.entries()].map(([jobName, s]) => ({
     jobName,
     success: s.success,
     partial: s.partial,
@@ -430,6 +433,15 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
     avgMs: Math.round(s.totalMs / Math.max(s.success + s.partial + s.failed, 1)),
     healthy: s.failed === 0,
   }));
+  // 2026-10-10 (audit 08 section 3) · a cron that stopped writes no rows, so it
+  // used to drop out of this table: absence read as "nothing to report". Every
+  // job the heartbeat expects, whose max silence fits inside this window, and
+  // that has no row in it, is listed as silent and unhealthy.
+  const { expectedJobs } = await import("@/lib/inngest/functions/cron-heartbeat");
+  for (const job of expectedJobs()) {
+    if (job.maxAgeH * 3_600_000 > ms || cronByJob.has(job.name)) continue;
+    cronSummary.push({ jobName: job.name, success: 0, partial: 0, failed: 0, avgMs: 0, healthy: false, silent: true });
+  }
 
   // ── Error patterns · post-processing ──
   // Grouping happened in Postgres over the full window; COUNT() comes back

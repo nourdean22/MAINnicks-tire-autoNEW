@@ -6,6 +6,7 @@ import {
   ToolCapability
 } from "./tool-registry";
 import { getFlag } from "@/lib/feature-flags";
+import { currentTurn } from "@/lib/agent/turn-context";
 
 export type ToolDecisionType =
   | "allow"
@@ -97,6 +98,18 @@ export function evaluateToolAction(request: ToolActionRequest): ToolDecision {
         decision: "deny",
         riskClass: cap.riskClass,
         reason: `Action rejected: NICK_MUTATION_LOCK is active, preventing database/system mutations.`,
+        requiredApproval: "manual_only"
+      };
+    }
+    // 1.6 · Private Lab (2026-10-10, audit 05-M1): the turn leaves no trace,
+    // so no write or outward side effect runs inside it — whatever the tool's
+    // own approval policy says. Set by the chat route from the request, never
+    // by the model.
+    if (currentTurn()?.privateMode === true) {
+      return {
+        decision: "deny",
+        riskClass: cap.riskClass,
+        reason: `Action rejected: this is a Private Lab turn, which leaves no trace, so ${request.toolId} cannot write or act.`,
         requiredApproval: "manual_only"
       };
     }

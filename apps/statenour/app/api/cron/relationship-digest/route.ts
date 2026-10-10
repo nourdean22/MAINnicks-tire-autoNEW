@@ -28,6 +28,7 @@ import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const maxDuration = 60;
@@ -168,6 +169,8 @@ End with a single line: "The strategist asks: which move this week?"`;
       ],
       "reason",
     );
+    // An outage returns an apology, not a throw — send the factual fallback instead.
+    if (isAiSentinel(result)) throw new Error(`provider_unavailable:${result.provider}`);
     digestText = (result.content ?? "").trim();
   } catch {
     digestText = `Weekly relationship digest · ${weekKey}\n\nCooling: ${cooling.length}. Birthdays this week: ${birthdaysThisWeek.length}. Open /relationships for detail.`;

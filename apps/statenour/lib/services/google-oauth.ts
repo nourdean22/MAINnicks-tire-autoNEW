@@ -66,20 +66,19 @@ export function integrationNameFor(accountKey: string = "primary"): string {
 
 /** Return all configured google_oauth* integration rows. The ingest
  *  cron iterates this so adding a new account just means clicking
- *  /api/oauth/google-data/start?account=<key> once. */
+ *  /api/oauth/google-data/start?account=<key> once.
+ *  Throws on a DB error: `[]` means "no account configured", never "could not ask". */
 export async function listConfiguredAccounts(): Promise<
   Array<{ accountKey: string; integrationName: string; email: string | null }>
 > {
-  const rows = await prisma.integration
-    .findMany({
-      where: {
-        OR: [
-          { name: GOOGLE_INTEGRATION_NAME },
-          { name: { startsWith: "google_oauth_" } },
-        ],
-      },
-    })
-    .catch(() => []);
+  const rows = await prisma.integration.findMany({
+    where: {
+      OR: [
+        { name: GOOGLE_INTEGRATION_NAME },
+        { name: { startsWith: "google_oauth_" } },
+      ],
+    },
+  });
   return rows
     .filter((r) => {
       const cfg = r.config as unknown as StoredToken | null;
@@ -292,6 +291,10 @@ export async function getAccessToken(accountKey: string = "primary"): Promise<st
 
   const integrationName = integrationNameFor(accountKey);
 
+  // Set inside the transaction when Google rejects the refresh; the `failed`
+  // write happens AFTER it (08-F3: written inside, the throw rolled it back and
+  // the integration kept reading "healthy").
+  let refreshRejected = false;
   // Use a transaction with pg_advisory_xact_lock to prevent concurrent refresh races across processes
   return await prisma.$transaction(async (tx) => {
     // Acquire a transaction-level advisory lock.
@@ -353,16 +356,7 @@ export async function getAccessToken(accountKey: string = "primary"): Promise<st
         }
       }
 
-      await tx.integration
-        .update({
-          where: { name: integrationName },
-          data: {
-            status: "failed",
-            errorCount: { increment: 1 },
-            consecutiveFailures: { increment: 1 },
-          },
-        })
-        .catch(() => {});
+      refreshRejected = true;
       throw new Error(telemetryMsg);
     }
 
@@ -393,7 +387,21 @@ export async function getAccessToken(accountKey: string = "primary"): Promise<st
       .catch(() => {});
 
     return data.access_token;
-  }, { timeout: 15000 });
+  }, { timeout: 15000 }).catch(async (err: unknown) => {
+    if (refreshRejected) {
+      await prisma.integration
+        .update({
+          where: { name: integrationName },
+          data: {
+            status: "failed",
+            errorCount: { increment: 1 },
+            consecutiveFailures: { increment: 1 },
+          },
+        })
+        .catch((e) => logError("services.google-oauth", e, { stage: "mark-refresh-failed", accountKey }, "warn"));
+    }
+    throw err;
+  });
 }
 
 /**

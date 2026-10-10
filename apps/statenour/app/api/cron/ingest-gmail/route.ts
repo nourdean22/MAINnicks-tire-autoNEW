@@ -53,8 +53,9 @@ export const maxDuration = 300;
  *
  * Skip path · returns `skipped: true, configuredAccounts: 0` when no
  * google_oauth* rows exist. The cron is still scheduled · operator
- * just hasn't completed the consent flow yet (or all tokens are
- * expired).
+ * just hasn't completed the consent flow yet. An unreadable table
+ * throws (never "not configured"); every account erroring (expired
+ * tokens) returns ok:false so the run is filed as failed.
  */
 export const GET = cronHandler(async () => {
   const accounts = await listConfiguredAccounts();
@@ -249,7 +250,17 @@ export const GET = cronHandler(async () => {
       });
     });
 
+  // An account that errored and processed nothing is dead (the expired-token
+  // shape). All of them dead is a failed run: logCronRun files ok:false as failed.
+  const deadAccounts = perAccount.filter(
+    (r) => r.errors.length > 0 && r.outgoingStored + r.inboundStored + r.quarantined + r.awaitingReview + r.skipped === 0,
+  );
+  const allFailed = deadAccounts.length === perAccount.length;
+
   return {
+    ...(allFailed
+      ? { ok: false, reason: `every Gmail account failed (${perAccount.length}): ${deadAccounts[0].errors[0]}`.slice(0, 300) }
+      : {}),
     accounts: accounts.length,
     ...totals,
     durationMs,

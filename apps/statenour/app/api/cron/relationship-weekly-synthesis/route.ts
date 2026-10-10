@@ -18,6 +18,7 @@ import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
 import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 
 const DAY_MS = 1000 * 60 * 60 * 24;
@@ -190,9 +191,16 @@ export const GET = cronHandler(async () => {
       ],
       "reason",
     );
+    // aiChat RETURNS the outage apology instead of throwing. Writing it
+    // would store it as the week's synthesis AND lock the week (the
+    // idempotency check above), so the real one could never run.
+    if (isAiSentinel(result)) {
+      return { ok: false, reason: "provider_unavailable", provider: result?.provider ?? null, weekKey };
+    }
     synthesis = (result.content ?? "").trim();
   } catch (err) {
     return {
+      ok: false,
       skipped: true,
       reason: "ai_synthesis_failed",
       error: err instanceof Error ? err.message : String(err),

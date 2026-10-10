@@ -3,6 +3,7 @@ import { getBridgeSafeTools } from "@/lib/agent-bridge/tool-adapter";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// public: GPT Custom Actions must fetch this schema anonymously; every action it lists is Bearer-gated.
 export async function GET(req: Request) {
   const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "localhost:3000";
   const protocol = req.headers.get("x-forwarded-proto") || "https";

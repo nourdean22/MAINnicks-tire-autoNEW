@@ -87,6 +87,9 @@ export function hasActualContextThresholdDrop(tokenUsage: unknown): boolean {
 }
 
 export function selectQ32Turn(turn: Q32PersistedTurn): Q32Selection | null {
+  // Seeded calibration thumbs (scripts/seed-judge-calibration.ts) are not
+  // operator review material (audit 2026-10-10, 06-F6).
+  if (turn.id.startsWith("msg_calibration_")) return null;
   const signals: Q32Signal[] = [];
   if (turn.feedbackScore === -1) signals.push("thumbs_down");
   if (isL2VerifierBanner(turn.content)) signals.push("l2_verifier_banner");

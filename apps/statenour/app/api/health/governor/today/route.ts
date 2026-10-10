@@ -1,7 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getLatestGovernorDecision } from "@/lib/health-governor/health-governor-guardrails";
+import { logger } from "@/lib/logger";
+import { apiHandler } from "@/lib/utils/http";
 
-export async function GET(req: NextRequest) {
+const log = logger.withSurface("api/health/governor/today");
+
+export const GET = apiHandler(async () => {
   try {
     const decision = await getLatestGovernorDecision();
     if (!decision) {
@@ -9,8 +13,10 @@ export async function GET(req: NextRequest) {
     }
     return NextResponse.json(decision);
   } catch (err) {
-    console.error("Failed to fetch today's governor state:", err);
+    log.error("governor_today_failed", {
+      message: err instanceof Error ? err.message : String(err),
+    });
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
-}
+}, { auth: "owner" });
 export const dynamic = "force-dynamic";

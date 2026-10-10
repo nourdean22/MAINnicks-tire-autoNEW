@@ -25,6 +25,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+// The wrapper reads NICK_MUTATION_LOCK for every write (2026-10-10, audit
+// 07-SN-03). The real getFlag kicks off a background DB refresh, which with no
+// database throws asynchronously under fake timers. Lock off, no DB.
+vi.mock("@/lib/feature-flags", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/feature-flags")>()), getFlag: () => ({ isOn: false }) }));
+
 import { wrapToolsWithEmptyHandling } from "@/lib/ai/tools";
 import { TOOL_CATALOG } from "@/lib/ai/tools/catalog";
 

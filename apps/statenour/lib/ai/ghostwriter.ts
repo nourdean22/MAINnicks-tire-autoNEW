@@ -23,6 +23,8 @@
  */
 
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
+import { AiUnavailableError } from "@/lib/ai/structured";
 import { buildNourVoicePrompt } from "@/lib/ai/nour-voice-profile";
 import { critiqueContent } from "@/lib/ai/output-critic";
 import { logger as rootLogger } from "@/lib/logger";
@@ -199,6 +201,8 @@ OUTPUT: the draft only — no preamble, no options unless the brief asks, no met
     ],
     "reason",
   );
+  // Callers persist `text` as a pending post — an outage must not become one.
+  if (isAiSentinel(result)) throw new AiUnavailableError("ghostwriter: provider sentinel", "provider_unavailable");
 
   let text = result.content;
   let critic = scoreSafely(text);
@@ -220,7 +224,7 @@ OUTPUT: the draft only — no preamble, no options unless the brief asks, no met
       ],
       "reason",
     );
-    const rescored = scoreSafely(regen.content);
+    const rescored = isAiSentinel(regen) ? null : scoreSafely(regen.content);
     if (rescored && (critic === null || rescored.contentOverall > critic.contentOverall)) {
       text = regen.content;
       critic = rescored;

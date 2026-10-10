@@ -29,7 +29,7 @@ import { readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import { isPublic, isStaticFile } from "@/lib/security/route-policy";
+import { isPublic, isStaticFile, PUBLIC_PREFIXES } from "@/lib/security/route-policy";
 
 // `export default auth(handler)` — with `auth` as identity, the default export
 // IS the handler and `req.auth` is simply absent (no session).
@@ -256,6 +256,86 @@ describe("inverse · every public/ file still passes the gate", () => {
       const d = await decide(path);
       expect(allowed(d), `${path} → ${d.status} ${d.location ?? ""}`).toBe(true);
     }
+  });
+});
+
+describe("SN-11 (audit 2026-10-10) · a public prefix exempts its own subtree, never a sibling that shares its spelling", () => {
+  // `pathname.startsWith("/api/brain")` also exempted any future
+  // /api/brainstorm, /api/sync-admin, /api/cronjobs ... from the session gate.
+  // Entries that end in "/" (/api/short/, /api/actions/, /api/internal/runner/)
+  // were already boundary-safe; every bare entry is probed here.
+  const bare = PUBLIC_PREFIXES.filter((p) => !p.endsWith("/"));
+
+  it("discovers the bare prefixes (sanity)", () => {
+    expect(bare).toContain("/api/brain");
+    expect(bare.length).toBeGreaterThanOrEqual(10);
+  });
+
+  it("/api/brainstorm is NOT public: 401 without a session", async () => {
+    expect(isPublic("/api/brainstorm")).toBe(false);
+    expect((await decide("/api/brainstorm")).status).toBe(401);
+  });
+
+  it.each(bare)("%s + a spelling suffix is gated", async (prefix) => {
+    const sibling = `${prefix}zz`;
+    expect(isPublic(sibling), sibling).toBe(false);
+    const d = await decide(sibling);
+    if (sibling.startsWith("/api/")) expect(d.status, sibling).toBe(401);
+    else expect(denied(d, sibling), `${sibling} → ${d.status} ${d.location ?? d.next ?? ""}`).toBe(true);
+  });
+
+  it.each([...PUBLIC_PREFIXES])("positive control: %s still exempts its own subtree", async (prefix) => {
+    const child = prefix.endsWith("/") ? `${prefix}x` : `${prefix}/x`;
+    const d = await decide(child);
+    expect(allowed(d), `${child} → ${d.status} ${d.location ?? ""}`).toBe(true);
+  });
+
+  it.each(bare.filter((p) => p !== "/_next" && p !== "/favicon"))(
+    "positive control: the bare route %s itself still passes",
+    async (prefix) => {
+      expect(allowed(await decide(prefix)), prefix).toBe(true);
+    },
+  );
+
+  it("every API route under a public prefix's own folder still reaches its route-level auth", async () => {
+    const appDir = join(APP_ROOT, "app");
+    const apiRoutes = walk(join(appDir, "api"))
+      .filter((f) => /[\\/]route\.ts$/.test(f))
+      .map((f) => "/" + relative(appDir, dirname(f)).split(/[\\/]/).map((s) => (s.startsWith("[") ? "x" : s)).join("/"));
+    const underPrefix = apiRoutes.filter((p) =>
+      PUBLIC_PREFIXES.some((pre) => (pre.endsWith("/") ? p.startsWith(pre) : p === pre || p.startsWith(`${pre}/`))),
+    );
+    expect(underPrefix.length, "sanity: found the self-authed route trees").toBeGreaterThanOrEqual(100);
+    const blocked: string[] = [];
+    for (const p of underPrefix) {
+      const d = await decide(p);
+      if (!allowed(d)) blocked.push(`${p} → ${d.status}`);
+    }
+    expect(blocked, `self-authed routes now 401'd by the session gate:\n${blocked.join("\n")}`).toEqual([]);
+  });
+
+  it("the favicon is still served without a session", async () => {
+    expect(allowed(await decide("/favicon.ico"))).toBe(true);
+  });
+});
+
+describe("F10 (audit 2026-10-10) · re-auth keeps the deep link's query string", () => {
+  const callbackOf = (d: Decision) => new URL(d.location ?? "http://none").searchParams.get("callbackUrl");
+
+  it("/brain?tab=memory → callbackUrl keeps tab=memory", async () => {
+    const d = await decide("/brain?tab=memory");
+    expect(d.status).toBe(307);
+    expect(callbackOf(d)).toBe("/brain?tab=memory");
+  });
+
+  it("several params survive intact", async () => {
+    const d = await decide("/chat?q=winter%20tires&view=list");
+    expect(callbackOf(d)).toBe("/chat?q=winter%20tires&view=list");
+  });
+
+  it("control: a path with no query is unchanged", async () => {
+    const d = await decide("/missions");
+    expect(callbackOf(d)).toBe("/missions");
   });
 });
 

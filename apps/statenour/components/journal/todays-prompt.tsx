@@ -24,6 +24,7 @@
 
 import { useState, useEffect } from "react";
 import { NotebookPen } from "lucide-react";
+import { scrollBehavior } from "@/lib/ui/scroll-behavior";
 
 const PROMPTS = [
   "What compounded today · or what stalled?",
@@ -65,7 +66,7 @@ export function TodaysPrompt() {
     // back when the event listener isn't wired (matches the
     // ReflectComposer's `id="journal-reflect-composer"`).
     const el = document.getElementById("journal-reflect-composer");
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (el) el.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
   };
 
   return (

@@ -15,6 +15,8 @@
  */
 
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
+import { AiUnavailableError } from "@/lib/ai/structured";
 import { applyOperatorStyle } from "@/lib/ai/style-adapter";
 
 /** The aggregated weekly snapshot the narrator reads. */
@@ -109,6 +111,8 @@ Write the 2-3 sentence weekly story.`;
     ],
     "fast",
   );
+  // The outage apology must not be served as a normal answer.
+  if (isAiSentinel(r)) throw new AiUnavailableError("track-story: provider sentinel", "provider_unavailable");
 
   return {
     story: r.content.trim(),

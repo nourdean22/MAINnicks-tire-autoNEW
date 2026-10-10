@@ -46,6 +46,7 @@ import { WisdomEvolutionPanel } from "@/components/brain/wisdom-evolution-panel"
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { ActiveFiltersStrip } from "@/components/ui/filter-chip-bar";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { scrollBehavior } from "@/lib/ui/scroll-behavior";
 
 interface WisdomEntry {
   id: string;
@@ -334,7 +335,7 @@ export function WisdomTab() {
     if (!focusKey || !data) return;
     const el = document.getElementById(`wisdom-${focusKey}`);
     if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
     }
   }, [focusKey, data]);
 

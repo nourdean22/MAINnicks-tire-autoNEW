@@ -198,9 +198,13 @@ describe("summarizeAndStoreConversation fan-out", () => {
   it("a merge-ground (soft-deleted) summary row does NOT count as fresh — recompiling revives it", async () => {
     // The grinder finding: 158 of 173 summaries were soft-deleted by the
     // nightly merge, and the old guard made them unrecoverable forever.
+    // 2026-10-10 (05-M4): only a GRINDER-stamped delete revives; an operator
+    // delete stays deleted (conversation-memory-deleted-stays-deleted.test.ts).
+    const groundAt = new Date("2026-08-19T15:00:00Z");
     h.memFindUnique.mockResolvedValue({
       updatedAt: new Date("2026-08-19T14:00:00Z"), // "fresh" — but deleted
-      deletedAt: new Date("2026-08-19T15:00:00Z"),
+      deletedAt: groundAt,
+      metadata: { deletedBy: "merge-grinder", deletedAt: groundAt.toISOString() },
     });
     await summarizeAndStoreConversation(CONV);
     expect(h.memUpsert).toHaveBeenCalled();

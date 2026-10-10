@@ -47,9 +47,13 @@ body {
 /* ═══════════════════════════════════════════════════════
    FOCUS — two rings (canvas + accent) so it reads on void, raised, glass and gold fills.
    WCAG 2.4.13. Replaces the browser default without removing it.
+   The outline is transparent, not `none`: forced-colors mode drops box-shadow and repaints a
+   transparent outline in the system colour, so the ring survives there (WCAG 2.4.7, audit 09-F15).
+   Unlayered on purpose, so it also beats any focus-visible:outline-* / shadow-* utility.
    ═══════════════════════════════════════════════════════ */
 :where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
-  outline: none;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
   box-shadow: var(--focus-ring);
 }
 

@@ -80,6 +80,14 @@ interface ConfirmState extends ConfirmOptions {
   resolve: ((value: boolean) => void) | null;
 }
 
+/**
+ * Which button holds focus when a confirm opens. Never the destructive one: an Enter or Space
+ * press right after open must not run a "danger" action (audit 09-F28).
+ */
+export function confirmInitialFocus(tone: ConfirmOptions["tone"]): "cancel" | "confirm" {
+  return tone === "danger" ? "cancel" : "confirm";
+}
+
 const INITIAL_CONFIRM_STATE: ConfirmState = {
   open: false,
   resolve: null,
@@ -134,6 +142,7 @@ export function useConfirmDialog(): {
             variant="outline"
             onClick={() => handleClose(false)}
             type="button"
+            autoFocus={confirmInitialFocus(state.tone) === "cancel"}
           >
             {state.cancelLabel ?? "Cancel"}
           </Button>
@@ -141,7 +150,7 @@ export function useConfirmDialog(): {
             variant={state.tone === "danger" ? "destructive" : "default"}
             onClick={() => handleClose(true)}
             type="button"
-            autoFocus
+            autoFocus={confirmInitialFocus(state.tone) === "confirm"}
             className={cn(state.tone === "danger" && "bg-rose-600/90 hover:bg-rose-600")}
           >
             {state.confirmLabel ?? "Confirm"}

@@ -81,9 +81,17 @@ export async function POST(req: NextRequest) {
   }
 
   const message = body.message as
-    | { text?: string; chat: { id: number } }
+    | { text?: string; chat: { id: number }; from?: { id: number } }
     | undefined;
   if (!message?.text) return NextResponse.json({ ok: true });
+
+  // 2026-10-10 (SN-12) - owner only, as the main webhook does. The chat-id
+  // check below is skipped when TELEGRAM_CHAT_ID is unset, so without this
+  // anyone able to message the bot could /approve_all. An unset
+  // TELEGRAM_OWNER_ID is NaN, which matches no sender: fail closed.
+  if (message.from?.id !== Number(process.env.TELEGRAM_OWNER_ID || NaN)) {
+    return NextResponse.json({ ok: true });
+  }
 
   const chatId = String(message.chat.id);
   const expectedChat = process.env.TELEGRAM_CHAT_ID;

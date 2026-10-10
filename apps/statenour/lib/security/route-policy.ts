@@ -106,10 +106,24 @@ export const PUBLIC_EXACT = [
   "/api/version",
 ] as const;
 
+/**
+ * True iff `pathname` is `prefix` or inside its subtree.
+ *
+ * Audit 2026-10-10 SN-11 · a bare `startsWith` let "/api/brain" also exempt a
+ * future "/api/brainstorm" (and "/api/sync" a "/api/sync-admin"). A bare entry
+ * now matches itself or `prefix + "/"...` only. Entries that already end in
+ * "/" keep a plain startsWith: appending another "/" would gate their real
+ * routes (/api/short/<code>, /api/actions/*, /api/internal/runner/*).
+ */
+function underPrefix(pathname: string, prefix: string): boolean {
+  if (prefix.endsWith("/")) return pathname.startsWith(prefix);
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
 /** True iff `pathname` bypasses the NextAuth session gate. Pure — no I/O, no env. */
 export function isPublic(pathname: string): boolean {
   if ((PUBLIC_EXACT as readonly string[]).includes(pathname)) return true;
-  return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  return PUBLIC_PREFIXES.some((prefix) => underPrefix(pathname, prefix));
 }
 
 /**

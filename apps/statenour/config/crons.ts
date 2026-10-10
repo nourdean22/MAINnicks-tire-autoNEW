@@ -52,14 +52,15 @@
  * mode "active", killed 2026-09-08 with an empty note and no expiry, and it is
  * the sweeper that HARD-DELETES expired brain memories.
  *
- * ★★★ AND "NOT IN THE LOG" DOES NOT MEAN "NOT RUNNING." `/api/cron/*` routes
- * are wrapped by cronHandler -> logCronRun (lib/utils/http.ts), so route crons
- * log automatically. Inngest functions BYPASS that wrapper: only 4 of 27 write
- * a row, so ~17 genuinely-running inngest crons are INVISIBLE to the log,
- * /system/crons, and any audit built on them. They could stop firing entirely
- * and nothing here would change. Proof they do run: intelligence-daily-brief
- * has no log rows at all, yet its Langfuse traces land at 10:15-10:17 daily,
- * matching its `15 10 * * *` schedule exactly.
+ * ★★★ WHO WRITES `cron_job_log`. `/api/cron/*` routes are wrapped by
+ * cronHandler -> logCronRun (lib/utils/http.ts), so route crons log
+ * automatically (a kill-switched route cron returns before logging, so it
+ * writes NO row). Inngest functions bypass that wrapper; since 2026-09-17 the
+ * client's CronLifecycleMiddleware (lib/inngest/cron-lifecycle.ts) writes one
+ * row per run, `started` -> `success|partial|failed|interrupted`, for every
+ * CRON-triggered Inngest function under its function id. Event-triggered
+ * functions still write no row. (The old "only 4 of 27 write a row" was true
+ * before that middleware and is not now.)
  *
  * Reconcile all three with `scripts/probe-cron-truth.mjs` before trusting any
  * statement about cron health — including one made by this file.
@@ -946,17 +947,17 @@ export const CRONS: CronDef[] = [
 
 
   // ── ACTION (Wave AG · Nick Action Queue) ────────────────────────────
-  // Wave AK · 2026-05-28 · 7am UTC prewarm of the relationships-picks
-  // cache so the 8am proposer's outreach source has data. Audit caught
-  // the silent-degrade · cache was lazy (only on /relationships visit)
-  // so 8am cron at 3-4am ET ran with empty outreach slot every day.
+  // Wave AK · 2026-05-28 · prewarm of the relationships-picks cache for the
+  // proposer's outreach source. ⚠ 2026-10-10: all three of these run in the
+  // SAME 09:00 UTC morning fan-out (MORNING_JOBS), dispatched concurrently:
+  // nothing sequences prewarm -> proposal -> execute (lib/inngest/jobs.ts).
   {
     name: "relationship-picks-prewarm",
     schedule: null,
     mode: "folded",
     category: "action",
     foldedInto: "mega-morning",
-    description: "Daily 7am UTC · pre-warms RELATIONSHIPS_PICKS_TODAY cache so the 8am nick-action-proposal has outreach data. Idempotent · returns cached value if already populated.",
+    description: "Daily in the 09:00 UTC morning fan-out (concurrent with nick-action-proposal, not before it) · pre-warms RELATIONSHIPS_PICKS_TODAY cache for the proposer's outreach source. Idempotent · returns cached value if already populated.",
     memory: 512,
     maxDuration: 60,
     addedAt: "2026-05-28",
@@ -967,7 +968,7 @@ export const CRONS: CronDef[] = [
     mode: "folded",
     category: "action",
     foldedInto: "mega-morning",
-    description: "Daily 8am UTC · Nick proposes 3-6 actions (SMS outreach · mission archive · task move · journal commit · AI spend confirm) · writes AutonomousAction rows + Telegram push w/ approve/reject syntax. Wave AK alerting · sends Telegram on failure.",
+    description: "Daily in the 09:00 UTC morning fan-out · Nick proposes 3-6 actions (SMS outreach · mission archive · task move · journal commit · AI spend confirm) · writes AutonomousAction rows + Telegram push w/ approve/reject syntax. Wave AK alerting · sends Telegram on failure.",
     memory: 1024,
     maxDuration: 300,
     addedAt: "2026-05-28",
@@ -978,7 +979,7 @@ export const CRONS: CronDef[] = [
     mode: "folded",
     category: "action",
     foldedInto: "mega-morning",
-    description: "Daily 9am UTC · executes operator-approved AutonomousAction rows from the last 24h · logs results to ledger/journal/brain.",
+    description: "Daily in the 09:00 UTC morning fan-out, concurrent with the proposer · executes operator-approved AutonomousAction rows from the last 24h (the approval gate, not ordering, keeps it off this run's fresh proposals) · logs results to ledger/journal/brain.",
     memory: 1024,
     maxDuration: 600,
     addedAt: "2026-05-28",
@@ -988,20 +989,14 @@ export const CRONS: CronDef[] = [
     schedule: null,
     mode: "folded",
     category: "action",
-    foldedInto: "mega-evening",
-    description: "FOLDED into mega-evening · NICK_AUTONOMY-gated proactive engine (~22 rules: revenue-pace, urgent-leads, drift escalation, commitment enforcement, morning brief, expired-quote follow-up). Hard-skips when the flag is off. FAIL-CLOSED: every rule defers to /system/actions unless an explicit `auto` AutomationPolicy exists — nothing auto-sends.",
+    foldedInto: "automation-engine",
+    description: "FOLDED into the hourly automation-engine Inngest tick, which dispatches /api/cron/autonomous-engine first each hour (lib/inngest/functions/automation-engine.ts). Moved off mega-evening 2026-10-10: its rules gate on daytime ET hours that the 22:00/23:00 ET slot never reached. NICK_AUTONOMY-gated proactive engine; rules live in lib/brain/autonomous-engine.ts (quote follow-up, commitment check-ins and escalation, drift escalation, stale leads, revenue checks, task overload) - no count pinned here, a count in prose is a cache with no invalidation. Hard-skips when the flag is off. FAIL-CLOSED: every rule defers to /system/actions unless an explicit `auto` AutomationPolicy exists - nothing auto-sends.",
   },
-  {
-    name: "neglect-penalty",
-    schedule: "0 */4 * * *", // Runs every 4 hours
-    mode: "dormant",
-    category: "hygiene",
-    inngest: true,
-    description: "Systemic decay enforcer. Deducts XP from neglected missions that idle for >48h and fires a Telegram alert.",
-  },
+  // neglect-penalty removed 2026-10-10: declared inngest/dormant, but no
+  // function with that id exists (nothing to park or revive).
   {
     name: "change-detection",
-    schedule: "0 13 * * *", // daily ~9am ET — fires via the MORNING_JOBS fan-out
+    schedule: "0 9 * * *", // 09:00 UTC (5am ET) — fires via the MORNING_JOBS fan-out
     mode: "active",
     category: "review",
     maxDuration: 120,

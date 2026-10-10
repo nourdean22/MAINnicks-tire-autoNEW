@@ -34,6 +34,7 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
+import { apiHandler } from "@/lib/utils/http";
 import {
   loadLatestHealthDigest,
   refreshHealthDigest,
@@ -54,7 +55,7 @@ interface DigestPayload extends SystemHealthDigest {
 // `operator.refreshHealthDigest` tRPC mutation calls the SAME function.
 const recomputeAndPersist = refreshHealthDigest;
 
-export async function GET() {
+export const GET = apiHandler(async () => {
   try {
     const persisted = await loadLatestHealthDigest();
     const ageMs = persisted
@@ -87,7 +88,7 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+}, { auth: "owner" });
 
 export async function POST(req: Request) {
   await requireSession(req);

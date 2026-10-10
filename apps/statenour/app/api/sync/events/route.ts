@@ -94,6 +94,56 @@ async function writeAuditOnce(event: BridgeEvent, key: string): Promise<KeyedWri
 }
 
 /**
+ * Audit 2026-10-10 SN-01 · what the bridge key may do to the social queue.
+ *
+ * STATENOUR_SYNC_KEY is held by nickstire's server AND by unattended device
+ * agents. A draft event may create a row, or edit one still `pending`. It may
+ * never put a row into a status the publish worker or the render lane acts on
+ * (approved / scheduled / rendering land as `pending`), and never touch a row
+ * past `pending` (the operator's approve, schedule or reject, or a live post).
+ *
+ * The guard is the upsert's own WHERE, not a read-then-write: with a
+ * non-unique filter Prisma creates when the filter misses, so an existing
+ * non-pending row collides on the id (P2002), and a row that leaves `pending`
+ * mid-write misses its update (P2025). Both mean "row not pending".
+ *
+ * `published` and `rejected` pass through as sent: nickstire mirrors posts it
+ * has ALREADY published (routers/content.ts post logs, routers/gbp.ts). Forcing
+ * those to `pending` would make a live post publishable a second time.
+ */
+const BRIDGE_DRAFT_STATUSES = new Set(["pending", "published", "rejected"]);
+type DraftIgnored = "row not pending";
+
+async function syncSocialDraft(d: Record<string, unknown>): Promise<DraftIgnored | null> {
+  const id = String(d.id);
+  const fields = {
+    content: String(d.content || ""),
+    status: BRIDGE_DRAFT_STATUSES.has(String(d.status)) ? String(d.status) : "pending",
+    imageUrl: d.imageUrl ? String(d.imageUrl) : null,
+    platforms: Array.isArray(d.platforms) ? d.platforms.map(String) : [],
+    kind: String(d.kind || "post"),
+    source: String(d.source || "nick"),
+    sourceMetadata: (d.sourceMetadata as any) || {},
+    missionId: d.missionId ? String(d.missionId) : null,
+    scheduledFor: d.scheduledFor ? new Date(d.scheduledFor as string | number | Date) : null,
+    publishedAt: d.publishedAt ? new Date(d.publishedAt as string | number | Date) : null,
+    publishUrls: Array.isArray(d.publishUrls) ? d.publishUrls.map(String) : [],
+  };
+  try {
+    await prisma.socialPublishQueue.upsert({
+      where: { id, status: "pending" },
+      create: { id, ...fields },
+      update: fields,
+    });
+    return null;
+  } catch (err) {
+    const code = (err as { code?: unknown } | null)?.code;
+    if (code === "P2002" || code === "P2025") return "row not pending";
+    throw err;
+  }
+}
+
+/**
  * POST /api/sync/events
  * Receives business events from nickstire.org bridge.
  * Auth: Bearer STATENOUR_SYNC_KEY
@@ -109,6 +159,7 @@ export const POST = apiHandler(
     for (const [index, event] of events.entries()) {
       const key = keys[index];
       let dedupe: "unavailable" | undefined;
+      let ignored: DraftIgnored | null = null;
       if (key) {
         // ADR-0019 phase 1d. A replay writes nothing and re-fires nothing: no
         // second audit row, coach event or pipeline run.
@@ -186,43 +237,15 @@ export const POST = apiHandler(
         if (event.type === "nickstire:social_draft:sync") {
           const d = event.data;
           if (d && d.id) {
-            await prisma.socialPublishQueue.upsert({
-              where: { id: String(d.id) },
-              create: {
-                id: String(d.id),
-                content: String(d.content || ""),
-                status: String(d.status || "pending"),
-                imageUrl: d.imageUrl ? String(d.imageUrl) : null,
-                platforms: Array.isArray(d.platforms) ? d.platforms.map(String) : [],
-                kind: String(d.kind || "post"),
-                source: String(d.source || "nick"),
-                sourceMetadata: (d.sourceMetadata as any) || {},
-                missionId: d.missionId ? String(d.missionId) : null,
-                scheduledFor: d.scheduledFor ? new Date(d.scheduledFor as string | number | Date) : null,
-                publishedAt: d.publishedAt ? new Date(d.publishedAt as string | number | Date) : null,
-                publishUrls: Array.isArray(d.publishUrls) ? d.publishUrls.map(String) : [],
-              },
-              update: {
-                content: String(d.content || ""),
-                status: String(d.status || "pending"),
-                imageUrl: d.imageUrl ? String(d.imageUrl) : null,
-                platforms: Array.isArray(d.platforms) ? d.platforms.map(String) : [],
-                kind: String(d.kind || "post"),
-                source: String(d.source || "nick"),
-                sourceMetadata: (d.sourceMetadata as any) || {},
-                missionId: d.missionId ? String(d.missionId) : null,
-                scheduledFor: d.scheduledFor ? new Date(d.scheduledFor as string | number | Date) : null,
-                publishedAt: d.publishedAt ? new Date(d.publishedAt as string | number | Date) : null,
-                publishUrls: Array.isArray(d.publishUrls) ? d.publishUrls.map(String) : [],
-              },
-            });
+            ignored = await syncSocialDraft(d);
           }
         }
       } catch (alertErr) {
         console.warn("[sync/events] Alert write failed:", alertErr);
       }
 
-      results.push(dedupe ? { type: event.type, stored: true, dedupe } : { type: event.type, stored: true });
+      const result = dedupe ? { type: event.type, stored: true, dedupe } : { type: event.type, stored: true };
+      results.push(ignored ? { ...result, ignored } : result);
 
       // Fire brain pipeline — FIRE AND FORGET (don't block the response)
       const typeMap: Record<string, ShopEvent["type"]> = {

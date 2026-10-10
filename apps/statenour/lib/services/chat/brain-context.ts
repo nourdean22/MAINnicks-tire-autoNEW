@@ -75,7 +75,17 @@ export interface BuildBrainContextInput {
   userEmbedding: number[];
   forceRecall: boolean;
   messages: Array<{ role: string; content: string }>;
-  convId: string;
+  /** Undefined on a Private Lab turn (see privateMode). */
+  convId?: string;
+  /**
+   * 2026-10-10 (audit 05-M1, 04-F10) · Private Lab: assemble context with
+   * ZERO writes. Recall runs read-only (sideEffects:false); lanes that write
+   * on read and have no read-only mode (contextual recall's wisdom bump, the
+   * skill / Greene / dark-psychology fire rows, the lens-fire metric, the
+   * contradiction / objection dedupe rows) are skipped; no console line
+   * carries the query. convId is ignored.
+   */
+  privateMode?: boolean;
   /** 2026-07-22 · authority posture ("execute" suppresses the objection
    *  injector + resolves open objections; other values no-op here). */
   posture?: string;
@@ -153,7 +163,11 @@ export function buildRecallMessages(
 export async function buildBrainContext(
   input: BuildBrainContextInput,
 ): Promise<BuildBrainContextOutput> {
-  const { userContent, mode, userEmbedding, forceRecall, messages, convId, posture, log } = input;
+  const { userContent, mode, userEmbedding, forceRecall, messages, posture, log } = input;
+  const privateMode = input.privateMode === true;
+  // A private turn has no conversation: with an id, the contradiction and
+  // objection injectors write per-conversation dedupe rows.
+  const convId = privateMode ? undefined : input.convId;
   // Authority posture (self-review #8): explicit "execute" pill suppresses the
   // objection injector this turn — same as the phrase detector. Explicit "spar"
   // / "counsel" mean the user WANTS engagement, so they override a phrase-
@@ -387,7 +401,9 @@ export async function buildBrainContext(
       // NOTE: this comment sits ABOVE withTimeout( on purpose --
       // tests/ai/brain-context-timeouts.test.ts pins the fetcher within 120
       // chars of its wrapper, and a comment block between them fails it.
-      (userContent.length > 10 || forceRecall) && contextualRecallMod
+      // Private Lab skips this lane: it bumps wisdom seenCount/lastSeen on
+      // every read and has no read-only mode yet (hybrid recall below does).
+      (userContent.length > 10 || forceRecall) && contextualRecallMod && !privateMode
         ? withTimeout(
             contextualRecallMod.getContextualMemories(
               buildRecallMessages(queryPlan.referent, userContent),
@@ -434,7 +450,7 @@ export async function buildBrainContext(
       // stay within 120 chars of withTimeout( for the timeout-contract pin.)
       userContent.length > 10 && memoryRecallMod && userEmbedding.length > 0
         ? withTimeout(
-            memoryRecallMod.recallMemoriesForQuery(userContent, { embedding: userEmbedding, limit: mode === "deep" ? 8 : 5, exactTerms: queryPlan.exactTerms }),
+            memoryRecallMod.recallMemoriesForQuery(userContent, { embedding: userEmbedding, limit: mode === "deep" ? 8 : 5, exactTerms: queryPlan.exactTerms, sideEffects: !privateMode }),
             3000,
             // withTimeout cannot distinguish a rejection from an expiry;
             // both are a FAILED read, so both must say so.
@@ -496,7 +512,9 @@ export async function buildBrainContext(
       // on low similarity — prompt-budget guard per the plan.
       // AG-31 · the precomputed userEmbedding rides along so the matcher's
       // vector fallback can catch paraphrases when triggers miss.
-      userContent.length > 10 && greeneMatcherMod
+      // Private Lab: the Greene / dark-psychology / skill-registry lanes each
+      // record a fire row on read, so a private turn skips them.
+      userContent.length > 10 && greeneMatcherMod && !privateMode
         ? withTimeout(
             greeneMatcherMod
               .pickContextualLawsForMessage(userContent, {
@@ -507,7 +525,7 @@ export async function buildBrainContext(
             "",
           )
         : Promise.resolve(""),
-      userContent.length > 10 && darkPsychMatcherMod
+      userContent.length > 10 && darkPsychMatcherMod && !privateMode
         ? withTimeout(
             darkPsychMatcherMod
               .pickDarkPsychologyForMessage(userContent)
@@ -518,7 +536,7 @@ export async function buildBrainContext(
         : Promise.resolve(""),
       // AG-17 · fails closed ("" on any error) + 60s per-message cache
       // inside skill-context; ~450 tokens/turn worst case (top-3 skills).
-      userContent.length > 10 && skillRegistryRecallMod
+      userContent.length > 10 && skillRegistryRecallMod && !privateMode
         ? withTimeout(skillRegistryRecallMod.getRelevantSkillsBlock(userContent), 3000, "")
         : Promise.resolve(""),
       // AG-30 · once-per-conversation, 24h lookback, severity≥2+flaw only.
@@ -545,7 +563,8 @@ export async function buildBrainContext(
       ? await withTimeout(anticipatoryRecallMod.anticipateMemories(messages as never, contextMemories), 3000, null)
       : null;
     
-    if (strategicLensBlock && strategicFrameworksMod) {
+    // The lens block still renders on a private turn; only its metric row is skipped.
+    if (strategicLensBlock && strategicFrameworksMod && !privateMode) {
       import("@/lib/ai/strategic-frameworks/record-lens-fire").then(({ recordLensFire }) => {
         const matches = strategicFrameworksMod.pickFrameworks(userContent);
         recordLensFire({ surface: "chat", matches, lensBlockLength: strategicLensBlock.length });
@@ -751,7 +770,9 @@ export async function buildBrainContext(
         (hybridRecallReport?.hits ?? []).map((h: any) => String(h.id ?? h.memoryId ?? "")).filter(Boolean),
       );
       console.info("[brain-context] recall_lane_overlap", JSON.stringify(laneOverlap));
-      console.info("[brain-context] query_plan", JSON.stringify({ classes: queryPlan.classes, asOf: queryPlan.asOf?.toISOString() ?? null, exactTerms: queryPlan.exactTerms, subQueries: queryPlan.subQueries.length }));
+      // exactTerms are lifted verbatim from the user's message; a private
+      // turn's words stay out of the logs.
+      if (!privateMode) console.info("[brain-context] query_plan", JSON.stringify({ classes: queryPlan.classes, asOf: queryPlan.asOf?.toISOString() ?? null, exactTerms: queryPlan.exactTerms, subQueries: queryPlan.subQueries.length }));
     }
     if (hybridRecallReport) {
       recallProvenance =
@@ -773,11 +794,26 @@ export async function buildBrainContext(
       // reason: a declaration the model controls is not a control.
       try {
         const hits = (hybridRecallReport.hits ?? []) as Array<{ trustTier?: string }>;
-        const { shouldStampInferredBasis } = await import("@/lib/brain/memory-trust");
+        const { shouldStampInferredBasis, classifyTrustTier } = await import("@/lib/brain/memory-trust");
+        const { updateTurnContext } = await import("@/lib/agent/turn-context");
         if (shouldStampInferredBasis(hits)) {
-          const { updateTurnContext } = await import("@/lib/agent/turn-context");
           updateTurnContext({ inferredBasisOnly: true });
           log.info("turn_inferred_basis_only", { hits: hits.length });
+        }
+        // 2026-10-10 (audit 07-SN-02) · recalled third-party text (inbound
+        // mail, scraped pages) is untrusted input to THIS turn, wherever it
+        // renders -- hybrid block, contextual block or the evidence pack. The
+        // taint is what makes the sink gate hold an outward side effect. A
+        // contextual row with no source re-derives from its category, like
+        // the hybrid renderer does, so a missing field does not taint every turn.
+        const external =
+          hits.some((h) => h.trustTier === "EXTERNAL_CONTENT") ||
+          contextualRankedRows.some(
+            (r) => classifyTrustTier(r.source || "unclassified", null, r.category) === "EXTERNAL_CONTENT",
+          );
+        if (external) {
+          updateTurnContext({ untrustedInput: true });
+          log.info("turn_tainted_by_recall", { hits: hits.length, contextual: contextualRankedRows.length });
         }
       } catch {
         // Never let provenance stamping break a turn. Failing to stamp

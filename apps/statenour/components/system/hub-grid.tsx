@@ -85,6 +85,9 @@ interface HubPayload {
 }
 
 const UNMEASURED_CHIP = { label: "unmeasured", severity: "unknown" as Severity };
+/** No payload: still loading, or the read failed (SystemHubGrid swaps in READ_FAILED_CHIP). */
+const NOT_READ_CHIP = { label: "—", severity: "unknown" as Severity };
+const READ_FAILED_CHIP = { label: "unknown", severity: "unknown" as Severity };
 
 interface HubCard {
   href: string;
@@ -142,7 +145,7 @@ export const CARDS: HubCard[] = [
     // The old `fatal24h > 0` half was a dead branch (no writer ever emits
     // 'fatal'); degraded now keys on warning-level error volume instead.
     chip: (d) => {
-      if (!d) return { label: "—", severity: "unknown" };
+      if (!d) return NOT_READ_CHIP;
       if (d.errors.measured === false || d.crons.measured === false)
         return UNMEASURED_CHIP;
       const bad = d.errors.count24h > 20 || d.crons.silent > 2;
@@ -168,7 +171,7 @@ export const CARDS: HubCard[] = [
     // while counting as neither online nor offline — an all-UNKNOWN fleet
     // must warn, never render "0 online" in green.
     chip: (d) => {
-      if (!d) return { label: "—", severity: "unknown" };
+      if (!d) return NOT_READ_CHIP;
       // Before the total===0 check: "no devices" off an UNREAD fleet is a
       // claim about the shop's cameras made by a query that never ran.
       if (d.devices.measured === false) return UNMEASURED_CHIP;
@@ -185,7 +188,7 @@ export const CARDS: HubCard[] = [
     group: "health",
     description: "Live cron control surface — enable/disable per job + run now",
     chip: (d) => {
-      if (!d) return { label: "—", severity: "unknown" };
+      if (!d) return NOT_READ_CHIP;
       if (d.crons.measured === false) return UNMEASURED_CHIP;
       if (d.crons.killed > 0)
         return { label: `${d.crons.killed} killed`, severity: "warning" };
@@ -206,7 +209,7 @@ export const CARDS: HubCard[] = [
     // 2026-08-04 baseline (~12.6 errors/day): >=40/24h (~3x mean) critical,
     // >20/24h warning. Bare >0 would flag most ordinary days.
     chip: (d) => {
-      if (!d) return { label: "—", severity: "unknown" };
+      if (!d) return NOT_READ_CHIP;
       if (d.errors.measured === false) return UNMEASURED_CHIP;
       if (d.errors.fatal24h >= 40)
         return { label: `${d.errors.fatal24h} errors 24h`, severity: "critical" };
@@ -246,7 +249,7 @@ export const CARDS: HubCard[] = [
     group: "ai",
     description: "Per-model + per-feature burn rate with daily budget",
     chip: (d) => {
-      if (!d) return { label: "—", severity: "unknown" };
+      if (!d) return NOT_READ_CHIP;
       // A fabricated "$0.00 7d" reads as a spend observation; it is not.
       if (d.ai.measured === false) return UNMEASURED_CHIP;
       const usd = (d.ai.costCents7d / 100).toFixed(2);
@@ -255,15 +258,15 @@ export const CARDS: HubCard[] = [
   },
   {
     // /brain/categories was deleted in the brain consolidation (no
-    // redirect → 404). Repointed to the live /brain hub, which carries
-    // the category surface now.
-    href: "/brain",
+    // redirect → 404). Bare /brain opens the Map tab, so this lands on
+    // the Memory tab; /brain shows no people intelligence (audit 02-F18).
+    href: "/brain?tab=memory",
     title: "Brain Categories",
     icon: Brain,
     group: "ai",
-    description: "Brain hub — memories, categories, recall + people intelligence",
+    description: "Memory tab: saved memories, recall, beliefs and contradictions",
     chip: (d) => {
-      if (!d) return { label: "—", severity: "unknown" };
+      if (!d) return NOT_READ_CHIP;
       if (d.brain.measured === false) return UNMEASURED_CHIP;
       return {
         label: `${d.brain.totalMemories.toLocaleString()} rows`,
@@ -278,7 +281,7 @@ export const CARDS: HubCard[] = [
     group: "data",
     description: "Looks-live-but-old rows · exact category policy + targeted cleanup",
     chip: (d) => {
-      if (!d) return { label: "—", severity: "unknown" };
+      if (!d) return NOT_READ_CHIP;
       if (d.stale.measured === false) return UNMEASURED_CHIP;
       if (d.stale.totalRows === 0) return { label: "clean", severity: "healthy" };
       return {
@@ -369,7 +372,7 @@ export const CARDS: HubCard[] = [
     // that ignored the rollup — a fabricated status. Now shows the measured
     // 24h AI-call count as telemetry ("info"), never an unearned "healthy".
     chip: (d) => {
-      if (!d) return { label: "—", severity: "unknown" };
+      if (!d) return NOT_READ_CHIP;
       if (d.ai.measured === false) return UNMEASURED_CHIP;
       return { label: `${d.ai.calls24h} calls · 24h`, severity: "info" };
     },
@@ -521,14 +524,18 @@ export function SystemHubGrid() {
   // Phase VV (2026-05-22) · REST→tRPC · system.hub. The legacy route
   // wrapped its rollup in `{ data }`; the procedure returns it
   // unwrapped. The page polled on a 60s setInterval — refetchInterval
-  // now drives that. A failed fetch leaves `data` null and every card
-  // falls back to its "—" chip, exactly as the prior swallowed catch.
+  // now drives that. With no payload every live card returns NOT_READ_CHIP;
+  // when the read FAILED that becomes the word "unknown" (2026-10-10 ·
+  // audit 09-F7), so a failure never looks like a load in flight.
   const hubQuery = trpc.system.hub.useQuery(undefined, {
     refetchInterval: 60_000,
   });
   const data: HubPayload | null = hubQuery.data ?? null;
 
-  const decorated = CARDS.map((c) => ({ c, chip: c.chip(data) }));
+  const decorated = CARDS.map((c) => {
+    const chip = c.chip(data);
+    return { c, chip: chip === NOT_READ_CHIP && hubQuery.isError ? READ_FAILED_CHIP : chip };
+  });
 
   // Degraded surfaces (warning/critical) lift into a "Needs attention"
   // strip above the groups — problems hit the eye first. Critical

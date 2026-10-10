@@ -13,7 +13,6 @@
 
 import { OPERATOR_SOURCE_NAMES } from "@/lib/brain/memory-commit-gateway";
 import { prisma } from "@/lib/prisma";
-import { recordError } from "@/lib/errors/record-error";
 import { brainMemory } from "./memory-manager";
 import { admitMemory } from "@/lib/brain/memory-admission";
 // v10.0.64 · AgentTrace coverage.
@@ -24,6 +23,10 @@ import { today, daysAgo } from "@/lib/utils/datetime";
 // v10.0.65 · structured logger for surfacing dedupe-delete failures.
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES, CONSOLIDATION_EXCLUDE_CATEGORIES } from "@/lib/brain/categories";
+import { TELEMETRY_CATEGORY_LIST } from "@/lib/brain/embedding-policy";
+import { stampGrinderDelete } from "@/lib/brain/conversation-memory";
+import { storeMemoryEmbedding } from "@/lib/brain/embedding-utils";
+import type { Prisma } from "@prisma/client";
 const log = rootLogger.withSurface("brain/memory-consolidation");
 
 // ─── 1. MERGE: Combine similar memories ──────────────────
@@ -70,7 +73,7 @@ export async function mergeMemories(): Promise<{ merged: number }> {
     const memories = await prisma.brainMemory.findMany({
       where: { category: cat.category, deletedAt: null, ...CURATED_GUARD },
       orderBy: { confidence: "desc" },
-      select: { id: true, key: true, content: true, confidence: true, seenCount: true },
+      select: { id: true, key: true, content: true, confidence: true, seenCount: true, metadata: true },
     });
 
     if (memories.length < 4) continue;
@@ -168,7 +171,8 @@ Rules:
         // had its confidence boosted, so re-running the cron found
         // the same group, picked a (now-different) keeper, and
         // inflated confidence again.
-        await prisma.$transaction([
+        const deletedAt = new Date();
+        const ok = await prisma.$transaction([
           prisma.brainMemory.update({
             where: { id: keeper.id },
             data: {
@@ -183,17 +187,35 @@ Rules:
           // Recall already filters `deletedAt: null`, so what gets
           // recalled is UNCHANGED — but merged-away rows stay
           // recoverable/auditable instead of being destroyed nightly.
+          // The grinder stamp lets conversation-memory revive these rows
+          // and never an operator delete (05-M4).
           ...others.map((other) =>
             prisma.brainMemory.update({
               where: { id: other.id },
-              data: { deletedAt: new Date() },
+              data: {
+                deletedAt,
+                metadata: stampGrinderDelete(other.metadata, deletedAt) as Prisma.InputJsonValue,
+              },
             }),
           ),
-        ]).catch((err) => {
-          // Atomic failure → no partial merge. Log + skip group;
-          // next cron run can retry the same group cleanly.
-          log.warn("merge_transaction_failed", { err: err instanceof Error ? err.message : String(err) });
-        });
+        ]).then(
+          () => true,
+          (err) => {
+            // Atomic failure → no partial merge. Log + skip group;
+            // next cron run can retry the same group cleanly.
+            log.warn("merge_transaction_failed", { err: err instanceof Error ? err.message : String(err) });
+            return false;
+          },
+        );
+        if (!ok) continue;
+
+        // The keeper's text changed, so its vector must too (05-M7) —
+        // telemetry categories stay out of the index (embedding-policy).
+        if (!TELEMETRY_CATEGORY_LIST.includes(cat.category)) {
+          await storeMemoryEmbedding(keeper.id, `[${cat.category}] ${keeper.key}: ${group.merged}`).catch((err) =>
+            log.warn("keeper_reembed_failed", { memoryId: keeper.id, err: err instanceof Error ? err.message : String(err) }),
+          );
+        }
 
         totalMerged += others.length;
       }
@@ -561,29 +583,38 @@ function getCategoryWeight(category: string): number {
 export async function crossPollinate(): Promise<{ connections: number }> {
   // Find unconnected high-value memories and link them
   const [wisdoms, contradictions, predictions, reflections] = await Promise.all([
-    prisma.brainMemory.findMany({ where: { category: BRAIN_CATEGORIES.WISDOM }, take: 10, select: { id: true, content: true } }),
+    // Live, current wisdom only: a forgotten or superseded row must not gain edges.
+    prisma.brainMemory.findMany({
+      where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null, supersededById: null },
+      take: 10,
+      select: { id: true, content: true },
+    }),
     prisma.contradiction.findMany({ where: { resolved: false }, take: 5, select: { id: true, claim: true, gap: true } }),
     prisma.prediction.findMany({ where: { status: "pending" }, take: 5, select: { id: true, prediction: true } }),
     prisma.reflection.findMany({ where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, insight: true } }),
   ]);
 
-  let connections = 0;
+  // 2026-10-10 · audit 05-M16. Edges are written create-only: these string
+  // heuristics are deterministic, so the same match next night is not new
+  // evidence (connect() added +0.1 per run, climbing to 1.0 on repetition).
+  // Written directly because connect()'s entity union has no "contradiction",
+  // which is what the Contradiction end is (it was labelled "memory").
+  const edges: Prisma.MemoryEdgeCreateManyInput[] = [];
 
   // Connect contradictions to relevant wisdom
   for (const c of contradictions) {
     for (const w of wisdoms) {
       if (w.content.toLowerCase().includes(c.claim.slice(0, 20).toLowerCase()) ||
           c.gap.toLowerCase().includes(w.content.slice(0, 20).toLowerCase())) {
-        const { connect: connectEdge } = await import("./relational-graph");
-        await connectEdge(
-          { type: "memory", id: w.id },
-          { type: "memory", id: c.id },
-          "contradicts",
-          `Wisdom "${w.content.slice(0, 40)}" contradicts "${c.claim.slice(0, 40)}"`
-        ).catch((err) => {
-          recordError("brain:memory-consolidation", err, { edge: "contradicts", sourceId: w.id, targetId: c.id });
+        edges.push({
+          sourceType: "memory",
+          sourceId: w.id,
+          targetType: "contradiction",
+          targetId: c.id,
+          relationship: "contradicts",
+          strength: 0.5,
+          evidence: `Wisdom "${w.content.slice(0, 40)}" contradicts "${c.claim.slice(0, 40)}"`,
         });
-        connections++;
       }
     }
   }
@@ -595,21 +626,24 @@ export async function crossPollinate(): Promise<{ connections: number }> {
       const rWords = new Set(r.insight.toLowerCase().split(/\s+/).filter(w => w.length > 4));
       const overlap = [...pWords].filter(w => rWords.has(w)).length;
       if (overlap >= 2) {
-        const { connect: connectEdge } = await import("./relational-graph");
-        await connectEdge(
-          { type: "reflection", id: r.id },
-          { type: "prediction", id: p.id },
-          "supports",
-          `Shared concepts: ${overlap} overlapping terms`
-        ).catch((err) => {
-          recordError("brain:memory-consolidation", err, { edge: "supports", sourceId: r.id, targetId: p.id });
+        edges.push({
+          sourceType: "reflection",
+          sourceId: r.id,
+          targetType: "prediction",
+          targetId: p.id,
+          relationship: "supports",
+          strength: 0.5,
+          evidence: `Shared concepts: ${overlap} overlapping terms`,
         });
-        connections++;
       }
     }
   }
 
-  return { connections };
+  if (edges.length === 0) return { connections: 0 };
+  // A failed write throws to runConsolidation's safe() (stage_failed), so it
+  // never reads as "nothing new to link".
+  const created = await prisma.memoryEdge.createMany({ data: edges, skipDuplicates: true });
+  return { connections: created.count };
 }
 
 // ─── 7. SELF-HEAL: Detect and fix broken data ───────────

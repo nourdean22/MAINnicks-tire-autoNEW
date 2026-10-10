@@ -107,6 +107,80 @@ function SuccessRing({ rate }: { rate: number }) {
   );
 }
 
+/**
+ * 2026-10-10 · approved requests that did not end `executed`: needs_review
+ * (the tool may have run; never auto re-run) and failed. Above the tabs so it
+ * is seen on load. Quiet when clear; a failed read says unknown. Dismiss is a
+ * two-tap in-DOM confirm (window.confirm is suppressed in the iOS PWA).
+ */
+function NeedsReviewGroup() {
+  const reviewQuery = trpc.system.getApprovalsNeedingReview.useQuery(undefined, { refetchInterval: 30_000 });
+  const dismiss = trpc.system.dismissApprovalReview.useMutation({ onSuccess: () => reviewQuery.refetch() });
+  const [armed, setArmed] = useState<string | null>(null);
+
+  if (reviewQuery.isError) {
+    return (
+      <section aria-labelledby="needs-review-heading" className="mb-6">
+        <h2 id="needs-review-heading" className="text-sm font-semibold text-fg">Needs review</h2>
+        <p className="text-xs text-fg-tertiary">unknown · read failed</p>
+      </section>
+    );
+  }
+  const rows = reviewQuery.data ?? [];
+  if (rows.length === 0) return null;
+
+  return (
+    <section aria-labelledby="needs-review-heading" className="mb-6 rounded-surface border border-rose-500/30 p-4">
+      <h2 id="needs-review-heading" className="text-sm font-semibold text-fg">Needs review</h2>
+      <p className="mt-1 text-xs text-fg-tertiary">
+        Approved, then not finished. Never re-run automatically: check whether it took effect, then dismiss.
+      </p>
+      <ul className="mt-3 divide-y divide-edge-subtle">
+        {rows.map((r) => {
+          const p = r.resultPayload as { error?: unknown } | null;
+          const error = p && typeof p.error === "string" ? p.error : "no error text recorded";
+          const at = new Date(r.updatedAt);
+          return (
+            <li key={r.id} className="flex flex-wrap items-center gap-3 py-3">
+              <div className="min-w-0 flex-1 basis-48">
+                <p className="text-sm text-fg">
+                  <span className="font-mono">{r.toolId}</span>
+                  <span className="ml-2 text-xs text-rose-300">
+                    {r.status === "needs_review" ? "may have run" : "failed"}
+                  </span>
+                </p>
+                <p className="text-xs text-fg-secondary">{error}</p>
+                <p className="text-[11px] font-mono text-fg-tertiary" title={at.toLocaleString()}>
+                  {timeAgo(at.toISOString())}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (armed !== r.id) return setArmed(r.id);
+                  setArmed(null);
+                  dismiss.mutate({ id: r.id });
+                }}
+                onBlur={() => setArmed((v) => (v === r.id ? null : v))}
+                disabled={dismiss.isPending}
+                className={cn(
+                  "min-h-[48px] min-w-[48px] rounded-control border px-3 text-xs font-medium disabled:opacity-40",
+                  armed === r.id
+                    ? "border-rose-500/50 bg-rose-500/10 text-rose-300"
+                    : "border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg",
+                )}
+              >
+                {armed === r.id ? "Confirm dismiss" : "Dismiss"}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {dismiss.isError && <p className="mt-2 text-xs text-rose-300">{dismiss.error?.message}</p>}
+    </section>
+  );
+}
+
 export default function ActionsPage() {
   const [activeTab, setActiveTab] = useState<"logs" | "approvals">("logs");
   const [win, setWin] = useState<Win>("7d");
@@ -239,6 +313,8 @@ export default function ActionsPage() {
         </div>
       }
     >
+      <NeedsReviewGroup />
+
       {/* Tab Selector */}
       <div className="flex border-b border-edge-subtle mb-6">
         <button

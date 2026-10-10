@@ -28,6 +28,7 @@
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logError } from "@/lib/utils/error-log";
+import { isAiSentinel } from "@/lib/ai/provider";
 
 export interface JudgmentRow {
   messageId: string;
@@ -125,6 +126,8 @@ Propose one specific rule edit.`;
       ],
       "classify",
     );
+    // The outage apology is long enough to pass the length floor below.
+    if (isAiSentinel(result)) return STATIC_PROPOSED_RULES[axis];
     const text = (result.content ?? "").trim();
     if (!text || text.length < 20) return STATIC_PROPOSED_RULES[axis];
     return text.slice(0, 400);

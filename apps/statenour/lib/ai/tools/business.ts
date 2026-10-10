@@ -16,6 +16,30 @@ import { prisma } from "@/lib/prisma";
 import { today } from "@/lib/utils/datetime";
 import { fenceContent } from "@/lib/ai/tool-result-fencing";
 
+/**
+ * 2026-10-10 (audit 07-SN-02) · nickstire bridge payloads carry text strangers
+ * write on nickstire.org (lead messages, review bodies, callback notes), so
+ * they reach the model inside an external_doc fence -- which also taints the
+ * turn, so the sink gate holds any outward side effect for a human.
+ *
+ * Shape is preserved for the tool wrapper (lib/ai/tools.ts): an `error`
+ * result passes through untouched (it is the bridge's own failure, and the
+ * wrapper keys on the key), and an EMPTY `data: []` passes through so the
+ * wrapper's honest no_data_found path still fires. 20k cap: the 4k default
+ * would amputate a customer_search page the model needs to read.
+ */
+const BRIDGE_FENCE_MAX_CHARS = 20_000;
+function fenceBridgeResult(toolName: string, res: unknown): unknown {
+  if (!res || typeof res !== "object") return res;
+  const r = res as Record<string, unknown>;
+  if ("error" in r && r.error) return res;
+  if ("data" in r) {
+    if (Array.isArray(r.data) && r.data.length === 0) return res;
+    return { ...r, data: fenceContent(toolName, "external_doc", JSON.stringify(r.data), { maxChars: BRIDGE_FENCE_MAX_CHARS }) };
+  }
+  return { data: fenceContent(toolName, "external_doc", JSON.stringify(r), { maxChars: BRIDGE_FENCE_MAX_CHARS }) };
+}
+
 export const businessTools = {
   getCameraIntelligence: tool({
     description: "Get camera intelligence — shop traffic, vehicle counts, alerts, bay utilization, employee arrivals",
@@ -154,7 +178,7 @@ export const businessTools = {
       const { fetchShopSnapshot } = await import("@/lib/services/bridge");
       const data = await fetchShopSnapshot();
       if (!data) return { error: "Bridge not connected. Set NICKS_ADMIN_URL and BRIDGE_API_KEY." };
-      return data;
+      return fenceBridgeResult("getShopSnapshot", data);
     },
   }),
 
@@ -172,7 +196,7 @@ export const businessTools = {
       if (from) filters.from = from;
       if (to) filters.to = to;
       if (term) filters.term = term;
-      return queryNick(query, filters);
+      return fenceBridgeResult("queryNickstire", await queryNick(query, filters));
     },
   }),
 
@@ -242,7 +266,7 @@ export const businessTools = {
     inputSchema: z.object({}),
     execute: async () => {
       const { queryNick } = await import("@/lib/nickstire/query");
-      return queryNick("attention_needed");
+      return fenceBridgeResult("getAttentionAlerts", await queryNick("attention_needed"));
     },
   }),
 
@@ -285,7 +309,7 @@ export const businessTools = {
       nameOrPhone: z.string().describe("Customer name or phone number to search"),
     }),
     execute: async ({ nameOrPhone }) => {
-      const { queryNick } = await import("@/lib/nickstire/query");
+      const { queryNick, readBridge } = await import("@/lib/nickstire/query");
       const { prisma } = await import("@/lib/prisma");
 
       // Search ALL systems in parallel
@@ -323,7 +347,8 @@ export const businessTools = {
             vehicleYear: number;
           }>;
         }>("customer_search", { term: nameOrPhone }).catch(
-          (): { data: null } => ({ data: null }),
+          // A thrown read is a failed read, not "no match" (was `{ data: null }`).
+          (err: unknown): { error: string } => ({ error: err instanceof Error ? err.message : String(err) }),
         ),
         prisma.brainMemory.findMany({
           where: { content: { contains: nameOrPhone, mode: "insensitive" }, deletedAt: null }, // v7.9
@@ -347,9 +372,17 @@ export const businessTools = {
         ? shopResult.data.quotes.map((q) => ({ ...q, createdAt: new Date(q.createdAt) }))
         : [];
 
+      // A failed shop read (transport, unknown query, or a 200 carrying
+      // `data.error`) is UNKNOWN: the model must not say "no customer matched".
+      const shopRead = readBridge(shopResult);
+      const shopUnknown = shopRead.status === "unknown" ? shopRead.reason : null;
+
       // Build the lifetime timeline
       const timeline: string[] = [];
       const customer = customerRecord;
+      if (shopUnknown) {
+        timeline.push(`Shop record: unknown — the nickstire read failed (${shopUnknown}). Do not say no customer matched.`);
+      }
 
       if (customer) {
         const totalSpend = Number(customer.totalSpend ?? 0);
@@ -423,7 +456,7 @@ export const businessTools = {
           visits: customerRecord.visitCount ?? 0,
           riskStatus: customerRecord.riskStatus,
           ltvBand: customerRecord.ltvBand,
-        } : null,
+        } : shopUnknown ? ("unknown" as const) : null,
         quotesCount: quotes.length,
         memoriesCount: brainMemories.length,
         instruction: "Present the timeline as a STORY. Don't just list fields — narrate the customer's journey with the shop. Highlight: unconverted estimates (money on the table), churn risk (action needed), and relationship depth.",

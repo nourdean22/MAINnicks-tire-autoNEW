@@ -22,11 +22,13 @@
  */
 
 import { NextResponse } from "next/server";
+import { apiHandler } from "@/lib/utils/http";
 // Phase B.6c · the env-var read moved to a shared service so the
 // legacy REST route AND the tRPC `system.deployInfo` procedure call the
 // same function · drift impossible.
 import { buildDeployInfo } from "@/lib/services/deploy-info";
 
-export async function GET() {
-  return NextResponse.json({ data: buildDeployInfo() });
-}
+export const GET = apiHandler(
+  async () => NextResponse.json({ data: buildDeployInfo() }),
+  { auth: "owner" },
+);

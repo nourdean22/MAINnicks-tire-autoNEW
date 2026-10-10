@@ -72,7 +72,10 @@ describe("buildNickSuggestions · ledger", () => {
     expect(callFor("nick-suggestions:overdue").evidenceRefs).not.toHaveProperty("taskId");
     expect(callFor("nick-suggestions:broken-promise").evidenceRefs).toMatchObject({ suggestionId: "broken-promise-t9", taskId: "t9", label: expect.stringContaining("broken promise") });
     expect(callFor("nick-suggestions:overdue").evidenceRefs).toMatchObject({ label: "3 tasks overdue · stacking up" });
-    expect(callFor("nick-suggestions:broken-promise").summary).toMatch(/^chip: /);
+    expect(callFor("nick-suggestions:broken-promise").summary).toBe("chip: broken-promise-t9 · task:t9");
+    // The chip carries the summary it was ledgered under, so a tap with a null
+    // id can still decide the row by content (audit 2026-10-10, 06-F2).
+    expect(view.suggestions.map((s) => s.ledgerSummary).sort()).toEqual(["chip: broken-promise-t9 · task:t9", "chip: overdue-pile"]);
   });
 
   it("a late ledger leaves the id null and the chips still render", async () => {
@@ -80,12 +83,22 @@ describe("buildNickSuggestions · ledger", () => {
     const view = await buildNickSuggestions();
     expect(view.suggestions).toHaveLength(2);
     expect(view.suggestions.every((s) => s.ledgerId === null)).toBe(true);
+    expect(view.suggestions.every((s) => s.ledgerSummary.startsWith("chip: "))).toBe(true);
   });
 });
 
 describe("chip helpers", () => {
   it("the summary is the chip's stable id, so a live count in the label never mints a new row", () => {
-    expect(chipLedgerSummary({ id: " overdue-pile " })).toBe("chip: overdue-pile");
+    expect(chipLedgerSummary({ id: " overdue-pile ", kind: "overdue", sourceContext: { count: 4 } })).toBe("chip: overdue-pile");
+  });
+
+  it("a chip about ONE task names it, so `stuck on A` and `stuck on B` are different recommendations (06-F3)", () => {
+    const a = chipLedgerSummary({ id: "stuck-doing", kind: "stuck-task", sourceContext: { taskIds: ["tA"] } });
+    const b = chipLedgerSummary({ id: "stuck-doing", kind: "stuck-task", sourceContext: { taskIds: ["tB"] } });
+    expect(a).toBe("chip: stuck-doing · task:tA");
+    expect(b).not.toBe(a);
+    // A pile stays one recommendation.
+    expect(chipLedgerSummary({ id: "stuck-doing", kind: "stuck-task", sourceContext: { taskIds: ["tA", "tB"] } })).toBe("chip: stuck-doing");
   });
 
   it("the evidence task is the one task a chip is about, never a pile", () => {

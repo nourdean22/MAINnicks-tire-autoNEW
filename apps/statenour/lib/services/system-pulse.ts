@@ -134,6 +134,14 @@ export async function buildSystemPulse(): Promise<SystemPulseView> {
     };
   }
 
+  // Every safeQuery below serves a fabricated 0 when it falls back on a quota
+  // error. The end-of-build circuit check alone missed it: a later read in the
+  // same fan-out that succeeds closes the circuit again, so a pulse of fabricated
+  // cron-failure zeros reported dbQuotaExhausted:false (2026-10-10, 08-F6).
+  let fellBack = false;
+  const onFallback = () => {
+    fellBack = true;
+  };
   type CronBucket = { fail_24h: bigint; fail_1h: bigint };
   type ErrorBucket = { errors_24h: bigint; fatal_24h: bigint; fatal_6h: bigint };
   type AiBucket = {
@@ -163,13 +171,13 @@ export async function buildSystemPulse(): Promise<SystemPulseView> {
         return rows[0] ?? { fail_24h: 0n, fail_1h: 0n };
       },
       { fail_24h: 0n, fail_1h: 0n } as CronBucket,
-      { label: "pulse.cronBucket" },
+      { label: "pulse.cronBucket", onFallback },
     ),
     safeQuery(() => prisma.cronJobLog.groupBy({
       by: ["jobName"],
       where: { createdAt: { gte: new Date(Date.now() - 48 * 3600_000) } },
       _max: { createdAt: true },
-    }), [] as Array<{ jobName: string; _max: { createdAt: Date | null } }>, { label: "pulse.cronLast48h" }),
+    }), [] as Array<{ jobName: string; _max: { createdAt: Date | null } }>, { label: "pulse.cronLast48h", onFallback }),
     safeQuery(
       async () => {
         // "fatal" buckets count level='error' — no writer has EVER emitted
@@ -187,7 +195,7 @@ export async function buildSystemPulse(): Promise<SystemPulseView> {
         return rows[0] ?? { errors_24h: 0n, fatal_24h: 0n, fatal_6h: 0n };
       },
       { errors_24h: 0n, fatal_24h: 0n, fatal_6h: 0n } as ErrorBucket,
-      { label: "pulse.errorBucket" },
+      { label: "pulse.errorBucket", onFallback },
     ),
     safeQuery(
       async () => {
@@ -208,10 +216,10 @@ export async function buildSystemPulse(): Promise<SystemPulseView> {
         return rows[0] ?? { calls_24h: 0n, fails_24h: 0n, calls_1h: 0n, fails_1h: 0n };
       },
       { calls_24h: 0n, fails_24h: 0n, calls_1h: 0n, fails_1h: 0n } as AiBucket,
-      { label: "pulse.aiBucket" },
+      { label: "pulse.aiBucket", onFallback },
     ),
-    safeQuery(() => prisma.autonomousAction.count({ where: { approval: "pending" } }), 0, { label: "pulse.actionsPending" }),
-    safeQuery(() => prisma.autonomousAction.count({ where: { createdAt: { gte: since24h }, result: "failed" } }), 0, { label: "pulse.actionsFailed" }),
+    safeQuery(() => prisma.autonomousAction.count({ where: { approval: "pending" } }), 0, { label: "pulse.actionsPending", onFallback }),
+    safeQuery(() => prisma.autonomousAction.count({ where: { createdAt: { gte: since24h }, result: "failed" } }), 0, { label: "pulse.actionsFailed", onFallback }),
     safeQuery(
       // Per-row read, not a groupBy: classification needs each device's last
       // contact (D11). The fleet is tens of rows; the 30s cache above bounds it.
@@ -220,7 +228,7 @@ export async function buildSystemPulse(): Promise<SystemPulseView> {
           select: { status: true, lastSeenAt: true, createdAt: true },
         }),
       [] as Array<{ status: string; lastSeenAt: Date | null; createdAt: Date }>,
-      { label: "pulse.devices" },
+      { label: "pulse.devices", onFallback },
     ),
   ]);
 
@@ -251,7 +259,7 @@ export async function buildSystemPulse(): Promise<SystemPulseView> {
         take: 1000,
       }),
       [] as Array<{ metadata: unknown; createdAt: Date }>,
-      { label: "pulse.nickQuality" },
+      { label: "pulse.nickQuality", onFallback },
     );
     const scores7d: number[] = [];
     const scoresPrior7d: number[] = [];
@@ -371,7 +379,7 @@ export async function buildSystemPulse(): Promise<SystemPulseView> {
     nickQualityDelta,
     nickQualityDirection,
     nickQualityReplies7d,
-    dbQuotaExhausted: isQuotaExhausted(),
+    dbQuotaExhausted: fellBack || isQuotaExhausted(),
     generatedAt: new Date().toISOString(),
     window: {
       since24h: since24h.toISOString(),
@@ -379,6 +387,7 @@ export async function buildSystemPulse(): Promise<SystemPulseView> {
     },
   };
 
-  cache = { data: result, at: Date.now() };
+  // A pulse built on fabricated zeros is not cached as if it were measured.
+  if (!result.dbQuotaExhausted) cache = { data: result, at: Date.now() };
   return result;
 }

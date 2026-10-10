@@ -43,8 +43,8 @@ describe("UI v2 grammar", () => {
   });
 
   it("gold is a signal: no gold scrollbar, no gold glow, no gold in any shadow token", () => {
-    // Gold BORDERS on active / focus / doing states are sanctioned signals
-    // (.neural-glass-active, .neural-glass:focus-within, task-doing-breath);
+    // Gold BORDERS on active / focus states are sanctioned signals
+    // (.neural-glass-active, .neural-glass:focus-within);
     // gold scrollbars and gold glows are decoration.
     expect(effects).toMatch(/::-webkit-scrollbar-thumb \{ background: rgba\(255, 255, 255/);
     expect(effects).not.toMatch(/scrollbar-thumb \{[^}]*253, 185, 19/);
@@ -116,9 +116,18 @@ describe("UI v2 cascade defects found by the 2026-10-01 hostile review stay fixe
   });
 
   it("the v2 focus ring is the only focus rule; the legacy !important gold outline is gone", () => {
-    expect(baseV2).toMatch(/:focus-visible \{\s*outline: none;\s*box-shadow: var\(--focus-ring\);\s*\}/);
+    expect(baseV2).toMatch(/:focus-visible \{\s*outline: 2px solid transparent;\s*outline-offset: 2px;\s*box-shadow: var\(--focus-ring\);\s*\}/);
     expect(effects).not.toMatch(/:focus-visible \{[^}]*!important/);
     expect(effects).not.toMatch(/outline: 1\.5px solid var\(--gold\)/);
+  });
+
+  it("the focus ring survives forced-colors mode (09-F15): a transparent outline backs the box-shadow", () => {
+    // Forced colors drop box-shadow; a transparent outline is repainted in the system colour,
+    // `outline: none` leaves nothing. Red on the pre-fix sheet (`outline: none`).
+    const rule = baseV2.match(/:focus-visible \{[^}]*\}/)?.[0] ?? "";
+    expect(rule, "focus rule missing").not.toBe("");
+    expect(rule).not.toMatch(/outline:\s*(none|0)\b/);
+    expect(rule).toMatch(/outline: 2px solid transparent/);
   });
 
   it("no unlayered element transition overrides a component's transition utilities", () => {
@@ -140,6 +149,41 @@ describe("UI v2 cascade defects found by the 2026-10-01 hostile review stay fixe
   it("the v2 type floor and tracking cap apply at every width, unconditionally", () => {
     expect(baseV2).toMatch(/^\[class\*="text-\[9px\]"\],\s*\[class\*="text-\[10px\]"\] \{ font-size: 11px; \}/m);
     expect(baseV2).toMatch(/\[class\*="tracking-\[0\.18em\]"\][\s\S]{0,120}letter-spacing: 0\.12em/);
+  });
+});
+
+/**
+ * SYSTEM.md §1.4 / §13 (09-F14, 2026-10-10): nothing animates at rest except a WORKING state.
+ * The page-wrapper aura breathed red forever while any drift alert was open; stale pins, streak
+ * fire and DOING rows breathed too, each already carrying its colour and word. Positive control:
+ * on the pre-fix sheet the infinite-animation set also held the three state auras, the two pin
+ * breathes, .streak-fire and .animate-breath, and four .tsx files applied those classes.
+ */
+describe("nothing animates at rest (only working states loop)", () => {
+  /** Selectors whose rule runs an `infinite` animation, comments and @keyframes bodies stripped. */
+  function infiniteSelectors(css: string): string[] {
+    const bare = css.replace(/\/\*[\s\S]*?\*\//g, "").replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, "");
+    return [...bare.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter((m) => /animation[^;]*\binfinite\b/.test(m[2]))
+      .map((m) => m[1].trim());
+  }
+
+  it("positive control: the scan finds a planted at-rest loop", () => {
+    expect(infiniteSelectors(".x { color: red; }\n.y { animation: spin 1s linear infinite; }")).toEqual([".y"]);
+  });
+
+  it("only working-state selectors loop: live pulse, loading skeleton, running tool", () => {
+    const sheets = [effects, base];
+    expect(sheets.flatMap(infiniteSelectors).sort()).toEqual([".chat-tool-shimmer::before", ".pulse-live", ".skeleton"]);
+  });
+
+  it("no component applies a retired at-rest animation class", () => {
+    for (const file of ["components/brain/pinned-context-panel.tsx", "components/missions/streak-badge.tsx", "components/missions/mission-task-row.tsx"]) {
+      const src = read(file);
+      for (const cls of ["pin-stale-breathe", "pin-very-stale-breathe", "streak-fire", "animate-breath"]) {
+        expect(src, `${file} still applies ${cls}`).not.toContain(cls);
+      }
+    }
   });
 });
 

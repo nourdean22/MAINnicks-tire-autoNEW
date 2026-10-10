@@ -19,7 +19,7 @@ export function StreakBadge({ streak }: StreakBadgeProps) {
   return (
     <>
       <span className="streak-badge" title={`${streak}-day streak`}>
-        <span className="streak-fire" aria-hidden="true">
+        <span className="streak-glyph" aria-hidden="true">
           🔥
         </span>
         <span className="streak-count">{streak}</span>
@@ -42,7 +42,7 @@ export function StreakBadge({ streak }: StreakBadgeProps) {
           animation: streak-pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
         }
 
-        .streak-fire {
+        .streak-glyph {
           font-size: 11px;
           line-height: 1;
         }

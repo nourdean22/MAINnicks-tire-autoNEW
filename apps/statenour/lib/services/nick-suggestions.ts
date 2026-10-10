@@ -52,14 +52,23 @@ export interface NickSuggestion {
    * answer in time — then a tap records nothing, honestly.
    */
   ledgerId: string | null;
+  /**
+   * 2026-10-10 · the summary the chip was ledgered under. Set for every shown
+   * chip, so a tap with a null `ledgerId` can still decide the row by content
+   * (audit 06-F2: a late ledger used to lose the tap).
+   */
+  ledgerSummary?: string;
 }
 
 /** Ledger summary of a chip — prefixed so it never collides with a task title. */
-export function chipLedgerSummary(s: Pick<NickSuggestion, "id">): string {
+export function chipLedgerSummary(s: Pick<NickSuggestion, "id" | "kind" | "sourceContext">): string {
   // Keyed on the chip's stable id, not its label: labels carry live counts
   // ("3 tasks overdue"), so every count change minted a new "shown" row for
   // the same recommendation (bug-hunt 2026-10-02). The label rides in evidence.
-  return `chip: ${s.id.trim()}`;
+  // A chip about ONE task names it (audit 2026-10-10, 06-F3): `stuck-doing` is
+  // a constant id, so "stuck on A" and "stuck on B" shared one row.
+  const taskId = chipTaskId(s);
+  return `chip: ${s.id.trim()}${taskId ? ` · task:${taskId}` : ""}`;
 }
 
 /**
@@ -85,10 +94,11 @@ async function ledgerChips(chips: NickSuggestion[]): Promise<void> {
   await Promise.all(
     chips.map(async (chip) => {
       const taskId = chipTaskId(chip);
+      chip.ledgerSummary = chipLedgerSummary(chip);
       chip.ledgerId = await recordShownBounded({
         kind: "suggestion",
         sourceEngine: `nick-suggestions:${chip.kind}`,
-        summary: chipLedgerSummary(chip),
+        summary: chip.ledgerSummary,
         shownSurface: "chat-chips",
         evidenceRefs: { suggestionId: chip.id, label: chip.label, severity: chip.severity, ...(taskId ? { taskId } : {}) },
       });

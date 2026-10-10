@@ -41,7 +41,7 @@ import { logger as rootLogger } from "@/lib/logger";
 // cap). Swapped to makeTracedAiChat factory · same drop-in signature ·
 // now fires under the daily-budget edge-wrap in traced-aichat.ts ·
 // closes the adversarial-critic portion of audit #338.
-import { type AiMessage } from "@/lib/ai/provider";
+import { isAiSentinel, type AiMessage } from "@/lib/ai/provider";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 
 const aiChat = makeTracedAiChat("adversarial-critic", "brain");
@@ -142,9 +142,9 @@ Respond with a JSON object only · no prose · shape: {"objection": "<≤320 cha
   // key was missing. With the provider chain, "no-op" surfaces as
   // `provider === "none"` (every provider tried and failed). Surface
   // it the same way so observability stays informed.
-  if (!text || response.provider === "none") {
+  if (!text || isAiSentinel(response)) {
     log.warn("adversarial_critic_no_op", {
-      reason: response.provider === "none" ? "all_providers_failed" : "empty_response",
+      reason: text || response.provider === "none" ? "all_providers_failed" : "empty_response",
       provider: response.provider,
       messageHint: args.userQuery.slice(0, 60),
     });

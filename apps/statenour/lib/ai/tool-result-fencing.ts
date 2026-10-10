@@ -75,7 +75,17 @@ export function fenceContent(
   toolName: string,
   source: FenceType,
   content: string,
-  opts: { maxChars?: number } = {},
+  opts: {
+    maxChars?: number;
+    /**
+     * 2026-10-10 (audit 07-SN-02) · memory_recall / cross_session fences hold
+     * mixed content, so their type alone cannot say "an outsider wrote this".
+     * A caller that knows the fenced rows include EXTERNAL_CONTENT (inbound
+     * mail, scraped pages) sets this, and the turn is tainted exactly as for
+     * external_web / external_doc.
+     */
+    taint?: boolean;
+  } = {},
 ): string {
   // Strip any pre-existing closing tag inside the payload to reduce
   // the chance of fence-confusion. This is belt-and-suspenders on top
@@ -87,7 +97,7 @@ export function fenceContent(
 
   // U4 (2026-09-08) · external content entered this turn: taint it so the
   // guardian routes any external side effect to a human (no-op outside a turn).
-  if (source === "external_web" || source === "external_doc") {
+  if (source === "external_web" || source === "external_doc" || opts.taint === true) {
     updateTurnContext({ untrustedInput: true });
   }
 

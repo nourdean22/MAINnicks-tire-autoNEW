@@ -2,6 +2,7 @@
 
 import { logger as rootLogger } from "@/lib/logger";
 import { postTelegramText } from "@/lib/services/telegram-post";
+import { escapeHtml } from "@/lib/utils/escape-html";
 
 const log = rootLogger.withSurface("services/telegram");
 
@@ -61,13 +62,8 @@ export function formatTelegramNotification(
   return `${icon} <b>${escapeHtml(title)}</b>\n\n${escapeHtml(body)}`;
 }
 
-/** Escape text interpolated into a parse_mode "HTML" message (Telegram rejects stray `<` / `&`). */
-export function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
+/** Escape text interpolated into a parse_mode "HTML" message. Lives in lib/utils/escape-html.ts. */
+export { escapeHtml };
 
 // ---------------------------------------------------------------------------
 // Inline Keyboard Buttons

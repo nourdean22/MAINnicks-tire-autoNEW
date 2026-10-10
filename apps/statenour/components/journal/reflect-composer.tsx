@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { scrollBehavior } from "@/lib/ui/scroll-behavior";
 import { toast } from "sonner";
 import { notifyDataChanged } from "@/lib/events/data-change";
 import { Eye, Sparkles, ArrowRight, Loader2, ChevronDown, Target, RotateCcw, X as XIcon, Info } from "lucide-react";
@@ -167,7 +168,7 @@ export function ReflectComposer() {
       const focusComposer = () => {
         requestAnimationFrame(() => {
           document.getElementById("journal-reflect-composer")?.scrollIntoView({
-            behavior: "smooth",
+            behavior: scrollBehavior(),
             block: "start",
           });
           document
@@ -184,7 +185,7 @@ export function ReflectComposer() {
       if (hash.includes("reflect")) {
         requestAnimationFrame(() => {
           document.getElementById("journal-reflect-composer")?.scrollIntoView({
-            behavior: "smooth",
+            behavior: scrollBehavior(),
             block: "start",
           });
           const firstField = document.querySelector<HTMLTextAreaElement>(

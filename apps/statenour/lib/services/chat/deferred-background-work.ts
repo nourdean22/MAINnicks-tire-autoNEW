@@ -6,7 +6,11 @@
  * handling — only the import boundary changed).
  */
 
+import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { currentTurn } from "@/lib/agent/turn-context";
+import { beginAttempt, settleAttempt } from "@/lib/services/action-attempts";
+import type { ChatActionPermission } from "@/lib/ai/chat/gate";
 import { recordInteraction } from "@/lib/ai/memory";
 import { messageContentToText } from "@/lib/ai/chat/message-text";
 import { buildVerifierBanner, isVerifierRewritten } from "@/lib/ai/chat/fabrication-rewriter";
@@ -74,6 +78,74 @@ export interface DeferredBackgroundCtx {
   text: string;
   messages: ReadonlyArray<unknown>;
   createdAssistantId: string | null;
+  /**
+   * The turn's action permission (gate.ts). "read" = no autonomous change, so
+   * the model's action blocks are not executed. Serialized with the outbox
+   * payload so a replay honours it; when absent the turn context is consulted.
+   */
+  actionPermission?: ChatActionPermission;
+}
+
+interface ActionBlocksClaim {
+  run: boolean;
+  attemptId: string | null;
+}
+
+const ACTION_BLOCKS_TOOL = "chat.action-blocks";
+/**
+ * A turn's action blocks never legitimately run twice, and the outbox can
+ * redrive a dead row long after the turn, so the claim holds for a year.
+ */
+const ACTION_BLOCKS_HOLD_MS = 365 * 24 * 60 * 60 * 1000;
+
+/**
+ * 2026-10-10 (audit 04-F12, claim-before-act): claim this turn's action
+ * blocks in action_attempts BEFORE they run. The post-turn outbox replays this
+ * whole function after a crash or a lost done-mark; the old guard was the
+ * receipts-message marker, checked only AFTER executeActions, so a replay
+ * re-ran task.create / memory.remember / telegram.send. The claim is a unique
+ * key create (beginAttempt), so two concurrent runs cannot both win.
+ *
+ * A claim store that cannot be reached runs the actions anyway (losing the
+ * operator's requested actions is worse than a rare replay double; the same
+ * choice as railway-deploy-alert's pageOnce) and logs at error level.
+ */
+async function claimActionBlocks(traceId: string, actions: unknown[], log: ChatLogger): Promise<ActionBlocksClaim> {
+  if (!traceId) {
+    log.warn("nick_agent_actions_unclaimed", { reason: "no traceId, so a replay of this turn could run them again" });
+    return { run: true, attemptId: null };
+  }
+  try {
+    const begun = await beginAttempt({
+      operationKey: `chat-action-blocks:${traceId}`,
+      tool: ACTION_BLOCKS_TOOL,
+      effectClass: "write",
+      argumentsHash: createHash("sha256").update(JSON.stringify(actions)).digest("hex"),
+      windowMs: ACTION_BLOCKS_HOLD_MS,
+    });
+    if (begun.kind === "duplicate") {
+      log.info("nick_agent_actions_replay_skipped", { traceId, priorState: begun.state });
+      return { run: false, attemptId: null };
+    }
+    return { run: true, attemptId: begun.attemptId };
+  } catch (err) {
+    logError("chat.action-blocks", err, { stage: "claim", traceId }, "error");
+    return { run: true, attemptId: null };
+  }
+}
+
+/**
+ * Settle the claim. A phase that did not return (timed out or threw) is
+ * UNKNOWN, never FAILED: FAILED is re-claimable, and actions that may have
+ * landed must not run again on a replay.
+ */
+async function settleActionBlocks(attemptId: string, executed: boolean, traceId: string): Promise<void> {
+  await settleAttempt(
+    attemptId,
+    executed
+      ? { disposition: "success" }
+      : { disposition: "unknown", reason: "action blocks did not return inside their 15 s budget (timed out or threw); not re-run" },
+  ).catch((err: unknown) => logError("chat.action-blocks", err, { stage: "settle", traceId }, "warn"));
 }
 
 /**
@@ -428,9 +500,8 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
       // shadow's denominator silently narrower than its own documented
       // contract — a rate measured over the wrong population.
       //
-      // Separate call rather than a hoist: `withErrorCapture` below is
-      // deliberately NOT awaited, so `results` does not exist yet at this
-      // point in the turn. A single hoisted call would race it.
+      // Separate call rather than a hoist: the actions phase below runs after
+      // this arm, so `results` does not exist yet at this point in the turn.
       if (actions.length === 0 && traceId) {
         await recordActionDoneShadow(
           compareActionDoneShadow([], cleanedText),
@@ -446,11 +517,29 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
         );
       }
 
-      if (actions.length > 0) {
-        withErrorCapture(
+      // 2026-10-10 (audit 04-F11): Read permission = no autonomous change.
+      const readOnlyTurn =
+        (ctx.actionPermission ??
+          (currentTurn() as { actionPermission?: unknown } | null)?.actionPermission) === "read";
+      const actionsClaim: ActionBlocksClaim =
+        actions.length === 0 || readOnlyTurn
+          ? { run: false, attemptId: null }
+          : await claimActionBlocks(traceId, actions, log);
+      if (actions.length > 0 && readOnlyTurn) {
+        log.info("nick_agent_actions_skipped_read_permission", { count: actions.length, traceId });
+      }
+
+      if (actionsClaim.run) {
+        // 2026-10-10 (audit 08-F2): this phase is AWAITED. The caller marks the
+        // outbox row done when this function returns, so the row must not say
+        // done while the actions are still in flight. The 15 s budget bounds
+        // the wait (and so the SSE message.completed event on action turns).
+        let executed = false;
+        await withErrorCapture(
           "chat:actions",
           async () => {
             const results = await executeActions(actions);
+            executed = true;
             log.info("nick_agent_executed", {
               count: results.length,
               outcomes: results.map((r) => ({ action: r.action, ok: r.success, err: r.error })),
@@ -746,6 +835,7 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
           },
           { timeoutMs: 15_000 }
         );
+        if (actionsClaim.attemptId) await settleActionBlocks(actionsClaim.attemptId, executed, traceId);
       }
 
       // ── Smart reply suggestion cache warming ──

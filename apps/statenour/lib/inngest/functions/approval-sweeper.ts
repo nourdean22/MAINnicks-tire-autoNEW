@@ -31,6 +31,23 @@ export const approvalSweeper = getInngest().createFunction(
 
     const staleTime = new Date(Date.now() - 5 * 60 * 1000); // 5 min
     const now = new Date();
+
+    // 08-F1: an `executing` row older than 5 min is NEVER re-run: `executed`
+    // is written only after the effect, so its tool may already have sent.
+    // It goes to `needs_review` for a human. A slow run that finishes later
+    // still overwrites this with its real `executed` / `failed`.
+    const flaggedForReview = await step.run("flag-stale-executing", async () => {
+      const flagged = await prisma.approvalRequest.updateMany({
+        where: { status: "executing", updatedAt: { lt: staleTime } },
+        data: {
+          status: "needs_review",
+          resultPayload: { error: "Execution did not finish within 5 minutes; not re-run. Check whether it took effect." },
+        },
+      });
+      if (flagged.count > 0) log.warn("approval_stale_executing_needs_review", { count: flagged.count });
+      return flagged.count;
+    });
+
     // 2026-07-09 hardening (post-#617 review) · without these bounds the
     // sweeper would resurrect and EXECUTE every historically stuck
     // "approved" row on first deploy — including real customer SMS
@@ -41,16 +58,13 @@ export const approvalSweeper = getInngest().createFunction(
     // rows created before expiresAt existed.
     const ageFloor = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
-    // Find stuck or pending approved requests
+    // Find approved requests whose execution never started
     const pendingIds = await step.run("query-approved-requests", async () => {
       const requests = await prisma.approvalRequest.findMany({
         where: {
           expiresAt: { gt: now },
           createdAt: { gt: ageFloor },
-          OR: [
-            { status: "approved" },
-            { status: "executing", updatedAt: { lt: staleTime } }
-          ]
+          status: "approved",
         },
         select: { id: true },
         take: 10 // process in batches
@@ -59,7 +73,7 @@ export const approvalSweeper = getInngest().createFunction(
     });
 
     if (pendingIds.length === 0) {
-      return { swept: 0 };
+      return { swept: 0, flaggedForReview };
     }
 
     // Trigger execution for each
@@ -76,6 +90,6 @@ export const approvalSweeper = getInngest().createFunction(
       }
     });
 
-    return { swept: pendingIds.length };
+    return { swept: pendingIds.length, flaggedForReview };
   }
 );

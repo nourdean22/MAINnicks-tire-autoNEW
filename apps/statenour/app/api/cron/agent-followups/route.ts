@@ -50,12 +50,27 @@ export const GET = cronHandler(async () => {
   for (const row of claimed) {
     try {
       const result = await runFollowUp(row.payload);
+      if (!result.ok && result.retryable) {
+        // Provider outage (aiChat sentinel): transient, so re-queue with a
+        // 5 * attempts minute backoff. The claim already counted this
+        // attempt; the < 3 cap in claimDueFollowUps still dead-letters it.
+        await prisma.postTurnOutbox.update({
+          where: { id: row.id },
+          data: {
+            status: row.attempts >= 3 ? "failed" : "pending",
+            nextAttemptAt: new Date(Date.now() + 5 * row.attempts * 60_000),
+            lastError: result.reason,
+          },
+        });
+        log.warn("followup_provider_unavailable", { id: row.id, attempts: row.attempts });
+        dropped++;
+        continue;
+      }
       await prisma.postTurnOutbox.update({
         where: { id: row.id },
         // A follow-up that legitimately decided NOT to deliver (thread
-        // archived, empty completion, provider sentinel) is DONE, not
-        // failed — retrying it would not change the answer and would
-        // burn the attempt budget for no reason.
+        // archived) is DONE, not failed — retrying it would not change the
+        // answer and would burn the attempt budget for no reason.
         data: { status: "done", lastError: result.ok ? null : result.reason },
       });
       if (result.ok) delivered++;

@@ -279,9 +279,30 @@ export const metaTools = {
       maxSteps: z.number().int().min(1).max(10).optional().describe("Step cap · default 6."),
       keepSessionOpen: z.boolean().optional().describe("Leave the session open (live-view) instead of closing it at the end."),
     }),
-    execute: async ({ goal, startUrl, permission, maxSteps, keepSessionOpen }) => {
+    execute: async ({ goal, startUrl, permission: requested, maxSteps, keepSessionOpen }) => {
       const { browseAndDo } = await import("@/lib/ai/browser/browse-and-do");
       const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
+      // 2026-10-10 (audit 07-SN-03): the MODEL picked `permission`, so a
+      // Draft turn could fire a final submit/purchase. Clamp it to the turn:
+      // never above draft unless the turn is Execute, never above read in a
+      // Read turn. An approved re-execution (guardian bypass) is the owner's
+      // own key on this exact payload and keeps it. TurnContext does not carry
+      // actionPermission yet, so until the route publishes it every turn
+      // reads as Draft here (the safe direction).
+      const { currentTurn } = await import("@/lib/agent/turn-context");
+      const { guardianBypassStorage } = await import("@/lib/tools/guardian");
+      const order = ["read", "draft", "execute"] as const;
+      const turnPermission = (currentTurn() as { actionPermission?: unknown } | null)?.actionPermission;
+      const ceiling =
+        guardianBypassStorage.getStore() === true || turnPermission === "execute"
+          ? "execute"
+          : turnPermission === "read"
+            ? "read"
+            : "draft";
+      // An unknown value (a raw approval payload skips the schema) reads as
+      // the tool's own default, draft, before the clamp.
+      const asked = order.indexOf(requested as (typeof order)[number]);
+      const permission = order[Math.min(asked === -1 ? 1 : asked, order.indexOf(ceiling))];
       const r = await browseAndDo({ goal, startUrl, permission, maxSteps, keepSessionOpen });
       // Page-derived text is untrusted — fence everything read off the web
       // before it re-enters the model's context.

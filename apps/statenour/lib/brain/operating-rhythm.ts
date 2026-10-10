@@ -23,7 +23,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
-import { queryNick } from "@/lib/nickstire/query";
+import { queryNick, readBridge } from "@/lib/nickstire/query";
 import { readNickRevenue } from "@/lib/nickstire/revenue";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { today, weekdayET } from "@/lib/utils/datetime";
@@ -174,13 +174,14 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
         logError("brain.operating-rhythm", err, { fn: "executeRhythm.getScore" });
         return null;
       }),
-    prisma.task.count({ where: { deletedAt: null, status: { in: ["INBOX", "READY", "DOING"] } } }).catch((err): number => {
+    // A failed count is "unknown" in the message, never a 0 (2026-10-10).
+    prisma.task.count({ where: { deletedAt: null, status: { in: ["INBOX", "READY", "DOING"] } } }).catch((err): string => {
       logError("brain.operating-rhythm", err, { fn: "executeRhythm.countTasks" });
-      return 0;
+      return "unknown";
     }),
-    prisma.commitment.count({ where: { deletedAt: null, status: { in: ["active", "in_progress"] } } }).catch((err): number => {
+    prisma.commitment.count({ where: { deletedAt: null, status: { in: ["active", "in_progress"] } } }).catch((err): string => {
       logError("brain.operating-rhythm", err, { fn: "executeRhythm.countCommitments" });
-      return 0;
+      return "unknown";
     }),
     queryNick<{ totalDollars?: number; invoiceCount?: number }>("revenue_today").catch((err) => {
       logError("brain.operating-rhythm", err, { fn: "executeRhythm.queryRevenue" });
@@ -197,8 +198,8 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
   ]);
 
   // Unwrap query results — shape is `{ data, query, timestamp }` on
-  // success or `{ error }` on failure. On failure we degrade
-  // gracefully to zeros (warn-logged via structured logger so
+  // success or `{ error }` on failure. A failed read renders as
+  // "unknown", never a zero (warn-logged via structured logger so
   // /system/errors surfaces persistent bridge failures with surface
   // attribution).
   // 2026-05-30 · was "jobs_today" (a dead bridge query → recentJobs always
@@ -216,25 +217,30 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
   }
   // 2026-05-30 · was "stale_leads_count" (a dead bridge query → always 0).
   // Remapped to leads_urgent (live). Shape-tolerant: count | leads[] | items[].
-  const staleLeadsData =
-    "data" in staleLeadsRes
-      ? (staleLeadsRes as { data?: { count?: number; leads?: unknown[]; items?: unknown[] } }).data
-      : undefined;
-  const staleLeads = Number(
-    staleLeadsData?.count ?? staleLeadsData?.leads?.length ?? staleLeadsData?.items?.length ?? 0,
-  );
-  if ("error" in staleLeadsRes) {
-    log.warn("bridge_query_failed", { query: "leads_urgent", error: staleLeadsRes.error });
+  // 2026-10-10 · a failed read (transport, unknown query, or a 200 carrying
+  // `data.error`) is null = UNKNOWN; it used to read 0 and print "No stale leads".
+  const leadsRead = readBridge<{ count?: number; leads?: unknown[]; items?: unknown[] }>(staleLeadsRes);
+  const staleLeads: number | null =
+    leadsRead.status === "ok"
+      ? Number(leadsRead.data?.count ?? leadsRead.data?.leads?.length ?? leadsRead.data?.items?.length ?? NaN)
+      : null;
+  if (leadsRead.status !== "ok") {
+    log.warn("bridge_query_failed", { query: "leads_urgent", error: leadsRead.reason });
   }
   // 2026-05-30 · was "pending_callbacks_count" (dead → always 0). Remapped to
   // the live callbacks_pending query ({ pending, count }); we read .count.
-  const pendingCallbacks =
-    "data" in callbacksRes
-      ? Number((callbacksRes as { data?: { count?: number } }).data?.count ?? 0)
-      : 0;
-  if ("error" in callbacksRes) {
-    log.warn("bridge_query_failed", { query: "callbacks_pending", error: callbacksRes.error });
+  const callbacksRead = readBridge<{ count?: number }>(callbacksRes);
+  const pendingCallbacks: number | null =
+    callbacksRead.status === "ok" && typeof callbacksRead.data?.count === "number" ? callbacksRead.data.count : null;
+  if (callbacksRead.status !== "ok") {
+    log.warn("bridge_query_failed", { query: "callbacks_pending", error: callbacksRead.reason });
   }
+  const leadsKnown = staleLeads !== null && Number.isFinite(staleLeads);
+  /** The stale-leads line: `hot(n)` when there are leads, `none` when a read measured 0, "unknown" when it failed. */
+  const leadsLine = (hot: (n: number) => string, none = "") =>
+    !leadsKnown ? "Stale leads: unknown (read failed)\n" : staleLeads! > 0 ? hot(staleLeads!) : none;
+  const callbacksLine = (hot: (n: number) => string) =>
+    pendingCallbacks === null ? "Callbacks: unknown (read failed)\n" : pendingCallbacks > 0 ? hot(pendingCallbacks) : "";
 
   let message = "";
 
@@ -261,8 +267,8 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
       message =
         `⚡ <b>PEAK BLOCK — 8:00 AM</b>\n\n` +
         `MIT: <b>${mit?.title || "No task set — open Nick and set one NOW"}</b>\n` +
-        `${staleLeads > 0 ? `🔴 ${staleLeads} stale leads — call before anything else\n` : ""}` +
-        `${pendingCallbacks > 0 ? `📞 ${pendingCallbacks} callbacks waiting\n` : ""}` +
+        leadsLine((n) => `🔴 ${n} stale leads — call before anything else\n`) +
+        callbacksLine((n) => `📞 ${n} callbacks waiting\n`) +
         `\nPeak focus window: NOW until 11am.\n` +
         `Do NOT start system building, planning, or new features.\n` +
         `Revenue actions ONLY.`;
@@ -296,8 +302,8 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
           cliffBanner +
           `📊 <b>MID-MORNING CHECK — 11:00 AM</b>\n\n` +
           `Revenue: <b>${revenueText}</b> (${todayJobCount} jobs)\n` +
-          `${staleLeads > 0 ? `🔴 ${staleLeads} stale leads STILL waiting\n` : "✅ No stale leads\n"}` +
-          `${pendingCallbacks > 0 ? `📞 ${pendingCallbacks} callbacks\n` : ""}` +
+          leadsLine((n) => `🔴 ${n} stale leads STILL waiting\n`, "✅ No stale leads\n") +
+          callbacksLine((n) => `📞 ${n} callbacks\n`) +
           `Tasks: ${openLoops} | Commitments: ${commitments}\n` +
           `\n1 hour of peak focus left. Most important call to make?`;
       }
@@ -308,8 +314,8 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
       message =
         `🔧 <b>OPERATIONS SHIFT — 2:00 PM</b>\n\n` +
         `Revenue: <b>${revenueText}</b>\n` +
-        `${staleLeads > 0 ? `🔴 ${staleLeads} leads going cold — CALL NOW\n` : ""}` +
-        `${pendingCallbacks > 0 ? `📞 ${pendingCallbacks} callbacks — return before 4pm\n` : ""}` +
+        leadsLine((n) => `🔴 ${n} leads going cold — CALL NOW\n`) +
+        callbacksLine((n) => `📞 ${n} callbacks — return before 4pm\n`) +
         `\nAdderall is fading. Operations mode:\n` +
         `• Return callbacks\n` +
         `• Follow up on estimates\n` +
@@ -382,7 +388,7 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
         actor: "operating-rhythm",
         eventType: "rhythm_executed",
         detail: `${activeSlot}: ${todayStr}`,
-        payload: { slot: activeSlot, revenue: revenueKnown ? todayRevenue : null, revenueKnown, tasks: openLoops, staleLeads, sent } as never,
+        payload: { slot: activeSlot, revenue: revenueKnown ? todayRevenue : null, revenueKnown, tasks: openLoops, staleLeads: leadsKnown ? staleLeads : null, sent } as never,
       },
     }).catch(() => {});
 
@@ -390,7 +396,7 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
     await brainMemory.remember(
       "operating_rhythm",
       `rhythm_${activeSlot}_${todayStr}`,
-      `RHYTHM [${activeSlot}] ${todayStr}: Revenue ${revenueKnown ? `$${todayRevenue}` : "unknown (read failed)"}, ${staleLeads} stale leads, ${openLoops} tasks, score ${todayScore ? "logged" : "NOT logged"}`,
+      `RHYTHM [${activeSlot}] ${todayStr}: Revenue ${revenueKnown ? `$${todayRevenue}` : "unknown (read failed)"}, ${leadsKnown ? staleLeads : "unknown"} stale leads, ${openLoops} tasks, score ${todayScore ? "logged" : "NOT logged"}`,
       "operating-rhythm-engine",
     ).catch((err) => {
       logError("brain.operating-rhythm", err, { fn: "executeRhythm.rememberRhythm" });

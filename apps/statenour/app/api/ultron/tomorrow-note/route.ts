@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
 import { daysAgo, toDateString } from "@/lib/utils/datetime";
 
 import { requireSession } from "@/lib/auth-guard";
@@ -268,6 +269,14 @@ Rules:
       ],
       "fast",
     );
+    // The non-JSON fallback below would put the outage apology into
+    // tomorrow's focus and overwrite the existing draft. Write nothing.
+    if (isAiSentinel(resp)) {
+      return NextResponse.json(
+        { error: "AI providers unavailable · draft not generated, try again shortly" },
+        { status: 503 },
+      );
+    }
 
     let draft: TomorrowNote;
     try {

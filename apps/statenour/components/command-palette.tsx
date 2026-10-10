@@ -8,7 +8,7 @@
  *   - Navigate (core pages + depth pages)
  *   - System Ops (live decks: crons, errors, ai-cost, power, ...)
  *   - Diagnostics (push/pull probes + fix-it surfaces)
- *   - Quick Actions (talk to Nick, generate image, flow mode, ...)
+ *   - Quick Actions (talk to Nick, generate image, ...)
  *   - System probes (live counts from /api/brain/status, /api/health,
  *     /api/system/diagnostics — results surfaced via toast, not alert)
  *   - Power (purge stale, trigger health digest, reconnect Google,
@@ -141,6 +141,30 @@ function saveRecent(id: string) {
   }
 }
 
+/**
+ * Where a semantic search hit opens. 2026-10-10 · audit 02-F12: a chat hit
+ * used `/chat#<messageId>`, which nothing reads, so it opened whatever thread
+ * was current. It now opens its own conversation through `?cid=` (read by
+ * use-chat-deep-link-prefill). A chat hit that arrives without its
+ * conversation id cannot be opened, so it asks Nick, like unknown sources.
+ */
+export function semanticHitHref(
+  hit: { id: string; sourceType: string; conversationId?: string | null },
+  query: string,
+): string {
+  if (hit.sourceType === "brain_memory") {
+    // 2026-09-15 · a memory hit opens the universal memory inspector on the
+    // Brain memory tab (was: the wisdom tab's KEY-based ?focus= fed a ROW id,
+    // a deep link that could never resolve).
+    return inspectHref("/brain", "tab=memory", { kind: "memory", id: hit.id });
+  }
+  if (hit.sourceType === "chat_message" && hit.conversationId) {
+    return `/chat?cid=${encodeURIComponent(hit.conversationId)}`;
+  }
+  // Future sources (knowledge_file, task, pin) wire here.
+  return `/chat?prompt=${encodeURIComponent(query)}`;
+}
+
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
@@ -154,7 +178,7 @@ export function CommandPalette() {
   // idle. Now: ⌘K reaches into your second-brain from anywhere.
   const [query, setQuery] = useState("");
   const [semanticHits, setSemanticHits] = useState<
-    Array<{ id: string; sourceType: string; content: string }>
+    Array<{ id: string; sourceType: string; content: string; conversationId?: string | null }>
   >([]);
   const [semanticLoading, setSemanticLoading] = useState(false);
   const router = useRouter();
@@ -304,8 +328,9 @@ export function CommandPalette() {
       { id: "nav-brain-time-travel", label: "Brain · Time Travel", group: "Navigate", icon: <HistoryIcon className="size-4" />, action: () => navigate("/brain?tab=continuity#time-travel"), keywords: ["time travel", "history", "day", "snapshot", "memory"] },
 
       // ═══ DIAGNOSTICS — push+pull probe hub (ENR3/ENR4) ═══
-      { id: "diag-hub", label: "Diagnostics Hub (all probes)", group: "Diagnostics", icon: <StethoscopeIcon className="size-4" />, action: () => navigate("/system/health"), keywords: ["diagnostics", "health", "push", "pull", "probe", "env", "oauth", "pulse", "stale", "cron"] },
-      { id: "diag-crons", label: "Cron Diagnostics (silent/slow)", group: "Diagnostics", icon: <ClockIcon className="size-4" />, action: () => navigate("/system/crons"), keywords: ["cron", "silent", "slow", "schedule", "diagnose"] },
+      // 2026-10-10 · audit 10-U10: diag-hub and diag-crons were second doors to
+      // /system/health and /system/crons; their keywords moved to sys-health /
+      // sys-crons below. One destination, one entry.
       { id: "diag-stale", label: "Stale Data · review + cleanup", group: "Diagnostics", icon: <DatabaseIcon className="size-4" />, action: () => navigate("/system#stale-data"), keywords: ["stale", "purge", "clean", "orphan", "dismissed"] },
       // v10.0.304 · "Live Event Stream" entry removed · /system/events
       // page deleted. /system/logs covers the same data with broader
@@ -317,12 +342,12 @@ export function CommandPalette() {
       // Quality / Anti-patterns / Operator-State / Judge-eval / Lens-Stats →
       // /system/calibration, and Devices / Power / API-Tokens → /system —
       // that faked distinct pages. These are the real ones. ═══
-      { id: "sys-crons", label: "Crons · live deck", group: "System", icon: <ClockIcon className="size-4" />, action: () => navigate("/system/crons"), keywords: ["cron", "schedule", "job", "kill", "manual"] },
+      { id: "sys-crons", label: "Crons · live deck", group: "System", icon: <ClockIcon className="size-4" />, action: () => navigate("/system/crons"), keywords: ["cron", "schedule", "job", "kill", "manual", "silent", "slow", "diagnose"] },
       { id: "sys-errors", label: "Errors · fingerprints", group: "System", icon: <AlertTriangleIcon className="size-4" />, action: () => navigate("/system/logs?view=errors"), keywords: ["error", "log", "stack", "fingerprint"] },
       { id: "sys-logs", label: "Logs · request + AI stream", group: "System", icon: <DatabaseIcon className="size-4" />, action: () => navigate("/system/logs"), keywords: ["log", "request", "stream", "api", "generation"] },
       { id: "sys-ai-cost", label: "AI Cost · burn rate", group: "System", icon: <DollarSignIcon className="size-4" />, action: () => navigate("/system/ai-cost"), keywords: ["cost", "nick", "tokens", "budget", "burn"] },
       { id: "sys-actions", label: "Autonomous Actions · audit", group: "System", icon: <BotIcon className="size-4" />, action: () => navigate("/system/actions"), keywords: ["action", "autonomous", "rule", "audit", "approval"] },
-      { id: "sys-health", label: "Health · diagnostics", group: "System", icon: <StethoscopeIcon className="size-4" />, action: () => navigate("/system/health"), keywords: ["health", "diagnostics", "probe", "env", "vectors", "backlog"] },
+      { id: "sys-health", label: "Health · diagnostics", group: "System", icon: <StethoscopeIcon className="size-4" />, action: () => navigate("/system/health"), keywords: ["health", "diagnostics", "probe", "env", "vectors", "backlog", "push", "pull", "oauth", "pulse", "stale", "cron", "rescan", "diagnose", "all"] },
       { id: "sys-calibration", label: "Calibration · accuracy + judge-eval", group: "System", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["calibration", "quality", "judge", "eval", "drift", "coverage", "operator state", "lens"] },
       { id: "sys-alerts", label: "Alerts · cross-category inspector", group: "System", icon: <AlertTriangleIcon className="size-4" />, action: () => navigate("/system/alerts"), keywords: ["alert", "inspect", "category", "coach"] },
       { id: "sys-inbox", label: "Memory Inbox · quarantine review", group: "System", icon: <InboxIcon className="size-4" />, action: () => navigate("/system/inbox"), keywords: ["inbox", "quarantine", "memory", "contradiction", "review"] },
@@ -332,9 +357,11 @@ export function CommandPalette() {
       { id: "sys-ui-lab", label: "UI Lab · inspector + metric + evidence fixtures", group: "System", icon: <FlaskConicalIcon className="size-4" />, action: () => navigate("/system/ui-lab"), keywords: ["ui", "lab", "gallery", "inspector", "fixture", "metric", "evidence", "reality mode"] },
 
       // ═══ QUICK ACTIONS ═══
-      { id: "action-chat-nick", label: "Talk to Nick", group: "Quick Actions", icon: <BrainIcon className="size-4" />, action: () => navigate("/chat"), keywords: ["nick", "ai", "ask", "help"] },
+      // 2026-10-10 · audit 02-F12: "Start Flow Mode" opened chat with a `mode`
+      // param nothing reads; without it, it was a second door to /chat. Chat
+      // detects a brain dump on its own, so its keywords live here now.
+      { id: "action-chat-nick", label: "Talk to Nick", group: "Quick Actions", icon: <BrainIcon className="size-4" />, action: () => navigate("/chat"), keywords: ["nick", "ai", "ask", "help", "flow", "dump", "journal", "debrief"] },
       { id: "action-generate-image", label: "Generate Image", group: "Quick Actions", icon: <ImageIcon className="size-4" />, action: () => navigate("/chat?prompt=generate+an+image+of+"), keywords: ["image", "picture", "art", "generate", "imagine"] },
-      { id: "action-flow", label: "Start Flow Mode (Brain Dump)", group: "Quick Actions", icon: <ActivityIcon className="size-4" />, action: () => navigate("/chat?mode=flow"), keywords: ["flow", "dump", "journal", "debrief"] },
       { id: "action-search-memory", label: "Search Brain Memories", group: "Quick Actions", icon: <SearchIcon className="size-4" />, action: () => navigate("/chat?prompt=search+my+memories+for+"), keywords: ["memory", "search", "recall", "remember"] },
       { id: "action-blind-spots", label: "Check Blind Spots", group: "Quick Actions", icon: <EyeIcon className="size-4" />, action: () => navigate("/chat?prompt=what+blind+spots+do+I+have+right+now"), keywords: ["blind", "missing", "ignore", "neglect"] },
 
@@ -373,14 +400,6 @@ export function CommandPalette() {
         keywords: ["google", "oauth", "reconnect", "drive", "gmail", "calendar", "refresh", "token"],
       },
       {
-        id: "power-diag-all",
-        label: "Open Diagnostics Hub (auto-scans)",
-        group: "Power",
-        icon: <RefreshCwIcon className="size-4" />,
-        action: () => navigate("/system/health"),
-        keywords: ["probe", "rescan", "diagnose", "all"],
-      },
-      {
         id: "power-recent-captures",
         label: "View Recent Captures",
         group: "Power",
@@ -405,7 +424,8 @@ export function CommandPalette() {
 
       // ═══ SYSTEM PROBES — live data via toast (replaces old alert()) ═══
       {
-        id: "sys-health",
+        // Was a second "sys-health" id (the navigate entry above owns it).
+        id: "probe-health",
         label: "Run Health Check",
         group: "System Probes",
         icon: <HeartPulseIcon className="size-4" />,
@@ -652,6 +672,9 @@ export function CommandPalette() {
             sourceType: string;
             sourceId: string;
             content: string;
+            // Not returned by search-hybrid yet (2026-10-10); a chat hit
+            // without it falls back in semanticHitHref.
+            conversationId?: string | null;
           }>;
         }>(`/api/brain/search-hybrid?q=${encodeURIComponent(query.trim())}&limit=5`, {
           signal: controller.signal,
@@ -663,6 +686,7 @@ export function CommandPalette() {
             id: r.sourceId,
             sourceType: r.sourceType,
             content: r.content,
+            conversationId: r.conversationId ?? null,
           })),
         );
       } catch (err) {
@@ -679,25 +703,12 @@ export function CommandPalette() {
     };
   }, [query, open]);
 
-  // 2026-05-24 · Wave W Phase 2 · semantic-hit navigation. Brain
-  // memory hits route to /brain/wisdom?focus=<key> when possible ·
-  // chat message hits route to /chat with the message id anchor.
-  // Mirror the operator's existing deep-link patterns elsewhere on
-  // the page (e.g. /brain/wisdom?focus= from the evolution panel).
+  // 2026-05-24 · Wave W Phase 2 · semantic-hit navigation; the target is
+  // decided by semanticHitHref (module scope, tested).
   const navigateToHit = useCallback(
-    (hit: { id: string; sourceType: string }) => {
+    (hit: { id: string; sourceType: string; conversationId?: string | null }) => {
       closePalette();
-      if (hit.sourceType === "brain_memory") {
-        // 2026-09-15 · a memory hit opens the universal memory inspector on the
-        // Brain memory tab (was: the wisdom tab's KEY-based ?focus= fed a ROW id,
-        // a deep link that could never resolve).
-        router.push(inspectHref("/brain", "tab=memory", { kind: "memory", id: hit.id }));
-      } else if (hit.sourceType === "chat_message") {
-        router.push(`/chat#${encodeURIComponent(hit.id)}`);
-      } else {
-        // Future sources (knowledge_file, task, pin) wire here.
-        router.push(`/chat?prompt=${encodeURIComponent(query)}`);
-      }
+      router.push(semanticHitHref(hit, query));
     },
     [closePalette, router, query],
   );

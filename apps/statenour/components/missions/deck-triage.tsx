@@ -66,9 +66,12 @@ export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTa
                 {row.detail && <p className="truncate text-[12px] text-fg-tertiary">{row.detail}</p>}
               </div>
 
+              {/* 2026-10-10 · audit 10-U3: /system/inbox lists quarantined
+                  memories, not CaptureInboxItem rows, and no page lists
+                  captures. The label names what the link really opens. */}
               {row.kind === "capture" && (
                 <Link href="/system/inbox" className={VERB}>
-                  Open inbox ↗
+                  Memory inbox ↗
                 </Link>
               )}
 

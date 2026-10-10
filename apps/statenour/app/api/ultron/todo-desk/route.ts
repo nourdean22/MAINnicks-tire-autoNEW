@@ -4,6 +4,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import { apiHandler } from "@/lib/utils/http";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { buildTodoDesk } from "@/lib/services/todo-desk";
 
@@ -24,7 +25,7 @@ import { buildTodoDesk } from "@/lib/services/todo-desk";
 
 export const revalidate = 60;
 
-export async function GET() {
+export const GET = apiHandler(async () => {
   try {
     const payload = await buildTodoDesk();
     return NextResponse.json({ data: payload });
@@ -37,4 +38,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+}, { auth: "owner" });

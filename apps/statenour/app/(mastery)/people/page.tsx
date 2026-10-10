@@ -28,6 +28,7 @@ import { StandardPage } from "@/components/layout/standard-page";
 // 2026-09-15 · UI workbench · the dossier is URL-addressable (`?inspect=person:<id>`).
 import { useInspector, useInspectorOwnership } from "@/hooks/use-inspector";
 import { readInspect } from "@/lib/ui/inspect-url";
+import { scrollBehavior } from "@/lib/ui/scroll-behavior";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
@@ -267,7 +268,7 @@ function RelationshipsPageInner() {
     r1 = requestAnimationFrame(() => {
       r2 = requestAnimationFrame(() => {
         const el = document.getElementById(`person-${personId}`);
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (el) el.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
       });
     });
     return () => {

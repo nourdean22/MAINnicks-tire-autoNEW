@@ -19,10 +19,14 @@
  * tokens → ~4K. Venice first-token latency drops proportionally.
  */
 
+import { convertToModelMessages } from "ai";
 import { prisma } from "@/lib/prisma";
 import { recordError } from "@/lib/errors/record-error";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
-import { aiChat } from "@/lib/ai/provider";
+import { aiChat, isAiSentinel } from "@/lib/ai/provider";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("ai/conversation-compress");
 
 // Compression kicks in past this many messages.
 // Apr 19 · Threshold raised 12 → 20 so the compression AI call
@@ -46,7 +50,9 @@ const inFlightCompressions = new Set<string>();
 
 interface CompactMessage {
   role: string;
-  content: string;
+  /** string for the summary block; recent turns keep their model-message
+   *  parts (file/image/tool) when the AI SDK can convert them. */
+  content: string | unknown[];
 }
 
 interface CompressionResult {
@@ -96,7 +102,7 @@ Format: bulleted notes under headers. Max 400 words. Skip filler. Keep specific 
  * down). Returns null on empty/failed output so the caller falls
  * through to uncompressed messages.
  */
-async function summarizeMessages(messages: CompactMessage[]): Promise<string | null> {
+async function summarizeMessages(messages: Array<{ role: string; content: string }>): Promise<string | null> {
   const transcript = messages
     .map((m) => `${m.role.toUpperCase()}: ${m.content.slice(0, 800)}`)
     .join("\n\n");
@@ -109,19 +115,25 @@ async function summarizeMessages(messages: CompactMessage[]): Promise<string | n
       ],
       "summary",
     );
+    // aiChat RETURNS the outage apology instead of throwing. Caching it would
+    // replay "I'm having trouble connecting..." as this conversation's history.
+    if (isAiSentinel(reply)) {
+      log.warn("summarizer_provider_unavailable", { provider: reply?.provider ?? null });
+      return null;
+    }
     const text =
       (reply?.content ?? "")
         .replace(/<think>[\s\S]*?<\/think>/gi, "")
         .replace(/<\/?think>/gi, "")
         .trim() || null;
     if (!text) {
-      console.warn("[conversation-compress] summarizer returned empty content");
+      log.warn("summarizer_empty_content");
       return null;
     }
     return text;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`[conversation-compress] summarizer error · ${msg}`);
+    log.warn("summarizer_error", { error: msg.slice(0, 200) });
     return null;
   }
 }
@@ -145,10 +157,19 @@ async function getCachedSummary(
   if (!mem?.metadata) return null;
 
   const meta = mem.metadata as Record<string, unknown>;
+  // 2026-10-10 · coveredCount is now the number of messages the summary
+  // actually covers (the cutoff). Rows written before that stored
+  // rawMessages.length (KEEP_RECENT too many) and may hold a cached outage
+  // sentinel, so an unmarked row is rebuilt rather than trusted.
+  if (meta.coverage !== "cutoff") return null;
   const coveredCount = typeof meta.coveredCount === "number" ? meta.coveredCount : 0;
 
-  // Rebuild if we've added enough new messages since the last summary
-  if (currentCount - coveredCount >= REBUILD_INCREMENT) return null;
+  // History shrank (edit / regenerate) below what the summary covers: the
+  // verbatim tail would lose the current turn. Rebuild.
+  if (coveredCount <= 0 || coveredCount > currentCount - KEEP_RECENT) return null;
+  // Rebuild once REBUILD_INCREMENT new messages arrived past the old tail
+  // (same cadence as before coveredCount meant the cutoff).
+  if (currentCount - coveredCount >= REBUILD_INCREMENT + KEEP_RECENT) return null;
 
   return {
     summary: mem.content,
@@ -174,15 +195,32 @@ async function storeSummary(
         content: summary,
         confidence: 0.8,
         source: "conversation_compress",
-        metadata: { coveredCount, compressedAt: new Date().toISOString() },
+        metadata: { coveredCount, coverage: "cutoff", compressedAt: new Date().toISOString() },
       },
       update: {
         content: summary,
         confidence: 0.8,
-        metadata: { coveredCount, compressedAt: new Date().toISOString() },
+        metadata: { coveredCount, coverage: "cutoff", compressedAt: new Date().toISOString() },
       },
     })
     .catch((err) => recordError("ai:compression", err, { conversationId, op: "storeSummary" }));
+}
+
+/**
+ * The verbatim tail keeps its original parts: the compressed path skips the
+ * route's convertToModelMessages, so flattening to text here dropped every
+ * image / file attached in the last turns. Falls back to text when the AI SDK
+ * cannot convert the shape (e.g. legacy { role, content: string } rows).
+ */
+async function recentAsModelMessages(recent: Array<Record<string, unknown>>): Promise<CompactMessage[]> {
+  try {
+    const converted = await convertToModelMessages(
+      recent as unknown as Parameters<typeof convertToModelMessages>[0],
+    );
+    return converted.map((m) => ({ role: m.role, content: m.content as string | unknown[] }));
+  } catch {
+    return recent.map((m) => ({ role: m.role as string, content: extractText(m) }));
+  }
 }
 
 /**
@@ -213,19 +251,22 @@ export async function compressConversation(
     };
   }
 
-  const cutoff = rawMessages.length - KEEP_RECENT;
-  const toCompress = rawMessages.slice(0, cutoff);
-  const recent = rawMessages.slice(cutoff);
-
+  let cutoff = rawMessages.length - KEEP_RECENT;
   let summary: string | null = null;
 
-  // Try to reuse a cached summary for this conversation
+  // Try to reuse a cached summary for this conversation. Its coveredCount is
+  // where the verbatim tail must start, or the messages between the old
+  // cutoff and the new one land in neither the summary nor the tail.
   if (conversationId) {
     const cached = await getCachedSummary(conversationId, rawMessages.length);
     if (cached) {
       summary = cached.summary;
+      cutoff = cached.coveredCount;
     }
   }
+
+  const toCompress = rawMessages.slice(0, cutoff);
+  const recent = rawMessages.slice(cutoff);
 
   // Build a fresh summary if none cached.
   // v9.1.22 · concurrency guard. The chat route's AI rate limit
@@ -250,7 +291,7 @@ export async function compressConversation(
         }));
         summary = await summarizeMessages(flat);
         if (summary) {
-          storeSummary(conversationId, summary, rawMessages.length).catch((err) =>
+          storeSummary(conversationId, summary, cutoff).catch((err) =>
             recordError("ai:compression", err, { conversationId, op: "storeSummary-async" }),
           );
         }
@@ -283,16 +324,13 @@ export async function compressConversation(
 
   // Build the compressed message list:
   //   [system: the summary]
-  //   [last KEEP_RECENT messages verbatim]
+  //   [every message after the summary's coverage, verbatim]
   const compressed: CompactMessage[] = [
     {
       role: "system",
       content: `# CONVERSATION SUMMARY (${toCompress.length} earlier messages compressed)\n\n${summary}\n\n# RECENT MESSAGES (verbatim, most recent)`,
     },
-    ...recent.map((m) => ({
-      role: m.role as string,
-      content: extractText(m),
-    })),
+    ...(await recentAsModelMessages(recent)),
   ];
 
   return {

@@ -4,7 +4,8 @@
  * Make.com sends JSON payloads when scenarios complete.
  * This is the universal receiver — routes by `scenario` field in payload.
  *
- * Security: Validates MAKE_WEBHOOK_SECRET header if configured.
+ * Security: MAKE_WEBHOOK_SECRET is REQUIRED. Unset, every request gets 503
+ * (fail closed); set, the x-make-secret or Authorization header must match it.
  */
 
 import { NextRequest, NextResponse } from "next/server";

@@ -52,9 +52,36 @@ describe("outcome-harvest cron", () => {
   it("counts the ledger's own correction metric — dismissed OR outcomeUseful:false", async () => {
     const { GET } = await loadRoute();
     await GET(new Request("http://x/api/cron/outcome-harvest"), {} as never);
-    expect(mocks.intelligenceOutcome.count.mock.calls[0][0].where).toEqual({
-      OR: [{ decision: "dismissed" }, { outcomeUseful: false }],
+    const { CORRECTION_WHERE } = await import("@/lib/services/outcome-ledger");
+    expect(mocks.intelligenceOutcome.count.mock.calls[0][0].where).toEqual(CORRECTION_WHERE);
+  });
+
+  // Audit 2026-10-10 · 06 §4 + F6: "correction-shaped" means the operator
+  // pushed BACK. An `acted` tap and a thumbs-up are agreement; the seeded
+  // calibration rows (msg_calibration_ / comparison_calibration_) are not
+  // operator labels at all.
+  it("supplementary correction-shaped labels count dismissed/modified taps and thumbs-DOWN only", async () => {
+    mocks.brainMemory.findMany.mockImplementation(async (args: { where: { category: string } }) =>
+      args.where.category === "suggestion_loop"
+        ? [{ metadata: { event: "acted" } }, { metadata: { event: "acted" } }, { metadata: { event: "dismissed" } }, { metadata: { event: "modified" } }]
+        : [],
+    );
+    const { GET } = await loadRoute();
+    await GET(new Request("http://x/api/cron/outcome-harvest"), {} as never);
+    const meta = mocks.brainMemory.upsert.mock.calls[0][0].create.metadata;
+    expect(meta.suggestionVerdicts).toBe(2);
+    expect(meta.tapCounts).toMatchObject({ acted: 2, dismissed: 1, modified: 1 });
+    expect(mocks.chatMessage.count.mock.calls[0][0].where).toEqual({
+      feedbackScore: -1,
+      NOT: { id: { startsWith: "msg_calibration_" } },
     });
+  });
+
+  it("seeded calibration comparisons are not operator A/B labels", async () => {
+    const { GET } = await loadRoute();
+    await GET(new Request("http://x/api/cron/outcome-harvest"), {} as never);
+    const cmp = mocks.brainMemory.findMany.mock.calls.find((c) => c[0].where.category === "prompt_comparison_run");
+    expect(cmp?.[0].where).toMatchObject({ NOT: { key: { startsWith: "comparison_calibration_" } } });
   });
 
   it("never counts machine judgments toward the operator-correction gate", async () => {

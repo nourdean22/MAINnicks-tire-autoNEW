@@ -17,12 +17,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const h = vi.hoisted(() => ({
   create: vi.fn().mockResolvedValue({ id: "row" }),
+  // 2026-10-10 · logCronRun opens a `started` row with create, then settles
+  // THAT row with update - the terminal status lives on the update call.
+  update: vi.fn().mockResolvedValue({ id: "row" }),
   findMany: vi.fn().mockResolvedValue([]),
+  groupBy: vi.fn().mockResolvedValue([]),
   publishDurable: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { cronJobLog: { create: h.create, findMany: h.findMany } },
+  prisma: { cronJobLog: { create: h.create, update: h.update, findMany: h.findMany, groupBy: h.groupBy } },
 }));
 vi.mock("@/lib/db/brain-bus-durable", () => ({
   publishDurable: h.publishDurable,
@@ -32,6 +36,7 @@ import { logCronRun, getCronStatus } from "@/lib/services/cron-manager";
 
 beforeEach(() => {
   h.create.mockClear();
+  h.update.mockClear();
   h.publishDurable.mockClear();
 });
 
@@ -40,7 +45,7 @@ describe("logCronRun", () => {
     const run = await logCronRun("healthy-job", async () => ({ drained: 3 }));
     expect(run.success).toBe(true);
     expect(run.reportedFailure).toBeUndefined();
-    expect(h.create).toHaveBeenCalledWith(
+    expect(h.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: "success" }) }),
     );
   });
@@ -55,7 +60,7 @@ describe("logCronRun", () => {
     expect(run.result).toEqual({ ok: false, reason: "no heartbeat in 26h" });
     // …but the log row tells the truth
     expect(run.reportedFailure).toBe("no heartbeat in 26h");
-    expect(h.create).toHaveBeenCalledWith(
+    expect(h.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: "failed", error: "no heartbeat in 26h" }),
       }),
@@ -83,10 +88,10 @@ describe("logCronRun", () => {
 
   it("does NOT treat a missing ok field, ok:true, arrays, or primitives as failure claims", async () => {
     for (const result of [{ drained: 0 }, { ok: true }, [1, 2], "done", null, 42]) {
-      h.create.mockClear();
+      h.update.mockClear();
       const run = await logCronRun("j", async () => result);
       expect(run.reportedFailure).toBeUndefined();
-      expect(h.create).toHaveBeenCalledWith(
+      expect(h.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ status: "success" }) }),
       );
     }
@@ -98,7 +103,7 @@ describe("logCronRun", () => {
     });
     expect(run.success).toBe(false);
     expect(run.error).toBe("boom");
-    expect(h.create).toHaveBeenCalledWith(
+    expect(h.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: "failed", error: "boom" }),
       }),
@@ -112,11 +117,10 @@ describe("getCronStatus success rate", () => {
     // `(total - failures) / total` counted every degraded fan-out run as a
     // full success. mega-evening reported 100% across 1,248 partial runs
     // while never once finishing clean.
-    h.findMany.mockResolvedValueOnce([
-      { jobName: "mega-evening", status: "partial", createdAt: new Date("2026-08-20T03:04:37Z"), duration: 1 },
-      { jobName: "mega-evening", status: "partial", createdAt: new Date("2026-08-20T04:04:37Z"), duration: 1 },
-      { jobName: "mega-evening", status: "partial", createdAt: new Date("2026-08-20T05:04:37Z"), duration: 1 },
-      { jobName: "mega-evening", status: "success", createdAt: new Date("2026-08-20T09:03:08Z"), duration: 1 },
+    // 2026-10-10 · the summary reads one groupBy row per (job, terminal status).
+    h.groupBy.mockResolvedValueOnce([
+      { jobName: "mega-evening", status: "partial", _count: { _all: 3 }, _max: { createdAt: new Date("2026-08-20T05:04:37Z") } },
+      { jobName: "mega-evening", status: "success", _count: { _all: 1 }, _max: { createdAt: new Date("2026-08-20T09:03:08Z") } },
     ]);
 
     return getCronStatus(10).then((res) => {

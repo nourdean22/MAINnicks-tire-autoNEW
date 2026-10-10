@@ -48,8 +48,11 @@ export const STATENOUR_ARTIFACT_PROBES: ArtifactProbe[] = [
     capability: "outbox-drain",
     maxAgeH: 30,
     probe: async () => {
+      // 2026-10-10 · the last run that actually drained: an in-flight `started`
+      // row, a `failed` run, or a kill-switch skip (success + skipReason) is not
+      // output. It read the newest row of any status before.
       const r = await prisma.cronJobLog.findFirst({
-        where: { jobName: "outbox-drain" },
+        where: { jobName: "outbox-drain", status: "success", skipReason: null },
         orderBy: { createdAt: "desc" },
         select: { createdAt: true },
       });
@@ -78,6 +81,37 @@ export const STATENOUR_ARTIFACT_PROBES: ArtifactProbe[] = [
     capability: "brain-bus-drain",
     maxAgeH: 1,
     probe: () => getLatestWorkerSuccessAt(),
+  },
+  {
+    // 2026-10-10 audit (01-F1, 08-F15): the outcome ledger wrote ZERO rows
+    // 2026-10-03 -> 10-08 and nothing alerted: its failures were warn logs no
+    // reader matched. Every brief/Home render records shown rows, so a day
+    // with none means the writer is down.
+    capability: "intelligence-outcomes",
+    maxAgeH: 30,
+    probe: async () => {
+      const r = await prisma.intelligenceOutcome.findFirst({
+        orderBy: { shownAt: "desc" },
+        select: { shownAt: true },
+      });
+      return r?.shownAt ?? null;
+    },
+  },
+  {
+    // Same silence class (a 3-day outage nobody saw). 72h because its senders
+    // have an irregular cadence. createdAt, not observedAt: observedAt is
+    // sender-supplied (lib/services/reality-ledger.ts keeps it for legacy
+    // readers), so back-dated events would read stale while the pipeline is
+    // alive; createdAt is the arrival clock and has its own index.
+    capability: "reality-events",
+    maxAgeH: 72,
+    probe: async () => {
+      const r = await prisma.realityEvent.findFirst({
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
+      });
+      return r?.createdAt ?? null;
+    },
   },
 ];
 

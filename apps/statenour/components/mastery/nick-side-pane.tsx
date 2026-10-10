@@ -27,10 +27,12 @@
  * land as follow-ups when the SSE infrastructure ships.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Brain, X, GripVertical, AlertTriangle, Sparkles, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { useMinWidth } from "@/hooks/use-min-width";
 import { MultiTurnChat } from "@/components/mastery/multi-turn-chat";
 import { useCoachEvents } from "@/lib/hooks/use-coach-events";
 import type { CoachEvent, CoachEventSurface } from "@/lib/services/coach-events-types";
@@ -109,6 +111,9 @@ export function NickSidePane({
   coachSurface,
 }: NickSidePaneProps) {
   const [open, setOpen] = useState(false);
+  // lg+ keeps the non-modal right pane; below lg the pane is a modal sheet (audit 09-F4).
+  const isDesktop = useMinWidth(1024);
+  const fabRef = useRef<HTMLButtonElement>(null);
 
   // Phase 5 FULL · proactive coach event push (polled).
   // Subscribes to the Coach Channel for the pane's surface · displays
@@ -174,9 +179,19 @@ export function NickSidePane({
     });
   }, []);
 
-  // Esc closes when open · matches OmniCaptureModal contract.
+  const close = useCallback(() => {
+    setOpen(false);
+    try {
+      localStorage.setItem(STORAGE_KEY, "0");
+    } catch {
+      /* best-effort */
+    }
+  }, []);
+
+  // Esc closes the desktop pane · matches OmniCaptureModal contract. Below lg the Dialog owns
+  // Escape (a second listener here would re-open what the Dialog just closed).
   useEffect(() => {
-    if (!open) return;
+    if (!open || !isDesktop) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
         // Only close if focus is not inside an editable element ·
@@ -189,7 +204,7 @@ export function NickSidePane({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, toggle]);
+  }, [open, isDesktop, toggle]);
 
   // Reserve the FAB lane while this pane is mounted (see NICK_FAB_LANE).
   useEffect(() => {
@@ -205,11 +220,85 @@ export function NickSidePane({
     };
   }, []);
 
+  // Header + body + footer, shared by the desktop pane and the phone/tablet dialog.
+  const paneContent = (
+    <>
+      {/* Header · drag handle (mobile) + title + close */}
+      <header className="flex items-center gap-2 border-b border-edge-default px-4 py-3 shrink-0">
+        <GripVertical
+          size={12}
+          className="text-[var(--text-tertiary)]/40 lg:hidden"
+          strokeWidth={1.75}
+          aria-hidden
+        />
+        <Brain size={14} className="text-fg-tertiary shrink-0" strokeWidth={1.75} />
+        <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
+          nick · {page}
+        </h2>
+        {/* "esc to close" hint · desktop only · phones don't have Esc */}
+        <span className="ml-2 hidden lg:inline text-[11px] font-mono tabular-nums text-fg-tertiary">
+          esc to close
+        </span>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label="close nick"
+          className="ml-auto inline-flex h-11 w-11 lg:h-8 lg:w-8 items-center justify-center rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover active:scale-90 transition-all focus-visible:outline-none"
+        >
+          <X size={14} strokeWidth={2} />
+        </button>
+      </header>
+
+      {/* Body · proactive coach chips + PageNick · scroll-isolated.
+       *  Phase 5 FULL piece · operator sees what Nick noticed
+       *  BEFORE they ask · then can either tap a chip's deep-link
+       *  or ask a question via PageNick below. */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+        {/* Coach event chips · proactive surface (Phase 5 FULL) */}
+        {coachEvents.length > 0 && (
+          <section
+            aria-label="proactive coach events"
+            className="space-y-1.5"
+          >
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+              nick noticed
+            </p>
+            {coachEvents.map((event) => (
+              <CoachChip key={event.eventId} event={event} />
+            ))}
+          </section>
+        )}
+
+        {/* Multi-turn chat · Phase 5 FULL · 2026-05-26.
+         *  Thread state persists per-page in localStorage ·
+         *  POSTs full history to /api/ai/side-pane-chat each
+         *  turn · streams Nick's reply in. Operator can clear
+         *  thread + start fresh anytime. */}
+        <MultiTurnChat
+          page={page}
+          data={data}
+          focus={focus}
+          presets={presets ?? DEFAULT_PRESETS}
+        />
+      </div>
+
+      {/* Footer hint · Phase 5 FULL is now live · multi-turn
+       *  thread + proactive chip surfaces both shipped via the
+       *  Coach Channel layer + new side-pane-chat endpoint. */}
+      <footer className="px-4 py-2 border-t border-[var(--border-default)]/60 shrink-0">
+        <p className="font-mono text-[11px] text-fg-tertiary">
+          phase 5 full · multi-turn · proactive chips · per-device thread
+        </p>
+      </footer>
+    </>
+  );
+
   return (
     <>
       {/* Toggle FAB · always rendered · positioned bottom-right ·
        *  iOS-PWA-safe min-h 44pt · gold-accent editorial pill. */}
       <button
+        ref={fabRef}
         type="button"
         onClick={toggle}
         aria-label={open ? "close nick side pane" : "open nick side pane"}
@@ -240,104 +329,47 @@ export function NickSidePane({
         <span className="font-mono text-[11px] uppercase tracking-[0.12em]">nick</span>
       </button>
 
-      {/* Pane · slide-in from right on desktop · bottom-sheet on
-       *  mobile · same component, responsive Tailwind classes. */}
-      {open && (
-        <>
-          {/* Backdrop · mobile only · tap to close. lg:hidden keeps
-           *  desktop fully usable (no overlay). */}
-          <div
-            className="fixed inset-0 z-[58] bg-canvas/60 lg:hidden"
-            onClick={toggle}
-            aria-hidden
-          />
-          <aside
-            role="complementary"
+      {/* Desktop (lg+) · a non-modal right pane: the page beside it stays usable. */}
+      {open && isDesktop && (
+        <aside
+          role="complementary"
+          aria-label="nick assistant"
+          // z-[59]: above the z-[55] tab bar. Right pane · 380px wide · full height.
+          className="fixed top-0 right-0 bottom-0 z-[59] flex w-[380px] flex-col rounded-l-float border-l border-edge-default bg-overlay shadow-l2 pb-[env(safe-area-inset-bottom,0px)]"
+        >
+          {paneContent}
+        </aside>
+      )}
+
+      {/* Below lg · a modal bottom sheet over a scrim (audit 09-F4: it was a complementary
+       *  landmark over a click-catcher, so focus never moved in, was never trapped and never
+       *  came back). Base UI Dialog, as the More sheet: focus moves in and is trapped, Escape
+       *  and a scrim tap close it, focus returns to the FAB when it is visible (md..lg), else
+       *  to whatever held focus before. 60vh floor keeps the chat usable with the iPhone SE
+       *  keyboard up (2026-05-26). */}
+      {!isDesktop && (
+        <Dialog
+          open={open}
+          onOpenChange={(next, details) => {
+            if (next) return;
+            // Escape typed in the chat field stays with the field (pre-dialog behaviour);
+            // the close button and a scrim tap still close.
+            const tag = (document.activeElement?.tagName ?? "").toUpperCase();
+            if (details.reason === "escape-key" && (tag === "INPUT" || tag === "TEXTAREA")) return;
+            close();
+          }}
+        >
+          <DialogContent
+            unstyled
+            showCloseButton={false}
             aria-label="nick assistant"
-            className={cn(
-              // z-[59]: above the z-[55] tab bar — the open sheet used to sit
-              // UNDER the chrome, which overlapped its top edge on mobile.
-              "fixed z-[59] flex flex-col bg-overlay border-edge-default shadow-l2",
-              // Mobile bottom-sheet · 80vh max · 60vh min (2026-05-26
-              // mobile-tightening · iPhone SE keyboard-up was leaving the
-              // thread region < 30vh, the 60vh floor keeps the chat
-              // usable even with the keyboard open)
-              "inset-x-0 bottom-0 min-h-[60vh] max-h-[80vh] rounded-t-float border-t",
-              // Desktop right-pane · 380px wide · full height
-              "lg:top-0 lg:right-0 lg:bottom-0 lg:inset-x-auto lg:min-h-0 lg:max-h-none lg:w-[380px] lg:rounded-none lg:rounded-l-float lg:border-l lg:border-t-0",
-              // iOS safe-area
-              "pb-[env(safe-area-inset-bottom,0px)]",
-            )}
+            finalFocus={() => (fabRef.current?.offsetParent ? fabRef.current : true)}
+            overlayClassName="z-[58] bg-canvas/60"
+            className="fixed inset-x-0 bottom-0 z-[59] flex min-h-[60vh] max-h-[80vh] flex-col rounded-t-float border-t border-edge-default bg-overlay shadow-l2 outline-none pb-[env(safe-area-inset-bottom,0px)]"
           >
-            {/* Header · drag handle (mobile) + title + close */}
-            <header className="flex items-center gap-2 border-b border-edge-default px-4 py-3 shrink-0">
-              <GripVertical
-                size={12}
-                className="text-[var(--text-tertiary)]/40 lg:hidden"
-                strokeWidth={1.75}
-                aria-hidden
-              />
-              <Brain size={14} className="text-fg-tertiary shrink-0" strokeWidth={1.75} />
-              <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
-                nick · {page}
-              </h2>
-              {/* "esc to close" hint · desktop only · phones don't have Esc */}
-              <span className="ml-2 hidden lg:inline text-[11px] font-mono tabular-nums text-fg-tertiary">
-                esc to close
-              </span>
-              <button
-                type="button"
-                onClick={toggle}
-                aria-label="close nick"
-                className="ml-auto inline-flex h-11 w-11 lg:h-8 lg:w-8 items-center justify-center rounded-control text-fg-tertiary hover:text-fg hover:bg-surface-hover active:scale-90 transition-all focus-visible:outline-none"
-              >
-                <X size={14} strokeWidth={2} />
-              </button>
-            </header>
-
-            {/* Body · proactive coach chips + PageNick · scroll-isolated.
-             *  Phase 5 FULL piece · operator sees what Nick noticed
-             *  BEFORE they ask · then can either tap a chip's deep-link
-             *  or ask a question via PageNick below. */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-              {/* Coach event chips · proactive surface (Phase 5 FULL) */}
-              {coachEvents.length > 0 && (
-                <section
-                  aria-label="proactive coach events"
-                  className="space-y-1.5"
-                >
-                  <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-                    nick noticed
-                  </p>
-                  {coachEvents.map((event) => (
-                    <CoachChip key={event.eventId} event={event} />
-                  ))}
-                </section>
-              )}
-
-              {/* Multi-turn chat · Phase 5 FULL · 2026-05-26.
-               *  Thread state persists per-page in localStorage ·
-               *  POSTs full history to /api/ai/side-pane-chat each
-               *  turn · streams Nick's reply in. Operator can clear
-               *  thread + start fresh anytime. */}
-              <MultiTurnChat
-                page={page}
-                data={data}
-                focus={focus}
-                presets={presets ?? DEFAULT_PRESETS}
-              />
-            </div>
-
-            {/* Footer hint · Phase 5 FULL is now live · multi-turn
-             *  thread + proactive chip surfaces both shipped via the
-             *  Coach Channel layer + new side-pane-chat endpoint. */}
-            <footer className="px-4 py-2 border-t border-[var(--border-default)]/60 shrink-0">
-              <p className="font-mono text-[11px] text-fg-tertiary">
-                phase 5 full · multi-turn · proactive chips · per-device thread
-              </p>
-            </footer>
-          </aside>
-        </>
+            {paneContent}
+          </DialogContent>
+        </Dialog>
       )}
     </>
   );

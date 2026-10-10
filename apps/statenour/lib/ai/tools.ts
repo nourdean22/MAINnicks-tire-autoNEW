@@ -18,8 +18,12 @@
  */
 
 import { brainTools } from "@/lib/ai/tools/brain";
+import { currentTurn, type TurnContext } from "@/lib/agent/turn-context";
+import { isReadSafeTool } from "@/lib/ai/capability-registry";
+import { getFlag } from "@/lib/feature-flags";
+import { logger as rootLogger } from "@/lib/logger";
 import { sinkPolicyGate } from "@/lib/tools/sink-policy";
-import { twoKeyGate } from "@/lib/tools/two-key";
+import { criticalRiskGate, twoKeyGate } from "@/lib/tools/two-key";
 import { tasksTools } from "@/lib/ai/tools/tasks";
 import { businessTools } from "@/lib/ai/tools/business";
 import { contentTools } from "@/lib/ai/tools/content";
@@ -117,6 +121,78 @@ async function isSideEffecting(name: string): Promise<boolean> {
   return sideEffectingNames.has(name);
 }
 
+const log = rootLogger.withSurface("ai/tools");
+
+type AuthorityRefusal = {
+  error: "mutation_locked" | "private_turn" | "read_only_turn";
+  reason: string;
+  reflection: { tool: string; guidance: string };
+};
+
+function refuse(name: string, error: AuthorityRefusal["error"], reason: string, guidance: string): AuthorityRefusal {
+  log.info("tool refused at the nourTools boundary", { tool: name, refusal: error });
+  return { error, reason, reflection: { tool: name, guidance } };
+}
+
+/**
+ * 2026-10-10 (audit 07-SN-03): the three refusals a WRITE can meet before it
+ * runs, checked ahead of the sink/two-key/critical gates so a refused call
+ * leaves no approval row behind. A write is any tool capability-registry does
+ * not call read-safe; a tool missing from the catalog counts as a write.
+ *
+ *   1. NICK_MUTATION_LOCK, the emergency freeze. Its flag text promised it
+ *      "denies registered tool writes", but only evaluateToolAction read it
+ *      and no chat tool goes through that. Fail closed when the flag cannot
+ *      be read (as tool-policy.ts and the tRPC gate do). Holds under the
+ *      guardian bypass too: an approval granted before the freeze does not
+ *      outrank it.
+ *   2. Private Lab: the turn leaves no trace.
+ *   3. Read permission: no autonomous change. prepare-tools already strips
+ *      writes from a Read turn's tool set; this is the execution-layer half.
+ *      `actionPermission` is read off the turn; TurnContext does not carry it
+ *      yet, so until the route publishes it this check cannot fire.
+ */
+function authorityGate(name: string): AuthorityRefusal | null {
+  if (isReadSafeTool(name)) return null;
+  let locked: boolean;
+  try {
+    locked = getFlag("NICK_MUTATION_LOCK")?.isOn ?? false;
+  } catch {
+    return refuse(
+      name,
+      "mutation_locked",
+      `NICK_MUTATION_LOCK could not be read, so ${name} was not run: it changes state, and writes stay locked while the lock state is unknown.`,
+      "This was NOT performed; nothing changed. Tell Nour the mutation lock could not be checked, so writes are blocked for now. Do not retry it in this turn and never claim it happened.",
+    );
+  }
+  if (locked) {
+    return refuse(
+      name,
+      "mutation_locked",
+      `NICK_MUTATION_LOCK is on, so ${name} was not run: it changes state, and the lock freezes every tool write.`,
+      "This was NOT performed; nothing changed. The emergency mutation lock (NICK_MUTATION_LOCK) is active. Tell Nour this action is blocked by the lock; do not retry it and never claim it happened.",
+    );
+  }
+  const turn = currentTurn() as (TurnContext & { actionPermission?: string }) | null;
+  if (turn?.privateMode === true) {
+    return refuse(
+      name,
+      "private_turn",
+      `This is a Private Lab turn, which leaves no trace, so ${name} was not run: it changes state.`,
+      "This was NOT performed; nothing changed. Tell Nour that Private Lab cannot make changes; turning Private off allows this. Do not retry it in this turn and never claim it happened.",
+    );
+  }
+  if (turn?.actionPermission === "read") {
+    return refuse(
+      name,
+      "read_only_turn",
+      `This turn has Read permission, so ${name} was not run: it changes state.`,
+      "This was NOT performed; nothing changed. Tell Nour the chat is set to Read; switching it to Draft or Execute allows changes. Do not retry it in this turn and never claim it happened.",
+    );
+  }
+  return null;
+}
+
 /**
  * Exported for tests/ai/tool-execution-timeout.test.ts: the timeout is a
  * runaway guard and the only honest way to prove a guard works is to
@@ -142,6 +218,9 @@ export function wrapToolsWithEmptyHandling<T extends Record<string, any>>(tools:
       // gets the violated constraint and a single-retry instruction, and
       // tool-telemetry still counts the failure via the `error` key.
       execute: async (args: any, options?: unknown) => {
+        // Lock, Private Lab and Read permission refuse a write outright.
+        const denied = authorityGate(name);
+        if (denied) return denied;
         // U4 sink policy (review on #2198): in a turn tainted by external content an
         // external side effect is queued for a human here, at the boundary every
         // catalog tool crosses -- guardian-wrapped or not.
@@ -151,6 +230,11 @@ export function wrapToolsWithEmptyHandling<T extends Record<string, any>>(tools:
         // owner's approval of the exact call, even in a clean owner turn.
         const held = await twoKeyGate(name, args);
         if (held) return held;
+        // A critical-risk WRITE with no two-key rule of its own waits for the
+        // owner's approval of the exact call (tool-policy rule 8). Pure-compute
+        // critical tools (runCode, runPython) run.
+        const critical = await criticalRiskGate(name, args);
+        if (critical) return critical;
         let res: any;
         const budgetMs = TOOL_TIME_BUDGET_MS[name] ?? DEFAULT_TOOL_TIMEOUT_MS;
         let timer: ReturnType<typeof setTimeout> | undefined;

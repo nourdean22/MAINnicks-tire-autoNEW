@@ -70,7 +70,8 @@ interface CronRow {
   lastFailAt: string | null;
   success14d: number;
   fail14d: number;
-  successRate: number;
+  /** null = no runs in 14d (2026-10-10: 0 runs is no longer scored 100%). */
+  successRate: number | null;
   recentDurations: number[];
   lastRunAt: string | null;
   lastRunMs: number | null;
@@ -268,7 +269,8 @@ export default function CronsPage() {
       const sorted = [...list];
       switch (sortKey) {
         case "success-rate-desc":
-          sorted.sort((a, b) => b.successRate - a.successRate);
+          // No runs has no rate: sort it after every measured rate.
+          sorted.sort((a, b) => (b.successRate ?? -1) - (a.successRate ?? -1));
           break;
         case "fail-count-desc":
           sorted.sort((a, b) => b.fail14d - a.fail14d);
@@ -594,9 +596,11 @@ function CronRowView({
       <div className="hidden sm:block text-right">
         <div className={cn(
           "font-mono text-sm tabular-nums",
-          row.successRate >= 95 ? "text-emerald-400" : row.successRate >= 80 ? "text-amber-400" : "text-rose-400",
+          row.successRate === null
+            ? "text-fg-tertiary"
+            : row.successRate >= 95 ? "text-emerald-400" : row.successRate >= 80 ? "text-amber-400" : "text-rose-400",
         )}>
-          {row.successRate}%
+          {row.successRate === null ? "no runs" : `${row.successRate}%`}
         </div>
         <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">14d</div>
       </div>

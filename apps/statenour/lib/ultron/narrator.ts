@@ -23,6 +23,7 @@ import { prisma } from "@/lib/prisma";
 import { daysAgo, hourET, toDateString } from "@/lib/utils/datetime";
 import { findLawsForPatterns, pickApplication, type LawRef } from "./adviser";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
 
 // Opt-in LLM synthesis (NARRATOR_LLM_SYNTHESIS=1). See synthesizeNarration.
 const aiChatSynth = makeTracedAiChat("narrator-synthesis");
@@ -116,7 +117,9 @@ async function synthesizeNarration(
         ],
         "fast",
       );
-      const out = (res.content ?? "").trim();
+      // The outage apology (~180 chars) passed the 220 cap and showed as an
+      // observation. Treat it as "nothing to say" (cached for the hour, like NONE).
+      const out = isAiSentinel(res) ? "" : (res.content ?? "").trim();
       text = !out || out.toUpperCase() === "NONE" || out.length > 220 ? "" : out;
     } catch {
       text = "";
