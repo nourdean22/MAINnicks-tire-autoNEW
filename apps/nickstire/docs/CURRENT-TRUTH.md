@@ -16,6 +16,14 @@ The Seedance 2.5 test reel #2 (reel_jobs 2070005, brief ai-1791631412867) was re
 - **A content verdict does not burn the retry budget.** The assembly ask gate now runs before any clip download or voiceover call and throws `ReelAssemblyRefusedError`; `assemblyFailureOutcome` parks such a job `failed` on first contact with the attempt given back, so a repaired payload set back to `assets_ready` has its full budget. Provider and ffmpeg failures keep the `MAX_ATTEMPTS` ladder exactly as before.
 - Proof owed after deploy: the next generated brief carries no caption ask; a repaired 2070005 assembles on one pulse.
 
+## Higgsfield result parser picks the media kind (2026-10-10, PR after #2968) -- BUILT + TESTED; PR open
+
+The first Seedance 2.5 reel (job 2070005) rendered five clips and assembly refused them: the saved "clips" were our own uploaded start image. `parseResultUrl` returned the FIRST http URL in the CLI's `--json` job, and on `seedance_2_5` that is `params.medias[].data.url` (the start image), not `result_url`. The render-integrity gate caught the 5 s cut.
+
+- `parseResultUrl(stdout, kind)`: video extension first, then a video-keyed extension-less URL, then any non-image URL; an image-only result is refused. The clip lane asks for `video`, the slide-image lane for `image`. `server/higgsfieldResultUrl.test.ts` pins the real job shape (6).
+- The five paid videos were recovered from each generation's `result_url` (`scripts/recover-clips-from-higgsfield.mts`, read-only CLI helper) and the job returned to `assets_ready`; nothing was re-rendered.
+- Operator scripts added: `requeue-needs-regen.mts`, `fix-caption-ask-and-reassemble.mts`, `publish-reel-job.mts`.
+
 ## Reel lane cannot jam on a missing verdict (2026-10-10, PR after #2965) -- BUILT + TESTED; PR open
 
 Found in the logs while the Seedance 2.5 test waited: every 15-minute pulse from 06:00Z to 11:00Z selected job 2070001 (Reel #1, a Higgsfield-UI export) and held it on "no audio QA verdict", returning before production ever ran. Audio QA only ever ran inside `reelAssembly`, so a master that arrived any other way could never get a verdict, and `unavailable` was deliberately not a parked gate.

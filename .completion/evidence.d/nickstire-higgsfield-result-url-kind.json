@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "render-spend-trajectory": {
+      "ref": "2026-10-10 parser fix. higgsfieldStudio.ts changes ONLY parseResultUrl (which URL of an already-completed, already-billed CLI result is saved) and passes the media kind at its two call sites; no request shape, retry, reservation or settlement code moves. Effect on spend is strictly protective: a result that holds no video URL now throws before the pipeline saves a still as a clip, so the job fails at generation instead of paying for four more beats and then failing assembly (what job 2070005 did). server/higgsfieldResultUrl.test.ts (6) + server/imageConditioning.test.ts + server/higgsfieldPromptContract.test.ts green."
+    },
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json: reel-quality-upgrade-20261010 codeCommit/liveRuns/blockers record the parser defect, the recovery of the five paid clips, and the second test reel's state. REALITY-LEDGER.md re-rendered in the same diff."
+    },
+    "visual-world-trajectory": {
+      "ref": "2026-10-10 parser fix: no visualWorld, lockedInvariants or prompt code is touched; the start image is still attached exactly as before (buildSeedanceArgs unchanged in this diff)."
+    }
+  }
+}
