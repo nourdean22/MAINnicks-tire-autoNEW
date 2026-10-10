@@ -7,7 +7,7 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
-## One ask per reel is enforced before the spend (2026-10-10, PR after #2969) -- BUILT + TESTED; PR open
+## One ask per reel is enforced before the spend (2026-10-10, PR #2972) -- MERGED (main `d03914ae3`, 13:40Z); Railway deployment `427b8c18` SUCCESS, `/api/health` healthy on `d03914ae3` with the database up at 13:51:38Z (uptime 29 s)
 
 The Seedance 2.5 test reel #2 (reel_jobs 2070005, brief ai-1791631412867) was refused by assembly's ask-consistency gate after five clips were rendered and paid for: the generator declared `ask.kind = profile` (end card "MORE IN OUR BIO") while its caption read "Send this to someone whose tires look smooth." -- two different asks on two surfaces (`shared/reelAsk.ts`). Enqueue preflight did not look at the caption, the refusal recurred three times inside one pulse (the pulse re-picks the same oldest `assets_ready` row), and the attempts ladder parked the job `failed` with the clips intact. The operator repaired it by hand.
 
