@@ -68,7 +68,20 @@
       "Bash(pnpm agent:verify)",
       "Bash(node scripts/agent-os/verify.mjs)",
       "Bash(railway status)",
-      "Bash(railway logs *)"
+      "Bash(railway logs *)",
+      "Bash(pnpm run check)",
+      "Bash(pnpm run check 2>&1)",
+      "Bash(railway deployment list *)",
+      "Bash(node scripts/agent-os/verify.mjs 2>&1)",
+      "Bash(curl -s --max-time 15 https://nickstire.org/api/health)",
+      "mcp__16f59cb5-d119-4072-a423-ec2e39a6ecb8__get-logs",
+      "mcp__16f59cb5-d119-4072-a423-ec2e39a6ecb8__list-deployments",
+      "mcp__16f59cb5-d119-4072-a423-ec2e39a6ecb8__list-projects",
+      "mcp__16f59cb5-d119-4072-a423-ec2e39a6ecb8__list-services",
+      "mcp__16f59cb5-d119-4072-a423-ec2e39a6ecb8__get-service-config",
+      "mcp__16f59cb5-d119-4072-a423-ec2e39a6ecb8__environment-status",
+      "mcp__ccd_pr__get_status",
+      "mcp__terminal__read_terminal"
     ],
     "deny": [
       "Bash(git push origin main)",
