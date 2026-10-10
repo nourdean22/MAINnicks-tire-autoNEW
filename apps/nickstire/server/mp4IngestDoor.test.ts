@@ -38,7 +38,7 @@ describe("the service is reachable at all", () => {
   });
 
   it("is admin-gated — an ingested draft enters the publish queue", () => {
-    const block = ROUTER.slice(ROUTER.indexOf("ingestFinishedMp4: "), ROUTER.indexOf("actOnInventoryItem: adminProcedure"));
+    const block = ROUTER.slice(ROUTER.indexOf("ingestFinishedMp4: "), ROUTER.indexOf("reelJobsNeedingAttention: adminProcedure"));
     expect(block).toMatch(/ingestFinishedMp4: adminProcedure/);
     expect(block).not.toMatch(/publicProcedure/);
   });
@@ -109,7 +109,7 @@ describe("the gate is unchanged by being reachable", () => {
     // Every refusal belongs to the service, which is where the tests for them
     // live. A router that duplicated the ftyp or presigned check would create a
     // second place for the rule to drift.
-    const block = ROUTER.slice(ROUTER.indexOf("ingestFinishedMp4: "), ROUTER.indexOf("actOnInventoryItem: adminProcedure"));
+    const block = ROUTER.slice(ROUTER.indexOf("ingestFinishedMp4: "), ROUTER.indexOf("reelJobsNeedingAttention: adminProcedure"));
     expect(block).not.toMatch(/ftyp|presigned|MP4_INGEST_ENABLED/);
     expect(block).toMatch(/await ingestFinishedMp4\(input\)/);
   });

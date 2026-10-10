@@ -22,6 +22,7 @@
  *   entry.state: queued -> rendering -> ready_for_assembly | failed
  */
 import { randomUUID } from "crypto";
+import type { HiggsfieldBeatHandle } from "./reelPipeline";
 import { createLogger } from "../lib/logger";
 import { queueStateForReelStatus } from "../../shared/reelQueue";
 import { beatGenerationRoute, type ShotSource } from "../../shared/shotRouter";
@@ -76,6 +77,10 @@ export interface RepairQueueEntry {
    * job on the next pulse instead of buying a second render.
    */
   selfHosted?: import("./videoForgeClient").SelfHostedBeatState;
+  /** higgsfield only: the API request / CLI job for THIS logical repair, so a local timeout resumes it (renderHiggsfieldBeat). */
+  higgsfieldRequestId?: HiggsfieldBeatHandle["higgsfieldRequestId"];
+  higgsfieldRequestLane?: HiggsfieldBeatHandle["higgsfieldRequestLane"];
+  providerOps?: HiggsfieldBeatHandle["providerOps"];
 }
 
 export interface RepairRequestResult {
@@ -301,7 +306,15 @@ export async function processNextRepairJob(): Promise<{ processed: boolean; jobI
   // followed by a re-select ALSO saw status=repair_rendering, so two workers
   // could both proceed and double-spend the same repair).
   const { affectedRowCount } = await import("../lib/db-affected");
-  const claimRes = await d.update(reelJobs).set({ status: "repair_rendering", queueState: queueStateForReelStatus("repair_rendering"), updatedAt: new Date() }).where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "repair_queued")));
+  // The claim counts on the ROW as well as on the entry (audit B3, 2026-10-10):
+  // recoverStuckReelJobs caps a stuck repair_rendering job on reel_jobs.attempts,
+  // requestBeatRepair zeroes that column, and this claim never raised it — so a
+  // container restart during a render re-queued the repair with the counter
+  // still at 0, and every redeploy bought another clip the cap never saw. A SQL
+  // increment, like the generation claim's stamp, so two claims cannot both
+  // write "1". The success path below resets it for assembly's own budget.
+  const { sql } = await import("drizzle-orm");
+  const claimRes = await d.update(reelJobs).set({ status: "repair_rendering", queueState: queueStateForReelStatus("repair_rendering"), attempts: sql`attempts + 1`, updatedAt: new Date() }).where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "repair_queued")));
   if (affectedRowCount(claimRes) !== 1) return { processed: false };
   const [claimed] = await d.select().from(reelJobs).where(eq(reelJobs.id, job.id)).limit(1);
   if (!claimed) return { processed: false };
@@ -434,10 +447,23 @@ export async function processNextRepairJob(): Promise<{ processed: boolean; jobI
       const { generateTemplateStockClip } = await import("./templateStockStudio");
       newClipUrl = await generateTemplateStockClip({ beatNumber: entry.beatNumber });
     } else if (repairProvider === "higgsfield") {
-      const { generateReelClipVideo } = await import("./higgsfieldStudio");
-      newClipUrl = await generateReelClipVideo({
+      // The generation lane's renderer, not a bare provider call (audit B2):
+      // the hero still anchors the repair like every other beat (a text-only
+      // repair of a hero-anchored job is what the critic blocked again), the
+      // handle persists on the entry, and a submitted-then-timed-out render
+      // resumes on the next pulse instead of being bought twice.
+      const { renderHiggsfieldBeat, GEN_CLIP_TIMEOUT_MS } = await import("./reelPipeline");
+      const hero = payload.visualWorld?.heroFrameUrl as string | undefined;
+      newClipUrl = await renderHiggsfieldBeat({
+        beat: entry,
         prompt: buildRepairPrompt(beatPrompt.prompt, entry.instruction),
         negativePrompt: beatPrompt.negativePrompt,
+        startImageUrl: hero && /\.(jpe?g|png|webp)([?#]|$)/i.test(hero) ? hero : undefined,
+        timeoutMs: GEN_CLIP_TIMEOUT_MS,
+        label: `repair beat ${entry.beatNumber} job ${job.id}`,
+        persist: async () => {
+          await d.update(reelJobs).set({ payload: JSON.stringify(payload), updatedAt: new Date() }).where(eq(reelJobs.id, job.id));
+        },
       });
     } else {
       // Veo has never had a repair branch. It was not "unsupported" — it
@@ -476,13 +502,19 @@ export async function processNextRepairJob(): Promise<{ processed: boolean; jobI
     // (the compute IS being spent), do not consume an attempt, and let the
     // next pulse resume the SAME job. Failing it here and retrying under a new
     // attempt number is exactly how a timeout buys a duplicate render.
-    if (repairProvider === "self_hosted" && (err as { isLocalTimeout?: boolean })?.isLocalTimeout === true) {
+    //
+    // The same holds for a Higgsfield render whose handle survived on the entry
+    // (renderHiggsfieldBeat persisted it; a terminal remote failure clears it
+    // before rethrowing, so a surviving handle means "still rendering").
+    const selfHostedStillRendering = repairProvider === "self_hosted" && (err as { isLocalTimeout?: boolean })?.isLocalTimeout === true;
+    const higgsfieldStillRendering = repairProvider === "higgsfield" && typeof entry.higgsfieldRequestId === "string" && entry.higgsfieldRequestId.length > 0;
+    if (selfHostedStillRendering || higgsfieldStillRendering) {
       entry.state = "queued";
       await d
         .update(reelJobs)
         .set({ status: "repair_queued", queueState: queueStateForReelStatus("repair_queued"), payload: JSON.stringify(payload), updatedAt: new Date() })
         .where(eq(reelJobs.id, job.id));
-      log.info("self-hosted repair still rendering — resume same Video Forge job next pulse", { jobId: job.id, beat: entry.beatNumber });
+      log.info("repair still rendering on the provider — resume the same job next pulse", { jobId: job.id, beat: entry.beatNumber, provider: repairProvider, handle: entry.higgsfieldRequestId ?? entry.selfHosted?.selfHostedJobId ?? null });
       return { processed: true, jobId: job.id, status: "repair_queued" };
     }
     await failReservation(reservationId);

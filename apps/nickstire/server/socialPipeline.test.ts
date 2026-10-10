@@ -29,7 +29,6 @@ describe("socialPipeline.status", () => {
     delete process.env.REEL_GENERATION_ENABLED;
     delete process.env.REEL_PUBLISH_ENABLED;
     delete process.env.REEL_AUTOPOST_ENABLED;
-    delete process.env.SOCIAL_INVENTORY_PUBLISH_ENABLED;
     delete process.env.CONTENT_REPLENISH_ENABLED;
     delete process.env.ENABLE_CUSTOMER_CONFIRMATIONS;
     delete process.env.SMS_KILL_SWITCH;

@@ -226,6 +226,74 @@ describe("processNextRepairJob (worker)", () => {
     expect(payload.repairQueue[0].attempts[0]).toMatchObject({ reservationId: "rep_w1_p1", outcome: "succeeded" });
   });
 
+  it("the claim counts an attempt on the ROW, so a redeploy mid-render cannot re-render forever (audit B3)", async () => {
+    // recoverStuckReelJobs caps a stuck repair_rendering job on reel_jobs.attempts.
+    // requestBeatRepair zeroes that column and the claim never raised it, so
+    // every container restart during a render bought another clip the budget
+    // never saw. The generation claim stamps its attempt; the repair claim
+    // must too — as a SQL increment, so two claims cannot both write "1".
+    const { db, updates } = repairDb(queuedJob());
+    vi.doMock("./db", () => ({ getDb: vi.fn().mockResolvedValue(db) }));
+    vi.doMock("./services/higgsfieldStudio", () => ({ generateReelClipVideo: vi.fn().mockResolvedValue("https://c/2-repaired.mp4") }));
+    vi.resetModules();
+    const { processNextRepairJob } = await import("./services/selectiveRepair");
+
+    await processNextRepairJob();
+
+    const claim = updates.find((u) => u.__table === "reel_jobs" && u.status === "repair_rendering");
+    expect(claim).toBeDefined();
+    const chunks = (claim!.attempts as { queryChunks?: Array<{ value?: unknown }> } | undefined)?.queryChunks ?? [];
+    expect(chunks.some((c) => Array.isArray(c.value) && c.value.join("").includes("attempts + 1"))).toBe(true);
+  });
+
+  it("renders through the shared per-beat renderer: hero still, poll deadline, handle callback (audit B2)", async () => {
+    // The repair lane used to call the provider bare — no start image (a
+    // hero-anchored job repaired text-only and the critic blocked it again),
+    // no poll deadline, no handle persist — while the generation lane had all
+    // three. Same beat, same protections.
+    const job = queuedJob();
+    const payload = JSON.parse(job.payload as string);
+    payload.visualWorld = { heroFrameUrl: "https://cdn/hero.jpg" };
+    const { db } = repairDb(baseJob({ ...job, payload: JSON.stringify(payload) }));
+    vi.doMock("./db", () => ({ getDb: vi.fn().mockResolvedValue(db) }));
+    const gen = vi.fn().mockResolvedValue("https://c/2-repaired.mp4");
+    vi.doMock("./services/higgsfieldStudio", () => ({ generateReelClipVideo: gen, pollHiggsfieldCliJob: vi.fn() }));
+    vi.resetModules();
+    const { processNextRepairJob } = await import("./services/selectiveRepair");
+
+    const res = await processNextRepairJob();
+
+    expect(res.status).toBe("assets_ready");
+    const call = gen.mock.calls[0][0];
+    expect(call.startImageUrl).toBe("https://cdn/hero.jpg");
+    expect(typeof call.higgsfieldPollTimeoutMs).toBe("number");
+    expect(typeof call.onHiggsfieldRequestSubmitted).toBe("function");
+  });
+
+  it("a submitted-then-timed-out repair keeps its handle on the entry, consumes NO attempt, and resumes next pulse (audit B2)", async () => {
+    const { db, updates } = repairDb(queuedJob());
+    vi.doMock("./db", () => ({ getDb: vi.fn().mockResolvedValue(db) }));
+    const gen = vi.fn(async (opts: { onHiggsfieldRequestSubmitted?: (id: string, lane: "api" | "cli") => Promise<void> }) => {
+      await opts.onHiggsfieldRequestSubmitted?.("hf_job_55", "cli");
+      const { HiggsfieldApiSubmittedError } = await import("./services/higgsfieldApiClient");
+      throw new HiggsfieldApiSubmittedError("hf_job_55", "Higgsfield CLI generation timed out after 1ms polling job hf_job_55", "cli");
+    });
+    vi.doMock("./services/higgsfieldStudio", () => ({ generateReelClipVideo: gen, pollHiggsfieldCliJob: vi.fn() }));
+    vi.resetModules();
+    const { processNextRepairJob } = await import("./services/selectiveRepair");
+
+    const first = await processNextRepairJob();
+
+    expect(first.status).toBe("repair_queued");
+    const last = updates.filter((x) => x.__table === "reel_jobs").pop()!;
+    const entry = JSON.parse(last.payload as string).repairQueue[0];
+    expect(entry.state).toBe("queued");
+    expect(entry.higgsfieldRequestId).toBe("hf_job_55");
+    expect(entry.higgsfieldRequestLane).toBe("cli");
+    expect(entry.attempts).toEqual([]); // nothing consumed: the render is still running
+    expect(updates.some((u) => u.__table === "ledger" && u.status === "failed")).toBe(false); // the reservation stays open: the spend IS happening
+  });
+
   it("P2: a failed attempt's reservation is failed and the NEXT attempt reserves fresh (_p2), never reusing _p1", async () => {
     const state = { call: 0 };
     const { db, updates, inserts } = repairDb(queuedJob());

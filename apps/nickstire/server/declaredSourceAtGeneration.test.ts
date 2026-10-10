@@ -37,7 +37,7 @@ describe("the generator refuses declared real/deterministic beats before it spen
     const claim = stage.indexOf('eq(reelJobs.status, "queued")');
     const check = stage.indexOf("beatsTheGeneratorMustNotRender(beats, existingClips)");
     const paidAnchor = stage.indexOf("videoProvider = await selectReelVideoProvider()");
-    const generate = stage.indexOf("const { generateReelClipVideo }");
+    const generate = stage.indexOf("renderHiggsfieldBeat(");
     expect(claim).toBeGreaterThan(-1);
     expect(check).toBeGreaterThan(claim);
     expect(paidAnchor).toBeGreaterThan(check);

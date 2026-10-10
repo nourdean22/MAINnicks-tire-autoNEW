@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-10T13:40:53.242Z",
-  "count": 786,
+  "generatedAt": "2026-10-10T15:00:22.754Z",
+  "count": 785,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -34,7 +34,6 @@
     "mutation.candidates.submit",
     "mutation.candidates.updateStatus",
     "mutation.chat.message",
-    "mutation.contentAdmin.actOnInventoryItem",
     "mutation.contentAdmin.actOnStatenourQueueItem",
     "mutation.contentAdmin.advanceReelJobNow",
     "mutation.contentAdmin.applyQueueTruth",

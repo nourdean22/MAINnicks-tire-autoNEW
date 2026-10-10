@@ -66,8 +66,16 @@ describe("the paid handle survives its own success", () => {
   it("does NOT change resume semantics — nothing reads providerOps to decide a resubmit", () => {
     // The active handles are what gate a resubmit. If providerOps ever gained
     // that role, a completed op would start suppressing legitimate work.
-    const resumeArea = pipeline.slice(pipeline.indexOf("const { higgsfieldRequestId } = beat;"), pipeline.indexOf("clipUrls[i] = finalClipUrl;"));
-    expect(resumeArea).not.toMatch(/providerOps/);
+    // Anchored INSIDE renderHiggsfieldBeat with a from-index: the old end anchor
+    // (`clipUrls[i] = finalClipUrl;`) first occurs in the template_stock branch,
+    // BEFORE the resume area, so the slice was empty and the pin vacuous.
+    const resumeStart = pipeline.indexOf("const { higgsfieldRequestId } = beat;");
+    const resumeEnd = pipeline.indexOf('recordProviderOp(beat, "higgsfield", beat.higgsfieldRequestId, "succeeded")', resumeStart);
+    expect(resumeStart).toBeGreaterThan(-1);
+    expect(resumeEnd).toBeGreaterThan(resumeStart);
+    const resumeArea = pipeline.slice(resumeStart, resumeEnd);
+    expect(resumeArea).toContain("pollHiggsfieldCliJob"); // sanity: this IS the resume area
+    expect(resumeArea.replace(/recordProviderOp\([^)]*\)/g, "")).not.toMatch(/providerOps/);
   });
 });
 

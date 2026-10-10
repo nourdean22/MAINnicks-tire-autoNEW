@@ -189,6 +189,10 @@ export default function ReelQueue() {
       toast.success("Draft Rejected");
       refetch();
     },
+    // The server's refusals here carry an instruction ("unschedule first",
+    // "resolve the ambiguity first", a version mismatch). This was the one
+    // mutation on the page that dropped them (2026-10-10 audit, C2).
+    onError: (err) => toast.error("Reject refused", { description: err.message }),
   });
 
   const approveDraft = trpc.instagramAdmin.approveDraft.useMutation({

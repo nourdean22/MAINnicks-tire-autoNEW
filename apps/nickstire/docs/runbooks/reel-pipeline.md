@@ -77,7 +77,7 @@ flaky frame-extraction is worse than shipping one unscored clean render.
 
 **Who enforces it:** the daily autopost and the reel-canary publish (the two
 autonomous-unreviewed doors). The human-approval doors
-(`instagramAdmin.publishPost`, `instagramStudio`, `socialInventoryPublisher`) keep
+(`instagramAdmin.publishPost`, `instagramStudio`) keep
 human review + approval-integrity **hash** checks as their gate — a person is
 already in the loop there.
 

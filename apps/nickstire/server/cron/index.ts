@@ -734,12 +734,6 @@ export function registerAllJobs(): void {
     return runDailyReelPost();
   }, process.env.REEL_AUTOPOST_ENABLED === "true");
 
-  // Social content inventory publisher (every 5 min)
-  registerJob("social-inventory-publisher", 5 * 60 * 1000, async () => {
-    const { runSocialInventoryPublisher } = await import("./jobs/socialInventoryPublisher");
-    return runSocialInventoryPublisher();
-  }, process.env.SOCIAL_INVENTORY_PUBLISH_ENABLED === "true");
-
   // Content reserve replenishment (every 2 hours)
   registerJob("content-reserve-replenish", 2 * 60 * 60 * 1000, async () => {
     const { runContentReserveReplenish } = await import("./jobs/contentReserveReplenish");

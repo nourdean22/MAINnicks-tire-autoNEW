@@ -25,7 +25,7 @@
  * must not regress is one line in each of two files, and that is exactly what a
  * source assertion pins.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -134,16 +134,25 @@ describe("the source-assertion extractor cannot be bypassed", () => {
   });
 });
 
-describe("the publisher's allowlist is left alone on purpose", () => {
-  it("socialInventoryPublisher still serves its ONE legitimate caller", () => {
-    // content.ts actOnInventoryItem sets status + scheduledAt and creates NO
-    // scheduled_posts row — it is the honest user of this publisher. Narrowing
-    // the allowlist to fix the double-post would have broken it, which is why
-    // the fix lives at the two delegating call sites instead.
-    const pub = read("server/cron/jobs/socialInventoryPublisher.ts");
-    expect(pub).toMatch(/'approved',\s*'scheduled'/);
+describe("the inventory publisher is gone (2026-10-10 audit, A1)", () => {
+  // Its one feeder, content.actOnInventoryItem, had no caller in the PWA or any
+  // script, while the cron it armed republished ANY inventory row (published,
+  // rejected, a reel) whose scheduled_at fell in the past: no approval check,
+  // no disclosure flag, no attempt ledger. The door above (scheduled_posts
+  // owns every deferred publish) is now the only one, and this pins that the
+  // bypass cannot quietly come back as a cron, a registry job, or a feeder.
+  it("has no cron, no registry job, and no feeder procedure", () => {
+    expect(existsSync(resolve(process.cwd(), "server/cron/jobs/socialInventoryPublisher.ts"))).toBe(false);
+    expect(read("server/cron/scheduler.ts")).not.toMatch(/social-inventory-publisher|SOCIAL_INVENTORY_PUBLISH_ENABLED/);
+    expect(read("server/cron/index.ts")).not.toMatch(/social-inventory-publisher|socialInventoryPublisher/);
+    expect(read("server/routers/content.ts")).not.toMatch(/actOnInventoryItem/);
+  });
 
-    const content = read("server/routers/content.ts");
-    expect(content).toMatch(/\.set\(\{ status, scheduledAt: scheduledDate \}\)/);
+  it("nothing but a scheduled_posts row publishes an inventory item later", () => {
+    // The column the dead cron keyed on must not grow a new reader.
+    const serverFiles = ["server/cron/scheduler.ts", "server/cron/index.ts", "server/routers/content.ts", "server/routers/instagramStudio.ts", "server/routers/instagramAdmin.ts"];
+    for (const file of serverFiles) {
+      expect(read(file)).not.toMatch(/lte\(socialContentInventory\.scheduledAt/);
+    }
   });
 });

@@ -27,7 +27,6 @@ not from `.env`:
 | `REEL_FB_CROSSPOST_ENABLED` | `true` *(set 2026-10-01 17:19Z, operator instruction)* | PUBLISH · the nightly reel cron also hands the reel to the Facebook Page as a video reel. Instagram stays the authority; FB failure only logs. Inert until #2865 is the running container. **An AI-generated reel stays off the Page** (2026-10-01 fix): Facebook's Reels API has no AI-disclosure field, so `publishToSocial` skips it and logs why; Instagram still gets it with `is_ai_generated`. An ambiguous FB finish parks the job like a live one, and the reconcile pass hands an attempt that went to Facebook to the operator instead of releasing it. |
 | `REEL_AUTOPOST_ENABLED` | `true` | PUBLISH · unattended posting |
 | `REEL_COMMENT_RESPONDER_ENABLED` | `true` | PUBLISH · public replies to IG comments |
-| `SOCIAL_INVENTORY_PUBLISH_ENABLED` | `true` | PUBLISH · inventory posts |
 | `REEL_FILM_GRAIN` | `true` *(2026-09-09)* | RENDER · adds moving luma grain + vignette to every reel ASSEMBLED from now on. Not a send, but it changes what every future viewer sees, and it is the only flag here that alters pixels. Already-assembled reels keep the look they were rendered with. |
 | `FEATURE_UNPAID_INVOICE_RECOVERY` | *(unset)* | SMS · unpaid-invoice chase — read the guard, `=== "1"` and `!== "false"` disagree about unset |
 

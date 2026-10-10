@@ -49,7 +49,7 @@ describe("the generator refuses a condemned script before it spends", () => {
     // matters is against the anchor, not against the first textual match.
     const check = stage.indexOf("condemnedContentProblem");
     const paidAnchor = stage.indexOf("videoProvider = await selectReelVideoProvider()");
-    const generate = stage.indexOf("const { generateReelClipVideo }");
+    const generate = stage.indexOf("renderHiggsfieldBeat(");
     expect(check).toBeGreaterThan(-1);
     expect(paidAnchor, "pricing anchor not found").toBeGreaterThan(-1);
     expect(generate, "clip generation call not found").toBeGreaterThan(-1);

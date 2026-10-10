@@ -32,7 +32,7 @@ const MAX_ATTEMPTS = 3;
  *  generous — its only job is to cap a HUNG CLI poll (the failure mode that
  *  otherwise parks a job in `generating` forever) so it rejects into the normal
  *  retry path instead of wedging the pipeline. Env-overridable. */
-const GEN_CLIP_TIMEOUT_MS = Number(process.env.REEL_GEN_CLIP_TIMEOUT_MS) || 6 * 60_000;
+export const GEN_CLIP_TIMEOUT_MS = Number(process.env.REEL_GEN_CLIP_TIMEOUT_MS) || 6 * 60_000;
 /** Re-host fetch of an already-finished generated clip — short; it exists. */
 const CLIP_FETCH_TIMEOUT_MS = Number(process.env.REEL_CLIP_FETCH_TIMEOUT_MS) || 90_000;
 /** How long a job may sit in a working status (`generating`/`assembling`)
@@ -1319,83 +1319,27 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
       }
 
       if (activeProvider === "higgsfield") {
-        // Higgsfield/Seedance is a single blocking call (submit+poll+rehost
-        // internally), but the API lane now persists its request ID. Each
-        // beat's URL is persisted right after success below, and an ambiguous
-        // API timeout resumes the same remote request on the next pulse.
-        const { generateReelClipVideo } = await import("./higgsfieldStudio");
-        // Image conditioning (milestone 6, flag-gated REEL_IMAGE_CONDITIONING):
-        // the identity-drift killer. EVERY beat anchors on the SAME approved
-        // Visual World hero frame — a real generated IMAGE — so all beats share
-        // one visual DNA. (The earlier "chain on the previous beat's clip"
-        // wiring was wrong: --start-image needs an IMAGE, and clipUrls hold
-        // mp4s; a shared hero anchor is both correct and stronger for identity
-        // lock.) generateReelClipVideo ignores startImageUrl unless the flag is
-        // on AND the URL looks like an image, so prod stays text-only until a
-        // paid seedance image-render proves it live.
+        // One renderer for this lane AND the repair lane (renderHiggsfieldBeat):
+        // persist the handle on submit, resume a persisted handle instead of
+        // resubmitting, record the paid op before clearing it. Image
+        // conditioning (REEL_IMAGE_CONDITIONING): EVERY beat anchors on the SAME
+        // approved Visual World hero frame — a real generated IMAGE — so all
+        // beats share one visual DNA. generateReelClipVideo ignores the start
+        // image unless the flag is on AND the URL looks like an image.
         const hero = brief.visualWorld?.heroFrameUrl;
         const startImageUrl = hero && /\.(jpe?g|png|webp)([?#]|$)/i.test(hero) ? hero : undefined;
-        try {
-          const { higgsfieldRequestId } = beat;
-          if (higgsfieldRequestId) {
-            const { pollHiggsfieldRequest, HiggsfieldApiSubmittedError } = await import("./higgsfieldApiClient");
-            try {
-              finalClipUrl = await withTimeout(
-                pollHiggsfieldRequest(higgsfieldRequestId),
-                GEN_CLIP_TIMEOUT_MS,
-                `higgsfield reconcile beat ${beat.beatNumber}`,
-              );
-            } catch (reconcileErr) {
-              // A terminal remote failure is known-safe to replace. Any other
-              // submitted error remains attached so the next pulse reconciles
-              // the same paid request rather than buying a duplicate.
-              if (reconcileErr instanceof HiggsfieldApiSubmittedError && /generation (failed|cancelled|canceled)/i.test(reconcileErr.message)) {
-                // History BEFORE the active handle is cleared: this request was
-                // submitted and may have billed, and the ledger needs to know it
-                // existed even though it produced nothing.
-                recordProviderOp(beat, "higgsfield", beat.higgsfieldRequestId, "failed");
-                delete beat.higgsfieldRequestId;
-                await d.update(reelJobs).set({ payload: JSON.stringify(brief), updatedAt: new Date() }).where(eq(reelJobs.id, job.id));
-              }
-              throw reconcileErr;
-            }
-          } else {
-            finalClipUrl = await withTimeout(
-              generateReelClipVideo({
-                prompt,
-                negativePrompt,
-                startImageUrl,
-                // Keep the provider's own poll deadline inside the worker's
-                // deadline, even when an operator configured a longer CLI/API
-                // timeout. The callback persists the handle before polling;
-                // this margin also makes the submitted-error path observable
-                // before the outer timeout can win.
-                higgsfieldPollTimeoutMs: Math.max(1, GEN_CLIP_TIMEOUT_MS - 30_000),
-                onHiggsfieldRequestSubmitted: async (requestId) => {
-                  beat.higgsfieldRequestId = requestId;
-                  await d.update(reelJobs).set({ payload: JSON.stringify(brief), updatedAt: new Date() }).where(eq(reelJobs.id, job.id));
-                },
-              }),
-              GEN_CLIP_TIMEOUT_MS,
-              `higgsfield beat ${beat.beatNumber}`,
-            );
-          }
-        } catch (genErr) {
-          const { HiggsfieldApiSubmittedError } = await import("./higgsfieldApiClient");
-          if (genErr instanceof HiggsfieldApiSubmittedError && !/generation (failed|cancelled|canceled)/i.test(genErr.message)) {
-            // Persist the remote handle BEFORE the outer retry classifier sees
-            // the error. A request that may still bill is never blindly
-            // duplicated on the next pulse.
-            beat.higgsfieldRequestId = genErr.requestId;
+        finalClipUrl = await renderHiggsfieldBeat({
+          beat,
+          prompt,
+          negativePrompt,
+          startImageUrl,
+          timeoutMs: GEN_CLIP_TIMEOUT_MS,
+          label: `beat ${beat.beatNumber}`,
+          persist: async () => {
             await d.update(reelJobs).set({ payload: JSON.stringify(brief), updatedAt: new Date() }).where(eq(reelJobs.id, job.id));
-          }
-          throw genErr;
-        }
+          },
+        });
         clipUrls[i] = finalClipUrl;
-        // Same reason as the failure path above — a SUCCEEDED request is the one
-        // we definitely paid for, and its id was the field being deleted.
-        recordProviderOp(beat, "higgsfield", beat.higgsfieldRequestId, "succeeded");
-        delete beat.higgsfieldRequestId;
         await d.update(reelJobs)
           .set({ clipUrlsJson: JSON.stringify(clipUrls), payload: JSON.stringify(brief), updatedAt: new Date() })
           .where(eq(reelJobs.id, job.id));
@@ -1687,6 +1631,113 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
 export function assemblyFailureOutcome(err: unknown, attempt: number): { status: "failed" | "assets_ready"; attempts: number } {
   if (err instanceof ReelAssemblyRefusedError) return { status: "failed", attempts: Math.max(0, attempt - 1) };
   return { status: attempt >= MAX_ATTEMPTS ? "failed" : "assets_ready", attempts: attempt };
+}
+
+/** The provider handle a beat (storyboard beat or repair-queue entry) carries across pulses. */
+export interface HiggsfieldBeatHandle {
+  higgsfieldRequestId?: string;
+  higgsfieldRequestLane?: "api" | "cli";
+  providerOps?: Array<{ provider: "higgsfield" | "veo" | "self_hosted"; opId: string; at: string; outcome: "succeeded" | "failed" | "abandoned" }>;
+}
+
+/**
+ * Render ONE beat on Higgsfield with the full handle protocol — shared by the
+ * generation stage and the repair lane (2026-10-10 audit, B1 + B2; before
+ * this the repair lane called the provider bare: no start image, no poll
+ * deadline, no handle, so a submitted-then-timed-out repair consumed the
+ * attempt and the next pulse paid for the clip again).
+ *
+ *  1. A persisted handle is RESUMED (API request id via pollHiggsfieldRequest,
+ *     CLI job id via pollHiggsfieldCliJob) — never resubmitted.
+ *  2. A fresh render persists its handle, with its lane, the moment the
+ *     provider accepts it, through `persist` — before polling can outlive the
+ *     worker.
+ *  3. A submitted error that is not a terminal remote failure keeps the handle
+ *     on the beat (persisted) and rethrows, so the retry classifier sees
+ *     LOCAL_TIMEOUT_REMOTE_RUNNING and resumes without consuming an attempt.
+ *  4. A terminal remote failure records the paid op in history, clears the
+ *     handle, persists, and rethrows: that request is known-safe to replace.
+ *  5. Success records the op in history BEFORE the handle is cleared; the
+ *     caller persists the payload with the clip URL.
+ *
+ * The provider's own poll deadline sits 30s inside `timeoutMs` so the
+ * submitted-error path is observable before the outer timeout can win.
+ */
+export async function renderHiggsfieldBeat(opts: {
+  beat: HiggsfieldBeatHandle;
+  prompt: string;
+  negativePrompt?: string;
+  startImageUrl?: string;
+  timeoutMs: number;
+  label: string;
+  persist: () => Promise<void>;
+}): Promise<string> {
+  const { beat, timeoutMs } = opts;
+  const { HiggsfieldApiSubmittedError } = await import("./higgsfieldApiClient");
+  const terminalRemoteFailure = (e: unknown) =>
+    e instanceof HiggsfieldApiSubmittedError && /generation (failed|cancelled|canceled)/i.test(e.message);
+  const providerDeadlineMs = Math.max(1, timeoutMs - 30_000);
+  let url: string;
+  try {
+    const { higgsfieldRequestId } = beat;
+    if (higgsfieldRequestId) {
+      try {
+        if (beat.higgsfieldRequestLane === "cli") {
+          const { pollHiggsfieldCliJob } = await import("./higgsfieldStudio");
+          url = await withTimeout(pollHiggsfieldCliJob(higgsfieldRequestId, { timeoutMs: providerDeadlineMs }), timeoutMs, `higgsfield reconcile ${opts.label}`);
+        } else {
+          const { pollHiggsfieldRequest } = await import("./higgsfieldApiClient");
+          url = await withTimeout(pollHiggsfieldRequest(higgsfieldRequestId, { timeoutMs: providerDeadlineMs }), timeoutMs, `higgsfield reconcile ${opts.label}`);
+        }
+      } catch (reconcileErr) {
+        // A terminal remote failure is known-safe to replace. Any other
+        // submitted error remains attached so the next pulse reconciles the
+        // same paid request rather than buying a duplicate.
+        if (terminalRemoteFailure(reconcileErr)) {
+          // History BEFORE the active handle is cleared: this request was
+          // submitted and may have billed, and the ledger needs to know it
+          // existed even though it produced nothing.
+          recordProviderOp(beat, "higgsfield", beat.higgsfieldRequestId, "failed");
+          delete beat.higgsfieldRequestId;
+          delete beat.higgsfieldRequestLane;
+          await opts.persist();
+        }
+        throw reconcileErr;
+      }
+    } else {
+      const { generateReelClipVideo } = await import("./higgsfieldStudio");
+      url = await withTimeout(
+        generateReelClipVideo({
+          prompt: opts.prompt,
+          negativePrompt: opts.negativePrompt,
+          startImageUrl: opts.startImageUrl,
+          higgsfieldPollTimeoutMs: providerDeadlineMs,
+          onHiggsfieldRequestSubmitted: async (requestId, lane) => {
+            beat.higgsfieldRequestId = requestId;
+            beat.higgsfieldRequestLane = lane;
+            await opts.persist();
+          },
+        }),
+        timeoutMs,
+        `higgsfield ${opts.label}`,
+      );
+    }
+  } catch (genErr) {
+    if (genErr instanceof HiggsfieldApiSubmittedError && !terminalRemoteFailure(genErr)) {
+      // Persist the remote handle BEFORE the outer retry classifier sees the
+      // error. A request that may still bill is never blindly duplicated.
+      beat.higgsfieldRequestId = genErr.requestId;
+      beat.higgsfieldRequestLane = genErr.lane;
+      await opts.persist();
+    }
+    throw genErr;
+  }
+  // A SUCCEEDED request is the one we definitely paid for, and its id was the
+  // field being deleted — history first, then clear.
+  recordProviderOp(beat, "higgsfield", beat.higgsfieldRequestId, "succeeded");
+  delete beat.higgsfieldRequestId;
+  delete beat.higgsfieldRequestLane;
+  return url;
 }
 
 /**
