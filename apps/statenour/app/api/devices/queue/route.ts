@@ -88,11 +88,11 @@ export async function GET(req: NextRequest) {
       log.warn("device_commands_unacked", { reclaimed: reclaimed.count, failed: failed.count });
     }
 
-    // Transactional: fetch pending rows, immediately flip to "sent"
-    // in a single query. Postgres skip-locked semantics aren't
-    // available in this adapter path so we use a two-step with a
-    // narrow where-clause to minimize races between multiple agents.
-    const pending = await prisma.deviceCommand.findMany({
+    // Read candidates, then claim each with a compare-and-swap on the
+    // status we read. Only rows whose own flip to "sent" won are returned:
+    // a concurrent poller that read the same rows gets count 0 and skips
+    // them, so a command reaches exactly one agent.
+    const candidates = await prisma.deviceCommand.findMany({
       where: {
         status: "pending",
         ...(platforms
@@ -115,12 +115,16 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    if (pending.length > 0) {
-      await prisma.deviceCommand.updateMany({
-        where: { id: { in: pending.map((p) => p.id) }, status: "pending" },
-        data: { status: "sent", sentAt: new Date() },
-      });
-    }
+    const sentAt = new Date();
+    const won = await Promise.all(
+      candidates.map((c) =>
+        prisma.deviceCommand.updateMany({
+          where: { id: c.id, status: "pending" },
+          data: { status: "sent", sentAt },
+        }),
+      ),
+    );
+    const pending = candidates.filter((_, i) => won[i].count === 1);
 
     return NextResponse.json({
       commands: pending.map((c) => ({

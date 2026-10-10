@@ -14,7 +14,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 type Row = Record<string, unknown>;
-const { rows } = vi.hoisted(() => ({ rows: new Map<string, Row>() }));
+const { rows, hooks } = vi.hoisted(() => ({
+  rows: new Map<string, Row>(),
+  /** Set by the race test: holds each findMany until both pollers have read. */
+  hooks: { afterFindMany: null as null | (() => Promise<void>) },
+}));
 
 function matches(row: Row, where: Record<string, unknown>): boolean {
   for (const [k, cond] of Object.entries(where)) {
@@ -37,11 +41,14 @@ function matches(row: Row, where: Record<string, unknown>): boolean {
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     deviceCommand: {
-      findMany: async ({ where, take }: { where: Row; take: number }) =>
-        [...rows.values()]
+      findMany: async ({ where, take }: { where: Row; take: number }) => {
+        const out = [...rows.values()]
           .filter((r) => matches(r, where))
           .slice(0, take)
-          .map((r) => ({ ...r, device: { id: r.deviceId, platform: "TUYA" } })),
+          .map((r) => ({ ...r, device: { id: r.deviceId, platform: "TUYA" } }));
+        await hooks.afterFindMany?.();
+        return out;
+      },
       updateMany: async ({ where, data }: { where: Row; data: Row }) => {
         const hit = [...rows.values()].filter((r) => matches(r, where));
         hit.forEach((r) => Object.assign(r, data));
@@ -76,7 +83,42 @@ async function poll(): Promise<{ commands: Array<{ id: string }> }> {
   return res.json();
 }
 
-beforeEach(() => rows.clear());
+beforeEach(() => {
+  rows.clear();
+  hooks.afterFindMany = null;
+});
+
+describe("devices/queue: a command is delivered to exactly one poller (claim-before-act)", () => {
+  it("two concurrent polls that both read the same pending rows deliver each command once", async () => {
+    seed("p1", "pending", null);
+    seed("p2", "pending", null);
+    // Both pollers finish their read before either claims: the race the old
+    // "updateMany then return everything read" shape lost.
+    let reads = 0;
+    let release!: () => void;
+    const bothRead = new Promise<void>((r) => (release = r));
+    hooks.afterFindMany = async () => {
+      if (++reads === 2) release();
+      await bothRead;
+    };
+
+    const [a, b] = await Promise.all([poll(), poll()]);
+
+    const delivered = [...a.commands, ...b.commands].map((c) => c.id).sort();
+    expect(delivered).toEqual(["p1", "p2"]);
+    expect(rows.get("p1")!.status).toBe("sent");
+    expect(rows.get("p2")!.status).toBe("sent");
+  });
+
+  it("a single poll still delivers every pending command it claims", async () => {
+    seed("p1", "pending", null);
+    seed("p2", "pending", null);
+
+    const out = await poll();
+
+    expect(out.commands.map((c) => c.id).sort()).toEqual(["p1", "p2"]);
+  });
+});
 
 describe("devices/queue: a sent command with no ack is reclaimed once, then failed", () => {
   it("re-delivers a command sent 2 h ago with no ack", async () => {

@@ -20,6 +20,7 @@ import {
   COST_WINDOW_DAYS,
   DEPLOY_ALERT_TOOL,
   CAPABILITY_WINDOW_MS,
+  APPROVAL_REVIEW_WINDOW_MS,
   EXCEPTION_WINDOW_MS,
   type OwnerPanel,
 } from "@/lib/system/owner-panel";
@@ -49,6 +50,7 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
     pendingActions,
     approvalRequests,
     expiredRequests,
+    approvalIssues,
     commitments,
     lanes,
     outboxHealth,
@@ -100,6 +102,20 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
             _min: { createdAt: true },
           })
           .then((a) => ({ count: a._count._all, oldest: a._min.createdAt })),
+      ),
+      guarded(
+        "approval outcomes",
+        prisma.approvalRequest.findMany({
+          where: {
+            OR: [
+              { status: "needs_review", updatedAt: { gte: new Date(now.getTime() - APPROVAL_REVIEW_WINDOW_MS) } },
+              { status: "failed", updatedAt: { gte: since } },
+            ],
+          },
+          select: { id: true, toolId: true, status: true, resultPayload: true, updatedAt: true },
+          orderBy: { updatedAt: "desc" },
+          take: 50,
+        }),
       ),
       guarded(
         "commitments",
@@ -196,6 +212,7 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
     pendingActions,
     approvalRequests,
     expiredRequests,
+    approvalIssues,
     commitments,
     lanes,
     outboxHealth,

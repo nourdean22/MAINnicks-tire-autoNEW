@@ -46,6 +46,8 @@ export const DEPLOY_ALERT_TOOL = "railway.deploy_alert";
 export const ACTION_EXECUTION_STALE_MS = 30 * 60_000;
 /** A capability row nothing touched for this long is history, not a live exception. */
 export const CAPABILITY_WINDOW_MS = 7 * 24 * 60 * 60_000;
+/** A `needs_review` approval stays listed this long; nothing in the UI resolves one yet. */
+export const APPROVAL_REVIEW_WINDOW_MS = 7 * 24 * 60 * 60_000;
 
 const TERMINAL = new Set(["success", "partial", "failed", "interrupted"]);
 /** ActionAttempt states that record the provider accepted the page (lib/services/action-attempts.ts). */
@@ -132,6 +134,15 @@ export interface ApprovalRequestLite {
   createdAt: Date;
   expiresAt: Date;
 }
+/** An approved request that did not end `executed`: `needs_review` (may have run) or `failed`. */
+export interface ApprovalIssueLite {
+  id: string;
+  toolId: string;
+  status: string;
+  /** JSON; `{ error }` when the executor or sweeper wrote one. Shape-checked at read. */
+  resultPayload: unknown;
+  updatedAt: Date;
+}
 export interface CommitmentLite {
   id: number;
   description: string;
@@ -210,6 +221,9 @@ export interface OwnerPanelInput {
   approvalRequests: ApprovalRequestLite[] | null;
   /** Expired-but-still-pending requests, counted — never listed, so a backlog cannot flood the panel. */
   expiredRequests: { count: number; oldest: Date | null } | null;
+  /** Approved requests now `needs_review` or `failed`. null = that read FAILED;
+   *  undefined = not wired by this caller (fixtures). */
+  approvalIssues?: ApprovalIssueLite[] | null;
   commitments: CommitmentLite[] | null;
   lanes: LaneLite[] | null;
   /** Existing post-turn durability queue health; dead rows are exceptions. */
@@ -396,10 +410,40 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
     );
   }
 
+  // Approvals that ran (or may have) and did not end `executed`. Each one's own
+  // ledger attempt (`approval:<id>`) is the same incident, so it is not listed twice.
+  const listedApprovalKeys = new Set<string>();
+  if (input.approvalIssues === null) unreadable.push("approval outcomes");
+  else
+    for (const r of input.approvalIssues ?? []) {
+      const review = r.status === "needs_review";
+      if (!review && r.status !== "failed") continue;
+      const age = now.getTime() - r.updatedAt.getTime();
+      if (age > (review ? APPROVAL_REVIEW_WINDOW_MS : EXCEPTION_WINDOW_MS)) continue;
+      const error = isRecord(r.resultPayload) && typeof r.resultPayload.error === "string" ? r.resultPayload.error : null;
+      listedApprovalKeys.add(`approval:${r.id}`);
+      exceptions.push(
+        item(now, {
+          key: `approval-outcome:${r.id}`,
+          kind: review ? "action_unknown" : "action_failed",
+          tone: "rose",
+          title: review ? `approved ${r.toolId} may have run` : `approved ${r.toolId} failed`,
+          detail: review
+            ? `${clip(error, 100) ?? "execution did not finish"}; check before retrying`
+            : clip(error) ?? "no error text recorded",
+          since: r.updatedAt,
+          // /system/actions lists pending_approval only, so no surface renders this row yet.
+          href: null,
+          evidence: `approval_requests ${r.id}`,
+        }),
+      );
+    }
+
   if (input.actionAttempts === null) {
     unreadable.push("action attempts");
   } else {
     for (const attempt of input.actionAttempts) {
+      if (listedApprovalKeys.has(attempt.operationKey)) continue;
       const evidence = `action_attempts ${attempt.id}`;
       if (attempt.state === "WAITING_APPROVAL") {
         decisions.push(
