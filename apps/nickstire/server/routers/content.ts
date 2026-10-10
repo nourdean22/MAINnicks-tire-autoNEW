@@ -3189,6 +3189,101 @@ export const contentAdminRouter = router({
       return result;
     }),
 
+  /* ─── Pipeline controls (2026-10-10) ──────────────────────────────────────
+   * The 15-minute pulse was the only server-side trigger; a reel that was
+   * ready to assemble waited for it with nothing to press. These four let the
+   * operator run a cron job now and advance one reel one step now. Every
+   * runner is the SAME code the tick runs, scoped to one job, so no gate is
+   * skipped; the helpers in services/pipelineControls.ts refuse by name.
+   * Runners are started, not awaited (generation and assembly take minutes).
+   * ------------------------------------------------------------------------ */
+  listCronJobs: adminProcedure.query(async () => {
+    const { getRegisteredJobNames } = await import("../cron/index");
+    const { getJobCadences } = await import("../cron/scheduler");
+    const cadences = getJobCadences();
+    return getRegisteredJobNames()
+      .map((j) => {
+        const c = cadences.get(j.name);
+        return { name: j.name, enabled: j.enabled, intervalMin: c?.intervalMin ?? null, tier: c?.tier ?? null, scheduledAutomatically: c?.scheduledAutomatically ?? null };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }),
+  runCronJobNow: adminProcedure
+    .input(z.object({ jobName: z.string().min(1).max(80) }))
+    .mutation(async ({ input, ctx }) => {
+      const { getRegisteredJobNames, runJobByName } = await import("../cron/index");
+      const { startCronJobNow } = await import("../services/pipelineControls");
+      const log = createLogger("routers:pipeline-controls");
+      const result = startCronJobNow(input.jobName, {
+        names: getRegisteredJobNames(),
+        run: async (name) => {
+          const r = await runJobByName(name);
+          log.info("cron job run now finished", { jobName: name, operatorId: ctx.user?.id ?? null, ...r });
+          return r;
+        },
+        onError: (err) => log.error("cron job run now failed", { jobName: input.jobName, err: err.message }),
+      });
+      if (!result.started) throw new TRPCError({ code: "BAD_REQUEST", message: result.refusal });
+      log.info("cron job run now started", { jobName: input.jobName, operatorId: ctx.user?.id ?? null });
+      return result;
+    }),
+  /** Reel jobs that are waiting on or working through a pipeline step. */
+  reelJobsInFlight: adminProcedure.query(async () => {
+    const d = await getDbTyped();
+    if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+    const { reelJobs } = await import("../../drizzle/schema");
+    const { inArray } = await import("drizzle-orm");
+    const { reelStepFor } = await import("../services/pipelineControls");
+    const rows = await d
+      .select({ id: reelJobs.id, briefId: reelJobs.briefId, status: reelJobs.status, attempts: reelJobs.attempts, updatedAt: reelJobs.updatedAt, clipUrlsJson: reelJobs.clipUrlsJson, mp4Url: reelJobs.mp4Url, payload: reelJobs.payload, error: reelJobs.error })
+      .from(reelJobs)
+      .where(inArray(reelJobs.status, ["queued", "generating", "assets_ready", "assembling", "assembled", "repair_queued", "repair_rendering"]))
+      .orderBy(desc(reelJobs.id))
+      .limit(25);
+    return rows.map((r) => {
+      let clips = 0; let beats = 0; let hasRenderedQa = false; let hasAudioQa = false; let topic = "";
+      try { clips = (JSON.parse(r.clipUrlsJson ?? "[]") as string[]).filter(Boolean).length; } catch { /* unreadable: 0 */ }
+      try {
+        const p = JSON.parse(r.payload ?? "{}");
+        beats = Array.isArray(p.storyboardBeats) ? p.storyboardBeats.length : 0;
+        hasRenderedQa = Boolean(p.renderedQa?.decision);
+        hasAudioQa = Boolean(p.audioQa?.decision);
+        topic = String(p.topic ?? "");
+      } catch { /* unreadable payload: counts stay 0 */ }
+      const step = reelStepFor(String(r.status));
+      return {
+        jobId: r.id, briefId: r.briefId, status: r.status, attempts: r.attempts ?? 0, updatedAt: r.updatedAt, topic,
+        clips, beats, hasMp4: Boolean(r.mp4Url), hasRenderedQa, hasAudioQa,
+        nextStep: step.step, refusal: step.step ? null : step.refusal, error: (r.error ?? "").slice(0, 240),
+      };
+    });
+  }),
+  advanceReelJobNow: adminProcedure
+    .input(z.object({ jobId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const d = await getDbTyped();
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      const { reelJobs } = await import("../../drizzle/schema");
+      const [job] = await d.select({ status: reelJobs.status }).from(reelJobs).where(eq(reelJobs.id, input.jobId)).limit(1);
+      if (!job) throw new TRPCError({ code: "NOT_FOUND", message: `Reel job ${input.jobId} not found` });
+      const { startReelStepNow } = await import("../services/pipelineControls");
+      const log = createLogger("routers:pipeline-controls");
+      const result = startReelStepNow(input.jobId, String(job.status), {
+        generate: async () => { const { processNextReelJob } = await import("../services/reelPipeline"); return processNextReelJob(input.jobId); },
+        assemble: async () => { const { processNextAssemblyJob } = await import("../services/reelPipeline"); return processNextAssemblyJob(input.jobId); },
+        qa: async () => {
+          const { runRenderedQaOnJob } = await import("../services/renderedQa");
+          const verdict = await runRenderedQaOnJob(input.jobId);
+          const { measureJobAudioQa } = await import("../services/audioQa");
+          const audio = await measureJobAudioQa(d, input.jobId);
+          return { verdict, audio };
+        },
+        onError: (step, err) => log.error("advance reel job now failed", { jobId: input.jobId, step, err: err.message }),
+      });
+      if (!result.started) throw new TRPCError({ code: "BAD_REQUEST", message: result.refusal });
+      log.info("advance reel job now started", { jobId: input.jobId, step: result.step, operatorId: ctx.user?.id ?? null });
+      return result;
+    }),
   /** Publishes that may or may not be live — an attempt with no recorded
    *  outcome. This is what a publish_ambiguous job gets reconciled against. */
   openPublishAttempts: adminProcedure

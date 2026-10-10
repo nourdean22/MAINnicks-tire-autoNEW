@@ -7,6 +7,14 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Pipeline controls: run any cron job now, advance one reel now (2026-10-10, PR after #2971) -- BUILT + TESTED; PR open
+
+Operator: "that seems obsolete, make it an option, full controllability". The 15-minute pulse was the only server-side trigger; reel-pipeline is not on the staged-trigger list, so even the admin key could not fire it.
+
+- **Action Center > Pipeline controls:** reels in flight lead (status, age in state, clips/beats, which verdicts exist) with one button each for the one step the status allows (Generate now / Assemble now / Run QA now); then Run the pipeline tick, Run the daily post pulse, and every registered job on demand. Steps start in the background and run the tick's own code scoped to one job; no gate is skipped.
+- **`contentAdmin.listCronJobs / runCronJobNow / reelJobsInFlight / advanceReelJobNow`**, policy in `services/pipelineControls.ts` (refuses by name). **`POST /api/admin/run-cron`** behind the admin key for headless use; 404 names the registered jobs.
+- Pins: `server/pipelineControls.test.ts` (6), `server/pipelineControlsWiring.test.ts` (7).
+
 ## Higgsfield result parser picks the media kind (2026-10-10, PR after #2968) -- BUILT + TESTED; PR open
 
 The first Seedance 2.5 reel (job 2070005) rendered five clips and assembly refused them: the saved "clips" were our own uploaded start image. `parseResultUrl` returned the FIRST http URL in the CLI's `--json` job, and on `seedance_2_5` that is `params.medias[].data.url` (the start image), not `result_url`. The render-integrity gate caught the 5 s cut.

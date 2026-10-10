@@ -4855,6 +4855,33 @@
       ],
       "lastVerifiedAt": "2026-10-10",
       "verificationExpiresAt": "2026-11-09"
+    },
+    {
+      "capabilityId": "reel-pipeline-controls-20261010",
+      "name": "Pipeline controls: run any cron job now and advance one reel job one step now, from the Action Center and from an admin-key HTTP route",
+      "owner": "operator",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "branch nickstire/pipeline-controls (2026-10-10, PR after #2971). services/pipelineControls.ts: startCronJobNow (registered-name check, runner started not awaited, onError), reelStepFor (queued->generate, assets_ready->assemble, assembled->qa, in-flight and terminal statuses refused by name), startReelStepNow. contentAdmin: listCronJobs (registry + cadences), runCronJobNow (runJobByName, so the run lands in cron_log and honours the cross-dyno lock), reelJobsInFlight (waiting/working statuses with clip counts, verdict flags, the next step or its refusal), advanceReelJobNow (processNextReelJob(jobId) / processNextAssemblyJob(jobId) / runRenderedQaOnJob + measureJobAudioQa). adminRoutes: POST /api/admin/run-cron behind requireAdminApiKey (404 with the registered names on an unknown job). ActionCenter: a 'Pipeline controls' card leading with reels in flight (one button per reel for the one step it can take) then 'Run the pipeline tick' / 'Run the daily post pulse' and the full job list on demand; loading, error and empty states each say what to do; no native dialogs; 44px targets.",
+        "tests": [
+          "server/pipelineControls.test.ts: start/refuse/throw for cron; the status->step map; start/refuse for a reel step (6, watched red first).",
+          "server/pipelineControlsWiring.test.ts: the four procedures reach the helpers and the tick's own runners; the HTTP route is key-gated and 404s unknown names; the Action Center wires all four and uses no window.* dialog (7).",
+          "server/cronControlPlane.test.ts and server/actionCenterPublishWire.test.ts green on the tree; lint:source green."
+        ],
+        "liveRuns": "Not yet exercised on production. Measured need 2026-10-10: the Seedance 2.5 test reel sat in assets_ready for 15 minutes with nothing to press; reel-pipeline is not on the staged-trigger list, so even the admin key could not fire it.",
+        "deploymentId": "not deployed (PR open)"
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Live proof owed: one 'advance now' on a waiting reel and one 'run the pipeline tick' from the Action Center, each visible in the logs (routers:pipeline-controls) and cron_log.",
+          "source": "2026-10-10"
+        }
+      ],
+      "lastVerifiedAt": "2026-10-10",
+      "verificationExpiresAt": "2026-11-09"
     }
   ],
   "axes": {

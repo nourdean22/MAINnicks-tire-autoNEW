@@ -84,6 +84,31 @@ export function registerAdminRoutes(app: Express): void {
   // through runJobByName (cron/index.ts): cross-dyno lock, and the run is
   // WRITTEN TO cron_log, which is the whole point — the first real run must
   // be observable on /api/admin/cron-status and in cron_log, not vanish.
+  // Run ANY registered cron job now (2026-10-10, pipeline controls). The staged
+  // route below fires only jobs held behind the manual trigger; this one is the
+  // operator's "run the tick now" for everything else, same admin key, same
+  // runJobByName so the run lands in cron_log and honours the cross-dyno lock.
+  // The job is started, not awaited: a tick can take minutes.
+  app.post("/api/admin/run-cron", requireAdminApiKey, (req, res) => {
+    (async () => {
+      const { jobName } = req.body ?? {};
+      const { getRegisteredJobNames, runJobByName } = await import("../cron/index");
+      const { startCronJobNow } = await import("../services/pipelineControls");
+      const result = startCronJobNow(String(jobName ?? ""), {
+        names: getRegisteredJobNames(),
+        run: (name) => runJobByName(name),
+        onError: (err) => createLogger("routes:admin-run-cron").error("run-cron: job failed after start", { jobName, err: err.message }),
+      });
+      if (!result.started) {
+        res.status(404).json({ error: result.refusal, jobs: getRegisteredJobNames().map((j) => j.name) });
+        return;
+      }
+      res.json({ ...result, timestamp: new Date().toISOString() });
+    })().catch((err) => {
+      res.status(500).json({ error: err instanceof Error ? err.message : "run failed" });
+    });
+  });
+
   app.post("/api/admin/run-staged-cron", requireAdminApiKey, (req, res) => {
     (async () => {
       const { jobName } = req.body ?? {};

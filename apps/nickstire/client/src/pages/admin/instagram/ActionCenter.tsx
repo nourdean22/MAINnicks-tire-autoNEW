@@ -224,6 +224,36 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
     onError: (err) => toast.error("Could not close", { description: err.message }),
   });
 
+  // Pipeline controls (2026-10-10): run the tick now, advance one reel now.
+  // Mutations only START the step on the server (generation and assembly take
+  // minutes); the in-flight list is what shows it moving.
+  const inFlight = trpc.contentAdmin.reelJobsInFlight.useQuery(undefined, { refetchInterval: 30_000 });
+  const cronJobs = trpc.contentAdmin.listCronJobs.useQuery(undefined, { staleTime: 300_000 });
+  const [advancingJob, setAdvancingJob] = useState<number | null>(null);
+  const [runningJob, setRunningJob] = useState<string | null>(null);
+  const [showAllJobs, setShowAllJobs] = useState(false);
+  const advanceNow = trpc.contentAdmin.advanceReelJobNow.useMutation({
+    onSuccess: (r) => {
+      toast.success(`Reel ${r.jobId}: ${r.step} started`, { description: "Runs in the background; this list refreshes every 30 seconds." });
+      setAdvancingJob(null);
+      setTimeout(() => { inFlight.refetch(); attention.refetch(); }, 1500);
+    },
+    onError: (err) => { setAdvancingJob(null); toast.error("Could not advance", { description: err.message }); },
+  });
+  const runCronNow = trpc.contentAdmin.runCronJobNow.useMutation({
+    onSuccess: (r) => {
+      toast.success(`${r.jobName} started`, { description: "The run lands in cron_log like a scheduled one." });
+      setRunningJob(null);
+      setTimeout(() => { inFlight.refetch(); attention.refetch(); }, 2000);
+    },
+    onError: (err) => { setRunningJob(null); toast.error("Could not start the job", { description: err.message }); },
+  });
+  const ageMinutes = (iso: string | Date | null | undefined) => {
+    const t = iso ? new Date(iso).getTime() : NaN;
+    return Number.isFinite(t) ? Math.max(0, Math.round((Date.now() - t) / 60_000)) : null;
+  };
+  const PRIMARY_JOBS = ["reel-pipeline", "daily-reel-post"];
+
   const jobs = attention.data?.jobs ?? [];
   const stuckCount = jobs.length;
   const openCount = openAttempts.data?.count ?? 0;
@@ -231,6 +261,110 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
 
   return (
     <div className="space-y-4">
+      {/* Pipeline controls. The decision on this card is "what is waiting, and do
+          I wait for the tick or press it now". So the waiting reels lead, each
+          with the one step it can take; the cron buttons come second. */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2"><Clock className="h-4 w-4" />Pipeline controls</CardTitle>
+          <CardDescription className="text-xs">
+            Every step still runs the same gates as the scheduled tick. Pressing a button only removes the wait.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <p className="text-xs font-medium">Reels in flight</p>
+            {inFlight.isLoading ? (
+              <p className="text-xs text-muted-foreground">Reading the queue from the database.</p>
+            ) : inFlight.isError ? (
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <span className="text-muted-foreground">The queue could not be read: {inFlight.error?.message}</span>
+                <Button size="sm" variant="outline" className="min-h-9" onClick={() => inFlight.refetch()}>Try again</Button>
+              </div>
+            ) : (inFlight.data?.length ?? 0) === 0 ? (
+              <p className="text-xs text-muted-foreground">No reel is between steps. A new one appears here the moment it is enqueued.</p>
+            ) : (
+              <div className="space-y-2">
+                {inFlight.data!.map((j) => {
+                  const age = ageMinutes(j.updatedAt as unknown as string | null);
+                  const busy = advancingJob === j.jobId;
+                  return (
+                    <div key={j.jobId} className="flex items-start justify-between gap-3 rounded-lg border border-border/60 p-3">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-sm font-semibold">Reel {j.jobId}</span>
+                          <Badge variant="outline" className="text-[10px]">{j.status}</Badge>
+                          {age != null && <span className="text-[11px] text-muted-foreground">{age} min in this state</span>}
+                        </div>
+                        {j.topic && <p className="text-xs text-muted-foreground truncate">{j.topic}</p>}
+                        <p className="text-[11px] text-muted-foreground">
+                          {j.clips}/{j.beats} clips{j.hasMp4 ? ", master cut" : ""}{j.hasRenderedQa ? ", critic verdict" : ""}{j.hasAudioQa ? ", audio verdict" : ""}
+                        </p>
+                        {!j.nextStep && j.refusal && <p className="text-[11px] text-muted-foreground">{j.refusal}</p>}
+                      </div>
+                      {j.nextStep && (
+                        <Button
+                          size="sm" variant="outline" className="min-h-11 flex-none text-xs"
+                          disabled={busy || advanceNow.isPending}
+                          onClick={() => { setAdvancingJob(j.jobId); advanceNow.mutate({ jobId: j.jobId }); }}
+                        >
+                          {busy ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Wrench className="h-3 w-3 mr-1" />}
+                          {j.nextStep === "generate" ? "Generate now" : j.nextStep === "assemble" ? "Assemble now" : "Run QA now"}
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2 border-t border-border/60 pt-3">
+            <p className="text-xs font-medium">Run a scheduled job now</p>
+            {cronJobs.isError ? (
+              <p className="text-xs text-muted-foreground">The job list could not be read: {cronJobs.error?.message}</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {PRIMARY_JOBS.map((name) => (
+                  <Button
+                    key={name} size="sm" variant="outline" className="min-h-11 text-xs"
+                    disabled={runningJob === name || runCronNow.isPending || (cronJobs.data != null && !cronJobs.data.some((c) => c.name === name))}
+                    onClick={() => { setRunningJob(name); runCronNow.mutate({ jobName: name }); }}
+                  >
+                    {runningJob === name ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                    {name === "reel-pipeline" ? "Run the pipeline tick" : "Run the daily post pulse"}
+                  </Button>
+                ))}
+                <Button size="sm" variant="ghost" className="min-h-11 text-xs" onClick={() => setShowAllJobs((v) => !v)}>
+                  {showAllJobs ? "Hide the other jobs" : `All jobs${cronJobs.data ? ` (${cronJobs.data.length})` : ""}`}
+                </Button>
+              </div>
+            )}
+            {showAllJobs && cronJobs.data && (
+              <div className="grid gap-1 sm:grid-cols-2">
+                {cronJobs.data.filter((c) => !PRIMARY_JOBS.includes(c.name)).map((c) => (
+                  <div key={c.name} className="flex items-center justify-between gap-2 rounded border border-border/60 px-2 py-1">
+                    <div className="min-w-0">
+                      <p className="font-mono text-xs truncate">{c.name}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {c.intervalMin != null ? `every ${c.intervalMin} min` : "no cadence"}{c.tier ? `, ${c.tier}` : ""}{c.enabled ? "" : ", disabled"}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm" variant="ghost" className="min-h-9 text-xs flex-none"
+                      disabled={runningJob === c.name || runCronNow.isPending}
+                      onClick={() => { setRunningJob(c.name); runCronNow.mutate({ jobName: c.name }); }}
+                    >
+                      {runningJob === c.name ? <Loader2 className="h-3 w-3" /> : "Run now"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* The mp4 door. Collapsed by default — this is an occasional action and
           Action Center's job is to surface what is stuck, not to lead with a
           form. Everything it produces is a DRAFT that still passes every
