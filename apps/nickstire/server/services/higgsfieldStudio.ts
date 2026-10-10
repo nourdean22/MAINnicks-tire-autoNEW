@@ -370,27 +370,51 @@ async function persistRotationBounded(tempCredsFile: string | null): Promise<voi
   }
 }
 
-function parseResultUrl(stdout: string): string {
+export type HiggsfieldMediaKind = "video" | "image";
+const VIDEO_EXT = /\.(mp4|mov|webm|m4v)([?#]|$)/i;
+const IMAGE_EXT = /\.(jpe?g|png|webp|gif|avif)([?#]|$)/i;
+const VIDEO_KEY = /video|mp4|clip|output/i;
+const IMAGE_KEY = /thumb|preview|poster|cover|image|still|frame/i;
+
+/**
+ * Pick the result URL of the kind the caller asked for (2026-10-10). The old
+ * parser returned the FIRST http URL anywhere in the CLI's --json result. On
+ * seedance_2_5 that is the preview still (`..._resize.jpg`), so five "clips"
+ * were saved as 1158x2048 JPEGs, assembly produced a 5-second cut and the
+ * render-integrity gate refused it (job 2070005; five paid renders lost).
+ *
+ * Order for "video": a URL with a video extension; then an extension-less URL
+ * whose key path says video/clip/output and whose path is not an image; then
+ * any URL that is not an image. A result holding only image URLs is a refusal,
+ * not a clip. "image" mirrors it. Exported for the pins in
+ * server/higgsfieldResultUrl.test.ts.
+ */
+export function parseResultUrl(stdout: string, kind: HiggsfieldMediaKind = "video"): string {
   try {
     const parsed = JSON.parse(stdout);
-    const urls: string[] = [];
-    const findUrls = (obj: any) => {
+    const found: Array<{ url: string; path: string }> = [];
+    const walk = (obj: unknown, path: string) => {
       if (!obj) return;
       if (typeof obj === "string") {
-        if (obj.startsWith("http://") || obj.startsWith("https://")) {
-          urls.push(obj);
-        }
+        if (obj.startsWith("http://") || obj.startsWith("https://")) found.push({ url: obj, path });
       } else if (Array.isArray(obj)) {
-        obj.forEach(findUrls);
+        obj.forEach((v, i) => walk(v, `${path}[${i}]`));
       } else if (typeof obj === "object") {
-        Object.values(obj).forEach(findUrls);
+        for (const [k, v] of Object.entries(obj as Record<string, unknown>)) walk(v, path ? `${path}.${k}` : k);
       }
     };
-    findUrls(parsed);
-    if (urls.length > 0) {
-      return urls[0];
-    }
-    throw new Error("No URL found in Higgsfield CLI JSON response");
+    walk(parsed, "");
+    if (found.length === 0) throw new Error("No URL found in Higgsfield CLI JSON response");
+    const want = kind === "video" ? VIDEO_EXT : IMAGE_EXT;
+    const other = kind === "video" ? IMAGE_EXT : VIDEO_EXT;
+    const wantKey = kind === "video" ? VIDEO_KEY : IMAGE_KEY;
+    const byExt = found.find((f) => want.test(f.url));
+    if (byExt) return byExt.url;
+    const byKey = found.find((f) => !other.test(f.url) && wantKey.test(f.path));
+    if (byKey) return byKey.url;
+    const notOther = found.find((f) => !other.test(f.url));
+    if (notOther) return notOther.url;
+    throw new Error(`no ${kind} URL in Higgsfield CLI JSON response — only ${kind === "video" ? "image" : "video"} URLs (${found.map((f) => f.path).join(", ")}); refusing to save the wrong media kind`);
   } catch (err) {
     throw new Error(`Failed to parse Higgsfield output: ${err instanceof Error ? err.message : String(err)}. Raw stdout: ${stdout}`);
   }
@@ -459,7 +483,7 @@ export async function generateCarouselSlideImage(req: string | { prompt: string;
         return;
       }
       try {
-        const url = parseResultUrl(stdout);
+        const url = parseResultUrl(stdout, "image");
         resolve(url);
       } catch (err) {
         reject(err);
@@ -991,7 +1015,7 @@ export async function generateReelClipVideo(req: string | {
         return;
       }
       try {
-        const url = parseResultUrl(stdout);
+        const url = parseResultUrl(stdout, "video");
         resolve(url);
       } catch (err) {
         reject(err);
