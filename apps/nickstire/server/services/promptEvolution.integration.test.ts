@@ -1000,7 +1000,8 @@ describe("runPromptEvolution, wired", () => {
     installDb(p);
     const early = installLlm({ ...fixesEverything, replayThrows: () => true });
     await expect(runPromptEvolution(base({ deadlineMs: 5_000, now: () => 0 }))).rejects.toThrow("aborted due to timeout");
-    expect(early.replays).toHaveLength(1);
+    // Every train seed was attempted (6 of 6 failed, past the cap), then the first error surfaced.
+    expect(early.replays).toHaveLength(p.train.length);
   });
 
   it("a deadline that passes during the LAST confirmation seed's judge call reads as inconclusive-budget, not as a verdict", async () => {
@@ -1024,19 +1025,22 @@ describe("runPromptEvolution, wired", () => {
     expect(r.consumedConfirmationIds.length).toBeGreaterThan(0);
   });
 
-  it("a provider failure with budget left stays a failure even when the sibling seed crosses the deadline before the pool settles", async () => {
+  it("one replay whose lane call fails is an evaluator outage on that seed, not the run's failure; past a quarter of a pass the lane is down and the run fails loudly", async () => {
+    // 2026-10-10 12:51Z live run: one 60 s abort during the baseline replays
+    // killed the run at 166 s while the lane answered in 1.5 s a minute later.
     const p = pool();
     installDb(p);
-    let t = 0;
-    let replays = 0;
-    // Seed 1 throws a plain lane error at t=0; seed 2 (in flight at the same
-    // time under concurrency 2) advances the clock past the deadline.
-    installLlm({
-      ...fixesEverything,
-      onReplay: () => { replays++; if (replays === 2) t = 10_000; },
-      replayThrows: () => (replays === 1 ? "ghost lane down (test)" : false),
-    });
-    await expect(runPromptEvolution(base({ deadlineMs: 5_000, now: () => t, replayConcurrency: 2 }))).rejects.toThrow("ghost lane down");
+    let n = 0;
+    const one = installLlm({ ...fixesEverything, replayThrows: (who) => (who === "base" && ++n === 1 ? "The operation was aborted due to timeout" : false) });
+    const r = await runPromptEvolution(base());
+    expect(r.outcome).toBe("accepted");
+    expect(r.exclusions.evaluatorUnavailable).toBe(1);
+    expect(one.replays.length).toBeGreaterThan(0);
+
+    installDb(p);
+    let m = 0;
+    installLlm({ ...fixesEverything, replayThrows: (who) => (who === "base" && ++m <= 5 ? "ghost lane down (test)" : false) }); // 5 of the 6 train seeds
+    await expect(runPromptEvolution(base())).rejects.toThrow("ghost lane down");
   });
 
   it("the optimizer's format retry is budgeted and counted, and its system message carries the untrusted-data notice too", async () => {
@@ -1299,13 +1303,15 @@ describe("processPromptEvolutionWeekly, end to end", () => {
     } as never);
     const p = pool();
     const { kv } = installDb(p);
-    // The ghost lane dies on the first replay of the 2nd sealed seed.
+    // The ghost lane dies on every sealed seed after the first (5 of 6, past
+    // LANE_FAILURE_CAP, so the run fails loudly; a single dead seed would be
+    // an outage grade and the run would go on).
     const read: string[] = [];
     installLlm({
       ...fixesEverything,
       onReplay: (_who, seed) => {
         if (!p.confirm.includes(seed)) return;
-        if (seed === p.confirm[1]) throw new Error("ghost lane down (test)");
+        if (seed !== p.confirm[0]) throw new Error("ghost lane down (test)");
         read.push(seed);
       },
     });

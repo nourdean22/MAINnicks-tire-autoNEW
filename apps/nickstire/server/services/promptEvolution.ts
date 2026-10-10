@@ -382,6 +382,9 @@ export interface ScoreOptions {
   concurrency?: number;
 }
 
+/** Share of a pass's seeds whose replay may fail before the lane counts as down and the run fails. Matches the gates' evaluator-outage cap. */
+const LANE_FAILURE_CAP = 0.25;
+
 export async function scorePrompt(prompt: string, seeds: Seed[], opts: ScoreOptions = {}): Promise<ScoredPrompt> {
   const verifyHits = opts.verifyHits !== false;
   const usage = { replays: 0, judgeCalls: 0 };
@@ -391,9 +394,34 @@ export async function scorePrompt(prompt: string, seeds: Seed[], opts: ScoreOpti
   const slots: Array<ScoredPrompt["grades"][number] | undefined> = new Array(seeds.length);
   let next = 0;
   let failure: unknown = null;
+  // A replay whose lane call fails (a 60 s abort, a 5xx) is an EVALUATOR
+  // OUTAGE on that seed, graded judgeUnavailable like a dead judge, so the
+  // gates' outage accounting decides what it means. It is not the run's
+  // failure: the 2026-10-10 12:51Z live run died at 166 s on one slow call
+  // during the baseline replays, with the lane answering in 1.5 s a minute
+  // later. Past LANE_FAILURE_CAP of a pass the lane is down, and the first
+  // error is rethrown so the run fails loudly instead of measuring nothing.
+  let laneFailures = 0;
+  let firstLaneError: unknown = null;
   const scoreOne = async (s: Seed, i: number): Promise<void> => {
     opts.beforeSeed?.();
-    const replies = await ghostReplay(prompt, s.callerTurns, { priority: 3, budget: opts.budget });
+    let replies: string[];
+    try {
+      replies = await ghostReplay(prompt, s.callerTurns, { priority: 3, budget: opts.budget });
+    } catch (err) {
+      if (err instanceof BudgetExhausted) throw err;
+      laneFailures++;
+      if (firstLaneError === null) {
+        firstLaneError = err;
+        opts.onFailure?.(err);
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      slots[i] = {
+        id: s.id, pass: false, priceLeaks: 0, resolutionOffered: false, guarantees: 0, emptyReplies: 0, claimViolations: [],
+        judgeUnavailable: true, judgeReason: `replay lane unavailable: ${message.slice(0, 120)}`,
+      };
+      return;
+    }
     usage.replays++;
     if (opts.tally) opts.tally.replays++;
     // gradeRepliesWithJudge asks the judge on every seed when hits are
@@ -438,6 +466,7 @@ export async function scorePrompt(prompt: string, seeds: Seed[], opts: ScoreOpti
   };
   await Promise.all(Array.from({ length: Math.min(concurrency, Math.max(1, seeds.length)) }, worker));
   if (failure !== null) throw failure;
+  if (laneFailures > 0 && laneFailures / Math.max(1, seeds.length) > LANE_FAILURE_CAP) throw firstLaneError;
   const grades: ScoredPrompt["grades"] = slots.filter((g): g is ScoredPrompt["grades"][number] => g !== undefined);
   // HONEST DENOMINATOR (2026-08-07): a call no prompt could have resolved —
   // the caller reached a wrong number or left before asking anything — is not
