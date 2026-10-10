@@ -43,7 +43,8 @@ describe("VAPI corpus-grounded conversation rules", () => {
     const start = src.indexOf('name: "prompt-evolution-weekly"');
     const end = src.indexOf("},", start);
     const block = src.slice(start, end + 2);
-    expect(block).toContain("timeoutMs: 30 * 60 * 1000");
+    // 50 minutes since 2026-10-09: a full cycle replays ~170 times at ~20 s each (promptEvolutionWeekly RUN_BUDGET_MS 45 min stops the runner first).
+    expect(block).toContain("timeoutMs: 50 * 60 * 1000");
   });
 
   it("does not stamp every Vapi status update as a greeted call", () => {
