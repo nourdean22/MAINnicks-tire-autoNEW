@@ -40,7 +40,7 @@ export default function VapiPanel() {
   // The receptionist prompt experiment (propose-only). Polls while a run is
   // active on the server; a finished run shows its row summary here, lands in
   // Telegram and on /proof, and never changes what callers hear.
-  const { data: evolution } = trpc.vapi.promptEvolutionStatus.useQuery(undefined, {
+  const { data: evolution, isLoading: evolutionLoading, isError: evolutionError, error: evolutionErr } = trpc.vapi.promptEvolutionStatus.useQuery(undefined, {
     enabled: status?.connected ?? false,
     refetchInterval: (q) => (q.state.data?.active ? 30_000 : false),
   });
@@ -376,11 +376,15 @@ export default function VapiPanel() {
               disabled={runEvolution.isPending || !!evolution?.active}
               className="flex items-center gap-1.5 min-h-[48px] border border-primary/30 text-primary bg-primary/5 px-3 py-1 text-[10px] font-bold tracking-wide hover:bg-primary/10 disabled:opacity-50"
             >
-              {runEvolution.isPending || evolution?.active ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+              {(runEvolution.isPending || evolution?.active) && <Loader2 className="w-3 h-3 animate-spin" />}
               {evolution?.active ? "RUNNING..." : "RUN EXPERIMENT NOW"}
             </button>
           </div>
-          {evolution?.latest.state === "unavailable" ? (
+          {evolutionLoading ? (
+            <p className="text-[11px] text-foreground/60">Loading experiment status.</p>
+          ) : evolutionError ? (
+            <p className="text-[11px] text-foreground/60">Experiment status unavailable: {evolutionErr?.message ?? "the request failed"}. Unknown, not empty.</p>
+          ) : evolution?.latest.state === "unavailable" ? (
             <p className="text-[11px] text-foreground/60">Latest result unknown: the row could not be read ({evolution.latest.reason}). Unknown, not empty.</p>
           ) : evolution?.latest.state === "ok" && evolution.latest.latest ? (
             <PromptExperimentResult r={evolution.latest.latest} />
@@ -443,7 +447,7 @@ function PromptExperimentResult({ r }: { r: ExperimentSummary }) {
         <ul data-testid="prompt-evolution-candidates" className="space-y-0.5">
           {r.candidates.map((c, i) => (
             <li key={c.promptHash ?? i}>
-              <span className="font-mono text-foreground/40">{c.promptHash?.slice(0, 8) ?? "?"}</span>{" "}
+              <span className="font-mono text-foreground/50">{c.promptHash?.slice(0, 8) ?? "?"}</span>{" "}
               {c.rejectedInvariants.length > 0
                 ? `not replayed, broke ${c.rejectedInvariants.join(", ")}`
                 : `train ${c.train ?? "?"}${c.trainMargin !== null ? ` (margin ${c.trainMargin > 0 ? "+" : ""}${c.trainMargin}${c.trainUsable === false ? ", unusable" : ""})` : ""}`}

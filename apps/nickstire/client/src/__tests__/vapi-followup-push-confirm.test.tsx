@@ -18,6 +18,7 @@ const h = vi.hoisted(() => ({
   receptionistMutate: vi.fn(),
   evolutionMutate: vi.fn(),
   evolutionStatus: { active: null as null | { startedAt: string; elapsedMs: number; budgetMs: number }, last: null, latest: { state: "ok", latest: null } } as Record<string, unknown>,
+  evolutionQueryState: { loading: false, error: false },
   confirmAnswer: false,
   confirmDialog: vi.fn(),
 }));
@@ -36,7 +37,7 @@ vi.mock("@/lib/trpc", () => ({
       createAssistant: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
       updateAssistant: { useMutation: () => ({ mutate: h.receptionistMutate, isPending: false }) },
       updateFollowUpAssistant: { useMutation: () => ({ mutate: h.followUpMutate, isPending: false }) },
-      promptEvolutionStatus: { useQuery: () => ({ data: h.evolutionStatus }) },
+      promptEvolutionStatus: { useQuery: () => ({ data: h.evolutionQueryState.loading || h.evolutionQueryState.error ? undefined : h.evolutionStatus, isLoading: h.evolutionQueryState.loading, isError: h.evolutionQueryState.error, error: h.evolutionQueryState.error ? { message: "UNAUTHORIZED (test)" } : null }) },
       runPromptEvolutionNow: { useMutation: () => ({ mutate: h.evolutionMutate, isPending: false }) },
     },
   },
@@ -49,6 +50,7 @@ beforeEach(() => {
   h.receptionistMutate.mockClear();
   h.evolutionMutate.mockClear();
   h.evolutionStatus = { active: null, last: null, latest: { state: "ok", latest: null } };
+  h.evolutionQueryState = { loading: false, error: false };
   h.confirmDialog.mockReset();
   h.confirmDialog.mockImplementation(async () => h.confirmAnswer);
 });
@@ -140,6 +142,26 @@ describe("RUN EXPERIMENT NOW is a two-tap confirm that starts the manual run onc
   it("the button is a 48px touch target", () => {
     render(<VapiPanel />);
     expect(runButton().className).toMatch(/\bmin-h-\[48px\]/);
+  });
+
+  it("the status query's own loading and error states are visible, never a blank card (antislop audit 001, finding 1)", () => {
+    h.evolutionQueryState = { loading: true, error: false };
+    const first = render(<VapiPanel />);
+    expect(screen.getByText(/loading experiment status/i)).toBeTruthy();
+    first.unmount();
+    h.evolutionQueryState = { loading: false, error: true };
+    render(<VapiPanel />);
+    expect(screen.getByText(/experiment status unavailable: UNAUTHORIZED \(test\)/i)).toBeTruthy();
+    expect(screen.queryByText(/no experiment recorded yet/i)).toBeNull();
+  });
+
+  it("the idle run button carries no decorative glyph; the spinner appears only while a run is active (finding 3)", () => {
+    const idle = render(<VapiPanel />);
+    expect(runButton().querySelector("svg")).toBeNull();
+    idle.unmount();
+    h.evolutionStatus = { active: { startedAt: "2026-10-09T14:00:00.000Z", elapsedMs: 60_000, budgetMs: 3_000_000 }, last: null, latest: { state: "ok", latest: null } };
+    render(<VapiPanel />);
+    expect(screen.getByRole("button", { name: /running/i }).querySelector("svg")).not.toBeNull();
   });
 
   it("a candidate rejected before replay shows which invariants it broke; a scored one shows its train reading", () => {
