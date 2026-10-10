@@ -68,7 +68,8 @@ export function requireSyncAuth(req: Request): void {
  * EVIDENCE_LEDGER_KEY opens ONLY /api/sync/evidence (the ledger door). It exists so an
  * unattended caller (Night Shift, the proof workflow) can read and append evidence without
  * holding STATENOUR_SYNC_KEY, which is the whole cross-app bridge (queue, nour-os, devices,
- * nickstire/query, cron/mega). The bridge key still opens this door so nickstire's server keeps
+ * nickstire/query; cron/mega takes CRON_SECRET only since 2026-10-10, see its route.ts).
+ * The bridge key still opens this door so nickstire's server keeps
  * posting with the credential it already has; the scoped key opens nothing else, because
  * requireSyncAuth never looks at it. The decision itself lives in
  * lib/security/evidence-ledger-auth.ts (next-auth-free, so its test imports the real thing).

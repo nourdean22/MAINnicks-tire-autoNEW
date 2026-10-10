@@ -17,7 +17,7 @@
   that structurally cannot land a change on main (README, Identity); env
   STATENOUR_SYNC_URL + EVIDENCE_LEDGER_KEY (the SCOPED ledger key - it opens
   /api/sync/evidence and nothing else). Never hand this run STATENOUR_SYNC_KEY:
-  that is the whole cross-app bridge (queue, nour-os, devices, cron/mega), and
+  that is the whole cross-app bridge (queue, nour-os, devices, nickstire/query), and
   the headless agent inherits every variable in its environment. Without a
   ledger key the run still works; it just cannot read or post evidence.
   Register it with register-task.ps1; run it by hand first.

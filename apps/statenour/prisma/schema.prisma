@@ -2811,7 +2811,8 @@ model CronJobLog {
   /// fragile, and wrong the moment two runs of one cron overlap.
   ///
   /// NULL is honest and must stay default-less: route crons (cron-manager.ts)
-  /// write terminal rows directly and never open a started row, and every row
+  /// open a started row and settle it by row id with no Inngest run id
+  /// (since 2026-10-10; before that they wrote terminal rows only), and every row
   /// before 2026-09-17 predates the column. A manufactured id would assert a
   /// run identity that never existed.
   ///

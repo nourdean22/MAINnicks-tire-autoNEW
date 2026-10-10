@@ -1,5 +1,26 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-10 · Audit-fix wave 1 (PR #2981, merged as b5bb183eb) · BDNICK audit findings in auth, approvals, chat safety, crons and failed reads · 1 statenour PR with staged commits
+>
+> Not live. Branch `statenour/audit-backend-truth-safety`, 23 commits, one per task plus follow-ups; each commit message lists its audit ids and test receipts. Every runtime claim below is from tests and code reading, not production.
+>
+> - **Private Lab leaves no trace.** `privateMode` and the new `ephemeral` flag are split (`lib/ai/chat/gate.ts:44-53`), so Home's `/task` and `/capture` keep their tools while a Private Lab turn writes nothing.
+> - **Approvals run once.** Telegram approve/deny, the approval queue, `devices/queue` and the opportunity-SMS button claim before they act. A stuck `executing` approval becomes `needs_review` and is never re-run (`lib/inngest/functions/approval-sweeper.ts:35-48`); `/system/actions` lists it with a two-tap Dismiss.
+> - **A failed read says "unknown", never 0 or "all clear"**, across System, the hub grid, memory inbox, goal board, decision ledger, shop bridge counts, tools and system health. A turn that read outside content holds outward sends for approval.
+> - **An AI outage is never stored or sent as an answer.** 87 `aiChat` callers classified, 26 guarded.
+> - **Cron and auth truth.** `/api/cron/mega` takes `CRON_SECRET` only; `INNGEST_MEGA_V2` is default-ON; the healer no longer VACUUMs or REINDEXes; route crons open a `started` row; `check:get-auth` reads the syntax tree (12 GETs gained owner auth or a `// public:` reason).
+>
+> **Receipts (from the PR body):** `tsc --noEmit` 0 errors. Full suite 1,143 files passed, 2 failed, 1 skipped; 11,687 tests passed, 2 failed. Both failures are Windows-only (`tests/brain/recall-preview-no-side-effects.test.ts` path separators; the `ui-v2-grammar` positive control under cmd.exe); CI is Linux. Lint 0 errors, 102 warnings. `check:get-auth` (310 routes), `check:crons`, `check:raw-sql`, `check:anti-slop` clean.
+>
+> **Blocked on the operator:** `/api/sync/queue` approve/publish should be owner-only, but the nickstire Command Queue and the worker's render reset authenticate with the sync key. It needs a scoped queue key (a Railway env change, a protected operation) or retiring those buttons. Left as is.
+>
+> **Flagged · NOT fixed (parked):**
+> - T9 recall SQL (`resolveTrustTier` wiring, seenCount on private turns), T14 missions cancel/idempotency and SSE persistence, UI-A chat surface: next wave.
+> - `traced-aichat` sentinel switch (needs about 34 test mocks first).
+> - autonomous-engine bridge reads still default to zero; `command/data` `?? 0` chains.
+> - search-hybrid should return `conversationId` for palette chat hits; Telegram rating should use `recordOutcomeResult`.
+> - Docs and comments for this wave: CURRENT-TRUTH top section, AGENTS.md §4 (L1 path, L2 timing, L5 ORPHANED), stale sync-key comments, ENDPOINT-HYGIENE, RUNBOOK reset advice.
+
 > ## 2026-10-09 · The outcome ledger writes again (cross-app PR after #2939) · `recordShown` took a void advisory lock through `$queryRaw` · 1 statenour ship inside a cross-app PR
 >
 > **Incident.** #2888 (2026-10-02) made `recordShown` take a per-hash advisory lock with `tx.$queryRaw\`SELECT pg_advisory_xact_lock(...)\``. The function returns void and `$queryRaw` deserializes every column, so every ledger miss threw `Failed to deserialize column of type 'void'`; `recordShown` logs `intel.outcome-ledger` and returns null. `intelligence_outcomes`' last row is 2026-10-02 16:00:11Z (prod read 2026-10-09), three minutes before #2888 deployed: for seven days every surface that ledgers through `recordShown` (12 callers: the Home brief's lead, the Missions deck, the morning and intelligence briefs, proactive pushes, discoveries, Nick's suggestions, the journal, the weekly digest, the Telegram and rating routes) was shown with no ledger row, so accepts, dismissals and ratings on anything new recorded nothing. The unit test mocked `$queryRaw` to return undefined and pinned the bug as the contract.
@@ -4442,7 +4463,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-10-09 (flagged-items wave — see top entry; prior stamp 2026-10-08, camera N-series PR C)
+**Last verified:** 2026-10-10 (audit-fix wave 1, PR #2981 merged as b5bb183eb; see top entry; prior stamp 2026-10-09, flagged-items wave)
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.

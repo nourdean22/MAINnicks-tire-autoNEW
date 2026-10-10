@@ -281,8 +281,11 @@ If `prisma db push` fails with legacy drift:
 ```bash
 pnpm exec prisma migrate resolve --applied <migration_name>
 ```
-Then reconcile. Last resort: `pnpm exec prisma migrate reset` —
-**destructive, never in prod**.
+Then reconcile by hand. Never reset the database to clear drift: a reset
+drops every table, including the pgvector and tsvector columns Prisma cannot
+see. Destructive schema commands are protected operations (root `AGENTS.md`,
+"Protected operations"); they need an explicit operator instruction each time.
+If drift will not reconcile, stop and ask; to recover data, use **Restore** below.
 
 ### Backup
 

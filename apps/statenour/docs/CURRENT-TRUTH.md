@@ -2,9 +2,23 @@
 
 
 
+## 2026-10-10 - Audit wave 1 on PR #2981 (merged as b5bb183eb on 2026-10-10; live only once the deploy is verified)
+
+BUILT + TESTED on branch `statenour/audit-backend-truth-safety`. Check `/api/version` by ancestry after merge before calling any line here live. Each line corrects an older claim in this file or the code comments.
+
+- **`/api/cron/mega` takes `CRON_SECRET` only.** `STATENOUR_SYNC_KEY` no longer opens it (`app/api/cron/mega/route.ts:46-55`). The sync key still opens queue, nour-os, devices and nickstire/query.
+- **`INNGEST_MEGA_V2` is a default-ON kill switch.** Only an explicit `"false"` or `"0"` stops the morning and evening fan-out (`lib/inngest/functions/mega-fanout.ts:61-70`). Before this, an unset value stopped every daily child. This replaces the "still unverified" `INNGEST_MEGA_V2` note in the 2026-09-29 Railway section.
+- **The nightly healer no longer VACUUMs or REINDEXes.** Phase 2 (the "Database Health Engine") is deleted (`lib/services/autonomic-orchestrator.ts:200-208`). Postgres autovacuum owns vacuuming; an index rebuild is operator-run (`scripts/reindex-vector-index.ts`).
+- **`/api/system/heartbeat` reports `degraded` when the worker is not fresh.** HTTP stays 200 because Railway's deploy healthcheck reads this path; a DB failure is still 503 (`app/api/system/heartbeat/route.ts:8,23,31`).
+- **A stuck approval goes to `needs_review`, never re-run.** The sweeper moves an `executing` approval older than 5 minutes to `needs_review` (`lib/inngest/functions/approval-sweeper.ts:35-48`); it used to re-claim it. `/system/actions` lists `needs_review` and `failed` (`lib/trpc/routers/system/actions.ts:10`).
+- **Private Lab leaves no trace; Home's command line uses `ephemeral`.** `privateMode` means no transcript, side writes, Langfuse spans or mutating tools; `ephemeral` drops only the transcript, so `/task` and `/capture` keep their tools (`lib/ai/chat/gate.ts:44-53`, `app/api/ai/chat/route.ts:122-131`).
+- **`check:get-auth` reads the TypeScript syntax tree** (`scripts/check-sensitive-get-auth.ts:22`). Every exported GET/HEAD needs auth in its body or a `// public: <why>` marker (`:34-35`).
+
+Ship record: `docs/RECONCILIATION.md` top entry.
+
 ## 2026-10-09 - The outcome ledger had written nothing since 2026-10-02 16:00Z (fixed, PR after #2939)
 
-- **BUILT + TESTED; deploy pending.** `recordShown` took its advisory lock through `$queryRaw`; the lock returns void, so every miss threw and was swallowed. `intelligence_outcomes` received no row for seven days. It now uses `$executeRaw`, and `tests/repo/void-function-query-raw.test.ts` guards the class. Proof after deploy: a new `intelligence_outcomes` row.
+- **BUILT + TESTED; "deploy pending" is superseded:** the 2026-10-10 audit found this fix in deployed commit `8e945f428` (#2944); confirm with a new `intelligence_outcomes` row. `recordShown` took its advisory lock through `$queryRaw`; the lock returns void, so every miss threw and was swallowed. `intelligence_outcomes` received no row for seven days. It now uses `$executeRaw`, and `tests/repo/void-function-query-raw.test.ts` guards the class. Proof after deploy: a new `intelligence_outcomes` row.
 
 ## 2026-10-09 - Deploy images use the lockfile's turbo (#2939); bdnick.info was on #2935 from 01:43Z to 10:46Z
 
@@ -79,9 +93,9 @@ bdnick.info renders the v2 grammar since `18bf9ebc` (Railway statenour-web `754f
 
 - **Read-only Railway read-back:** production project `natural-appreciation` currently has exactly four services: `MAINnicks-tire-auto` (`a6234c8d-1ff4-478f-9085-654954b54e97`), `statenour-web` (`c68ce7f7-63b1-47bf-9e9e-2d7dfe717d4e`), `statenour-worker` (`5441c378-3bab-4bb7-958f-36961159f5fe`), and `Redis` (`ee90ba3b-7dc4-44da-b892-bc6152226b75`).
 - **Regions now:** Nick, StateNour web, and StateNour worker each run one replica in `us-east4-eqdc4a`; Redis alone remains one replica in `us-west2`. Any older section below saying the worker is still west2 is historical and superseded by this read-back.
-- **Worker is private:** live Railway lists no worker service/custom domains and no cron schedule. Worker-owned activity is its four node-cron HTTP forwards plus the in-process approved-video render loop; Q-36 removes the vestigial inbound `POST /cron/mega*` routes.
+- **Worker is private:** live Railway lists no worker service/custom domains and no cron schedule. Worker-owned activity is its node-cron HTTP forwards (five as of 2026-10-10: `apps/worker/src/scheduler.ts:137-177`) plus the in-process approved-video render loop; Q-36 removes the vestigial inbound `POST /cron/mega*` routes.
 - **Worker data boundary:** `apps/worker/src` has no DB client and does not read `DATABASE_URL`, `DIRECT_URL`, or `GITHUB_TOKEN`. It talks to StateNour web over authenticated HTTP. Cross-app Nick ↔ StateNour data continues through the explicit signed bridge endpoints, not through the worker.
-- **Still unverified here:** whether Inngest morning/evening mega fan-out is currently firing in production. `INNGEST_MEGA_V2` exists in Railway config but its value is redacted by the connector; obtain a `CronJobLog`/Inngest receipt before calling that cutover live.
+- **Superseded 2026-10-10 (see the PR #2981 section at the top):** `INNGEST_MEGA_V2` becomes default-ON there. Original note: whether Inngest morning/evening mega fan-out is currently firing in production. `INNGEST_MEGA_V2` exists in Railway config but its value is redacted by the connector; obtain a `CronJobLog`/Inngest receipt before calling that cutover live.
 
 
 ## 2026-09-29 - PR #2795 external worker + cockpit/eval closeout (OPEN; not production-live yet)

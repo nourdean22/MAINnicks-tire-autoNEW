@@ -7,7 +7,7 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-10-09 · flagged wave, turbo pin, outcome-ledger lock (#2938, #2939, next) · see RECONCILIATION.
+**Last refreshed:** 2026-10-10 · audit-fix wave 1 (#2981, pending merge) · see RECONCILIATION.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--
@@ -119,11 +119,11 @@ each integration under `lib/` and `docs/` — read it when you touch that integr
 
 | Layer | Where | What it does |
 |---|---|---|
-| **L1** prompt rule | [`lib/ai/system-prompt.ts`](lib/ai/system-prompt.ts) `## TRUTH RULE` | Never claim past-tense action without a tool call |
-| **L2** pre-persist rewrite | [`lib/ai/chat/fabrication-rewriter.ts`](lib/ai/chat/fabrication-rewriter.ts) | Detected fabrication gets a verifier banner before persisting |
+| **L1** prompt rule | [`lib/ai/prompt/policy/operator-rules.ts`](lib/ai/prompt/policy/operator-rules.ts) `## TRUTH RULE` (`:121`) | Never claim past-tense action without a tool call |
+| **L2** post-persist rewrite | [`lib/ai/chat/fabrication-rewriter.ts`](lib/ai/chat/fabrication-rewriter.ts), called from [`lib/services/chat/post-persist-verification.ts`](lib/services/chat/post-persist-verification.ts) | After the reply has streamed and its row exists, a detected fabrication gets a verifier banner patched into the stored row (`:280-310`). The live bubble shows it only after a reload. |
 | **L3** history neutralization | [`lib/ai/chat/sanitize-history.ts`](lib/ai/chat/sanitize-history.ts) | Verifier-marked turns replaced so the model can't compound |
 | **L4** truth grounding | [`lib/ai/chat/truth-grounding.ts`](lib/ai/chat/truth-grounding.ts) | Task counts pre-injected as system facts |
-| **L5** operator surface | [`components/chat/message-diagnostics.tsx`](components/chat/message-diagnostics.tsx) + [`lib/services/claim-warnings.ts`](lib/services/claim-warnings.ts) | Surfaces the diagnostic in the transcript |
+| **L5** operator surface | [`lib/services/claim-warnings.ts`](lib/services/claim-warnings.ts) via tRPC `chat.claimWarnings` (`lib/trpc/routers/chat.ts:362`) | **ORPHANED (checked 2026-10-10):** no client calls `chat.claimWarnings`, and the `ActionClaimWarning` chip is gone from `components/chat/`. The operator sees only the L2 banner in the message text. |
 | **L6** evidence gate | [`lib/ai/reply-gate.ts`](lib/ai/reply-gate.ts) `runEvidenceGate` + [`chat/named-source-claims.ts`](lib/ai/chat/named-source-claims.ts) + [`chat/gate-enforcement.ts`](lib/ai/chat/gate-enforcement.ts) | A NAMED resource with no tool receipt this turn is a blocking claim — L1-L2 cover past-tense ACTION verbs only, so an invented channel name tripped nothing. **Runs in SHADOW** (`evidence_gate_shadow`, persisted at `tokenUsage.evidenceGate`): it CANNOT block on the streaming path, since `onFinish` runs after the last token flushes. Enforcement goes live on the buffered path once the shadow false-positive rate is known — **never read a shadow verdict as an enforced one.** Design: [`docs/NICK-TRUST-ARCHITECTURE-V2-2026-09-10.md`](docs/NICK-TRUST-ARCHITECTURE-V2-2026-09-10.md) |
 
 Detection regex: [`lib/ai/chat/action-claim-detector.ts`](lib/ai/chat/action-claim-detector.ts) — add
@@ -135,6 +135,9 @@ new verbs as they appear, then re-run its test file.
   NOTE: an early draft of this comment called it "the ONLY dangling reference across all 9
   files". An adversarial review refuted that — the cron-registry row two rows up in §3 pointed
   at `/api/cron/list` and `/system/cron-deck`, neither of which exists. Do not restate the boast.
+  2026-10-10 AUDIT (04-chat-lanes F3): that "live surface" was not live either. message-diagnostics.tsx
+  does not read claim-warnings, and chat.claimWarnings has no client caller. L5 is now marked ORPHANED;
+  L1 lives in operator-rules.ts, and L2 runs after persist, not before.
 -->
 
 ## 5 · Common gotchas — each cost a real incident
