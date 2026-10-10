@@ -97,8 +97,8 @@ Before every non-trivial task:
 Always-on meta-stances — invoke with the Skill tool by EXACT name below. A stance you did not
 invoke did not apply: naming it in prose is not invocation. If you claim a stance shaped your
 work, the Skill call must be in the transcript.
-- `superpowers-lab` - NOT INSTALLED (no copy in ~/.claude/skills, no public source; checked 2026-10-08). No always-on
-  replacement: run steps 1-4 above, and invoke `brainstorming` / `karpathy-guidelines` only when their own triggers match.
+- `i-have-adhd` + `antislop` — always on (operator, 2026-10-10): every reply shaped for an ADHD reader (answer first, numbered
+  steps, one next action); UI, copy or mobile work reads `.claude/skills/antislop/SKILL.md` then the task skill, mode per its Two Usage Modes.
 - `karpathy-guidelines` — every code task · think first · simplest thing that works · surgical edits · verifiable goal.
 - `using-superpowers` then `ponytail` — every task, invoked FIRST (operator, 2026-10-10; always on here and globally): if a skill might
   apply, invoke it (process skills in `.claude/skills/` before implementation); then the smallest complete change. SKILL.md only, no hooks.
