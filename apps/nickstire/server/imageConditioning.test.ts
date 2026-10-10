@@ -36,6 +36,24 @@ describe("buildSeedanceArgs — REEL_CLIP_MODEL (2026-10-10)", () => {
     expect(buildSeedanceArgs("x")[2]).toBe("seedance1_5");
     expect(resolveClipModel({ REEL_CLIP_MODEL: "sora2" } as NodeJS.ProcessEnv)).toBe("seedance1_5");
   });
+  it("seedance_2_5 names its mode: omni_reference with a start image, t2v without; bitrate high (CLI exit 4 on job 2070004)", () => {
+    process.env.REEL_CLIP_MODEL = "seedance_2_5";
+    process.env.REEL_IMAGE_CONDITIONING = "true";
+    const withImage = buildSeedanceArgs("x", { startImageUrl: "https://x/hero.jpg" });
+    expect(withImage[withImage.indexOf("--mode") + 1]).toBe("omni_reference");
+    expect(withImage).toContain("--start-image");
+    expect(withImage[withImage.indexOf("--bitrate_mode") + 1]).toBe("high");
+    expect(withImage.indexOf("--mode")).toBeLessThan(withImage.indexOf("--wait"));
+    const textOnly = buildSeedanceArgs("x", {});
+    expect(textOnly[textOnly.indexOf("--mode") + 1]).toBe("t2v");
+    delete process.env.REEL_IMAGE_CONDITIONING;
+    // flag off: no start image reaches the CLI, so the mode must be t2v even when a URL is offered
+    expect(buildSeedanceArgs("x", { startImageUrl: "https://x/hero.jpg" })).toContain("t2v");
+    // the incumbent model has no --mode flag; never send one
+    process.env.REEL_CLIP_MODEL = "seedance1_5";
+    expect(buildSeedanceArgs("x", { startImageUrl: "https://x/hero.jpg" })).not.toContain("--mode");
+  });
+
   it("an explicit model argument wins over the environment", () => {
     process.env.REEL_CLIP_MODEL = "seedance_2_5";
     expect(buildSeedanceArgs("x", { model: "seedance1_5" })[2]).toBe("seedance1_5");

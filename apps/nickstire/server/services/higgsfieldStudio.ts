@@ -534,8 +534,10 @@ export function resolveClipModel(env: NodeJS.ProcessEnv = process.env): ClipMode
 }
 
 export function buildSeedanceArgs(prompt: string, opts: { startImageUrl?: string; model?: ClipModel } = {}): string[] {
+  const model = opts.model ?? resolveClipModel();
+  const conditioned = Boolean(opts.startImageUrl && process.env.REEL_IMAGE_CONDITIONING === "true" && /\.(jpe?g|png|webp)([?#]|$)/i.test(opts.startImageUrl));
   const args = [
-    "generate", "create", opts.model ?? resolveClipModel(),
+    "generate", "create", model,
     "--prompt", prompt,
     "--aspect_ratio", "9:16",
     // Derived, not a literal: this is the request that MAKES the clip whose
@@ -547,9 +549,13 @@ export function buildSeedanceArgs(prompt: string, opts: { startImageUrl?: string
   // --start-image needs an IMAGE. Reject anything that is not an image URL
   // even under the flag — a video/other URL would fail or silently degrade
   // (the bug the acceptance-campaign setup surfaced: a chained mp4 clip URL).
-  if (opts.startImageUrl && process.env.REEL_IMAGE_CONDITIONING === "true" && /\.(jpe?g|png|webp)([?#]|$)/i.test(opts.startImageUrl)) {
-    args.push("--start-image", opts.startImageUrl);
-  }
+  if (conditioned) args.push("--start-image", opts.startImageUrl as string);
+  // seedance_2_5 has a --mode: a start image is only accepted under
+  // 'omni_reference' (measured 2026-10-10 03:45Z on job 2070004: the CLI exited 4
+  // with "start_image and end_image are only allowed for mode 'omni_reference'",
+  // nothing submitted, nothing spent); text-only renders use 't2v'. bitrate_mode
+  // 'high' is the README's own 2.5 example and costs nothing extra in credits.
+  if (model === "seedance_2_5") args.push("--mode", conditioned ? "omni_reference" : "t2v", "--bitrate_mode", "high");
   args.push("--wait", "--json");
   return args;
 }
