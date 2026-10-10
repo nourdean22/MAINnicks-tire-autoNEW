@@ -510,6 +510,16 @@ async function warn(stage: string, meta: Record<string, unknown>, e: unknown): P
  * at the next request after the cache expires, not mid-step. Fail OPEN: an
  * unreadable switch never stops a cron (`cronHandler` makes the same call).
  */
+/**
+ * EVENT-triggered functions the kill switch may stop (2026-10-10, audit 03-F15:
+ * social-publish, bulk-sms-approval, nick-action-approved, ... had no operator
+ * stop). OPT-IN and EMPTY: nothing changes until an id is added here. To use:
+ * add the function id, deploy, then switch it off with
+ * systemAutomation.setCronEnabled({ jobName: "<id>", enabled: false }). A
+ * killed event run returns the skip shape and its event is NOT replayed.
+ */
+export const KILLABLE_EVENT_FUNCTIONS = new Set<string>([]);
+
 export const KILL_SWITCH_SKIP_REASON = "disabled via settings";
 export const KILL_SWITCH_TTL_MS = 30_000;
 const killSwitchCache = new Map<string, { enabled: boolean; at: number }>();
@@ -549,15 +559,17 @@ export class CronLifecycleMiddleware extends Middleware.BaseMiddleware {
     await beginCronRun(arg.fn, arg.ctx);
   }
 
-  // The kill switch (see isCronKilled above). Only cron-triggered functions
-  // with a manifest name are gated; event-triggered functions and fan-out
-  // children run untouched. Any failure in the check itself runs the cron.
+  // The kill switch (see isCronKilled above). Cron-triggered functions with a
+  // manifest name are gated, plus event-triggered functions listed in
+  // KILLABLE_EVENT_FUNCTIONS; every other event function and the fan-out
+  // children run untouched. Any failure in the check itself runs the function.
   override async wrapFunctionHandler(args: {
     ctx: unknown;
     fn: unknown;
     next: () => Promise<unknown>;
   }): Promise<unknown> {
-    if (isCronTriggered(args.fn)) {
+    const optedInEvent = KILLABLE_EVENT_FUNCTIONS.has(jobNameOf(args.fn) ?? "");
+    if (isCronTriggered(args.fn) || optedInEvent) {
       const jobName = killSwitchNameOf(args.fn);
       const runId = runIdOf(args.ctx);
       const now = Date.now();

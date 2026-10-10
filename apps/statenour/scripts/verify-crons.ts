@@ -76,12 +76,17 @@ const files = fs.existsSync(functionsDir)
 }
 
 const inngestCrons = new Map<string, string>();
+// Every function id, cron-triggered or not: a non-active entry may be parked
+// by having its cron trigger removed, but it still needs a handler.
+const inngestFunctionIds = new Set<string>();
 
 for (const file of files) {
   const content = fs.readFileSync(path.join(functionsDir, file), "utf-8");
   const blocks = content.split(".createFunction(");
   for (let i = 1; i < blocks.length; i++) {
     const block = blocks[i];
+    const anyId = block.match(/id:\s*["'`]([^"'`]+)["'`]/);
+    if (anyId) inngestFunctionIds.add(anyId[1]);
     const cronMatch = block.match(/cron:\s*["'`]([^"'`]+)["'`]/);
     if (cronMatch) {
       const idMatch = block.match(/id:\s*["'`]([^"'`]+)["'`]/);
@@ -106,13 +111,19 @@ for (const [id, schedule] of inngestCrons.entries()) {
   }
 }
 
-// B. Check that all active inngest crons in manifest actually exist in code
+// B. Check that all active inngest crons in manifest actually exist in code,
+// and that a non-active one still has a handler (2026-10-10: `neglect-penalty`
+// sat here as "dormant" with no function at all, because only active entries
+// were checked).
 for (const c of CRONS) {
-  if (c.inngest && c.mode === "active") {
+  if (!c.inngest) continue;
+  if (c.mode === "active") {
     const codeSchedule = inngestCrons.get(c.name);
     if (!codeSchedule) {
       fail(`Inngest cron "${c.name}" is marked active in manifest but no cron function with this id exists in lib/inngest/functions/`);
     }
+  } else if (!inngestFunctionIds.has(c.name)) {
+    fail(`Inngest cron "${c.name}" (mode=${c.mode}) has no function with this id in lib/inngest/functions/ - no handler exists; delete the manifest entry`);
   }
 }
 if (errors === 0) ok(`${inngestCrons.size} Inngest-native crons validated successfully`);
@@ -256,10 +267,14 @@ console.log("[6/7]  manifest active -> actually fires");
 // Crons that legitimately fire OUTSIDE the fan-out (verified live in
 // CronJobLog). Keep this list tiny + evidence-based.
 const INDEPENDENT = new Set([
-  "error-telegram-push", // fires every ~10min via its own path (verified live)
   "mega", // the morning dispatcher itself (Inngest cron 0 9 * * *)
   "mega-evening", // the evening dispatcher itself (Inngest cron 0 3 * * *)
 ]);
+// An allowlist entry naming no cron excuses nothing and hides the next one
+// (2026-10-10: "error-telegram-push" outlived its cron).
+for (const n of INDEPENDENT) {
+  if (!CRONS.some((c) => c.name === n)) fail(`INDEPENDENT allowlist names "${n}", which is not in config/crons.ts - remove the dead entry`);
+}
 let phantomActive = 0;
 for (const c of CRONS) {
   if (c.mode !== "active") continue;

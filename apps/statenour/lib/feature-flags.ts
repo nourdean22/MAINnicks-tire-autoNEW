@@ -59,7 +59,8 @@ export interface FeatureFlag {
   defaultOn?: boolean;
   /** Exact raw value that disables a default-on flag. This mirrors runtimes
    * such as `process.env.FLAG !== "0"`; it is deliberately not trimmed or
-   * normalized before comparison. */
+   * normalized before comparison. Several values are pipe-delimited
+   * (`"false|0"`), each still compared exactly. */
   offValue?: string;
   /** Optional · linked migration in docs/migrations/. */
   relatedMigration?: string;
@@ -397,7 +398,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   },
   {
     key: "NICK_AUTONOMY",
-    description: "Enables the proactive autonomous-engine cron (22 built rules: revenue-pace, urgent-leads, drift, commitment enforcement, morning brief, etc.) + the nick-action propose->execute queue. ALL outputs route through the /qa Telegram approval gate FIRST — nothing auto-sends. OFF = no proactive proposals generated.",
+    description: "Enables the proactive autonomous-engine cron (dispatched hourly by the automation-engine Inngest tick; rules in lib/brain/autonomous-engine.ts: quote follow-up, commitment check-ins and escalation, drift, stale leads, revenue checks, etc.) + the nick-action propose->execute queue. ALL outputs route through the /qa Telegram approval gate FIRST — nothing auto-sends. OFF = no proactive proposals generated.",
     status: "experimental",
     onValue: "true",
     defaultBehavior: "runAutonomousActions + nick-action proposer never fire; the /qa approval queue stays empty.",
@@ -650,10 +651,12 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     // 2026-09-01 audit: consumer reads raw process.env at module load —
     // a DB override never reaches it. readOnly keeps the board honest.
     readOnly: true,
-    description: "Activates the Inngest mega fan-out dispatcher — the daily morning/evening cron children fan out via Inngest instead of the Railway cron path. Must equal `true` (disable the Railway cron to avoid double-fire). OFF = mega fan-out returns skipped.",
-    status: "canary",
+    description: "Kill switch for the Inngest mega fan-out (morning 09:00 / evening 03:00 UTC), the ONLY scheduler for the ~51 daily/weekly cron children (the legacy /api/cron/mega route is manual-run only). LIVE by default; set to `false` or `0` to stop both slots (every child then stops). Reads `megaFanoutDisabled()` in lib/inngest/functions/mega-fanout.ts.",
+    status: "stable",
     onValue: "true",
-    defaultBehavior: "Mega fan-out skips; daily children run via the Railway cron path.",
+    offValue: "false|0",
+    defaultOn: true,
+    defaultBehavior: "Mega fan-out RUNS (unset = on).",
     ownerDoc: "lib/inngest/functions/mega-fanout.ts",
   },
   {
@@ -822,7 +825,7 @@ function computeIsOn(spec: FeatureFlag, rawValue: string): boolean {
   // Unset → the flag's declared default. Only graduated flags set defaultOn.
   if (!rawValue) return spec.defaultOn === true;
 
-  if (spec.offValue !== undefined) return rawValue !== spec.offValue;
+  if (spec.offValue !== undefined) return !spec.offValue.split("|").includes(rawValue);
 
   const lower = rawValue.toLowerCase();
 

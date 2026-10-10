@@ -22,14 +22,14 @@
  * which no other surface does. A dead cron writes no row, so ABSENCE is
  * the signal — exactly what every outcome-based check misses.
  *
- * Future: extend to the other dedicated Inngest functions (goal-pruner,
- * morning-brief, …) — they can silently die too. Scoped here to the
- * fan-out, the subsystem that actually broke.
+ * 2026-10-10 (audit 08-F8): the active Inngest-native and worker-fired crons
+ * in config/crons.ts are watched too (silence lane only, see expectedJobs).
  */
 import { getInngest } from "../client";
 import { TERMINAL_OK_STATUSES } from "../cron-lifecycle";
 import { onInngestFailure } from "../on-failure";
 import { MORNING_JOBS, EVENING_JOBS, WEEKLY_JOBS } from "../jobs";
+import { CRONS } from "@/config/crons";
 import { prisma } from "@/lib/prisma";
 import { recordCoachEvent } from "@/lib/services/coach-events";
 import { sendTelegram, formatTelegramNotification } from "@/lib/services/telegram";
@@ -42,21 +42,67 @@ const log = rootLogger.withSurface("inngest/cron-heartbeat");
 const HOUR_MS = 3_600_000;
 const DAILY_MAX_AGE_H = 26; // a daily fan-out job missed a cycle (24h + grace)
 const WEEKLY_MAX_AGE_H = 24 * 8; // a weekly fan-out job missed a week
+/** Exactly what `new Date().toISOString()` writes into the first-seen registry. */
+const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
 const nameOf = (path: string) =>
   path.replace(/^\/api\/cron\//, "").replace(/\?.*$/, "");
 
+export interface ExpectedJob {
+  name: string;
+  maxAgeH: number;
+  /** Watched for silence only, never for the failing lane (see expectedJobs). */
+  silenceOnly?: true;
+}
+
 /**
- * Each fan-out job + its expected max silence. WEEKLY_JOBS only fire on
- * Sunday-ET (appended to the evening slot), so they get the 8-day window;
- * MORNING/EVENING members are daily. A job in both morning + evening is
- * daily (the looser of the two never applies).
+ * Hours between fires of a 5-field UTC cron expression, or null for a shape
+ * this watchdog does not judge (monthly, month-restricted). A job with a null
+ * period is not watched rather than watched on a guessed window.
  */
-function expectedJobs(): { name: string; maxAgeH: number }[] {
+export function cronPeriodH(schedule: string | null | undefined): number | null {
+  const f = schedule?.trim().split(/\s+/);
+  if (!f || f.length !== 5) return null;
+  const [min, hour, dom, mon, dow] = f;
+  if (dom !== "*" || mon !== "*") return null;
+  if (dow !== "*") return /^\d(,\d)*$/.test(dow) && /^\d+(,\d+)*$/.test(hour) ? 24 * 7 : null;
+  if (/^\d+(,\d+)*$/.test(hour)) return 24;
+  const everyH = /^\*\/(\d+)$/.exec(hour);
+  if (everyH) return Number(everyH[1]);
+  if (hour !== "*") return null;
+  const everyM = /^\*\/(\d+)$/.exec(min);
+  if (everyM) return Number(everyM[1]) / 60;
+  return /^\d+$/.test(min) ? 1 : null;
+}
+
+/**
+ * Every job this watchdog expects a recent run from, + its max silence.
+ *
+ * Fan-out children come from lib/inngest/jobs.ts, because that list is what
+ * FIRES them (check:crons [5/7]-[6/7] binds it to the manifest) and their
+ * windows are unchanged: WEEKLY_JOBS only fire on Sunday-ET, so 8 days;
+ * MORNING/EVENING members are daily; a job in both slots is daily.
+ *
+ * Active Inngest-native and worker-fired crons come from config/crons.ts, their
+ * only registry (2026-10-10 audit 08-F8: 17 Inngest + 5 worker crons had no
+ * silence detector). Window = period + 2h, or + 24h past daily, which
+ * reproduces the fan-out's 26h / 192h. These are SILENCE-ONLY: the failing lane
+ * pages on a run-and-fail streak, and FAILURE_IS_STEADY_STATE shows that lane
+ * needs a measured failure rate per job before it can speak; none is measured
+ * for these yet.
+ */
+export function expectedJobs(): ExpectedJob[] {
   const daily = new Set([...MORNING_JOBS, ...EVENING_JOBS].map(nameOf));
-  const out = [...daily].map((name) => ({ name, maxAgeH: DAILY_MAX_AGE_H }));
+  const out: ExpectedJob[] = [...daily].map((name) => ({ name, maxAgeH: DAILY_MAX_AGE_H }));
   for (const name of new Set(WEEKLY_JOBS.map(nameOf))) {
     if (!daily.has(name)) out.push({ name, maxAgeH: WEEKLY_MAX_AGE_H });
+  }
+  const seen = new Set(out.map((e) => e.name));
+  for (const c of CRONS) {
+    if (c.mode !== "active" || !(c.inngest || c.worker) || c.name === "cron-heartbeat" || seen.has(c.name)) continue;
+    const periodH = cronPeriodH(c.schedule);
+    if (periodH === null) continue;
+    out.push({ name: c.name, maxAgeH: periodH > 24 ? periodH + 24 : periodH + 2, silenceOnly: true });
   }
   return out;
 }
@@ -141,7 +187,7 @@ export const FAILURE_IS_STEADY_STATE: ReadonlySet<string> = new Set([
 ]);
 
 export function classifySilence(
-  expected: ReadonlyArray<{ name: string; maxAgeH: number }>,
+  expected: ReadonlyArray<{ name: string; maxAgeH: number; silenceOnly?: boolean }>,
   lastMsByName: ReadonlyMap<string, number | null>,
   firstSeenMsByName: ReadonlyMap<string, number>,
   nowMs: number,
@@ -173,7 +219,7 @@ export function classifySilence(
       // relationship-picks-prewarm, nick-action-proposal, correlation-alarm,
       // creation-spike-detect, cost-slo-check, intelligence, semantic-link).
       // One degraded night must not page. Sixteen days must.
-      if (lastOkMsByName !== undefined && !FAILURE_IS_STEADY_STATE.has(e.name)) {
+      if (lastOkMsByName !== undefined && !e.silenceOnly && !FAILURE_IS_STEADY_STATE.has(e.name)) {
         const lastOk = lastOkMsByName.get(e.name) ?? null;
         const lastOkAgeH = lastOk == null ? null : (nowMs - lastOk) / HOUR_MS;
         if (lastOkAgeH === null || lastOkAgeH > e.maxAgeH * 2) {
@@ -304,20 +350,29 @@ export const cronHeartbeat = inngest.createFunction(
           select: { key: true, content: true },
         });
         for (const r of rows) {
-          const ms = Date.parse(r.content);
-          if (!Number.isNaN(ms)) out[r.key.replace(/^first-seen:/, "")] = ms;
+          // Only a value this registry wrote counts. Consolidation has rewritten
+          // these rows into prose, and Date.parse accepts prose-shaped dates
+          // ("October 1, 2026"): a parse is not a timestamp. Anything else is
+          // treated as missing and rewritten below.
+          if (ISO_TIMESTAMP.test(r.content)) out[r.key.replace(/^first-seen:/, "")] = Date.parse(r.content);
         }
         const nowIso = new Date().toISOString();
         for (const n of names) {
           if (out[n] !== undefined) continue;
-          await prisma.brainMemory.create({
-            data: {
+          // upsert, not create: an unusable row already holds this (category,key),
+          // and create() on it was the 2026-10-10 12:00:01Z P2002 that nulled the
+          // whole registry (every never-run job then paged).
+          const key = `first-seen:${n}`;
+          await prisma.brainMemory.upsert({
+            where: { category_key: { category: BRAIN_CATEGORIES.CRONS, key } },
+            create: {
               category: BRAIN_CATEGORIES.CRONS,
-              key: `first-seen:${n}`,
+              key,
               content: nowIso,
               source: "cron-heartbeat",
               createdBy: "system",
             },
+            update: { content: nowIso },
           });
           out[n] = Date.parse(nowIso);
         }
