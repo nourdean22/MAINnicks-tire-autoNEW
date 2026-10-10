@@ -27,6 +27,7 @@
 import "server-only";
 
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
 import { extractJsonArray } from "@/lib/ai/extract-structured";
 import { logger as rootLogger } from "@/lib/logger";
 
@@ -92,7 +93,9 @@ export async function verifyAndRevise(
       "reason",
       { signal: opts.signal },
     );
-    if (!planRes.content || planRes.provider === "none") return noop;
+    // A provider outage RETURNS the "emergency" sentinel (non-empty prose);
+    // isAiSentinel covers it, "none", and empty content alike.
+    if (isAiSentinel(planRes)) return noop;
 
     const parsed = extractJsonArray<string>(planRes.content);
     if (!parsed.ok) {
@@ -122,7 +125,7 @@ export async function verifyAndRevise(
             "fast",
             { signal: opts.signal },
           );
-          if (!res.content || res.provider === "none") return null;
+          if (isAiSentinel(res)) return null;
           return res.content.trim().slice(0, 600);
         } catch {
           return null;
@@ -149,7 +152,7 @@ export async function verifyAndRevise(
       "reason",
       { signal: opts.signal },
     );
-    if (!reviseRes.content || reviseRes.provider === "none") {
+    if (isAiSentinel(reviseRes)) {
       return { ...noop, questions };
     }
 

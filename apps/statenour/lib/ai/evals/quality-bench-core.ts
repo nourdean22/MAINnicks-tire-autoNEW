@@ -28,6 +28,11 @@ export interface PromptRunResult {
   checks: CheckResult[];
   pass: boolean;
   error?: string;
+  /** No model output to judge (provider threw, or returned nothing). An
+   *  outage, not a quality failure: excluded from failed and pass_rate. */
+  errored?: boolean;
+  /** Model id the prompt ran against. */
+  model?: string;
   durationMs?: number;
 }
 
@@ -35,8 +40,14 @@ export interface BenchSummary {
   results: PromptRunResult[];
   total: number;
   passed: number;
+  /** Prompts whose output was judged and failed a check. Excludes errored. */
   failed: number;
   failedIds: string[];
+  /** Prompts with no output to judge (provider outage). */
+  errored: number;
+  erroredIds: string[];
+  /** Model id the bench ran against (null when no prompt reached a model). */
+  model: string | null;
 }
 
 // ── Check helpers ────────────────────────────────────────────────────
@@ -125,7 +136,7 @@ export function checkSpecificityMarkerDensity(output: string, min: number): Chec
 
 // ── Model invocation ─────────────────────────────────────────────────
 
-async function callModel(prompt: QualityPrompt): Promise<string> {
+async function callModel(prompt: QualityPrompt): Promise<{ output: string; model: string }> {
   // Use the in-codebase provider stack so the bench tests the SAME
   // path that production uses. This includes the model selection, the
   // env override, the brand context, etc.
@@ -136,6 +147,7 @@ async function callModel(prompt: QualityPrompt): Promise<string> {
   // extracted from passed the string "default", which is not a TaskType — it
   // only typechecked because scripts/ is excluded from tsc.
   const model = getModel();
+  const modelId = (model as { modelId?: string }).modelId ?? String(model);
 
   // Build messages · simulates a chat turn with optional prior context
   const messages: Array<{ role: "user" | "assistant"; content: string }> = [];
@@ -153,9 +165,15 @@ async function callModel(prompt: QualityPrompt): Promise<string> {
     abortSignal: AbortSignal.timeout(30000),
   });
 
+  // An empty completion is generateText's version of the aiChat outage
+  // sentinel: there is nothing to judge, so it is errored, not a failure.
+  if (!text || text.trim().length === 0) {
+    throw new Error(`empty completion from ${modelId}`);
+  }
+
   // Run through the sanitizer · matches production path
   const { sanitizeResponse } = await import("@/lib/ai/output-sanitizer");
-  return sanitizeResponse(text).cleaned;
+  return { output: sanitizeResponse(text).cleaned, model: modelId };
 }
 
 // ── Per-prompt runner ────────────────────────────────────────────────
@@ -182,8 +200,21 @@ export async function runPrompt(prompt: QualityPrompt, dry: boolean): Promise<Pr
   }
 
   const startedAt = Date.now();
+  let called: { output: string; model: string };
   try {
-    const output = await callModel(prompt);
+    called = await callModel(prompt);
+  } catch (e) {
+    // A provider failure, never a verdict on the model's output.
+    result.error = (e as Error).message;
+    result.pass = false;
+    result.errored = true;
+    result.durationMs = Date.now() - startedAt;
+    return result;
+  }
+
+  try {
+    const { output, model } = called;
+    result.model = model;
     result.output = output;
     result.outputLength = output.length;
     result.durationMs = Date.now() - startedAt;
@@ -250,12 +281,16 @@ export async function runQualityBench(
   for (const prompt of prompts) {
     results.push(await runPrompt(prompt, options.dry ?? false));
   }
-  const failedIds = results.filter((r) => !r.pass).map((r) => r.id);
+  const erroredIds = results.filter((r) => r.errored).map((r) => r.id);
+  const failedIds = results.filter((r) => !r.pass && !r.errored).map((r) => r.id);
   return {
     results,
     total: results.length,
-    passed: results.length - failedIds.length,
+    passed: results.length - failedIds.length - erroredIds.length,
     failed: failedIds.length,
     failedIds,
+    errored: erroredIds.length,
+    erroredIds,
+    model: results.find((r) => r.model)?.model ?? null,
   };
 }

@@ -1,9 +1,19 @@
 import { makeTracedAiChat } from "../../traced-aichat";
+import { isAiSentinel } from "../../provider";
 import { SpecialistInput, SpecialistResponse, extractHandBack } from "../types";
 import { getMarketingPersonas } from "../marketing/loader";
 import { personaToSystemPrompt } from "../../personas";
 
 const aiChat = makeTracedAiChat("specialist-marketing-director", "brain");
+
+/** aiChat RETURNS an outage sentinel instead of throwing. Hand back so
+ *  specialist-routing falls through to the main lane rather than shipping
+ *  the apology (or canned copy) as a finished specialist turn. */
+const PROVIDER_UNAVAILABLE: SpecialistResponse = {
+  content: "",
+  handBack: true,
+  reason: "provider_unavailable",
+};
 
 /**
  * Specialist sub-agent for coordinating marketing campaigns and delegating to 
@@ -40,14 +50,14 @@ Respond with ONLY the key of the selected specialist, exactly as shown in quotes
     { role: "system", content: selectorPrompt },
     { role: "user", content: `Select persona for: "${userText}"` }
   ], "classify");
+  if (isAiSentinel(selectionResult)) return PROVIDER_UNAVAILABLE;
 
   const selectedKey = selectionResult.content.trim().replace(/^["']|["']$/g, "");
   const selectedPersona = personas[selectedKey] || null;
 
   if (!selectedPersona) {
-    return {
-      content: "I am ready to coordinate your marketing strategy. Let me know if we should focus on email sequences, SEO, AEO, social media, or growth hacking."
-    };
+    // No persona fits: the main lane answers, never a canned non-answer.
+    return { content: "", handBack: true, reason: "no_persona_selected" };
   }
 
   // 3. Delegate to the chosen specialist persona
@@ -67,6 +77,7 @@ INSTRUCTIONS FOR LIVE CHAT:
   chatMessages.unshift({ role: "system", content: systemPrompt });
 
   const chatResult = await aiChat(chatMessages, "reason");
+  if (isAiSentinel(chatResult)) return PROVIDER_UNAVAILABLE;
 
   const handBackResult = extractHandBack(chatResult.content);
 

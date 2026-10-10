@@ -26,7 +26,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { aiChat } from "@/lib/ai/provider";
+import { aiChat, isAiSentinel } from "@/lib/ai/provider";
 import { logger as rootLogger } from "@/lib/logger";
 import type { FollowUpPayload } from "./follow-up";
 
@@ -39,6 +39,9 @@ export interface RunFollowUpResult {
   ok: boolean;
   messageId?: string;
   reason: string;
+  /** True when the failure is transient (provider outage) and the follow-up
+   *  should run again later. Absent on deliberate drops (archived thread). */
+  retryable?: boolean;
 }
 
 export async function runFollowUp(payload: FollowUpPayload): Promise<RunFollowUpResult> {
@@ -92,13 +95,16 @@ export async function runFollowUp(payload: FollowUpPayload): Promise<RunFollowUp
   // SENTINEL (app AGENTS.md, common gotchas). Persisting that sentinel
   // as a cheerful assistant message is exactly the fabrication class this
   // codebase defends against, so check the provider before trusting text.
-  if (result.provider === "emergency" || result.provider === "none") {
-    return { ok: false, reason: `provider sentinel (${result.provider}) — not persisting` };
+  // An outage is TRANSIENT: `retryable` tells the cron to re-queue the row
+  // with a backoff instead of marking it done (which dropped it forever).
+  if (isAiSentinel(result)) {
+    return {
+      ok: false,
+      retryable: true,
+      reason: `provider unavailable (${result.provider}) - not persisting, will retry`,
+    };
   }
-  const text = (result.content ?? "").trim();
-  if (!text) {
-    return { ok: false, reason: "empty completion — not persisting" };
-  }
+  const text = result.content.trim();
 
   const body = `**${"↻"} Following up** — ${text}`;
   const row = await prisma.chatMessage.create({

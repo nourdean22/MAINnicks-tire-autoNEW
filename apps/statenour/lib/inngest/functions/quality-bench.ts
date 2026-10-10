@@ -37,13 +37,19 @@ const log = rootLogger.withSurface("inngest/quality-bench");
  * Pure and exported so the distinction is testable without executing a live
  * benchmark against real model providers.
  */
-export type BenchOutcome = "alert" | "unresolved" | "ok";
+export type BenchOutcome = "alert" | "unresolved" | "ok" | "unmeasured";
 
+/**
+ * `passRate: null` means no prompt produced output to judge (every one
+ * errored on a provider outage). That is UNMEASURED: never ok, and never a
+ * drift alert, because nothing about the model or prompt was observed.
+ */
 export function classifyBenchOutcome(a: {
   failed: number;
-  passRate: number;
+  passRate: number | null;
   prevRate: number | null;
 }): BenchOutcome {
+  if (a.passRate == null) return "unmeasured";
   const regressed = a.prevRate != null && a.passRate < a.prevRate;
   if (a.failed > 0 && (regressed || a.prevRate == null)) return "alert";
   if (a.failed > 0) return "unresolved";
@@ -84,7 +90,16 @@ export const qualityBenchWeekly = inngest.createFunction(
           error: r.error ?? null,
           failedChecks: r.checks.filter((c) => !c.pass).map((c) => `${c.check}: ${c.detail ?? ""}`),
         }));
-      return { total: bench.total, passed: bench.passed, failed: bench.failed, failedIds: bench.failedIds, failing };
+      return {
+        total: bench.total,
+        passed: bench.passed,
+        failed: bench.failed,
+        failedIds: bench.failedIds,
+        errored: bench.errored,
+        erroredIds: bench.erroredIds,
+        model: bench.model,
+        failing,
+      };
     });
 
     const baseline = await step.run("baseline-diff", async () => {
@@ -93,28 +108,54 @@ export const qualityBenchWeekly = inngest.createFunction(
         orderBy: { createdAt: "desc" },
         select: { value: true, createdAt: true },
       });
-      const passRate = summary.total > 0 ? summary.passed / summary.total : 0;
-      await prisma.systemMetric.create({
-        data: {
-          metric: "quality_bench.pass_rate",
-          value: passRate,
-          unit: "ratio",
-          source: "inngest",
-          tags: { total: summary.total, passed: summary.passed, failed: summary.failed, failedIds: summary.failedIds },
-        },
-      });
+      // Errored prompts (provider outage) had no output to judge: they are
+      // excluded from the denominator. With nothing measured there is no rate,
+      // and writing 0 would be a confident zero the next run diffs against.
+      const measured = summary.total - summary.errored;
+      const passRate = measured > 0 ? summary.passed / measured : null;
+      if (passRate != null) {
+        await prisma.systemMetric.create({
+          data: {
+            metric: "quality_bench.pass_rate",
+            value: passRate,
+            unit: "ratio",
+            source: "inngest",
+            tags: {
+              total: summary.total,
+              passed: summary.passed,
+              failed: summary.failed,
+              failedIds: summary.failedIds,
+              errored: summary.errored,
+              erroredIds: summary.erroredIds,
+              model: summary.model,
+            },
+          },
+        });
+      }
       return { passRate, prevRate: prev?.value ?? null, prevAt: prev?.createdAt?.toISOString() ?? null };
     });
 
-    const regressed = baseline.prevRate != null && baseline.passRate < baseline.prevRate;
+    const regressed =
+      baseline.passRate != null && baseline.prevRate != null && baseline.passRate < baseline.prevRate;
     const outcome = classifyBenchOutcome({
       failed: summary.failed,
       passRate: baseline.passRate,
       prevRate: baseline.prevRate,
     });
-    if (outcome === "alert") {
+    if (outcome === "unmeasured") {
+      // Every prompt errored: a provider outage, not drift. No alert, no
+      // pass_rate row, and deliberately not `bench_ok`.
+      log.warn("bench_unmeasured_provider_unavailable", {
+        errored: summary.errored,
+        total: summary.total,
+        model: summary.model,
+        errors: summary.failing.map((f) => f.error).filter(Boolean).slice(0, 3),
+      });
+    } else if (outcome === "alert") {
       const title = `Quality bench: ${summary.failed}/${summary.total} failing${regressed ? " (REGRESSION)" : ""}`;
-      const body = `Pass rate ${(baseline.passRate * 100).toFixed(0)}%${
+      const body = `Pass rate ${((baseline.passRate ?? 0) * 100).toFixed(0)}%${
+        summary.errored > 0 ? ` over ${summary.total - summary.errored} measured (${summary.errored} errored on provider, excluded)` : ""
+      }${
         baseline.prevRate != null ? ` (was ${(baseline.prevRate * 100).toFixed(0)}%)` : " (first measured run)"
       }. Failing: ${summary.failedIds.join(", ")}. Model, system prompt, or sanitizer drifted — run scripts/run-quality-bench.ts --ids=${summary.failedIds.join(",")} to reproduce.`;
       await step.run("regression-alert", async () => {
@@ -152,6 +193,14 @@ export const qualityBenchWeekly = inngest.createFunction(
         failedIds: summary.failedIds,
         passRate: baseline.passRate,
         note: "not a new regression, still unresolved - deliberately not silent",
+      });
+    } else if (summary.errored > 0) {
+      // Everything measured passed, but some prompts were never measured.
+      log.warn("bench_ok_partial", {
+        passed: summary.passed,
+        total: summary.total,
+        errored: summary.errored,
+        erroredIds: summary.erroredIds,
       });
     } else {
       log.info("bench_ok", { passed: summary.passed, total: summary.total });

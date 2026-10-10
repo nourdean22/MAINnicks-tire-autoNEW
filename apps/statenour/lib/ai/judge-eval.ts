@@ -121,7 +121,15 @@ export function modelFamily(provider?: string | null, model?: string | null): st
   return modelFamilyFromLane(provider, model);
 }
 
-async function _judgeReply(args: JudgeArgs): Promise<JudgeReport | null> {
+/** No provider answered the judge call (aiChat sentinel). Not a score:
+ *  judgeReplyAsync persists it as an UNKNOWN coverage row; the public
+ *  judgeReply maps it to null. */
+interface JudgeUnavailable {
+  unavailable: true;
+  provider: string;
+}
+
+async function _judgeReply(args: JudgeArgs): Promise<JudgeReport | JudgeUnavailable | null> {
   // v10.0.412 · was hardcoded to OPENAI_API_KEY direct fetch · which
   // silently returned null in production because operator's stack
   // is Venice + Ollama Cloud Pro co-1st, OpenAI is fallback only.
@@ -144,6 +152,9 @@ Score the reply. Output JSON only.`;
   // wrap installed in traced-aichat.ts. Closes the judge-eval portion
   // of audit #338 (uncapped chat-turn cost amplifier).
   const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+  // Lazy like traced-aichat above: provider pulls in "server-only", which the
+  // standalone judge scripts neutralize only before their dynamic loads.
+  const { isAiSentinel } = await import("@/lib/ai/provider");
   const tracedChat = makeTracedAiChat("judge-eval", "brain");
   let text = "";
   let judgedBy = "unknown";
@@ -155,6 +166,16 @@ Score the reply. Output JSON only.`;
       ],
       "classify",
     );
+    // An outage RETURNS a sentinel ("emergency:none"). It used to fall into
+    // the family check below and vanish as judge_unknown_family_discarded,
+    // indistinguishable from "not judged". Count it and report it as such.
+    if (isAiSentinel(result)) {
+      log.warn("judge_unavailable", {
+        provider: result?.provider ?? null,
+        generatedBy: `${args.generatedByProvider ?? "?"}:${args.generatedByModel ?? "?"}`,
+      });
+      return { unavailable: true, provider: String(result?.provider ?? "none") };
+    }
     text = (result.content ?? "").trim();
     judgedBy = `${result.provider ?? "?"}:${result.model ?? "?"}`;
 
@@ -302,10 +323,18 @@ export const JUDGE_GUARDIAN_OPTS = {
  * (dangerous: it passes a broken one). A static guard is allowed to demand its
  * marker at the call site. The duplication is the price, and it is cheap.
  */
-export const judgeReply = withGuardian("judge-eval", _judgeReply, {
+const judgeReplyOutcome = withGuardian("judge-eval", _judgeReply, {
   ...JUDGE_GUARDIAN_OPTS,
   reliabilityOnly: true,
 });
+
+/** Public contract (scripts depend on it): a report, or null when judging
+ *  failed, was discarded, or no provider answered. */
+export async function judgeReply(args: JudgeArgs): Promise<JudgeReport | null> {
+  const outcome = await judgeReplyOutcome(args);
+  if (outcome && "unavailable" in outcome) return null;
+  return outcome;
+}
 
 /**
  * Fire-and-forget · runs the eval async + persists score to a brain
@@ -313,12 +342,33 @@ export const judgeReply = withGuardian("judge-eval", _judgeReply, {
  */
 export async function judgeReplyAsync(args: JudgeArgs & { messageId: string }) {
   try {
-    const report = await judgeReply(args);
+    const report = await judgeReplyOutcome(args);
     if (!report) return;
 
     // Persist via brainMemory.remember · category=reply_judgment so
     // it doesn't pollute wisdom recall but stays queryable.
     const { brainMemory } = await import("@/lib/brain/memory-manager");
+
+    if ("unavailable" in report) {
+      // Coverage row, not a score: no rubric / composite, so every reader
+      // that averages (improve-agent, persona-lane census) skips it. Its own
+      // key, so the persona backfill (which reads judge_<id> as "already
+      // judged") still treats the message as never judged.
+      await brainMemory.remember(
+        "reply_judgment",
+        `judge_unavailable_${args.messageId}`,
+        "Not judged - no AI provider answered the judge call",
+        "judge-eval",
+        {
+          messageId: args.messageId,
+          verdict: "UNKNOWN",
+          judgedBy: "unavailable",
+          provider: report.provider,
+        },
+      );
+      return;
+    }
+
     await brainMemory.remember(
       "reply_judgment",
       `judge_${args.messageId}`,

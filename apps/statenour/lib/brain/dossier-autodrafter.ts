@@ -19,6 +19,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 
@@ -125,6 +126,8 @@ Plain markdown · no headers · just bullets.`;
       ],
       "reason",
     );
+    // An outage RETURNS a non-empty apology; it is a failed draft, not a dossier.
+    if (isAiSentinel(result)) return null;
     const draft = (result.content ?? "").trim();
     return draft.length > 0 ? draft : null;
   } catch {
