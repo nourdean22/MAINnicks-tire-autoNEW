@@ -49,7 +49,9 @@ function bodyOf(name: string, endsBefore?: string): string {
 
 describe("SUCCESS_OUTCOMES", () => {
   it("names the outcomes classifyCall treats as wins, and none of the failure outcomes", () => {
-    expect([...SUCCESS_OUTCOMES]).toEqual(["hard_conversion", "walk_in_directed", "human_handoff", "resolved_info"]);
+    // human_handoff dropped 2026-10-10 (operator decision): a handoff is not the bot resolving the call.
+    expect([...SUCCESS_OUTCOMES]).toEqual(["hard_conversion", "walk_in_directed", "resolved_info"]);
+    expect(SUCCESS_OUTCOMES).not.toContain("human_handoff");
     // The failure pool the optimizer trains on must stay disjoint.
     for (const failure of ["lost_opportunity", "callback_needed", "tech_failure"]) {
       expect(SUCCESS_OUTCOMES).not.toContain(failure);

@@ -1011,7 +1011,7 @@ run in production yet.
      the gate refuses as `evaluator-unavailable` when outages pass 25% of the
      seeds, cost the test its power, or could hide a regression.
    - **Success cohort**, evaluator-only: 8 WON calls (`hard_conversion`,
-     `walk_in_directed`, `human_handoff`, `resolved_info`) picked by hash,
+     `walk_in_directed`, `resolved_info`; `human_handoff` dropped 2026-10-10, a handoff is not the bot resolving the call) picked by hash,
      replayed twice per prompt, and loaded only after the holdout accepted and
      the optimizer has run, so a won call can veto a candidate but never shape
      one. It vetoes a reliably won call now reliably lost, any critical
