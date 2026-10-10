@@ -343,13 +343,19 @@ export async function processPromptEvolutionWeekly(now: Date = new Date(), optio
     persistedSpend = [...ids];
   };
 
-  // 3 · The run. 30 seeds -> ~12 holdout / ~12 train (hash split), with the
+  // 3 · The run. 50 seeds -> ~20 holdout / ~20 train (hash split; the buckets
+  // are stable, so every seed that was holdout at 30 stays holdout), with the
   // sealed set read from a larger pool by the runner. At 12 the paired sign
   // test can accept a candidate that fixes 5 calls and breaks none.
   const { runPromptEvolution, promptHashOf } = await import("../../services/promptEvolution");
   const result = await runPromptEvolution({
     baseline,
-    seedCount: 30,
+    // 50 since 2026-10-10 (operator decision after run 6): at 13 holdout seeds a
+    // candidate that improved 4 calls and worsened none read p=0.0625 against
+    // alpha 0.05, a result the test could never accept; ~20 gives a clean
+    // 5-and-0 room to appear. Measured cost: ~300 replays per full cycle at
+    // two seeds a time, ~35 of the 45 budgeted minutes.
+    seedCount: 50,
     candidates: 2,
     holdoutRepeats: 3,
     // Two seeds at a time: Ollama Pro serves three cloud models at once and the

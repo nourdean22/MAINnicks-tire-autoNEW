@@ -89,6 +89,8 @@ export interface LatestRunSummary {
   receiptDelivered: boolean | null;
   seeds: { usable: number | null; train: number | null; holdout: number | null; confirm: number | null; success: number | null };
   gates: { holdout: string | null; success: string | null; confirmation: string | null };
+  /** The holdout gate's paired counts, when it ran. */
+  holdoutStats: { improved: number | null; worsened: number | null; tied: number | null; pValue: number | null } | null;
   durationMs: number | null;
   /** One line per proposed candidate: what happened to it before or on the train cohort. Never its rationale or text. */
   candidates: Array<{ promptHash: string | null; train: string | null; rejectedInvariants: string[]; trainMargin: number | null; trainUsable: boolean | null }>;
@@ -323,6 +325,9 @@ export function summarizeLatestRow(raw: string | null): LatestRunSummary | null 
       success: num(cohorts?.success),
     },
     gates: { holdout: reasonOf(gates?.holdout), success: reasonOf(gates?.success), confirmation: reasonOf(gates?.confirmation) },
+    holdoutStats: obj(gates?.holdout)
+      ? { improved: num(obj(gates?.holdout)?.improved), worsened: num(obj(gates?.holdout)?.worsened), tied: num(obj(gates?.holdout)?.tied), pValue: num(obj(gates?.holdout)?.pValue) }
+      : null,
     durationMs: num(usage?.durationMs),
     candidates,
   };

@@ -150,7 +150,7 @@ describe("RUN EXPERIMENT NOW is a two-tap confirm that starts the manual run onc
         candidateHash: null, baselinePromptHash: "06e0dbbded11a3754ef992f4", baselineParity: "identical", laneParity: false,
         experimentId: "prompt-evolution:a46f96a6a93ad384", receiptDelivered: true,
         seeds: { usable: 30, train: 14, holdout: 13, confirm: 8, success: 0 },
-        gates: { holdout: null, success: null, confirmation: null }, durationMs: 319_090,
+        gates: { holdout: null, success: null, confirmation: null }, holdoutStats: null, durationMs: 319_090,
         candidates: [
           { promptHash: "deadbeef0001", train: "unscored", rejectedInvariants: ["clause-preservation"], trainMargin: null, trainUsable: null },
           { promptHash: "cand1234abcd", train: "9/14", rejectedInvariants: [], trainMargin: -2, trainUsable: true },
@@ -163,5 +163,27 @@ describe("RUN EXPERIMENT NOW is a two-tap confirm that starts the manual run onc
     // No holdout pass reached the success cohort: "not run", never "0 won calls".
     expect(screen.getByText(/success cohort not run/i)).toBeTruthy();
     expect(screen.queryByText(/0 won calls/i)).toBeNull();
+    // The verdict is plain words, not the outcome code.
+    expect(screen.getByText(/no candidate beat the live prompt on the training calls/i)).toBeTruthy();
+  });
+
+  it("a rejected-holdout run says what the holdout found in plain words, with its counts and p", () => {
+    h.evolutionStatus = {
+      active: null, last: { startedAt: "2026-10-10T02:20:02.610Z", finishedAt: "2026-10-10T02:33:48.000Z", durationMs: 825_697, status: "completed", recordsProcessed: 0, details: "x" },
+      latest: { state: "ok", latest: {
+        ranAt: "2026-10-10T02:20:02.610Z", trigger: "manual", outcome: "rejected-holdout", promotionStage: "none", accepted: false, confirmed: false,
+        candidateHash: "b9b7e896bfecc142c952f9ea", baselinePromptHash: "06e0dbbded11a3754ef992f4", baselineParity: "identical", laneParity: false,
+        experimentId: "prompt-evolution:90c8a63662802181", receiptDelivered: true,
+        seeds: { usable: 30, train: 14, holdout: 13, confirm: 8, success: 0 },
+        gates: { holdout: "not-significant", success: null, confirmation: null },
+        holdoutStats: { improved: 4, worsened: 0, tied: 5, pValue: 0.0625 }, durationMs: 824_305,
+        candidates: [{ promptHash: "b9b7e896bfecc142c952f9ea", train: "9/11", rejectedInvariants: [], trainMargin: 1, trainUsable: true }],
+      } },
+    };
+    render(<VapiPanel />);
+    expect(screen.getByText(/looked better but was not significant on the holdout calls/i)).toBeTruthy();
+    expect(screen.getByText(/4 better, 0 worse, 5 tied, p=0\.063/i)).toBeTruthy();
+    expect(screen.getByText(/idle · last run completed in 14 min/i)).toBeTruthy();
+    expect(screen.getByText(/receipt/i)).toBeTruthy();
   });
 });
