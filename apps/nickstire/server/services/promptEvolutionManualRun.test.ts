@@ -224,7 +224,7 @@ describe("summarizeLatestRow", () => {
       baseline: { promptHash: "live5678efgh", parity: "code_plus_lessons", prompt: "FULL LIVE PROMPT" },
       lanes: { parity: false, differences: ["tool stubs"] },
       cohorts: { train: 12, holdout: 12, confirm: 8, success: 8 },
-      gates: { holdout: { reason: "improved" }, success: { reason: "preserved" }, confirmation: { reason: "improved" } },
+      gates: { holdout: { reason: "improved", improved: 8, worsened: 0, tied: 0, pValue: 0.004 }, success: { reason: "preserved" }, confirmation: { reason: "improved" } },
       usableSeeds: 24, trainCount: 12, holdoutCount: 12,
       experimentId: "prompt-evolution:abc123", receiptDelivered: true,
       usage: { durationMs: 900_000 },
@@ -240,6 +240,7 @@ describe("summarizeLatestRow", () => {
       experimentId: "prompt-evolution:abc123", receiptDelivered: true, durationMs: 900_000,
       seeds: { usable: 24, train: 12, holdout: 12, confirm: 8, success: 8 },
       gates: { holdout: "improved", success: "preserved", confirmation: "improved" },
+      holdoutStats: { improved: 8, worsened: 0, tied: 0, pValue: 0.004 },
       candidates: [
         { promptHash: "deadbeef0001", train: "unscored", rejectedInvariants: ["clause-preservation", "reversal:price"], trainMargin: null, trainUsable: null },
         { promptHash: "cand1234abcd", train: "9/12", rejectedInvariants: [], trainMargin: 3, trainUsable: true },
@@ -254,7 +255,7 @@ describe("summarizeLatestRow", () => {
   });
 
   it("a row from before the trigger field reads 'unknown'; a missing or unparseable row is null", () => {
-    expect(summarizeLatestRow(JSON.stringify({ outcome: "rejected-holdout", accepted: null }))).toMatchObject({ trigger: "unknown", accepted: false, outcome: "rejected-holdout", candidates: [] });
+    expect(summarizeLatestRow(JSON.stringify({ outcome: "rejected-holdout", accepted: null }))).toMatchObject({ trigger: "unknown", accepted: false, outcome: "rejected-holdout", candidates: [], holdoutStats: null });
     expect(summarizeLatestRow(null)).toBeNull();
     expect(summarizeLatestRow("{not json")).toBeNull();
     expect(summarizeLatestRow("[]")).toBeNull();

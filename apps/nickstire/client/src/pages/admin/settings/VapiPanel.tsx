@@ -3,7 +3,7 @@
 // The Vapi assistant answers when no human picks up — books slots,
 // quotes ranges, escalates, sends recap SMS. ROI estimate ~360x.
 
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { Loader2, RefreshCw, Zap } from "lucide-react";
@@ -354,7 +354,16 @@ export default function VapiPanel() {
       {connected && (
         <div data-testid="prompt-evolution" className="border border-border/40 bg-background/40 p-3 space-y-2">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-foreground/50">Prompt experiment · propose-only</p>
+            <div>
+              <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-foreground/50">Prompt experiment</p>
+              <p className="text-[11px] text-foreground/60">
+                {evolution?.active
+                  ? `Running for ${Math.round(evolution.active.elapsedMs / 60000)} min of a ${Math.round(evolution.active.budgetMs / 60000)}-minute budget. This panel refreshes every 30s.`
+                  : evolution?.last
+                    ? `Idle · last run ${evolution.last.status} in ${Math.round(evolution.last.durationMs / 60000)} min`
+                    : "Idle · runs every Monday, or now"}
+              </p>
+            </div>
             <button
               onClick={async () => {
                 const ok = await confirmDialog({
@@ -371,43 +380,10 @@ export default function VapiPanel() {
               {evolution?.active ? "RUNNING..." : "RUN EXPERIMENT NOW"}
             </button>
           </div>
-          {evolution?.active && (
-            <p className="text-[11px] text-foreground/60">
-              Running for {Math.round(evolution.active.elapsedMs / 60000)} min of a {Math.round(evolution.active.budgetMs / 60000)}-minute budget. This panel refreshes every 30s.
-            </p>
-          )}
-          {evolution?.last && !evolution.active && (
-            <p className="text-[11px] text-foreground/60">
-              Last manual run {evolution.last.status} in {Math.round(evolution.last.durationMs / 60000)} min · {evolution.last.details}
-            </p>
-          )}
           {evolution?.latest.state === "unavailable" ? (
             <p className="text-[11px] text-foreground/60">Latest result unknown: the row could not be read ({evolution.latest.reason}). Unknown, not empty.</p>
           ) : evolution?.latest.state === "ok" && evolution.latest.latest ? (
-            <div className="text-[11px] text-foreground/60 space-y-0.5">
-              <p>
-                Latest ({evolution.latest.latest.trigger}) {evolution.latest.latest.ranAt ? new Date(evolution.latest.latest.ranAt).toLocaleString("en-US", { timeZone: "America/New_York" }) : "date unknown"}: outcome <span className="font-mono">{evolution.latest.latest.outcome ?? "unknown"}</span>
-                {evolution.latest.latest.accepted ? (evolution.latest.latest.confirmed ? " · candidate CONFIRMED on the sealed set" : " · candidate accepted, unconfirmed") : ""}
-              </p>
-              <p>
-                Seeds {evolution.latest.latest.seeds.usable ?? "?"} (train {evolution.latest.latest.seeds.train ?? "?"} / holdout {evolution.latest.latest.seeds.holdout ?? "?"} / confirm {evolution.latest.latest.seeds.confirm ?? "?"}) · success cohort {evolution.latest.latest.gates.success ? `${evolution.latest.latest.seeds.success ?? "?"} won calls` : "not run"} · live prompt <span className="font-mono">{evolution.latest.latest.baselinePromptHash?.slice(0, 8) ?? "?"}</span> {evolution.latest.latest.baselineParity ?? ""}
-                {evolution.latest.latest.candidateHash ? <> · candidate <span className="font-mono">{evolution.latest.latest.candidateHash.slice(0, 8)}</span></> : null}
-                {evolution.latest.latest.experimentId ? <> · receipt <span className="font-mono">{evolution.latest.latest.experimentId}</span>{evolution.latest.latest.receiptDelivered === false ? " (not delivered)" : ""}</> : " · no receipt"}
-              </p>
-              {evolution.latest.latest.candidates.length > 0 && (
-                <ul data-testid="prompt-evolution-candidates" className="list-disc pl-4">
-                  {evolution.latest.latest.candidates.map((c, i) => (
-                    <li key={c.promptHash ?? i}>
-                      Candidate <span className="font-mono">{c.promptHash?.slice(0, 8) ?? "?"}</span>:{" "}
-                      {c.rejectedInvariants.length > 0
-                        ? `not replayed, broke ${c.rejectedInvariants.join(", ")}`
-                        : `train ${c.train ?? "?"}${c.trainMargin !== null ? ` (margin ${c.trainMargin > 0 ? "+" : ""}${c.trainMargin}${c.trainUsable === false ? ", unusable" : ""})` : ""}`}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <p>Applying a candidate stays your call: edit the prompt, then Push Latest Config.</p>
-            </div>
+            <PromptExperimentResult r={evolution.latest.latest} />
           ) : evolution?.latest.state === "ok" ? (
             <p className="text-[11px] text-foreground/60">No experiment recorded yet. The weekly run is Monday; the button runs it today.</p>
           ) : null}
@@ -419,6 +395,67 @@ export default function VapiPanel() {
           No calls yet. The assistant goes live when Twilio is configured to forward unanswered calls to Vapi (one-time Twilio dashboard setup — ask vendor for SIP URL).
         </p>
       )}
+    </div>
+  );
+}
+
+/** The latest experiment, in plain words: verdict, gates, candidates, one footer. Hashes stay muted. */
+type ExperimentSummary = NonNullable<Extract<RouterOutputs["vapi"]["promptEvolutionStatus"]["latest"], { state: "ok" }>["latest"]>;
+
+const VERDICT: Record<string, string> = {
+  "accepted": "Proposal saved: a candidate passed every gate.",
+  "accepted-unconfirmed": "Proposal saved, unconfirmed: a candidate passed the gates but the sealed set could not confirm it.",
+  "rejected-train": "No proposal: no candidate beat the live prompt on the training calls.",
+  "rejected-holdout": "No proposal: a candidate looked better but was not significant on the holdout calls.",
+  "rejected-regression": "No proposal: the candidate broke a call the live prompt handles every time.",
+  "rejected-underpowered": "No proposal: too few comparable holdout calls to decide.",
+  "rejected-success-regression": "No proposal: the candidate hurt calls the live prompt wins.",
+  "rejected-success-violation": "No proposal: the candidate added a compliance violation on a won call.",
+  "rejected-success-degraded": "No proposal: the candidate degraded calls the live prompt wins.",
+  "rejected-success-underpowered": "No proposal: too few won calls to clear the safety check.",
+  "rejected-confirmation": "No proposal: the sealed confirmation set did not agree.",
+  "invalid-evaluator": "Measured nothing: the judge lane was unavailable.",
+  "inconclusive-budget": "Stopped at the time budget before deciding.",
+  "no-candidates": "No proposal: the optimizer produced no usable edit.",
+  "baseline-clean": "Nothing to fix: the live prompt passed every training call.",
+};
+
+function PromptExperimentResult({ r }: { r: ExperimentSummary }) {
+  const when = r.ranAt ? new Date(r.ranAt).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "date unknown";
+  const h = r.holdoutStats;
+  const holdout = r.gates.holdout
+    ? `${h?.improved ?? "?"} better, ${h?.worsened ?? "?"} worse, ${h?.tied ?? "?"} tied${h?.pValue !== null && h?.pValue !== undefined ? `, p=${h.pValue.toFixed(3)}` : ""} (${r.gates.holdout})`
+    : "not run";
+  const chip = "rounded bg-foreground/5 px-2 py-0.5";
+  return (
+    <div className="text-[11px] text-foreground/70 space-y-1.5">
+      <p>
+        <span className="text-foreground/50">{when} · {r.trigger === "manual" ? "manual" : r.trigger === "scheduled" ? "scheduled" : "older run"} · </span>
+        {VERDICT[r.outcome ?? ""] ?? r.outcome ?? "unknown"}
+      </p>
+      <div className="flex flex-wrap gap-1.5 text-[10px]">
+        <span className={chip}>Train {r.seeds.train ?? "?"} · Holdout {r.seeds.holdout ?? "?"} · Sealed {r.seeds.confirm ?? "?"}</span>
+        <span className={chip}>Holdout gate: {holdout}</span>
+        <span className={chip}>Success cohort {r.gates.success ? `${r.seeds.success ?? "?"} won calls (${r.gates.success})` : "not run"}</span>
+        <span className={chip}>Confirmation {r.gates.confirmation ?? "not run"}</span>
+      </div>
+      {r.candidates.length > 0 && (
+        <ul data-testid="prompt-evolution-candidates" className="space-y-0.5">
+          {r.candidates.map((c, i) => (
+            <li key={c.promptHash ?? i}>
+              <span className="font-mono text-foreground/40">{c.promptHash?.slice(0, 8) ?? "?"}</span>{" "}
+              {c.rejectedInvariants.length > 0
+                ? `not replayed, broke ${c.rejectedInvariants.join(", ")}`
+                : `train ${c.train ?? "?"}${c.trainMargin !== null ? ` (margin ${c.trainMargin > 0 ? "+" : ""}${c.trainMargin}${c.trainUsable === false ? ", unusable" : ""})` : ""}`}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-foreground/50">
+        Live prompt <span className="font-mono">{r.baselinePromptHash?.slice(0, 8) ?? "?"}</span> unchanged
+        {r.experimentId ? <> · receipt <span className="font-mono">{r.experimentId.replace("prompt-evolution:", "").slice(0, 8)}</span>{r.receiptDelivered === false ? " (not delivered)" : ""}</> : " · no receipt"}
+        {" "}· applying a candidate is edit + Push Latest Config.
+      </p>
     </div>
   );
 }

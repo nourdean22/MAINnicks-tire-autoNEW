@@ -1,1 +1,13 @@
-{ "evidence": { "cron-fail-closed": { "ref": "apps/nickstire/server/cron/jobs/promptEvolutionWeekly.test.ts: the runner is called with seedCount 50 and the full option set; the infrastructure-failure, baseline-refusal and consumed-list cases are unchanged. No change to any fail-closed path: only the seed read grew." } } }
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "apps/nickstire/server/cron/jobs/promptEvolutionWeekly.test.ts: the runner is called with seedCount 50 and the full option set; the infrastructure-failure, baseline-refusal and consumed-list cases are unchanged. No change to any fail-closed path: only the seed read grew."
+    },
+    "operator-walkthrough": {
+      "ref": "VAPI panel, 'Prompt experiment' card, rewritten: a status line (Idle \u00b7 last run completed in N min, or Running for N min of a 45-minute budget), one plain-English verdict per outcome code (e.g. 'No proposal: a candidate looked better but was not significant on the holdout calls'), a gates row of chips (Train/Holdout/Sealed counts; Holdout gate: 4 better, 0 worse, 5 tied, p=0.063; Success cohort not run; Confirmation not run), one line per candidate (what broke, or train reading and margin), and a muted footer (live prompt hash unchanged, receipt, 'applying a candidate is edit + Push Latest Config'). Pinned in client/src/__tests__/vapi-followup-push-confirm.test.tsx (11 cases: two-tap confirm, running state, unknown-not-empty, candidate lines, rejected-train and rejected-holdout verdicts, gate chip text, 48px). Browser walkthrough: the card reads production TiDB; verified on the next run."
+    },
+    "capability-ledger-updated": {
+      "ref": "UPDATED, not deferred: docs/operations/capability-ledger.json 'receptionist-prompt-evolution-gate' records the 30 -> 50 seed read; 'receptionist-prompt-evolution-manual-run' records the panel rewrite and the holdoutStats field. REALITY-LEDGER.md re-rendered."
+    }
+  }
+}
