@@ -200,8 +200,11 @@ const loadLlm = () => (llmModule ??= import("../_core/llm"));
 export async function judgeResolution(
   callerTurns: string[],
   replies: string[],
-  /** timeoutMs: the caller's budget-capped timeout (ghostReplay budgetedTimeout); default 60 s. */
-  opts: { timeoutMs?: number } = {},
+  /**
+   * timeoutMs: the caller's budget-capped timeout (ghostReplay budgetedTimeout); default 60 s.
+   * slotWaitMs: how long to queue for an Ollama slot; default timeoutMs. priority: default P1.
+   */
+  opts: { timeoutMs?: number; slotWaitMs?: number; priority?: 0 | 1 | 2 | 3 | 4 } = {},
 ): Promise<JudgeResult> {
   const { invokeLLM } = await loadLlm();
   try {
@@ -213,12 +216,13 @@ export async function judgeResolution(
       model: RESOLUTION_JUDGE_MODEL,
       maxTokens: 900,
       timeoutMs: opts.timeoutMs ?? 60000,
-      slotWaitMs: opts.timeoutMs ?? 60000,
+      slotWaitMs: opts.slotWaitMs ?? opts.timeoutMs ?? 60000,
       // Evaluation measures the dialogue, not the dice.
       temperature: 0,
-      // P1 shadow evaluation: grading is background work and must yield to
-      // live lanes, unlike the publish-gating judge (P0).
-      priority: 1,
+      // P1 shadow evaluation by default: grading is background work and must
+      // yield to live lanes, unlike the publish-gating judge (P0). The prompt
+      // experiment passes P3 (gradeRepliesWithJudge judgePriority).
+      priority: opts.priority ?? 1,
     });
     const raw = res.choices?.[0]?.message?.content ?? "";
     const text = typeof raw === "string" ? raw : JSON.stringify(raw);

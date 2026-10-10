@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "server/cron/lockLiveness.ts heartbeat + stale-holder sweep (split from cron/index.ts so that registry schedules nothing) (review fix, branch nickstire/review-fixes-preflight): every failure keeps the lock. The sweep deletes a lock only when its heartbeat is older than 150 s AND the DELETE's own staleness re-check still holds, never one this process holds; a DB error logs and deletes nothing, so the TTL still governs. A heartbeat failure logs and touches nothing. Pinned in server/cron/staleHolderSweep.test.ts (6 cases: heartbeat by token from the first acquire, stale-only DELETE re-checked, a holder that beat between read and DELETE keeps its lock, own locks never deleted, DB error and no replica id are no-ops, scheduler arms first pass then every minute, unref'd); each fails on the previous source (13 of 13 new or changed cases red there, 67 of 67 green here). The manual door now holds its slot and lock after a timeout until the handler settles (promptEvolutionManualRun.test.ts, 2 new cases)."
+    }
+  }
+}

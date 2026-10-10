@@ -214,9 +214,10 @@ export async function startPromptEvolutionManualRun(deps: ManualRunDeps = {}): P
     let timedOut = false;
     let timer: unknown;
     let record: ManualRunRecord;
+    const handler = track(PROMPT_EVOLUTION_JOB_NAME, run(startedAt));
     try {
       const result = await Promise.race([
-        track(PROMPT_EVOLUTION_JOB_NAME, run(startedAt)),
+        handler,
         new Promise<never>((_, reject) => {
           timer = setTimer(() => { timedOut = true; reject(new Error("timeout")); }, PROMPT_EVOLUTION_BUDGET_MS);
         }),
@@ -239,14 +240,31 @@ export async function startPromptEvolutionManualRun(deps: ManualRunDeps = {}): P
       log.warn("[evolve/manual] run did not complete", { status, durationMs, error: message });
     } finally {
       if (timer !== undefined) clearTimer(timer);
-      // Same contract as the tier runner: on TIMEOUT the handler is still
-      // running, so the lock is held to its TTL rather than released.
-      if (lock.status === "acquired" && !timedOut) {
-        await releaseLock(lock).catch((e) => log.warn("[evolve/manual] lock release failed", { error: e instanceof Error ? e.message : String(e) }));
-      } else if (lock.status === "acquired" && timedOut) {
-        log.warn(`[evolve/manual] ${PROMPT_EVOLUTION_JOB_NAME} timed out - holding lock until TTL to prevent concurrent re-fire`, { errorId: "CRON_TIMEOUT_LOCK_HELD" });
+      const releaseHeld = async () => {
+        if (lock.status === "acquired") {
+          await releaseLock(lock).catch((e) => log.warn("[evolve/manual] lock release failed", { error: e instanceof Error ? e.message : String(e) }));
+        }
+      };
+      if (!timedOut) {
+        await releaseHeld();
+        active = null;
+      } else {
+        // On TIMEOUT the handler is still running. The slot and the lock stay
+        // held until it settles, so a second start cannot run a second cycle
+        // beside it (two cycles would read the same sealed seeds, and the later
+        // consumed-list write would drop the first one's spend). Bounded by one
+        // more budget, which is where the lock's own TTL (2x budget) ends anyway.
+        log.warn(`[evolve/manual] ${PROMPT_EVOLUTION_JOB_NAME} timed out - holding the slot and the lock until the handler settles`, { errorId: "CRON_TIMEOUT_LOCK_HELD" });
+        let capTimer: unknown;
+        void Promise.race([
+          handler.then(() => undefined, () => undefined),
+          new Promise<void>((resolveCap) => { capTimer = setTimer(() => resolveCap(), PROMPT_EVOLUTION_BUDGET_MS); }),
+        ]).then(async () => {
+          if (capTimer !== undefined) clearTimer(capTimer);
+          await releaseHeld();
+          active = null;
+        });
       }
-      active = null;
     }
     last = record!;
   })();

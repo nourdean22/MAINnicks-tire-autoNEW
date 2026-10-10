@@ -11,6 +11,8 @@ multiple sessions.
 
 ## Run, in order (from `apps/nickstire/`)
 
+0. `bash scripts/preflight.sh` (`BASE=<GitHub main sha>` from a hook-free clone): the CI gates that
+   turned PRs red, about 4 minutes. Every push bills a full CI run (2026-10-10: 14 PRs, 29 pushes).
 1. `pnpm run check` — `tsc --noEmit`. Must be 0 errors.
 2. `pnpm test` — vitest. Must end `Test Files N passed (N)`, exit 0.
 3. `pnpm run build` — `vite build` + esbuild server + maybe-prerender.

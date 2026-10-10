@@ -167,12 +167,16 @@ export interface ScoredGrade {
   unresolvable?: boolean;
   judgeReason?: string;
   judgeUnavailable?: boolean;
+  /** The replay itself failed: nothing was said, so the seed is neither a pass nor a failure of the prompt. */
+  replayUnavailable?: boolean;
 }
 
 export interface ScoredPrompt {
   passRate: number;
   /** Seeds the judge ruled impossible — excluded from `total`, reported honestly. */
   unresolvable?: number;
+  /** Seeds whose replay failed (lane outage) — excluded from `total` too, and from the optimizer's brief. */
+  notReplayed?: number;
   passes: number;
   total: number;
   grades: ScoredGrade[];
@@ -367,7 +371,8 @@ export interface ScoreOptions {
   /** Incremented in place as replays and judge calls happen, so a scoring cut short is still counted. */
   tally?: { replays: number; judgeCalls: number };
   /**
-   * Called the moment the FIRST seed fails, before the in-flight siblings
+   * Called the moment the failure that ENDS the pass is recorded (an absorbed
+   * replay-lane failure does not call it), before the in-flight siblings
    * finish. runPromptEvolution records whether its deadline had already
    * passed at that instant, so a provider failure with budget left is never
    * read as the budget once a sibling has crossed the line.
@@ -410,16 +415,23 @@ export async function scorePrompt(prompt: string, seeds: Seed[], opts: ScoreOpti
       replies = await ghostReplay(prompt, s.callerTurns, { priority: 3, budget: opts.budget });
     } catch (err) {
       if (err instanceof BudgetExhausted) throw err;
+      // A call capped at the time left aborts AT the deadline: that is the
+      // budget, not the lane. remainingMs() throws BudgetExhausted once the
+      // deadline has passed, so a deadline abort never counts toward the cap
+      // (an earlier absorbed failure used to make it read as a lane outage).
+      opts.budget?.remainingMs();
       laneFailures++;
-      if (firstLaneError === null) {
-        firstLaneError = err;
-        opts.onFailure?.(err);
-      }
+      if (firstLaneError === null) firstLaneError = err;
       const message = err instanceof Error ? err.message : String(err);
       slots[i] = {
         id: s.id, pass: false, priceLeaks: 0, resolutionOffered: false, guarantees: 0, emptyReplies: 0, claimViolations: [],
-        judgeUnavailable: true, judgeReason: `replay lane unavailable: ${message.slice(0, 120)}`,
+        judgeUnavailable: true, replayUnavailable: true, judgeReason: `replay lane unavailable: ${message.slice(0, 120)}`,
       };
+      // Past the cap the lane is down: stop now rather than spend the rest of the pass on dead calls.
+      if (laneFailures / Math.max(1, seeds.length) > LANE_FAILURE_CAP) {
+        const first = firstLaneError instanceof Error ? firstLaneError.message : String(firstLaneError);
+        throw new Error(`replay lane down: ${laneFailures} of ${seeds.length} replays in this pass failed (cap ${LANE_FAILURE_CAP * 100}%); first: ${first.slice(0, 160)}`);
+      }
       return;
     }
     usage.replays++;
@@ -432,7 +444,7 @@ export async function scorePrompt(prompt: string, seeds: Seed[], opts: ScoreOpti
       usage.judgeCalls++;
       if (opts.tally) opts.tally.judgeCalls++;
     }
-    const g = await gradeRepliesWithJudge(s.callerTurns, replies, { verifyHits, budget: opts.budget });
+    const g = await gradeRepliesWithJudge(s.callerTurns, replies, { verifyHits, budget: opts.budget, judgePriority: 3 });
     slots[i] = {
       id: s.id, pass: g.pass, priceLeaks: g.priceLeaks, resolutionOffered: g.resolutionOffered,
       guarantees: g.guarantees, emptyReplies: g.emptyReplies, claimViolations: g.claimViolations,
@@ -466,20 +478,21 @@ export async function scorePrompt(prompt: string, seeds: Seed[], opts: ScoreOpti
   };
   await Promise.all(Array.from({ length: Math.min(concurrency, Math.max(1, seeds.length)) }, worker));
   if (failure !== null) throw failure;
-  if (laneFailures > 0 && laneFailures / Math.max(1, seeds.length) > LANE_FAILURE_CAP) throw firstLaneError;
   const grades: ScoredPrompt["grades"] = slots.filter((g): g is ScoredPrompt["grades"][number] => g !== undefined);
   // HONEST DENOMINATOR (2026-08-07): a call no prompt could have resolved —
   // the caller reached a wrong number or left before asking anything — is not
   // a prompt failure and must not sit in the denominator. Seed 019fd32f was
   // exactly this: two turns, "Is this Nick's Auto Parts?", gone. Counting it
   // understated every baseline and fed the optimizer an unwinnable failure.
-  const graded = grades.filter((g) => !g.unresolvable);
+  const graded = grades.filter((g) => !g.unresolvable && !g.replayUnavailable);
   const passes = graded.filter((g) => g.pass).length;
+  const notReplayed = grades.filter((g) => g.replayUnavailable).length;
   return {
     passRate: graded.length ? passes / graded.length : 0,
     passes,
     total: graded.length,
-    unresolvable: grades.length - graded.length,
+    unresolvable: grades.filter((g) => g.unresolvable).length,
+    ...(notReplayed ? { notReplayed } : {}),
     grades,
     usage,
   };
@@ -633,8 +646,11 @@ async function proposeCandidates(
   k: number,
   log: (line: string) => void,
   beforeCall: () => void,
+  /** Time left in the run; every optimizer call and slot wait is capped at it (floor 1 s), like replays and judge calls. */
+  timeLeftMs: () => number = () => Number.POSITIVE_INFINITY,
 ): Promise<Array<{ prompt: string; rationale: string }>> {
   const out: Array<{ prompt: string; rationale: string }> = [];
+  const callMs = (): number => Math.max(1_000, Math.min(OPTIMIZER_TIMEOUT_MS, Math.floor(timeLeftMs())));
   const brief = failureBrief(trainFailures);
   const resolve = (text: string): { prompt: string; rationale: string } | { refused: string } => {
     const parsed = parseOptimizerReply(text);
@@ -674,8 +690,8 @@ async function proposeCandidates(
         },
       ],
       maxTokens: 8192,
-      timeoutMs: OPTIMIZER_TIMEOUT_MS,
-      slotWaitMs: OPTIMIZER_TIMEOUT_MS,
+      timeoutMs: callMs(),
+      slotWaitMs: callMs(),
       model: OPTIMIZER_MODEL,
       priority: 3,
       });
@@ -700,8 +716,8 @@ async function proposeCandidates(
           { role: "user", content: `CURRENT PROMPT:\n${basePrompt}\n\nYour previous answer could not be applied (${resolved.refused}). Here it is:\n\n${text.slice(0, 6000)}\n\nRe-emit it now as: RATIONALE: <one line>\n<FIND>\n<verbatim excerpt>\n</FIND>\n<REPLACE>\n<replacement>\n</REPLACE>` },
         ],
         maxTokens: 8192,
-        timeoutMs: OPTIMIZER_TIMEOUT_MS,
-      slotWaitMs: OPTIMIZER_TIMEOUT_MS,
+        timeoutMs: callMs(),
+        slotWaitMs: callMs(),
         model: OPTIMIZER_MODEL,
         priority: 3,
         });
@@ -963,7 +979,7 @@ const SUCCESS_VETO_OUTCOME: Record<Exclude<SuccessCohortVerdict["reason"], "pres
 function describeScore(s: ScoredPrompt): string {
   // Report the exclusions inline — a denominator that silently shrank is
   // the same class of lie as a run that measured nothing and printed zero.
-  return `${s.passes}/${s.total}${s.unresolvable ? ` (${s.unresolvable} unresolvable excluded)` : ""}`;
+  return `${s.passes}/${s.total}${s.unresolvable ? ` (${s.unresolvable} unresolvable excluded)` : ""}${s.notReplayed ? ` (${s.notReplayed} not replayed)` : ""}`;
 }
 
 /**
@@ -1123,8 +1139,9 @@ export async function runPromptEvolution(opts: EvolutionOptions): Promise<Evolut
     // other failure, so without this filter the failure brief would ask for a
     // prompt edit to fix a hang-up — the mislabeled-LOSS twin of #1410's
     // mislabeled-WIN poisoning.
+    // Nor a call whose replay failed: nothing was said, so there is nothing to fix.
     const trainFailures = baseTrain.grades
-      .filter((g) => !g.pass && !g.unresolvable)
+      .filter((g) => !g.pass && !g.unresolvable && !g.replayUnavailable)
       .map((g) => ({ seed: train.find((s) => s.id === g.id)!, grade: g }));
     if (!trainFailures.length) return finish("baseline-clean");
 
@@ -1133,7 +1150,10 @@ export async function runPromptEvolution(opts: EvolutionOptions): Promise<Evolut
     const candidates = await proposeCandidates(baseline.prompt, trainFailures, k, log, () => {
       checkBudget("optimizer");
       usage.optimizerCalls++;
-    });
+    }, () => (deadlineMs === null ? Number.POSITIVE_INFINITY : deadlineMs - (clock() - startedAt)));
+    // An optimizer call cut at the deadline is logged as a failed proposal. When
+    // that left no candidate, the budget it ran into is the outcome, not "no candidates".
+    if (!candidates.length) checkBudget("optimizer");
     let best: { prompt: string; rationale: string; promptHash: string; margin: number } | null = null;
     let scoredAny = false;
     let usableAny = false;
