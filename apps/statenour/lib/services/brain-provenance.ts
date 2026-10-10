@@ -213,7 +213,8 @@ export async function readMessageProvenance(args: {
     // the top hit was always the message's own archive. Pull wider +
     // filter self-match by key-containment so any future msgId-keyed
     // category gets caught too.
-    const recall = await recallMemoriesForQuery(msg.content, { limit: 15 });
+    // Inspection must not write: no lastSeen bump, no metric row (05-M17).
+    const recall = await recallMemoriesForQuery(msg.content, { limit: 15, sideEffects: false });
     const filteredHits = recall.hits.filter((h) => !h.key.includes(messageId));
     trimmed = filteredHits.slice(0, 10);
     scanned = recall.scanned;

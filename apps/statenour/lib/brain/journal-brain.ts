@@ -229,7 +229,9 @@ export async function enrichJournalEntry(
         take: 50,
       }).catch((): ActiveGoal[] => []),
       prisma.mission.findMany({
-        where: { status: "ACTIVE" },
+        // deletedAt: a soft-deleted mission keeps status ACTIVE; offering it
+        // would re-link a requeued row to it and requeue it every night.
+        where: { status: "ACTIVE", deletedAt: null },
         select: { id: true, title: true, domain: true },
         take: 50,
       }).catch((): ActiveMission[] => []),
@@ -511,9 +513,14 @@ export const LINK_CLAIMING_STATUSES = ["auto", "proposed", "confirmed"] as const
  *  Returns the count reset; a failed write is logged and counts 0. */
 export async function requeueDanglingLinks(silo: JournalSilo): Promise<number> {
   const where = {
-    goalId: null,
-    missionId: null,
     linkStatus: { in: [...LINK_CLAIMING_STATUSES] },
+    OR: [
+      { goalId: null, missionId: null },
+      // 2026-10-10 · audit 05-M11: the app SOFT-deletes goals and missions,
+      // so the FK stays set; the NULL-FK branch alone never fired.
+      { goal: { is: { deletedAt: { not: null } } } },
+      { mission: { is: { deletedAt: { not: null } } } },
+    ],
   };
   const data = { linkStatus: null, linkConfidence: null, enrichedAt: null };
   try {

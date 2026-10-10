@@ -116,7 +116,10 @@ describe("requeueDanglingLinks · a deleted goal/mission does not leave a claime
       where: Record<string, unknown>;
       data: Record<string, unknown>;
     };
-    expect(arg.where).toEqual({ goalId: null, missionId: null, linkStatus: { in: ["auto", "proposed", "confirmed"] } });
+    // 2026-10-10 (05-M11): the NULL-FK shape is one OR branch; soft-deleted
+    // goal/mission branches are pinned in journal-requeue-soft-deleted-anchor.test.ts.
+    expect(arg.where.linkStatus).toEqual({ in: ["auto", "proposed", "confirmed"] });
+    expect(arg.where.OR).toContainEqual({ goalId: null, missionId: null });
     expect(LINK_CLAIMING_STATUSES).not.toContain("rejected");
     expect(arg.data).toEqual({ linkStatus: null, linkConfidence: null, enrichedAt: null });
   });
