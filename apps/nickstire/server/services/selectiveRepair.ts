@@ -97,7 +97,15 @@ export function beatRepairRefusal(payload: unknown, beatNumber: number, jobId: n
     storyboardBeats?: unknown;
     promptPack?: unknown;
     higgsfieldPromptPack?: unknown;
+    externalMaster?: unknown;
   };
+  // A master produced outside the pipeline (2026-10-09) has no per-beat clips:
+  // nothing in it can be regenerated, whatever its beats declare. A defect
+  // holds the job for the operator to replace the master, never for a paid
+  // regen that would build a different pipeline render (review of #2952).
+  if (p.externalMaster && typeof p.externalMaster === "object") {
+    return `beat ${beatNumber} of job ${jobId} belongs to an external master — nothing in it is regenerated beat by beat; replace the master`;
+  }
   const beats = (Array.isArray(p.storyboardBeats) ? p.storyboardBeats : []) as Array<{
     beatNumber: number;
     visual?: string | null;

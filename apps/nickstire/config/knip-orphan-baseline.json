@@ -6160,6 +6160,36 @@
       "file": "apps/nickstire/server/services/promptEvolution.ts",
       "symbol": "applyBoundedEdit",
       "reason": "2026-10-09 receptionist prompt experiment, bounded optimizer edit · INTENTIONAL TEST-VISIBLE CONTRACT: applies one bounded edit to the full prompt and refuses a missing or ambiguous excerpt; promptEvolutionBoundedEdit.test.ts pins exact, line-trimmed, ambiguous, missing and over-cap cases, and that every other character survives. knip excludes *.test.ts as consumers."
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "normalizedTextSurfaces",
+      "reason": "2026-10-09 critic update for external masters: declared text surfaces normalizer; exported for reelSourceAware.test.ts, consumed internally by evaluateRenderedReel / applyPresenceExemptions"
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "describesDeclaredText",
+      "reason": "2026-10-09 critic update for external masters: positive match of a declared surface in a finding; exported for reelSourceAware.test.ts, consumed internally by evaluateRenderedReel / applyPresenceExemptions"
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "isCaptionTimingMismatch",
+      "reason": "2026-10-09 critic update for external masters: caption-timing vs subject mismatch classifier; exported for reelSourceAware.test.ts, consumed internally by evaluateRenderedReel / applyPresenceExemptions"
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "voteVerdicts",
+      "reason": "2026-10-09 critic update for external masters: majority vote across critic runs; exported for reelSourceAware.test.ts, consumed internally by evaluateRenderedReel / applyPresenceExemptions"
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "renderedQaVoteCount",
+      "reason": "2026-10-09 critic update for external masters: RENDERED_QA_VOTES reader; exported for reelSourceAware.test.ts, consumed internally by evaluateRenderedReel / applyPresenceExemptions"
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "reportsGarbledText",
+      "reason": "2026-10-09 critic update (Codex review of #2952): garbled-lettering detector exported for reelSourceAware.test.ts; consumed internally by describesDeclaredText"
     }
   ]
 }

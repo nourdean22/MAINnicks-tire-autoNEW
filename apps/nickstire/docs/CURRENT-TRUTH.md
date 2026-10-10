@@ -7,7 +7,17 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
-## Reels source-aware route: real beats bind registry footage, deterministic beats draw cards, hands-only profile, sentence captions, per-shot lineage (2026-10-09, PR after #2944) -- BUILT + TESTED; PR open
+## Rendered-QA critic for external masters: declared text surfaces, caption-timing notes, voted blocks (2026-10-09, PR after #2946) -- BUILT + TESTED; PR open
+
+First campaign Reel went live 2026-10-09 21:52Z (job 2070002, IG `18393636853204607`, https://www.instagram.com/reel/DeShDz6jvLv/) under an explicit operator override of the rendered-QA gate, recorded as `payload.operatorOverride`: three single-run critic verdicts on identical frames returned 5, 2 and 10 blocks, reported the required disclosure badge as `GENERATED_TEXT_ARTIFACT`, and claimed a hook card at 6 s and 10 s where the frames show none. The gate update (`server/services/renderedQa.ts`):
+
+- **`externalMaster.textSurfaces` on the job payload** declares every burned-in line of a master produced outside the pipeline (header bar, captions, disclosure badge, end cards). The critic prompt names them as legitimate and reserves `BEAT_SEMANTIC_MISMATCH` for a different object, action or damage; a `GENERATED_TEXT_ARTIFACT` finding that quotes a declared surface is exempted (positive match, `describesDeclaredText`), undeclared lettering stays a block.
+- **Caption-timing mismatches on an external master are notes, not blocks** (`isCaptionTimingMismatch`): the plan is written from the frames after the fact, nothing can be regenerated per beat; a mismatch naming a different subject still blocks. Pipeline-rendered jobs are unchanged.
+- **Voted blocks** (`voteVerdicts`, `RENDERED_QA_VOTES` 1..5, default 1 = today's behaviour): a block survives only with a majority of independent runs on the same frames; warns are the union; craft score and escalation recomputed; tally on `verdict.voting`. Setting `RENDERED_QA_VOTES=3` on Railway turns it on (three vision calls per QA pass).
+- Exemptions stay visible on the verdict (`presenceExemptions`), never silent.
+- **Not done:** the Studio has no field for `textSurfaces` (the pilot publish script declares them); Reel #1 (job 2070001) remains unpublished on a substantive block (a held clean-tire shot promises a reveal that never comes).
+
+## Reels source-aware route: real beats bind registry footage, deterministic beats draw cards, hands-only profile, sentence captions, per-shot lineage (2026-10-09, PR #2946) -- MERGED (main `d4102efad`, 21:04Z)
 
 Doctrine 02 section 8 items 4-6 are built (`docs/reels-engine-v2/13-SOURCE-AWARE-ROUTE.md` is the map). Contracts:
 
