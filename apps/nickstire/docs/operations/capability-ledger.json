@@ -4828,6 +4828,33 @@
       ],
       "lastVerifiedAt": "2026-10-10",
       "verificationExpiresAt": "2026-11-09"
+    },
+    {
+      "capabilityId": "reel-lane-audio-qa-on-demand-20261010",
+      "name": "Reel lane cannot jam on a missing verdict: the publish gate measures audio QA on first contact, and the drain parks a job still 'unavailable' three hours after it was ready",
+      "owner": "operator",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "branch nickstire/reel-lane-audio-qa-on-demand (2026-10-10, PR after #2965). audioQa.measureJobAudioQa(db, jobId): fetches the exact bytes at mp4Url (fetchPublicBounded, 300 MB cap), runs runAudioQa, persists payload.audioQa by compare-and-set, returns null on any failure. qualityGate.evaluateReelPublishGate: when payload.audioQa is missing and runIfMissing is true, measures before the audio hold (source 'fresh'); runIfMissing:false still reports 'not evaluated'; a null measurement leaves the hold. dailyReelPost: STALE_UNAVAILABLE_MS (3 h) + staleUnavailable(job) — the drain pre-filter and the today's-job branch skip a candidate whose gate reads 'unavailable' that long after productionReadyAt/updatedAt/createdAt with code qa_parked:unavailable_stale; no timestamp never parks. scripts/attach-audio-qa.mts now calls the shared function.",
+        "tests": [
+          "server/qualityGate.test.ts: measures on first contact when the verdict is missing (gate no longer 'no audio QA verdict'); does not measure under runIfMissing:false; a null measurement keeps the hold (3 new).",
+          "server/reelDrainStaleUnavailable.test.ts: the pure rule (threshold, timestamp precedence, ISO strings, no-timestamp never parks) and source pins that both the selection loop and today's-job branch apply it with the typed code and continue (5).",
+          "server/reelDrainHeadOfLine.test.ts, server/reelLaneUnjam.test.ts, server/cron/jobs/dailyReelPost.test.ts, server/reelQualityGate.test.ts, server/audioQa.test.ts green on the tree (9 files, 103 passed)."
+        ],
+        "liveRuns": "Defect evidence, production 2026-10-10 06:00-11:00Z: every 15-minute pulse logged 'daily reel: publish gate unavailable — HOLDING job 2070001' (reason: no audio QA verdict) after 'skipped ineligible approved jobs while draining' selected it; the handler returned each time, so production never ran. 2070001 is a Higgsfield-UI export that never went through reelAssembly, the only place audio QA used to run. Not yet observed after the fix.",
+        "deploymentId": "not deployed (PR open)"
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Proof owed after deploy: the first pulse logs either an attached audio verdict for 2070001 followed by its rendered-QA gate outcome, or qa_parked:unavailable_stale in the skipped list, and the 09:00 ET production hour enqueues a reel instead of returning early.",
+          "source": "2026-10-10"
+        }
+      ],
+      "lastVerifiedAt": "2026-10-10",
+      "verificationExpiresAt": "2026-11-09"
     }
   ],
   "axes": {

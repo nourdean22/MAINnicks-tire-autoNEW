@@ -7,6 +7,14 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Reel lane cannot jam on a missing verdict (2026-10-10, PR after #2965) -- BUILT + TESTED; PR open
+
+Found in the logs while the Seedance 2.5 test waited: every 15-minute pulse from 06:00Z to 11:00Z selected job 2070001 (Reel #1, a Higgsfield-UI export) and held it on "no audio QA verdict", returning before production ever ran. Audio QA only ever ran inside `reelAssembly`, so a master that arrived any other way could never get a verdict, and `unavailable` was deliberately not a parked gate.
+
+- **Gate produces the evidence.** `measureJobAudioQa` fetches the exact bytes at `mp4Url`, runs the repo's audio QA and persists `payload.audioQa` by compare-and-set; `evaluateReelPublishGate` calls it when the verdict is missing and the door may produce evidence (`runIfMissing`); the read-only pre-filter still says "not evaluated"; a failed measurement keeps the hold.
+- **Drain parks a stale 'unavailable'.** `staleUnavailable`: a job still 'unavailable' three hours after it was ready (12 pulses) is skipped with `qa_parked:unavailable_stale`, in both the selection loop and the today's-job branch, so the READY count drops and the production hour refills. No timestamp never parks.
+- Proof owed after deploy: the next pulse either attaches 2070001's audio verdict and lets its rendered-QA gate decide (5 findings; the operator chose not to publish it) or parks it, and 09:00 ET enqueues.
+
 ## Reel quality upgrade (2026-10-10, PR after #2956) -- BUILT + TESTED; PR open; one paid test reel approved, not yet rendered
 
 The operator's verdict on the first masters: "plastic", and "where's the background music?". PR #2952 had upgraded the judge, not the generator; this PR changes what gets rendered and how a Higgsfield-UI export is finished.

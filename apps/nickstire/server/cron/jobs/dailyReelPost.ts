@@ -75,6 +75,26 @@ const POST_HOUR_ET = 9;
  * that the chain would refuse.
  */
 const PARKED_QA_GATES: ReadonlySet<string> = new Set(["needs_paid_repair", "reject", "stock_fallback"]);
+
+/**
+ * 'unavailable' is transient only while something can still produce the
+ * evidence: the gate runs rendered QA and (since 2026-10-10) audio QA on first
+ * contact. A job still 'unavailable' this long after it was ready has a reason
+ * nothing automatic will clear (critic lane down, master unreadable), and
+ * re-selecting it every pulse is the head-of-line jam again — job 2070001 was
+ * selected and held on every pulse for a day while production never ran.
+ * Measured against the 15-minute pulse: 3 hours is 12 chances.
+ */
+export const STALE_UNAVAILABLE_MS = 3 * 60 * 60 * 1000;
+export function staleUnavailable(
+  job: { productionReadyAt?: Date | string | null; updatedAt?: Date | string | null; createdAt?: Date | string | null },
+  nowMs: number = Date.now(),
+): boolean {
+  const at = job.productionReadyAt ?? job.updatedAt ?? job.createdAt;
+  const t = at instanceof Date ? at.getTime() : Date.parse(String(at ?? ""));
+  if (!Number.isFinite(t)) return false; // no timestamp: never park on a guess
+  return nowMs - t > STALE_UNAVAILABLE_MS;
+}
 export const REEL_READY_TARGET = 3;
 export const REEL_READY_LOW_WATERMARK = 1;
 
@@ -612,6 +632,10 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
           skipped.push({ jobId: candidate.id, code: `qa_parked:${cGate.gate}` });
           continue;
         }
+        if (!cGate.allowed && cGate.gate === "unavailable" && staleUnavailable(candidate)) {
+          skipped.push({ jobId: candidate.id, code: "qa_parked:unavailable_stale" });
+          continue;
+        }
       } catch (err) {
         // A gate that cannot be READ is not a gate that passed, but it is also
         // not evidence against this candidate: leave it selectable and let the
@@ -669,6 +693,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       const { evaluateReelPublishGate } = await import("../../services/qualityGate");
       const g = await evaluateReelPublishGate(todaysJob.id, { runIfMissing: false });
       if (!g.allowed && PARKED_QA_GATES.has(g.gate)) parked = g.gate;
+      else if (!g.allowed && g.gate === "unavailable" && staleUnavailable(todaysJob)) parked = "unavailable_stale";
     } catch (err) {
       log.warn("daily reel: parked-QA check on today's job failed; leaving it selectable", {
         jobId: todaysJob.id,
