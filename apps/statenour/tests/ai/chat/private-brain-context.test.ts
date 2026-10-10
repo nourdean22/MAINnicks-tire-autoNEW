@@ -255,6 +255,7 @@ describe("buildBrainContext · a private turn writes nothing and logs no user te
     expect(perTurnWrites().some((w) => w.model === "systemMetric"), "the lens-fire metric lands on a normal turn").toBe(true);
     expect(h.recallOpts[0]?.sideEffects).not.toBe(false);
     expect(h.contextual).toHaveBeenCalled();
+    expect((h.contextual.mock.calls[0] as unknown[])[2]).toMatchObject({ sideEffects: true });
     expect(h.skills).toHaveBeenCalled();
     expect(h.greene).toHaveBeenCalled();
     expect(h.dark).toHaveBeenCalled();
@@ -273,7 +274,10 @@ describe("buildBrainContext · a private turn writes nothing and logs no user te
   it("privateMode: hybrid recall runs read-only, write-bearing lanes are skipped", async () => {
     await build({ privateMode: true });
     expect(h.recallOpts[0]?.sideEffects).toBe(false);
-    expect(h.contextual, "contextual recall bumps wisdom seenCount/lastSeen and has no read-only mode").not.toHaveBeenCalled();
+    // 2026-10-10 (Task 9) · contextual recall has a read-only mode now, so a
+    // private turn keeps the lane and runs it with sideEffects:false.
+    expect(h.contextual).toHaveBeenCalled();
+    expect((h.contextual.mock.calls[0] as unknown[])[2]).toMatchObject({ sideEffects: false });
     expect(h.skills, "skill recall writes a skill.recall.injected row").not.toHaveBeenCalled();
     expect(h.greene, "the greene matcher records a fire row").not.toHaveBeenCalled();
     expect(h.dark, "the dark-psychology matcher records a fire row").not.toHaveBeenCalled();

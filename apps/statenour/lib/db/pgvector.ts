@@ -206,6 +206,48 @@ export interface KnnSearchOptions {
 }
 
 /**
+ * 2026-10-10 (audit 05-M8) · ONE EMBEDDING SPACE PER KNN.
+ *
+ * Every provider in the embedding chain is pinned to 1024 dims, so a vector
+ * from the HF or OpenAI fallback has the same width as a Cohere one and the
+ * `vector_dims` guard below cannot tell them apart. Cosine across two models
+ * returns a plausible number, not an error. So a KNN keeps only rows whose
+ * recorded model is the active space, and rows whose space is UNKNOWN (NULL,
+ * the placeholder "default", tool-catalog fingerprints): ~94% of the index
+ * predates provenance and is not backfillable, so dropping unknowns would
+ * empty recall. What it drops is a row that PROVABLY belongs to another space.
+ *
+ * Recorded identities: provider-qualified ids (`cohere:embed-v4.0`, `hf:...`,
+ * `openai:...`, written by provider.ts since 2026-09-18) plus the pre-09-18
+ * spellings listed below (measured in migration 20260918011500).
+ */
+const LEGACY_MODEL_SPACE: Readonly<Record<string, string>> = {
+  "cohere-embed-v4.0": "cohere:embed-v4.0",
+  "embed-v4.0": "cohere:embed-v4.0",
+  "venice-bge-m3": "venice:bge-m3",
+};
+
+const SAFE_MODEL_ID = /^[A-Za-z0-9._:\/-]{1,64}$/;
+
+/** The space the live query embedder writes (provider.ts Cohere branch). */
+export function activeEmbeddingModel(): string {
+  const configured = (process.env.COHERE_EMBED_MODEL ?? "").trim().replace(/^["']|["']$/g, "");
+  return `cohere:${configured || "embed-v4.0"}`;
+}
+
+/**
+ * SQL predicate over a `vector_embeddings.model` column reference (`model`,
+ * `ve.model`): true for unknown-space rows and rows of `model`'s space.
+ */
+export function embeddingSpaceSql(col: string, model: string = activeEmbeddingModel()): string {
+  if (!SAFE_MODEL_ID.test(model)) throw new Error(`unsafe embedding model id: ${model.slice(0, 40)}`);
+  const lit = (xs: string[]) => `ARRAY[${xs.map((x) => `'${x}'`).join(",")}]::text[]`;
+  const same = [model, ...Object.keys(LEGACY_MODEL_SPACE).filter((k) => LEGACY_MODEL_SPACE[k] === model)];
+  const legacy = Object.keys(LEGACY_MODEL_SPACE);
+  return `(${col} IS NULL OR ${col} = ANY(${lit(same)}) OR NOT (${col} LIKE '%:%' OR ${col} = ANY(${lit(legacy)})))`;
+}
+
+/**
  * KNN search against the vector column (when present). Returns null
  * when the extension isn't available — caller should fall back to
  * the JSON-cosine path. Returns an empty array when the extension is
@@ -276,6 +318,8 @@ export async function knnSearch(
    */
   const shadowOnly =
     opts.includeDeletedSources === true ? "" : ` AND "sourceUnavailableAt" IS NULL`;
+  // 05-M8: rank within one embedding space (see embeddingSpaceSql).
+  const spaceOnly = ` AND ${embeddingSpaceSql("model")}`;
   const sourceType = opts.sourceType;
   const op = opts.metric === "l2" ? "<->" : "<=>";
   const lit = vectorLiteral(embedding);
@@ -303,7 +347,7 @@ export async function knnSearch(
                 embedding_vec ${op} '${lit}'::vector AS distance
          FROM vector_embeddings
          WHERE "sourceType" = $1 AND embedding_vec IS NOT NULL
-           AND vector_dims(embedding_vec) = ${dim}${liveOnly}${shadowOnly}
+           AND vector_dims(embedding_vec) = ${dim}${liveOnly}${shadowOnly}${spaceOnly}
          ORDER BY embedding_vec ${op} '${lit}'::vector
          LIMIT ${limit}`,
         sourceType,
@@ -315,7 +359,7 @@ export async function knnSearch(
                 embedding_vec ${op} '${lit}'::vector AS distance
          FROM vector_embeddings
          WHERE embedding_vec IS NOT NULL
-           AND vector_dims(embedding_vec) = ${dim}${liveOnly}${shadowOnly}
+           AND vector_dims(embedding_vec) = ${dim}${liveOnly}${shadowOnly}${spaceOnly}
          ORDER BY embedding_vec ${op} '${lit}'::vector
          LIMIT ${limit}`,
       );

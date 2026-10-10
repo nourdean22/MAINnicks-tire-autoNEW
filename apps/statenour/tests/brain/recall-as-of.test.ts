@@ -80,17 +80,19 @@ describe("validitySql (raw-SQL shape) says the same thing", () => {
 describe("every recall lane reads the same window", () => {
   const src = read("lib/brain/contextual-recall.ts");
   it("the prisma pool, the fallback and the graph lane spread validityWhere; no inline copy is left", () => {
-    expect(src.match(/\.\.\.validityWhere\(/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
+    // The top-300 pool AND-wraps it beside the probation filter since
+    // 2026-10-10 (05-M5), so a spread there would let one OR overwrite the other.
+    expect(src.match(/(\.\.\.|\[)validityWhere\(/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
     expect(src).not.toMatch(/OR: \[\{ validUntil: null \}, \{ validUntil: \{ gt: new Date\(\) \} \}\],\n\s*\},\n\s*orderBy/);
   });
   it("the lexical and KNN SQL lanes take asOf, use validitySql, and bind the parameter only in as-of mode", () => {
     expect(src).toMatch(/getLexicalMatches\(topics: string\[\], limit = 50, asOf\?: Date\)/);
     expect(src).toMatch(/getKnnPoolRows\(queryVec: number\[\], limit = 50, asOf\?: Date\)/);
-    // The lexical lane binds asOf as $2. The KNN lane binds it as $3 since
-    // 2026-09-22: its $2 is the recall-quarantine category array
-    // (`bm.category <> ALL($2::text[])`, see recall-knn-pool-iterative.test.ts).
-    expect(src.match(/validitySql\("bm", asOf \? "\$2" : null\)/g)?.length).toBe(1);
-    expect(src.match(/validitySql\("bm", asOf \? "\$3" : null\)/g)?.length).toBe(1);
+    // Both lanes bind asOf as $3: their $2 is the recall-quarantine category
+    // array (`bm.category <> ALL($2::text[])`) -- the KNN lane since 2026-09-22
+    // (recall-knn-pool-iterative.test.ts), the lexical lane since 2026-10-10 (05-M13).
+    expect(src.match(/validitySql\("bm", asOf \? "\$2" : null\)/g)?.length ?? 0).toBe(0);
+    expect(src.match(/validitySql\("bm", asOf \? "\$3" : null\)/g)?.length).toBe(2);
     expect(src.match(/\.\.\.\(asOf \? \[asOf\] : \[\]\)/g)?.length).toBe(2);
     // the only inline copy of the predicate left is the helper's own template
     expect(src.match(/superseded_by_id IS NULL/g)?.length).toBe(1);

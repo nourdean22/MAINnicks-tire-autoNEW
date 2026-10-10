@@ -80,7 +80,7 @@ export interface BuildBrainContextInput {
   /**
    * 2026-10-10 (audit 05-M1, 04-F10) · Private Lab: assemble context with
    * ZERO writes. Recall runs read-only (sideEffects:false); lanes that write
-   * on read and have no read-only mode (contextual recall's wisdom bump, the
+   * on read and have no read-only mode (the
    * skill / Greene / dark-psychology fire rows, the lens-fire metric, the
    * contradiction / objection dedupe rows) are skipped; no console line
    * carries the query. convId is ignored.
@@ -401,9 +401,9 @@ export async function buildBrainContext(
       // NOTE: this comment sits ABOVE withTimeout( on purpose --
       // tests/ai/brain-context-timeouts.test.ts pins the fetcher within 120
       // chars of its wrapper, and a comment block between them fails it.
-      // Private Lab skips this lane: it bumps wisdom seenCount/lastSeen on
-      // every read and has no read-only mode yet (hybrid recall below does).
-      (userContent.length > 10 || forceRecall) && contextualRecallMod && !privateMode
+      // Private Lab runs this lane read-only (sideEffects:false skips the
+      // wisdom lastSeen/recallCount bump, its only write; 2026-10-10).
+      (userContent.length > 10 || forceRecall) && contextualRecallMod
         ? withTimeout(
             contextualRecallMod.getContextualMemories(
               buildRecallMessages(queryPlan.referent, userContent),
@@ -412,6 +412,7 @@ export async function buildBrainContext(
                 queryEmbedding: userEmbedding.length > 0 ? userEmbedding : undefined,
                 fastTopics: true,
                 asOf: queryPlan.asOf,
+                sideEffects: !privateMode,
                 onRanked: (rows: import("@/lib/brain/contextual-recall").RankedRecallRow[]) => {
                   contextualRankedIds = rows.map((r) => r.id);
                   contextualRankedRows = rows;
