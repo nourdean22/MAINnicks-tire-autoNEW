@@ -9,6 +9,8 @@ Live code and production evidence override this document when they disagree. Upd
 
 ## Pipeline controls: run any cron job now, advance one reel now (2026-10-10, PR after #2971) -- BUILT + TESTED; PR open
 
+Live proofs landed the same morning: the lane fix (#2966) parked Reel #1 as `qa_parked:unavailable_stale` on the 13:01Z pulse (selected: none) after a day of hourly re-selection; the voted critic (#2952) judged its first pipeline reel with `runs 3 / agreedBlocks 3 / droppedBlocks 2`; the Seedance 2.5 test reel 2070005 (craft 80) was published on the operator's instruction under a recorded override as https://www.instagram.com/reel/DeUMKRVgnQl/.
+
 Operator: "that seems obsolete, make it an option, full controllability". The 15-minute pulse was the only server-side trigger; reel-pipeline is not on the staged-trigger list, so even the admin key could not fire it.
 
 - **Action Center > Pipeline controls:** reels in flight lead (status, age in state, clips/beats, which verdicts exist) with one button each for the one step the status allows (Generate now / Assemble now / Run QA now); then Run the pipeline tick, Run the daily post pulse, and every registered job on demand. Steps start in the background and run the tick's own code scoped to one job; no gate is skipped.
