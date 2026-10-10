@@ -28,6 +28,7 @@
 
 import type { logger as rootLogger } from "@/lib/logger";
 import type { recordError as recordErrorFn } from "@/lib/errors/record-error";
+import type { ChatActionPermission } from "@/lib/ai/chat/gate";
 
 type Logger = ReturnType<typeof rootLogger.withSurface>;
 
@@ -43,8 +44,10 @@ export async function runSpecialistRouting(args: {
   userContent: string;
   log: Logger;
   recordError: typeof recordErrorFn;
+  /** 2026-10-10 · forwarded to persistUserTurn (a Read turn skips task auto-complete). */
+  actionPermission?: ChatActionPermission;
 }): Promise<SpecialistRoutingResult> {
-  const { messages, privateMode, convId, lastUserMsg, userContent, log, recordError } = args;
+  const { messages, privateMode, convId, lastUserMsg, userContent, log, recordError, actionPermission } = args;
 
   const { isSpecialistRoutingEnabled, isSpecialistShadowMode } = await import("@/lib/ai/agents/types");
   if (!(isSpecialistRoutingEnabled() || isSpecialistShadowMode())) {
@@ -115,6 +118,7 @@ export async function runSpecialistRouting(args: {
             userContent,
             log,
             recordError,
+            actionPermission,
           });
 
       const { buildFastStream } = await import("@/lib/ai/chat/handlers/shared");

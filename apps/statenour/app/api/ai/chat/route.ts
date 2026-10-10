@@ -103,6 +103,7 @@ async function chatPostInner(req: Request) {
     userContent,
     // 2026-07-22 · authority-kernel controls (privateMode / posture / permission)
     privateMode,
+    ephemeral,
     posture,
     actionPermission,
     // v10.0.529.86 · Wave 30 · pronoun-resolution context
@@ -119,10 +120,23 @@ async function chatPostInner(req: Request) {
     lastMissionId,
   } = gate;
 
-  // Private Lab: detach the turn from ANY conversation server-side (belt — the
-  // client also omits it). No conversationId → the objection/contradiction
-  // injector paths and conversation-scoped writes structurally no-op.
-  const conversationId = privateMode ? undefined : gateConversationId;
+  // 2026-10-10 · two flags, two meanings (audit 07-SN-05):
+  //   privateMode -- Private Lab, no trace at all (tools, memory, metrics,
+  //                  Langfuse, logs). Published on the turn context NOW, before
+  //                  compression / recall / tool prep, because every gate below
+  //                  (tool-policy, Langfuse, the tool wrapper) reads it there.
+  //   ephemeral   -- transcript not kept; tools and memory stay on (home /task,
+  //                  /capture). It gets exactly what the shared flag used to
+  //                  give it: every transcript-shaped gate below keys on
+  //                  `transcriptOff`, the trace-shaped ones on `privateMode`.
+  updateTurnContext({ privateMode, actionPermission });
+  const transcriptOff = privateMode || ephemeral;
+
+  // Private Lab / ephemeral: detach the turn from ANY conversation server-side
+  // (belt — the client also omits it). No conversationId → the
+  // objection/contradiction injector paths and conversation-scoped writes
+  // structurally no-op.
+  const conversationId = transcriptOff ? undefined : gateConversationId;
 
   const { sanitizeMessageHistory } = await import(
     "@/lib/ai/chat/sanitize-history"
@@ -172,7 +186,8 @@ async function chatPostInner(req: Request) {
   // user row + BrainMemory/Decision rows (self-review blocker #1). Falling
   // through routes the turn to the model pipeline, which is private-safe.
   // Compiler turns are prompt-only: interceptors can execute or persist before tool pruning.
-  if (!privateMode && !researchCompilerMode) {
+  // Ephemeral turns skip them too: they persist a transcript of their own.
+  if (!transcriptOff && !researchCompilerMode) {
     const interceptorTimer = stageTracker.start("interceptors");
     const { runInterceptors } = await import("@/lib/ai/chat/interceptors");
     const interceptResult = await runInterceptors({
@@ -196,16 +211,17 @@ async function chatPostInner(req: Request) {
   // Private Lab: skip specialist routing entirely — it records
   // content-derived route metrics (self-review #7) and its
   // buildFastStream persists the reply.
-  if (!privateMode && !researchCompilerMode) {
+  if (!transcriptOff && !researchCompilerMode) {
     const { runSpecialistRouting } = await import("./specialist-routing");
     const specialist = await runSpecialistRouting({
       messages: messages as unknown as Array<Record<string, unknown>>,
-      privateMode,
+      privateMode: transcriptOff,
       convId,
       lastUserMsg,
       userContent,
       log,
       recordError,
+      actionPermission,
     });
     if (specialist.kind === "handled") return specialist.response;
   }
@@ -247,7 +263,7 @@ async function chatPostInner(req: Request) {
   // contract as its error path. The detached write may still land.
   // Private Lab: the user turn persists NOTHING (no chatMessage row, no
   // conversation row, no persistIfImportant BrainMemory auto-write).
-  const dbWritePromise: Promise<string> = privateMode
+  const dbWritePromise: Promise<string> = transcriptOff
     ? Promise.resolve(convId || "private")
     : withTimeout(
         persistUserTurn({
@@ -256,6 +272,8 @@ async function chatPostInner(req: Request) {
           userContent,
           log,
           recordError,
+          // Read turns skip the task auto-complete side effect.
+          actionPermission,
         }),
         5_000,
         "persist-user-turn",
@@ -391,7 +409,8 @@ async function chatPostInner(req: Request) {
       traceId: __traceId,
       conversationId:
         convId && convId !== "temp" && convId !== "private" ? convId : undefined,
-      privateMode,
+      // The shadow job stores the user's text durably: no transcript, no job.
+      privateMode: transcriptOff,
       turnSignal,
       mode,
       finalTaskType,
@@ -605,7 +624,8 @@ async function chatPostInner(req: Request) {
     tier: topicTier,
     contentMode,
     variant: promptVariant,
-    msgPreview: userContent.slice(0, 40),
+    // Private Lab: the user's words never reach Railway logs / Sentry.
+    ...(privateMode ? {} : { msgPreview: userContent.slice(0, 40) }),
   });
 
   // Cache lookup MUST happen after topic-tier detection — Apr 26 the
@@ -739,7 +759,10 @@ async function chatPostInner(req: Request) {
           userEmbedding: ue,
           forceRecall,
           messages: messages as Array<{ role: string; content: string }>,
-          convId: cid,
+          // Private Lab: no conversation id at all. The "private" placeholder
+          // is truthy, so the contradiction injector wrote a dedupe row.
+          convId: privateMode ? undefined : cid,
+          privateMode,
           posture,
           log,
         }),
@@ -954,6 +977,8 @@ ${priorsBlock}`;
     finalSystemPromptLength: finalSystemPrompt.length,
     // WP-14 · read-mode hard enforcement (strips mutating tools LAST)
     actionPermission,
+    // Private Lab strips mutating tools at ANY permission + skips tool census rows.
+    privateMode,
     researchCompilerMode,
     traceId: __traceId,
     conversationId: convId,
@@ -1007,7 +1032,9 @@ ${priorsBlock}`;
 
   const persistBase = {
     log,
-    privateMode,
+    // persist-assistant-turn's single gate skips the whole post-turn pipeline
+    // (transcript AND learning) — what ephemeral turns already got.
+    privateMode: transcriptOff,
     posture,
     convId,
     conversationId,
@@ -1081,7 +1108,7 @@ ${priorsBlock}`;
       deeperContextCount,
       deeperContextTypes,
       contextBlocksFired,
-      privateMode,
+      privateMode: transcriptOff,
       log,
     });
     if (altResponse) return altResponse;
@@ -1133,7 +1160,7 @@ ${priorsBlock}`;
     "@/lib/services/chat/active-stream"
   );
   const __onPartial =
-    !privateMode && convId ? createPartialPersister(convId) : undefined;
+    !transcriptOff && convId ? createPartialPersister(convId) : undefined;
   const __sameTurnFallback = await streamWithFallback({
     taskType: finalTaskType,
     preferLargeContext: finalPreferLargeContext,
@@ -1163,7 +1190,7 @@ ${priorsBlock}`;
       webSearchIntent: __webSearchIntent,
       actionIntent: __actionIntent,
       actionPermission,
-      privateMode,
+      privateMode: transcriptOff,
       convId,
       conversationId,
       traceId: __traceId,
@@ -1279,7 +1306,7 @@ ${priorsBlock}`;
   // stub or a future wrapper shape omits it, the turn must degrade to
   // pre-WP-A behavior (client-driven completion), never crash.
   result.consumeStream?.();
-  if (!privateMode && convId) {
+  if (!transcriptOff && convId) {
     const { registerActiveStream, completeActiveStream } = await import(
       "@/lib/services/chat/active-stream"
     );

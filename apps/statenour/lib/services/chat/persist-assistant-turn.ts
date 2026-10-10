@@ -55,6 +55,7 @@ import type { ContextReceipt } from "@/lib/ai/context-budget";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { runDeferredBackgroundWork } from "./deferred-background-work";
 import { reconcileStreamText } from "./reconcile-stream-text";
+import { currentTurn } from "@/lib/agent/turn-context";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -713,6 +714,9 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         text,
         messages,
         createdAssistantId,
+        // 2026-10-10 · an outbox replay runs outside the turn scope, so the
+        // permission rides in the persisted ctx (Read turns skip action blocks).
+        actionPermission: currentTurn()?.actionPermission ?? undefined,
       };
       const { enqueuePostTurnWork, completePostTurnWork } = await import(
         "./post-turn-outbox"

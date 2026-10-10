@@ -9,7 +9,7 @@
  *
  * The power is unchanged — every mode maps to the exact prefix the old
  * mode buttons applied, and the pipeline is the SAME canonical chat
- * transport (privateMode:true → zero persistence, full provider fallback +
+ * transport (ephemeral:true → no transcript kept, full provider fallback +
  * fabrication defenses; see the 2026-07-25 engine-unification note this
  * inherits). Only the surface area shrank (Apple HIG: keep capabilities
  * close, include only what's necessary).
@@ -102,7 +102,9 @@ export function NickCommandLine() {
     () =>
       new DefaultChatTransport({
         api: "/api/ai/chat",
-        body: { privateMode: true },
+        // ephemeral = transcript not kept, tools on. NOT privateMode: Private
+        // Lab strips write tools, and /task and /capture exist to write.
+        body: { ephemeral: true },
       }),
     [],
   );

@@ -192,12 +192,33 @@ export function provenancePrefix(m: RelevantMemory): string {
 export function renderedContent(m: RelevantMemory): string {
   return m.content.slice(0, m.relevance === "direct" ? 200 : 150);
 }
+
+/**
+ * 2026-10-10 (audit 05-M10) · one memory line exactly as the contextual block
+ * renders it. The hybrid lane (memory-recall.ts formatRecallForPrompt) wraps
+ * EXTERNAL_CONTENT rows in <untrusted-memory>; this lane rendered the same
+ * inbound email as a bare line labelled only "external", so the two blocks in
+ * one prompt disagreed on whether that text could instruct the model. Same
+ * trust-tier rule here: third-party rows are fenced (which also taints the
+ * turn), everything else renders as before. A row with no source re-derives
+ * from its category, as the hybrid renderer does, so a missing field does not
+ * fence every memory.
+ *
+ * The token-budget trim still charges provenancePrefix + renderedContent, so
+ * a fenced row costs ~60 chars more than it was charged.
+ */
+export function renderMemoryLine(m: RelevantMemory): string {
+  const body = renderedContent(m);
+  const tier = classifyTrustTier(m.source || "unclassified", null, m.category);
+  return `${provenancePrefix(m)} ${canRenderAsKnowledge(tier) ? body : fenceUntrustedMemory(body, tier)}`;
+}
 // 2026-05-17 follow-up · exclude binary-payload categories from
 // every recall path · keeps the prompt builder from pulling 100KB+
 // base64 audio blobs that have no semantic value (Phase 5 morning
 // brief audio).
 import { RECALL_EXCLUDE_CATEGORIES } from "@/lib/brain/categories";
 import { fenceContent } from "@/lib/ai/tool-result-fencing";
+import { classifyTrustTier, canRenderAsKnowledge, fenceUntrustedMemory } from "@/lib/brain/memory-trust";
 
 /**
  * S-1 (2026-09-01 audit) · recalled memory was the one path external content
@@ -1587,21 +1608,21 @@ export async function getContextualMemories(
   if (direct.length > 0) {
     lines.push(`### Directly Relevant`);
     for (const m of direct) {
-      lines.push(`${provenancePrefix(m)} ${renderedContent(m)}`);
+      lines.push(renderMemoryLine(m));
     }
   }
 
   if (supporting.length > 0) {
     lines.push(`### Supporting Context`);
     for (const m of supporting) {
-      lines.push(`${provenancePrefix(m)} ${renderedContent(m)}`);
+      lines.push(renderMemoryLine(m));
     }
   }
 
   if (background.length > 0) {
     lines.push(`### Core Knowledge`);
     for (const m of background) {
-      lines.push(`${provenancePrefix(m)} ${renderedContent(m)}`);
+      lines.push(renderMemoryLine(m));
     }
   }
 
@@ -2055,9 +2076,9 @@ async function getFallbackMemories(max: number): Promise<string> {
 
   const lines = [`## Nick Brain — Top Memories (${memories.length} by confidence)`];
   for (const m of memories) {
-    lines.push(
-      `${provenancePrefix({ ...m, relevance: "background" })} ${m.content.slice(0, 200)}`,
-    );
+    // relevance "direct" = the same 200-char slice this path always rendered
+    // (provenancePrefix ignores relevance); renderMemoryLine adds the trust fence.
+    lines.push(renderMemoryLine({ ...m, relevance: "direct" }));
   }
 
   return fenceRecallBlock(lines);

@@ -41,9 +41,18 @@ export interface GatePass {
   userContent: string;
   // 2026-07-22 · Authority-kernel controls (audit Waves 1+7). All optional,
   // defaulted by parseChatControls so absent fields = today's behavior.
-  //   privateMode      — Private Lab: the turn persists NOTHING (no message
-  //                      rows, no BrainMemory, no embeddings, no learning).
-  //   posture          — execute = suppress unsolicited opposition ·
+  //   privateMode      — Private Lab: the turn leaves NO TRACE. No message
+  //                      rows, no BrainMemory / AuditEvent / system_metrics /
+  //                      image rows, no embeddings stored, no learning, no
+  //                      Langfuse spans, no user text in logs, and no mutating
+  //                      tool (stripped in prepare-tools, denied in tool-policy).
+  //   ephemeral        — transcript NOT kept (no conversation / message rows,
+  //                      no post-turn pipeline) but otherwise a normal turn:
+  //                      tools and memory writes stay on. Home's command line
+  //                      (/task, /capture) sends this. 2026-10-10 split: one
+  //                      flag used to mean both, so Private Lab could not be
+  //                      tightened without breaking /capture.
+  //   posture        — execute = suppress unsolicited opposition ·
   //                      spar = force the adversarial dialectic ·
   //                      counsel = balanced (default behavior) · auto = infer.
   //   actionPermission — read = no mutating tools · draft = stage, don't fire
@@ -59,6 +68,7 @@ export interface GatePass {
   //   never a command. Pinned by tests/security/read-mode-typed-commands.test.ts;
   //   change the label, this comment and that test together or not at all.
   privateMode: boolean;
+  ephemeral: boolean;
   posture: ChatPosture;
   actionPermission: ChatActionPermission;
   // v10.0.529.86 · Wave 30 · pronoun-resolution context hints. All
@@ -233,6 +243,8 @@ export async function runGate(req: Request): Promise<GateResult> {
     personality,
     userContent,
     ...parseChatControls(body),
+    // Strict boolean like privateMode: a truthy string is not a request.
+    ephemeral: body.ephemeral === true,
     contextRoute,
     lastTaskId,
     lastGoalId,

@@ -43,6 +43,7 @@
  */
 
 import { logger as rootLogger } from "@/lib/logger";
+import { currentTurn } from "@/lib/agent/turn-context";
 import { AI_SDK_TRACER_NAME, LANGFUSE_SELFCHECK_SPAN_NAME } from "./span-names";
 
 const log = rootLogger.withSurface("observability/langfuse");
@@ -93,9 +94,15 @@ export function isLangfuseConfigured(): boolean {
  * carry prompt + completion content, and the repo's observability
  * privacy stance (otel-export.ts, two layers) is that content never
  * leaves the process without an explicit, named decision.
+ *
+ * 2026-10-10 (audit 07-SN-06) · the parameter alone was not enough: helper
+ * LLM calls inside a private turn (the >20-message summarizer, the intent
+ * classifier, LLM calls inside tools) never pass it, so they exported the
+ * turn's content. The active turn context is read too — one gate, every
+ * caller, no threading.
  */
 export function isLangfuseTelemetryEnabled(privateMode?: boolean): boolean {
-  return state().status === "started" && !privateMode;
+  return state().status === "started" && !privateMode && currentTurn()?.privateMode !== true;
 }
 
 export function langfuseTracingStatus(): TracingStatus {

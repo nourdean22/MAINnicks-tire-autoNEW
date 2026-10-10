@@ -36,6 +36,8 @@
  * instruct the agent.
  */
 
+import { updateTurnContext } from "@/lib/agent/turn-context";
+
 export type TrustTier =
   /** Nour said it, or he explicitly approved it. */
   | "OPERATOR"
@@ -90,7 +92,14 @@ const OPERATOR_EXACT = new Set(["manual", "user", "operator", "nour"]);
  */
 const EXTERNAL_CATEGORIES = new Set(["gmail_thread", "inbound", "inbound_sms", "web_article"]);
 
-const AGENT_PREFIXES = ["nick", "agent:", "llm:", "distillation", "output_critic", "judge-eval"];
+/**
+ * 2026-10-10 (audit 05-M2) · `conversation_` added. Every writer with that
+ * source is an LLM summary of a chat (`conversation_analysis` llm_extract,
+ * `conversation_<id>` digests, `conversation_compress`), stored as
+ * AGENT_INFERRED by admission -- but read back as SYSTEM_DERIVED, i.e.
+ * action-authorizing, because no prefix here matched it.
+ */
+const AGENT_PREFIXES = ["nick", "agent:", "llm:", "distillation", "output_critic", "judge-eval", "conversation_"];
 
 /**
  * A source that looks like a bare hostname (contains a dot or a known TLD
@@ -148,6 +157,45 @@ export function classifyTrustTier(
   // No source recorded at all. Unknown provenance is not trusted
   // provenance.
   return "EXTERNAL_CONTENT";
+}
+
+/** Least to most restrictive. Index = restrictiveness. */
+const TIER_ORDER: readonly TrustTier[] = ["OPERATOR", "SYSTEM_DERIVED", "AGENT_INFERRED", "EXTERNAL_CONTENT"];
+
+function asTier(value: unknown): TrustTier | null {
+  return typeof value === "string" && (TIER_ORDER as readonly string[]).includes(value) ? (value as TrustTier) : null;
+}
+
+/**
+ * 2026-10-10 (audit 05-M2) · the tier for a row whose STORED provenance is
+ * available: the MORE restrictive of
+ *   - the source-derived tier (classifyTrustTier),
+ *   - the stored `trust_tier` column (written by admitMemory), and
+ *   - the admission envelope (`metadata.admission`): a `derived` row or an
+ *     `llm_extract` is a model inference whatever its source slug says.
+ *
+ * Restrictive-only by construction: a stored value can tighten the derived
+ * tier, never loosen it -- a cache that says OPERATOR on a scraped article is
+ * a corrupt cache, not an authority. An unrecognised stored value is ignored.
+ */
+export function resolveTrustTier(row: {
+  source?: string | null;
+  createdBy?: string | null;
+  category?: string | null;
+  trustTier?: string | null;
+  metadata?: unknown;
+}): TrustTier {
+  let tier = classifyTrustTier(row.source, row.createdBy, row.category);
+  const tighten = (t: TrustTier | null) => {
+    if (t && TIER_ORDER.indexOf(t) > TIER_ORDER.indexOf(tier)) tier = t;
+  };
+  tighten(asTier(row.trustTier));
+  const meta = row.metadata && typeof row.metadata === "object" ? (row.metadata as Record<string, unknown>) : null;
+  const admission = meta?.admission && typeof meta.admission === "object" ? (meta.admission as Record<string, unknown>) : null;
+  if (admission && (admission.memoryKind === "derived" || admission.extractionMethod === "llm_extract")) {
+    tighten("AGENT_INFERRED");
+  }
+  return tier;
 }
 
 /**
@@ -240,7 +288,21 @@ export function shouldStampInferredBasis(
  * knowledge. Mirrors the fenceContent() convention already used for
  * live scrape output — the same discipline, applied to the memory that
  * outlives the turn.
+ *
+ * 2026-10-10 (audit 07-SN-02) · two holes closed:
+ *   1. ESCAPE. A stored `</untrusted-memory>` used to end the fence early,
+ *      so the rest of a hostile email read as trusted prompt text. Any
+ *      opening or closing tag inside the content (case, whitespace, or a
+ *      missing `>` notwithstanding) is neutralised, as fenceContent does for
+ *      <tool_data>; the source attribute is reduced to a safe charset.
+ *   2. TAINT. Rendering third-party memory into the prompt is the turn
+ *      reading untrusted input, so the turn is tainted here and the sink gate
+ *      (lib/tools/sink-policy.ts) holds any outward side effect for a human.
+ *      No-op outside a chat turn.
  */
 export function fenceUntrustedMemory(content: string, source: string): string {
-  return `<untrusted-memory source="${source}">\n${content}\n</untrusted-memory>`;
+  updateTurnContext({ untrustedInput: true });
+  const safeSource = source.replace(/[^A-Za-z0-9_:.-]/g, "");
+  const safeContent = content.replace(/<\s*\/?\s*untrusted-memory\b[^>]*>?/gi, "[fence-tag-stripped]");
+  return `<untrusted-memory source="${safeSource}">\n${safeContent}\n</untrusted-memory>`;
 }

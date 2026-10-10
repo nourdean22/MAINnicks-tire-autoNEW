@@ -26,10 +26,26 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 export interface TurnContext {
   conversationId: string | null;
-  /** This turn contained web/Drive/email content. Blocks self-scheduling. */
+  /**
+   * This turn contained web/Drive/email/bridge/uploaded content. Blocks
+   * self-scheduling and makes the sink gate hold outward side effects.
+   * STICKY: once set it stays set for the rest of the turn (see
+   * updateTurnContext) -- a taint that a later write could clear is not a taint.
+   */
   untrustedInput: boolean;
-  /** Private turns leave no trace and may not schedule work. */
+  /**
+   * Private Lab: the turn leaves no trace -- no mutating tools, no memory /
+   * audit / metric rows, no Langfuse spans. Set by the chat route right after
+   * the gate, before recall or tool preparation runs. Sticky like the taint.
+   * (`ephemeral` turns -- transcript not kept -- are NOT private.)
+   */
   privateMode: boolean;
+  /**
+   * 2026-10-10 · the request's action permission (gate.ts ChatActionPermission),
+   * published so the tool wrapper can enforce it at execution time. null =
+   * not declared (non-chat scopes).
+   */
+  actionPermission: "read" | "draft" | "execute" | null;
   /**
    * 2026-09-10 · this turn's recall set contained MODEL-INFERRED memory
    * and nothing the operator stated or first-party data established.
@@ -51,6 +67,7 @@ export function withTurnContext<T>(seed: Partial<TurnContext>, fn: () => T): T {
       conversationId: seed.conversationId ?? null,
       untrustedInput: seed.untrustedInput ?? false,
       privateMode: seed.privateMode ?? false,
+      actionPermission: seed.actionPermission ?? null,
       inferredBasisOnly: seed.inferredBasisOnly ?? false,
     },
     fn,
@@ -60,13 +77,19 @@ export function withTurnContext<T>(seed: Partial<TurnContext>, fn: () => T): T {
 /**
  * Fill in what was not known when the scope opened. No-op outside a
  * scope, so a non-chat caller cannot accidentally create one.
+ *
+ * `untrustedInput` and `privateMode` are one-way: a patch can set them, never
+ * clear them. Recall taints the turn partway through, and the route later
+ * publishes its own web-search signal (often false) -- an assignment there
+ * silently untainted a turn that had already read an outsider's email.
  */
 export function updateTurnContext(patch: Partial<TurnContext>): void {
   const ctx = storage.getStore();
   if (!ctx) return;
   if (patch.conversationId !== undefined) ctx.conversationId = patch.conversationId;
-  if (patch.untrustedInput !== undefined) ctx.untrustedInput = patch.untrustedInput;
-  if (patch.privateMode !== undefined) ctx.privateMode = patch.privateMode;
+  if (patch.untrustedInput === true) ctx.untrustedInput = true;
+  if (patch.privateMode === true) ctx.privateMode = true;
+  if (patch.actionPermission !== undefined) ctx.actionPermission = patch.actionPermission;
   if (patch.inferredBasisOnly !== undefined) ctx.inferredBasisOnly = patch.inferredBasisOnly;
 }
 
