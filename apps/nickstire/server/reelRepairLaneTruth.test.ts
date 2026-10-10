@@ -121,13 +121,17 @@ describe("repair renders on the lane, and refuses the ones it has no branch for"
     expect(REPAIR).toMatch(/must not fall through to another provider/);
   });
 
-  it("reaches higgsfieldStudio ONLY from inside the higgsfield branch", () => {
-    const idx = REPAIR.indexOf('await import("./higgsfieldStudio")');
+  it("reaches Higgsfield ONLY through the shared renderer, from inside the higgsfield branch", () => {
+    // 2026-10-10 (audit B2): the repair lane no longer calls the provider bare.
+    // renderHiggsfieldBeat (reelPipeline) carries the handle protocol for both
+    // lanes, so a direct higgsfieldStudio import here would be a way around it.
+    expect(REPAIR).not.toContain('import("./higgsfieldStudio")');
+    const idx = REPAIR.indexOf("renderHiggsfieldBeat(");
     expect(idx).toBeGreaterThan(-1);
     const branchIdx = REPAIR.indexOf('} else if (repairProvider === "higgsfield") {');
     expect(branchIdx).toBeGreaterThan(-1);
     expect(idx).toBeGreaterThan(branchIdx);
-    // and only once — a second import site would be a second way to bypass the lane
-    expect(REPAIR.split('await import("./higgsfieldStudio")').length - 1).toBe(1);
+    // and only once — a second render site would be a second way to bypass the lane
+    expect(REPAIR.split("renderHiggsfieldBeat(").length - 1).toBe(1);
   });
 });

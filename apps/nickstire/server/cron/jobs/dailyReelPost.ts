@@ -1615,7 +1615,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     if (!ig?.success && fbLiveId) {
       // PARTIAL: the Page already has this reel, Instagram cleanly refused it.
       // Restoring "assembled" would hand the SAME video to Facebook again on the
-      // next tick (same shape socialInventoryPublisher parks as published_partial).
+      // next tick (the same shape the Queue parks as published_partial).
       await d.update(reelJobs)
         .set({
           status: "publish_ambiguous",

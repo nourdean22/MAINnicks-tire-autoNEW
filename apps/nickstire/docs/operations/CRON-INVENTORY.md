@@ -4,7 +4,7 @@ Every background job in `server/cron/scheduler.ts` (tiered scheduler) and the
 HTTP-triggerable registry in `server/cron/index.ts`. **This file is generated** from
 those two sources — `server/cron/cronInventoryParity.test.ts` fails when they drift.
 
-**Last regenerated: 2026-10-08 by `scripts/gen-cron-inventory.mts`.**
+**Last regenerated: 2026-10-10 by `scripts/gen-cron-inventory.mts`.**
 
 > The code is the source of truth. To add or change a job, edit the scheduler and
 > re-run the generator in the same commit; write the job's purpose in the last column.
@@ -16,12 +16,12 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | Tier | Interval | Jobs (scheduled / staged) |
 |---|---|---|
 | heartbeat | every 5m | 4 / 2 |
-| pulse | every 15m | 24 / 0 |
+| pulse | every 15m | 23 / 0 |
 | hourly | every 2h | 37 / 1 |
 | daily | every 1d | 53 / 0 |
 | briefings | every 12h | 6 / 0 |
 
-**Total: 127 tiered jobs (124 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
+**Total: 126 tiered jobs (123 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
 
 ## heartbeat (every 5m)
 
@@ -58,7 +58,6 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `scheduled-posts` | no | no | yes | — |
 | `sms-gateway-health` | no | no | yes | — |
 | `sms-scheduler` | yes | no | yes | Send queued SMS (review requests, reminders, etc.) |
-| `social-inventory-publisher` | no | no | yes | — |
 | `statenour-live-sync` | no | no | yes | — |
 | `vendor-health` | no | no | yes | Probe critical vendor APIs (Twilio, Stripe, Resend, etc.) before syncs run |
 | `wo-overdue-check` | yes | no | yes | — |

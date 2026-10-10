@@ -498,8 +498,10 @@ export interface StoryboardBeat {
   realAssetId?: string;
   /** For a beat declared deterministic: the label lines the local card draws (server/services/deterministicCard.ts). */
   cardLines?: string[];
-  /** Higgsfield API request already submitted; resume polling after ambiguity. */
+  /** Higgsfield request (API) or job (CLI) already submitted; resume polling after ambiguity. */
   higgsfieldRequestId?: string;
+  /** Which lane the handle above belongs to; absent means the API lane (pre-2026-10-10 rows). */
+  higgsfieldRequestLane?: "api" | "cli";
 }
 
 export interface SafetyFinding {

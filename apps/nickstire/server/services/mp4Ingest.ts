@@ -16,10 +16,10 @@
  * REEL_GATE_REQUIRE_JOB is armed. So ingestion creates the row and stamps
  * reelJobId into the brief, giving the gate the same evidence a generated reel has.
  *
- * WHY THE CAPTION GOES IN hookText: socialInventoryPublisher builds the posted
- * caption as `${hookText}\n\n${bodyText}` — NOT from briefJson and NOT from
- * reel_jobs.caption. A caption that lives only in the brief publishes as the
- * wrong text.
+ * WHY THE CAPTION GOES IN hookText: the Queue's publish door reads a non-reel
+ * row's caption from hookText (server-authoritative since the 2026-10-10
+ * audit, A2) — NOT from briefJson and NOT from reel_jobs.caption. A caption
+ * that lives only in the brief publishes as the wrong text.
  */
 import { createLogger } from "../lib/logger";
 

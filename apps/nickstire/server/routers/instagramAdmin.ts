@@ -1847,6 +1847,26 @@ Keep it under 200 characters.`;
             input.imageUrl = undefined;
             input.imageUrls = undefined;
           } else {
+            // A Studio V2 post publishes through Studio's own door, which sends its
+            // approved caption AND hashtags. The same row also appeared in this
+            // Queue under "Legacy static drafts" and published from here with the
+            // hook text alone — one approved post, two captions, chosen by which
+            // screen the operator happened to tap (audit A2, 2026-10-10).
+            if (draft.seriesName === "instagram_studio_v2") {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "This is a Studio draft — publish it from Studio, which sends its approved caption and hashtags. Publishing it here would post a different caption.",
+              });
+            }
+            // The caption is server-authoritative here as it is for reels: the
+            // approval covered the row's text, not whatever the browser held when
+            // the operator tapped. A row with no text keeps the client's caption,
+            // loudly, so a manual stageDraft without hook text can still go out.
+            if (typeof draft.hookText === "string" && draft.hookText.trim()) {
+              publishCaption = draft.hookText;
+            } else {
+              log.warn(`publishPost: draft ${draft.id} carries no hook text — publishing the client-supplied caption`);
+            }
             // Non-reel drafts: media is SERVER-authoritative. The client used to
             // supply imageUrl(s) verbatim with no check against the row — the last
             // format-level integrity hole after the reel gate (missed by both

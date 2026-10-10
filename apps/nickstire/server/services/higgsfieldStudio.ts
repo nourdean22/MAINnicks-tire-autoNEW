@@ -580,8 +580,117 @@ export function buildSeedanceArgs(prompt: string, opts: { startImageUrl?: string
   // nothing submitted, nothing spent); text-only renders use 't2v'. bitrate_mode
   // 'high' is the README's own 2.5 example and costs nothing extra in credits.
   if (model === "seedance_2_5") args.push("--mode", conditioned ? "omni_reference" : "t2v", "--bitrate_mode", "high");
-  args.push("--wait", "--json");
+  // NO --wait (2026-10-10 audit, B1). Blocking inside the child meant a local
+  // timeout killed the process with no job id while the remote render kept
+  // going and billing. The create returns the job; the caller polls
+  // `generate get <id> --json` and holds a resumable handle instead.
+  args.push("--json");
   return args;
+}
+
+/**
+ * The job id out of `generate create ... --json` (no --wait): the CLI prints
+ * the created job. Accepts the list and wrapper shapes the CLI uses elsewhere.
+ * Throws rather than inventing a handle — a lost id is a lost render.
+ */
+export function parseCreatedJobId(stdout: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch (err) {
+    throw new Error(`Failed to parse Higgsfield create output: ${err instanceof Error ? err.message : String(err)}. Raw stdout: ${stdout.slice(0, 500)}`);
+  }
+  const candidates: unknown[] = [parsed];
+  if (Array.isArray(parsed)) candidates.unshift(parsed[0]);
+  if (parsed && typeof parsed === "object") {
+    const o = parsed as Record<string, unknown>;
+    if (o.job) candidates.unshift(o.job);
+    if (Array.isArray(o.jobs)) candidates.unshift(o.jobs[0]);
+  }
+  for (const c of candidates) {
+    const id = (c as { id?: unknown } | null)?.id;
+    if (typeof id === "string" && id.trim()) return id;
+  }
+  throw new Error(`Higgsfield create output carries no job id — cannot hold a handle for this render. Raw stdout: ${stdout.slice(0, 500)}`);
+}
+
+export type HiggsfieldCliJobState =
+  | { state: "running"; status: string }
+  | { state: "completed"; url: string }
+  | { state: "failed"; status: string };
+
+/**
+ * One `generate get <id> --json` reading. The uploaded start image sits in
+ * params.medias from the moment the job exists, so completion is decided by
+ * result_url (or a completed status), never by "some URL is present" — that
+ * exact misread saved 1158x2048 JPEGs as clips on 2026-10-10.
+ */
+export function readCliJobState(stdout: string): HiggsfieldCliJobState {
+  const parsed = JSON.parse(stdout) as unknown;
+  const job = (Array.isArray(parsed) ? parsed[0] : parsed) as { status?: unknown; result_url?: unknown } | null;
+  const status = String(job?.status ?? "").toLowerCase();
+  if (/fail|error|cancel|reject|nsfw|moderat/.test(status)) return { state: "failed", status };
+  const resultUrl = typeof job?.result_url === "string" && job.result_url.trim() ? job.result_url : null;
+  if (!resultUrl && status !== "completed") return { state: "running", status };
+  // A finished job whose result is not a video is a provider defect, not a
+  // read to retry: report it terminal so the pipeline replaces the request.
+  if (resultUrl && !VIDEO_EXT.test(resultUrl)) return { state: "failed", status: `completed_non_video (${resultUrl})` };
+  return { state: "completed", url: resultUrl ?? parseResultUrl(stdout, "video") };
+}
+
+/**
+ * Poll a CLI-lane job to completion through the read-only `generate get`.
+ * Mirrors pollHiggsfieldRequest: a transient read failure is retried until
+ * the deadline, a terminal remote failure throws the "generation failed"
+ * phrase the pipeline reads as safe-to-replace, and a local timeout throws a
+ * SUBMITTED error carrying the job id — the handle the next pulse resumes.
+ * `run` is injectable for tests; production spawns the CLI.
+ */
+export async function pollHiggsfieldCliJob(
+  jobId: string,
+  opts: { timeoutMs?: number; pollIntervalMs?: number; run?: typeof runHiggsfieldCliReadOnly } = {},
+): Promise<string> {
+  const run = opts.run ?? runHiggsfieldCliReadOnly;
+  const pollIntervalMs = opts.pollIntervalMs ?? 15_000;
+  const timeoutMs = opts.timeoutMs !== undefined
+    ? Math.max(1, opts.timeoutMs)
+    : Math.max(60_000, Number(process.env.HIGGSFIELD_CLI_TIMEOUT_MS) || 6 * 60_000);
+  const deadline = Date.now() + timeoutMs;
+  const { HiggsfieldApiSubmittedError } = await import("./higgsfieldApiClient");
+  let first = true;
+  while (true) {
+    if (!first) await new Promise((r) => setTimeout(r, pollIntervalMs));
+    first = false;
+    if (Date.now() >= deadline) {
+      // Wording matters: shared/providerErrors.ts classifies by message when
+      // no marker applies, and "billing" there reads as a credit wall.
+      throw new HiggsfieldApiSubmittedError(
+        jobId,
+        `Higgsfield CLI generation timed out after ${timeoutMs}ms polling job ${jobId} — the job keeps rendering on Higgsfield and will be charged; ` +
+        `it was NOT cancelled, only abandoned locally. Resume this job id; do NOT regenerate the clip, that is how one beat gets paid for twice.`,
+        "cli",
+        true,
+      );
+    }
+    const res = await run(["generate", "get", jobId, "--json"], 30_000);
+    if (!res.ok) {
+      log.warn("Higgsfield CLI job read failed, will retry", { jobId, code: res.code, stderr: res.stderr.slice(0, 200) });
+      continue;
+    }
+    let state: HiggsfieldCliJobState;
+    try {
+      state = readCliJobState(res.stdout);
+    } catch (err) {
+      log.warn("Higgsfield CLI job read unparseable, will retry", { jobId, err: err instanceof Error ? err.message : String(err) });
+      continue;
+    }
+    if (state.state === "running") continue;
+    if (state.state === "failed") {
+      throw new HiggsfieldApiSubmittedError(jobId, `Higgsfield CLI generation failed for job ${jobId}: status ${state.status}`, "cli");
+    }
+    log.info("Higgsfield CLI generation completed", { jobId });
+    return state.url;
+  }
 }
 
 /**
@@ -843,7 +952,8 @@ export async function generateReelClipVideo(req: string | {
   negativePrompt?: string;
   startImageUrl?: string;
   higgsfieldPollTimeoutMs?: number;
-  onHiggsfieldRequestSubmitted?: (requestId: string) => Promise<void> | void;
+  /** Persist the provider handle (API request id or CLI job id) before polling can outlive the worker. */
+  onHiggsfieldRequestSubmitted?: (requestId: string, lane: "api" | "cli") => Promise<void> | void;
 }): Promise<string> {
   const prompt = typeof req === "string" ? req : combinePromptWithNegative(req.prompt, req.negativePrompt);
   const startImageUrl = typeof req === "string" ? undefined : req.startImageUrl;
@@ -896,7 +1006,7 @@ export async function generateReelClipVideo(req: string | {
     try {
       return await generateReelClipVideoViaApi(
         { prompt, startImageUrl },
-        { timeoutMs: higgsfieldPollTimeoutMs, onSubmitted: onHiggsfieldRequestSubmitted },
+        { timeoutMs: higgsfieldPollTimeoutMs, onSubmitted: (requestId) => onHiggsfieldRequestSubmitted?.(requestId, "api") },
       );
     } catch (err) {
       // THE FALLBACK IS ONLY SAFE BEFORE SUBMIT. Once a generation is submitted
@@ -951,7 +1061,13 @@ export async function generateReelClipVideo(req: string | {
   const clipModel = resolveClipModel();
   log.info("Generating Reel clip video via Higgsfield CLI...", { model: clipModel, prompt, imageConditioned: conditioned });
 
-  return new Promise<string>((resolve, reject) => {
+  // SUBMIT, then POLL — two steps, like the API lane (2026-10-10 audit, B1).
+  // The child only creates the job (uploading the start image first); it
+  // prints the created job and exits. The job id is handed to the caller to
+  // persist, then polled through the read-only `generate get`. A timeout
+  // anywhere after this point holds a handle and resumes; it never kills a
+  // render that Higgsfield keeps billing for.
+  const jobId = await new Promise<string>((resolve, reject) => {
     const child = spawn(
       binPath,
       buildSeedanceArgs(prompt, { startImageUrl: effectiveStartImage, model: clipModel }),
@@ -968,11 +1084,11 @@ export async function generateReelClipVideo(req: string | {
     let stderr = "";
     let settled = false;
 
-    // KILL the CLI child on timeout. Seedance is a single blocking call with no
-    // resumable request-id (unlike Veo), so a caller that merely stops awaiting a
-    // hung run leaves an ORPHAN paid job running — and a retry beside it is what
-    // doubles the spend. Killing the process means any retry is a clean fresh
-    // attempt, never an overlap.
+    // The child's own deadline now covers only the SUBMIT (an upload plus one
+    // create call, seconds in practice, minutes on a slow upload). A hung
+    // submit is killed: nothing has been handed back yet, so there is nothing
+    // to resume, and a fresh attempt is the right move. The render itself is
+    // polled below under the caller's deadline with a handle.
     const CLI_TIMEOUT_MS = Math.max(60_000, Number(process.env.HIGGSFIELD_CLI_TIMEOUT_MS) || 6 * 60_000);
     const timer = setTimeout(async () => {
       if (settled) return;
@@ -982,7 +1098,7 @@ export async function generateReelClipVideo(req: string | {
       // AWAITED — a timed-out generation still rotated the token, and losing
       // that successor kills the session for everything after it.
       await persistRotationBounded(tempCredsFile);
-      reject(new Error(`Higgsfield CLI timed out after ${CLI_TIMEOUT_MS}ms — process killed to avoid an orphan paid job`));
+      reject(new Error(`Higgsfield CLI submit timed out after ${CLI_TIMEOUT_MS}ms before returning a job id — process killed; nothing to resume`));
     }, CLI_TIMEOUT_MS);
 
     child.stdout.on("data", (data) => {
@@ -1015,13 +1131,27 @@ export async function generateReelClipVideo(req: string | {
         return;
       }
       try {
-        const url = parseResultUrl(stdout, "video");
-        resolve(url);
+        resolve(parseCreatedJobId(stdout));
       } catch (err) {
         reject(err);
       }
     });
   });
+
+  // The handle is persisted BEFORE polling, exactly as the API lane does: if
+  // the persist itself fails, the job is already running and billing, so the
+  // error must carry the id rather than let a retry buy the clip again.
+  try {
+    await onHiggsfieldRequestSubmitted?.(jobId, "cli");
+  } catch (err) {
+    const { HiggsfieldApiSubmittedError } = await import("./higgsfieldApiClient");
+    throw new HiggsfieldApiSubmittedError(
+      jobId,
+      `Higgsfield CLI job ${jobId} was submitted but its handle could not be persisted (${err instanceof Error ? err.message : String(err)}) — resume by id, do not resubmit`,
+      "cli",
+    );
+  }
+  return pollHiggsfieldCliJob(jobId, { timeoutMs: higgsfieldPollTimeoutMs });
 }
 
 /**

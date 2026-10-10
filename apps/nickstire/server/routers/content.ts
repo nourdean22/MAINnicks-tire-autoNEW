@@ -3019,7 +3019,7 @@ export const contentAdminRouter = router({
    *
    * NOT on socialPipeline, which registers MP4_INGEST_ENABLED but declares
    * itself READ-ONLY in its own header ("It never writes, posts, or mutates").
-   * It lives beside listInventory / actOnInventoryItem because what it produces
+   * It lives beside listInventory because what it produces
    * is an inventory row those two already manage.
    *
    * The errors are deliberately passed through verbatim. Every one of them
@@ -3045,22 +3045,6 @@ export const contentAdminRouter = router({
           message: err instanceof Error ? err.message : "mp4 ingest failed",
         });
       }
-    }),
-  actOnInventoryItem: adminProcedure
-    .input(z.object({
-      id: z.string(),
-      action: z.enum(["approve", "reject", "schedule"]),
-      scheduledAt: z.string().optional(),
-    }))
-    .mutation(async ({ input }) => {
-      const db = await getDbTyped();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
-      const status = input.action === "approve" ? "approved" : input.action === "reject" ? "rejected" : "scheduled";
-      const scheduledDate = input.scheduledAt ? new Date(input.scheduledAt) : null;
-      await db.update(socialContentInventory)
-        .set({ status, scheduledAt: scheduledDate })
-        .where(eq(socialContentInventory.id, input.id));
-      return { success: true };
     }),
   /* ─── Reel Action Center ───────────────────────────────────────────────────
    * These three exist as REST routes behind requireAdminApiKey, which compares a

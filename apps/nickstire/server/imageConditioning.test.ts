@@ -43,7 +43,7 @@ describe("buildSeedanceArgs — REEL_CLIP_MODEL (2026-10-10)", () => {
     expect(withImage[withImage.indexOf("--mode") + 1]).toBe("omni_reference");
     expect(withImage).toContain("--start-image");
     expect(withImage[withImage.indexOf("--bitrate_mode") + 1]).toBe("high");
-    expect(withImage.indexOf("--mode")).toBeLessThan(withImage.indexOf("--wait"));
+    expect(withImage.indexOf("--mode")).toBeLessThan(withImage.indexOf("--json"));
     const textOnly = buildSeedanceArgs("x", {});
     expect(textOnly[textOnly.indexOf("--mode") + 1]).toBe("t2v");
     delete process.env.REEL_IMAGE_CONDITIONING;
@@ -67,7 +67,9 @@ describe("buildSeedanceArgs", () => {
     expect(args).not.toContain("--start-image");
     expect(args).toContain("--prompt");
     expect(args.slice(0, 3)).toEqual(["generate", "create", "seedance1_5"]);
-    expect(args).toContain("--wait");
+    // --wait is gone on purpose (2026-10-10, B1): the create returns a job id
+    // that is polled through `generate get`, so a timeout holds a handle.
+    expect(args).not.toContain("--wait");
     expect(args).toContain("--json");
   });
 
@@ -77,8 +79,8 @@ describe("buildSeedanceArgs", () => {
     const idx = args.indexOf("--start-image");
     expect(idx).toBeGreaterThan(-1);
     expect(args[idx + 1]).toBe("https://x/hero.jpg");
-    // image flag precedes the terminal --wait/--json
-    expect(idx).toBeLessThan(args.indexOf("--wait"));
+    // image flag precedes the terminal --json
+    expect(idx).toBeLessThan(args.indexOf("--json"));
   });
 
   it("flag on but no image -> still text-only (nothing to anchor on)", () => {

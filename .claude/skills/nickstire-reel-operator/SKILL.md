@@ -146,7 +146,7 @@ retries/fails loudly rather than silently downgrading.
 | Repair routing | `repairRouter.ts` | prices a beat regen at the ACTIVE provider's cost (`generationLedger.ts`); on the free `template_stock` lane this returns `auto_repair` instead of `needs_paid_repair` |
 | 7-way decision | `qualityAutomation.ts` (`decideAutomation`) | folds critic verdict + repair-attempt count + policy cap |
 | Consolidated publish gate | `qualityGate.ts` (`evaluateReelPublishGate`) — **the one gate every autonomous door consults** | returns `PublishGate \| EvidenceGate`: `proceed` / `auto_repair` / `needs_paid_repair` / `pause` / `reject` (from `postQaOrchestrator.ts`), or an evidence gate `unavailable` / `stale` / `needs_review` / `disabled` when the evaluation itself is incomplete. **Absence of evidence is never evidence of quality** — QA-unavailable still requires an explicit `disabled`-by-policy or `unavailable` state, never a silent pass |
-| Human-approval doors | `instagramAdmin.publishPost`, `instagramStudio`, `socialInventoryPublisher` | these keep hash-checked approval-integrity as their own gate — a person is already in the loop, so `evaluateReelPublishGate` is not re-enforced there the same way |
+| Human-approval doors | `instagramAdmin.publishPost`, `instagramStudio` | these keep hash-checked approval-integrity as their own gate — a person is already in the loop, so `evaluateReelPublishGate` is not re-enforced there the same way |
 
 Use `PASS` / `FAIL` / `UNKNOWN` / `BLOCKED` per the spec, but back every `PASS`
 with the actual field read (job row, gate return value, ffprobe output) — "the

@@ -22,7 +22,6 @@ const ENV_GATES = [
   { key: "REEL_FB_CROSSPOST_ENABLED", description: "Nightly reel cron also hands the reel video to the Facebook Page (Reels Publishing). IG stays the authority; FB failure never retries.", defaultOff: true }, // gitleaks:allow — flag name, not a secret
   { key: "REEL_AUTOPOST_ENABLED", description: "Daily cron (9am ET) auto-posts one pre-made reel from the 26-reel manifest", defaultOff: true },
   { key: "IG_AUTOPOST_DRYRUN", description: "IG autopost dry-run mode — when NOT 'false', posts go to Telegram only (default: dry-run ON)", defaultOff: false },
-  { key: "SOCIAL_INVENTORY_PUBLISH_ENABLED", description: "Social content inventory publisher cron (every 5 min)", defaultOff: true },
   { key: "CONTENT_REPLENISH_ENABLED", description: "Content reserve replenishment cron (every 2 hours)", defaultOff: true },
   { key: "SMS_KILL_SWITCH", description: "Blocks Twilio SMS path when 'true' (shop gateway still works). Set 'false' or unset when Twilio is restored.", defaultOff: false },
   { key: "ENABLE_CUSTOMER_CONFIRMATIONS", description: "Customer confirmation SMS/email notifications (dry-run if unset)", defaultOff: true },

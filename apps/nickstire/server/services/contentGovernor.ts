@@ -70,12 +70,11 @@ export async function requestReservation(req: ReservationRequest): Promise<{ res
     log.warn("reservations unavailable (0086 pending?) — creation proceeds ungoverned", { format: req.format });
     return null;
   }
-  const { and, eq, gte, inArray, ne } = await import("drizzle-orm");
+  const { and, eq, gte, lt, inArray } = await import("drizzle-orm");
   const now = new Date();
 
   // Opportunistic expiry sweep — stale reservations must not eat the caps.
   try {
-    const { lt } = await import("drizzle-orm");
     await ctx.d
       .update(ctx.table)
       .set({ status: "expired" })
@@ -85,11 +84,19 @@ export async function requestReservation(req: ReservationRequest): Promise<{ res
   const { getActivePolicy } = await import("./autonomyControl");
   const policy = await getActivePolicy();
   const codes: string[] = [];
+  // The SAME day, not "this day onward" (audit A3, 2026-10-10): the cap and
+  // the spacing check below read these rows as the day's feed, but the query
+  // had no upper bound, so slots reserved for Thursday and Friday both counted
+  // for Wednesday and the operator could not fill an earlier gap once later
+  // days were booked. The next day's start is derived from the shop's own
+  // calendar (36h past local midnight is always inside the next day, across
+  // DST), not from a fixed 24h.
   const dayStart = clevelandDayStart(req.windowStart);
+  const nextDayStart = clevelandDayStart(new Date(dayStart.getTime() + 36 * 3600_000));
   const liveRaw = await ctx.d
     .select()
     .from(ctx.table)
-    .where(and(inArray(ctx.table.status, ["reserved", "consumed"]), gte(ctx.table.windowStart, dayStart), ne(ctx.table.status, "expired")));
+    .where(and(inArray(ctx.table.status, ["reserved", "consumed"]), gte(ctx.table.windowStart, dayStart), lt(ctx.table.windowStart, nextDayStart)));
   type ResRow = { format: string; topic: string | null; cta: string | null; territory: string | null; windowStart: Date | string; createdAt: Date | string };
   const live: ResRow[] = Array.isArray(liveRaw) ? (liveRaw as ResRow[]) : [];
 

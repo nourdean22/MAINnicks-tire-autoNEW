@@ -399,10 +399,27 @@ export class HiggsfieldApiSubmittedError extends Error {
   readonly requestId: string;
   /** Always true — the marker a caller checks before deciding to retry. */
   readonly spendMayHaveOccurred = true;
-  constructor(requestId: string, message: string) {
+  /**
+   * Which lane holds the handle. Since 2026-10-10 the CLI session lane also
+   * submits without blocking and polls `generate get <id>`, so a timeout on
+   * either lane is resumable — but the two ids are resumed through different
+   * commands, and the beat has to remember which.
+   */
+  readonly lane: "api" | "cli";
+  /**
+   * True when WE stopped polling (deadline), not when the provider answered.
+   * The pipeline's classifier keys on this (shared/providerErrors.ts): a local
+   * timeout WITH a persisted handle is LOCAL_TIMEOUT_REMOTE_RUNNING — resume,
+   * no attempt consumed. Without the marker the same error fell to UNKNOWN /
+   * RETRY_BACKOFF and burned an attempt per deadline.
+   */
+  readonly isLocalTimeout: boolean;
+  constructor(requestId: string, message: string, lane: "api" | "cli" = "api", localTimeout = false) {
     super(message);
     this.name = "HiggsfieldApiSubmittedError";
     this.requestId = requestId;
+    this.lane = lane;
+    this.isLocalTimeout = localTimeout;
   }
 }
 
@@ -608,6 +625,8 @@ export async function pollHiggsfieldRequest(
         `Higgsfield API generation timed out after ${timeoutMs}ms polling request ${requestId} — ` +
         `the job may still complete server-side and BILL; this request_id was NOT cancelled, only abandoned locally. ` +
         `Do NOT regenerate this clip on another provider: that is how one beat gets paid for twice.`,
+        "api",
+        true,
       );
     }
     await new Promise((r) => setTimeout(r, pollIntervalMs));

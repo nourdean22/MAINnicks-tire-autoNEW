@@ -78,6 +78,32 @@ export default function Settings() {
   const isLoading = connection.isLoading || health.isLoading || config.isLoading;
   if (isLoading) return <div className="flex min-h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
+  // THE THIRD STATE FOR THE WHOLE PAGE. The three reads are dbAdminProcedures
+  // that throw when the database is unreachable; with only isLoading handled,
+  // a TiDB blip rendered three red "fix your keys" cards over a configuration
+  // that was fine and seeded the form from blank data (2026-10-10 audit, C1).
+  // A read that failed says so and offers a retry. It verdicts nothing.
+  const failedRead = [connection, health, config].find((query) => query.isError);
+  if (failedRead) {
+    const reason = failedRead.error instanceof Error ? failedRead.error.message : String(failedRead.error ?? "unknown error");
+    return (
+      <div className="space-y-4 pb-12">
+        <div className="flex gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-300">
+          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <strong>Could not read the Instagram settings.</strong>
+            <div className="mt-1 text-xs leading-5 text-amber-200/70">
+              The configuration is <strong>unknown</strong>, not misconfigured — the read failed: {reason}. Change nothing on this screen until it can be read.
+            </div>
+          </div>
+        </div>
+        <Button variant="outline" className="min-h-11" onClick={() => void Promise.all([connection.refetch(), health.refetch(), config.refetch()])}>
+          <RefreshCw className="mr-2 h-4 w-4" /> Retry
+        </Button>
+      </div>
+    );
+  }
+
   // "Configured" (presence), "alive" (Graph accepted the token just now), and
   // "could not ask" are THREE different facts. `live?.ok !== false` previously
   // rendered the unknown case as READY — the exact defect this card's comment

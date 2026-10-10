@@ -4856,6 +4856,46 @@
       ],
       "lastVerifiedAt": "2026-10-10",
       "verificationExpiresAt": "2026-11-09"
+    },
+    {
+      "capabilityId": "instagram-audit-must-fix-20261010",
+      "name": "Instagram surface audit, the nine must-fix items: bypass publisher deleted, Queue captions server-authoritative, governor counts the day not the future, CLI renders hold a resumable handle, repair lane shares the renderer and counts its attempts, three admin pages stop lying about failed reads",
+      "owner": "operator",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "branch nickstire/instagram-audit-must-fix (2026-10-10, PR after #2975; audit report docs/audits/INSTAGRAM-AUDIT-2026-10-10.md). A1: server/cron/jobs/socialInventoryPublisher.ts, its scheduler + registry entries, content.actOnInventoryItem (zero callers) and both test files deleted; SOCIAL_INVENTORY_PUBLISH_ENABLED removed from socialPipeline flags, truth_os, the runbook and the send-flag probe; cron inventory and proc census regenerated. A2: instagramAdmin.publishPost non-reel branch publishes draft.hookText (client caption kept only when the row has no text, logged) and refuses seriesName instagram_studio_v2 ('publish it from Studio'). A3: contentGovernor.requestReservation bounds the same-day query with lt(windowStart, next shop-day start) derived from clevelandDayStart. B1: higgsfieldStudio CLI lane submits WITHOUT --wait, parseCreatedJobId reads the job id, onHiggsfieldRequestSubmitted(id, 'cli') persists it, pollHiggsfieldCliJob polls the allowlisted read-only 'generate get <id> --json' (readCliJobState: completion by result_url, never by any-URL); HiggsfieldApiSubmittedError carries lane; StoryboardBeat.higgsfieldRequestLane. B2: reelPipeline.renderHiggsfieldBeat is the ONE per-beat renderer (resume by lane, persist on submit, history before clear, handle kept on a submitted error) used by processNextReelJob and selectiveRepair's higgsfield branch (hero still, poll deadline, handle on the entry; a still-rendering repair re-queues without consuming an attempt). B3: the repair claim stamps attempts = attempts + 1 in SQL so recoverStuckReelJobs' cap trips. C1: Settings renders a failed read as UNKNOWN with Retry. C2: ReelQueue.rejectDraft has onError. C3: Today reads instagramStudio.board and keys on health (stalled included).",
+        "tests": [
+          "server/contentGovernor.test.ts: fake now applies the where clause's date bounds; 'does not count reservations on a LATER day' (red first) + a same-day canary (12 passed).",
+          "server/selectiveRepair.test.ts: claim counts an attempt on the row (B3, red first); hero still + poll deadline + handle callback through the shared renderer; submitted-then-timed-out repair keeps its handle, consumes no attempt, reservation stays open (B2, red first) (13 passed).",
+          "server/publishIntegrityClosure.test.ts: non-reel publish sends the row's text, not the client's; a Studio row is refused before any write (A2, red first) (19 passed).",
+          "server/higgsfieldCliHandle.test.ts: no --wait, parseCreatedJobId shapes + refusal, readCliJobState running/completed/failed + non-video refusal, pollHiggsfieldCliJob completes / retries transient reads / times out with a lane-tagged SUBMITTED error / terminal failure phrase (B1, 13, red first).",
+          "server/renderHiggsfieldBeat.test.ts: persist-on-submit with lane, resume via CLI poll never resubmits, handle kept on a submitted timeout, terminal failure records + clears (B1/B2, 4, red first).",
+          "server/deferredPublishOwnership.test.ts: the publisher, its registry job and its feeder are gone; no server file reads inventory.scheduledAt as a publish trigger (A1).",
+          "client/src/__tests__/ig-settings-read-failure.test.tsx, ig-reel-queue-reject-error.test.tsx, ig-today-board-health.test.tsx (C1-C3, red first; 8 passed).",
+          "Neighbours green on the tree: reel/pipeline/repair/admin/publish suites 14 files 296 passed; cron deletion suites 6 files 69 passed; studio suites 4 files 81 passed; tsc clean; lint:source, brand-voice, pii, routes, cron-wiring (0 faults), knip (0 new) green."
+        ],
+        "liveRuns": "None yet. B1 is the one change on the paid path whose remote contract is inferred, not observed: 'generate create --json' without --wait is read as printing the created job object (the CLI help: '--json print raw JSON responses', and 'generate get' prints the job object bare), so the id is parsed from the same shape. If the create output carried no id, parseCreatedJobId throws with the raw stdout in the message AFTER the job exists — one paid orphan recoverable by hand via 'generate list'. The first paid render after deploy proves it (look for 'Higgsfield CLI generation completed' with a jobId).",
+        "deploymentId": "not deployed"
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "B1 unproven on a paid render: the no-wait create output shape is a strong inference from the CLI help and the get shape, not an observed receipt. Proof: the next reel's Railway log shows 'Generating Reel clip video via Higgsfield CLI' followed by 'Higgsfield CLI generation completed' { jobId }.",
+          "source": "2026-10-10"
+        },
+        {
+          "severity": "P3",
+          "description": "SOCIAL_INVENTORY_PUBLISH_ENABLED is still set on Railway (inert: nothing reads it). Removing it is an operator env edit.",
+          "source": "2026-10-10"
+        }
+      ],
+      "deferredScope": [
+        "Audit 'should fix' items A4-A10, B4-B8, C4-C8 and the nice-to-haves remain in docs/audits/INSTAGRAM-AUDIT-2026-10-10.md.",
+        "Adjacent rot noted, not widened: the governor's topic/CTA lookback fetches by createdAt (7 days), so a reservation created more than 7 days before its window is not seen by the repeat checks (contentGovernor.test.ts canary comment)."
+      ],
+      "lastVerifiedAt": "2026-10-10"
     }
   ],
   "axes": {

@@ -1237,12 +1237,11 @@ export const instagramStudioRouter = router({
       }
 
       // STATUS ONLY — never `scheduledAt`. The scheduled_posts row inserted
-      // below owns this publish; stamping scheduled_at here would ALSO arm
-      // socialInventoryPublisher.ts:29, which publishes inventory rows with
-      // status IN ('approved','scheduled') AND scheduled_at <= now. Two
-      // publishers over two tables, same content, same moment — a guaranteed
-      // duplicate post that no CAS can prevent, because each publisher's
-      // at-most-once claim only protects it from itself.
+      // below owns this publish. Until 2026-10-10 a second publisher
+      // (socialInventoryPublisher, deleted in the Instagram audit) keyed on
+      // inventory.scheduled_at <= now, so stamping it here would have armed
+      // two publishers over two tables for one post. The cron is gone;
+      // deferredPublishOwnership.test.ts keeps the column read-free.
       try {
         await database.insert(scheduledPosts).values({
           inventoryId: input.id,
