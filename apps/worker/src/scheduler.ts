@@ -320,7 +320,41 @@ async function processVideoRenders(): Promise<void> {
 }
 
 /**
- * Fire a single cron handler via HTTP. Returns true on success.
+ * What a 200 forward actually reported. statenour wraps a cron's return value as
+ * `{ ok: true, data: <result> }` (apiHandler in apps/statenour/lib/utils/http.ts),
+ * so HTTP 200 proves only that the route answered: a kill-switched job
+ * (`skipped: true`), a feature-off skip (`skipped: "<reason>"`) and the job's own
+ * `ok: false` all arrive as 200. A body without `data` is read as the result itself.
+ */
+export function readForwardBody(text: string): {
+  outcome: "ok" | "skipped" | "failed" | "unreadable";
+  detail: string;
+} {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return { outcome: "unreadable", detail: "body is not JSON" };
+  }
+  const isObj = (v: unknown): v is Record<string, unknown> =>
+    !!v && typeof v === "object" && !Array.isArray(v);
+  const data = isObj(parsed) && "data" in parsed ? parsed.data : parsed;
+  if (!isObj(data)) return { outcome: "ok", detail: "" };
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.slice(0, 200) : null);
+  if (data.ok === false) {
+    return { outcome: "failed", detail: str(data.reason) ?? str(data.error) ?? "handler returned ok:false" };
+  }
+  if (str(data.skipped) || data.skipped === true) {
+    return { outcome: "skipped", detail: str(data.skipped) ?? str(data.reason) ?? "skipped" };
+  }
+  const n = data.resultCount;
+  return { outcome: "ok", detail: typeof n === "number" && Number.isInteger(n) ? `resultCount=${n}` : "" };
+}
+
+/**
+ * Fire a single cron handler via HTTP. Returns true when the job ran ok or
+ * chose to skip; false on a transport failure, a non-2xx, the job's own
+ * `ok:false`, or a body that cannot be read.
  * Never throws · logs structured errors so /system/errors can pick
  * them up via the statenour-web side · worker continues regardless.
  */
@@ -345,14 +379,27 @@ export async function forwardCronToWeb(name: string): Promise<boolean> {
       },
       signal: controller.signal,
     });
-    const durationMs = Date.now() - startedAt;
     if (!res.ok) {
       console.error(
-        `[scheduler] forward FAIL · ${name} · status=${res.status} · ${durationMs}ms`,
+        `[scheduler] forward FAIL · ${name} · status=${res.status} · ${Date.now() - startedAt}ms`,
       );
       return false;
     }
-    console.log(`[scheduler] forward OK · ${name} · ${durationMs}ms`);
+    const { outcome, detail } = readForwardBody(await res.text());
+    const durationMs = Date.now() - startedAt;
+    if (outcome === "failed") {
+      console.error(`[scheduler] forward REPORTED FAILURE · ${name} · ok:false · ${detail} · ${durationMs}ms`);
+      return false;
+    }
+    if (outcome === "skipped") {
+      console.warn(`[scheduler] forward SKIPPED · ${name} · ${detail} · ${durationMs}ms`);
+      return true;
+    }
+    if (outcome === "unreadable") {
+      console.warn(`[scheduler] forward 200 UNREADABLE · ${name} · ${detail} · ${durationMs}ms`);
+      return false;
+    }
+    console.log(`[scheduler] forward OK · ${name} · ${durationMs}ms${detail ? ` · ${detail}` : ""}`);
     return true;
   } catch (err) {
     const durationMs = Date.now() - startedAt;

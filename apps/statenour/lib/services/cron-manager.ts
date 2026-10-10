@@ -12,6 +12,8 @@
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/utils/error-log";
 import { deriveSkipReason } from "@/lib/services/cron-skip-reason";
+import { HARD_FAILURE_STATUSES, isHardFailure } from "@/lib/services/cron-status";
+import { TERMINAL_OK_STATUSES } from "@/lib/inngest/cron-lifecycle";
 
 /**
  * A cron that CATCHES its own error and returns `{ ok: false }` resolves
@@ -116,36 +118,54 @@ export async function logCronRun(
   reportedFailure?: string;
 }> {
   const start = Date.now();
+  // 2026-10-10 · open a `started` row FIRST, then settle that same row. A run
+  // killed mid-flight (deploy restart) used to leave NO row at all; now the age
+  // sweep in lib/inngest/cron-lifecycle.ts settles it to `interrupted`.
+  // If this write fails, the terminal row is created instead (never lost).
+  let startedId: string | null = null;
+  try {
+    startedId = (await prisma.cronJobLog.create({ data: { jobName, status: "started" }, select: { id: true } })).id;
+  } catch (e) {
+    logError("cron.manager", e, { fn: "logCronRun", jobName, lost: "started-row" }, "warn");
+  }
+  type Terminal = { status: string; duration: number; error?: string; resultCount?: number | null; skipReason?: string | null };
+  const settle = async (data: Terminal, lost: string): Promise<void> => {
+    try {
+      if (startedId) await prisma.cronJobLog.update({ where: { id: startedId }, data });
+      else await prisma.cronJobLog.create({ data: { ...data, jobName } });
+    } catch (e) {
+      logError("cron.manager", e, { fn: "logCronRun", jobName, lost }, "warn");
+    }
+  };
   try {
     const result = await fn();
     const durationMs = Date.now() - start;
     const reported = reportedFailureReason(result);
     if (reported) {
-      await prisma.cronJobLog.create({
-        data: { jobName, status: "failed", duration: durationMs, error: reported, resultCount: countFrom(result) },
-      }).catch((e) => logError("cron.manager", e, { fn: "logCronRun", jobName, lost: "reported-failure-row" }, "warn"));
+      await settle(
+        { status: "failed", duration: durationMs, error: reported, resultCount: countFrom(result) },
+        "reported-failure-row",
+      );
       publishCronFailure(jobName, reported, durationMs);
       return { success: true, result, durationMs, reportedFailure: reported };
     }
-    await prisma.cronJobLog.create({
-      data: {
-        jobName,
+    await settle(
+      {
         status: "success",
         duration: durationMs,
         resultCount: countFrom(result),
         skipReason: deriveSkipReason(result),
       },
-    }).catch((e) => logError("cron.manager", e, { fn: "logCronRun", jobName, lost: "success-row" }, "warn"));
+      "success-row",
+    );
     return { success: true, result, durationMs };
   } catch (err) {
     const durationMs = Date.now() - start;
     const error = err instanceof Error ? err.message : String(err);
-    await prisma.cronJobLog.create({
-      // No resultCount here on purpose: the handler THREW, so no result object
-      // exists and there is no claim to record. Writing 0 would assert "ran and
-      // produced nothing" about a run that produced no answer at all.
-      data: { jobName, status: "failed", duration: durationMs, error },
-    }).catch((e) => logError("cron.manager", e, { fn: "logCronRun", jobName, lost: "failure-row" }, "warn"));
+    // No resultCount here on purpose: the handler THREW, so no result object
+    // exists and there is no claim to record. Writing 0 would assert "ran and
+    // produced nothing" about a run that produced no answer at all.
+    await settle({ status: "failed", duration: durationMs, error }, "failure-row");
 
     publishCronFailure(jobName, error, durationMs);
 
@@ -154,34 +174,46 @@ export async function logCronRun(
 }
 
 export async function getCronStatus(limit = 50) {
-  const logs = await prisma.cronJobLog.findMany({
-    orderBy: { createdAt: "desc" },
-    take: limit,
-  });
+  // 2026-10-10 · the summary used to be built from `logs` below: the newest 50
+  // rows ACROSS all jobs, so a */15 job crowded every daily job out, and
+  // started / interrupted / duplicate rows counted as successes. Now one row per
+  // (job, terminal status) over the retained table; `logs` is the raw feed only.
+  const [logs, groups] = await Promise.all([
+    prisma.cronJobLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    }),
+    prisma.cronJobLog.groupBy({
+      by: ["jobName", "status"],
+      where: { status: { in: [...TERMINAL_OK_STATUSES, ...HARD_FAILURE_STATUSES] } },
+      _count: { _all: true },
+      _max: { createdAt: true },
+    }),
+  ]);
 
-  // Group by jobName — get last run + success rate
   const byJob: Record<string, { lastRun: Date; lastStatus: string; total: number; failures: number; partials: number }> = {};
-  for (const log of logs) {
-    if (!byJob[log.jobName]) {
-      byJob[log.jobName] = { lastRun: log.createdAt, lastStatus: log.status, total: 0, failures: 0, partials: 0 };
+  for (const g of groups) {
+    const at = g._max.createdAt;
+    if (!at) continue;
+    const e = (byJob[g.jobName] ??= { lastRun: at, lastStatus: g.status, total: 0, failures: 0, partials: 0 });
+    if (at > e.lastRun) {
+      e.lastRun = at;
+      e.lastStatus = g.status;
     }
-    byJob[log.jobName].total++;
-    if (log.status === "failed") byJob[log.jobName].failures++;
-    // 2026-08-20 · `partial` is in `total` but was in neither bucket, so the
-    // old `(total - failures) / total` scored every degraded fan-out run as a
-    // full success: mega-evening read 100% across 1,248 partial runs.
-    if (log.status === "partial") byJob[log.jobName].partials++;
+    e.total += g._count._all;
+    if (isHardFailure(g.status)) e.failures += g._count._all;
+    // 2026-08-20 · `partial` is in `total` but in neither ok bucket: a degraded
+    // fan-out run is not a full success (mega-evening read 100% across 1,248).
+    if (g.status === "partial") e.partials += g._count._all;
   }
 
   return {
     recentLogs: logs,
+    // Every job here has >= 1 terminal row, so `total` is never 0.
     summary: Object.entries(byJob).map(([jobName, data]) => ({
       jobName,
       ...data,
-      successRate:
-        data.total > 0
-          ? Math.round(((data.total - data.failures - data.partials) / data.total) * 100)
-          : 100,
+      successRate: Math.round(((data.total - data.failures - data.partials) / data.total) * 100),
     })),
   };
 }

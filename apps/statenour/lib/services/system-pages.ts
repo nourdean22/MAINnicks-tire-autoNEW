@@ -77,6 +77,7 @@ import {
   type MetricResult,
 } from "@/lib/services/metric-result";
 import { getDeployMeta } from "@/lib/services/deploy-identity";
+import { today as todayET } from "@/lib/utils/datetime";
 
 // ════════════════════════ /system · diagnostics ════════════════════════
 
@@ -238,7 +239,9 @@ export interface SystemHealthView {
  *  app/api/health/route.ts. */
 export async function buildSystemHealth(): Promise<SystemHealthView> {
   return cached("health_v1", 30, async (): Promise<SystemHealthView> => {
-    const today = new Date().toISOString().slice(0, 10);
+    // ET date, the key the writer uses (lib/inngest/functions/morning-brief.ts).
+    // The UTC date read "not ready" from 20:00 to 24:00 ET every evening.
+    const today = todayET();
 
     // Hard-required reads: UNCAUGHT on purpose — a failure rejects the whole
     // probe (an honest 500, never a false green). Kept scalar for consumers.
@@ -317,8 +320,17 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
       };
     });
 
-    const [[db, taskCounts, commitmentCount, deviceCounts], alerts, radar, morningBrief, autonomic] =
-      await Promise.all([hard, alertsMetric, radarMetric, morningBriefMetric, autonomicMetric]);
+    const [[db, taskCounts, commitmentCount, deviceCounts], alerts, radar, morningBrief, autonomic, inngestFunctions] =
+      await Promise.all([
+        hard,
+        alertsMetric,
+        radarMetric,
+        morningBriefMetric,
+        autonomicMetric,
+        // The registry the serve route mounts (app/api/inngest/route.ts). Dynamic
+        // so /api/health does not statically pull every function module.
+        import("@/lib/inngest/functions").then((m) => Object.keys(m).length),
+      ]);
 
     const tasks = { inbox: 0, ready: 0, doing: 0, done: 0, total: 0 };
     for (const g of taskCounts) {
@@ -356,7 +368,7 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
       morningBrief,
       inngest: {
         configured: isInngestFullyConfigured(),
-        functions: 8,
+        functions: inngestFunctions,
         megaJobs: MEGA_JOB_COUNTS,
       },
       langfuse: { status: langfuseTracingStatus() },
@@ -1311,7 +1323,8 @@ export interface CronDeckRow {
   success14d: number;
   partial14d: number;
   fail14d: number;
-  successRate: number;
+  /** null = no terminal run in the 14d window (no rate exists), never 100. */
+  successRate: number | null;
   recentDurations: number[];
   lastRunAt: string | null;
   lastRunMs: number | null;
@@ -1419,8 +1432,9 @@ export async function buildCronCommandDeck(): Promise<CronCommandDeck> {
     // partial divides by zero and reports a triumphant 100%. mega-evening
     // did exactly that for 1,248 consecutive runs.
     const total = st.success14d + st.partial14d + st.fail14d;
+    // An empty window has no rate: 0 runs read "100%" before 2026-10-10.
     const successRate =
-      total > 0 ? Math.round((st.success14d / total) * 100) : 100;
+      total > 0 ? Math.round((st.success14d / total) * 100) : null;
 
     let lastRunAt: string | null = null;
     let lastRunMs: number | null = null;

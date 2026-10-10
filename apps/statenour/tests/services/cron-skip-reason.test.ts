@@ -12,12 +12,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const h = vi.hoisted(() => ({
   create: vi.fn().mockResolvedValue({ id: "row" }),
+  update: vi.fn().mockResolvedValue({ id: "row" }),
   findMany: vi.fn().mockResolvedValue([]),
   publishDurable: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { cronJobLog: { create: h.create, findMany: h.findMany } },
+  prisma: { cronJobLog: { create: h.create, update: h.update, findMany: h.findMany } },
 }));
 vi.mock("@/lib/db/brain-bus-durable", () => ({
   publishDurable: h.publishDurable,
@@ -26,13 +27,16 @@ vi.mock("@/lib/db/brain-bus-durable", () => ({
 import { logCronRun } from "@/lib/services/cron-manager";
 import { deriveSkipReason, SKIP_REASON_MAX } from "@/lib/services/cron-skip-reason";
 
+/** The stored row: the `started` create overlaid with the settling update (2026-10-10). */
 function lastRow(): Record<string, unknown> {
-  const call = h.create.mock.calls.at(-1);
-  return (call?.[0] as { data: Record<string, unknown> }).data;
+  const started = (h.create.mock.calls.at(-1)?.[0] as { data: Record<string, unknown> }).data;
+  const settled = (h.update.mock.calls.at(-1)?.[0] as { data: Record<string, unknown> }).data;
+  return { ...started, ...settled };
 }
 
 beforeEach(() => {
   h.create.mockClear();
+  h.update.mockClear();
 });
 
 describe("deriveSkipReason", () => {

@@ -25,10 +25,27 @@ describe("cron status truth", () => {
       expect(normalizeCronStatus("success")).toBe("success");
     });
 
-    it("treats anything else as failed", () => {
+    it("maps the hard failures to failed", () => {
       expect(normalizeCronStatus("failed")).toBe("failed");
-      expect(normalizeCronStatus("timeout")).toBe("failed");
-      expect(normalizeCronStatus("")).toBe("failed");
+      expect(normalizeCronStatus("interrupted")).toBe("failed");
+    });
+
+    /**
+     * 2026-10-10 · audit 08-F11. The negative form (`anything else -> failed`) read
+     * an in-flight `started` row and a `duplicate` started row as FAILED, so the
+     * healer re-fired runs that were still going (and, for Inngest-native crons,
+     * threw 409 -> a false P0 "currently NOT running"). Same positive-list rule as
+     * isHardFailure below: a status that is neither ok nor a named failure is
+     * unclassified (null), never a guess.
+     */
+    it("does NOT read an in-flight started row or a duplicate as failed", () => {
+      expect(normalizeCronStatus("started")).toBeNull();
+      expect(normalizeCronStatus("duplicate")).toBeNull();
+    });
+
+    it("an unknown token is unclassified, not failed", () => {
+      expect(normalizeCronStatus("timeout")).toBeNull();
+      expect(normalizeCronStatus("")).toBeNull();
     });
   });
 

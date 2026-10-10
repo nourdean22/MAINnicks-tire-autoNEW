@@ -370,8 +370,10 @@ export function apiHandler(handler: RouteHandler, options: ApiHandlerOptions = {
  * The kill switch is stored as a BrainMemory row (see lib/services/
  * cron-control.ts). Default state = enabled. When disabled via the
  * Settings UI, the route short-circuits with a 200 + `{skipped:true}`
- * so the scheduler doesn't treat it as a failure and the cron-job
- * log stays clean.
+ * so the scheduler doesn't treat it as a failure, and (since 2026-10-10)
+ * writes a terminal skip row: `success` + skipReason "disabled via
+ * settings", the same row the Inngest middleware writes for a killed
+ * cron. No row read as SILENCE, so the heartbeat paged a disabled job.
  *
  * The job name is inferred from the URL path: `/api/cron/foo` → "foo",
  * `/api/cron/mega?slot=...` → "mega". Falls back to "unknown" only if
@@ -389,7 +391,10 @@ export function cronHandler(handler: RouteHandler) {
         const { isCronEnabled } = await import("@/lib/services/cron-control");
         const enabled = await isCronEnabled(jobName).catch(() => true);
         if (!enabled) {
-          return { skipped: true, reason: "disabled via settings", jobName };
+          const skip = { skipped: true, reason: "disabled via settings", jobName };
+          const { logCronRun } = await import("@/lib/services/cron-manager");
+          await logCronRun(jobName, async () => skip);
+          return skip;
         }
       }
 
