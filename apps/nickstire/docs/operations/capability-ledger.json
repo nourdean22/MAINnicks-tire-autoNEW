@@ -4752,16 +4752,16 @@
       "capabilityId": "reel-real-shop-clip-register-20261010",
       "name": "Real-shop clip registration: a captured vertical clip becomes a real_shop VIDEO registry row with probed duration, so a Reel beat can bind it; quiet-caption standard in the pilot publisher",
       "owner": "operator",
-      "codeState": "in_progress",
+      "codeState": "merged",
       "operationalState": "unit_verified",
-      "exposure": "disabled",
+      "exposure": "internal",
       "evidence": {
-        "codeCommit": "branch nickstire/real-shop-clip-register (2026-10-10, PR after #2952). server/services/mediaRegistry.ts: RegisterAssetInput.durationMs written to media_assets.duration_ms (rounded; null for absent/zero/negative/non-finite) - the column existed and nothing wrote it, so realShotBinding refused every registered clip with no_duration. scripts/register-real-shop-clip.mts: ffprobe (bundled remotion binary) -> refuse non-video / non-vertical / under 2 s / no duration -> dry run by default -> --execute: findByChecksum dedupe, assertDurableStorageForGeneration, storagePut reels/real-shop/, registerAsset real_shop video, prints realAssetId. scripts/publish-pilot-01.mts: QUIET default replaces the manifest's disclosure paragraph with one closing clause ('Illustrated, not filmed.'); is_ai_generated=true and the burned-in badge unchanged; --loud restores the manifest wording. docs/reels-engine-v2/14-CAPTURE-DAY-CARD.md: one-page shot list + the register command.",
+        "codeCommit": "main 05c0c06fc (PR #2955, squash-merged 2026-10-10 01:14Z; 13 checks green). server/services/mediaRegistry.ts: RegisterAssetInput.durationMs written to media_assets.duration_ms (rounded; null for absent/zero/negative/non-finite) - the column existed and nothing wrote it, so realShotBinding refused every registered clip with no_duration. scripts/register-real-shop-clip.mts: ffprobe (bundled remotion binary) -> refuse non-video / non-vertical / under 2 s / no duration -> dry run by default -> --execute: findByChecksum dedupe, assertDurableStorageForGeneration, storagePut reels/real-shop/, registerAsset real_shop video, prints realAssetId. scripts/publish-pilot-01.mts: QUIET default replaces the manifest's disclosure paragraph with one closing clause ('Illustrated, not filmed.'); is_ai_generated=true and the burned-in badge unchanged; --loud restores the manifest wording. docs/reels-engine-v2/14-CAPTURE-DAY-CARD.md: one-page shot list + the register command.",
         "tests": [
           "server/mediaRegistry.test.ts: durationMs reaches the row rounded (6420.6 -> 6421); undefined/null/0/-5/NaN/Infinity -> null (7 passed)."
         ],
         "liveRuns": "Dry runs 2026-10-10 on this machine: the Reel #2 master (1080x1920 h264 15.00 s, 8.2 MB) probes and prints the would-be row; a .mts source file is refused 'not a readable video'; publish-pilot-01 --reel=02/03 dry runs print the quiet caption with claim-safety blockers none and disclosure gate ok (a first draft 'not a customer's tire' was refused by the customer-possessive claim regex, which is why the clause is neutral). Nothing uploaded, registered or published.",
-        "deploymentId": "not deployed (script + registry field; PR open)"
+        "deploymentId": "Railway MAINnicks-tire-auto deployment of 05c0c06fc BUILDING at 2026-10-10T01:14:33Z (railway deployment list). The registry durationMs write ships with it; the register script runs from an operator shell via railway run and is not itself deployed."
       },
       "blockers": [
         {

@@ -7,7 +7,7 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
-## Real-shop clip registration + quiet captions (2026-10-10, PR after #2952) -- BUILT + TESTED; PR open
+## Real-shop clip registration + quiet captions (2026-10-10, PR #2955) -- MERGED (main `05c0c06fc`, 01:14Z); Railway deploy building at 01:14Z
 
 - **Registry writes duration now.** `RegisterAssetInput.durationMs` -> `media_assets.duration_ms` (rounded; null for absent/zero/negative/non-finite). The column existed since the registry shipped and nothing wrote it, so `realShotBinding` refused every registered clip with `no_duration` -- the real-beat lane could never bind. `server/mediaRegistry.test.ts` (7 passed).
 - **`scripts/register-real-shop-clip.mts`** turns a captured clip into a `real_shop` VIDEO row: ffprobe (bundled remotion binary) -> refuse non-video / non-vertical / under 2 s -> dry run by default -> `--execute` dedupes by sha256, asserts durable storage, uploads to `reels/real-shop/`, registers, prints `"realAssetId"`. Dry-run receipts: the Reel #2 master probes 1080x1920 15.00 s; a source file is refused cleanly.
