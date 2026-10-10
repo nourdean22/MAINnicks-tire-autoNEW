@@ -336,6 +336,7 @@ export async function ghostReplay(
       ],
       maxTokens: opts.maxTokens ?? 700,
       timeoutMs: budgetedTimeout(opts.budget, 60000),
+      slotWaitMs: budgetedTimeout(opts.budget, 60000),
       model: opts.model ?? GHOST_AGENT_MODEL,
       priority: opts.priority ?? 3,
       // Temperature 0: evaluation must measure the prompt, not the dice — a
@@ -360,6 +361,7 @@ export async function ghostReplay(
         ],
         maxTokens: 1400,
         timeoutMs: budgetedTimeout(opts.budget, 60000),
+      slotWaitMs: budgetedTimeout(opts.budget, 60000),
         model: opts.model ?? GHOST_AGENT_MODEL,
         priority: opts.priority ?? 3,
         temperature: 0,

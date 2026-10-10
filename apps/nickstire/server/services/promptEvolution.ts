@@ -359,6 +359,13 @@ export interface ScoreOptions {
   /** Incremented in place as replays and judge calls happen, so a scoring cut short is still counted. */
   tally?: { replays: number; judgeCalls: number };
   /**
+   * Called the moment the FIRST seed fails, before the in-flight siblings
+   * finish. runPromptEvolution records whether its deadline had already
+   * passed at that instant, so a provider failure with budget left is never
+   * read as the budget once a sibling has crossed the line.
+   */
+  onFailure?: (err: unknown) => void;
+  /**
    * Seeds replayed at once (default 1, sequential). Ollama Pro serves three
    * concurrent cloud models and the scheduler keeps one slot free for P0/P1,
    * so 2 is the useful ceiling for these P3 calls. Grades keep seed order
@@ -413,7 +420,10 @@ export async function scorePrompt(prompt: string, seeds: Seed[], opts: ScoreOpti
       try {
         await scoreOne(seeds[i], i);
       } catch (err) {
-        if (failure === null) failure = err;
+        if (failure === null) {
+          failure = err;
+          opts.onFailure?.(err);
+        }
         return;
       }
     }
@@ -628,6 +638,7 @@ async function proposeCandidates(
       ],
       maxTokens: 8192,
       timeoutMs: OPTIMIZER_TIMEOUT_MS,
+      slotWaitMs: OPTIMIZER_TIMEOUT_MS,
       model: OPTIMIZER_MODEL,
       priority: 3,
       });
@@ -653,6 +664,7 @@ async function proposeCandidates(
         ],
         maxTokens: 8192,
         timeoutMs: OPTIMIZER_TIMEOUT_MS,
+      slotWaitMs: OPTIMIZER_TIMEOUT_MS,
         model: OPTIMIZER_MODEL,
         priority: 3,
         });
@@ -1012,6 +1024,10 @@ export async function runPromptEvolution(opts: EvolutionOptions): Promise<Evolut
     currentStage = stage;
     if (deadlineMs !== null && clock() - startedAt >= deadlineMs) throw new BudgetExhausted(stage);
   };
+  // budgetedTimeout floors a call at 1 s, so a call capped at the deadline aborts up to 1 s past it.
+  const pastDeadlineNow = (): boolean => deadlineMs !== null && clock() - startedAt >= deadlineMs - 1_000;
+  /** Deadline state at the instant the first scoring failure was recorded (null = no scoring failure). */
+  let failurePastDeadline: boolean | null = null;
   /** One scoring pass: budget-checked before every seed, counted into usage and the exclusion sets. */
   const score = async (prompt: string, seeds: Seed[], arm: "baseline" | "candidate", stage: string, verifyHits: boolean) => {
     checkBudget(stage);
@@ -1022,7 +1038,13 @@ export async function runPromptEvolution(opts: EvolutionOptions): Promise<Evolut
       budget: { remainingMs: () => (checkBudget(stage), deadlineMs === null ? Infinity : deadlineMs - (clock() - startedAt)) },
       tally: usage,
       concurrency: opts.replayConcurrency,
+      onFailure: () => { if (failurePastDeadline === null) failurePastDeadline = pastDeadlineNow(); },
     });
+    // A deadline that passes during the LAST seed's judge call reaches no
+    // later checkBudget: the judge swallows its abort as judgeUnavailable, and
+    // a final pass (confirmation) has no stage after it. Checked here so that
+    // pass reads as the budget it was, not as a verdict (2026-10-09 review).
+    checkBudget(stage);
     for (const g of scored.grades) {
       if (g.judgeUnavailable) outageIds.add(g.id);
       if (arm === "baseline" && g.unresolvable) unresolvableIds.add(g.id);
@@ -1194,7 +1216,10 @@ export async function runPromptEvolution(opts: EvolutionOptions): Promise<Evolut
     // that abort IS the budget.
     const message = err instanceof Error ? err.message : String(err);
     const name = err instanceof Error ? err.name : "";
-    const pastDeadline = deadlineMs !== null && clock() - startedAt >= deadlineMs - 1_000;
+    // Judged at the instant the failure happened when a scoring pass recorded
+    // one: two seeds run at once, and the sibling that finishes later may have
+    // crossed the deadline the failing seed had not.
+    const pastDeadline = failurePastDeadline ?? pastDeadlineNow();
     const laneAbort = /abort|timeout|timed out/i.test(message) || name === "AbortError" || name === "TimeoutError";
     if (!(err instanceof BudgetExhausted) && !(pastDeadline && laneAbort)) throw err;
     exhaustedAt = err instanceof BudgetExhausted ? err.stage : currentStage;

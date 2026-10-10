@@ -213,6 +213,7 @@ export async function judgeResolution(
       model: RESOLUTION_JUDGE_MODEL,
       maxTokens: 900,
       timeoutMs: opts.timeoutMs ?? 60000,
+      slotWaitMs: opts.timeoutMs ?? 60000,
       // Evaluation measures the dialogue, not the dice.
       temperature: 0,
       // P1 shadow evaluation: grading is background work and must yield to
