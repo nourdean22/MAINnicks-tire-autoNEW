@@ -33,7 +33,9 @@
 
 **Run 6 (02:20Z, 826 s, after #2958 dropped human_handoff from the won list):** the holdout gate decided a live run for the first time. Candidate b9b7e896 (one bounded code edit) beat train 9/11 vs 7/12, then on the paired holdout improved 4, worsened 0, tied 5 of 9: p=0.063 vs alpha 0.05, rejected-holdout, receipt 90c8a636 refuted. Gate entry promoted to live_verified. 120 replays and 96 judge calls fit in 14 minutes at two seeds a time.
 
-**Owed / watch:** a candidate that passes holdout, so the success cohort (now walk-in / resolved-info / hard conversion only) and the sealed confirmation run live; the success cohort reads 0 won calls on every run (the veto cannot fire until the won-call pool fills; check what feeds it); the lane stays Ollama (operator decision, no gpt-4o spend). The scheduled Monday 2026-10-12 run inherits all of this.
+**Runs 7-8 (03:19Z, 03:32Z) after #2958 (handoffs out of the won list) and #2962 (50 seeds, new panel card):** run 7 was killed by a Railway redeploy 28 s in and left its 100-minute cron lock held (operator cleared the one row); run 8: 40 usable seeds (train 17 / holdout 17), one candidate replayed at margin 0, the other failed its format twice, rejected-train, receipt af62fe3a refuted, 414 s.
+
+**Owed / watch:** no merges to main while a run is in flight (a deploy kills it and strands the lock; follow-up PR: release a previous deployment's locks on startup); a candidate that passes holdout, so the success cohort (now walk-in / resolved-info / hard conversion only) and the sealed confirmation run live; the success cohort reads 0 won calls on every run (the veto cannot fire until the won-call pool fills; check what feeds it); the lane stays Ollama (operator decision, no gpt-4o spend). The scheduled Monday 2026-10-12 run inherits all of this.
 
 ## 2026-10-09 evening · receptionist prompt experiment on demand (#2945) MERGED + DEPLOYED; first live run the same day
 
