@@ -74,6 +74,13 @@ export interface RegisterAssetInput {
   /** Pixel dimensions when the producer can read them cheaply (sharp metadata on uploads). */
   width?: number | null;
   height?: number | null;
+  /**
+   * Probed duration for video/audio (2026-10-09). The column existed; nothing
+   * wrote it, so a registered real_shop clip could never bind to a Reel beat
+   * (realShotBinding refuses a row without a duration — it cannot know how long
+   * the beat may run). Producers that probe the file pass it; stills leave it null.
+   */
+  durationMs?: number | null;
 }
 
 /**
@@ -126,6 +133,7 @@ export async function registerAsset(database: DB, input: RegisterAssetInput): Pr
       byteSize: Math.round(input.byteSize),
       width: input.width ?? null,
       height: input.height ?? null,
+      durationMs: Number.isFinite(input.durationMs as number) && (input.durationMs as number) > 0 ? Math.round(input.durationMs as number) : null,
       checksumSha256: input.checksumSha256,
       generationParamsJson: input.generationParams ? JSON.stringify(input.generationParams) : null,
       rightsStatus: input.rightsStatus ?? "ai_generated",
