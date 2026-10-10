@@ -69,7 +69,10 @@ describe("pollHiggsfieldCliJob", () => {
     const calls: string[][] = [];
     const run = vi.fn(async (args: string[]) => {
       calls.push(args);
-      const next = outs.shift() ?? outs[outs.length - 1];
+      // The last reading repeats for every further poll: a fast runner polls more
+      // than once before a 5 ms deadline, and shifting the only entry away
+      // produced a TypeError in CI that read as a wrong error class.
+      const next = outs.length > 1 ? (outs.shift() as (typeof outs)[number]) : outs[0];
       return { ok: next.ok, stdout: next.stdout, stderr: next.stderr ?? "", code: next.ok ? 0 : 1 };
     });
     return { run, calls };
