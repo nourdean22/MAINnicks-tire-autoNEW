@@ -52,8 +52,9 @@ export function AttachmentPreview({
         </div>
       </div>
       <button
+        type="button"
         onClick={onClear}
-        className="text-[var(--text-tertiary)] hover:text-red-400 transition-colors"
+        className="flex min-h-11 min-w-11 items-center justify-center text-[var(--text-tertiary)] hover:text-red-400 transition-colors"
         aria-label="Remove attachment"
         title="Remove attachment"
       >
