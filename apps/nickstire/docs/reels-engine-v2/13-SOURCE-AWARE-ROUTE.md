@@ -21,12 +21,13 @@ this slice spends a credit, publishes, or changes a schedule.
 ## How a real beat gets its footage (operator steps)
 
 1. Capture the clip (05-CAPTURE-CHECKLIST.md). Vertical, 5-8 s, no plates, faces or paperwork.
-2. Register it in the media registry as `rights_status = real_shop`, `format = video`, with
-   `duration_ms`, `checksum_sha256` and a public `runtime_url`. The Instagram Studio upload path
-   writes `real_shop` rows today for stills; a video row needs the same fields (`mediaRegistry.
-   registerFromBuffer` computes the checksum from bytes; duration comes from ffprobe at register
-   time). Until the Studio upload probes video duration, register the clip with the registry
-   service directly.
+2. Register it: `scripts/register-real-shop-clip.mts <file.mp4> --slug <P1-nail-macro> --job <note>`
+   (dry run; add `--execute` to upload and register). It probes the clip with ffprobe, refuses
+   anything that is not vertical video with a duration, uploads the exact bytes to
+   `reels/real-shop/`, and writes a `real_shop` VIDEO row with `duration_ms`, dimensions and
+   `checksum_sha256` (`RegisterAssetInput.durationMs`, added 2026-10-10: the column existed and
+   nothing wrote it, so every registered clip was refused `no_duration`). The Instagram Studio
+   upload still registers stills only. Shot list + command: `14-CAPTURE-DAY-CARD.md`.
 3. Put the row id on the beat: `"realAssetId": "ma_..."` in the pack's `brief.json`. The pack
    builder carries it; nothing is inferred from prose.
 4. Enqueue as usual. At generation the pipeline verifies the row, binds URL + sha256, writes

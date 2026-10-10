@@ -55,3 +55,33 @@ describe("media registry invariants", () => {
     expect(written?.gdriveSyncState).toBe("failed");
   });
 });
+
+describe("media registry: durationMs reaches the row (2026-10-09)", () => {
+  // The column existed and nothing wrote it, so a registered real_shop clip
+  // could never bind to a Reel beat (realShotBinding refuses a row without a
+  // duration). A capturing db proves the probed value lands, rounded, and that
+  // junk never becomes a fake duration.
+  function capturingDb(captured: Record<string, unknown>[]) {
+    const tx = {
+      select: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ limit: () => Promise.resolve([]) }), limit: () => Promise.resolve([captured[captured.length - 1]]) }) }) }),
+      update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
+      insert: () => ({ values: (v: Record<string, unknown>) => { captured.push(v); return Promise.resolve(); } }),
+    };
+    return { transaction: (fn: (t: typeof tx) => Promise<unknown>) => fn(tx) } as unknown as DB;
+  }
+  const base = { logicalKey: "real_shop:clip:p1", assetType: "real_shop_clip", format: "video" as const, mimeType: "video/mp4", byteSize: 10, checksumSha256: "b".repeat(64) };
+
+  it("writes the probed duration, rounded to whole milliseconds", async () => {
+    const rows: Record<string, unknown>[] = [];
+    await registerAsset(capturingDb(rows), { ...base, durationMs: 6420.6 });
+    expect(rows[0].durationMs).toBe(6421);
+  });
+
+  it("stores null for an absent, zero, negative or non-finite duration", async () => {
+    for (const durationMs of [undefined, null, 0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const rows: Record<string, unknown>[] = [];
+      await registerAsset(capturingDb(rows), { ...base, durationMs });
+      expect(rows[0].durationMs, `durationMs=${String(durationMs)}`).toBeNull();
+    }
+  });
+});

@@ -104,7 +104,8 @@ Since 2026-10-09 the assembly lane carries real footage and drawn cards itself
 `realAssetId` (verified `real_shop` video, exact sha256, probed duration, up to 12 s on screen), a
 beat declared DETERMINISTIC is drawn locally from its `cardLines`, and the finished MP4 carries a
 per-shot lineage the disclosure gate reads. What it still needs is the footage: register each capture
-as a `real_shop` video row and put its id on the beat. Until then the proof packs hold at enqueue
+with `scripts/register-real-shop-clip.mts` (shot list and command on `14-CAPTURE-DAY-CARD.md`) and
+put the printed id on the beat. Until then the proof packs hold at enqueue
 with `needs_real_footage`, by design. A hand cut with the bundled ffmpeg remains a valid fallback
 for a one-off, but it carries no lineage and must not claim the lane's provenance.
 
