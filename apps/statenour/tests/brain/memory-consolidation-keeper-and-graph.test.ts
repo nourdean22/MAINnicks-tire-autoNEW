@@ -39,6 +39,7 @@ vi.mock("@/lib/brain/embedding-utils", () => ({ storeMemoryEmbedding: m.storeMem
 
 import { crossPollinate, mergeMemories } from "@/lib/brain/memory-consolidation";
 import { grinderDeleted } from "@/lib/brain/conversation-memory";
+import { CONSOLIDATION_EXCLUDE_CATEGORIES } from "@/lib/brain/categories";
 
 const ROWS = [
   { id: "keep", key: "k0", content: "likes early mornings", confidence: 0.9, seenCount: 2, metadata: { origin: "x" } },
@@ -88,13 +89,15 @@ describe("mergeMemories · keeper and merged-away rows", () => {
     expect(m.storeMemoryEmbedding).not.toHaveBeenCalled();
   });
 
-  it("never offers KV categories to the merge (08-F8)", async () => {
+  it("never offers KV categories to the merge (08-F8), via the ONE shared list", async () => {
     m.brainMemory.groupBy.mockResolvedValue([]);
     await mergeMemories();
     const notIn: string[] = m.brainMemory.groupBy.mock.calls[0][0].where.category.notIn;
-    expect(notIn).toEqual(expect.arrayContaining(["crons", "cron_control", "proactive_push_sent"]));
-    // the shared list still reaches the query
-    expect(notIn).toContain("conversation_summary");
+    expect(CONSOLIDATION_EXCLUDE_CATEGORIES).toEqual(
+      expect.arrayContaining(["crons", "cron_control", "proactive_push_sent"]),
+    );
+    // the query uses the shared list itself, not a local extension of it
+    expect(notIn).toEqual([...CONSOLIDATION_EXCLUDE_CATEGORIES]);
   });
 });
 
@@ -121,6 +124,27 @@ describe("crossPollinate · graph edges (05-M16)", () => {
         relationship: "contradicts",
       }),
     ]);
+  });
+
+  it("a deleted or superseded wisdom row is never linked", async () => {
+    // The mock applies the read's own row filters, so the assertion is on
+    // which rows get linked, not on the query text.
+    const WISDOM = [
+      { id: "w-live", content: "Raising prices loses the regulars", deletedAt: null, supersededById: null },
+      { id: "w-gone", content: "Raising prices loses the regulars", deletedAt: new Date(), supersededById: null },
+      { id: "w-old", content: "Raising prices loses the regulars", deletedAt: null, supersededById: "w-live" },
+    ];
+    m.brainMemory.findMany.mockImplementation(async (args: { where: Record<string, unknown> }) =>
+      WISDOM.filter((r) =>
+        (!("deletedAt" in args.where) || r.deletedAt === args.where.deletedAt) &&
+        (!("supersededById" in args.where) || r.supersededById === args.where.supersededById),
+      ),
+    );
+
+    await crossPollinate();
+
+    const linked = (m.memoryEdge.createMany.mock.calls[0][0].data as Array<{ sourceId: string }>).map((e) => e.sourceId);
+    expect(linked).toEqual(["w-live"]); // POSITIVE CONTROL: the live row still links
   });
 
   it("a re-run of the same heuristic match adds no strength: create-only, duplicates skipped", async () => {

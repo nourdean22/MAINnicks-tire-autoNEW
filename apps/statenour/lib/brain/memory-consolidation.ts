@@ -29,18 +29,6 @@ import { storeMemoryEmbedding } from "@/lib/brain/embedding-utils";
 import type { Prisma } from "@prisma/client";
 const log = rootLogger.withSurface("brain/memory-consolidation");
 
-// 2026-10-10 · audit 08-F8. KV rows read by key, never beliefs: the cron
-// first-seen registry (ISO-date content, which the JSON guard below lets
-// through), kill switches, push dedup markers. A prose merge broke the
-// registry (Date.parse NaN -> P2002 -> every never-run cron paged).
-// shortcut: belongs in CONSOLIDATION_EXCLUDE_CATEGORIES (categories.ts), outside this task's files; move it there when that file is next edited.
-const MERGE_EXCLUDE_CATEGORIES: readonly string[] = [
-  ...CONSOLIDATION_EXCLUDE_CATEGORIES,
-  BRAIN_CATEGORIES.CRONS,
-  "cron_control",
-  BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT,
-];
-
 // ─── 1. MERGE: Combine similar memories ──────────────────
 
 export async function mergeMemories(): Promise<{ merged: number }> {
@@ -69,7 +57,7 @@ export async function mergeMemories(): Promise<{ merged: number }> {
 
   const categories = await prisma.brainMemory.groupBy({
     by: ["category"],
-    where: { category: { notIn: [...MERGE_EXCLUDE_CATEGORIES] }, ...CURATED_GUARD },
+    where: { category: { notIn: [...CONSOLIDATION_EXCLUDE_CATEGORIES] }, ...CURATED_GUARD },
     _count: { id: true },
     having: { id: { _count: { gt: 3 } } },
   });
@@ -469,7 +457,7 @@ Max 3 insights.`,
           .replace(/[^a-z0-9]+/g, "_")
           .slice(0, 48);
         const category =
-          MERGE_EXCLUDE_CATEGORIES.includes(ins.category)
+          CONSOLIDATION_EXCLUDE_CATEGORIES.includes(ins.category)
             ? "wisdom"
             : (ins.category || "wisdom");
         await admitMemory({
@@ -595,7 +583,12 @@ function getCategoryWeight(category: string): number {
 export async function crossPollinate(): Promise<{ connections: number }> {
   // Find unconnected high-value memories and link them
   const [wisdoms, contradictions, predictions, reflections] = await Promise.all([
-    prisma.brainMemory.findMany({ where: { category: BRAIN_CATEGORIES.WISDOM }, take: 10, select: { id: true, content: true } }),
+    // Live, current wisdom only: a forgotten or superseded row must not gain edges.
+    prisma.brainMemory.findMany({
+      where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null, supersededById: null },
+      take: 10,
+      select: { id: true, content: true },
+    }),
     prisma.contradiction.findMany({ where: { resolved: false }, take: 5, select: { id: true, claim: true, gap: true } }),
     prisma.prediction.findMany({ where: { status: "pending" }, take: 5, select: { id: true, prediction: true } }),
     prisma.reflection.findMany({ where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, insight: true } }),

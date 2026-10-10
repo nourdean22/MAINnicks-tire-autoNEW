@@ -863,6 +863,13 @@ export const CONSOLIDATION_EXCLUDE_CATEGORIES: readonly string[] = [
   // both corrupt that payload and outlive the 10-minute TTL the design
   // depends on. Never a consolidation subject.
   "active_chat_stream",
+  // 2026-10-10 · audit 08-F8. KV rows read by key, never beliefs: the cron
+  // first-seen registry (ISO-date content, which the merge's JSON guard lets
+  // through), cron kill switches, push dedup markers. A prose merge broke
+  // the registry (Date.parse NaN -> P2002 -> every never-run cron paged).
+  BRAIN_CATEGORIES.CRONS,
+  "cron_control",
+  BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT,
 ];
 
 /**
