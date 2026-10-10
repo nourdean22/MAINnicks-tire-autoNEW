@@ -1,3 +1,6 @@
+import fs from "fs";
+import path from "path";
+import { createHash } from "crypto";
 /**
  * publish-pilot-01.mts (2026-10-09) — publish the operator-approved pilot Reel #1
  * through the EXISTING doors, in order:
@@ -119,8 +122,40 @@ const TEXT_SURFACES: Record<string, string[]> = {
   ]
 };
 const BRIEF_ID = plan.briefId;
-const VIDEO_URL = String(reel.video_url);
-const VIDEO_SHA256 = String(reel.sha256);
+const SOURCE_URL = String(reel.video_url);
+const SOURCE_SHA256 = String(reel.sha256);
+// --finish (2026-10-10): the Higgsfield export is finished like a pipeline reel
+// before anything is approved — music bed under the native track, -14 LUFS,
+// film grain when REEL_FILM_GRAIN is on, Rec.709 tags — and the FINISHED file is
+// what gets approved, hashed and published. The manifest's sha stays on
+// externalMaster.sourceSha256 so the export is still traceable. Default ON;
+// --raw publishes the export untouched (how Reels #2 and #3 went out).
+const FINISH = !process.argv.includes("--raw");
+let VIDEO_URL = SOURCE_URL;
+let VIDEO_SHA256 = SOURCE_SHA256;
+let FINISH_NOTE: string | null = null;
+if (FINISH) {
+  const { fetchPublicBounded } = await import("../server/lib/publicFetch");
+  const { finishExternalMaster } = await import("../server/services/externalMasterFinish");
+  const os = await import("os");
+  const src = path.join(os.tmpdir(), `pilot-${REEL_ID}-source.mp4`);
+  if (!fs.existsSync(src)) fs.writeFileSync(src, await fetchPublicBounded(SOURCE_URL, { maxBytes: 200 * 1024 * 1024, timeoutMs: 120_000, maxRedirects: 3, label: "pilot master" }));
+  const srcSha = createHash("sha256").update(fs.readFileSync(src)).digest("hex");
+  if (srcSha !== SOURCE_SHA256) { console.error(`downloaded master sha ${srcSha.slice(0, 12)} != manifest ${SOURCE_SHA256.slice(0, 12)} — refusing`); process.exit(2); }
+  const finished = await finishExternalMaster(src, { brief: { voiceoverScript: "", archetype: "calm", id: BRIEF_ID } });
+  FINISH_NOTE = `finished: ${finished.durationSec.toFixed(2)} s, music=${finished.usedMusic ?? "none"}, grain=${finished.grain}, sha ${finished.sha256.slice(0, 12)}`;
+  console.log(FINISH_NOTE);
+  if (EXECUTE) {
+    const { storagePut, assertDurableStorageForGeneration } = await import("../server/storage");
+    assertDurableStorageForGeneration("pilot finished master");
+    const put = await storagePut(`reels/finished/pilot-${REEL_ID}-${finished.sha256.slice(0, 12)}.mp4`, fs.readFileSync(finished.outPath), "video/mp4");
+    VIDEO_URL = put.url;
+    VIDEO_SHA256 = finished.sha256;
+    console.log(`finished master stored: ${VIDEO_URL}`);
+  } else {
+    console.log(`DRY RUN: finished file at ${finished.outPath} (not uploaded)`);
+  }
+}
 const HIGGSFIELD_MEDIA_ID = String(reel.media_id);
 const captionLines = String(reel.caption).split("\n");
 const HASHTAGS = captionLines[captionLines.length - 1].trim().split(/\s+/).filter((h) => h.startsWith("#"));
@@ -154,6 +189,9 @@ const BRIEF = {
     producedBy: "Higgsfield (operator session, 2026-10-09)",
     mediaId: HIGGSFIELD_MEDIA_ID,
     sha256: VIDEO_SHA256,
+    sourceSha256: SOURCE_SHA256,
+    sourceUrl: SOURCE_URL,
+    finish: FINISH_NOTE,
     manifest: `Nicks_Pilot_Review_Manifest.json (reel ${REEL_ID}, credits ${String(reel.credits)})`,
     textSurfaces: TEXT_SURFACES[REEL_ID] ?? [],
     approval: REEL_ID === "01"

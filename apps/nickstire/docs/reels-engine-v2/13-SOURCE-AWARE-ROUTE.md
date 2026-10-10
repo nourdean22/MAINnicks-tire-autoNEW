@@ -30,6 +30,10 @@ this slice spends a credit, publishes, or changes a schedule.
    upload still registers stills only. Shot list + command: `14-CAPTURE-DAY-CARD.md`.
 3. Put the row id on the beat: `"realAssetId": "ma_..."` in the pack's `brief.json`. The pack
    builder carries it; nothing is inferred from prose.
+   A photo of the bay works the same way for GENERATED beats (2026-10-10): register it with
+   `--kind still` and put `"heroAssetId": "ma_..."` on the pack brief. Enqueue verifies the row
+   (real_shop, current, JPEG/PNG/WebP, image URL) and makes it the brief's visual world, so every
+   generated clip starts from Nick's actual shop. The clips are still generated; the AI label stays.
 4. Enqueue as usual. At generation the pipeline verifies the row, binds URL + sha256, writes
    `sourceDurationSec` on the beat and a `shotLineage` row on the payload, and only then runs the
    provider loop for the remaining beats. A refusal names the beat, the asset and the reason

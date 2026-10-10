@@ -513,9 +513,29 @@ export function combinePromptWithNegative(prompt: string, negativePrompt?: strin
  * stays text-only in prod until a paid verification run proves it. The arg
  * BUILDER is proven here; the live GENERATION is not.
  */
-export function buildSeedanceArgs(prompt: string, opts: { startImageUrl?: string } = {}): string[] {
+/**
+ * Which Higgsfield video model the CLI lane renders with (2026-10-10, quality
+ * upgrade). Default is the measured incumbent, seedance1_5 (12 credits per 4 s
+ * 1080p clip). The operator moves the lane with REEL_CLIP_MODEL; anything not
+ * on this list falls back to the default and is logged, so a typo can never
+ * send a paid request to an unknown model. Ids are the CLI's own
+ * (higgsfield-ai/cli README, read 2026-10-10): seedance_2_5 (2.5, measured 26
+ * credits per 4 s via the MCP ledger), kling3_0 and kling3_0_turbo.
+ */
+const CLIP_MODELS = ["seedance1_5", "seedance_2_5", "kling3_0", "kling3_0_turbo"] as const;
+export type ClipModel = (typeof CLIP_MODELS)[number];
+export const DEFAULT_CLIP_MODEL: ClipModel = "seedance1_5";
+export function resolveClipModel(env: NodeJS.ProcessEnv = process.env): ClipModel {
+  const raw = (env.REEL_CLIP_MODEL ?? "").trim();
+  if (!raw) return DEFAULT_CLIP_MODEL;
+  if ((CLIP_MODELS as readonly string[]).includes(raw)) return raw as ClipModel;
+  log.warn("REEL_CLIP_MODEL is not an allowlisted model — rendering with the default", { requested: raw, using: DEFAULT_CLIP_MODEL, allowed: CLIP_MODELS.join(",") });
+  return DEFAULT_CLIP_MODEL;
+}
+
+export function buildSeedanceArgs(prompt: string, opts: { startImageUrl?: string; model?: ClipModel } = {}): string[] {
   const args = [
-    "generate", "create", "seedance1_5",
+    "generate", "create", opts.model ?? resolveClipModel(),
     "--prompt", prompt,
     "--aspect_ratio", "9:16",
     // Derived, not a literal: this is the request that MAKES the clip whose
@@ -898,12 +918,13 @@ export async function generateReelClipVideo(req: string | {
   };
 
   const conditioned = !!effectiveStartImage && process.env.REEL_IMAGE_CONDITIONING === "true";
-  log.info("Generating Reel clip video via Higgsfield (seedance1_5)...", { prompt, imageConditioned: conditioned });
+  const clipModel = resolveClipModel();
+  log.info("Generating Reel clip video via Higgsfield CLI...", { model: clipModel, prompt, imageConditioned: conditioned });
 
   return new Promise<string>((resolve, reject) => {
     const child = spawn(
       binPath,
-      buildSeedanceArgs(prompt, { startImageUrl: effectiveStartImage }),
+      buildSeedanceArgs(prompt, { startImageUrl: effectiveStartImage, model: clipModel }),
       {
         env: {
           ...env,

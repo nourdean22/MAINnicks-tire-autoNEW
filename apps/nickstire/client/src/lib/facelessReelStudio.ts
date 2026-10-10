@@ -281,7 +281,7 @@ export type MotionLens =
 export const MOTION_LENSES: Record<MotionLens, { label: string; essence: string; grammar: string; avoid: string }> = {
   extreme_macro_push_in: {
     label: "Extreme Macro Push-In", essence: "Slow relentless push into texture until it becomes a landscape.",
-    grammar: "Extreme macro lens, tactile texture detail, shallow depth of field, one continuous controlled push-in, studio-grade lighting, photorealistic, 8K detail.",
+    grammar: "Extreme macro lens, tactile texture detail, shallow depth of field, one continuous controlled push-in, a single hard key light raking the surface, photographed on a real camera.",
     avoid: "busy background, wide shot, fast camera movement",
   },
   tilt_shift_miniature: {
@@ -311,7 +311,7 @@ export const MOTION_LENSES: Record<MotionLens, { label: string; essence: string;
   },
   hyperreal_cinematic: {
     label: "Hyperreal Cinematic", essence: "Anamorphic, wet asphalt, practical light - premium film look.",
-    grammar: "Award-winning cinematography, 85mm lens, shallow depth of field, anamorphic feel, practical light sources, wet-surface reflections, dramatic high contrast, 35mm film grain texture, photorealistic.",
+    grammar: "Award-winning cinematography, 85mm lens, shallow depth of field, anamorphic feel, practical light sources, wet-surface reflections, dramatic high contrast, 35mm film grain texture, photographed on a real camera.",
     avoid: "cartoon texture, flat even lighting",
   },
   claymation_stop_motion: {
@@ -336,7 +336,7 @@ export const MOTION_LENSES: Record<MotionLens, { label: string; essence: string;
   },
   product_ad_macro: {
     label: "Product-Ad Macro", essence: "Flagship-launch lighting for a humble part on a turntable.",
-    grammar: "Premium product commercial, 85mm macro lens, shallow depth of field, studio-grade key lighting on a dark seamless background, slow turntable rotation, ultra-detailed 8K, photorealistic.",
+    grammar: "Premium product commercial, 85mm macro lens, shallow depth of field, one soft key light on a dark seamless background, slow turntable rotation, photographed on a real camera.",
     avoid: "cluttered scene, handheld camera shake",
   },
   weather_radar_overlay: {
@@ -636,6 +636,16 @@ export interface ReelBrief {
    */
   presenceProfile?: PresenceProfile;
   captionStyle?: CaptionStyle;
+  /**
+   * Registry id of a real_shop STILL (a photo of Nick's actual bay) to anchor
+   * every generated clip on (2026-10-10). Verified at enqueue
+   * (realShotBinding.verifyRealShopStillRow) and turned into the brief's
+   * visualWorld: heroFrameUrl = the photo, lockedInvariants = the real-place
+   * block. With REEL_IMAGE_CONDITIONING on, every beat is image-to-video from
+   * the shop itself, which is the direct answer to GENERIC_STOCK_LOOK. The
+   * clips are still generated, so the AI disclosure is unchanged.
+   */
+  heroAssetId?: string;
   id: string;
   createdAt: string;
   updatedAt: string;
@@ -1923,6 +1933,23 @@ export function resolveConditioningMode(brief: Pick<ReelBrief, "visualWorld">): 
   return brief.visualWorld?.heroFrameUrl ? "hero_image" : "text_only";
 }
 
+/**
+ * Realism directive (2026-10-10 quality pass). The operator's verdict on the
+ * first published masters was "plastic": one uniform sheen, no pore or scratch
+ * detail, physics that float. The critic already records PLASTIC_AI_LOOK,
+ * IMPOSSIBLE_PHYSICALITY and GENERIC_STOCK_LOOK as craft evidence; this line
+ * asks the generator for the opposite in POSITIVE terms (a negation fixates the
+ * model on the banned concept — see FACELESS_CLEAN_SCENE_DIRECTIVE). Render
+ * vocabulary ("8K", "ultra-detailed", "studio-grade render") was removed from
+ * the lens grammars at the same time: it describes a CG product render, which
+ * is the look being rejected.
+ */
+export const REALISM_DIRECTIVE = [
+  `Photographed, not rendered: one real light source with natural falloff and a soft fill, true material response - matte rubber with pore and scratch detail, brake dust that sits in the grooves, worn metal with uneven wear, a little grime where hands and tools touch.`,
+  `Physically grounded: every object casts a contact shadow, every reflection has a visible source, tread blocks and lug nuts stay countable, and nothing floats or morphs.`,
+  `One continuous take at natural speed with 24fps motion blur; no speed ramps, no synthetic glow, no uniform sheen across surfaces that should differ.`,
+].join("\n");
+
 export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatPrompt[] {
   const lens = MOTION_LENSES[brief.motionLens];
   const persona = heroPersona(brief.objectCharacter);
@@ -1975,6 +2002,7 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
               : `Opening frame: strongest possible first frame - the hero object clearly readable at a glance.`),
         `Timing: complete the primary action by ${actionCompleteBySec} seconds; keep every frame after that visually stable${isLast ? ", settled on a frame that echoes the opening shot for a seamless loop" : ", ready for a match cut into the next shot"}.`,
         facelessCleanSceneDirective(brief.motionLens),
+        REALISM_DIRECTIVE,
         `Leave the top 12% and bottom 20% of frame clear for IG UI; key action center-frame.`,
       ].join("\n"),
       // The scene bans (people/hands/text/branding) live in the POSITIVE prompt
@@ -1983,7 +2011,7 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
       // is what made Seedance render garbled screens and the "Nixs" logo. Gloves +
       // arms are added since a bare "hands" ban let gloved hands through in 690001.
       negativePrompt:
-        `human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts, ${lens.avoid}`,
+        `human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, 3D render look, uniform plastic sheen, warped engine parts, ${lens.avoid}`,
       styleKit: `${lens.label} + ${REEL_ARCHETYPES[brief.archetype].label}`,
       safeZoneGuidance: b.safeZoneNotes || "Keep critical visuals out of the top 12% / bottom 20% IG UI zones.",
       sceneStatus: providerScene.status,

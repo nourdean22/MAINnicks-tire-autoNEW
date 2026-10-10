@@ -5,12 +5,41 @@
  * seedance image-render proves it live.
  */
 import { afterEach, describe, expect, it } from "vitest";
-import { buildSeedanceArgs } from "./services/higgsfieldStudio";
+import { buildSeedanceArgs, resolveClipModel } from "./services/higgsfieldStudio";
 
 const prev = process.env.REEL_IMAGE_CONDITIONING;
 afterEach(() => {
   if (prev === undefined) delete process.env.REEL_IMAGE_CONDITIONING;
   else process.env.REEL_IMAGE_CONDITIONING = prev;
+});
+
+describe("buildSeedanceArgs — REEL_CLIP_MODEL (2026-10-10)", () => {
+  afterEach(() => { delete process.env.REEL_CLIP_MODEL; });
+  it("defaults to seedance1_5 when the variable is unset or empty", () => {
+    delete process.env.REEL_CLIP_MODEL;
+    expect(buildSeedanceArgs("x").slice(0, 3)).toEqual(["generate", "create", "seedance1_5"]);
+    process.env.REEL_CLIP_MODEL = "  ";
+    expect(buildSeedanceArgs("x")[2]).toBe("seedance1_5");
+  });
+  it("renders with an allowlisted model and keeps the rest of the request identical", () => {
+    process.env.REEL_CLIP_MODEL = "seedance_2_5";
+    const a = buildSeedanceArgs("x");
+    expect(a.slice(0, 3)).toEqual(["generate", "create", "seedance_2_5"]);
+    expect(a).toContain("--resolution");
+    expect(a[a.indexOf("--resolution") + 1]).toBe("1080p");
+    expect(a[a.indexOf("--aspect_ratio") + 1]).toBe("9:16");
+    process.env.REEL_CLIP_MODEL = "kling3_0_turbo";
+    expect(buildSeedanceArgs("x")[2]).toBe("kling3_0_turbo");
+  });
+  it("a model that is not allowlisted never reaches the CLI — the default renders instead", () => {
+    process.env.REEL_CLIP_MODEL = "seedance_9";
+    expect(buildSeedanceArgs("x")[2]).toBe("seedance1_5");
+    expect(resolveClipModel({ REEL_CLIP_MODEL: "sora2" } as NodeJS.ProcessEnv)).toBe("seedance1_5");
+  });
+  it("an explicit model argument wins over the environment", () => {
+    process.env.REEL_CLIP_MODEL = "seedance_2_5";
+    expect(buildSeedanceArgs("x", { model: "seedance1_5" })[2]).toBe("seedance1_5");
+  });
 });
 
 describe("buildSeedanceArgs", () => {

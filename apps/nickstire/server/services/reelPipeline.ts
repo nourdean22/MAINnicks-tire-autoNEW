@@ -315,6 +315,8 @@ export interface ReelJobBrief {
     framePrompt: string;
     lockedInvariants: string;
   };
+  /** Registry id of a real_shop still that anchors every generated clip (facelessReelStudio.ReelBrief.heroAssetId). */
+  heroAssetId?: string;
 }
 
 /**
@@ -544,6 +546,35 @@ export async function enqueueReelJob(
         log.error("real beat(s) name an asset the registry cannot bind — BLOCKED at enqueue", { briefId: brief.id, source, reason: reason.slice(0, 300) });
         throw new ReelPreflightBlockedError([reason]);
       }
+    }
+  }
+
+  // A brief that names a real_shop STILL as its hero frame (2026-10-10) is
+  // anchored HERE: the row is verified read-only, and the brief's visualWorld
+  // becomes that photo plus the real-place invariants, so every generated beat
+  // is image-to-video from Nick's actual bay (REEL_IMAGE_CONDITIONING) and the
+  // continuity block locks to a real place. An operator-approved generated
+  // world is never overwritten; a bad id is the same typed enqueue refusal as
+  // a bad realAssetId, so the rotation keeps moving.
+  if (typeof brief.heroAssetId === "string" && brief.heroAssetId.trim()) {
+    const heroAssetId = brief.heroAssetId.trim();
+    if (brief.visualWorld?.lockedInvariants?.trim()) {
+      log.info("hero still ignored — the brief already carries an approved visual world", { briefId: brief.id, heroAssetId });
+    } else {
+      const { resolveHeroStill, realStillInvariants } = await import("./realShotBinding");
+      const verdict = await resolveHeroStill(d, heroAssetId);
+      if (!verdict.ok) {
+        const reason = `HERO_STILL_NOT_BINDABLE (blocked at enqueue, nothing reserved): asset ${heroAssetId}: ${verdict.refusal} — ${verdict.detail}. Nothing was generated.`;
+        log.error("hero still names an asset the registry cannot bind — BLOCKED at enqueue", { briefId: brief.id, source, reason: reason.slice(0, 300) });
+        throw new ReelPreflightBlockedError([reason]);
+      }
+      brief.visualWorld = {
+        style: "real_shop_still",
+        heroFrameUrl: verdict.url,
+        framePrompt: "",
+        lockedInvariants: realStillInvariants(verdict.assetId),
+      };
+      log.info("brief anchored on a real_shop still", { briefId: brief.id, heroAssetId, sha256: verdict.sha256.slice(0, 12) });
     }
   }
 

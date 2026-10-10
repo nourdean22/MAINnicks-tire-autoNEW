@@ -644,6 +644,9 @@ export function buildBriefFromApprovedProductionPack(
     // brief keeps its exact shape (the legacy object-only, uppercase contract).
     ...(presenceProfile !== "object_only" ? { presenceProfile } : {}),
     ...(captionStyle !== "legacy_upper" ? { captionStyle } : {}),
+    // A pack may name a real_shop still as its hero frame (2026-10-10); the
+    // pipeline verifies it at enqueue. Only written when declared.
+    ...(stringValue(source.heroAssetId) ? { heroAssetId: stringValue(source.heroAssetId) } : {}),
     productionGrammarFingerprint,
     ...(productionGrammarNovelty ? { productionGrammarNovelty } : {}),
     promptPack: [],
