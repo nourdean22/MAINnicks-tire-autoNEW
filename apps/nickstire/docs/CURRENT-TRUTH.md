@@ -7,6 +7,14 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Beat subject leads the lens in clip prompts (2026-10-10, PR after #2973) -- BUILT + TESTED; PR open
+
+**Operator decision 2026-10-10 14:00Z: Seedance 2.5 stays the production clip model** (`REEL_CLIP_MODEL=seedance_2_5` on Railway; about 26 credits per 4 s clip, about 130 per 5-beat reel, vs 12 / 60 on 1.5).
+
+On reel 2070005 three of five beats rendered the X-ray lens instead of the described shot (POV, surface, wear bars). The compiled prompt stated the lens grammar twice (the Style grammar line and the quoted hero-frame prompt inside the locked visual world) and the Subject once, near the top.
+
+- `buildHiggsfieldReelPromptPack`: the quoted frame prompt now points at the Style grammar line instead of repeating it, and every beat prompt ends with `This shot must show: <subject> ... the style never replaces the subject.`, after the visual-world and realism blocks. Subject before grammar, restated last.
+- Pinned: `server/reelSourceAware.test.ts` 'beat subject leads the lens' (3). No per-beat vision check was added: it would cost a vision call per beat; the voted critic judges the assembled reel.
 ## Pipeline controls: run any cron job now, advance one reel now (2026-10-10, PR after #2971) -- BUILT + TESTED; PR open
 
 Live proofs landed the same morning: the lane fix (#2966) parked Reel #1 as `qa_parked:unavailable_stale` on the 13:01Z pulse (selected: none) after a day of hourly re-selection; the voted critic (#2952) judged its first pipeline reel with `runs 3 / agreedBlocks 3 / droppedBlocks 2`; the Seedance 2.5 test reel 2070005 (craft 80) was published on the operator's instruction under a recorded override as https://www.instagram.com/reel/DeUMKRVgnQl/.
