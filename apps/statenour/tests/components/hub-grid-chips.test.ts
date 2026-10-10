@@ -76,7 +76,7 @@ describe("hub chips honour measured flags", () => {
       chip("/system/ai-cost", payload({ ai: { calls24h: 0, costCents7d: 0, measured: false } })).label,
     ).toBe("unmeasured");
     expect(
-      chip("/brain", payload({ brain: { totalMemories: 0, permanent: 0, avgConfidence: 0, measured: false } }))
+      chip("/brain?tab=memory", payload({ brain: { totalMemories: 0, permanent: 0, avgConfidence: 0, measured: false } }))
         .label,
     ).toBe("unmeasured");
     expect(

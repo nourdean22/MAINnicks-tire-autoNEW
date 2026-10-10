@@ -98,6 +98,24 @@ function StatusDot({ status }: { status: string }) {
   return <span className={`inline-block h-2 w-2 rounded-full ${color}`} />;
 }
 
+// 2026-10-10 · audit 09-F7: a failed read is unknown, never "No X available".
+function ReadFailed({ error }: { error: { message?: string } | null }) {
+  return (
+    <div className="text-fg-tertiary text-xs py-4">
+      unknown · read failed{error?.message ? `: ${error.message}` : ""}
+    </div>
+  );
+}
+
+// 2026-10-10 · audit 09-F8: status is never colour alone (SYSTEM.md §9 glyphs + a word).
+const RECEIPT_STATUS: Record<string, { glyph: string; word: string; tone: string }> = {
+  success: { glyph: "✓", word: "succeeded", tone: "text-emerald-300" },
+  failed: { glyph: "×", word: "failed", tone: "text-red-300" },
+  needs_approval: { glyph: "!", word: "needs approval", tone: "text-amber-300" },
+  skipped: { glyph: "◌", word: "skipped", tone: "text-fg-tertiary" },
+  partial: { glyph: "?", word: "partial", tone: "text-fg-tertiary" },
+};
+
 function timeAgo(dateStr: string | null): string {
   if (!dateStr) return "never";
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -453,6 +471,8 @@ export default function SystemPage() {
                 </div>
               )}
             </div>
+          ) : changeDigestQuery.isError ? (
+            <ReadFailed error={changeDigestQuery.error} />
           ) : (
             <div className="text-fg-tertiary text-xs py-4">No change digest available.</div>
           )}
@@ -497,9 +517,16 @@ export default function SystemPage() {
               {/* Failures List */}
               <div className="flex-1 overflow-auto max-h-[160px] pr-1 space-y-1.5">
               <div className="text-fg-tertiary font-mono text-[11px] uppercase tracking-[0.12em]">Failures</div>
-                {memoryEvalsQuery.data.failed === 0 ? (
-                  <div className="text-emerald-400 text-[11px] font-mono">
-                    ✓ All grounded truth evaluations are passing!
+                {/* An eval "ran" only if it passed or failed; total 0, or every
+                    eval manual (docs/ not bundled), is not a pass. */}
+                {memoryEvalsQuery.data.passed + memoryEvalsQuery.data.failed === 0 ? (
+                  <div className="text-fg-tertiary text-[11px] font-mono">
+                    no evals ran
+                    {memoryEvalsQuery.data.manual > 0 ? ` · ${memoryEvalsQuery.data.manual} manual` : ""}
+                  </div>
+                ) : memoryEvalsQuery.data.failed === 0 ? (
+                  <div className="text-emerald-300 text-[11px] font-mono">
+                    ✓ no failures in {memoryEvalsQuery.data.passed} that ran
                   </div>
                 ) : (
                   <div className="space-y-1.5">
@@ -524,6 +551,8 @@ export default function SystemPage() {
                 <span>Docs Grounded: {memoryEvalsQuery.data.sourcesFound}/{memoryEvalsQuery.data.sourcesExpected}</span>
               </div>
             </div>
+          ) : memoryEvalsQuery.isError ? (
+            <ReadFailed error={memoryEvalsQuery.error} />
           ) : (
             <div className="text-fg-tertiary text-xs py-4">No evaluations available.</div>
           )}
@@ -555,18 +584,12 @@ export default function SystemPage() {
               ) : (
                 <div className="divide-y divide-edge-subtle space-y-2">
                   {receiptFeedQuery.data.items.map((r) => {
-                    const statusDotColor =
-                      r.status === "success"
-                        ? "bg-emerald-400"
-                        : r.status === "failed"
-                          ? "bg-red-400"
-                          : r.status === "needs_approval"
-                            ? "bg-amber-400"
-                            : "bg-fg-tertiary";
+                    const s = RECEIPT_STATUS[r.status] ?? { glyph: "?", word: r.status, tone: "text-fg-tertiary" };
                     return (
                       <div key={r.receiptId} className="flex gap-2.5 pt-2 first:pt-0">
-                        <div className="mt-1">
-                          <span className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotColor}`} />
+                        <div className={`w-3 shrink-0 text-center font-mono text-[11px] leading-tight ${s.tone}`}>
+                          <span aria-hidden="true">{s.glyph}</span>
+                          <span className="sr-only">{s.word}</span>
                         </div>
                         <div className="flex-1 space-y-0.5">
                           <div className="flex items-center justify-between gap-2">
@@ -592,6 +615,8 @@ export default function SystemPage() {
                 </div>
               )}
             </div>
+          ) : receiptFeedQuery.isError ? (
+            <ReadFailed error={receiptFeedQuery.error} />
           ) : (
             <div className="text-fg-tertiary text-xs py-4">No recent receipts available.</div>
           )}

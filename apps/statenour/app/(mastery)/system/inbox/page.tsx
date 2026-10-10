@@ -49,6 +49,10 @@ export default function MemoryInboxPage() {
 
   const items = (quarantinedQuery.data as InboxItem[] | undefined) ?? [];
   const loading = quarantinedQuery.isPending || quarantinedQuery.isFetching;
+  // 2026-10-10 · audit 02-F13: no read (failed, or not landed yet) is not a
+  // clear queue. Only a successful read may say "clear ... safe".
+  const readFailed = quarantinedQuery.isError && !quarantinedQuery.data;
+  const notYetRead = !quarantinedQuery.data && !quarantinedQuery.isError;
 
   const handleResolve = async (id: string, verdict: "overwrite" | "reject" | "coexist") => {
     try {
@@ -67,7 +71,11 @@ export default function MemoryInboxPage() {
       description={
         items.length > 0
           ? `${items.length} claim(s) quarantined for safety review`
-          : "All ingested memories clear and committed"
+          : readFailed
+            ? "Queue state unknown: read failed"
+            : notYetRead
+              ? "Reading the queue…"
+              : "All ingested memories clear and committed"
       }
       width="3xl"
       rhythm="loose"
@@ -92,7 +100,17 @@ export default function MemoryInboxPage() {
         </div>
       }
     >
-      {items.length === 0 ? (
+      {readFailed ? (
+        <Panel className="border-edge-subtle flex flex-col items-center justify-center p-12 text-center">
+          <h3 className="text-lg font-semibold text-fg mb-1">Queue state unknown · read failed</h3>
+          <p className="text-xs text-fg-tertiary max-w-sm">{quarantinedQuery.error?.message ?? "No reason returned"}</p>
+          <p className="text-xs text-fg-tertiary max-w-sm mt-1">A failed read clears nothing. Refresh reads it again.</p>
+        </Panel>
+      ) : notYetRead ? (
+        <Panel className="border-edge-subtle p-12 text-center">
+          <p className="text-xs text-fg-tertiary">Reading the queue…</p>
+        </Panel>
+      ) : items.length === 0 ? (
         <Panel className="border-edge-subtle flex flex-col items-center justify-center p-12 text-center">
               <h3 className="text-lg font-semibold text-fg mb-1">Memory Queue Clear</h3>
           <p className="text-xs text-fg-tertiary max-w-sm">

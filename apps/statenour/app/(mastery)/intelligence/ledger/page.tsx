@@ -8,22 +8,36 @@ import { OpportunityCard, Opportunity } from "@/components/intelligence/Opportun
 
 type TabStatus = "pending" | "accepted" | "declined" | "all";
 
+/**
+ * 2026-10-10 · audit 02-F13: a failed or non-success read is not an empty
+ * queue. Returns the rows, or why there are none to show.
+ * (tests/components/decision-ledger-read-failed.test.ts runs this function.)
+ */
+function readLedger(httpOk: boolean, body: unknown): { opportunities: Opportunity[] } | { error: string } {
+  // apiHandler wraps plain-object returns as { ok, data, meta } (lib/utils/http.ts:93, :278).
+  // Reading `body.status` made this ALWAYS false, so the queue rendered empty regardless of
+  // what the route returned. Same defect as intelligence/brief/page.tsx, fixed 2026-08-21.
+  const b = body as { data?: unknown; error?: unknown } | null;
+  const payload = (b?.data ?? b) as { status?: string; opportunities?: Opportunity[] } | null;
+  if (httpOk && payload?.status === "success") return { opportunities: payload.opportunities ?? [] };
+  return { error: typeof b?.error === "string" && b.error ? b.error : "no reason returned" };
+}
+
 export default function DecisionLedgerPage() {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabStatus>("pending");
 
   const fetchOpportunities = async (status: TabStatus) => {
     setLoading(true);
     try {
       const res = await fetch(`/api/intelligence/opportunities?status=${status}`);
-      const body = await res.json();
-      // apiHandler wraps plain-object returns as { ok, data, meta } (lib/utils/http.ts:93, :278).
-      // Reading `body.status` made this ALWAYS false, so the queue rendered empty regardless of
-      // what the route returned. Same defect as intelligence/brief/page.tsx, fixed 2026-08-21.
-      const payload = body?.data ?? body;
-      setOpportunities(payload?.status === "success" ? (payload.opportunities ?? []) : []);
+      const read = readLedger(res.ok, await res.json().catch(() => null));
+      setOpportunities("opportunities" in read ? read.opportunities : []);
+      setLoadError("error" in read ? read.error : null);
     } catch (err) {
+      setLoadError(err instanceof Error && err.message ? err.message : "no reason returned");
       toast.error("Failed to load opportunities queue.");
     } finally {
       setLoading(false);
@@ -118,6 +132,14 @@ export default function DecisionLedgerPage() {
         <div className="flex flex-col items-center justify-center py-20 gap-3 border border-edge-subtle rounded-surface bg-content">
           <RefreshCw className="h-6 w-6 text-fg-tertiary animate-spin" />
           <span className="text-xs font-mono text-fg-tertiary">Loading ledger data...</span>
+        </div>
+      ) : loadError ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center border border-edge-subtle rounded-surface bg-content px-6">
+          <h3 className="text-sm font-semibold text-fg">Ledger unknown · read failed</h3>
+          <p className="text-xs text-fg-tertiary max-w-sm mt-1">{loadError}</p>
+          <p className="text-xs text-fg-tertiary max-w-sm mt-1">
+            Nothing here was processed or cleared. Refresh reads it again.
+          </p>
         </div>
       ) : opportunities.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center border border-edge-subtle rounded-surface bg-content px-6">
