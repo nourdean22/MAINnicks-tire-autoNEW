@@ -7,6 +7,13 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Beat subject leads the lens in clip prompts (2026-10-10, PR after #2973) -- BUILT + TESTED; PR open
+
+On reel 2070005 three of five beats rendered the X-ray lens instead of the described shot (POV, surface, wear bars). The compiled prompt stated the lens grammar twice (the Style grammar line and the quoted hero-frame prompt inside the locked visual world) and the Subject once, near the top.
+
+- `buildHiggsfieldReelPromptPack`: the quoted frame prompt now points at the Style grammar line instead of repeating it, and every beat prompt ends with `This shot must show: <subject> ... the style never replaces the subject.`, after the visual-world and realism blocks. Subject before grammar, restated last.
+- Pinned: `server/reelSourceAware.test.ts` 'beat subject leads the lens' (3). No per-beat vision check was added: it would cost a vision call per beat; the voted critic judges the assembled reel.
+
 ## Higgsfield result parser picks the media kind (2026-10-10, PR after #2968) -- BUILT + TESTED; PR open
 
 The first Seedance 2.5 reel (job 2070005) rendered five clips and assembly refused them: the saved "clips" were our own uploaded start image. `parseResultUrl` returned the FIRST http URL in the CLI's `--json` job, and on `seedance_2_5` that is `params.medias[].data.url` (the start image), not `result_url`. The render-integrity gate caught the 5 s cut.
