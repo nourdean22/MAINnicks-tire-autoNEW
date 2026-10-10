@@ -17,7 +17,7 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
 
 ## Claude-specific
 
-- **Skills** (`.claude/skills/`, 41 — 35 repo-specific + the 6 `ponytail*` stances; invoke by exact name). `nour-command` is the
+- **Skills** (`.claude/skills/`, 53: 35 repo-specific + 18 always-on stance files; invoke by exact name). `nour-command` is the
   cross-cutting router; each `SKILL.md` carries
   its own full trigger and rationale; this is only the index for picking one.
   - Before commit/push → **statenour-verify** · **nickstire-verify**; writing any report → **answer-first**;
