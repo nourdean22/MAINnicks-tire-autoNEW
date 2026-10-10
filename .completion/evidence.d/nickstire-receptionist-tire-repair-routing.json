@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "UPDATED, not deferred: docs/operations/capability-ledger.json 'receptionist-prompt-evolution-gate' records the operator-applied run-6 edit to ASSISTANT_SYSTEM_PROMPT and that it reaches callers only via Push Latest Config. REALITY-LEDGER.md re-rendered. The 12 prompt-reading suites (vapi.* prompt tests, replayPolicy, receptionistBaseline, ghostReplay, promptEvolution.integration, crossChannelSafetyParity, outboundCallCompliance, sttForensics) pass: 633 tests."
+    }
+  }
+}
