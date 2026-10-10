@@ -11,9 +11,82 @@
  * what ffmpeg can prove; naturalness stays a named gap.
  */
 import { spawn } from "child_process";
+import { createHash } from "crypto";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import type { DB } from "../db";
 import { createLogger } from "../lib/logger";
-
 const log = createLogger("services:audio-qa");
+
+export interface StoredAudioQa extends AudioQaResult {
+  qaState: "completed";
+  evaluatedAt: string;
+  masterSha256: string;
+  measuredOn: string;
+}
+
+/** 300 MB: a 90 s 1080x1920 master is 20-60 MB; anything larger is not a reel master. */
+const MASTER_MAX_BYTES = 300 * 1024 * 1024;
+
+/**
+ * Measure the audio of a job's CURRENT master (the exact bytes at mp4Url) and
+ * persist the verdict to payload.audioQa with a compare-and-set (2026-10-10).
+ *
+ * Why this exists: audio QA ran only inside reelAssembly, so a master that
+ * arrived any other way (a Higgsfield-UI export, an operator ingest) had no
+ * verdict, the publish gate read 'unavailable' forever, and the daily drain
+ * selected that one job on every pulse and held it — job 2070001 jammed the
+ * lane for a day. The gate now calls this when audio evidence is missing, so
+ * "never evaluated" becomes "evaluated" on first contact. Returns null on any
+ * failure (no master, fetch refused, ffmpeg error, lost CAS race); the caller
+ * stays fail-closed on null.
+ */
+export async function measureJobAudioQa(database: DB, jobId: number): Promise<StoredAudioQa | null> {
+  const { reelJobs } = await import("../../drizzle/schema");
+  const { and, eq } = await import("drizzle-orm");
+  const readJob = async () => (await database.select({ mp4Url: reelJobs.mp4Url, payload: reelJobs.payload }).from(reelJobs).where(eq(reelJobs.id, jobId)).limit(1))[0];
+  let workDir: string | null = null;
+  try {
+    const job = await readJob();
+    if (!job?.mp4Url || !/^https?:\/\//.test(job.mp4Url)) {
+      log.warn("audio QA on demand: job has no http master", { jobId });
+      return null;
+    }
+    const { fetchPublicBounded } = await import("../lib/publicFetch");
+    const master = await fetchPublicBounded(job.mp4Url, { maxBytes: MASTER_MAX_BYTES, timeoutMs: 120_000, maxRedirects: 3, label: "reel master for audio QA" });
+    const masterSha256 = createHash("sha256").update(master).digest("hex");
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), `audioqa-${jobId}-`));
+    const file = path.join(workDir, "master.mp4");
+    fs.writeFileSync(file, master);
+    const result = await runAudioQa(file);
+    const verdict: StoredAudioQa = { ...result, qaState: "completed", evaluatedAt: new Date().toISOString(), masterSha256, measuredOn: "publish gate on demand, the exact bytes at mp4Url" };
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const fresh = await readJob();
+      if (!fresh) return null;
+      if (fresh.mp4Url !== job.mp4Url) {
+        log.warn("audio QA on demand: master URL changed while measuring — not attaching a verdict for other bytes", { jobId });
+        return null;
+      }
+      let payload: Record<string, unknown> = {};
+      try { payload = JSON.parse(fresh.payload ?? "{}"); } catch { return null; }
+      payload.audioQa = verdict;
+      const r = await database.update(reelJobs).set({ payload: JSON.stringify(payload), updatedAt: new Date() }).where(and(eq(reelJobs.id, jobId), eq(reelJobs.payload, fresh.payload ?? "")));
+      const affected = Number((r as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? (r as unknown as { affectedRows?: number }).affectedRows ?? 1);
+      if (affected > 0) {
+        log.info("audio QA on demand: verdict attached", { jobId, decision: verdict.decision, integratedLufs: verdict.integratedLufs, masterSha256: masterSha256.slice(0, 12) });
+        return verdict;
+      }
+    }
+    log.warn("audio QA on demand: lost the compare-and-set three times", { jobId });
+    return null;
+  } catch (err) {
+    log.warn("audio QA on demand failed — gate stays unavailable", { jobId, err: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+    return null;
+  } finally {
+    if (workDir) fs.rmSync(workDir, { recursive: true, force: true });
+  }
+}
 
 /** Platform audio delivery target (IG/Reels-aligned). Verify date carried so a
  *  spec change is visible. */

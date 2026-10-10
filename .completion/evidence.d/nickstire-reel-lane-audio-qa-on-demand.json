@@ -1,0 +1,22 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "2026-10-10 lane unjam. dailyReelPost.ts adds only a SKIP: a candidate whose gate reads 'unavailable' more than STALE_UNAVAILABLE_MS after it was ready is pushed to `skipped` with qa_parked:unavailable_stale and the loop continues (today's-job branch: parked = 'unavailable_stale' and the pulse returns without selecting). Nothing is published that was not published before; the authoritative gate chain still runs in full on whatever IS selected. No timestamp -> not stale -> unchanged behaviour. Pinned by server/reelDrainStaleUnavailable.test.ts; server/cron/jobs/dailyReelPost.test.ts, server/reelDrainHeadOfLine.test.ts, server/reelLaneUnjam.test.ts green."
+    },
+    "publish-boundary": {
+      "ref": "2026-10-10 lane unjam. qualityGate.evaluateReelPublishGate: the ONLY change is that a missing audio verdict is measured (audioQa.measureJobAudioQa) before the existing hold, and only when runIfMissing is true; the hold itself, its reason text, the audioPolicyDisabled escape and every rendered-QA branch are unchanged. A null measurement (no http master, fetch refused, ffmpeg error, lost CAS) leaves audioQa undefined and the gate returns the same 'unavailable' as before. server/qualityGate.test.ts: 3 new cases (measures on first contact; never under runIfMissing:false; null keeps the hold) + the 20 existing cases green; server/reelQualityGate.test.ts green."
+    },
+    "render-spend-trajectory": {
+      "ref": "2026-10-10 lane unjam. No provider call is added: audio QA is local ffmpeg on bytes already stored at mp4Url. The drain skip REDUCES repeated work (one stuck job no longer runs the gate chain every pulse). Reservation, settlement, repair and generation code untouched (git diff: audioQa.ts, qualityGate.ts, dailyReelPost.ts, attach-audio-qa.mts, tests, ledger, docs only)."
+    },
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json: reel-lane-audio-qa-on-demand-20261010 added (in_progress / unit_verified / disabled; blocker: live proof owed on the first pulse after deploy). REALITY-LEDGER.md re-rendered in the same diff."
+    },
+    "visual-world-trajectory": {
+      "ref": "2026-10-10 lane unjam: no visualWorld, lockedInvariants or prompt-pack code is touched (diff limited to audioQa.ts, qualityGate.ts audio block, dailyReelPost.ts drain filter, attach-audio-qa.mts, tests, ledger, docs)."
+    },
+    "operator-walkthrough": {
+      "ref": "2026-10-10 lane unjam: no client/ file touched."
+    }
+  }
+}

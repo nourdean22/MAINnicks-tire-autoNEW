@@ -229,8 +229,23 @@ export async function evaluateReelPublishGate(
   // Absent evidence is now a HOLD, exactly as for vision. If audio QA legitimately
   // is not a stage yet, AUDIO_QA_ENABLED=false is the honest way to say so — an
   // explicit operator policy that gets logged, not a silent default-pass.
-  const audioQa = payload.audioQa as { decision?: string; qaState?: string } | undefined;
+  let audioQa = payload.audioQa as { decision?: string; qaState?: string } | undefined;
   const audioPolicyDisabled = process.env.AUDIO_QA_ENABLED === "false";
+  // Missing audio evidence is PRODUCED here, not reported forever (2026-10-10):
+  // a master that never went through reelAssembly (a Higgsfield-UI export, an
+  // ingest) had no verdict, so this gate read 'unavailable' on every pulse and
+  // the drain re-selected the same job all day (2070001). Same rule as rendered
+  // QA above: only a door that may produce evidence (runIfMissing) measures; the
+  // read-only pre-filter still reports 'not evaluated'. A failed measurement
+  // leaves audioQa undefined and the hold below stands.
+  if (!audioPolicyDisabled && runIfMissing && (!audioQa || typeof audioQa.decision !== "string")) {
+    const { measureJobAudioQa } = await import("./audioQa");
+    const measured = await measureJobAudioQa(d, jobId);
+    if (measured) {
+      audioQa = measured;
+      source = "fresh";
+    }
+  }
   if (!audioPolicyDisabled) {
     if (!audioQa || typeof audioQa.decision !== "string") {
       return result("unavailable", false, source, "no audio QA verdict on this job — audio was never evaluated, which is not the same as audio passing (set AUDIO_QA_ENABLED=false to publish on visual QA alone by explicit policy)", verdict.findings);

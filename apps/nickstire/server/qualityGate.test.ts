@@ -20,6 +20,12 @@ vi.mock("./services/renderedQa", async (importOriginal) => ({
 }));
 /** How many reel jobs the provider-health probe should see as recently failed. */
 let recentFailures = 0;
+/** The on-demand audio measurement the gate may call when payload.audioQa is missing. */
+let measureAudioMock = vi.fn(async () => null as unknown);
+vi.mock("./services/audioQa", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./services/audioQa")>()),
+  measureJobAudioQa: (...args: unknown[]) => measureAudioMock(...(args as [])),
+}));
 vi.mock("./db", () => ({
   getDb: async () => ({
     // Two shapes share this chain: the job lookup ends in .limit(), the
@@ -165,6 +171,36 @@ describe("evaluateReelPublishGate", () => {
     expect(g.allowed).toBe(false);
     expect(g.gate).toBe("unavailable");
     expect(g.reason).toMatch(/audio/i);
+  });
+
+  it("MEASURES audio on first contact when the verdict is missing and the door may produce evidence (2026-10-10, job 2070001)", async () => {
+    jobRow = { id: 1, payload: JSON.stringify({ renderedQa: completed([]) }) };
+    measureAudioMock = vi.fn(async () => ({ hasAudio: true, integratedLufs: -14, truePeakDb: -1.5, channels: 2, sampleRate: 48000, clipping: false, findings: [], decision: "approve", qaState: "completed", evaluatedAt: "2026-10-10T00:00:00Z", masterSha256: "a".repeat(64), measuredOn: "test" }));
+    try {
+      const g = await evaluateReelPublishGate(1);
+      expect(measureAudioMock).toHaveBeenCalledTimes(1);
+      expect(g.reason).not.toMatch(/no audio QA verdict/);
+      expect(g.gate).not.toBe("unavailable");
+    } finally { measureAudioMock = vi.fn(async () => null); }
+  });
+
+  it("does NOT measure under runIfMissing:false — the read-only pre-filter still reports 'not evaluated'", async () => {
+    jobRow = { id: 1, payload: JSON.stringify({ renderedQa: completed([]) }) };
+    measureAudioMock = vi.fn(async () => null);
+    const g = await evaluateReelPublishGate(1, { runIfMissing: false });
+    expect(measureAudioMock).not.toHaveBeenCalled();
+    expect(g.gate).toBe("unavailable");
+    expect(g.reason).toMatch(/audio/i);
+  });
+
+  it("a failed measurement leaves the hold in place (null is not a pass)", async () => {
+    jobRow = { id: 1, payload: JSON.stringify({ renderedQa: completed([]) }) };
+    measureAudioMock = vi.fn(async () => null);
+    const g = await evaluateReelPublishGate(1);
+    expect(measureAudioMock).toHaveBeenCalledTimes(1);
+    expect(g.allowed).toBe(false);
+    expect(g.gate).toBe("unavailable");
+    expect(g.reason).toMatch(/no audio QA verdict/);
   });
 
   it("HOLDS when audio QA ran but did not complete", async () => {

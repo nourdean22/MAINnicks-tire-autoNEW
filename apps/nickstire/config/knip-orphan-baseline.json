@@ -6225,6 +6225,16 @@
       "file": "apps/nickstire/server/services/realShotBinding.ts",
       "symbol": "verifyRealShopStillRow",
       "reason": "2026-10-10 hero still: pure verifier for a real_shop image row; exported for reelSourceAware.test.ts, consumed internally by resolveHeroStill (reelPipeline enqueue)"
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/dailyReelPost.ts",
+      "symbol": "STALE_UNAVAILABLE_MS",
+      "reason": "2026-10-10 lane unjam: the stale-unavailable threshold; exported for reelDrainStaleUnavailable.test.ts, consumed internally by staleUnavailable"
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/dailyReelPost.ts",
+      "symbol": "staleUnavailable",
+      "reason": "2026-10-10 lane unjam: pure stale rule; exported for reelDrainStaleUnavailable.test.ts, consumed internally by the drain pre-filter and the today-job branch in runDailyReelPost"
     }
   ]
 }
