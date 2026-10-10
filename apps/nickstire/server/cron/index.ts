@@ -748,3 +748,62 @@ export function registerAllJobs(): void {
 
   log.info("All cron jobs registered");
 }
+
+/**
+ * Release the cron locks a PREVIOUS container left behind (2026-10-10).
+ *
+ * Two manual prompt-evolution runs died the same day when a deploy replaced
+ * the container mid-run: the start command ran node under pnpm, pnpm took the
+ * SIGTERM and exited, node never drained, and the job's lock stayed held for
+ * its full TTL (100 minutes), refusing the next start. The start command now
+ * execs node directly so the drain runs; this sweep is the belt for the
+ * braces: a hard kill, an OOM or a crash can still strand a lock.
+ *
+ * Holder is `<RAILWAY_REPLICA_ID>:<pid>` (DYNO_ID). With one replica, any
+ * holder whose replica id is not ours belongs to a container that no longer
+ * exists once the deployment overlap has passed. So: STALE_HOLDER_SWEEP_DELAY_MS
+ * after boot (longer than Railway's overlap + draining windows), delete every
+ * live lock whose holder is another replica. Local runs (no replica id) never
+ * sweep. A DB error logs and does nothing; the TTL still expires the lock.
+ */
+export const STALE_HOLDER_SWEEP_DELAY_MS = 120_000;
+
+export async function releaseLocksOfDeadHolders(deps: {
+  replicaId?: string | undefined;
+  db?: Awaited<ReturnType<typeof import("../db").getDb>>;
+} = {}): Promise<{ released: Array<{ name: string; holder: string }> }> {
+  const replicaId = deps.replicaId ?? process.env.RAILWAY_REPLICA_ID;
+  const out: { released: Array<{ name: string; holder: string }> } = { released: [] };
+  if (!replicaId) return out;
+  try {
+    const db = deps.db ?? (await (await import("../db")).getDb());
+    if (!db) return out;
+    const { sql } = await import("drizzle-orm");
+    const prefix = `${replicaId}:`;
+    const [rows] = await db.execute(sql`
+      SELECT name, holder FROM cron_locks
+       WHERE locked_until > NOW()
+         AND holder NOT LIKE ${`${prefix}%`}
+    `);
+    const stale = rows as unknown as Array<{ name: string; holder: string }>;
+    for (const row of stale) {
+      await db.execute(sql`DELETE FROM cron_locks WHERE name = ${row.name} AND holder = ${row.holder}`);
+      out.released.push({ name: row.name, holder: row.holder });
+    }
+    if (out.released.length) {
+      log.warn("[cron/locks] released locks left by a previous container", { released: out.released, replicaId });
+    }
+  } catch (e) {
+    log.warn("[cron/locks] stale-holder sweep failed; the TTLs still apply", { error: e instanceof Error ? e.message : String(e) });
+  }
+  return out;
+}
+
+/** Arms the sweep once per process; the timer never keeps the process alive. */
+let staleSweepArmed = false;
+export function scheduleStaleHolderSweep(delayMs: number = STALE_HOLDER_SWEEP_DELAY_MS): void {
+  if (staleSweepArmed) return;
+  staleSweepArmed = true;
+  const t = setTimeout(() => { void releaseLocksOfDeadHolders(); }, delayMs);
+  if (typeof t === "object" && t && "unref" in t) (t as { unref: () => void }).unref();
+}

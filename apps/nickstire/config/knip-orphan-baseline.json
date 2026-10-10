@@ -6227,14 +6227,14 @@
       "reason": "2026-10-10 hero still: pure verifier for a real_shop image row; exported for reelSourceAware.test.ts, consumed internally by resolveHeroStill (reelPipeline enqueue)"
     },
     {
-      "file": "apps/nickstire/server/cron/jobs/dailyReelPost.ts",
-      "symbol": "STALE_UNAVAILABLE_MS",
-      "reason": "2026-10-10 lane unjam: the stale-unavailable threshold; exported for reelDrainStaleUnavailable.test.ts, consumed internally by staleUnavailable"
+      "file": "apps/nickstire/server/cron/index.ts",
+      "symbol": "releaseLocksOfDeadHolders",
+      "reason": "2026-10-10 stale-holder lock sweep · INTENTIONAL TEST-VISIBLE CONTRACT: the sweep body, called by scheduleStaleHolderSweep inside this module and pinned directly by cron/staleHolderSweep.test.ts (other-replica-only delete by name+holder, local no-op, DB error no-op). knip excludes *.test.ts as consumers."
     },
     {
-      "file": "apps/nickstire/server/cron/jobs/dailyReelPost.ts",
-      "symbol": "staleUnavailable",
-      "reason": "2026-10-10 lane unjam: pure stale rule; exported for reelDrainStaleUnavailable.test.ts, consumed internally by the drain pre-filter and the today-job branch in runDailyReelPost"
+      "file": "apps/nickstire/server/cron/index.ts",
+      "symbol": "STALE_HOLDER_SWEEP_DELAY_MS",
+      "reason": "2026-10-10 stale-holder lock sweep · INTENTIONAL TEST-VISIBLE CONTRACT: the 120 s boot delay (longer than Railway overlap + draining); staleHolderSweep.test.ts pins it. knip excludes *.test.ts as consumers."
     }
   ]
 }

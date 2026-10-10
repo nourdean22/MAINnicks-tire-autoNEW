@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "apps/nickstire/server/cron/staleHolderSweep.test.ts: the sweep deletes only live locks held by OTHER replicas, pinned by name AND holder; no replica id (local) never queries; a DB error logs and returns nothing (the TTLs still apply, nothing is widened); the scheduler arms it once with an unref'd timer. No cron handler behaviour changed."
+    },
+    "capability-ledger-updated": {
+      "ref": "UPDATED, not deferred: docs/operations/capability-ledger.json 'receptionist-prompt-evolution-manual-run' records the deploy-kill root cause (pnpm as PID 1), the new start command and the startup sweep; its blocker rewritten to the remaining live proof. REALITY-LEDGER.md re-rendered."
+    }
+  }
+}
