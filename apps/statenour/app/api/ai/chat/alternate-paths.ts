@@ -414,6 +414,10 @@ export async function runAlternatePaths(args: {
           "@/lib/services/chat/response-shape"
         );
 
+        // 2026-10-10 (audit 04-F8) - register THIS turn like the streamText
+        // path does, so a reconnect never replays the previous turn's reply.
+        const { trackActiveStream } = await import("@/lib/services/chat/active-stream");
+        const __altTurnDone = convId ? trackActiveStream(convId, traceId) : null;
         const streamResponse = simulateReasoningStream({
           request: {
             question: userContent,
@@ -429,13 +433,15 @@ export async function runAlternatePaths(args: {
             // `tool.chosen = 0` for a turn that may well have invoked tools.
             // This lane does not surface its calls, so it declares itself BLIND
             // rather than being counted as a measured zero.
-            return __altPersist({
+            const persisted = __altPersist({
               text: finalWinner,
               finishReason: "stop",
               laneToolNames: laneToolCalls.map((c) => c.name),
               laneReceiptsAvailable: laneTelemetryObserved,
               laneName,
             });
+            __altTurnDone?.(persisted);
+            return persisted;
           }
         });
 
@@ -715,12 +721,15 @@ export async function runAlternatePaths(args: {
         const { buildChatResponse } = await import(
           "@/lib/services/chat/response-shape"
         );
+        // 2026-10-10 (audit 04-F8) - same registration as the lane above.
+        const { trackActiveStream } = await import("@/lib/services/chat/active-stream");
+        const __altTurnDone = convId ? trackActiveStream(convId, traceId) : null;
         const streamResponse = simulateStreamFromText({
           text: winner,
           chunkSize: 24,
           chunkDelayMs: 8,
-          onComplete: () =>
-            __altPersist({
+          onComplete: () => {
+            const persisted = __altPersist({
               text: winner,
               finishReason: "stop",
               // Same reason as the deep-reasoning lane above: no `ev.steps`
@@ -729,7 +738,10 @@ export async function runAlternatePaths(args: {
               laneToolNames: laneToolCalls.map((c) => c.name),
               laneReceiptsAvailable: laneTelemetryObserved,
               laneName,
-            }),
+            });
+            __altTurnDone?.(persisted);
+            return persisted;
+          },
         });
         return buildChatResponse({
           streamResponse,

@@ -31,6 +31,7 @@ import { requireSession } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import {
   getActiveStream,
+  requestStreamStop,
   buildOpenChunks,
   buildDeltaChunk,
   buildCloseChunks,
@@ -63,13 +64,25 @@ export async function GET(
     const record = await getActiveStream(conversationId);
     if (!record) return new Response(null, { status: 204 });
 
-    // Completed turn → V1 path unchanged: replay the PERSISTED message,
-    // which is canonical (it carries any fabrication-rewriter banner the
-    // raw stream did not).
+    // 2026-10-10 (audit 04-F8) - turn identity. The client may name the
+    // turn it is waiting for (`?traceId=`, the X-Trace-Id of its POST). A
+    // record for any other turn is not that turn's reply: replaying it
+    // re-shows the PREVIOUS answer. Absent param = the old behaviour.
+    const wantedTrace = req.nextUrl?.searchParams?.get("traceId") ?? null;
+    if (wantedTrace && record.traceId !== wantedTrace) {
+      return new Response(null, { status: 204 });
+    }
+    // One id per turn, shared by the in-flight tail and the completed
+    // replay below, so a re-resume after completion replaces the bubble
+    // instead of adding a second one.
+    const msgId = resumeMessageId(conversationId, record.traceId ?? record.startedAt);
+
+    // Completed turn: replay the PERSISTED message, which is canonical
+    // (it carries any fabrication-rewriter banner the raw stream did not).
     if (record.status === "complete") {
       const message = await findAssistantMessage(conversationId, record.startedAt);
       if (!message) return new Response(null, { status: 204 });
-      return streamOut(message.id, (write) => {
+      return streamOut(msgId, (write) => {
         write(message.content);
         return { partial: false };
       });
@@ -81,9 +94,8 @@ export async function GET(
       return new Response(null, { status: 204 });
     }
 
-    // Deterministic id: concurrent resumes of the SAME turn collapse to
-    // one client-side message instead of N (duplicate-message scar).
-    const msgId = resumeMessageId(conversationId, record.startedAt);
+    // Deterministic id (msgId above): concurrent resumes of the SAME turn
+    // collapse to one client-side message instead of N.
     let emitted = record.partialText;
     // Distinguishes the two ways the tail can end without a clean
     // completion: window exhausted (turn still running) vs the persisted
@@ -179,6 +191,30 @@ export async function GET(
     return res;
   } catch (err) {
     return aiRouteError(err, "ai/chat/stream-resume", "Stream resume failed");
+  }
+}
+
+/**
+ * DELETE /api/ai/chat/[conversationId]/stream - operator Stop
+ * (2026-10-10, audit 04-F6). Records the stop for the in-flight turn so
+ * its persisted row says `aborted`, not `complete`. It does not halt the
+ * model: consumeStream keeps the turn durable on purpose. 409 when nothing
+ * is in flight - never a success for a stop that marked nothing.
+ */
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ conversationId: string }> },
+) {
+  try {
+    await requireSession(req);
+    const { conversationId } = await context.params;
+    if (!conversationId || conversationId === "none") {
+      return Response.json({ stopped: false, reason: "no_active_turn" }, { status: 409 });
+    }
+    const result = await requestStreamStop(conversationId);
+    return Response.json(result, { status: result.stopped ? 200 : 409 });
+  } catch (err) {
+    return aiRouteError(err, "ai/chat/stream-stop", "Stop failed");
   }
 }
 

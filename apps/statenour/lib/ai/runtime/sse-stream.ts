@@ -21,6 +21,30 @@ interface CreateCockpitSseStreamInput {
   onFinishPromise: Promise<void>;
 }
 
+/**
+ * 2026-10-10 (audit 04-F2 / 04-F14) · `message.persisted { id, content }`.
+ *
+ * ai@6 holds the response body open until onFinish resolves, and onFinish
+ * keeps working after the row is written (post-persist verification,
+ * deferred work). The persist step calls notifyMessagePersisted(traceId, ...)
+ * the moment the row exists; the stream for that trace emits it at once, so
+ * the client learns the STORED text and id without waiting for
+ * message.completed. In-process only: persist and stream run in the same
+ * request. A notify with no live stream for that trace is dropped (false).
+ */
+export interface PersistedMessage {
+  id: string;
+  content: string;
+}
+const persistedListeners = new Map<string, (p: PersistedMessage) => void>();
+
+export function notifyMessagePersisted(traceId: string, persisted: PersistedMessage): boolean {
+  const listener = persistedListeners.get(traceId);
+  if (!listener) return false;
+  listener(persisted);
+  return true;
+}
+
 export function createCockpitSseStream(input: CreateCockpitSseStreamInput): ReadableStream<Uint8Array> {
   const {
     aiSdkStream,
@@ -55,6 +79,11 @@ export function createCockpitSseStream(input: CreateCockpitSseStreamInput): Read
           void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.runtime.sse-stream", err, { fn: "createCockpitSseStream.sendEvent", eventType: type, note: "client disconnected mid-stream; suppressing further sends" }, "warn"));
         }
       };
+
+      const onPersisted = (p: PersistedMessage) => {
+        sendEvent("message.persisted", { id: p.id, content: p.content });
+      };
+      persistedListeners.set(traceId, onPersisted);
 
       // 1. Publish intent.classified
       sendEvent("intent.classified", {
@@ -98,6 +127,7 @@ export function createCockpitSseStream(input: CreateCockpitSseStreamInput): Read
         });
 
         // 4. Publish message.completed — only if the client is still attached.
+        // Always AFTER message.persisted (that fires mid-onFinish, above).
         // Closing an already-closed controller throws and re-logs noise.
         if (!clientClosed) {
           sendEvent("message.completed", {
@@ -120,6 +150,7 @@ export function createCockpitSseStream(input: CreateCockpitSseStreamInput): Read
           controller.error(err);
         }
       } finally {
+        if (persistedListeners.get(traceId) === onPersisted) persistedListeners.delete(traceId);
         reader.releaseLock();
       }
     },

@@ -229,6 +229,18 @@ export async function handleImage(
 
   const stream = new ReadableStream({
     async start(controller) {
+      // 2026-10-10 (audit 04-F16) - every send after the paid call goes
+      // through this. With the client gone, enqueue throws; that throw used
+      // to jump a SUCCESS into the error branch and then escape before
+      // either row was written. The rows are written first now, and a send
+      // to a closed stream is a no-op.
+      const send = (event: Record<string, unknown>) => {
+        try {
+          controller.enqueue(enc(event));
+        } catch {
+          /* client disconnected; the row is already persisted */
+        }
+      };
       // Immediate placeholder — keeps client's stall clock at 0s.
       controller.enqueue(enc({ type: "start", messageId }));
       controller.enqueue(enc({ type: "start-step" }));
@@ -274,18 +286,9 @@ export async function handleImage(
         );
 
         const finalText = `![Generated Image](${imgResult.imageUrl})\n\n**Prompt:** ${synthesizedPrompt}\n**Model:** ${imgResult.model} · ${imgResult.size}${synthFootnote}`;
-        // Wipe placeholder + heartbeat zero-widths by ending the
-        // initial text-delta and starting a fresh delta with the
-        // final content. The client renderer will replace the message
-        // body when text-end lands.
-        controller.enqueue(enc({ type: "text-end", id: "t1" }));
-        controller.enqueue(enc({ type: "text-start", id: "t2" }));
-        controller.enqueue(enc({ type: "text-delta", id: "t2", delta: finalText }));
-        controller.enqueue(enc({ type: "text-end", id: "t2" }));
-
         // Persist the FINAL clean text to chat_messages (skipping the
-        // placeholder + heartbeat noise). Fire-and-forget so a slow DB
-        // doesn't delay the stream close.
+        // placeholder + heartbeat noise) BEFORE streaming it (04-F16).
+        // Fire-and-forget so a slow DB doesn't delay the stream close.
         if (convId && convId !== "temp") {
           // v7.6 · ChatMessage Batch A · Apr 29 — image-gen result also
           // gets parts (text + file), searchable plaintext, and a
@@ -328,6 +331,15 @@ export async function handleImage(
             })
             .catch(() => null);
         }
+
+        // Wipe placeholder + heartbeat zero-widths by ending the
+        // initial text-delta and starting a fresh delta with the
+        // final content. The client renderer will replace the message
+        // body when text-end lands.
+        send({ type: "text-end", id: "t1" });
+        send({ type: "text-start", id: "t2" });
+        send({ type: "text-delta", id: "t2", delta: finalText });
+        send({ type: "text-end", id: "t2" });
       } catch (imgErr) {
         recordError("chat:image-gen", imgErr, {
           prompt: userContent.slice(0, 200),
@@ -336,9 +348,7 @@ export async function handleImage(
           ? imgErr.failure
           : classifyImageGenerationError(imgErr);
         const errText = `\n\n⚠️ ${failure.userMessage}`;
-        controller.enqueue(enc({ type: "text-delta", id: "t1", delta: errText }));
-        controller.enqueue(enc({ type: "text-end", id: "t1" }));
-        // Persist the error too so history reads honestly.
+        // Persist the error too so history reads honestly - first (04-F16).
         if (convId && convId !== "temp") {
           // v7.6 · ChatMessage Batch A · Apr 29 — error rows get
           // streamingState="errored" + structured errorDetails so the
@@ -376,16 +386,22 @@ export async function handleImage(
             })
             .catch(() => null);
         }
+        send({ type: "text-delta", id: "t1", delta: errText });
+        send({ type: "text-end", id: "t1" });
       } finally {
         // Always stop the heartbeat — on success, on error, and on any
         // unexpected throw — so the interval never outlives the request.
         clearInterval(heartbeat);
       }
 
-      controller.enqueue(enc({ type: "finish-step" }));
-      controller.enqueue(enc({ type: "finish" }));
-      controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-      controller.close();
+      send({ type: "finish-step" });
+      send({ type: "finish" });
+      try {
+        controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+        controller.close();
+      } catch {
+        /* client disconnected */
+      }
     },
     // Fires if the client disconnects before the generation resolves.
     // Without this the heartbeat keeps ticking (and enqueuing onto a

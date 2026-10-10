@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getInngest, isInngestFullyConfigured } from "@/lib/inngest/client";
@@ -38,6 +38,30 @@ export function hashMissionText(value: string): string {
   return `sha256:${createHash("sha256").update(value).digest("hex")}`;
 }
 
+/**
+ * 2026-10-10 (audit 01-F3) · enqueue idempotency. One mission + objective
+ * maps to ONE Inngest event id (Inngest drops a repeated id for 24 h) and
+ * ONE runId, so a retried tool call reports the run that is actually going
+ * rather than a fresh runId that never starts. Trade-off, stated: a genuine
+ * re-run of the same objective after the 24 h window reuses the runId, so its
+ * episodes share an episodeId with the earlier run.
+ */
+function missionRunSeed(missionId: string, objective: string): string {
+  return createHash("sha256").update(`${missionId}
+${objective}`).digest("hex");
+}
+
+export function missionExecutionEventId(missionId: string, objective: string): string {
+  return `mission-exec-${missionRunSeed(missionId, objective).slice(0, 40)}`;
+}
+
+/** UUID-shaped (version 5 nibble, RFC variant) so DurableMissionEventSchema accepts it. */
+export function missionExecutionRunId(missionId: string, objective: string): string {
+  const h = missionRunSeed(missionId, objective);
+  const variant = ((parseInt(h[16]!, 16) & 0x3) | 0x8).toString(16);
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
+
 export async function queueDurableMissionExecution(raw: unknown): Promise<
   | { queued: true; missionId: string; runId: string; eventIds: string[] }
   | { queued: false; reason: string }
@@ -65,9 +89,10 @@ export async function queueDurableMissionExecution(raw: unknown): Promise<
   });
   if (!mission) return { queued: false, reason: "active_mission_not_found" };
 
-  const runId = randomUUID();
+  const runId = missionExecutionRunId(mission.id, input.objective);
   const sent = await getInngest().send({
     name: "mission/execution.requested",
+    id: missionExecutionEventId(mission.id, input.objective),
     data: { ...input, runId },
   });
 
@@ -93,6 +118,26 @@ export async function queueDurableMissionExecution(raw: unknown): Promise<
 
   return { queued: true, missionId: mission.id, runId, eventIds: sent.ids };
 }
+/**
+ * 2026-10-10 (audit 01-F3) · stop. Sends the event the durable function's
+ * `cancelOn` listens for; Inngest halts the run before its next step.
+ * `cancelRequested: true` means the event was accepted, not that a run was
+ * found and halted (there may be none in flight).
+ */
+export async function cancelMissionExecution(missionId: string): Promise<
+  | { cancelRequested: true; missionId: string; eventIds: string[] }
+  | { cancelRequested: false; reason: string }
+> {
+  if (!isInngestFullyConfigured()) {
+    return { cancelRequested: false, reason: "inngest_not_configured" };
+  }
+  const sent = await getInngest().send({
+    name: "mission/execution.cancelled",
+    data: { missionId },
+  });
+  return { cancelRequested: true, missionId, eventIds: sent.ids };
+}
+
 export async function getLatestMissionExecution(missionId: string): Promise<{
   runId: string;
   phase: string;

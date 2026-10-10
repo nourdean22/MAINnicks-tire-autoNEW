@@ -20,6 +20,8 @@ import { buildVerifierBanner, isVerifierRewritten, buildKnownTruthBanner } from 
 import { canClaimDone, receiptsWithReadBack, summarizeClaimDoneShadow } from "@/lib/ai/receipts/action-receipt";
 import { verifyEnvironmentState, type EnvironmentVerificationResult } from "@/lib/ai/chat/environment-verifier";
 import { buildMessageParts } from "./message-parts";
+import { isStreamStopRequested } from "./active-stream";
+import { notifyMessagePersisted } from "@/lib/ai/runtime/sse-stream";
 import type { CapturedToolCall } from "./tool-telemetry-walk";
 import type { ProviderName } from "@/lib/ai/provider";
 import type { TurnSignal } from "@/lib/ai/turn-intelligence";
@@ -337,6 +339,12 @@ export async function persistAssistantMessage(a: {
       reasoningText,
     );
 
+    // 2026-10-10 (audit 04-F6) - the operator pressed Stop on THIS turn
+    // (DELETE on the resume route, keyed by traceId). consumeStream kept
+    // the turn running so it still persists, but as "aborted", never as
+    // "complete". A disconnect without Stop is not a stop.
+    const stoppedByOperator = convId ? await isStreamStopRequested(convId, traceId) : false;
+
     const createdAssistant = await withErrorCapture(
       "chat:db-write",
       () =>
@@ -352,7 +360,7 @@ export async function persistAssistantMessage(a: {
             promptTokens: promptTokens ?? undefined,
             completionTokens: completionTokens ?? undefined,
             costCents: costCents ?? undefined,
-            streamingState: streamingStateForFinish(finishReason),
+            streamingState: stoppedByOperator ? "aborted" : streamingStateForFinish(finishReason),
             parts: partsArray
               ? (partsArray as unknown as Parameters<typeof prisma.chatMessage.create>[0]["data"]["parts"])
               : undefined,
@@ -554,6 +562,14 @@ export async function persistAssistantMessage(a: {
       { timeoutMs: 10_000, context: { conversationId: convId } }
     );
     createdAssistantId = createdAssistant?.id ?? null;
+
+    // 2026-10-10 (audit 04-F2 / 04-F14) - the row exists: hand the live
+    // SSE stream for this trace the STORED id + text now, before the rest
+    // of onFinish (post-persist verification, deferred work) holds the
+    // body open. Only a row this call actually wrote is announced.
+    if (createdAssistant?.id) {
+      notifyMessagePersisted(traceId, { id: createdAssistant.id, content: cleanedText });
+    }
 
     // Q-32 · deterministic metadata-only annotation selection. Fire-and-forget:
     // evaluation infrastructure must never delay or break a user turn. The
