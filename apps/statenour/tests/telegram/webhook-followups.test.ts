@@ -181,7 +181,7 @@ function seedOpp(id = "rcpt_opp", body = "Your quote is ready", customerLabel = 
       kind: "opportunity_sms",
       opportunityId: "11111111-2222-4333-8444-555555555555",
       body,
-      idempotencyKey: "opp-11111111-abcdef0123456789",
+      idempotencyKey: "opp-test-key",
       customerLabel,
     },
   });

@@ -40,3 +40,8 @@
 # 2026-10-03 · #2911: a fake 40-char test FORGE_SECRET in the first commit, replaced by
 # a zero-entropy value in the next commit. Pinned to that one commit/line.
 f43f0d254f633ebc88b74e47f16b0fbfbd490443:apps/video-forge/tests/test_forge.py:generic-api-key:17
+
+# 2026-10-10 · #2981: a made-up opportunity-SMS idempotency key in a Telegram webhook test
+# fixture (an object key plus a hex-looking quoted string; never a credential). The next
+# commit replaced it with a zero-entropy value. Pinned to that one commit/line.
+ed1879be1ef81ea0bb7537bb268c440e9c913683:apps/statenour/tests/telegram/webhook-followups.test.ts:generic-api-key:184
