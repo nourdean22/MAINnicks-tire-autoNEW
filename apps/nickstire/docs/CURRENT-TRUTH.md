@@ -7,6 +7,15 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## One ask per reel is enforced before the spend (2026-10-10, PR after #2969) -- BUILT + TESTED; PR open
+
+The Seedance 2.5 test reel #2 (reel_jobs 2070005, brief ai-1791631412867) was refused by assembly's ask-consistency gate after five clips were rendered and paid for: the generator declared `ask.kind = profile` (end card "MORE IN OUR BIO") while its caption read "Send this to someone whose tires look smooth." -- two different asks on two surfaces (`shared/reelAsk.ts`). Enqueue preflight did not look at the caption, the refusal recurred three times inside one pulse (the pulse re-picks the same oldest `assets_ready` row), and the attempts ladder parked the job `failed` with the clips intact. The operator repaired it by hand.
+
+- **Enqueue refuses the mismatch.** `captionAskMismatch` (the cross-surface rule split out of `askLeakageProblem`) runs in `enqueueReelJob` before the reservation and the spend boundary, as the typed `REEL_ASK_INCONSISTENT` refusal; `briefEnqueueRefusals` mirrors it, so the miner regenerates and a pack variant with the defect never joins. Only the cross-surface rule moved: `runReelPreflight` still treats beat/voiceover leaks as a warn, and a caption carrying several asks with no declared end card is unchanged (the canonical sample briefs have that shape).
+- **The generator agrees with itself.** The prompt no longer demands a "send this to" sentence in the caption (that instruction contradicted the declared default ask); `stripCaptionAsks` removes any caption sentence asking for something other than the declared end card, and returns the caption untouched if nothing would remain (enqueue then refuses it loudly). Operator-supplied captions are not stripped.
+- **A content verdict does not burn the retry budget.** The assembly ask gate now runs before any clip download or voiceover call and throws `ReelAssemblyRefusedError`; `assemblyFailureOutcome` parks such a job `failed` on first contact with the attempt given back, so a repaired payload set back to `assets_ready` has its full budget. Provider and ffmpeg failures keep the `MAX_ATTEMPTS` ladder exactly as before.
+- Proof owed after deploy: the next generated brief carries no caption ask; a repaired 2070005 assembles on one pulse.
+
 ## Reel lane cannot jam on a missing verdict (2026-10-10, PR after #2965) -- BUILT + TESTED; PR open
 
 Found in the logs while the Seedance 2.5 test waited: every 15-minute pulse from 06:00Z to 11:00Z selected job 2070001 (Reel #1, a Higgsfield-UI export) and held it on "no audio QA verdict", returning before production ever ran. Audio QA only ever ran inside `reelAssembly`, so a master that arrived any other way could never get a verdict, and `unavailable` was deliberately not a parked gate.

@@ -21,6 +21,8 @@ import type { CtaType } from "../../shared/instagramStudio";
 import type { ApprovedProductionPackSnapshot, EpisodeContract, EpisodeDeclaration, ProductionSlot } from "../../shared/episodeContract";
 import { buildStructuredVideoPrompt } from "../../shared/reelVideoPrompt";
 import { queueStateForReelStatus } from "../../shared/reelQueue";
+import { captionAskMismatch, resolveReelAsk, type ReelAsk } from "../../shared/reelAsk";
+import { ReelAssemblyRefusedError } from "./reelContentRefusal";
 
 const log = createLogger("services:reel-pipeline");
 
@@ -228,6 +230,8 @@ export interface ReelJobBrief {
    * believing it was varying CTAs, so every reel could carry the same ask.
    */
   ctaType?: CtaType;
+  /** The one ask the end card renders (shared/reelAsk.ts). Generated briefs always declare it. */
+  ask?: ReelAsk | null;
   /** The contract this job is governed by, stamped at enqueue. */
   episodeContract?: EpisodeContract;
   selectedCaption?: string;
@@ -642,6 +646,24 @@ export async function enqueueReelJob(
     if (pre.status === "block") {
       log.warn("reel preflight BLOCKED enqueue — no spend reserved", { blocking: pre.blocking });
       throw new ReelPreflightBlockedError(pre.blocking.map((f) => f.message));
+    }
+  }
+
+  // THE CAPTION'S ASK MUST BE THE END CARD'S ASK, judged here with the exact
+  // rule assembly applies (2026-10-10). runReelPreflight deliberately skips the
+  // caption ("editable until publish"), but assembleReel reads the caption from
+  // the payload and refuses the mismatch, so a brief that declares `profile`
+  // and captions "send this to someone" was accepted here, rendered in full,
+  // and then refused with every clip paid for (job 2070005). The verdict is a
+  // function of the brief alone, so it belongs before the reservation. Typed:
+  // the same brief always fails it, so the rotation must advance past it.
+  {
+    const askMismatch = captionAskMismatch(brief.selectedCaption, resolveReelAsk(brief));
+    if (askMismatch) {
+      log.error("caption ask disagrees with the declared end card — BLOCKED at enqueue, nothing reserved", {
+        briefId: brief.id, source, reason: askMismatch,
+      });
+      throw new ReelPreflightBlockedError([`REEL_ASK_INCONSISTENT: ${askMismatch}`]);
     }
   }
 
@@ -1651,6 +1673,23 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
 }
 
 /**
+ * Where an assembly failure leaves the row.
+ *
+ * A provider, network or ffmpeg failure is retried from `assets_ready` (the
+ * clips exist, nothing is re-generated) and parks `failed` at MAX_ATTEMPTS. A
+ * deterministic content refusal (ReelAssemblyRefusedError: the ask gate) is
+ * different in kind — the payload, not the work, failed — so it parks on first
+ * contact AND gives the attempt back: the retry budget exists for failures of
+ * the work, and job 2070005 (2026-10-10) spent all three of its attempts on
+ * the same verdict inside one pulse. The operator repairs the payload and puts
+ * the row back to `assets_ready` with its budget intact.
+ */
+export function assemblyFailureOutcome(err: unknown, attempt: number): { status: "failed" | "assets_ready"; attempts: number } {
+  if (err instanceof ReelAssemblyRefusedError) return { status: "failed", attempts: Math.max(0, attempt - 1) };
+  return { status: attempt >= MAX_ATTEMPTS ? "failed" : "assets_ready", attempts: attempt };
+}
+
+/**
  * Claim and process the oldest `assets_ready` reel job: download its re-hosted
  * clips, generate a voiceover, run the ffmpeg assembly, re-host the finished
  * MP4 (`assets_ready -> assembling -> assembled`, mp4Url set). STOPS at
@@ -1840,8 +1879,8 @@ export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     // Retry assembly (back to assets_ready, NOT queued — clips are already gen'd).
-    const nextStatus = attempt >= MAX_ATTEMPTS ? "failed" : "assets_ready";
-    await d.update(reelJobs).set({ status: nextStatus, queueState: queueStateForReelStatus(nextStatus), error: msg.slice(0, 1000) }).where(eq(reelJobs.id, job.id));
+    const { status: nextStatus, attempts: nextAttempts } = assemblyFailureOutcome(err, attempt);
+    await d.update(reelJobs).set({ status: nextStatus, queueState: queueStateForReelStatus(nextStatus), attempts: nextAttempts, error: msg.slice(0, 1000) }).where(eq(reelJobs.id, job.id));
     if (nextStatus === "failed") {
       await releaseFailedJobReservation(job.payload, job.id);
       const { advanceContentRunByReelJobId, RUN_STAGE, IMPLEMENTATION_STATE } = await import("./contentRun");
