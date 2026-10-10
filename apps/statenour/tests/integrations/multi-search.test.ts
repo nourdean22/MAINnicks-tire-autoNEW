@@ -26,7 +26,7 @@ const mockExa = vi.fn();
 const mockGoogle = vi.fn();
 
 vi.mock("@/lib/integrations/perplexity", () => ({
-  askPerplexity: (...args: unknown[]) => mockPerplexity(...args),
+  searchPerplexity: (...args: unknown[]) => mockPerplexity(...args),
 }));
 vi.mock("@/lib/integrations/tavily", () => ({
   askTavily: (...args: unknown[]) => mockTavily(...args),
