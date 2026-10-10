@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "render-spend-trajectory": {
+      "ref": "2026-10-10 seedance_2_5 mode fix. The only spend-path file touched is higgsfieldStudio.ts, and only buildSeedanceArgs: for model seedance_2_5 it appends --mode omni_reference (start image attached) or --mode t2v (text-only) and --bitrate_mode high; seedance1_5's argv is byte-identical to before (server/imageConditioning.test.ts: the incumbent never receives --mode). No reservation, settlement, retry or fallback logic changes. The defect it fixes was a PRE-submit CLI rejection (exit 4 on production job 2070004 at 2026-10-10 03:45Z, 'start_image and end_image are only allowed for mode omni_reference'), which the lane already treats as transient with nothing spent; after the fix the same job renders on the model the operator approved for one test reel."
+    },
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json: reel-quality-upgrade-20261010 liveRuns records the first production attempt (job 2070004, 03:45Z: model seedance_2_5 confirmed in the generation log; CLI exit 4 on the start-image mode; nothing spent) and the fix in this PR; blocker text updated. docs/operations/REALITY-LEDGER.md re-rendered with scripts/render-reality-ledger.mjs in the same diff."
+    }
+  }
+}
