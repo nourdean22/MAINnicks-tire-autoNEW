@@ -17,7 +17,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const { queryNick } = vi.hoisted(() => ({ queryNick: vi.fn() }));
 
-vi.mock("@/lib/nickstire/query", () => ({ queryNick }));
+vi.mock("@/lib/nickstire/query", async (orig) => ({
+  readBridge: (await orig<typeof import("@/lib/nickstire/query")>()).readBridge, queryNick }));
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 vi.mock("@/lib/services/telegram", () => ({ sendTelegram: vi.fn() }));
 vi.mock("@/lib/services/email", () => ({ sendEmail: vi.fn() }));

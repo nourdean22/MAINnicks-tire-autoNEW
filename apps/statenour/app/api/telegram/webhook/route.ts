@@ -316,24 +316,25 @@ async function handleCallback(callback: {
         await answerCallbackQuery(callback.id, "Malformed rating.");
       } else {
         try {
-          const { recordOutcome } = await import("@/lib/services/outcome-ledger");
-          // ⚠ USE THE RETURN VALUE. recordOutcome updates `where: { id,
-          // outcomeAt: null }` and returns count === 1, so a second tap is a
-          // deliberate no-op returning false. Answering "Noted" regardless
-          // would confirm a write that did not happen — the same
-          // false-reassurance class this whole wave has been removing.
-          const recorded = await recordOutcome({
+          const { recordOutcomeResult } = await import("@/lib/services/outcome-ledger");
+          // ⚠ USE THE RETURN VALUE. The write updates `where: { id,
+          // outcomeAt: null }`, so a second tap is a deliberate no-op
+          // ("already"). The boolean recordOutcome folded a failed write into
+          // that same false, so a DB error answered "Already rated." and the
+          // operator believed a label landed (audit wave 2). Three states,
+          // three replies.
+          const result = await recordOutcomeResult({
             id: ledgerId,
             useful,
             resultRef: "telegram:rating",
           });
           await answerCallbackQuery(
             callback.id,
-            recorded
-              ? useful
-                ? "Noted — useful ✓"
-                : "Noted — not useful"
-              : "Already rated.",
+            result === "recorded"
+              ? "Noted."
+              : result === "already"
+                ? "Already rated."
+                : "Could not record - try again.",
           );
         } catch (err) {
           void import("@/lib/utils/error-log").then(({ logError }) =>
@@ -341,7 +342,7 @@ async function handleCallback(callback: {
           );
           // ⚠ Say so. A silent failure here would recreate the defect being
           // fixed: the operator believes they labelled it and nothing did.
-          await answerCallbackQuery(callback.id, "Could not record that — try again.");
+          await answerCallbackQuery(callback.id, "Could not record - try again.");
         }
       }
       await (prisma as any).actionReceipt

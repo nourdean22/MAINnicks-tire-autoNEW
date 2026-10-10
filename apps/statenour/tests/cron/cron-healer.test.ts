@@ -24,7 +24,6 @@ describe("cron/cron-healer route", () => {
     const mockResult = {
       healedCrons: ["test-cron"],
       cronErrors: [],
-      vacuumedTables: ["CronJobLog"],
       indexReindexed: false,
       avgLatencyMs: 45,
       ollamaQuotaTripped: false,

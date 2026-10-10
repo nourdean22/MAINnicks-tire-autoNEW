@@ -98,7 +98,7 @@ const h = vi.hoisted(() => {
     prisma,
     queryNick,
     log,
-    recordOutcome: vi.fn(async (..._a: unknown[]) => true),
+    recordOutcomeResult: vi.fn(async (..._a: unknown[]): Promise<"recorded" | "already" | "failed"> => "recorded"),
     ingestJournal: vi.fn(async (..._a: unknown[]) => ({})),
     createTask: vi.fn(async (..._a: unknown[]) => null as unknown),
     today: vi.fn(() => "2026-10-10"),
@@ -120,7 +120,7 @@ vi.mock("@/lib/services/telegram", () => h.telegram);
 vi.mock("@/lib/brain/journal-brain", () => ({ confirmJournalLink: vi.fn() }));
 vi.mock("@/lib/observability/langfuse", () => ({ langfuseTelemetry: () => undefined }));
 vi.mock("@/lib/nickstire/query", () => ({ queryNick: h.queryNick }));
-vi.mock("@/lib/services/outcome-ledger", () => ({ recordOutcome: h.recordOutcome }));
+vi.mock("@/lib/services/outcome-ledger", () => ({ recordOutcomeResult: h.recordOutcomeResult }));
 vi.mock("@/lib/brain/journal-ingest", () => ({ ingestJournal: h.ingestJournal }));
 vi.mock("@/lib/services/tasks", () => ({ createTask: h.createTask }));
 vi.mock("@/lib/services/missions", () => ({ resolveInboxMissionId: async () => "m_inbox" }));
@@ -299,9 +299,28 @@ describe("/draft escapes the model's text", () => {
 describe("oc rating settles its tracking receipt with a real ActionStatus", () => {
   it("writes SUCCESS, never DONE", async () => {
     await tap("oc:u:ledger_1");
-    expect(h.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({ id: "ledger_1", useful: true }));
+    expect(h.recordOutcomeResult).toHaveBeenCalledWith(expect.objectContaining({ id: "ledger_1", useful: true }));
     const statuses = h.actionReceipt.update.mock.calls.map((c) => (c[0] as { data: { status?: string } }).data.status);
     expect(statuses).toEqual(["SUCCESS"]);
+  });
+});
+
+describe("oc rating answers from the tri-state result", () => {
+  const answer = () => h.telegram.answerCallbackQuery.mock.calls.at(-1)?.[1];
+  it("recorded -> Noted.", async () => {
+    h.recordOutcomeResult.mockResolvedValueOnce("recorded");
+    await tap("oc:n:ledger_2");
+    expect(answer()).toBe("Noted.");
+  });
+  it("already -> Already rated.", async () => {
+    h.recordOutcomeResult.mockResolvedValueOnce("already");
+    await tap("oc:u:ledger_3");
+    expect(answer()).toBe("Already rated.");
+  });
+  it("failed -> Could not record - try again. (not Already rated.)", async () => {
+    h.recordOutcomeResult.mockResolvedValueOnce("failed");
+    await tap("oc:u:ledger_4");
+    expect(answer()).toBe("Could not record - try again.");
   });
 });
 

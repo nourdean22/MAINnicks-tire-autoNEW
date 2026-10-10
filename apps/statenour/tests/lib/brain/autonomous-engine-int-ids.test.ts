@@ -126,7 +126,8 @@ vi.mock("@/lib/prisma", () => {
   };
 });
 
-vi.mock("@/lib/nickstire/query", () => ({
+vi.mock("@/lib/nickstire/query", async (orig) => ({
+  readBridge: (await orig<typeof import("@/lib/nickstire/query")>()).readBridge,
   queryNick: vi.fn(async () => ({ error: "bridge off in tests" })),
   queryNickBatch: vi.fn(async () => ({})),
 }));

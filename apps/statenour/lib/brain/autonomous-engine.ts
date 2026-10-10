@@ -12,20 +12,21 @@ const log = rootLogger.withSurface("brain/autonomous");
 
 // v10.0.50 · Wave A · Helper for the queryNick bridge. Rules that
 // depend on shop-side data (revenue, leads, quotes, bookings) call
-// through here. On bridge failure or 404, returns null so the rule
-// can decide to skip rather than fire on dead data.
+// through here. An UNKNOWN read (transport error, non-2xx, or a 200 whose
+// data is `{ error }`, classified by readBridge) returns null, and every
+// caller skips its rule on null: never act on, or report, a fabricated zero.
 async function fetchBridge<T = unknown>(
   query: string,
   filters: Record<string, unknown> = {},
 ): Promise<T | null> {
   try {
-    const { queryNick } = await import("@/lib/nickstire/query");
-    const res = await queryNick<T>(query, filters);
-    if ("error" in res) {
-      log.warn("bridge_query_failed", { query, error: res.error });
+    const { queryNick, readBridge } = await import("@/lib/nickstire/query");
+    const read = readBridge<T>(await queryNick<T>(query, filters));
+    if (read.status === "unknown") {
+      log.warn("bridge_query_failed", { query, error: read.reason });
       return null;
     }
-    return res.data;
+    return read.data;
   } catch (err) {
     log.warn("bridge_query_threw", {
       query,
@@ -153,7 +154,7 @@ const RULES: ActionRule[] = [
         `${appt.customerName} — ${appt.serviceType}\n` +
         `📞 ${appt.customerPhone}\n` +
         `Preferred: ${appt.preferredDay || "Any"} ${appt.preferredTime || ""}\n\n` +
-        `Confirm at bdnick.info/appointments`
+        `Confirm at nickstire.org/admin`
       );
       return { result: "success" };
     },
@@ -205,8 +206,11 @@ const RULES: ActionRule[] = [
         bookedCount?: number;
       }>("quotes_pending", { sinceHours: 168 });
 
-      const total = data?.count ?? 0;
-      const booked = data?.bookedCount ?? 0;
+      // Both counts must be real numbers: a missing bookedCount is not 0
+      // booked, and alerting "overpriced" on it would be a fabricated reading.
+      if (data == null || typeof data.count !== "number" || typeof data.bookedCount !== "number") return [];
+      const total = data.count;
+      const booked = data.bookedCount;
 
       if (total < 5) return []; // not enough data
 
@@ -441,7 +445,7 @@ const RULES: ActionRule[] = [
     },
     action: async (data) => {
       await sendTelegram(
-        `🔀 <b>${data.count} Open Loops</b>\n\nAttention is fragmented. Close 3 before adding anything new.\n\n→ bdnick.info/loops`
+        `🔀 <b>${data.count} Open Loops</b>\n\nAttention is fragmented. Close 3 before adding anything new.\n\n→ bdnick.info/missions`
       );
       await brainMemory.remember(
         "pattern",
@@ -861,18 +865,19 @@ const RULES: ActionRule[] = [
         count?: number;
         bookedCount?: number;
       }>("quotes_pending", { sinceHours: 720 });
-      if (data == null) return [];
-      const total = Number(data.count ?? 0);
-      const booked = Number(data.bookedCount ?? 0);
+      // Unknown (null) or a body missing either count: skip, never report 0/N.
+      if (data == null || typeof data.count !== "number" || typeof data.bookedCount !== "number") return [];
+      const total = data.count;
+      const booked = data.bookedCount;
       if (total < 10) return [];
       const rate = (booked / total) * 100;
       return [{ total, booked, rate }];
     },
     action: async (data) => {
       // Analyze by price range — pull a snapshot of recent quotes
-      // (capped at 200, last 30d) for grandTotal + status. Bridge
-      // failure → quotes empty → ranges all show 0/0 (still ships
-      // the overall rate which is the primary signal).
+      // (capped at 200, last 30d) for grandTotal + status. An unknown
+      // detail read still ships the overall rate (the primary signal) but
+      // says the breakdown is unknown rather than printing an empty one.
       const detail = await fetchBridge<{
         quotes?: Array<{ grandTotal: number; status: string }>;
       }>("quotes_pending", { sinceHours: 720, withDetail: true, limit: 200 });
@@ -898,9 +903,12 @@ const RULES: ActionRule[] = [
         .filter(r => r.total > 0)
         .map(r => `${r.label}: ${r.total > 0 ? Math.round((r.booked / r.total) * 100) : 0}% (${r.booked}/${r.total})`)
         .join("\n");
+      const rangeBlock = detail == null
+        ? "By price range: unknown (the shop read failed)"
+        : `By price range:\n${rangeLines}`;
 
       await sendTelegram(
-        `📊 <b>Weekly Quote Intelligence</b>\n\nOverall: ${data.rate.toFixed(0)}% conversion (${data.booked}/${data.total})\n\nBy price range:\n${rangeLines}\n\nUse this to adjust pricing strategy.`
+        `📊 <b>Weekly Quote Intelligence</b>\n\nOverall: ${data.rate.toFixed(0)}% conversion (${data.booked}/${data.total})\n\n${rangeBlock}\n\nUse this to adjust pricing strategy.`
       );
 
       await brainMemory.remember(
@@ -984,6 +992,12 @@ export function inCustomerHoursET(at: Date = new Date()): boolean {
  *  transaction, an idempotent create and a bus emit, none of which a trigger needs. */
 export function __ruleTriggerForTest(name: string): (() => Promise<unknown[]>) | undefined {
   return RULES.find((r) => r.name === name)?.trigger;
+}
+
+export function __ruleActionForTest(
+  name: string,
+): ((item: unknown) => Promise<{ result: string; payload?: unknown }>) | undefined {
+  return RULES.find((r) => r.name === name)?.action;
 }
 
 /**

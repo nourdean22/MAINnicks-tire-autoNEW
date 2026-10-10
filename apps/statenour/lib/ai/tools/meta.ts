@@ -286,9 +286,9 @@ export const metaTools = {
       // Draft turn could fire a final submit/purchase. Clamp it to the turn:
       // never above draft unless the turn is Execute, never above read in a
       // Read turn. An approved re-execution (guardian bypass) is the owner's
-      // own key on this exact payload and keeps it. TurnContext does not carry
-      // actionPermission yet, so until the route publishes it every turn
-      // reads as Draft here (the safe direction).
+      // own key on this exact payload and keeps it. The chat route publishes
+      // actionPermission on the TurnContext; a turn without one (null, a
+      // non-chat scope) reads as Draft here (the safe direction).
       const { currentTurn } = await import("@/lib/agent/turn-context");
       const { guardianBypassStorage } = await import("@/lib/tools/guardian");
       const order = ["read", "draft", "execute"] as const;
