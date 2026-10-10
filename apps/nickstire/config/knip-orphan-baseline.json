@@ -6190,6 +6190,41 @@
       "file": "apps/nickstire/server/services/renderedQa.ts",
       "symbol": "reportsGarbledText",
       "reason": "2026-10-09 critic update (Codex review of #2952): garbled-lettering detector exported for reelSourceAware.test.ts; consumed internally by describesDeclaredText"
+    },
+    {
+      "file": "apps/nickstire/server/services/higgsfieldStudio.ts",
+      "symbol": "DEFAULT_CLIP_MODEL",
+      "reason": "2026-10-10 quality upgrade: the allowlisted default the CLI lane renders with; exported for imageConditioning.test.ts, consumed internally by resolveClipModel/buildSeedanceArgs"
+    },
+    {
+      "file": "apps/nickstire/server/services/higgsfieldStudio.ts",
+      "symbol": "resolveClipModel",
+      "reason": "2026-10-10 quality upgrade: REEL_CLIP_MODEL reader (allowlist, logged fallback); exported for imageConditioning.test.ts, consumed internally by generateReelClipVideo/buildSeedanceArgs"
+    },
+    {
+      "file": "apps/nickstire/server/services/externalMasterFinish.ts",
+      "symbol": "FINISH_MUSIC_VOLUME",
+      "reason": "2026-10-10 finish pass for Higgsfield-UI masters: the music level under native audio; exported for externalMasterFinish.test.ts, consumed internally by buildFinishArgs"
+    },
+    {
+      "file": "apps/nickstire/server/services/externalMasterFinish.ts",
+      "symbol": "buildFinishArgs",
+      "reason": "2026-10-10 finish pass: pure ffmpeg argv builder; exported for externalMasterFinish.test.ts, consumed internally by finishExternalMaster (called from scripts/publish-pilot-01.mts)"
+    },
+    {
+      "file": "apps/nickstire/server/services/externalMasterFinish.ts",
+      "symbol": "probeMaster",
+      "reason": "2026-10-10 finish pass: ffprobe wrapper; consumed internally by finishExternalMaster before and after the pass; exported so the pilot publisher can probe a master without finishing it"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "REALISM_DIRECTIVE",
+      "reason": "2026-10-10 quality upgrade: the photographed-not-rendered block every beat prompt carries; exported for reelSourceAware.test.ts, consumed internally by buildHiggsfieldReelPromptPack"
+    },
+    {
+      "file": "apps/nickstire/server/services/realShotBinding.ts",
+      "symbol": "verifyRealShopStillRow",
+      "reason": "2026-10-10 hero still: pure verifier for a real_shop image row; exported for reelSourceAware.test.ts, consumed internally by resolveHeroStill (reelPipeline enqueue)"
     }
   ]
 }

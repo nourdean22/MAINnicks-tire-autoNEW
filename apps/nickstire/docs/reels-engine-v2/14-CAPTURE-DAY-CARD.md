@@ -37,6 +37,7 @@ voices or identifying screens. An unusable clip is marked unusable, never forced
 | | T5 | finger on the worn edge |
 | | T6 | water poured across both treads (demonstration, not a test) |
 | Shop identity | S1-S10 | bay door, lift, wheel roll, impact, compressor, hands, signage |
+| Hero still (PHOTO) | H1-H3 | three portrait photos of the bay: a tire on the lift mid-frame, soft side light, no faces, no plates; one becomes every generated clip's first frame |
 | Audio, 5 s each | A1-A6 | ratchet, impact, air release, balancer start, shop door, room tone |
 
 Hands and tools are fine on every clip. No faces.
@@ -52,6 +53,7 @@ cd apps/nickstire && railway run -s MAINnicks-tire-auto -- pnpm exec tsx scripts
 
    It probes the clip, refuses anything that is not vertical video with a duration, uploads the
    exact bytes, registers a `real_shop` video row and prints `"realAssetId": "ma_..."`.
+   For a hero photo add `--kind still`; it prints `"heroAssetId": "ma_..."` for the pack brief.
 3. Put that id on the matching beat in the pack's `brief.json` (the three proof packs already
    declare `hands_only_real` and their card lines). The lane binds the exact clip, keeps it up to
    12 s on screen, re-hashes the bytes at assembly, and the AI label stays off when every shot is

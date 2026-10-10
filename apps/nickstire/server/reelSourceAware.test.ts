@@ -437,3 +437,76 @@ describe("lineage merge", () => {
     expect(merged.map((r) => [r.beatNumber, r.origin])).toEqual([[1, "registry_real_shop"], [2, "provider"]]);
   });
 });
+
+// ── 2026-10-10 quality upgrade ────────────────────────────────────────────────
+
+describe("hero still: a real_shop photo anchors every generated clip", async () => {
+  const { verifyRealShopStillRow, realStillInvariants } = await import("./services/realShotBinding");
+  const still = {
+    id: "ma_still", rightsStatus: "real_shop", reuseAllowed: 1, lifecycleState: "available", format: "image",
+    mimeType: "image/jpeg", runtimeUrl: "https://cdn.example/reels/real-shop/bay.jpg", checksumSha256: "c".repeat(64), isCurrent: 1,
+  };
+
+  it("accepts a current, reusable real_shop JPEG with an image URL", () => {
+    const v = verifyRealShopStillRow("ma_still", still);
+    expect(v.ok).toBe(true);
+    if (v.ok) expect(v.url).toBe(still.runtimeUrl);
+  });
+
+  it("refuses footage, generated stills, stale versions and URLs the CLI gate would drop", () => {
+    const refusal = (row: Partial<typeof still>) => { const v = verifyRealShopStillRow("ma_still", { ...still, ...row }); return v.ok ? "ok" : v.refusal; };
+    expect(refusal({ format: "video", mimeType: "video/mp4" })).toBe("not_an_image");
+    expect(refusal({ rightsStatus: "ai_generated" })).toBe("not_real_shop");
+    expect(refusal({ isCurrent: 0 })).toBe("not_current_version");
+    expect(refusal({ lifecycleState: "rejected" })).toBe("lifecycle_not_bindable");
+    expect(refusal({ runtimeUrl: "https://cdn.example/bay" })).toBe("no_runtime_url");
+    expect(refusal({ checksumSha256: "nope" })).toBe("no_checksum");
+    expect(verifyRealShopStillRow("ma_x", null).ok).toBe(false);
+  });
+
+  it("the real-place invariants name the shop and forbid a studio or a different bay", () => {
+    const text = realStillInvariants("ma_still");
+    expect(text).toMatch(/real photograph of Nick's Tire/);
+    expect(text).toMatch(/studio background/);
+    expect(text).toContain("ma_still");
+    expect(realStillInvariants("ma_still", "lift two, afternoon")).toContain("lift two, afternoon");
+  });
+});
+
+describe("realism pass: the generator is asked for photographed material, not a render", async () => {
+  const { REALISM_DIRECTIVE, MOTION_LENSES, buildHiggsfieldReelPromptPack } = await import("../client/src/lib/facelessReelStudio");
+  it("every beat prompt carries the realism directive and the render vocabulary is gone from the lens grammars", () => {
+    expect(REALISM_DIRECTIVE).toMatch(/Photographed, not rendered/);
+    expect(REALISM_DIRECTIVE).toMatch(/contact shadow/);
+    for (const lens of Object.values(MOTION_LENSES)) {
+      expect(lens.grammar).not.toMatch(/8K|ultra-detailed|studio-grade/);
+    }
+  });
+  it("the pack builder inserts it on every beat and bans the render look in the DO-NOT list", () => {
+    const brief = {
+      id: "t", topic: "tread", archetype: "satisfying_loop", objectCharacter: "plain_part", motionLens: "hyperreal_cinematic",
+      storyboardBeats: [
+        { beatNumber: 1, startSecond: 0, endSecond: 4, purpose: "p", visual: "a worn tire on a lift", motion: "slow push", onScreenText: "LOOK", narration: "", audioCue: "", safeZoneNotes: "" },
+        { beatNumber: 2, startSecond: 4, endSecond: 8, purpose: "p", visual: "the tread groove up close", motion: "hold", onScreenText: "CLOSER", narration: "", audioCue: "", safeZoneNotes: "" },
+      ],
+    } as unknown as Parameters<typeof buildHiggsfieldReelPromptPack>[0];
+    const pack = buildHiggsfieldReelPromptPack(brief);
+    expect(pack).toHaveLength(2);
+    for (const p of pack) {
+      expect(p.prompt).toContain(REALISM_DIRECTIVE);
+      expect(p.negativePrompt).toContain("3D render look");
+      expect(p.negativePrompt).toContain("uniform plastic sheen");
+    }
+  });
+});
+
+describe("clip model follows REEL_CLIP_MODEL, and so does the reservation price", async () => {
+  const { reelClipCostUsd, COST_ESTIMATES_USD } = await import("./services/generationLedger");
+  it("the default prices as seedance1_5; seedance_2_5 and kling reserve at their own figure; junk falls back", () => {
+    expect(reelClipCostUsd("higgsfield", {} as NodeJS.ProcessEnv)).toBe(COST_ESTIMATES_USD.seedance_clip);
+    expect(reelClipCostUsd("higgsfield", { REEL_CLIP_MODEL: "seedance_2_5" } as NodeJS.ProcessEnv)).toBe(COST_ESTIMATES_USD.seedance_2_5_clip);
+    expect(reelClipCostUsd("higgsfield", { REEL_CLIP_MODEL: "kling3_0_turbo" } as NodeJS.ProcessEnv)).toBe(COST_ESTIMATES_USD.kling3_0_clip);
+    expect(reelClipCostUsd("higgsfield", { REEL_CLIP_MODEL: "sora2" } as NodeJS.ProcessEnv)).toBe(COST_ESTIMATES_USD.seedance_clip);
+    expect(COST_ESTIMATES_USD.seedance_2_5_clip).toBeGreaterThan(COST_ESTIMATES_USD.seedance_clip * 2);
+  });
+});

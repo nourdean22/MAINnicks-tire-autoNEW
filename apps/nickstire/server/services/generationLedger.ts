@@ -33,6 +33,11 @@ export const COST_ESTIMATES_USD = {
   // the lever, a quality call. The dollar figure is still an ASSUMPTION: Higgsfield publishes no per-call USD, and a credit's
   // price depends on the plan - operator-tunable.
   seedance_clip: 0.25,
+  /** seedance_2_5 measured at 26 credits per 4 s 9:16 clip (MCP get_cost, docs/UPSTREAMS.md 2026-08-29);
+   *  26/12 of the seedance1_5 figure at the same assumed credit price. Kling 3.0 is unmeasured on this
+   *  account; priced at the 2.5 figure so a switch is never under-reserved. */
+  seedance_2_5_clip: 0.55,
+  kling3_0_clip: 0.55,
   /** template_stock renders with local ffmpeg — no API call, no credits, no marginal cost. */
   template_stock_clip: 0,
   gpt_image_2: 0.1,
@@ -81,7 +86,14 @@ export function reelClipCostUsd(provider: string, env: NodeJS.ProcessEnv = proce
   // GPUs price at the operator's marginal rate (power), never a fake Seedance
   // figure — and never literally "free" unless the operator sets that rate.
   if (provider === "self_hosted") return selfHostedClipEstimateUsd(env);
-  if (provider !== "veo") return COST_ESTIMATES_USD.seedance_clip;
+  if (provider !== "veo") {
+    // The CLI lane's model is an env choice (higgsfieldStudio.resolveClipModel);
+    // the reservation must price the model that will actually be billed.
+    const model = (env.REEL_CLIP_MODEL ?? "").trim();
+    if (model === "seedance_2_5") return COST_ESTIMATES_USD.seedance_2_5_clip;
+    if (model === "kling3_0" || model === "kling3_0_turbo") return COST_ESTIMATES_USD.kling3_0_clip;
+    return COST_ESTIMATES_USD.seedance_clip;
+  }
   // Number(undefined) and Number("abc") are NaN, Number("") is 0 — all falsy,
   // so a missing or malformed override falls back rather than booking a zero.
   const seconds = Number(env.REEL_VEO_DURATION) || VEO_DEFAULT_CLIP_SECONDS;

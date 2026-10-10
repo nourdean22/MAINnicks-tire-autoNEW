@@ -1,6 +1,20 @@
 # Session ledger - nickstire
 
-**Updated: 2026-10-10 01:25Z** (the receptionist experiment: manual door #2945, bounded edit #2950, optimizer timeout #2953, full-cycle budget #2954, five live runs the same evening; then the Reel lane unjam #2940; then the routine's live proofs and the camera page gate; then the flagged-items wave; then 10-08 evening: #2934 merged + deployed, the supervisor log-writer fix; then PR C, PR A + B history, the merged camera audit wave #2920 + #2925, the Search Console wave and the 2026-10-03 Sentry sweep.)
+**Updated: 2026-10-10 02:30Z** (reel quality upgrade branch; clip register #2955 + ledger #2956 merged; the sibling's docs merge #2957 had dropped those two sections and the ledger entries — restored here; then the receptionist experiment: manual door #2945, bounded edit #2950, optimizer timeout #2953, full-cycle budget #2954, five live runs the same evening; then the Reel lane unjam #2940; then the routine's live proofs and the camera page gate; then the flagged-items wave; then 10-08 evening: #2934 merged + deployed, the supervisor log-writer fix; then PR C, PR A + B history, the merged camera audit wave #2920 + #2925, the Search Console wave and the 2026-10-03 Sentry sweep.)
+
+## 2026-10-10 · Reel quality upgrade (branch `nickstire/reel-quality-upgrade`, PR after #2956) BUILT + TESTED
+
+**Why:** operator: "not really liking the quality of the generated vids" and "where's the background music?" — #2952 had upgraded the critic, not the generator; the pilots were Higgsfield-UI exports published raw (no assembler, so no music/loudnorm/grain). **Built:** `REEL_CLIP_MODEL` allowlist (seedance1_5 default, seedance_2_5, kling3_0, kling3_0_turbo) + reservation priced per model; `REALISM_DIRECTIVE` + render vocabulary removed from lens grammars; `heroAssetId` real_shop still -> visual world at enqueue; `externalMasterFinish.ts` finish pass wired as the pilot publisher's default (`--raw` opts out); four Mixkit beds replace the synthesised pads; `scripts/enqueue-quality-test-reel.mts`. **Approved spend:** one Seedance 2.5 test reel (~130 credits) — after deploy set `REEL_CLIP_MODEL=seedance_2_5` on Railway, run the enqueue script with `--execute`, read the rendered-QA verdict. **Also:** ponytail installed as always-on (global + repo, SKILL.md files only; separate chore PR). **Risk noted in logs:** daily drain selects Reel #1 (2070001) and holds it only on missing audio QA; autopost is on — retire it in Instagram > Queue if it must not post.
+
+## 2026-10-10 · Real-shop clip register + quiet captions (branch `nickstire/real-shop-clip-register`, PR after #2952) BUILT + TESTED
+
+**Built:** `RegisterAssetInput.durationMs` written to `media_assets.duration_ms` (the column existed, nothing wrote it, so the real-beat lane refused every clip `no_duration`); `scripts/register-real-shop-clip.mts` (ffprobe -> refuse -> dry run -> `--execute` upload + register, prints `realAssetId`); quiet captions in `scripts/publish-pilot-01.mts` (one closing clause, flag + badge unchanged, `--loud` for the manifest wording); `14-CAPTURE-DAY-CARD.md`. Receipts: tsc exit 0; mediaRegistry + reelSourceAware 60 passed; dry runs on the Reel #2 master (1080x1920 15.00 s) and a refused non-video. Nothing uploaded, registered or published.
+
+**#2952 (voted critic):** MERGED main `12e21bb16` 2026-10-10 00:52Z; Railway deploy BUILDING 00:52:43Z; `RENDERED_QA_VOTES=3` already on the service. Proof owed: a `rendered QA verdict voted ... runs: 3` log line on the first judged job.
+
+**Operator to-dos:** book capture day (print `14-CAPTURE-DAY-CARD.md`); shorten the captions on the published Reels #2 (DeShDz6jvLv) and #3 (DeSjY1sFOPU) in the Instagram app (replace the "AI-generated educational illustration..." paragraph with "Illustrated, not filmed."); retire queue jobs 2040001 + 1770004. Reel #1 (job 2070001) stays approved-unpublished on its substantive block.
+
+**Next:** merge this PR when CI is green; after capture day run the register command per clip, put ids on the proof-pack beats, enqueue; first sentence-style render proves `expansion=none` on production ffmpeg.
 
 ## 2026-10-09 evening · Reels source-aware route (branch `nickstire/reels-source-aware-route`, PR after #2944) BUILT + TESTED
 
@@ -85,7 +99,7 @@ What #2934/#2935 flagged, plus what fixing it surfaced. CURRENT-TRUTH's top sect
 The log-fix CURRENT-TRUTH heading then moves to MERGED, with the box's first `NOTE restored` line as its receipt.
 
 **Flagged, not fixed:**
-- the box-local `data\` loop and shim still use `Add-Content`;
+- the box-local `data` loop and shim still use `Add-Content`;
 - the sign camera flaps at dusk (sign-crop restarted 8x in 9 min, generic ESCALATE);
 - `revenue_range` drops today's timed tickets (`BETWEEN` on a timestamp);
 - four copies of `categorizeService`.

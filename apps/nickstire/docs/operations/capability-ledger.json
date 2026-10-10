@@ -4715,8 +4715,8 @@
       "blockers": [
         {
           "severity": "P2",
-          "description": "No real_shop VIDEO row exists and the Studio upload does not probe video duration yet, so a clip must be registered through mediaRegistry directly (or the upload path extended) before any beat can bind.",
-          "source": "2026-10-09"
+          "description": "No real_shop video row exists yet (capture day not booked). scripts/register-real-shop-clip.mts (PR after #2952) registers a captured clip with probed duration, dimensions and sha256; the pool stays 0 until the shop shoots.",
+          "source": "2026-10-10"
         },
         {
           "severity": "P3",
@@ -4731,26 +4731,94 @@
       "capabilityId": "reel-critic-external-masters-20261009",
       "name": "Rendered-QA critic for external masters: declared text surfaces are legitimate, caption-timing mismatches are notes not blocks, and blocks are voted across RENDERED_QA_VOTES runs",
       "owner": "operator",
-      "codeState": "in_progress",
+      "codeState": "merged",
       "operationalState": "unit_verified",
-      "exposure": "disabled",
+      "exposure": "internal",
       "evidence": {
-        "codeCommit": "branch nickstire/reel-critic-external-masters (2026-10-09, PR after #2946). server/services/renderedQa.ts: EvaluateRenderedReelInput.brief.externalMaster.textSurfaces; the critic prompt carries an EXTERNAL MASTER block naming the declared text and reserving BEAT_SEMANTIC_MISMATCH for a different object/action/damage; applyPresenceExemptions exempts GENERATED_TEXT_ARTIFACT findings that quote a declared surface (describesDeclaredText, positive match, surfaces shorter than 6 chars ignored) and caption-timing BEAT_SEMANTIC_MISMATCH on an external master (isCaptionTimingMismatch; subject mismatches stay blocks); voteVerdicts keeps a block only with a majority of RENDERED_QA_VOTES runs (1..5, default 1 = unchanged), warns are the union, craft/escalation recomputed, tally on verdict.voting.",
+        "codeCommit": "main 12e21bb16 (PR #2952, squash-merged 2026-10-10 00:52Z). server/services/renderedQa.ts: EvaluateRenderedReelInput.brief.externalMaster.textSurfaces; the critic prompt carries an EXTERNAL MASTER block naming the declared text and reserving BEAT_SEMANTIC_MISMATCH for a different object/action/damage; applyPresenceExemptions exempts GENERATED_TEXT_ARTIFACT findings that quote a declared surface (describesDeclaredText, positive match, surfaces shorter than 6 chars ignored) and caption-timing BEAT_SEMANTIC_MISMATCH on an external master (isCaptionTimingMismatch; subject mismatches stay blocks); voteVerdicts keeps a block only with a majority of RENDERED_QA_VOTES runs (1..5, default 1 = unchanged), warns are the union, craft/escalation recomputed, tally on verdict.voting.",
         "tests": [
           "server/reelSourceAware.test.ts: legacy (nothing declared -> nothing exempted; same caption mismatch on a pipeline job stays a block; one run is the identity) and new (declared badge exempted, undeclared signage kept; timing mismatch exempted, subject mismatch kept; 3-run vote keeps the 2-of-3 block, drops two 1-of-3 blocks, unions warns, records the tally; craft-only majority repair declined; vote count clamped)."
         ],
         "liveRuns": "Evidence for the defect, production 2026-10-09 21:43-21:48Z, job 2070002 (external Higgsfield master): three single-run verdicts on identical frames returned 5, 2 and 10 blocks (craft 71, 77, 61), reported the required disclosure badge as GENERATED_TEXT_ARTIFACT, and claimed a hook card at 6 s and 10 s where the frames show none. The operator published that Reel under an explicit override (payload.operatorOverride) while this fix was built. No external master has been judged by the updated critic yet.",
+        "deploymentId": "Railway MAINnicks-tire-auto deployment of 12e21bb16 BUILDING at 2026-10-10T00:52:43Z (railway deployment list); RENDERED_QA_VOTES=3 set on the service 2026-10-09 with skipDeploys, so voting is live from this deploy on. No 'rendered QA verdict voted' log line observed yet."
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "No external master has been judged by the voted critic in production yet; the first judged job's verdict.voting tally (runs: 3) is the proof owed.",
+          "source": "2026-10-10"
+        }
+      ],
+      "lastVerifiedAt": "2026-10-10",
+      "verificationExpiresAt": "2026-11-09"
+    },
+    {
+      "capabilityId": "reel-real-shop-clip-register-20261010",
+      "name": "Real-shop clip registration: a captured vertical clip becomes a real_shop VIDEO registry row with probed duration, so a Reel beat can bind it; quiet-caption standard in the pilot publisher",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "main 05c0c06fc (PR #2955, squash-merged 2026-10-10 01:14Z; 13 checks green). server/services/mediaRegistry.ts: RegisterAssetInput.durationMs written to media_assets.duration_ms (rounded; null for absent/zero/negative/non-finite) - the column existed and nothing wrote it, so realShotBinding refused every registered clip with no_duration. scripts/register-real-shop-clip.mts: ffprobe (bundled remotion binary) -> refuse non-video / non-vertical / under 2 s / no duration -> dry run by default -> --execute: findByChecksum dedupe, assertDurableStorageForGeneration, storagePut reels/real-shop/, registerAsset real_shop video, prints realAssetId. scripts/publish-pilot-01.mts: QUIET default replaces the manifest's disclosure paragraph with one closing clause ('Illustrated, not filmed.'); is_ai_generated=true and the burned-in badge unchanged; --loud restores the manifest wording. docs/reels-engine-v2/14-CAPTURE-DAY-CARD.md: one-page shot list + the register command.",
+        "tests": [
+          "server/mediaRegistry.test.ts: durationMs reaches the row rounded (6420.6 -> 6421); undefined/null/0/-5/NaN/Infinity -> null (7 passed)."
+        ],
+        "liveRuns": "Dry runs 2026-10-10 on this machine: the Reel #2 master (1080x1920 h264 15.00 s, 8.2 MB) probes and prints the would-be row; a .mts source file is refused 'not a readable video'; publish-pilot-01 --reel=02/03 dry runs print the quiet caption with claim-safety blockers none and disclosure gate ok (a first draft 'not a customer's tire' was refused by the customer-possessive claim regex, which is why the clause is neutral). Nothing uploaded, registered or published.",
+        "deploymentId": "Railway MAINnicks-tire-auto deployment of 05c0c06fc BUILDING at 2026-10-10T01:14:33Z (railway deployment list). The registry durationMs write ships with it; the register script runs from an operator shell via railway run and is not itself deployed."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Capture day not booked; zero real_shop video rows. The script is the door, the footage is the operator's.",
+          "source": "2026-10-10"
+        },
+        {
+          "severity": "P3",
+          "description": "Published Reels #2 and #3 still carry the long disclosure paragraph: the Instagram Graph API has no caption edit for published media (no helper in server/services/metaSocial.ts either), so the operator edits those two captions in the Instagram app.",
+          "source": "2026-10-10"
+        }
+      ],
+      "lastVerifiedAt": "2026-10-10",
+      "verificationExpiresAt": "2026-11-09"
+    },
+    {
+      "capabilityId": "reel-quality-upgrade-20261010",
+      "name": "Reel quality upgrade: clip model follows REEL_CLIP_MODEL (Seedance 2.5 approved), realism prompt pass, real_shop hero still anchors generated clips, finish pass (music + loudness + grain) for Higgsfield-UI masters, licensed music beds",
+      "owner": "operator",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "branch nickstire/reel-quality-upgrade (2026-10-10, PR after #2956). higgsfieldStudio.resolveClipModel + buildSeedanceArgs(model): REEL_CLIP_MODEL allowlist seedance1_5 (default) | seedance_2_5 | kling3_0 | kling3_0_turbo, logged fallback on anything else; generationLedger.reelClipCostUsd prices the chosen model (seedance_2_5 / kling 0.55 USD est., 26 credits per 4 s measured for 2.5). facelessReelStudio: REALISM_DIRECTIVE on every beat prompt, render vocabulary ('8K', 'ultra-detailed', 'studio-grade') removed from three lens grammars, '3D render look, uniform plastic sheen' in the DO-NOT list. ReelBrief.heroAssetId -> realShotBinding.verifyRealShopStillRow/resolveHeroStill/realStillInvariants -> reelPipeline enqueue sets visualWorld {real_shop_still, heroFrameUrl, lockedInvariants} (typed HERO_STILL_NOT_BINDABLE refusal; an approved generated world is never overwritten); approvedReelPackRotation carries heroAssetId; register-real-shop-clip.mts --kind still registers the photo. externalMasterFinish.ts: buildFinishArgs/finishExternalMaster (bed looped under the native track at 0.30, amix duration=first, loudnorm -14/-1.5/11, optical finish, Rec.709 tags, exact duration kept) wired into publish-pilot-01.mts as the default (--raw for the old behaviour). assets/reel-music: four Mixkit beds replace five synthesised/unsourced pads (LICENSE.md).",
+        "tests": [
+          "server/imageConditioning.test.ts: REEL_CLIP_MODEL default/allowlist/fallback/explicit (4 new).",
+          "server/reelSourceAware.test.ts: hero still verifier accepts/refuses (7 shapes), real-place invariants, realism directive on every beat + render vocabulary gone from every lens grammar, reservation price follows the model.",
+          "server/externalMasterFinish.test.ts: audio graph for master+bed / bed only / native only / silent, picture never rescaled, duration and Rec.709 tags (6).",
+          "client/src/__tests__/faceless-reel-studio.test.ts, server/visualWorld.test.ts, server/approvedReelPackRotation.test.ts, server/higgsfieldPromptContract.test.ts, server/mediaModelRegistry.test.ts, server/generationLedger.test.ts green on the tree."
+        ],
+        "liveRuns": "Local 2026-10-10: the finish audio graph ran on the Reel #2 master with a bed on the bundled ffmpeg (which lacks fps/setsar, so those two filters were left out of the local run only): output 1080x1920 h264 + aac stereo, exactly 15.00 s. No paid render yet: the operator approved ONE Seedance 2.5 test reel (~130 credits) — scripts/enqueue-quality-test-reel.mts enqueues it after REEL_CLIP_MODEL=seedance_2_5 is set on the service; its rendered-QA verdict (craft score, PLASTIC_AI_LOOK / GENERIC_STOCK_LOOK findings) against the last seedance1_5 reels is the proof this capability owes.",
         "deploymentId": "not deployed (PR open)"
       },
       "blockers": [
         {
           "severity": "P2",
-          "description": "RENDERED_QA_VOTES defaults to 1; set it to 3 on Railway to turn voting on in production (3 vision calls per QA pass).",
-          "source": "2026-10-09"
+          "description": "Seedance 2.5 test reel not yet rendered; REEL_CLIP_MODEL not yet set on Railway (set after this PR deploys, then run the enqueue script).",
+          "source": "2026-10-10"
+        },
+        {
+          "severity": "P2",
+          "description": "No real_shop still registered yet (zero real_shop rows); the hero-still path is built and refused-by-name until the operator shoots one photo of the bay and registers it with --kind still.",
+          "source": "2026-10-10"
+        },
+        {
+          "severity": "P3",
+          "description": "The finish pass is wired into the pilot publisher only; mp4Ingest (the admin door for other external masters) still takes a file as-is.",
+          "source": "2026-10-10"
         }
       ],
-      "lastVerifiedAt": "2026-10-09",
-      "verificationExpiresAt": "2026-11-08"
+      "lastVerifiedAt": "2026-10-10",
+      "verificationExpiresAt": "2026-11-09"
     }
   ],
   "axes": {
