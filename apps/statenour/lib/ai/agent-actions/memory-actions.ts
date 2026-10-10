@@ -21,7 +21,14 @@ export async function handleMemoryRemember(params: ActionParams, type: string): 
 }
 
 export async function handleMemoryForget(params: ActionParams, type: string): Promise<ActionResult> {
-  await brainMemory.forget(String(params.id));
+  const id = String(params.id);
+  // softDelete no-ops on an unknown id, so without this the action reported
+  // { deleted: true } for an id that never existed (05-M3).
+  const live = await prisma.brainMemory.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
+  if (!live) {
+    return { action: type, success: false, error: `No live memory with id ${id}` };
+  }
+  await brainMemory.forget(id);
   return { action: type, success: true, result: { deleted: true } };
 }
 
@@ -32,6 +39,8 @@ export async function handleSimulationRun(params: ActionParams, type: string): P
 
 export async function handleMemorySearch(params: ActionParams, type: string): Promise<ActionResult> {
   const where: any = {
+    deletedAt: null,
+    supersededById: null,
     confidence: { gte: Number(params.minConfidence ?? 0.3) },
     OR: [
       { content: { contains: String(params.query || ""), mode: "insensitive" } },
