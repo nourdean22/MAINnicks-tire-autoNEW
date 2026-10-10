@@ -15,7 +15,7 @@ On reel 2070005 three of five beats rendered the X-ray lens instead of the descr
 
 - `buildHiggsfieldReelPromptPack`: the quoted frame prompt now points at the Style grammar line instead of repeating it, and every beat prompt ends with `This shot must show: <subject> ... the style never replaces the subject.`, after the visual-world and realism blocks. Subject before grammar, restated last.
 - Pinned: `server/reelSourceAware.test.ts` 'beat subject leads the lens' (3). No per-beat vision check was added: it would cost a vision call per beat; the voted critic judges the assembled reel.
-## One ask per reel is enforced before the spend (2026-10-10, PR after #2969) -- BUILT + TESTED; PR open
+## One ask per reel is enforced before the spend (2026-10-10, PR #2972) -- MERGED (main `d03914ae3`, 13:40Z); Railway deployment `427b8c18` SUCCESS, `/api/health` healthy on `d03914ae3` with the database up at 13:51:38Z (uptime 29 s)
 
 The Seedance 2.5 test reel #2 (reel_jobs 2070005, brief ai-1791631412867) was refused by assembly's ask-consistency gate after five clips were rendered and paid for: the generator declared `ask.kind = profile` (end card "MORE IN OUR BIO") while its caption read "Send this to someone whose tires look smooth." -- two different asks on two surfaces (`shared/reelAsk.ts`). Enqueue preflight did not look at the caption, the refusal recurred three times inside one pulse (the pulse re-picks the same oldest `assets_ready` row), and the attempts ladder parked the job `failed` with the clips intact. The operator repaired it by hand.
 
