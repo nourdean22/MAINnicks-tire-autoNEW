@@ -2317,9 +2317,13 @@ function buildTiers(): void {
         // and was marked failed while its Promise continued in the background.
         // A full cycle serially ghost-replays train + holdout, generates bounded
         // challengers, then scores the winner on holdout. Give that measured
-        // workload its own budget; the daily tier interval is 24h, so 30m stays
+        // workload its own budget; the daily tier interval is 24h, so 50m stays
         // comfortably below the tier cadence while still bounding a hung lane.
-        timeoutMs: 30 * 60 * 1000,
+        // 2026-10-09: 30m could not hold a cycle whose candidate passed the
+        // policy guard (~170 replays at ~20 s each on the Ollama lane); the
+        // runner now stops itself at 45m (promptEvolutionWeekly RUN_BUDGET_MS)
+        // and the manual door mirrors this figure (promptEvolutionManualRun).
+        timeoutMs: 50 * 60 * 1000,
         handler: async () => {
           const { processPromptEvolutionWeekly } = await import("./jobs/promptEvolutionWeekly");
           return processPromptEvolutionWeekly();

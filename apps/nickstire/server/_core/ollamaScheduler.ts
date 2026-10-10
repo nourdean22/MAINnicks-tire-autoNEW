@@ -94,18 +94,42 @@ function pump(): void {
 
 /**
  * Acquire a slot. Resolves to a release function — call it exactly once in a
- * finally block. Waits indefinitely by design: a background job's correct
+ * finally block. Waits indefinitely by default: a background job's correct
  * behavior under pressure is patience, and a hung provider call is bounded
  * by invokeLLM's own timeout, not by the scheduler.
+ *
+ * `maxWaitMs` (2026-10-09, opt-in) caps the wait for callers that run under
+ * their own deadline: the prompt experiment computes each call's timeout from
+ * the budget left BEFORE the call, so a seed queued here past that budget
+ * would start its fetch with a stale timeout and could outlive the job. A
+ * capped waiter that is not granted in time is removed from the queue and
+ * rejects with a timeout-shaped error; a grant that lands first wins.
  */
-export function acquireOllamaSlot(priority: SlotPriority = 2): Promise<() => void> {
+export function acquireOllamaSlot(priority: SlotPriority = 2, maxWaitMs?: number): Promise<() => void> {
   if (canGrant(priority)) {
     return Promise.resolve(grantNow(priority));
   }
   telemetry.queued[priority]++;
-  return new Promise((resolvePromise) => {
-    queue.push({ priority, seq: seqCounter++, grant: resolvePromise });
+  return new Promise((resolvePromise, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const waiter: Waiter = {
+      priority,
+      seq: seqCounter++,
+      grant: (release) => {
+        if (timer !== undefined) clearTimeout(timer);
+        resolvePromise(release);
+      },
+    };
+    queue.push(waiter);
     telemetry.maxQueueDepth = Math.max(telemetry.maxQueueDepth, queue.length);
+    if (maxWaitMs !== undefined && Number.isFinite(maxWaitMs)) {
+      timer = setTimeout(() => {
+        const i = queue.indexOf(waiter);
+        if (i === -1) return; // granted first; the grant cleared this timer, this is a stale fire
+        queue.splice(i, 1);
+        reject(new Error(`Ollama slot wait timed out after ${Math.max(0, Math.floor(maxWaitMs))} ms (priority P${priority}, queue ${queue.length})`));
+      }, Math.max(0, maxWaitMs));
+    }
   });
 }
 

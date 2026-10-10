@@ -358,13 +358,32 @@ export interface ScoreOptions {
   budget?: ReplayBudget;
   /** Incremented in place as replays and judge calls happen, so a scoring cut short is still counted. */
   tally?: { replays: number; judgeCalls: number };
+  /**
+   * Called the moment the FIRST seed fails, before the in-flight siblings
+   * finish. runPromptEvolution records whether its deadline had already
+   * passed at that instant, so a provider failure with budget left is never
+   * read as the budget once a sibling has crossed the line.
+   */
+  onFailure?: (err: unknown) => void;
+  /**
+   * Seeds replayed at once (default 1, sequential). Ollama Pro serves three
+   * concurrent cloud models and the scheduler keeps one slot free for P0/P1,
+   * so 2 is the useful ceiling for these P3 calls. Grades keep seed order
+   * whatever finishes first; the first error stops new seeds and is rethrown.
+   */
+  concurrency?: number;
 }
 
 export async function scorePrompt(prompt: string, seeds: Seed[], opts: ScoreOptions = {}): Promise<ScoredPrompt> {
   const verifyHits = opts.verifyHits !== false;
   const usage = { replays: 0, judgeCalls: 0 };
-  const grades: ScoredPrompt["grades"] = [];
-  for (const s of seeds) {
+  const concurrency = Math.max(1, Math.min(4, Math.floor(opts.concurrency ?? 1)));
+  // One slot per seed, filled by whichever worker took it: order is the seed
+  // order, never the finishing order (the paired gates compare by index).
+  const slots: Array<ScoredPrompt["grades"][number] | undefined> = new Array(seeds.length);
+  let next = 0;
+  let failure: unknown = null;
+  const scoreOne = async (s: Seed, i: number): Promise<void> => {
     opts.beforeSeed?.();
     const replies = await ghostReplay(prompt, s.callerTurns, { priority: 3, budget: opts.budget });
     usage.replays++;
@@ -378,7 +397,7 @@ export async function scorePrompt(prompt: string, seeds: Seed[], opts: ScoreOpti
       if (opts.tally) opts.tally.judgeCalls++;
     }
     const g = await gradeRepliesWithJudge(s.callerTurns, replies, { verifyHits, budget: opts.budget });
-    grades.push({
+    slots[i] = {
       id: s.id, pass: g.pass, priceLeaks: g.priceLeaks, resolutionOffered: g.resolutionOffered,
       guarantees: g.guarantees, emptyReplies: g.emptyReplies, claimViolations: g.claimViolations,
       ...(g.deflected ? { deflected: true } : {}),
@@ -389,8 +408,29 @@ export async function scorePrompt(prompt: string, seeds: Seed[], opts: ScoreOpti
       // fresh sampling (MoE models re-phrase run to run; a re-sampled display
       // misled a live verification once).
       ...(opts.keepReplies ? { replies } : {}),
-    });
-  }
+    };
+  };
+  // Workers take the next seed until one fails; a failure stops new seeds,
+  // the other in-flight seeds finish, and the FIRST failure is rethrown. No
+  // rejection goes unobserved.
+  const worker = async (): Promise<void> => {
+    while (failure === null) {
+      const i = next++;
+      if (i >= seeds.length) return;
+      try {
+        await scoreOne(seeds[i], i);
+      } catch (err) {
+        if (failure === null) {
+          failure = err;
+          opts.onFailure?.(err);
+        }
+        return;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, Math.max(1, seeds.length)) }, worker));
+  if (failure !== null) throw failure;
+  const grades: ScoredPrompt["grades"] = slots.filter((g): g is ScoredPrompt["grades"][number] => g !== undefined);
   // HONEST DENOMINATOR (2026-08-07): a call no prompt could have resolved —
   // the caller reached a wrong number or left before asking anything — is not
   // a prompt failure and must not sit in the denominator. Seed 019fd32f was
@@ -598,6 +638,7 @@ async function proposeCandidates(
       ],
       maxTokens: 8192,
       timeoutMs: OPTIMIZER_TIMEOUT_MS,
+      slotWaitMs: OPTIMIZER_TIMEOUT_MS,
       model: OPTIMIZER_MODEL,
       priority: 3,
       });
@@ -623,6 +664,7 @@ async function proposeCandidates(
         ],
         maxTokens: 8192,
         timeoutMs: OPTIMIZER_TIMEOUT_MS,
+      slotWaitMs: OPTIMIZER_TIMEOUT_MS,
         model: OPTIMIZER_MODEL,
         priority: 3,
         });
@@ -789,6 +831,8 @@ export interface EvolutionOptions {
   deadlineMs?: number;
   /** Clock for the budget (tests). Default Date.now. */
   now?: () => number;
+  /** Seeds replayed at once per scoring pass (ScoreOptions.concurrency). Default 1; the cron and the manual door pass 2. */
+  replayConcurrency?: number;
   log?: (line: string) => void;
 }
 
@@ -975,9 +1019,15 @@ export async function runPromptEvolution(opts: EvolutionOptions): Promise<Evolut
     evaluator: { optimizerModel: OPTIMIZER_MODEL, judgeModel: RESOLUTION_JUDGE_MODEL, ghostModel: REPLAY_LANE.model, protocolVersion: PROTOCOL_VERSION },
   });
 
+  let currentStage = "load-seeds";
   const checkBudget = (stage: string): void => {
+    currentStage = stage;
     if (deadlineMs !== null && clock() - startedAt >= deadlineMs) throw new BudgetExhausted(stage);
   };
+  // budgetedTimeout floors a call at 1 s, so a call capped at the deadline aborts up to 1 s past it.
+  const pastDeadlineNow = (): boolean => deadlineMs !== null && clock() - startedAt >= deadlineMs - 1_000;
+  /** Deadline state at the instant the first scoring failure was recorded (null = no scoring failure). */
+  let failurePastDeadline: boolean | null = null;
   /** One scoring pass: budget-checked before every seed, counted into usage and the exclusion sets. */
   const score = async (prompt: string, seeds: Seed[], arm: "baseline" | "candidate", stage: string, verifyHits: boolean) => {
     checkBudget(stage);
@@ -987,7 +1037,14 @@ export async function runPromptEvolution(opts: EvolutionOptions): Promise<Evolut
       // Every replay turn, retry and judge call re-checks the budget and is capped at the time left.
       budget: { remainingMs: () => (checkBudget(stage), deadlineMs === null ? Infinity : deadlineMs - (clock() - startedAt)) },
       tally: usage,
+      concurrency: opts.replayConcurrency,
+      onFailure: () => { if (failurePastDeadline === null) failurePastDeadline = pastDeadlineNow(); },
     });
+    // A deadline that passes during the LAST seed's judge call reaches no
+    // later checkBudget: the judge swallows its abort as judgeUnavailable, and
+    // a final pass (confirmation) has no stage after it. Checked here so that
+    // pass reads as the budget it was, not as a verdict (2026-10-09 review).
+    checkBudget(stage);
     for (const g of scored.grades) {
       if (g.judgeUnavailable) outageIds.add(g.id);
       if (arm === "baseline" && g.unresolvable) unresolvableIds.add(g.id);
@@ -1151,9 +1208,22 @@ export async function runPromptEvolution(opts: EvolutionOptions): Promise<Evolut
     }
     return finish(confirmation.reason === "evaluator-unavailable" ? "invalid-evaluator" : "rejected-confirmation");
   } catch (err) {
-    if (!(err instanceof BudgetExhausted)) throw err;
-    exhaustedAt = err.stage;
-    log(`budget: ${deadlineMs} ms spent before stage ${err.stage}; stopping with what was measured (inconclusive-budget)`);
+    // A replay or judge call in flight when the deadline passes is capped at
+    // the time left (ghostReplay budgetedTimeout, floor 1 s) and aborts with
+    // the lane's timeout error, not with BudgetExhausted. The 2026-10-09
+    // 22:54Z live run ended exactly that way at 1,500 s: a failed run that
+    // wrote nothing, for a budget it had merely used up. Past the deadline,
+    // that abort IS the budget.
+    const message = err instanceof Error ? err.message : String(err);
+    const name = err instanceof Error ? err.name : "";
+    // Judged at the instant the failure happened when a scoring pass recorded
+    // one: two seeds run at once, and the sibling that finishes later may have
+    // crossed the deadline the failing seed had not.
+    const pastDeadline = failurePastDeadline ?? pastDeadlineNow();
+    const laneAbort = /abort|timeout|timed out/i.test(message) || name === "AbortError" || name === "TimeoutError";
+    if (!(err instanceof BudgetExhausted) && !(pastDeadline && laneAbort)) throw err;
+    exhaustedAt = err instanceof BudgetExhausted ? err.stage : currentStage;
+    log(`budget: ${deadlineMs} ms spent before stage ${exhaustedAt}; stopping with what was measured (inconclusive-budget)`);
     return finish("inconclusive-budget");
   }
 }

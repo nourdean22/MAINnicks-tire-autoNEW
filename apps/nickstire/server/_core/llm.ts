@@ -85,6 +85,13 @@ export type InvokeParams = {
   /** Per-call abort timeout in ms (default 30000). Large structured
    *  generations — full carousel/reel briefs — routinely need more. */
   timeoutMs?: number;
+  /**
+   * Cap on the wait for an Ollama concurrency slot (ollamaScheduler
+   * acquireOllamaSlot maxWaitMs). Unset = wait indefinitely, the default for
+   * every lane; the prompt experiment passes its budgeted timeout so a queued
+   * seed cannot start after its run's deadline.
+   */
+  slotWaitMs?: number;
   outputSchema?: OutputSchema;
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
@@ -579,7 +586,7 @@ async function invokeLLMUnrecorded(params: InvokeParams): Promise<InvokeResult> 
   // the three prioritized Ollama concurrency slots.
   if (isOllamaModel(model) && !visionRerouted) {
     const { acquireOllamaSlot } = await import("./ollamaScheduler");
-    releaseSlot = await acquireOllamaSlot(params.priority ?? 2);
+    releaseSlot = await acquireOllamaSlot(params.priority ?? 2, params.slotWaitMs);
   }
 
   try {

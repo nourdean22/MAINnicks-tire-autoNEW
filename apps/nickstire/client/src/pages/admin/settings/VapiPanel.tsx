@@ -46,7 +46,7 @@ export default function VapiPanel() {
   });
   const runEvolution = trpc.vapi.runPromptEvolutionNow.useMutation({
     onSuccess: (r) => {
-      if (r.status === "started") toast.success("Experiment started · result in ~25 min (Telegram, /proof, and here)");
+      if (r.status === "started") toast.success("Experiment started · result in up to 45 min (Telegram, /proof, and here)");
       else if (r.status === "running") toast.message(`Already running · started ${Math.round(r.elapsedMs / 60000)} min ago`);
       else toast.error(`Not started: ${r.reason}`);
       utils.vapi.promptEvolutionStatus.invalidate();
@@ -359,7 +359,7 @@ export default function VapiPanel() {
               onClick={async () => {
                 const ok = await confirmDialog({
                   title: "Run the receptionist prompt experiment now?",
-                  message: "Offline replay of real failed calls against the live prompt, up to 25 minutes. Proposes at most one candidate; nothing callers hear changes. Spends this week's sealed confirmation seeds. Result lands in Telegram, on /proof and here.",
+                  message: "Offline replay of real failed calls against the live prompt, up to 45 minutes. Proposes at most one candidate; nothing callers hear changes. Spends this week's sealed confirmation seeds. Result lands in Telegram, on /proof and here.",
                   confirmLabel: "Run experiment",
                 });
                 if (ok) runEvolution.mutate();

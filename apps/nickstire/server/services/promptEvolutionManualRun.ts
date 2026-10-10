@@ -15,7 +15,7 @@
  * twice the job's budget), honours the job's env requirement and the drain
  * flag, runs the SAME cycle (processPromptEvolutionWeekly with
  * `trigger: "manual"`, which is the only thing that bypasses the Monday gate),
- * races it against the SAME 30-minute budget, and writes the SAME cron_log row
+ * races it against the SAME 50-minute budget, and writes the SAME cron_log row
  * the tier runner writes. The served prompt is never touched: the cycle is
  * propose-only, and applying a proposal stays an operator edit + Push Config.
  *
@@ -45,7 +45,7 @@ export const PROMPT_EVOLUTION_JOB_NAME = "prompt-evolution-weekly";
 /** The env the tier job declares with `requiresEnv`; the scheduler skips the job without it. */
 const PROMPT_EVOLUTION_REQUIRED_ENV = "OLLAMA_API_KEY";
 /** Must match the tier job's `timeoutMs` (cron/scheduler.ts). Canaried by the test. */
-export const PROMPT_EVOLUTION_BUDGET_MS = 30 * 60 * 1000;
+export const PROMPT_EVOLUTION_BUDGET_MS = 50 * 60 * 1000;
 const LATEST_KEY = "prompt_evolution_latest";
 
 export type ManualRunStart =

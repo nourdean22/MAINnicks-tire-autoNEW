@@ -6,7 +6,7 @@
  * and a higher-priority waiter always passes a lower one in the queue —
  * without the blocked background waiter jamming the line.
  */
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetSchedulerForTests, acquireOllamaSlot, schedulerSnapshot } from "./ollamaScheduler";
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -90,5 +90,53 @@ describe("ollama slot scheduler", () => {
     expect(snap.granted[1]).toBe(1);
     expect(snap.slots).toBe(3);
     expect(snap.backgroundCap).toBe(2);
+  });
+});
+
+describe("acquireOllamaSlot maxWaitMs (2026-10-09, opt-in)", () => {
+  it("a capped waiter that is not granted in time rejects with a timeout-shaped error and leaves the queue clean; a grant before the cap resolves", async () => {
+    vi.useFakeTimers();
+    try {
+      __resetSchedulerForTests();
+      // Background cap is SLOTS-1 = 2: two P2 holders, the third P2 queues.
+      const r1 = await acquireOllamaSlot(2);
+      const r2 = await acquireOllamaSlot(2);
+      const capped = acquireOllamaSlot(2, 1_000);
+      capped.catch(() => undefined); // observed below; never unhandled
+      expect(schedulerSnapshot().queueDepth).toBe(1);
+      await vi.advanceTimersByTimeAsync(1_000);
+      await expect(capped).rejects.toThrow(/slot wait timed out after 1000 ms/);
+      expect(schedulerSnapshot().queueDepth).toBe(0);
+      // A release now grants nobody stale: held drops and stays.
+      r1();
+      expect(schedulerSnapshot().held).toBe(1);
+
+      // Grant before the cap: resolves, and the stale timer fire is a no-op.
+      const r3 = await acquireOllamaSlot(2);
+      const soon = acquireOllamaSlot(2, 5_000);
+      expect(schedulerSnapshot().queueDepth).toBe(1);
+      r2();
+      const release = await soon;
+      expect(typeof release).toBe("function");
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(schedulerSnapshot().queueDepth).toBe(0);
+      release();
+      r3();
+      expect(schedulerSnapshot().held).toBe(0);
+      // Uncapped waiters still wait indefinitely (the default contract).
+      const a = await acquireOllamaSlot(2);
+      const b = await acquireOllamaSlot(2);
+      let settled = false;
+      const forever = acquireOllamaSlot(2).then(() => { settled = true; });
+      await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+      expect(settled).toBe(false);
+      a();
+      await forever;
+      expect(settled).toBe(true);
+      b();
+    } finally {
+      vi.useRealTimers();
+      __resetSchedulerForTests();
+    }
   });
 });

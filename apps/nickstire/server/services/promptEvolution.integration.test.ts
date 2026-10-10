@@ -130,6 +130,10 @@ interface Scenario {
   optimizerShape?: (n: number) => "edit" | "edit-missing" | "whole";
   /** Optimizer call n throws (the lane timed out or refused) instead of answering. */
   optimizerThrows?: (n: number) => boolean;
+  /** A replay of (who, seed) throws instead of answering (after onReplay ran): true = the lane's abort error, a string = that message. */
+  replayThrows?: (who: Who, seed: string) => boolean | string;
+  /** Called on every judge call, before judgeDown is consulted (a test's clock hook). */
+  onJudge?: (seed: string) => void;
   /** The served prompt when a test's baseline is not LIVE_PROMPT (routes its replays as "base"). */
   basePrompt?: string;
 }
@@ -171,6 +175,7 @@ function installLlm(s: Scenario): Trace {
     if (system === judgePrompt) {
       const seed = seedOf(user);
       trace.judge.push({ seed });
+      s.onJudge?.(seed);
       if (s.judgeDown?.(seed)) throw new Error("judge lane down (test)");
       const verdict = user.includes(DEFLECT) ? "deflected"
         : user.includes(PASS) ? "resolved"
@@ -186,6 +191,8 @@ function installLlm(s: Scenario): Trace {
     const seed = seedOf(user);
     trace.replays.push({ who, seed, system, user });
     s.onReplay?.(who, seed);
+    const thrown = s.replayThrows?.(who, seed);
+    if (thrown) throw new Error(typeof thrown === "string" ? thrown : "The operation was aborted due to timeout");
     return llm(REPLY[s.reply(who, seed)]);
   }) as never);
   return trace;
@@ -957,6 +964,79 @@ describe("runPromptEvolution, wired", () => {
     // The baseline measurement survived the lane failure.
     expect(r2.baselineTrain).not.toBe("");
     expect(t2.replays.every((x) => x.who === "base")).toBe(true);
+  });
+
+  it("two seeds at a time: the same verdict, the same counts, grades in seed order", async () => {
+    const p = pool();
+    installDb(p);
+    const seq = installLlm(fixesEverything);
+    const r1 = await runPromptEvolution(base());
+    installDb(p);
+    const par = installLlm(fixesEverything);
+    const r2 = await runPromptEvolution(base({ replayConcurrency: 2 }));
+    expect(r2.outcome).toBe("accepted");
+    expect(r2.accepted?.confirmed).toBe(true);
+    expect(r2.usage.replays).toBe(r1.usage.replays);
+    expect(r2.usage.judgeCalls).toBe(r1.usage.judgeCalls);
+    expect(par.replays).toHaveLength(seq.replays.length);
+    // Paired gates compare by index: the holdout readings must be identical to the sequential run's.
+    expect(r2.gates.holdout).toEqual(r1.gates.holdout);
+    expect(r2.baselineTrain).toBe(r1.baselineTrain);
+    expect(r2.baselineHoldout).toBe(r1.baselineHoldout);
+  });
+
+  it("a lane abort once the deadline has passed is inconclusive-budget with what was measured, not a failed run; the same abort before the deadline still fails", async () => {
+    // 2026-10-09 22:54Z live run: the call in flight at the deadline was capped
+    // at the time left, aborted with the lane's timeout error, and the run
+    // threw after 1,500 s without writing a row.
+    const p = pool();
+    installDb(p);
+    let t = 0;
+    const late = installLlm({ ...fixesEverything, onReplay: () => void (t += 10_000), replayThrows: () => true });
+    const r = await runPromptEvolution(base({ deadlineMs: 5_000, now: () => t }));
+    expect(r).toMatchObject({ outcome: "inconclusive-budget", budget: { deadlineMs: 5_000, exhaustedAt: "baseline-train" }, baselineTrain: "unmeasured" });
+    expect(late.replays).toHaveLength(1);
+
+    installDb(p);
+    const early = installLlm({ ...fixesEverything, replayThrows: () => true });
+    await expect(runPromptEvolution(base({ deadlineMs: 5_000, now: () => 0 }))).rejects.toThrow("aborted due to timeout");
+    expect(early.replays).toHaveLength(1);
+  });
+
+  it("a deadline that passes during the LAST confirmation seed's judge call reads as inconclusive-budget, not as a verdict", async () => {
+    // The judge swallows its own abort as judgeUnavailable and nothing runs
+    // after the confirmation pass, so without a post-pass check the run would
+    // end 'accepted' or 'invalid-evaluator' on a budget it had used up.
+    const p = pool();
+    installDb(p);
+    let t = 0;
+    let judgeCalls = 0;
+    const seq = installLlm(fixesEverything);
+    const r1 = await runPromptEvolution(base());
+    const total = seq.judge.length;
+    expect(r1.outcome).toBe("accepted");
+    installDb(p);
+    installLlm({ ...fixesEverything, onJudge: () => { judgeCalls++; if (judgeCalls === total) t = 10_000; } });
+    const r = await runPromptEvolution(base({ deadlineMs: 5_000, now: () => t }));
+    expect(r).toMatchObject({ outcome: "inconclusive-budget", budget: { deadlineMs: 5_000, exhaustedAt: "confirmation" } });
+    expect(r.accepted).toBeNull();
+    // The sealed seeds it read were still spent.
+    expect(r.consumedConfirmationIds.length).toBeGreaterThan(0);
+  });
+
+  it("a provider failure with budget left stays a failure even when the sibling seed crosses the deadline before the pool settles", async () => {
+    const p = pool();
+    installDb(p);
+    let t = 0;
+    let replays = 0;
+    // Seed 1 throws a plain lane error at t=0; seed 2 (in flight at the same
+    // time under concurrency 2) advances the clock past the deadline.
+    installLlm({
+      ...fixesEverything,
+      onReplay: () => { replays++; if (replays === 2) t = 10_000; },
+      replayThrows: () => (replays === 1 ? "ghost lane down (test)" : false),
+    });
+    await expect(runPromptEvolution(base({ deadlineMs: 5_000, now: () => t, replayConcurrency: 2 }))).rejects.toThrow("ghost lane down");
   });
 
   it("the optimizer's format retry is budgeted and counted, and its system message carries the untrusted-data notice too", async () => {

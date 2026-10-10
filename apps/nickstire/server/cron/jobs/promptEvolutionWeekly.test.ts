@@ -240,7 +240,7 @@ describe("processPromptEvolutionWeekly", () => {
     await processPromptEvolutionWeekly(MONDAY);
     expect(mocks.runPromptEvolution).toHaveBeenCalledWith(
       expect.objectContaining({
-        baseline, seedCount: 30, candidates: 2, holdoutRepeats: 3, deadlineMs: 25 * 60 * 1000,
+        baseline, seedCount: 30, candidates: 2, holdoutRepeats: 3, replayConcurrency: 2, deadlineMs: 45 * 60 * 1000,
         consumedConfirmationIds: [], onConfirmationSpend: expect.any(Function),
       }),
     );
@@ -411,7 +411,7 @@ describe("processPromptEvolutionWeekly", () => {
   it("Telegram names every new outcome plainly, says 'proxy lane' only when the lanes differ, and carries hashes, never prompt text", async () => {
     const cases: Array<[Record<string, unknown>, string]> = [
       [{ outcome: "invalid-evaluator" }, "this run measured nothing and refuted nothing"],
-      [{ outcome: "inconclusive-budget", budget: { deadlineMs: 1_500_000, exhaustedAt: "holdout" } }, "stopped at its 25-minute budget before stage holdout"],
+      [{ outcome: "inconclusive-budget", budget: { deadlineMs: 2_700_000, exhaustedAt: "holdout" } }, "stopped at its 45-minute budget before stage holdout"],
       [{ outcome: "rejected-success-regression" }, "The gate held"],
     ];
     for (const [over, phrase] of cases) {

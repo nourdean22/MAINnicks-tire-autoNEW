@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "apps/nickstire/server/cron/jobs/promptEvolutionWeekly.test.ts: the runner is still called with the full option set (now replayConcurrency 2 and deadlineMs 45 min) and the inconclusive-budget sentence names the 45-minute budget; the infrastructure-failure case (no kv row, no Telegram, run fails) is unchanged. apps/nickstire/server/services/promptEvolution.integration.test.ts: a lane abort past the deadline is inconclusive-budget with the measured part kept, and the same abort before the deadline still fails the run (control)."
+    },
+    "operator-walkthrough": {
+      "ref": "Panel copy only: the confirm says 'up to 45 minutes' and the start toast 'up to 45 min'; no layout or control change. Pinned by the existing two-tap tests in client/src/__tests__/vapi-followup-push-confirm.test.tsx."
+    },
+    "capability-ledger-updated": {
+      "ref": "UPDATED, not deferred: docs/operations/capability-ledger.json 'receptionist-prompt-evolution-gate' records the fourth live run's failure shape and the fix (abort-past-deadline classified as budget, bounded replay concurrency 2, 45/50-minute budgets); 'receptionist-prompt-evolution-manual-run' records the 50-minute parity. REALITY-LEDGER.md re-rendered."
+    }
+  }
+}

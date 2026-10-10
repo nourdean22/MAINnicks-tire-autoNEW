@@ -29,7 +29,7 @@
  *  2. BASELINE. resolveLiveReceptionistBaseline(): the prompt callers hear,
  *     from the assistant that answers the line. A refusal THROWS and the cron
  *     run fails loudly; it never falls back to the repository prompt.
- *  3. RUN, with a 25-minute budget (the scheduler kills the job at 30,
+ *  3. RUN, with a 45-minute budget (the scheduler kills the job at 50,
  *     scheduler.ts prompt-evolution-weekly timeoutMs). Past it the runner
  *     returns "inconclusive-budget" and this job still reports. The sealed
  *     confirmation seeds are written to the consumed list (newest first,
@@ -70,8 +70,17 @@ const CONSUMED_KEY = "prompt_evolution_confirmation_consumed";
 const CONSUMED_LABEL = "Prompt evolution — sealed confirmation seeds already spent (never re-read)";
 /** Consumed ids kept, newest first. Far beyond the failed-call pool a run reads (seedCount * 3 rows). */
 const CONSUMED_CAP = 500;
-/** The runner stops itself here; the scheduler kills the job at 30 minutes. */
-const RUN_BUDGET_MS = 25 * 60 * 1000;
+/**
+ * The runner stops itself here; the scheduler kills the job at 50 minutes
+ * (scheduler.ts) and the manual door races it against the same 50
+ * (promptEvolutionManualRun.ts). Measured 2026-10-09 on the Ollama lane: a
+ * replay plus its judge call averages ~20 s, and a cycle that reaches the
+ * sealed set replays ~170 times (train 13+14, holdout 12+13x3 repeats x2
+ * arms, confirmation 8x3x2). At two seeds at a time that is ~30 minutes; the
+ * old 25-minute budget could never finish a cycle whose candidate passed the
+ * guard, and the 22:54Z run proved it.
+ */
+const RUN_BUDGET_MS = 45 * 60 * 1000;
 /** The receipt's own rationale cap. */
 const RATIONALE_MAX = 400;
 /**
@@ -339,6 +348,9 @@ export async function processPromptEvolutionWeekly(now: Date = new Date(), optio
     seedCount: 30,
     candidates: 2,
     holdoutRepeats: 3,
+    // Two seeds at a time: Ollama Pro serves three cloud models at once and the
+    // scheduler keeps one slot free for P0/P1 traffic.
+    replayConcurrency: 2,
     consumedConfirmationIds: consumedBefore,
     // Write-ahead: recorded before the first sealed replay, so a throw or a
     // scheduler kill mid-confirmation cannot leave a read seed looking sealed.

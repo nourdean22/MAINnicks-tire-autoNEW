@@ -187,13 +187,23 @@ export function parseJudgeVerdict(raw: string): { verdict: ResolutionVerdict; re
  * HIT unless the caller passed verifyHits: false. scripts/cage-match.ts calls
  * it directly on a miss.
  */
+/**
+ * One in-flight load of the lane modules, shared by concurrent seeds
+ * (promptEvolution scorePrompt replays two at a time since 2026-10-09). Two
+ * simultaneous `await import()` of the same module raced vitest's module mock
+ * and the second received the real client; a memoized promise keeps the load
+ * lazy and single.
+ */
+let llmModule: Promise<typeof import("../_core/llm")> | null = null;
+const loadLlm = () => (llmModule ??= import("../_core/llm"));
+
 export async function judgeResolution(
   callerTurns: string[],
   replies: string[],
   /** timeoutMs: the caller's budget-capped timeout (ghostReplay budgetedTimeout); default 60 s. */
   opts: { timeoutMs?: number } = {},
 ): Promise<JudgeResult> {
-  const { invokeLLM } = await import("../_core/llm");
+  const { invokeLLM } = await loadLlm();
   try {
     const res = await invokeLLM({
       messages: [
@@ -203,6 +213,7 @@ export async function judgeResolution(
       model: RESOLUTION_JUDGE_MODEL,
       maxTokens: 900,
       timeoutMs: opts.timeoutMs ?? 60000,
+      slotWaitMs: opts.timeoutMs ?? 60000,
       // Evaluation measures the dialogue, not the dice.
       temperature: 0,
       // P1 shadow evaluation: grading is background work and must yield to
