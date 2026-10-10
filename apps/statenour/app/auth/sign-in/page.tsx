@@ -18,16 +18,32 @@ type SignInPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
+/**
+ * Audit 2026-10-10 F11 · only a same-origin PATH may be a redirect target.
+ * The old check rejected only "//", so "/\evil.com" passed (browsers read "\"
+ * as "/") and so did its encoded twin "/%5Cevil.com". Parsing against a fixed
+ * base also catches what the URL parser strips ("/\t/evil.com" is "//evil.com").
+ * Relative resolution never depends on the base's host, so a placeholder works.
+ */
+const CALLBACK_BASE = "https://callback.invalid";
+function isSameOriginPath(cb: string): boolean {
+  if (!cb.startsWith("/") || /^\/(?:[\\/]|%5c)/i.test(cb)) return false;
+  try {
+    return new URL(cb, CALLBACK_BASE).origin === CALLBACK_BASE;
+  } catch {
+    return false;
+  }
+}
+
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const operator = await getOperatorSession();
   const runtimeMode = getAuthRuntimeMode();
   const params = (await searchParams) || {};
   const rawCallback = typeof params.callbackUrl === "string" ? params.callbackUrl : "";
-  // Prevent open redirect — only allow relative paths (not protocol-relative //evil.com)
-  const callbackUrl =
-    (rawCallback.startsWith("/") && !rawCallback.startsWith("//"))
-      ? rawCallback
-      : process.env.NEXT_PUBLIC_APP_URL || "/chat";
+  // Prevent open redirect — only same-origin paths (see isSameOriginPath)
+  const callbackUrl = isSameOriginPath(rawCallback)
+    ? rawCallback
+    : process.env.NEXT_PUBLIC_APP_URL || "/chat";
 
   if (runtimeMode === "google" && operator.email === (process.env.AUTH_ALLOWED_EMAIL || "").trim()) {
     redirect(callbackUrl);
