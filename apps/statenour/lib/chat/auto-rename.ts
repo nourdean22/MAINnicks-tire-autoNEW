@@ -15,6 +15,7 @@ import { prisma } from "@/lib/prisma";
 // v10.0.64 · AgentTrace coverage.
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("chat-auto-rename", "chat");
+import { isAiSentinel } from "@/lib/ai/provider";
 import { recordError } from "@/lib/errors/record-error";
 
 // Minimum messages before we rename — we want enough context to
@@ -88,7 +89,7 @@ export async function maybeAutoRename(conversationId: string): Promise<void> {
       "classify"
     );
 
-    if (!result.content || result.provider === "none") return;
+    if (isAiSentinel(result)) return;
 
     // Clean the title — strip quotes, trim whitespace, cap length
     let title = result.content
@@ -129,5 +130,9 @@ export async function maybeAutoRename(conversationId: string): Promise<void> {
       stage: "auto-rename",
       conversationId,
     });
+  } finally {
+    // The header promised this; without it a bailed run (outage, short
+    // title) blocked every later rename of this conversation until restart.
+    inFlight.delete(conversationId);
   }
 }

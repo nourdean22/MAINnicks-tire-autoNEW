@@ -53,7 +53,10 @@ async function main() {
     const r = await runPrompt(prompt, dry);
     results.push(r);
     if (!json) {
-      const icon = r.pass ? "✅" : "❌";
+      // Errored = the model call threw or came back empty (provider outage):
+      // nothing was judged, so it is not a quality failure. Mirrors
+      // runQualityBench in lib/ai/evals/quality-bench-core.ts.
+      const icon = r.errored ? "[errored]" : r.pass ? "✅" : "❌";
       console.log(`  ${icon} ${r.id}`);
       if (!r.pass) {
         console.log(`     ${r.description}`);
@@ -70,14 +73,15 @@ async function main() {
     }
   }
 
+  const errored = results.filter((r) => r.errored).length;
   const passed = results.filter((r) => r.pass).length;
-  const failed = results.filter((r) => !r.pass).length;
+  const failed = results.filter((r) => !r.pass && !r.errored).length;
 
   if (json) {
     console.log(
       JSON.stringify(
         {
-          summary: { total: results.length, passed, failed },
+          summary: { total: results.length, passed, failed, errored },
           mode: dry ? "dry" : "live",
           generatedAt: new Date().toISOString(),
           results,
@@ -88,11 +92,13 @@ async function main() {
     );
   } else {
     console.log(
-      `\n📊 ${passed}/${results.length} pass · ${failed} fail${dry ? " (dry)" : ""}\n`,
+      `\n📊 ${passed}/${results.length} pass · ${failed} fail · ${errored} errored${dry ? " (dry)" : ""}\n`,
     );
   }
 
-  process.exit(failed > 0 ? 1 : 0);
+  // 1 = a judged prompt failed · 3 = nothing was judged (every prompt
+  // errored), so a provider outage never exits green.
+  process.exit(failed > 0 ? 1 : errored > 0 && passed === 0 ? 3 : 0);
 }
 
 main().catch((err) => {

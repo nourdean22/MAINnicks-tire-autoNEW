@@ -31,6 +31,8 @@ import { prisma } from "@/lib/prisma";
 // v10.0.64 · AgentTrace coverage.
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("learning-journal");
+import { isAiSentinel } from "@/lib/ai/provider";
+import { AiUnavailableError } from "@/lib/ai/structured";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { daysAgo, hourET, toDateString, today } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
@@ -306,6 +308,8 @@ Don't be generic — reference specific numbers.`,
       ],
       "fast"
     );
+    // An outage returns an apology, not a throw — route it to the metric fallback.
+    if (isAiSentinel(result)) throw new AiUnavailableError("learning-journal: provider sentinel", "provider_unavailable");
     selfAssessment = result.content.trim();
   } catch (err) {
     logError("brain.learning-journal", err, { fn: "generateLearningJournal.aiChat" });

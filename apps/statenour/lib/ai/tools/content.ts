@@ -13,6 +13,13 @@
 import { tool } from "ai";
 import { z } from "zod";
 
+/** aiChat returns an apology instead of throwing on a total outage; the
+ *  model must not read that as the tool's output (SQL, code, summary...). */
+async function providerDown(result: { provider?: string; content?: string }) {
+  const { isAiSentinel } = await import("@/lib/ai/provider");
+  return isAiSentinel(result) ? { error: "AI providers unavailable · no result produced, try again shortly" } : null;
+}
+
 export const contentTools = {
   generateImage: tool({
     description:
@@ -115,6 +122,8 @@ export const contentTools = {
         { role: "system", content: "You are a SQL expert. Convert the user's question into a PostgreSQL query. The database has tables: customers, jobs, leads, daily_scores, google_reviews, sms_logs, payment_records. Return only the SQL query." },
         { role: "user", content: question },
       ], "sql");
+      const down = await providerDown(result);
+      if (down) return down;
       return { sql: result.content, model: result.model };
     },
   }),
@@ -134,6 +143,8 @@ export const contentTools = {
         { role: "system", content: `You are a ${language} code generator. Write clean, production-ready code. Return only the code.` },
         { role: "user", content: task },
       ], "code");
+      const down = await providerDown(result);
+      if (down) return down;
       return { code: result.content, language, model: result.model };
     },
   }),
@@ -154,6 +165,8 @@ export const contentTools = {
         { role: "system", content: `Summarize the following ${stylePrompt}. Be concise.` },
         { role: "user", content: text },
       ], "summary");
+      const down = await providerDown(result);
+      if (down) return down;
       return { summary: result.content, model: result.model };
     },
   }),
@@ -172,6 +185,8 @@ export const contentTools = {
         { role: "system", content: 'Classify the sentiment as POSITIVE, NEGATIVE, or NEUTRAL. Reply in format: SENTIMENT: [value]\nREASON: [brief reason]' },
         { role: "user", content: text },
       ], "classify");
+      const down = await providerDown(result);
+      if (down) return down;
       return { analysis: result.content, model: result.model };
     },
   }),
@@ -191,6 +206,8 @@ export const contentTools = {
         { role: "system", content: `Extract these fields from the text: ${fields.join(", ")}. Return as structured key-value pairs.` },
         { role: "user", content: text },
       ], "extract");
+      const down = await providerDown(result);
+      if (down) return down;
       return { extracted: result.content, model: result.model };
     },
   }),
@@ -209,6 +226,8 @@ export const contentTools = {
         { role: "system", content: "You are a math expert. Solve the problem step by step, then give the final answer." },
         { role: "user", content: problem },
       ], "math");
+      const down = await providerDown(result);
+      if (down) return down;
       return { answer: result.content, model: result.model };
     },
   }),
@@ -230,6 +249,8 @@ export const contentTools = {
         { role: "system", content: `You are a creative writer for Nick's Tire & Auto, a family-owned shop in Euclid, OH. Write ${count} ${tone} ${type.replace("_", " ")} variations.` },
         { role: "user", content: topic },
       ], "creative");
+      const down = await providerDown(result);
+      if (down) return down;
       return { variations: result.content, model: result.model };
     },
   }),

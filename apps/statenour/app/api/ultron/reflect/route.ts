@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
 import { toDateString } from "@/lib/utils/datetime";
 import { emitReflectionCreated } from "@/lib/db/brain-bus-emit";
 import { logger as rootLogger } from "@/lib/logger";
@@ -214,7 +215,8 @@ export async function POST(req: Request) {
           ],
           "fast",
         );
-        const cleaned = resp.content
+        // The outage apology is short enough to pass as a counter-question.
+        const cleaned = isAiSentinel(resp) ? "" : resp.content
           .trim()
           .replace(/^["']|["']$/g, "")
           .split("\n")[0]

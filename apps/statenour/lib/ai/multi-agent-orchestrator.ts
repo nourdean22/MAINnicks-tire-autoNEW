@@ -31,6 +31,8 @@
  */
 
 import { withGuardian } from "@/lib/tools/guardian";
+import { isAiSentinel } from "@/lib/ai/provider";
+import { AiUnavailableError } from "@/lib/ai/structured";
 import { logger as rootLogger } from "@/lib/logger";
 import { getPersona, personaToSystemPrompt } from "@/lib/ai/personas";
 
@@ -218,6 +220,8 @@ async function callSubAgent(
     ],
     "reason",
   );
+  // An outage apology is not a sub-result: throw so the caller marks it failed.
+  if (isAiSentinel(reply)) throw new AiUnavailableError("multi-agent: provider sentinel", "provider_unavailable");
   return (reply?.content ?? "").trim();
 }
 
@@ -255,6 +259,8 @@ async function callSynthesizer(args: {
     ],
     "reason",
   );
+  // An outage apology is not a sub-result: throw so the caller marks it failed.
+  if (isAiSentinel(reply)) throw new AiUnavailableError("multi-agent: provider sentinel", "provider_unavailable");
   return (reply?.content ?? "").trim();
 }
 

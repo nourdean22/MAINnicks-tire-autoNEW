@@ -15,6 +15,8 @@
  */
 
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
+import { AiUnavailableError } from "@/lib/ai/structured";
 import { applyOperatorStyle } from "@/lib/ai/style-adapter";
 import { prisma } from "@/lib/prisma";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
@@ -247,6 +249,8 @@ Return ONLY valid JSON:
     ],
     "deep",
   );
+  // The outage apology must not be served as a normal answer.
+  if (isAiSentinel(result)) throw new AiUnavailableError("suggest-goals: provider sentinel", "provider_unavailable");
 
   let parsed: Record<string, unknown> = {};
   try {

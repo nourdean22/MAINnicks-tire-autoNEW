@@ -21,7 +21,7 @@
  */
 
 // v10.0.64 · AgentTrace coverage.
-import { type TaskType } from "./provider";
+import { isAiSentinel, type TaskType } from "./provider";
 import { makeTracedAiChat } from "./traced-aichat";
 const aiChat = makeTracedAiChat("ai-router", "tool");
 import { chatWithGrok } from "@/lib/integrations/grok";
@@ -106,6 +106,8 @@ async function callProvider(
       if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
       messages.push({ role: "user", content: prompt });
       const result = await aiChat(messages, taskType);
+      // Throw so routeQuery's loop tries the next provider instead of returning the apology.
+      if (isAiSentinel(result)) throw new Error(`local provider chain unavailable (${result.provider})`);
       return { content: result.content, model: result.model };
     }
     case "grok": {

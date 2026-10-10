@@ -35,6 +35,8 @@ import {
   type CoachEntry,
 } from "@/lib/ai/project-plan";
 import { extractJsonObject } from "@/lib/ai/extract-structured";
+import { isAiSentinel } from "@/lib/ai/provider";
+import { AiUnavailableError } from "@/lib/ai/structured";
 import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("service/ai-plan-project");
@@ -116,6 +118,12 @@ export class PlanProjectError extends Error {
  * shared extractStructured helper for robustness. Returns `{}` on
  * irrecoverable parse failure.
  */
+/** An outage apology parses to {} — an empty plan that would overwrite
+ *  Mission.planData. Fail the call instead. */
+function assertAiAvailable(result: { provider?: string; content?: string }): void {
+  if (isAiSentinel(result)) throw new AiUnavailableError("plan-project: provider sentinel", "provider_unavailable");
+}
+
 function parseJson(text: string): Record<string, unknown> {
   const result = extractJsonObject<Record<string, unknown>>(text);
   if (result.ok) return result.value;
@@ -300,6 +308,7 @@ Respond with JSON:
       ],
       "deep",
     );
+    assertAiAvailable(result);
     return {
       mode: "clarify",
       ...parseJson(result.content),
@@ -369,6 +378,7 @@ Respond ONLY with valid JSON:
       ],
       "deep",
     );
+    assertAiAvailable(result);
 
     const parsed = parseJson(result.content);
     const rawMilestones = Array.isArray(parsed.milestones)
@@ -479,6 +489,7 @@ Respond ONLY with valid JSON:
       ],
       "deep",
     );
+    assertAiAvailable(result);
 
     const raw = parseJson(result.content);
     const plan = normalizeRawPlan(raw, title);
@@ -561,6 +572,7 @@ Return ONLY valid JSON in this shape:
       ],
       "deep",
     );
+    assertAiAvailable(result);
 
     const learning = parseJson(result.content) as unknown as LearningPath;
 
@@ -648,6 +660,7 @@ Coach him. Return ONLY valid JSON:
       ],
       "deep",
     );
+    assertAiAvailable(result);
 
     const raw = parseJson(result.content);
     const entry: CoachEntry = {

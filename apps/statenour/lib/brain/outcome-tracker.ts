@@ -20,6 +20,7 @@ import { prisma } from "@/lib/prisma";
 // v10.0.64 · AgentTrace coverage.
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("outcome-tracker");
+import { isAiSentinel } from "@/lib/ai/provider";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { today, toDateString } from "@/lib/utils/datetime";
 import { recentScoreSnapshots, recentShopJobs } from "@/lib/brain/legacy-shims";
@@ -98,6 +99,12 @@ Was this prediction accurate?`,
         ],
         "fast"
       );
+      // The outage apology has no "ACCURATE: true" line and would score as
+      // DISPROVEN. Leave the prediction pending for the next run instead.
+      if (isAiSentinel(result)) {
+        scoreFailCount++;
+        continue;
+      }
 
       const lines = result.content.split("\n");
       const accurateLine = lines.find((l) => l.toUpperCase().startsWith("ACCURATE"));

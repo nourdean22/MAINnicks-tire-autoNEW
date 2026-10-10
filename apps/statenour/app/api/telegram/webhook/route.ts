@@ -27,6 +27,7 @@ import {
 } from "@/lib/services/telegram";
 import { confirmJournalLink, type JournalSilo } from "@/lib/brain/journal-brain";
 import { escapeHtml } from "@/lib/utils/escape-html";
+import { isAiSentinel } from "@/lib/ai/provider";
 import { logger as rootLogger } from "@/lib/logger";
 import { z } from "zod";
 
@@ -2088,7 +2089,13 @@ async function handlePhoto(
         ],
         "fast"
       );
-      analysisText = result.content;
+      if (!isAiSentinel(result)) analysisText = result.content;
+    }
+
+    // Provider outage: say so; never send or remember the outage text as an analysis.
+    if (!analysisText) {
+      await sendTelegram("AI providers unavailable - nothing analyzed or saved.", chatId);
+      return;
     }
 
     await sendTelegram(`📸 <b>Photo Analysis</b>\n\n${analysisText.slice(0, 3500)}`, chatId);
@@ -2259,6 +2266,11 @@ If it's news/article, extract the key insight.`,
       ],
       "fast"
     );
+
+    if (isAiSentinel(result)) {
+      await sendTelegram("AI providers unavailable - nothing analyzed or saved.", chatId);
+      return;
+    }
 
     await sendTelegram(`🔗 <b>Link Analysis</b>\n\n${result.content.slice(0, 3500)}`, chatId);
 

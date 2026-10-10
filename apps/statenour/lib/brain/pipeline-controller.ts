@@ -32,6 +32,7 @@ import { logError } from "@/lib/utils/error-log";
 const log = rootLogger.withSurface("brain/pipeline-controller");
 // v10.0.64 · AgentTrace coverage.
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
 const aiChat = makeTracedAiChat("pipeline-controller");
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { VALID_MOODS, simpleHash } from "@/lib/brain/journal-ingest";
@@ -602,6 +603,8 @@ Focus on: what to do TODAY, what money is on the table, what risks to watch.`,
     { role: "user", content: context },
   ], "fast");
 
+  // Provider outage: no brief rather than the outage text dressed as one.
+  if (isAiSentinel(result)) return { brief: "", actions };
   actions.push("brief.generated");
 
   return { brief: result.content, actions };

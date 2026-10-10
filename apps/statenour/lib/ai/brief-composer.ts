@@ -19,6 +19,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { isAiSentinel } from "@/lib/ai/provider";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("ai/brief-composer");
@@ -106,7 +107,7 @@ export async function composeBrief(args: ComposeBriefArgs): Promise<string> {
     // — refuse it before it can be returned or cached. Content check is
     // belt-and-braces for callers whose mocks/paths drop the provider
     // field.
-    if (result.provider === "emergency" || result.provider === "none") {
+    if (isAiSentinel(result)) {
       log.warn("compose_provider_failed", { label: args.label, provider: result.provider });
       return "";
     }
