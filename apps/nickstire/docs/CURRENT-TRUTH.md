@@ -948,9 +948,9 @@ run in production yet.
    panel's "Run experiment now" (`vapi.runPromptEvolutionNow`, two-tap in-DOM
    confirm) and `POST /api/admin/run-prompt-evolution` (admin API key) start the
    SAME cycle with `trigger: "manual"`, the only thing that bypasses the Monday
-   gate - same cross-dyno lock, same 30-minute budget, same `cron_log` row, same
+   gate - same cross-dyno lock, same 50-minute budget, same `cron_log` row, same
    ledger receipt. The door answers as soon as the run is started (a cycle takes
-   up to 25 minutes); `vapi.promptEvolutionStatus` / `GET
+   up to 45 minutes: the runner stops itself there, two seeds replayed at a time); `vapi.promptEvolutionStatus` / `GET
    /api/admin/prompt-evolution-status` read the in-process state and the latest
    row's hashes and counts. One run per process at a time; a scheduled run that
    holds the lock makes the door skip. The Telegram header, the

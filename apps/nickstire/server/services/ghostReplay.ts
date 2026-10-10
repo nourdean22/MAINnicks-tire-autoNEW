@@ -216,6 +216,18 @@ export interface GradeWithJudgeOptions {
  * A judge that was needed and unreachable leaves the regex verdict standing
  * and sets judgeUnavailable (see ReplayGrade) — for hits and misses alike.
  */
+/**
+ * One in-flight load of the lane modules, shared by concurrent seeds
+ * (promptEvolution scorePrompt replays two at a time since 2026-10-09). Two
+ * simultaneous `await import()` of the same module raced vitest's module mock
+ * and the second received the real client; a memoized promise keeps the load
+ * lazy and single.
+ */
+let llmModule: Promise<typeof import("../_core/llm")> | null = null;
+const loadLlm = () => (llmModule ??= import("../_core/llm"));
+let judgeModule: Promise<typeof import("./resolutionJudge")> | null = null;
+const loadJudge = () => (judgeModule ??= import("./resolutionJudge"));
+
 export async function gradeRepliesWithJudge(
   callerTurns: string[],
   replies: string[],
@@ -228,7 +240,7 @@ export async function gradeRepliesWithJudge(
   // Outside judgeResolution's catch on purpose: a spent budget must end the
   // run as inconclusive-budget, never read as a judge outage.
   const judgeTimeoutMs = budgetedTimeout(opts.budget, 60_000);
-  const { judgeResolution } = await import("./resolutionJudge");
+  const { judgeResolution } = await loadJudge();
   const judged = await judgeResolution(callerTurns, replies, { timeoutMs: judgeTimeoutMs });
 
   // Needed and unreachable: the regex verdict stands, loudly. Checked before
@@ -306,7 +318,7 @@ export async function ghostReplay(
   callerTurns: string[],
   opts: { model?: string; maxTokens?: number; priority?: 0 | 1 | 2 | 3 | 4; budget?: ReplayBudget } = {},
 ): Promise<string[]> {
-  const { invokeLLM } = await import("../_core/llm");
+  const { invokeLLM } = await loadLlm();
   const replies: string[] = [];
   for (let i = 0; i < callerTurns.length; i++) {
     const dialogue: string[] = [];
