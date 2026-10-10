@@ -100,7 +100,17 @@ export function isBridgeError(res: unknown): boolean {
 // a generic 401.
 const BRIDGE_KEY = process.env.BRIDGE_API_KEY ?? process.env.STATENOUR_SYNC_KEY;
 
-export async function callNickstire(procedure: string, input: Record<string, unknown>): Promise<unknown> {
+/**
+ * `idempotencyKey` (2026-10-10, SN-04) rides on the `Idempotency-Key` header
+ * of a mutating call, so a replayed send (a retried tap, a redelivered update,
+ * a claim that died mid-send) can be deduped by the receiver. The Telegram
+ * approve paths pass the ActionReceipt id.
+ */
+export async function callNickstire(
+  procedure: string,
+  input: Record<string, unknown>,
+  opts: { idempotencyKey?: string } = {},
+): Promise<unknown> {
   if (!BRIDGE_KEY) {
     return {
       error: "BRIDGE_API_KEY (or STATENOUR_SYNC_KEY) not configured — outbound nickstire call skipped",
@@ -121,7 +131,11 @@ export async function callNickstire(procedure: string, input: Record<string, unk
     } else {
       const res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${BRIDGE_KEY}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${BRIDGE_KEY}`,
+          ...(opts.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : {}),
+        },
         body: JSON.stringify({ json: input }),
         signal: AbortSignal.timeout(10000),
       });
