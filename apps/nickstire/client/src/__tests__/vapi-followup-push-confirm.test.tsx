@@ -160,5 +160,8 @@ describe("RUN EXPERIMENT NOW is a two-tap confirm that starts the manual run onc
     render(<VapiPanel />);
     expect(screen.getByText(/not replayed, broke clause-preservation/i)).toBeTruthy();
     expect(screen.getByText(/train 9\/14 \(margin -2\)/i)).toBeTruthy();
+    // No holdout pass reached the success cohort: "not run", never "0 won calls".
+    expect(screen.getByText(/success cohort not run/i)).toBeTruthy();
+    expect(screen.queryByText(/0 won calls/i)).toBeNull();
   });
 });
