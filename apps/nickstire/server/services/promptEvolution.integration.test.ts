@@ -731,8 +731,11 @@ describe("runPromptEvolution, wired", () => {
     await runPromptEvolution(base({ deadlineMs: 5_000, now: () => y }));
     const timeouts = vi.mocked(invokeLLM).mock.calls.map((c) => (c[0] as { timeoutMs?: number }).timeoutMs);
     expect(timeouts[0]).toBe(5_000); // control: before the clock moved, the whole 5 s budget (under the 60 s cap)
-    const budgeted = timeouts.slice(1).filter((ms) => ms !== 240_000); // optimizer calls keep their own cap (OPTIMIZER_TIMEOUT_MS)
+    const budgeted = timeouts.slice(1);
     expect(budgeted.length).toBeGreaterThan(0);
+    // Optimizer calls included (2026-10-10 review): a fixed 240 s call admitted near the deadline ran past the job's hard timeout.
+    const optimizerCalls = vi.mocked(invokeLLM).mock.calls.filter((c) => String((c[0] as { messages: Array<{ content: string }> }).messages[0].content).startsWith("You optimize"));
+    expect(optimizerCalls.length).toBeGreaterThan(0);
     expect(budgeted.every((ms) => ms === 1_000)).toBe(true);
 
     // Checked per SEED, not per stage: the deadline passes on the first train
@@ -999,9 +1002,91 @@ describe("runPromptEvolution, wired", () => {
 
     installDb(p);
     const early = installLlm({ ...fixesEverything, replayThrows: () => true });
-    await expect(runPromptEvolution(base({ deadlineMs: 5_000, now: () => 0 }))).rejects.toThrow("aborted due to timeout");
-    // Every train seed was attempted (6 of 6 failed, past the cap), then the first error surfaced.
-    expect(early.replays).toHaveLength(p.train.length);
+    await expect(runPromptEvolution(base({ deadlineMs: 5_000, now: () => 0 }))).rejects.toThrow(/replay lane down: 2 of 6 .*aborted due to timeout/);
+    // The cap (a quarter of the pass) trips the moment it is crossed: the second
+    // of six train seeds, not after spending the rest of the pass on dead calls.
+    expect(early.replays).toHaveLength(2);
+  });
+
+  it("a deadline abort is the budget even after an earlier replay failure in the same pass was absorbed (it once tripped the lane cap and failed the run)", async () => {
+    const p = pool();
+    let t = 0;
+    const trainIds = new Set(p.train);
+    const seen = new Set<string>();
+    const scenario = (deadlineAbort: boolean): Scenario => ({
+      ...fixesEverything,
+      replayThrows: (who, seed) => {
+        if (who !== "base" || !trainIds.has(seed) || seen.has(seed)) return false;
+        seen.add(seed);
+        if (seen.size === 1) return "The operation was aborted due to timeout"; // a slow call with budget left: absorbed
+        if (seen.size === p.train.length && deadlineAbort) { t = 10_000; return "The operation was aborted due to timeout"; } // the pass's last seed, cut at the deadline
+        return false;
+      },
+    });
+    installDb(p);
+    installLlm(scenario(true));
+    const r = await runPromptEvolution(base({ deadlineMs: 5_000, now: () => t }));
+    expect(r).toMatchObject({ outcome: "inconclusive-budget", budget: { deadlineMs: 5_000, exhaustedAt: "baseline-train" } });
+    // Control: the same absorbed failure without the deadline abort runs to a decision.
+    installDb(p);
+    t = 0;
+    seen.clear();
+    installLlm(scenario(false));
+    const control = await runPromptEvolution(base({ deadlineMs: 5_000, now: () => t }));
+    expect(control.outcome).toBe("accepted");
+    expect(control.exclusions.evaluatorUnavailable).toBe(1);
+  });
+
+  it("an optimizer call cut at the deadline that leaves no candidate is the budget, not no-candidates", async () => {
+    const p = pool();
+    installDb(p);
+    let t = 0;
+    installLlm({ ...fixesEverything, onOptimizer: () => void (t = 10_000), optimizerThrows: () => true });
+    const r = await runPromptEvolution(base({ deadlineMs: 5_000, now: () => t }));
+    expect(r).toMatchObject({ outcome: "inconclusive-budget", budget: { exhaustedAt: "optimizer" } });
+    // Control: the same failing optimizer with budget left is the proposals' failure.
+    installDb(p);
+    installLlm({ ...fixesEverything, optimizerThrows: () => true });
+    expect((await runPromptEvolution(base({ deadlineMs: 5_000, now: () => 0 }))).outcome).toBe("no-candidates");
+  });
+
+  it("a seed whose replay failed is not a failure of the prompt: out of the optimizer's brief and out of the score's denominator", async () => {
+    const p = pool();
+    const lost = p.train[0];
+    const passesAll: Scenario = { ...fixesEverything, reply: () => "pass" };
+    installDb(p);
+    let thrown = 0;
+    const t1 = installLlm({ ...passesAll, replayThrows: (who, seed) => (who === "base" && seed === lost && ++thrown === 1 ? "The operation was aborted due to timeout" : false) });
+    const r = await runPromptEvolution(base());
+    expect(thrown).toBe(1); // the instrument fired
+    expect(r.outcome).toBe("baseline-clean");
+    expect(t1.optimizer).toHaveLength(0);
+    expect(r.baselineTrain).toBe(`${p.train.length - 1}/${p.train.length - 1} (1 not replayed)`);
+    // Control: the same seed REPLAYED and failed is a real failure, and the optimizer runs on it.
+    installDb(p);
+    const t2 = installLlm({ ...passesAll, reply: (who, seed) => (who === "base" && seed === lost ? "fail" : "pass") });
+    const r2 = await runPromptEvolution(base());
+    expect(r2.baselineTrain).toBe(`${p.train.length - 1}/${p.train.length}`);
+    expect(t2.optimizer.length).toBeGreaterThan(0);
+  });
+
+  it("replays and judge calls queue for a slot until the run's deadline, not a flat 60 s, and the experiment's judge runs at P3", async () => {
+    // A replay queued behind other work more than 60 s was graded a lane
+    // outage; the judge ran at P1, which the background cap does not hold, so
+    // two workers in judge calls could take two of the three slots.
+    const p = pool();
+    installDb(p);
+    const judgePrompt = buildJudgePrompt();
+    installLlm(fixesEverything);
+    vi.mocked(invokeLLM).mockClear();
+    await runPromptEvolution(base({ deadlineMs: 600_000, now: () => 0 }));
+    const calls = vi.mocked(invokeLLM).mock.calls.map((c) => c[0] as { messages: Array<{ content: string }>; slotWaitMs?: number; priority?: number });
+    const judge = calls.filter((c) => c.messages[0].content === judgePrompt);
+    const replays = calls.filter((c) => c.messages[0].content !== judgePrompt && !/^You (optimize|return exactly)/.test(c.messages[0].content));
+    expect(judge.length).toBeGreaterThan(0);
+    expect(replays.length).toBeGreaterThan(0);
+    expect(replays.every((c) => c.slotWaitMs === 600_000 && c.priority === 3)).toBe(true);
+    expect(judge.every((c) => c.slotWaitMs === 600_000 && c.priority === 3)).toBe(true);
   });
 
   it("a deadline that passes during the LAST confirmation seed's judge call reads as inconclusive-budget, not as a verdict", async () => {

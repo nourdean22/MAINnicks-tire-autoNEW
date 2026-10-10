@@ -195,6 +195,40 @@ describe("startPromptEvolutionManualRun", () => {
     expect(promptEvolutionManualRunStatus().last?.status).toBe("timeout");
   });
 
+  it("after a timeout the slot stays held until the handler settles: a second start answers running, then the lock is released and the door frees", async () => {
+    // 2026-10-10 review: the slot used to free at the timeout while the
+    // handler ran on, so a second start ran a second cycle beside it.
+    const timers: Array<() => void> = [];
+    let finish!: () => void;
+    const run = vi.fn(() => new Promise<{ recordsProcessed: number; details: string }>((r) => { finish = () => r({ recordsProcessed: 0, details: "late" }); }));
+    const h = harness({ run, setTimer: vi.fn((fn: () => void) => { timers.push(fn); return "timer"; }) });
+    await startPromptEvolutionManualRun(h.deps);
+    timers[0](); // the budget timer fires
+    await whenPromptEvolutionManualRunSettled();
+    expect(promptEvolutionManualRunStatus().last?.status).toBe("timeout");
+    expect(await startPromptEvolutionManualRun(h.deps)).toMatchObject({ status: "running" });
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(h.released).toEqual([]);
+    finish(); // the handler settles late
+    await vi.waitFor(() => expect(h.released).toEqual([acquired]));
+    expect(promptEvolutionManualRunStatus().active).toBeNull();
+    expect(await startPromptEvolutionManualRun(h.deps)).toMatchObject({ status: "started" });
+  });
+
+  it("a handler that never settles frees the slot one budget after the timeout, where the lock's TTL ends", async () => {
+    const timers: Array<() => void> = [];
+    const h = harness({ run: vi.fn(() => new Promise(() => undefined)), setTimer: vi.fn((fn: () => void) => { timers.push(fn); return "timer"; }) });
+    await startPromptEvolutionManualRun(h.deps);
+    timers[0]();
+    await whenPromptEvolutionManualRunSettled();
+    await vi.waitFor(() => expect(timers).toHaveLength(2));
+    expect(h.deps.setTimer).toHaveBeenLastCalledWith(expect.any(Function), PROMPT_EVOLUTION_BUDGET_MS);
+    expect(promptEvolutionManualRunStatus().active).not.toBeNull();
+    timers[1](); // one more budget
+    await vi.waitFor(() => expect(promptEvolutionManualRunStatus().active).toBeNull());
+    expect(h.released).toEqual([acquired]);
+  });
+
   it("the budget equals the tier job's timeoutMs in scheduler.ts (a drifted budget outlives its own lock)", () => {
     const src = readFileSync(resolve(__dirname, "../cron/scheduler.ts"), "utf8");
     // sliceBlock throws on a missing anchor; a raw indexOf slice would widen to EOF and pass on unrelated text.

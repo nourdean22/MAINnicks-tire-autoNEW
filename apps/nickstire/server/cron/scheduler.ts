@@ -21,7 +21,8 @@
 import { createLogger } from "../lib/logger";
 import { BUSINESS } from "@shared/business";
 import { DECLINED_RECOVERY_WINDOW_DAYS } from "@shared/const";
-import { acquireCronLock, releaseCronLock, jobTimeoutMs, beginCronDrain, isCronDraining, trackCronRun, scheduleStaleHolderSweep } from "./index";
+import { acquireCronLock, releaseCronLock, jobTimeoutMs, beginCronDrain, isCronDraining, trackCronRun } from "./index";
+import { scheduleStaleHolderSweep } from "./lockLiveness";
 import { claimStartupPass, describeDueCheck, describeStartup, firstTickDelayMs, readLastRunAgeMs, startupAllowanceMs, type StartupClaim } from "./tierStartup";
 import { createWallClockRunner, isWallClockTier, startWallClockLoop } from "./wallClockTiers";
 
@@ -3218,8 +3219,8 @@ export function startTieredScheduler(): void {
     .__nicksTieredSchedulerActive = true;
 
   ensureTiersBuilt();
-  // Locks a previous container could not hand back are released two minutes
-  // after boot, once the deployment overlap has passed (cron/index.ts).
+  // Locks whose holder stopped its heartbeat (a killed container) are released
+  // from two minutes after boot, then every minute (cron/lockLiveness.ts).
   scheduleStaleHolderSweep();
 
   // Start all tiers (staggered to avoid memory spike on boot)

@@ -6242,14 +6242,29 @@
       "reason": "2026-10-10 lane unjam: pure stale rule; exported for reelDrainStaleUnavailable.test.ts, consumed internally by the drain pre-filter and the today-job branch in runDailyReelPost"
     },
     {
-      "file": "apps/nickstire/server/cron/index.ts",
+      "file": "apps/nickstire/server/cron/lockLiveness.ts",
       "symbol": "releaseLocksOfDeadHolders",
       "reason": "2026-10-10 stale-holder lock sweep · INTENTIONAL TEST-VISIBLE CONTRACT: the sweep body, called by scheduleStaleHolderSweep inside this module and pinned directly by cron/staleHolderSweep.test.ts (other-replica-only delete by name+holder, local no-op, DB error no-op). knip excludes *.test.ts as consumers."
     },
     {
-      "file": "apps/nickstire/server/cron/index.ts",
+      "file": "apps/nickstire/server/cron/lockLiveness.ts",
       "symbol": "STALE_HOLDER_SWEEP_DELAY_MS",
-      "reason": "2026-10-10 stale-holder lock sweep · INTENTIONAL TEST-VISIBLE CONTRACT: the 120 s boot delay (longer than Railway overlap + draining); staleHolderSweep.test.ts pins it. knip excludes *.test.ts as consumers."
+      "reason": "2026-10-10 stale-holder lock sweep · INTENTIONAL TEST-VISIBLE CONTRACT: the 120 s boot delay before the first sweep pass (then every minute); staleHolderSweep.test.ts pins it. knip excludes *.test.ts as consumers."
+    },
+    {
+      "file": "apps/nickstire/server/cron/lockLiveness.ts",
+      "symbol": "heartbeatHeldLocks",
+      "reason": "2026-10-10 heartbeat lock liveness · INTENTIONAL TEST SEAM: the 30 s interval armed by acquireCronLock calls it in-module; exported so staleHolderSweep.test.ts can drive one beat against a fake db and assert it touches each held lock by its own token. knip excludes *.test.ts as consumers."
+    },
+    {
+      "file": "apps/nickstire/server/cron/lockLiveness.ts",
+      "symbol": "LOCK_HEARTBEAT_MS",
+      "reason": "2026-10-10 heartbeat lock liveness · INTENTIONAL TEST-VISIBLE CONTRACT: the 30 s beat the 150 s staleness window is five of; staleHolderSweep.test.ts asserts the interval is armed at it. knip excludes *.test.ts as consumers."
+    },
+    {
+      "file": "apps/nickstire/server/cron/lockLiveness.ts",
+      "symbol": "LOCK_STALE_AFTER_SECONDS",
+      "reason": "2026-10-10 heartbeat lock liveness · INTENTIONAL TEST-VISIBLE CONTRACT: a lock is swept only when its beat is older than this; staleHolderSweep.test.ts pins it in both the SELECT and the DELETE re-check. knip excludes *.test.ts as consumers."
     }
   ]
 }

@@ -188,6 +188,13 @@ export interface GradeWithJudgeOptions {
    * false restores the old free fast path: a hit returns without a judge call.
    */
   verifyHits?: boolean;
+  /**
+   * Slot priority for the judge call (default P1, shadow evaluation). The
+   * prompt experiment passes P3: P1 is exempt from the background cap, so two
+   * experiment workers in judge calls could hold two of the three slots and
+   * queue a customer-facing P0 call behind them.
+   */
+  judgePriority?: 0 | 1 | 2 | 3 | 4;
 }
 
 /**
@@ -241,7 +248,11 @@ export async function gradeRepliesWithJudge(
   // run as inconclusive-budget, never read as a judge outage.
   const judgeTimeoutMs = budgetedTimeout(opts.budget, 60_000);
   const { judgeResolution } = await loadJudge();
-  const judged = await judgeResolution(callerTurns, replies, { timeoutMs: judgeTimeoutMs });
+  const judged = await judgeResolution(callerTurns, replies, {
+    timeoutMs: judgeTimeoutMs,
+    ...(opts.budget ? { slotWaitMs: budgetedTimeout(opts.budget, Number.POSITIVE_INFINITY) } : {}),
+    ...(opts.judgePriority !== undefined ? { priority: opts.judgePriority } : {}),
+  });
 
   // Needed and unreachable: the regex verdict stands, loudly. Checked before
   // the verdict, because an unreachable judge's verdict is a placeholder.
@@ -336,7 +347,8 @@ export async function ghostReplay(
       ],
       maxTokens: opts.maxTokens ?? 700,
       timeoutMs: budgetedTimeout(opts.budget, 60000),
-      slotWaitMs: budgetedTimeout(opts.budget, 60000),
+      // Queueing behind other work is not a lane failure: wait until the run's deadline, never a flat 60 s.
+      slotWaitMs: budgetedTimeout(opts.budget, Number.POSITIVE_INFINITY),
       model: opts.model ?? GHOST_AGENT_MODEL,
       priority: opts.priority ?? 3,
       // Temperature 0: evaluation must measure the prompt, not the dice — a
@@ -361,7 +373,7 @@ export async function ghostReplay(
         ],
         maxTokens: 1400,
         timeoutMs: budgetedTimeout(opts.budget, 60000),
-      slotWaitMs: budgetedTimeout(opts.budget, 60000),
+        slotWaitMs: budgetedTimeout(opts.budget, Number.POSITIVE_INFINITY),
         model: opts.model ?? GHOST_AGENT_MODEL,
         priority: opts.priority ?? 3,
         temperature: 0,
