@@ -9,6 +9,8 @@ Live code and production evidence override this document when they disagree. Upd
 
 ## Beat subject leads the lens in clip prompts (2026-10-10, PR after #2973) -- BUILT + TESTED; PR open
 
+**Operator decision 2026-10-10 14:00Z: Seedance 2.5 stays the production clip model** (`REEL_CLIP_MODEL=seedance_2_5` on Railway; about 26 credits per 4 s clip, about 130 per 5-beat reel, vs 12 / 60 on 1.5).
+
 On reel 2070005 three of five beats rendered the X-ray lens instead of the described shot (POV, surface, wear bars). The compiled prompt stated the lens grammar twice (the Style grammar line and the quoted hero-frame prompt inside the locked visual world) and the Subject once, near the top.
 
 - `buildHiggsfieldReelPromptPack`: the quoted frame prompt now points at the Style grammar line instead of repeating it, and every beat prompt ends with `This shot must show: <subject> ... the style never replaces the subject.`, after the visual-world and realism blocks. Subject before grammar, restated last.
