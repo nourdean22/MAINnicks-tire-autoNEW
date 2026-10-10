@@ -293,7 +293,11 @@ function telegramSummary(
     `Offline evidence only (H2); not served to customers.`,
     baselineLine,
     laneLine,
-    `Seeds: ${result.usableSeeds} real failed calls (train ${result.trainCount} / holdout ${result.holdoutCount} / confirm ${c.confirm}${consumed}) · success cohort ${c.success} won calls`,
+    // The success cohort loads only after a holdout pass. Until then its count
+    // is the initial 0, which five live runs on 2026-10-09 printed as "0 won
+    // calls" while the pool held 1,792 (zero-vs-not-run, the empty-vs-error
+    // shape). The gate reading is the truth of whether it ran.
+    `Seeds: ${result.usableSeeds} real failed calls (train ${result.trainCount} / holdout ${result.holdoutCount} / confirm ${c.confirm}${consumed}) · success cohort ${result.gates.success ? `${c.success} won calls` : "not run (needs a holdout pass)"}`,
     `Baseline: train ${result.baselineTrain} · holdout ${result.baselineHoldout}`,
     ...outcomeLines(result),
     ...gateLines,
