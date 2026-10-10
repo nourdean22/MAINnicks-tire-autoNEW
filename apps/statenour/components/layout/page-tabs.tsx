@@ -84,11 +84,13 @@ function SubSwitch({
   variant: "index" | "row" | "centered";
 }) {
   if (tabs.length < 2) return null;
+  // Every scrolling row here carries py-1 and no tab uses -mb-px: overflow-x-auto clips at the
+  // padding box, which cut the 4px focus ring's top and bottom off (audit 09-F16).
   return (
     <nav
       aria-label={label}
       className={cn(
-        "flex gap-x-6 gap-y-1 overflow-x-auto",
+        "flex gap-x-6 gap-y-1 overflow-x-auto py-1",
         variant === "index" && "border-b border-edge pb-2 xl:flex-col xl:gap-y-0 xl:border-b-0 xl:border-r xl:border-edge xl:pb-0 xl:pr-6",
         variant === "row" && "justify-end border-b border-edge",
         variant === "centered" && "justify-center border-b border-edge",
@@ -105,7 +107,7 @@ function SubSwitch({
             className={cn(
               SUB_ITEM,
               variant === "index" && "xl:border-l-2 xl:pl-3",
-              variant !== "index" && "-mb-px border-b-2 px-1",
+              variant !== "index" && "border-b-2 px-1",
               isActive
                 ? cn("text-fg", variant === "index" ? "xl:border-accent" : "border-accent")
                 : cn("text-fg-tertiary hover:text-fg-secondary", variant === "index" ? "xl:border-transparent" : "border-transparent"),
@@ -218,7 +220,7 @@ function PageTabsInner({ tabs, param = "tab", defaultKey, lenses, className }: P
         <div
           role="tablist"
           aria-label="Lenses"
-          className="flex flex-wrap items-end gap-x-8 gap-y-1 overflow-x-auto border-b border-edge"
+          className="flex flex-wrap items-end gap-x-8 gap-y-1 overflow-x-auto border-b border-edge py-1"
         >
           {lenses.map((l) => {
             const isActive = l.key === activeLens.key;
@@ -230,7 +232,7 @@ function PageTabsInner({ tabs, param = "tab", defaultKey, lenses, className }: P
                 aria-selected={isActive}
                 onClick={() => select(l.tabs[0])}
                 className={cn(
-                  "-mb-px flex min-h-[52px] shrink-0 flex-col justify-end border-b-2 pb-2 text-left transition-colors duration-[var(--motion-state)]",
+                  "flex min-h-[52px] shrink-0 flex-col justify-end border-b-2 pb-2 text-left transition-colors duration-[var(--motion-state)]",
                   isActive ? "border-accent text-fg" : "border-transparent text-fg-tertiary hover:text-fg-secondary",
                 )}
               >
@@ -258,7 +260,7 @@ function PageTabsInner({ tabs, param = "tab", defaultKey, lenses, className }: P
       <div
         role="tablist"
         aria-label="Page sections"
-        className="flex items-center gap-1 overflow-x-auto border-b border-edge-subtle"
+        className="flex items-center gap-1 overflow-x-auto border-b border-edge-subtle py-1"
       >
         {tabs.map((t) => {
           const isActive = t.key === activeKey;
@@ -271,7 +273,7 @@ function PageTabsInner({ tabs, param = "tab", defaultKey, lenses, className }: P
               onClick={() => select(t.key)}
               className={cn(
                 "min-h-11 shrink-0 px-3 py-2 text-[13px] font-medium",
-                "border-b-2 -mb-px transition-colors duration-[var(--motion-state)]",
+                "border-b-2 transition-colors duration-[var(--motion-state)]",
                 isActive
                   ? "border-accent text-fg"
                   : "border-transparent text-fg-tertiary hover:text-fg-secondary",

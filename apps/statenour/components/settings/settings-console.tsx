@@ -147,9 +147,10 @@ export function SettingsConsole() {
               <div className="p-2 rounded-control bg-surface-raised text-fg-tertiary" aria-hidden="true">
                 <activeConfig.icon className="w-5 h-5" />
               </div>
-              <h1 id={headingId} className="text-xl font-semibold text-fg">
+              {/* h2: the page's one h1 is StandardPage's "Settings" (audit 09-F18). */}
+              <h2 id={headingId} className="text-xl font-semibold text-fg">
                 {activeConfig.label}
-              </h1>
+              </h2>
             </div>
             <p className="text-sm text-[var(--text-secondary)]">
               {activeConfig.description}

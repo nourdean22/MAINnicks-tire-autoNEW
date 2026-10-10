@@ -8,8 +8,8 @@
  *     prompt-token cost, injection cap, source breakdown
  *   • Per-pin actions: edit content, rename label, unpin, re-pin
  *     (reinforce so the 14d stale timer resets)
- *   • Visual staleness indicator: gold ring pulses softer as a pin
- *     ages past 14 and then 30 days, nudging Nour to review
+ *   • Static staleness indicator: an amber, then red, edge plus the
+ *     words "review" / "very stale" past 14 and then 30 days
  *   • Add-from-scratch shortcut: quick paste box at the top for
  *     typing new permanent context directly (not just via chat)
  *
@@ -24,6 +24,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import { scrollBehavior } from "@/lib/ui/scroll-behavior";
 import { GlassCard } from "@/components/ui/glass-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
@@ -228,7 +229,7 @@ export function PinnedContextPanel() {
     if (window.location.hash === "#pinned-context") {
       const el = document.getElementById("pinned-context");
       if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        el.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
         el.classList.add("ring-2", "ring-accent");
         setTimeout(() => {
           el.classList.remove("ring-2", "ring-accent");
@@ -533,9 +534,8 @@ export function PinnedContextPanel() {
                   "rounded-surface border p-2.5 transition-all ring-1",
                   stalenessClass(days),
                   editing && "ring-2 ring-accent",
-                  // 10.2 — stale pins breathe subtly, very-stale more urgently
-                  !editing && days >= VERY_STALE_DAYS && "pin-very-stale-breathe",
-                  !editing && days >= STALE_DAYS && days < VERY_STALE_DAYS && "pin-stale-breathe",
+                  // Staleness is static (SYSTEM.md §1.4): the amber / red edge and the
+                  // "review" / "very stale" word below carry it; the breathe loop is retired.
                   // 10.15 — single-shot green pulse right after reinforce
                   justReinforced && "pin-reinforce-pulse"
                 )}

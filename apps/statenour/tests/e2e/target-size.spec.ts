@@ -5,9 +5,9 @@ import { test, expect } from "@playwright/test";
  *
  * On a phone every visible control is at least 44x44 CSS px — the house
  * convention (`min-h-[44px]` everywhere; iOS HIG) — and an inline text link
- * is at least 24px (WCAG 2.5.8's inline exception). The only exemption is
- * the bottom pulse ticker (`data-target-audit="exempt"`): it is bottom-chrome
- * geometry and is resized with the chrome, not here.
+ * is at least 24px (WCAG 2.5.8's inline exception). No control is exempt: the
+ * bottom pulse ticker's opt-out was removed 2026-10-10 (audit 09-F21) when its
+ * open-feed button, pause and snooze got real 44px phone boxes.
  *
  * Focus must leave a control clear of the fixed bottom chrome (2.4.11): the
  * second test parks a control under the chrome (the browser considers it
@@ -33,7 +33,6 @@ function audit() {
   const small: Small[] = [];
   let visible = 0;
   for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
-    if (el.closest('[data-target-audit="exempt"]')) continue;
     const r = el.getBoundingClientRect();
     const cs = getComputedStyle(el);
     if (r.width <= 1 || r.height <= 1 || cs.visibility === "hidden" || cs.display === "none") continue; // sr-only, skip links
@@ -74,7 +73,7 @@ function focusProbe() {
   // control cannot take focus, so no focusin ever fired. Only a control that actually takes
   // focus measures the handler; the probe walks candidates until one does.
   const candidates = Array.from(document.querySelectorAll<HTMLElement>(sel)).filter((el) => {
-    if (el.closest('[data-target-audit="exempt"]') || getComputedStyle(el).position === "fixed") return false;
+    if (getComputedStyle(el).position === "fixed") return false;
     if ((el as HTMLButtonElement).disabled || el.getAttribute("aria-disabled") === "true" || el.getAttribute("tabindex") === "-1") return false;
     if (el.closest("[inert]")) return false;
     const b = el.getBoundingClientRect();

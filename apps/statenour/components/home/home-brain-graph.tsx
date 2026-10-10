@@ -32,6 +32,7 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Search, Compass, Expand, Maximize2, Zap, Loader2, RefreshCw, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import type { BrainGraphNode, BrainGraphEdge, BrainGraphPayload } from "@/lib/brain/brain-graph";
@@ -294,6 +295,27 @@ export function resolveControlState(
   };
 }
 
+/**
+ * The canvas's accessible name (audit 09-F3): what is drawn, counted from what is on screen, and
+ * never a graph claim while loading, empty or failed.
+ */
+export function graphCanvasLabel(state: LoadState, shown: { nodes: number; edges: number }): string {
+  switch (state.phase) {
+    case "initial":
+      return "Brain map, loading";
+    case "empty":
+      return "Brain map, no nodes to show";
+    case "error":
+      return "Brain map, failed to load";
+    case "ready": {
+      const nodes = `${shown.nodes} ${shown.nodes === 1 ? "node" : "nodes"}`;
+      const edges = `${shown.edges} ${shown.edges === 1 ? "connection" : "connections"}`;
+      const stale = state.staleError ? ", from the last load (refresh failed)" : "";
+      return `Brain map: ${nodes}, ${edges}${stale}`;
+    }
+  }
+}
+
 export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGraphProps) {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -396,6 +418,15 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
     }
     return ids;
   }, [rawNodes, rawEdges, lens]);
+
+  // What the canvas draws (syncSimSets applies the same lens filter), for its accessible name.
+  const shownCounts = useMemo(() => {
+    if (lens === "all") return { nodes: rawNodes.length, edges: rawEdges.length };
+    return {
+      nodes: rawNodes.filter((n) => visibleIds.has(n.id)).length,
+      edges: rawEdges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target)).length,
+    };
+  }, [lens, rawNodes, rawEdges, visibleIds]);
 
   // ── Physics tick ────────────────────────────────────────────────────
   const physicsTick = useCallback(() => {
@@ -1117,6 +1148,14 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
           Ask the brain
         </button>
 
+        {/* The canvas is pointer-only; this is the keyboard and screen-reader path in (09-F3). */}
+        <Link
+          href="/brain?tab=memory"
+          className="inline-flex min-h-[44px] items-center rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
+        >
+          View as list
+        </Link>
+
         {variant === "home" && !isMobile && (
           <button
             type="button"
@@ -1332,6 +1371,8 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
 
         <canvas
           ref={canvasRef}
+          role="img"
+          aria-label={graphCanvasLabel(loadState, shownCounts)}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -1348,9 +1389,9 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
 
         {!isMobile && (
           <div className="absolute bottom-3 right-3 flex flex-col gap-1 z-10">
-            <button onClick={() => zoomBy(0.2)} className="w-8 h-8 rounded-control bg-content border border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg text-xs font-mono font-bold flex items-center justify-center" title="Zoom In">+</button>
-            <button onClick={() => zoomBy(-0.2)} className="w-8 h-8 rounded-control bg-content border border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg text-xs font-mono font-bold flex items-center justify-center" title="Zoom Out">-</button>
-            <button onClick={zoomReset} className="w-8 h-8 rounded-control bg-content border border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg text-xs flex items-center justify-center" title="Reset View"><Expand size={12} /></button>
+            <button type="button" aria-label="Zoom in" onClick={() => zoomBy(0.2)} className="h-11 w-11 rounded-control bg-content border border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg text-xs font-mono font-bold flex items-center justify-center" title="Zoom in">+</button>
+            <button type="button" aria-label="Zoom out" onClick={() => zoomBy(-0.2)} className="h-11 w-11 rounded-control bg-content border border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg text-xs font-mono font-bold flex items-center justify-center" title="Zoom out">-</button>
+            <button type="button" aria-label="Reset view" onClick={zoomReset} className="h-11 w-11 rounded-control bg-content border border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg text-xs flex items-center justify-center" title="Reset view"><Expand size={12} /></button>
           </div>
         )}
       </div>

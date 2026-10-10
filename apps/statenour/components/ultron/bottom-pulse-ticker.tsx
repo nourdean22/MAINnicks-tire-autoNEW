@@ -26,13 +26,19 @@
  * Data source: trpc.operator.personalPulse (cached 90s, polled every 5 min).
  * a11y: role="region" + aria-label="System pulse" + aria-live="off" so screen
  * readers can find/skip the strip without each rotation being announced.
+ *
+ * 2026-10-10 (audit 09) · F30: a failed read used to render nothing, the same as
+ * "no pulse today"; it now says "Pulse unavailable". F21: the open-feed button,
+ * pause and snooze have a real 44px box on phones, so the strip no longer opts
+ * out of tests/e2e/target-size.spec.ts. F4: the feed is a Base UI Dialog.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 import { trpc } from "@/lib/trpc/client";
 import { useDismissedTicker } from "@/hooks/use-dismissed-ticker";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { DismissButton } from "@/components/ui/dismiss-button";
 import { useNourState } from "@/lib/state/nour-state";
 
@@ -79,11 +85,11 @@ const TONE_RANK: Record<PulseItem["tone"], number> = { warn: 0, win: 1, info: 2,
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
 
 export function BottomPulseTicker() {
-  const { data, refetch: refetchPulse, isFetching: pulseFetching } = trpc.operator.personalPulse.useQuery(undefined, {
+  const { data, refetch: refetchPulse, isFetching: pulseFetching, isError: pulseError } = trpc.operator.personalPulse.useQuery(undefined, {
     refetchInterval: 300_000,
     retry: false,
   });
-  const { data: topData, isFetching: tickerFetching } = trpc.operator.ticker.useQuery(undefined, {
+  const { data: topData, isFetching: tickerFetching, isError: tickerError } = trpc.operator.ticker.useQuery(undefined, {
     refetchInterval: 300_000,
     retry: false,
   });
@@ -145,6 +151,8 @@ export function BottomPulseTicker() {
   const [idx, setIdx] = useState(0);
   const [open, setOpen] = useState(false);
   const [paused, setPaused] = useState(false);
+  // The strip button that opens the feed; the dialog returns focus here on close.
+  const openerRef = useRef<HTMLButtonElement>(null);
   // OS reduced-motion must stop the rotation itself — the CSS kill-switch in
   // effects.css silences the fade but no CSS can stop a JS setInterval.
   // Same SSR-safe matchMedia pattern as components/3d/scene-canvas.tsx.
@@ -170,17 +178,19 @@ export function BottomPulseTicker() {
     return () => clearInterval(t);
   }, [open, paused, reducedMotion, items.length]);
 
-  // Escape closes the sheet.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
-
-  if ((!data && !topData) || items.length === 0) return null;
+  if ((!data && !topData) || items.length === 0) {
+    // Nothing to show. Only a failed read says so; an empty, healthy read stays silent.
+    if (!pulseError && !tickerError) return null;
+    return (
+      <div
+        role="region"
+        aria-label="System pulse"
+        className="ui-material relative flex min-h-[32px] items-center border-t border-edge-subtle px-4 sm:h-5 sm:px-3"
+      >
+        <p className="font-mono text-[12px] text-fg-tertiary">Pulse unavailable</p>
+      </div>
+    );
+  }
 
   const safeIdx = idx % items.length;
   const current = items[safeIdx];
@@ -188,27 +198,30 @@ export function BottomPulseTicker() {
   // is actually updating (SYSTEM.md §9 — "working" is the only pulsing state).
   const live = Boolean(pulseFetching || tickerFetching || resolveCommitment.isPending);
 
-  // Section 5.8 (2026-09-08): this strip is bottom-chrome geometry (--bottom-chrome-h, the FAB
-  // lane); its 32px controls are exempt from the 44px target audit until the chrome is resized
-  // as one change. Named in tests/e2e/target-size.spec.ts.
+  // Hit areas (2026-10-10, audit 09-F21): on a phone the open-feed button, pause and snooze are
+  // each a real 44px box, so the strip is in tests/e2e/target-size.spec.ts with no exemption.
+  // The pause button already made the phone strip 44px tall whenever 2+ items rotate; the
+  // open-feed button now holds 44px with a single item too (it was 32px), rather than a pulled
+  // margin whose overhang would steal taps from the page above the chrome. From sm the strip
+  // stays 20px; the open-feed button is a 24px box there (the fine-pointer floor).
   return (
     <div
       role="region"
       aria-label="System pulse"
       aria-live="off"
-      data-target-audit="exempt"
       className="ui-material relative min-h-[32px] sm:h-5 border-t border-edge-subtle"
     >
-      {/* gap-3: the snooze button uses the pulled-margin pattern (p-3 -m-3),
-          so its hit box extends 12px past its footprint — at gap-2 it
-          overlapped the pause button's edge. */}
-      <div className="flex items-center gap-3 px-3 h-full min-h-[32px] sm:min-h-0">
+      {/* gap-4 / px-4 on phones: the snooze button's pulled margin (p-4 -m-4) reaches 16px past
+          its glyph, so a 12px gap or edge would overlap the pause button or the screen edge. */}
+      <div className="flex items-center gap-4 px-4 h-full min-h-[32px] sm:min-h-0 sm:gap-3 sm:px-3">
         {/* The one item · tap anywhere to open the full pulse feed. */}
         <button
+          ref={openerRef}
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="flex-1 min-w-0 flex items-center gap-2 h-full py-1 text-left rounded-control"
+          className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-control text-left sm:-my-0.5 sm:min-h-6"
           aria-label={open ? "Close pulse feed" : "Open pulse feed"}
+          aria-haspopup="dialog"
           aria-expanded={open}
         >
           {live && (
@@ -248,7 +261,8 @@ export function BottomPulseTicker() {
           </button>
         )}
 
-        {/* Visible, touch-friendly snooze for the current item. */}
+        {/* Visible, touch-friendly snooze for the current item. alwaysVisible: the default
+            hover gate (group/cell) has no group here, so the glyph sat at opacity 0 on touch. */}
         <DismissButton
           onClick={(e) => {
             e.stopPropagation();
@@ -256,11 +270,13 @@ export function BottomPulseTicker() {
           }}
           label="Snooze item for a day"
           size="sm"
-          className="shrink-0 hover:text-rose-400"
+          alwaysVisible
+          className="shrink-0 p-4 -m-4 hover:text-rose-400 sm:p-3 sm:-m-3"
         />
       </div>
 
       <PulseFeedSheet
+        returnFocusRef={openerRef}
         open={open}
         items={items}
         activeIdx={safeIdx}
@@ -313,17 +329,15 @@ function PulseContent({ item, row = false }: { item: PulseItem; row?: boolean })
   );
 }
 
-/** The full pulse feed — opens UPWARD above the strip on tap (the strip is
- *  fixed to the bottom). Every item readable + tappable (≥44px rows) with a
- *  visible snooze. Mirrors the top ticker's FeedSheet. */
-/** Enter/exit pair for the feed sheet. Exported so the regression test can
- *  pin both utilities against effects.css: unmount rides animationend, so a
- *  typo'd or deleted exit class would mean the closed sheet NEVER unmounts. */
-export const PULSE_FEED_SHEET_ANIMATION = {
-  enter: "animate-fadeSlideUp",
-  exit: "animate-fadeSlideDown",
-} as const;
-
+/** The full pulse feed — a bottom sheet opened from the strip. Every item
+ *  readable + tappable (≥44px rows) with a visible snooze.
+ *
+ *  2026-10-10 (audit 09-F4) · runs on the Base UI Dialog the More sheet uses:
+ *  focus moves in and is trapped, Escape and a scrim tap close it, page scroll
+ *  locks, focus returns to the strip button. That replaced a click-catcher div,
+ *  a window Escape listener and an animationend unmount machine (whose failure
+ *  mode was a ghost sheet that never unmounted). Enter/exit ride the popup's
+ *  data-open / data-closed state; Base UI unmounts after the exit runs. */
 export function PulseFeedSheet({
   open,
   items,
@@ -333,8 +347,8 @@ export function PulseFeedSheet({
   onResolve,
   resolvingId,
   onPick,
+  returnFocusRef,
 }: {
-  /** When false the sheet plays its exit animation, then unmounts on animationend. */
   open: boolean;
   items: PulseItem[];
   activeIdx: number;
@@ -345,39 +359,27 @@ export function PulseFeedSheet({
   /** commitmentId currently in flight, so its own row can show a busy state. */
   resolvingId: number | null;
   onPick: (i: number) => void;
+  /** The strip button that opened the sheet; focus returns to it on close. */
+  returnFocusRef: React.RefObject<HTMLButtonElement | null>;
 }) {
-  // 2026-08-12 · the sheet used to mount/unmount on the same frame `open`
-  // flipped — no motion either way, the close visibly snapped. Same machine
-  // as more-sheet.tsx (the reference implementation): `mounted` trails
-  // `open` by one exit animation and unmount rides animationend, never a
-  // timeout. Rapid reopen mid-close is safe — swapping animation-name
-  // cancels the exit WITHOUT firing animationend, so the guard can't
-  // unmount a sheet that is open again.
-  const [mounted, setMounted] = useState(open);
-  // lint-baseline 2026-08-13 · rising edge moved from an effect to the
-  // React-sanctioned render-phase adjustment ("storing information from
-  // previous renders") — same semantics, no effect-driven cascade. The
-  // falling edge still rides animationend below, unchanged.
-  if (open && !mounted) setMounted(true);
-  if (!mounted) return null;
-
   return (
-    <>
-      {/* backdrop — tap outside to close */}
-      <div className="fixed inset-0 z-40" onClick={onClose} aria-hidden />
-      <div
-        onAnimationEnd={() => {
-          if (!open) setMounted(false);
-        }}
-        className={cn(
-          "absolute left-0 right-0 bottom-full z-50 max-h-[60vh] overflow-y-auto border-t border-edge-default bg-overlay",
-          open ? PULSE_FEED_SHEET_ANIMATION.enter : PULSE_FEED_SHEET_ANIMATION.exit,
-        )}
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
+      <DialogContent
+        unstyled
+        showCloseButton={false}
+        finalFocus={returnFocusRef}
+        overlayClassName="z-[70] bg-canvas/60"
+        className="fixed inset-x-0 bottom-0 z-[71] max-h-[60dvh] overflow-y-auto overscroll-contain border-t border-edge-default bg-overlay pb-[env(safe-area-inset-bottom,0px)] outline-none duration-[var(--motion-panel)] data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-2"
       >
         <div className="sticky top-0 flex items-center justify-between px-3 py-2 border-b border-edge-subtle bg-overlay">
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+          <DialogTitle className="font-mono text-[11px] font-normal uppercase tracking-[0.12em] text-fg-tertiary">
             Pulse · {items.length}
-          </span>
+          </DialogTitle>
           <button
             type="button"
             onClick={onClose}
@@ -431,13 +433,14 @@ export function PulseFeedSheet({
                 }}
                 label="Snooze item for a day"
                 size="sm"
+                alwaysVisible
                 className="shrink-0 hover:text-rose-400"
               />
             </li>
           ))}
         </ul>
-      </div>
-    </>
+      </DialogContent>
+    </Dialog>
   );
 }
 

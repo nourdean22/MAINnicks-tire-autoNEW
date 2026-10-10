@@ -96,6 +96,7 @@ import { ExecutionCoachSandbox } from "./execution-coach-sandbox";
 
 import { trpc } from "@/lib/trpc/client";
 import { DOMAINS } from "@/lib/mastery/config";
+import { scrollBehavior } from "@/lib/ui/scroll-behavior";
 
 type Horizon = "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR" | "LIFE";
 
@@ -193,12 +194,28 @@ const HORIZON_LABELS: Record<string, { label: string; accent: string }> = {
   LIFE: { label: "Life", accent: "text-pink-400 border-pink-500/30 bg-pink-500/5" },
 };
 
+/**
+ * Which goal-list state to render. 2026-10-10 · audit 02-F13: a failed read
+ * with nothing on screen is "error", never the first-goal onboarding; a failed
+ * refresh keeps the goals already shown. Exported for the test.
+ */
+export function goalListView(
+  loading: boolean,
+  loadError: string | null,
+  count: number,
+): "loading" | "error" | "empty" | "list" {
+  if (loading) return "loading";
+  if (count > 0) return "list";
+  return loadError ? "error" : "empty";
+}
+
 export function GoalBoard() {
   // iOS-PWA-safe confirm · window.confirm() is silently suppressed in
   // standalone mode so the archive branch never fired on the phone.
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [goals, setGoals] = useState<LifeGoal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   // task.* tRPC for the goals CRUD. scattered-components slice
   // (2026-05-22) · the AI suggest/coach calls migrate now —
   // `/api/ai/suggest-goals` → `trpc.ai.suggestGoals`, `/api/ai/coach-goal`
@@ -286,7 +303,10 @@ export function GoalBoard() {
       // TS2589 "excessively deep" instantiation guard.
       const list = (d?.goals ?? []) as unknown as LifeGoal[];
       setGoals(list.filter((g) => g.status === "active"));
-    } catch {}
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err instanceof Error && err.message ? err.message : "no reason returned");
+    }
     setLoading(false);
   }, [utils]);
 
@@ -669,6 +689,8 @@ export function GoalBoard() {
     [load, coachGoalMut]
   );
 
+  const listView = goalListView(loading, loadError, goals.length);
+
   return (
     <div className="space-y-3">
       {/* ── Add + suggest ── */}
@@ -842,13 +864,18 @@ export function GoalBoard() {
       )}
 
       {/* ── Goal cards ── */}
-      {loading ? (
+      {listView === "loading" ? (
         <div className="space-y-2">
           {[1, 2].map((i) => (
             <ShimmerSkeleton key={i} className="h-20 rounded-surface" />
           ))}
         </div>
-      ) : goals.length === 0 ? (
+      ) : listView === "error" ? (
+        <div className="text-center py-8 rounded-surface border border-edge-subtle bg-content">
+          <p className="text-[12px] text-fg-secondary">Goals unknown · read failed</p>
+          <p className="text-[11px] text-fg-tertiary">{loadError}</p>
+        </div>
+      ) : listView === "empty" ? (
         <div className="text-center py-8 rounded-surface border border-edge-subtle bg-content space-y-2">
           <Target size={20} className="mx-auto text-fg-tertiary" />
           <p className="text-[11px] text-fg-tertiary">
@@ -1279,7 +1306,7 @@ export function GoalBoard() {
                                   requestAnimationFrame(() =>
                                     document
                                       .getElementById(`goal-${pid}`)
-                                      ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+                                      ?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }),
                                   );
                                 }}
                                 title={`Part of: ${g.ladder!.parent!.title}`}
@@ -1771,7 +1798,7 @@ export function GoalBoard() {
                                   requestAnimationFrame(() =>
                                     document
                                       .getElementById(`goal-${c.id}`)
-                                      ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+                                      ?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }),
                                   );
                                 }}
                                 className="w-full flex items-center gap-2 rounded-control border border-edge-subtle bg-content px-2 py-1 hover:bg-surface-hover transition-colors text-left"

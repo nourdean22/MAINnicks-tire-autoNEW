@@ -82,7 +82,7 @@ export function HomeConsole() {
             <button
               type="button"
               onClick={() => void briefQ.refetch()}
-              className="mt-4 inline-flex min-h-[44px] items-center rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+              className="mt-4 inline-flex min-h-[44px] items-center rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
             >
               Retry
             </button>

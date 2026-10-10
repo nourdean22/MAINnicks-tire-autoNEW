@@ -187,7 +187,7 @@ export function JudgmentQueue({
           type="button"
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
-          className="mt-1 inline-flex min-h-[44px] w-full items-center justify-center gap-1 text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+          className="mt-1 inline-flex min-h-[44px] w-full items-center justify-center gap-1 text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
         >
           {expanded ? (
             <>
@@ -239,7 +239,7 @@ function JudgmentRow({
       <li>
         <Link
           href={item.href}
-          className="group flex min-h-[52px] items-start gap-3 py-3 transition-colors duration-150 hover:bg-raised/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+          className="group flex min-h-[52px] items-start gap-3 py-3 transition-colors duration-150 hover:bg-raised/50"
         >
           {kindChip}
           <span className="min-w-0 flex-1 text-[15px] leading-snug text-fg">
@@ -266,7 +266,7 @@ function JudgmentRow({
       <li>
         <Link
           href={item.href}
-          className="group flex min-h-[52px] items-start gap-3 py-3 transition-colors duration-150 hover:bg-raised/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+          className="group flex min-h-[52px] items-start gap-3 py-3 transition-colors duration-150 hover:bg-raised/50"
         >
           {kindChip}
           <span className="min-w-0 flex-1">
@@ -304,7 +304,7 @@ function JudgmentRow({
             disabled={busy}
             onClick={() => onCommitmentVerdict(item.id, "accept")}
             title="Accept — goes on the books as active"
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-control border border-emerald-500/25 bg-emerald-500/10 px-3 text-[13px] font-medium text-emerald-300 transition-colors duration-[var(--motion-state)] hover:bg-emerald-500/20 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-control border border-emerald-500/25 bg-emerald-500/10 px-3 text-[13px] font-medium text-emerald-300 transition-colors duration-[var(--motion-state)] hover:bg-emerald-500/20 disabled:opacity-50"
           >
             <Check className="h-3 w-3" /> Accept
           </button>
@@ -314,7 +314,7 @@ function JudgmentRow({
             onClick={() => onCommitmentVerdict(item.id, "dismiss")}
             aria-label="Dismiss proposal — remembered, never re-proposed"
             title="Dismiss — remembered, never re-proposed"
-            className="inline-flex size-11 items-center justify-center rounded-control border border-edge text-fg-tertiary transition-colors duration-150 hover:text-rose-300 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+            className="inline-flex size-11 items-center justify-center rounded-control border border-edge text-fg-tertiary transition-colors duration-150 hover:text-rose-300 disabled:opacity-50"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -334,7 +334,7 @@ function JudgmentRow({
           disabled={busy}
           onClick={() => onFollowupVerdict(item.id, "task")}
           title="Convert to task"
-          className="inline-flex min-h-[44px] items-center gap-1 rounded-control border border-edge-default px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+          className="inline-flex min-h-[44px] items-center gap-1 rounded-control border border-edge-default px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50"
         >
           <Plus className="h-3 w-3" /> Task
         </button>
@@ -344,7 +344,7 @@ function JudgmentRow({
           onClick={() => onFollowupVerdict(item.id, "dismiss")}
           aria-label="Dismiss follow-up"
           title="Dismiss follow-up"
-          className="inline-flex size-11 items-center justify-center rounded-control border border-edge text-fg-tertiary transition-colors duration-150 hover:text-fg disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+          className="inline-flex size-11 items-center justify-center rounded-control border border-edge text-fg-tertiary transition-colors duration-150 hover:text-fg disabled:opacity-50"
         >
           <Check className="h-3.5 w-3.5" />
         </button>
