@@ -13,7 +13,9 @@ const graph = (args: string[]) => args[args.indexOf("-filter_complex") + 1];
 describe("buildFinishArgs — audio", () => {
   it("master audio + music bed: the bed loops under the native track, the native track defines the length", () => {
     const args = buildFinishArgs({ ...base, musicPath: "bed.mp3", hasAudio: true });
-    expect(args.slice(args.indexOf("-stream_loop"), args.indexOf("-stream_loop") + 4)).toEqual(["-stream_loop", "-1", "-i", "bed.mp3"]);
+    const loop = args.indexOf("-stream_loop");
+    expect(loop).toBeGreaterThan(-1);
+    expect(args.slice(loop, loop + 4)).toEqual(["-stream_loop", "-1", "-i", "bed.mp3"]);
     const g = graph(args);
     expect(g).toContain(`volume=${FINISH_MUSIC_VOLUME}`);
     expect(g).toContain("amix=inputs=2:duration=first:normalize=0");
