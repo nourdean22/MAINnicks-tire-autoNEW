@@ -146,26 +146,11 @@ export const POST = apiHandler(
         throw err;
       }
 
-      log.info("stripe_order_recorded", { orderId: order.id, contactId: contact.id, productId: product.id });
-
-      // 4. Send event to Inngest for down-stream workflows
-      try {
-        const { getInngest } = await import("@/lib/inngest/client");
-        await getInngest().send({
-          name: "stripe/checkout.completed",
-          data: {
-            orderId: order.id,
-            contactId: contact.id,
-            productId: product.id,
-            email,
-            name,
-            amountCents,
-          },
-        });
-        log.info("inngest_stripe_event_dispatched", { orderId: order.id });
-      } catch (e) {
-        log.error("failed_dispatching_inngest_stripe_event", { error: String(e) });
-      }
+      // Terminal step: the Order is written "paid" above, in this request.
+      // There is no downstream fulfilment workflow. The old
+      // `stripe/checkout.completed` Inngest send had no listener (03-F5) and
+      // only shipped the customer's email/name to Inngest for nothing.
+      log.info("stripe_order_recorded_paid", { orderId: order.id, contactId: contact.id, productId: product.id });
     }
 
     return { received: true };

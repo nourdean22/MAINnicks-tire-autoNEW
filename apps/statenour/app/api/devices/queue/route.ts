@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSyncAuth } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
+import { logger } from "@/lib/logger";
+
+const log = logger.withSurface("api/devices/queue");
 
 export const runtime = "nodejs";
 export const maxDuration = 10;
@@ -30,15 +33,17 @@ export const maxDuration = 10;
  *     count, now: ISO }
  *
  * Each returned command is immediately marked status="sent" with
- * sentAt=now so the agent doesn't re-claim on the next poll. If
- * the agent crashes before acking, the command stays "sent" — the
+ * sentAt=now so the agent doesn't re-claim on the next poll. The
  * ack endpoint (PATCH /api/devices/command/[id]) is idempotent so
- * a fresh ack on retry works cleanly. A "resurrect stuck sents"
- * cron could later flip sents > N min back to pending if needed;
- * not built yet because volume is low.
+ * a fresh ack on retry works cleanly. If the agent crashes before
+ * acking, each poll reclaims it (03-F16): unacked 1 h after sentAt
+ * -> back to "pending" ONCE (marked in `error`); unacked 1 h after
+ * that re-send -> "failed". Never re-sent a second time.
  */
 
 const MAX_BATCH = 20;
+const SENT_ACK_TIMEOUT_MS = 60 * 60 * 1000;
+const RECLAIM_MARK = "reclaimed: no ack within 1h of send; re-sent once";
 
 export async function GET(req: NextRequest) {
   try {
@@ -66,6 +71,22 @@ export async function GET(req: NextRequest) {
       MAX_BATCH,
       Math.max(1, parseInt(url.searchParams.get("limit") ?? "10", 10))
     );
+
+    // Bounded reclaim of unacked "sent" commands. Strike two first: an
+    // already-reclaimed command that is stale again fails for good. Then
+    // strike one: any other stale "sent" goes back to pending, marked.
+    const staleBefore = new Date(Date.now() - SENT_ACK_TIMEOUT_MS);
+    const failed = await prisma.deviceCommand.updateMany({
+      where: { status: "sent", sentAt: { lt: staleBefore }, error: RECLAIM_MARK },
+      data: { status: "failed", error: "no ack within 1h, twice (sent, then re-sent once); not retried again" },
+    });
+    const reclaimed = await prisma.deviceCommand.updateMany({
+      where: { status: "sent", sentAt: { lt: staleBefore } },
+      data: { status: "pending", sentAt: null, error: RECLAIM_MARK },
+    });
+    if (failed.count > 0 || reclaimed.count > 0) {
+      log.warn("device_commands_unacked", { reclaimed: reclaimed.count, failed: failed.count });
+    }
 
     // Transactional: fetch pending rows, immediately flip to "sent"
     // in a single query. Postgres skip-locked semantics aren't

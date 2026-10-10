@@ -84,19 +84,28 @@ export class GuardianApprovalPendingError extends Error {
   }
 }
 
+/**
+ * How long an approval's ActionAttempt holds its key. Outlives any approval
+ * (24h max lifetime, and the sweeper ignores rows older than 48h), so
+ * `approval:<id>` can never be re-claimed while that approval could still run.
+ */
+const APPROVAL_ATTEMPT_HOLD_MS = 48 * 60 * 60 * 1000;
+
+/** A prior attempt for this approval exists: it may already have run. */
+class ApprovalAlreadyAttemptedError extends Error {}
+
 export async function executeApprovedToolAsync(requestId: string): Promise<void> {
   try {
-    const staleTime = new Date(Date.now() - 5 * 60 * 1000); // 5 min TTL
+    // Only `approved` is claimable. A stale `executing` row is NOT re-run: its
+    // effect may have happened before `executed` was written (08-F1). The
+    // approval sweeper moves those to `needs_review` for a human.
     const claim = await prisma.approvalRequest.updateMany({
-      where: { 
-        id: requestId, 
+      where: {
+        id: requestId,
         // An expired approval authorizes nothing (approval-freshness.ts);
         // pinned in the claim so no path past the approve mutation can run it.
         expiresAt: { gt: new Date() },
-        OR: [
-          { status: "approved" },
-          { status: "executing", updatedAt: { lt: staleTime } }
-        ]
+        status: "approved",
       },
       data: { status: "executing" },
     });
@@ -113,14 +122,14 @@ export async function executeApprovedToolAsync(requestId: string): Promise<void>
       throw new Error(`Request ${requestId} not found`);
     }
 
-    let result: any;
-    const pending = pendingExecutions.get(requestId);
+    const dispatch = async (): Promise<any> => {
+      const pending = pendingExecutions.get(requestId);
 
-    if (pending) {
-      // Same-process fast path · exact original closure + args (already
-      // patched by approveApprovalRequest when the payload was edited).
-      result = await guardianBypassStorage.run(true, () => pending.fn(...pending.args));
-    } else {
+      if (pending) {
+        // Same-process fast path · exact original closure + args (already
+        // patched by approveApprovalRequest when the payload was edited).
+        return guardianBypassStorage.run(true, () => pending.fn(...pending.args));
+      }
       // Pod restarted (or entry evicted) since the request was created.
       // Importing the tools module re-runs every withGuardian wrap, which
       // repopulates durableToolExecutors — so the import MUST precede the
@@ -131,27 +140,48 @@ export async function executeApprovedToolAsync(requestId: string): Promise<void>
         // Re-dispatch from the DB row's payload (reflects operator edits).
         // Runs under bypass, so the guarded fn skips the approval gate and
         // executes with the normal retry/timeout envelope.
-        result = await guardianBypassStorage.run(true, () => durable(request.payload));
-      } else {
-        // Legacy last resort for pre-registry requests.
-        // A sink-policy row (lib/tools/sink-policy.ts) stores the nourTools key itself.
-        const toolName = TOOL_MAP[request.toolId] ?? request.toolId;
-        const toolObj = toolName ? (nourTools as any)[toolName] : null;
-        if (toolObj && typeof toolObj.execute === "function") {
-          result = await guardianBypassStorage.run(true, () => toolObj.execute(request.payload));
-        } else {
-          // Third tier: executeActionWithoutTracing for unmapped cross-system tools (like shop.sendSms)
-          const { executeActionWithoutTracing } = await import("@/lib/ai/nick-agent");
-          const actionResult = await guardianBypassStorage.run(true, () => 
-            executeActionWithoutTracing({ type: request.toolId as any, params: request.payload as Record<string, unknown> })
-          );
-          if (!actionResult.success) {
-            throw new Error(actionResult.error || `Action ${request.toolId} failed`);
-          }
-          result = actionResult.result;
-        }
+        return guardianBypassStorage.run(true, () => durable(request.payload));
       }
-    }
+      // Legacy last resort for pre-registry requests.
+      // A sink-policy row (lib/tools/sink-policy.ts) stores the nourTools key itself.
+      const toolName = TOOL_MAP[request.toolId] ?? request.toolId;
+      const toolObj = toolName ? (nourTools as any)[toolName] : null;
+      if (toolObj && typeof toolObj.execute === "function") {
+        return guardianBypassStorage.run(true, () => toolObj.execute(request.payload));
+      }
+      // Third tier: executeActionWithoutTracing for unmapped cross-system tools (like shop.sendSms)
+      const { executeActionWithoutTracing } = await import("@/lib/ai/nick-agent");
+      const actionResult = await guardianBypassStorage.run(true, () =>
+        executeActionWithoutTracing({ type: request.toolId as any, params: request.payload as Record<string, unknown> })
+      );
+      if (!actionResult.success) {
+        throw new Error(actionResult.error || `Action ${request.toolId} failed`);
+      }
+      return actionResult.result;
+    };
+
+    // Keyed by approvalId in the ActionAttempt ledger (beginAttempt): a prior
+    // attempt for this approval blocks a rerun. A throw settles UNKNOWN (it may
+    // have committed). An unwritable ledger fails open like every other
+    // withToolIdempotency caller: the status claim above is already the
+    // once-only guard, and failing closed would silently drop an approved action.
+    const { withToolIdempotency } = await import("@/lib/ai/tools/tool-idempotency");
+    const result = await withToolIdempotency(
+      `approval:${requestId}`,
+      APPROVAL_ATTEMPT_HOLD_MS,
+      dispatch,
+      (prior) => {
+        throw new ApprovalAlreadyAttemptedError(
+          `A prior attempt for this approval exists (${prior?.attemptState ?? prior?.state ?? "unknown"}); not re-run; review whether it took effect.`,
+        );
+      },
+      undefined,
+      {
+        durable: { tool: request.toolId, effectClass: "write" },
+        classifyError: () => "unknown",
+        unknownWindowMs: APPROVAL_ATTEMPT_HOLD_MS,
+      },
+    );
 
     await prisma.approvalRequest.update({
       where: { id: requestId },
@@ -166,7 +196,7 @@ export async function executeApprovedToolAsync(requestId: string): Promise<void>
     await prisma.approvalRequest.update({
       where: { id: requestId },
       data: {
-        status: "failed",
+        status: err instanceof ApprovalAlreadyAttemptedError ? "needs_review" : "failed",
         resultPayload: { error: errMsg },
       },
     });
