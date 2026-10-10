@@ -7,7 +7,7 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
-## Instagram audit, the nine must-fix items (2026-10-10, PR after #2975) -- BUILT + TESTED; PR open
+## Instagram audit, the nine must-fix items (2026-10-10, PR #2976) -- MERGED (main `0b02c436d`); Railway deployment `b9b92a85` SUCCESS, `/api/health` healthy on `0b02c436d` at 16:09:00Z. `SOCIAL_INVENTORY_PUBLISH_ENABLED` deleted from the service 17:3xZ (no redeploy). B1 still unproven on a paid render
 
 Report: `docs/audits/INSTAGRAM-AUDIT-2026-10-10.md` (31 findings over the publish routers, the reel pipeline and the admin pages). The nine "must fix" items landed together, each with a test that was red first.
 
@@ -19,7 +19,7 @@ Report: `docs/audits/INSTAGRAM-AUDIT-2026-10-10.md` (31 findings over the publis
 - **B3, the repair claim counts.** `attempts = attempts + 1` in SQL on the repair claim, so `recoverStuckReelJobs`' cap trips after three redeploy interruptions instead of re-rendering forever.
 - **C1-C3, honest pages.** Settings renders a failed read as UNKNOWN with Retry (not three red "fix your keys" cards). ReelQueue's reject reports the server's refusal. Today reads `instagramStudio.board` and keys on `health`, so a STALLED schedule (marked scheduled with nothing pending to fire it) is listed instead of "Nothing needs you, verified".
 
-## Beat subject leads the lens in clip prompts (2026-10-10, PR after #2973) -- BUILT + TESTED; PR open
+## Beat subject leads the lens in clip prompts (2026-10-10, PR #2974) -- MERGED (main `b18c41879`); live with deployment `b9b92a85`; unproven on a paid render
 
 **Operator decision 2026-10-10 14:00Z: Seedance 2.5 stays the production clip model** (`REEL_CLIP_MODEL=seedance_2_5` on Railway; about 26 credits per 4 s clip, about 130 per 5-beat reel, vs 12 / 60 on 1.5).
 
@@ -27,7 +27,7 @@ On reel 2070005 three of five beats rendered the X-ray lens instead of the descr
 
 - `buildHiggsfieldReelPromptPack`: the quoted frame prompt now points at the Style grammar line instead of repeating it, and every beat prompt ends with `This shot must show: <subject> ... the style never replaces the subject.`, after the visual-world and realism blocks. Subject before grammar, restated last.
 - Pinned: `server/reelSourceAware.test.ts` 'beat subject leads the lens' (3). No per-beat vision check was added: it would cost a vision call per beat; the voted critic judges the assembled reel.
-## Pipeline controls: run any cron job now, advance one reel now (2026-10-10, PR after #2971) -- BUILT + TESTED; PR open
+## Pipeline controls: run any cron job now, advance one reel now (2026-10-10, PR #2973) -- MERGED (main `180646e64`); live with deployment `b9b92a85`; first operator use is the live proof
 
 Live proofs landed the same morning: the lane fix (#2966) parked Reel #1 as `qa_parked:unavailable_stale` on the 13:01Z pulse (selected: none) after a day of hourly re-selection; the voted critic (#2952) judged its first pipeline reel with `runs 3 / agreedBlocks 3 / droppedBlocks 2`; the Seedance 2.5 test reel 2070005 (craft 80) was published on the operator's instruction under a recorded override as https://www.instagram.com/reel/DeUMKRVgnQl/.
 
