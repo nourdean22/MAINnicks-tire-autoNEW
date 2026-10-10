@@ -389,7 +389,7 @@ export function ChatMessageList({
           <p className="mt-2 max-w-[48ch] text-[15px] leading-relaxed text-fg-secondary">
             Live business data, memory, tasks, research, and verified system actions from one surface.
           </p>
-          {connection !== "online" && (
+          {(connection === "degraded" || connection === "offline") && (
             <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[12px] text-amber-300">
               <AlertTriangle size={12} /> Chat is degraded — run /diagnose for an independent check.
             </p>

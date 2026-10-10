@@ -21,7 +21,11 @@ vi.mock("@/lib/nickstire/revenue", () => ({ readNickRevenue: vi.fn() }));
 vi.mock("@/lib/brain/memory-manager", () => ({ brainMemory: { remember } }));
 vi.mock("@/lib/brain/relational-graph", () => ({ connect }));
 vi.mock("@/lib/ai/traced-aichat", () => ({ makeTracedAiChat: () => vi.fn() }));
-vi.mock("@/lib/nickstire/query", () => ({ queryNick, queryNickBatch }));
+vi.mock("@/lib/nickstire/query", async (orig) => ({
+  readBridge: (await orig<typeof import("@/lib/nickstire/query")>()).readBridge,
+  queryNick,
+  queryNickBatch,
+}));
 vi.mock("@/lib/errors/record-error", () => ({ recordError: vi.fn() }));
 vi.mock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
 

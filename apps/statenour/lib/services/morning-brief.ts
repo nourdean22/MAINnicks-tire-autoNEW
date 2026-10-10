@@ -67,9 +67,10 @@ interface MorningBrief {
   date: string;
   drift: string;
   topTask: string | null;
-  taskCount: number;
-  calendarConflicts: number;
-  unkeptCommitments: number;
+  /** null = the read failed (unknown), never a fabricated 0. */
+  taskCount: number | null;
+  calendarConflicts: number | null;
+  unkeptCommitments: number | null;
   text: string;
   /** Raw payload for the durable log row · namespaced by slice. */
   payload: Record<string, unknown>;
@@ -125,9 +126,9 @@ export async function buildMorningBrief(): Promise<MorningBrief> {
     date: todayIso,
     drift: (flat.drift as string) ?? "LOW",
     topTask: (flat.topTask as string | null) ?? null,
-    taskCount: (flat.taskCount as number) ?? 0,
-    calendarConflicts: (flat.calendarConflicts as number) ?? 0,
-    unkeptCommitments: (flat.unkeptCommitments as number) ?? 0,
+    taskCount: (flat.taskCount as number | null) ?? null,
+    calendarConflicts: (flat.calendarConflicts as number | null) ?? null,
+    unkeptCommitments: (flat.unkeptCommitments as number | null) ?? null,
     text,
     payload: {
       personal: personal.payload,
@@ -273,7 +274,8 @@ export async function buildPersonalSlice(
         })
         .catch((err) => {
           logQueryFail("task_count", err);
-          return 0;
+          // Distinct from 0 open tasks: a failed count renders "unknown" (2026-10-10).
+          return null;
         }),
       prisma.commitment
         .findMany({
@@ -285,13 +287,13 @@ export async function buildPersonalSlice(
           take: 20,
           select: { id: true, description: true, deadline: true },
         })
-        .catch((err): never[] => {
+        .catch((err): null => {
           logQueryFail("commitments", err);
-          return [];
+          return null;
         }),
-      tryFetchCalendarToday().catch((err): never[] => {
+      tryFetchCalendarToday().catch((err): null => {
         logQueryFail("calendar", err);
-        return [];
+        return null;
       }),
     ]);
 
@@ -300,7 +302,7 @@ export async function buildPersonalSlice(
     : (latestDrift?.severity ?? "LOW").toUpperCase();
 
   // Calendar conflicts = events overlapping today.
-  const calendarConflicts = (
+  const calendarConflicts = calendarEvents === null ? null : (
     calendarEvents as Array<{ start?: string; end?: string }>
   ).filter((e) => {
     if (!e.start) return false;
@@ -317,13 +319,16 @@ export async function buildPersonalSlice(
   if (topTaskText) {
     lines.push(`Top: ${escapeHtml(topTaskText.slice(0, 100))}`);
   }
-  if (taskCount > 0) lines.push(`Open tasks: ${taskCount}`);
-  if (calendarConflicts > 0) {
+  if (taskCount === null) lines.push("Open tasks: unknown (read failed)");
+  else if (taskCount > 0) lines.push(`Open tasks: ${taskCount}`);
+  if (calendarConflicts === null) lines.push("Calendar: unknown (read failed)");
+  else if (calendarConflicts > 0) {
     lines.push(
       `Calendar: ${calendarConflicts} event${calendarConflicts === 1 ? "" : "s"}`,
     );
   }
-  if (activeCommitments.length > 0) {
+  if (activeCommitments === null) lines.push("Aging commits: unknown (read failed)");
+  else if (activeCommitments.length > 0) {
     const oldest = activeCommitments[0] as { description: string };
     lines.push(`Aging commits: ${activeCommitments.length}`);
     lines.push(`Oldest: ${escapeHtml(oldest.description.slice(0, 80))}`);
@@ -341,7 +346,7 @@ export async function buildPersonalSlice(
       topTask: topTaskText,
       taskCount,
       calendarConflicts,
-      unkeptCommitments: activeCommitments.length,
+      unkeptCommitments: activeCommitments?.length ?? null,
     },
   };
 }
@@ -723,13 +728,11 @@ function failedSlice(name: string): MorningBriefSlice {
   };
 }
 
+// Throws on failure: the caller renders "Calendar: unknown". Swallowing it here
+// made a dead calendar read as "no events today".
 async function tryFetchCalendarToday(): Promise<unknown[]> {
-  try {
-    const { listEvents } = await import("@/lib/services/calendar-api");
-    return await listEvents({ daysAhead: 1, maxResults: 20 });
-  } catch {
-    return [];
-  }
+  const { listEvents } = await import("@/lib/services/calendar-api");
+  return await listEvents({ daysAhead: 1, maxResults: 20 });
 }
 
 function escapeHtml(s: string): string {

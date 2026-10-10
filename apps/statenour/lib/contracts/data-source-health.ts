@@ -100,12 +100,11 @@ const PROBES: ProbeSpec[] = [
     name: "bridge.revenue_today",
     label: "queryNick(revenue_today)",
     probe: timed(async () => {
-      const { queryNick } = await import("@/lib/nickstire/query");
-      const res = await queryNick<{ totalDollars?: number; invoiceCount?: number }>(
-        "revenue_today",
-      );
-      if ("error" in res) {
-        return { ok: false, rowCount: 0, latencyMs: 0, reason: res.error };
+      const { queryNick, readBridge } = await import("@/lib/nickstire/query");
+      // readBridge: a 200 carrying `{ error: "No DB" }` is a failed probe, not ok with 0 rows.
+      const res = readBridge<{ totalDollars?: number; invoiceCount?: number }>(await queryNick("revenue_today"));
+      if (res.status !== "ok") {
+        return { ok: false, rowCount: 0, latencyMs: 0, reason: res.reason };
       }
       const count = Number(res.data?.invoiceCount ?? 0);
       return { ok: true, rowCount: count, latencyMs: 0 };
@@ -117,12 +116,13 @@ const PROBES: ProbeSpec[] = [
     name: "bridge.attention_needed",
     label: "queryNick(attention_needed)",
     probe: timed(async () => {
-      const { queryNick } = await import("@/lib/nickstire/query");
-      const res = await queryNick<{ items?: unknown[] }>("attention_needed");
-      if ("error" in res) {
-        return { ok: false, rowCount: 0, latencyMs: 0, reason: res.error };
+      const { queryNick, readBridge } = await import("@/lib/nickstire/query");
+      const res = readBridge<{ alerts?: unknown[] }>(await queryNick("attention_needed"));
+      if (res.status !== "ok") {
+        return { ok: false, rowCount: 0, latencyMs: 0, reason: res.reason };
       }
-      const items = Array.isArray(res.data?.items) ? res.data.items : [];
+      // The handler sends `alerts`; this read `items`, so it always counted 0.
+      const items = Array.isArray(res.data?.alerts) ? res.data.alerts : [];
       // attention_needed legitimately can be 0 (no attention items =
       // shop healthy). A consistent zero is informational, not an
       // alert. Threshold is high.

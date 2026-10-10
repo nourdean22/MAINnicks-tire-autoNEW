@@ -14,6 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logError } from "@/lib/utils/error-log";
+import { readBridge } from "@/lib/nickstire/query";
 
 export const habitsTools = {
   getHabitStreaks: tool({
@@ -73,20 +74,20 @@ export const habitsTools = {
             orderBy: { updatedAt: "desc" },
             select: { content: true, updatedAt: true },
           })
-          .catch((err): Array<{ content: string; updatedAt: Date }> => {
+          .catch((err): null => {
             logError("ai.tools-habits", err, { fn: "weeklyReview", scope: "snapshots" });
-            return [];
+            return null;
           }),
         // deletedAt:null on BOTH — these are the numerator and denominator of
         // the weekly completion rate reported to Nick. Filtering only one side
         // would skew the rate rather than fix it.
         prisma.task.count({ where: { status: "DONE", updatedAt: { gte: daysAgo(7) }, deletedAt: null } }).catch((err) => {
           logError("ai.tools-habits", err, { fn: "weeklyReview", scope: "tasksCompleted" });
-          return 0;
+          return null;
         }),
         prisma.task.count({ where: { createdAt: { gte: daysAgo(7) }, deletedAt: null } }).catch((err) => {
           logError("ai.tools-habits", err, { fn: "weeklyReview", scope: "tasksCreated" });
-          return 0;
+          return null;
         }),
         // v10.0.54 · habit history → DAILY-loop tasks completed in
         // last 7d. Streak count is the durable metric; we surface
@@ -100,9 +101,9 @@ export const habitsTools = {
             },
             select: { title: true, streakCount: true },
           })
-          .catch((err): Array<{ title: string; streakCount: number }> => {
+          .catch((err): null => {
             logError("ai.tools-habits", err, { fn: "weeklyReview", scope: "dailyHabits" });
-            return [];
+            return null;
           }),
         prisma.brainMemory
           .findMany({
@@ -114,15 +115,18 @@ export const habitsTools = {
             },
             select: { metadata: true },
           })
-          .catch((err) => {
+          .catch((err): null => {
             logError("ai.tools-habits", err, { fn: "weeklyReview", scope: "alerts" });
-            return [];
+            return null;
           }),
       ]);
 
       // Parse score snapshots
       const scores: Array<{ date: string; overallScore: number | null }> = [];
-      for (const row of scoreSnapshots) {
+      // 2026-10-10 · a failed read is UNKNOWN in the reply, never 0 / [] / a 0% rate.
+      const UNKNOWN = "unknown (read failed)";
+      const revenueRead = readBridge(revenue);
+      for (const row of scoreSnapshots ?? []) {
         try {
           const parsed = JSON.parse(row.content) as { score?: number };
           scores.push({
@@ -136,23 +140,30 @@ export const habitsTools = {
       }
 
       const habits: Record<string, number> = {};
-      for (const t of dailyHabits) habits[t.title] = t.streakCount;
+      for (const t of dailyHabits ?? []) habits[t.title] = t.streakCount;
 
       return {
-        revenue,
-        scores: scores.map((s) => ({ date: s.date, score: s.overallScore })),
+        revenue: revenueRead.status === "ok" ? revenueRead.data : revenueRead,
+        scores: scoreSnapshots ? scores.map((s) => ({ date: s.date, score: s.overallScore })) : UNKNOWN,
         avgScore: scores.length > 0
           ? Math.round(scores.reduce((s, d) => s + (d.overallScore ?? 0), 0) / scores.length * 10) / 10
           : null,
-        tasks: { completed: tasksCompleted, created: tasksCreated, completionRate: tasksCreated > 0 ? Math.round((tasksCompleted / tasksCreated) * 100) : 0 },
-        habits,
-        driftAlerts: {
-          total: alerts.length,
-          resolved: alerts.filter((a) => {
-            const meta = (a.metadata ?? {}) as Record<string, unknown>;
-            return !!meta.ackedAt;
-          }).length,
+        tasks: {
+          completed: tasksCompleted ?? UNKNOWN,
+          created: tasksCreated ?? UNKNOWN,
+          completionRate:
+            tasksCompleted === null || tasksCreated === null ? null : tasksCreated > 0 ? Math.round((tasksCompleted / tasksCreated) * 100) : 0,
         },
+        habits: dailyHabits ? habits : UNKNOWN,
+        driftAlerts: alerts
+          ? {
+              total: alerts.length,
+              resolved: alerts.filter((a) => {
+                const meta = (a.metadata ?? {}) as Record<string, unknown>;
+                return !!meta.ackedAt;
+              }).length,
+            }
+          : UNKNOWN,
       };
     },
   }),

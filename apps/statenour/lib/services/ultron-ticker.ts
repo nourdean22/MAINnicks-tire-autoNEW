@@ -25,7 +25,7 @@
 
 import { cached } from "@/lib/utils/cache";
 import { computeInputs, generateTimelines, type Timeline } from "@/lib/ultron/timelines";
-import { queryNickBatch } from "@/lib/nickstire/query";
+import { queryNickBatch, readBridge } from "@/lib/nickstire/query";
 import type { Nudge } from "@/lib/brain/cross-system-nudge";
 import type { IdentityAxis, AxisKey } from "@/lib/brain/identity-snapshot";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
@@ -113,10 +113,10 @@ function timelineToTickerItem(t: Timeline): TickerItem {
 
 /**
  * Fetch a compact shop pulse from nickstire via the shared query API.
- * Failure is silent · the ticker renders without shop items rather
- * than blocking on nickstire latency.
+ * A failed read is one "unknown" item naming what could not be read,
+ * never silence (silence read as "nothing to report"). Exported for tests.
  */
-async function fetchShopPulse(): Promise<TickerItem[]> {
+export async function fetchShopPulse(): Promise<TickerItem[]> {
   try {
     const results = await queryNickBatch([
       { query: "revenue_today" },
@@ -126,12 +126,15 @@ async function fetchShopPulse(): Promise<TickerItem[]> {
     ]);
 
     const items: TickerItem[] = [];
-    const unwrap = (r: unknown) =>
-      (r as Record<string, unknown> | undefined)?.data as
-        | Record<string, unknown>
-        | undefined;
+    const unknownReads: string[] = [];
+    const unwrap = (r: unknown, name: string) => {
+      const read = readBridge<Record<string, unknown>>(r);
+      if (read.status === "ok") return read.data ?? undefined;
+      unknownReads.push(name);
+      return undefined;
+    };
 
-    const rev = unwrap(results.revenue_today);
+    const rev = unwrap(results.revenue_today, "revenue");
     if (rev && typeof rev.totalDollars === "number") {
       const jobs = typeof rev.invoiceCount === "number" ? rev.invoiceCount : 0;
       items.push({
@@ -144,7 +147,7 @@ async function fetchShopPulse(): Promise<TickerItem[]> {
       });
     }
 
-    const leads = unwrap(results.leads_urgent);
+    const leads = unwrap(results.leads_urgent, "leads");
     if (leads && typeof leads.count === "number" && leads.count > 0) {
       items.push({
         id: "shop-leads",
@@ -156,7 +159,7 @@ async function fetchShopPulse(): Promise<TickerItem[]> {
       });
     }
 
-    const callbacks = unwrap(results.callbacks_pending);
+    const callbacks = unwrap(results.callbacks_pending, "callbacks");
     if (callbacks && typeof callbacks.count === "number" && callbacks.count > 0) {
       items.push({
         id: "shop-callbacks",
@@ -168,24 +171,35 @@ async function fetchShopPulse(): Promise<TickerItem[]> {
       });
     }
 
-    const attn = unwrap(results.attention_needed);
+    const attn = unwrap(results.attention_needed, "attention");
     if (attn && Array.isArray(attn.alerts)) {
       const topAlert = (attn.alerts as Array<Record<string, unknown>>)[0];
-      if (topAlert && typeof topAlert.msg === "string") {
+      // nickstire's attention_needed sends `message`; this read `msg`, so the item never rendered.
+      if (topAlert && typeof topAlert.message === "string") {
         items.push({
           id: "shop-attn",
           category: BRAIN_CATEGORIES.SHOP,
           symbol: "ATTN",
-          label: String(topAlert.msg).slice(0, 80),
+          label: String(topAlert.message).slice(0, 80),
           severity: "warn",
           href: "https://nickstire.org/admin",
         });
       }
     }
 
+    if (unknownReads.length > 0) {
+      items.push({
+        id: "shop-unknown",
+        category: BRAIN_CATEGORIES.SHOP,
+        symbol: "SHOP",
+        label: `Shop ${unknownReads.join(", ")}: unknown (bridge read failed)`,
+        severity: "warn",
+        href: "https://nickstire.org/admin",
+      });
+    }
     return items;
   } catch {
-    return [];
+    return [{ id: "shop-unknown", category: BRAIN_CATEGORIES.SHOP, symbol: "SHOP", label: "Shop data unknown (bridge read failed)", severity: "warn" }];
   }
 }
 

@@ -23,7 +23,8 @@
  */
 
 export type ProviderTone = "green" | "amber" | "red";
-export type ConnectionState = "online" | "degraded" | "offline";
+// "unknown": no stream observed yet; the badge then rests on provider health alone.
+export type ConnectionState = "unknown" | "online" | "degraded" | "offline";
 
 export interface CapabilityInputs {
   connection: ConnectionState;

@@ -24,7 +24,8 @@ export interface ContradictionLog {
 
 export type ChatUiState = {
   draft: string;
-  connection: "online" | "degraded" | "offline";
+  /** "unknown" until the stream has been observed: nothing is measured on mount. */
+  connection: "unknown" | "online" | "degraded" | "offline";
   activeConversationId: string | null;
   pending: PendingSend[];
   diagnosticReport: string | null;
@@ -76,7 +77,7 @@ export type ChatUiState = {
 
 export const useChatUiStore = create<ChatUiState>((set) => ({
   draft: "",
-  connection: "online",
+  connection: "unknown",
   activeConversationId: null,
   pending: [],
   diagnosticReport: null,

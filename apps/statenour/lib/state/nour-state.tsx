@@ -89,7 +89,8 @@ export interface NourState {
   weekRevenue: number | null;
   /** Why revenue is unknown; null when a reading exists. */
   revenueReason: string | null;
-  pipelineValue: number;
+  /** null = not measured (no source since 2026-04-17), never a fabricated $0. */
+  pipelineValue: number | null;
   pipelineDecay: number;
   staleLeads: number;
   pendingCallbacks: number;
@@ -131,7 +132,7 @@ const DEFAULT_STATE: NourState = {
   todayRevenue: null,
   weekRevenue: null,
   revenueReason: "not loaded yet",
-  pipelineValue: 0,
+  pipelineValue: null,
   pipelineDecay: 0,
   staleLeads: 0,
   pendingCallbacks: 0,
@@ -282,7 +283,7 @@ export function NourStateProvider({ children }: { children: ReactNode }) {
         todayRevenue: cmd?.shop?.todayRevenue ?? null,
         weekRevenue: cmd?.shop?.weekRevenue ?? null,
         revenueReason: cmd ? (cmd.shop?.revenueReason ?? null) : "command data unavailable",
-        pipelineValue: aging?.rawPipelineValue ?? 0,
+        pipelineValue: aging?.rawPipelineValue ?? null,
         pipelineDecay: aging?.decayRate ?? 0,
         staleLeads: cmd?.brief?.staleLeads ?? 0,
         pendingCallbacks: cmd?.brief?.pendingCallbacks ?? 0,
