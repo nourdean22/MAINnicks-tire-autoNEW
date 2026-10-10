@@ -37,7 +37,6 @@ const FANOUT_SIBLING_ROUTES: ReadonlySet<string> = new Set(
 export interface AutonomicOrchestratorResult {
   healedCrons: string[];
   cronErrors: string[];
-  vacuumedTables: string[];
   ollamaQuotaTripped: boolean;
   rescuedWorkItems: string[];
   archivedTasksCount: number;
@@ -50,7 +49,6 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
   const result: AutonomicOrchestratorResult = {
     healedCrons: [],
     cronErrors: [],
-    vacuumedTables: [],
     ollamaQuotaTripped: false,
     rescuedWorkItems: [],
     archivedTasksCount: 0,
@@ -200,73 +198,14 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
   }
 
   // ---------------------------------------------------------------------------
-  // Phase 2: Database Health Engine
+  // Phase 2: REMOVED 2026-10-10 (audit 08-F10 / 05-M14)
   // ---------------------------------------------------------------------------
-  let pgModule: any;
-  try {
-    pgModule = await import("pg");
-  } catch {
-    log.error("pg_module_load_failed");
-  }
-
-  if (pgModule) {
-    const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL || "";
-    if (connectionString) {
-      const ClientCtor = pgModule.Client ?? pgModule.default?.Client;
-      if (ClientCtor) {
-        const client = new ClientCtor({ connectionString });
-        try {
-          await client.connect();
-
-          // 1. Bloat and Size-Based VACUUM
-          const statsRes = await client.query(`
-            SELECT c.relname AS table_name,
-                   pg_total_relation_size(c.oid)::bigint AS total_bytes,
-                   s.n_dead_tup AS dead_rows,
-                   s.n_live_tup AS live_rows
-            FROM pg_class c
-            JOIN pg_namespace n ON n.oid = c.relnamespace
-            LEFT JOIN pg_stat_user_tables s ON s.relname = c.relname AND s.schemaname = n.nspname
-            WHERE n.nspname = 'public' AND c.relkind = 'r';
-          `);
-
-          const targetTables = ["CronJobLog", "system_metrics", "AuditEvent", "api_request_logs", "error_logs", "agent_traces"];
-          const SIZE_THRESHOLD_BYTES = 50 * 1024 * 1024; // 50MB
-
-          for (const row of statsRes.rows) {
-            const tableName = row.table_name;
-            const totalBytes = Number(row.total_bytes || 0);
-            const deadRows = Number(row.dead_rows || 0);
-            const liveRows = Number(row.live_rows || 0);
-            const totalRows = deadRows + liveRows;
-            const ratio = totalRows > 0 ? deadRows / totalRows : 0;
-
-            const isBloated = deadRows > 1000 && ratio > 0.20;
-            const isTooLarge = targetTables.includes(tableName) && totalBytes > SIZE_THRESHOLD_BYTES;
-
-            if (isBloated || isTooLarge) {
-              log.info("triggering_vacuum", { table: tableName, deadRows, ratio, totalBytes, isTooLarge });
-              await client.query(`VACUUM ANALYZE "${tableName}"`);
-              result.vacuumedTables.push(tableName);
-            }
-          }
-
-          // 2026-10-10 · the HNSW auto-REINDEX is GONE, not renamed. It fired on
-          // average LLM trace latency > 150 ms (unrelated to the index), named an
-          // index prod does not have (42P01 every night), and with the name fixed
-          // would rebuild a 295 MB index nightly: the Neon compute risk that
-          // already pushed the project read-only. Rebuilds are operator-run
-          // (scripts/reindex-vector-index.ts).
-        } catch (dbErr) {
-          log.error("db_health_engine_failed", { error: dbErr instanceof Error ? dbErr.message : String(dbErr) });
-        } finally {
-          await client.end().catch(() => {});
-        }
-      }
-    } else {
-      log.error("db_connection_string_missing");
-    }
-  }
+  // The "Database Health Engine" opened a direct pg connection every night,
+  // VACUUMed any bloated or >50 MB table, and REINDEXed the 295 MB HNSW index
+  // whenever average LLM trace latency passed 150 ms (unrelated to the index,
+  // and under a name prod does not have). Unbounded compute on Neon is the risk
+  // that already pushed the project read-only. Postgres autovacuum owns routine
+  // vacuuming; an index rebuild is operator-run (scripts/reindex-vector-index.ts).
 
   // ---------------------------------------------------------------------------
   // Phase 3: Pipeline Self-Healing & Quota Circuit Breaker
@@ -294,10 +233,13 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
       // Billing signals only. Timeouts/resets used to count here, so three slow
       // calls marked the single prod provider quota-exhausted: a slowdown
       // became a full outage for the cooldown window.
-      const isQuotaSignal = /402|payment|insufficient|credit/.test(msg);
+      const isQuotaSignal = /\b402\b|payment|insufficient|credit/.test(msg);
+      // Instant trip: phrases, not substrings. The old /402|quota|limit/ fired
+      // on "time limit exceeded" and on a duration like "4021ms".
+      const isQuotaError = /\b402\b|quota|insufficient credit|rate[ -]?limit/.test(msg);
 
       if (provider === "ollama") {
-        if (/402|quota|limit/.test(msg)) {
+        if (isQuotaError) {
           result.ollamaQuotaTripped = true;
         } else if (isQuotaSignal) {
           ollamaErrorsCount++;
@@ -444,13 +386,13 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
       subjectId: "autonomic-orchestrator",
       priority: "P2",
       title: "Autonomic Orchestrator Run Completed",
-      body: `Phase 1: Healed ${result.healedCrons.length} crons. Phase 2: Vacuumed ${result.vacuumedTables.length} tables. Phase 3: Ollama Quota tripped: ${result.ollamaQuotaTripped}. Rescued ${result.rescuedWorkItems.length} work items. Phase 4: Archived ${result.archivedTasksCount} stale tasks. Phase 5: Decomposed ${result.decomposedTasksCount} stalled tasks.`,
+      body: `Phase 1: Healed ${result.healedCrons.length} crons. Phase 3: Ollama Quota tripped: ${result.ollamaQuotaTripped}. Rescued ${result.rescuedWorkItems.length} work items. Phase 4: Archived ${result.archivedTasksCount} stale tasks. Phase 5: Decomposed ${result.decomposedTasksCount} stalled tasks.`,
       surfaces: ["scoreboard", "home"],
     });
   } catch (eventErr) {
     log.error("unified_event_logging_failed", { error: eventErr instanceof Error ? eventErr.message : String(eventErr) });
   }
 
-  log.info("orchestrator_completed", { healed: result.healedCrons.length, vacuumed: result.vacuumedTables.length, decomposed: result.decomposedTasksCount });
+  log.info("orchestrator_completed", { healed: result.healedCrons.length, decomposed: result.decomposedTasksCount });
   return result;
 }

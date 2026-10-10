@@ -35,7 +35,7 @@ export type CronRow = CronDef & {
   success14d: number;
   partial14d: number;
   fail14d: number;
-  successRate: number; // 0-100; 100 when no runs
+  successRate: number | null; // 0-100; null when no runs (no rate exists)
   recentDurations: number[]; // oldest → newest (for sparkline), last 20
   lastRunAt: string | null;
   lastRunMs: number | null;
@@ -126,6 +126,7 @@ export async function buildCronTree() {
       lastSuccessAt: null,
       lastFailAt: null,
       success14d: 0,
+      partial14d: 0,
       fail14d: 0,
     };
     const logs = (logsByName.get(c.name) ?? []).slice(0, 20).reverse(); // oldest → newest
@@ -133,8 +134,9 @@ export async function buildCronTree() {
     // partial divides by zero and reports a triumphant 100%. mega-evening
     // did exactly that for 1,248 consecutive runs.
     const total = st.success14d + st.partial14d + st.fail14d;
+    // 2026-10-10 · an empty window has no rate; it read "100%" before.
     const successRate =
-      total > 0 ? Math.round((st.success14d / total) * 100) : 100;
+      total > 0 ? Math.round((st.success14d / total) * 100) : null;
 
     let lastRunAt: string | null = null;
     let lastRunMs: number | null = null;

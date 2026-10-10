@@ -389,37 +389,25 @@ describe("services/autonomic-orchestrator", () => {
     );
   });
 
-  it("Phase 2: vacuums bloated tables and over-50MB tables", async () => {
-    // Mock pg stats query returning one bloated table, one large table
-    mocks.clientQuery.mockResolvedValueOnce({
+  it("runs NO database maintenance: no VACUUM, no REINDEX, no direct pg connection (2026-10-10, audit 08-F10 / 05-M14)", async () => {
+    // The old Phase 2 VACUUMed any bloated or >50MB table and rebuilt the
+    // 295 MB HNSW index whenever average LLM trace latency passed 150 ms (a
+    // signal unrelated to the index), on a direct connection, every night.
+    // Unbounded compute on Neon is the risk that already pushed the project
+    // read-only. Even with every trigger armed, nothing may run.
+    mocks.clientQuery.mockResolvedValue({
       rows: [
         { table_name: "CronJobLog", dead_rows: 1500, live_rows: 100, total_bytes: 100000 },
-        { table_name: "agent_traces", dead_rows: 10, live_rows: 1000, total_bytes: 60 * 1024 * 1024 }, // 60MB -> triggers vacuum
-        { table_name: "OkTable", dead_rows: 10, live_rows: 1000, total_bytes: 20000 },
+        { table_name: "agent_traces", dead_rows: 10, live_rows: 1000, total_bytes: 60 * 1024 * 1024 },
       ],
     });
-
-    const res = await runAutonomicOrchestrator();
-
-    expect(res.vacuumedTables).toContain("CronJobLog");
-    expect(res.vacuumedTables).toContain("agent_traces");
-    expect(res.vacuumedTables).not.toContain("OkTable");
-    expect(mocks.clientQuery).toHaveBeenCalledWith('VACUUM ANALYZE "CronJobLog"');
-    expect(mocks.clientQuery).toHaveBeenCalledWith('VACUUM ANALYZE "agent_traces"');
-  });
-
-  it("Phase 2: NEVER issues a REINDEX, however slow recent traces are (2026-10-10, audit 08-F10 / 05-M14)", async () => {
-    // The old branch rebuilt the 295 MB HNSW index whenever average LLM trace
-    // latency passed 150 ms (a signal unrelated to the index), named an index
-    // that does not exist in prod, and swallowed the 42P01. A nightly HNSW
-    // rebuild is the Neon compute risk that already pushed the project read-only.
-    mocks.clientQuery.mockResolvedValueOnce({ rows: [] });
     mockAgentTracesPhase2 = [{ durationMs: 2000 }, { durationMs: 1600 }];
 
     await runAutonomicOrchestrator();
 
     const sent = mocks.clientQuery.mock.calls.map(([sql]) => String(sql));
-    expect(sent.some((sql) => /REINDEX/i.test(sql))).toBe(false);
+    expect(sent.some((sql) => /VACUUM|REINDEX/i.test(sql))).toBe(false);
+    expect(mocks.clientConnect, "no direct maintenance connection").not.toHaveBeenCalled();
   });
 
   it("Phase 3: timeouts and resets do NOT trip the Ollama quota breaker, and stalled work is still rescued", async () => {
@@ -465,6 +453,37 @@ describe("services/autonomic-orchestrator", () => {
 
     expect(res.ollamaQuotaTripped).toBe(true);
     expect(mocks.markOllamaQuotaExhausted).toHaveBeenCalled();
+  });
+
+  it("Phase 3: real quota phrases trip instantly (quota, insufficient credit, rate limit)", async () => {
+    for (const errorMessage of [
+      "monthly quota exhausted",
+      "insufficient credit",
+      "429 rate limit reached",
+      "rate-limit exceeded for model",
+    ]) {
+      mocks.markOllamaQuotaExhausted.mockClear();
+      mockAgentTracesPhase3 = [{ provider: "ollama", errorClass: "failed", errorMessage }];
+      const res = await runAutonomicOrchestrator();
+      expect(res.ollamaQuotaTripped, errorMessage).toBe(true);
+      expect(mocks.markOllamaQuotaExhausted, errorMessage).toHaveBeenCalled();
+    }
+  });
+
+  it("Phase 3: a message merely CONTAINING 'limit', or a number containing 402, does NOT trip", async () => {
+    // `/402|quota|limit/` tripped the single prod provider on a slow request's
+    // "time limit exceeded" and on a duration like "4021ms".
+    for (const errorMessage of [
+      "request time limit exceeded",
+      "context length over limit",
+      "upstream answered after 4021ms with an empty body",
+    ]) {
+      mocks.markOllamaQuotaExhausted.mockClear();
+      mockAgentTracesPhase3 = [{ provider: "ollama", errorClass: "failed", errorMessage }];
+      const res = await runAutonomicOrchestrator();
+      expect(res.ollamaQuotaTripped, errorMessage).toBe(false);
+      expect(mocks.markOllamaQuotaExhausted, errorMessage).not.toHaveBeenCalled();
+    }
   });
 
   it("Phase 3 CONTROL: three billing/credit errors still trip the breaker", async () => {

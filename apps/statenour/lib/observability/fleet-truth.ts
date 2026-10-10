@@ -48,8 +48,11 @@ export const STATENOUR_ARTIFACT_PROBES: ArtifactProbe[] = [
     capability: "outbox-drain",
     maxAgeH: 30,
     probe: async () => {
+      // 2026-10-10 · the last run that actually drained: an in-flight `started`
+      // row, a `failed` run, or a kill-switch skip (success + skipReason) is not
+      // output. It read the newest row of any status before.
       const r = await prisma.cronJobLog.findFirst({
-        where: { jobName: "outbox-drain" },
+        where: { jobName: "outbox-drain", status: "success", skipReason: null },
         orderBy: { createdAt: "desc" },
         select: { createdAt: true },
       });

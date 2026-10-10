@@ -502,8 +502,8 @@ async function warn(stage: string, meta: Record<string, unknown>, e: unknown): P
  * the SDK try/catches those; see the NEVER THROWS note.) A killed cron returns
  * the fleet's own skip shape, `{ skipped: true, reason }`, so `onRunComplete`
  * settles it as a terminal-ok row with `skipReason = "disabled via settings"`.
- * (Unlike a killed route cron, which `cronHandler` returns from before
- * logging, this does write rows — the owner panel ignores them.)
+ * A killed ROUTE cron writes the same row since 2026-10-10 (`cronHandler` runs
+ * the skip shape through logCronRun); the owner panel ignores both.
  *
  * ⚠ The hook runs once per REQUEST, and a run with N steps is N+ requests, so
  * the read is cached per process for KILL_SWITCH_TTL_MS: a kill takes effect

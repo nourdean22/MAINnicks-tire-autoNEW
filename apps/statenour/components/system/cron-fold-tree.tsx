@@ -32,7 +32,7 @@ interface CronRow {
   foldedInto?: string;
   retireAfter?: string;
   enabled?: boolean;
-  successRate?: number;
+  successRate?: number | null;
   drift?: number | null;
   lastRunAt?: string | null;
 }
