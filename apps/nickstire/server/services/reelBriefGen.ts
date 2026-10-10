@@ -18,7 +18,7 @@
  */
 import { invokeLLM, resolveEffectiveModel, type OutputSchema } from "../_core/llm";
 import { createLogger } from "../lib/logger";
-import { DEFAULT_REEL_ASK } from "@shared/reelAsk";
+import { DEFAULT_REEL_ASK, renderAskText, stripCaptionAsks } from "@shared/reelAsk";
 import { buildFacelessReelSystemPrompt } from "../../client/src/lib/facelessReelStudioPrompt";
 import { serializeThesisForPrompt, type CreativeThesis } from "../../client/src/lib/creativeThesis";
 import { applyCreativeSkills } from "./skillRouter";
@@ -1013,10 +1013,19 @@ export async function generateReelBriefAI(
   //
   // Corollary: the CTA is optional. The last beat is watch-time-critical, so a
   // CTA that does not read naturally costs more than it returns.
+  //
+  // THE CAPTION CARRIES NO ASK (2026-10-10). This block used to REQUIRE a
+  // "send this to someone..." sentence in the caption while the brief declared
+  // `profile` as its one ask (DEFAULT_REEL_ASK, end card "MORE IN OUR BIO").
+  // Those are two different asks on two surfaces, which shared/reelAsk.ts
+  // refuses by rule: job 2070005 was rendered in full and then refused at
+  // assembly on exactly that sentence. The instruction now matches the
+  // declaration, and stripCaptionAsks below removes any ask the model writes
+  // anyway, so the brief leaves here agreeing with its own end card.
   const shareCta =
-    "\n\nSHARE CTA: the selectedCaption MUST include a natural prompt inviting the viewer to SEND the reel to someone who needs it (DM shares are a top reach lever) — e.g. \"send this to someone whose tires are bald.\" Keep it claim-safe: no prices, no guarantees, sell the visit not a quote." +
+    `\n\nCAPTION ASK: the reel's ONE ask is the end card, declared on the brief (${JSON.stringify(renderAskText(DEFAULT_REEL_ASK))}) — you do not write it. The selectedCaption must contain NO call to action: no "send this to", no "comment WORD", no "DM us", no "save this", no phone number, no "stop by". A sentence that asks is removed before the brief is used. Earn sends with the content itself: name the exact person the symptom belongs to in the hook and the caption body. Keep it claim-safe: no prices, no guarantees, sell the visit not a quote.` +
     "\n\nOBJECTIVE — DISCOVERY: this is a REEL. Reels earn reach through WATCH TIME and SENDS (one viewer forwarding it to a specific person), which is how they reach non-followers. Optimise the FIRST TWO SECONDS above everything else: open on the physical problem, never on a title card or a greeting. Omit the CTA entirely if it does not read naturally — NONE is a valid choice and beats a bolted-on ask that costs watch time on the final beat." +
-    "\n\nDO NOT ask the viewer to SAVE. A save is the objective for REFERENCE content (carousels, checklists) where the value is returning to it later; on a short reel a save prompt competes with the send that actually distributes it. Name the PERSON to send it to, not the action." +
+    "\n\nDO NOT ask the viewer to SAVE. A save is the objective for REFERENCE content (carousels, checklists) where the value is returning to it later; on a short reel a save prompt competes with the send that actually distributes it." +
     `\n\nHASHTAGS: 0 to ${INSTAGRAM_HASHTAG_CAP} only — Instagram caps posts at ${INSTAGRAM_HASHTAG_CAP} (hard limit since December 2025) and rejects or silently strips the excess. Hashtags do not inherently increase reach, so prefer 3 highly specific local/service tags over ${INSTAGRAM_HASHTAG_CAP} generic ones; zero is acceptable.` +
     "\n\nSEARCH LANGUAGE: public posts from professional accounts are indexed by search engines. Write in the words a driver would actually search — \"grinding brakes in Cleveland\", \"used tires Euclid\", \"Ohio E-Check not ready\" — and put the SYMPTOM and the CITY in plain language in the caption body rather than relying on a vague hook." +
     // HARD REQUIREMENT, restated at the end on purpose. The master prompt has
@@ -1339,7 +1348,10 @@ If any aspect is not perfect, rewrite the fields directly. OUTPUT ONLY the corre
     voiceoverScript: str(parsed.voiceoverScript),
     captionHooks: strArr(parsed.captionHooks),
     // Operator caption wins over the generated one when supplied (see input.caption).
-    selectedCaption: input.caption?.trim() || str(parsed.selectedCaption),
+    // A generated caption is stripped of any ask that is not the declared end
+    // card's, so caption and `ask` agree by construction; an operator caption is
+    // left as written and refused loudly at enqueue if it disagrees.
+    selectedCaption: input.caption?.trim() || stripCaptionAsks(str(parsed.selectedCaption), DEFAULT_REEL_ASK),
     hashtags: strArr(parsed.hashtags),
     avoidedForRepetition: str(parsed.avoidedForRepetition),
     qualityScore: 0,

@@ -23,7 +23,7 @@ import {
   filtergraphTextSources,
   undeclaredTextProblem,
 } from "@shared/reelTextSurfaces";
-import { askProblem, renderAskText, resolveReelAsk, DEFAULT_REEL_ASK, type ReelAsk } from "@shared/reelAsk";
+import { askProblem, renderAskText, resolveReelAsk, captionAskMismatch, stripCaptionAsks, DEFAULT_REEL_ASK, type ReelAsk } from "@shared/reelAsk";
 import { buildFfmpegArgs, briefToSegments } from "./services/reelAssembly";
 
 /* ── the ask: exactly one, and it can express a profile visit ───────────── */
@@ -353,5 +353,68 @@ describe("the caption's ask must agree with the end card", () => {
 
   it("stays silent when no ask is declared — nothing to be inconsistent with", () => {
     expect(askLeakageProblem({ beats: BEATS, caption: "Send this to a friend." })).toBeNull();
+  });
+});
+
+/**
+ * THE SAME VERDICT, BEFORE THE SPEND (2026-10-10). Job 2070005 declared
+ * `profile` and captioned "Send this to someone whose tires look smooth."
+ * Enqueue accepted it, five clips were paid for, and assembly refused the
+ * mismatch three times in one pulse. `captionAskMismatch` is the cross-surface
+ * rule on its own so enqueue can run it; `stripCaptionAsks` is how the
+ * generator stops producing the shape in the first place.
+ */
+describe("captionAskMismatch is the cross-surface rule, callable before any clip is bought", () => {
+  const PROD = "Smooth tires in Cleveland snow are a slide waiting to happen. Send this to someone whose tires look smooth.";
+
+  it("CATCHES the production shape", () => {
+    expect(captionAskMismatch(PROD, { kind: "profile" })).toMatch(/two different asks on two/);
+  });
+
+  it("CONTROL: same ask on both surfaces, or no declared ask, or no caption ask — null", () => {
+    expect(captionAskMismatch(PROD, { kind: "save" })).toBeNull();
+    expect(captionAskMismatch(PROD, null)).toBeNull();
+    expect(captionAskMismatch("Smooth tires in Cleveland snow are a slide waiting to happen.", { kind: "profile" })).toBeNull();
+  });
+
+  it("is exactly what askLeakageProblem reports for a one-ask caption", () => {
+    expect(askLeakageProblem({ beats: ["That light?"], caption: PROD, declaredAsk: { kind: "profile" } })).toBe(
+      captionAskMismatch(PROD, { kind: "profile" }),
+    );
+  });
+});
+
+describe("stripCaptionAsks makes a generated caption agree with the declared end card", () => {
+  it("removes the sentence that asks for something else and keeps the rest, line breaks included", () => {
+    const out = stripCaptionAsks(
+      "Smooth tires in Cleveland snow are a slide waiting to happen. Send this to someone whose tires look smooth.\n#UsedTiresEuclid #Cleveland",
+      { kind: "profile" },
+    );
+    expect(out).toBe("Smooth tires in Cleveland snow are a slide waiting to happen.\n#UsedTiresEuclid #Cleveland");
+    expect(captionAskMismatch(out, { kind: "profile" })).toBeNull();
+  });
+
+  it("drops every foreign ask, not just the first (the sample caption's comment / stop by / phone line)", () => {
+    const out = stripCaptionAsks(
+      "The biggest number on your tire is a trap.\nComment PRESSURE and we'll check it when you stop by.\nNick's Tire & Auto - 17625 Euclid Ave, Cleveland - (216) 862-0005 - nickstire.org",
+      { kind: "profile" },
+    );
+    expect(out).toBe("The biggest number on your tire is a trap.");
+    expect(askSignals(out)).toEqual([]);
+  });
+
+  it("CONTROL: keeps an ask that IS the declared one, and leaves an ask-free caption byte-identical", () => {
+    const send = "Bald tires? Send this to someone whose tires look smooth.";
+    expect(stripCaptionAsks(send, { kind: "save" })).toBe(send);
+    expect(stripCaptionAsks("More in our bio.", { kind: "profile" })).toBe("More in our bio.");
+    const plain = "Smooth tires in Cleveland snow are a slide waiting to happen.\n\n#UsedTiresEuclid";
+    expect(stripCaptionAsks(plain, { kind: "profile" })).toBe(plain);
+    expect(stripCaptionAsks(send, null)).toBe(send);
+  });
+
+  it("returns the caption untouched when stripping would leave nothing — enqueue refuses it loudly instead", () => {
+    expect(stripCaptionAsks("Send this to someone whose tires look smooth.", { kind: "profile" })).toBe(
+      "Send this to someone whose tires look smooth.",
+    );
   });
 });

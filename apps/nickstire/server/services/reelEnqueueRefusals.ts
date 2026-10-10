@@ -2,9 +2,10 @@
  * What enqueueReelJob would refuse in a brief, judged from the brief alone
  * (2026-10-08). Each of these refusals is a typed ReelPreflightBlockedError at
  * enqueue: the deterministic preflight, the condemned-script check (truth
- * packets included), a beat the generator must not render, and the caption and
- * hashtag limits. The episode contract's claim checks need the day's claim
- * packet, so they are not here.
+ * packets included), a beat the generator must not render, the caption and
+ * hashtag limits, and a caption whose ask is not the end card's (2026-10-10).
+ * The episode contract's claim checks need the day's claim packet, so they
+ * are not here.
  *
  * Two callers need the verdict BEFORE enqueue: the miner's brief loop
  * (reelDraftPrep.prepareCleanReelBrief), which regenerates instead of losing
@@ -15,6 +16,7 @@ import { runReelPreflight, type ReelBrief } from "../../client/src/lib/facelessR
 import { CAPTION_LIMIT, HASHTAG_CAP } from "../../shared/episodeContract";
 import { condemnedContentProblem } from "../../shared/reelClaimAudit";
 import { beatsTheGeneratorMustNotRender } from "../../shared/shotRouter";
+import { captionAskMismatch, resolveReelAsk } from "../../shared/reelAsk";
 
 export function briefEnqueueRefusals(brief: ReelBrief): string[] {
   const beats = Array.isArray(brief.storyboardBeats) ? brief.storyboardBeats : [];
@@ -32,5 +34,7 @@ export function briefEnqueueRefusals(brief: ReelBrief): string[] {
   const composed = `${brief.selectedCaption ?? ""}\n\n${hashtags.join(" ")}`.trim();
   if (composed.length > CAPTION_LIMIT) out.push(`caption + hashtags is ${composed.length} chars, over ${CAPTION_LIMIT}`);
   if (hashtags.length > HASHTAG_CAP) out.push(`${hashtags.length} hashtags, cap is ${HASHTAG_CAP}`);
+  const askMismatch = captionAskMismatch(brief.selectedCaption, resolveReelAsk(brief));
+  if (askMismatch) out.push(`caption ask disagrees with the end card: ${askMismatch}`);
   return out;
 }
