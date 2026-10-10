@@ -100,10 +100,8 @@ work, the Skill call must be in the transcript.
 - `superpowers-lab` - NOT INSTALLED (no copy in ~/.claude/skills, no public source; checked 2026-10-08). No always-on
   replacement: run steps 1-4 above, and invoke `brainstorming` / `karpathy-guidelines` only when their own triggers match.
 - `karpathy-guidelines` — every code task · think first · simplest thing that works · surgical edits · verifiable goal.
-- `using-superpowers` then `ponytail` — every task, invoked FIRST (operator, 2026-10-10: always on here and globally).
-  using-superpowers: if a skill might apply, invoke it; process skills (`brainstorming`, `systematic-debugging`,
-  `test-driven-development`, `verification-before-completion`, all in `.claude/skills/`) before implementation.
-  ponytail: smallest complete change, reuse before new code. Both SKILL.md only (ponytail @ 9cc65d03, MIT), no hooks.
+- `using-superpowers` then `ponytail` — every task, invoked FIRST (operator, 2026-10-10; always on here and globally): if a skill might
+  apply, invoke it (process skills in `.claude/skills/` before implementation); then the smallest complete change. SKILL.md only, no hooks.
 - `brainstorming` — before building anything new · vague ideas -> validated design.
 - `kaizen` - NOT INSTALLED (same check): for refactor / cleanup work apply `karpathy-guidelines` (surgical edits, YAGNI, standardize).
 
