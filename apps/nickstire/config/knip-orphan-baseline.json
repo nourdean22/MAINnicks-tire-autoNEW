@@ -5152,6 +5152,11 @@
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Used inside its own module (so the runtime consumer is real, not vacuous); exported so server/reelAutonomyGaps.test.ts can assert the resume ceiling, so an autonomous pipeline cannot be changed into an unbounded retry loop without a test failing directly rather than inferring it from behaviour further downstream."
     },
     {
+      "file": "apps/nickstire/server/services/reelPipeline.ts",
+      "symbol": "assemblyFailureOutcome",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (2026-10-10). The runtime consumer is processNextAssemblyJob's catch in the same module, so the rule is live, not vacuous. Exported so server/reelAssemblyRefusal.test.ts can pin both halves without booting the cron against a mocked DB: a ReelAssemblyRefusedError (deterministic ask-gate verdict) parks the job failed on first contact with the attempt given back, while provider/ffmpeg failures keep the MAX_ATTEMPTS ladder. Job 2070005 burned all three attempts on one verdict in one pulse."
+    },
+    {
       "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
       "symbol": "repeatedSignalCount",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Used inside its own module (so the runtime consumer is real, not vacuous); exported so server/reelQualityVector.test.ts can assert the repetition measure the quality vector scores on, which would otherwise only be visible as a shifted composite score directly rather than inferring it from behaviour further downstream."

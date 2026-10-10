@@ -26,6 +26,9 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ReelPreflightBlockedError } from "./services/reelPipeline";
+import { briefEnqueueRefusals } from "./services/reelEnqueueRefusals";
+import { SAMPLE_REEL_BRIEFS } from "../client/src/lib/facelessReelStudioSamples";
+import type { ReelBrief } from "../client/src/lib/facelessReelStudio";
 
 const CRON = readFileSync(path.join(__dirname, "cron", "jobs", "dailyReelPost.ts"), "utf8");
 const PIPELINE = readFileSync(path.join(__dirname, "services", "reelPipeline.ts"), "utf8");
@@ -103,6 +106,7 @@ describe("every content verdict inside enqueueReelJob is typed (2026-10-08)", ()
     "[`REEL_SCRIPT_CONDEMNED: ${condemned}`])", // condemnedContentProblem
     "[generationHoldReason(blocked, \"enqueue\"", // beatsTheGeneratorMustNotRender
     "[", // the caption limit (its message starts on the next line)
+    "[`REEL_ASK_INCONSISTENT: ${askMismatch}`", // captionAskMismatch (2026-10-10): the caption's ask vs the declared end card
   ];
   const NEEDS_CONTEXT = [
     "[`Episode contract blocked (${pre.blocks", // needs the day's claim packet
@@ -115,7 +119,37 @@ describe("every content verdict inside enqueueReelJob is typed (2026-10-08)", ()
     expect(found.length, "the scan found no typed refusal — anchor moved").toBeGreaterThan(0);
     expect([...found].sort(), "a new typed refusal: add it to server/services/reelEnqueueRefusals.ts, or to NEEDS_CONTEXT with why").toEqual([...MIRRORED, ...NEEDS_CONTEXT].sort());
     const helper = readFileSync(path.join(__dirname, "services", "reelEnqueueRefusals.ts"), "utf8");
-    for (const call of ["runReelPreflight(", "condemnedContentProblem(", "beatsTheGeneratorMustNotRender(", "CAPTION_LIMIT", "HASHTAG_CAP"]) expect(helper, call).toContain(call);
+    for (const call of ["runReelPreflight(", "condemnedContentProblem(", "beatsTheGeneratorMustNotRender(", "CAPTION_LIMIT", "HASHTAG_CAP", "captionAskMismatch("]) expect(helper, call).toContain(call);
+  });
+
+  // Job 2070005 (2026-10-10): generateReelBriefAI declared `profile` and
+  // captioned "Send this to someone whose tires look smooth." Enqueue accepted
+  // it, five clips were paid for, and assembly refused the mismatch three times
+  // in one pulse. The helper must now predict that refusal from the brief alone.
+  describe("the caption's ask must be the end card's ask, judged before spend", () => {
+    const withCaption = (caption: string, ask: ReelBrief["ask"]): ReelBrief => {
+      const b = structuredClone(SAMPLE_REEL_BRIEFS[0]);
+      b.selectedCaption = caption;
+      b.ask = ask;
+      return b;
+    };
+    const PROD_CAPTION = "Smooth tires in Cleveland snow are a slide waiting to happen. Send this to someone whose tires look smooth. #UsedTiresEuclid";
+
+    it("CATCHES the production shape: profile end card, send-this caption", () => {
+      const refusals = briefEnqueueRefusals(withCaption(PROD_CAPTION, { kind: "profile" }));
+      expect(refusals.join("\n")).toMatch(/two different asks on two/);
+      expect(refusals.join("\n")).toMatch(/send-this-to/);
+    });
+
+    it("CONTROL: the same brief with the sentence removed is not refused on the ask", () => {
+      const refusals = briefEnqueueRefusals(withCaption("Smooth tires in Cleveland snow are a slide waiting to happen. #UsedTiresEuclid", { kind: "profile" }));
+      expect(refusals.filter((r) => /ask/i.test(r))).toEqual([]);
+    });
+
+    it("CONTROL: a send caption under a declared `save` end card is the same ask, not refused", () => {
+      const refusals = briefEnqueueRefusals(withCaption(PROD_CAPTION, { kind: "save" }));
+      expect(refusals.filter((r) => /two different asks/.test(r))).toEqual([]);
+    });
   });
 
   it("CONTROL: a new typed refusal the helper does not know about is reported", () => {

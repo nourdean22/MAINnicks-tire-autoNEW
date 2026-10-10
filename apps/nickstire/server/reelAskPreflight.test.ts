@@ -96,7 +96,9 @@ describe("the severity is a deliberate, documented halfway house", () => {
     // leaked ask reaches a published reel.
     const at = ASSEMBLY.indexOf("askLeakageProblem(");
     expect(at, "the render gate is gone").toBeGreaterThan(-1);
-    expect(ASSEMBLY.slice(at, at + 500)).toContain("throw new Error(`refusing to render");
+    // Typed since 2026-10-10 so the pipeline parks the job on first contact
+    // instead of spending its retry budget on a verdict that cannot change.
+    expect(ASSEMBLY.slice(at, at + 500)).toContain("throw new ReelAssemblyRefusedError(`refusing to render");
   });
 
   it("the render gate still checks the CAPTION, which preflight deliberately skips", () => {

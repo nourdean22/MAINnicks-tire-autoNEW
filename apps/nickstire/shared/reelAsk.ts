@@ -228,19 +228,59 @@ export function askLeakageProblem(surfaces: AskSurfaces): string | null {
   // ONE ASK PER REEL MEANS ACROSS SURFACES, NOT WITHIN EACH. A caption holding
   // exactly one ask still breaks the rule if that ask is not the one the end
   // card renders — the viewer is asked for two different things in two places.
-  const declared = surfaces.declaredAsk;
-  if (declared && capHits.length === 1) {
-    const allowed = ASK_KIND_SIGNALS[declared.kind] ?? [];
-    if (!allowed.includes(capHits[0])) {
-      return (
-        `the caption asks for "${capHits[0]}" while the declared end-card ask is "${declared.kind}" ` +
-        `(which renders ${JSON.stringify(renderAskText(declared))}). That is two different asks on two ` +
-        "surfaces. Either drop the caption's ask and let the end card carry it, or make them the same ask."
-      );
-    }
-  }
+  return captionAskMismatch(surfaces.caption, surfaces.declaredAsk);
+}
 
-  return null;
+/**
+ * Why the caption's one ask disagrees with the declared end card, or null.
+ *
+ * Split out of askLeakageProblem on 2026-10-10 so enqueue can run exactly this
+ * verdict before any clip is paid for. Job 2070005: the generator declared
+ * `profile` and wrote "Send this to someone whose tires look smooth." into the
+ * caption; enqueue accepted it, five clips were rendered, and assembly refused
+ * the job three times in one pulse on this rule. The check is deterministic on
+ * the payload, so the only place it can be cheap is before the spend.
+ */
+export function captionAskMismatch(caption: string | null | undefined, declared: ReelAsk | null | undefined): string | null {
+  const capHits = askSignals(caption);
+  if (!declared || capHits.length !== 1) return null;
+  const allowed = ASK_KIND_SIGNALS[declared.kind] ?? [];
+  if (allowed.includes(capHits[0])) return null;
+  return (
+    `the caption asks for "${capHits[0]}" while the declared end-card ask is "${declared.kind}" ` +
+    `(which renders ${JSON.stringify(renderAskText(declared))}). That is two different asks on two ` +
+    "surfaces. Either drop the caption's ask and let the end card carry it, or make them the same ask."
+  );
+}
+
+/**
+ * The caption with every sentence that asks for something OTHER than the
+ * declared ask removed. The generator applies this to its own output so a
+ * brief leaves generateReelBriefAI already agreeing with its end card.
+ *
+ * A sentence is dropped only when it carries an ask signal the declared kind
+ * does not produce; a `save` brief keeps its "send this to" line, a `profile`
+ * brief keeps "more in our bio". When stripping would leave nothing, the
+ * caption is returned untouched: an empty caption is a worse brief than a
+ * refused one, and enqueue refuses the mismatch loudly.
+ */
+export function stripCaptionAsks(caption: string | null | undefined, declared: ReelAsk | null | undefined): string {
+  const text = String(caption ?? "");
+  if (!declared) return text;
+  const allowed = ASK_KIND_SIGNALS[declared.kind] ?? [];
+  const agrees = (sentence: string) => askSignals(sentence).every((id) => allowed.includes(id));
+  let changed = false;
+  // Line breaks are kept (captions are written in lines); within a line a
+  // sentence ends at . ! or ? and the split keeps the terminator.
+  const lines = text.split(/\r?\n/).map((line) => {
+    const parts = line.split(/(?<=[.!?])\s+/);
+    const kept = parts.filter(agrees);
+    if (kept.length !== parts.length) changed = true;
+    return { was: line, now: kept.join(" ") };
+  });
+  if (!changed) return text;
+  const out = lines.filter((l) => l.now.trim() || !l.was.trim()).map((l) => l.now).join("\n").trim();
+  return out || text;
 }
 
 /** The brief fields this resolver reads. Kept narrow so any brief shape fits. */
