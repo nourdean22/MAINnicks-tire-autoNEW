@@ -43,6 +43,7 @@ export async function POST(req: Request) {
 
 // The public bridge remains POST-only. The v2 handler's modern exchange and
 // its 2025 stateless fallback both live behind POST /api/mcp.
+// public: constant 405, reads nothing.
 export function GET() {
   return new Response("Method Not Allowed", { status: 405 });
 }

@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cached } from "@/lib/utils/cache";
+import { apiHandler } from "@/lib/utils/http";
 import { generateNarrations, type Narration } from "@/lib/ultron/narrator";
 
 import { requireSession } from "@/lib/auth-guard";
@@ -34,7 +35,7 @@ interface NarratorPayload {
 
 export const revalidate = 90;
 
-export async function GET() {
+export const GET = apiHandler(async () => {
   try {
     const payload = await cached<NarratorPayload>("ultron_narrator_v1", 90, async () => {
       const narrations = await generateNarrations();
@@ -99,7 +100,7 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+}, { auth: "owner" });
 
 /**
  * PATCH /api/ultron/narrator

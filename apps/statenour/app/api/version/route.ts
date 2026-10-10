@@ -38,6 +38,7 @@ import { getDeployMeta } from "@/lib/services/deploy-identity";
  */
 export const dynamic = "force-dynamic";
 
+// public: PUBLIC_EXACT deploy identity (SHA, branch, env, configured-booleans); never a value.
 export const GET = apiHandler(async () => {
   const m = getDeployMeta();
   const env = process.env;

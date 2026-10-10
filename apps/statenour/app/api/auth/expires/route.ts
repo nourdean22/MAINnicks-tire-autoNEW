@@ -37,6 +37,7 @@ export const runtime = "edge";
 // sessions even if they ignore the no-store directive.
 export const dynamic = "force-dynamic";
 
+// public: reports only the expiry of the caller's OWN session cookie; no cookie, no data.
 export async function GET(req: Request) {
   const result = await getSessionExpiry(req.headers);
   return NextResponse.json(result, {

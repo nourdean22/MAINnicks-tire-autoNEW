@@ -329,6 +329,7 @@ export async function POST(req: NextRequest) {
  * GET /api/nour-os/query — returns the catalog of supported queries
  * so the nickstire side can render a "what can I ask" panel.
  */
+// public: static catalog of query names; every answer is behind the x-sync-key POST.
 export async function GET() {
   return NextResponse.json({
     data: {

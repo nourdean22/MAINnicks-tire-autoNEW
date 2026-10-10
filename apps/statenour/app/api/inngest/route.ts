@@ -54,6 +54,7 @@ const handler = serve({
 // understands the SDK error shape.
 const rawGet = handler.GET;
 
+// public: Inngest's own serve() handler; the SDK verifies INNGEST_SIGNING_KEY itself.
 export async function GET(req: NextRequest): Promise<Response> {
   if (!isInngestFullyConfigured()) {
     return NextResponse.json(

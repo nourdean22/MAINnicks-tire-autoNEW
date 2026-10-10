@@ -201,10 +201,27 @@ describe("scan set", () => {
   });
 });
 
-describe("the 7 owner-private ultron GETs are owner-gated", () => {
-  const ULTRON = ["personal-pulse", "pulse", "situation", "ticker", "todo-desk", "work-context", "pulse-digest"];
-  it.each(ULTRON)("app/api/ultron/%s", (name) => {
-    const file = `app/api/ultron/${name}/route.ts`;
+describe("routes the hardened gate flagged on 2026-10-10 now pass it", () => {
+  // Owner-private: must pass by real auth, never by a `// public:` marker.
+  const OWNER = [
+    "ultron/personal-pulse", "ultron/pulse", "ultron/situation", "ultron/ticker", "ultron/todo-desk",
+    "ultron/work-context", "ultron/pulse-digest", "ultron/calibrate", "ultron/health-digest",
+    "ultron/narrator", "health/governor/today", "system/deploy-info",
+  ];
+  // Open on purpose: pass by a marker that states why.
+  const PUBLIC = [
+    "auth/[...nextauth]", "auth/expires", "actions/openapi", "mcp", "nour-os/query", "short/[code]",
+    "version", "inngest",
+  ];
+  it.each(OWNER)("owner-gated: app/api/%s", (name) => {
+    const file = `app/api/${name}/route.ts`;
+    const src = readFileSync(join(APP_ROOT, file), "utf8");
+    expect(listRoutes()).toContain(file);
+    expect(checkSource(src)).toEqual([]);
+    expect(src).not.toMatch(/^\s*(?:\*\s*)?\/\/\s*public:/m);
+  });
+  it.each(PUBLIC)("marked public: app/api/%s", (name) => {
+    const file = `app/api/${name}/route.ts`;
     expect(listRoutes()).toContain(file);
     expect(checkSource(readFileSync(join(APP_ROOT, file), "utf8"))).toEqual([]);
   });
