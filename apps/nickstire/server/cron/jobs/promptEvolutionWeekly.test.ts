@@ -184,6 +184,19 @@ describe("processPromptEvolutionWeekly", () => {
     expect((line?.meta[0] as { trigger?: string })?.trigger).toBe("manual");
   });
 
+  it("Telegram says the success cohort was NOT RUN when no holdout pass reached it, and gives the count when it did", async () => {
+    // Five live runs on 2026-10-09 printed "success cohort 0 won calls" for a
+    // stage that never ran, while the won-call pool held 1,792 rows.
+    mocks.runPromptEvolution.mockResolvedValue(rejected({ outcome: "rejected-train" }));
+    await processPromptEvolutionWeekly(MONDAY);
+    expect(telegramText()).toContain("success cohort not run (needs a holdout pass)");
+    expect(telegramText()).not.toContain("0 won calls");
+    mocks.sendTelegram.mockClear();
+    mocks.runPromptEvolution.mockResolvedValue(resultOf());
+    await processPromptEvolutionWeekly(MONDAY);
+    expect(telegramText()).toMatch(/success cohort \d+ won calls/);
+  });
+
   it("a SCHEDULED run on a non-Monday still skips, even when the option object is passed explicitly", async () => {
     const r = await processPromptEvolutionWeekly(new Date("2026-08-05T15:00:00Z"), { trigger: "scheduled" });
     expect(r.recordsProcessed).toBe(0);

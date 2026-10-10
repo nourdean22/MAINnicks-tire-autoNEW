@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "apps/nickstire/server/cron/jobs/promptEvolutionWeekly.test.ts (this diff): a rejected-train result prints 'success cohort not run (needs a holdout pass)' and never '0 won calls'; an accepted result prints the count. The infrastructure-failure, baseline-refusal and consumed-list cases are unchanged."
+    },
+    "operator-walkthrough": {
+      "ref": "VAPI panel card, latest-run line: 'success cohort not run' until a run passes holdout, then 'N won calls'. Pinned in client/src/__tests__/vapi-followup-push-confirm.test.tsx. No control or layout change."
+    },
+    "capability-ledger-updated": {
+      "ref": "UPDATED, not deferred: docs/operations/capability-ledger.json 'receptionist-prompt-evolution-gate' records the won-call pool count (1,792 rows by eval_outcome) and the zero-vs-not-run readout fix; the blocker no longer says 0 won calls were available. REALITY-LEDGER.md re-rendered."
+    }
+  }
+}

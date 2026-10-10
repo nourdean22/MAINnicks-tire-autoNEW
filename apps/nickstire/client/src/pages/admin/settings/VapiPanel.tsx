@@ -390,7 +390,7 @@ export default function VapiPanel() {
                 {evolution.latest.latest.accepted ? (evolution.latest.latest.confirmed ? " · candidate CONFIRMED on the sealed set" : " · candidate accepted, unconfirmed") : ""}
               </p>
               <p>
-                Seeds {evolution.latest.latest.seeds.usable ?? "?"} (train {evolution.latest.latest.seeds.train ?? "?"} / holdout {evolution.latest.latest.seeds.holdout ?? "?"} / confirm {evolution.latest.latest.seeds.confirm ?? "?"}) · live prompt <span className="font-mono">{evolution.latest.latest.baselinePromptHash?.slice(0, 8) ?? "?"}</span> {evolution.latest.latest.baselineParity ?? ""}
+                Seeds {evolution.latest.latest.seeds.usable ?? "?"} (train {evolution.latest.latest.seeds.train ?? "?"} / holdout {evolution.latest.latest.seeds.holdout ?? "?"} / confirm {evolution.latest.latest.seeds.confirm ?? "?"}) · success cohort {evolution.latest.latest.gates.success ? `${evolution.latest.latest.seeds.success ?? "?"} won calls` : "not run"} · live prompt <span className="font-mono">{evolution.latest.latest.baselinePromptHash?.slice(0, 8) ?? "?"}</span> {evolution.latest.latest.baselineParity ?? ""}
                 {evolution.latest.latest.candidateHash ? <> · candidate <span className="font-mono">{evolution.latest.latest.candidateHash.slice(0, 8)}</span></> : null}
                 {evolution.latest.latest.experimentId ? <> · receipt <span className="font-mono">{evolution.latest.latest.experimentId}</span>{evolution.latest.latest.receiptDelivered === false ? " (not delivered)" : ""}</> : " · no receipt"}
               </p>

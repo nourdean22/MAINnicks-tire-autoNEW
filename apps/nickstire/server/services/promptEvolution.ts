@@ -242,7 +242,15 @@ export async function loadSeeds(seedCount: number, filterRx?: RegExp | null): Pr
  * The outcomes classifyCall treats as a WIN. Read by the success audit only —
  * never by loadSeeds, and never by the optimizer.
  */
-export const SUCCESS_OUTCOMES = ["hard_conversion", "walk_in_directed", "human_handoff", "resolved_info"] as const;
+/**
+ * The outcomes that count as a WIN for the success cohort and the success
+ * audit. human_handoff was dropped on 2026-10-10 by operator decision: a
+ * handoff is the bot stepping aside, not the bot resolving the call, and it
+ * made up two thirds of the pool (1,214 of 1,792 rows with a transcript).
+ * What remains: 533 walk-ins directed, 29 resolved by information, 16 hard
+ * conversions, read 2026-10-10; the cohort reads 24 rows per run.
+ */
+export const SUCCESS_OUTCOMES = ["hard_conversion", "walk_in_directed", "resolved_info"] as const;
 
 /**
  * WIDEN THE APERTURE (2026-08-07) — replay calls the classifier called a WIN.
@@ -275,7 +283,7 @@ export async function loadSuccessSeeds(seedCount: number, filterRx?: RegExp | nu
     FROM vapi_call_archives a
     JOIN vapi_call_logs l ON l.vapiCallId = a.vapi_call_id
     WHERE a.transcript IS NOT NULL
-      AND l.eval_outcome IN ('hard_conversion','walk_in_directed','human_handoff','resolved_info')
+      AND l.eval_outcome IN ('hard_conversion','walk_in_directed','resolved_info')
     ORDER BY a.started_at DESC
     LIMIT ${seedCount * 3}
   `);

@@ -988,7 +988,9 @@ run in production yet.
    accepted; the sealed seeds were not spent. Fifth run 2026-10-10 01:13Z
    (after #2950, #2953, #2954): 310 s, a candidate placed by the bounded edit
    was replayed on the train cohort and refuted at margin 0 (8/13 vs 8/13);
-   receipt disposition refuted. In run order:
+   receipt disposition refuted. Sixth run 2026-10-10 02:20Z: the holdout gate
+   decided live for the first time (candidate +4/-0/=5 of 9, p=0.063,
+   rejected-holdout, receipt 90c8a636). In run order:
    - **Baseline = the prompt callers hear.** `resolveLiveReceptionistBaseline`
      (`receptionistBaseline.ts`) proves which assistant answers the shop line
      (`getAssistantRoutingTruth`, state `match` only), reads that assistant's
@@ -1028,7 +1030,7 @@ run in production yet.
      the gate refuses as `evaluator-unavailable` when outages pass 25% of the
      seeds, cost the test its power, or could hide a regression.
    - **Success cohort**, evaluator-only: 8 WON calls (`hard_conversion`,
-     `walk_in_directed`, `human_handoff`, `resolved_info`) picked by hash,
+     `walk_in_directed`, `resolved_info`; `human_handoff` dropped 2026-10-10, a handoff is not the bot resolving the call) picked by hash,
      replayed twice per prompt, and loaded only after the holdout accepted and
      the optimizer has run, so a won call can veto a candidate but never shape
      one. It vetoes a reliably won call now reliably lost, any critical
