@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "VAPI panel, 'Prompt experiment' card, three fixes from anti-slop/audit-001-2026-10-10.md: (1) while the status query loads the card says 'Loading experiment status.'; if the query fails it says 'Experiment status unavailable: <reason>. Unknown, not empty.' instead of going blank; (2) the eight-character hash tags moved from 40 to 50 percent foreground (about 3.6:1 to 5.0:1 on the dark theme); (3) the run button lost its lightning glyph, the spinner alone marks a run in progress. Pinned in client/src/__tests__/vapi-followup-push-confirm.test.tsx (13 cases). No control or layout change."
+    }
+  }
+}

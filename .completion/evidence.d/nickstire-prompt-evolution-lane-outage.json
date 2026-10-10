@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "UPDATED, not deferred: docs/operations/capability-ledger.json 'receptionist-prompt-evolution-gate' records the lane-outage tolerance (one failed replay is an outage grade; past 25 percent of a pass the run fails loudly) and the tenth live run that motivated it. REALITY-LEDGER.md re-rendered from main's ledger plus this edit."
+    }
+  }
+}
