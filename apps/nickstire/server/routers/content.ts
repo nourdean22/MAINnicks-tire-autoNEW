@@ -3238,7 +3238,8 @@ export const contentAdminRouter = router({
       .select({ id: reelJobs.id, briefId: reelJobs.briefId, status: reelJobs.status, attempts: reelJobs.attempts, updatedAt: reelJobs.updatedAt, clipUrlsJson: reelJobs.clipUrlsJson, mp4Url: reelJobs.mp4Url, payload: reelJobs.payload, error: reelJobs.error })
       .from(reelJobs)
       .where(inArray(reelJobs.status, ["queued", "generating", "assets_ready", "assembling", "assembled", "repair_queued", "repair_rendering"]))
-      .orderBy(desc(reelJobs.id))
+      // Newest activity first; TiDB ids are not time-ordered (latestByIdOrdering gate).
+      .orderBy(desc(reelJobs.updatedAt), desc(reelJobs.id))
       .limit(25);
     return rows.map((r) => {
       let clips = 0; let beats = 0; let hasRenderedQa = false; let hasAudioQa = false; let topic = "";
