@@ -2,7 +2,7 @@
  * Content governor (Long Haul milestone 5) — creation reservations + the
  * publish-door cadence assertion legacy paths defer to.
  */
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 
 afterEach(() => {
   vi.doUnmock("./db");
@@ -10,6 +10,46 @@ afterEach(() => {
 });
 
 type Row = Record<string, unknown>;
+
+/**
+ * The fake used to hand back EVERY row whatever the where clause said, so a
+ * query with no upper bound on the day and a query with one were the same
+ * test. A reservation on Thursday counted toward Wednesday's cap in prod
+ * (audit A3, 2026-10-10) and nothing here could see it. The fake now reads
+ * the date comparisons out of the drizzle SQL tree and applies them.
+ */
+type DateBound = { col: string; op: string; value: Date };
+function dateBounds(cond: unknown): DateBound[] {
+  const out: DateBound[] = [];
+  const walk = (node: unknown) => {
+    const chunks = (node as { queryChunks?: unknown[] } | null)?.queryChunks;
+    if (!Array.isArray(chunks)) return;
+    for (let i = 0; i < chunks.length; i++) {
+      const ch = chunks[i] as { queryChunks?: unknown[]; name?: unknown; value?: unknown };
+      if (Array.isArray(ch?.queryChunks)) { walk(ch); continue; }
+      const op = chunks[i + 1] as { value?: unknown } | undefined;
+      const param = chunks[i + 2] as { value?: unknown } | undefined;
+      if (typeof ch?.name === "string" && Array.isArray(op?.value) && param?.value instanceof Date) {
+        out.push({ col: ch.name, op: op.value.join("").trim(), value: param.value });
+      }
+    }
+  };
+  walk(cond);
+  return out;
+}
+const camel = (col: string) => col.replace(/_([a-z])/g, (_m, c: string) => c.toUpperCase());
+function rowInsideDateBounds(row: Row, bounds: DateBound[]): boolean {
+  return bounds.every((b) => {
+    const field = camel(b.col);
+    const v = new Date(row[field] as string | Date).getTime();
+    const t = b.value.getTime();
+    if (b.op === ">=") return v >= t;
+    if (b.op === ">") return v > t;
+    if (b.op === "<=") return v <= t;
+    if (b.op === "<") return v < t;
+    return true;
+  });
+}
 
 function fakeGovernorDb(reservations: Row[], inventory: Row[] = []) {
   let lastTable: "reservations" | "inventory" = "reservations";
@@ -22,9 +62,10 @@ function fakeGovernorDb(reservations: Row[], inventory: Row[] = []) {
         lastTable = "publishedAt" in (table as object) || (table as { published_at?: unknown }).published_at ? "inventory" : "reservations";
         const rows = lastTable === "inventory" ? inventory : reservations;
         const chain = {
-          where: () => {
-            const p = Promise.resolve(rows) as Promise<Row[]> & { orderBy: (o?: unknown) => Promise<Row[]> };
-            p.orderBy = () => Promise.resolve(rows);
+          where: (cond?: unknown) => {
+            const matched = rows.filter((r) => rowInsideDateBounds(r, dateBounds(cond)));
+            const p = Promise.resolve(matched) as Promise<Row[]> & { orderBy: (o?: unknown) => Promise<Row[]> };
+            p.orderBy = () => Promise.resolve(matched);
             return p;
           },
         };
@@ -48,6 +89,11 @@ const inWindow = (offsetH: number): Row => ({
 });
 
 describe("requestReservation", () => {
+  // Noon Eastern: every same-day offset below stays inside the day whatever
+  // hour the suite runs at. Only Date is faked; timers stay real.
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-10-14T16:00:00Z")); });
+  afterEach(() => { vi.useRealTimers(); });
+
   it("reserves a clean slot and persists the row", async () => {
     const reservations: Row[] = [];
     vi.doMock("./db", () => ({ getDb: vi.fn().mockResolvedValue(fakeGovernorDb(reservations)) }));
@@ -73,6 +119,27 @@ describe("requestReservation", () => {
     await expect(
       requestReservation({ platform: "instagram", format: "reel", windowStart: new Date(), windowEnd: new Date(Date.now() + 3600_000), topic: "fresh topic" }),
     ).rejects.toThrow(GovernorDenial);
+  });
+
+  it("does not count reservations on a LATER day toward today's feed cap", async () => {
+    // Two slots already booked for the day after tomorrow. Today is open, and
+    // the operator filling it must not be refused RESERVATION_FEED_CAP.
+    const reservations = [inWindow(48), inWindow(52)];
+    vi.doMock("./db", () => ({ getDb: vi.fn().mockResolvedValue(fakeGovernorDb(reservations)) }));
+    vi.resetModules();
+    const { requestReservation } = await import("./services/contentGovernor");
+    const res = await requestReservation({ platform: "instagram", format: "reel", windowStart: new Date(), windowEnd: new Date(Date.now() + 3600_000), topic: "fresh topic" });
+    expect(res?.reservationId).toMatch(/^resv_/);
+  });
+
+  it("PLANTED CANARY: two reservations on the SAME day still trip the cap after the day bound", async () => {
+    const reservations = [inWindow(1), inWindow(5)];
+    vi.doMock("./db", () => ({ getDb: vi.fn().mockResolvedValue(fakeGovernorDb(reservations)) }));
+    vi.resetModules();
+    const { requestReservation } = await import("./services/contentGovernor");
+    await expect(
+      requestReservation({ platform: "instagram", format: "reel", windowStart: new Date(Date.now() + 9 * 3600_000), windowEnd: new Date(Date.now() + 10 * 3600_000), topic: "fresh topic" }),
+    ).rejects.toThrow(/RESERVATION_FEED_CAP/);
   });
 
   it("denies a window that violates minimum spacing", async () => {
@@ -125,7 +192,12 @@ describe("requestReservation", () => {
   });
 
   it("PLANTED CANARY: the same CTA within 72h of the window is still refused", async () => {
-    const reservations = [{ ...inWindow(0), topic: "coolant color", cta: "SAVE", createdAt: new Date(Date.now() - 10 * 24 * 3600_000) }];
+    // Created five days apart (inside the 7-day fetch the governor runs on
+    // createdAt), landing 6h apart. With the fake honouring the where clause,
+    // a row created TEN days ago is not fetched at all — that is the real
+    // query's reach, not a test artefact, and it is noted in the 2026-10-10
+    // audit as adjacent rot rather than widened here.
+    const reservations = [{ ...inWindow(0), topic: "coolant color", cta: "SAVE", createdAt: new Date(Date.now() - 5 * 24 * 3600_000) }];
     vi.doMock("./db", () => ({ getDb: vi.fn().mockResolvedValue(fakeGovernorDb(reservations)) }));
     vi.resetModules();
     const { requestReservation } = await import("./services/contentGovernor");
@@ -133,7 +205,7 @@ describe("requestReservation", () => {
       requestReservation({
         platform: "instagram",
         format: "reel",
-        // created ten days apart, but landing 6h apart — that is the repeat
+        // created five days apart, but landing 6h apart — that is the repeat
         windowStart: new Date(Date.now() + 6 * 3600_000),
         windowEnd: new Date(Date.now() + 7 * 3600_000),
         topic: "cabin air filter",

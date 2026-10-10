@@ -34,7 +34,6 @@ const SIDE_EFFECT_FLAGS = {
   REEL_PUBLISH_ENABLED: "PUBLISH · reels to Instagram",
   REEL_AUTOPOST_ENABLED: "PUBLISH · unattended reel posting",
   REEL_COMMENT_RESPONDER_ENABLED: "PUBLISH · public replies to IG comments",
-  SOCIAL_INVENTORY_PUBLISH_ENABLED: "PUBLISH · inventory posts",
 };
 
 /** `=== "1"` and `!== "false"` guards disagree about what an UNSET var means. */

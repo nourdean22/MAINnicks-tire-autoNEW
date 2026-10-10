@@ -1554,14 +1554,6 @@ function buildTiers(): void {
           return runReelCommentResponder();
         },
       },
-      {
-        name: "social-inventory-publisher",
-        requiresFlag: "SOCIAL_INVENTORY_PUBLISH_ENABLED", // consumer compares === "true"
-        handler: async () => {
-          const { runSocialInventoryPublisher } = await import("./jobs/socialInventoryPublisher");
-          return runSocialInventoryPublisher();
-        },
-      },
     ],
     running: false,
     lastRun: null,

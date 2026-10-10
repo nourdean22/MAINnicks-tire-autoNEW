@@ -1,0 +1,22 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "2026-10-10 pipeline controls. client/src/pages/admin/instagram/ActionCenter.tsx gains one Card at the top: 'Pipeline controls'. Reels in flight (contentAdmin.reelJobsInFlight, refetch 30 s): Reel id, status badge, minutes in state, topic, clips/beats and which verdicts exist; the one step the status allows as a 44px button (Generate now / Assemble now / Run QA now), or the refusal text when nothing can be advanced. Then 'Run the pipeline tick' and 'Run the daily post pulse' (disabled until the job list confirms the name), and 'All jobs (n)' expanding every registered job with cadence and a Run now. Loading ('Reading the queue from the database.'), error (message + Try again) and empty ('No reel is between steps...') states each name the cause. Toasts report 'started', not 'done', because the step runs in the background. No window.* dialog (server/pipelineControlsWiring.test.ts pins it; lint:source green)."
+    },
+    "cron-fail-closed": {
+      "ref": "2026-10-10 pipeline controls: no cron file is touched. runCronJobNow and /api/admin/run-cron call cron/index.runJobByName, the same door the Railway worker trigger uses: the cross-dyno lock, the drain flag and cron_log all apply unchanged; an unknown name is refused before anything runs (pipelineControls.test.ts)."
+    },
+    "publish-boundary": {
+      "ref": "2026-10-10 pipeline controls: no publish code is touched. advanceReelJobNow runs only generate / assemble / qa through processNextReelJob(jobId), processNextAssemblyJob(jobId), runRenderedQaOnJob + measureJobAudioQa; publishing stays behind the existing approval + publishPost door and its gates."
+    },
+    "render-spend-trajectory": {
+      "ref": "2026-10-10 pipeline controls: advanceReelJobNow 'generate' is processNextReelJob(jobId), which claims the job with the same status CAS, reservation and MAX_ATTEMPTS rules as the tick; a job not in queued is refused by reelStepFor before any runner starts (pipelineControls.test.ts 'refuses a status with no step and runs nothing'). No new provider call is added."
+    },
+    "visual-world-trajectory": {
+      "ref": "2026-10-10 pipeline controls: no visualWorld, lockedInvariants or prompt code is touched."
+    },
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json: reel-pipeline-controls-20261010 added (in_progress / unit_verified / disabled; blocker: live proof owed). REALITY-LEDGER.md re-rendered in the same diff."
+    }
+  }
+}

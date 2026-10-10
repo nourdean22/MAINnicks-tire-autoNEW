@@ -6,7 +6,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
-import type { InstagramStudioDraft } from "../../../../shared/instagramStudio";
 import type { IgView } from "./igViews";
 import { writeCreateHandoff } from "./igViews";
 import { HQ } from "./HQ";
@@ -17,12 +16,28 @@ import { PairwisePick } from "./PairwisePick";
  * TODAY — the command center the audit found missing. One ranked list of what
  * needs the operator's decision, what publishes today, and one-tap entry into
  * Create — composed entirely from queries that already exist (diagnostics,
- * list, pipeline health, reel attention). Every "all clear" is printed only
- * when the underlying query actually succeeded; a failed read renders as
- * UNKNOWN, never as calm.
+ * the Board read-model, pipeline health, reel attention). Every "all clear" is
+ * printed only when the underlying query actually succeeded; a failed read
+ * renders as UNKNOWN, never as calm.
+ *
+ * "Needs attention" has ONE definition, the server's (computeStudioItemState,
+ * read through instagramStudio.board), the same one the Board's Attention
+ * lane uses. Today used to filter `list` with its own rule (ambiguous or
+ * failed) and so missed STALLED: a row marked scheduled with no pending
+ * publish to fire it, or a publish claim older than 15 minutes — red on the
+ * Board, "verified clear" here (2026-10-10 audit, C3).
  */
+type BoardItem = {
+  id: string;
+  lifecycle: string;
+  health: string;
+  scheduledAt: string | Date | null;
+  error: string | null;
+  draft: { topic: string } | null;
+};
+
 export default function Today({ onNavigate }: { onNavigate: (view: IgView) => void }) {
-  const list = trpc.instagramStudio.list.useQuery({ limit: 75 }, { refetchInterval: 60_000 });
+  const board = trpc.instagramStudio.board.useQuery({ limit: 100 }, { refetchInterval: 60_000 });
   const diagnostics = trpc.instagramStudio.diagnostics.useQuery(undefined, { refetchInterval: 60_000 });
   const health = trpc.instagramAdmin.getPipelineHealth.useQuery(undefined, { refetchInterval: 120_000 });
   const attention = trpc.contentAdmin.reelJobsNeedingAttention.useQuery(undefined, { refetchInterval: 120_000 });
@@ -33,27 +48,35 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
   const diagnosticsOk = Boolean(diagnostics.data?.connected);
 
   const rows = useMemo(() => {
-    const items = (list.data ?? []) as Array<{ id: string; status: string; scheduledAt: string | Date | null; error: string | null; draft: InstagramStudioDraft | null }>;
+    const items = (board.data ?? []) as BoardItem[];
     const needsReview = diagnosticsOk ? (counts.pending ?? 0) : null;
     const readyCount = diagnosticsOk ? (counts.ready ?? 0) : null;
-    const broken = items.filter((item) => item.status === "ambiguous" || item.status === "failed");
+    const broken = items.filter((item) => item.health !== "healthy");
+    // scheduledAt here is the PENDING scheduled_posts fire, not the row's word
+    // for it — a schedule nothing will fire sits in `broken` as stalled instead.
     const scheduled = items
-      .filter((item) => item.status === "scheduled" && item.scheduledAt)
+      .filter((item) => item.lifecycle === "scheduled" && item.health === "healthy" && item.scheduledAt)
       .sort((a, b) => new Date(a.scheduledAt as string).getTime() - new Date(b.scheduledAt as string).getTime());
     return { needsReview, readyCount, broken, scheduled };
-  }, [list.data, counts, diagnosticsOk]);
+  }, [board.data, counts, diagnosticsOk]);
 
   const meta = health.data?.meta;
   const reelCount = attention.data?.count ?? null;
 
   const decisionRows: Array<{ key: string; tone: "red" | "amber" | "blue"; label: string; detail?: string; action: string; view: IgView }> = [];
   for (const item of rows.broken) {
+    const name = `"${item.draft?.topic ?? item.id}"`;
+    const label = item.health === "ambiguous"
+      ? `${name} may be LIVE — verify on Instagram before retrying`
+      : item.health === "stalled"
+        ? item.lifecycle === "publishing"
+          ? `${name} has been publishing for over 15 minutes — stalled, the claim may be wedged`
+          : `${name} is marked scheduled but no publish is pending — stalled, it will never fire`
+        : `${name} failed to publish`;
     decisionRows.push({
       key: `broken-${item.id}`,
-      tone: item.status === "ambiguous" ? "red" : "amber",
-      label: item.status === "ambiguous"
-        ? `"${item.draft?.topic ?? item.id}" may be LIVE — verify on Instagram before retrying`
-        : `"${item.draft?.topic ?? item.id}" failed to publish`,
+      tone: item.health === "ambiguous" ? "red" : "amber",
+      label,
       detail: item.error ?? undefined,
       action: "Open",
       view: "publish",
@@ -98,9 +121,9 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
   // first version checked — "Nothing needs you (verified)" over an unread
   // Meta-health or reel-attention query was the exact false-green this screen
   // exists to prevent.
-  const decisionsUnknown = list.isError || diagnostics.isError || !diagnosticsOk
+  const decisionsUnknown = board.isError || diagnostics.isError || !diagnosticsOk
     || health.isError || attention.isError || delivery.isError;
-  const loading = list.isLoading || diagnostics.isLoading || health.isLoading || attention.isLoading || delivery.isLoading;
+  const loading = board.isLoading || diagnostics.isLoading || health.isLoading || attention.isLoading || delivery.isLoading;
 
   const toneClass = { red: "border-red-500/40 bg-red-500/5", amber: "border-amber-500/40 bg-amber-500/5", blue: "border-blue-500/40 bg-blue-500/5" } as const;
 
@@ -158,7 +181,7 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
             <CardTitle className="flex items-center gap-2 text-base"><CalendarClock className="h-4 w-4" /> Publishing today</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {list.isError ? (
+            {board.isError ? (
               <p className="text-xs text-amber-500">Could not read the schedule — unknown, not empty.</p>
             ) : rows.scheduled.length === 0 ? (
               <p className="text-sm text-muted-foreground">No posts scheduled.</p>

@@ -510,3 +510,51 @@ describe("clip model follows REEL_CLIP_MODEL, and so does the reservation price"
     expect(COST_ESTIMATES_USD.seedance_2_5_clip).toBeGreaterThan(COST_ESTIMATES_USD.seedance_clip * 2);
   });
 });
+
+describe("beat subject leads the lens (2026-10-10, job 2070005: 3 of 5 beats rendered the x-ray lens, not the shot)", async () => {
+  const { MOTION_LENSES, REALISM_DIRECTIVE, buildHiggsfieldReelPromptPack } = await import("../client/src/lib/facelessReelStudio");
+  const lens = MOTION_LENSES.xray_cutaway;
+  const brief = {
+    id: "t2", topic: "tread", archetype: "satisfying_loop", objectCharacter: "plain_part", motionLens: "xray_cutaway",
+    visualWorld: {
+      style: "safe", heroFrameUrl: "https://x/hero.jpg",
+      framePrompt: `Single 9:16 vertical hero frame. Visual grammar: ${lens.grammar} Style: safe.`,
+      lockedInvariants: `VISUAL WORLD (operator-approved reference frame — match it EXACTLY in every shot):\nThe approved hero frame was generated from: "Single 9:16 vertical hero frame. Visual grammar: ${lens.grammar} Style: safe."\nEvery shot shows the SAME hero subject.`,
+    },
+    storyboardBeats: [
+      { beatNumber: 1, startSecond: 0, endSecond: 4, purpose: "p", visual: "Extreme macro of a worn tread with water in the grooves", motion: "slow push", onScreenText: "A", narration: "", audioCue: "", safeZoneNotes: "" },
+      { beatNumber: 2, startSecond: 4, endSecond: 8, purpose: "p", visual: "POV from inside a tread groove, walls narrowing as depth decreases", motion: "camera moves as water", onScreenText: "B", narration: "", audioCue: "", safeZoneNotes: "" },
+    ],
+  } as unknown as Parameters<typeof buildHiggsfieldReelPromptPack>[0];
+  const pack = buildHiggsfieldReelPromptPack(brief);
+
+  it("the subject is stated before the style grammar and restated after the visual world and realism blocks", () => {
+    for (const p of pack) {
+      const subjectAt = p.prompt.indexOf("Subject:");
+      const grammarAt = p.prompt.indexOf("Style grammar:");
+      const worldAt = p.prompt.indexOf("VISUAL WORLD");
+      const realismAt = p.prompt.indexOf(REALISM_DIRECTIVE);
+      const restateAt = p.prompt.indexOf("This shot must show:");
+      expect(subjectAt).toBeGreaterThan(-1);
+      expect(subjectAt).toBeLessThan(grammarAt);
+      expect(restateAt, "no restatement").toBeGreaterThan(-1);
+      expect(restateAt).toBeGreaterThan(worldAt);
+      expect(restateAt).toBeGreaterThan(realismAt);
+    }
+    expect(pack[1].prompt.slice(pack[1].prompt.indexOf("This shot must show:"))).toContain("POV from inside a tread groove");
+  });
+
+  it("the lens grammar appears once per prompt even when the locked visual world quotes it", () => {
+    for (const p of pack) {
+      const n = p.prompt.split(lens.grammar).length - 1;
+      expect(n, `lens grammar repeated ${n}x in beat ${p.beatNumber}`).toBe(1);
+    }
+  });
+
+  it("without a visual world the restatement still comes last, after the realism directive", () => {
+    const plain = buildHiggsfieldReelPromptPack({ ...(brief as object), visualWorld: undefined } as never);
+    for (const p of plain) {
+      expect(p.prompt.indexOf("This shot must show:")).toBeGreaterThan(p.prompt.indexOf(REALISM_DIRECTIVE));
+    }
+  });
+});

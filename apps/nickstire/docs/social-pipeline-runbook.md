@@ -63,7 +63,6 @@ side effect.
 | `REEL_GENERATION_ENABLED` | OFF | FFmpeg reel assembly | Set to `"true"` |
 | `REEL_PUBLISH_ENABLED` | OFF | Reel publish gate in `publishToSocial()` | Set to `"true"` |
 | `REEL_AUTOPOST_ENABLED` | OFF | Daily 9am ET auto-reel from manifest | Set to `"true"` |
-| `SOCIAL_INVENTORY_PUBLISH_ENABLED` | OFF | Social content inventory publisher (5 min cron) | Set to `"true"` |
 | `CONTENT_REPLENISH_ENABLED` | OFF | Content reserve replenishment (2h cron) | Set to `"true"` |
 | `SMS_KILL_SWITCH` | OFF | Blocks Twilio SMS path (shop gateway unaffected) | Set to `"true"` to block |
 | `ENABLE_CUSTOMER_CONFIRMATIONS` | OFF | Customer confirmation SMS/email | Set to `"true"` |
@@ -167,8 +166,8 @@ confirm the daily 9am ET auto-post fires.
 
 | Step | Action | Where |
 |------|--------|-------|
-| 5A | Set `SOCIAL_INVENTORY_PUBLISH_ENABLED=true` | Railway env vars |
-| 5B | Set `CONTENT_REPLENISH_ENABLED=true` | Railway env vars |
+| 5A | Set `CONTENT_REPLENISH_ENABLED=true` | Railway env vars |
+| 5B | *(removed 2026-10-10)* The inventory publisher cron and its `SOCIAL_INVENTORY_PUBLISH_ENABLED` flag were deleted in the Instagram audit (A1); the variable on Railway is inert and can be removed by the operator. | — |
 
 ### Wave 6 — SMS Automations (One at a Time)
 

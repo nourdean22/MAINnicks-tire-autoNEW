@@ -107,7 +107,7 @@ export async function processCronSkipWatchdog(): Promise<{
       // watchdog only ever matched the first, so every job behind `requiresFlag`
       // — which is the whole reel and social PUBLISHING pipeline
       // (REEL_GENERATION_ENABLED, REEL_AUTOPOST_ENABLED,
-      // SOCIAL_INVENTORY_PUBLISH_ENABLED, CONTENT_REPLENISH_ENABLED) — could go
+      // CONTENT_REPLENISH_ENABLED) — could go
       // unarmed with no alarm from the one system built to catch exactly that.
       // Not hypothetical: a Railway variable for that pipeline was deleted on
       // 2026-08-03, and `variable delete` does not restart the container.

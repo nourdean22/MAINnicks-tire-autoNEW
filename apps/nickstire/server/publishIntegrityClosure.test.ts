@@ -169,6 +169,36 @@ describe("ANY ambiguous platform parks the WHOLE publish (publishPost)", () => {
   });
 });
 
+describe("non-reel captions are server-authoritative (audit A2, 2026-10-10)", () => {
+  // Reels already publish a server-built caption. Posts and carousels kept
+  // whatever caption the browser sent, so the same approved draft went out
+  // with two different texts depending on which screen the operator tapped,
+  // and the approval hash never covered the text that was sent.
+  const readyPost = {
+    id: "draft_post", version: 2, status: "ready", contentType: "post", seriesName: null,
+    hookText: "Approved hook text", assetPaths: ["https://cdn.example.com/a.jpg"], briefJson: "{}",
+    topic: "manual: test", createdAt: new Date(),
+  };
+  const published = { results: [{ platform: "instagram", success: true, postId: "ig_1" }], igPostId: "ig_1" };
+
+  it("publishes the row's approved text, not the caption the client sent", async () => {
+    selectQueue.push([readyPost], []); // draft, approval lookup (manual/none)
+    publishToSocialMock.mockResolvedValue(published);
+    await admin().instagramAdmin.publishPost({ inventoryId: "draft_post", platforms: ["instagram"], caption: "Edited in the browser after approval" });
+    expect(publishToSocialMock).toHaveBeenCalledTimes(1);
+    expect(publishToSocialMock.mock.calls[0][0].caption).toBe("Approved hook text");
+  });
+
+  it("refuses a Studio draft here: Studio's own door sends its caption AND hashtags", async () => {
+    selectQueue.push([{ ...readyPost, seriesName: "instagram_studio_v2" }], []);
+    publishToSocialMock.mockResolvedValue(published);
+    await expect(admin().instagramAdmin.publishPost({ inventoryId: "draft_post", platforms: ["instagram"], caption: "x" }))
+      .rejects.toMatchObject({ code: "BAD_REQUEST", message: expect.stringMatching(/Studio/) });
+    expect(publishToSocialMock).not.toHaveBeenCalled();
+    expect(inventoryUpdates()).toHaveLength(0);
+  });
+});
+
 describe("resolveAmbiguous settles EVERY record of the publish", () => {
   const makeDraftRow = () => {
     const draft = {

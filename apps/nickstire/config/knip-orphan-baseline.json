@@ -6252,6 +6252,16 @@
       "reason": "2026-10-10 stale-holder lock sweep · INTENTIONAL TEST-VISIBLE CONTRACT: the 120 s boot delay before the first sweep pass (then every minute); staleHolderSweep.test.ts pins it. knip excludes *.test.ts as consumers."
     },
     {
+      "file": "apps/nickstire/server/services/higgsfieldStudio.ts",
+      "symbol": "parseCreatedJobId",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (2026-10-10 audit B1). Reads the job id out of `generate create --json` (no --wait) — the handle a timed-out CLI render resumes on. higgsfieldCliHandle.test.ts imports it to pin the accepted shapes and the refusal to invent an id. Its runtime consumer is generateReelClipVideo in the same module, so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/higgsfieldStudio.ts",
+      "symbol": "readCliJobState",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (2026-10-10 audit B1). One `generate get <id> --json` reading: completion is decided by result_url, never by 'some URL is present' (the uploaded start image is in the JSON from the start — the misread that saved JPEGs as clips). higgsfieldCliHandle.test.ts pins running/completed/failed and the non-video refusal. Its runtime consumer is pollHiggsfieldCliJob in the same module, so the rule is live, not vacuous."
+    },
+    {
       "file": "apps/nickstire/server/cron/lockLiveness.ts",
       "symbol": "heartbeatHeldLocks",
       "reason": "2026-10-10 heartbeat lock liveness · INTENTIONAL TEST SEAM: the 30 s interval armed by acquireCronLock calls it in-module; exported so staleHolderSweep.test.ts can drive one beat against a fake db and assert it touches each held lock by its own token. knip excludes *.test.ts as consumers."

@@ -1,0 +1,16 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "2026-10-10 beat subject leads the lens. The only client/ file touched is client/src/lib/facelessReelStudio.ts, and only buildHiggsfieldReelPromptPack (prompt text compiled for the generator): one new line at the end of each beat prompt and the lens grammar de-duplicated inside the quoted visual world. No component, page, route or style changes; the operator sees nothing new in the PWA. client/src/__tests__/faceless-reel-studio.test.ts green (unchanged pins), server/reelSourceAware.test.ts +3."
+    },
+    "visual-world-trajectory": {
+      "ref": "2026-10-10 beat subject leads the lens. brief.visualWorld.lockedInvariants still reaches every beat prompt (buildReelContinuityBlock unchanged); the only transformation is that the lens grammar string quoted inside it is replaced by 'the Style grammar stated above', which the same prompt states once, two lines earlier. server/visualWorld.test.ts and server/higgsfieldPromptContract.test.ts green; server/reelSourceAware.test.ts pins the single occurrence and the order."
+    },
+    "render-spend-trajectory": {
+      "ref": "2026-10-10 beat subject leads the lens: prompt text only; no provider call, reservation, retry or settlement code is touched (git diff limited to facelessReelStudio.ts buildHiggsfieldReelPromptPack, the test, ledger, docs)."
+    },
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json: reel-quality-upgrade-20261010 codeCommit records the prompt change; the lens-dominance blocker is downgraded to P3 (unproven on a paid render). REALITY-LEDGER.md re-rendered in the same diff."
+    }
+  }
+}

@@ -259,7 +259,6 @@ describe("every unattended publishToSocial caller declares actor: automated", ()
    */
   const UNATTENDED_CALLERS = [
     "server/cron/jobs/dailyReelPost.ts",
-    "server/cron/jobs/socialInventoryPublisher.ts",
     "server/services/scheduledPosts.ts",
   ];
   const stripComments = (src: string) =>

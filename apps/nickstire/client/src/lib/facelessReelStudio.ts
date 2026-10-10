@@ -498,8 +498,10 @@ export interface StoryboardBeat {
   realAssetId?: string;
   /** For a beat declared deterministic: the label lines the local card draws (server/services/deterministicCard.ts). */
   cardLines?: string[];
-  /** Higgsfield API request already submitted; resume polling after ambiguity. */
+  /** Higgsfield request (API) or job (CLI) already submitted; resume polling after ambiguity. */
   higgsfieldRequestId?: string;
+  /** Which lane the handle above belongs to; absent means the API lane (pre-2026-10-10 rows). */
+  higgsfieldRequestLane?: "api" | "cli";
 }
 
 export interface SafetyFinding {
@@ -1954,6 +1956,12 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
   const lens = MOTION_LENSES[brief.motionLens];
   const persona = heroPersona(brief.objectCharacter);
   const continuity = buildReelContinuityBlock(brief);
+  // The lens grammar is stated once, on the Style grammar line. An approved
+  // visual world quotes the hero frame's prompt verbatim, and that prompt
+  // carries the same grammar, so the lens arrived twice and the one-line
+  // Subject once; on job 2070005 three of five beats rendered the lens
+  // instead of the shot. The quote keeps its meaning by pointing at the line.
+  const continuityOnce = continuity.includes(lens.grammar) ? continuity.split(lens.grammar).join("the Style grammar stated above") : continuity;
   const beats = brief.storyboardBeats;
   const conditioningMode = resolveConditioningMode(brief);
   return beats.map((b, i) => {
@@ -1984,7 +1992,7 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
         `Motion: ${transformToProviderSafeScene(b.motion)}`,
         `Style: ${lens.label} - ${lens.essence}`,
         `Style grammar: ${lens.grammar}`,
-        continuity,
+        continuityOnce,
         // Transition intent: source clips are fixed-length; the story action must
         // land inside the clip, and adjacent shots must hand off composition.
         // M8: conditioning-aware continuity. In hero_image mode EVERY beat is
@@ -2003,6 +2011,8 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
         `Timing: complete the primary action by ${actionCompleteBySec} seconds; keep every frame after that visually stable${isLast ? ", settled on a frame that echoes the opening shot for a seamless loop" : ", ready for a match cut into the next shot"}.`,
         facelessCleanSceneDirective(brief.motionLens),
         REALISM_DIRECTIVE,
+        // The last thing the model reads is the beat, not the lens (2026-10-10).
+        `This shot must show: ${providerScene.scene} When the style grammar or the visual world and this shot disagree, render this shot in that style; the style never replaces the subject.`,
         `Leave the top 12% and bottom 20% of frame clear for IG UI; key action center-frame.`,
       ].join("\n"),
       // The scene bans (people/hands/text/branding) live in the POSITIVE prompt
