@@ -11,9 +11,9 @@
  * and the generator steer read one definition.
  *
  * WHY ONLY THE HOOK. The history also records CTA family and Pattern Lab
- * structure. Neither is penalised, on purpose: the caption CTA is saturated by
- * DESIGN (reelBriefGen's SHARE CTA requires a "send this to..." ask, because
- * sends are the reach lever), and the structure is chosen by the Pattern Lab
+ * structure. Neither is penalised, on purpose: the CTA is the declared end card
+ * (shared/reelAsk.ts, `profile` by default; since 2026-10-10 the caption
+ * carries no ask of its own), and the structure is chosen by the Pattern Lab
  * learner, whose job includes repeating what earned distribution. Penalising
  * either would fight a deliberate policy instead of a drift.
  */

@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import { parseReelJson } from "./services/reelBriefGen";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { DEFAULT_REEL_ASK, captionAskMismatch, stripCaptionAsks } from "../shared/reelAsk";
 
 function ctx(role: "admin" | "user" | null): TrpcContext {
   return {
@@ -74,5 +77,39 @@ describe("parseReelJson truncation detection (prod 2026-07-16)", () => {
 
   it("still parses complete JSON wrapped in a fence", () => {
     expect(parseReelJson('```json\n{"a":1}\n```')).toEqual({ a: 1 });
+  });
+});
+
+/**
+ * THE GENERATED CAPTION AGREES WITH THE DECLARED END CARD (2026-10-10).
+ *
+ * Job 2070005: the prompt REQUIRED a "send this to someone..." sentence in the
+ * caption while the brief declared `profile` (DEFAULT_REEL_ASK, end card "MORE
+ * IN OUR BIO") — two asks on two surfaces, refused at assembly after five paid
+ * clips. Two things are pinned: the instruction no longer demands a caption
+ * ask, and the normaliser strips any ask the model writes anyway. The strip
+ * itself is behaviour-tested in reelTextSurfaces.test.ts.
+ */
+describe("generateReelBriefAI: caption and ask.kind agree by construction", () => {
+  const SRC = readFileSync(path.join(__dirname, "services", "reelBriefGen.ts"), "utf8");
+
+  it("the prompt no longer requires a caption CTA, and says the end card is the one ask", () => {
+    expect(SRC).not.toContain("SHARE CTA: the selectedCaption MUST include");
+    expect(SRC).toContain("CAPTION ASK: the reel's ONE ask is the end card");
+    expect(SRC).not.toContain("Name the PERSON to send it to, not the action.");
+  });
+
+  it("the generated caption passes through stripCaptionAsks against the declared ask; an operator caption does not", () => {
+    const line = SRC.split("\n").find((l) => l.includes("selectedCaption: input.caption?.trim() ||"));
+    expect(line, "the selectedCaption normalisation line moved").toBeDefined();
+    expect(line).toContain("stripCaptionAsks(str(parsed.selectedCaption), DEFAULT_REEL_ASK)");
+    expect(line).toMatch(/^\s*selectedCaption: input\.caption\?\.trim\(\) \|\| stripCaptionAsks/);
+  });
+
+  it("CONTROL: a brief that strips a send sentence under the default ask is what enqueue will accept", () => {
+    const stripped = stripCaptionAsks("Bald tires slide first. Send this to someone whose tires look smooth.", DEFAULT_REEL_ASK);
+    expect(stripped).toBe("Bald tires slide first.");
+    expect(captionAskMismatch(stripped, DEFAULT_REEL_ASK)).toBeNull();
+    expect(captionAskMismatch("Bald tires slide first. Send this to someone whose tires look smooth.", DEFAULT_REEL_ASK)).toMatch(/two different asks/);
   });
 });

@@ -15,6 +15,7 @@ import os from "os";
 import path from "path";
 import { createLogger } from "../lib/logger";
 import { askProblem, askLeakageProblem, renderAskText, resolveReelAsk, type ReelAsk } from "@shared/reelAsk";
+import { ReelAssemblyRefusedError } from "./reelContentRefusal";
 import { declaredTextSurfaces, undeclaredTextProblem } from "@shared/reelTextSurfaces";
 import { REEL_OUTPUT_RULES } from "../../client/src/lib/facelessReelStudio";
 import { parseCaptionStyle, type CaptionStyle } from "../../shared/reelSourceProfile";
@@ -937,6 +938,38 @@ export async function assembleReel(
     throw new Error(`assemble: ${segs.length} beats but ${clipUrls.length} clips — gen stage incomplete`);
   }
   const total = segmentsTotalSeconds(segs);
+
+  // ONE declaration drives the files on disk AND what the filtergraph may
+  // draw. Previously these were two independent places - a per-line write
+  // loop, plus a `SAVE THIS | DM "<keyword>"` string concatenated here - and
+  // nothing made them agree with the storyboard. That is how reel 1770003
+  // shipped six burned-in cards from a five-beat payload.
+  //
+  // CHECKED FIRST, before a clip is downloaded or a voiceover is paid for
+  // (2026-10-10): both verdicts read only the payload, and job 2070005 ran the
+  // downloads and the TTS call three times before this gate refused it each
+  // time. The refusal is typed so the pipeline parks the job on first contact
+  // instead of spending its retry budget on an answer that cannot change.
+  const ask = resolveReelAsk(brief);
+  if (ask) {
+    const askBad = askProblem(ask);
+    // Fail the render rather than burn a malformed or compound ask into a
+    // frame nobody can edit afterwards.
+    if (askBad) throw new ReelAssemblyRefusedError(`reel ask is invalid: ${askBad}`);
+  }
+  // The declared ask governs the END CARD. This catches a CTA that leaked
+  // into a BEAT or the voiceover, which is a second, permanent ask — measured
+  // on freshly generated briefs 2026-08-29, all three had one.
+  const leak = askLeakageProblem({
+    beats: (brief.storyboardBeats ?? []).map((b) => b.onScreenText),
+    voiceoverScript: brief.voiceoverScript,
+    caption: brief.selectedCaption,
+    // Passing the resolved ask makes the check CROSS-SURFACE: a caption with
+    // exactly one ask still fails when it is not the ask the end card renders.
+    declaredAsk: ask,
+  });
+  if (leak) throw new ReelAssemblyRefusedError(`refusing to render: ${leak}`);
+
   const workDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), `reel-${jobId}-`));
   try {
     const clipPaths: string[] = [];
@@ -1038,30 +1071,6 @@ export async function assembleReel(
     const localFontPath = path.join(workDir, "font.ttf");
     await fs.promises.copyFile(origFontPath, localFontPath);
 
-    // ONE declaration drives the files on disk AND what the filtergraph may
-    // draw. Previously these were two independent places - a per-line write
-    // loop, plus a `SAVE THIS | DM "<keyword>"` string concatenated here - and
-    // nothing made them agree with the storyboard. That is how reel 1770003
-    // shipped six burned-in cards from a five-beat payload.
-    const ask = resolveReelAsk(brief);
-    if (ask) {
-      const askBad = askProblem(ask);
-      // Fail the render rather than burn a malformed or compound ask into a
-      // frame nobody can edit afterwards.
-      if (askBad) throw new Error(`reel ask is invalid: ${askBad}`);
-    }
-    // The declared ask governs the END CARD. This catches a CTA that leaked
-    // into a BEAT or the voiceover, which is a second, permanent ask — measured
-    // on freshly generated briefs 2026-08-29, all three had one.
-    const leak = askLeakageProblem({
-      beats: (brief.storyboardBeats ?? []).map((b) => b.onScreenText),
-      voiceoverScript: brief.voiceoverScript,
-      caption: brief.selectedCaption,
-      // Passing the resolved ask makes the check CROSS-SURFACE: a caption with
-      // exactly one ask still fails when it is not the ask the end card renders.
-      declaredAsk: ask,
-    });
-    if (leak) throw new Error(`refusing to render: ${leak}`);
     const askText = ask ? renderAskText(ask) : null;
     const surfaces = declaredTextSurfaces(segs, askText, !!assPath);
     for (const s of surfaces) {
