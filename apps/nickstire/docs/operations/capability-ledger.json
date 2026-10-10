@@ -3613,14 +3613,15 @@
           "apps/statenour (same command from apps/statenour): tests/api/proof-receptionist-experiments.test.ts (11), tests/api/proof-receptionist-receipt-key.test.ts (7), tests/components/proof-receptionist-section.test.ts (12), tests/events/proof-receptionist-registry.test.ts (14)"
         ],
         "liveRuns": [
-          "2026-10-09 20:33:53Z - first production run via POST /api/admin/run-prompt-evolution (deploy 88fba68c, commit 9421d816, a Friday): the door answered {status: started, budgetMs: 1800000}; Railway logged '[evolve] manual run requested' (day Friday) and 'live receptionist baseline resolved' (assistant 150fe622, prompt 06e0dbbd, parity identical, model gpt-4o); the cycle ran 30 usable seeds (train 14 / holdout 13 / confirm 8, success cohort 0), 27 replays, 18 judge calls, 2 optimizer calls, 319 s; outcome rejected-train (neither candidate beat the live prompt on the train cohort; baseline train 8/13, holdout 10/12, 2 unresolvable excluded); proxy lane (live gpt-4o 0.4/250/11 tools vs replay deepseek-v4-pro 0/700/no tools); receipt prompt-evolution:a46f96a6a93ad384 posted, disposition inconclusive, delivered true (bridge accepted); '[evolve/manual] run completed' 320120 ms; GET /api/admin/prompt-evolution-status then read last.status completed with details ending ' · manual run' and the latest row with trigger manual. Not observed by the agent: the Telegram message and the /proof row (both behind the operator's sign-in); the cron_log row itself was not queried (the status record is the in-process twin of it)."
+          "2026-10-09 20:33:53Z - first production run via POST /api/admin/run-prompt-evolution (deploy 88fba68c, commit 9421d816, a Friday): the door answered {status: started, budgetMs: 1800000}; Railway logged '[evolve] manual run requested' (day Friday) and 'live receptionist baseline resolved' (assistant 150fe622, prompt 06e0dbbd, parity identical, model gpt-4o); the cycle ran 30 usable seeds (train 14 / holdout 13 / confirm 8, success cohort 0), 27 replays, 18 judge calls, 2 optimizer calls, 319 s; outcome rejected-train (neither candidate beat the live prompt on the train cohort; baseline train 8/13, holdout 10/12, 2 unresolvable excluded); proxy lane (live gpt-4o 0.4/250/11 tools vs replay deepseek-v4-pro 0/700/no tools); receipt prompt-evolution:a46f96a6a93ad384 posted, disposition inconclusive, delivered true (bridge accepted); '[evolve/manual] run completed' 320120 ms; GET /api/admin/prompt-evolution-status then read last.status completed with details ending ' · manual run' and the latest row with trigger manual. Not observed by the agent: the Telegram message and the /proof row (both behind the operator's sign-in); the cron_log row itself was not queried (the status record is the in-process twin of it).",
+          "2026-10-10 01:13:34Z - fifth manual run, first on the full-cycle build (deploy 31308774, commit f5cd3586): 310 s, outcome rejected-train, and for the first time a candidate was MEASURED: candidate a2c93ad4 was refused before replay (policy-reversal:always-quote-prices); candidate d85aee28 was placed by the bounded edit, passed the guard, replayed on the 14 train seeds and scored 8/13 against the live prompt's 8/13 (margin 0), so it was refuted on evidence. Baseline holdout 8/12. 41 replays, 22 judge calls, 2 optimizer calls at two seeds a time. Receipt prompt-evolution:a46f96a6a93ad384 posted with disposition refuted (the earlier same-day facts were inconclusive), delivered true. Still proxy lane; success cohort 0 won calls; holdout gate not reached because no candidate beat the baseline on train."
         ],
-        "deploymentId": "88fba68c-c72a-4bc8-87be-7fc292647026"
+        "deploymentId": "31308774-56b0-48e7-aeed-5de3c100e3d4"
       },
       "blockers": [
         {
           "severity": "P2",
-          "description": "The wiring is live (2026-10-09 manual run: baseline.source live_provider, parity identical, receipt posted and accepted) but no live run has yet reached the holdout, success-cohort or sealed-confirmation gate: both candidates lost on the train cohort (rejected-train, success cohort 0 won calls available). Promotion to live_verified needs one run whose deciding gate is holdout or later. The bounded edit is deployed-pending: the next manual run is its live proof (candidates replayed > 0 on the result line).",
+          "description": "Live and measuring, holdout gate not yet exercised: the 2026-10-10 01:13Z run placed a candidate, passed the guard and refuted it on the paired train cohort (margin 0); no candidate has beaten the baseline on train yet, so the holdout permutation test, the success-cohort veto (0 won calls available) and the sealed confirmation have not decided a live run. Promotion to live_verified needs one run whose deciding gate is holdout or later.",
           "source": "2026-10-09 first live wired run"
         },
         {
@@ -3641,7 +3642,7 @@
         "a labelled calibration set for the resolution judge",
         "a family-wise bound on false confirmations across weeks"
       ],
-      "lastVerifiedAt": "2026-10-09",
+      "lastVerifiedAt": "2026-10-10",
       "codeState": "merged",
       "operationalState": "deployed",
       "exposure": "internal",
@@ -3661,9 +3662,10 @@
           "server/cronControlPlane.test.ts + server/cameraHealthAlerts.test.ts (91) still green: the staged-cron door and the bridge allowlist are untouched"
         ],
         "liveRuns": [
-          "2026-10-09 20:33:53Z - first production run via POST /api/admin/run-prompt-evolution (deploy 88fba68c, commit 9421d816, a Friday): the door answered {status: started, budgetMs: 1800000}; Railway logged '[evolve] manual run requested' (day Friday) and 'live receptionist baseline resolved' (assistant 150fe622, prompt 06e0dbbd, parity identical, model gpt-4o); the cycle ran 30 usable seeds (train 14 / holdout 13 / confirm 8, success cohort 0), 27 replays, 18 judge calls, 2 optimizer calls, 319 s; outcome rejected-train (neither candidate beat the live prompt on the train cohort; baseline train 8/13, holdout 10/12, 2 unresolvable excluded); proxy lane (live gpt-4o 0.4/250/11 tools vs replay deepseek-v4-pro 0/700/no tools); receipt prompt-evolution:a46f96a6a93ad384 posted, disposition inconclusive, delivered true (bridge accepted); '[evolve/manual] run completed' 320120 ms; GET /api/admin/prompt-evolution-status then read last.status completed with details ending ' · manual run' and the latest row with trigger manual. Not observed by the agent: the Telegram message and the /proof row (both behind the operator's sign-in); the cron_log row itself was not queried (the status record is the in-process twin of it)."
+          "2026-10-09 20:33:53Z - first production run via POST /api/admin/run-prompt-evolution (deploy 88fba68c, commit 9421d816, a Friday): the door answered {status: started, budgetMs: 1800000}; Railway logged '[evolve] manual run requested' (day Friday) and 'live receptionist baseline resolved' (assistant 150fe622, prompt 06e0dbbd, parity identical, model gpt-4o); the cycle ran 30 usable seeds (train 14 / holdout 13 / confirm 8, success cohort 0), 27 replays, 18 judge calls, 2 optimizer calls, 319 s; outcome rejected-train (neither candidate beat the live prompt on the train cohort; baseline train 8/13, holdout 10/12, 2 unresolvable excluded); proxy lane (live gpt-4o 0.4/250/11 tools vs replay deepseek-v4-pro 0/700/no tools); receipt prompt-evolution:a46f96a6a93ad384 posted, disposition inconclusive, delivered true (bridge accepted); '[evolve/manual] run completed' 320120 ms; GET /api/admin/prompt-evolution-status then read last.status completed with details ending ' · manual run' and the latest row with trigger manual. Not observed by the agent: the Telegram message and the /proof row (both behind the operator's sign-in); the cron_log row itself was not queried (the status record is the in-process twin of it).",
+          "2026-10-10 01:13:34Z - fifth manual run, first on the full-cycle build (deploy 31308774, commit f5cd3586): 310 s, outcome rejected-train, and for the first time a candidate was MEASURED: candidate a2c93ad4 was refused before replay (policy-reversal:always-quote-prices); candidate d85aee28 was placed by the bounded edit, passed the guard, replayed on the 14 train seeds and scored 8/13 against the live prompt's 8/13 (margin 0), so it was refuted on evidence. Baseline holdout 8/12. 41 replays, 22 judge calls, 2 optimizer calls at two seeds a time. Receipt prompt-evolution:a46f96a6a93ad384 posted with disposition refuted (the earlier same-day facts were inconclusive), delivered true. Still proxy lane; success cohort 0 won calls; holdout gate not reached because no candidate beat the baseline on train."
         ],
-        "deploymentId": "88fba68c-c72a-4bc8-87be-7fc292647026"
+        "deploymentId": "31308774-56b0-48e7-aeed-5de3c100e3d4"
       },
       "blockers": [
         {
@@ -3676,7 +3678,7 @@
         "a durable run registry (the in-memory active/last state is per process); cron_log already records every finished run, so the panel reads it as the history",
         "a cancel control: a started run completes or times out under the scheduler's own budget, as a scheduled run would"
       ],
-      "lastVerifiedAt": "2026-10-09",
+      "lastVerifiedAt": "2026-10-10",
       "codeState": "merged",
       "operationalState": "live_verified",
       "exposure": "internal",
@@ -4711,8 +4713,8 @@
       "blockers": [
         {
           "severity": "P2",
-          "description": "No real_shop video row exists yet (capture day not booked). scripts/register-real-shop-clip.mts (PR after #2952) registers a captured clip with probed duration, dimensions and sha256; the pool stays 0 until the shop shoots.",
-          "source": "2026-10-10"
+          "description": "No real_shop VIDEO row exists and the Studio upload does not probe video duration yet, so a clip must be registered through mediaRegistry directly (or the upload path extended) before any beat can bind.",
+          "source": "2026-10-09"
         },
         {
           "severity": "P3",
@@ -4727,56 +4729,26 @@
       "capabilityId": "reel-critic-external-masters-20261009",
       "name": "Rendered-QA critic for external masters: declared text surfaces are legitimate, caption-timing mismatches are notes not blocks, and blocks are voted across RENDERED_QA_VOTES runs",
       "owner": "operator",
-      "codeState": "merged",
+      "codeState": "in_progress",
       "operationalState": "unit_verified",
-      "exposure": "internal",
+      "exposure": "disabled",
       "evidence": {
-        "codeCommit": "main 12e21bb16 (PR #2952, squash-merged 2026-10-10 00:52Z). server/services/renderedQa.ts: EvaluateRenderedReelInput.brief.externalMaster.textSurfaces; the critic prompt carries an EXTERNAL MASTER block naming the declared text and reserving BEAT_SEMANTIC_MISMATCH for a different object/action/damage; applyPresenceExemptions exempts GENERATED_TEXT_ARTIFACT findings that quote a declared surface (describesDeclaredText, positive match, surfaces shorter than 6 chars ignored) and caption-timing BEAT_SEMANTIC_MISMATCH on an external master (isCaptionTimingMismatch; subject mismatches stay blocks); voteVerdicts keeps a block only with a majority of RENDERED_QA_VOTES runs (1..5, default 1 = unchanged), warns are the union, craft/escalation recomputed, tally on verdict.voting.",
+        "codeCommit": "branch nickstire/reel-critic-external-masters (2026-10-09, PR after #2946). server/services/renderedQa.ts: EvaluateRenderedReelInput.brief.externalMaster.textSurfaces; the critic prompt carries an EXTERNAL MASTER block naming the declared text and reserving BEAT_SEMANTIC_MISMATCH for a different object/action/damage; applyPresenceExemptions exempts GENERATED_TEXT_ARTIFACT findings that quote a declared surface (describesDeclaredText, positive match, surfaces shorter than 6 chars ignored) and caption-timing BEAT_SEMANTIC_MISMATCH on an external master (isCaptionTimingMismatch; subject mismatches stay blocks); voteVerdicts keeps a block only with a majority of RENDERED_QA_VOTES runs (1..5, default 1 = unchanged), warns are the union, craft/escalation recomputed, tally on verdict.voting.",
         "tests": [
           "server/reelSourceAware.test.ts: legacy (nothing declared -> nothing exempted; same caption mismatch on a pipeline job stays a block; one run is the identity) and new (declared badge exempted, undeclared signage kept; timing mismatch exempted, subject mismatch kept; 3-run vote keeps the 2-of-3 block, drops two 1-of-3 blocks, unions warns, records the tally; craft-only majority repair declined; vote count clamped)."
         ],
         "liveRuns": "Evidence for the defect, production 2026-10-09 21:43-21:48Z, job 2070002 (external Higgsfield master): three single-run verdicts on identical frames returned 5, 2 and 10 blocks (craft 71, 77, 61), reported the required disclosure badge as GENERATED_TEXT_ARTIFACT, and claimed a hook card at 6 s and 10 s where the frames show none. The operator published that Reel under an explicit override (payload.operatorOverride) while this fix was built. No external master has been judged by the updated critic yet.",
-        "deploymentId": "Railway MAINnicks-tire-auto deployment of 12e21bb16 BUILDING at 2026-10-10T00:52:43Z (railway deployment list); RENDERED_QA_VOTES=3 set on the service 2026-10-09 with skipDeploys, so voting is live from this deploy on. No 'rendered QA verdict voted' log line observed yet."
-      },
-      "blockers": [
-        {
-          "severity": "P3",
-          "description": "No external master has been judged by the voted critic in production yet; the first judged job's verdict.voting tally (runs: 3) is the proof owed.",
-          "source": "2026-10-10"
-        }
-      ],
-      "lastVerifiedAt": "2026-10-10",
-      "verificationExpiresAt": "2026-11-09"
-    },
-    {
-      "capabilityId": "reel-real-shop-clip-register-20261010",
-      "name": "Real-shop clip registration: a captured vertical clip becomes a real_shop VIDEO registry row with probed duration, so a Reel beat can bind it; quiet-caption standard in the pilot publisher",
-      "owner": "operator",
-      "codeState": "merged",
-      "operationalState": "unit_verified",
-      "exposure": "internal",
-      "evidence": {
-        "codeCommit": "main 05c0c06fc (PR #2955, squash-merged 2026-10-10 01:14Z; 13 checks green). server/services/mediaRegistry.ts: RegisterAssetInput.durationMs written to media_assets.duration_ms (rounded; null for absent/zero/negative/non-finite) - the column existed and nothing wrote it, so realShotBinding refused every registered clip with no_duration. scripts/register-real-shop-clip.mts: ffprobe (bundled remotion binary) -> refuse non-video / non-vertical / under 2 s / no duration -> dry run by default -> --execute: findByChecksum dedupe, assertDurableStorageForGeneration, storagePut reels/real-shop/, registerAsset real_shop video, prints realAssetId. scripts/publish-pilot-01.mts: QUIET default replaces the manifest's disclosure paragraph with one closing clause ('Illustrated, not filmed.'); is_ai_generated=true and the burned-in badge unchanged; --loud restores the manifest wording. docs/reels-engine-v2/14-CAPTURE-DAY-CARD.md: one-page shot list + the register command.",
-        "tests": [
-          "server/mediaRegistry.test.ts: durationMs reaches the row rounded (6420.6 -> 6421); undefined/null/0/-5/NaN/Infinity -> null (7 passed)."
-        ],
-        "liveRuns": "Dry runs 2026-10-10 on this machine: the Reel #2 master (1080x1920 h264 15.00 s, 8.2 MB) probes and prints the would-be row; a .mts source file is refused 'not a readable video'; publish-pilot-01 --reel=02/03 dry runs print the quiet caption with claim-safety blockers none and disclosure gate ok (a first draft 'not a customer's tire' was refused by the customer-possessive claim regex, which is why the clause is neutral). Nothing uploaded, registered or published.",
-        "deploymentId": "Railway MAINnicks-tire-auto deployment of 05c0c06fc BUILDING at 2026-10-10T01:14:33Z (railway deployment list). The registry durationMs write ships with it; the register script runs from an operator shell via railway run and is not itself deployed."
+        "deploymentId": "not deployed (PR open)"
       },
       "blockers": [
         {
           "severity": "P2",
-          "description": "Capture day not booked; zero real_shop video rows. The script is the door, the footage is the operator's.",
-          "source": "2026-10-10"
-        },
-        {
-          "severity": "P3",
-          "description": "Published Reels #2 and #3 still carry the long disclosure paragraph: the Instagram Graph API has no caption edit for published media (no helper in server/services/metaSocial.ts either), so the operator edits those two captions in the Instagram app.",
-          "source": "2026-10-10"
+          "description": "RENDERED_QA_VOTES defaults to 1; set it to 3 on Railway to turn voting on in production (3 vision calls per QA pass).",
+          "source": "2026-10-09"
         }
       ],
-      "lastVerifiedAt": "2026-10-10",
-      "verificationExpiresAt": "2026-11-09"
+      "lastVerifiedAt": "2026-10-09",
+      "verificationExpiresAt": "2026-11-08"
     }
   ],
   "axes": {

@@ -7,14 +7,7 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
-## Real-shop clip registration + quiet captions (2026-10-10, PR #2955) -- MERGED (main `05c0c06fc`, 01:14Z); Railway deploy building at 01:14Z
-
-- **Registry writes duration now.** `RegisterAssetInput.durationMs` -> `media_assets.duration_ms` (rounded; null for absent/zero/negative/non-finite). The column existed since the registry shipped and nothing wrote it, so `realShotBinding` refused every registered clip with `no_duration` -- the real-beat lane could never bind. `server/mediaRegistry.test.ts` (7 passed).
-- **`scripts/register-real-shop-clip.mts`** turns a captured clip into a `real_shop` VIDEO row: ffprobe (bundled remotion binary) -> refuse non-video / non-vertical / under 2 s -> dry run by default -> `--execute` dedupes by sha256, asserts durable storage, uploads to `reels/real-shop/`, registers, prints `"realAssetId"`. Dry-run receipts: the Reel #2 master probes 1080x1920 15.00 s; a source file is refused cleanly.
-- **Quiet captions.** `scripts/publish-pilot-01.mts` now closes the caption with one clause ("Illustrated, not filmed.") instead of the manifest's disclosure paragraph; `is_ai_generated=true` and the burned-in badge are unchanged (`--loud` restores the long wording). "Not a customer's tire" was refused by the claim gate's customer-possessive regex, so the clause is neutral by construction. Reels #2/#3 already published keep the long paragraph: the Graph API cannot edit a published caption; the operator edits in-app.
-- **Capture day card:** `docs/reels-engine-v2/14-CAPTURE-DAY-CARD.md` -- 90-minute shot list for all three flagships + the register command.
-
-## Rendered-QA critic for external masters: declared text surfaces, caption-timing notes, voted blocks (2026-10-09, PR #2952) -- MERGED (main `12e21bb16`, 2026-10-10 00:52Z); Railway deploy building at 00:52Z; `RENDERED_QA_VOTES=3` set on the service (skipDeploys), live from this deploy
+## Rendered-QA critic for external masters: declared text surfaces, caption-timing notes, voted blocks (2026-10-09, PR after #2946) -- BUILT + TESTED; PR open
 
 First campaign Reel went live 2026-10-09 21:52Z (job 2070002, IG `18393636853204607`, https://www.instagram.com/reel/DeShDz6jvLv/) under an explicit operator override of the rendered-QA gate, recorded as `payload.operatorOverride`: three single-run critic verdicts on identical frames returned 5, 2 and 10 blocks, reported the required disclosure badge as `GENERATED_TEXT_ARTIFACT`, and claimed a hook card at 6 s and 10 s where the frames show none. The gate update (`server/services/renderedQa.ts`):
 
@@ -975,7 +968,10 @@ run in production yet.
    Still propose-only. First live run 2026-10-09 20:33Z (deploy 88fba68c):
    319 s, `rejected-train`, live baseline `06e0dbbd` parity identical, 30
    seeds, success cohort 0, receipt `prompt-evolution:a46f96a6a93ad384`
-   accepted; the sealed seeds were not spent. In run order:
+   accepted; the sealed seeds were not spent. Fifth run 2026-10-10 01:13Z
+   (after #2950, #2953, #2954): 310 s, a candidate placed by the bounded edit
+   was replayed on the train cohort and refuted at margin 0 (8/13 vs 8/13);
+   receipt disposition refuted. In run order:
    - **Baseline = the prompt callers hear.** `resolveLiveReceptionistBaseline`
      (`receptionistBaseline.ts`) proves which assistant answers the shop line
      (`getAssistantRoutingTruth`, state `match` only), reads that assistant's
