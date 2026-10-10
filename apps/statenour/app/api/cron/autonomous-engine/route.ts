@@ -3,8 +3,8 @@
  *
  * Re-plugs the dormant proactive engine. `runAutonomousActions()`
  * (lib/brain/autonomous-engine.ts · ~20 rules: revenue-pace, urgent-
- * leads, drift, commitment enforcement, morning brief, expired-quote
- * follow-up, etc.) had ZERO callers after its original cron route was
+ * leads, drift, commitment enforcement, expired-quote follow-up,
+ * etc.) had ZERO callers after its original cron route was
  * pruned. This route is the single, flag-gated caller.
  *
  * ── SAFETY MODEL (read before touching) ────────────────────────────
@@ -39,19 +39,22 @@
  *
  * Mirrors the anticipate/consolidate route pattern: cronHandler
  * (CRON_SECRET auth + kill-switch + CronJobLog), structured return,
- * best-effort — failures are data, the cron never throws on a single
- * rule break (runAutonomousActions swallows per-rule).
+ * best-effort — the cron never throws on a single rule break
+ * (runAutonomousActions swallows per-rule), but any rule error returns
+ * `ok: false` naming the rules, so the CronJobLog row reads failed.
  *
- * Scheduling: folded into the EVENING mega fan-out (see jobs.ts). The
- * rules self-gate on hour/weekday in ET, so a single daily evening
- * pass is enough — time-of-day rules that don't match simply no-op,
- * and the 24h-per-(rule,target) cooldown + idempotency keys make
- * re-fires safe.
+ * Scheduling: dispatched HOURLY by the automation-engine Inngest tick
+ * (lib/inngest/functions/automation-engine.ts) since 2026-10-10. The
+ * rules self-gate on hour/weekday in ET; the old single 03:00 UTC
+ * evening pass (22:00/23:00 ET) could never reach the daytime gates.
+ * Hourly is safe because every fire writes an AutonomousAction row
+ * first and the loop skips a (rule, target) with a row in the last 20h or
+ * since ET midnight (at most once per ET day).
  */
 
 import { cronHandler } from "@/lib/utils/http";
 import { getFlag } from "@/lib/feature-flags";
-import { runAutonomousActions } from "@/lib/brain/autonomous-engine";
+import { runAutonomousActions, OUTWARD_RULES } from "@/lib/brain/autonomous-engine";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("cron/autonomous-engine");
@@ -104,8 +107,14 @@ export const GET = cronHandler(async () => {
     ungatedRuleCount: guard?.ungated.length ?? null,
   });
 
+  // A rule error makes the run FAILED, named. logCronRun files the row from
+  // this claim; `ok: true` with `errors: 3` read as success on /system/crons
+  // while three rules threw on every run (prod, 2026-10-10).
   return {
-    ok: true,
+    ok: result.errors === 0,
+    ...(result.errors > 0
+      ? { reason: `${result.errors} rule error(s): ${result.failedRules.join(", ")}` }
+      : {}),
     ...result,
     durationMs,
     // Surface the safety posture in the response so /system/crons and a
@@ -124,37 +133,12 @@ export const GET = cronHandler(async () => {
  * AutomationPolicy registry. A rule is "approval-gated" iff its policy
  * `autonomous-action.<rule>` exists with approvalClass="pending".
  *
- * The list below is the set of rules whose `action` reaches a real
- * external recipient OR pushes a Telegram/email/memory mutation we want
- * an operator to sign off on while autonomy is young. Keep it in sync
- * with lib/brain/autonomous-engine.ts RULES (every rule with an
- * outward effect). `auto_followup_expired_quote` is the only one that
- * emails a real CUSTOMER — it must always be pending.
+ * OUTWARD_RULES lives in lib/brain/autonomous-engine.ts, beside its
+ * CUSTOMER_FACING_RULES subset (08-20 ET quiet hours).
+ * `auto_followup_expired_quote` is the only one that emails a real
+ * CUSTOMER — it must always be pending.
  */
 async function assertApprovalGated(): Promise<{ ungated: string[] }> {
-  const OUTWARD_RULES = [
-    "auto_followup_expired_quote", // EMAIL → real customer (highest risk)
-    "auto_remind_pending_appointment",
-    "decision_replay_due",
-    "suggest_pricing_adjustment",
-    "daily_score_reminder",
-    "commitment_checkin",
-    "workout_reminder",
-    "midweek_target_check",
-    "stale_leads_alert",
-    "task_overload_alert",
-    "friday_revenue_check",
-    "drift_escalation",
-    "morning_brief_push",
-    "overdue_commitment_escalation",
-    "adaptive_habit_upgrade",
-    "commitment_escalation_day5",
-    "memory_promotion",
-    "revenue_overconfidence_gate",
-    "decision_review_due",
-    "quote_conversion_insight",
-  ];
-
   const { prisma } = await import("@/lib/prisma");
   const ids = OUTWARD_RULES.map((r) => `autonomous-action.${r}`);
   const policies = await prisma.automationPolicy.findMany({

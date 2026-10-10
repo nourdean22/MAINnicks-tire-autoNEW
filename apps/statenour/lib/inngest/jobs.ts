@@ -214,14 +214,10 @@ export const EVENING_JOBS: readonly string[] = [
   // memory-to-memory "related" edges have been fossils ever since.
   // Idempotent, bounded (batch 25 · top-3 neighbors · pgvector KNN).
   "/api/cron/semantic-link",
-  // 2026-06-02 · v-truth · Nick autonomy resurrection (NICK_AUTONOMY-gated).
-  // Re-plugs runAutonomousActions (~22 proactive rules) which lost its cron
-  // route in the Wave-AE prune. The route HARD-SKIPS when NICK_AUTONOMY is
-  // off, so it's inert until the operator flips the env flag on Railway.
-  // The engine is now FAIL-CLOSED (autonomous-engine.ts): every rule defers
-  // to /system/actions unless an explicit `auto` policy exists — nothing
-  // auto-sends. One evening pass matches the rules' ET-hour/24h-cooldown gates.
-  "/api/cron/autonomous-engine",
+  // 2026-10-10 · /api/cron/autonomous-engine is NOT here on purpose. It moved to
+  // the hourly automation-engine tick (lib/inngest/functions/automation-engine.ts):
+  // its rules gate on daytime ET hours that this 22:00/23:00 ET slot never
+  // reaches, so seven of them could never fire. Do not re-add it.
 ];
 
 /**

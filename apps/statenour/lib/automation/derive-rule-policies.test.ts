@@ -25,7 +25,12 @@ describe("derived rule policies", () => {
   it("covers every rule the engine dispatches — the list cannot be incomplete", () => {
     const rules = listRuleNames().map((r) => r.name).sort();
     const derived = derivedRulePolicies().map((p) => p.name).sort();
-    expect(rules.length).toBeGreaterThanOrEqual(20);
+    // A floor against a vacuous registry, not a pin: 19 since 2026-10-10, when
+    // `morning_brief_push` was retired in favour of the Inngest morning-brief pair.
+    expect(
+      rules.length,
+      "19 rules since morning_brief_push was retired (the Inngest morning-brief pair owns the brief)",
+    ).toBeGreaterThanOrEqual(19);
     expect(derived).toEqual(rules);
     for (const p of derivedRulePolicies()) {
       expect(p.id).toBe(`autonomous-action.${p.name}`);

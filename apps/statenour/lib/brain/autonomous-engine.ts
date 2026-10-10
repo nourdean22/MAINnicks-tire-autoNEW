@@ -3,11 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
 import { sendEmail } from "@/lib/services/email";
 import { brainMemory } from "@/lib/brain/memory-manager";
-import { today, daysAgo, toDateString, hourET, weekdayET } from "@/lib/utils/datetime";
+import { today, daysAgo, toDateString, hourET, weekdayET, startOfDayET } from "@/lib/utils/datetime";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { computeIsoWeekKey } from "@/lib/ai/context/command-center-state";
-import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("brain/autonomous");
 
@@ -544,39 +543,10 @@ const RULES: ActionRule[] = [
     targetType: "drift",
   }),
 
-  // ── Morning brief push (7am weekdays) ──────────────────────
-  defineRule({
-    name: "morning_brief_push",
-    trigger: async () => {
-      const hour = hourET();
-      const day = weekdayET();
-      if (hour !== 7 || day === 0 || day === 6) return [];
-      return [{ time: "7am" }];
-    },
-    action: async () => {
-      // Pull live data for the brief
-      let revToday = "?";
-      let leadsWaiting = "?";
-      try {
-        const { queryNickBatch } = await import("@/lib/nickstire/query");
-        const data = await queryNickBatch([{ query: "revenue_today" }, { query: "leads_urgent" }]);
-        const rev = (data.revenue_today as any)?.data;
-        const leads = (data.leads_urgent as any)?.data;
-        if (rev) revToday = `$${rev.totalDollars || 0}`;
-        if (leads) leadsWaiting = String(leads.count || 0);
-      } catch (e) {
-        logError("brain.autonomous-engine", e, { stage: "bridge-revenue-leads" }, "warn");
-      }
-
-      await sendTelegram(
-        `☀️ <b>Morning Brief</b>\n\nRevenue today: ${revToday}\nLeads waiting: ${leadsWaiting}\n\n→ Open Nick for your full day plan: bdnick.info/chat`
-      );
-      return { result: "success" };
-    },
-    approval: "auto",
-    actionType: "send_telegram",
-    targetType: "morning_brief",
-  }),
+  // 2026-10-10 · `morning_brief_push` rule deleted (audit U4). The Inngest
+  // morning-brief pair (lib/inngest/functions/morning-brief.ts ->
+  // intelligence-brief.ts, plus its backstop) owns the morning brief; this was a
+  // third producer that, at the old 03:00 UTC dispatch, could never fire anyway.
 
   // ── Overdue commitment escalation ──────────────────────────
   defineRule({
@@ -968,6 +938,48 @@ export function listRuleNames(): Array<{
   }));
 }
 
+/**
+ * Rules whose action messages a person: an operator Telegram, or (for
+ * `auto_followup_expired_quote`) an email to a real CUSTOMER. The cron route's
+ * approval-gate pre-flight checks each has a `pending` policy.
+ */
+export const OUTWARD_RULES: readonly string[] = [
+  "auto_followup_expired_quote", // EMAIL -> real customer (highest risk)
+  "auto_remind_pending_appointment",
+  "decision_replay_due",
+  "suggest_pricing_adjustment",
+  "daily_score_reminder",
+  "commitment_checkin",
+  "workout_reminder",
+  "midweek_target_check",
+  "stale_leads_alert",
+  "task_overload_alert",
+  "friday_revenue_check",
+  "drift_escalation",
+  "overdue_commitment_escalation",
+  "adaptive_habit_upgrade",
+  "commitment_escalation_day5",
+  "memory_promotion",
+  "revenue_overconfidence_gate",
+  "decision_review_due",
+  "quote_conversion_insight",
+];
+/**
+ * The OUTWARD_RULES whose action reaches someone OTHER than the operator: a
+ * customer email/SMS or a public post. Every other rule Telegrams the operator's
+ * own chat (TELEGRAM_CHAT_ID) and keeps its own hour gate.
+ */
+export const CUSTOMER_FACING_RULES: readonly string[] = [
+  "auto_followup_expired_quote", // sendEmail -> quote.customerEmail
+];
+const CUSTOMER_FACING = new Set(CUSTOMER_FACING_RULES);
+
+/** Customer-facing rules act only 08:00-20:00 ET (start inclusive, end exclusive), even under an `auto` policy. */
+export function inCustomerHoursET(at: Date = new Date()): boolean {
+  const h = hourET(at);
+  return h >= 8 && h < 20;
+}
+
 /** Test seam: one rule's real trigger, by name. The rule loop wraps triggers in a
  *  transaction, an idempotent create and a bus emit, none of which a trigger needs. */
 export function __ruleTriggerForTest(name: string): (() => Promise<unknown[]>) | undefined {
@@ -978,11 +990,25 @@ export function __ruleTriggerForTest(name: string): (() => Promise<unknown[]>) |
  * Run all autonomous action rules.
  * Each rule: find items → execute action → log result.
  */
-export async function runAutonomousActions(): Promise<{ executed: number; errors: number }> {
+export async function runAutonomousActions(): Promise<{
+  executed: number;
+  errors: number;
+  /** Names of the rules that hit an error this run, so the cron row can say which. */
+  failedRules: string[];
+}> {
   let executed = 0;
   let errors = 0;
+  const failedRules: string[] = [];
+  const fail = (ruleName: string) => {
+    errors++;
+    if (!failedRules.includes(ruleName)) failedRules.push(ruleName);
+  };
 
   for (const rule of RULES) {
+    // Quiet hours: a customer-facing rule is not even evaluated outside 08-20
+    // ET; it fires on the first in-window tick, and the once-per-ET-day
+    // cooldown keeps it single. Operator-only rules keep their own gates.
+    if (CUSTOMER_FACING.has(rule.name) && !inCustomerHoursET()) continue;
     try {
       const items = await rule.trigger();
       if (items.length === 0) continue;
@@ -991,16 +1017,26 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
         // Items are heterogeneous (Prisma rows / object literals) erased to
         // `unknown` by the existential RULES array. Most carry no `id`; the
         // ones that do (commitments, memories, decisions) expose it here.
-        // Single honest boundary read — value is unchanged at runtime
-        // (Commitment.id stays a number; the cooldown layer stringifies on
-        // write exactly as before).
-        const itemId = (item as { id?: string | null }).id;
-        // Check cooldown — don't fire same rule on same target twice in 24h
+        // Stringified HERE because AutonomousAction.targetId is String? while
+        // Commitment.id and MasteryDecision.id are Int: a raw Int failed
+        // Prisma's argument validation on the cooldown read below and aborted
+        // four rules at their first item (prod `trigger_failed`, 2026-10-10).
+        const rawId = (item as { id?: unknown }).id;
+        const itemId = rawId == null ? null : String(rawId);
+        // Check cooldown — at most once per (rule, target) per ET day, and
+        // never within 20h. Not 24h: on the hourly tick a 24h window skipped a
+        // daily rule whenever today's check ran a few seconds earlier than
+        // yesterday's write, sliding it an hour later until it left its ET
+        // window. Not 20h alone: a rule with a window longer than 20h fired
+        // twice in one ET day (quote_conversion_insight, Sun 00 and Sun 21).
+        const cooldownStart = new Date(
+          Math.min(Date.now() - 20 * 60 * 60 * 1000, startOfDayET().getTime()),
+        );
         const recent = await prisma.autonomousAction.findFirst({
           where: {
             ruleName: rule.name,
-            targetId: itemId ?? null,
-            createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+            targetId: itemId,
+            createdAt: { gte: cooldownStart },
           },
         });
         if (recent) continue;
@@ -1013,15 +1049,14 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
         // Telegram messages went out for the same commitment ID.
         // Now: if ANY commitment-family action for this target
         // fired in the last 6h, suppress further commitment-family
-        // rules for the same target.
-        if (
-          rule.targetType === "commitment" &&
-          rule.name.startsWith("commitment_") &&
-          itemId
-        ) {
+        // rules for the same target. The family is targetType
+        // "commitment", not the `commitment_` name prefix: the prefix
+        // left overdue_commitment_escalation out, so it could fire on
+        // the same commitment as commitment_checkin in one run.
+        if (rule.targetType === "commitment" && itemId) {
           const familyRecent = await prisma.autonomousAction.findFirst({
             where: {
-              ruleName: { startsWith: "commitment_" },
+              targetType: "commitment",
               targetId: itemId,
               createdAt: { gte: new Date(Date.now() - 6 * 60 * 60 * 1000) },
             },
@@ -1033,7 +1068,7 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
         // (ruleName + targetType + targetId + 1h-bucket) so a re-fire
         // of the same rule against the same target within the hour
         // is suppressed by the unique index. The 1h bucket matches
-        // the existing 24h "recent" dedup but tightens it for the
+        // the existing once-per-ET-day "recent" dedup but tightens it for the
         // race-on-restart case.
         const { idempotencyRecipe, idempotentCreate } = await import("@/lib/db/idempotency");
         const key = idempotencyRecipe.autonomousAction({
@@ -1080,7 +1115,7 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
             trigger: `Auto-triggered: ${items.length} items matched`,
             actionType: rule.actionType,
             targetType: rule.targetType,
-            targetId: itemId ?? null,
+            targetId: itemId,
             approval: rule.approval,
             result: "pending",
             idempotencyKey: key,
@@ -1452,7 +1487,7 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
               idempotencyKey: key,
             });
           }
-          errors++;
+          fail(rule.name);
         }
       }
     } catch (err) {
@@ -1460,11 +1495,11 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
         rule: rule.name,
         error: err instanceof Error ? err.message : String(err),
       });
-      errors++;
+      fail(rule.name);
     }
   }
 
-  return { executed, errors };
+  return { executed, errors, failedRules };
 }
 
 /**

@@ -31,14 +31,28 @@
  * TWO OFF SWITCHES, neither needing a deploy: disable the rule row
  * (`automation_rules.enabled = false`), or set this cron's manifest entry to
  * mode "retired".
+ *
+ * THE AUTONOMOUS ENGINE RIDES THIS TICK (2026-10-10). Its rules gate on ET
+ * hours too, and its only dispatcher was the 03:00 UTC evening fan-out, which
+ * never reaches a daytime gate. The tick calls the ROUTE, not
+ * runAutonomousActions directly: the route is the engine's one caller and
+ * carries the NICK_AUTONOMY gate, its own /system/crons kill switch, the
+ * approval-gate pre-flight and the CronJobLog row (failed, naming the rules,
+ * when one errors). Every fire writes its AutonomousAction row first and the
+ * loop skips a (rule, target) with a row in the last 20h or since ET midnight,
+ * so hourly cannot repeat a send within an ET day. A dispatch failure marks this tick `degraded` rather than
+ * throwing, so it neither retries the engine nor pages hourly.
  */
 import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
+import { dispatchChild } from "./mega-fanout";
 import { automationEngine } from "@/lib/brain/automation-engine";
 import { logger } from "@/lib/logger";
 
 const log = logger.withSurface("inngest/automation-engine");
 const inngest = getInngest();
+
+const AUTONOMOUS_ROUTE = "/api/cron/autonomous-engine";
 
 export const automationEngineTick = inngest.createFunction(
   {
@@ -48,6 +62,23 @@ export const automationEngineTick = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
+    // First, so a failing run-rules step cannot starve it (a completed step is
+    // memoized across that step's retries).
+    const autonomous = await step.run("autonomous-engine", async (): Promise<{
+      ok: boolean;
+      status?: number;
+      error?: string;
+    }> => {
+      const cronSecret = (process.env.CRON_SECRET ?? "").trim();
+      if (!cronSecret) return { ok: false, error: "CRON_SECRET unset" };
+      try {
+        const r = await dispatchChild(AUTONOMOUS_ROUTE, cronSecret);
+        return { ok: true, status: r.status };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    });
+
     const results = await step.run("run-rules", () => automationEngine.run());
 
     // Logged every tick including the empty one. "nothing fired" is the common
@@ -61,8 +92,18 @@ export const automationEngineTick = inngest.createFunction(
       notified,
       failed: results.filter((r) => !r.success).length,
       unsupported: unsupported.slice(0, 5),
+      autonomous,
     });
 
-    return { fired: results.length, notified, unsupported: unsupported.length };
+    return {
+      fired: results.length,
+      notified,
+      unsupported: unsupported.length,
+      autonomous,
+      // CronLifecycleMiddleware files a declared degradation as `partial`.
+      ...(autonomous.ok
+        ? {}
+        : { degraded: true, degradedReason: `autonomous-engine dispatch: ${autonomous.error}` }),
+    };
   },
 );
