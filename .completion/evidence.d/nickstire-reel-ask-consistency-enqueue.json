@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "render-spend-trajectory": {
+      "ref": "2026-10-10 one-ask-per-reel before the spend (job 2070005). reelPipeline.ts is touched in three places and none adds a provider call or changes reservation, settlement or fallback arithmetic: (1) enqueueReelJob gains one typed refusal, REEL_ASK_INCONSISTENT, placed AFTER runReelPreflight and BEFORE enforceAtBoundary and the content-governor reservation, so a refused brief reserves nothing (server/reelEnqueueRefusalAdvance.test.ts: the refusal is mirrored by briefEnqueueRefusals, production shape refused, two controls); (2) ReelJobBrief declares the optional `ask` field the payload already carried; (3) processNextAssemblyJob's catch reads assemblyFailureOutcome: a ReelAssemblyRefusedError parks the row failed on first contact with attempts = attempt - 1, every other error keeps the exact prior ladder (attempt >= MAX_ATTEMPTS ? failed : assets_ready, attempts = attempt), pinned with a type-not-text control in server/reelAssemblyRefusal.test.ts (5 passed). The failed branch still calls releaseFailedJobReservation as before. The assembly ask gate moved ahead of clip download and the voiceover call, so a deterministic refusal now costs no TTS and no bandwidth (same test: fetch never called on the refused shape, called on the control). Spend-path pins green on the tree: server/reelReservationRelease.test.ts, server/refusedJobReservation.test.ts, server/reelRenderBudget.test.ts, server/reelSelfHostedSpendTrajectory.test.ts, server/reelPipeline.test.ts, server/reelPipelinePulseBudget.test.ts (43 consumer test files passed)."
+    },
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json: reel-quality-upgrade-20261010 gains a P2 blocker recording job 2070005 (profile end card vs send caption, five paid clips, three refusals in one pulse, parked failed, repaired by hand) and the fix in this PR, plus the four new/extended test files under evidence.tests. docs/operations/REALITY-LEDGER.md re-rendered with scripts/render-reality-ledger.mjs in the same diff."
+    }
+  }
+}
