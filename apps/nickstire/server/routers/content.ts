@@ -27,6 +27,7 @@ import { z } from "zod";
 import { GBP_ARCHETYPES } from "@shared/const";
 
 import { createLogger } from "../lib/logger";
+import { statenourQueueKey } from "../lib/statenourQueueKey";
 import type { ReelBrief } from "../../client/src/lib/facelessReelStudio";
 import { AUTONOMY_LIMIT_KEYS } from "../../client/src/lib/autonomyPolicy";
 import { dispatch } from "../services/eventBus";
@@ -2500,7 +2501,7 @@ export const contentAdminRouter = router({
     }).optional())
     .query(async ({ input }) => {
       const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
-      const syncKey = process.env.STATENOUR_SYNC_KEY || "";
+      const syncKey = statenourQueueKey();
       if (!syncKey) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Statenour sync key is not configured on Nick's Tire." });
       }
@@ -2534,7 +2535,7 @@ export const contentAdminRouter = router({
     }))
     .mutation(async ({ input }) => {
       const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
-      const syncKey = process.env.STATENOUR_SYNC_KEY || "";
+      const syncKey = statenourQueueKey();
       if (!syncKey) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Statenour sync key is not configured on Nick's Tire." });
       }
