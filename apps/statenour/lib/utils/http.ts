@@ -365,6 +365,9 @@ export function apiHandler(handler: RouteHandler, options: ApiHandlerOptions = {
   };
 }
 
+/** x-cron-trigger-id the healer sends (lib/services/autonomic-orchestrator.ts): heal:<action_attempts id>. */
+const HEAL_TRIGGER_ID = /^heal:[A-Za-z0-9_-]{8,48}$/;
+
 /**
  * apiHandler pre-configured with cron auth + kill-switch gate.
  *
@@ -387,6 +390,9 @@ export function cronHandler(handler: RouteHandler) {
       const url = new URL(req.url);
       const match = url.pathname.match(/\/api\/cron\/([^/?]+)/);
       const jobName = match?.[1] ?? null;
+      // Read only after cron auth (apiHandler); anything but the heal shape is ignored, never written.
+      const rawTrigger = req.headers.get("x-cron-trigger-id");
+      const triggerId = rawTrigger && HEAL_TRIGGER_ID.test(rawTrigger) ? rawTrigger : undefined;
 
       // Board overrides (NICK_MUTATION_LOCK) land before the handler reads a flag; a failed load runs on env (03-F13b).
       const { loadFeatureFlagOverrides } = await import("@/lib/feature-flags");
@@ -398,7 +404,7 @@ export function cronHandler(handler: RouteHandler) {
         if (!enabled) {
           const skip = { skipped: true, reason: "disabled via settings", jobName };
           const { logCronRun } = await import("@/lib/services/cron-manager");
-          await logCronRun(jobName, async () => skip);
+          await logCronRun(jobName, async () => skip, triggerId);
           return skip;
         }
       }
@@ -415,8 +421,10 @@ export function cronHandler(handler: RouteHandler) {
       // inside the cron run with the actor "cron:<jobName>" so DB rows
       // record exactly which scheduled job created/updated them.
       const { withActor, actorFromCron } = await import("@/lib/db/actor");
-      const run = await logCronRun(jobName, async () =>
-        withActor(actorFromCron(jobName), () => handler(req, ctx)),
+      const run = await logCronRun(
+        jobName,
+        async () => withActor(actorFromCron(jobName), () => handler(req, ctx)),
+        triggerId,
       );
       // v10.0.152 · log policy fire so AutomationPolicy.fireCount and
       // lastFiredAt become live data on /system/policies. Fire-and-

@@ -80,6 +80,16 @@ const RUN_STATUSES: string[] = [CRON_STATUS.started, ...TERMINAL_OK_STATUSES, ..
 const HEAL_EXECUTING_STALE_MS = 15 * 60_000;
 
 /**
+ * Heals claimed from this instant on send x-cron-trigger-id: heal:<attemptId>, and
+ * the healed run's row carries it (cron_job_logs."triggerId"). Earlier claims were
+ * fired without it and settle by the old name+time rule.
+ * shortcut: must fall after the deploy that ships trigger ids (a claim after it with
+ * no stamped row stays UNKNOWN); delete it and the legacy branch once no pre-cutoff
+ * heal is open.
+ */
+const HEAL_TRIGGER_CUTOFF = new Date("2026-10-18T00:00:00Z");
+
+/**
  * Settle a heal by compare-and-set on the state the resolver READ (claim-before-act):
  * a heal that settled itself in between keeps its own outcome. False = it moved, or
  * the transition is not legal in TRANSITIONS; either way, leave it.
@@ -97,8 +107,8 @@ async function casHeal(id: string, from: AttemptState, to: AttemptState, reason:
  * triggerCronByPath aborts at 55 s and most cron routes run longer, so a heal
  * of a long job settles UNKNOWN while the job keeps running, and nothing else
  * ever resolves an UNKNOWN. The healed route opens its own cron_job_logs row on
- * entry (logCronRun), so the job's first run row at or after the heal began is
- * the heal's run: settle the claim by how that row ended. No row yet, or one
+ * entry (logCronRun), stamped with the heal's trigger id, so that row is the
+ * heal's run: settle the claim by how that row ended. No row yet, or one
  * still `started`, stays as it is. An EXECUTING claim past HEAL_EXECUTING_STALE_MS
  * (its healer was killed before settling) is resolved the same way.
  */
@@ -120,8 +130,14 @@ async function resolveTimedOutHeals(): Promise<void> {
     // The claim's key is cron-heal:<job>:<failed run ISO> (see beginAttempt below).
     const jobName = /^cron-heal:([^:]+):/.exec(attempt.operationKey)?.[1];
     if (!jobName) continue;
+    // Match the row the heal's own request opened; a scheduled run of the same job
+    // (no trigger id) or another heal's run must never settle this claim.
+    const which =
+      attempt.startedAt < HEAL_TRIGGER_CUTOFF
+        ? { createdAt: { gte: attempt.startedAt } }
+        : { triggerId: `heal:${attempt.id}` };
     const run = await prisma.cronJobLog.findFirst({
-      where: { jobName, createdAt: { gte: attempt.startedAt }, status: { in: RUN_STATUSES } },
+      where: { jobName, ...which, status: { in: RUN_STATUSES } },
       select: { id: true, status: true, createdAt: true },
       orderBy: { createdAt: "asc" },
     });
@@ -286,7 +302,8 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
         log.info("trigger_healing", { jobName: row.name, reason });
 
         try {
-          const cronResult = await runManifestCron(row.name);
+          // The trigger id lets resolveTimedOutHeals find this heal's own run row.
+          const cronResult = await runManifestCron(row.name, attemptId ? `heal:${attemptId}` : undefined);
           await settleHeal(
             attemptId,
             cronResult.ok ? "success" : cronResult.status === 0 ? "unknown" : "known_failure",

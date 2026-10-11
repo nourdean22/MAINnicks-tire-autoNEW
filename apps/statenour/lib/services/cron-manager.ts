@@ -77,6 +77,8 @@ function publishCronFailure(jobName: string, error: string, durationMs: number):
 export async function logCronRun(
   jobName: string,
   fn: () => Promise<unknown>,
+  /** heal:<attemptId> when the healer fired this run (cronHandler validates it); absent for a scheduled run. */
+  triggerId?: string,
 ): Promise<{
   success: boolean;
   result?: unknown;
@@ -94,7 +96,7 @@ export async function logCronRun(
   // If this write fails, the terminal row is created instead (never lost).
   let startedId: string | null = null;
   try {
-    startedId = (await prisma.cronJobLog.create({ data: { jobName, status: "started" }, select: { id: true } })).id;
+    startedId = (await prisma.cronJobLog.create({ data: { jobName, status: "started", triggerId }, select: { id: true } })).id;
   } catch (e) {
     logError("cron.manager", e, { fn: "logCronRun", jobName, lost: "started-row" }, "warn");
   }
@@ -102,7 +104,7 @@ export async function logCronRun(
   const settle = async (data: Terminal, lost: string): Promise<void> => {
     try {
       if (startedId) await prisma.cronJobLog.update({ where: { id: startedId }, data });
-      else await prisma.cronJobLog.create({ data: { ...data, jobName } });
+      else await prisma.cronJobLog.create({ data: { ...data, jobName, triggerId } });
     } catch (e) {
       logError("cron.manager", e, { fn: "logCronRun", jobName, lost }, "warn");
     }
