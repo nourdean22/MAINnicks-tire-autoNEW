@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "render-spend-trajectory": {
+      "ref": "apps/nickstire/server/higgsfieldCliHandle.test.ts: readCliJobState reads status ip_detected as a terminal failure (red before the one-word regex change, 16 passed after) and pollHiggsfieldCliJob throws the replace-safe terminal phrase on a failed read. No reservation, price or retry-budget code is touched; live proof was job 2070006 beat 5 on 2026-10-11, where generate get returned ip_detected and the poller stalled 25 minutes on a dead handle."
+    },
+    "capability-ledger-updated": {
+      "deferred": "2026-10-11 one-word addition to a terminal-status regex in the Higgsfield CLI poller. No capability changes state or exposure; the B1 CLI-handle capability entry already covers this poller."
+    }
+  }
+}
