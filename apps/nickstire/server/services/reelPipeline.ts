@@ -433,7 +433,7 @@ export async function enqueueReelJob(
   brief: ReelJobBrief,
   source: "admin" | "cron",
   episode: EpisodeDeclaration,
-): Promise<{ jobId: number }> {
+): Promise<{ jobId: number; /** The episode already had a job; nothing new was created. */ deduped?: true }> {
   const { getDb } = await import("../db");
   const d = await getDb();
   if (!d) throw new Error("DB not available");
@@ -632,7 +632,7 @@ export async function enqueueReelJob(
         runId: brief.contentRunId ?? null,
       });
     } catch { /* lineage degraded; durable Reel row remains authoritative */ }
-    return { jobId: Number(existingBeforeReservation.id) };
+    return { jobId: Number(existingBeforeReservation.id), deduped: true };
   }
 
   // M10: deterministic preflight — do NOT reserve paid generation for a brief
@@ -812,7 +812,7 @@ export async function enqueueReelJob(
           jobId: existingAfterRace.id,
           idempotencyKey,
         });
-        return { jobId: Number(existingAfterRace.id) };
+        return { jobId: Number(existingAfterRace.id), deduped: true };
       }
     } catch { /* preserve the original insert error */ }
     const resId = (brief as { contentReservationId?: string }).contentReservationId;

@@ -197,6 +197,54 @@ describe("an approved pack refused at enqueue advances the rotation", () => {
   });
 });
 
+// 2026-10-11: the 06:00 ET pulse picked pack 2026-08-14-penny-test, whose episode
+// already had parked job 2040001. Enqueue deduplicated, the cron logged "Enqueued
+// new dynamic reel job: 2040001" and left the cursor on the pack, so no reel was
+// made and every later production hour would re-pick it.
+describe("a pack whose episode already has a job is stepped past, not re-picked", () => {
+  const enqueueBody = (): string => {
+    const a = PIPELINE.indexOf("export async function enqueueReelJob");
+    const b = PIPELINE.indexOf("\nexport async function processNextReelJob", a);
+    expect(a, "enqueueReelJob not found").toBeGreaterThan(-1);
+    expect(b, "enqueueReelJob end not found").toBeGreaterThan(a);
+    return PIPELINE.slice(a, b);
+  };
+  const dedupeBlock = (src: string): string => {
+    const i = src.indexOf("if (deduped && approvedPack)");
+    const end = src.indexOf("log.info(`Enqueued new dynamic reel job", i);
+    expect(i, "dedupe branch not found — anchor moved").toBeGreaterThan(-1);
+    expect(end, "dedupe branch end not found").toBeGreaterThan(i);
+    return src.slice(i, end);
+  };
+
+  it("both dedupe returns say so; the fresh-insert return does not", () => {
+    const body = enqueueBody();
+    expect(body.match(/deduped: true/g)?.length).toBe(2);
+    expect(body).toMatch(/\n  return \{ jobId \};/);
+  });
+
+  it("the cron advances past the pack and does not claim an enqueue", () => {
+    const b = dedupeBlock(CRON);
+    expect(b).toContain("advanceRotationPastRefusedPack");
+    expect(b).toContain("jobPackSlug: approvedPack.slug");
+    expect(b).toContain("recordsProcessed: 0");
+    expect(b).toContain("skipped");
+  });
+
+  it("only retries when the cursor really moved, and only a bounded number of times", () => {
+    const b = dedupeBlock(CRON);
+    expect(b).toContain("advanced === null ? {} : { packAlreadyQueued: true");
+    expect(CRON).toMatch(/skips >= MAX_QUEUED_PACK_SKIPS/);
+    expect(CRON).toMatch(/MAX_QUEUED_PACK_SKIPS = \d+;/);
+  });
+
+  it("CONTROL: the scan notices a dedupe branch that stops advancing", () => {
+    const planted = CRON.replace("await advanceRotationPastRefusedPack({\n        jobId,", "await somethingElse({\n        jobId,");
+    expect(planted).not.toBe(CRON);
+    expect(dedupeBlock(planted)).not.toContain("advanceRotationPastRefusedPack");
+  });
+});
+
 describe("what must NOT change — the fail-loud half", () => {
   it("rethrows anything that is not a preflight refusal", () => {
     // A provider outage or DB fault is TRANSIENT and must stay loud. This is the

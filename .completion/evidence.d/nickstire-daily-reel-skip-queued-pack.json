@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "render-spend-trajectory": {
+      "deferred": "2026-10-11. No new spend code: reelPipeline.ts only adds a deduped flag to the two existing dedupe returns, both before the content-governor reservation. The daily cron now enqueues up to twice a day and may step past a queued pack within one pulse; every enqueue still passes the unchanged reservation, maxFeedPostsPerDay / spacing governor and daily generation budget. A trajectory test through the service boundary is not added here; the first live 18:00 ET production run is the proof, to be read from cron_log and the generation ledger."
+    },
+    "cron-fail-closed": {
+      "ref": "apps/nickstire/server/reelEnqueueRefusalAdvance.test.ts: 'a pack whose episode already has a job is stepped past' (advance only when the cursor moved, retry bounded by MAX_QUEUED_PACK_SKIPS, red on the old source) and the unchanged 'rethrows anything that is not a preflight refusal'; apps/nickstire/server/reelTwiceDaily.test.ts: post guard counts per ET day, legacy last_date means one post, a stale count row does not count. Non-refusal failures still throw."
+    },
+    "capability-ledger-updated": {
+      "deferred": "2026-10-11. The daily-reel capability entry moves only after the first live twice-a-day run is observed (cron_log rows for the 06:00 and 18:00 ET pulses and two posts); marking it earlier would claim a rung not yet reached."
+    }
+  }
+}

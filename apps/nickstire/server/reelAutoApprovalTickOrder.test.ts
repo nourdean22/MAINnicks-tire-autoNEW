@@ -10,6 +10,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 const ORIGINAL_FLAG = process.env.REEL_AUTOPOST_ENABLED;
 
 afterEach(() => {
+  vi.useRealTimers();
   if (ORIGINAL_FLAG === undefined) delete process.env.REEL_AUTOPOST_ENABLED;
   else process.env.REEL_AUTOPOST_ENABLED = ORIGINAL_FLAG;
   vi.doUnmock("./services/reelAutoApproval");
@@ -17,7 +18,11 @@ afterEach(() => {
   vi.resetModules();
 });
 
+// Pinned to 10:00 ET: one post made today closes the day only until the
+// evening slot opens (18:00 ET), so an unpinned clock makes these hour-dependent.
 function todayEt(): string {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-11T14:00:00Z"));
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 

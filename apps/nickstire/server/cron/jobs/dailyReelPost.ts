@@ -9,6 +9,7 @@
  * State lives in the `shop_settings` KV table (no migration):
  *   reel_autopost_index     — index of the NEXT reel into MANIFEST (0..length)
  *   reel_autopost_last_date — YYYY-MM-DD (ET) of the last successful post
+ *   reel_autopost_day_count — "YYYY-MM-DD:N", posts made on that date (two a day max)
  *
  * Three kill switches, all default OFF:
  *   REEL_AUTOPOST_ENABLED      — this job (set true on Railway to arm the schedule)
@@ -20,7 +21,7 @@
  *                                Instagram failure PARKS the job instead of releasing it,
  *                                because a retry would post the Page a second time.
  *
- * Idempotency: posts at most once per ET day. On any failure the index is NOT
+ * Idempotency: posts at most twice per ET day (second slot opens at 18:00 ET). On any failure the index is NOT
  * advanced and the date is NOT recorded, so the next eligible tick retries the
  * same reel — never a skip, never a double-post.
  */
@@ -59,6 +60,18 @@ import {
 const log = createLogger("cron:daily-reel-post");
 
 const POST_HOUR_ET = 9;
+
+/**
+ * Two reels a day (operator, 2026-10-11): a morning one produced at the usual
+ * production hour and an evening one produced at EVENING_PRODUCTION_HOUR_ET.
+ * POST_SLOT_OPEN_HOURS_ET[i] is the ET hour the (i+1)th post of the day may go
+ * out: the first is open all day (as before), the second only from the evening
+ * hour, so a backlog reel cannot post twice back to back in the morning.
+ * The content governor still caps feed posts per day and spaces them.
+ */
+const EVENING_PRODUCTION_HOUR_ET = 18;
+const POST_SLOT_OPEN_HOURS_ET = [0, EVENING_PRODUCTION_HOUR_ET];
+const DAY_COUNT_KEY = "reel_autopost_day_count";
 
 /**
  * Rendered-QA gate values that WAIT ON A HUMAN and therefore read identically on
@@ -255,10 +268,31 @@ async function setKv(key: string, value: string, label: string): Promise<void> {
   }
 }
 
+/** Posts already made on this ET day. last_date alone means at least one. */
+async function postsToday(date: string): Promise<number> {
+  if ((await getKv("reel_autopost_last_date")) !== date) return 0;
+  const raw = (await getKv(DAY_COUNT_KEY)) ?? "";
+  const n = raw.startsWith(`${date}:`) ? parseInt(raw.slice(date.length + 1), 10) : 0;
+  return Math.max(1, Number.isFinite(n) ? n : 0);
+}
+
+/** Records the day's post count next to the legacy last-post date. `db` is a handle or a transaction. */
+async function stampPostedDay(db: any, date: string, count: number): Promise<void> {
+  const rows = [
+    ["reel_autopost_last_date", date, "Daily reel autopost — last post date (ET)"],
+    [DAY_COUNT_KEY, `${date}:${count}`, "Daily reel autopost — posts made on the last post date (ET)"],
+  ] as const;
+  for (const [key, value, label] of rows) {
+    await db.insert(shopSettings).values({ key, value, label, category: "general", updatedBy: "system" })
+      .onDuplicateKeyUpdate({ set: { value, updatedBy: "system" } });
+  }
+}
+
 async function setAutopostProgress(idx: number, date: string): Promise<void> {
   const { getDb } = await import("../../db");
   const d = await getDb();
   if (!d) return;
+  const count = (await postsToday(date)) + 1;
   await d.transaction(async (tx: any) => {
     // 1. Update index
     await tx.insert(shopSettings).values({ 
@@ -270,13 +304,7 @@ async function setAutopostProgress(idx: number, date: string): Promise<void> {
     }).onDuplicateKeyUpdate({ set: { value: String(idx), updatedBy: "system" } });
     
     // 2. Update date
-    await tx.insert(shopSettings).values({ 
-      key: "reel_autopost_last_date", 
-      value: date, 
-      label: "Daily reel autopost — last post date (ET)", 
-      category: "general", 
-      updatedBy: "system" 
-    }).onDuplicateKeyUpdate({ set: { value: date, updatedBy: "system" } });
+    await stampPostedDay(tx, date, count);
   });
 }
 
@@ -305,6 +333,7 @@ async function setApprovedPackProgress(idx: number, date: string): Promise<void>
   const { getDb } = await import("../../db");
   const d = await getDb();
   if (!d) return;
+  const count = (await postsToday(date)) + 1;
   await d.transaction(async (tx: any) => {
     await tx.insert(shopSettings).values({
       key: "reel_approved_pack_rotation_index",
@@ -313,13 +342,7 @@ async function setApprovedPackProgress(idx: number, date: string): Promise<void>
       category: "general",
       updatedBy: "system",
     }).onDuplicateKeyUpdate({ set: { value: String(idx), updatedBy: "system" } });
-    await tx.insert(shopSettings).values({
-      key: "reel_autopost_last_date",
-      value: date,
-      label: "Daily reel autopost — last post date (ET)",
-      category: "general",
-      updatedBy: "system",
-    }).onDuplicateKeyUpdate({ set: { value: date, updatedBy: "system" } });
+    await stampPostedDay(tx, date, count);
   });
 }
 
@@ -329,6 +352,7 @@ async function setActiveSlateProgress(idx: number, date: string): Promise<void> 
   const { getDb } = await import("../../db");
   const d = await getDb();
   if (!d) return;
+  const count = (await postsToday(date)) + 1;
   await d.transaction(async (tx: any) => {
     await tx.insert(shopSettings).values({
       key: ACTIVE_REEL_SLATE_CURSOR_KEY,
@@ -337,13 +361,7 @@ async function setActiveSlateProgress(idx: number, date: string): Promise<void> 
       category: "general",
       updatedBy: "system",
     }).onDuplicateKeyUpdate({ set: { value: String(idx), updatedBy: "system" } });
-    await tx.insert(shopSettings).values({
-      key: "reel_autopost_last_date",
-      value: date,
-      label: "Daily reel autopost — last post date (ET)",
-      category: "general",
-      updatedBy: "system",
-    }).onDuplicateKeyUpdate({ set: { value: date, updatedBy: "system" } });
+    await stampPostedDay(tx, date, count);
   });
 }
 
@@ -351,13 +369,8 @@ async function setAutopostDate(date: string): Promise<void> {
   const { getDb } = await import("../../db");
   const d = await getDb();
   if (!d) return;
-  await d.insert(shopSettings).values({
-    key: "reel_autopost_last_date",
-    value: date,
-    label: "Daily reel autopost — last post date (ET)",
-    category: "general",
-    updatedBy: "system",
-  }).onDuplicateKeyUpdate({ set: { value: date, updatedBy: "system" } });
+  const count = (await postsToday(date)) + 1;
+  await d.transaction(async (tx: any) => { await stampPostedDay(tx, date, count); });
 }
 
 function etNow(): { date: string; hour: number } {
@@ -389,7 +402,26 @@ export function facebookLiveWithoutInstagram(
   return null;
 }
 
-export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; details?: string }> {
+type DailyReelResult = { recordsProcessed?: number; details?: string };
+
+/** Packs one pulse may step past because they already have a job. */
+const MAX_QUEUED_PACK_SKIPS = 5;
+
+/**
+ * An approved pack whose episode already has a reel job (old, parked, posted)
+ * dedupes at enqueue and creates nothing. The pulse used to report that as
+ * "Enqueued" and leave the cursor on the pack, so every production hour
+ * re-picked it (2026-10-11: job 2040001 swallowed the 06:00 ET pulse). Now the
+ * pulse advances past it and tries the next pack, up to MAX_QUEUED_PACK_SKIPS.
+ */
+export async function runDailyReelPost(): Promise<DailyReelResult> {
+  for (let skips = 0; ; skips++) {
+    const { packAlreadyQueued, ...result } = await runDailyReelPostOnce();
+    if (!packAlreadyQueued || skips >= MAX_QUEUED_PACK_SKIPS) return result;
+  }
+}
+
+async function runDailyReelPostOnce(): Promise<DailyReelResult & { packAlreadyQueued?: true }> {
   if (process.env.REEL_AUTOPOST_ENABLED !== "true") {
     return { recordsProcessed: 0, details: "disabled (REEL_AUTOPOST_ENABLED != true)" };
   }
@@ -413,18 +445,28 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     log.warn("daily reel: auto-approval pass failed — reels stay held, cron continues", { err: err instanceof Error ? err.message : String(err) });
   }
 
-  const lastDate = await getKv("reel_autopost_last_date");
-  if (lastDate === date) {
+  const posted = await postsToday(date);
+  if (posted >= POST_SLOT_OPEN_HOURS_ET.length) {
     return { recordsProcessed: 0, details: `already posted today (${date})` };
+  }
+  const nextOpen = POST_SLOT_OPEN_HOURS_ET[posted];
+  if (hour < nextOpen) {
+    return { recordsProcessed: 0, details: `already posted today (${date}); next reel slot opens at ${nextOpen}:00 ET` };
   }
 
   const { getDb } = await import("../../db");
   const d = await getDb();
   if (!d) return { recordsProcessed: 0, details: "DB not available" };
 
-  const briefId = `autopost-${date}`;
-  const jobs = await d.select().from(reelJobs).where(eq(reelJobs.briefId, briefId)).limit(1);
-  const todaysJob = jobs[0];
+  // The evening run has its own job row, or it would dedupe onto the morning one.
+  const evening = hour >= EVENING_PRODUCTION_HOUR_ET;
+  const morningId = `autopost-${date}`;
+  const briefId = evening ? `${morningId}-pm` : morningId;
+  // Nothing posted yet at 18:00: the unposted morning job is still today's job, so it is
+  // finished (or stays parked) instead of a second paid render starting beside it.
+  const lookupIds = evening && posted === 0 ? [morningId, briefId] : [briefId];
+  const jobs = await d.select().from(reelJobs).where(inArray(reelJobs.briefId, lookupIds)).limit(2);
+  const todaysJob = jobs.find((j: { briefId: string }) => j.briefId === briefId) ?? jobs[0];
   let job: typeof todaysJob | undefined = undefined;
   let drainedFrom: string | null = null;
 
@@ -729,8 +771,8 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       log.warn("best-posting-time lookup failed; using default hour", { err: err instanceof Error ? err.message : String(err) });
     }
     const normalizedTargetHour = normalizeProductionTargetHour(targetHour);
-    if (hour !== normalizedTargetHour) {
-      return { recordsProcessed: 0, details: `not production hour (ET ${hour}:00, want ${normalizedTargetHour}:00; analytics selected ${targetHour}:00) — waiting to enqueue` };
+    if (hour !== normalizedTargetHour && hour !== EVENING_PRODUCTION_HOUR_ET) {
+      return { recordsProcessed: 0, details: `not production hour (ET ${hour}:00, want ${normalizedTargetHour}:00 or ${EVENING_PRODUCTION_HOUR_ET}:00; analytics selected ${targetHour}:00) — waiting to enqueue` };
     }
     const idx = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
     const approvedPackCursor = await getKv("reel_approved_pack_rotation_index");
@@ -924,7 +966,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       if (approvedPackPool === "active_slate") {
         (brief as { approvedPackSlateRevision?: string }).approvedPackSlateRevision = activeSlate.updatedAt ?? undefined;
       }
-      (brief as { productionSlot?: string }).productionSlot = productionSlotForHour(normalizedTargetHour);
+      (brief as { productionSlot?: string }).productionSlot = productionSlotForHour(hour);
     }
 
     // The brief's factual spine, joined to real evidence records. mechanicTruth
@@ -961,21 +1003,24 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // fault is transient and must stay loud, which is why this catches the
     // TYPED error and nothing wider.
     let jobId: number;
+    let deduped: true | undefined;
     try {
-      ({ jobId } = await enqueueReelJob(brief, "cron", {
+      ({ jobId, deduped } = await enqueueReelJob(brief, "cron", {
       objective: "DISCOVERY",
       disclosureMode: "visibly_animated",
       // ReelBrief (the generator's shape) has no ctaType yet — the generated
       // caption carries its ask in prose. Declared NONE rather than guessed, so
       // the governor's repetition check is not fed a fabricated CTA.
       ctaType: (brief as { ctaType?: "SEND" | "SAVE" | "COMMENT" | "VISIT" | "FOLLOW" | "NONE" }).ctaType ?? "NONE",
-      productionSlot: productionSlotForHour(normalizedTargetHour),
+      productionSlot: productionSlotForHour(hour),
       // DUE-AT for this reel. The approved-pack lane knows its position in the
       // rotation, so it can say WHEN this one is meant to go out instead of
       // leaving the intent null and discovering lateness only in hindsight.
       // The miner lane deliberately gets none: an ad-hoc topic has no queue
       // position, and a fabricated deadline is worse than an absent one.
-      ...(approvedPack
+      // (The evening run gets none: the planner only knows the 09:00 slot, so it
+      // would name tomorrow morning for a reel meant to go out tonight.)
+      ...(approvedPack && !evening
         ? {
             publicationIntendedAt:
               reelPublicationIntentFor(0, new Date()) ?? undefined,
@@ -1010,6 +1055,24 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       return {
         recordsProcessed: 0,
         details: `skipped — approved pack ${approvedPack.slug} blocked at enqueue preflight, rotation advanced: ${err.message}`,
+      };
+    }
+    if (deduped && approvedPack) {
+      const advanced = await advanceRotationPastRefusedPack({
+        jobId,
+        jobPackSlug: approvedPack.slug,
+        jobPackPool: packSelection.state === "active_slate" ? "active_slate" : "full_approved_library",
+        jobSlateRevision: packSelection.state === "active_slate" ? activeSlate.updatedAt : null,
+        reason: `pack already has reel job ${jobId}`,
+      });
+      log.warn("daily reel: approved pack already has a job — nothing enqueued", {
+        slug: approvedPack.slug, jobId, advancedTo: advanced,
+      });
+      return {
+        recordsProcessed: 0,
+        details: `skipped — approved pack ${approvedPack.slug} already has reel job ${jobId}${advanced === null ? ", rotation NOT advanced" : `, rotation advanced to ${advanced}`}`,
+        // Retrying after a held cursor would re-pick the same pack.
+        ...(advanced === null ? {} : { packAlreadyQueued: true as const }),
       };
     }
     log.info(`Enqueued new dynamic reel job: ${jobId} for briefId: ${briefId} (brief attempt ${prepared.attempts})`);
