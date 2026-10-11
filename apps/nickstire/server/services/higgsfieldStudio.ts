@@ -631,7 +631,8 @@ export function readCliJobState(stdout: string): HiggsfieldCliJobState {
   const parsed = JSON.parse(stdout) as unknown;
   const job = (Array.isArray(parsed) ? parsed[0] : parsed) as { status?: unknown; result_url?: unknown } | null;
   const status = String(job?.status ?? "").toLowerCase();
-  if (/fail|error|cancel|reject|nsfw|moderat/.test(status)) return { state: "failed", status };
+  // ip_detected: Higgsfield refused beat 5 of job 2070006 (2026-10-11); read as "running" it stalled the job for 25 minutes.
+  if (/fail|error|cancel|reject|nsfw|moderat|ip_detected/.test(status)) return { state: "failed", status };
   const resultUrl = typeof job?.result_url === "string" && job.result_url.trim() ? job.result_url : null;
   if (!resultUrl && status !== "completed") return { state: "running", status };
   // A finished job whose result is not a video is a provider defect, not a
