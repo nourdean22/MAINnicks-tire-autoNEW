@@ -5,7 +5,9 @@ description: >
   reply a busy human understands in one read. Use on any coding task (writing,
   fixing, refactoring, reviewing, choosing dependencies) and when the user says
   "ponytail", "be lazy", "simplest solution", "yagni", or complains about
-  over-engineering or bloat. Levels: lite, full (default), ultra.
+  over-engineering or bloat. Invoke at the start of every coding session
+  (level full) and again right after any context compaction, before writing
+  or changing code. Levels: lite, full (default), ultra.
 argument-hint: "[lite|full|ultra]"
 license: MIT
 ---

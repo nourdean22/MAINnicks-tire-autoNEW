@@ -99,9 +99,9 @@ invoke did not apply: naming it in prose is not invocation. If you claim a stanc
 work, the Skill call must be in the transcript.
 - `i-have-adhd` + `antislop` — always on (operator, 2026-10-10): every reply shaped for an ADHD reader (answer first, numbered
   steps, one next action); UI, copy or mobile work reads `.claude/skills/antislop/SKILL.md` then the task skill, mode per its Two Usage Modes.
-- `karpathy-guidelines` — every code task · think first · simplest thing that works · surgical edits · verifiable goal.
+- `karpathy-guidelines` — every code task · simplest thing · surgical edits. `verification-before-completion`: no done without a fresh check.
 - `using-superpowers` then `ponytail` — every task, invoked FIRST (operator, 2026-10-10; always on here and globally): if a skill might
-  apply, invoke it (process skills in `.claude/skills/` before implementation); then the smallest complete change. SKILL.md only, no hooks.
+  apply, invoke it (process skills in `.claude/skills/` before implementation); then the smallest complete change. Re-armed after compaction: ~/.claude/hooks/always-on-skills.mjs.
 - `brainstorming` — before building anything new · vague ideas -> validated design.
 - `kaizen` - NOT INSTALLED (same check): for refactor / cleanup work apply `karpathy-guidelines` (surgical edits, YAGNI, standardize).
 
