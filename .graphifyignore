@@ -108,3 +108,8 @@ apps/nickstire/reports/drizzle-migrations-dump-*.json
 # "pruned 13 node(s) from 1 newly-ignored file(s)" line after a first attempt to
 # exclude it). Excluding it shrinks the graph, which is exactly what the header
 # above warns against - keep it in.
+
+# Privacy (2026-10-11): personal operator facts never enter graph.json or the Obsidian sync.
+apps/statenour/docs/OPERATOR-BIOGRAPHY.md
+.agents/core/USER.md
+.agents/core/USER-SOURCES.md

@@ -8,6 +8,10 @@
 > **This file is the OPERATOR PROFILE — who you work for and how to communicate.**
 > Engineering policy (branching, verify gates, context routing, Windows rules) is canonical
 > in [`AGENTS.md`](./AGENTS.md); where the two ever disagree, `AGENTS.md` wins.
+>
+> **Voice RETIRED here (2026-10-11).** The "Response Structure" and "Strategic Operator & Cognitive Force
+> Mandate" sections below are kept as lineage only. Current voice, identity and operator profile:
+> [`.agents/core/CORE.md`](.agents/core/CORE.md) (SOUL, IDENTITY, USER). The signals table and §11 still apply.
 
 ---
 

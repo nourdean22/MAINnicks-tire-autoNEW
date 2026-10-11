@@ -170,6 +170,25 @@ if (requireFile("CLAUDE.md", "Claude Code adapter")) {
   requireMatch("CLAUDE.md", /^@NOUR-COMMAND\.md$/m, "must IMPORT Nour Command on its own @ line");
   requireThin("CLAUDE.md", 60);
 }
+// ── 2a · Agent core (2026-10-11): soul, identity, operator profile, constitution ─────────
+// Loaded in every session through ONE import chain: CLAUDE.md / GEMINI.md -> CORE.md -> the four
+// files. Each link must be a bare @ line (a markdown link loads nothing), and each file is capped
+// because every line is paid for in every conversation. Drop any link and the operator's voice and
+// profile silently stop loading while every other check stays green.
+if (requireFile(".agents/core/CORE.md", "agent core index (imports soul, identity, user, constitution)")) {
+  requireMatch("CLAUDE.md", /^@\.agents\/core\/CORE\.md$/m, "must IMPORT the agent core on its own @ line");
+  requireMatch("GEMINI.md", /^@\.agents\/core\/CORE\.md$/m, "must import the agent core via memport");
+  requireThin(".agents/core/CORE.md", 30);
+  for (const [f, cap] of [["SOUL.md", 50], ["IDENTITY.md", 35], ["USER.md", 70], ["CONSTITUTION.md", 35]]) {
+    // Not named p: the capped-file invariant in adapters.test.mjs resolves an identifier passed to
+    // requireThin through the FIRST same-named template binding in this file, so reusing p would hijack it.
+    const corePath = `.agents/core/${f}`;
+    requireFile(corePath, "always-loaded agent core file");
+    requireMatch(".agents/core/CORE.md", new RegExp(`^@${f.replace(".", "\\.")}$`, "m"), `CORE.md must IMPORT ${f} on its own @ line`);
+    requireThin(corePath, cap);
+    forbidLongLine(corePath, 140); // capped files must also be length-checked (reflow evasion)
+  }
+}
 if (requireFile("GEMINI.md", "Gemini CLI adapter")) {
   requireMatch("GEMINI.md", /@AGENTS\.md/, "must import the canonical policy (memport)");
   requireMatch("GEMINI.md", /^@NOUR-COMMAND\.md$/m, "must import Nour Command via memport");
@@ -290,6 +309,7 @@ if (requireFile("CLAUDE-OPERATING-PROFILE.md", "relocated Claude operating profi
     "apps/nickstire/CLAUDE.md",
     "apps/statenour/CLAUDE.md",
     "apps/worker/CLAUDE.md",
+    ".agents/core/CORE.md",
   ]) {
     forbidLongLine(f, 140);
   }
