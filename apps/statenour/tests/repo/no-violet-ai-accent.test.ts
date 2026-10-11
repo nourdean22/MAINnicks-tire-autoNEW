@@ -49,11 +49,15 @@ describe("no violet AI accent", () => {
 
   it("nothing else references the retired tokens (a consumer of a deleted token renders transparent)", () => {
     // Bounded scan: every .css/.tsx/.ts under app/, components/, lib/.
-    const { execSync } = require("node:child_process") as typeof import("node:child_process");
-    const out = execSync('git grep -n -e "--status-ai" -e "--status-purple" -- app components lib || true', {
+    const { spawnSync } = require("node:child_process") as typeof import("node:child_process");
+    // git grep: exit 0 = matches, exit 1 = no match (both answers), anything else = failure.
+    const grep = spawnSync("git", ["grep", "-n", "-e", "--status-ai", "-e", "--status-purple", "--", "app", "components", "lib"], {
       cwd: ROOT,
       encoding: "utf8",
     });
+    if (grep.error) throw grep.error;
+    if (grep.status !== 0 && grep.status !== 1) throw new Error(`git grep failed (status ${grep.status}): ${grep.stderr}`);
+    const out = grep.status === 0 ? grep.stdout : "";
     const offenders = out
       .split("\n")
       .filter((l) => l.trim().length > 0)

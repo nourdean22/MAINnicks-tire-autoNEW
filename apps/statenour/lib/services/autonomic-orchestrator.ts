@@ -90,6 +90,14 @@ const HEAL_EXECUTING_STALE_MS = 15 * 60_000;
 const HEAL_TRIGGER_CUTOFF = new Date("2026-10-18T00:00:00Z");
 
 /**
+ * A post-cutoff heal still UNKNOWN this long after its claim, with no cron_job_logs
+ * row stamped heal:<id>, never reached its route (or its row never landed), and nothing
+ * else settles an UNKNOWN, so it is aged out to FAILED instead of staying open forever.
+ * shortcut: 24 h is above the longest route run seen; remove with the legacy branch.
+ */
+const HEAL_UNKNOWN_AGE_OUT_MS = 24 * HOUR_MS;
+
+/**
  * Settle a heal by compare-and-set on the state the resolver READ (claim-before-act):
  * a heal that settled itself in between keeps its own outcome. False = it moved, or
  * the transition is not legal in TRANSITIONS; either way, leave it.
@@ -141,6 +149,22 @@ async function resolveTimedOutHeals(): Promise<void> {
       select: { id: true, status: true, createdAt: true },
       orderBy: { createdAt: "asc" },
     });
+    // Aging out: a post-cutoff UNKNOWN with no stamped row past the window is settled FAILED.
+    if (
+      !run &&
+      attempt.state === "UNKNOWN" &&
+      attempt.startedAt >= HEAL_TRIGGER_CUTOFF &&
+      Date.now() - attempt.startedAt.getTime() > HEAL_UNKNOWN_AGE_OUT_MS
+    ) {
+      await casHeal(
+        attempt.id,
+        "UNKNOWN",
+        "FAILED",
+        `aged out: no cron_job_logs row carries heal:${attempt.id} after ${HEAL_UNKNOWN_AGE_OUT_MS / HOUR_MS} h`,
+        `heal:${attempt.id}`,
+      );
+      continue;
+    }
     if (!run || run.status === CRON_STATUS.started) continue;
     const reason = `healed run cron_job_logs ${run.id}: ${run.status} at ${run.createdAt.toISOString()}`;
     const from = attempt.state as AttemptState;
