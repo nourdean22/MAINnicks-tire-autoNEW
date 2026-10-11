@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "statenour/audit-wave2",
+  "status": "active",
+  "sessionKind": "bridge",
+  "sessionId": "dff9bdca-04aa-49eb-ae9d-b4de9fd51e44",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.worktrees\\audit-wave2-verify",
+  "claimedBy": "worktree-setup.ps1",
+  "claimedAt": "2026-10-11T00:18:20.688Z",
+  "expiresAt": "2026-10-11T12:18:20.688Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
