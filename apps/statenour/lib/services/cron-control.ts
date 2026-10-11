@@ -132,7 +132,7 @@ function baseUrl(): string {
  * "/api/cron/mega?slot=morning"). Passes CRON_SECRET so the target
  * route authorizes the call. Returns timing + status for UI feedback.
  */
-export async function triggerCronByPath(path: string): Promise<CronTriggerResult> {
+export async function triggerCronByPath(path: string, triggerId?: string): Promise<CronTriggerResult> {
   const start = Date.now();
   // v8.21 · explicit env-missing handling. Sending Bearer "" would
   // 401 every target route; surface the misconfig clearly instead.
@@ -153,6 +153,8 @@ export async function triggerCronByPath(path: string): Promise<CronTriggerResult
         // v10.0.115 · removed dead x-vercel-cron: '1' header. The
         // bypass it triggered on receivers was a CRITICAL spoofable
         // hole closed in v10.0.114; this header now does nothing.
+        // cronHandler stamps it on the run's row, so a heal can find its own run.
+        ...(triggerId ? { "x-cron-trigger-id": triggerId } : {}),
       },
       signal: AbortSignal.timeout(55000),
     });
@@ -324,6 +326,7 @@ export function normalizeCronStatus(status: string): CronLastStatus | null {
 
 export async function runManifestCron(
   jobName: string,
+  triggerId?: string,
 ): Promise<CronTriggerResult & { jobName: string }> {
   const def = CRONS.find((c) => c.name === jobName);
   if (!def) {
@@ -340,7 +343,7 @@ export async function runManifestCron(
   const event = MEGA_SLOT_EVENTS[jobName];
   if (event) return { jobName, ...(await sendCronEvent(event)) };
   const path = def.path ?? `/api/cron/${jobName}`;
-  const result = await triggerCronByPath(path);
+  const result = await triggerCronByPath(path, triggerId);
   return { jobName, ...result };
 }
 

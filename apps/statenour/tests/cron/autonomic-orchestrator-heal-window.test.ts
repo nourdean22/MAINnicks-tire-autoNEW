@@ -12,7 +12,7 @@
  * The store below is an in-memory action_attempts table with a real unique key,
  * so the real beginAttempt / settleAttempt run against it.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const h = vi.hoisted(() => ({
   deck: vi.fn(),
@@ -27,7 +27,9 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/services/system-pages", () => ({ buildCronCommandDeck: () => h.deck() }));
-vi.mock("@/lib/services/cron-control", () => ({ runManifestCron: (n: string) => h.runManifestCron(n) }));
+vi.mock("@/lib/services/cron-control", () => ({
+  runManifestCron: (...args: unknown[]) => h.runManifestCron(...args),
+}));
 vi.mock("@/lib/services/coach-events", () => ({ recordCoachEvent: async () => null }));
 vi.mock("@/lib/services/telegram", () => ({ sendTelegram: async () => true }));
 vi.mock("@/lib/services/ai-tasks", () => ({ decomposeTaskWithAi: async () => ({ ok: false, subtasksCount: 0 }) }));
@@ -146,6 +148,12 @@ beforeEach(() => {
   h.cronLogs.length = 0;
   h.cronLogsDown = false;
   h.afterAttemptRead = null;
+  // Pinned before HEAL_TRIGGER_CUTOFF: the describes below that seed rows with no
+  // triggerId exercise the legacy name+time rule, which only pre-cutoff heals use.
+  vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-11T12:00:00Z") });
+});
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("cron healer · only a recent failure is healed", () => {
@@ -164,7 +172,8 @@ describe("cron healer · only a recent failure is healed", () => {
     const res = await runAutonomicOrchestrator();
 
     expect(h.runManifestCron).toHaveBeenCalledTimes(1);
-    expect(h.runManifestCron).toHaveBeenCalledWith("weekly-maint");
+    // The heal names its own claim, so the healed run's row can be matched to it.
+    expect(h.runManifestCron).toHaveBeenCalledWith("weekly-maint", "heal:att_1");
     expect(res.healedCrons).toEqual(["weekly-maint"]);
   });
 
@@ -474,5 +483,75 @@ describe("cron healer: a heal killed mid-flight is settled from the healed run's
     };
     await runAutonomicOrchestrator();
     expect(row().state).toBe("FAILED");
+  });
+});
+
+// Codex P2 on #2984: the name+time rule let a later SCHEDULED success verify a heal
+// that never reached the route, and an unrelated failure fail a good one. A heal now
+// sends x-cron-trigger-id: heal:<attemptId>, the route stamps it on its own row, and
+// the resolver matches that row only.
+describe("cron healer: a timed-out heal settles only from the row its own trigger opened", () => {
+  beforeEach(() => {
+    vi.setSystemTime(new Date("2026-11-01T12:00:00Z")); // after HEAL_TRIGGER_CUTOFF
+  });
+  async function timedOutHeal(): Promise<number> {
+    h.runManifestCron.mockResolvedValueOnce({ ok: false, status: 0, durationMs: 55_000, error: "aborted due to timeout" });
+    h.deck.mockResolvedValueOnce({ rows: [failedRow()] });
+    await runAutonomicOrchestrator();
+    expect(states()).toEqual(["UNKNOWN"]);
+    h.deck.mockResolvedValue({ rows: [] });
+    return (attempt().startedAt as Date).getTime();
+  }
+  const attempt = () => [...h.attempts.values()][0];
+  const cronRow = (id: string, status: string, at: number, triggerId: string | null) =>
+    h.cronLogs.push({ id, jobName: "weekly-maint", status, createdAt: new Date(at), triggerId });
+
+  it("a later scheduled success with no trigger id does NOT verify the heal", async () => {
+    const startedAt = await timedOutHeal();
+    cronRow("log_scheduled", "success", startedAt + 1_000, null);
+
+    await runAutonomicOrchestrator();
+
+    expect(states()).toEqual(["UNKNOWN"]);
+  });
+
+  it("an unrelated failure with no trigger id does NOT fail the heal", async () => {
+    const startedAt = await timedOutHeal();
+    cronRow("log_scheduled", "failed", startedAt + 1_000, null);
+
+    await runAutonomicOrchestrator();
+
+    expect(states()).toEqual(["UNKNOWN"]);
+  });
+
+  it("the healed run's own row (trigger id match) settles it VERIFIED, even after an earlier scheduled failure", async () => {
+    const startedAt = await timedOutHeal();
+    cronRow("log_scheduled", "failed", startedAt + 1_000, null);
+    cronRow("log_heal", "success", startedAt + 2_000, "heal:att_1");
+
+    await runAutonomicOrchestrator();
+
+    expect(states()).toEqual(["VERIFIED"]);
+    expect(attempt().receiptId).toBe("log_heal");
+  });
+
+  it("the healed run's own row ended failed: the heal is FAILED, citing it", async () => {
+    const startedAt = await timedOutHeal();
+    cronRow("log_scheduled", "success", startedAt + 1_000, null);
+    cronRow("log_heal", "failed", startedAt + 2_000, "heal:att_1");
+
+    await runAutonomicOrchestrator();
+
+    expect(states()).toEqual(["FAILED"]);
+    expect(attempt().receiptId).toBe("log_heal");
+  });
+
+  it("another heal's row never settles this one", async () => {
+    const startedAt = await timedOutHeal();
+    cronRow("log_other_heal", "success", startedAt + 1_000, "heal:att_other");
+
+    await runAutonomicOrchestrator();
+
+    expect(states()).toEqual(["UNKNOWN"]);
   });
 });

@@ -2823,10 +2823,13 @@ model CronJobLog {
   /// convention as the pgvector HNSW index: raw SQL owns it. See
   /// prisma/migrations/20260917234500_cron_job_log_run_id/migration.sql.
   runId     String?
+  /// Who triggered this run when it was not the schedule (heal:<attemptId>); null for scheduled runs.
+  triggerId String?  @db.VarChar(64)
   createdAt DateTime @default(now())
 
   @@index([jobName])
   @@index([status])
+  @@index([triggerId])
   // Apr 18: watcher cron queries (jobName, status, createdAt >= cutoff)
   // to find stale jobs. Composite makes the lookup a range scan on
   // the single index instead of a full-jobName scan.
