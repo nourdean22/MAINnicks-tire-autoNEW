@@ -20,6 +20,7 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { META_AI_SELF_DISCLOSURE } from "@shared/reelDisclosure";
 
 const log = createLogger("meta-social");
 
@@ -1006,7 +1007,7 @@ export async function postInstagramReel(params: {
         video_url: params.videoUrl,
         caption: params.caption,
         // Structured AI self-disclosure - see isAiGenerated on the param type.
-        ...(params.isAiGenerated ? { is_ai_generated: true } : {}),
+        ...(META_AI_SELF_DISCLOSURE && params.isAiGenerated ? { is_ai_generated: true } : {}),
         // PUBLISHED != VISIBLE (2026-08-07). Instagram defaults share_to_feed
         // to FALSE for REELS containers, so every reel this lane has ever
         // published landed in the Reels tab ONLY and never appeared on the
