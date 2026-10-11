@@ -1394,8 +1394,6 @@ async function cmdAsk(args: string, chatId: string): Promise<void> {
         execute: async ({ query }) => {
           try {
             const { semanticSearch } = await import("@/lib/brain/embedding-utils");
-            // Corrected memories (superseded, or past validUntil) are not current beliefs.
-            const { validityWhere } = await import("@/lib/brain/contextual-recall");
             const hits = await semanticSearch(query, 6);
             if (hits.length > 0) {
               updateTurnContext({ untrustedInput: true });
@@ -1428,7 +1426,9 @@ async function cmdAsk(args: string, chatId: string): Promise<void> {
                 content: { contains: query, mode: "insensitive" },
                 deletedAt: null,
                 category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
-                ...validityWhere(),
+                // Current belief only: same rule as validityWhere() in lib/brain/contextual-recall.ts.
+                supersededById: null,
+                OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
               },
               orderBy: { confidence: "desc" },
               take: 6,
@@ -1627,8 +1627,6 @@ async function cmdBrief(chatId: string): Promise<void> {
 }
 
 async function cmdMemory(query: string, chatId: string): Promise<void> {
-  // Corrected memories (superseded, or past validUntil) are not current beliefs.
-  const { validityWhere } = await import("@/lib/brain/contextual-recall");
   if (!query.trim()) {
     await sendTelegram("Usage: /memory <search query>\nExample: /memory customer alignment issue", chatId);
     return;
@@ -1658,7 +1656,9 @@ async function cmdMemory(query: string, chatId: string): Promise<void> {
         content: { contains: query, mode: "insensitive" },
         deletedAt: null,
         category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
-        ...validityWhere(),
+        // Current belief only: same rule as validityWhere() in lib/brain/contextual-recall.ts.
+        supersededById: null,
+        OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
       },
       orderBy: { confidence: "desc" },
       take: 5,
