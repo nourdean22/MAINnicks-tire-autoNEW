@@ -81,7 +81,7 @@ function agentsMdAfterTurbo(bin, agentGuidance) {
     // An agent session's environment, minus any inherited GIT_* (guard-red-team rule 6).
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
     Object.assign(env, { AI_AGENT: "claude-code", CLAUDECODE: "1", TURBO_TELEMETRY_DISABLED: "1" });
-    const r = spawnSync(bin, ["run", "build", "--dry=json"], { cwd: dir, env, encoding: "utf8", timeout: 60000 });
+    const r = spawnSync(process.execPath, [bin, "run", "build", "--dry=json"], { cwd: dir, env, encoding: "utf8", timeout: 60000 });
     assert.equal(r.status, 0, `turbo exited ${r.status}: ${(r.stderr || r.stdout || "").slice(0, 400)}`);
     return readFileSync(join(dir, "AGENTS.md"), "utf8");
   } finally {

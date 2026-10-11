@@ -156,6 +156,29 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe("cron healer · a UNKNOWN heal with no stamped run row is never aged out", () => {
+  /** A post-cutoff heal claim (trigger-id era) that is still UNKNOWN, no cron_job_logs row. */
+  function seedUnknownHeal(startedAt: Date) {
+    const operationKey = "cron-heal:weekly-maint:2026-10-19T11:00:00.000Z";
+    h.attempts.set(operationKey, {
+      id: "att_stuck",
+      tool: "cron.heal",
+      operationKey,
+      state: "UNKNOWN",
+      startedAt,
+    });
+    h.deck.mockResolvedValue({ rows: [] });
+  }
+
+  it("a post-cutoff heal, 25h old, with no run row carrying heal:<id>, stays UNKNOWN (never aged out to FAILED)", async () => {
+    vi.setSystemTime(new Date("2026-10-25T12:00:00Z"));
+    seedUnknownHeal(new Date("2026-10-24T11:00:00Z"));
+
+    await runAutonomicOrchestrator();
+
+    expect(h.attempts.get("cron-heal:weekly-maint:2026-10-19T11:00:00.000Z")?.state).toBe("UNKNOWN");
+  });});
+
 describe("cron healer · only a recent failure is healed", () => {
   it("a weekly job whose only failed run is 10 days old is not healed", async () => {
     h.deck.mockResolvedValue({ rows: [failedRow({ lastRunAt: isoAgo(10 * DAY), success14d: 0 })] });

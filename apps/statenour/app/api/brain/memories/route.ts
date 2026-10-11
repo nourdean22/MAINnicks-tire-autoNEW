@@ -77,9 +77,15 @@ export const PATCH = apiHandler(
         if (!body.evidence)
           throw new ServiceError("evidence required for contradict", 400);
         return brainMemory.contradict(body.id, body.evidence);
-      case "forget":
+      case "forget": {
         await brainMemory.forget(body.id);
-        return { deleted: true };
+        // Read back the search copy (vector_embeddings) the forget left behind. null = unknown.
+        const { prisma } = await import("@/lib/prisma");
+        const searchCopyRemaining = await prisma.vectorEmbedding
+          .count({ where: { sourceType: "brain_memory", sourceId: body.id } })
+          .catch(() => null);
+        return { deleted: true, searchCopyRemaining };
+      }
       case "reinforce":
         return brainMemory.reinforce(body.id, body.content);
       default:

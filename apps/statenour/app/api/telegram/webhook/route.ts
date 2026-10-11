@@ -1426,6 +1426,9 @@ async function cmdAsk(args: string, chatId: string): Promise<void> {
                 content: { contains: query, mode: "insensitive" },
                 deletedAt: null,
                 category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
+                // Current belief only: same rule as validityWhere() in lib/brain/contextual-recall.ts.
+                supersededById: null,
+                OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
               },
               orderBy: { confidence: "desc" },
               take: 6,
@@ -1653,6 +1656,9 @@ async function cmdMemory(query: string, chatId: string): Promise<void> {
         content: { contains: query, mode: "insensitive" },
         deletedAt: null,
         category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
+        // Current belief only: same rule as validityWhere() in lib/brain/contextual-recall.ts.
+        supersededById: null,
+        OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
       },
       orderBy: { confidence: "desc" },
       take: 5,

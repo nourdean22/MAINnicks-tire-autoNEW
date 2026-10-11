@@ -121,16 +121,17 @@ export class MemoryNotCurrentError extends Error {
  */
 export async function forgetMemoryById(
   id: string,
-): Promise<{ deleted: boolean; embeddingDropped?: boolean }> {
+): Promise<{ deleted: boolean; embeddingDropped?: boolean; searchCopyRemaining?: number | null }> {
   const res = await softDelete("brainMemory", { id });
   if (!res.ok) return { deleted: false };
   // The noop path drops too (idempotent), so a retry after a failed drop still removes the text copy.
   await dropEmbeddingsForMemories([id], "brain.forgetMemory");
   // The drop swallows its own failure: read back that the copy is gone; a failed read is unconfirmed, not dropped.
-  const left = await prisma.vectorEmbedding
+  // null = the read failed: unknown, never shown as zero (empty-vs-error).
+  const searchCopyRemaining = await prisma.vectorEmbedding
     .count({ where: { sourceType: "brain_memory", sourceId: id } })
     .catch(() => null);
-  return { deleted: !res.noop, embeddingDropped: left === 0 };
+  return { deleted: !res.noop, embeddingDropped: searchCopyRemaining === 0, searchCopyRemaining };
 }
 
 /**

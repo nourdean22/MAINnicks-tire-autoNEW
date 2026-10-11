@@ -539,6 +539,8 @@ export async function semanticSearch(
             deletedAt: null,
             // the pgvector lane drops superseded rows too (lib/db/pgvector.ts superseded_by_id IS NULL)
             supersededById: null,
+            // A closed validity window is a corrected belief too (same as validityWhere()).
+            OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
             category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
           },
           select: {

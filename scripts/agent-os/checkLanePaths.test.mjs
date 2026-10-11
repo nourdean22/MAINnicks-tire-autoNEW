@@ -136,6 +136,15 @@ test("glob matcher: no prefix bleed, ** spans dirs, root files are exact", () =>
   );
 });
 
+test("platform lane owns .devcontainer, .cursor and .vscode, and a sibling name does not bleed in", () => {
+  const platform = readOwnedPaths("platform");
+  assert.deepEqual(
+    offendingPaths([".devcontainer/devcontainer.json", ".cursor/rules/example.mdc", ".vscode/settings.json"], platform),
+    [],
+  );
+  assert.deepEqual(offendingPaths([".vscode-extra/x.json", ".cursorrc"], platform), [".vscode-extra/x.json", ".cursorrc"]);
+});
+
 // ── Parity: frontmatter is the machine source; the prose line must agree with it ──────────────
 const laneFiles = readdirSync(AGENTS_DIR).filter((f) => /^lane-.+\.md$/.test(f));
 

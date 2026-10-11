@@ -62,13 +62,13 @@ describe("forgetMemoryById", () => {
   it("sets deletedAt and drops the embedding copy; a second call is deleted:false", async () => {
     rows.set("mem-1", { id: "mem-1", deletedAt: null });
 
-    await expect(forgetMemoryById("mem-1")).resolves.toEqual({ deleted: true, embeddingDropped: true });
+    await expect(forgetMemoryById("mem-1")).resolves.toEqual({ deleted: true, embeddingDropped: true, searchCopyRemaining: 0 });
     expect(rows.get("mem-1")!.deletedAt).toBeInstanceOf(Date);
     expect(m.dropEmbeddings).toHaveBeenCalledWith(["mem-1"], expect.any(String));
 
     // R3-16: the second call used to skip the drop, so a failed first drop was never repaired.
     m.dropEmbeddings.mockClear();
-    await expect(forgetMemoryById("mem-1")).resolves.toEqual({ deleted: false, embeddingDropped: true });
+    await expect(forgetMemoryById("mem-1")).resolves.toEqual({ deleted: false, embeddingDropped: true, searchCopyRemaining: 0 });
     expect(m.dropEmbeddings).toHaveBeenCalledWith(["mem-1"], expect.any(String));
   });
 
@@ -90,20 +90,21 @@ describe("forgetMemoryById - a failed embedding drop is visible and retry-able",
     rows.set("mem-1", { id: "mem-1", deletedAt: null });
     m.dropEmbeddings.mockResolvedValue(0);
     m.vecCount.mockResolvedValue(1);
-    await expect(forgetMemoryById("mem-1")).resolves.toEqual({ deleted: true, embeddingDropped: false });
+    await expect(forgetMemoryById("mem-1")).resolves.toEqual({ deleted: true, embeddingDropped: false, searchCopyRemaining: 1 });
   });
 
   it("a retry on the already-forgotten row drops the copy again and confirms it", async () => {
     rows.set("mem-1", { id: "mem-1", deletedAt: new Date() });
     m.vecCount.mockResolvedValue(0);
-    await expect(forgetMemoryById("mem-1")).resolves.toEqual({ deleted: false, embeddingDropped: true });
+    await expect(forgetMemoryById("mem-1")).resolves.toEqual({ deleted: false, embeddingDropped: true, searchCopyRemaining: 0 });
     expect(m.dropEmbeddings).toHaveBeenCalledWith(["mem-1"], expect.any(String));
   });
 
   it("the read-back fails: unconfirmed, never reported as dropped", async () => {
     rows.set("mem-1", { id: "mem-1", deletedAt: null });
     m.vecCount.mockRejectedValue(new Error("connection reset"));
-    await expect(forgetMemoryById("mem-1")).resolves.toEqual({ deleted: true, embeddingDropped: false });
+    // searchCopyRemaining is null here: the read-back failed, so the count is unknown, never 0.
+    await expect(forgetMemoryById("mem-1")).resolves.toEqual({ deleted: true, embeddingDropped: false, searchCopyRemaining: null });
   });
 });
 
