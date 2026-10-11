@@ -194,7 +194,7 @@ loads nothing while still passing a substring check. Registry + design notes:
 
 ## Operating frameworks
 
-- [`AGENT-OPERATING-PROFILE.md`](./AGENT-OPERATING-PROFILE.md) — operator identity, response shape, §11 multi-agent safety.
+- [`.agents/core/CORE.md`](.agents/core/CORE.md) — voice, identity, Nour, playbooks, manager. Persona + §11: `AGENT-OPERATING-PROFILE.md`.
 - [`NOUR-COMMAND.md`](./NOUR-COMMAND.md) — **read before every non-trivial task**: infer outcome, define proof, run to empty, falsify.
 - [`.agents/frameworks/ciitty/SKILL.md`](.agents/frameworks/ciitty/SKILL.md) — CIITTY v2.1: Blind Spot Check + Forgotten Factor Protocol.
 - [`docs/UPSTREAMS.md`](docs/UPSTREAMS.md) — adoption verdicts; check before proposing a new platform, library, or MCP.

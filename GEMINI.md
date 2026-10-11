@@ -6,6 +6,7 @@ inside an app, read the nearest `apps/<app>/AGENTS.md`; root policy maps the rou
 
 @AGENTS.md
 @NOUR-COMMAND.md
+@.agents/core/CORE.md
 
 ## Gemini-specific
 

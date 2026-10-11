@@ -6,6 +6,7 @@ verbatim, no carve-outs. The files below are IMPORTED, so they are already in yo
 @AGENTS.md
 @CLAUDE-OPERATING-PROFILE.md
 @NOUR-COMMAND.md
+@.agents/core/CORE.md
 
 <!-- Keep all imports on their own `@` lines: a markdown link passes a substring match but loads NOTHING
      (false green, 2026-08-21). Asserted by check-adapters.mjs + adapters.test.mjs. Cap: 60 lines. Policy goes in
@@ -17,7 +18,7 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
 
 ## Claude-specific
 
-- **Skills** (`.claude/skills/`, 54: 35 repo-specific + 19 always-on stance files; invoke by exact name). `nour-command` is the
+- **Skills** (`.claude/skills/`, 55: 36 repo-specific + 19 always-on stance files; invoke by exact name). `nour-command` is the
   cross-cutting router; each `SKILL.md` carries
   its own full trigger and rationale; this is only the index for picking one.
   - Before commit/push → **statenour-verify** · **nickstire-verify**; writing any report → **answer-first**;
@@ -40,7 +41,7 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
   - A read-then-write that decides WHO acts (claim, lease, reclaim, dedupe marker) → **claim-before-act**.
   - End of a wave → **statenour-wave-reconcile** (ship history lands in `apps/statenour/docs/RECONCILIATION.md`,
     never in an AGENTS.md header), then **session-observer** (propose-only; appends to
-    `docs/skill-proposals.md`).
+    `docs/skill-proposals.md`). A job touching more than one lane → **monorepo-manager**.
 - **Output shape** — lead with the answer in sentence one, number every procedure, put the receipt
   inline (`417 files, 4,670 passed, exit 0`, never "tests pass"). The operator reads on a phone,
   mid-task, usually while something is broken. Cut whole items; never compress sentences to fragments.
@@ -55,6 +56,5 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
   - `Stop` → `stop-check.mjs` (uncommitted changes on `main` blocks the turn; not a completion gate).
     `SessionStart` → `graphify-session-context.ps1`, `intelligence-context.mjs`, `check-memory-index.mjs`, `session-lease-status.mjs`.
 
-<!-- REMOVED 2026-08-21: the "`memory` MCP" bullet. Not registered: no .mcp.json, and ~/.claude.json
-     mcpServers = ["chatgpt"] only (full measurements: docs/agent-audit/AUDIT-2026-08-21.md). Canonical cross-session memory is
-     AGENTS.md > "Memory / handoff". Re-add only once `claude mcp add` actually registers it. -->
+<!-- REMOVED 2026-08-21: the "`memory` MCP" bullet; it was never registered (docs/agent-audit/AUDIT-2026-08-21.md).
+     Cross-session memory: AGENTS.md > "Memory / handoff". Re-add only once `claude mcp add` registers it. -->

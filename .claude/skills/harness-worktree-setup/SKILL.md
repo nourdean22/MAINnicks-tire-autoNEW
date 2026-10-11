@@ -18,7 +18,8 @@ that dies in the lefthook pre-commit hook. Never fix this with
 ## 1 · Junction every node_modules (run first, once)
 
 ```powershell
-$main = 'C:\Users\nourd\NOURCITY'; $wt = '<this-worktree-path>'
+# Derived from git, never hardcoded (the old 'C:\Users\nourd\NOURCITY' path no longer exists on NattyNour):
+$main = Split-Path (git rev-parse --path-format=absolute --git-common-dir) -Parent; $wt = git rev-parse --show-toplevel
 $dirs = Get-ChildItem -Path $main -Recurse -Depth 2 -Directory -Filter node_modules -ErrorAction SilentlyContinue |
   Where-Object { ($_.FullName -split 'node_modules').Count -eq 2 -and $_.FullName -notmatch '\\\.claude\\|\\\.git\\|\\\.worktrees\\' }
 foreach ($d in $dirs) {
@@ -50,7 +51,7 @@ either of these — a green typecheck is not evidence the gates will run.
 ## 2 · The one-checkout rule (the expensive one)
 
 A harness worktree's `apps/**` source is a **separate physical copy** from
-`C:\Users\nourd\NOURCITY\apps\**`. Only `node_modules` is shared.
+the primary checkout's `apps\**` (the parent of `git rev-parse --git-common-dir`). Only `node_modules` is shared.
 
 > Pick ONE checkout per branch — the one the worktree's git lives in — and
 > run **every** command there: tests, greps, seds, node scripts, typecheck.

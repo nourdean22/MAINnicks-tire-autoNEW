@@ -67,6 +67,11 @@ const FIXTURE_FILES = [
   "apps/statenour/CLAUDE.md",
   "apps/worker/AGENTS.md",
   "apps/worker/CLAUDE.md",
+  ".agents/core/CORE.md",
+  ".agents/core/SOUL.md",
+  ".agents/core/IDENTITY.md",
+  ".agents/core/USER.md",
+  ".agents/core/CONSTITUTION.md",
 ];
 
 function makeFixture() {
@@ -221,6 +226,49 @@ canary(
   "AGENTS.md",
   (s) => s.replace("## Verify gates", "## Verifying things"),
   "## Verify gates",
+);
+
+// ── Agent core import chain (2026-10-11) ─────────────────────────────────────
+canary(
+  "root CLAUDE.md must IMPORT the agent core, not link it",
+  "CLAUDE.md",
+  (s) => s.replace(/^@\.agents\/core\/CORE\.md$/m, "see [core](.agents/core/CORE.md)"),
+  "must IMPORT the agent core",
+);
+
+canary(
+  "root GEMINI.md must import the agent core",
+  "GEMINI.md",
+  (s) => s.replace(/^@\.agents\/core\/CORE\.md$/m, "see .agents/core/CORE.md"),
+  "must import the agent core via memport",
+);
+
+canary(
+  "CORE.md must IMPORT SOUL.md on its own @ line",
+  ".agents/core/CORE.md",
+  (s) => s.replace(/^@SOUL\.md$/m, "[SOUL.md](SOUL.md)"),
+  "CORE.md must IMPORT SOUL.md",
+);
+
+canary(
+  "CORE.md must IMPORT USER.md on its own @ line",
+  ".agents/core/CORE.md",
+  (s) => s.replace(/^@USER\.md$/m, ""),
+  "CORE.md must IMPORT USER.md",
+);
+
+canary(
+  "an always-loaded core file is line-capped",
+  ".agents/core/USER.md",
+  (s) => s + "filler\n".repeat(80),
+  "FAT      .agents/core/USER.md",
+);
+
+canary(
+  "an always-loaded core file is length-checked against reflow",
+  ".agents/core/SOUL.md",
+  (s) => s + "x".repeat(200) + "\n",
+  "LONG     .agents/core/SOUL.md",
 );
 
 canary(

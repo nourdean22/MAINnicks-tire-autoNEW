@@ -36,10 +36,12 @@ then execute valid remaining work in dependency order and reconcile docs after v
 ### 31. Concurrent AI session coordinator
 Map current main, recent commits, active PRs, branches, worktrees, changed files, and issue ownership.
 Route independent work concurrently, preserve valid sibling changes, resolve overlap by architecture/evidence, and re-check remote state before merge.
+Procedure: skill `monorepo-manager` (one lane agent per area from `.claude/agents/`, history in `docs/agent-os/MANAGER-LEDGER.md`).
 
 ### 32. Autonomous backlog run-to-empty
 Reconstruct backlog dependencies, select the highest-leverage currently actionable item, execute and verify it, then repeat.
 Stop only when scoped actionable work is exhausted or a real external/protected-operation blocker remains.
+Procedure: `.agents/core/LOOPS.md` > L1; multi-lane backlogs go through skill `monorepo-manager`.
 
 ### 33. Session / AI handoff reconstruction
 Treat another session's notes as potentially stale, partial, local-only, or overclaimed.
