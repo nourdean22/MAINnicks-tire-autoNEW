@@ -40,8 +40,8 @@ describe("alternate-paths · regen telemetry", () => {
       if (ts.isBindingElement(n) && ts.isIdentifier(n.name)) {
         const decl = n.parent.parent;
         const init = ts.isVariableDeclaration(decl) && decl.initializer && ts.isAwaitExpression(decl.initializer) ? decl.initializer.expression : undefined;
-        const module = init && ts.isCallExpression(init) && init.expression.kind === ts.SyntaxKind.ImportKeyword && ts.isStringLiteralLike(init.arguments[0]) ? init.arguments[0].text : "";
-        bindings.push({ name: n.name.text, from: (n.propertyName ?? n.name).getText(sf), module });
+        const fromModule = init && ts.isCallExpression(init) && init.expression.kind === ts.SyntaxKind.ImportKeyword && ts.isStringLiteralLike(init.arguments[0]) ? init.arguments[0].text : "";
+        bindings.push({ name: n.name.text, from: (n.propertyName ?? n.name).getText(sf), module: fromModule });
       }
       if (ts.isImportSpecifier(n)) {
         const decl = n.parent.parent.parent;

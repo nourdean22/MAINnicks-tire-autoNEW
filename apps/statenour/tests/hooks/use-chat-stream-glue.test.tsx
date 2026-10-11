@@ -65,14 +65,16 @@ const user: Msg = { id: "u1", role: "user", parts: [{ type: "text", text: "quest
 const reply: Msg = { id: "live-1", role: "assistant", parts: [{ type: "text", text: "streamed" }] };
 
 let ctl: ChatRuntimeController;
-function Probe() {
-  ctl = useChatStream();
+// The hook's controller leaves the component through a prop callback, not an outer reassignment.
+function Probe({ onCtl }: { onCtl: (c: ChatRuntimeController) => void }) {
+  onCtl(useChatStream());
   return null;
 }
+const captureCtl = (c: ChatRuntimeController) => { ctl = c; };
 
 let container: HTMLDivElement;
 let root: Root;
-const render = () => act(() => root.render(<Probe />));
+const render = () => act(() => root.render(<Probe onCtl={captureCtl} />));
 const setMessages = vi.fn();
 
 function settle() {
