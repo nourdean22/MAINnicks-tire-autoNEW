@@ -37,6 +37,15 @@ vi.mock("@/lib/services/cron-control", () => ({
   runManifestCron: (name: string) => mocks.runManifestCron(name),
 }));
 
+// The heal claim (one heal per failed run) has its own tests in
+// autonomic-orchestrator-heal-window.test.ts; here every claim is granted.
+vi.mock("@/lib/services/action-attempts", () => ({
+  beginAttempt: async () => ({ kind: "claimed", attemptId: "attempt_1", attemptNo: 1 }),
+  settleAttempt: async () => "SUCCEEDED_UNVERIFIED",
+}));
+
+const recentIso = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3_600_000).toISOString();
+
 vi.mock("@/lib/services/coach-events", () => ({
   recordCoachEvent: (input: unknown) => mocks.recordCoachEvent(input),
 }));
@@ -93,6 +102,10 @@ vi.mock("@/lib/prisma", () => {
       cronJobLog: {
         deleteMany: vi.fn(),
       },
+      // No timed-out heal is open here; their resolution has its own tests.
+      actionAttempt: {
+        findMany: async () => [],
+      },
       $queryRaw: vi.fn(),
       $queryRawUnsafe: vi.fn(),
     },
@@ -145,7 +158,8 @@ describe("services/autonomic-orchestrator", () => {
   it("Phase 1: heals failing or never-run crons (limit 3)", async () => {
     mocks.buildCronCommandDeck.mockResolvedValue({
       rows: [
-        { name: "failing-cron", enabled: true, mode: "active", lastStatus: "failed", success14d: 5, fail14d: 1, lastRunAt: "2026-06-13T10:00:00Z" },
+        // a daily job whose last run failed an hour ago: a recent failure
+        { name: "failing-cron", schedule: "0 9 * * *", enabled: true, mode: "active", lastStatus: "failed", success14d: 5, fail14d: 1, lastRunAt: recentIso(1) },
         { name: "never-run-cron", enabled: true, mode: "active", lastStatus: null, success14d: 0, fail14d: 0, lastRunAt: null },
         { name: "ok-cron", enabled: true, mode: "active", lastStatus: "success", success14d: 10, fail14d: 0, lastRunAt: "2026-06-13T10:00:00Z" },
         { name: "disabled-cron", enabled: false, mode: "active", lastStatus: "failed", success14d: 0, fail14d: 1, lastRunAt: "2026-06-13T10:00:00Z" },
@@ -255,7 +269,7 @@ describe("services/autonomic-orchestrator", () => {
         { name: "think", enabled: true, mode: "folded", lastStatus: null, success14d: 0, partial14d: 0, fail14d: 0, lastRunAt: null },
         { name: "journal-checkin", path: "/api/cron/journal-checkin?slot=evening", enabled: true, mode: "active", lastStatus: "failed", success14d: 0, partial14d: 0, fail14d: 2, lastRunAt: "2026-10-02T03:02:00Z" },
         // A morning-slot child is NOT running now — still a legitimate rescue.
-        { name: "ingest-gmail", enabled: true, mode: "active", lastStatus: "failed", success14d: 3, partial14d: 0, fail14d: 1, lastRunAt: "2026-10-02T09:01:00Z" },
+        { name: "ingest-gmail", schedule: "0 9 * * *", enabled: true, mode: "active", lastStatus: "failed", success14d: 3, partial14d: 0, fail14d: 1, lastRunAt: recentIso(2) },
       ],
     });
     mocks.runManifestCron.mockResolvedValue({ ok: true, status: 200, durationMs: 150 });
@@ -338,18 +352,23 @@ describe("services/autonomic-orchestrator", () => {
     expect(mocks.runManifestCron).not.toHaveBeenCalled();
   });
 
-  it("Phase 1: heals a failed low-frequency cron missing from the capped display sample", async () => {
+  it("Phase 1: an in-flight newest run is not healed, even when the 14d window holds only failures", async () => {
+    // 2026-10-10 · the deck's lastStatus is the job's real newest row now, so a
+    // null lastStatus with only failures in the window means that row is
+    // `started`: the job is running. The old "only failures in the window"
+    // rule healed it anyway, a second copy of a live run.
     mocks.buildCronCommandDeck.mockResolvedValue({
       rows: [
         {
           name: "weekly-maintenance",
+          schedule: "0 3 * * 1",
           enabled: true,
           mode: "active",
           lastStatus: null,
           success14d: 0,
           partial14d: 0,
           fail14d: 1,
-          lastRunAt: null,
+          lastRunAt: recentIso(1),
         },
       ],
     });
@@ -357,8 +376,8 @@ describe("services/autonomic-orchestrator", () => {
 
     const res = await runAutonomicOrchestrator();
 
-    expect(res.healedCrons).toContain("weekly-maintenance");
-    expect(mocks.runManifestCron).toHaveBeenCalledWith("weekly-maintenance");
+    expect(res.healedCrons).toEqual([]);
+    expect(mocks.runManifestCron).not.toHaveBeenCalled();
   });
 
   it("Phase 1: a currently-green cron is not re-rescued for an old failure", async () => {

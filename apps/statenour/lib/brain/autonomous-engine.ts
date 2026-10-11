@@ -36,6 +36,51 @@ async function fetchBridge<T = unknown>(
   }
 }
 
+/**
+ * Did the operator act himself since `since`: a user chat message, a task he
+ * completed, or a Telegram message that reached the ask lane or the
+ * dump/voice lane (the two that leave a durable row; /task, search, other
+ * slash commands and photos do not)? Not identity_snapshot.updatedAt, which
+ * the nightly refresh-identity cron bumps whether or not he did anything
+ * (audit 2026-10-10). null = the read failed: callers stay quiet on an unknown.
+ */
+export async function operatorEngagedSince(since: Date): Promise<boolean | null> {
+  try {
+    const [message, task, telegramAsk, telegramDump] = await Promise.all([
+      prisma.chatMessage.findFirst({ where: { role: "user", createdAt: { gte: since } }, select: { id: true } }),
+      prisma.task.findFirst({ where: { deletedAt: null, lastCompletedAt: { gte: since } }, select: { id: true } }),
+      // The webhook (owner-gated) answers inbound text in cmdAsk and persists
+      // no ChatMessage, only this agent trace, written on success and failure.
+      prisma.agentTrace.findFirst({
+        where: { source: "tool", label: "telegram-ask", createdAt: { gte: since } },
+        select: { id: true },
+      }),
+      // Dump/park/reflect text and every voice note go to ingestJournal with
+      // its default source "telegram"; every other caller passes chat/manual.
+      prisma.auditEvent.findFirst({
+        where: { eventType: "journal_ingested", createdAt: { gte: since }, payload: { path: ["source"], equals: "telegram" } },
+        select: { id: true },
+      }),
+    ]);
+    return message != null || task != null || telegramAsk != null || telegramDump != null;
+  } catch (err) {
+    log.warn("engagement_read_failed", { error: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+}
+
+/**
+ * quotes_pending's bookedCount comes from a conservative estimate-to-invoice
+ * matcher (matched_invoice_id), so it can be a LOWER BOUND: a matcher miss
+ * reads as a lost sale and would advise a price cut. The pricing rules act
+ * only when the bridge says the count is exact; an absent flag skips.
+ */
+function bookedCountIsExact(rule: string, data: { bookedCountIsLowerBound?: unknown }): boolean {
+  if (data.bookedCountIsLowerBound === false) return true;
+  log.info("pricing_rule_skipped", { rule, reason: "booked count is a lower bound" });
+  return false;
+}
+
 interface ActionRule<T = unknown> {
   name: string;
   trigger: () => Promise<T[]>; // returns items to act on
@@ -123,10 +168,12 @@ const RULES: ActionRule[] = [
   // fires were impossible.
 
   // ── Stale appointment requests ─────────────────────────────
-  // v10.0.50 · Wave A · Wired to queryNick bridge. `bookings_status`
-  // returns 4h+-old `pending` appointments with customer name,
-  // phone, service, and preferred slot — exactly what the action
-  // template needs. Filter is applied bridge-side via filters.
+  // `bookings_pending_stale` returns 4h+-old `pending` appointments with
+  // customer name, phone, service, and preferred slot (the fields the action
+  // template reads). Filter is applied bridge-side via filters. 2026-10-10:
+  // this used to ask `bookings_status`, which ignores filters and answers
+  // `{ statusBreakdown }`, so `bookings` was always undefined and the rule
+  // never fired.
   defineRule({
     name: "auto_remind_pending_appointment",
     trigger: async () => {
@@ -140,7 +187,7 @@ const RULES: ActionRule[] = [
           preferredTime: string | null;
           createdAt: string;
         }>;
-      }>("bookings_status", { status: "pending", staleHours: 4 });
+      }>("bookings_pending_stale", { status: "pending", staleHours: 4 });
       const bookings = data?.bookings ?? [];
       // Re-hydrate createdAt as Date for the action template's `Date.now() - .getTime()` math.
       return bookings.map((b) => ({
@@ -204,11 +251,13 @@ const RULES: ActionRule[] = [
       const data = await fetchBridge<{
         count?: number;
         bookedCount?: number;
+        bookedCountIsLowerBound?: boolean;
       }>("quotes_pending", { sinceHours: 168 });
 
       // Both counts must be real numbers: a missing bookedCount is not 0
       // booked, and alerting "overpriced" on it would be a fabricated reading.
       if (data == null || typeof data.count !== "number" || typeof data.bookedCount !== "number") return [];
+      if (!bookedCountIsExact("suggest_pricing_adjustment", data)) return [];
       const total = data.count;
       const booked = data.bookedCount;
 
@@ -249,34 +298,21 @@ const RULES: ActionRule[] = [
   // identity-snapshot rolls + brain maturity replace it. Pre-fix this
   // rule's `Promise.resolve(null)` always returned null → fired the
   // "no daily score logged today" Telegram every single evening
-  // regardless of state. Now: check whether today's identity_snapshot
-  // BrainMemory row was updated today (the refresh-identity cron rolls
-  // it forward at 4:30am ET; an evening roll only happens if Nour
-  // engaged with the mastery surface). Soft-delete-aware.
+  // regardless of state. 2026-10-10: "engaged today" is a human write since
+  // ET midnight (operatorEngagedSince), not identity_snapshot.updatedAt,
+  // which the nightly refresh-identity cron rolls on its own.
   defineRule({
     name: "daily_score_reminder",
     trigger: async () => {
       const hour = hourET();
       if (hour < 19 || hour > 22) return []; // Only fire 7-10pm
-      const todayStartET = new Date(
-        new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }) +
-          "T00:00:00",
-      );
-      const snap = await prisma.brainMemory
-        .findUnique({
-          where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
-          select: { updatedAt: true, deletedAt: true },
-        })
-        .catch(() => null);
-      if (snap && !snap.deletedAt && snap.updatedAt >= todayStartET) {
-        // Snapshot was updated today (Nour engaged) — no nudge needed.
-        return [];
-      }
-      return [{ message: "No score / identity engagement today" }];
+      // true = engaged today; null = unknown. Either way, no nudge.
+      if ((await operatorEngagedSince(startOfDayET())) !== false) return [];
+      return [{ message: "No chat or completed task today" }];
     },
     action: async () => {
       await sendTelegram(
-        `📊 <b>Score Check</b>\n\nNo daily score logged today. The system can't help what it can't see.\n\n→ Log at bdnick.info/mastery`
+        `📊 <b>Score Check</b>\n\nNo chat and no completed task today. The system can't help what it can't see.\n\n→ Log at bdnick.info/mastery`
       );
       return { result: "success" };
     },
@@ -509,26 +545,18 @@ const RULES: ActionRule[] = [
   }),
 
   // ── Drift pattern escalation ───────────────────────────────
-  // v10.0.50 · Wave A · Replaces retired-DailyScore lookup. Now reads
-  // identity-snapshot updates over the last 3 days — if no snapshot
-  // touched in 3+ days (rolling cron + manual engagement both
-  // refresh updatedAt), Nour has drifted. Pre-fix this rule fired
-  // every 24h forever (recentScores was always []).
+  // v10.0.50 · Wave A · Replaces retired-DailyScore lookup. 2026-10-10: the
+  // identity-snapshot proxy it used could never fire, because the nightly
+  // refresh-identity cron touches those rows every night. Now: no human
+  // write (operatorEngagedSince) in 3 days = drifting. Not a duplicate of
+  // lib/mastery/drift-engine.ts: its DRIFT_RULES watch habits, follow-ups,
+  // weight and novelty, and have no "operator went quiet" rule.
   defineRule({
     name: "drift_escalation",
     trigger: async () => {
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-      const recentSnap = await prisma.brainMemory
-        .findFirst({
-          where: {
-            category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
-            deletedAt: null,
-            updatedAt: { gte: threeDaysAgo },
-          },
-          select: { id: true },
-        })
-        .catch(() => null);
-      if (recentSnap) return []; // engaged within 3d, not drifting
+      // true = engaged within 3d; null = unknown. Either way, no alert.
+      if ((await operatorEngagedSince(threeDaysAgo)) !== false) return [];
       // Check if we already alerted about this
       const alerted = await prisma.autonomousAction.findFirst({
         where: { ruleName: "drift_escalation", createdAt: { gte: threeDaysAgo } },
@@ -538,7 +566,7 @@ const RULES: ActionRule[] = [
     },
     action: async () => {
       await sendTelegram(
-        `⚠️ <b>DRIFT ALERT — 3+ Days No Scores</b>\n\nHistorical pattern: 3-day gaps → 5-7 day drift spirals → revenue drops.\n\nTODAY is the intervention point. Log one score. Just one.\n\n→ bdnick.info/mastery`
+        `⚠️ <b>DRIFT ALERT: 3+ days with no chat or completed task</b>\n\nHistorical pattern: 3-day gaps → 5-7 day drift spirals → revenue drops.\n\nTODAY is the intervention point. Finish one task. Just one.\n\n→ bdnick.info/mastery`
       );
       return { result: "success" };
     },
@@ -864,9 +892,11 @@ const RULES: ActionRule[] = [
       const data = await fetchBridge<{
         count?: number;
         bookedCount?: number;
+        bookedCountIsLowerBound?: boolean;
       }>("quotes_pending", { sinceHours: 720 });
       // Unknown (null) or a body missing either count: skip, never report 0/N.
       if (data == null || typeof data.count !== "number" || typeof data.bookedCount !== "number") return [];
+      if (!bookedCountIsExact("quote_conversion_insight", data)) return [];
       const total = data.count;
       const booked = data.bookedCount;
       if (total < 10) return [];
@@ -924,6 +954,18 @@ const RULES: ActionRule[] = [
     actionType: "send_telegram",
     targetType: "pricing",
   }),
+];
+
+/**
+ * Rules deleted on purpose whose AutonomousAction rows remain as history. The
+ * wiring census files these as retired instead of as unexplained strays.
+ */
+export const RETIRED_RULE_NAMES: readonly string[] = [
+  "auto_remind_unreviewed_applicant", // Wave 47, applicants moved to nickstire
+  "adderall_timing_insight", // Wave 47
+  "dania_neglect_nudge", // relationship-nag scrub, 2026-05-31
+  "loop_overload_alert", // renamed task_overload_alert, 2026-04-18
+  "morning_brief_push", // audit U4, 2026-10-10
 ];
 
 /**

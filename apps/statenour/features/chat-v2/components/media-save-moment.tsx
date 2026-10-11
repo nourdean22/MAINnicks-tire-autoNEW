@@ -8,6 +8,7 @@ import { formatTimestamp } from "@/lib/media/timestamp-refs";
 import { toMemoryCandidate } from "@/lib/media/media-moment";
 import { inferOriginFromUrl, toEvidenceRef } from "@/lib/media/media-evidence";
 import { useMediaDockStore } from "../stores/media-dock-store";
+import { isSubmitEnter } from "../lib/submit-enter";
 
 /**
  * SaveMomentButton (BDN-316) — media plan item #7.
@@ -128,7 +129,8 @@ export function SaveMomentButton() {
         value={note}
         onChange={(e) => setNote(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter") save();
+          // Single-line input: no newline to protect, but an IME confirm never saves.
+          if (isSubmitEnter(e)) save();
           if (e.key === "Escape") setOpen(false);
         }}
         placeholder="why this moment (optional)"

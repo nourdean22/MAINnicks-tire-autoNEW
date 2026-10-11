@@ -1,12 +1,17 @@
+import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { buildCronCommandDeck } from "@/lib/services/system-pages";
 import { runManifestCron } from "@/lib/services/cron-control";
 import { recordCoachEvent } from "@/lib/services/coach-events";
+import { beginAttempt, settleAttempt, verifyAttempt, type AttemptDisposition } from "@/lib/services/action-attempts";
+import { cronPeriodH } from "@/lib/inngest/functions/cron-heartbeat";
+import { CRON_STATUS, TERMINAL_OK_STATUSES } from "@/lib/inngest/cron-lifecycle";
+import { HARD_FAILURE_STATUSES, isHardFailure } from "@/lib/services/cron-status";
 import { daysAgo } from "@/lib/utils/datetime";
 import { markOllamaQuotaExhausted } from "@/lib/ai/provider";
 import { WorkItemStatus, TaskStatus } from "@prisma/client";
 import { logger } from "@/lib/logger";
-import { EVENING_JOBS, WEEKLY_JOBS } from "@/lib/inngest/jobs";
+import { EVENING_JOBS, MORNING_JOBS, WEEKLY_JOBS } from "@/lib/inngest/jobs";
 
 const log = logger.withSurface("services/autonomic-orchestrator");
 
@@ -34,6 +39,75 @@ const FANOUT_SIBLING_ROUTES: ReadonlySet<string> = new Set(
   [...EVENING_JOBS, ...WEEKLY_JOBS].map(routeOf),
 );
 
+/** Folded morning-slot children carry `schedule: null`; this fan-out runs them daily. */
+const MORNING_ROUTES: ReadonlySet<string> = new Set(MORNING_JOBS.map(routeOf));
+
+const HOUR_MS = 3_600_000;
+const HEAL_TOOL = "cron.heal";
+
+/**
+ * How long a failed run stays healable: one cadence plus grace, the windows
+ * cron-heartbeat judges silence by (26h daily-or-faster, 8d weekly). A job with
+ * no schedule of its own in the morning fan-out is daily, as in
+ * cron-heartbeat's expectedJobs. Null when the cadence is unknown.
+ */
+function healWindowMs(schedule: string | null | undefined, route: string): number | null {
+  const periodH = cronPeriodH(schedule) ?? (MORNING_ROUTES.has(route) ? 24 : null);
+  if (periodH === null) return null;
+  return (periodH <= 24 ? 26 : 24 * 8) * HOUR_MS;
+}
+
+/**
+ * Settle a heal's claim by what came back. An HTTP response or a throw is a
+ * known outcome (runManifestCron throws only before it sends). Only no response
+ * (status 0: timeout, network) is UNKNOWN, because the job may still be
+ * running; resolveTimedOutHeals settles it on the healer's next run.
+ */
+async function settleHeal(attemptId: string | null, disposition: AttemptDisposition, reason: string): Promise<void> {
+  if (!attemptId) return;
+  await settleAttempt(attemptId, { disposition, reason }).catch((err: unknown) =>
+    log.error("heal_claim_settle_failed", { attemptId, error: err instanceof Error ? err.message : String(err) }),
+  );
+}
+
+/** A real run's row, in flight or ended; never `duplicate` (the deck's CRON_RUN_STATUSES). */
+const RUN_STATUSES: string[] = [CRON_STATUS.started, ...TERMINAL_OK_STATUSES, ...HARD_FAILURE_STATUSES];
+
+/**
+ * triggerCronByPath aborts at 55 s and most cron routes run longer, so a heal
+ * of a long job settles UNKNOWN while the job keeps running, and nothing else
+ * ever resolves an UNKNOWN. The healed route opens its own cron_job_logs row on
+ * entry (logCronRun), so the job's first run row at or after the heal began is
+ * the heal's run: settle the claim by how that row ended. No row yet, or one
+ * still `started`, stays UNKNOWN.
+ */
+async function resolveTimedOutHeals(): Promise<void> {
+  const open = await prisma.actionAttempt.findMany({
+    where: { tool: HEAL_TOOL, state: "UNKNOWN" },
+    select: { id: true, operationKey: true, startedAt: true },
+    // Newest first: those are the ones still on the owner panel.
+    orderBy: { startedAt: "desc" },
+    take: 50,
+  });
+  for (const attempt of open) {
+    // The claim's key is cron-heal:<job>:<failed run ISO> (see beginAttempt below).
+    const jobName = /^cron-heal:([^:]+):/.exec(attempt.operationKey)?.[1];
+    if (!jobName) continue;
+    const run = await prisma.cronJobLog.findFirst({
+      where: { jobName, createdAt: { gte: attempt.startedAt }, status: { in: RUN_STATUSES } },
+      select: { id: true, status: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+    });
+    if (!run || run.status === CRON_STATUS.started) continue;
+    const reason = `healed run cron_job_logs ${run.id}: ${run.status} at ${run.createdAt.toISOString()}`;
+    if (TERMINAL_OK_STATUSES.includes(run.status)) {
+      await verifyAttempt(attempt.id, { reason, receiptId: run.id });
+    } else if (isHardFailure(run.status)) {
+      await settleAttempt(attempt.id, { disposition: "known_failure", reason, receiptId: run.id });
+    }
+  }
+}
+
 export interface AutonomicOrchestratorResult {
   healedCrons: string[];
   cronErrors: string[];
@@ -59,8 +133,14 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
   // Phase 1: Cron Self-Healing
   // ---------------------------------------------------------------------------
   try {
+    // Its own guard: a failed read leaves earlier heals UNKNOWN and heals anyway.
+    await resolveTimedOutHeals().catch((err: unknown) =>
+      log.error("heal_unknown_resolve_failed", { error: err instanceof Error ? err.message : String(err) }),
+    );
+
     const deck = await buildCronCommandDeck();
     const MAX_HEAL_PER_RUN = 3;
+    const now = Date.now();
 
     for (const row of deck.rows) {
       if (result.healedCrons.length >= MAX_HEAL_PER_RUN) {
@@ -108,31 +188,82 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
       // alerts; a 200 is proof it was never broken. `partial` is excluded on
       // purpose: a degraded fan-out is not a dead cron, and re-running it is
       // exactly the recursion guarded against above.
-      // "Nothing recorded in the 14d window" is the intended meaning, and the
-      // counters are the authoritative window. `lastRunAt` comes from the
-      // command deck's capped recent-log sample; a low-frequency job can fall
-      // out of that display sample while its authoritative window counters
-      // still prove it ran. Treating that display omission as never-run would
-      // spuriously re-fire a weekly email cron midweek.
+      // 2026-10-10 · and the failure must be RECENT. lastRunAt / lastStatus are
+      // the job's real newest row (a per-job read with no time window), so a
+      // weekly job whose last run failed weeks ago was re-fired every night.
+      // Recent = inside one cadence of the job's schedule. A newest row that is
+      // in flight (`started`) has a null lastStatus and is never a failure.
+      const healWindow = row.lastStatus === "failed" ? healWindowMs(row.schedule, routeOf(targetPath)) : null;
+      if (row.lastStatus === "failed" && healWindow === null) {
+        log.warn("heal_skipped_unknown_cadence", { jobName: row.name, schedule: row.schedule });
+      }
+      const recentFailure =
+        healWindow !== null && row.lastRunAt !== null && now - Date.parse(row.lastRunAt) <= healWindow
+          ? { at: row.lastRunAt, windowMs: healWindow }
+          : null;
+      const isFailing = recentFailure !== null;
+      // "Nothing recorded in the 14d window" is the never-run meaning, and the
+      // 14d counters are that window.
       const runsInWindow =
         row.success14d + (row.partial14d ?? 0) + row.fail14d;
-      // The capped display sample can also omit a low-frequency failed run.
-      // When the authoritative window contains failures and no successful or
-      // partial outcome, the job is still failing even though lastStatus is
-      // unavailable. Do not use fail14d alone: a later success must win.
-      const onlyFailuresInWindow =
-        row.fail14d > 0 && row.success14d === 0 && (row.partial14d ?? 0) === 0;
-      const isFailing = row.lastStatus === "failed" || onlyFailuresInWindow;
       const isNeverRun = runsInWindow === 0;
 
       if (isFailing || isNeverRun) {
         const reason = isFailing ? "failing" : "never_run";
+
+        // An Inngest-native job has no HTTP route: runManifestCron throws 409
+        // for it, and the throw path paged "NOT running" for a job Inngest runs.
+        if (row.inngest && !row.path) {
+          log.info("heal_skipped_no_http_path", { jobName: row.name, reason });
+          continue;
+        }
+
+        // Claim the failed run BEFORE re-firing it (claim-before-act): a second
+        // healer run (a fan-out retry, a manual run) must not fire it too, and a
+        // heal that wrote no new row (a 404, a throw) must not repeat it tomorrow.
+        // A claim store that cannot answer fires nothing: an unclaimed heal is
+        // the double-fire this guards against.
+        let attemptId: string | null = null;
+        if (recentFailure) {
+          try {
+            const begun = await beginAttempt({
+              operationKey: `cron-heal:${row.name}:${recentFailure.at}`,
+              tool: HEAL_TOOL,
+              argumentsHash: createHash("sha256").update(row.name).digest("hex"),
+              effectClass: "write",
+              windowMs: recentFailure.windowMs,
+            });
+            if (begun.kind === "duplicate") {
+              log.info("heal_skipped_already_claimed", { jobName: row.name, failedRunAt: recentFailure.at, priorState: begun.state });
+              continue;
+            }
+            attemptId = begun.attemptId;
+            // FAILED is re-claimable, so a re-claim inside the window means this
+            // failed run's one heal already came back a known failure.
+            if (begun.attemptNo > 1) {
+              await settleHeal(attemptId, "known_failure", "already healed once for this failed run; not fired again");
+              log.info("heal_skipped_already_tried", { jobName: row.name, failedRunAt: recentFailure.at });
+              continue;
+            }
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            result.cronErrors.push(`${row.name}: heal claim unavailable, not fired: ${msg.slice(0, 200)}`);
+            log.error("heal_claim_failed", { jobName: row.name, error: msg });
+            continue;
+          }
+        }
+
         log.info("trigger_healing", { jobName: row.name, reason });
 
         try {
           const cronResult = await runManifestCron(row.name);
+          await settleHeal(
+            attemptId,
+            cronResult.ok ? "success" : cronResult.status === 0 ? "unknown" : "known_failure",
+            `heal returned HTTP ${cronResult.status}`,
+          );
           // triggerCronByPath never throws — a 404 (manifest entry with no
-          // route, e.g. the Inngest-native jobs) resolves as {ok:false}.
+          // route) resolves as {ok:false}.
           // Unconditionally pushing here filed "Cron Healer: Rescued X"
           // coach events for phantom heals, burning the whole
           // MAX_HEAL_PER_RUN budget on 404s before reaching a real cron.
@@ -161,6 +292,8 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
           });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
+          // Only runManifestCron throws in this try (recordCoachEvent never does).
+          await settleHeal(attemptId, "known_failure", `heal threw: ${msg.slice(0, 200)}`);
           result.cronErrors.push(`${row.name}: ${msg}`);
           log.error("healing_failed", { jobName: row.name, error: msg });
           // 2026-07-07 · alert-on-silence. A FAILED heal was console-only

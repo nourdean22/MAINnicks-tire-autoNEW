@@ -107,13 +107,21 @@ const ACTIONS: ActionSpec[] = [
     tier: "production",
     consumer: "business-intel getCustomerStats (dashboard summary); built 2026-10-08",
   },
-
-  // ── Newly required (nickstire-side may not have shipped yet) ──────
   {
     query: "quotes_pending",
-    tier: "newly-required",
-    consumer: "predictive-prefetch QUOTES & REVENUE",
+    filters: { sinceHours: 168 },
+    tier: "production",
+    consumer: "autonomous-engine pricing + quote-conversion rules, predictive-prefetch; built 2026-10-10",
   },
+  {
+    query: "bookings_pending_stale",
+    // Required: without staleHours (whole hours, 1-167) the handler answers 200 { error }.
+    filters: { status: "pending", staleHours: 4 },
+    tier: "production",
+    consumer: "autonomous-engine auto_remind_pending_appointment; built 2026-10-10",
+  },
+
+  // ── Newly required (nickstire-side may not have shipped yet) ──────
   {
     query: "quotes_booked_week",
     tier: "newly-required",

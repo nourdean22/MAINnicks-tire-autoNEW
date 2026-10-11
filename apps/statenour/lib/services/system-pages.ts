@@ -69,8 +69,10 @@ import {
   getCronStats,
   normalizeCronStatus,
   isHardFailure,
+  HARD_FAILURE_STATUSES,
   type CronLastStatus,
 } from "@/lib/services/cron-control";
+import { CRON_STATUS, TERMINAL_OK_STATUSES } from "@/lib/inngest/cron-lifecycle";
 import {
   measure,
   deriveHealthHeadline,
@@ -1317,6 +1319,8 @@ export interface CronDeckRow {
   retireAfter?: string;
   addedAt?: string;
   path?: string;
+  /** From the manifest entry (CronDef.inngest), carried by the row's spread. */
+  inngest?: boolean;
   enabled: boolean;
   lastSuccessAt: string | null;
   lastFailAt: string | null;
@@ -1387,15 +1391,29 @@ function nextRunFromCron(expr: string, now: Date): Date | null {
   return null;
 }
 
+/**
+ * A real run's row: in flight or ended. Never `duplicate`: a phantom `started`
+ * row of a run that already has its row, relabelled by the reconciler
+ * (lib/inngest/cron-lifecycle.ts). Positive list, like isHardFailure, so a
+ * status invented later counts as a run only once someone decides it is one.
+ */
+const CRON_RUN_STATUSES: string[] = [CRON_STATUS.started, ...TERMINAL_OK_STATUSES, ...HARD_FAILURE_STATUSES];
+
 /** The live cron command-deck feed · manifest + per-job stats + drift +
  *  next-run countdown. Lifted verbatim from app/api/system/crons/route.ts.
  *  Distinct from `buildCronTree` (the fold-lineage view) — this carries
  *  the per-row `nextRunAt` + `drift` the control deck renders. */
 export async function buildCronCommandDeck(): Promise<CronCommandDeck> {
-  const [controls, stats, recent] = await Promise.all([
+  const now = new Date();
+  // No read here falls back to []/0: a failed read rejects the deck, so the
+  // page never shows a confident "never" or 0 it did not measure.
+  const [controls, stats, recent, lastRunPerJob, statusCounts24h] = await Promise.all([
     listCronControls(),
     getCronStats(),
+    // Sparkline sample ONLY. ~800 rows is ~24h of prod writes, so last run
+    // and the 24h counts read from it showed every weekly job as "never".
     prisma.cronJobLog.findMany({
+      where: { status: { in: CRON_RUN_STATUSES } },
       orderBy: { createdAt: "desc" },
       take: 800,
       select: {
@@ -1405,7 +1423,34 @@ export async function buildCronCommandDeck(): Promise<CronCommandDeck> {
         createdAt: true,
       },
     }),
+    prisma.cronJobLog.groupBy({
+      by: ["jobName"],
+      where: { status: { in: CRON_RUN_STATUSES } },
+      _max: { createdAt: true },
+    }),
+    prisma.cronJobLog.groupBy({
+      by: ["status"],
+      where: {
+        createdAt: { gte: new Date(now.getTime() - 24 * 3600_000) },
+        status: { in: CRON_RUN_STATUSES },
+      },
+      _count: { _all: true },
+    }),
   ]);
+  // Each job's newest row, for its duration and status.
+  const lastRunByName = new Map(lastRunPerJob.map((r) => [r.jobName, r._max.createdAt]));
+  const stamps = [...lastRunByName.values()].filter((d): d is Date => d !== null);
+  const newestRows = stamps.length
+    ? await prisma.cronJobLog.findMany({
+        where: { createdAt: { in: stamps }, status: { in: CRON_RUN_STATUSES } },
+        select: { jobName: true, status: true, duration: true, createdAt: true },
+      })
+    : [];
+  const newestByName = new Map(
+    newestRows
+      .filter((r) => r.createdAt.getTime() === lastRunByName.get(r.jobName)?.getTime())
+      .map((r) => [r.jobName, r]),
+  );
 
   const controlByName = new Map(controls.map((c) => [c.jobName, c]));
   const logsByName = new Map<
@@ -1417,7 +1462,6 @@ export async function buildCronCommandDeck(): Promise<CronCommandDeck> {
     logsByName.get(r.jobName)!.push(r);
   }
 
-  const now = new Date();
   const rows: CronDeckRow[] = CRONS.map((c): CronDeckRow => {
     const ctl = controlByName.get(c.name);
     const st = stats[c.name] ?? {
@@ -1436,15 +1480,10 @@ export async function buildCronCommandDeck(): Promise<CronCommandDeck> {
     const successRate =
       total > 0 ? Math.round((st.success14d / total) * 100) : null;
 
-    let lastRunAt: string | null = null;
-    let lastRunMs: number | null = null;
-    let lastStatus: CronLastStatus | null = null;
-    const newest = logs[logs.length - 1];
-    if (newest) {
-      lastRunAt = newest.createdAt.toISOString();
-      lastRunMs = newest.duration;
-      lastStatus = normalizeCronStatus(newest.status);
-    }
+    const newest = newestByName.get(c.name);
+    const lastRunAt = newest ? newest.createdAt.toISOString() : null;
+    const lastRunMs = newest ? newest.duration : null;
+    const lastStatus: CronLastStatus | null = newest ? normalizeCronStatus(newest.status) : null;
 
     let nextRunAt: string | null = null;
     let drift: number | null = null;
@@ -1486,14 +1525,8 @@ export async function buildCronCommandDeck(): Promise<CronCommandDeck> {
     disabled: rows.filter((r) => !r.enabled).length,
     folded: rows.filter((r) => r.mode === "folded").length,
     retired: rows.filter((r) => r.mode === "retired").length,
-    runs24h: recent.filter(
-      (r) => r.createdAt.getTime() > now.getTime() - 24 * 3600_000,
-    ).length,
-    failures24h: recent.filter(
-      (r) =>
-        isHardFailure(r.status) &&
-        r.createdAt.getTime() > now.getTime() - 24 * 3600_000,
-    ).length,
+    runs24h: statusCounts24h.reduce((n, r) => n + r._count._all, 0),
+    failures24h: statusCounts24h.reduce((n, r) => (isHardFailure(r.status) ? n + r._count._all : n), 0),
     drifted: rows.filter((r) => r.drift !== null && r.drift > 0).length,
   };
 

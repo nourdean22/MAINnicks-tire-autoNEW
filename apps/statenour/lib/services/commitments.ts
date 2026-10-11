@@ -15,6 +15,7 @@
 import { prisma } from "@/lib/prisma";
 import { today } from "@/lib/utils/datetime";
 import { logCreate } from "@/lib/db/entity-audit";
+import { emitCommitmentTransition } from "@/lib/db/brain-bus-emit";
 
 export interface CreateCommitmentArgs {
   description: string;
@@ -130,12 +131,46 @@ export async function proposeCommitment(
   }
 }
 
+/**
+ * Publish `commitment.transition` for a status flip the caller just made,
+ * through the same publisher the legacy /api/commitments route uses. Before
+ * 2026-10-10 that route was the only producer and no client called it, so the
+ * bus handler starved. A no-op when the status did not change. Never throws:
+ * the flip it describes has already happened.
+ */
+export async function publishCommitmentTransition(
+  id: number,
+  oldStatus: string | null,
+  newStatus: string,
+): Promise<void> {
+  if (oldStatus === newStatus) return;
+  let row: { description: string; toWhom: string; domain: string | null } | null = null;
+  try {
+    row = await prisma.commitment.findUnique({
+      where: { id },
+      select: { description: true, toWhom: true, domain: true },
+    });
+  } catch {
+    // The detail is decoration; the event still records the flip.
+  }
+  await emitCommitmentTransition({
+    commitmentId: id,
+    oldStatus,
+    newStatus,
+    description: row?.description ?? "",
+    toWhom: row?.toWhom ?? null,
+    domain: row?.domain ?? null,
+    transitionedAt: new Date().toISOString(),
+  });
+}
+
 /** Operator accepts a proposal → it goes on the books as active. */
 export async function acceptCommitment(id: number): Promise<boolean> {
   const res = await prisma.commitment.updateMany({
     where: { id, status: "proposed", deletedAt: null },
     data: { status: "active", updatedBy: "operator" },
   });
+  if (res.count === 1) await publishCommitmentTransition(id, "proposed", "active");
   return res.count === 1;
 }
 
@@ -145,6 +180,7 @@ export async function dismissProposed(id: number): Promise<boolean> {
     where: { id, status: "proposed", deletedAt: null },
     data: { status: "abandoned", updatedBy: "operator" },
   });
+  if (res.count === 1) await publishCommitmentTransition(id, "proposed", "abandoned");
   return res.count === 1;
 }
 
@@ -153,8 +189,15 @@ export async function verifyCommitment(
   id: number,
   outcomeRef?: string | null,
 ): Promise<boolean> {
-  const res = await prisma.commitment.updateMany({
+  // Two prior statuses qualify, so read which one, then swap on exactly that
+  // one: the event names the real old status and a racing flip loses.
+  const before = await prisma.commitment.findFirst({
     where: { id, status: { in: ["active", "accepted"] }, deletedAt: null },
+    select: { status: true },
+  });
+  if (!before) return false;
+  const res = await prisma.commitment.updateMany({
+    where: { id, status: before.status, deletedAt: null },
     data: {
       status: "verified",
       verifiedAt: new Date(),
@@ -162,6 +205,7 @@ export async function verifyCommitment(
       updatedBy: "operator",
     },
   });
+  if (res.count === 1) await publishCommitmentTransition(id, before.status, "verified");
   return res.count === 1;
 }
 
@@ -192,6 +236,7 @@ export async function completeActiveCommitment(
   if (res.count === 1) {
     const { captureCommitmentConditions } = await import("./commitment-conditions");
     void captureCommitmentConditions(id, "completed");
+    await publishCommitmentTransition(id, "active", "completed");
   }
   return res.count === 1;
 }
@@ -216,6 +261,7 @@ export async function abandonActiveCommitment(
   if (res.count === 1) {
     const { captureCommitmentConditions } = await import("./commitment-conditions");
     void captureCommitmentConditions(id, "abandoned");
+    await publishCommitmentTransition(id, "active", "abandoned");
   }
   return res.count === 1;
 }

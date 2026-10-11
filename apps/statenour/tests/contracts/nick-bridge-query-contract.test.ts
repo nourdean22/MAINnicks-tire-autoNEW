@@ -45,7 +45,8 @@ const NICK_REGISTRY = resolve(
  * below will tell you to delete it from this list.
  */
 const KNOWN_PENDING = new Set<string>([
-  "quotes_pending",
+  // `quotes_pending` sat here until 2026-10-10, when nickstire shipped it: three engine rules
+  // had called it since v10.0.50 and every call was a 400, so the rules never fired.
   "quotes_booked_week",
   "quotes_stale",
   "leads_open",
@@ -547,6 +548,24 @@ describe("nickstire bridge query contract", () => {
         `Fix: point the callsite at a real handler, OR (if nickstire genuinely ` +
         `owes a new handler) add the query to KNOWN_PENDING here + contract-pre-flight.ts.`,
     ).toEqual([]);
+  }, 60000);
+
+  /**
+   * The autonomous engine acts on what the bridge returns, so its rules get no KNOWN_PENDING
+   * exemption: a rule reading a query nickstire does not answer never fires, and nothing says so.
+   * `bookings_pending_stale` is listed by hand because auto_remind_pending_appointment moves onto
+   * it from `bookings_status` (which answers { statusBreakdown }, never the { bookings } it reads).
+   */
+  const ENGINE_FILE = "lib/brain/autonomous-engine.ts";
+  const ENGINE_REQUIRED = ["bookings_pending_stale"];
+
+  it("every query the autonomous engine's rules read is a live handler, with no exemption", () => {
+    const valid = liveHandlers();
+    const sent = scanCallsites().hits.filter((h) => h.file === ENGINE_FILE).map((h) => h.query);
+    // The instrument fired: the engine holds ~10 bridge reads (2026-10-10).
+    expect(sent.length).toBeGreaterThan(5);
+    const dead = [...new Set([...sent, ...ENGINE_REQUIRED])].filter((q) => !valid.has(q)).sort();
+    expect(dead, `autonomous-engine rules read queries nickstire has no handler for: ${dead.join(", ")}`).toEqual([]);
   }, 60000);
 
   it("every bridge callsite names its query where this guard can read it", () => {

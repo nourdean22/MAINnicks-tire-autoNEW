@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { toast } from "sonner";
-import { useChatTransport } from "@/hooks/chat/use-chat-transport";
+import { useChatTransport, type ChatUIMessage } from "@/hooks/chat/use-chat-transport";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStall } from "@/hooks/chat/use-chat-stall";
 import { useStreamingErrorGuard } from "@/hooks/chat/use-streaming-error-guard";
@@ -15,6 +15,7 @@ import {
 import type { ChatRuntimeController } from "../types/chat-runtime-controller";
 import type { ContextBlocks } from "@/components/chat/context-block-badges";
 import { looksLikeImageGenerationRequest } from "@/lib/ai/chat/handlers/patterns";
+import { bindPersistedMessage, stopTurn as requestStop, type StoppedTurn } from "../lib/turn-lifecycle";
 
 const PAGE_ANCHOR_KEYS = [
   "lastTaskId",
@@ -99,17 +100,50 @@ export function useChatStream(): ChatRuntimeController {
   // sees, and a reload always shows the canonical persisted text.
   const resumeAttemptsRef = useRef(0);
   const resumeStreamRefForPartial = useRef<(() => void) | null>(null);
+  // True while the latest request is a reattach, not a send: a failed resume
+  // must never auto-regenerate (see the auto-retry effect). Starts true for
+  // useChat's own mount-time resume; every send clears it.
+  const resumingRef = useRef(true);
+  // The pending re-resume belongs to the turn that was tailing: a send, a stop
+  // or an unmount cancels it, or it would resume against the next turn.
+  const partialTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const cancelPartialResume = useCallback(() => clearTimeout(partialTimerRef.current), []);
+  useEffect(() => cancelPartialResume, [cancelPartialResume]);
   const onResumePartial = useCallback(() => {
     if (resumeAttemptsRef.current >= 5) return;
     resumeAttemptsRef.current += 1;
-    setTimeout(() => {
+    clearTimeout(partialTimerRef.current);
+    partialTimerRef.current = setTimeout(() => {
+      resumingRef.current = true;
       void resumeStreamRefForPartial.current?.();
     }, 1500);
   }, []);
 
+  // 04-F2 · the stored text + DB id of this turn's reply, applied once the
+  // stream settles (see the binding effect below). A ref: the transport is
+  // memoized once and must keep a stable callback.
+  const persistedRef = useRef<{ id: string; content: string; traceId: string | null } | null>(null);
+  const onMessagePersisted = useCallback(
+    (persisted: { id: string; content: string; traceId: string | null }) => {
+      persistedRef.current = persisted;
+    },
+    [],
+  );
+
+  // Live mirror of chat.messages (synced by an effect below). Declared here
+  // because the transport, built once, reads it at resume time.
+  const messagesRef = useRef<ChatUIMessage[]>([]);
+
   const transport = useChatTransport({
     apiPath: "/api/ai/chat",
     transportBodyRef: bodyRef,
+    onMessagePersisted,
+    // P2-B6 · a named resume replaces the reply bubble already on screen
+    // (Reconnect after a stall) instead of adding a second copy.
+    resumeIntoMessageId: () => {
+      const last = messagesRef.current[messagesRef.current.length - 1];
+      return last?.role === "assistant" ? last.id : undefined;
+    },
     liveContextBlocksRef,
     onLiveContextBlocks: setLiveContextBlocks,
     lastPersonaHeaderRef,
@@ -182,7 +216,6 @@ export function useChatStream(): ChatRuntimeController {
   // Guards onFinish (below) from erasing the degraded state, since an
   // abort and a completion are indistinguishable to that callback.
   const stalledRef = useRef(false);
-  const messagesRef = useRef(chat.messages);
   // Whether the MOST RECENT send went out under Private Lab, + a live mirror of
   // privateMode. A private turn must never be replayed (regenerate / auto-retry)
   // once Private Lab is off — the replay would persist it (self-review high #4).
@@ -222,6 +255,41 @@ export function useChatStream(): ChatRuntimeController {
     messagesRef.current = chat.messages;
   }, [chat.messages]);
 
+  const isStreaming = chat.status === "streaming" || chat.status === "submitted";
+  const [stopped, setStopped] = useState<StoppedTurn | null>(null);
+  const stopSeqRef = useRef(0);
+
+  // 04-F2 / 04-F8 · once the stream settles, bind the reply bubble to its DB
+  // row: id + stored text (banners included). Not mid-stream: the SDK would
+  // push a second bubble for a changed id. An effect, not useChat's onFinish,
+  // so the read-aloud follower flushes its tail under the old id first.
+  // A payload from another turn (trace mismatch) is dropped.
+  const { setMessages } = chat;
+  useEffect(() => {
+    if (isStreaming) return;
+    const persisted = persistedRef.current;
+    persistedRef.current = null;
+    if (!persisted || persisted.traceId !== lastTraceIdRef.current) return;
+    const boundId = messagesRef.current[messagesRef.current.length - 1]?.id;
+    setMessages((messages) => bindPersistedMessage(messages, persisted));
+    setStopped((s) => (s && s.messageId === boundId ? { ...s, messageId: persisted.id } : s));
+  }, [isStreaming, setMessages]);
+
+  // 04-F6 / 09-F29 · operator Stop: the server hears it first, the bubble is
+  // marked at once, and the label settles when the DELETE answers.
+  const stopTurn = useCallback(() => {
+    cancelPartialResume();
+    const seq = ++stopSeqRef.current;
+    const last = messagesRef.current[messagesRef.current.length - 1];
+    setStopped(last ? { messageId: last.id, outcome: "pending" } : null);
+    void requestStop({
+      conversationId: bodyRef.current.conversationId as string | null | undefined,
+      abort: chat.stop,
+    }).then((outcome) => {
+      if (stopSeqRef.current === seq) setStopped((s) => (s ? { ...s, outcome } : s));
+    });
+  }, [chat.stop, cancelPartialResume]);
+
   useEffect(() => {
     if (!chat.error) {
       retryCountRef.current = 0;
@@ -236,6 +304,12 @@ export function useChatStream(): ChatRuntimeController {
       message.includes("fetch failed") ||
       message.includes("load failed");
     if (!isNetworkKill) return;
+
+    // A dropped resume is not a dropped send: the turn is still running (or
+    // done) server-side, and the merged bubble has lost its tool parts, so
+    // the guard below cannot see what already fired. A reload shows the
+    // persisted reply.
+    if (resumingRef.current) return;
 
     // 2026-07-22 · idempotency guard. A tool may have committed a real side
     // effect (Telegram send, IG autopost, customer alert) on the server BEFORE
@@ -313,6 +387,7 @@ export function useChatStream(): ChatRuntimeController {
             toast.dismiss("chat-stall");
             stalledRef.current = false;
             setConnection("online");
+            resumingRef.current = true;
             void resumeStreamRef.current?.();
           },
         },
@@ -337,10 +412,13 @@ export function useChatStream(): ChatRuntimeController {
     messages: chat.messages,
     status: chat.status as "submitted" | "streaming" | "ready" | "error",
     error: chat.error,
-    isStreaming: chat.status === "streaming" || chat.status === "submitted",
+    isStreaming,
     sendText: (text: string) => {
       sentPrivateRef.current = privateMode;
+      resumingRef.current = false;
+      cancelPartialResume();
       clearStall();
+      setStopped(null);
       // 2026-08-12 · OPTIONAL TURBO: per-MESSAGE body override (race-free —
       // the option rides this exact send, not the shared bodyRef), consumed
       // and reset in the same tick so it can never stick to a second turn.
@@ -357,11 +435,24 @@ export function useChatStream(): ChatRuntimeController {
     },
     append: ((...args: Parameters<typeof chat.sendMessage>) => {
       sentPrivateRef.current = privateMode;
+      resumingRef.current = false;
+      cancelPartialResume();
       clearStall();
+      setStopped(null);
       return chat.sendMessage(...args);
     }) as typeof chat.sendMessage,
-    stop: chat.stop,
-    regenerate: safeRegenerate,
+    stop: () => {
+      cancelPartialResume();
+      return chat.stop();
+    },
+    stopTurn,
+    stopped,
+    regenerate: (options) => {
+      resumingRef.current = false;
+      cancelPartialResume();
+      setStopped(null);
+      return safeRegenerate(options);
+    },
     setMessages: chat.setMessages,
     liveContextBlocks,
     lastTraceId,

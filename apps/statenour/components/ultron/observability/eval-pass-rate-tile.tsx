@@ -47,7 +47,10 @@ export function EvalPassRateTile({ state }: Props) {
     return <ShimmerSkeleton variant="card" className="min-h-[112px]" />;
   }
   if (state.kind === "empty") {
-    return <EmptyTile label="eval · pass rate" hint="no regression runs yet" icon={<Target size={14} />} />;
+    // A stale hint means runs existed and stopped, so the default "check back after first run" would be false.
+    // eval-results.ts: this store has had no producer since 2026-08-09; the date of the last run is in the hint.
+    const footer = state.hint ? "no eval writer is wired" : undefined;
+    return <EmptyTile label="eval · pass rate" hint={state.hint ?? "no regression runs yet"} footer={footer} icon={<Target size={14} />} />;
   }
   if (state.kind === "error") {
     return <ErrorTile label="eval · pass rate" message={state.message} />;
@@ -103,8 +106,13 @@ export function EvalPassRateTile({ state }: Props) {
     red: "text-rose-300",
   }[tier];
 
-  // Top failure category from worstCategories (already ranked by server).
-  const worst = latest.worstCategories?.[0];
+  // Top failure category. Computed from the max, not worstCategories[0]: on a
+  // tie the first in dataset order is not "worst", so name none.
+  const categories = latest.worstCategories ?? [];
+  const maxFailed = Math.max(0, ...categories.map((c) => c.failed));
+  const leaders = categories.filter((c) => c.failed === maxFailed);
+  const worst = maxFailed > 0 && leaders.length === 1 ? leaders[0] : undefined;
+  const tied = maxFailed > 0 && leaders.length > 1;
 
   return (
     <GlassCard ruled className={cn("min-h-[112px]", tierBorder)}>
@@ -135,12 +143,17 @@ export function EvalPassRateTile({ state }: Props) {
           {latest.passed}/{latest.totalRan} passed
         </p>
 
-        {worst && worst.failed > 0 && (
+        {worst && (
           <p className="mt-2 font-mono text-[11px] text-fg-tertiary">
             worst: <span className="text-fg">{worst.category}</span>{" "}
             <span className="text-rose-300 tabular-nums">
               {worst.failed}/{worst.total} fail
             </span>
+          </p>
+        )}
+        {tied && (
+          <p className="mt-2 font-mono text-[11px] text-fg-tertiary">
+            no single worst category ({leaders.length} tied at {maxFailed} fail)
           </p>
         )}
     </GlassCard>

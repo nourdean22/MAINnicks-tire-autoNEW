@@ -260,6 +260,13 @@ export async function buildCockpitStats() {
       ? -1
       : Math.min(ttftValues.length - 1, Math.ceil(ttftValues.length * 0.95) - 1);
 
+  // eval_result lost its only writer on 2026-05-28 (lib/services/eval-results.ts),
+  // so a run older than 7 days is a fossil, not the latest eval: drop it and
+  // keep only its date. Same window as system-health.ts evalFresh.
+  const latestEval = evalResults.results[0] ?? null;
+  const evalFresh =
+    latestEval != null && now - Date.parse(latestEval.ranAt) < 7 * 24 * 60 * 60_000;
+
   const missionCounts = Object.fromEntries(
     missionStats.map((row) => [row.status, row._count._all]),
   ) as Record<string, number>;
@@ -326,7 +333,8 @@ export async function buildCockpitStats() {
       averageFeedback: null,
       usageAttributionAvailable: false,
     })),
-    eval: evalResults.results[0] ?? null,
+    eval: evalFresh ? latestEval : null,
+    evalLastRanAt: latestEval && !evalFresh ? latestEval.ranAt : null,
     missions: {
       active: missionCounts.ACTIVE ?? 0,
       paused: missionCounts.PAUSED ?? 0,

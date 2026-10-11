@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { TypedToolCards } from "./typed-tool-cards";
-import { useState, useCallback } from "react";
+import { Fragment, useState, useCallback } from "react";
 import type { UIMessage } from "ai";
 import { AlertTriangle, CheckCircle2, Copy, ExternalLink, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Volume2, VolumeX } from "lucide-react";
 import { ChatMediaPart, type ChatFilePart } from "./chat-media-part";
@@ -22,6 +22,8 @@ import { useLazyRenderMessages } from "@/hooks/chat/use-lazy-render-messages";
 import { trpc } from "@/lib/trpc/client";
 import { haptic } from "@/lib/ui/haptic";
 import type { TtsApi } from "../hooks/use-tts";
+import { stoppedLabel, type StoppedTurn } from "../lib/turn-lifecycle";
+import { isResumedMessage } from "@/hooks/chat/use-chat-transport";
 
 /** Stable djb2-ish content-hash key so re-saving the same reply reinforces the
  *  row (upsert by category+key) instead of duplicating. Mirrors the legacy
@@ -47,8 +49,11 @@ function textOf(message: UIMessage): string {
  * shop. The message row refuses to offer Regenerate on such turns; the
  * operator can still send a new message. Catalog-driven so a tool newly
  * flagged `sideEffecting` is covered without touching this file.
+ * P2-B6 · a bubble rebuilt by a resume holds replayed text only, so it
+ * counts as side-effecting: its parts cannot show what ran.
  */
 function turnHasSideEffect(message: UIMessage): boolean {
+  if (isResumedMessage(message)) return true;
   const names = new Set(sideEffectingTools());
   return (message.parts ?? []).some(
     (part) =>
@@ -276,6 +281,18 @@ function ToolReceiptSummary({ message, traceId }: { message: UIMessage; traceId?
   );
 }
 
+/** 09-F29 · a stopped turn is marked where Nick's reply sits: a static rule
+ *  and the word, no colour claim. -mt-5 pulls it back under the turn the
+ *  list's gap-7 would otherwise push it away from. */
+function StoppedRule({ label }: { label: string }) {
+  return (
+    <div data-testid="stopped-turn" className="-mt-5 flex items-center gap-2 font-mono text-[11px] text-fg-tertiary">
+      <span aria-hidden className="h-px w-6 bg-edge-default" />
+      {label}
+    </div>
+  );
+}
+
 function InterruptedTurnCard({ message, onRetry }: { message: UIMessage; onRetry?: () => void }) {
   const partialText = textOf(message);
   return (
@@ -312,6 +329,7 @@ export function ChatMessageList({
   onRetry,
   onCommand,
   tts,
+  stopped,
 }: {
   messages: UIMessage[];
   isLoading: boolean;
@@ -322,13 +340,15 @@ export function ChatMessageList({
   onRetry?: () => void;
   onCommand?: (prompt: string) => void;
   tts?: TtsApi;
+  /** The turn the operator stopped (09-F29). */
+  stopped?: StoppedTurn | null;
 }) {
   const pending = useChatUiStore((state) => state.pending);
   const connection = useChatUiStore((state) => state.connection);
   const diagnosticReport = useChatUiStore((state) => state.diagnosticReport);
   const setDiagnosticReport = useChatUiStore((state) => state.setDiagnosticReport);
-  const setDraft = useChatUiStore((state) => state.setDraft);
-  const setEditingMessageId = useChatUiStore((state) => state.setEditingMessageId);
+  // 09-F11 · a tap on a sent message never overwrites a typed draft in one go.
+  const offerDraft = useChatUiStore((state) => state.offerDraft);
   const [actionSheetMsg, setActionSheetMsg] = useState<{ id: string; role: "user" | "assistant"; text: string } | null>(null);
   const [reasoningTraceMsg, setReasoningTraceMsg] = useState<string | null>(null);
 
@@ -376,6 +396,8 @@ export function ChatMessageList({
     }
   }, [actionSheetMsg, recordMemory]);
   const { renderedMessages, hasHidden, hiddenCount, showOlder } = useLazyRenderMessages(messages, isLoading);
+  // A stop recorded in another conversation names a message that is not here.
+  const stoppedHere = stopped && !isLoading && messages.some((m) => m.id === stopped.messageId) ? stopped : null;
 
   if (messages.length === 0 && pending.length === 0 && !diagnosticReport) {
     if (isLoadingConvo) {
@@ -455,7 +477,8 @@ export function ChatMessageList({
           collapseRepeatedToolParts(message.parts ?? []).map((r) => [r.index, r.repeat]),
         );
         return (
-          <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+          <Fragment key={message.id}>
+          <div className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
             {/* UI v2 (2026-10-01): the operator's message is a compact graphite block; Nick's
                 reply is editorial prose in the reading column — no bubble, no border. The
                 NICK designation replaces an avatar. docs/design/ui-v2/SURFACES.md §E1. */}
@@ -478,7 +501,7 @@ export function ChatMessageList({
                     // editingMessageId) instead of bare prefill — sending
                     // used to APPEND a duplicate while the original stayed.
                     // The composer shows a visible editing banner w/ cancel.
-                    return <UserMessageBubble key={`${message.id}-${index}`} text={part.text} onClick={() => { setDraft(part.text); setEditingMessageId(message.id); }} onLongPress={() => setActionSheetMsg({ id: message.id, role: "user", text: part.text })} />;
+                    return <UserMessageBubble key={`${message.id}-${index}`} text={part.text} onClick={() => offerDraft(part.text, message.id)} onLongPress={() => setActionSheetMsg({ id: message.id, role: "user", text: part.text })} />;
                   }
                   const contextBlocks = extractContextBlocks(message, liveContextBlocks ?? null);
                   const quality = extractQuality(message);
@@ -560,8 +583,7 @@ export function ChatMessageList({
                     onEdit={
                       role === "user"
                         ? () => {
-                            setDraft(bodyText);
-                            setEditingMessageId(message.id);
+                            offerDraft(bodyText, message.id);
                             haptic.tap();
                           }
                         : undefined
@@ -582,6 +604,8 @@ export function ChatMessageList({
               })()}
             </div>
           </div>
+          {stoppedHere?.messageId === message.id && <StoppedRule label={stoppedLabel(stoppedHere.outcome)} />}
+          </Fragment>
         );
       })}
 
@@ -622,9 +646,11 @@ export function ChatMessageList({
           (busy → idle with an assistant turn last), which is the one
           change AT announces. */}
       <div role="status" aria-live="polite" className="sr-only">
-        {!isLoading && messages[messages.length - 1]?.role === "assistant"
-          ? "Nick finished replying"
-          : ""}
+        {stoppedHere
+          ? stoppedLabel(stoppedHere.outcome)
+          : !isLoading && messages[messages.length - 1]?.role === "assistant"
+            ? "Nick finished replying"
+            : ""}
       </div>
 
       <MessageActionSheet
@@ -633,7 +659,7 @@ export function ChatMessageList({
         role={actionSheetMsg?.role || "user"}
         text={actionSheetMsg?.text || ""}
         onCopy={() => actionSheetMsg?.text && void copyToClipboard(actionSheetMsg.text)}
-        onEdit={actionSheetMsg?.role === "user" ? () => { if (actionSheetMsg?.text) { setDraft(actionSheetMsg.text); setEditingMessageId(actionSheetMsg.id); } } : undefined}
+        onEdit={actionSheetMsg?.role === "user" ? () => { if (actionSheetMsg?.text) offerDraft(actionSheetMsg.text, actionSheetMsg.id); } : undefined}
         onShowReasoning={() => {
           if (actionSheetMsg?.id) setReasoningTraceMsg(actionSheetMsg.id);
           setActionSheetMsg(null);

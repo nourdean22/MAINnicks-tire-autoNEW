@@ -28,7 +28,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { listRuleNames } from "@/lib/brain/autonomous-engine";
+import { listRuleNames, RETIRED_RULE_NAMES } from "@/lib/brain/autonomous-engine";
 import { listRegisteredTopics } from "@/lib/db/brain-bus-handlers";
 
 export type LaneStatus =
@@ -41,7 +41,7 @@ export type LaneStatus =
   | "unknown"; // probe failed — not healthy, not anything
 
 export interface LaneRow {
-  laneClass: "autonomous-rule" | "brain-bus-topic" | "orphan";
+  laneClass: "autonomous-rule" | "brain-bus-topic" | "producer" | "retired" | "orphan";
   id: string;
   registry: string;
   lastObservedFlow: string | null;
@@ -94,6 +94,53 @@ export function classifyRuleLane(input: {
   return {
     status: "silent",
     detail: `no action row in ${Math.round(ageDays)}d despite a live policy — investigate the trigger`,
+  };
+}
+
+/**
+ * Writers of autonomousAction rows that are not engine rules, by ruleName
+ * prefix. `source` is the file holding the `ruleName:` literal; a test reads
+ * it, so a renamed prefix fails CI instead of silently re-orphaning the lane.
+ */
+export const KNOWN_PRODUCERS = [
+  { prefix: "nick_action_", source: "lib/ai/propose-actions.ts" },
+  { prefix: "nick_event_", source: "lib/inngest/functions/event-triggers.ts" },
+] as const;
+
+/**
+ * PURE — classify a ruleName with rows but no entry in RULES: a live
+ * producer, a retired rule's history, or an unregistered stray (unknown, so
+ * it stands out). Exported for the test.
+ */
+export function classifyOrphan(input: {
+  name: string;
+  lastRowAt: Date | null;
+  rowCount: number;
+  now: number;
+}): Pick<LaneRow, "laneClass" | "registry" | "status" | "detail"> {
+  const producer = KNOWN_PRODUCERS.find((p) => input.name.startsWith(p.prefix));
+  if (producer) {
+    const ageDays = input.lastRowAt ? (input.now - input.lastRowAt.getTime()) / DAY_MS : Infinity;
+    return {
+      laneClass: "producer",
+      registry: producer.source,
+      status: ageDays <= 7 ? "flowing" : "quiet",
+      detail: `${input.rowCount} rows from a live producer outside RULES; last row ${Number.isFinite(ageDays) ? `${ageDays.toFixed(1)}d ago` : "unknown"}`,
+    };
+  }
+  if (RETIRED_RULE_NAMES.includes(input.name)) {
+    return {
+      laneClass: "retired",
+      registry: "RETIRED_RULE_NAMES in lib/brain/autonomous-engine.ts",
+      status: "quiet",
+      detail: `retired ${input.name}: ${input.rowCount} history rows`,
+    };
+  }
+  return {
+    laneClass: "orphan",
+    registry: "(in no registry)",
+    status: "unknown",
+    detail: `unregistered producer: ${input.rowCount} rows from a name in neither RULES, RETIRED_RULE_NAMES nor KNOWN_PRODUCERS; find the writer`,
   };
 }
 
@@ -185,17 +232,19 @@ export async function buildWiringCensus(): Promise<WiringCensusView> {
       });
     }
 
-    // Reverse orphans: DB producers whose registry entry is gone.
+    // Reverse orphans: names with rows but no RULES entry.
     const ruleNames = new Set(rules.map((r) => r.name));
     for (const stat of rowStats) {
       if (!ruleNames.has(stat.ruleName)) {
         lanes.push({
-          laneClass: "orphan",
           id: stat.ruleName,
-          registry: "(absent from RULES — retired producer)",
           lastObservedFlow: stat._max.createdAt?.toISOString() ?? null,
-          status: "quiet",
-          detail: `${stat._count.id} rows from a name absent from the RULES registry — either a retired rule, or a DIFFERENT producer writing autonomousAction rows (verified 2026-08-12: the nick_action_* names come from the nick-action crons, not from a retirement)`,
+          ...classifyOrphan({
+            name: stat.ruleName,
+            lastRowAt: stat._max.createdAt ?? null,
+            rowCount: stat._count.id,
+            now,
+          }),
         });
       }
     }

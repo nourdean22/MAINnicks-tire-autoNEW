@@ -23,7 +23,7 @@ import { prisma } from "@/lib/prisma";
 import { createTaskAndEnrich, liftGoalOnTaskComplete } from "@/lib/services/tasks";
 import { creditTaskStats } from "@/lib/mastery/goal-stats";
 import { recordError } from "@/lib/errors/record-error";
-import { daysAgo, hourET, toDateString, today, weekdayET } from "@/lib/utils/datetime";
+import { daysAgo, hourET, startOfDayET, toDateString, today, weekdayET } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { goalsTools } from "@/lib/ai/tools/goals";
 import { missionsTools } from "@/lib/ai/tools/missions";
@@ -32,9 +32,19 @@ import { healthTools } from "@/lib/ai/tools/health";
 import { financeTools } from "@/lib/ai/tools/finance";
 import { calendarTools } from "@/lib/ai/tools/calendar";
 import { getUnresolvedAlerts } from "@/lib/mastery/drift-engine";
+import { publishCommitmentTransition } from "@/lib/services/commitments";
 
 /** A read that failed, as Nick sees it: never an empty list or a 0. */
 const UNKNOWN = "unknown (read failed)";
+
+/** A commitment's status before a tool flips it, for the transition event. null when the read fails: the write still runs. */
+async function commitmentStatusBefore(id: number): Promise<string | null> {
+  try {
+    return (await prisma.commitment.findUnique({ where: { id }, select: { status: true } }))?.status ?? null;
+  } catch {
+    return null;
+  }
+}
 
 /** Each bridge batch entry as its data, or `{ status: "unknown", reason }` when the read failed. */
 function shopView(
@@ -635,7 +645,9 @@ const tasksCoreTools = {
       status: z.enum(["kept", "broken", "deferred"]),
     }),
     execute: async ({ commitmentId, status }) => {
+      const before = await commitmentStatusBefore(commitmentId);
       await prisma.commitment.update({ where: { id: commitmentId }, data: { status } });
+      await publishCommitmentTransition(commitmentId, before, status);
       return { updated: true, commitmentId, status };
     },
   }),
@@ -658,10 +670,12 @@ const tasksCoreTools = {
       outcome: z.string().optional().describe("What actually happened"),
     }),
     execute: async ({ commitmentId, outcome }) => {
+      const before = await commitmentStatusBefore(commitmentId);
       await prisma.commitment.update({
         where: { id: commitmentId },
         data: { status: "completed", notes: outcome || "Completed" },
       });
+      await publishCommitmentTransition(commitmentId, before, "completed");
       // BDN-208 · chat-path completions carry conditions too (same
       // fire-and-forget as the service path — never blocks the turn).
       const { captureCommitmentConditions } = await import("@/lib/services/commitment-conditions");
@@ -682,6 +696,7 @@ const tasksCoreTools = {
     }),
     execute: async ({ commitmentId, reason }) => {
       try {
+        const before = await commitmentStatusBefore(commitmentId);
         const updated = await prisma.commitment.update({
           where: { id: commitmentId },
           data: {
@@ -690,6 +705,7 @@ const tasksCoreTools = {
           },
           select: { id: true, description: true, status: true },
         });
+        await publishCommitmentTransition(commitmentId, before, "broken");
         // BDN-208 · broken is the HIGHEST-signal outcome class for the
         // conditions ledger — a break under short_sleep vs rested is
         // exactly the contrast the mechanism exists to expose.
@@ -1322,22 +1338,13 @@ const tasksCoreTools = {
       if (criticalTask)
         suggestions.push(`📋 Task: ${criticalTask.title}${criticalTask.dueDate ? ` (due ${criticalTask.dueDate.toLocaleDateString()})` : ""}`);
 
-      // v10.0.54 · Wave A · Replaces retired DailyScore lookup. Today's
-      // identity-snapshot updatedAt is the engagement signal — if the
-      // current snapshot was rolled today (cron @ 4:30am ET refreshes
-      // it; manual mastery surface engagement also touches it), Nour
-      // is engaged. If not, prompt the score nudge.
-      const todayStartET = new Date(
-        new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }) + "T00:00:00",
-      );
-      const snap = await prisma.brainMemory
-        .findUnique({
-          where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
-          select: { updatedAt: true, deletedAt: true },
-        })
-        .catch((): null => null);
-      const engagedToday = !!snap && !snap.deletedAt && snap.updatedAt >= todayStartET;
-      if (!engagedToday) suggestions.push("⚡ Daily score not started — complete non-negotiables");
+      // Engaged today = a human signal since ET midnight (chat, completed
+      // task, Telegram), the engine's own helper. Not identity_snapshot
+      // updatedAt: the nightly refresh-identity cron bumps it on its own.
+      // null = the read failed: no nudge built on an unknown.
+      const { operatorEngagedSince } = await import("@/lib/brain/autonomous-engine");
+      if ((await operatorEngagedSince(startOfDayET())) === false)
+        suggestions.push("⚡ Daily score not started — complete non-negotiables");
 
       if (shopUnknown) {
         suggestions.push("❔ Shop leads/callbacks: unknown — the nickstire read failed, so they were not checked");

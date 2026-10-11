@@ -132,6 +132,9 @@ function isSundayET(): boolean {
  */
 const CHILD_TIMEOUT_MS: Record<string, number> = {
   "/api/cron/predict": 240_000,
+  // Route maxDuration (90 s) + 10 s: an answer at the end of the route's own
+  // budget keeps its real status instead of reading as 202 "still running".
+  "/api/cron/autonomous-engine": 100_000,
 };
 const DEFAULT_CHILD_TIMEOUT_MS = 90_000;
 

@@ -32,6 +32,8 @@ export interface CapabilityInputs {
   providerTone: ProviderTone | undefined;
   providerErrored: boolean;
   toolSummary?: { totalTools: number; degraded: number; down: number };
+  /** The tools-health read failed: unknown, never "still checking". */
+  toolsErrored?: boolean;
 }
 
 export interface CapabilityBadge {
@@ -42,27 +44,30 @@ export interface CapabilityBadge {
   /** True only when nothing is actually known yet — lets the caller
    *  pick a neutral icon instead of a warning triangle. */
   unknown: boolean;
+  /** True only while a read is still in flight: the one state allowed to
+   *  animate. A failed read is unknown and static (audit 09-F14). */
+  checking: boolean;
 }
 
 export function capabilityBadge(input: CapabilityInputs): CapabilityBadge {
-  const { connection, providerTone, providerErrored, toolSummary } = input;
+  const { connection, providerTone, providerErrored, toolSummary, toolsErrored } = input;
 
   // Offline is observed by the client itself — it needs no server data.
   if (connection === "offline") {
-    return { label: "chat offline", cautious: true, unknown: false };
+    return { label: "chat offline", cautious: true, unknown: false, checking: false };
   }
   if (providerErrored) {
-    return { label: "AI health unknown", cautious: true, unknown: true };
+    return { label: "AI health unknown", cautious: true, unknown: true, checking: false };
   }
   // Still loading: cautious styling, but NO diagnosis.
   if (!providerTone) {
-    return { label: "checking capabilities", cautious: true, unknown: true };
+    return { label: "checking capabilities", cautious: true, unknown: true, checking: true };
   }
   if (providerTone === "red") {
-    return { label: "AI offline", cautious: true, unknown: false };
+    return { label: "AI offline", cautious: true, unknown: false, checking: false };
   }
   if (providerTone === "amber") {
-    return { label: "fallback active", cautious: true, unknown: false };
+    return { label: "fallback active", cautious: true, unknown: false, checking: false };
   }
 
   // Section 5.5 (2026-09-08): the badge claims HEALTH, not inventory. "181 catalog tools"
@@ -70,7 +75,7 @@ export function capabilityBadge(input: CapabilityInputs): CapabilityBadge {
   // A degraded STREAM is the client's own observation (use-chat-stream.ts); the providers and
   // the tools can both be healthy, so it must not read as a tool outage (review on #2204).
   if (connection === "degraded") {
-    return { label: "chat degraded", cautious: true, unknown: false };
+    return { label: "chat degraded", cautious: true, unknown: false, checking: false };
   }
   const toolsDegraded = Boolean(toolSummary && (toolSummary.degraded > 0 || toolSummary.down > 0));
   if (toolsDegraded) {
@@ -78,11 +83,16 @@ export function capabilityBadge(input: CapabilityInputs): CapabilityBadge {
       label: toolSummary ? "tools limited" : "checking capabilities",
       cautious: true,
       unknown: !toolSummary,
+      checking: false,
     };
+  }
+  if (!toolSummary && toolsErrored) {
+    return { label: "tool health unknown", cautious: true, unknown: true, checking: false };
   }
   return {
     label: toolSummary ? "ready" : "checking capabilities",
     cautious: !toolSummary,
     unknown: !toolSummary,
+    checking: !toolSummary,
   };
 }

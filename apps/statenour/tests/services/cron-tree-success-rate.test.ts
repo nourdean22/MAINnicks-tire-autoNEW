@@ -38,10 +38,12 @@ describe("buildCronTree · success rate", () => {
 
   it("CONTROL: a job with runs still gets its measured rate", async () => {
     const name = CRONS[0].name;
-    h.groupBy.mockResolvedValue([
+    const countRows = [
       { jobName: name, status: "success", _count: { id: 3 } },
       { jobName: name, status: "failed", _count: { id: 1 } },
-    ]);
+    ];
+    // getCronStats also reads each job's newest success/failure (groupBy _max).
+    h.groupBy.mockImplementation(async (a: { _max?: unknown }) => (a._max ? [] : countRows));
     const tree = await buildCronTree();
     const row = tree.rows.find((r) => r.name === name)!;
     expect(row.successRate).toBe(75);

@@ -6,6 +6,9 @@ import { findPii } from "@/lib/services/reality-ledger";
 import { recordEpisode } from "@/lib/intelligence/episodes";
 import { logError } from "@/lib/utils/error-log";
 import { getFlag } from "@/lib/feature-flags";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("missions/durable-execution");
 
 const stepBase = z.object({
   id: z.string().min(1).max(40).regex(/^[A-Za-z0-9_-]+$/),
@@ -38,33 +41,51 @@ export function hashMissionText(value: string): string {
   return `sha256:${createHash("sha256").update(value).digest("hex")}`;
 }
 
+/** The latest run marker enqueue read for this mission (null = no prior run). */
+type PriorRun = { runId: string; observedAt: string } | null;
+
 /**
- * 2026-10-10 (audit 01-F3) · enqueue idempotency. One mission + objective
- * maps to ONE Inngest event id (Inngest drops a repeated id for 24 h) and
- * ONE runId, so a retried tool call reports the run that is actually going
- * rather than a fresh runId that never starts. Trade-off, stated: a genuine
- * re-run of the same objective after the 24 h window reuses the runId, so its
- * episodes share an episodeId with the earlier run.
+ * 2026-10-10 (audit 01-F3) · enqueue idempotency. One mission + objective +
+ * the run marker enqueue read maps to ONE Inngest event id (Inngest drops a
+ * repeated id for 24 h) and ONE runId, so a retry racing the first call reads
+ * the same marker and dedupes, while a re-run after a completed, failed or
+ * cancelled run reads a newer marker and really runs (B7 review).
  */
-function missionRunSeed(missionId: string, objective: string): string {
+function missionRunSeed(missionId: string, objective: string, prior: PriorRun): string {
   return createHash("sha256").update(`${missionId}
-${objective}`).digest("hex");
+${objective}
+${prior?.runId ?? ""}
+${prior?.observedAt ?? ""}`).digest("hex");
 }
 
-export function missionExecutionEventId(missionId: string, objective: string): string {
-  return `mission-exec-${missionRunSeed(missionId, objective).slice(0, 40)}`;
+export function missionExecutionEventId(missionId: string, objective: string, prior: PriorRun): string {
+  return `mission-exec-${missionRunSeed(missionId, objective, prior).slice(0, 40)}`;
 }
 
 /** UUID-shaped (version 5 nibble, RFC variant) so DurableMissionEventSchema accepts it. */
-export function missionExecutionRunId(missionId: string, objective: string): string {
-  const h = missionRunSeed(missionId, objective);
+export function missionExecutionRunId(missionId: string, objective: string, prior: PriorRun): string {
+  const h = missionRunSeed(missionId, objective, prior);
   const variant = ((parseInt(h[16]!, 16) & 0x3) | 0x8).toString(16);
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
+/** Phases the run writes before it finishes (mission-execution.ts). */
+const IN_FLIGHT_PHASES = new Set(["queued", "started", "step_started", "step_completed"]);
+// A cancelled or lost run writes no terminal episode; past this gap its last
+// marker stops counting. One step (a deep-research call) runs minutes, not this.
+const IN_FLIGHT_MAX_GAP_MS = 30 * 60_000;
+
+function isInFlight(latest: { phase: string; observedAt: string } | null): boolean {
+  return (
+    latest !== null &&
+    IN_FLIGHT_PHASES.has(latest.phase) &&
+    Date.now() - Date.parse(latest.observedAt) < IN_FLIGHT_MAX_GAP_MS
+  );
+}
+
 export async function queueDurableMissionExecution(raw: unknown): Promise<
   | { queued: true; missionId: string; runId: string; eventIds: string[] }
-  | { queued: false; reason: string }
+  | { queued: false; reason: string; runId?: string }
 > {
   const input = DurableMissionRequestSchema.parse(raw);
 
@@ -89,10 +110,19 @@ export async function queueDurableMissionExecution(raw: unknown): Promise<
   });
   if (!mission) return { queued: false, reason: "active_mission_not_found" };
 
-  const runId = missionExecutionRunId(mission.id, input.objective);
+  // The function's singleton (mode "skip") silently drops a second run for
+  // this mission, so say so instead of claiming queued:true. Exclusivity stays
+  // Inngest's; this read only keeps the reply honest. A failed read throws.
+  const latest = await getLatestMissionExecution(mission.id);
+  if (latest && isInFlight(latest)) {
+    // Name the run that IS going, so a retry reports it (01-F3).
+    return { queued: false, reason: "already_running", runId: latest.runId };
+  }
+
+  const runId = missionExecutionRunId(mission.id, input.objective, latest);
   const sent = await getInngest().send({
     name: "mission/execution.requested",
-    id: missionExecutionEventId(mission.id, input.objective),
+    id: missionExecutionEventId(mission.id, input.objective, latest),
     data: { ...input, runId },
   });
 
@@ -122,10 +152,12 @@ export async function queueDurableMissionExecution(raw: unknown): Promise<
  * 2026-10-10 (audit 01-F3) · stop. Sends the event the durable function's
  * `cancelOn` listens for; Inngest halts the run before its next step.
  * `cancelRequested: true` means the event was accepted, not that a run was
- * found and halted (there may be none in flight).
+ * found and halted (there may be none in flight). `markerRecorded: false`
+ * means the run was not marked cancelled, so a re-queue may read it as
+ * already_running until the in-flight gap ends.
  */
 export async function cancelMissionExecution(missionId: string): Promise<
-  | { cancelRequested: true; missionId: string; eventIds: string[] }
+  | { cancelRequested: true; missionId: string; eventIds: string[]; markerRecorded?: false }
   | { cancelRequested: false; reason: string }
 > {
   if (!isInngestFullyConfigured()) {
@@ -135,7 +167,38 @@ export async function cancelMissionExecution(missionId: string): Promise<
     name: "mission/execution.cancelled",
     data: { missionId },
   });
-  return { cancelRequested: true, missionId, eventIds: sent.ids };
+  // A halted run writes no terminal episode, so mark it here; otherwise the
+  // enqueue in-flight check reads the dead run as running until the gap ends.
+  // Best effort: the cancel above was already accepted either way.
+  let markerRecorded = true;
+  try {
+    const latest = await getLatestMissionExecution(missionId);
+    if (latest && isInFlight(latest)) {
+      // false (no throw) = the ledger rejected the row.
+      markerRecorded = await recordEpisode({
+        kind: "mission",
+        phase: "cancel_requested",
+        episodeId: latest.runId,
+        missionId,
+        receipt: { inngestEventIds: sent.ids },
+      });
+      if (!markerRecorded) {
+        log.warn("cancel marker rejected by the ledger", { missionId, runId: latest.runId });
+      }
+    }
+  } catch (err) {
+    markerRecorded = false;
+    void logError("mission.durable_execution", err as Error, {
+      fn: "cancelMissionExecution.marker",
+      missionId,
+    }, "warn");
+  }
+  return {
+    cancelRequested: true,
+    missionId,
+    eventIds: sent.ids,
+    ...(markerRecorded ? {} : { markerRecorded: false as const }),
+  };
 }
 
 export async function getLatestMissionExecution(missionId: string): Promise<{

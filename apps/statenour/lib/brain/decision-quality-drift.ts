@@ -25,6 +25,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
+import { today as todayET } from "@/lib/utils/datetime";
 
 const log = rootLogger.withSurface("brain/decision-quality-drift");
 
@@ -100,7 +101,9 @@ function mean(xs: Array<number | null>): { mean: number | null; n: number } {
 
 export async function runDecisionQualityDrift(): Promise<DriftReport> {
   const computedAt = new Date().toISOString();
-  const today = new Date();
+  // Decision dates are ET calendar days and the weekly fan-out fires Sun 23:00 ET
+  // (Mon 03:00 UTC): anchor on the ET date so "this week" is the ET week ending.
+  const today = new Date(todayET() + "T00:00:00Z");
   // Look back BASELINE_WEEK_COUNT + RECENT_WEEK_COUNT weeks worth of data.
   const horizonStart = new Date(today);
   horizonStart.setUTCDate(

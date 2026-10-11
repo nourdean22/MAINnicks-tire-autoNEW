@@ -499,6 +499,9 @@ async function pinScoreboard(briefDate: string): Promise<{
   }
 }
 
+/** How long the backstop waits past intelligence-brief's 10:15 UTC slot. */
+const COMBINE_WINDOW_MS = 35 * 60_000;
+
 /**
  * The Inngest orchestrator · four sequential checkpoints, each
  * separately retried. Cron trigger at 10:00 UTC daily.
@@ -532,7 +535,7 @@ export const operatorMorningBrief = inngest.createFunction(
     // only if nothing consumed the hand-off — a scheduling failure on
     // the OTHER function must never silently cost the operator their
     // morning brief.
-    await step.sleep("wait-for-combine-window", "35m");
+    await step.sleep("wait-for-combine-window", COMBINE_WINDOW_MS);
     const backstop = await step.run("combine-backstop", () =>
       sendStandaloneIfUnconsumed(brief),
     );
@@ -548,6 +551,8 @@ export const operatorMorningBrief = inngest.createFunction(
       scoreboardPinned: pinned.status,
       scoreboardNumberCount: pinned.numberCount ?? null,
       combineBackstop: backstop.status,
+      // The sleep above, declared so the cron row records work time (cron-lifecycle deriveWaitedMs).
+      waitedMs: COMBINE_WINDOW_MS,
     };
   },
 );

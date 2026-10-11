@@ -29,6 +29,7 @@ import { createTaskAndEnrich } from "@/lib/services/tasks";
 import { isUserProject } from "@/lib/services/mission-helpers";
 import { logError } from "@/lib/utils/error-log";
 import {
+  cancelMissionExecution,
   DurableMissionStepSchema,
   getLatestMissionExecution,
   queueDurableMissionExecution,
@@ -258,6 +259,16 @@ export const missionsTools = {
           .catch((e: unknown) =>
             logError("ai.tools.missions", e as Error, { fn: "updateMissionStatus.audit" }, "warn"),
           );
+        // Leaving ACTIVE stops any durable run (its cancelOn listens for this).
+        // Any non-ACTIVE target, not only ACTIVE->X: another surface may have
+        // paused it without cancelling. Loud, never fatal: the status committed.
+        const executionCancel =
+          status === "ACTIVE"
+            ? undefined
+            : await cancelMissionExecution(missionId).catch((e: unknown) => {
+                logError("ai.tools.missions", e as Error, { fn: "updateMissionStatus.cancel" }, "warn");
+                return { cancelRequested: false as const, reason: "cancel_send_failed" };
+              });
         return {
           ok: true,
           changed: true,
@@ -265,6 +276,7 @@ export const missionsTools = {
           title: updated.title,
           previousStatus: existing.status,
           status: updated.status,
+          ...(executionCancel ? { executionCancel } : {}),
         };
       } catch (err) {
         logError("ai.tools.missions", err as Error, { fn: "updateMissionStatus" });

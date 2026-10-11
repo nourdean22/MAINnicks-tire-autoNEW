@@ -28,13 +28,15 @@ export function ChatCapabilityIndicator() {
     providerTone: providers.data?.overallTone as ProviderTone | undefined,
     providerErrored: providers.isError,
     toolSummary,
+    toolsErrored: tools.isError,
   });
   const degraded = badge.cautious;
   const label = badge.label;
 
+  // Only a read still in flight spins (09-F14): a failed read is static.
   const Icon = connection === "offline"
     ? WifiOff
-    : badge.unknown
+    : badge.checking
       ? Loader2
       : degraded
         ? AlertTriangle
@@ -50,7 +52,7 @@ export function ChatCapabilityIndicator() {
           : "border-emerald-500/25 bg-emerald-500/[0.07] text-emerald-300 hover:bg-emerald-500/10"
       }`}
     >
-      <Icon size={11} className={badge.unknown ? "animate-spin" : undefined} />
+      <Icon size={11} className={badge.checking ? "animate-spin" : undefined} />
       {label}
       {toolSummary && toolSummary.down > 0 ? ` · ${toolSummary.down} down` : ""}
     </Link>

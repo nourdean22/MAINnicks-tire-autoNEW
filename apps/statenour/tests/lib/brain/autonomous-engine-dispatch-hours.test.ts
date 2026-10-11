@@ -38,6 +38,11 @@ vi.mock("@/lib/prisma", () => {
       commitment: { findMany: vi.fn(async () => [row()]) },
       masteryDecision: { findMany: vi.fn(async () => [row()]) },
       autonomousAction: { findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
+      // No user chat, no Telegram ask or dump (and task.findFirst below finds no
+      // completion): the operator went quiet.
+      chatMessage: { findFirst: vi.fn(async () => null) },
+      agentTrace: { findFirst: vi.fn(async () => null) },
+      auditEvent: { findFirst: vi.fn(async () => null) },
       brainMemory: {
         findUnique: vi.fn(async () => null),
         findFirst: vi.fn(async () => null),
@@ -90,8 +95,13 @@ function dispatchHoursUTC(): number[] {
 
 function bridge(query: string, filters: Record<string, unknown> = {}) {
   const data: Record<string, unknown> = {
-    quotes_pending: { quotes: [{ quoteNumber: "Q1", customerEmail: "a@b.c", grandTotal: 1 }], count: 20, bookedCount: 18 },
-    bookings_status: { bookings: [{ id: "b1", createdAt: new Date().toISOString() }] },
+    quotes_pending: {
+      quotes: [{ quoteNumber: "Q1", customerEmail: "a@b.c", grandTotal: 1 }],
+      count: 20,
+      bookedCount: 18,
+      bookedCountIsLowerBound: false,
+    },
+    bookings_pending_stale: { bookings: [{ id: "b1", createdAt: new Date().toISOString() }] },
     leads_urgent: { count: 3 },
     // from === to is the overconfidence gate (a big yesterday); a range is the
     // Friday pace check (a tiny month, so it is behind).
