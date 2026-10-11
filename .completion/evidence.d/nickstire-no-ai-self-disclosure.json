@@ -1,7 +1,7 @@
 {
   "evidence": {
     "capability-ledger-updated": {
-      "deferred": "2026-10-11 operator policy change: Meta's is_ai_generated self-disclosure is no longer sent and the 'Illustrated, not filmed.' caption clause is dropped from the publish scripts, behind one constant (META_AI_SELF_DISCLOSURE=false in shared/reelDisclosure.ts). Rule 1 (AI footage framed as real evidence) is unchanged. The capability-ledger and CURRENT-TRUTH sentences that say the flag is always sent are stale and are rewritten in a follow-up docs PR so this PR stays one reviewable policy diff."
+      "deferred": "2026-10-11 operator policy change: Meta's is_ai_generated self-disclosure is no longer sent and the caption clause is dropped from the publish scripts, behind one constant (META_AI_SELF_DISCLOSURE=false in shared/reelDisclosure.ts). Rule 1 (AI footage framed as real evidence) is unchanged. truth_os.md and docs/CURRENT-TRUTH.md are corrected in this PR; the capability-ledger.json entries that still describe the flag as sent are rewritten in a follow-up docs PR after the first live post without it, so the ledger does not claim a rung not yet observed."
     },
     "render-spend-trajectory": {
       "deferred": "2026-10-11 no spend path is touched: the change removes one field from the Instagram container body and relaxes one disclosure gate; no reservation, price or retry code changes."
