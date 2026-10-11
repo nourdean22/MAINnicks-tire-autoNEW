@@ -20,11 +20,14 @@ import path from "node:path";
 import { sliceBlock } from "./testUtils/sourceBlock";
 
 const INDEX = readFileSync(path.join(__dirname, "cron", "index.ts"), "utf8");
+/** The held-lock registry lives here since 2026-10-10 (#2978), with its heartbeat and sweep. */
+const LIVENESS = readFileSync(path.join(__dirname, "cron", "lockLiveness.ts"), "utf8");
 const CORE = readFileSync(path.join(__dirname, "_core", "index.ts"), "utf8");
 
 describe("locks this process holds are tracked", () => {
   it("acquire records the lock, release forgets it", () => {
-    expect(INDEX).toContain("const heldLocks = new Map<string, LockToken>()");
+    expect(LIVENESS).toContain("export const heldLocks = new Map<string, string>()");
+    expect(INDEX).toContain('import { ensureLockHeartbeat, heldLocks } from "./lockLiveness"');
     expect(INDEX).toContain("heldLocks.set(jobName, newToken)");
     expect(INDEX).toContain("heldLocks.delete(lock.jobName)");
   });

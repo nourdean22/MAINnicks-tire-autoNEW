@@ -69,9 +69,22 @@ step "repo-scan gate tests" $VITEST run \
 # not cause and CI's full run decides; it is reported as a note, not a red.
 # Witnessed 2026-10-10: candidatesSilentLoss timed out in every shared run, before
 # and after the change under test, and passed 11/11 alone in 6 s.
+# Tests that READ a changed source file as text (readFileSync + sliceBlock) are
+# not in vitest's import graph, so `related` never runs them. #2978 merged with
+# cronLockHandback.test.ts red on main that way. Add every test naming a changed
+# file as "dir/base.ts" or "dir", "base.ts".
+text_scan_tests() {
+  local f dir base
+  for f in "${CHANGED[@]}"; do
+    case "$f" in *.test.ts|*.test.tsx) continue;; esac
+    dir="$(basename "$(dirname "$f")")"; base="$(basename "$f")"
+    grep -rlF -e "$dir/$base" -e "\"$dir\", \"$base\"" server client/src --include='*.test.ts' --include='*.test.tsx' 2>/dev/null
+  done | sort -u
+}
 related_tests() {
   local log; log="$(mktemp)"
-  if $VITEST related --run --retry 1 "${CHANGED[@]}" >"$log" 2>&1; then rm -f "$log"; return 0; fi
+  local scans; mapfile -t scans < <(text_scan_tests)
+  if $VITEST related --run --retry 1 "${CHANGED[@]}" "${scans[@]}" >"$log" 2>&1; then rm -f "$log"; return 0; fi
   local failed
   mapfile -t failed < <(sed 's/\x1b\[[0-9;]*m//g' "$log" | grep -oE '^ FAIL  [^ ]+[.]test[.]tsx?' | awk '{print $2}' | sort -u)
   if [ "${#failed[@]}" -gt 0 ] && $VITEST run "${failed[@]}" >/dev/null 2>&1; then
