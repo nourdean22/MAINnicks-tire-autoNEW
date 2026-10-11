@@ -20,7 +20,8 @@ const EXECUTE = process.argv.includes("--execute");
 // and the burned-in badge are untouched — but the caption carries it as one short closing
 // clause instead of a full sentence block. Pass --loud to keep the manifest wording.
 const QUIET = !process.argv.includes("--loud");
-const QUIET_DISCLOSURE: Record<string, string> = { "01": "Illustrated, not filmed.", "02": "Illustrated, not filmed.", "03": "Illustrated, not filmed." };
+// 2026-10-11: no caption clause any more (operator removed it); the map stays empty.
+const QUIET_DISCLOSURE: Record<string, string> = {};
 const PLATFORMS: ("instagram" | "facebook")[] = process.argv.includes("--facebook") ? ["instagram", "facebook"] : ["instagram"];
 
 // approveDraft's validateFinalMedia probes the master with ffprobe. This machine
@@ -163,7 +164,7 @@ const LOUD_SELECTED = captionLines.slice(0, -1).join("\n").trim();
 // Quiet: drop the manifest's full disclosure paragraph (it starts "AI-generated") and close
 // with one short clause. The is_ai_generated flag and the burned-in badge still go out.
 const SELECTED_CAPTION = QUIET
-  ? LOUD_SELECTED.split(/\n\n+/).filter((para) => !/^AI-generated/i.test(para.trim())).join("\n\n") + "\n\n" + (QUIET_DISCLOSURE[REEL_ID] ?? "Illustrated, not filmed.")
+  ? [...LOUD_SELECTED.split(/\n\n+/).filter((para) => !/^AI-generated/i.test(para.trim())), QUIET_DISCLOSURE[REEL_ID] ?? ""].filter(Boolean).join("\n\n")
   : LOUD_SELECTED;
 const FULL_CAPTION = `${SELECTED_CAPTION}\n\n${HASHTAGS.join(" ")}`;
 if (!QUIET && FULL_CAPTION !== String(reel.caption).trim()) { console.error("caption split does not round-trip the manifest caption — refusing"); process.exit(2); }

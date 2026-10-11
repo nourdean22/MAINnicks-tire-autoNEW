@@ -41,7 +41,7 @@ console.log(`publish gate (read-only): allowed=${gate.allowed} gate=${gate.gate}
 const rawCaption = String(job.caption ?? "");
 const tags = [...new Set(rawCaption.match(/#[A-Za-z0-9_]+/g) ?? [])];
 const body = rawCaption.replace(/#[A-Za-z0-9_]+/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim();
-const CAPTION = `${body}\n\nIllustrated, not filmed.${tags.length ? `\n\n${tags.join(" ")}` : ""}`;
+const CAPTION = `${body}${tags.length ? `\n\n${tags.join(" ")}` : ""}`;
 console.log(`caption (${CAPTION.length} chars):\n${CAPTION}\n`);
 if (job.status !== "assembled") { console.log(`job is ${job.status}, not assembled — nothing to publish yet`); process.exit(EXECUTE ? 1 : 0); }
 if (!EXECUTE) { console.log("DRY RUN — nothing approved or published. Pass --execute to publish."); process.exit(0); }

@@ -51,13 +51,29 @@ afterEach(() => {
 });
 
 describe("is_ai_generated arrives on the Meta container", () => {
-  it("ARRIVES when isAiGenerated: true", async () => {
+  // Operator decision 2026-10-11: the self-disclosure is off (META_AI_SELF_DISCLOSURE=false).
+  it("is NOT sent even when isAiGenerated: true (the policy switch is off)", async () => {
     const bodies = captureFetch();
     const { postInstagramReel } = await import("./services/metaSocial");
     await postInstagramReel({ videoUrl: "https://example.com/r.mp4", caption: "c", isAiGenerated: true });
     const container = bodies.find((b) => b && typeof b === "object" && "video_url" in (b as object));
     expect(container, "no container body was sent").toBeDefined();
-    expect((container as Record<string, unknown>).is_ai_generated).toBe(true);
+    expect(container as Record<string, unknown>).not.toHaveProperty("is_ai_generated");
+  });
+
+  it("POSITIVE CONTROL: with the switch flipped on, the flag arrives again", async () => {
+    vi.resetModules();
+    vi.doMock("@shared/reelDisclosure", async (orig) => ({ ...(await orig<Record<string, unknown>>()), META_AI_SELF_DISCLOSURE: true }));
+    try {
+      const bodies = captureFetch();
+      const { postInstagramReel } = await import("./services/metaSocial");
+      await postInstagramReel({ videoUrl: "https://example.com/r.mp4", caption: "c", isAiGenerated: true });
+      const container = bodies.find((b) => b && typeof b === "object" && "video_url" in (b as object));
+      expect((container as Record<string, unknown>).is_ai_generated).toBe(true);
+    } finally {
+      vi.doUnmock("@shared/reelDisclosure");
+      vi.resetModules();
+    }
   });
 
   it("NEGATIVE CONTROL: the key is ABSENT when the flag is not set — not false", async () => {
@@ -84,7 +100,7 @@ describe("is_ai_generated arrives on the Meta container", () => {
  * meant an UNDISCLOSED post, which is the harmful direction.
  */
 describe("disclosure DEFAULTS to on, and the default reaches the container", () => {
-  it("THE DEFAULT ARRIVES: nothing specified -> is_ai_generated true on the wire", async () => {
+  it("the default no longer reaches the wire: nothing specified -> no is_ai_generated (switch off)", async () => {
     const bodies = captureFetch();
     const { resolveIsAiGenerated } = await import("@shared/reelDisclosure");
     const { postInstagramReel } = await import("./services/metaSocial");
@@ -96,7 +112,7 @@ describe("disclosure DEFAULTS to on, and the default reaches the container", () 
     });
     const container = bodies.find((b) => b && typeof b === "object" && "video_url" in (b as object));
     expect(container, "no container body was sent").toBeDefined();
-    expect((container as Record<string, unknown>).is_ai_generated).toBe(true);
+    expect(container as Record<string, unknown>).not.toHaveProperty("is_ai_generated");
   });
 
   it("ONLY the boolean false opts out", async () => {

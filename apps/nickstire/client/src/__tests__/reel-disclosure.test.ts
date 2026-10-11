@@ -14,6 +14,7 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  META_AI_SELF_DISCLOSURE,
   disclosureViolation,
   requiredPublishParams,
   isGenerated,
@@ -108,14 +109,14 @@ describe("Rule 1 - generated video framed as real evidence FAILS", () => {
 /* -- Rule 2: generated video must disclose -------------------------------- */
 
 describe("Rule 2 - undisclosed generated video FAILS", () => {
-  it("blocks generated footage with no disclosure anywhere", () => {
-    const r = disclosureViolation({
-      ...base,
-      id: "undisclosed",
-      videoProvider: "veo",
-      copy: "Three signs your brakes need attention.",
-    });
-    expect(r).toContain("BLOCKED_MISSING_AI_DISCLOSURE");
+  // Operator decision 2026-10-11: META_AI_SELF_DISCLOSURE is false, so Rule 2 no longer blocks.
+  // Rule 1 (real-evidence framing) above is untouched and still blocks.
+  it("no longer blocks generated footage for a missing disclosure (switch off); Rule 1 still does", () => {
+    expect(META_AI_SELF_DISCLOSURE).toBe(false);
+    const r = disclosureViolation({ ...base, id: "undisclosed", videoProvider: "veo", copy: "Three signs your brakes need attention." });
+    expect(r).toBeNull();
+    const framed = disclosureViolation({ ...base, id: "framed", videoProvider: "veo", copy: "This customer came in with a nail." });
+    expect(framed).toContain("BLOCKED_AI_PRESENTED_AS_REAL");
   });
 
   it("PERMITS the same pack once a disclosure label is present", () => {
@@ -180,16 +181,9 @@ describe("helpers", () => {
 
 describe("Meta's is_ai_generated is the disclosure mechanism, not caption text", () => {
   // The correction: a caption saying "AI-generated" does NOT satisfy Meta.
-  it("caption text alone does NOT satisfy the disclosure requirement", () => {
-    const r = disclosureViolation({
-      ...base,
-      id: "caption-only",
-      videoProvider: "higgsfield",
-      copy: "Three signs your brakes need attention. AI-generated.",
-      // no apiDisclosureFlag
-    });
-    expect(r).toContain("BLOCKED_MISSING_AI_DISCLOSURE");
-    expect(r).toContain("caption text is NOT the platform mechanism");
+  it("with the switch off, no flag and no caption disclosure is required", () => {
+    const r = disclosureViolation({ ...base, id: "caption-only", videoProvider: "higgsfield", copy: "Three signs your brakes need attention." });
+    expect(r).toBeNull();
   });
 
   it("the structured flag satisfies it", () => {
@@ -204,8 +198,8 @@ describe("Meta's is_ai_generated is the disclosure mechanism, not caption text",
     ).toBeNull();
   });
 
-  it("requiredPublishParams demands the flag for generated video and nothing for real footage", () => {
-    expect(requiredPublishParams({ ...base, videoProvider: "higgsfield", copy: "" })).toEqual({ is_ai_generated: true });
+  it("requiredPublishParams demands nothing while the switch is off (generated or real)", () => {
+    expect(requiredPublishParams({ ...base, videoProvider: "higgsfield", copy: "" })).toEqual({});
     expect(requiredPublishParams({ ...base, videoProvider: null, copy: "" })).toEqual({});
   });
 });

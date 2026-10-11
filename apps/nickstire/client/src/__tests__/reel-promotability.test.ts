@@ -163,9 +163,9 @@ describe("destination matching - paying into a broken funnel", () => {
 /* -- AI disclosure: the stricter of organic and paid governs --------------- */
 
 describe("AI disclosure carries into promotion", () => {
-  it("undisclosed generated video is NOT promotable", () => {
+  it("generated video with no disclosure flag is promotable while the switch is off (2026-10-11)", () => {
     const pack = clean({ id: "gen", videoProvider: "higgsfield", copy: "Book a brake inspection." });
-    expect(promotabilityBlockers(pack).map((x) => x.code)).toContain("DISCLOSURE_NOT_SATISFIED");
+    expect(promotabilityBlockers(pack).map((x) => x.code)).not.toContain("DISCLOSURE_NOT_SATISFIED");
   });
 
   it("PERMITS disclosed generated video", () => {

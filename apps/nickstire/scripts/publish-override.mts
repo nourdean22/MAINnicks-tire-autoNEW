@@ -41,7 +41,7 @@ const payload = JSON.parse(job.payload ?? "{}");
 const rawCaption = `${String(payload.selectedCaption ?? "")} ${((payload.hashtags as string[]) ?? []).join(" ")}`;
 const tags = [...new Set(rawCaption.match(/#[A-Za-z0-9_]+/g) ?? [])];
 const body = String(payload.selectedCaption ?? "").replace(/#[A-Za-z0-9_]+/g, "").replace(/[ \t]{2,}/g, " ").trim();
-const caption = `${body}\n\nIllustrated, not filmed.${tags.length ? `\n\n${tags.join(" ")}` : ""}`;
+const caption = `${body}${tags.length ? `\n\n${tags.join(" ")}` : ""}`;
 const videoUrl = String(job.mp4Url);
 assertPermanentPublicMediaUrl(videoUrl);
 const blockers = captionClaimBlockers(caption);

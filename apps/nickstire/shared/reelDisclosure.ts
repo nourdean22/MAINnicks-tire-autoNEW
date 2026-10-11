@@ -20,8 +20,21 @@
  * a positive control - a gate that fails everything is worth nothing.
  */
 
-/** Video providers whose output is synthetic. */
 import { parseShotLineage } from "./reelSourceProfile";
+
+/**
+ * Operator decision 2026-10-11 (chat: remove the AI label "completely forever"): Meta's
+ * `is_ai_generated` self-disclosure is NO LONGER SENT, and the caption clause
+ * "Illustrated, not filmed." is gone. Rule 1 below (generated footage may not be
+ * framed as real evidence) is unchanged and still blocks. Known consequence, said
+ * once to the operator: Meta says it may penalise undisclosed photorealistic AI
+ * video and may still label a reel itself from file metadata; a published post's
+ * label cannot be removed through the API. Flipping this to true restores the old
+ * behaviour everywhere (send, gate, dry run).
+ */
+export const META_AI_SELF_DISCLOSURE = false;
+
+/** Video providers whose output is synthetic. */
 
 export const GENERATIVE_PROVIDERS = [
   "higgsfield",
@@ -136,7 +149,7 @@ export function disclosureViolation(pack: DisclosurePack): string | null {
   // self-disclosure of AI usage in the post", valid for REELS) - not a sentence
   // in the caption. An earlier draft of this gate accepted caption text, which
   // would have passed a reel that Meta reads as undisclosed.
-  if (pack.apiDisclosureFlag !== true) {
+  if (META_AI_SELF_DISCLOSURE && pack.apiDisclosureFlag !== true) {
     return (
       `BLOCKED_MISSING_AI_DISCLOSURE: pack "${pack.id}" contains model-generated video ` +
       "but the publish call would not set Meta's is_ai_generated=true. Meta requires " +
@@ -157,7 +170,7 @@ export function disclosureViolation(pack: DisclosurePack): string | null {
  * publish path cannot forget the flag and the dry run can show it.
  */
 export function requiredPublishParams(pack: DisclosurePack): { is_ai_generated?: true } {
-  return isGenerated(pack) ? { is_ai_generated: true } : {};
+  return META_AI_SELF_DISCLOSURE && isGenerated(pack) ? { is_ai_generated: true } : {};
 }
 
 /* ── Disclosure derived from the ARTIFACT, not from an environment variable ──

@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "2026-10-11 operator policy change: Meta's is_ai_generated self-disclosure is no longer sent and the 'Illustrated, not filmed.' caption clause is dropped from the publish scripts, behind one constant (META_AI_SELF_DISCLOSURE=false in shared/reelDisclosure.ts). Rule 1 (AI footage framed as real evidence) is unchanged. The capability-ledger and CURRENT-TRUTH sentences that say the flag is always sent are stale and are rewritten in a follow-up docs PR so this PR stays one reviewable policy diff."
+    },
+    "render-spend-trajectory": {
+      "deferred": "2026-10-11 no spend path is touched: the change removes one field from the Instagram container body and relaxes one disclosure gate; no reservation, price or retry code changes."
+    },
+    "cron-fail-closed": {
+      "ref": "apps/nickstire/server/metaAiDisclosureArrival.test.ts (flag no longer on the wire; positive control with the switch flipped on, flag arrives) and client/src/__tests__/reel-disclosure.test.ts (Rule 1 still blocks a generated pack framed as real; Rule 2 no longer blocks). Non-refusal failures in the publish path are untouched."
+    }
+  }
+}
