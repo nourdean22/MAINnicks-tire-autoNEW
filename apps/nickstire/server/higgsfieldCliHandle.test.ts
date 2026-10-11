@@ -64,7 +64,7 @@ describe("readCliJobState", () => {
     expect(readCliJobState(JSON.stringify(done))).toEqual({ state: "completed", url: "https://cdn/out/clip.mp4" });
   });
   it("is FAILED on a terminal failure status", () => {
-    for (const status of ["failed", "error", "cancelled", "canceled", "rejected", "nsfw"]) {
+    for (const status of ["failed", "error", "cancelled", "canceled", "rejected", "nsfw", "ip_detected"]) {
       expect(readCliJobState(JSON.stringify({ ...created, status }))).toEqual({ state: "failed", status });
     }
   });
