@@ -9,17 +9,15 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-// The render loop's heavy deps are irrelevant to forwarding.
-vi.mock("@nour/reel-engine", () => ({ renderReelVideo: vi.fn() }));
-vi.mock("../../../worker/src/storage", () => ({ storagePut: vi.fn() }));
-
-type Scheduler = typeof import("../../../worker/src/scheduler");
+// forward.ts carries no render-loop imports, so this loads in CI even when
+// @nour/reel-engine is not built (a statenour-only PR does not build it).
+type Scheduler = typeof import("../../../worker/src/forward");
 
 async function loadScheduler(): Promise<Scheduler> {
   vi.resetModules();
   vi.stubEnv("STATENOUR_WEB_URL", "http://web.internal");
   vi.stubEnv("CRON_SECRET", "test-secret");
-  return import("../../../worker/src/scheduler");
+  return import("../../../worker/src/forward");
 }
 
 function respondWith(body: unknown, status = 200): void {
