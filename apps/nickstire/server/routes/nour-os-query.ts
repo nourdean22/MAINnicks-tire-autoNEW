@@ -450,6 +450,46 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
     return { statusBreakdown: rows };
   },
 
+  // 2026-10-10 · StateNour's auto_remind_pending_appointment reads this (it called bookings_status,
+  // which ignores filters and answers { statusBreakdown }, so the rule never had a row). A request
+  // is pending while its status is still `new`; the enum has no 'pending'. Only the last 7 days,
+  // the window bookings_status counts: the rule re-reminds once per booking per ET day, and an
+  // older unconfirmed request is dead. createdAt is read as epoch ms so no driver time-zone shift
+  // reaches the rule's hours-waiting math. filters: staleHours (required, whole hours, 1-167) ·
+  // status (optional, "pending" only). At most 50 rows, oldest first, like the other list reads.
+  "bookings_pending_stale": async (filters) => {
+    if (filters.status !== undefined && filters.status !== "pending") {
+      return { error: 'status: only "pending" (an unconfirmed request) is served' };
+    }
+    const staleHours = filters.staleHours;
+    if (typeof staleHours !== "number" || !Number.isInteger(staleHours) || staleHours < 1 || staleHours > 167) {
+      return { error: "staleHours required: whole hours, 1-167 (the read covers the last 7 days)" };
+    }
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return { error: "No DB" };
+    const rows = await exec(d, sql`
+      SELECT id, name, phone, service, preferredDate, preferredTime,
+             UNIX_TIMESTAMP(createdAt) * 1000 AS createdAtMs
+      FROM bookings
+      WHERE status = 'new'
+        AND createdAt < DATE_SUB(NOW(), INTERVAL ${staleHours} HOUR)
+        AND createdAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+      ORDER BY createdAt ASC LIMIT 50
+    `);
+    const bookings = rows.map((r) => ({
+      id: String(r.id),
+      customerName: String(r.name ?? ""),
+      customerPhone: String(r.phone ?? ""),
+      serviceType: String(r.service ?? ""),
+      preferredDay: r.preferredDate == null ? null : String(r.preferredDate),
+      preferredTime: r.preferredTime == null ? null : String(r.preferredTime),
+      createdAt: new Date(Number(r.createdAtMs)).toISOString(),
+    }));
+    return { staleHours, count: bookings.length, bookings };
+  },
+
   // ─── Customers ────────────────────────────────
   "customer_search": async (filters) => {
     const { getDb } = await import("../db");
@@ -1521,6 +1561,64 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
         invoices: "ALG mirror (via shopDriverMirror)",
         note: "Does NOT include counter-only quotes written by hand in ALG that never hit our systems. This is the ONLINE funnel. Pass scope=alg for walk-in quotes.",
       },
+    };
+  },
+
+  // ─── Quotes pending (2026-10-10) ────────────────────
+  // StateNour's suggest_pricing_adjustment and quote_conversion_insight read { count, bookedCount },
+  // the latter's detail read also quotes[]. Every call was a 400 until now. Source: alg_estimates,
+  // the counter quotes synced from ShopDriver, booked once matched to an invoice. Not estimates_log:
+  // it has no writer (routers/controlCenter.ts:119), so it would answer a permanent zero.
+  // filters: sinceHours (whole hours, 1-17520, default 720) · withDetail (adds quotes[]: grandTotal
+  // in dollars, status booked|pending, newest first) · limit (1-500, default 200).
+  // The customer follow-up feed (ageDays / hasEmail) is refused, not emptied: no quote table holds
+  // an email, and the declined-work recovery cron already follows these quotes up behind the
+  // opt-out index, its holdout group and the customer's stated concern. A list here bypasses all three.
+  "quotes_pending": async (filters) => {
+    if (filters.ageDays !== undefined || filters.hasEmail !== undefined) {
+      return { error: "quotes_pending serves no customer follow-up list (ageDays/hasEmail): the declined-work recovery cron owns quote follow-up" };
+    }
+    const sinceHours = filters.sinceHours ?? 720;
+    if (typeof sinceHours !== "number" || !Number.isInteger(sinceHours) || sinceHours < 1 || sinceHours > 17_520) {
+      return { error: "sinceHours must be whole hours, 1-17520" };
+    }
+    const limit = filters.limit ?? 200;
+    if (typeof limit !== "number" || !Number.isInteger(limit) || limit < 1 || limit > 500) {
+      return { error: "limit must be a whole number, 1-500" };
+    }
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return { error: "No DB" };
+    const inWindow = sql`estimate_date >= DATE_SUB(NOW(), INTERVAL ${sinceHours} HOUR)`;
+    const [summary] = await exec(d, sql`
+      SELECT COUNT(*) AS count,
+             COALESCE(SUM(CASE WHEN matched_invoice_id IS NOT NULL THEN 1 ELSE 0 END), 0) AS bookedCount
+      FROM alg_estimates WHERE ${inWindow}
+    `);
+    // COUNT(*) always returns a row; none means the read failed, not that there were no quotes.
+    if (!summary) return { error: "quote count read returned no row" };
+    // Always true: alg_estimates has no booked column, so "booked" is only the matcher's
+    // matched_invoice_id (services/shopDriverEstimateSync.ts), and the matcher leaves paid quotes
+    // unmatched (another phone, outside +/-25% or 45 days, a two-invoice tie, an unmirrored invoice).
+    const counts = {
+      sinceHours,
+      count: Number(summary.count),
+      bookedCount: Number(summary.bookedCount),
+      bookedCountIsLowerBound: true,
+    };
+    if (filters.withDetail !== true) return counts;
+    const rows = await exec(d, sql`
+      SELECT estimated_amount AS amountCents, matched_invoice_id IS NOT NULL AS booked
+      FROM alg_estimates WHERE ${inWindow}
+      ORDER BY estimate_date DESC LIMIT ${limit}
+    `);
+    return {
+      ...counts,
+      quotes: rows.map((r) => ({
+        grandTotal: Number(r.amountCents ?? 0) / 100,
+        status: Number(r.booked) === 1 ? "booked" : "pending",
+      })),
     };
   },
 

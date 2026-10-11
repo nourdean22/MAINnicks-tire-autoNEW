@@ -36,6 +36,15 @@ import { EXPERIMENT_PRESET_IDS, buildExperimentPreset } from "@shared/contentExp
 const log = createLogger("routers:content");
 
 /**
+ * Key for statenour's social publish queue (/api/sync/queue). STATENOUR_QUEUE_KEY is the
+ * scoped key only this Command Queue holds; the bridge key is the fallback until it is set.
+ * Statenour stops accepting the bridge key there once STATENOUR_QUEUE_KEY_STRICT=1 (2026-10-10).
+ */
+export function statenourQueueKey(env: NodeJS.ProcessEnv = process.env): string {
+  return (env.STATENOUR_QUEUE_KEY || env.STATENOUR_SYNC_KEY || "").trim();
+}
+
+/**
  * Minimal input schema for server-side reel quality validation — covers exactly
  * the fields `calculateReelQualityScore` reads. `.passthrough()` keeps any extra
  * ReelBrief fields the client sends; the validated object is cast to ReelBrief
@@ -2500,7 +2509,7 @@ export const contentAdminRouter = router({
     }).optional())
     .query(async ({ input }) => {
       const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
-      const syncKey = process.env.STATENOUR_SYNC_KEY || "";
+      const syncKey = statenourQueueKey();
       if (!syncKey) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Statenour sync key is not configured on Nick's Tire." });
       }
@@ -2534,7 +2543,7 @@ export const contentAdminRouter = router({
     }))
     .mutation(async ({ input }) => {
       const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
-      const syncKey = process.env.STATENOUR_SYNC_KEY || "";
+      const syncKey = statenourQueueKey();
       if (!syncKey) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Statenour sync key is not configured on Nick's Tire." });
       }
@@ -3019,7 +3028,7 @@ export const contentAdminRouter = router({
    *
    * NOT on socialPipeline, which registers MP4_INGEST_ENABLED but declares
    * itself READ-ONLY in its own header ("It never writes, posts, or mutates").
-   * It lives beside listInventory because what it produces
+   * It lives beside listInventory / actOnInventoryItem because what it produces
    * is an inventory row those two already manage.
    *
    * The errors are deliberately passed through verbatim. Every one of them
@@ -3045,6 +3054,22 @@ export const contentAdminRouter = router({
           message: err instanceof Error ? err.message : "mp4 ingest failed",
         });
       }
+    }),
+  actOnInventoryItem: adminProcedure
+    .input(z.object({
+      id: z.string(),
+      action: z.enum(["approve", "reject", "schedule"]),
+      scheduledAt: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDbTyped();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+      const status = input.action === "approve" ? "approved" : input.action === "reject" ? "rejected" : "scheduled";
+      const scheduledDate = input.scheduledAt ? new Date(input.scheduledAt) : null;
+      await db.update(socialContentInventory)
+        .set({ status, scheduledAt: scheduledDate })
+        .where(eq(socialContentInventory.id, input.id));
+      return { success: true };
     }),
   /* ─── Reel Action Center ───────────────────────────────────────────────────
    * These three exist as REST routes behind requireAdminApiKey, which compares a
