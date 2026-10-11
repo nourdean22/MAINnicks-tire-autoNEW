@@ -149,8 +149,8 @@ function refuse(name: string, error: AuthorityRefusal["error"], reason: string, 
  *   2. Private Lab: the turn leaves no trace.
  *   3. Read permission: no autonomous change. prepare-tools already strips
  *      writes from a Read turn's tool set; this is the execution-layer half.
- *      `actionPermission` is read off the turn; TurnContext does not carry it
- *      yet, so until the route publishes it this check cannot fire.
+ *      `actionPermission` is read off the turn; the chat route publishes it
+ *      via updateTurnContext, and a null (non-chat scope) does not refuse.
  */
 function authorityGate(name: string): AuthorityRefusal | null {
   if (isReadSafeTool(name)) return null;

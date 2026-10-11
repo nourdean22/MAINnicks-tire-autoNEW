@@ -25,6 +25,9 @@ import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { ServiceError } from "@/lib/utils/service-error";
 import { getEmbedding } from "@/lib/ai/provider";
+import { logger } from "@/lib/logger";
+
+const log = logger.withSurface("api/brain/search-hybrid");
 
 const RRF_K = 60;
 const FTS_TOP = 50;
@@ -41,6 +44,8 @@ interface SearchHit {
   knnRank: number | null;
   knnDistance: number | null;
   rrfScore: number;
+  /** Chat-message hits only: the conversation to open. Absent when the lookup failed. */
+  conversationId?: string | null;
 }
 
 function padToTargetDim(arr: number[]): number[] {
@@ -202,6 +207,25 @@ async function runHybridSearch(opts: {
   const sorted = [...merged.values()]
     .sort((a, b) => b.rrfScore - a.rrfScore)
     .slice(0, limit);
+
+  // Chat hits carry no conversationId off the index, so the palette could only
+  // fall back to `/chat?prompt=`. One batched lookup for the returned chat
+  // hits; a failed lookup leaves them as they were (the palette's fallback).
+  const chatIds = sorted.filter((h) => h.sourceType === "chat_message").map((h) => h.sourceId);
+  if (chatIds.length > 0) {
+    try {
+      const rows = await prisma.chatMessage.findMany({
+        where: { id: { in: chatIds } },
+        select: { id: true, conversationId: true },
+      });
+      const byId = new Map(rows.map((r) => [r.id, r.conversationId]));
+      for (const h of sorted) {
+        if (h.sourceType === "chat_message" && byId.has(h.sourceId)) h.conversationId = byId.get(h.sourceId);
+      }
+    } catch (err) {
+      log.warn("conversation_lookup_failed", { error: err instanceof Error ? err.message : String(err) });
+    }
+  }
 
   return {
     query: opts.q,

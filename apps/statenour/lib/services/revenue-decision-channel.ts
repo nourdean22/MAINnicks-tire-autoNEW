@@ -58,17 +58,23 @@ const TZ = "America/New_York";
 // Types
 // ─────────────────────────────────────────────────────────────────
 
+/**
+ * Each numeric signal is null when no source carried a reading for it: a
+ * failed or absent read is UNKNOWN, never a counted 0 (audit wave 2). The
+ * drafting prompt receives the JSON as-is, so null reaches the model as
+ * "unknown" instead of "zero cars on the lot".
+ */
 export interface BusinessSignals {
   /** Bookings observed today (the "line of cars" proxy). */
-  lineOfCars: number;
+  lineOfCars: number | null;
   /** Number of unconverted estimates dangling in the pipeline. */
-  declinedWorkDelta: number;
+  declinedWorkDelta: number | null;
   /** Open callbacks · proxy for pipeline-aging. */
-  pipelineAging: number;
+  pipelineAging: number | null;
   /** Reviews this week vs. baseline. Positive = improving. */
-  gbpReviewDelta: number;
+  gbpReviewDelta: number | null;
   /** Inverse of stale-estimate ratio · higher = healthier funnel. */
-  algConversionRate: number;
+  algConversionRate: number | null;
   /** Total active alerts surfaced in ceo_business_context. */
   alertCount: number;
   /** Snapshot freshness · ISO timestamp · null when both sources stale. */
@@ -114,13 +120,14 @@ export interface MoveRow {
 // Step 1 · pull signals
 // ─────────────────────────────────────────────────────────────────
 
-function num(v: unknown): number {
+/** A finite number, or null when there is no reading (never a fabricated 0). */
+function num(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
   if (typeof v === "string" && v.trim() !== "") {
     const n = Number(v);
-    return Number.isFinite(n) ? n : 0;
+    return Number.isFinite(n) ? n : null;
   }
-  return 0;
+  return null;
 }
 
 /**
@@ -146,11 +153,11 @@ export async function pullBusinessSignals(): Promise<BusinessSignals> {
   if (!ceoCtx && !snap) {
     log.warn("no_signals_available", {});
     return {
-      lineOfCars: 0,
-      declinedWorkDelta: 0,
-      pipelineAging: 0,
-      gbpReviewDelta: 0,
-      algConversionRate: 0,
+      lineOfCars: null,
+      declinedWorkDelta: null,
+      pipelineAging: null,
+      gbpReviewDelta: null,
+      algConversionRate: null,
       alertCount: 0,
       source: "empty",
       contextAt: null,
@@ -168,7 +175,7 @@ export async function pullBusinessSignals(): Promise<BusinessSignals> {
 
   // declinedWorkDelta · prefer declined.count · fall back to safetyItemCount.
   const declinedWorkDelta = num(
-    declined?.count ?? declined?.totalCount ?? declined?.safetyItemCount ?? 0,
+    declined?.count ?? declined?.totalCount ?? declined?.safetyItemCount,
   );
 
   // pipelineAging · pending callbacks (oldest unresolved) · fall back to
@@ -177,30 +184,33 @@ export async function pullBusinessSignals(): Promise<BusinessSignals> {
     callbacks?.pendingCount ??
       callbacks?.new ??
       last7?.staleNewEstimates ??
-      snap?.callbacks?.pendingCount ??
-      0,
+      snap?.callbacks?.pendingCount,
   );
 
   // lineOfCars · bookings today · proxy for "cars on the lot".
   const lineOfCars = num(
     payload?.workOrders && (payload.workOrders as Record<string, unknown>).activeToday
       ? (payload.workOrders as Record<string, unknown>).activeToday
-      : snap?.bookings?.todayCount ?? 0,
+      : snap?.bookings?.todayCount,
   );
 
   // gbpReviewDelta · GBP review counter from the bridge intelligence
-  // section · falls back to 0 (cron treats 0 as "no new signal").
+  // section · null when neither key is present (unknown, not "no new reviews").
   const intel = (payload?.intelligence ?? null) as Record<string, unknown> | null;
-  const gbpReviewDelta = num(intel?.gbpReviewsThisWeek ?? intel?.reviewDelta7d ?? 0);
+  const gbpReviewDelta = num(intel?.gbpReviewsThisWeek ?? intel?.reviewDelta7d);
 
   // algConversionRate · derived from stale-estimate ratio · higher is
   // healthier. Fallback: revenue.todayEstimate / (revenue.todayEstimate
   // + declinedWorkDelta·avg-ticket-proxy). We keep it simple here · the
   // exact formula lives downstream when the prompt asks for math.
-  const stale = num(last7?.staleNewEstimates ?? 0);
-  const totalLeads = num(leads?.total ?? leads?.totalActive ?? snap?.leads?.totalActive ?? 0);
+  // Both inputs must be real readings; a missing stale count is not 0 stale
+  // (that would report a perfect 1.0 funnel nobody measured).
+  const stale = num(last7?.staleNewEstimates);
+  const totalLeads = num(leads?.total ?? leads?.totalActive ?? snap?.leads?.totalActive);
   const algConversionRate =
-    totalLeads > 0 ? Math.max(0, 1 - stale / totalLeads) : 0;
+    stale != null && totalLeads != null && totalLeads > 0
+      ? Math.max(0, 1 - stale / totalLeads)
+      : null;
 
   // alertCount · prioritizedActions surfaced by the CEO context builder.
   const alertCount = Array.isArray(payload?.prioritizedActions)
@@ -212,7 +222,7 @@ export async function pullBusinessSignals(): Promise<BusinessSignals> {
     declinedWorkDelta,
     pipelineAging,
     gbpReviewDelta,
-    algConversionRate: Number(algConversionRate.toFixed(3)),
+    algConversionRate: algConversionRate == null ? null : Number(algConversionRate.toFixed(3)),
     alertCount,
     source: ceoCtx && snap ? "merged" : ceoCtx ? "ceo_context" : "bridge",
     contextAt: ceoCtx?.createdAt?.toISOString?.() ?? null,
@@ -248,11 +258,12 @@ export async function matchWisdom(
   // Build a small set of keyword signals from the today-shape · feeds
   // the BrainMemory LIKE search and the prefix bias.
   const keywords: string[] = [];
-  if (signals.declinedWorkDelta > 0) keywords.push("estimate", "lost", "follow");
-  if (signals.pipelineAging > 0) keywords.push("speed", "follow-up", "callback");
-  if (signals.lineOfCars > 0) keywords.push("flow", "capacity", "lot");
-  if (signals.gbpReviewDelta !== 0) keywords.push("review", "reputation");
-  if (signals.algConversionRate < 0.5) keywords.push("conversion", "funnel");
+  // An unknown (null) signal adds no keyword: it is not evidence either way.
+  if ((signals.declinedWorkDelta ?? 0) > 0) keywords.push("estimate", "lost", "follow");
+  if ((signals.pipelineAging ?? 0) > 0) keywords.push("speed", "follow-up", "callback");
+  if ((signals.lineOfCars ?? 0) > 0) keywords.push("flow", "capacity", "lot");
+  if (signals.gbpReviewDelta != null && signals.gbpReviewDelta !== 0) keywords.push("review", "reputation");
+  if (signals.algConversionRate != null && signals.algConversionRate < 0.5) keywords.push("conversion", "funnel");
   keywords.push("invert", "leverage", "irreversible"); // always-on lenses
 
   // Pull a wider pool · we re-rank in memory below.

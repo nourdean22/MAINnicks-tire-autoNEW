@@ -265,9 +265,8 @@ export async function persistUserTurn(input: PersistUserTurnInput): Promise<stri
           const match = await detectTaskCompletion(userContent);
           // 2026-10-10 (audit 04-F11): Read permission = no autonomous
           // change, so a high-confidence match is only SUGGESTED below.
-          // Read from the input, else the turn. As of this change the chat
-          // route passes neither (TurnContext has no actionPermission field),
-          // so this check fires only once one of them is wired.
+          // Read from the input, else the turn (the chat route publishes
+          // actionPermission on the TurnContext via updateTurnContext).
           const readOnly =
             (input.actionPermission ??
               (currentTurn() as { actionPermission?: unknown } | null)?.actionPermission) === "read";

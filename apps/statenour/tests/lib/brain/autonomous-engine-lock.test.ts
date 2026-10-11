@@ -63,7 +63,8 @@ const mockQueryNick = vi.fn().mockImplementation(async (query) => {
   return { data: null };
 });
 
-vi.mock("@/lib/nickstire/query", () => ({
+vi.mock("@/lib/nickstire/query", async (orig) => ({
+  readBridge: (await orig<typeof import("@/lib/nickstire/query")>()).readBridge,
   queryNick: mockQueryNick,
   queryNickBatch: vi.fn().mockResolvedValue({}),
 }));

@@ -7,7 +7,7 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-10-09 · flagged wave, turbo pin, outcome-ledger lock (#2938, #2939, next) · see RECONCILIATION.
+**Last refreshed:** 2026-10-10 · audit-fix wave 1 (#2981, merged b5bb183eb) · see RECONCILIATION.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--
@@ -22,7 +22,7 @@
 
 ## 1 · Where we are
 
-statenour-os (NOUR OS) at `apps/statenour/`. `main` auto-deploys to Railway → **bdnick.info**. The
+statenour-os (NOUR OS, Nour's personal operating system) at `apps/statenour/`. `main` auto-deploys to Railway → **bdnick.info**. The
 old Vercel deploy and the standalone `statenour-os` repo are retired. Sibling app `nickstire`
 (Railway → nickstire.org) shares this monorepo.
 
@@ -54,7 +54,7 @@ script inside this app is active — do not resurrect one.
    **Operator exception (settled 2026-09-09):** when the operator asks for a batched wave —
    "one big merge", "minimal PRs, the checks take forever" — ship ONE PR with staged commits
    inside it and say so in the PR body. Their stated preference wins; do not fragment it back.
-3. **The push must build clean.** Full gate: `pnpm verify:hard` — **17 checks, composition at
+3. **The push must build clean.** Full gate: `pnpm verify:hard` — **its composition is at
    `package.json:12`. Read it there;** any prose list goes stale the next time one is added.
 4. **Auth is gated, not advisory.** Operator-private GET routes need `auth: "owner"`; mutating
    routes need an explicit auth wrapper. `pnpm check:get-auth`
@@ -119,11 +119,11 @@ each integration under `lib/` and `docs/` — read it when you touch that integr
 
 | Layer | Where | What it does |
 |---|---|---|
-| **L1** prompt rule | [`lib/ai/system-prompt.ts`](lib/ai/system-prompt.ts) `## TRUTH RULE` | Never claim past-tense action without a tool call |
-| **L2** pre-persist rewrite | [`lib/ai/chat/fabrication-rewriter.ts`](lib/ai/chat/fabrication-rewriter.ts) | Detected fabrication gets a verifier banner before persisting |
+| **L1** prompt rule | [`lib/ai/prompt/policy/operator-rules.ts`](lib/ai/prompt/policy/operator-rules.ts) `## TRUTH RULE` (`:121`) | Never claim past-tense action without a tool call |
+| **L2** post-persist rewrite | [`lib/ai/chat/fabrication-rewriter.ts`](lib/ai/chat/fabrication-rewriter.ts), called from [`lib/services/chat/post-persist-verification.ts`](lib/services/chat/post-persist-verification.ts) | After the reply has streamed and its row exists, a detected fabrication gets a verifier banner patched into the stored row (`:280-310`). The live bubble shows it only after a reload. |
 | **L3** history neutralization | [`lib/ai/chat/sanitize-history.ts`](lib/ai/chat/sanitize-history.ts) | Verifier-marked turns replaced so the model can't compound |
 | **L4** truth grounding | [`lib/ai/chat/truth-grounding.ts`](lib/ai/chat/truth-grounding.ts) | Task counts pre-injected as system facts |
-| **L5** operator surface | [`components/chat/message-diagnostics.tsx`](components/chat/message-diagnostics.tsx) + [`lib/services/claim-warnings.ts`](lib/services/claim-warnings.ts) | Surfaces the diagnostic in the transcript |
+| **L5** operator surface | [`lib/services/claim-warnings.ts`](lib/services/claim-warnings.ts) via tRPC `chat.claimWarnings` (`lib/trpc/routers/chat.ts:362`) | **ORPHANED (checked 2026-10-10):** no client calls `chat.claimWarnings`, and the `ActionClaimWarning` chip is gone from `components/chat/`. The operator sees only the L2 banner in the message text. |
 | **L6** evidence gate | [`lib/ai/reply-gate.ts`](lib/ai/reply-gate.ts) `runEvidenceGate` + [`chat/named-source-claims.ts`](lib/ai/chat/named-source-claims.ts) + [`chat/gate-enforcement.ts`](lib/ai/chat/gate-enforcement.ts) | A NAMED resource with no tool receipt this turn is a blocking claim — L1-L2 cover past-tense ACTION verbs only, so an invented channel name tripped nothing. **Runs in SHADOW** (`evidence_gate_shadow`, persisted at `tokenUsage.evidenceGate`): it CANNOT block on the streaming path, since `onFinish` runs after the last token flushes. Enforcement goes live on the buffered path once the shadow false-positive rate is known — **never read a shadow verdict as an enforced one.** Design: [`docs/NICK-TRUST-ARCHITECTURE-V2-2026-09-10.md`](docs/NICK-TRUST-ARCHITECTURE-V2-2026-09-10.md) |
 
 Detection regex: [`lib/ai/chat/action-claim-detector.ts`](lib/ai/chat/action-claim-detector.ts) — add

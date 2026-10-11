@@ -66,8 +66,8 @@ describe("composeOwnerPanel: approvals that may have run or failed", () => {
     expect(p.state).toBe("attention");
     expect(p.exceptions).toHaveLength(1);
     const e = p.exceptions[0];
-    // href null: /system/actions lists pending_approval only; `evidence` names the row.
-    expect(e).toMatchObject({ kind: "action_unknown", tone: "rose", href: null, evidence: "approval_requests ar1" });
+    // /system/actions renders the Needs-review list (needs_review + failed).
+    expect(e).toMatchObject({ kind: "action_unknown", tone: "rose", href: "/system/actions", evidence: "approval_requests ar1" });
     expect(e.title).toMatch(/shop\.sendSms/);
     expect(e.title).toMatch(/may have run/);
     expect(e.detail).toMatch(/check before retrying/);
@@ -77,7 +77,7 @@ describe("composeOwnerPanel: approvals that may have run or failed", () => {
     const p = composeOwnerPanel({ ...clean, approvalIssues: [issue("ar2", "failed", 60, "Twilio 503")] });
 
     expect(p.exceptions).toHaveLength(1);
-    expect(p.exceptions[0]).toMatchObject({ kind: "action_failed", tone: "rose", evidence: "approval_requests ar2" });
+    expect(p.exceptions[0]).toMatchObject({ kind: "action_failed", tone: "rose", href: "/system/actions", evidence: "approval_requests ar2" });
     expect(p.exceptions[0].detail).toMatch(/Twilio 503/);
   });
 

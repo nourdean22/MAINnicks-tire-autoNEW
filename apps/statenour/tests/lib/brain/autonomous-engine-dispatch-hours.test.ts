@@ -20,7 +20,8 @@ import { readFileSync } from "node:fs";
 
 const { queryNick } = vi.hoisted(() => ({ queryNick: vi.fn() }));
 
-vi.mock("@/lib/nickstire/query", () => ({ queryNick, queryNickBatch: vi.fn(async () => ({})) }));
+vi.mock("@/lib/nickstire/query", async (orig) => ({
+  readBridge: (await orig<typeof import("@/lib/nickstire/query")>()).readBridge, queryNick, queryNickBatch: vi.fn(async () => ({})) }));
 vi.mock("@/lib/services/telegram", () => ({ sendTelegram: vi.fn() }));
 vi.mock("@/lib/services/email", () => ({ sendEmail: vi.fn() }));
 vi.mock("@/lib/brain/memory-manager", () => ({ brainMemory: { remember: vi.fn() } }));

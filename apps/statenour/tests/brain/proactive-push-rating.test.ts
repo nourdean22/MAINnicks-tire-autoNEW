@@ -89,27 +89,28 @@ describe("the push carries a rating control", () => {
 });
 
 describe("the button press lands a label on that row", () => {
-  it("the webhook routes oc:* to recordOutcome by id", () => {
+  it("the webhook routes oc:* to recordOutcomeResult by id", () => {
     const src = readFileSync(join(APP, "app/api/telegram/webhook/route.ts"), "utf8");
     expect(src).toMatch(/if \(action === "oc"\)/);
-    expect(src).toMatch(/recordOutcome\(\{/);
+    expect(src).toMatch(/recordOutcomeResult\(\{/);
     // id parsed from callback_data, useful from the verdict char
     expect(src).toMatch(/const useful = parts\[1\] === "u"/);
     expect(src).toMatch(/const ledgerId = parts\.slice\(2\)\.join\(":"\)/);
   });
 
   it("a SECOND tap is reported honestly, not confirmed", () => {
-    // recordOutcome updates `where: { id, outcomeAt: null }` and returns
-    // count === 1, so re-rating is a deliberate no-op returning false.
-    // Answering "Noted" regardless would confirm a write that did not happen.
+    // The write updates `where: { id, outcomeAt: null }`, so re-rating is a
+    // deliberate no-op ("already"). Answering "Noted" regardless would confirm
+    // a write that did not happen. Behaviour tests for all three replies live
+    // in tests/telegram/webhook-followups.test.ts.
     const src = readFileSync(join(APP, "app/api/telegram/webhook/route.ts"), "utf8");
-    expect(src).toMatch(/const recorded = await recordOutcome\(/);
+    expect(src).toMatch(/const result = await recordOutcomeResult\(/);
     expect(src).toMatch(/Already rated\./);
   });
 
   it("a failed write tells the operator instead of going quiet", () => {
     const src = readFileSync(join(APP, "app/api/telegram/webhook/route.ts"), "utf8");
-    expect(src).toMatch(/Could not record that/);
+    expect(src).toMatch(/Could not record - try again\./);
   });
 
   it("recordOutcome is guarded against double-write at the source", () => {

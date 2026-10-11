@@ -123,11 +123,40 @@ describe("pullBusinessSignals", () => {
 
     const signals = await pullBusinessSignals();
     expect(signals.source).toBe("empty");
-    expect(signals.lineOfCars).toBe(0);
-    expect(signals.declinedWorkDelta).toBe(0);
+    // Nothing was read, so nothing is a counted zero (audit wave 2).
+    expect(signals.lineOfCars).toBeNull();
+    expect(signals.declinedWorkDelta).toBeNull();
     expect(signals.alertCount).toBe(0);
     expect(signals.contextAt).toBeNull();
     expect(signals.bridgeAt).toBeNull();
+  });
+
+  it("a source with no reading for a signal yields null, never a fabricated 0", async () => {
+    mocks.auditEvent.findFirst.mockResolvedValueOnce({
+      payload: { prioritizedActions: [] },
+      createdAt: new Date("2026-05-12T10:00:00Z"),
+    });
+    mocks.fetchShopSnapshot.mockResolvedValueOnce(null);
+
+    const signals = await pullBusinessSignals();
+    expect(signals.source).toBe("ceo_context");
+    expect(signals.lineOfCars).toBeNull();
+    expect(signals.declinedWorkDelta).toBeNull();
+    expect(signals.pipelineAging).toBeNull();
+    expect(signals.gbpReviewDelta).toBeNull();
+    expect(signals.algConversionRate).toBeNull();
+  });
+
+  it("a counted zero stays 0", async () => {
+    mocks.auditEvent.findFirst.mockResolvedValueOnce({
+      payload: { declinedWork: { count: 0 }, intelligence: { gbpReviewsThisWeek: 0 } },
+      createdAt: new Date("2026-05-12T10:00:00Z"),
+    });
+    mocks.fetchShopSnapshot.mockResolvedValueOnce(null);
+
+    const signals = await pullBusinessSignals();
+    expect(signals.declinedWorkDelta).toBe(0);
+    expect(signals.gbpReviewDelta).toBe(0);
   });
 });
 

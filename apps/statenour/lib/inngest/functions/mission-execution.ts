@@ -26,6 +26,14 @@ export const durableMissionExecution = inngest.createFunction(
     name: "Mission · durable bounded execution",
     retries: 1,
     triggers: [{ event: "mission/execution.requested" }],
+    // 2026-10-10 (audit 01-F3) · stop: cancelMissionExecution sends this;
+    // Inngest halts the run before its next step. Same mission only.
+    cancelOn: [
+      { event: "mission/execution.cancelled", if: "event.data.missionId == async.data.missionId" },
+    ],
+    // One copy per mission: a second request while one runs is skipped,
+    // never run beside it (the event id dedupes exact repeats for 24 h).
+    singleton: { key: "event.data.missionId", mode: "skip" },
     onFailure: onInngestFailure,
   },
   async ({ event, step }) => {

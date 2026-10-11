@@ -875,28 +875,37 @@ export class BrainMemoryManager {
   /**
    * Decay confidence for memories not seen in 30+ days.
    * Returns count of decayed memories.
+   *
+   * 2026-10-10 (audit 05-M5) · this had NO caller, so decay did not exist in
+   * effect. It is now run nightly through runMemoryDecay() (data-cleanup), and
+   * because a nightly -0.05 takes an untouched 1.0 row under the 0.3 recall
+   * floor in two weeks, it is guarded the way the hard-delete GC is:
+   *   · NEVER_HARD_DELETE_CATEGORIES + pinned_user never decay (the operator's
+   *     own record and the compounding layer -- wisdom, insight, pattern, ...);
+   *   · operator-authored rows (created_by 'user' or source 'manual') never
+   *     decay, whatever their category;
+   *   · floor 0.1, and one raw UPDATE so updated_at is not stamped -- the GC's
+   *     low-confidence arm keys on updated_at, and a nightly stamp would keep a
+   *     decayed row out of it forever.
+   * last_seen is attention (recall bumps it), so a row that keeps being
+   * recalled does not decay; that is intended.
    */
   async decay(): Promise<number> {
-    const thirtyDaysAgo = daysAgo(30);
-
-    const stale = await prisma.brainMemory.findMany({
-      where: {
-        lastSeen: { lt: thirtyDaysAgo },
-        confidence: { gt: 0.1 },
-        expiresAt: null, // Only decay permanent memories
-        deletedAt: null, // v10.0.66 · don't decay already-soft-deleted
-      },
-      select: { id: true },
-    });
-
-    if (stale.length === 0) return 0;
-
-    await prisma.brainMemory.updateMany({
-      where: { id: { in: stale.map((m) => m.id) } },
-      data: { confidence: { decrement: 0.05 } },
-    });
-
-    return stale.length;
+    const { NEVER_HARD_DELETE_CATEGORIES } = await import("@/lib/brain/hard-delete-guard");
+    const exempt = [...NEVER_HARD_DELETE_CATEGORIES, "pinned_user"];
+    return prisma.$executeRawUnsafe(
+      `UPDATE brain_memories
+          SET confidence = GREATEST(confidence - 0.05, 0.1)
+        WHERE last_seen < $1
+          AND confidence > 0.1
+          AND expires_at IS NULL
+          AND deleted_at IS NULL
+          AND category <> ALL($2::text[])
+          AND COALESCE(created_by, '') <> 'user'
+          AND COALESCE(source, '') <> 'manual'`,
+      daysAgo(30),
+      exempt,
+    );
   }
 
   /**
@@ -959,3 +968,11 @@ export class BrainMemoryManager {
 }
 
 export const brainMemory = new BrainMemoryManager();
+
+/**
+ * Nightly entry point for memory decay (audit 05-M5). Called from
+ * app/api/cron/data-cleanup; returns how many rows lost 0.05 confidence.
+ */
+export function runMemoryDecay(): Promise<number> {
+  return brainMemory.decay();
+}

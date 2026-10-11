@@ -46,7 +46,7 @@ export const DEPLOY_ALERT_TOOL = "railway.deploy_alert";
 export const ACTION_EXECUTION_STALE_MS = 30 * 60_000;
 /** A capability row nothing touched for this long is history, not a live exception. */
 export const CAPABILITY_WINDOW_MS = 7 * 24 * 60 * 60_000;
-/** A `needs_review` approval stays listed this long; nothing in the UI resolves one yet. */
+/** A `needs_review` approval stays listed this long (or until dismissed on /system/actions). */
 export const APPROVAL_REVIEW_WINDOW_MS = 7 * 24 * 60 * 60_000;
 
 const TERMINAL = new Set(["success", "partial", "failed", "interrupted"]);
@@ -432,8 +432,8 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
             ? `${clip(error, 100) ?? "execution did not finish"}; check before retrying`
             : clip(error) ?? "no error text recorded",
           since: r.updatedAt,
-          // /system/actions lists pending_approval only, so no surface renders this row yet.
-          href: null,
+          // /system/actions renders the Needs-review list (needs_review + failed).
+          href: "/system/actions",
           evidence: `approval_requests ${r.id}`,
         }),
       );

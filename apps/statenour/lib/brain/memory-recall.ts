@@ -23,7 +23,7 @@ import { getFlag } from "@/lib/feature-flags";
 import { logger as rootLogger } from "@/lib/logger";
 import { recordError } from "@/lib/errors/record-error";
 import { withEfSearch, EF_SEARCH } from "@/lib/db/vector-tuning";
-import { assertSafeVectorLiteral } from "@/lib/db/pgvector";
+import { assertSafeVectorLiteral, embeddingSpaceSql } from "@/lib/db/pgvector";
 import { reciprocalRankFusion } from "@/lib/brain/rrf";
 import { withTimeout } from "@/lib/utils/with-timeout";
 // 2026-09-10 · lib/brain/memory-trust.ts was written and unit-tested and
@@ -31,7 +31,7 @@ import { withTimeout } from "@/lib/utils/with-timeout";
 // column with an index and no reader or writer. This is that module's
 // first consumer. OWASP AISVS C08 8.2.3 is the control it implements:
 // tool and agent output must not be treated as trusted memory.
-import { classifyTrustTier, isAuthoritative, fenceUntrustedMemory, type TrustTier } from "@/lib/brain/memory-trust";
+import { classifyTrustTier, resolveTrustTier, isAuthoritative, fenceUntrustedMemory, type TrustTier } from "@/lib/brain/memory-trust";
 
 const log = rootLogger.withSurface("brain/memory-recall");
 
@@ -206,10 +206,13 @@ export interface RecallHit {
    * 2026-09-10 · derived, not stored. `classifyTrustTier` is a pure
    * function of (source, created_by), both of which are already
    * populated on every row -- so the tier is exact at read time and
-   * needs no backfill of the 158 write sites. The `trust_tier` column
-   * remains a denormalized cache for SQL-side filtering, and is
-   * deliberately NOT read here: a stale cache would be worse than the
-   * function.
+   * needs no backfill of the 158 write sites.
+   *
+   * 2026-10-10 (audit 05-M2) · the stored `trust_tier` and the admission
+   * envelope ARE read now, via resolveTrustTier, and can only TIGHTEN the
+   * derived tier: admitMemory writes AGENT_INFERRED on rows whose source
+   * slug (journal_brain, belief_harvester, ...) derives SYSTEM_DERIVED, and
+   * ignoring it let model inferences recall as system facts.
    */
   trustTier: TrustTier;
 }
@@ -331,6 +334,9 @@ type KnnRow = {
   /** 2026-09-10 · provenance columns, for trust-tier classification. */
   source: string | null;
   created_by: string | null;
+  /** 2026-10-10 (05-M2) · stored tier + admission envelope, see resolveTrustTier. */
+  trust_tier?: string | null;
+  admission?: unknown;
 };
 
 /** Shared lane scorer. Module-level since 2026-09-10 so the lexical
@@ -346,8 +352,14 @@ function scoreRow(r: KnnRow, now: number): RecallHit {
     //   recency boost: <14d → +0.2, <60d → +0.1, else 0
     //   confidence boost: confidence × 0.3
     const sim = Math.max(0, 1 - r.distance);
+    // 2026-10-10 (audit 05-M6) · last_seen is bumped by recall itself, so a
+    // recency boost read off it rewarded being recalled: recalled -> fresh ->
+    // +0.2 -> recalled again. It now counts only for a row that has been
+    // SIGHTED again (seen_count > 1, which recall no longer raises); a
+    // single-sighting row ages from created_at.
+    const recencyAgeDays = r.seen_count > 1 ? ageDays : factAgeDays;
     const recency =
-      ageDays < 14 ? 0.2 : ageDays < 60 ? 0.1 : 0;
+      recencyAgeDays < 14 ? 0.2 : recencyAgeDays < 60 ? 0.1 : 0;
     const conf = r.confidence * 0.3;
     const finalScore = sim + recency + conf;
     return {
@@ -361,7 +373,14 @@ function scoreRow(r: KnnRow, now: number): RecallHit {
       factAgeDays,
       knnDistance: r.distance,
       finalScore: Math.round(finalScore * 1000) / 1000,
-      trustTier: classifyTrustTier(r.source, r.created_by, r.category),
+      // 05-M2: the stored tier and the admission envelope can only tighten.
+      trustTier: resolveTrustTier({
+        source: r.source,
+        createdBy: r.created_by,
+        category: r.category,
+        trustTier: r.trust_tier,
+        metadata: r.admission ? { admission: r.admission } : null,
+      }),
     };
   }
 
@@ -413,6 +432,7 @@ function lexicalLane(query: string, limit: number, onFail?: () => void): Promise
               bm.confidence::float AS confidence, bm.seen_count::int AS seen_count,
               bm.last_seen, bm.created_at,
               bm.source::text AS source, bm.created_by::text AS created_by,
+              bm.trust_tier::text AS trust_tier, bm.metadata->'admission' AS admission,
               -- Presented as a DISTANCE so the shared scorer needs no
               -- special case: higher rank -> smaller distance.
               --
@@ -451,6 +471,8 @@ function lexicalLane(query: string, limit: number, onFail?: () => void): Promise
          AND bm.confidence >= 0.3
          AND bm.superseded_by_id IS NULL
          AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
+         -- 05-M5: an unreinforced row past its probation is not recalled.
+         AND (bm.expires_at IS NULL OR bm.expires_at > NOW())
          AND bm.category = ANY($2)
          -- INDEXED form (the stored column). Do not add weights here.
          AND bm.content_tsv @@ websearch_to_tsquery('english', $1)
@@ -514,12 +536,15 @@ function exactLane(terms: string[], limit: number, onFail?: () => void): Promise
               bm.confidence::float AS confidence, bm.seen_count::int AS seen_count,
               bm.last_seen, bm.created_at,
               bm.source::text AS source, bm.created_by::text AS created_by,
+              bm.trust_tier::text AS trust_tier, bm.metadata->'admission' AS admission,
               0.0::float AS distance
        FROM brain_memories bm
        WHERE bm.deleted_at IS NULL
          AND bm.confidence >= 0.3
          AND bm.superseded_by_id IS NULL
          AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
+         -- 05-M5: an unreinforced row past its probation is not recalled.
+         AND (bm.expires_at IS NULL OR bm.expires_at > NOW())
          AND bm.category = ANY($2)
          AND (bm.key ILIKE ANY($1) OR bm.content ILIKE ANY($1))
        ORDER BY bm.last_seen DESC
@@ -680,16 +705,18 @@ export async function recallMemoriesForQuery(
       `WITH durable AS MATERIALIZED (
          SELECT bm.id, bm.category, bm.key, bm.content, bm.confidence,
                 bm.seen_count, bm.last_seen, bm.created_at,
-                bm.source, bm.created_by, ve.embedding_vec_1536
+                bm.source, bm.created_by, bm.trust_tier, bm.metadata, ve.embedding_vec_1536
          FROM vector_embeddings ve
          JOIN brain_memories bm
            ON bm.id = ve."sourceId"
           AND bm.deleted_at IS NULL
          WHERE ve."sourceType" = 'brain_memory'
            AND ve.embedding_vec_1536 IS NOT NULL
+           AND ${embeddingSpaceSql("ve.model")}
            AND bm.confidence >= 0.3
            AND bm.superseded_by_id IS NULL
            AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
+           AND (bm.expires_at IS NULL OR bm.expires_at > NOW())
            AND bm.category = ANY($2)
        )
        SELECT id::text AS memory_id, category::text AS category, key::text AS key,
@@ -697,6 +724,7 @@ export async function recallMemoriesForQuery(
               confidence::float AS confidence, seen_count::int AS seen_count,
               last_seen, created_at,
               source::text AS source, created_by::text AS created_by,
+              trust_tier::text AS trust_tier, metadata->'admission' AS admission,
               (embedding_vec_1536 <=> $1::vector(${TARGET_DIM})) AS distance
        FROM durable
        ORDER BY embedding_vec_1536 <=> $1::vector(${TARGET_DIM})
@@ -725,6 +753,8 @@ export async function recallMemoriesForQuery(
          bm.created_at,
          bm.source::text AS source,
          bm.created_by::text AS created_by,
+         bm.trust_tier::text AS trust_tier,
+         bm.metadata->'admission' AS admission,
          (ve.embedding_vec_1536 <=> $1::vector(${TARGET_DIM})) AS distance
        FROM vector_embeddings ve
        JOIN brain_memories bm
@@ -738,6 +768,9 @@ export async function recallMemoriesForQuery(
          -- The columns were applied to prod 2026-08-14 with no reader.
          AND bm.superseded_by_id IS NULL
          AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
+         -- 05-M5 probation; 05-M8 one embedding space (lib/db/pgvector.ts).
+         AND (bm.expires_at IS NULL OR bm.expires_at > NOW())
+         AND ${embeddingSpaceSql("ve.model")}
        ORDER BY ve.embedding_vec_1536 <=> $1::vector(${TARGET_DIM})
        LIMIT ${KNN_TOP}`,
       vecLit,

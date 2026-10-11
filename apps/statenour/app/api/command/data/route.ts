@@ -179,31 +179,34 @@ async function computeCommandData() {
     shopData?.revenue,
     metricsPayload,
   );
-  const todayBookings =
+  // Same rule for the counts below (audit wave 2): each chain ends in null,
+  // not 0, so "no source carried it" reads as unknown and only a counted
+  // zero is 0. Consumers must render null as unknown.
+  const todayBookings: number | null =
     shopData?.bookings?.todayCount ??
     metricsPayload?.revenue?.jobsToday ??
     metricsPayload?.jobsToday ??
     metricsPayload?.bookings?.todayCount ??
-    0;
-  const avgTicket =
-    metricsPayload?.revenue?.avgTicket ?? metricsPayload?.avgTicket ?? 0;
-  const walkRate =
+    null;
+  const avgTicket: number | null =
+    metricsPayload?.revenue?.avgTicket ?? metricsPayload?.avgTicket ?? null;
+  const walkRate: number | null =
     metricsPayload?.revenue?.walkRate ??
     metricsPayload?.intelligence?.shopPulse?.thisWeek?.walkRate ??
     metricsPayload?.walkRate ??
-    0;
+    null;
   // shopData is the LIVE bridge ShopSnapshot (keys urgentCount /
   // pendingCount / totalActive — correct there). metricsPayload is the
   // PUSHED business_metrics_sync payload (statenourSync.ts), whose keys
   // are leads.urgent / callbacks.new / leads.total. Reading the bridge
   // keys off the pushed payload meant the bridge-DOWN fallback — the one
   // moment it exists for — silently returned 0 for all three.
-  const urgentLeads =
-    shopData?.leads?.urgentCount ?? metricsPayload?.leads?.urgent ?? 0;
-  const pendingCallbacks =
-    shopData?.callbacks?.pendingCount ?? metricsPayload?.callbacks?.new ?? 0;
-  const activeLeads =
-    shopData?.leads?.totalActive ?? metricsPayload?.leads?.total ?? 0;
+  const urgentLeads: number | null =
+    shopData?.leads?.urgentCount ?? metricsPayload?.leads?.urgent ?? null;
+  const pendingCallbacks: number | null =
+    shopData?.callbacks?.pendingCount ?? metricsPayload?.callbacks?.new ?? null;
+  const activeLeads: number | null =
+    shopData?.leads?.totalActive ?? metricsPayload?.leads?.total ?? null;
 
   return {
     timestamp: now.toISOString(),

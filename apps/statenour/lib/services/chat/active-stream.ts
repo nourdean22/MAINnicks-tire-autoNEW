@@ -98,6 +98,23 @@ export async function registerActiveStream(
   }
 }
 
+/** Register a turn now; mark it complete once its persist RESOLVES.
+ *  2026-10-10 (audit 04-F8): for the alt lanes, whose persist promise
+ *  exists only when their simulated stream ends. Same rule as route.ts:
+ *  a rejected persist never completes the row (it self-expires). */
+export function trackActiveStream(
+  convId: string,
+  traceId: string | null,
+): (persisted: Promise<unknown>) => void {
+  const registered = registerActiveStream(convId, traceId);
+  return (persisted) => {
+    void Promise.all([registered, persisted]).then(
+      () => completeActiveStream(convId),
+      () => undefined,
+    );
+  };
+}
+
 /** Write the in-flight partial text onto the active row (V2).
  *  Fire-and-forget safe: a failed flush costs the tail some bytes, never
  *  the turn. Only patches `metadata` — never `content` (see header). */
@@ -202,6 +219,67 @@ export async function getActiveStream(
   };
 }
 
+/**
+ * 2026-10-10 (audit 04-F6) - operator stop marker.
+ *
+ * Stop on the client aborts only the client's read; consumeStream keeps the
+ * turn running so a disconnect stays durable, and the turn used to persist
+ * as "complete". The Stop button now records the stop here (DELETE on the
+ * resume route) and persist reads it to store `streamingState: "aborted"`.
+ *
+ * Its OWN row, keyed by (conversation, traceId): a stop can never mark a
+ * later turn, and it never shares the read-modify-write of the stream row
+ * with the partial flusher (a racing flush would erase a merged flag).
+ * Only an ACTIVE turn with a known traceId is stoppable.
+ */
+const stopKeyFor = (convId: string, traceId: string) => `stop:${convId}:${traceId}`;
+
+export async function requestStreamStop(
+  convId: string,
+): Promise<{ stopped: true; traceId: string } | { stopped: false; reason: "no_active_turn" | "write_failed" }> {
+  const record = await getActiveStream(convId);
+  if (!record || record.status !== "active" || !record.traceId) {
+    return { stopped: false, reason: "no_active_turn" };
+  }
+  const requestedAt = new Date().toISOString();
+  const key = stopKeyFor(convId, record.traceId);
+  try {
+    await prisma.brainMemory.upsert({
+      where: { category_key: { category: CATEGORY, key } },
+      create: {
+        category: CATEGORY,
+        key,
+        content: `stop requested - ${requestedAt}`,
+        confidence: 0.1,
+        source: "chat-stop",
+        expiresAt: new Date(Date.now() + ACTIVE_TTL_MS),
+        metadata: { traceId: record.traceId, requestedAt } as never,
+      },
+      update: {
+        expiresAt: new Date(Date.now() + ACTIVE_TTL_MS),
+        deletedAt: null,
+      },
+    });
+    return { stopped: true, traceId: record.traceId };
+  } catch (e) {
+    logError("chat.active-stream", e, { stage: "stop", convId }, "warn");
+    return { stopped: false, reason: "write_failed" };
+  }
+}
+
+/** Did the operator press Stop on THIS turn? A failed read answers false
+ *  (the turn persists with its finish-reason state, as before). */
+export async function isStreamStopRequested(convId: string, traceId: string): Promise<boolean> {
+  const row = await prisma.brainMemory
+    .findUnique({
+      where: { category_key: { category: CATEGORY, key: stopKeyFor(convId, traceId) } },
+      select: { expiresAt: true, deletedAt: true },
+    })
+    .catch(() => null);
+  if (!row || row.deletedAt) return false;
+  return !row.expiresAt || row.expiresAt.getTime() >= Date.now();
+}
+
 /** UIMessageChunk sequence replaying one persisted assistant message.
  *  Pure — exported for tests. The text is chunked only so very long
  *  replies don't land as one megabyte delta. */
@@ -250,7 +328,11 @@ export function buildCloseChunks(messageId: string): Array<Record<string, unknow
   return [{ type: "text-end", id: partIdFor(messageId) }, { type: "finish" }];
 }
 
-/** Deterministic id for a resumed in-flight turn.
+/** Deterministic id for a resumed turn (in-flight tail AND completed replay).
+ *
+ *  2026-10-10 (audit 04-F8): `turnKey` is the turn's traceId when the
+ *  record has one (startedAt only as a fallback for legacy rows), and the
+ *  completed path answers under this id too, so one turn is one bubble.
  *
  *  Load-bearing for the duplicate-message invariant (this repo has scar
  *  tissue: an auto-resend spawned duplicates and a retry storm rate-
@@ -258,6 +340,6 @@ export function buildCloseChunks(messageId: string): Array<Record<string, unknow
  *  bubbles — keying the id to (conversation, turn start) makes every
  *  concurrent resume of the same turn resolve to the same message id,
  *  so the client replaces rather than appends. */
-export function resumeMessageId(convId: string, startedAt: string): string {
-  return `resume-${convId}-${startedAt}`;
+export function resumeMessageId(convId: string, turnKey: string): string {
+  return `resume-${convId}-${turnKey}`;
 }

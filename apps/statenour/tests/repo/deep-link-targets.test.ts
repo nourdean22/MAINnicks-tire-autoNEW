@@ -82,14 +82,11 @@ function resolves(path: string, routes: string[][]): boolean {
 }
 
 /**
- * Owned by the autonomous-engine task of the same audit wave; this task may
- * not edit that file. The reverse canary below fails as soon as one is fixed,
- * naming the entry to delete here.
+ * Links known dead but owned by another change ("<file> -> <path>"). Empty
+ * since the autonomous-engine links were repointed (audit wave 2). The reverse
+ * canary below fails as soon as one is fixed, naming the entry to delete here.
  */
-const KNOWN_DEAD = new Set([
-  "lib/brain/autonomous-engine.ts -> /appointments",
-  "lib/brain/autonomous-engine.ts -> /loops",
-]);
+const KNOWN_DEAD = new Set<string>([]);
 
 const ROUTES = [...pageRoutes(), ...redirectSources()];
 

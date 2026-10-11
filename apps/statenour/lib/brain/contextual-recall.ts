@@ -35,7 +35,9 @@ import {
   vectorLiteral,
   assertSafeVectorLiteral,
   VECTOR_DIM_1536,
+  embeddingSpaceSql,
 } from "@/lib/db/pgvector";
+import { currentTurn } from "@/lib/agent/turn-context";
 // Wave AG · rerank orchestrator routes between BGE (HF Inference,
 // $0.0001/call) and Cohere ($2/1000 calls) based on the BGE_RERANK
 // env flag. Same interface as cohereRerank · falls back to identity
@@ -731,6 +733,13 @@ export async function getLexicalMatches(topics: string[], limit = 50, asOf?: Dat
   try {
     // $1 = tsQueryText (parameterized — no injection). `limit` is an internal
     // numeric constant interpolated as a literal, mirroring memory-recall.ts.
+    // $2 = RECALL_EXCLUDE_CATEGORIES, $3 = asOf (when given).
+    //
+    // 2026-10-10 (audit 05-M13) · the quarantine is applied HERE, before LIMIT.
+    // It used to run in JS after the 50 rows came back, so ~18k semantic_edge
+    // telemetry rows ("[health] <-> [insight] ...") could take every slot and the
+    // lane answered nothing on most turns. Same list as the KNN pool below.
+    const excluded: string[] = [...RECALL_EXCLUDE_CATEGORIES];
     const rows = await prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = ${LEXICAL_STATEMENT_TIMEOUT_MS}`);
       return tx.$queryRawUnsafe<LexicalRow[]>(
@@ -748,13 +757,16 @@ export async function getLexicalMatches(topics: string[], limit = 50, asOf?: Dat
        FROM brain_memories bm
        WHERE bm.deleted_at IS NULL
          AND bm.confidence >= 0.3
+         AND bm.category <> ALL($2::text[])
+         AND ${NOT_EXPIRED_SQL}
          -- BDN-310 supersession honored (2026-08-19) — see memory-recall.ts
-         AND ${validitySql("bm", asOf ? "$2" : null)}
+         AND ${validitySql("bm", asOf ? "$3" : null)}
          AND bm.content_tsv
              @@ websearch_to_tsquery('english', $1)
        ORDER BY rank DESC
        LIMIT ${limit}`,
       tsQueryText,
+      excluded,
       ...(asOf ? [asOf] : []),
       );
     });
@@ -838,8 +850,10 @@ async function getKnnPoolRows(queryVec: number[], limit = 50, asOf?: Date): Prom
        WHERE ve."sourceType" = 'brain_memory'
          AND ve.embedding_vec_1536 IS NOT NULL
          AND ve."sourceUnavailableAt" IS NULL
+         AND ${embeddingSpaceSql("ve.model")}
          AND bm.confidence >= 0.3
          AND bm.category <> ALL($2::text[])
+         AND ${NOT_EXPIRED_SQL}
          AND ${validitySql("bm", asOf ? "$3" : null)}
        ORDER BY ve.embedding_vec_1536 <=> $1::vector(${VECTOR_DIM_1536})
        LIMIT ${limit}`;
@@ -998,6 +1012,22 @@ export function isVisibleAsOf(row: ValidityRow, asOf?: Date): boolean {
  * `asOf` ("$2"); null = current mode (NOW(), no parameter referenced -- so
  * the caller must add the parameter to the argument list ONLY in as-of mode).
  */
+/**
+ * 2026-10-10 (audit 05-M5) · PROBATION IS HONOURED AT READ TIME.
+ *
+ * remember() writes a new row with a 24h `expires_at` that only reinforce()
+ * clears (3 sightings). The nightly GC never deletes protected categories
+ * (insight, pattern, wisdom, ...), so an unreinforced row of those categories
+ * outlived its probation and recalled forever. Every recall lane now drops a
+ * row whose expiry has passed. One-shot records carry their category TTL in
+ * the same column, and an expired record is equally out of date.
+ */
+export const NOT_EXPIRED_SQL = "(bm.expires_at IS NULL OR bm.expires_at > NOW())";
+
+export function notExpiredWhere(): Prisma.BrainMemoryWhereInput {
+  return { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] };
+}
+
 export function validitySql(alias: string, asOfParam: string | null): string {
   const p = alias ? `${alias}.` : "";
   if (!asOfParam) {
@@ -1029,6 +1059,12 @@ export async function getContextualMemories(
     queryEmbedding?: number[];
     /** U3 · answer as of this instant (see validityWhere). Undefined = now. */
     asOf?: Date;
+    /**
+     * 2026-10-10 · default true. `false` makes recall read-only: the wisdom
+     * lastSeen / recallCount bump is skipped. A Private Lab turn
+     * (currentTurn().privateMode) is read-only whatever this says.
+     */
+    sideEffects?: boolean;
     /**
      * Wave 0 (2026-09-08) · observe the FINAL ranked list before it is rendered.
      * scripts/recall-eval.ts scores the whole pipeline through this; the chat
@@ -1150,8 +1186,10 @@ export async function getContextualMemories(
           // 2026-05-17 follow-up · exclude binary-payload categories
           category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
           // BDN-310 supersession honored (2026-08-19): superseded or
-          // expired-validity beliefs leave the recall pool.
-          ...validityWhere(opts.asOf),
+          // expired-validity beliefs leave the recall pool. AND-wrapped so
+          // the validity OR and the probation OR (05-M5) cannot overwrite
+          // each other.
+          AND: [validityWhere(opts.asOf), notExpiredWhere()],
         },
         orderBy: { confidence: "desc" },
         take: 300,
@@ -1479,17 +1517,35 @@ export async function getContextualMemories(
   // (not implicit recall). Result: findStaleCandidates() in
   // wisdom-evolution.ts was running on corrupted input · wisdoms cited
   // 5×/week looked stale because the citation write never fired.
-  // Now: bump lastSeen + seenCount for every wisdom row that lands in
-  // the recall result. Fire-and-forget · no impact on recall latency.
-  if (wisdoms.length > 0) {
+  // Now: bump lastSeen for every wisdom row that lands in the recall result.
+  // Fire-and-forget · no impact on recall latency.
+  //
+  // 2026-10-10 (audit 05-M6) · being RECALLED is not being SEEN AGAIN. This
+  // used to increment seenCount too, so every recall rendered as one more
+  // "seen Nx" sighting and pushed the row toward the seenCount >= 5 freshness
+  // exemption above: the ranking corroborated itself. Recalls are counted in
+  // metadata.recallCount instead, and raw SQL leaves updated_at alone (Prisma's
+  // @updatedAt would stamp it, which is an edit time, not an attention time).
+  //
+  // Private Lab (audit 05-M1): a private turn, or a caller passing
+  // sideEffects:false, recalls read-only -- this is the lane's only write.
+  const recallWrites = opts.sideEffects !== false && currentTurn()?.privateMode !== true;
+  if (recallWrites && wisdoms.length > 0) {
     const wisdomIds = wisdoms.map((w) => w.id);
-    void prisma.brainMemory.updateMany({
-      where: { id: { in: wisdomIds } },
-      data: {
-        lastSeen: new Date(),
-        seenCount: { increment: 1 },
-      },
-    }).catch(() => undefined);
+    void prisma
+      .$executeRawUnsafe(
+        `UPDATE brain_memories
+            SET last_seen = NOW(),
+                metadata = CASE
+                  WHEN metadata IS NULL OR jsonb_typeof(metadata) = 'object' THEN
+                    jsonb_set(COALESCE(metadata, '{}'::jsonb), '{recallCount}',
+                      to_jsonb(CASE WHEN jsonb_typeof(metadata->'recallCount') = 'number'
+                                    THEN (metadata->>'recallCount')::int ELSE 0 END + 1))
+                  ELSE metadata END
+          WHERE id = ANY($1::text[])`,
+        wisdomIds,
+      )
+      .catch(() => undefined);
   }
 
   // Fill with highest-hybrid-score memories (skip wisdom already added)

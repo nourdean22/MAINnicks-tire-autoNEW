@@ -40,7 +40,7 @@ may still call them. The HQ UI no longer consumes them directly.
 
 - `GET /api/ultron/signal` — was the base aggregator. **Now subsumed by `/api/ultron/situation`**, which invokes `detectBlindSpots()` etc directly. Remove reference from Ultron client-cache after it verifies no consumers.
 - `GET /api/ultron/narrator` — folded into situation. Kept for potential future dedicated narrator surface (e.g. bedside mode), but not the default render.
-- `GET /api/ultron/calibrate` — folded. The GET (fetch aging samples) is now only called by `/api/cron/auto-calibrate`. The PATCH (verify/update/retire) is still the primary mutation endpoint if a user-initiated ritual ever comes back.
+- `GET /api/ultron/calibrate` — folded. No in-app caller of the GET remains; the tRPC `journal` router replaces it (`lib/trpc/routers/journal.ts:290`). There is no `/api/cron/auto-calibrate` route (checked 2026-10-10). The PATCH (verify/update/retire) is still the primary mutation endpoint if a user-initiated ritual ever comes back.
 - `GET /api/ultron/ruminations` — folded. Count is exposed on situation.counts.openRuminations.
 - `GET /api/ultron/tomorrow-note` — folded. Surfaces as autoResolved on situation when produced.
 
