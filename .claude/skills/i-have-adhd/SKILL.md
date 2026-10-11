@@ -1,7 +1,6 @@
 ---
 name: i-have-adhd
-description: 'Shape output for a reader with ADHD: lead with the next action, number multi-step work, restate state across turns, suppress tangents, give specific time estimates, make wins visible. Invoke with /i-have-adhd; stays on until "stop adhd mode".'
-disable-model-invocation: true
+description: 'Shape every reply for a reader with ADHD: lead with the next action, number multi-step work, restate progress each turn, suppress tangents, give concrete time estimates, make wins visible. Use at the start of every session and again right after any context compaction, before the first reply, whenever the operator has asked for ADHD-friendly output (for example in their CLAUDE.md); also on /i-have-adhd. Stays on until "stop adhd mode".'
 license: MIT
 metadata:
   tags: "ADHD, Output Style, Productivity, Formatting"
