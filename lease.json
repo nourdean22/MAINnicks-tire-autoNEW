@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/daily-reel-skip-queued-pack",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "f73eba1c-7cf9-4cbf-a1eb-8605e963b6e4",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\instagram-reel-merges-check-a8ffb9",
+  "claimedBy": "2026-10-11-daily-reel-twice",
+  "claimedAt": "2026-10-11T14:55:06.828Z",
+  "expiresAt": "2026-10-12T02:55:06.828Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
