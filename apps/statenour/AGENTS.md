@@ -7,7 +7,7 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-10-10 · audit-fix wave 1 (#2981, pending merge) · see RECONCILIATION.
+**Last refreshed:** 2026-10-10 · audit-fix wave 1 (#2981, merged b5bb183eb) · see RECONCILIATION.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--
@@ -22,7 +22,7 @@
 
 ## 1 · Where we are
 
-statenour-os (NOUR OS) at `apps/statenour/`. `main` auto-deploys to Railway → **bdnick.info**. The
+statenour-os (NOUR OS, Nour's personal operating system) at `apps/statenour/`. `main` auto-deploys to Railway → **bdnick.info**. The
 old Vercel deploy and the standalone `statenour-os` repo are retired. Sibling app `nickstire`
 (Railway → nickstire.org) shares this monorepo.
 
@@ -54,7 +54,7 @@ script inside this app is active — do not resurrect one.
    **Operator exception (settled 2026-09-09):** when the operator asks for a batched wave —
    "one big merge", "minimal PRs, the checks take forever" — ship ONE PR with staged commits
    inside it and say so in the PR body. Their stated preference wins; do not fragment it back.
-3. **The push must build clean.** Full gate: `pnpm verify:hard` — **17 checks, composition at
+3. **The push must build clean.** Full gate: `pnpm verify:hard` — **its composition is at
    `package.json:12`. Read it there;** any prose list goes stale the next time one is added.
 4. **Auth is gated, not advisory.** Operator-private GET routes need `auth: "owner"`; mutating
    routes need an explicit auth wrapper. `pnpm check:get-auth`
@@ -135,9 +135,6 @@ new verbs as they appear, then re-run its test file.
   NOTE: an early draft of this comment called it "the ONLY dangling reference across all 9
   files". An adversarial review refuted that — the cron-registry row two rows up in §3 pointed
   at `/api/cron/list` and `/system/cron-deck`, neither of which exists. Do not restate the boast.
-  2026-10-10 AUDIT (04-chat-lanes F3): that "live surface" was not live either. message-diagnostics.tsx
-  does not read claim-warnings, and chat.claimWarnings has no client caller. L5 is now marked ORPHANED;
-  L1 lives in operator-rules.ts, and L2 runs after persist, not before.
 -->
 
 ## 5 · Common gotchas — each cost a real incident
