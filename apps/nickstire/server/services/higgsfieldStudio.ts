@@ -608,6 +608,8 @@ export function parseCreatedJobId(stdout: string): string {
     if (Array.isArray(o.jobs)) candidates.unshift(o.jobs[0]);
   }
   for (const c of candidates) {
+    // seedance_2_5 prints the ids bare: ["<uuid>"] (job 2070006, 2026-10-11).
+    if (typeof c === "string" && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(c.trim())) return c.trim();
     const id = (c as { id?: unknown } | null)?.id;
     if (typeof id === "string" && id.trim()) return id;
   }
