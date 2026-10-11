@@ -15,3 +15,20 @@ export function searchCopyWarning(remaining: number | null): string | null {
   }
   return `Forgotten, but ${remaining} search ${remaining === 1 ? "copy is" : "copies are"} still indexed.`;
 }
+
+export type ForgetToast =
+  | { level: "warning"; text: string }
+  | { level: "success"; text: string }
+  | { level: "error"; text: string };
+
+/**
+ * The one message after a forget, for every outcome. The warning is decided first,
+ * for a retry too: a retry (deleted false) can still leave a copy indexed.
+ * searchCopyRemaining undefined = no read-back ran (early return), so no warning.
+ */
+export function forgetToast(res: { deleted: boolean; searchCopyRemaining?: number | null }): ForgetToast {
+  const warn = res.searchCopyRemaining === undefined ? null : searchCopyWarning(res.searchCopyRemaining);
+  if (warn) return { level: "warning", text: warn };
+  if (res.deleted) return { level: "success", text: "Memory forgotten" };
+  return { level: "error", text: "Nothing to forget, it was already gone" };
+}

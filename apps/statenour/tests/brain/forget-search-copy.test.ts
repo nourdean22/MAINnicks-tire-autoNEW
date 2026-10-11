@@ -25,7 +25,7 @@ vi.mock("@/lib/brain/memory-admission", () => ({ admitMemory: vi.fn() }));
 vi.mock("@/lib/brain/memory-transaction-time", () => ({ supersedeMemoryVersion: vi.fn() }));
 
 import { forgetMemoryById } from "@/lib/services/brain-memories";
-import { searchCopyWarning } from "@/lib/brain/search-copy-status";
+import { searchCopyWarning, forgetToast } from "@/lib/brain/search-copy-status";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -71,5 +71,35 @@ describe("searchCopyWarning", () => {
 
   it("unknown: the warning says it could not confirm the copy is gone", () => {
     expect(searchCopyWarning(null)).toMatch(/could not confirm/i);
+  });
+});
+
+describe("forgetToast: the warning is decided for every outcome, not only a first forget", () => {
+  const GONE = { level: "error", text: "Nothing to forget, it was already gone" };
+
+  it("a retry (deleted false) with copies still indexed warns", () => {
+    expect(forgetToast({ deleted: false, searchCopyRemaining: 2 })).toMatchObject({ level: "warning" });
+  });
+
+  it("a retry whose read-back failed (null) warns, as unknown", () => {
+    const t = forgetToast({ deleted: false, searchCopyRemaining: null });
+    expect(t.level).toBe("warning");
+    expect(t.text).toMatch(/could not confirm/i);
+  });
+
+  it("a first forget with the copy gone is a plain success", () => {
+    expect(forgetToast({ deleted: true, searchCopyRemaining: 0 })).toEqual({ level: "success", text: "Memory forgotten" });
+  });
+
+  it("a first forget with copies left warns, not plain success", () => {
+    expect(forgetToast({ deleted: true, searchCopyRemaining: 1 }).level).toBe("warning");
+  });
+
+  it("a retry with nothing left says it was already gone", () => {
+    expect(forgetToast({ deleted: false, searchCopyRemaining: 0 })).toEqual(GONE);
+  });
+
+  it("no read-back at all (early return) is not a warning", () => {
+    expect(forgetToast({ deleted: false })).toEqual(GONE);
   });
 });
