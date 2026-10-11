@@ -53,8 +53,8 @@ export const rawTools = {
  * stuck" from the 180s client-side abort -- with no indication of which
  * tool hung, because nothing server-side recorded a timeout at all.
  *
- * WHY AN EXPLICIT LIST AND NOT THE `cost` TIER: lib/ai/tool-families.ts
- * already grades every tool cheap/medium/expensive, and deriving the
+ * WHY AN EXPLICIT LIST AND NOT THE `cost` TIER: lib/ai/tools/catalog.ts
+ * already grades every tool free/cheap/medium/spendy, and deriving the
  * budget from it was the obvious move. It is also wrong -- the metadata
  * is inaccurate for exactly the tools that matter. `moneyprinter` runs a
  * multi-minute ffmpeg render and is tagged "medium"; `last30days` shells
@@ -264,8 +264,9 @@ export function wrapToolsWithEmptyHandling<T extends Record<string, any>>(tools:
           // no way to kill in-flight work the tool already started. So a
           // side-effecting tool may STILL complete after this returns,
           // and telling the model to retry would double-execute the
-          // write. (lib/ai/tools/tool-idempotency.ts guards exactly this
-          // and is wired to only 4 call sites, all in social.ts.) Read
+          // write. (lib/ai/tools/tool-idempotency.ts guards exactly this; it is
+          // used by the social.ts sends and by guardian approved-execution,
+          // keyed approval:<id>.) Read
           // tools are safe to retry; writes must be verified, never
           // repeated.
           const mutating = await isSideEffecting(name);

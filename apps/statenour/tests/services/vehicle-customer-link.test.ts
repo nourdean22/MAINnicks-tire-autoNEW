@@ -14,7 +14,10 @@ const { db, mockQueryNick, mockEdit } = vi.hoisted(() => ({
   mockEdit: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
-vi.mock("@/lib/nickstire/query", () => ({ queryNick: mockQueryNick }));
+vi.mock("@/lib/nickstire/query", async (orig) => ({
+  readBridge: (await orig<typeof import("@/lib/nickstire/query")>()).readBridge,
+  queryNick: mockQueryNick,
+}));
 vi.mock("@/lib/services/telegram", () => ({ editTelegramMessage: mockEdit }));
 vi.mock("@/lib/logger", () => ({
   logger: { withSurface: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) },
@@ -94,6 +97,14 @@ describe("vehicle-customer-link", () => {
     mockQueryNick.mockResolvedValue({ query: "q", timestamp: "t", data: { matches: [] } });
     db.deviceEvent.findUnique.mockRejectedValue(new Error("db down"));
     await expect(linkVisitToCustomer({ eventId: "evt_1", plate: "ABC1234" })).resolves.toBeUndefined();
+  });
+
+  it("a 200 carrying {data:{error}} is a failed lookup (lookup_failed), never a confident unmatched (08-F6c)", async () => {
+    mockQueryNick.mockResolvedValue({ query: "vehicle_lookup_by_plate", timestamp: "t", data: { error: "No DB" } });
+    const r = await lookupPlate("ABC1234");
+    expect(r).toMatchObject({ ok: false, error: expect.stringContaining("No DB") });
+    await linkVisitToCustomer({ eventId: "evt_1", plate: "ABC1234" });
+    expect(db.deviceEvent.update.mock.calls[0][0].data.data.customerRef).toMatchObject({ status: "lookup_failed" });
   });
 
   it("lookupPlate maps the bridge envelope", async () => {

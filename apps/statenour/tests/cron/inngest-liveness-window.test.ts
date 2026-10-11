@@ -19,6 +19,11 @@ vi.mock("@/lib/utils/http", () => ({
   cronHandler: (fn: (req: Request, ctx: unknown) => Promise<unknown>) => fn,
 }));
 vi.mock("@/lib/observability/fleet-truth", () => ({ statenourArtifacts: () => h.artifacts() }));
+vi.mock("@/lib/observability/instrument-failures", () => ({
+  buildInstrumentFailures: async () => ({ windowHours: 24, failing: [] }),
+}));
+// No model on purpose: this file must never read a database.
+vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 vi.mock("@/lib/services/telegram", () => ({
   sendTelegram: (...a: unknown[]) => h.sendTelegram(...a),
   formatTelegramNotification: (title: string, body: string) => `${title}: ${body}`,

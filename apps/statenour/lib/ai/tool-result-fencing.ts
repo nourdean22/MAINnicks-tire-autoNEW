@@ -90,8 +90,9 @@ export function fenceContent(
   // Strip any pre-existing closing tag inside the payload to reduce
   // the chance of fence-confusion. This is belt-and-suspenders on top
   // of the system-prompt rule.
+  // `>?`: a tag cut short (an excerpt slice) is neutralised too, as fenceUntrustedMemory does.
   const sanitized = content.replace(
-    /<\/?tool_data[^>]*>/gi,
+    /<\s*\/?\s*tool_data[^>]*>?/gi,
     "[fence-tag-stripped]",
   );
 
@@ -134,6 +135,16 @@ export function fenceContent(
       `\n\n... [TRUNCATED due to context limit. Original size: ${originalLength} characters. If you need details, ask the operator or refine your query parameters] ...`;
   }
   return `<tool_data tool="${toolName}" source="${source}">\n${body}\n</tool_data tool="${toolName}">`;
+}
+
+/**
+ * True when text carries a <tool_data> fence tag. The operator's own message
+ * can (an @cold mention resolves to a fenced excerpt inside it), and that
+ * content was not written by the operator, so the chat route taints the turn.
+ * Fail closed: an owner-typed tag only holds the owner's outward action for approval.
+ */
+export function carriesToolDataFence(text: string): boolean {
+  return /<\s*\/?\s*tool_data/i.test(text);
 }
 
 /**

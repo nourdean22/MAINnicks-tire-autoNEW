@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Image as ImageIcon, Mic } from "lucide-react";
@@ -8,6 +8,7 @@ import { useChatUiStore } from "../stores/chat-ui-store";
 import type { ChatRuntimeController } from "../types/chat-runtime-controller";
 import { resolveMentionsWithTimeout } from "../lib/mention-resolution";
 import { useImageAttachment } from "@/hooks/use-image-attachment";
+import { useAudioTranscribe } from "@/hooks/chat/use-audio-transcribe";
 import { useVoiceInput } from "@/hooks/use-voice-input";
 import { useSlashCommands } from "@/hooks/use-slash-commands";
 import { useMentionSuggestions } from "@/hooks/use-mention-suggestions";
@@ -153,6 +154,26 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
     return () => ro.disconnect();
   }, [draft]);
 
+  // 04-X1: an audio pick, paste or drop is transcribed into the draft (the
+  // operator reads it before sending) instead of riding along as bytes.
+  const onTranscript = useCallback(
+    (text: string) => {
+      const current = useChatUiStore.getState().draft;
+      setDraft(current.trim() ? `${current.trimEnd()} ${text}` : text);
+    },
+    [setDraft],
+  );
+  const { handleAudioAttach } = useAudioTranscribe({ onTranscript });
+  // Set when a paste was handed to transcription, so onPaste can drop the file's name from the draft.
+  const audioTakenRef = useRef(false);
+  const onAudio = useCallback(
+    // shortcut: handleAudioAttach takes an input event and reads only target.files[0]; give it a File signature when that hook is next edited.
+    (file: File) => {
+      audioTakenRef.current = true;
+      void handleAudioAttach({ target: { files: [file], value: "" } } as unknown as React.ChangeEvent<HTMLInputElement>);
+    },
+    [handleAudioAttach],
+  );
   const {
     attached: imgAttached,
     fileInputRef: imgFileInputRef,
@@ -163,7 +184,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
     readAsBase64: readImgAsBase64,
     attachFromPaste: attachImgFromPaste,
     attachFromDrop: attachImgFromDrop,
-  } = useImageAttachment();
+  } = useImageAttachment({ onAudio });
   // BDN-314 · drag-and-drop. Depth-counted because dragenter/dragleave
   // fire for every child element crossed — a naive boolean flickers the
   // highlight off the moment the pointer moves over the textarea.
@@ -200,7 +221,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           setEditingMessageId(editId);
           setDraft(textToSend);
           toast.error(
-            `Couldn't replace the message — original kept. ${error instanceof Error ? error.message : "Retry."}`,
+            `Couldn't replace the message, original kept. ${error instanceof Error ? error.message : "Retry."}`,
             { duration: 4000 },
           );
           return;
@@ -234,7 +255,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
     const resolvedText = resolution.text;
     updatePending(tempId, { text: resolvedText, status: "sending" });
     if (resolution.timedOut) {
-      toast("Live context took too long — sent with local context instead", { duration: 2500 });
+      toast("Live context took too long, so it went with local context instead", { duration: 2500 });
     }
 
     try {
@@ -264,7 +285,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           });
           clearImg();
         } else {
-          toast.error("Couldn't read the attachment — sending text only.", { duration: 3000 });
+          toast.error("Couldn't read the attachment. Sending text only.", { duration: 3000 });
           sendPromise = chat.sendText(resolvedText);
           clearImg();
         }
@@ -356,6 +377,8 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
   return (
     <form
       onSubmit={onSubmit}
+      // 09-F27-N1: the deep-mode nudge floats over the focused field and could cover Send.
+      data-no-deep-nudge=""
       className={`relative mx-auto flex w-full max-w-4xl flex-col gap-2 ${
         dragDepth > 0 ? "rounded-overlay outline-dashed outline-2 outline-offset-4 outline-fg-tertiary" : ""
       }`}
@@ -384,17 +407,18 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           cancellable — an invisible armed cascade-delete would be a
           destructive surprise. */}
       {editingMessageId && (
-        <div className="flex items-center justify-between gap-2 rounded-control border border-accent/40 bg-accent-soft px-3 py-1.5 text-[12px] text-accent">
+        <div className="flex items-center justify-between gap-2 rounded-control border border-accent/40 bg-accent-soft pl-3 text-[12px] text-accent">
           <span className="min-w-0 truncate">
-            Editing a sent message — sending replaces it and everything after
+            Editing a sent message. Sending replaces it and everything after it.
           </span>
+          {/* 09-F21: was px-2 py-0.5 (about 22px tall); the Replace draft? banner below is the pattern. */}
           <button
             type="button"
             onClick={() => {
               setEditingMessageId(null);
               setDraft("");
             }}
-            className="shrink-0 rounded-micro border border-accent/40 px-2 py-0.5 text-[12px] font-medium hover:bg-accent-medium"
+            className="min-h-11 shrink-0 rounded-control px-3 text-[12px] font-medium transition-colors duration-[var(--motion-state)] hover:bg-accent-medium"
           >
             Cancel
           </button>
@@ -534,9 +558,12 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
               mentions.onInputChange(value, event.target.selectionStart ?? value.length);
             }}
             onPaste={(event) => {
+              audioTakenRef.current = false;
               if (attachImgFromPaste(event)) {
                 event.preventDefault();
                 toast.success("Image attached from clipboard", { duration: 1500 });
+              } else if (audioTakenRef.current) {
+                event.preventDefault();
               }
             }}
             onKeyDown={(event) => {

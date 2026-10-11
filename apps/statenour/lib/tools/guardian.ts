@@ -589,7 +589,9 @@ export function withGuardian<T, A extends unknown[]>(
         // The executed branch below only REPLAYS the stored result — it
         // never re-executes.
         const now = new Date();
-        const existing = await prisma.approvalRequest.findFirst({
+        // Newest same-PAYLOAD row decides: a newer request for another payload must not hide a needs_review row.
+        // shortcut: only the newest 50 same-tool rows in the window are read, raise take if one tool ever exceeds that per day.
+        const recent = await prisma.approvalRequest.findMany({
           where: {
             toolId: toolName,
             status: {
@@ -597,13 +599,11 @@ export function withGuardian<T, A extends unknown[]>(
             },
             createdAt: { gte: new Date(now.getTime() - APPROVAL_DEDUPE_WINDOW_MS) }
           },
-          orderBy: { createdAt: "desc" }
+          orderBy: { createdAt: "desc" },
+          take: 50,
         });
 
-        let matched = existing;
-        if (existing && !samePayload(existing.payload, payload)) {
-          matched = null;
-        }
+        let matched = recent.find((r) => samePayload(r.payload, payload)) ?? null;
         if (
           matched &&
           (matched.status === "pending_approval" || matched.status === "approved") &&

@@ -567,6 +567,22 @@ export async function runInterceptors(
       }
     }
 
+    // Audit 04-X7: paid image generation runs before the route's budget gate, so check here.
+    // A failed budget read fails open, like the route's own gate.
+    const budget = await (await import("@/lib/ai/budget")).assertWithinBudget().catch(() => null);
+    if (budget && !budget.ok) {
+      return {
+        kind: "handled",
+        response: await buildFastStream(
+          convId,
+          "Daily AI budget reached, so no image was generated.",
+          "img-budget",
+          "budget-exceeded",
+        ),
+        convId,
+      };
+    }
+
     return {
       kind: "handled",
       response: await handleImage(

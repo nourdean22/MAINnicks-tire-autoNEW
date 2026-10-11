@@ -18,7 +18,7 @@ const { policy, prismaMock } = vi.hoisted(() => ({
   policy: { decision: "allow" as string },
   prismaMock: {
     approvalRequest: {
-      findFirst: vi.fn(),
+      findMany: vi.fn(),
       findUnique: vi.fn(),
       create: vi.fn(async () => ({ id: "req_new" })),
     },
@@ -48,7 +48,7 @@ const ALL: Record<ToolDecisionType, true> = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  prismaMock.approvalRequest.findFirst.mockResolvedValue(null);
+  prismaMock.approvalRequest.findMany.mockResolvedValue([]);
   prismaMock.approvalRequest.findUnique.mockResolvedValue(null);
 });
 

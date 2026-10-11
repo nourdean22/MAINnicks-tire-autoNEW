@@ -29,6 +29,7 @@ import { stepCountIs } from "ai";
 import { getFlag } from "@/lib/feature-flags";
 import { isReadSafeTool, stripMutatingTools } from "@/lib/ai/capability-registry";
 import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
+import { instrumentScope } from "@/lib/observability/instrument-scope";
 import type { getModel, ProviderName } from "@/lib/ai/provider";
 import type { classifyTurn } from "@/lib/ai/turn-intelligence";
 import type { detectActionIntent } from "@/lib/ai/chat/action-intent-detector";
@@ -60,6 +61,34 @@ function recordWrites(tools: Record<string, unknown>, ran: Set<string>): Record<
         : t;
   }
   return out;
+}
+
+type GenerationLike = { steps?: unknown; toolCalls?: unknown; toolResults?: unknown };
+
+/** Every step of a generation: in ai@6 the top-level toolCalls/toolResults are the FINAL step only (audit 04-F4). */
+function allSteps(r: GenerationLike): Array<{ toolCalls?: unknown; toolResults?: unknown }> {
+  return Array.isArray(r.steps) && r.steps.length > 0 ? r.steps : [r];
+}
+
+function toolNamesOf(r: GenerationLike): string[] {
+  return allSteps(r)
+    .flatMap((s) => (s.toolCalls ?? []) as Array<{ toolName?: string }>)
+    .map((c) => String(c.toolName ?? ""))
+    .filter(Boolean);
+}
+
+type LaneUsage = { inputTokens?: number; outputTokens?: number; totalTokens?: number };
+
+/** Adds one generation's run total; a field no generation reported stays undefined, never 0. */
+function addUsage(acc: LaneUsage | undefined, u: unknown): LaneUsage | undefined {
+  if (!u || typeof u !== "object") return acc;
+  const t = u as LaneUsage;
+  const sum = (a?: number, b?: number) => (typeof b !== "number" ? a : (a ?? 0) + b);
+  return {
+    inputTokens: sum(acc?.inputTokens, t.inputTokens),
+    outputTokens: sum(acc?.outputTokens, t.outputTokens),
+    totalTokens: sum(acc?.totalTokens, t.totalTokens),
+  };
 }
 
 /** The route's persistBase bundle — everything buildOnFinish needs
@@ -256,6 +285,8 @@ export async function runAlternatePaths(args: {
       let laneToolCalls: Array<{ name: string }> = [];
       let laneEvidenceText = "";
       let laneReceiptsAvailable = false;
+      // The pre-flush lane's SDK steps, so the persist walk sees its tool results (audit 04-F4).
+      let laneSteps: unknown[] | undefined;
 
       /**
        * 2026-09-17 · regen and self-consistency DO pass `tools` (they spread
@@ -274,11 +305,11 @@ export async function runAlternatePaths(args: {
        * BLIND rather than guessing.
        */
       const laneSamples: Array<{ text: string; calls: string[] }> = [];
-      const rememberLaneSample = (r: { text?: string; toolCalls?: unknown }) => {
-        const calls = ((r.toolCalls ?? []) as Array<{ toolName?: string }>)
-          .map((c) => String(c.toolName ?? ""))
-          .filter(Boolean);
-        laneSamples.push({ text: String(r.text ?? ""), calls });
+      // Audit 04-X12: every generation a lane ran was paid for, winner or not.
+      let laneUsage: LaneUsage | undefined;
+      const rememberLaneSample = (r: GenerationLike & { text?: string; totalUsage?: unknown }) => {
+        laneSamples.push({ text: String(r.text ?? ""), calls: toolNamesOf(r) });
+        laneUsage = addUsage(laneUsage, r.totalUsage);
       };
       /**
        * TELEMETRY receipts, deliberately SEPARATE from `laneReceiptsAvailable`.
@@ -491,6 +522,7 @@ export async function runAlternatePaths(args: {
         });
         winner = regen.text;
         log.info("verified_regen_path", {
+          generations: laneSamples.length,
           regenFired: regen.regenFired,
           regenAttempted: regen.regenScore !== null,
           regenWasBetter: regen.regenWasBetter,
@@ -524,6 +556,10 @@ export async function runAlternatePaths(args: {
           log.warn("verified_regen_telemetry_failed", {
             error: err instanceof Error ? err.name : "Error",
           });
+          // Audit 01-F6: the instrument-health reader only sees failures logged under the instrument scope.
+          void import("@/lib/utils/error-log")
+            .then(({ logError }) => logError(instrumentScope("chat.pre_stream_regen"), err, { traceId }, "warn"))
+            .catch(() => undefined);
         }
       } else if (selfConsistencyOn) {
         laneName = "self-consistency";
@@ -578,12 +614,14 @@ export async function runAlternatePaths(args: {
                 : { toolChoice: "auto" as const },
         } as Parameters<typeof generateText>[0]);
         winner = r.text;
-        // Receipts for the gate: what fired and a digest of what came back.
-        // Empty toolCalls here is a FINDING ("no tool fired"), not blindness —
-        // this lane can see everything generateText did.
-        const calls = (r.toolCalls ?? []) as Array<{ toolName?: string }>;
-        laneToolCalls = calls.map((c) => ({ name: String(c.toolName ?? "") })).filter((c) => c.name);
-        laneEvidenceText = ((r.toolResults ?? []) as Array<{ output?: unknown; result?: unknown }>)
+        laneUsage = addUsage(laneUsage, (r as { totalUsage?: unknown }).totalUsage);
+        if (Array.isArray(r.steps) && r.steps.length > 0) laneSteps = r.steps;
+        // Receipts for the gate: what fired and a digest of what came back,
+        // from EVERY step. Empty here is a FINDING ("no tool fired"), not
+        // blindness: this lane can see everything generateText did.
+        laneToolCalls = toolNamesOf(r).map((name) => ({ name }));
+        laneEvidenceText = allSteps(r)
+          .flatMap((s) => (s.toolResults ?? []) as Array<{ output?: unknown; result?: unknown }>)
           .map((t) => {
             try {
               return JSON.stringify(t.output ?? t.result ?? "").slice(0, 2000);
@@ -612,6 +650,29 @@ export async function runAlternatePaths(args: {
       await applyLaneAttribution(winner);
 
       if (winner && winner.trim().length > 0) {
+        // Audit 04-X11 (A): verify a factual winner BEFORE it ships, so the
+        // unverified draft is never shown first, and before the gate below, so
+        // the gate judges the text that ships. coveDone stops the persist
+        // pipeline running it again; a throw leaves it unset so persist still tries.
+        let coveDone = false;
+        if (getFlag("NICK_COVE")?.isOn) {
+          try {
+            const { verifyAndRevise, FACTUAL_INTENTS } = await import(
+              "@/lib/ai/chat/chain-of-verification"
+            );
+            if (FACTUAL_INTENTS.has(turnSignal.intent)) {
+              const cove = await verifyAndRevise(winner, userContent);
+              if (cove.changed && cove.revised.trim()) {
+                log.info("cove_revised", { lane: laneName, questions: cove.questions.length });
+                winner = cove.revised;
+              }
+              coveDone = true;
+            }
+          } catch (err) {
+            log.warn("cove_skipped", { lane: laneName, err: err instanceof Error ? err.name : "Error" });
+          }
+        }
+
         // ── EVIDENCE ENFORCEMENT — 2026-09-10 ───────────────────────
         //
         // THE only point in a live turn where a complete reply exists
@@ -732,12 +793,15 @@ export async function runAlternatePaths(args: {
             const persisted = __altPersist({
               text: winner,
               finishReason: "stop",
-              // Same reason as the deep-reasoning lane above: no `ev.steps`
-              // reaches the walk, so the receipt state must be stated
-              // explicitly instead of inferred as zero.
+              // Same reason as the deep-reasoning lane above: only the
+              // pre-flush lane hands the walk `ev.steps`, so the receipt state
+              // must be stated explicitly instead of inferred as zero.
               laneToolNames: laneToolCalls.map((c) => c.name),
               laneReceiptsAvailable: laneTelemetryObserved,
               laneName,
+              ...(laneSteps ? { steps: laneSteps } : {}),
+              ...(laneUsage ? { usage: laneUsage } : {}),
+              ...(coveDone ? { coveDone: true } : {}),
             });
             __altTurnDone?.(persisted);
             return persisted;

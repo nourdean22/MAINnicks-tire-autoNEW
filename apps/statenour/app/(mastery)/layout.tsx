@@ -122,10 +122,9 @@ export default function MasteryLayout({
         <main id="main-content" className="pt-[env(safe-area-inset-top,0px)] pb-[var(--bottom-chrome-h)] md:pr-[var(--nick-fab-lane,0px)] xl:pr-[calc(var(--nick-fab-lane,0px)_+_var(--inspector-lane,0px))] xl:pl-[var(--spine-w,0px)]">
           <WorksetShelf />
           <div className="feed py-4 md:py-6 page-enter">
-            {/* v11.1 · ErrorBoundary wraps the page content (not the
-                chrome). A broken panel still lets the orb, nav, and
-                notifications work. The boundary auto-reports to
-                /api/errors → visible in /system/errors. */}
+            {/* Page render errors hit app/(mastery)/error.tsx first (the inner
+                Next boundary, reported as mastery.error via reportPageError);
+                this outer one, mastery.page, sees only what escapes that. */}
             <ErrorBoundary name="mastery.page">
               {children}
             </ErrorBoundary>
@@ -133,7 +132,7 @@ export default function MasteryLayout({
         </main>
       </AmbientAura>
       {/* 2026-06-18 · IA reorg Phase 4 · the FloatingHome orb is RETIRED as
-          primary nav. BottomTabBar (4 daily tabs Home/Missions/Journal/Stats
+          primary nav. BottomTabBar (4 daily tabs Home/Chat/Missions/Journal
           + a "More" slot) is the fixed primary surface; MoreSheet is the
           verb-grouped launcher behind "More" with the ⌘K Search tap-trigger.
           The ambient BottomPulseTicker now rides inside BottomTabBar so the

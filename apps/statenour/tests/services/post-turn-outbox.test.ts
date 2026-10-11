@@ -136,11 +136,36 @@ describe("post-turn outbox", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           id: { in: ["d1", "d2"] },
+          kind: "deferred-background",
           status: { in: ["dead", "failed"] },
         }),
         data: expect.objectContaining({ status: "pending", attempts: 0 }),
       }),
     );
+  });
+
+  // 08-X3: agent-followup rows share this table. A redrive re-armed a dead follow-up
+  // (an unattended message to the operator) and the DEAD badge counted them as chat work.
+  it("redrive only re-arms deferred-background rows", async () => {
+    mockFindMany.mockResolvedValueOnce([{ id: "d1" }]);
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 });
+    await redriveDeadOutboxRows(50);
+    const read = mockFindMany.mock.calls[0][0] as { where: { kind?: string } };
+    const write = mockUpdateMany.mock.calls[0][0] as { where: { kind?: string } };
+    expect(read.where.kind).toBe("deferred-background");
+    expect(write.where.kind).toBe("deferred-background");
+  });
+
+  it("the DEAD count and the oldest-dead read cover deferred-background rows only", async () => {
+    mockCount.mockResolvedValue(0 as never);
+    mockFindFirst.mockResolvedValueOnce(null as never);
+    await getOutboxHealth();
+    const deadCount = mockCount.mock.calls
+      .map((c) => (c[0] as { where: { status?: unknown; kind?: string } }).where)
+      .find((w) => typeof w.status === "object");
+    expect(deadCount?.kind).toBe("deferred-background");
+    const oldest = (mockFindFirst.mock.calls[0][0] as { where: { kind?: string } }).where;
+    expect(oldest.kind).toBe("deferred-background");
   });
 
   it("redrive with an empty DLQ is a no-op that never calls updateMany", async () => {

@@ -131,7 +131,13 @@ export function DeepModeNudge() {
     <button
       type="button"
       onClick={() => {
-        router.push(`/brain?tab=reason&q=${encodeURIComponent(verdict.text)}`);
+        // Handoff via sessionStorage keeps the typed text out of the URL (audit 02-F6).
+        try {
+          sessionStorage.setItem("reason:pending-q", verdict.text);
+          router.push("/brain?tab=reason&h=1");
+        } catch {
+          router.push(`/brain?tab=reason&q=${encodeURIComponent(verdict.text)}`);
+        }
       }}
       // Docked above the measured bottom chrome (bottom-4 sat under the z-[55] tab bar) and, on
       // md+, left of the NICK FAB lane, which shares this height (audit 09-F27).

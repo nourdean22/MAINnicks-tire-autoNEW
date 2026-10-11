@@ -7,10 +7,11 @@ import {
   ServiceWarning,
   GooglePost,
 } from "@nour/social-assets";
+import { apiHandler } from "@/lib/utils/http";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request) {
+export const GET = apiHandler(async (req) => {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
 
@@ -113,7 +114,9 @@ export async function GET(req: Request) {
     return new Response(new Uint8Array(png), {
       headers: {
         "Content-Type": "image/png",
-        "Cache-Control": "public, max-age=31536000, immutable",
+        // Owner-only image: the browser may cache it, a shared cache (CDN, proxy) may not.
+        // shortcut: an edited draft keeps its id, so this browser shows the old render until expiry; add a version param to the img src when edits must show at once.
+        "Cache-Control": "private, max-age=31536000, immutable",
       },
     });
   } catch (err) {
@@ -126,4 +129,4 @@ export async function GET(req: Request) {
       { status: 500 }
     );
   }
-}
+}, { auth: "owner" });

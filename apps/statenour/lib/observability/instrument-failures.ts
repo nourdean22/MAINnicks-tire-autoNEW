@@ -73,6 +73,9 @@ export const KNOWN_INSTRUMENTS: readonly string[] = [
   // the condition did not occur" and "the path did not run", instead of
   // inferring liveness from sibling cadence (the H2 gap in the Session F ledger).
   "chat.deferred_turn",
+  // 2026-10-11 (audit 01-F6): the verified-regen lane's one row per eligible
+  // turn. Unregistered, a dead writer here was indistinguishable from health.
+  "chat.pre_stream_regen",
 ];
 
 /** The per-turn heartbeat of the deferred post-turn path. See KNOWN_INSTRUMENTS. */

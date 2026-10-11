@@ -60,6 +60,19 @@ describe("check-stale-docs guard", () => {
     it("does NOT exempt a normal active doc", () => {
       expect(fileIsHistorical("docs/RUNBOOK.md", "some current content")).toBe(false);
     });
+
+    // 2026-10-11 (R3-13): a dated entry near the top of the read-first doc said
+    // "superseded", which exempted the WHOLE file; a planted retired branch went unseen.
+    it("never exempts the read-first doc wholesale, even with a safe word in its header", () => {
+      // Three blank lines keep the planted line outside the per-line +-2 exemption window.
+      const content = "# CURRENT-TRUTH\n- the old note is superseded\n\n\n\nDeploy by pushing to codex/ollama-local.";
+      expect(fileIsHistorical("docs/CURRENT-TRUTH.md", content)).toBe(false);
+      expect(scanContent("docs/CURRENT-TRUTH.md", content).map((f) => f.term)).toEqual(["codex/ollama-local"]);
+    });
+
+    it("CONTROL: the same header still exempts an ordinary doc", () => {
+      expect(fileIsHistorical("docs/RUNBOOK.md", "# Runbook\n- the old note is superseded\n")).toBe(true);
+    });
   });
 
   describe("scanning active docs", () => {
@@ -85,6 +98,17 @@ describe("check-stale-docs guard", () => {
         "branch, and Vercel are all retired.",
       ].join("\n");
       expect(scanContent("docs/AGENT-CONTRACT.md", content)).toEqual([]);
+    });
+
+    // 2026-10-11 (audit 01-F7): SECURITY.md:93 sent secrets to a Vercel project that does not exist.
+    it("flags 'Vercel project env' as critical", () => {
+      const findings = scanContent("docs/SECURITY.md", "- Vercel project env -> production + preview.");
+      expect(findings.map((f) => [f.term, f.severity])).toEqual([["Vercel project env", "critical"]]);
+    });
+
+    it("ALLOW: the corrected SECURITY.md line is clean", () => {
+      const fixed = "- Railway service variables (statenour-web, production). There is no Vercel project.";
+      expect(scanContent("docs/SECURITY.md", fixed)).toEqual([]);
     });
 
     it("classifies a provider hardcode as a warn finding", () => {

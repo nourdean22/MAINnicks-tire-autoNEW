@@ -16,7 +16,8 @@
  * switch is an opt-in disable.
  *
  * Manual trigger: `runManifestCron(jobName)` resolves the path from the
- * manifest and fires it via `triggerCronByPath`. Returns {ok, status,
+ * manifest and fires it via `triggerCronByPath` (the two mega slots: their
+ * Inngest event, see MEGA_SLOT_EVENTS). Returns {ok, status,
  * durationMs}. Uses CRON_SECRET so the target route accepts it as a
  * legitimate cron call.
  */
@@ -32,8 +33,10 @@ export {
   isHardFailure,
 } from "@/lib/services/cron-status";
 import { ServiceError } from "@/lib/utils/service-error";
+import { logger as rootLogger } from "@/lib/logger";
 
 const CATEGORY = "cron_control";
+const log = rootLogger.withSurface("cron-control");
 
 // ── kill switch ─────────────────────────────────────────────────────────
 
@@ -47,7 +50,9 @@ export async function isCronEnabled(jobName: string): Promise<boolean> {
     if (!row) return true;
     const parsed = JSON.parse(row.content) as { enabled?: boolean };
     return parsed.enabled !== false;
-  } catch {
+  } catch (err) {
+    // Fail open stays (an unreadable switch never stops a cron), but never silently (03-X4).
+    log.warn("kill_switch_read_failed", { jobName, message: err instanceof Error ? err.message : String(err) });
     return true;
   }
 }
@@ -332,7 +337,27 @@ export async function runManifestCron(
   if (!def.path && def.inngest) {
     throw new ServiceError(`cron ${jobName} is Inngest-scheduled and has no manual HTTP run path — trigger it from the Inngest dashboard`, 409);
   }
+  const event = MEGA_SLOT_EVENTS[jobName];
+  if (event) return { jobName, ...(await sendCronEvent(event)) };
   const path = def.path ?? `/api/cron/${jobName}`;
   const result = await triggerCronByPath(path);
   return { jobName, ...result };
+}
+
+// The mega slots run on Inngest (mega-fanout.ts); the legacy route skips the slot kill switch (03-F15).
+const MEGA_SLOT_EVENTS: Readonly<Record<string, string>> = {
+  mega: "mega/fire.morning",
+  "mega-evening": "mega/fire.evening",
+};
+
+/** Queue an Inngest event. Never throws: a failed send is ok:false, like triggerCronByPath. */
+async function sendCronEvent(name: string): Promise<CronTriggerResult> {
+  const start = Date.now();
+  try {
+    const { getInngest } = await import("@/lib/inngest/client");
+    await getInngest().send({ name, data: { trigger: "manual" } });
+    return { ok: true, status: 202, durationMs: Date.now() - start, body: `queued ${name}` };
+  } catch (err) {
+    return { ok: false, status: 0, durationMs: Date.now() - start, error: err instanceof Error ? err.message : String(err) };
+  }
 }

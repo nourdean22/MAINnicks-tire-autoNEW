@@ -5,13 +5,14 @@ import { NextResponse } from "next/server";
 // reflects real runtime state. (2026-06-02 audit.)
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
+import { apiHandler } from "@/lib/utils/http";
 
 /**
  * GET /api/tools/health — Runtime dependency check for all tool categories.
  * Checks: database, env vars, external APIs.
  * Returns a category-level health report.
  */
-export async function GET() {
+export const GET = apiHandler(async () => {
   const checks: Record<string, { status: "ok" | "degraded" | "down"; detail: string; checked: string[] }> = {};
   const now = new Date().toISOString();
 
@@ -114,4 +115,4 @@ export async function GET() {
     dependencies: checks,
     categories,
   });
-}
+}, { auth: "owner" });

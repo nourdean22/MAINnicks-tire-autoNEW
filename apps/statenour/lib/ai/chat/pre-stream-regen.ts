@@ -96,7 +96,8 @@ export interface PreStreamRegenResult {
     | "lower-severity"
     | "higher-overall"
     | "higher-specificity"
-    | "first-kept";
+    | "first-kept"
+    | "regen-failed";
   /** Latency-cost breakdown for telemetry. */
   durationMs: {
     first: number;
@@ -253,12 +254,23 @@ export async function maybePreStreamRegen(
   }
 
   const regenStart = Date.now();
-  const regenAttempt = await args.regenOnce({
-    firstAttempt,
-    firstScore,
-    firstAssessment,
-    suggestedSystemPrefix: buildTargetedRegenPrefix(firstAssessment),
-  });
+  let regenAttempt: string;
+  try {
+    regenAttempt = await args.regenOnce({
+      firstAttempt,
+      firstScore,
+      firstAssessment,
+      suggestedSystemPrefix: buildTargetedRegenPrefix(firstAssessment),
+    });
+  } catch {
+    // Audit 04-X13 (b): a failed repair keeps the paid first draft instead of discarding the turn.
+    return {
+      text: firstAttempt, regenFired: false, firstScore, regenScore: null,
+      firstAssessment, regenAssessment: null, selectionReason: "regen-failed",
+      durationMs: { first: firstMs, regen: Date.now() - regenStart, total: Date.now() - totalStart },
+      regenWasBetter: null,
+    };
+  }
   const regenMs = Date.now() - regenStart;
   const regenAssessment = assessRegenCandidate(regenAttempt, args);
   const regenScore = regenAssessment.critic;

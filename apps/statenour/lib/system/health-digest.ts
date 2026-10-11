@@ -1,10 +1,12 @@
 /**
- * Nightly system-health digest — push, not pull.
+ * System-health digest.
  *
- * The /system/diagnostics page is GREAT when Nour remembers to open
- * it. This cron runs every night at 4am and writes a compact health
- * summary to BrainMemory(category=BRAIN_CATEGORIES.SYSTEM_HEALTH_DIGEST), which HQ
- * then surfaces as a card on the morning view.
+ * Writes a compact health summary to
+ * BrainMemory(category=BRAIN_CATEGORIES.SYSTEM_HEALTH_DIGEST) for the
+ * SystemHealthCard. No cron runs it: the nightly health-digest cron was
+ * deleted in f87fb7e62, and GET /api/ultron/health-digest recomputes and
+ * persists whenever the stored row is over 4h old. That read-through is the
+ * scheduler (audit 02-F5).
  *
  * Principle: silent degradation is the enemy. If Drive hasn't ingested
  * in 7 days, if 18 crons have drifted, if AI error rate is climbing —
@@ -27,7 +29,8 @@ import { scanStaleData } from "@/lib/system/stale-data-scanner";
 import { prisma } from "@/lib/prisma";
 import { safeQuery } from "@/lib/db/safe-prisma";
 import {
-  getGoogleOauthStatus,
+  getGoogleOauthAccountsStatus,
+  type GoogleOauthAccountsStatus,
   type GoogleOauthStatus,
 } from "@/lib/services/google-oauth";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
@@ -83,7 +86,7 @@ export interface SystemHealthDigest {
   };
   /**
    * Day-over-day delta against yesterday's digest. null when no
-   * prior digest exists (fresh install or cron hasn't run 2x yet).
+   * prior digest exists (fresh install, or no digest stored for an earlier day yet).
    * Positive deltas mean DEGRADATION (more silent crons, more stale,
    * more critical signals); negative means improvement. Signs chosen
    * so "red" direction == positive, matching the trend-arrow UX.
@@ -151,7 +154,8 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
     scanCronHealth().catch(() => null),
     scanStaleData().catch(() => null),
     computeEnvReadiness().catch(() => null),
-    getGoogleOauthStatus().catch(
+    // Every account, not just the primary row (audit 08-F3).
+    getGoogleOauthAccountsStatus().catch(
       (): GoogleOauthStatus => ({
         state: "missing",
         lastSyncAt: null,
@@ -210,7 +214,7 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
     pushFor("cron", {
       severity: "warning",
       headline: `${cron.summary.silentDeclaredCrons} crons silent in last 48h`,
-      link: "/system/cron-diagnostics",
+      link: "/system/crons",
     });
   }
 
@@ -218,7 +222,7 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
     pushFor("cron", {
       severity: "warning",
       headline: `${cron.summary.killedIndividually} cron${cron.summary.killedIndividually === 1 ? "" : "s"} manually disabled`,
-      link: "/system/cron-diagnostics",
+      link: "/system/crons",
     });
   }
 
@@ -242,7 +246,7 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
     pushFor("slow-routes", {
       severity: "warning",
       headline: `${slowRoutes} route${slowRoutes === 1 ? "" : "s"} slow (p95 > 2s, last 24h)`,
-      link: "/system/performance",
+      link: "/system/ai-cost",
     });
   }
 
@@ -517,15 +521,15 @@ export async function refreshHealthDigest(): Promise<SystemHealthDigest> {
   const fresh = await computeHealthDigest();
   // Persist is fire-and-forget — we return fresh either way.
   persistHealthDigest(fresh).catch(() => {
-    /* nightly cron will retry */
+    /* the next GET over 4h old recomputes and retries; there is no cron */
   });
   return fresh;
 }
 
 /**
  * Read the latest persisted digest. Used by HQ to render the card.
- * Returns null if no digest has been written yet (fresh install OR
- * cron hasn't run since feature shipped).
+ * Returns null if no digest has been written yet (fresh install, or no
+ * GET has recomputed one).
  */
 export async function loadLatestHealthDigest(): Promise<SystemHealthDigest | null> {
   const row = await safeQuery(
@@ -561,7 +565,7 @@ export async function loadLatestHealthDigest(): Promise<SystemHealthDigest | nul
  * /api/oauth/google-data/start to re-grant a token that was very likely fine.
  */
 export function googleOauthHighlight(
-  status: GoogleOauthStatus,
+  status: GoogleOauthStatus & Partial<Pick<GoogleOauthAccountsStatus, "accounts">>,
 ): SystemHealthDigest["highlights"][number] | null {
   if (status.probeFailed) {
     return {
@@ -571,11 +575,18 @@ export function googleOauthHighlight(
       link: "/system/health",
     };
   }
+  // Which account the worst state belongs to (all-accounts read, 08-F3): a
+  // non-primary account gets its own re-grant link, or the operator re-grants
+  // the primary and the dead account stays dead.
+  const key = status.accounts?.find((a) => a.state === status.state)?.key;
+  const other = key && key !== "primary" ? key : null;
+  const start = other ? `/api/oauth/google-data/start?account=${encodeURIComponent(other)}` : "/api/oauth/google-data/start";
+  const who = other ? ` (${other} account)` : "";
   if (status.state === "missing") {
     return {
       severity: "critical",
-      headline: "Google OAuth not configured — Drive/Gmail/Calendar ingest disabled",
-      link: "/api/oauth/google-data/start",
+      headline: `Google OAuth not configured${who}: Drive/Gmail/Calendar ingest disabled`,
+      link: start,
     };
   }
   if (status.state === "expired") {
@@ -583,9 +594,9 @@ export function googleOauthHighlight(
       severity: "critical",
       headline:
         status.consecutiveFailures > 0
-          ? `Google OAuth expired (${status.consecutiveFailures}× refresh failures) — re-grant access`
-          : "Google OAuth expired — re-grant Drive/Gmail/Calendar access",
-      link: "/api/oauth/google-data/start",
+          ? `Google OAuth expired${who} (${status.consecutiveFailures}× refresh failures): re-grant access`
+          : `Google OAuth expired${who}: re-grant Drive/Gmail/Calendar access`,
+      link: start,
     };
   }
   if (status.state === "stale") {

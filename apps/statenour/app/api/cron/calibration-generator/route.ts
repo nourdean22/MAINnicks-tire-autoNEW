@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { proposeTaskRoi, proposePredictionOutcome } from "@/lib/brain/calibration-engine";
 import { logger as rootLogger } from "@/lib/logger";
+import { today } from "@/lib/utils/datetime";
 
 const log = rootLogger.withSurface("cron/calibration-generator");
 
@@ -41,7 +42,8 @@ export const GET = cronHandler(async () => {
     });
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  // ET date: this runs at 03:00 UTC, which is still the previous day in ET (03-F12).
+  const todayStr = today();
   const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
   // 1. Process Predictions

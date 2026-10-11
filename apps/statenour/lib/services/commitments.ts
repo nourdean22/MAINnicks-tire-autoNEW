@@ -164,13 +164,31 @@ export async function publishCommitmentTransition(
   });
 }
 
+/**
+ * A proposal born from a journal take is the take's ledgered next action
+ * (journal router recordShown); the operator's verdict here closes that row (06-X5).
+ * shortcut: an accept here first blocks the task:<id> resultRef a later promote would add; upgrade if that pairing matters.
+ */
+async function ledgerJournalVerdict(id: number, decision: "accepted" | "dismissed"): Promise<void> {
+  const row = await prisma.commitment.findUnique({ where: { id }, select: { description: true, sourceRef: true } });
+  if (!row?.sourceRef?.startsWith("journal-take:")) return;
+  const [{ recordDecisionByContent }, { journalNextActionSummary }] = await Promise.all([
+    import("@/lib/services/outcome-ledger"),
+    import("@/lib/services/journal-promote"),
+  ]);
+  await recordDecisionByContent(journalNextActionSummary(row.description), decision, null);
+}
+
 /** Operator accepts a proposal → it goes on the books as active. */
 export async function acceptCommitment(id: number): Promise<boolean> {
   const res = await prisma.commitment.updateMany({
     where: { id, status: "proposed", deletedAt: null },
     data: { status: "active", updatedBy: "operator" },
   });
-  if (res.count === 1) await publishCommitmentTransition(id, "proposed", "active");
+  if (res.count === 1) {
+    await publishCommitmentTransition(id, "proposed", "active");
+    void ledgerJournalVerdict(id, "accepted").catch(() => {});
+  }
   return res.count === 1;
 }
 
@@ -180,7 +198,10 @@ export async function dismissProposed(id: number): Promise<boolean> {
     where: { id, status: "proposed", deletedAt: null },
     data: { status: "abandoned", updatedBy: "operator" },
   });
-  if (res.count === 1) await publishCommitmentTransition(id, "proposed", "abandoned");
+  if (res.count === 1) {
+    await publishCommitmentTransition(id, "proposed", "abandoned");
+    void ledgerJournalVerdict(id, "dismissed").catch(() => {});
+  }
   return res.count === 1;
 }
 

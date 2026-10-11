@@ -58,6 +58,8 @@ const h = vi.hoisted(() => {
     semanticSearch: vi.fn(async (..._a: unknown[]) => [] as unknown[]),
     createEvent: vi.fn(async (..._a: unknown[]) => ({ id: "evt_1", htmlLink: "https://calendar.invalid/evt_1" })),
     sendTelegram: vi.fn(async (..._a: unknown[]) => true),
+    createTask: vi.fn(async (..._a: unknown[]) => ({ id: "task_1", title: "Call the supplier" }) as unknown),
+    mutationLock: false,
   };
 });
 
@@ -96,8 +98,26 @@ vi.mock("@/lib/services/calendar-api", async (orig) => ({
   createEvent: h.createEvent,
   listEvents: vi.fn(async () => []),
 }));
+vi.mock("@/lib/services/tasks", async (orig) => ({
+  ...(await orig<typeof import("@/lib/services/tasks")>()),
+  createTask: h.createTask,
+}));
+vi.mock("@/lib/services/missions", async (orig) => ({
+  ...(await orig<typeof import("@/lib/services/missions")>()),
+  resolveInboxMissionId: async () => "m_inbox",
+}));
+vi.mock("@/lib/feature-flags", async (orig) => {
+  const real = await orig<typeof import("@/lib/feature-flags")>();
+  return {
+    ...real,
+    getFlag: (key: string) =>
+      key === "NICK_MUTATION_LOCK" && h.mutationLock ? { key, isOn: true } : real.getFlag(key as never),
+  };
+});
 
 import { POST } from "@/app/api/telegram/webhook/route";
+import { recordTrace } from "@/lib/ai/agent-trace";
+import { VERIFIER_MARKER } from "@/lib/ai/chat/fabrication-rewriter";
 
 // The first /ask loads the whole nourTools barrel (~180 tools). Cold, under a
 // loaded machine, that alone outran the 20s test timeout -- load it here, once,
@@ -114,6 +134,7 @@ afterAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.mutationLock = false;
   h.prompts.length = 0;
   h.semanticSearch.mockResolvedValue([]);
   h.lexicalFindMany.mockResolvedValue([]);
@@ -241,6 +262,54 @@ describe("/ask with a recalled memory that asks for a calendar write", () => {
 
     expect(h.createEvent).toHaveBeenCalledTimes(1);
     expect(h.approvalRequestCreate).not.toHaveBeenCalled();
+    // 03-X8 - the trace names the tools the turn ran, not just a count.
+    expect(recordTrace).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        metadataDelta: expect.objectContaining({ toolNames: expect.arrayContaining(["proposeCalendarEvent"]) }),
+      }),
+    );
+  });
+});
+
+describe("/ask never confirms an action no tool performed (04-X8)", () => {
+  const reply = () => h.sendTelegram.mock.calls.map((c) => String(c[0])).join("\n");
+
+  it("'I've added the task' with no tool run carries the verifier banner", async () => {
+    h.model = scripted([{ text: "Done, I've added the task." }]);
+    await POST(ask("/ask add a task to call the supplier"));
+    expect(reply()).toContain(VERIFIER_MARKER);
+    expect(reply()).toContain("added the task");
+  });
+
+  it("a createTask that returned ok:false does not count as done", async () => {
+    h.createTask.mockRejectedValueOnce(new Error("db down"));
+    h.model = scripted([{ toolName: "createTask", input: { title: "Call the supplier" } }, { text: "Done, I've added the task." }]);
+    await POST(ask("/ask add a task to call the supplier"));
+    expect(reply()).toContain(VERIFIER_MARKER);
+  });
+
+  it("a createTask refused by the mutation lock (an error, no ok field) does not count as done", async () => {
+    h.mutationLock = true;
+    h.model = scripted([{ toolName: "createTask", input: { title: "Call the supplier" } }, { text: "Done, I've added the task." }]);
+    await POST(ask("/ask add a task to call the supplier"));
+    expect(h.createTask).not.toHaveBeenCalled();
+    expect(reply()).toContain(VERIFIER_MARKER);
+  });
+
+  it("CONTROL - a createTask that returned ok:true sends the reply with no banner", async () => {
+    h.model = scripted([{ toolName: "createTask", input: { title: "Call the supplier" } }, { text: "Done, I've added the task." }]);
+    await POST(ask("/ask add a task to call the supplier"));
+    expect(h.createTask).toHaveBeenCalledTimes(1);
+    expect(reply()).toContain("added the task");
+    expect(reply()).not.toContain(VERIFIER_MARKER);
+  });
+
+  it("the system prompt forbids claiming an action no tool confirmed", async () => {
+    h.model = scripted([{ text: "ok" }]);
+    await POST(ask("/ask anything"));
+    const system = JSON.stringify(h.prompts[0]);
+    expect(system).toContain("Never say you added, created or scheduled anything unless that tool returned ok this turn.");
   });
 });
 

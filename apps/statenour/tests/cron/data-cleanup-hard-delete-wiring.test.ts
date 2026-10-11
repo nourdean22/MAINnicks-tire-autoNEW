@@ -22,6 +22,10 @@ import { MAX_HARD_DELETE_PER_SWEEP } from "@/lib/brain/hard-delete-guard";
 let brainCount = 0;
 const brainDeleteMany = vi.fn().mockResolvedValue({ count: 7 });
 const brainCountFn = vi.fn(() => Promise.resolve(brainCount));
+/** 05-X2: ids the pre-delete read returns; each sweep must drop their embeddings. */
+const brainFindMany = vi.fn();
+const tombstone = vi.hoisted(() => ({ drop: vi.fn() }));
+vi.mock("@/lib/brain/memory-tombstone", () => ({ dropEmbeddingsForMemories: tombstone.drop }));
 
 const purgeStaleCategory = vi.fn();
 vi.mock("@/lib/system/stale-data-purger", () => ({
@@ -67,6 +71,7 @@ vi.mock("@/lib/prisma", () => {
   const brainMemory = {
     deleteMany: (...a: unknown[]) => brainDeleteMany(...a),
     count: (...a: unknown[]) => brainCountFn(...a),
+    findMany: (...a: unknown[]) => brainFindMany(...a),
     updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     create: vi.fn().mockResolvedValue({}),
   };
@@ -111,6 +116,14 @@ beforeEach(() => {
   shadowMocks.sweep.mockReset();
   shadowMocks.sweep.mockResolvedValue(OK_SWEEP);
   brainCountFn.mockClear();
+  brainFindMany.mockReset();
+  brainFindMany.mockImplementation(async (args: { where: { category?: unknown } }) =>
+    typeof args.where.category === "string"
+      ? [{ id: `ret-${args.where.category}` }]
+      : [{ id: "gc-1" }, { id: "gc-2" }],
+  );
+  tombstone.drop.mockReset();
+  tombstone.drop.mockResolvedValue(0);
   purgeStaleCategory.mockReset();
   purgeStaleCategory.mockResolvedValue({ category: "pending_actions_7d", purged: 0, note: "" });
 });
@@ -237,5 +250,33 @@ describe("the embedding reconciliation cannot fail silently", () => {
     const out = await runRoute();
 
     expect(out.ok).toBeUndefined();
+  });
+});
+
+describe("05-X2: a hard delete takes the vector_embeddings copy with it", () => {
+  it("GC: reads the ids with the same predicate, deletes by id, drops their embeddings", async () => {
+    brainCount = 10;
+    await runRoute();
+    expect(tombstone.drop).toHaveBeenCalledWith(["gc-1", "gc-2"], "data-cleanup.brain_gc");
+    const gcRead = brainFindMany.mock.calls.map(([a]) => a as { where: Record<string, unknown> }).find((a) => "OR" in a.where);
+    expect(gcRead, "the GC id read must use the GC predicate").toBeDefined();
+    const gcDelete = brainDeleteMany.mock.calls
+      .map(([a]) => (a as { where: Record<string, unknown> }).where)
+      .find((w) => "OR" in w)!;
+    expect(gcDelete.id).toEqual({ in: ["gc-1", "gc-2"] });
+  });
+
+  it("retention: each category sweep drops the embeddings of the ids it deleted", async () => {
+    brainCount = 10;
+    await runRoute();
+    expect(tombstone.drop).toHaveBeenCalledWith(["ret-reply_quality"], "data-cleanup.retention.reply_quality");
+    expect(tombstone.drop).toHaveBeenCalledWith(["ret-power_panel"], "data-cleanup.retention.power_panel");
+  });
+
+  it("CONTROL: an over-cap night reads no ids and drops nothing", async () => {
+    brainCount = 54_107;
+    await runRoute();
+    expect(brainFindMany).not.toHaveBeenCalled();
+    expect(tombstone.drop).not.toHaveBeenCalled();
   });
 });

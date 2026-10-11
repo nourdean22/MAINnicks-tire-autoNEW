@@ -239,7 +239,7 @@ export async function getFleetTruth(): Promise<FleetTruth> {
       try {
         const { getDurableBusHealth } = await import("@/lib/db/brain-bus-durable");
         const h = await getDurableBusHealth();
-        return { pending: h.pending, processing: h.processing, dead: h.dead, oldestDeadAt: h.oldestStuckProcessing };
+        return { pending: h.pending, processing: h.processing, dead: h.dead, oldestDeadAt: h.oldestDeadAt };
       } catch (e) {
         log.warn("bus_queue_health_failed", { error: e instanceof Error ? e.message : String(e) });
         return null;

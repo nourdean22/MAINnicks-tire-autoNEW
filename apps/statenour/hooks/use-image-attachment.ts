@@ -19,7 +19,12 @@ export interface AttachedImage {
   preview: string;
 }
 
-export function useImageAttachment() {
+export function useImageAttachment({
+  onAudio,
+}: {
+  /** 04-X1: an accepted audio file goes here instead of being attached. */
+  onAudio?: (file: File) => void;
+} = {}) {
   const [attached, setAttached] = useState<AttachedImage | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -41,10 +46,17 @@ export function useImageAttachment() {
    * Video is still refused, but now for the real reason (base64 inlining
    * with no upload lane) rather than by blanket type.
    */
+  /** True when the file was attached (picker, paste and drop all land here). */
   const acceptFile = useCallback((file: File): boolean => {
     const decision = decideAttachment({ name: file.name, type: file.type, size: file.size });
     if (!decision.accepted) {
       toast.error(decision.reason, { duration: 4000 });
+      return false;
+    }
+    // 04-X1: inline audio bytes reach the model as nothing it can hear, so
+    // audio is handed to transcription and never attached.
+    if (decision.kind === "audio" && onAudio) {
+      onAudio(file);
       return false;
     }
     // Replacing an existing pick · revoke the old object URL first
@@ -54,7 +66,7 @@ export function useImageAttachment() {
       return { file, preview: URL.createObjectURL(file) };
     });
     return true;
-  }, []);
+  }, [onAudio]);
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -9,14 +9,25 @@
  * The existing tool-policy tests mocked getFlag, so they could never
  * catch this. These tests hit the REAL registry.
  */
-import { afterEach, describe, expect, it } from "vitest";
-import { FLAG_REGISTRY, getFlag, getAllFlags } from "@/lib/feature-flags";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  FLAG_REGISTRY,
+  getFlag,
+  getAllFlags,
+  isAgentBridgeEnabled,
+  isBulkSmsLive,
+  isNarratorSynthesisOn,
+  isSemanticDedupLive,
+} from "@/lib/feature-flags";
+import { imageSignatureRequired } from "@/lib/images/signed-url";
 import { isCostFirewallOn, isFailoverRescueOn } from "@/lib/ai/provider";
 import { isCalibrationEnforcerOn } from "@/lib/ai/chat/calibration-enforcer";
 import { isJitSectionsOn } from "@/lib/ai/vnext/jit-sections";
 import { isDeepAnthropicCanaryOn } from "@/lib/ai/vnext/effort-policy";
 import { isEscalationEnabled } from "@/lib/ai/vnext/escalation";
 import { areFollowUpsEnabled } from "@/lib/agent/follow-up";
+import { getActiveRerankBackend } from "@/lib/brain/rerank";
+import { isReplicateFluxEnabled } from "@/lib/ai/replicate-flux";
 
 const KEY = "NICK_MUTATION_LOCK";
 const GATEWAY_KEYS = ["NICK_MEMORY_GATEWAY_PHASE1", "NICK_MEMORY_GATEWAY_PHASE2"] as const;
@@ -48,6 +59,11 @@ describe("FLAG_REGISTRY contract", () => {
   it("arbitrary values do NOT activate the lock", () => {
     process.env[KEY] = "yes-please";
     expect(getFlag(KEY)?.isOn).toBe(false);
+  });
+
+  // 03-F14: no runtime reads either key, so a board row only invites a dead toggle.
+  it.each(["NICK_PRIME_PROMPT", "BRAINTRUST_API_KEY"])("%s is off the board (no runtime reader)", (key) => {
+    expect(getFlag(key)).toBeNull();
   });
 
   it("every registry key is unique", () => {
@@ -131,12 +147,36 @@ describe("readOnly mirrors agree with the runtime predicates they mirror", () =>
     ["NICK_AGENT_FOLLOWUPS", areFollowUpsEnabled,
       // The padded case is the divergence trimRawValue exists to close.
       [[undefined, false], ["1", true], [" 1 ", true], ["0", false]]],
+    // 03-F13: five live switches that were invisible on the board.
+    ["FEATURE_BULK_SMS_LIVE", isBulkSmsLive,
+      [[undefined, false], ["1", true], ["true", false], ["0", false]]],
+    ["SEMANTIC_DEDUP_LIVE", isSemanticDedupLive,
+      [[undefined, false], ["1", true], ["true", false], ["0", false]]],
+    ["NARRATOR_LLM_SYNTHESIS", isNarratorSynthesisOn,
+      [[undefined, false], ["1", true], ["true", false], ["0", false]]],
+    // The upper-case rows pin exactCase: these runtimes compare with ===.
+    ["AGENT_BRIDGE_ENABLED", isAgentBridgeEnabled,
+      [[undefined, false], ["true", true], ["TRUE", false], ["1", false]]],
+    ["IMAGES_REQUIRE_SIGNATURE", () => imageSignatureRequired(),
+      [[undefined, false], ["1", true], ["true", true], ["TRUE", false], ["0", false]]],
+    // R3-14: both keys stubbed so only BGE_RERANK decides the backend (rerank.ts preferBge).
+    ["BGE_RERANK", () => {
+      vi.stubEnv("HF_API_KEY", "test");
+      vi.stubEnv("COHERE_API_KEY", "test");
+      return getActiveRerankBackend() === "bge";
+    }, [[undefined, false], ["true", true], ["1", true], ["TRUE", false], ["0", false]]],
+    // The API key is stubbed so only the flag half of isReplicateFluxEnabled varies.
+    ["REPLICATE_FLUX", () => {
+      vi.stubEnv("REPLICATE_API_KEY", "test");
+      return isReplicateFluxEnabled();
+    }, [[undefined, false], ["true", true], ["TRUE", false], ["1", false]]],
   ];
 
   const INVERTED = new Set(["NICK_ESCALATION_DISABLED"]);
 
   afterEach(() => {
     for (const [key] of PREDICATES) delete process.env[key];
+    vi.unstubAllEnvs();
   });
 
   it("positive control: every mirrored key is registered AND readOnly", () => {

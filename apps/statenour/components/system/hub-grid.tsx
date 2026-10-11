@@ -79,8 +79,6 @@ interface HubPayload {
   devices: { online: number; offline: number; total: number; measured?: boolean };
   pulse: { priorityCount: number; measured?: boolean };
   ai: { calls24h: number; costCents7d: number; measured?: boolean };
-  power: { paused: boolean; measured?: boolean };
-  governance: { pendingCount: number; measured?: boolean };
   generatedAt: string;
 }
 
@@ -192,7 +190,9 @@ export const CARDS: HubCard[] = [
       if (d.crons.measured === false) return UNMEASURED_CHIP;
       if (d.crons.killed > 0)
         return { label: `${d.crons.killed} killed`, severity: "warning" };
-      return { label: `${d.crons.declared} total`, severity: "healthy" };
+      // A declared count is not a health verdict; silent jobs are the signal (09-F24).
+      if (d.crons.silent > 0) return { label: `${d.crons.silent} silent`, severity: "warning" };
+      return { label: `${d.crons.declared} jobs`, severity: "info" };
     },
   },
   {
@@ -348,10 +348,11 @@ export const CARDS: HubCard[] = [
     // hub card (the quality/eval cards that redirected here were removed).
     // Restore one honest, direct card so it stays reachable.
     href: "/system/calibration",
-    title: "Calibration",
+    title: "State Calibration",
     icon: Target,
     group: "ai",
-    description: "Prediction accuracy, judge-eval, drift + coverage",
+    // Prediction accuracy (Brier) lives on /stats?tab=calibration; this page is the mood x kind grid (10-X3).
+    description: "Suggestion hit rate by mood, LLM judge agreement",
     chip: () => ({ label: "eval", severity: "info" }),
   },
   {

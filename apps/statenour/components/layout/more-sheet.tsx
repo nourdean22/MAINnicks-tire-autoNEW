@@ -51,6 +51,41 @@ function isActiveHref(pathname: string, href: string): boolean {
   return pathname === base || pathname.startsWith(base + "/");
 }
 
+// Lives inside DialogContent so the 30 s system.pulse poll runs only while the sheet is open (audit 10-X5).
+function SmartNowLink({ pathname, onNavigate }: { pathname: string; onNavigate: () => void }) {
+  const pulse = useSystemPulse();
+  const smartNow = pickSmartNow({ pathname, pulse });
+  if (!smartNow) return null;
+  return (
+    <Link
+      href={smartNow.href}
+      onClick={onNavigate}
+      className={cn(
+        "flex min-h-11 items-center gap-2 rounded-control px-3 py-2 text-xs transition-colors",
+        smartNow.urgency === "high"
+          ? "bg-rose-500/[0.08] text-rose-200 hover:bg-rose-500/15"
+          : smartNow.urgency === "medium"
+            ? "bg-amber-500/[0.06] text-amber-200 hover:bg-amber-500/15"
+            : "bg-accent-soft text-fg hover:bg-surface-hover",
+      )}
+      title={`${smartNow.reason} \u00b7 tap to jump`}
+    >
+      {smartNow.emoji && (
+        <span className="shrink-0 text-[13px]" aria-hidden>
+          {smartNow.emoji}
+        </span>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="font-mono text-[11px] uppercase tracking-[0.12em] opacity-60">
+          Now
+        </div>
+        <div className="truncate text-[11px] font-medium">{smartNow.label}</div>
+      </div>
+      <ArrowRight size={12} className="shrink-0 opacity-60" />
+    </Link>
+  );
+}
+
 export function MoreSheet() {
   const open = useMoreSheetStore((s) => s.open);
   const close = useMoreSheetStore((s) => s.closeSheet);
@@ -60,8 +95,6 @@ export function MoreSheet() {
   const hasNickPane =
     open && typeof document !== "undefined" && document.documentElement.dataset[NICK_PANE_MOUNTED_ATTR] === "1";
   const pathname = usePathname() ?? "/";
-  const pulse = useSystemPulse();
-  const smartNow = pickSmartNow({ pathname, pulse });
   const { candidates: recentCandidates } = useRecentPages();
 
   // Auto-close on route change (a no-op via closeSheet if already closed).
@@ -130,34 +163,7 @@ export function MoreSheet() {
 
         {/* Smart-now + Recent + Capture */}
         <div className="space-y-1 px-3 py-2">
-          {smartNow && (
-            <Link
-              href={smartNow.href}
-              onClick={close}
-              className={cn(
-                "flex min-h-11 items-center gap-2 rounded-control px-3 py-2 text-xs transition-colors",
-                smartNow.urgency === "high"
-                  ? "bg-rose-500/[0.08] text-rose-200 hover:bg-rose-500/15"
-                  : smartNow.urgency === "medium"
-                    ? "bg-amber-500/[0.06] text-amber-200 hover:bg-amber-500/15"
-                    : "bg-accent-soft text-fg hover:bg-surface-hover",
-              )}
-              title={`${smartNow.reason} · tap to jump`}
-            >
-              {smartNow.emoji && (
-                <span className="shrink-0 text-[13px]" aria-hidden>
-                  {smartNow.emoji}
-                </span>
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="font-mono text-[11px] uppercase tracking-[0.12em] opacity-60">
-                  Now
-                </div>
-                <div className="truncate text-[11px] font-medium">{smartNow.label}</div>
-              </div>
-              <ArrowRight size={12} className="shrink-0 opacity-60" />
-            </Link>
-          )}
+          <SmartNowLink pathname={pathname} onNavigate={close} />
 
           {recentCandidates.length > 0 && (
             <div className="rounded-surface bg-[var(--bg-raised)]/30 px-2 py-1.5">

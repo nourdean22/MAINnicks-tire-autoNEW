@@ -59,7 +59,7 @@ export const PROVENANCE_LABEL: Record<EmptyProvenance, string> = {
 };
 
 interface EmptyStateBase {
-  /** Lucide icon component. Breathes subtly via .animate-breath. */
+  /** Lucide icon component. A static icon (nothing animates at rest, SYSTEM.md 1.4). */
   icon?: ComponentType<{ size?: number; className?: string }>;
   /** One-line headline. Required. */
   title: string;

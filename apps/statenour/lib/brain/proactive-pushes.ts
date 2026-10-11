@@ -162,26 +162,54 @@ export interface PushSkip {
 }
 
 /**
- * Idempotency · prevent duplicate pushes on cron retries. Marker
- * lives in BrainMemory with a per-day key so multiple fires of the
- * same slot on the same day are no-ops.
+ * Claim a push slot BEFORE sending (claim-before-act, audit 08-X1). The marker used to
+ * be read, then the push sent, then the marker written: a failed read or two racing
+ * runs both read "not sent" and both sent. Now the create on the (category, key)
+ * unique index is the compare-and-set: P2002 means another run already holds today's
+ * slot, and any other error is "unavailable" so the caller does NOT send (fail closed).
+ * The row keeps its 48h TTL and is the "sent today" marker once the send succeeds.
  */
-async function markPushSent(slot: PushSlot, dateKey: string): Promise<void> {
-  await prisma.brainMemory.upsert({
-    where: { category_key: { category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT, key: `${slot}_${dateKey}` } },
-    create: {
-      category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT,
-      key: `${slot}_${dateKey}`,
-      content: `${slot} push sent at ${new Date().toISOString()}`,
-      source: "proactive_push_cron",
-      confidence: 1.0,
-      expiresAt: new Date(Date.now() + 48 * 3600_000), // 48h TTL
-    },
-    update: {
-      content: `${slot} push sent at ${new Date().toISOString()}`,
-      lastSeen: new Date(),
-    },
-  });
+export async function claimPushSlot(key: string, source: string): Promise<"won" | "duplicate" | "unavailable"> {
+  try {
+    // brain-memory-direct-write: a dedupe marker, not a semantic memory.
+    await prisma.brainMemory.create({
+      data: {
+        category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT,
+        key,
+        content: `${key} claimed at ${new Date().toISOString()}`,
+        source,
+        confidence: 1.0,
+        expiresAt: new Date(Date.now() + 48 * 3600_000), // 48h TTL
+      },
+    });
+    return "won";
+  } catch (err) {
+    if ((err as { code?: unknown } | null)?.code === "P2002") return "duplicate";
+    logError("brain.proactive-pushes", err, { fn: "claimPushSlot", key });
+    return "unavailable";
+  }
+}
+
+/** Give a claim back after a failed send, so the next tick may retry the slot. */
+export async function releasePushSlot(key: string): Promise<void> {
+  await prisma.brainMemory
+    .deleteMany({ where: { category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT, key } })
+    .catch((err) => logError("brain.proactive-pushes", err, { fn: "releasePushSlot", key }));
+}
+
+/** Claim the slot, send, release on a failed send. The loser of the claim never sends. */
+async function sendClaimed(
+  slot: PushSlot,
+  dateKey: string,
+  send: () => Promise<boolean>,
+): Promise<{ fired: boolean; reason: string }> {
+  const key = `${slot}_${dateKey}`;
+  const claim = await claimPushSlot(key, "proactive_push_cron");
+  if (claim === "duplicate") return { fired: false, reason: "already_pushed_today" };
+  if (claim === "unavailable") return { fired: false, reason: "dedupe_unavailable" };
+  const ok = await send();
+  if (!ok) await releasePushSlot(key);
+  return { fired: ok, reason: ok ? "sent" : "telegram_failed" };
 }
 
 async function alreadyPushed(slot: PushSlot, dateKey: string): Promise<boolean> {
@@ -352,16 +380,13 @@ export async function fireMorningPush(options?: { dryRun?: boolean; now?: Date }
     return { kind: "live", slot: "morning", fired: false, reason: "no_anticipated_set" };
   }
 
-  const ok = await sendRatablePush("morning", text);
-  if (ok) {
-    await markPushSent("morning", dateKey);
-  }
+  const { fired, reason } = await sendClaimed("morning", dateKey, () => sendRatablePush("morning", text));
   return {
     kind: "live",
     slot: "morning",
-    fired: ok,
-    reason: ok ? "sent" : "telegram_failed",
-    text: ok ? text : undefined,
+    fired,
+    reason,
+    text: fired ? text : undefined,
   };
 }
 
@@ -471,16 +496,13 @@ export async function fireAfternoonPush(options?: { dryRun?: boolean; now?: Date
     return { kind: "live", slot: "afternoon", fired: false, reason: "no_open_threads" };
   }
 
-  const ok = await sendRatablePush("afternoon", text);
-  if (ok) {
-    await markPushSent("afternoon", dateKey);
-  }
+  const { fired, reason } = await sendClaimed("afternoon", dateKey, () => sendRatablePush("afternoon", text));
   return {
     kind: "live",
     slot: "afternoon",
-    fired: ok,
-    reason: ok ? "sent" : "telegram_failed",
-    text: ok ? text : undefined,
+    fired,
+    reason,
+    text: fired ? text : undefined,
   };
 }
 
@@ -579,16 +601,13 @@ export async function fireEveningPush(options?: { dryRun?: boolean; now?: Date }
     return { kind: "live", slot: "evening", fired: false, reason: "already_pushed_today" };
   }
 
-  const ok = await sendRatablePush("evening", text);
-  if (ok) {
-    await markPushSent("evening", dateKey);
-  }
+  const { fired, reason } = await sendClaimed("evening", dateKey, () => sendRatablePush("evening", text));
   return {
     kind: "live",
     slot: "evening",
-    fired: ok,
-    reason: ok ? "sent" : "telegram_failed",
-    text: ok ? text : undefined,
+    fired,
+    reason,
+    text: fired ? text : undefined,
   };
 }
 
@@ -755,17 +774,18 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
     return { kind: "live", slot: "approvals_nudge", fired: false, reason: "already_nudged_today" };
   }
 
-  const ok = await sendTelegram(text).catch((err) => {
-    logError("brain.proactive-pushes", err, { fn: "checkAndNudgeApprovals.sendTelegram" });
-    return false;
-  });
-  if (ok) await markPushSent("approvals_nudge", dateKey);
+  const { fired, reason } = await sendClaimed("approvals_nudge", dateKey, () =>
+    sendTelegram(text).catch((err) => {
+      logError("brain.proactive-pushes", err, { fn: "checkAndNudgeApprovals.sendTelegram" });
+      return false;
+    }),
+  );
   return {
     kind: "live",
     slot: "approvals_nudge",
-    fired: ok,
-    reason: ok ? "sent" : "telegram_failed",
-    text: ok ? text : undefined,
+    fired,
+    reason,
+    text: fired ? text : undefined,
   };
 }
 

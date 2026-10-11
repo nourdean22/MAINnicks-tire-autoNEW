@@ -175,6 +175,14 @@ export default function CalibrationPage() {
         </GlassCard>
       ) : null}
 
+      {/* Two pages were both called "Calibration" (10-X3): this one is state x suggestion hit rate. */}
+      <Link
+        href="/stats?tab=calibration"
+        className="inline-flex min-h-11 items-center text-xs text-fg-secondary underline-offset-2 transition hover:text-fg hover:underline"
+      >
+        Prediction accuracy (Brier) is on Stats -&gt; Calibration
+      </Link>
+
       <GlassCard>
         <div className="flex items-center gap-2">
           <Grid3x3 size={16} className="text-fg-secondary" aria-hidden />

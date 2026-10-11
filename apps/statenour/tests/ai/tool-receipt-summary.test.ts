@@ -15,6 +15,7 @@
 import { describe, it, expect } from "vitest";
 import {
   isEmptyToolOutput,
+  isSoftFailedToolOutput,
   summarizeToolReceipts,
   formatToolReceipts,
   collapseRepeatedToolParts,
@@ -81,6 +82,57 @@ describe("summarizeToolReceipts", () => {
       { state: "output-available", output: { count: 2, memories: [1, 2] } },
     ]);
     expect(counts).toMatchObject({ returned: 1, empty: 0, failed: 1, running: 1, total: 3 });
+  });
+});
+
+// NEW-03F1-chip-softfail (2026-10-10): a refused or failed write returns
+// normally (state output-available) with an error / success:false payload, and
+// the chip counted it as "returned data" in green.
+describe("soft-failed tool output", () => {
+  it("isSoftFailedToolOutput: an error key, success:false or ok:false", () => {
+    expect(isSoftFailedToolOutput({ error: "approval_required", reason: "held" })).toBe(true);
+    expect(isSoftFailedToolOutput({ error: "mutation_locked", reason: "frozen" })).toBe(true);
+    expect(isSoftFailedToolOutput({ success: false, message: "MIT NOT saved" })).toBe(true);
+    expect(isSoftFailedToolOutput({ ok: false, reason: "not found" })).toBe(true);
+  });
+
+  it("CONTROL: success payloads and non-objects are not soft failures", () => {
+    expect(isSoftFailedToolOutput({ success: true, text: "Call Mike" })).toBe(false);
+    expect(isSoftFailedToolOutput({ ok: true, id: "task_1", error: null })).toBe(false);
+    expect(isSoftFailedToolOutput({ count: 0, memories: [] })).toBe(false);
+    expect(isSoftFailedToolOutput(null)).toBe(false);
+    expect(isSoftFailedToolOutput("done")).toBe(false);
+  });
+
+  it("summarizeToolReceipts counts refused and failed writes as failed, never returned", () => {
+    const counts = summarizeToolReceipts([
+      { state: "output-available", output: { error: "approval_required", reason: "held for approval" } },
+      { state: "output-available", output: { success: false, message: "MIT NOT saved" } },
+      { state: "output-available", output: { success: true, text: "Call Mike" } },
+    ]);
+    expect(counts).toMatchObject({ returned: 1, empty: 0, failed: 2, running: 0, total: 3 });
+  });
+
+  // R3-15 (review finding 4): searchReflections reports a half failure as
+  // { error, count, results } with real rows (lib/ai/tools/brain.ts).
+  const partial = {
+    query: "mantra",
+    error: "READ FAILED for brain dumps. The surviving source was searched and its rows are real, but this result is incomplete",
+    count: 3,
+    results: [{ id: "r1" }, { id: "r2" }, { id: "r3" }],
+  };
+
+  it("a partial read that still carries rows is not a soft failure", () => {
+    expect(isSoftFailedToolOutput(partial)).toBe(false);
+    expect(summarizeToolReceipts([{ state: "output-available", output: partial }])).toMatchObject({ returned: 1, failed: 0 });
+  });
+
+  it("CONTROL: an error with no rows still fails (both reads down, a bare error, a timeout, an empty list)", () => {
+    expect(isSoftFailedToolOutput({ ...partial, error: "READ FAILED for reflections and brain dumps.", count: 0, results: [] })).toBe(true);
+    expect(isSoftFailedToolOutput({ error: "Calendar fetch failed." })).toBe(true);
+    expect(isSoftFailedToolOutput({ error: "sendSms exceeded its 60s budget and was abandoned.", timedOut: true, reflection: { tool: "sendSms", guidance: "" } })).toBe(true);
+    expect(isSoftFailedToolOutput({ error: "db down", blindSpots: [] })).toBe(true);
+    expect(isSoftFailedToolOutput({ error: "approval_required", requestId: "r1", reason: "held", reflection: { tool: "x", guidance: "" } })).toBe(true);
   });
 });
 

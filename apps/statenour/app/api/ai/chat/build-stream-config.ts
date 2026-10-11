@@ -142,7 +142,8 @@ export function buildStreamConfigFactory(deps: {
         privateMode,
         sessionId: conversationId || undefined,
         tags: ["nick-chat", mode],
-        metadata: { mode, modelId: fbModelId, provider: fbProvider },
+        // statenourTraceId (audit 08-F17): joins the Langfuse trace to agent_traces, receipts and audit rows.
+        metadata: { mode, modelId: fbModelId, provider: fbProvider, statenourTraceId: __traceId },
       }),
       // 2026-07-06 · disable Gemini's default safety filters (per-call, via
       // providerOptions.google — the @ai-sdk/google v3 API). Ignored by

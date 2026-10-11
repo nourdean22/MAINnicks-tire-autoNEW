@@ -175,6 +175,8 @@ export async function buildCockpitStats() {
         createdAt: { gte: since30d },
         role: "assistant",
         feedbackScore: { not: null },
+        // scripts/seed-judge-calibration.ts thumbs are fabricated, not operator feedback (06-F6).
+        NOT: { id: { startsWith: "msg_calibration_" } },
       },
       _avg: { feedbackScore: true },
     }),
@@ -294,7 +296,8 @@ export async function buildCockpitStats() {
     kpis: {
       totalCostCents: costAgg._sum.costCents ?? 0,
       p95TtftMs: p95Index >= 0 ? ttftValues[p95Index] ?? 0 : 0,
-      averageFeedback: feedbackAgg._avg.feedbackScore ?? 0,
+      // null = no rated reply in 30 days; the renderer says "unmeasured", never a neutral 0.0.
+      averageFeedback: feedbackAgg._avg.feedbackScore ?? null,
       pendingApprovalsCount,
       avgDurationMs: costAgg._avg.durationMs ?? 0,
     },

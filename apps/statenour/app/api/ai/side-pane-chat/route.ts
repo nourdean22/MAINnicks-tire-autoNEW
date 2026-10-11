@@ -34,6 +34,7 @@ import { getCachedPrompt, setCachedPrompt } from "@/lib/ai/system-prompt-cache";
 import { buildPageData } from "@/lib/ai/page-data";
 import { mintTraceId, recordTrace } from "@/lib/ai/agent-trace";
 import { recordError } from "@/lib/errors/record-error";
+import { detectActionClaimsWithoutTools } from "@/lib/ai/chat/action-claim-detector";
 
 export const maxDuration = 60;
 
@@ -257,6 +258,8 @@ not a fabricated confirmation.`;
               page: body.page,
               turnCount: recentHistory.length,
               focus: body.focus ?? null,
+              // Audit 04-X8: the pane has zero tools, so every past-tense action claim is unbacked.
+              fabricatedClaims: text ? detectActionClaimsWithoutTools(text, []).length : 0,
             },
           },
           {

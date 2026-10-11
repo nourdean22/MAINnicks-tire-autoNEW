@@ -13,37 +13,10 @@
  * 4.5:1 on canvas, content and interactive surfaces.
  */
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { EmptyState, type EmptyProvenance } from "@/components/ui/empty-state";
-
-const tokens = readFileSync("app/styles/tokens.css", "utf8");
-
-/** `--name: #RRGGBB` on its own declaration. */
-function tokenHex(name: string): string {
-  const m = tokens.match(new RegExp(`--${name}:\\s*(#[0-9A-Fa-f]{6})\\b`));
-  if (!m) throw new Error(`token --${name} not found as a hex value`);
-  return m[1];
-}
-
-/** `--color-x: oklch(...);   /* #RRGGBB ...` (the palette block records the sRGB hex). */
-function paletteHex(name: string): string {
-  const m = tokens.match(new RegExp(`--color-${name}:[^;]+;\\s*/\\*\\s*(#[0-9A-Fa-f]{6})`));
-  if (!m) throw new Error(`palette --color-${name} hex comment not found`);
-  return m[1];
-}
-
-function luminance(hex: string): number {
-  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
-  const [r, g, b] = c.map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-function ratio(a: string, b: string): number {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return (hi + 0.05) / (lo + 0.05);
-}
+import { paletteHex, ratio, tokenHex } from "../helpers/contrast";
 
 const SURFACES = ["canvas", "surface", "surface-interactive"].map((n) => [n, tokenHex(n)] as const);
 

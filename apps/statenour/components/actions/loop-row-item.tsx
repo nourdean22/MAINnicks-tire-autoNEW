@@ -65,6 +65,7 @@ import {
   type LoopKind,
 } from "@/components/actions/shared";
 import { EventTimeline } from "@/components/actions/event-timeline";
+import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
 
 /**
  * Apr 26 · F5 — One-line "why is this #1" reason for the Next Move
@@ -759,7 +760,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                   value={reframeText}
                   onChange={(e) => onChangeReframeText(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && reframeText.trim()) {
+                    if (isSubmitEnter(e) && reframeText.trim()) {
                       onCommitReframe(task.id, reframeText.trim());
                     } else if (e.key === "Escape") {
                       onSetDecideMode(null);
@@ -786,7 +787,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                   value={blockerText}
                   onChange={(e) => onChangeBlockerText(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && blockerText.trim()) {
+                    if (isSubmitEnter(e) && blockerText.trim()) {
                       onCommitBlocker(task.id, blockerText.trim());
                     } else if (e.key === "Escape") {
                       onSetDecideMode(null);

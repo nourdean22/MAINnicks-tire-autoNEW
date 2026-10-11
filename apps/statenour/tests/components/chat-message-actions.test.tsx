@@ -173,13 +173,40 @@ describe("ChatMessageList · visible per-message actions", () => {
     expect(markup).toContain('aria-label="Copy message"');
   });
 
-  // ── 2026-08-30 · review P2 — the auto-narration preference lives here
-  // now (the composer dial was removed by operator directive). Without a
-  // surface the persisted preference is a dead control.
-  it("exposes the persisted auto-read preference on the row", () => {
-    const on = render({ tts: speakingTts });
-    expect(on).toContain("Auto-read replies is on (tap to turn off)");
-    const off = render({ tts: { ...speakingTts, enabled: false } });
-    expect(off).toContain("Auto-read replies is off (tap to turn on)");
+  // R3-05 (09-F23): the auto-read preference is one global setting, so it
+  // lives once in the chat-island header (tests/components/chat-island-header
+  // .test.tsx), not on every reply.
+  it("no reply row carries the global auto-read toggle", () => {
+    expect(render({ tts: speakingTts })).not.toContain("Auto-read replies");
+  });
+});
+
+// R3-05 (09-F22 + 09-F23): a 20-turn thread rendered about 70 action buttons.
+// Only the latest user turn and the latest reply keep the full row; older
+// turns keep More, which opens the sheet with Copy, Edit and Read.
+describe("ChatMessageList . older turns get a compact row", () => {
+  const thread = [
+    { id: "u1", role: "user", parts: [{ type: "text", text: "first question" }] },
+    { id: "a1", role: "assistant", parts: [{ type: "text", text: "first answer" }] },
+    { id: "u2", role: "user", parts: [{ type: "text", text: "second question" }] },
+    { id: "a2", role: "assistant", parts: [{ type: "text", text: "second answer" }] },
+  ] as unknown as UIMessage[];
+  const markup = renderToStaticMarkup(
+    <ChatMessageList messages={thread} isLoading={false} error={undefined} onRetry={() => {}} tts={speakingTts} />,
+  );
+  const count = (label: string) => markup.split(`aria-label="${label}"`).length - 1;
+
+  it("Copy only on the latest user turn and the latest reply", () => {
+    expect(count("Copy message")).toBe(2);
+    expect(count("Edit and resend")).toBe(1);
+    expect(count("Read aloud")).toBe(1);
+  });
+
+  it("More on every turn", () => {
+    expect(count("More actions")).toBe(4);
+  });
+
+  it("no per-reply copies of the global auto-read toggle", () => {
+    expect(markup).not.toContain("Auto-read replies");
   });
 });

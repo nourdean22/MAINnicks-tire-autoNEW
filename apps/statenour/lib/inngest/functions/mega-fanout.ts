@@ -465,7 +465,9 @@ export const megaFanoutEvening = inngest.createFunction(
       throw new Error("CRON_SECRET unset · refusing to fan out");
     }
 
-    const jobs = isSundayET()
+    // In a step, so a replay after ET midnight keeps the run's own answer (08-X4).
+    const sunday = await step.run("is-sunday-et", () => isSundayET());
+    const jobs = sunday
       ? [...EVENING_JOBS, ...WEEKLY_JOBS]
       : EVENING_JOBS;
 
@@ -494,7 +496,7 @@ export const megaFanoutEvening = inngest.createFunction(
     }
     return {
       slot: "evening",
-      isSundayET: isSundayET(),
+      isSundayET: sunday,
       jobsRun: sum.jobsRun,
       totalDurationMs: sum.totalDurationMs,
     };

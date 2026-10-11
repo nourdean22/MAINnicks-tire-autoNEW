@@ -39,13 +39,19 @@ export interface GatePass {
   taskTypeOverride: TaskType | undefined;
   personality: string;
   userContent: string;
+  /** Older messages the client left out of `messages` (04-F15); 0 = none. */
+  historyOffset: number;
   // 2026-07-22 · Authority-kernel controls (audit Waves 1+7). All optional,
   // defaulted by parseChatControls so absent fields = today's behavior.
-  //   privateMode      — Private Lab: the turn leaves NO TRACE. No message
-  //                      rows, no BrainMemory / AuditEvent / system_metrics /
-  //                      image rows, no embeddings stored, no learning, no
-  //                      Langfuse spans, no user text in logs, and no mutating
-  //                      tool (stripped in prepare-tools, denied in tool-policy).
+  //   privateMode      — Private Lab: the turn writes ONE content-free cost
+  //                      row (ai_generations: model, provider, token counts,
+  //                      duration; no conversation id, no text) so its spend
+  //                      counts toward the daily budget, and nothing else. No
+  //                      message rows, no BrainMemory / AuditEvent /
+  //                      system_metrics / image rows, no embeddings stored, no
+  //                      learning, no Langfuse spans, no user text in logs, and
+  //                      no mutating tool (stripped in prepare-tools, denied in
+  //                      tool-policy).
   //   ephemeral        — transcript NOT kept (no conversation / message rows,
   //                      no post-turn pipeline) but otherwise a normal turn:
   //                      tools and memory writes stay on. Home's command line
@@ -124,6 +130,16 @@ export function parseChatControls(body: Record<string, unknown>): {
       ? "draft"
       : "read";
   return { privateMode, posture, actionPermission };
+}
+
+/**
+ * How many older messages the client left out of `messages` (it sends its
+ * last 150, audit 04-F15). A client claim: anything but a non-negative
+ * integer is 0, which is the unwindowed behaviour. Exported for tests.
+ */
+export function parseHistoryOffset(body: Record<string, unknown>): number {
+  const v = body.historyOffset;
+  return typeof v === "number" && Number.isSafeInteger(v) && v > 0 ? v : 0;
 }
 
 /**
@@ -247,6 +263,7 @@ export async function runGate(req: Request): Promise<GateResult> {
     taskTypeOverride,
     personality,
     userContent,
+    historyOffset: parseHistoryOffset(body),
     ...parseChatControls(body),
     // Strict boolean like privateMode: a truthy string is not a request.
     ephemeral: body.ephemeral === true,

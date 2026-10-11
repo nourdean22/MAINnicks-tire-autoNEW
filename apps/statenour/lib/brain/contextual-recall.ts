@@ -183,7 +183,12 @@ const EVIDENCE_LABEL: Record<MemoryEvidenceClass, string> = {
 export function provenancePrefix(m: RelevantMemory): string {
   const cls = evidenceClassForSource(m.source ?? "");
   const seen = m.seenCount && m.seenCount > 1 ? ` · seen ${m.seenCount}x` : "";
-  return `[${m.category} · ${EVIDENCE_LABEL[cls]}${seen}]`;
+  // 05-X7: the ladder files model-made sources under its fallback; say inferred.
+  const label =
+    classifyTrustTier(m.source || "unclassified", null, m.category) === "AGENT_INFERRED"
+      ? "inferred"
+      : EVIDENCE_LABEL[cls];
+  return `[${m.category} · ${label}${seen}]`;
 }
 
 /**

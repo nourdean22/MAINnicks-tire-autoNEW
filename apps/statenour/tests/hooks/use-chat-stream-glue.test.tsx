@@ -27,6 +27,7 @@ type TransportOpts = {
   onMessagePersisted: (p: { id: string; content: string; traceId: string | null }) => void;
   resumeIntoMessageId?: () => string | undefined;
   onResumePartial: () => void;
+  onResumeEmpty?: () => void;
 };
 
 const h = vi.hoisted(() => ({
@@ -35,7 +36,9 @@ const h = vi.hoisted(() => ({
   stall: undefined as unknown,
 }));
 vi.mock("@ai-sdk/react", () => ({ useChat: () => h.chat }));
-vi.mock("@/hooks/chat/use-chat-transport", () => ({
+// The real isResumedMessage: the Retry gate (turn-side-effect.ts) reads it.
+vi.mock("@/hooks/chat/use-chat-transport", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/chat/use-chat-transport")>()),
   useChatTransport: (opts: unknown) => {
     h.transport = opts;
     return {};
@@ -257,6 +260,217 @@ describe("auto-retry never turns a failed reattach into a resend", () => {
     h.chat.messages = [user, reply];
     networkKill();
     expect(vi.mocked(h.chat.regenerate as () => void).mock.calls.length - manual).toBe(1);
+  });
+});
+
+// R3-05 (04-F7 + 04-H4): every Retry path (error card, interrupted card, the
+// cut-off and refused chips, the quality bar) reaches safeRegenerate, so the
+// side-effect refusal lives there. After a reload the bubble has no tool parts:
+// only tokenUsage.toolReceipts (top level, as use-conversations loads it) says
+// what ran.
+describe("Retry never re-runs a turn that ran a side-effecting tool", () => {
+  const reloaded = (sideEffecting: boolean) => ({
+    id: "db-2",
+    role: "assistant",
+    parts: [{ type: "text", text: "Sent the quote." }],
+    tokenUsage: { toolReceipts: [{ toolName: "createQuickQuote", sideEffecting }] },
+  });
+
+  it("refuses a reloaded turn whose receipts show a side effect, and says why", () => {
+    h.chat.messages = [user, reloaded(true)];
+    h.chat.status = "ready";
+    render();
+    vi.mocked(toast.error).mockClear();
+    act(() => void ctl.regenerate());
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.error)).toHaveBeenCalledTimes(1);
+  });
+
+  it("CONTROL: receipts with no side effect still regenerate", () => {
+    h.chat.messages = [user, reloaded(false)];
+    h.chat.status = "ready";
+    render();
+    act(() => void ctl.regenerate());
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a resumed bubble (its parts cannot show what ran)", () => {
+    h.chat.messages = [user, { ...reply, metadata: { resumed: true } }];
+    h.chat.status = "ready";
+    render();
+    vi.mocked(toast.error).mockClear();
+    act(() => void ctl.regenerate());
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+    // R3-15 (review finding 5): a resumed text-only bubble MAY have run one; never state it as fact.
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(
+      "That reply may have run an action, so it can't be replayed. Send a new message instead.",
+    );
+  });
+
+  it("refuses a live turn with a side-effecting tool part", () => {
+    h.chat.messages = [user, { id: "live-1", role: "assistant", parts: [{ type: "tool-createQuickQuote" }, { type: "text", text: "Sent." }] }];
+    h.chat.status = "ready";
+    render();
+    act(() => void ctl.regenerate());
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+  });
+
+  // R3-15: the errored-turn writer (stream-error-handler) stores no tokenUsage,
+  // and an aborted or truncated row older than the receipts writer has none
+  // either. No record of what ran means it may have run: fail closed.
+  it.each([
+    ["errored", null],
+    ["aborted", { traceId: "T0" }],
+    ["truncated", { traceId: "T0" }],
+  ])("refuses a reloaded %s turn with no receipt record", (streamingState, tokenUsage) => {
+    h.chat.messages = [user, { id: "db-3", role: "assistant", parts: [{ type: "text", text: "Sent the SMS to Mike and then" }], streamingState, tokenUsage }];
+    h.chat.status = "ready";
+    render();
+    vi.mocked(toast.error).mockClear();
+    act(() => void ctl.regenerate());
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.error)).toHaveBeenCalledTimes(1);
+  });
+
+  it("CONTROL: an errored turn whose receipts show no side effect still regenerates", () => {
+    h.chat.messages = [user, { ...reloaded(false), streamingState: "errored" }];
+    h.chat.status = "ready";
+    render();
+    act(() => void ctl.regenerate());
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+  });
+
+  it("CONTROL: a reloaded complete turn with no receipts still regenerates", () => {
+    h.chat.messages = [user, { id: "db-4", role: "assistant", parts: [{ type: "text", text: "Here is the plan." }], streamingState: "complete", tokenUsage: { traceId: "T0" } }];
+    h.chat.status = "ready";
+    render();
+    act(() => void ctl.regenerate());
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+  });
+
+  it("a refused Retry leaves the pending partial re-resume alone", () => {
+    vi.useFakeTimers();
+    try {
+      h.chat.messages = [user, reloaded(true)];
+      render();
+      act(() => transport().onResumePartial());
+      act(() => void ctl.regenerate());
+      act(() => vi.advanceTimersByTime(1_500));
+      expect(h.chat.resumeStream).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("a network kill after the server answered reattaches, never resends", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("Failed to fetch with this turn's trace set: resume once, regenerate never", () => {
+    act(() => void ctl.sendText("next"));
+    transport().lastTraceIdRef.current = "T2";
+    h.chat.messages = [user, reply];
+    h.chat.status = "error";
+    h.chat.error = new Error("Failed to fetch");
+    render();
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(h.chat.resumeStream).toHaveBeenCalledTimes(1);
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+  });
+
+  // R3-15 (review finding 2): ai@6 goes error -> ready on a 204 resume, so the
+  // error card vanished and the cut-off turn looked finished.
+  function killThenEmptyResume() {
+    act(() => void ctl.sendText("next"));
+    transport().lastTraceIdRef.current = "T2";
+    h.chat.messages = [user, reply];
+    h.chat.status = "error";
+    h.chat.error = new Error("Load failed");
+    render();
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(h.chat.resumeStream).toHaveBeenCalledTimes(1);
+    vi.mocked(toast.error).mockClear();
+    act(() => transport().onResumeEmpty?.());
+    h.chat.status = "ready";
+    h.chat.error = undefined;
+    render();
+  }
+
+  it("a resume that finds nothing keeps the turn interrupted and offers Reconnect", () => {
+    killThenEmptyResume();
+    expect(ctl.error?.message, "the error card must survive the 204").toBe("Load failed");
+    const call = vi.mocked(toast.error).mock.calls.at(-1);
+    expect(call?.[1]).toMatchObject({ id: "chat-stall", duration: Infinity, action: { label: "Reconnect" } });
+    act(() => (call![1] as { action: { onClick: () => void } }).action.onClick());
+    expect(h.chat.resumeStream).toHaveBeenCalledTimes(2);
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+  });
+
+  // The held card shows Retry, but the server owns that turn: a regenerate
+  // would run it twice (a tool it had not reached yet would fire in both).
+  it("Retry on a held interruption reattaches, never regenerates", () => {
+    killThenEmptyResume();
+    act(() => void ctl.regenerate());
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+    expect(h.chat.resumeStream).toHaveBeenCalledTimes(2);
+  });
+
+  it("Retry inside the reattach window reattaches too", () => {
+    act(() => void ctl.sendText("next"));
+    transport().lastTraceIdRef.current = "T2";
+    h.chat.messages = [user, reply];
+    h.chat.status = "error";
+    h.chat.error = new Error("Load failed");
+    render();
+    act(() => void ctl.regenerate());
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+    expect(h.chat.resumeStream).toHaveBeenCalledTimes(1);
+  });
+
+  it("CONTROL: once a reattach streams, Retry regenerates as usual", () => {
+    act(() => void ctl.sendText("next"));
+    transport().lastTraceIdRef.current = "T2";
+    h.chat.messages = [user, reply];
+    h.chat.status = "error";
+    h.chat.error = new Error("Load failed");
+    render();
+    act(() => vi.advanceTimersByTime(10_000));
+    h.chat.error = undefined;
+    h.chat.status = "streaming";
+    render();
+    h.chat.status = "ready";
+    render();
+    act(() => void ctl.regenerate());
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+  });
+
+  it("a new send clears the held interruption", () => {
+    killThenEmptyResume();
+    act(() => void ctl.sendText("again"));
+    render();
+    expect(ctl.error).toBeUndefined();
+  });
+
+  it("CONTROL: an empty mount-time resume (no error before it) raises nothing", () => {
+    vi.mocked(toast.error).mockClear();
+    h.chat.status = "ready";
+    render();
+    act(() => transport().onResumeEmpty?.());
+    render();
+    expect(ctl.error).toBeUndefined();
+    expect(vi.mocked(toast.error).mock.calls.some((c) => (c[1] as { id?: string })?.id === "chat-stall")).toBe(false);
+  });
+
+  it("CONTROL: the previous turn's trace is not this turn's: the dropped POST is resent", () => {
+    act(() => void ctl.sendText("next"));
+    h.chat.messages = [user, reply];
+    h.chat.status = "error";
+    h.chat.error = new Error("Failed to fetch");
+    render();
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(h.chat.resumeStream).not.toHaveBeenCalled();
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
   });
 });
 

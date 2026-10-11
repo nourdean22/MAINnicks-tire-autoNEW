@@ -41,6 +41,8 @@ export interface TaskSummary {
   startedAt: string | null;
   lastTouchedAt: string | null;
   dueDate: string | null;
+  /** Who wrote the row; "inbound-crm" titles are model output over a stranger's email (the renderer fences them). */
+  createdBy?: string | null;
 }
 
 export interface CommitmentSummary {
@@ -546,7 +548,8 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
     // "6 pinned" whether the operator had 6 pins or 60.
     prisma.brainMemory
       .findMany({
-        where: { category: BRAIN_CATEGORIES.PINNED_USER, deletedAt: null },
+        // supersededById: a Correct leaves the old version live but superseded; only the correction is current.
+        where: { category: BRAIN_CATEGORIES.PINNED_USER, deletedAt: null, supersededById: null },
         orderBy: { updatedAt: "desc" },
         take: PINNED_PROMPT_CAP,
         select: {
@@ -567,6 +570,7 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
           confidence: { gte: 0.5 },
           category: { in: ["identity", "feedback", "brand_rules", "business_context"] },
           deletedAt: null,
+          supersededById: null,
         },
         orderBy: { confidence: "desc" },
         take: 8,
@@ -686,6 +690,7 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
           category: { in: ALERT_CATEGORIES },
           createdAt: { gte: sevenDaysAgo },
           deletedAt: null,
+          supersededById: null,
         },
         orderBy: { createdAt: "desc" },
         take: 7,
@@ -919,6 +924,7 @@ const TASK_SELECT = {
   startedAt: true,
   lastTouchedAt: true,
   dueDate: true,
+  createdBy: true,
   mission: { select: { domain: true } },
 } as const;
 
@@ -933,6 +939,7 @@ type TaskRow = {
   startedAt: Date | null;
   lastTouchedAt: Date | null;
   dueDate: Date | null;
+  createdBy: string | null;
   mission: { domain: string } | null;
 };
 
@@ -982,6 +989,7 @@ function toTaskSummary(t: TaskRow): TaskSummary {
     startedAt: t.startedAt?.toISOString() ?? null,
     lastTouchedAt: t.lastTouchedAt?.toISOString() ?? null,
     dueDate: t.dueDate?.toISOString() ?? null,
+    createdBy: t.createdBy ?? null,
   };
 }
 

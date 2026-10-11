@@ -97,22 +97,25 @@ export async function getRelevantExchanges(
   // Build a single query covering both before-anchors (assistant
   // matches needing prior user) and after-anchors (user matches
   // needing next assistant). One round-trip total.
+  // 08-F16: the neighbour is minutes away; bound the open side to 24h so
+  // each clause stops reading the whole conversation history.
+  const PAIR_WINDOW_MS = 24 * 60 * 60 * 1000;
   type PairWhere = {
     conversationId: string;
     role: string;
-    createdAt: { lt: Date } | { gt: Date };
+    createdAt: { lt: Date; gte: Date } | { gt: Date; lte: Date };
   };
   const orClauses: PairWhere[] = pairLookups.map((l) =>
     l.isAssistant
       ? {
           conversationId: l.conversationId,
           role: "user",
-          createdAt: { lt: l.createdAt },
+          createdAt: { lt: l.createdAt, gte: new Date(l.createdAt.getTime() - PAIR_WINDOW_MS) },
         }
       : {
           conversationId: l.conversationId,
           role: "assistant",
-          createdAt: { gt: l.createdAt },
+          createdAt: { gt: l.createdAt, lte: new Date(l.createdAt.getTime() + PAIR_WINDOW_MS) },
         },
   );
   const candidateRows =

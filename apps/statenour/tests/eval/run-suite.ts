@@ -25,7 +25,8 @@
  * Exit codes:
  *   · 0 · suite ran cleanly (dry-run validated OR live-run completed)
  *   · 1 · a scenario JSON failed schema validation
- *   · 2 · live-run had ≥1 flagged scenario (composite < 6.0 OR errored)
+ *   - 2 - live-run had >=1 flagged scenario (composite < 6.0): a quality regression
+ *   - 3 - live-run had no flagged scenario but >=1 errored, or scored nothing: an outage, not a verdict
  *
  * Skips (live mode · 2026-09-22):
  *   · a scenario tagged `requires-tools` (types.ts REQUIRES_TOOLS_TAG) is
@@ -41,6 +42,8 @@
  *     ai_policy matrix · OpenAI/Anthropic only on fallback.
  */
 
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
@@ -57,6 +60,7 @@ import {
   requiresToolRunner,
   scenarioCategoryValues,
   scenarioSchema,
+  SUITE_JUDGE_PROMPT_HASH,
 } from "./types";
 
 /**
@@ -300,6 +304,35 @@ async function callNick(scenario: Scenario): Promise<{ response: string; error: 
   }
 }
 
+// Provenance + exit code
+
+/** What a report was measured against; two reports compare only when all three match (06-X3). */
+function provenance(scenarios: Scenario[]): Pick<SuiteReport, "gitSha" | "scenarioCorpusHash" | "judgePromptHash"> {
+  let gitSha: string | null = null;
+  try {
+    gitSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
+  } catch {
+    gitSha = null;
+  }
+  const sorted = [...scenarios].sort((a, b) => a.id.localeCompare(b.id));
+  return {
+    gitSha,
+    scenarioCorpusHash: createHash("sha256").update(JSON.stringify(sorted)).digest("hex").slice(0, 12),
+    judgePromptHash: SUITE_JUDGE_PROMPT_HASH,
+  };
+}
+
+/**
+ * 2 = Nick regressed (a scored scenario flagged). 3 = nothing to blame Nick for:
+ * scenarios errored (provider or judge down) or nothing was scored at all (06-X4).
+ */
+export function exitCodeFor(summary: { flagged: number; errored: number; ranScenarios?: number }): 0 | 2 | 3 {
+  if (summary.flagged > 0) return 2;
+  if (summary.errored > 0) return 3;
+  if (summary.ranScenarios === 0) return 3;
+  return 0;
+}
+
 // ── Summary computation ──────────────────────────────────────────────
 
 function summarize(
@@ -359,6 +392,7 @@ export async function runDryRun(input: RunInput): Promise<SuiteReport> {
     toolReplay: false,
     summary: summarize(filtered.length, []),
     durationMs: Date.now() - startedAt,
+    ...provenance(filtered),
   };
 }
 
@@ -464,6 +498,7 @@ export async function runLive(input: RunInput): Promise<SuiteReport> {
     toolReplay: input.args.tools,
     summary: summarize(filtered.length, results, skipped, toolRuns),
     durationMs: Date.now() - startedAt,
+    ...provenance(filtered),
   };
 }
 
@@ -556,10 +591,12 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
   await writeReport(report, outPath);
 
   process.stdout.write(`\n${formatSummaryLine(report)}\n`);
+  process.stdout.write(
+    `provenance: git ${report.gitSha?.slice(0, 12) ?? "unknown"} / corpus ${report.scenarioCorpusHash} / judge ${report.judgePromptHash}\n`,
+  );
   process.stdout.write(`report · ${path.relative(process.cwd(), outPath)}\n`);
 
-  // Exit 2 if any scenario flagged · so CI / scheduled runs can react
-  return report.summary.flagged > 0 || report.summary.errored > 0 ? 2 : 0;
+  return exitCodeFor(report.summary);
 }
 
 // Run when invoked directly (not when imported by tests).

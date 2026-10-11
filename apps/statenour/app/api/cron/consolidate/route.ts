@@ -4,6 +4,7 @@ import { runConsolidation } from "@/lib/brain/memory-consolidation";
 import { autoPromoteStableSkillsToWisdom } from "@/lib/brain/skill-extractor";
 import { flushSlowQueriesToSystemMetric } from "@/lib/db/slow-query-tracker";
 import { runSemanticDedup } from "@/lib/brain/semantic-dedup";
+import { isSemanticDedupLive } from "@/lib/feature-flags";
 // v10.0.178 · was 60s — task itself takes ~51s p95, which left zero
 // headroom. Mega's per-child timeout was the actual blocker (50s,
 // now 90s); bumping this in lockstep so a slow run doesn't trip
@@ -52,7 +53,7 @@ export const GET = cronHandler(async () => {
   // (System > Coverage) before flipping it live with SEMANTIC_DEDUP_LIVE=1.
   // Best-effort — a failure here never blocks consolidation.
   const semanticDedup = await runSemanticDedup({
-    dryRun: process.env.SEMANTIC_DEDUP_LIVE !== "1",
+    dryRun: !isSemanticDedupLive(),
   }).catch((err) => {
     logger.warn("consolidate_semantic_dedup_failed", {
       error: err instanceof Error ? err.message.slice(0, 120) : String(err),

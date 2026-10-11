@@ -121,6 +121,8 @@ interface ResolveArgs {
   captionText: string;
   /** Actual engagement-rate score (per-mille) from BATCH 5 */
   actualScore: number;
+  /** What actualScore measures; errorPct is computed only against a prediction of this metric. */
+  metric: "engagement" | "clicks" | "revenue";
 }
 
 export async function resolvePrediction(args: ResolveArgs): Promise<{ resolved: boolean; predictionId?: string }> {
@@ -148,19 +150,20 @@ export async function resolvePrediction(args: ResolveArgs): Promise<{ resolved: 
   // Update with actual score
   const meta = (match.metadata as Record<string, unknown> | null) ?? {};
   const predictions = (meta.predictions as ExtractedPrediction[] | undefined) ?? [];
-  const engagementPred = predictions.find((p) => p.metric === "engagement")?.value;
-  const errorPct = engagementPred && engagementPred > 0
-    ? Math.abs(args.actualScore - engagementPred) / engagementPred
+  const samePred = predictions.find((p) => p.metric === args.metric)?.value;
+  const errorPct = samePred && samePred > 0
+    ? Math.abs(args.actualScore - samePred) / samePred
     : null;
 
   await prisma.brainMemory.update({
     where: { id: match.id },
     data: {
-      content: `[resolved] predicted ${engagementPred ?? "?"} → actual ${args.actualScore}${errorPct !== null ? ` (${(errorPct * 100).toFixed(0)}% error)` : ""}`,
+      content: `[resolved] predicted ${samePred ?? "?"} -> actual ${args.actualScore} ${args.metric}${errorPct !== null ? ` (${(errorPct * 100).toFixed(0)}% error)` : ""}`,
       confidence: errorPct !== null && errorPct < 0.2 ? 0.95 : errorPct !== null && errorPct < 0.4 ? 0.7 : 0.4,
       metadata: {
         ...meta,
         actualScore: args.actualScore,
+        resolvedMetric: args.metric,
         errorPct,
         resolved: true,
         resolvedAt: new Date().toISOString(),
@@ -177,17 +180,21 @@ export async function resolvePrediction(args: ResolveArgs): Promise<{ resolved: 
 
 export interface CalibrationStats {
   totalPredictions: number;
+  /** Resolved rows that carry a measured same-metric errorPct; every rate below divides by this. */
   resolvedCount: number;
   pendingCount: number;
-  /** Mean absolute error as % of predicted value */
-  meanErrorPct: number;
-  /** % of predictions within ±20% of actual */
-  within20PctRate: number;
-  /** % within ±40% — looser bar */
-  within40PctRate: number;
-  /** Bias: avg (actual - predicted) — positive = under-promised, negative = over-promised */
-  meanBiasPct: number;
+  /** Mean absolute error as % of predicted value; null when nothing was measured */
+  meanErrorPct: number | null;
+  /** % of predictions within +/-20% of actual */
+  within20PctRate: number | null;
+  /** % within +/-40%, looser bar */
+  within40PctRate: number | null;
+  /** Bias: avg (actual - predicted); positive = under-promised, negative = over-promised */
+  meanBiasPct: number | null;
 }
+
+/** Below this many measured predictions the block hedges instead of quoting rates. */
+const MIN_MEASURED = 30;
 
 export async function getCalibrationStats(daysBack = 30): Promise<CalibrationStats> {
   const since = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000);
@@ -201,7 +208,7 @@ export async function getCalibrationStats(daysBack = 30): Promise<CalibrationSta
       return [] as Array<{ metadata: unknown }>;
     });
 
-  let resolved = 0;
+  let measured = 0;
   let pending = 0;
   let sumErrorPct = 0;
   let sumBiasPct = 0;
@@ -214,6 +221,7 @@ export async function getCalibrationStats(daysBack = 30): Promise<CalibrationSta
       resolvedOutcome?: string;
       errorPct?: number;
       actualScore?: number;
+      resolvedMetric?: string;
       predictions?: Array<{ metric: string; value: number }>;
     } | null) ?? {};
     if (!meta.resolved) {
@@ -230,24 +238,26 @@ export async function getCalibrationStats(daysBack = 30): Promise<CalibrationSta
     if (meta.resolvedOutcome === "expired_unverifiable") {
       continue;
     }
-    resolved++;
     const eng = meta.predictions?.find((p) => p.metric === "engagement")?.value;
-    if (typeof meta.errorPct === "number" && typeof meta.actualScore === "number" && eng) {
-      sumErrorPct += meta.errorPct;
-      sumBiasPct += (meta.actualScore - eng) / eng;
-      if (meta.errorPct < 0.2) within20++;
-      if (meta.errorPct < 0.4) within40++;
+    // Legacy rows lack resolvedMetric: their errorPct compared an engagement guess with clicks or dollars.
+    if (meta.resolvedMetric !== "engagement" || typeof meta.errorPct !== "number" || typeof meta.actualScore !== "number" || !eng) {
+      continue;
     }
+    measured++;
+    sumErrorPct += meta.errorPct;
+    sumBiasPct += (meta.actualScore - eng) / eng;
+    if (meta.errorPct < 0.2) within20++;
+    if (meta.errorPct < 0.4) within40++;
   }
 
   return {
     totalPredictions: rows.length,
-    resolvedCount: resolved,
+    resolvedCount: measured,
     pendingCount: pending,
-    meanErrorPct: resolved > 0 ? sumErrorPct / resolved : 0,
-    within20PctRate: resolved > 0 ? within20 / resolved : 0,
-    within40PctRate: resolved > 0 ? within40 / resolved : 0,
-    meanBiasPct: resolved > 0 ? sumBiasPct / resolved : 0,
+    meanErrorPct: measured > 0 ? sumErrorPct / measured : null,
+    within20PctRate: measured > 0 ? within20 / measured : null,
+    within40PctRate: measured > 0 ? within40 / measured : null,
+    meanBiasPct: measured > 0 ? sumBiasPct / measured : null,
   };
 }
 
@@ -258,9 +268,9 @@ export async function getCalibrationStats(daysBack = 30): Promise<CalibrationSta
  * The resolve loop is LIVE: `resolvePrediction` (marks a prediction
  * resolved + writes back its actual score) is invoked by the
  * brain-intelligence cron (`app/api/cron/brain-intelligence/route.ts`),
- * so `resolvedCount` grows as predictions get scored. Below 5 resolved
- * this emits the "insufficient data" hedge; at 5+ it emits the real
- * calibration block (accuracy + bias). Call site:
+ * so `resolvedCount` grows as predictions get scored. Below 30 measured
+ * this emits the "insufficient data" hedge; at 30+ it emits the real
+ * calibration block (accuracy + bias as a number, no order). Call site:
  * `buildCalibrationBlock()` in `lib/ai/prompt/v2/index.ts` (wired
  * 2026-08-05 — this function had ZERO callers between the V2 cutover
  * and that wire, despite an earlier comment here claiming the v1
@@ -268,32 +278,28 @@ export async function getCalibrationStats(daysBack = 30): Promise<CalibrationSta
  * this to "" while resolvePrediction had no callers.)
  */
 export function buildCalibrationPromptBlock(stats: CalibrationStats): string {
-  if (stats.resolvedCount < 5) {
+  const { within20PctRate, within40PctRate, meanErrorPct, meanBiasPct } = stats;
+  if (stats.resolvedCount < MIN_MEASURED || within20PctRate === null || within40PctRate === null || meanErrorPct === null || meanBiasPct === null) {
     return `
-═══ PREDICTION CALIBRATION (insufficient data — fewer than 5 resolved predictions) ═══
+=== PREDICTION CALIBRATION (insufficient data: ${stats.resolvedCount} resolved, ${MIN_MEASURED} needed) ===
 You don't have enough shipped + scored predictions to calibrate confidence yet.
-Make predictions when generating ("I think this hits 200+ engagement") so the loop can train. Until 30+ are resolved, hedge: say "early signal" instead of "high confidence."
+Make predictions when generating ("I think this hits 200+ engagement") so the loop can train. Until ${MIN_MEASURED}+ are resolved, hedge: say "early signal" instead of "high confidence."
 `.trim();
   }
-  const within20 = (stats.within20PctRate * 100).toFixed(0);
-  const within40 = (stats.within40PctRate * 100).toFixed(0);
-  const bias = stats.meanBiasPct;
-  const biasNote = bias > 0.1
-    ? `You tend to UNDER-PROMISE by ${(bias * 100).toFixed(0)}% — be bolder.`
-    : bias < -0.1
-      ? `You tend to OVER-PROMISE by ${Math.abs(bias * 100).toFixed(0)}% — temper your claims.`
-      : "Your predictions are well-calibrated (no consistent bias).";
+  const within20 = (within20PctRate * 100).toFixed(0);
+  const within40 = (within40PctRate * 100).toFixed(0);
+  const bias = (meanBiasPct * 100).toFixed(0);
   return `
-═══ PREDICTION CALIBRATION (last 30 days, ${stats.resolvedCount} resolved) ═══
+=== PREDICTION CALIBRATION (last 30 days, ${stats.resolvedCount} resolved) ===
 Your accuracy track record:
-  · ${within20}% of predictions within ±20% of actual
-  · ${within40}% within ±40%
-  · Mean error: ${(stats.meanErrorPct * 100).toFixed(0)}%
-  · ${biasNote}
+  - ${within20}% of predictions within +/-20% of actual
+  - ${within40}% within +/-40%
+  - Mean error: ${(meanErrorPct * 100).toFixed(0)}%
+  - Mean bias (actual vs predicted): ${meanBiasPct > 0 ? "+" : ""}${bias}%
 
 Calibration rules:
-  · Make predictions ONLY when you have base-rate evidence (similar past posts).
-  · State confidence as a percentage that matches your accuracy class — if ${within20}% of your predictions hit ±20%, don't claim "95% confident" lightly.
-  · If you don't have base-rate evidence, say "early signal" or "no read yet" instead of inventing a number.
+  - Make predictions ONLY when you have base-rate evidence (similar past posts).
+  - State confidence as a percentage that matches your accuracy class: if ${within20}% of your predictions hit +/-20%, don't claim "95% confident" lightly.
+  - If you don't have base-rate evidence, say "early signal" or "no read yet" instead of inventing a number.
 `.trim();
 }

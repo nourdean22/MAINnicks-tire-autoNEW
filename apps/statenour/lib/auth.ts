@@ -16,14 +16,16 @@ function getMockOperatorSession(): OperatorSession {
   };
 }
 
-export async function getOperatorSession(): Promise<OperatorSession> {
+export async function getOperatorSession(): Promise<OperatorSession | null> {
   if (!authEnabled) {
     return getMockOperatorSession();
   }
 
   const session = await auth();
+  // 07-SN-13 (b): auth is on and nobody is signed in. The mock operator here let the sign-in page
+  // treat an anonymous visitor as the owner whenever the mock email matched AUTH_ALLOWED_EMAIL.
   if (!session?.user?.email) {
-    return getMockOperatorSession();
+    return null;
   }
 
   return {

@@ -62,7 +62,7 @@ export async function analyzePagePatterns(): Promise<PagePattern> {
     select: { detail: true, payload: true, createdAt: true },
     orderBy: { createdAt: "desc" },
     take: 500,
-  }).catch(() => []);
+  }); // no catch: a failed read must reach the caller's "unknown" branch, not read as zero visits (02-F1)
 
   const pageCounts: Record<string, number> = {};
   const lastVisited: Record<string, Date> = {};

@@ -149,6 +149,9 @@ import {
   listMemories,
   recordMemory,
   forgetMemoryByKey,
+  forgetMemoryById,
+  correctMemory,
+  MemoryNotCurrentError,
 } from "@/lib/services/brain-memories";
 // scattered-components REST→tRPC slice (2026-05-22) · the shared
 // services the migrated components/brain/* views delegate to for their
@@ -901,9 +904,12 @@ export const brainRouter = router({
       // operator saying "this recommendation was not useful" — the exact
       // signal outcomesNeedingReview() harvests into recall-eval cases.
       // Joined by content hash, not id: see recordDecisionByContent.
+      // 06-F5: a snooze ("today"/"7d", the panel default) means "not now", so
+      // it is recorded as timing and stays out of CORRECTION_WHERE.
+      const resultRef = input.until === "forever" ? `nudge:${input.source}` : "dismiss:timing";
       void (async () => {
         const { recordDecisionByContent } = await import("@/lib/services/outcome-ledger");
-        await recordDecisionByContent(input.text, "dismissed", `nudge:${input.source}`);
+        await recordDecisionByContent(input.text, "dismissed", resultRef);
       })().catch(() => {
         /* the dismissal itself already succeeded — never fail it on the ledger */
       });
@@ -1579,6 +1585,31 @@ export const brainRouter = router({
   forgetMemoryByKey: operatorProcedure
     .input(z.object({ key: z.string().min(1).max(200) }))
     .mutation(async ({ input }) => forgetMemoryByKey(input.key)),
+
+  /**
+   * 05-M12: owner-only. Forget ONE memory from /brain or the inspector:
+   * soft-delete plus its embedding copy. A second call is `deleted: false`.
+   */
+  forgetMemory: operatorProcedure
+    .input(z.object({ id: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => forgetMemoryById(input.id)),
+
+  /**
+   * 05-M12: owner-only. Correct ONE memory: a new operator-stated row
+   * supersedes it. CONFLICT when it was already forgotten or corrected.
+   */
+  correctMemory: operatorProcedure
+    .input(z.object({ id: z.string().min(1).max(64), content: z.string().trim().min(1).max(2000) }))
+    .mutation(async ({ input }) => {
+      try {
+        return await correctMemory(input.id, input.content);
+      } catch (err) {
+        if (err instanceof MemoryNotCurrentError) {
+          throw new TRPCError({ code: "CONFLICT", message: "This memory was already forgotten or corrected." });
+        }
+        throw err;
+      }
+    }),
 
   /**
    * 2026-08-19 · memory-loop wave · Backfill Studio (lite). The corpus

@@ -24,3 +24,19 @@ export function isNearBottom(
 ): boolean {
   return scrollHeight - scrollTop - clientHeight < threshold;
 }
+
+export type FollowEvent = {
+  kind: "content-grew" | "user-scroll" | "jump";
+  distanceFromBottom: number;
+};
+
+/**
+ * 09-F13: whether auto-follow stays on. Re-deciding it from distance after
+ * every content frame dropped follow for the rest of a stream the first time
+ * one frame grew past NEAR_BOTTOM_PX. Only the operator's own scroll moves it.
+ */
+export function nextFollow(prev: boolean, ev: FollowEvent): boolean {
+  if (ev.kind === "jump") return true;
+  if (ev.kind === "content-grew") return prev;
+  return ev.distanceFromBottom < NEAR_BOTTOM_PX;
+}

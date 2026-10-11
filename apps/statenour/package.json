@@ -40,7 +40,7 @@
     "check:scripts": "tsx scripts/check-scripts-typecheck.ts --verify",
     "check:memory-admission": "tsx scripts/check-memory-admission.ts",
     "scripts-baseline:snapshot": "tsx scripts/check-scripts-typecheck.ts --snapshot",
-    "check:audit-deps": "tsx scripts/audit-deps.ts",
+    "check:audit-deps": "tsx scripts/audit-deps.ts --dry-run",
     "prompt:size-check": "tsx scripts/measure-prompt-size.ts --yes",
     "pins:smoke": "tsx scripts/smoke-pins.ts",
     "calibrate:dry": "tsx scripts/dry-run-auto-calibrate.ts --yes",

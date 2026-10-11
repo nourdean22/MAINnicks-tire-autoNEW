@@ -253,27 +253,6 @@ export const agentsProcedures = {
    */
   cockpitStats: operatorProcedure.query(async () => buildCockpitStats()),
 
-  /**
-   * Set specific prompt version active and disable other versions.
-   */
-  setActivePromptVersion: operatorProcedure
-    .input(z.object({ version: z.number().int() }))
-    .mutation(async ({ input }) => {
-      const { prisma } = await import("@/lib/prisma");
-
-      // Set all other prompt versions to active = false
-      await prisma.promptVersion.updateMany({
-        where: { active: true },
-        data: { active: false },
-      });
-
-      // Set the specified version to active = true
-      await prisma.promptVersion.update({
-        where: { version: input.version },
-        data: { active: true },
-      });
-
-      return { success: true };
-    }),
-
+  // setActivePromptVersion removed 2026-10-11 (06-F11): it flipped prompt_versions.active, which no prompt
+  // builder reads, so the cockpit toggle deployed nothing. Dropping the table is OP-16.
 };

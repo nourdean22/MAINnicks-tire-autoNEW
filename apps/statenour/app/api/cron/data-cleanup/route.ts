@@ -7,6 +7,7 @@ import { scrubExpiredPlates } from "@/lib/services/plate-retention";
 import { logError } from "@/lib/utils/error-log";
 import { sendTelegram } from "@/lib/services/telegram";
 import { sweepEmbeddingShadow } from "@/lib/db/embedding-shadow";
+import { dropEmbeddingsForMemories } from "@/lib/brain/memory-tombstone";
 import {
   NEVER_HARD_DELETE_CATEGORIES,
   judgeSweep,
@@ -94,7 +95,10 @@ export const GET = cronHandler(async () => {
     blockedSweeps.push({ ...brainGcVerdict, reason: `brain_memories_gc — ${brainGcVerdict.reason}` });
     deletedByTable.brain_memories_gc = 0;
   } else {
-    const brainGc = await prisma.brainMemory.deleteMany({ where: brainGcWhere });
+    // 05-X2: ids first, so the vector_embeddings text copy goes with the rows.
+    const ids = (await prisma.brainMemory.findMany({ where: brainGcWhere, select: { id: true } })).map((r) => r.id);
+    const brainGc = await prisma.brainMemory.deleteMany({ where: { ...brainGcWhere, id: { in: ids } } });
+    await dropEmbeddingsForMemories(ids, "data-cleanup.brain_gc");
     deletedByTable.brain_memories_gc = brainGc.count;
   }
 
@@ -192,7 +196,9 @@ export const GET = cronHandler(async () => {
       brainMemoryReport.push({ category: v.category, days: v.days, deleted: 0, why: `${v.why} — BLOCKED by sweep cap` });
       continue;
     }
-    const r = await prisma.brainMemory.deleteMany({ where });
+    const ids = (await prisma.brainMemory.findMany({ where, select: { id: true } })).map((row) => row.id);
+    const r = await prisma.brainMemory.deleteMany({ where: { ...where, id: { in: ids } } });
+    await dropEmbeddingsForMemories(ids, `data-cleanup.retention.${v.category}`);
     deletedByTable[`brain_${v.category}_${v.days}d`] = r.count;
     brainMemoryReport.push({ category: v.category, days: v.days, deleted: r.count, why: v.why });
   }

@@ -77,4 +77,4 @@ export const POST = apiHandler(async () => {
   // the DAILY Task row. Returning ok:true so clients that POST here
   // don't error, but the underlying update doesn't happen.
   return { ok: true, deprecated: true, migrateTo: "/api/tasks/[id]/check" };
-});
+}, { auth: "owner" });

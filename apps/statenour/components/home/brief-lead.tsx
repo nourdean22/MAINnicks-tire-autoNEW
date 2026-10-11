@@ -36,8 +36,6 @@ const KIND_TONE: Record<BriefLeadSection["kind"], string> = {
   suggestions: "text-fg-secondary",
 };
 
-const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
-
 export function BriefLead({
   lead,
   loading,
@@ -86,10 +84,8 @@ export function BriefLead({
 
   return (
     <section aria-label="the brief" className="mt-10 border-l border-edge-default pl-5 sm:pl-6">
-      <div className="flex items-center gap-2">
-        <span className="notch h-3" aria-hidden />
-        <h2 className={cn("vt-eyebrow", tone)}>{lead.headline}</h2>
-      </div>
+      {/* 09-X1: no notch here; the NOW line owns Home's one at-rest gold mark, the CTA is this section's gold. */}
+      <h2 className={cn("vt-eyebrow", tone)}>{lead.headline}</h2>
 
       <p className="mt-3 max-w-[56ch] text-pretty text-lg leading-relaxed text-fg sm:text-xl">
         {lead.body}
@@ -103,7 +99,6 @@ export function BriefLead({
             data-lead-decision="accepted"
             className={cn(
               "group inline-flex min-h-[48px] items-center gap-2 rounded-control bg-accent px-5 text-[15px] font-semibold text-[var(--text-inverse)] transition-colors duration-[var(--motion-state)] hover:bg-accent-hover",
-              FOCUS,
             )}
           >
             {lead.cta.label}
@@ -120,7 +115,6 @@ export function BriefLead({
             onClick={() => openInspector({ kind: "task", id: lead.taskId! })}
             className={cn(
               "inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] text-fg-secondary transition-colors duration-150 hover:border-edge-strong hover:text-fg",
-              FOCUS,
             )}
             data-brief-inspect={lead.taskId}
           >
@@ -135,7 +129,6 @@ export function BriefLead({
           aria-expanded={showWhy}
           className={cn(
             "inline-flex min-h-[44px] items-center gap-1 rounded-control px-3 text-[13px] text-fg-tertiary transition-colors duration-150 hover:text-fg",
-            FOCUS,
           )}
         >
           Why this?
@@ -149,7 +142,6 @@ export function BriefLead({
             aria-expanded={showAlternatives}
             className={cn(
               "inline-flex min-h-[44px] items-center gap-1 rounded-control px-3 text-[13px] text-fg-tertiary transition-colors duration-150 hover:text-fg",
-              FOCUS,
             )}
           >
             Different move
@@ -178,7 +170,6 @@ export function BriefLead({
                 data-lead-decision="dismissed"
                 className={cn(
                   "group flex min-h-[52px] flex-col justify-center py-2 transition-colors duration-150",
-                  FOCUS,
                 )}
               >
                 <span className="text-[15px] font-medium text-fg group-hover:underline group-hover:underline-offset-4">{alt.label}</span>

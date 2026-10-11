@@ -382,11 +382,13 @@ export async function getDurableBusHealth(): Promise<{
   dead: number;
   oldestPendingAt: string | null;
   oldestStuckProcessing: string | null;
+  /** Age of the oldest DEAD row; fleet-truth showed the stuck-processing age here (08-X5). */
+  oldestDeadAt: string | null;
 }> {
   const since = new Date(Date.now() - 86_400_000);
   const fiveMinAgo = new Date(Date.now() - 5 * 60_000);
 
-  const [pending, processing, done24h, failed24h, dead, oldestPending, stuckProcessing] =
+  const [pending, processing, done24h, failed24h, dead, oldestPending, stuckProcessing, oldestDead] =
     await Promise.all([
       prisma.brainBusEvent.count({ where: { status: "pending" } }),
       prisma.brainBusEvent.count({ where: { status: "processing" } }),
@@ -407,6 +409,11 @@ export async function getDurableBusHealth(): Promise<{
         orderBy: { lockedAt: "asc" },
         select: { lockedAt: true },
       }),
+      prisma.brainBusEvent.findFirst({
+        where: { status: "dead" },
+        orderBy: { createdAt: "asc" },
+        select: { createdAt: true },
+      }),
     ]);
 
   return {
@@ -417,6 +424,7 @@ export async function getDurableBusHealth(): Promise<{
     dead,
     oldestPendingAt: oldestPending?.availableAt.toISOString() ?? null,
     oldestStuckProcessing: stuckProcessing?.lockedAt?.toISOString() ?? null,
+    oldestDeadAt: oldestDead?.createdAt.toISOString() ?? null,
   };
 }
 

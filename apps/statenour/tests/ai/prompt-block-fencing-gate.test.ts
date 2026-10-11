@@ -197,14 +197,12 @@ const modules = importedLibModules().map((spec) => {
 });
 
 /**
- * KNOWN, 2026-10-10: found when this gate learned to follow a reading function one import away. Neither
- * fenced nor explained; the owner fences it at source or moves it to ALLOWLIST with a reason a reviewer
- * can check, then deletes it here (the reverse canary fails once it is fenced or allowlisted).
- *   @/lib/ai/tactician/next-move · buildNextMoveBlock (lib/ai/tactician/next-move.ts:92) renders picks from
- *   greene-message-matcher, dark-psychology-matcher and contextual-greene-laws (which also reads kept_word and
- *   greene_contextual_pick rows) into the prompt as bare text.
+ * KNOWN: producers found bare and not yet fenced or explained. The owner fences it at source or moves it
+ * to ALLOWLIST with a reason a reviewer can check, then deletes it here (the reverse canary fails once it
+ * is fenced or allowlisted). Empty since 2026-10-10: @/lib/ai/tactician/next-move now fences its picks
+ * (P-S7c, tests/ai/tactician-next-move-fence.test.ts).
  */
-const KNOWN_UNFENCED = new Set(["@/lib/ai/tactician/next-move"]);
+const KNOWN_UNFENCED = new Set<string>();
 
 // ── the other door: TOOL RESULTS ──────────────────────────────────────────
 // The same rows reach the model as tool output. Analysed PER TOOL, not per

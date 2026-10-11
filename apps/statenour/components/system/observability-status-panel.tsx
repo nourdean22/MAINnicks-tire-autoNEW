@@ -53,7 +53,7 @@ const BRAINTRUST_RETIRED: LaneState = {
   label: "wrap removed 2026-08-25",
   tone: "unknown",
   detail:
-    "braintrust-wrap.ts deleted — zero call sites since Wave-200; the prod key never produced a trace. Eval-dataset scripts (manual upload) are Braintrust's only remaining surface.",
+    "braintrust-wrap.ts deleted: zero call sites since Wave-200; the prod key never produced a trace. Eval-dataset scripts write local JSONL; no Braintrust code path remains.",
 };
 
 const TONE_CLASSES: Record<LaneState["tone"], string> = {

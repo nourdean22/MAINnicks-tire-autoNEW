@@ -216,6 +216,19 @@ describe("pinned injection · the cap lives in the injector", () => {
     expect(anchors).toContain("Pinned by Nour");
   });
 
+  // 05-X10: the 7th+ pin never reaches the prompt (the query takes the cap),
+  // so a header promising every pin "until he unpins them" is false at 7+.
+  it("the header names the cap and says older pins return through recall", () => {
+    const anchors = renderPromptV2(
+      contextWith({
+        pinnedContext: Array.from({ length: 7 }, (_, i) => pin(i + 1)) as unknown as NickPrimeContext["pinnedContext"],
+      }),
+    ).anchors;
+    expect(anchors).not.toContain("until he unpins them");
+    expect(anchors).toContain(`${PINNED_PROMPT_CAP} most recently updated pins`);
+    expect(anchors).toMatch(/older pins return through recall/i);
+  });
+
   it("the upstream query's take is the injector's constant, not a literal", () => {
     // MUTATION RUN: `take: PINNED_PROMPT_CAP` -> `take: 6` and this goes
     // red, even though 6 is currently the right number. That is the point:

@@ -303,7 +303,7 @@ export default function CronsPage() {
     try {
       await toggleMutation.mutateAsync({ jobName, enabled: nextEnabled });
       toast.success(`${jobName} ${nextEnabled ? "enabled" : "killed"}`);
-      await utils.system.cronDeck.invalidate();
+      await utils.systemAutomation.cronDeck.invalidate();
     } catch (e) {
       toast.error(`toggle failed: ${e instanceof Error ? e.message : e}`);
     } finally {
@@ -324,7 +324,7 @@ export default function CronsPage() {
       } else {
         toast.error(`${jobName} failed · ${result.error ?? result.status}`);
       }
-      await utils.system.cronDeck.invalidate();
+      await utils.systemAutomation.cronDeck.invalidate();
     } catch (e) {
       toast.error(`run failed: ${e instanceof Error ? e.message : e}`);
     } finally {

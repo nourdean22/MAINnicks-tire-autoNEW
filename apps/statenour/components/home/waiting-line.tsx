@@ -80,7 +80,7 @@ export function WaitingLineView({ summary, status }: { summary: WaitingSummary |
       <section aria-label="waiting on others" className="mt-10 first:mt-0">
         <h2 className="vt-eyebrow text-fg-secondary">Waiting on others</h2>
         <p className="mt-3 font-mono text-[12px] uppercase tracking-[0.12em] text-amber-300/90">
-          unknown — read failed: {model.failedSources.join(", ") || "unnamed source"}
+          unknown, read failed: {model.failedSources.join(", ") || "unnamed source"}
         </p>
       </section>
     );
@@ -97,7 +97,7 @@ export function WaitingLineView({ summary, status }: { summary: WaitingSummary |
           <li key={i.key}>
             <Link
               href={i.href ?? "/missions"}
-              className="flex min-h-[44px] items-center gap-3 py-2 text-[15px] text-fg transition-colors duration-[var(--motion-state)] hover:text-gold"
+              className="flex min-h-[44px] items-center gap-3 py-2 text-[15px] text-fg transition-colors duration-[var(--motion-state)] hover:bg-raised/50"
             >
               <span aria-hidden className="shrink-0 font-mono text-[12px] text-fg-tertiary">
                 {i.owner === "system" ? "◐" : "⏸"}

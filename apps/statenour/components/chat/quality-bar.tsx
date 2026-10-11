@@ -18,6 +18,7 @@ import { ShieldAlert, ShieldCheck, AlertCircle, RotateCcw } from "lucide-react";
 import {
   CRITIC_HEURISTIC_NOTE,
   criticDiagnosticLine,
+  evidenceGateIssue,
   qualityHasIssue,
   receiptHasIssue,
   truthWarningCount,
@@ -45,6 +46,9 @@ export function QualityBar({ payload, onRegen }: Props) {
   const unverified = fc.unverified ?? 0;
   const truthCount = truthWarningCount(payload);
   const receiptIssue = receiptHasIssue(payload);
+  // Shadow only: worded so it never reads as an enforced block (AGENTS.md L6).
+  const gateVerdict = evidenceGateIssue(payload);
+  const gateLine = gateVerdict ? `evidence gate (shadow, not enforced): would ${gateVerdict}` : null;
 
   if (!qualityHasIssue(payload)) return null;
 
@@ -66,7 +70,7 @@ export function QualityBar({ payload, onRegen }: Props) {
   const Icon =
     receiptIssue || shouldRegen
       ? ShieldAlert
-      : unverified > 0 || truthCount > 0
+      : unverified > 0 || truthCount > 0 || gateVerdict
         ? AlertCircle
         : ShieldCheck;
 
@@ -78,7 +82,7 @@ export function QualityBar({ payload, onRegen }: Props) {
         ? "regen recommended"
         : unverified > 0
           ? `${unverified} unverified`
-          : "critic warn";
+          : gateLine ?? "critic warn";
 
   const diagnosticLine = criticDiagnosticLine(critic);
   const receiptOffenders = payload.receipt?.offenders ?? [];
@@ -137,6 +141,14 @@ export function QualityBar({ payload, onRegen }: Props) {
           {truthCount > 0 && (
             <div>
               truth guard · {truthCount} flag{truthCount === 1 ? "" : "s"}
+            </div>
+          )}
+          {gateLine && (
+            <div>
+              {gateLine}
+              {payload.evidenceGate?.unreceipted?.length
+                ? `: no receipt for ${payload.evidenceGate.unreceipted.slice(0, 3).join(", ")}`
+                : ""}
             </div>
           )}
           {receiptIssue && (

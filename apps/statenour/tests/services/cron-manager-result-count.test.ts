@@ -91,8 +91,18 @@ describe("cron_job_logs.resultCount", () => {
   });
 
   it("a handler that makes no claim writes NULL, never 0", async () => {
-    await logCronRun("silent-job", async () => ({ drained: 3 }));
+    await logCronRun("silent-job", async () => ({ ok: true, notes: "nothing to count" }));
     expect(lastRow().resultCount).toBeNull();
+  });
+
+  // 08-F13 (ruling R2): one counting rule for the column. Route crons used their own
+  // countFrom (explicit resultCount only), so outbox-drain / brain-bus-drain stored NULL
+  // while the Inngest path (deriveResultCount) read the same summary as a count.
+  it("a route cron's work-count key is its count, the same rule as the Inngest path", async () => {
+    await logCronRun("outbox-drain", async () => ({ ok: true, claimed: 3, drained: 3, failed: 0, newDead: 0 }));
+    expect(lastRow().resultCount).toBe(3);
+    await logCronRun("silent-job", async () => ({ drained: 3 }));
+    expect(lastRow().resultCount).toBe(3);
   });
 
   it("0 is a claim and survives as 0 — not coerced to null by falsiness", async () => {
@@ -134,9 +144,9 @@ describe("cron_job_logs.resultCount", () => {
     await logCronRun("bad-4", async () => ({ resultCount: Number.POSITIVE_INFINITY }));
     expect(lastRow().resultCount, "Infinity is not a storable count").toBeNull();
 
-    // An array is an object with numeric-ish members; the guard drops it.
+    // An array is a list of results: its length is the count (deriveResultCount rule 4).
     await logCronRun("bad-5", async () => [1, 2, 3]);
-    expect(lastRow().resultCount, "an array carries no claim").toBeNull();
+    expect(lastRow().resultCount, "an array counts its items").toBe(3);
   });
 
   it("rejects values a Postgres INTEGER cannot store — a rejected write loses the WHOLE row", () => {
@@ -152,7 +162,7 @@ describe("cron_job_logs.resultCount", () => {
       expect(lastRow().resultCount, "beyond INTEGER range").toBeNull();
 
       await logCronRun("neg", async () => ({ resultCount: -5 }));
-      expect(lastRow().resultCount, "-5 is in range and IS a claim").toBe(-5);
+      expect(lastRow().resultCount, "a negative is not a count of work done").toBeNull();
     })();
   });
 });

@@ -6,7 +6,7 @@
  * from NourState before the message is sent.
  *
  * Tokens:
- *   @mit         — today's locked MIT from localStorage
+ *   @mit         - today's MIT from the server (operator.mit)
  *   @revenue     — today + week + pipeline value
  *   @critical    — count + titles of critical-lane tasks
  *   @commits     — active commitment count + keep-rate
@@ -67,46 +67,31 @@ const MENTIONS: Mention[] = [
   { key: "cold", label: "@cold", icon: "🗄", description: "Search cold memory (prompts for query)" },
 ];
 
-interface MitContract {
-  text: string;
-  completed: boolean;
-  date: string;
-}
-
-function readMit(): MitContract | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem("nour:mit-contract");
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as MitContract;
-    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-    if (parsed.date !== today) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
 export function useMentionSuggestions() {
   const s = useNourState();
   const utils = trpc.useUtils();
   const [show, setShow] = useState(false);
   const [filter, setFilter] = useState("");
-  const [mit, setMit] = useState<MitContract | null>(null);
+  // The server MIT (operator.mit), the one every surface reads (audit 03-F1).
+  // undefined = not read yet or the read failed; null = read, no MIT today.
+  const [mit, setMit] = useState<string | null | undefined>(undefined);
 
-  // Watch localStorage for MIT updates from other components.
   useEffect(() => {
-    setTimeout(() => setMit(readMit()), 0);
+    let alive = true;
     function refresh() {
-      setMit(readMit());
+      // Promise.resolve().then: a synchronous throw lands in the unknown branch too.
+      Promise.resolve().then(() => utils.operator.mit.fetch(undefined, { staleTime: 0 })).then(
+        (m) => { if (alive) setMit(m.text); },
+        () => { if (alive) setMit(undefined); },
+      );
     }
+    refresh();
     window.addEventListener("nour:mit-updated", refresh);
-    window.addEventListener("storage", refresh);
     return () => {
+      alive = false;
       window.removeEventListener("nour:mit-updated", refresh);
-      window.removeEventListener("storage", refresh);
     };
-  }, []);
+  }, [utils]);
 
   const filtered = useMemo(() => {
     if (!filter) return MENTIONS;
@@ -145,17 +130,21 @@ export function useMentionSuggestions() {
     (key: MentionKey): string => {
       switch (key) {
         case "mit":
-          if (!mit) return "[MIT: not set yet today]";
-          return `[MIT: ${mit.text}${mit.completed ? " (done)" : ""}]`;
+          if (mit === undefined) return "[MIT: unknown (could not read today's MIT)]";
+          if (mit === null) return "[MIT: not set yet today]";
+          return `[MIT: ${mit}]`;
         case "revenue": {
           // null = no reading (bridge + last sync failed) — say so, never "$0".
           const money = (v: number | null) => (v === null ? "unknown (read failed)" : `$${v.toLocaleString()}`);
           return `[revenue: today ${money(s.todayRevenue)} · week ${money(s.weekRevenue)} · pipeline ${s.pipelineValue === null ? "unknown (not measured)" : `$${Math.round(s.pipelineValue).toLocaleString()}`}${s.agingCritical > 0 ? ` (${s.agingCritical} aging critical)` : ""}]`;
         }
-        case "critical":
-          return `[critical: ${s.staleLeads} stale leads · ${s.overdueCommitments} overdue commitments · ${s.urgentItems.length} urgent${s.urgentItems[0] ? ` (top: "${s.urgentItems[0].message}")` : ""}]`;
+        case "critical": {
+          // null = the command-data brief carries no such count: say unknown, never "0".
+          const count = (v: number | null) => (v === null ? "unknown" : String(v));
+          return `[critical: ${count(s.staleLeads)} stale leads · ${count(s.overdueCommitments)} overdue commitments · ${s.urgentItems.length} urgent${s.urgentItems[0] ? ` (top: "${s.urgentItems[0].message}")` : ""}]`;
+        }
         case "commits":
-          return `[commits: ${s.activeCommitments} active${s.overdueCommitments > 0 ? ` · ${s.overdueCommitments} overdue` : ""}]`;
+          return `[commits: ${s.activeCommitments} active${(s.overdueCommitments ?? 0) > 0 ? ` · ${s.overdueCommitments} overdue` : ""}]`;
         case "drift":
           return `[state: ${s.currentState}${s.urgentItems.length > 0 ? ` · ${s.urgentItems.length} urgent items` : ""}]`;
         case "missions": {

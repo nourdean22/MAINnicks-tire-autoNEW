@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Target, Flame, Handshake, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { domainClass as dc, type LoopKind } from "@/components/actions/shared";
+import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
 
 type KindFilter = "all" | LoopKind;
 
@@ -299,7 +300,7 @@ export function TaskFilters({
                       value={newDomainInput}
                       onChange={(e) => setNewDomainInput(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") {
+                        if (isSubmitEnter(e)) {
                           e.preventDefault();
                           const name = newDomainInput.trim().toLowerCase();
                           if (

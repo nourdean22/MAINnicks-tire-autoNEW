@@ -296,6 +296,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
           category: BRAIN_CATEGORIES.PINNED_USER,
           updatedAt: { lt: thirtyDaysAgo },
           deletedAt: null,
+          supersededById: null,
         },
         orderBy: { updatedAt: "asc" },
         take: 3,

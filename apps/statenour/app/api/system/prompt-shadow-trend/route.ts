@@ -25,8 +25,7 @@ function clamp(n: number, lo: number, hi: number): number {
 
 // v9.1.12 · `auth: "owner"` was missing in the v9.1.6 ship — this
 // endpoint surfaces tier/slot metadata + v1/v2 char counts which is
-// internal operator telemetry, not public data. Lock it down before
-// flipping NICK_PRIME_PROMPT=on broadens its usefulness.
+// internal operator telemetry, not public data, so it stays owner-only.
 export const GET = apiHandler(
   async (req) => {
     const u = new URL(req.url);

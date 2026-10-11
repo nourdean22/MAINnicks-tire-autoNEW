@@ -22,6 +22,13 @@ describe("preference-inference · no orphaned weekly tuner", () => {
     expect(src).not.toMatch(/self-tuning weekly|weekly aggregate cron|Used by the weekly cron/);
   });
 
+  // 06-F10 (round 3): the next orphan: inferDeltaFromFeedback had no caller
+  // once the tuner went, and the header still said the engine watches thumbs.
+  it("the per-message feedback reader is gone and the header stops claiming it watches thumbs", () => {
+    expect(engine).not.toHaveProperty("inferDeltaFromFeedback");
+    expect(src).not.toMatch(/Watches every thumbs/);
+  });
+
   it("CONTROL: the live surface the style adapter and the override route use is still exported", () => {
     expect(typeof engine.loadPreferenceVector).toBe("function");
     expect(typeof engine.savePreferenceVector).toBe("function");

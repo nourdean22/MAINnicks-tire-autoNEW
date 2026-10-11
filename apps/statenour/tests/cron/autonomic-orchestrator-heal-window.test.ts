@@ -22,6 +22,8 @@ const h = vi.hoisted(() => ({
   storeDown: false,
   cronLogs: [] as Record<string, unknown>[],
   cronLogsDown: false,
+  /** Runs right after the resolver reads attempts: a racer settling the row in that gap. */
+  afterAttemptRead: null as null | (() => void),
 }));
 
 vi.mock("@/lib/services/system-pages", () => ({ buildCronCommandDeck: () => h.deck() }));
@@ -49,6 +51,7 @@ vi.mock("@/lib/prisma", () => {
   const ms = (x: unknown) => (x as Date).getTime();
   const matches = (row: Record<string, unknown>, where: Record<string, unknown>): boolean =>
     Object.entries(where).every(([k, cond]) => {
+      if (k === "OR") return (cond as Record<string, unknown>[]).some((w) => matches(row, w));
       const v = row[k];
       if (cond === null || typeof cond !== "object" || cond instanceof Date) return same(v, cond);
       return Object.entries(cond).every(([op, x]) => {
@@ -70,7 +73,9 @@ vi.mock("@/lib/prisma", () => {
   const actionAttempt = {
     findMany: async ({ where }: Pick<Q, "where">) => {
       if (h.storeDown) throw new Error("db down");
-      return [...h.attempts.values()].filter((r) => matches(r, where)).map((r) => ({ ...r }));
+      const out = [...h.attempts.values()].filter((r) => matches(r, where)).map((r) => ({ ...r }));
+      h.afterAttemptRead?.();
+      return out;
     },
     // The unique key on operation_key: check and insert with no await between.
     create: async ({ data }: Pick<Q, "data">) => {
@@ -140,6 +145,7 @@ beforeEach(() => {
   h.storeDown = false;
   h.cronLogs.length = 0;
   h.cronLogsDown = false;
+  h.afterAttemptRead = null;
 });
 
 describe("cron healer · only a recent failure is healed", () => {
@@ -410,5 +416,63 @@ describe("cron healer · a timed-out heal is resolved from the healed run's own 
 
     expect(states()).toEqual(["UNKNOWN", "SUCCEEDED_UNVERIFIED"]);
     expect(res.healedCrons).toEqual(["other-weekly"]);
+  });
+});
+
+// P-HEAL: a healer killed between claiming and settling left the claim EXECUTING
+// forever, and the resolver read UNKNOWN only. A live heal settles within about a
+// minute (triggerCronByPath aborts at 55 s), so an old EXECUTING claim lost its healer.
+describe("cron healer: a heal killed mid-flight is settled from the healed run's row", () => {
+  const MIN = 60_000;
+  const executing = (ageMs: number) => {
+    const startedAt = new Date(Date.now() - ageMs);
+    h.attempts.set("cron-heal:weekly-maint:x", {
+      id: "att_dead",
+      operationKey: "cron-heal:weekly-maint:x",
+      tool: "cron.heal",
+      state: "EXECUTING",
+      attemptNo: 1,
+      startedAt,
+      holdUntil: new Date(Date.now() + DAY),
+    });
+    h.deck.mockResolvedValue({ rows: [] });
+    return startedAt.getTime();
+  };
+  const cronRow = (id: string, status: string, at: number) =>
+    h.cronLogs.push({ id, jobName: "weekly-maint", status, createdAt: new Date(at) });
+  const row = () => h.attempts.get("cron-heal:weekly-maint:x")!;
+
+  it("an EXECUTING heal past the timeout whose run succeeded is VERIFIED, citing the row", async () => {
+    const startedAt = executing(2 * HOUR);
+    cronRow("log_heal", "success", startedAt + 1_000);
+    await runAutonomicOrchestrator();
+    expect(row().state).toBe("VERIFIED");
+    expect(row().receiptId).toBe("log_heal");
+  });
+
+  it("an EXECUTING heal past the timeout whose run failed is FAILED, citing the row", async () => {
+    const startedAt = executing(2 * HOUR);
+    cronRow("log_heal", "failed", startedAt + 1_000);
+    await runAutonomicOrchestrator();
+    expect(row().state).toBe("FAILED");
+    expect(row().reason).toMatch(/log_heal/);
+  });
+
+  it("CONTROL: an EXECUTING heal inside the timeout is left alone (its healer may be live)", async () => {
+    const startedAt = executing(2 * MIN);
+    cronRow("log_heal", "success", startedAt + 1_000);
+    await runAutonomicOrchestrator();
+    expect(row().state).toBe("EXECUTING");
+  });
+
+  it("RACE: a heal that settles between the resolver's read and write keeps its own outcome", async () => {
+    const startedAt = executing(2 * HOUR);
+    cronRow("log_heal", "success", startedAt + 1_000);
+    h.afterAttemptRead = () => {
+      row().state = "FAILED"; // the original healer settles it in the gap
+      h.afterAttemptRead = null;
+    };
+    await runAutonomicOrchestrator();
+    expect(row().state).toBe("FAILED");
   });
 });

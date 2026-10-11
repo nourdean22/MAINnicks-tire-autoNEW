@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { evaluateToolAction } from "@/lib/tools/tool-policy";
 import { semanticSearch } from "@/lib/brain/embedding-utils";
 
-const mockApprovalRequestFindFirst = vi.fn();
+const mockApprovalRequestFindMany = vi.fn();
 const mockApprovalRequestCreate = vi.fn();
 const mockMemoryInboxItemFindFirst = vi.fn();
 const mockMemoryInboxItemCreate = vi.fn();
@@ -13,7 +13,7 @@ const mockBrainMemoryFindMany = vi.fn();
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     approvalRequest: {
-      findFirst: () => mockApprovalRequestFindFirst(),
+      findMany: () => mockApprovalRequestFindMany(),
       create: (args: any) => mockApprovalRequestCreate(args),
     },
     memoryInboxItem: {
@@ -37,7 +37,7 @@ vi.mock("@/lib/brain/embedding-utils", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockApprovalRequestFindFirst.mockReset();
+  mockApprovalRequestFindMany.mockReset();
   mockApprovalRequestCreate.mockReset();
   mockMemoryInboxItemFindFirst.mockReset();
   mockMemoryInboxItemCreate.mockReset();
@@ -54,7 +54,7 @@ describe("Safety Pipelines: Tool Approval Queue", () => {
       reason: "Requires manual confirmation"
     });
 
-    mockApprovalRequestFindFirst.mockResolvedValue(null);
+    mockApprovalRequestFindMany.mockResolvedValue([]);
     mockApprovalRequestCreate.mockResolvedValue({
       id: "req_123"
     });

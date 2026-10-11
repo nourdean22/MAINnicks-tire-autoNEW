@@ -13,7 +13,7 @@ export function RecurringEnemiesCard() {
 
   const revisitMutation = trpc.systemBrain.revisitAntiPattern.useMutation({
     onSuccess: async () => {
-      await utils.system.antiPatterns.invalidate();
+      await utils.systemBrain.antiPatterns.invalidate();
     },
   });
 

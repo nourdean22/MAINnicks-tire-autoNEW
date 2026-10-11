@@ -13,6 +13,9 @@ const h = vi.hoisted(() => ({
   metricCreate: vi.fn(),
   coach: vi.fn(),
   telegram: vi.fn(),
+  buildSystemPrompt: vi.fn(),
+  density: vi.fn(),
+  realDensity: null as null | ((t: string) => number),
 }));
 
 vi.mock("ai", async (importOriginal) => ({
@@ -38,8 +41,17 @@ vi.mock("@/lib/services/telegram", () => ({
   sendTelegram: (...a: unknown[]) => h.telegram(...a),
   formatTelegramNotification: (t: string) => t,
 }));
+vi.mock("@/lib/ai/system-prompt", () => ({
+  buildSystemPromptUncached: (...a: unknown[]) => h.buildSystemPrompt(...a),
+  detectTopicTier: () => "business",
+}));
+vi.mock("@/lib/ai/nour-voice-profile", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ai/nour-voice-profile")>();
+  h.realDensity = actual.specificityDensity;
+  return { ...actual, specificityDensity: (t: string) => h.density(t) };
+});
 
-import { runQualityBench } from "@/lib/ai/evals/quality-bench-core";
+import { goldSetHash, runPrompt, runQualityBench } from "@/lib/ai/evals/quality-bench-core";
 import { qualityBenchWeekly, classifyBenchOutcome } from "@/lib/inngest/functions/quality-bench";
 import { QUALITY_PROMPTS } from "@/tests/fixtures/quality-prompts.gold";
 
@@ -53,6 +65,8 @@ beforeEach(() => {
   h.metricCreate.mockReset().mockResolvedValue({});
   h.coach.mockReset().mockResolvedValue(undefined);
   h.telegram.mockReset().mockResolvedValue(undefined);
+  h.buildSystemPrompt.mockReset().mockResolvedValue("SYS");
+  h.density.mockReset().mockImplementation((t: string) => h.realDensity!(t));
 });
 
 describe("quality bench core - provider failure is errored, not failed", () => {
@@ -100,5 +114,78 @@ describe("quality bench weekly - outage never fires the drift alert", () => {
 
   it("classifyBenchOutcome: nothing measured is its own state, never ok or alert", () => {
     expect(classifyBenchOutcome({ failed: 0, passRate: null, prevRate: 0.875 })).toBe("unmeasured");
+  });
+});
+
+// Audit 2026-10-10 06-F7: the bench sent no system prompt, so it never tested
+// production; a crash while checking counted as a failed prompt (a drift alert).
+describe("quality bench - production system prompt", () => {
+  it("runPrompt sends the production system prompt and records its length", async () => {
+    h.generateText.mockResolvedValue({ text: "Nick closed 3 estimates today for $2,400 at the Euclid shop." });
+    const r = await runPrompt(QUALITY_PROMPTS[0], false);
+    expect(h.generateText).toHaveBeenCalledWith(expect.objectContaining({ system: "SYS" }));
+    expect(h.buildSystemPrompt).toHaveBeenCalledWith("business", QUALITY_PROMPTS[0].user);
+    expect(r.systemPromptLength).toBe(3);
+  });
+
+  it("a crash while checking is errored, not failed", async () => {
+    h.generateText.mockResolvedValue({ text: "Nick closed 3 estimates today for $2,400 at the Euclid shop." });
+    h.density.mockImplementation(() => {
+      throw new Error("density blew up");
+    });
+    const r = await runPrompt({ id: "x", description: "x", user: "u", checks: { minSpecificityMarkerDensity: 1 } }, false);
+    expect(r.errored).toBe(true);
+  });
+
+  it("a system-prompt build failure is errored (no production prompt to test)", async () => {
+    h.buildSystemPrompt.mockRejectedValue(new Error("brain db down"));
+    const r = await runPrompt(QUALITY_PROMPTS[0], false);
+    expect(r.errored).toBe(true);
+    expect(h.generateText).not.toHaveBeenCalled();
+  });
+});
+
+// Audit 2026-10-10 06-X3: a gold-set or model change made old and new pass
+// rates incomparable, and the diff could raise a false REGRESSION.
+describe("quality bench weekly - comparability", () => {
+  const weak = { text: "ok" };
+  const prevRow = (tags: Record<string, unknown>) => ({ value: 0.875, createdAt: new Date("2026-10-03T13:00:00Z"), tags });
+  const titles = () => h.coach.mock.calls.map((c) => (c[0] as { title: string }).title);
+
+  it("a previous row with a different goldHash raises no REGRESSION", async () => {
+    h.generateText.mockResolvedValue(weak);
+    h.metricFindFirst.mockResolvedValue(prevRow({ goldHash: "old-gold-set", model: "deepseek-v4-flash:0731" }));
+    const res = await runWeekly();
+    expect(res.prevRate).toBeNull();
+    expect(res.regressed).toBe(false);
+    expect(titles().some((t) => t.includes("REGRESSION"))).toBe(false);
+  });
+
+  it("a previous row from a different model raises no REGRESSION", async () => {
+    h.generateText.mockResolvedValue(weak);
+    h.metricFindFirst.mockResolvedValue(prevRow({ goldHash: goldSetHash(QUALITY_PROMPTS), model: "other-model" }));
+    const res = await runWeekly();
+    expect(res.regressed).toBe(false);
+  });
+
+  it("CONTROL: same gold set and model still raises REGRESSION on a drop", async () => {
+    h.generateText.mockResolvedValue(weak);
+    h.metricFindFirst.mockResolvedValue(prevRow({ goldHash: goldSetHash(QUALITY_PROMPTS), model: "deepseek-v4-flash:0731" }));
+    const res = await runWeekly();
+    expect(res.regressed).toBe(true);
+    expect(titles().some((t) => t.includes("REGRESSION"))).toBe(true);
+  });
+
+  it("the written metric carries goldHash", async () => {
+    h.generateText.mockResolvedValue({ text: "Nick closed 3 estimates today for $2,400 at the Euclid shop." });
+    await runWeekly();
+    const { data } = h.metricCreate.mock.calls[0][0] as { data: { tags: Record<string, unknown> } };
+    expect(data.tags.goldHash).toBe(goldSetHash(QUALITY_PROMPTS));
+  });
+
+  it("goldSetHash sees a regex edit (JSON.stringify drops RegExp)", () => {
+    const a = [{ id: "a", description: "d", user: "u", checks: { mustMention: [/foo/] } }];
+    const b = [{ id: "a", description: "d", user: "u", checks: { mustMention: [/bar/] } }];
+    expect(goldSetHash(a)).not.toBe(goldSetHash(b));
   });
 });

@@ -16,6 +16,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
+import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
 
 interface Thread {
   id: string;
@@ -423,7 +424,7 @@ function NewThreadForm({
           value={newName}
           onChange={(e) => setNewName(e.target.value.slice(0, 120))}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !busy) {
+            if (isSubmitEnter(e) && !busy) {
               e.preventDefault();
               onSubmit();
             }

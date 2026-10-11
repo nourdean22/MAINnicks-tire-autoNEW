@@ -61,9 +61,11 @@ const ctx = { params: Promise.resolve({}) };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Tagged-template call: (strings, ...values). Returns [] for the candidate
-  // query and a count row for the `remaining` query; both are shaped as arrays.
-  mockPrisma.$queryRaw.mockResolvedValue([{ n: 0n }]);
+  // Tagged-template call: (strings, ...values). A count row for the
+  // `remaining` query, no rows for any candidate query (missing or stale lane).
+  mockPrisma.$queryRaw.mockImplementation(async (strings: TemplateStringsArray) =>
+    /COUNT\(\*\)/i.test(strings.join("?")) ? [{ n: 0n }] : [],
+  );
   mockPrisma.vectorEmbedding.findMany.mockResolvedValue([]);
   mockPrisma.brainMemory.findMany.mockResolvedValue([]);
   mockPrisma.brainDump.findMany.mockResolvedValue([]);
@@ -119,6 +121,41 @@ describe("cron/embed-backfill · bounded scans", () => {
     ]);
     await invoke();
     expect(storeGenericEmbedding).toHaveBeenCalledWith("brain_memory", "m1", expect.any(String));
+  });
+});
+
+/**
+ * 05-M7: a rewritten memory keeps its old vector, and a failed re-embed
+ * (storeGenericEmbedding swallows the error) is never retried, because the
+ * missing-rows lane only sees rows with NO vector. The stale lane re-embeds
+ * live rows whose stored vector text no longer carries their content.
+ */
+describe("cron/embed-backfill: stale vectors are re-embedded", () => {
+  const sqlOf = (i: number) => (mockPrisma.$queryRaw.mock.calls[i][0] as string[]).join("?");
+
+  it("the second query is the bounded stale lane and its rows are re-embedded with the NEW text", async () => {
+    const { storeGenericEmbedding } = await import("@/lib/brain/embedding-utils");
+    mockPrisma.$queryRaw
+      .mockResolvedValueOnce([]) // missing lane: nothing unembedded
+      .mockResolvedValueOnce([{ id: "m2", category: "identity", key: "home", content: "Lives in Parma now" }]);
+
+    const out = (await invoke()) as Record<string, unknown>;
+
+    const stale = sqlOf(1);
+    expect(stale).toMatch(/EXISTS/i);
+    expect(stale).toMatch(/left\(bm\.content, 60\)/i);
+    expect(stale).toMatch(/LIMIT/i);
+    expect(storeGenericEmbedding).toHaveBeenCalledWith("brain_memory", "m2", "[identity] home: Lives in Parma now");
+    expect(out.resultCount).toBe(1);
+  });
+
+  it("the stale lane carries the same live, non-telemetry, confidence floor as the missing lane", async () => {
+    await invoke();
+    const stale = sqlOf(1);
+    expect(stale, "the second query is the stale lane, not the backlog count").not.toMatch(/COUNT\(/i);
+    expect(stale).toMatch(/deleted_at IS NULL/i);
+    expect(stale).toMatch(/confidence >= 0\.2/i);
+    expect(mockPrisma.$queryRaw.mock.calls[1].slice(1).flat()).toContain("mastery_xp_event");
   });
 });
 

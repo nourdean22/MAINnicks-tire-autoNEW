@@ -29,6 +29,8 @@ vi.mock("@/lib/prisma", () => {
       const at = new Date(Date.now() - 3_600_000);
       return new Proxy({}, { get: () => at });
     },
+    // The route's error_logs read (buildInstrumentFailures): no failures logged.
+    findMany: async () => [],
   });
   return { prisma: new Proxy({}, { get: (_t, prop: string) => model(prop) }) };
 });

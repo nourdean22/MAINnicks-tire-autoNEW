@@ -94,6 +94,9 @@ export async function POST(req: Request) {
             { category: "commitment" },
             { category: BRAIN_CATEGORIES.FEEDBACK, confidence: { gte: 0.8 } },
           ],
+          // Only current rows: a forgotten or corrected (superseded) memory must not reach the planner.
+          deletedAt: null,
+          supersededById: null,
         },
         orderBy: { updatedAt: "desc" },
         take: 12,

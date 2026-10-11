@@ -16,9 +16,9 @@ import { isApprovalRequestExpired } from "@/lib/automation/approval-freshness";
  * - `opts.approvalId` names an executed request (same tool, same payload)
  *   that ran within APPROVAL_REPLAY_WINDOW_MS → { approved: false, replay }
  *   carrying the stored result. The caller returns it and does not execute.
- * - Otherwise the most recent same-tool request inside the 24h dedupe window
- *   is matched canonically: pending/approved (unexpired) → its approvalId;
- *   rejected/failed → throws; executed or expired → a NEW pending request.
+ * - Otherwise the most recent same-tool, same-payload request inside the 24h
+ *   dedupe window is matched canonically: pending/approved (unexpired) → its approvalId;
+ *   rejected/failed/needs_review → throws; executed or expired → a NEW pending request.
  *
  * If allowed:
  * - Returns { approved: true }.
@@ -67,17 +67,21 @@ export async function checkApprovalGate(
     const matched =
       named ??
       (await (async () => {
-        const existing = await prisma.approvalRequest.findFirst({
+        // Newest same-PAYLOAD row decides: a newer request for another payload must not hide a needs_review row.
+        // shortcut: only the newest 50 same-tool rows in the window are read, raise take if one tool ever exceeds that per day.
+        const recent = await prisma.approvalRequest.findMany({
           where: {
             toolId,
             status: {
-              in: ["pending_approval", "approved", "rejected", "executed", "failed"]
+              // needs_review: an approved run that MAY have happened (P-S5a; same list as withGuardian).
+              in: ["pending_approval", "approved", "rejected", "executed", "failed", "needs_review"]
             },
             createdAt: { gte: new Date(now.getTime() - APPROVAL_DEDUPE_WINDOW_MS) }
           },
-          orderBy: { createdAt: "desc" }
+          orderBy: { createdAt: "desc" },
+          take: 50,
         });
-        return existing && samePayload(existing.payload, payload) ? existing : null;
+        return recent.find((r) => samePayload(r.payload, payload)) ?? null;
       })());
 
     if (matched) {
@@ -97,6 +101,8 @@ export async function checkApprovalGate(
         throw new Error("Action rejected by operator");
       } else if (matched.status === "failed") {
         throw new Error(`Action execution failed: ${JSON.stringify(matched.resultPayload)}`);
+      } else if (matched.status === "needs_review") {
+        throw new Error("Action may already have run; review it on /system/actions before raising it again");
       } else if (
         (matched.status === "pending_approval" || matched.status === "approved") &&
         isApprovalRequestExpired(matched, now)

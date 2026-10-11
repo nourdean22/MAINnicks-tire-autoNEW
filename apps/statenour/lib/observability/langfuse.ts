@@ -45,6 +45,7 @@
 import { logger as rootLogger } from "@/lib/logger";
 import { currentTurn } from "@/lib/agent/turn-context";
 import { AI_SDK_TRACER_NAME, LANGFUSE_SELFCHECK_SPAN_NAME } from "./span-names";
+import { maskPii, maskSecrets } from "./secret-mask";
 
 const log = rootLogger.withSurface("observability/langfuse");
 
@@ -303,12 +304,12 @@ export function resolveLangfuseRelease(env: NodeJS.ProcessEnv = process.env): st
 /**
  * Belt-and-braces masking applied to every exported span payload: an API key
  * or bearer token that leaks into a prompt, a tool result or a model reply
- * never reaches Langfuse. The processor hands over the stringified data.
+ * never reaches Langfuse, and neither does a customer's email or phone
+ * (07-SN-08). The processor hands over the stringified data. Secrets first,
+ * so a key is never half-eaten by the phone arm.
  */
-const SECRET_RE = /\b(?:sk|pk)-[A-Za-z0-9_-]{8,}|\bBearer\s+[A-Za-z0-9._~+/=-]{16,}/g;
 export function maskLangfuseData(data: unknown): unknown {
-  if (typeof data !== "string") return data;
-  return data.replace(SECRET_RE, (m) => (m.startsWith("Bearer") ? "Bearer [REDACTED]" : `${m.slice(0, 3)}[REDACTED]`));
+  return maskPii(maskSecrets(data));
 }
 
 

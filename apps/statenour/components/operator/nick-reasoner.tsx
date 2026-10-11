@@ -283,24 +283,11 @@ export function NickReasoner({
       ].join(" ")}
     >
       <header className="space-y-1">
+        {/* Telemetry / History links removed: both redirect to /brain?tab=reason, this page (02-X4-N1). */}
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
             nick · reasoning engine
           </p>
-          <div className="flex items-center gap-4">
-            <a
-              href="/reason/telemetry"
-              className="text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
-            >
-              Telemetry →
-            </a>
-            <a
-              href="/reason/history"
-              className="text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
-            >
-              History →
-            </a>
-          </div>
         </div>
         <h1 className="text-2xl font-medium text-[var(--text-primary)]">
           Watch Nick think.

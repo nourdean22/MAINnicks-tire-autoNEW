@@ -130,7 +130,8 @@ describe("toolReceipts · writer and reader ship together", () => {
   const router = readFileSync(resolve(process.cwd(), "lib/trpc/routers/system/digest.ts"), "utf8");
 
   it("persist writes tokenUsage.toolReceipts", () => {
-    expect(persist).toMatch(/toolReceipts:\s*receipts\.length > 0/);
+    // Always an array ([] = "no tool ran"), so the Retry gate can tell it from a row with no receipts.
+    expect(persist).toMatch(/toolReceipts:\s*\(receipts\.map\(/);
   });
   it("the projection carries no args and no results", () => {
     const block = persist.slice(persist.indexOf("toolReceipts:"), persist.indexOf("toolReceipts:") + 900);
@@ -156,7 +157,7 @@ describe("toolReceipts · writer and reader ship together", () => {
     const projection = code.indexOf("toolReceipts:");
     expect(join, "receiptsWithReadBack join not found").toBeGreaterThan(-1);
     expect(projection, "toolReceipts projection not found").toBeGreaterThan(join);
-    expect(code.slice(projection, projection + 200)).toMatch(/toolReceipts:\s*receipts\.length > 0\s*\?\s*\(receipts\.map\(/);
+    expect(code.slice(projection, projection + 200)).toMatch(/toolReceipts:\s*\(receipts\.map\(/);
   });
 
   it("P2 · the reader filters on the claimDoneShadow KEY, not merely on tokenUsage being present", () => {

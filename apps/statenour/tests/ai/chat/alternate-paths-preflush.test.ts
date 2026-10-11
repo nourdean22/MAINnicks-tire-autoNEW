@@ -16,11 +16,22 @@ vi.mock("@/lib/feature-flags", () => ({ getFlag: (k: string) => ({ isOn: flags[k
 const generateText = vi.fn();
 vi.mock("ai", () => ({ generateText: (...a: unknown[]) => generateText(...a), stepCountIs: () => () => false }));
 vi.mock("@/lib/observability/langfuse", () => ({ langfuseTelemetry: () => ({}) }));
-vi.mock("@/lib/services/chat/persist-assistant-turn", () => ({ buildOnFinish: () => async () => undefined }));
+// The persist event each buffered lane hands buildOnFinish (audit 04-F4).
+const persistEvents: Array<Record<string, unknown>> = [];
+vi.mock("@/lib/services/chat/persist-assistant-turn", () => ({
+  buildOnFinish: () => async (ev: Record<string, unknown>) => {
+    persistEvents.push(ev);
+  },
+}));
 vi.mock("@/lib/ai/chat/simulate-stream-from-text", () => ({
-  simulateStreamFromText: () => new Response("stream"),
+  simulateStreamFromText: ({ onComplete }: { onComplete?: () => unknown }) => {
+    void onComplete?.();
+    return new Response("stream");
+  },
   simulateReasoningStream: () => new Response("reasoning"),
 }));
+// No DB row from a unit test: the turn registration is a prisma upsert.
+vi.mock("@/lib/services/chat/active-stream", () => ({ trackActiveStream: () => () => undefined }));
 vi.mock("@/lib/services/chat/response-shape", () => ({ buildChatResponse: ({ streamResponse }: { streamResponse: Response }) => streamResponse }));
 vi.mock("@/lib/ai/chat/pre-stream-regen", () => ({ shouldGateForIntent: () => false, maybePreStreamRegen: vi.fn() }));
 vi.mock("@/lib/ai/chat/multi-agent-detect", () => ({ isMultiPartQuestion: () => false, runAutoDecompose: vi.fn() }));
@@ -72,6 +83,7 @@ const LOW = "thanks, that helps";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  persistEvents.length = 0;
   for (const k of Object.keys(flags)) delete flags[k];
   generateText.mockResolvedValue({ text: "buffered answer", toolCalls: [{ toolName: "arsenalWebSearch" }], toolResults: [{ output: { hits: 3 } }] });
 });
@@ -180,5 +192,40 @@ describe("pre-flush evidence lane", () => {
     expect(generateText).not.toHaveBeenCalled();
     expect(await runAlternatePaths(base(lookup, { toolsExpected: false }))).toBeInstanceOf(Response);
     expect(generateText).toHaveBeenCalledTimes(1);
+  });
+
+  // Audit 04-F4: in ai@6 result.toolCalls / toolResults are the FINAL step
+  // only. A tool step followed by a text step left both empty, so the lane
+  // declared itself receipt-sighted with no receipts.
+  it("reads tool calls and results from EVERY step, and hands the steps to the persist walk", async () => {
+    flags.NICK_EVIDENCE_PREFLUSH = true;
+    flags.NICK_EVIDENCE_ENFORCEMENT = true;
+    generateText.mockResolvedValue({
+      text: "Done, I added it.",
+      toolCalls: [],
+      toolResults: [],
+      steps: [
+        { toolCalls: [{ toolName: "createTask" }], toolResults: [{ toolName: "createTask", output: { ok: true } }] },
+        { toolCalls: [], toolResults: [] },
+      ],
+    });
+    expect(await runAlternatePaths(base(HIGH))).toBeInstanceOf(Response);
+    const receipts = checkNamedSources.mock.calls[0][1] as { toolCalls: Array<{ name: string }>; evidenceText: string };
+    expect(receipts.toolCalls).toEqual([{ name: "createTask" }]);
+    expect(receipts.evidenceText).toContain('"ok":true');
+    expect(persistEvents).toHaveLength(1);
+    expect(Array.isArray(persistEvents[0].steps)).toBe(true);
+    expect((persistEvents[0].steps as unknown[]).length).toBe(2);
+    expect(persistEvents[0].laneToolNames).toEqual(["createTask"]);
+  });
+
+  it("control: a result with no steps keeps the top-level reading and adds no steps to the event", async () => {
+    flags.NICK_EVIDENCE_PREFLUSH = true;
+    flags.NICK_EVIDENCE_ENFORCEMENT = true;
+    expect(await runAlternatePaths(base(HIGH))).toBeInstanceOf(Response);
+    const receipts = checkNamedSources.mock.calls[0][1] as { toolCalls: Array<{ name: string }> };
+    expect(receipts.toolCalls).toEqual([{ name: "arsenalWebSearch" }]);
+    expect(persistEvents).toHaveLength(1);
+    expect("steps" in persistEvents[0]).toBe(false);
   });
 });

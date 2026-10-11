@@ -24,6 +24,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
+import { fenceContent } from "@/lib/ai/tool-result-fencing";
 
 const log = rootLogger.withSurface("ai/tactician");
 
@@ -159,9 +160,8 @@ export async function buildNextMoveBlock(
       lines.push("");
     }
     lines.push("Candidate moves from the corpus (verbatim · pick what fits, adapt names/numbers):");
-    for (const m of moves.slice(0, 4)) {
-      lines.push(`- ${m.move} [${m.cite}]`);
-    }
+    // Picks are stored rows (corpus + LLM-picked person laws over kept_word rows): data, never directives (P-S7c).
+    lines.push(fenceContent("tactician", "memory_recall", moves.slice(0, 4).map((m) => `- ${m.move} [${m.cite}]`).join("\n")));
     lines.push("");
     lines.push(
       "End your answer with exactly ONE concrete move — verb first, target named, executable within 48 hours, cited [Book · Law] when it comes from the corpus. One move, not a menu.",

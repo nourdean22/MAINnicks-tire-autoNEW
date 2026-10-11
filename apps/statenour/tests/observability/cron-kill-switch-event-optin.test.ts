@@ -28,6 +28,9 @@ import {
 const eventFn = (id: string) => ({ opts: { id, triggers: [{ event: "social/publish" }] } });
 const mw = () => new CronLifecycleMiddleware({ client: {} as never });
 
+// The shipped list, restored after each case so a test that edits it cannot leak.
+const SHIPPED = [...KILLABLE_EVENT_FUNCTIONS];
+
 beforeEach(() => {
   for (const k of Object.keys(state)) delete state[k];
   isCronEnabled.mockClear();
@@ -36,14 +39,27 @@ beforeEach(() => {
 });
 afterEach(() => {
   KILLABLE_EVENT_FUNCTIONS.clear();
+  for (const id of SHIPPED) KILLABLE_EVENT_FUNCTIONS.add(id);
 });
 
 describe("event-function kill switch · opt-in", () => {
-  it("CONTROL: the shipped list is empty, so an event function with its switch off still runs", async () => {
-    expect([...KILLABLE_EVENT_FUNCTIONS]).toEqual([]);
+  it("the shipped list names the three side-effecting event functions", () => {
+    expect([...KILLABLE_EVENT_FUNCTIONS].sort()).toEqual(["bulk-sms-approval", "nick-action-approved", "social-publish"]);
+  });
+
+  it("a shipped event function with its switch off does not run", async () => {
     state["social-publish"] = false;
     const next = vi.fn(async () => "ran");
-    expect(await mw().wrapFunctionHandler({ ctx: { runId: "e0" }, fn: eventFn("social-publish"), next })).toBe("ran");
+    const out = await mw().wrapFunctionHandler({ ctx: { runId: "e0" }, fn: eventFn("social-publish"), next });
+    expect(next).not.toHaveBeenCalled();
+    expect(out).toEqual({ skipped: true, reason: KILL_SWITCH_SKIP_REASON, jobName: "social-publish" });
+  });
+
+  it("CONTROL: an unlisted event function with its switch off still runs", async () => {
+    KILLABLE_EVENT_FUNCTIONS.clear();
+    state["social-publish"] = false;
+    const next = vi.fn(async () => "ran");
+    expect(await mw().wrapFunctionHandler({ ctx: { runId: "e5" }, fn: eventFn("social-publish"), next })).toBe("ran");
     expect(isCronEnabled).not.toHaveBeenCalled();
   });
 
@@ -64,6 +80,7 @@ describe("event-function kill switch · opt-in", () => {
   });
 
   it("listing one event function gates only that one", async () => {
+    KILLABLE_EVENT_FUNCTIONS.clear();
     KILLABLE_EVENT_FUNCTIONS.add("social-publish");
     state["bulk-sms-approval"] = false;
     const next = vi.fn(async () => "ran");

@@ -98,8 +98,6 @@ export const ENV_SPEC: Spec[] = [
   // ── WAVE-200 substrate (2026-05-17) ────────────────────────────────
   // All runtime · substrate degrades gracefully when missing. See
   // docs/WAVE-200-PLAN.md + per-substrate ADRs for activation.
-  { key: "BRAINTRUST_API_KEY",      tier: "runtime", description: "UNUSED by the app since 2026-08-25 (braintrust-wrap deleted, zero callers ever) · read only by the manual eval-dataset upload scripts" },
-  { key: "BRAINTRUST_PROJECT_NAME", tier: "runtime", description: "Braintrust project name for the manual eval-dataset scripts (default: statenour-nick) · no runtime effect" },
   { key: "INNGEST_EVENT_KEY",       tier: "runtime", description: "Wave-200 Phase 3 · Inngest event-send key (paste from app.inngest.com → app → keys)" },
   { key: "INNGEST_SIGNING_KEY",     tier: "runtime", description: "Wave-200 Phase 3 · Inngest signing key (paste from app.inngest.com → app → keys)" },
 
@@ -109,7 +107,6 @@ export const ENV_SPEC: Spec[] = [
   { key: "DAILY_AI_BUDGET_CENTS",     tier: "runtime", description: "Daily AI spend cap in cents — cost SLO gate" },
   { key: "DEBUG_SQL",                 tier: "runtime", description: "Set to '1' to log raw Prisma SQL queries" },
   { key: "NARRATOR_LLM_SYNTHESIS",    tier: "runtime", description: "Set to '1' to enable Ultron narrator LLM synthesis" },
-  { key: "NICK_PRIME_PROMPT",         tier: "runtime", description: "Toggle Nick prime prompt variant ('1' / '0')" },
   { key: "OPERATOR_EMAIL",            tier: "runtime", description: "Fallback operator email for brain preference inference" },
   { key: "GEMINI_MODEL",              tier: "runtime", description: "Override Gemini model for Google Search integration" },
   { key: "ALLOW_PROD_WRITES",         tier: "runtime", description: "Dangerous script gate — set to '1' to permit prod mutations" },

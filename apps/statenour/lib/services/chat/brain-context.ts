@@ -582,7 +582,8 @@ export async function buildBrainContext(
 
     // Apr 19 · Task queue injection. Runs in the same promise race
     // (started at taskContextPromise above), so it's free time-wise.
-    const taskBlock = await withTimeout(taskContextPromise, 3000, "");
+    // A timed-out read is the same failure as a thrown one: never an empty queue (08-F6d).
+    const taskBlock = await withTimeout(taskContextPromise, 3000, TASK_QUEUE_UNAVAILABLE);
 
     // Apr 19 · Rerank brain blocks by semantic relevance to the user
     // turn. Sorts similarity DESCENDING and the append loop below keeps

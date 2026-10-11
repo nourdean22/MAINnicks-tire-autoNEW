@@ -30,6 +30,7 @@ import { BRANCHES } from "@/lib/mastery/config";
 import { ShieldAlert } from "lucide-react";
 import { ErrorCard } from "@/components/ui/error-card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { scrollBehavior } from "@/lib/ui/scroll-behavior";
 
 interface StatLevel {
   key: string;
@@ -116,10 +117,9 @@ export function CharacterSheet() {
       });
 
       requestAnimationFrame(() => {
-        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         document.getElementById(`axis-${key}`)?.scrollIntoView({
           block: "center",
-          behavior: reduceMotion ? "auto" : "smooth",
+          behavior: scrollBehavior(),
         });
       });
     });

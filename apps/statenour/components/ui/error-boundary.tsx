@@ -30,8 +30,8 @@
  *
  * Layout-level wrapping pattern:
  *   app/(mastery)/layout.tsx wraps children in <ErrorBoundary
- *   name="mastery.root" /> so one page blowing up leaves the chrome
- *   + nav intact.
+ *   name="mastery.page" />. Page render errors reach app/(mastery)/error.tsx
+ *   (mastery.error) first; this one sees only what escapes that.
  */
 
 import { Component, type ErrorInfo, type ReactNode } from "react";
@@ -91,7 +91,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <p className="text-[12px] text-rose-300/80 mt-0.5 break-words">
               {error.message.slice(0, 300)}
             </p>
-            <p className="text-[11px] text-rose-300/50 mt-1 font-mono">
+            <p className="text-[11px] text-rose-300 mt-1 font-mono">
               logged to /api/errors · check /system/logs?view=errors
             </p>
           </div>

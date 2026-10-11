@@ -200,11 +200,11 @@ export function NickMessage({
                doesn't require rewriting all 23 override signatures. */
             components={{
 
-            // Headings
-            h1: ({ children }: MDProps) => <p className="text-fg font-semibold text-[17px] leading-snug mt-4 mb-1.5">{children}</p>,
-            h2: ({ children }: MDProps) => <p className="text-fg font-semibold text-[15.5px] leading-snug mt-4 mb-1.5">{children}</p>,
-            h3: ({ children }: MDProps) => <p className="text-fg font-semibold text-[14.5px] mt-3 mb-1">{children}</p>,
-            h4: ({ children }: MDProps) => <p className="text-fg-secondary font-medium text-[13px] mt-3 mb-1">{children}</p>,
+            // Headings, one level down (09-F19): the page owns h1, so a reply section never outranks it.
+            h1: ({ children }: MDProps) => <h2 className="text-fg font-semibold text-[17px] leading-snug mt-4 mb-1.5">{children}</h2>,
+            h2: ({ children }: MDProps) => <h3 className="text-fg font-semibold text-[15.5px] leading-snug mt-4 mb-1.5">{children}</h3>,
+            h3: ({ children }: MDProps) => <h4 className="text-fg font-semibold text-[14.5px] leading-snug mt-3 mb-1">{children}</h4>,
+            h4: ({ children }: MDProps) => <h5 className="text-fg-secondary font-medium text-[13px] leading-snug mt-3 mb-1">{children}</h5>,
             // Text
             p: ({ children }: MDProps) => <p className="mb-2.5 leading-[1.6]">{children}</p>,
             strong: ({ children }: MDProps) => <strong className="text-fg font-semibold">{children}</strong>,

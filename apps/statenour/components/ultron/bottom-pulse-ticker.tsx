@@ -178,9 +178,11 @@ export function BottomPulseTicker() {
     return () => clearInterval(t);
   }, [open, paused, reducedMotion, items.length]);
 
+  // 09-F30: a ticker whose every sub-feed failed answers 200 with softError, not an error.
+  const tickerFailed = tickerError || Boolean(topData?.softError);
   if ((!data && !topData) || items.length === 0) {
     // Nothing to show. Only a failed read says so; an empty, healthy read stays silent.
-    if (!pulseError && !tickerError) return null;
+    if (!pulseError && !tickerFailed) return null;
     return (
       <div
         role="region"

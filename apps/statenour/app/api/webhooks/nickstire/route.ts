@@ -212,12 +212,15 @@ export async function POST(req: Request) {
       // Audit trail · same Wave-58 fix · log failures instead of
       // swallowing. Audit gaps are silent-failure class · operator
       // needs to see when this stops working.
+      // Field names and record ids only: names, phones and review text are customer PII (07-SN-08).
+      const fields: Record<string, unknown> = data && typeof data === "object" ? data : {};
+      const { leadId, bookingId, invoiceNumber, rating } = fields;
       await prisma.auditEvent.create({
         data: {
           actor: "nickstire_webhook",
           eventType: type,
           detail: `Webhook: ${type}`,
-          payload: data,
+          payload: { keys: Object.keys(fields), ids: { leadId, bookingId, invoiceNumber, rating } } as never,
         },
       }).catch((err) => {
         log.error("audit_event_write_failed", {

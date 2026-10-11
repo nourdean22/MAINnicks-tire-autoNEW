@@ -24,34 +24,16 @@
  *     class as Nick's generation
  */
 
-import type {
-  JudgeCriterionScore,
-  JudgeResult,
-  Scenario,
-  ScenarioMessage,
+import {
+  type JudgeCriterionScore,
+  type JudgeResult,
+  type Scenario,
+  type ScenarioMessage,
+  SUITE_JUDGE_SYSTEM as JUDGE_SYSTEM,
 } from "./types";
 
 const JUDGE_REPLY_PREVIEW_CAP = 3000;
 const JUDGE_RATIONALE_CAP = 200;
-
-const JUDGE_SYSTEM = `You are an evaluation judge for Nick, an operator-grade personal-OS AI. You score Nick's reply against scenario-specific criteria.
-
-For each criterion you receive, output an integer score 0-10 and a one-line rationale (max 80 chars).
-
-Scoring rubric:
-  · 0-3 · criterion clearly failed
-  · 4-6 · partial · some intent but missing the mark
-  · 7-8 · solid · criterion met
-  · 9-10 · exceptional · best-case execution
-
-Output JSON only, in this exact shape:
-{
-  "scores": [
-    { "criterionId": "<id>", "score": 0-10, "rationale": "one-line max 80 chars" }
-  ]
-}
-
-NO MARKDOWN. NO PROSE OUTSIDE JSON. Be terse.`;
 
 function formatConversation(messages: ScenarioMessage[]): string {
   return messages

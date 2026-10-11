@@ -30,8 +30,8 @@ import {
 // operate. `bottomTab` items are the 4 always-visible daily content
 // tabs (rendered in the bar; excluded from the MORE sheet by `bySection`).
 // `/system` owns its own sub-surfaces via the System hub grid, so the
-// system/* children are NOT listed here. Hidden routes (the /chat alias,
-// /decisions/[id], /auth/sign-in) and redirect stubs (/goals, /scoreboard)
+// system/* children are NOT listed here. Hidden routes (/decisions/[id],
+// /auth/sign-in) and redirect stubs (/goals, /scoreboard)
 // are intentionally absent. See docs/audits/IA-REORG-DESIGN.md §2 + §5.
 
 export type NavSection = "capture" | "execute" | "reflect" | "operate";

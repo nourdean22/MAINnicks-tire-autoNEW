@@ -29,6 +29,7 @@ import { prisma } from "@/lib/prisma";
 import { aiChat, isAiSentinel } from "@/lib/ai/provider";
 import { logger as rootLogger } from "@/lib/logger";
 import type { FollowUpPayload } from "./follow-up";
+import { beginAttempt, settleAttempt } from "@/lib/services/action-attempts";
 
 const log = rootLogger.withSurface("agent/run-follow-up");
 
@@ -44,7 +45,13 @@ export interface RunFollowUpResult {
   retryable?: boolean;
 }
 
-export async function runFollowUp(payload: FollowUpPayload): Promise<RunFollowUpResult> {
+/** A replay inside this window finds the first attempt and does not deliver again (08-X2). */
+const FOLLOWUP_REPLAY_WINDOW_MS = 24 * 60 * 60_000;
+
+export async function runFollowUp(
+  payload: FollowUpPayload,
+  opts: { outboxId: string },
+): Promise<RunFollowUpResult> {
   const { conversationId, instruction, reason } = payload;
 
   // Re-verify the thread between scheduling and firing. ARCHIVED counts
@@ -73,6 +80,41 @@ export async function runFollowUp(payload: FollowUpPayload): Promise<RunFollowUp
     .reverse()
     .map((m) => ({ role: m.role as "user" | "assistant", content: (m.content ?? "").slice(0, 2000) }));
 
+  // Claim the delivery BEFORE generating (claim-before-act, 08-X2): a worker that died after
+  // writing the message but before the outbox row went `done` is replayed by the stale reclaim.
+  let attemptId: string;
+  try {
+    const claim = await beginAttempt({
+      operationKey: `agent-followup:${opts.outboxId}`,
+      tool: "agent.followup",
+      argumentsHash: opts.outboxId,
+      effectClass: "write",
+      windowMs: FOLLOWUP_REPLAY_WINDOW_MS,
+    });
+    if (claim.kind === "duplicate") {
+      const done = claim.state === "SUCCEEDED_UNVERIFIED" || claim.state === "VERIFIED";
+      return done
+        ? { ok: true, reason: "already delivered" }
+        : { ok: false, reason: `a prior attempt is ${claim.state}; not delivering again` };
+    }
+    attemptId = claim.attemptId;
+  } catch (err) {
+    return {
+      ok: false,
+      retryable: true,
+      reason: `follow-up claim store unavailable (${err instanceof Error ? err.message.slice(0, 200) : String(err)})`,
+    };
+  }
+  const settle = (disposition: "success" | "known_failure", why: string, receiptId?: string) =>
+    settleAttempt(attemptId, { disposition, reason: why, receiptId }).catch((err) =>
+      log.warn("followup_attempt_settle_failed", { attemptId, disposition, message: err instanceof Error ? err.message : String(err) }),
+    );
+  // A throw from aiChat or the write means nothing was written: FAILED, so the retry may re-claim.
+  const failed = async (err: unknown): Promise<never> => {
+    await settle("known_failure", err instanceof Error ? err.message : String(err));
+    throw err;
+  };
+
   const result = await aiChat(
     [
       {
@@ -89,7 +131,7 @@ export async function runFollowUp(payload: FollowUpPayload): Promise<RunFollowUp
       { role: "user", content: `[scheduled follow-up] ${instruction}\n\n(reason: ${reason})` },
     ],
     "reason",
-  );
+  ).catch(failed);
 
   // aiChat NEVER throws on total provider failure — it returns a
   // SENTINEL (app AGENTS.md, common gotchas). Persisting that sentinel
@@ -98,6 +140,7 @@ export async function runFollowUp(payload: FollowUpPayload): Promise<RunFollowUp
   // An outage is TRANSIENT: `retryable` tells the cron to re-queue the row
   // with a backoff instead of marking it done (which dropped it forever).
   if (isAiSentinel(result)) {
+    await settle("known_failure", `provider unavailable (${result.provider})`); // FAILED: the retry may re-claim
     return {
       ok: false,
       retryable: true,
@@ -125,8 +168,9 @@ export async function runFollowUp(payload: FollowUpPayload): Promise<RunFollowUp
       latencyMs: 0,
     },
     select: { id: true },
-  });
+  }).catch(failed);
 
+  await settle("success", "follow-up message written", row.id);
   log.info("followup_delivered", { conversationId, messageId: row.id, provider: result.provider });
   return { ok: true, messageId: row.id, reason: "delivered" };
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockPrisma, mockFs, mockDatetime } = vi.hoisted(() => ({
+const { mockPrisma, mockFs, mockDatetime, mockLog } = vi.hoisted(() => ({
   mockPrisma: {
     task: {
       count: vi.fn(),
@@ -11,10 +11,13 @@ const { mockPrisma, mockFs, mockDatetime } = vi.hoisted(() => ({
     readFileSync: vi.fn(),
     unlinkSync: vi.fn(),
     rmSync: vi.fn(),
+    unlink: vi.fn(),
+    rm: vi.fn(),
   },
   mockDatetime: {
     today: vi.fn(),
   },
+  mockLog: { warn: vi.fn() },
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
@@ -23,7 +26,7 @@ vi.mock("@/lib/logger", () => ({
   logger: {
     withSurface: () => ({
       info: vi.fn(),
-      warn: vi.fn(),
+      warn: mockLog.warn,
       error: vi.fn(),
     }),
   },
@@ -39,6 +42,8 @@ vi.mock("node:fs", () => ({
     readFileSync: (path: string, options: any) => mockFs.readFileSync(path, options),
     unlinkSync: (path: string) => mockFs.unlinkSync(path),
     rmSync: (path: string, options: any) => mockFs.rmSync(path, options),
+    unlink: (...a: unknown[]) => mockFs.unlink(...a),
+    rm: (...a: unknown[]) => mockFs.rm(...a),
   }
 }));
 
@@ -95,7 +100,8 @@ describe("cron/subtask-usage-audit", () => {
     expect(mockFs.unlinkSync).not.toHaveBeenCalled();
   });
 
-  it("cleans up/deletes the ADR and migrations if feature is not justified", async () => {
+  // R3-02: the migration is APPLIED (lib/db/migration-manifest.ts), so a failed gate reports and never deletes.
+  it("reports gate_failed and deletes nothing if feature is not justified", async () => {
     mockDatetime.today.mockReturnValue("2026-06-22");
     mockPrisma.task.count.mockResolvedValueOnce(0); // 0 subtasks in DB
     mockFs.existsSync.mockReturnValue(true); // ADR and migrations exist
@@ -109,12 +115,13 @@ describe("cron/subtask-usage-audit", () => {
     const r = (await (GET as unknown as (req: Request, ctx: unknown) => Promise<unknown>)(
       baseReq,
       ctx,
-    )) as { status: string; justified: boolean; actionsTaken: string[] };
-    expect(r.status).toBe("cleaned_up");
+    )) as { status: string; justified: boolean };
+    expect(r.status).toBe("gate_failed");
     expect(r.justified).toBe(false);
-    expect(mockFs.unlinkSync).toHaveBeenCalled();
-    expect(mockFs.rmSync).toHaveBeenCalledTimes(2);
-    expect(r.actionsTaken).toContain("Deleted docs/adr/0017-task-subtasks-semantics.md");
-    expect(r.actionsTaken).toContain("Deleted prisma/migrations/20260523_task_parent_task_id");
+    expect(mockLog.warn).toHaveBeenCalledWith("subtask_feature_not_justified", expect.anything());
+    expect(mockFs.unlinkSync).not.toHaveBeenCalled();
+    expect(mockFs.rmSync).not.toHaveBeenCalled();
+    expect(mockFs.unlink).not.toHaveBeenCalled();
+    expect(mockFs.rm).not.toHaveBeenCalled();
   });
 });

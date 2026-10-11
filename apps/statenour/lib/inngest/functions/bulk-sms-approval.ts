@@ -50,6 +50,7 @@
 import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { logger as rootLogger } from "@/lib/logger";
+import { isBulkSmsLive } from "@/lib/feature-flags";
 
 const log = rootLogger.withSurface("inngest/bulk-sms-approval");
 const inngest = getInngest();
@@ -144,7 +145,7 @@ export const bulkSmsApproval = inngest.createFunction(
     // "operator approved" and "real SMS left the building."
     const dispatchResult = await step.run("dispatch-bulk-sms", async () => {
       const { postNickstireBridge } = await import("@/lib/nickstire/query");
-      const liveEnabled = process.env.FEATURE_BULK_SMS_LIVE === "1";
+      const liveEnabled = isBulkSmsLive();
 
       const result = await postNickstireBridge<{
         success: boolean;

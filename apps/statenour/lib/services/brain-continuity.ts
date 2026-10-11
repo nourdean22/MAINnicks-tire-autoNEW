@@ -126,6 +126,9 @@ function toRow(m: {
  * per-category churn movers. The REST route and the
  * `brain.continuityReport` procedure both call this.
  */
+// Lock rows, not memories: one chat-stream claim row per persisted turn (persist-assistant-message.ts) would flood the card.
+const NOT_MEMORY = { notIn: ["active_chat_stream"] };
+
 export async function buildContinuityReport(): Promise<ContinuityReport> {
   const now = new Date();
   const day1 = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -155,7 +158,7 @@ export async function buildContinuityReport(): Promise<ContinuityReport> {
       prisma.brainMemory.count({ where: { deletedAt: { gte: day1 } } }),
       prisma.brainMemory.groupBy({
         by: ["category"],
-        where: { deletedAt: null },
+        where: { deletedAt: null, category: NOT_MEMORY },
         _count: { id: true },
         orderBy: { _count: { id: "desc" } },
         take: 15,
@@ -182,7 +185,7 @@ export async function buildContinuityReport(): Promise<ContinuityReport> {
   // resurface tombstoned memories.
   const [created24h, reinforced24h, wisdomPromoted24h] = await Promise.all([
     prisma.brainMemory.findMany({
-      where: { createdAt: { gte: day1 }, deletedAt: null },
+      where: { createdAt: { gte: day1 }, deletedAt: null, category: NOT_MEMORY },
       orderBy: { createdAt: "desc" },
       take: 25,
       select: memorySelect,
@@ -220,6 +223,7 @@ export async function buildContinuityReport(): Promise<ContinuityReport> {
       confidence: { lt: 0.3 },
       lastSeen: { lt: new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000) },
       deletedAt: null,
+      category: NOT_MEMORY,
     },
     orderBy: { lastSeen: "asc" },
     take: 15,
@@ -253,19 +257,20 @@ export async function buildContinuityReport(): Promise<ContinuityReport> {
   // day the wisdom category could show a large positive delta having
   // gained nothing. `createdAt` only — and dropping the OR makes these
   // queries cheaper, not dearer.
-  const categoryMoversRaw = await Promise.all(
-    Object.keys(byCategory).map(async (category) => {
-      const [created24h, created7d] = await Promise.all([
-        prisma.brainMemory.count({
-          where: { category, deletedAt: null, createdAt: { gte: day1 } },
-        }),
-        prisma.brainMemory.count({
-          where: { category, deletedAt: null, createdAt: { gte: day7 } },
-        }),
-      ]);
-      return { category, created24h, created7d, total: byCategory[category] };
-    }),
-  );
+  //
+  // 08-F16: two groupBy reads instead of 2 counts per category (was ~30). A
+  // category missing from a groupBy that SUCCEEDED had no new rows: a real 0.
+  const createdSince = (since: Date) =>
+    prisma.brainMemory
+      .groupBy({ by: ["category"], where: { deletedAt: null, createdAt: { gte: since } }, _count: { id: true } })
+      .then((rows) => new Map(rows.map((r) => [r.category, r._count.id] as const)));
+  const [created24hBy, created7dBy] = await Promise.all([createdSince(day1), createdSince(day7)]);
+  const categoryMoversRaw = Object.keys(byCategory).map((category) => ({
+    category,
+    created24h: created24hBy.get(category) ?? 0,
+    created7d: created7dBy.get(category) ?? 0,
+    total: byCategory[category],
+  }));
   const categoryMovers = categoryMoversRaw
     .sort((a, b) => b.created24h - a.created24h || b.created7d - a.created7d)
     .slice(0, 10);

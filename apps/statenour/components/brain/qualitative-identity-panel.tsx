@@ -20,6 +20,7 @@ import { toast } from "sonner";
 // (reactive read) + `trpc.brain.recomputeQualitativeIdentity` +
 // `trpc.brain.editQualitativeIdentity` (mutations).
 import { trpc } from "@/lib/trpc/client";
+import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
 
 type Bucket = "values" | "fears" | "operating_style" | "rhythms" | "red_lines";
 
@@ -209,7 +210,7 @@ export function QualitativeIdentityPanel() {
                     autoFocus
                     value={addText}
                     onChange={(e) => setAddText(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && void addEntry(b)}
+                    onKeyDown={(e) => isSubmitEnter(e) && void addEntry(b)}
                     placeholder={`add to ${BUCKET_LABELS[b].toLowerCase()}…`}
                     className="flex-1 px-2 py-1 bg-surface-interactive border border-[var(--border-default)] rounded-control text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-accent"
                   />

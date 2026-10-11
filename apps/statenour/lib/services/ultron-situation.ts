@@ -502,7 +502,7 @@ export async function buildSituation(): Promise<SituationPayload> {
             oldestPendingDeviceCmd.device?.name || "unknown device"
           }. Start the poller on the desktop or commands will time out.`,
           actionLabel: "open devices",
-          action: { kind: "navigate", href: "/system/devices" },
+          action: { kind: "navigate", href: "/system" },
           dedupeTokens: ["agent", "device"],
           domain: "systems",
         });

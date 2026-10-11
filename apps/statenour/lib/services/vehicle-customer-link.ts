@@ -18,7 +18,7 @@
  */
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { queryNick } from "@/lib/nickstire/query";
+import { queryNick, readBridge } from "@/lib/nickstire/query";
 import { editTelegramMessage, type InlineButton } from "@/lib/services/telegram";
 import { logger } from "@/lib/logger";
 
@@ -42,12 +42,11 @@ export type PlateLookup =
 
 /** One bridge round-trip, bounded. */
 export async function lookupPlate(plate: string, timeoutMs = 6000): Promise<PlateLookup> {
-  const res = await queryNick<{ matches?: PlateMatch[]; normalized?: string }>(
-    "vehicle_lookup_by_plate",
-    { plate },
-    timeoutMs,
+  // readBridge: a 200 carrying { data: { error } } is a failed lookup, not "no match".
+  const res = readBridge<{ matches?: PlateMatch[]; normalized?: string }>(
+    await queryNick<{ matches?: PlateMatch[]; normalized?: string }>("vehicle_lookup_by_plate", { plate }, timeoutMs),
   );
-  if ("error" in res) return { ok: false, error: res.error };
+  if (res.status !== "ok") return { ok: false, error: res.reason };
   return { ok: true, normalized: res.data?.normalized ?? plate, matches: res.data?.matches ?? [] };
 }
 

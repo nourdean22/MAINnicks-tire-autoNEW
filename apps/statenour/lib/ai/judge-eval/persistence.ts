@@ -21,6 +21,9 @@ import type { Judgment, Winner } from "./comparator";
 
 const log = rootLogger.withSurface("ai/judge-eval/persistence");
 
+// scripts/seed-judge-calibration.ts rows are fabricated, never operator or judge evidence (06-F6).
+const NOT_SEEDED = { NOT: { key: { startsWith: "comparison_calibration_" } } };
+
 export interface RecordComparisonArgs {
   prompt: string;
   v1Reply: string;
@@ -106,6 +109,7 @@ export async function readComparisons(
       where: {
         category: BRAIN_CATEGORIES.PROMPT_COMPARISON_RUN,
         deletedAt: null,
+        ...NOT_SEEDED,
         ...(sinceDays
           ? { createdAt: { gte: new Date(Date.now() - sinceDays * 86_400_000) } }
           : {}),
@@ -202,6 +206,7 @@ export async function readComparisonHeads(
       where: {
         category: BRAIN_CATEGORIES.PROMPT_COMPARISON_RUN,
         deletedAt: null,
+        ...NOT_SEEDED,
         ...(sinceDays
           ? { createdAt: { gte: new Date(Date.now() - sinceDays * 86_400_000) } }
           : {}),

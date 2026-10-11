@@ -85,6 +85,12 @@ export interface FeatureFlag {
    * agreement with a test.
    */
   trimRawValue?: boolean;
+  /**
+   * 2026-10-10: compare onValue case-sensitively, for a readOnly mirror whose
+   * runtime compares with `===`. Without it the board reads "TRUE" as ON while
+   * the runtime reads it as OFF. Opt-in, like trimRawValue; pin it with a test.
+   */
+  exactCase?: boolean;
 }
 
 export const FLAG_REGISTRY: FeatureFlag[] = [
@@ -138,29 +144,17 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "lib/prisma.ts",
   },
 
-  // ── Wave-200 substrates ────────────────
-  {
-    key: "BRAINTRUST_API_KEY",
-    // 2026-09-01 audit: consumer reads raw process.env at module load —
-    // a DB override never reaches it. readOnly keeps the board honest.
-    readOnly: true,
-    description:
-      "UNUSED since 2026-08-25: braintrust-wrap.ts was deleted after three months with zero call sites — the key never enabled anything despite sitting set in Railway (the 'present-implies-on' claim this entry used to make was never true end-to-end). Eval-dataset scripts (scripts/export-eval-datasets.ts) are the only remaining Braintrust surface and read this key at manual-upload time only. Operator may delete the Railway var; tracing is Langfuse (LANGFUSE_* keys).",
-    status: "deprecated",
-    onValue: "<any-non-empty-string>",
-    defaultBehavior: "No effect on the running app either way.",
-    ownerDoc: "apps/statenour/docs/integrations/langfuse-observability.md",
-  },
-
   // ── Wave AG · BGE rerank backend (HF Inference) ────────────────
   {
     key: "BGE_RERANK",
     // 2026-09-01 audit: consumer reads raw process.env at module load —
     // a DB override never reaches it. readOnly keeps the board honest.
     readOnly: true,
+    // R3-14: lib/brain/rerank.ts preferBge() accepts exactly "true" or "1".
+    exactCase: true,
     description: "Routes brain rerank through BAAI/bge-reranker-v2-m3 on HuggingFace Inference API ($0.0001/call · ~250ms) instead of Cohere ($2/1000 calls · ~150ms). The orchestrator in lib/brain/rerank.ts handles fallback to Cohere when BGE fails OR when this flag is OFF. Requires HF_API_KEY.",
     status: "experimental",
-    onValue: "true",
+    onValue: "true|1",
     defaultBehavior: "Cohere is preferred · BGE is the fallback when COHERE_API_KEY is unset.",
     ownerDoc: "docs/runbooks/bge-rerank-cutover.md",
   },
@@ -171,6 +165,8 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     // 2026-09-01 audit: consumer reads raw process.env at module load —
     // a DB override never reaches it. readOnly keeps the board honest.
     readOnly: true,
+    // R3-14: isReplicateFluxEnabled() and gemini-image.ts compare === "true".
+    exactCase: true,
     description: "Routes image generation through Replicate's flux-schnell (~$0.003/img · 4-step distilled). lib/ai/gemini-image.ts checks this flag and delegates to lib/ai/replicate-flux.ts when ON. Requires REPLICATE_API_KEY. (Venice was the comparison point when this flag was written; Venice is RETIRED — lib/ai/venice-image.ts no longer exists and `venice` is not in RUNTIME_PROVIDERS.)",
     status: "experimental",
     onValue: "true",
@@ -321,7 +317,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   },
   {
     key: "NICK_VERIFIED_REGEN",
-    description: "WIRED. On factual/decision/analytical/procedural/instructional turns, generates the reply non-streaming, runs the critic, and regenerates ONCE (critic-gated best-of-2) before shipping the winner as a stream. Persists via the normal pipeline. Falls through to the normal stream on any error. OFF = single-pass (today's behavior). Adds latency on the regen path only.",
+    description: "WIRED. On factual/decision/analytical/procedural/instructional turns, generates the reply non-streaming, runs the critic, and regenerates ONCE (critic-gated best-of-2) before shipping the winner as a stream. Persists via the normal pipeline. Falls through to the normal stream on any error. OFF = single-pass. Prod: ON via Railway env since 2026-07-22. Adds latency on the regen path only.",
     status: "experimental",
     onValue: "true",
     defaultBehavior: "shouldRegen is computed + logged but never acted on; reply ships single-pass.",
@@ -590,21 +586,61 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     defaultBehavior: "Deep reasoning uses the standard lane.",
     ownerDoc: "lib/ai/vnext/effort-policy.ts",
   },
+  // -- Live switches outside the NICK_ prefix, registered 2026-10-10 (audit 03-F13) --
+  // The visibility ratchet scanned NICK_* names only, so these five gated real
+  // behaviour (one of them customer SMS) with no board row. readOnly: each runtime
+  // reads raw env through its predicate (below, or imageSignatureRequired).
+  {
+    key: "FEATURE_BULK_SMS_LIVE",
+    readOnly: true,
+    description: "Approved bulk SMS campaigns send for real. Off = the nickstire bridge is called with dryRun and no SMS leaves (nickstire also applies its own default-safe gate). Reads isBulkSmsLive() in lib/inngest/functions/bulk-sms-approval.ts.",
+    status: "experimental",
+    onValue: "1",
+    defaultBehavior: "Dry run: an approved campaign reports how many would receive it; no SMS is sent.",
+    ownerDoc: "lib/inngest/functions/bulk-sms-approval.ts",
+  },
+  {
+    key: "SEMANTIC_DEDUP_LIVE",
+    readOnly: true,
+    description: "The consolidate cron soft-deletes near-duplicate memories (cosine >= 0.95, at most 100 per run). Off = dry run that only writes a semantic_dedup_dry_run audit event. Reads isSemanticDedupLive() in app/api/cron/consolidate/route.ts.",
+    status: "experimental",
+    onValue: "1",
+    defaultBehavior: "Dry run: candidates are counted and audited; nothing is deleted.",
+    ownerDoc: "app/api/cron/consolidate/route.ts",
+  },
+  {
+    key: "IMAGES_REQUIRE_SIGNATURE",
+    readOnly: true,
+    exactCase: true,
+    description: "Refuses raw /api/images/<id> requests (401); only signed ?exp=&sig= links serve. Reads imageSignatureRequired() in lib/images/signed-url.ts, which accepts exactly 1 or true.",
+    status: "canary",
+    onValue: "1|true",
+    defaultBehavior: "Raw image ids still serve; a present but invalid signature is refused.",
+    ownerDoc: "lib/images/signed-url.ts",
+  },
+  {
+    key: "AGENT_BRIDGE_ENABLED",
+    readOnly: true,
+    exactCase: true,
+    description: "Master switch for the Agent Bridge (app/api/mcp and app/api/actions/[tool]). Off = every bridge request is refused as disabled. Reads isAgentBridgeEnabled() in lib/agent-bridge/auth.ts, which accepts exactly true.",
+    status: "stable",
+    onValue: "true",
+    defaultBehavior: "Bridge disabled: every request fails closed.",
+    ownerDoc: "docs/integrations/agent-bridge-hardening.md",
+  },
+  {
+    key: "NARRATOR_LLM_SYNTHESIS",
+    readOnly: true,
+    description: "The Ultron narrator asks a fast model for one compound observation when two or more patterns fire (hour-cached, best-effort; the template voices stay). Reads isNarratorSynthesisOn() in lib/ultron/narrator.ts.",
+    status: "experimental",
+    onValue: "1",
+    defaultBehavior: "Template narration only; no LLM synthesis call.",
+    ownerDoc: "lib/ultron/narrator.ts",
+  },
   // ── Operational / routing flags ────────────────────────────────
   // These are read via raw `process.env.X` across the code; registered
   // here (Phase Q.2 coexistence pattern · call sites untouched) so the
   // /system/migrations board + getFlag() see them. 2026-06-04 · M1.
-  {
-    key: "NICK_PRIME_PROMPT",
-    // 2026-09-01 audit: consumer reads raw process.env at module load —
-    // a DB override never reaches it. readOnly keeps the board honest.
-    readOnly: true,
-    description: "DEPRECATED (2026-07-11 review) · v2 prompt cutover is complete and v2 is the SOLE builder. This flag is a no-op — isPromptV2Enabled() returns true unconditionally and buildSystemPrompt never consults it. There is no v1 builder to roll back to; do not treat this as a rollback lever.",
-    status: "deprecated",
-    onValue: "1",
-    defaultBehavior: "No effect. v2 prompt assembler always active.",
-    ownerDoc: "lib/ai/prompt/v2/index.ts",
-  },
   {
     key: "ENABLE_SPECIALIST_ROUTING",
     description: "Activates the specialist-agent routing layer — routes a turn to a domain specialist instead of the general agent. Must literally equal `true`. OFF = every turn handled by the general agent.",
@@ -689,22 +725,31 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
 let overridesCache: Record<string, string> = {};
 let lastFetchedAt = 0;
 const CACHE_TTL_MS = 30_000; // 30 seconds
-let isFetchInFlight = false;
+// The load in progress. A second caller awaits it: a bare "in flight" boolean made
+// it return before the overrides landed and read env instead (audit 03-F13b).
+let inFlight: Promise<void> | null = null;
 
 /**
  * Preloads the database-backed feature flag overrides.
  * This should be called at request/cron entrypoints to ensure overrides are fresh.
+ * Concurrent callers share one load. A failed load is logged and REJECTS, so a
+ * caller can say "override not applied" instead of silently running on env.
  */
 export async function loadFeatureFlagOverrides(force = false): Promise<void> {
   const now = Date.now();
   if (!force && now - lastFetchedAt < CACHE_TTL_MS) {
     return;
   }
+  if (inFlight && !force) return inFlight;
 
-  // Prevent duplicate concurrent loads
-  if (isFetchInFlight && !force) return;
-  isFetchInFlight = true;
+  const load: Promise<void> = fetchOverrides(now).finally(() => {
+    if (inFlight === load) inFlight = null; // a forced reload may have replaced it
+  });
+  inFlight = load;
+  return load;
+}
 
+async function fetchOverrides(now: number): Promise<void> {
   try {
     const { prisma } = await import("@/lib/prisma");
     const preferences = await prisma.userPreference.findMany({
@@ -716,13 +761,12 @@ export async function loadFeatureFlagOverrides(force = false): Promise<void> {
     for (const pref of preferences) {
       nextOverrides[pref.key] = pref.value;
     }
-    
+
     overridesCache = nextOverrides;
     lastFetchedAt = now;
   } catch (err) {
     console.error("Failed to load feature flag overrides from DB:", err);
-  } finally {
-    isFetchInFlight = false;
+    throw err;
   }
 }
 
@@ -730,10 +774,9 @@ export async function loadFeatureFlagOverrides(force = false): Promise<void> {
  * Helper to trigger a non-blocking background refresh if expired.
  */
 function triggerBackgroundRefresh() {
-  if (isFetchInFlight || Date.now() - lastFetchedAt < CACHE_TTL_MS) return;
-  loadFeatureFlagOverrides().catch((err) => {
-    console.error("Failed to background refresh feature flags:", err);
-  });
+  if (inFlight || Date.now() - lastFetchedAt < CACHE_TTL_MS) return;
+  // The loader already logged the failure; a background refresh has no caller to tell.
+  loadFeatureFlagOverrides().catch(() => {});
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -819,7 +862,7 @@ export function getAllFlags(): ResolvedFlag[] {
  *   2. Present-implies-on placeholder (`<any-non-empty-string>`)
  *      · on iff rawValue is non-empty
  *   3. Literal match (e.g. `true`, `1`, `pg`)
- *      · on iff rawValue equals onValue (case-insensitive)
+ *      · on iff rawValue equals onValue (case-insensitive unless exactCase)
  */
 function computeIsOn(spec: FeatureFlag, rawValue: string): boolean {
   // Unset → the flag's declared default. Only graduated flags set defaultOn.
@@ -827,18 +870,38 @@ function computeIsOn(spec: FeatureFlag, rawValue: string): boolean {
 
   if (spec.offValue !== undefined) return !spec.offValue.split("|").includes(rawValue);
 
-  const lower = rawValue.toLowerCase();
+  const norm = (s: string) => (spec.exactCase ? s : s.toLowerCase());
+  const value = norm(rawValue);
 
   if (spec.onValue === "<any-non-empty-string>") return true;
 
   if (spec.onValue.includes("|")) {
     return spec.onValue
       .split("|")
-      .map((s) => s.trim().toLowerCase())
-      .includes(lower);
+      .map((s) => norm(s.trim()))
+      .includes(value);
   }
 
-  return lower === spec.onValue.trim().toLowerCase();
+  return value === norm(spec.onValue.trim());
+}
+
+// Runtime predicates for raw-env switches whose readers had none to export (one is
+// a route file, which may not export extra names). Each is the ONLY reader of its
+// var; its readOnly registry row mirrors it, pinned in feature-flags-registry.test.ts.
+export function isBulkSmsLive(): boolean {
+  return process.env.FEATURE_BULK_SMS_LIVE === "1";
+}
+
+export function isSemanticDedupLive(): boolean {
+  return process.env.SEMANTIC_DEDUP_LIVE === "1";
+}
+
+export function isAgentBridgeEnabled(): boolean {
+  return process.env.AGENT_BRIDGE_ENABLED === "true";
+}
+
+export function isNarratorSynthesisOn(): boolean {
+  return process.env.NARRATOR_LLM_SYNTHESIS === "1";
 }
 
 /**

@@ -1,11 +1,12 @@
 "use client";
 
 /**
- * SystemHealthCard — the nightly health digest, on /system/health.
+ * SystemHealthCard - the system health digest, on /system/health.
  *
- * Reads the latest persisted digest from BrainMemory(category=
- * "system_health_digest") via /api/ultron/health-digest. The digest is
- * written nightly at 4am ET by /api/cron/health-digest. Mounted under
+ * Reads the latest digest via /api/ultron/health-digest. There is no cron
+ * (the nightly health-digest cron was deleted in f87fb7e62): that GET
+ * recomputes and persists whenever the stored row is over 4h old, so the
+ * read-through IS the scheduler (audit 02-F5). Mounted under
  * Settings > Diagnostics until the full-circle wave 2 recomposition
  * (2026-10-02); it reads machine health, so it lives on /system/health now
  * (docs/design/settings-census-2026-10-02.md).
@@ -17,7 +18,7 @@
  *   • overall = "healthy" → one quiet line with the digest's age
  *   • overall = "warning" → amber strip, one-line summary, expandable
  *   • overall = "critical" → red card, top 3 highlights inline
- *   • digest >36h old → "stale" badge (nightly cron missed — itself a signal)
+ *   • digest >36h old → "stale" badge (the read-through recompute has not run)
  *
  * Click any headline to deep-link into the matching detail page. Click
  * the rightmost chevron to collapse/expand.
@@ -159,7 +160,7 @@ export function SystemHealthCard() {
         className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary"
       >
         Health digest: healthy · generated {Math.round(ageHealthy)}h ago
-        {ageHealthy > 36 ? " · stale, the nightly cron missed" : ""}
+        {ageHealthy > 36 ? " · stale" : ""}
       </p>
     );
   }
@@ -225,7 +226,7 @@ export function SystemHealthCard() {
   };
 
   const ageH = hoursSince(data.generatedAt ?? new Date().toISOString());
-  const stale = ageH > 36; // nightly cron itself missed a beat
+  const stale = ageH > 36; // the GET's 4h read-through recompute has not run
 
   const critical = data.overall === "critical";
   const Icon = critical ? AlertCircle : AlertTriangle;
@@ -341,7 +342,7 @@ export function SystemHealthCard() {
         )}
         {data.livelyComputed && !stale && (
           <span
-            title="Recomputed live in this request — not from yesterday's nightly cron"
+            title="Recomputed live in this request, not read from a stored digest"
             className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-emerald-300"
           >
             live

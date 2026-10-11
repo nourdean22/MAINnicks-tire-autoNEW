@@ -169,6 +169,8 @@ NO MARKDOWN HEADERS. Be terse and concrete.`,
     { signal },
   );
   recordReply(acc, reply);
+  // Audit 04-X6 (a): outage prose is not a plan; downstream steps read an empty plan as "none".
+  if (isAiSentinel(reply)) return "";
   return (reply?.content ?? "").trim();
 }
 
@@ -625,6 +627,8 @@ Output JSON only:
     { signal },
   );
   recordReply(acc, reply);
+  // Audit 04-X6 (a): an outage must not parse as malformed JSON and default to "ship".
+  if (isAiSentinel(reply)) throw new AiUnavailableError("critique: provider sentinel", "provider_unavailable");
   const text = (reply?.content ?? "").trim();
   try {
     // Tolerant JSON parse · the model sometimes wraps in ```json

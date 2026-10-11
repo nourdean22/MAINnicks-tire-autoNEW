@@ -2,6 +2,7 @@ import { streamText } from "ai";  // (stepCountIs moved into the extracted pipel
 import { getModel, getActiveProviderInfo, isRuntimeProvider, type ProviderName, type TaskType } from "@/lib/ai/provider";  // (GEMINI_SAFETY_OFF moved into ./build-stream-config.ts, 2026-07-25)
 import { canaryDeepForce } from "@/lib/ai/vnext/effort-policy";
 import { updateTurnContext } from "@/lib/agent/turn-context";
+import { carriesToolDataFence } from "@/lib/ai/tool-result-fencing";
 import {
   resolveEscalation,
   detectEscalationTier,
@@ -20,6 +21,7 @@ import { getCachedPrompt, setCachedPrompt } from "@/lib/ai/system-prompt-cache";
 // ./prepare-tools.ts, 2026-07-25. detectChatMode itself had been an
 // unused import here since the three-layer mode priority landed.)
 import { compressConversation } from "@/lib/ai/conversation-compress";
+import { extractClientMessageId } from "@/lib/ai/chat/message-fields";
 import {
   embedUserMessage,
   warmToolEmbeddings,
@@ -101,6 +103,8 @@ async function chatPostInner(req: Request) {
     taskTypeOverride,
     personality,
     userContent,
+    // 04-F15 - older messages the client windowed out (compression offsets by it)
+    historyOffset,
     // 2026-07-22 · authority-kernel controls (privateMode / posture / permission)
     privateMode,
     ephemeral,
@@ -129,7 +133,9 @@ async function chatPostInner(req: Request) {
   //                  /capture). It gets exactly what the shared flag used to
   //                  give it: every transcript-shaped gate below keys on
   //                  `transcriptOff`, the trace-shaped ones on `privateMode`.
-  updateTurnContext({ privateMode, actionPermission });
+  // R3-09 hand-off: an @cold excerpt arrives fenced INSIDE the user text, so taint
+  // here too, or the sink gate lets an outward tool run on an outsider's words.
+  updateTurnContext({ privateMode, actionPermission, untrustedInput: carriesToolDataFence(userContent) });
   const transcriptOff = privateMode || ephemeral;
 
   // Private Lab / ephemeral: detach the turn from ANY conversation server-side
@@ -692,7 +698,7 @@ async function chatPostInner(req: Request) {
     compressedCount: 0,
   });
   const compressPromise = Promise.race([
-    compressConversation(messages, convId).catch((err) => {
+    compressConversation(messages, convId, historyOffset).catch((err) => {
       recordError("chat:compression", err);
       return fallbackCompression();
     }),
@@ -1046,6 +1052,8 @@ ${priorsBlock}`;
     systemPrompt,
     finalTaskType,
     userContent,
+    // 04-F13: persist parents the reply on THIS turn's user row, not the newest one.
+    userClientMessageId: extractClientMessageId(lastUserMsg),
     // The routing-time input the E3 shadow replays (see __toolsExpected above).
     toolsExpected: __toolsExpected,
     turnSignal,

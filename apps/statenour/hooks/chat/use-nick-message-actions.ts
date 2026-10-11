@@ -34,8 +34,8 @@ import { trpcVanilla } from "@/lib/trpc/vanilla-client";
  *
  * Two of the callbacks (onCreateTask · onPinToMemory · onSaveToBrain ·
  * onSaveAsBelief) need an error setter so the page can show a quick
- * inline failure message; onFeedback only logs because the UI handles
- * its own pressed-state feedback.
+ * inline failure message; postFeedback (below) returns whether it saved
+ * and the caller shows the result.
  */
 const log = rootLogger.withSurface("chat/nick-message");
 
@@ -218,6 +218,8 @@ export function useNickMessageActions({
  * to the latest assistant message when the SDK-minted msg.id doesn't
  * match the DB cuid (the fresh-stream timing bug we found in the
  * v10.0.516 Chrome smoke test).
+ *
+ * Resolves false when the save failed, so the caller can say so.
  */
 export async function postFeedback({
   messageId,
@@ -229,7 +231,7 @@ export async function postFeedback({
   positive: boolean;
   snippet: string;
   conversationId: string | null;
-}): Promise<void> {
+}): Promise<boolean> {
   try {
     // `postFeedback` is a module-level function (per-mount values · not
     // stable hook state), so it uses the vanilla tRPC client — the same
@@ -243,7 +245,9 @@ export async function postFeedback({
       snippet: snippet.slice(0, 200),
       conversationId: conversationId ?? undefined,
     });
+    return true;
   } catch (err) {
     log.error("action.feedbackSave.failed", { error: err instanceof Error ? err.message : String(err) });
+    return false;
   }
 }

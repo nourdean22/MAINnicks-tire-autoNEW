@@ -24,6 +24,7 @@ import { daysAgo, hourET, toDateString } from "@/lib/utils/datetime";
 import { findLawsForPatterns, pickApplication, type LawRef } from "./adviser";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 import { isAiSentinel } from "@/lib/ai/provider";
+import { isNarratorSynthesisOn } from "@/lib/feature-flags";
 
 // Opt-in LLM synthesis (NARRATOR_LLM_SYNTHESIS=1). See synthesizeNarration.
 const aiChatSynth = makeTracedAiChat("narrator-synthesis");
@@ -90,7 +91,7 @@ async function synthesizeNarration(
   patterns: string[],
   now: string,
 ): Promise<Narration | null> {
-  if (process.env.NARRATOR_LLM_SYNTHESIS !== "1") return null;
+  if (!isNarratorSynthesisOn()) return null;
   if (patterns.length < 2) return null;
   const cacheKey = `${inputs.todayStr}-${inputs.hour}-${[...patterns].sort().join(",")}`;
   let text = synthCache.get(cacheKey);

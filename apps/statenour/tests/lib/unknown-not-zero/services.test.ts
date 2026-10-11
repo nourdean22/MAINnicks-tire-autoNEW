@@ -40,6 +40,9 @@ function resetDb() {
       findUnique: vi.fn(async () => null),
       findMany: vi.fn(async () => []),
       upsert: vi.fn(async () => ({})),
+      // The rhythm's slot claim (claimPushSlot) and its release after a failed send.
+      create: vi.fn(async () => ({})),
+      deleteMany: vi.fn(async () => ({ count: 1 })),
     },
     task: { count: vi.fn(async () => 3), findMany: vi.fn(async () => []), findFirst: vi.fn(async () => null) },
     commitment: { count: vi.fn(async () => 1), findMany: vi.fn(async () => []) },

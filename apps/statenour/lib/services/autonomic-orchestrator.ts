@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { buildCronCommandDeck } from "@/lib/services/system-pages";
 import { runManifestCron } from "@/lib/services/cron-control";
 import { recordCoachEvent } from "@/lib/services/coach-events";
-import { beginAttempt, settleAttempt, verifyAttempt, type AttemptDisposition } from "@/lib/services/action-attempts";
+import { beginAttempt, settleAttempt, canTransition, type AttemptDisposition, type AttemptState } from "@/lib/services/action-attempts";
 import { cronPeriodH } from "@/lib/inngest/functions/cron-heartbeat";
 import { CRON_STATUS, TERMINAL_OK_STATUSES } from "@/lib/inngest/cron-lifecycle";
 import { HARD_FAILURE_STATUSES, isHardFailure } from "@/lib/services/cron-status";
@@ -74,17 +74,44 @@ async function settleHeal(attemptId: string | null, disposition: AttemptDisposit
 const RUN_STATUSES: string[] = [CRON_STATUS.started, ...TERMINAL_OK_STATUSES, ...HARD_FAILURE_STATUSES];
 
 /**
+ * A live heal settles within about a minute of its claim (triggerCronByPath aborts
+ * at 55 s). An EXECUTING claim older than this lost its healer mid-flight (P-HEAL).
+ */
+const HEAL_EXECUTING_STALE_MS = 15 * 60_000;
+
+/**
+ * Settle a heal by compare-and-set on the state the resolver READ (claim-before-act):
+ * a heal that settled itself in between keeps its own outcome. False = it moved, or
+ * the transition is not legal in TRANSITIONS; either way, leave it.
+ */
+async function casHeal(id: string, from: AttemptState, to: AttemptState, reason: string, receiptId: string): Promise<boolean> {
+  if (!canTransition(from, to)) return false;
+  const res = await prisma.actionAttempt.updateMany({
+    where: { id, state: from },
+    data: { state: to, settledAt: new Date(), reason: reason.slice(0, 500), receiptId, ...(to === "FAILED" ? { holdUntil: null } : {}) },
+  });
+  return res.count === 1;
+}
+
+/**
  * triggerCronByPath aborts at 55 s and most cron routes run longer, so a heal
  * of a long job settles UNKNOWN while the job keeps running, and nothing else
  * ever resolves an UNKNOWN. The healed route opens its own cron_job_logs row on
  * entry (logCronRun), so the job's first run row at or after the heal began is
  * the heal's run: settle the claim by how that row ended. No row yet, or one
- * still `started`, stays UNKNOWN.
+ * still `started`, stays as it is. An EXECUTING claim past HEAL_EXECUTING_STALE_MS
+ * (its healer was killed before settling) is resolved the same way.
  */
 async function resolveTimedOutHeals(): Promise<void> {
   const open = await prisma.actionAttempt.findMany({
-    where: { tool: HEAL_TOOL, state: "UNKNOWN" },
-    select: { id: true, operationKey: true, startedAt: true },
+    where: {
+      tool: HEAL_TOOL,
+      OR: [
+        { state: "UNKNOWN" },
+        { state: "EXECUTING", startedAt: { lt: new Date(Date.now() - HEAL_EXECUTING_STALE_MS) } },
+      ],
+    },
+    select: { id: true, operationKey: true, startedAt: true, state: true },
     // Newest first: those are the ones still on the owner panel.
     orderBy: { startedAt: "desc" },
     take: 50,
@@ -100,10 +127,13 @@ async function resolveTimedOutHeals(): Promise<void> {
     });
     if (!run || run.status === CRON_STATUS.started) continue;
     const reason = `healed run cron_job_logs ${run.id}: ${run.status} at ${run.createdAt.toISOString()}`;
+    const from = attempt.state as AttemptState;
     if (TERMINAL_OK_STATUSES.includes(run.status)) {
-      await verifyAttempt(attempt.id, { reason, receiptId: run.id });
+      // EXECUTING cannot jump to VERIFIED (TRANSITIONS): record the success, then verify it.
+      const ready = from === "EXECUTING" ? await casHeal(attempt.id, from, "SUCCEEDED_UNVERIFIED", reason, run.id) : true;
+      if (ready) await casHeal(attempt.id, from === "EXECUTING" ? "SUCCEEDED_UNVERIFIED" : from, "VERIFIED", reason, run.id);
     } else if (isHardFailure(run.status)) {
-      await settleAttempt(attempt.id, { disposition: "known_failure", reason, receiptId: run.id });
+      await casHeal(attempt.id, from, "FAILED", reason, run.id);
     }
   }
 }
@@ -262,8 +292,9 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
             cronResult.ok ? "success" : cronResult.status === 0 ? "unknown" : "known_failure",
             `heal returned HTTP ${cronResult.status}`,
           );
-          // triggerCronByPath never throws — a 404 (manifest entry with no
-          // route) resolves as {ok:false}.
+          // runManifestCron throws only BEFORE it sends (unknown, retired or
+          // Inngest-only job: the catch below); once sent, a 404 or a dropped
+          // connection resolves as {ok:false}.
           // Unconditionally pushing here filed "Cron Healer: Rescued X"
           // coach events for phantom heals, burning the whole
           // MAX_HEAL_PER_RUN budget on 404s before reaching a real cron.

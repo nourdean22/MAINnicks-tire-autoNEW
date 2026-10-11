@@ -15,9 +15,9 @@
  * This module is the analog of detectActionClaimsWithoutTools: given the
  * action receipts + the assistant text, return the failed MUTATION
  * actions that Nick's prose claimed completed. The caller writes a
- * `chat_claim_warn` BrainMemory row, which the existing correction-chip
- * surface (claim-warnings.ts → /api/ai/chat/claim-warnings →
- * action-claim-warning.tsx) renders below the bubble.
+ * `chat_claim_warn` BrainMemory row. L5 is ORPHANED (checked 2026-10-10):
+ * no client calls chat.claimWarnings and the ActionClaimWarning chip is
+ * gone, so nothing renders that row; the operator sees only the L2 banner.
  *
  * Pure — no IO. Trivial to unit-test.
  */
@@ -153,9 +153,9 @@ export function detectFailedActionClaims(
  *
  * Scope is deliberately narrow: one pattern table for action-block domains
  * with no SDK-tool counterpart, starting with person.create (the measured
- * case). Wired to the chat_claim_warn correction chip — NOT into
- * canClaimDone — so a false positive costs a visible warning, never a
- * mutated reply. Escalating into canClaimDone is a recorded next lever
+ * case). Wired to the chat_claim_warn row (no client renders it: L5 is
+ * ORPHANED), NOT into canClaimDone, so a false positive never mutates a
+ * reply. Escalating into canClaimDone is a recorded next lever
  * (docs/CHAT-PIPELINE-STUDY-2026-08-27.md).
  *
  * Pure — no IO.

@@ -572,18 +572,16 @@ function rowToMoveRow(row: BrainMemoryRow): MoveRow | null {
   };
 }
 
-/** Pull all pending moves for today (or a given date). */
+/** Pull all pending moves for today (or a given date). Throws when the read fails: unknown, never "no moves". */
 export async function listPendingMovesForDate(date: string): Promise<MoveRow[]> {
-  const rows = await prisma.brainMemory
-    .findMany({
-      // v10.0.529.106 wave-77 · migrated to activeOnly() helper.
-      where: activeOnly({
-        category: "revenue_move",
-        key: { startsWith: `move_${date}_` },
-      }),
-      orderBy: { key: "asc" },
-    })
-    .catch(() => [] as BrainMemoryRow[]);
+  const rows = await prisma.brainMemory.findMany({
+    // v10.0.529.106 wave-77 · migrated to activeOnly() helper.
+    where: activeOnly({
+      category: "revenue_move",
+      key: { startsWith: `move_${date}_` },
+    }),
+    orderBy: { key: "asc" },
+  });
   return rows
     .map((r) => rowToMoveRow(r as BrainMemoryRow))
     .filter((r): r is MoveRow => r !== null && r.status === "pending");
@@ -686,20 +684,26 @@ export async function decideMove(
   return { ok: true, alreadyDecided: false, status: decision };
 }
 
-/** Bulk approve/reject for the day · used by /approve_all · /reject_all. */
+/**
+ * Bulk approve/reject for the day · used by /approve_all · /reject_all.
+ * Every pending move lands in exactly one bucket: a move whose read or write
+ * failed is returned in `failed` (P-S10a), never dropped from the count.
+ */
 export async function decideAllForDate(
   date: string,
   decision: "approved" | "rejected",
-): Promise<{ updated: number; alreadyDecided: number }> {
+): Promise<{ updated: number; alreadyDecided: number; failed: number[] }> {
   const pending = await listPendingMovesForDate(date);
   let updated = 0;
   let alreadyDecided = 0;
+  const failed: number[] = [];
   for (const m of pending) {
     const r = await decideMove(date, m.moveIndex, decision);
-    if (r.ok && !r.alreadyDecided) updated += 1;
-    else if (r.ok && r.alreadyDecided) alreadyDecided += 1;
+    if (!r.ok) failed.push(m.moveIndex);
+    else if (r.alreadyDecided) alreadyDecided += 1;
+    else updated += 1;
   }
-  return { updated, alreadyDecided };
+  return { updated, alreadyDecided, failed };
 }
 
 // ─────────────────────────────────────────────────────────────────

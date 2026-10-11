@@ -12,10 +12,13 @@
  * when they are absent the section says so instead of inventing a date.
  */
 
+import { useState } from "react";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 import { errorCodeOf } from "@/lib/services/metric-result";
 import type { EntityRef } from "@/lib/ui/entity-ref";
 import { formatAge } from "@/lib/ui/metric-datum";
+import { cn } from "@/lib/utils";
 import { EvidenceMark } from "@/components/ui/evidence-mark";
 import { InspectorNotice } from "@/components/inspector/inspector-notice";
 import { EntityActionRow } from "@/components/inspector/entity-action-row";
@@ -24,6 +27,102 @@ import { useInspector } from "@/hooks/use-inspector";
 export interface InspectorPanelProps {
   entity: EntityRef;
   mode: "peek" | "inspect";
+}
+
+const ACTION_BTN =
+  "inline-flex min-h-11 items-center rounded-control border border-edge-default bg-content px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50";
+
+/**
+ * 05-M12: forget or correct this memory. The mutations live in the armed
+ * steps below, so the idle row is two plain buttons: Forget is two-tap in the
+ * DOM (an iOS PWA gets no window.confirm), Correct opens an inline editor.
+ */
+function MemoryEditActions({ id, content, current }: { id: string; content: string; current: boolean }) {
+  const [step, setStep] = useState<"idle" | "forget" | "correct">("idle");
+  if (step === "forget") return <ForgetMemoryConfirm id={id} onCancel={() => setStep("idle")} />;
+  if (step === "correct") return <CorrectMemoryEditor id={id} initial={content} onCancel={() => setStep("idle")} />;
+  return (
+    <div className="flex flex-wrap gap-2" data-memory-actions="idle">
+      <button type="button" className={ACTION_BTN} onClick={() => setStep("forget")}>Forget</button>
+      {current ? (
+        <button type="button" className={ACTION_BTN} onClick={() => setStep("correct")}>Correct</button>
+      ) : null}
+    </div>
+  );
+}
+
+export function ForgetMemoryConfirm({ id, onCancel }: { id: string; onCancel: () => void }) {
+  const utils = trpc.useUtils();
+  const { closeInspector } = useInspector();
+  const forget = trpc.brain.forgetMemory.useMutation({
+    onSuccess: (res) => {
+      void utils.brain.memoryById.invalidate({ id });
+      if (res.deleted) {
+        toast.success("Memory forgotten");
+        closeInspector();
+      } else {
+        toast.error("Nothing to forget, it was already gone");
+        onCancel();
+      }
+    },
+    onError: () => toast.error("Could not forget the memory"),
+  });
+  return (
+    <div className="flex flex-wrap gap-2" data-memory-actions="forget">
+      <button
+        type="button"
+        disabled={forget.isPending}
+        onClick={() => forget.mutate({ id })}
+        className={cn(ACTION_BTN, "border-rose-500/50 bg-rose-500/15 text-rose-200 hover:text-rose-100")}
+      >
+        Tap again to forget
+      </button>
+      <button type="button" disabled={forget.isPending} onClick={onCancel} className={ACTION_BTN}>Keep</button>
+    </div>
+  );
+}
+
+export function CorrectMemoryEditor({ id, initial, onCancel }: { id: string; initial: string; onCancel: () => void }) {
+  const utils = trpc.useUtils();
+  const { openInspector } = useInspector();
+  const [text, setText] = useState(initial);
+  const correct = trpc.brain.correctMemory.useMutation({
+    onSuccess: (res) => {
+      void utils.brain.memoryById.invalidate();
+      toast.success("Memory corrected");
+      openInspector({ kind: "memory", id: res.id });
+    },
+    onError: (err) => toast.error(err.message || "Could not correct the memory"),
+  });
+  const next = text.trim();
+  const unchanged = !next || next === initial.trim();
+  return (
+    <form
+      className="space-y-2"
+      data-memory-actions="correct"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!unchanged) correct.mutate({ id, content: next });
+      }}
+    >
+      <textarea
+        aria-label="Corrected memory"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        disabled={correct.isPending}
+        maxLength={2000}
+        rows={3}
+        autoFocus
+        className="w-full min-h-11 resize-y rounded-control border border-edge-default bg-content px-2.5 py-2 text-[16px] text-fg focus:border-accent focus:outline-none disabled:opacity-50"
+      />
+      <div className="flex flex-wrap gap-2">
+        <button type="submit" disabled={correct.isPending || unchanged} className={cn(ACTION_BTN, "border-accent bg-accent-soft text-fg")}>
+          Save correction
+        </button>
+        <button type="button" disabled={correct.isPending} onClick={onCancel} className={ACTION_BTN}>Cancel</button>
+      </div>
+    </form>
+  );
 }
 
 function Fact({ label, value }: { label: string; value: string | null | undefined }) {
@@ -144,6 +243,8 @@ export function MemoryInspector({ entity }: InspectorPanelProps) {
           </p>
         )}
       </section>
+
+      <MemoryEditActions key={m.id} id={m.id} content={m.content} current={!m.supersededBy} />
 
       <EntityActionRow entities={[entity]} labelOf={() => label} />
     </div>

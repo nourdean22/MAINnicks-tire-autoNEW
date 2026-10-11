@@ -31,6 +31,7 @@ import { MONTHLY_REVENUE_TARGET } from "@/lib/config/business";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logError } from "@/lib/utils/error-log";
+import { claimPushSlot, releasePushSlot } from "@/lib/brain/proactive-pushes";
 
 const log = rootLogger.withSurface("brain/operating-rhythm");
 
@@ -58,61 +59,11 @@ function getCurrentSlot(): RhythmSlot | null {
 }
 
 /**
- * 2026-05-27 · operator volume cleanup · per-slot per-day dedup
- * marker. Pre-fix: operating-rhythm had ZERO dedup, so Vercel cron
- * retries / Railway restarts / manual triggers could fire the same
- * slot's Telegram twice. Up to 5 slots × possible doubles = 10
- * pings/day risk on this lane alone. Pattern copied from
- * lib/brain/proactive-pushes.ts:57-81 — reuse PROACTIVE_PUSH_SENT
- * category with `rhythm_` key prefix so the existing 14d TTL hygiene
- * cron also reaps these (no new category needed).
+ * 2026-05-27: per-slot per-day dedup marker (PROACTIVE_PUSH_SENT, `rhythm_` key
+ * prefix, so the TTL hygiene cron reaps these too). Since 08-X1 the marker is CLAIMED
+ * before the send (claimPushSlot): read-send-mark let a failed read or two racing
+ * runs both send.
  */
-async function rhythmAlreadyPushed(slot: RhythmSlot, dateKey: string): Promise<boolean> {
-  const row = await prisma.brainMemory
-    .findUnique({
-      where: {
-        category_key: {
-          category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT,
-          key: `rhythm_${slot}_${dateKey}`,
-        },
-      },
-      select: { id: true },
-    })
-    .catch((err) => {
-      logError("brain.operating-rhythm", err, { fn: "rhythmAlreadyPushed" });
-      return null;
-    });
-  return row !== null;
-}
-
-async function markRhythmPushed(slot: RhythmSlot, dateKey: string): Promise<void> {
-  await prisma.brainMemory
-    .upsert({
-      where: {
-        category_key: {
-          category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT,
-          key: `rhythm_${slot}_${dateKey}`,
-        },
-      },
-      create: {
-        category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT,
-        key: `rhythm_${slot}_${dateKey}`,
-        content: `rhythm ${slot} pushed at ${new Date().toISOString()}`,
-        source: "operating-rhythm-cron",
-        confidence: 1.0,
-        expiresAt: new Date(Date.now() + 48 * 3600_000),
-      },
-      update: {
-        content: `rhythm ${slot} pushed at ${new Date().toISOString()}`,
-        lastSeen: new Date(),
-      },
-    })
-    .catch((err) => {
-      logError("brain.operating-rhythm", err, { fn: "markRhythmPushed" });
-      return undefined;
-    });
-}
-
 /**
  * Execute the rhythm for the current time slot.
  * Called by cron at each slot time.
@@ -366,21 +317,17 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
   }
 
   if (message) {
-    // 2026-05-27 · dedup guard. Check BEFORE send · skip + return if
-    // this slot already fired today. Marker is written AFTER successful
-    // send so a transient sendTelegram failure (Telegram outage) leaves
-    // the slot eligible for retry on the next cron tick.
-    if (await rhythmAlreadyPushed(activeSlot, todayStr)) {
-      return { slot: activeSlot, sent: false, message: "already_sent_today" };
-    }
+    // Claim before the send (08-X1): the loser of the claim, or a store that cannot answer, never sends.
+    const claimKey = `rhythm_${activeSlot}_${todayStr}`;
+    const claim = await claimPushSlot(claimKey, "operating-rhythm-cron");
+    if (claim === "duplicate") return { slot: activeSlot, sent: false, message: "already_sent_today" };
+    if (claim === "unavailable") return { slot: activeSlot, sent: false, message: "dedupe_unavailable" };
 
     const sent = await sendTelegram(message).catch((err) => {
       logError("brain.operating-rhythm", err, { fn: "executeRhythm.sendTelegram" });
       return false;
     });
-    if (sent) {
-      await markRhythmPushed(activeSlot, todayStr);
-    }
+    if (!sent) await releasePushSlot(claimKey); // the next tick may retry
 
     // Store rhythm execution
     await prisma.auditEvent.create({

@@ -81,7 +81,7 @@ export const qualityBenchWeekly = inngest.createFunction(
     // replay benefit. Returns only serializable summary fields.
     const summary = await step.run("run-bench", async () => {
       const { QUALITY_PROMPTS } = await import("@/tests/fixtures/quality-prompts.gold");
-      const { runQualityBench } = await import("@/lib/ai/evals/quality-bench-core");
+      const { runQualityBench, goldSetHash } = await import("@/lib/ai/evals/quality-bench-core");
       const bench = await runQualityBench(QUALITY_PROMPTS, { dry: false });
       const failing = bench.results
         .filter((r) => !r.pass)
@@ -98,6 +98,7 @@ export const qualityBenchWeekly = inngest.createFunction(
         errored: bench.errored,
         erroredIds: bench.erroredIds,
         model: bench.model,
+        goldHash: goldSetHash(QUALITY_PROMPTS),
         failing,
       };
     });
@@ -106,8 +107,11 @@ export const qualityBenchWeekly = inngest.createFunction(
       const prev = await prisma.systemMetric.findFirst({
         where: { metric: "quality_bench.pass_rate" },
         orderBy: { createdAt: "desc" },
-        select: { value: true, createdAt: true },
+        select: { value: true, createdAt: true, tags: true },
       });
+      // A rate from another gold set or model is not a baseline: no diff, no false REGRESSION (06-X3).
+      const prevTags = (prev?.tags ?? {}) as { goldHash?: unknown; model?: unknown };
+      const comparable = prevTags.goldHash === summary.goldHash && prevTags.model === summary.model;
       // Errored prompts (provider outage) had no output to judge: they are
       // excluded from the denominator. With nothing measured there is no rate,
       // and writing 0 would be a confident zero the next run diffs against.
@@ -128,11 +132,17 @@ export const qualityBenchWeekly = inngest.createFunction(
               errored: summary.errored,
               erroredIds: summary.erroredIds,
               model: summary.model,
+              goldHash: summary.goldHash,
             },
           },
         });
       }
-      return { passRate, prevRate: prev?.value ?? null, prevAt: prev?.createdAt?.toISOString() ?? null };
+      return {
+        passRate,
+        prevRate: comparable ? (prev?.value ?? null) : null,
+        prevAt: prev?.createdAt?.toISOString() ?? null,
+        prevIncomparable: prev != null && !comparable,
+      };
     });
 
     const regressed =
@@ -156,7 +166,11 @@ export const qualityBenchWeekly = inngest.createFunction(
       const body = `Pass rate ${((baseline.passRate ?? 0) * 100).toFixed(0)}%${
         summary.errored > 0 ? ` over ${summary.total - summary.errored} measured (${summary.errored} errored on provider, excluded)` : ""
       }${
-        baseline.prevRate != null ? ` (was ${(baseline.prevRate * 100).toFixed(0)}%)` : " (first measured run)"
+        baseline.prevRate != null
+          ? ` (was ${(baseline.prevRate * 100).toFixed(0)}%)`
+          : baseline.prevIncomparable
+            ? " (no comparable baseline: gold set or model changed)"
+            : " (first measured run)"
       }. Failing: ${summary.failedIds.join(", ")}. Model, system prompt, or sanitizer drifted — run scripts/run-quality-bench.ts --ids=${summary.failedIds.join(",")} to reproduce.`;
       await step.run("regression-alert", async () => {
         await recordCoachEvent({

@@ -7,6 +7,7 @@
  * The chips are pure functions of the payload, exported via CARDS.
  */
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 
 import { CARDS } from "@/components/system/hub-grid";
 
@@ -21,8 +22,6 @@ function payload(over: Record<string, object> = {}): Payload {
     devices: { online: 2, offline: 0, total: 2, measured: true },
     pulse: { priorityCount: 0, measured: true },
     ai: { calls24h: 40, costCents7d: 1234, measured: true },
-    power: { paused: false, measured: true },
-    governance: { pendingCount: 0, measured: true },
     generatedAt: "2026-08-04T00:00:00.000Z",
   };
   return { ...base, ...over } as Payload;
@@ -87,7 +86,7 @@ describe("hub chips honour measured flags", () => {
     ).toBe("unmeasured");
   });
 
-  it("error severity uses calibrated thresholds — never a bare >0 critical", () => {
+  it("error severity uses calibrated thresholds, never a bare >0 critical", () => {
     // fatal24h counts level='error' since the 2026-08-04 repoint (no writer
     // ever emits 'fatal'; the old >0-critical branch could never fire).
     // Baseline ~12.6/day: an ordinary day stays healthy.
@@ -124,5 +123,55 @@ describe("hub chips honour measured flags", () => {
     for (const href of ["/system/health", "/system/camera", "/system/crons", "/system/ai-cost"]) {
       expect(chip(href, null).severity).toBe("unknown");
     }
+  });
+});
+
+describe("Cron Deck chip never reads healthy while crons are silent (09-F24 step 1)", () => {
+  it("silent crons are a warning, not '<N> total' healthy", () => {
+    expect(
+      chip("/system/crons", payload({ crons: { declared: 12, silent: 3, logRows48h: 300, killed: 0, measured: true } })),
+    ).toEqual({ label: "3 silent", severity: "warning" });
+  });
+
+  it("with nothing silent or killed it is a plain count, not a health verdict", () => {
+    expect(chip("/system/crons", payload())).toEqual({ label: "12 jobs", severity: "info" });
+  });
+
+  it("control: killed still wins its own warning", () => {
+    expect(
+      chip("/system/crons", payload({ crons: { declared: 12, silent: 0, logRows48h: 300, killed: 2, measured: true } })),
+    ).toEqual({ label: "2 killed", severity: "warning" });
+  });
+});
+
+describe("two calibrations, two names (10-X3 = 02-X1)", () => {
+  const card = () => {
+    const c = CARDS.find((x) => x.href === "/system/calibration");
+    if (!c) throw new Error("no /system/calibration card");
+    return c;
+  };
+
+  it("the /system/calibration card is named for what the page shows", () => {
+    expect(card().title).toBe("State Calibration");
+    expect(card().description).not.toMatch(/prediction|coverage|drift/i);
+  });
+
+  it("the page points to where prediction accuracy actually lives", () => {
+    const src = readFileSync("app/(mastery)/system/calibration/page.tsx", "utf8");
+    expect(src).toContain('href="/stats?tab=calibration"');
+  });
+
+  it("the palette entry drops the keywords that belong to the other page", () => {
+    const src = readFileSync("components/command-palette.tsx", "utf8");
+    const line = src.split("\n").find((l) => l.includes('id: "sys-calibration"')) ?? "";
+    expect(line).toContain("State Calibration");
+    expect(line).not.toMatch(/drift|coverage|"lens"|accuracy/i);
+  });
+
+  it("the health page no longer sends the strategic-lens card to /system/calibration", () => {
+    const src = readFileSync("app/(mastery)/system/health/page.tsx", "utf8");
+    const at = src.search(/strategic lens [^\n]{1,4}\{data\.range\}/);
+    expect(at).toBeGreaterThan(-1); // anchor on the strategic-lens header, or this check scans nothing
+    expect(src.slice(at, at + 400)).not.toContain('href="/system/calibration"');
   });
 });

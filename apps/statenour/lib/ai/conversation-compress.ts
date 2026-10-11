@@ -236,7 +236,10 @@ async function recentAsModelMessages(recent: Array<Record<string, unknown>>): Pr
  */
 export async function compressConversation(
   rawMessages: Array<Record<string, unknown>>,
-  conversationId: string | undefined
+  conversationId: string | undefined,
+  /** How many older messages the client left out of `rawMessages` (it sends
+   *  a window, audit 04-F15). The cached summary counts absolute positions. */
+  historyOffset = 0,
 ): Promise<CompressionResult> {
   // Short conversation — no compression
   if (rawMessages.length <= COMPRESSION_THRESHOLD) {
@@ -258,10 +261,12 @@ export async function compressConversation(
   // where the verbatim tail must start, or the messages between the old
   // cutoff and the new one land in neither the summary nor the tail.
   if (conversationId) {
-    const cached = await getCachedSummary(conversationId, rawMessages.length);
+    const cached = await getCachedSummary(conversationId, historyOffset + rawMessages.length);
     if (cached) {
       summary = cached.summary;
-      cutoff = cached.coveredCount;
+      // Reuse only happens within REBUILD_INCREMENT + KEEP_RECENT of the
+      // end, so this is past the window start whenever compression runs.
+      cutoff = cached.coveredCount - historyOffset;
     }
   }
 
@@ -291,7 +296,10 @@ export async function compressConversation(
         }));
         summary = await summarizeMessages(flat);
         if (summary) {
-          storeSummary(conversationId, summary, cutoff).catch((err) =>
+          // shortcut: a windowed rebuild summarizes the window only, so what
+          // the client left out (historyOffset) drops out of context; fold
+          // the previous summary into the rebuild if that loss shows up.
+          storeSummary(conversationId, summary, historyOffset + cutoff).catch((err) =>
             recordError("ai:compression", err, { conversationId, op: "storeSummary-async" }),
           );
         }
@@ -328,7 +336,8 @@ export async function compressConversation(
   const compressed: CompactMessage[] = [
     {
       role: "system",
-      content: `# CONVERSATION SUMMARY (${toCompress.length} earlier messages compressed)\n\n${summary}\n\n# RECENT MESSAGES (verbatim, most recent)`,
+      // 04-X4: the summary is an older snapshot; Nour's newer words win.
+      content: `# CONVERSATION SUMMARY (${toCompress.length} earlier messages compressed)\n\n${summary}\n\nWhere this summary conflicts with the recent messages, the recent messages are current.\n\n# RECENT MESSAGES (verbatim, most recent)`,
     },
     ...(await recentAsModelMessages(recent)),
   ];

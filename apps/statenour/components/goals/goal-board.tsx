@@ -97,6 +97,7 @@ import { ExecutionCoachSandbox } from "./execution-coach-sandbox";
 import { trpc } from "@/lib/trpc/client";
 import { DOMAINS } from "@/lib/mastery/config";
 import { scrollBehavior } from "@/lib/ui/scroll-behavior";
+import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
 
 type Horizon = "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR" | "LIFE";
 
@@ -270,8 +271,7 @@ export function GoalBoard() {
       r2 = requestAnimationFrame(() => {
         const el = document.getElementById(`goal-${goalId}`);
         if (!el) return;
-        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+        el.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
       });
     });
     return () => {
@@ -719,7 +719,7 @@ export function GoalBoard() {
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
+                if (isSubmitEnter(e)) {
                   if (showAddForm) addManual();
                   else if (newTitle.trim()) setShowAddForm(true);
                 }

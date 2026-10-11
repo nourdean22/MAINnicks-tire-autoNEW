@@ -4,6 +4,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockFindUnique = vi.fn();
 const mockUpsert = vi.fn();
+const mockCreate = vi.fn();
+const mockDeleteMany = vi.fn();
 const mockBodyTrackingFindUnique = vi.fn().mockResolvedValue(null);
 const mockApprovalRequestCount = vi.fn().mockResolvedValue(0);
 
@@ -12,6 +14,8 @@ vi.mock("@/lib/prisma", () => ({
     brainMemory: {
       findUnique: () => mockFindUnique(),
       upsert: () => mockUpsert(),
+      create: (a: unknown) => mockCreate(a),
+      deleteMany: (a: unknown) => mockDeleteMany(a),
     },
     bodyTracking: {
       findUnique: () => mockBodyTrackingFindUnique(),
@@ -41,6 +45,10 @@ vi.mock("@/lib/brain/session-distiller", () => ({
   getNickCurrentConcerns: async () => mockCurrentConcerns,
 }));
 
+// No ledger id, so sendRatablePush takes the plain sendTelegram path.
+vi.mock("@/lib/services/outcome-ledger", () => ({ recordShown: async () => null }));
+vi.mock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
+
 vi.mock("@/lib/logger", () => ({
   logger: {
     withSurface: () => ({
@@ -62,6 +70,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockFindUnique.mockReset();
   mockUpsert.mockReset();
+  mockCreate.mockReset().mockResolvedValue({ id: "claim-1" });
+  mockDeleteMany.mockReset().mockResolvedValue({ count: 1 });
   mockBodyTrackingFindUnique.mockReset().mockResolvedValue(null);
   mockSendTelegram.mockReset();
   mockApprovalRequestCount.mockReset().mockResolvedValue(0);
@@ -293,3 +303,62 @@ describe("Proactive Pushes Dry-Run Logic", () => {
   });
 });
 
+// 08-X1: the live path read the marker, sent, then wrote it. A failed read (or two
+// racing runs) read "not sent" and both sent. The marker is now CLAIMED with a create
+// on the (category, key) unique index BEFORE the send; P2002 means someone else has it.
+describe("live push: claim before send", () => {
+  const MORNING = new Date("2026-06-10T08:00:00-04:00");
+  const p2002 = () => Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
+
+  it("a failed marker read on a slot already sent today does NOT send again", async () => {
+    mockFindUnique.mockRejectedValue(new Error("db hiccup"));
+    mockCreate.mockRejectedValue(p2002());
+    mockSendTelegram.mockResolvedValue(true);
+    const r = await fireMorningPush({ now: MORNING });
+    expect(mockSendTelegram).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ kind: "live", fired: false });
+  });
+
+  it("a race: the read says not sent, the claim hits P2002 -> no send", async () => {
+    mockFindUnique.mockResolvedValue(null);
+    mockCreate.mockRejectedValue(p2002());
+    mockSendTelegram.mockResolvedValue(true);
+    await fireMorningPush({ now: MORNING });
+    expect(mockSendTelegram).not.toHaveBeenCalled();
+  });
+
+  it("the claim store is down -> no send (fail closed)", async () => {
+    mockFindUnique.mockRejectedValue(new Error("db down"));
+    mockCreate.mockRejectedValue(new Error("db down"));
+    mockSendTelegram.mockResolvedValue(true);
+    const r = await fireMorningPush({ now: MORNING });
+    expect(mockSendTelegram).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ fired: false, reason: "dedupe_unavailable" });
+  });
+
+  it("a failed send releases the claim so the next tick can retry", async () => {
+    mockFindUnique.mockResolvedValue(null);
+    mockSendTelegram.mockResolvedValue(false);
+    await fireMorningPush({ now: MORNING });
+    expect(mockDeleteMany).toHaveBeenCalledWith({
+      where: { category: "proactive_push_sent", key: "morning_2026-06-10" },
+    });
+  });
+
+  it("CONTROL: an unclaimed slot claims once, sends once, keeps the claim", async () => {
+    mockFindUnique.mockResolvedValue(null);
+    mockSendTelegram.mockResolvedValue(true);
+    const r = await fireMorningPush({ now: MORNING });
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({ data: { category: "proactive_push_sent", key: "morning_2026-06-10" } });
+    expect(mockSendTelegram).toHaveBeenCalledTimes(1);
+    expect(mockDeleteMany).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ fired: true, reason: "sent" });
+  });
+
+  it("CONTROL: the dry-run preview still never claims", async () => {
+    mockFindUnique.mockResolvedValue(null);
+    await fireMorningPush({ dryRun: true, now: MORNING });
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+});

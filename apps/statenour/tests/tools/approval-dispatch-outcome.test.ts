@@ -55,6 +55,12 @@ function table(rows: () => Map<string, Row>, prefix: string) {
         .sort((a, b) => (b.createdAt as Date).getTime() - (a.createdAt as Date).getTime());
       return hit[0] ? { ...hit[0] } : null;
     },
+    findMany: async ({ where, take }: { where: Row; take?: number }) =>
+      [...rows().values()]
+        .filter((x) => matches(x, where))
+        .sort((a, b) => (b.createdAt as Date).getTime() - (a.createdAt as Date).getTime())
+        .slice(0, take ?? Infinity)
+        .map((x) => ({ ...x })),
     updateMany: async ({ where, data }: { where: Row; data: Row }) => {
       const hit = [...rows().values()].filter((x) => matches(x, where));
       hit.forEach((x) => write(x, data));

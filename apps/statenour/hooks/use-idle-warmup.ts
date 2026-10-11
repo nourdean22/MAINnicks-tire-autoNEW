@@ -5,9 +5,9 @@
  * on mount so switching to /chat later lands on a hot lambda.
  *
  * Differs from useChatPrefetch (which fires on typing debounce) in
- * that this is surface-boot warming: opening /command or /brain
- * should pre-heat the chat route in case Nour navigates to /chat
- * without typing anything first.
+ * that this is surface-boot warming. One caller today:
+ * components/brain/memory-tab.tsx (the /brain memory tab), so opening
+ * it pre-heats the chat route before Nour types anything.
  *
  * Uses requestIdleCallback (with setTimeout fallback) so we don't
  * fight the page's own initial paint. Fire-and-forget — no UI
@@ -43,9 +43,9 @@ export function useIdleWarmup(enabled = true) {
       const now = Date.now();
       if (now - lastFiredRef.current < REFIRE_INTERVAL_MS) return;
       lastFiredRef.current = now;
-      // Empty-ish draft so the service short-circuits before the heavy
-      // prefetch path but still warms the system-prompt cache.
-      // Fire-and-forget · errors swallowed.
+      // The 11-char draft clears both length gates (3 and 8), so this runs the
+      // FULL warmup: prompt cache if cold, predictive prefetch, tool-embedding warm.
+      // Fire-and-forget, errors swallowed.
       prefetchMutation.mutate(
         { draft: "warmup-idle", clientId: readClientId() },
         { onError: () => {} },

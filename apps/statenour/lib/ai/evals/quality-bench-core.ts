@@ -10,6 +10,7 @@
  * selection, env override, sanitizer all included, so a failure means the
  * model OR the system prompt OR the sanitizer pipeline regressed.
  */
+import { createHash } from "node:crypto";
 import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { specificityDensity } from "@/lib/ai/nour-voice-profile";
 import type { QualityCheck, QualityPrompt } from "@/tests/fixtures/quality-prompts.gold";
@@ -33,6 +34,8 @@ export interface PromptRunResult {
   errored?: boolean;
   /** Model id the prompt ran against. */
   model?: string;
+  /** Length of the production system prompt the prompt ran under. */
+  systemPromptLength?: number;
   durationMs?: number;
 }
 
@@ -134,9 +137,18 @@ export function checkSpecificityMarkerDensity(output: string, min: number): Chec
   };
 }
 
+/**
+ * Identity of the gold set: a pass rate compares only against a run of the same
+ * set (06-X3). RegExp checks are spelled out because JSON.stringify drops them.
+ */
+export function goldSetHash(prompts: readonly QualityPrompt[]): string {
+  const json = JSON.stringify(prompts, (_k, v: unknown) => (v instanceof RegExp ? v.toString() : v));
+  return createHash("sha256").update(json).digest("hex").slice(0, 12);
+}
+
 // ── Model invocation ─────────────────────────────────────────────────
 
-async function callModel(prompt: QualityPrompt): Promise<{ output: string; model: string }> {
+async function callModel(prompt: QualityPrompt): Promise<{ output: string; model: string; systemPromptLength: number }> {
   // Use the in-codebase provider stack so the bench tests the SAME
   // path that production uses. This includes the model selection, the
   // env override, the brand context, etc.
@@ -149,6 +161,10 @@ async function callModel(prompt: QualityPrompt): Promise<{ output: string; model
   const model = getModel();
   const modelId = (model as { modelId?: string }).modelId ?? String(model);
 
+  // The production prompt, tiered like the chat route; without it the bench graded the bare model (06-F7).
+  const { buildSystemPromptUncached, detectTopicTier } = await import("@/lib/ai/system-prompt");
+  const system = await buildSystemPromptUncached(detectTopicTier(prompt.user), prompt.user);
+
   // Build messages · simulates a chat turn with optional prior context
   const messages: Array<{ role: "user" | "assistant"; content: string }> = [];
   if (prompt.priorAssistant) {
@@ -159,6 +175,7 @@ async function callModel(prompt: QualityPrompt): Promise<{ output: string; model
   const { text } = await generateText({
     model,
     experimental_telemetry: langfuseTelemetry({ functionId: "quality-bench", tags: ["eval"] }),
+    system,
     messages: messages as never,
     maxOutputTokens: 600,
     temperature: 0.5,
@@ -173,7 +190,7 @@ async function callModel(prompt: QualityPrompt): Promise<{ output: string; model
 
   // Run through the sanitizer · matches production path
   const { sanitizeResponse } = await import("@/lib/ai/output-sanitizer");
-  return { output: sanitizeResponse(text).cleaned, model: modelId };
+  return { output: sanitizeResponse(text).cleaned, model: modelId, systemPromptLength: system.length };
 }
 
 // ── Per-prompt runner ────────────────────────────────────────────────
@@ -200,7 +217,7 @@ export async function runPrompt(prompt: QualityPrompt, dry: boolean): Promise<Pr
   }
 
   const startedAt = Date.now();
-  let called: { output: string; model: string };
+  let called: { output: string; model: string; systemPromptLength: number };
   try {
     called = await callModel(prompt);
   } catch (e) {
@@ -213,8 +230,9 @@ export async function runPrompt(prompt: QualityPrompt, dry: boolean): Promise<Pr
   }
 
   try {
-    const { output, model } = called;
+    const { output, model, systemPromptLength } = called;
     result.model = model;
+    result.systemPromptLength = systemPromptLength;
     result.output = output;
     result.outputLength = output.length;
     result.durationMs = Date.now() - startedAt;
@@ -264,8 +282,10 @@ export async function runPrompt(prompt: QualityPrompt, dry: boolean): Promise<Pr
 
     result.pass = result.checks.every((c) => c.pass);
   } catch (e) {
+    // The harness crashed while checking: no verdict on the output, so never a drift alert.
     result.error = (e as Error).message;
     result.pass = false;
+    result.errored = true;
     result.durationMs = Date.now() - startedAt;
   }
 

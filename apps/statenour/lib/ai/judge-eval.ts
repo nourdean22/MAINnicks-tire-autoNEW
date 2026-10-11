@@ -52,6 +52,7 @@
  * Returns null if eval fails or skipped · caller should treat as no-op.
  */
 
+import { createHash } from "node:crypto";
 import { withGuardian } from "@/lib/tools/guardian";
 import { logger as rootLogger } from "@/lib/logger";
 import { modelFamilyFromLane } from "@/lib/evals/q32-regression";
@@ -107,6 +108,9 @@ Output JSON only:
 }
 
 NO MARKDOWN. NO PROSE OUTSIDE JSON. Be terse.`;
+
+/** Rides every scored row: scores under different judge prompts are not comparable (06-X3). */
+export const JUDGE_PROMPT_HASH = createHash("sha256").update(JUDGE_SYSTEM).digest("hex").slice(0, 12);
 
 interface JudgeArgs {
   userQuery: string;
@@ -206,7 +210,8 @@ Score the reply. Output JSON only.`;
     log.warn("judge_provider_failed", {
       err: err instanceof Error ? err.message.slice(0, 200) : String(err),
     });
-    return null;
+    // A throw is an outage like the sentinel: count it as a coverage row, not "never judged" (06-X4).
+    return { unavailable: true, provider: "threw" };
   }
 
   if (!text) {
@@ -380,6 +385,7 @@ export async function judgeReplyAsync(args: JudgeArgs & { messageId: string }) {
         composite: report.composite,
         flagForReview: report.flagForReview,
         judgedBy: report.judgedBy,
+        judgePromptHash: JUDGE_PROMPT_HASH,
       },
     );
 

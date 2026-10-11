@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, Brain, History, Mic, MicOff } from "lucide-react";
-import { isNearBottom } from "../lib/scroll-position";
+import { ArrowDown, Brain, History, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
+import { isNearBottom, nextFollow } from "../lib/scroll-position";
 import { scrollBehavior } from "@/lib/ui/scroll-behavior";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStream } from "../hooks/use-chat-stream";
 import { resolveIslandHeight } from "../lib/island-height";
@@ -28,48 +29,82 @@ function useScrollToBottom<T extends HTMLElement>() {
   // the auto-follow below (isNearBottom) so the button can never show
   // while auto-follow is active, and vice versa.
   const [isAtBottom, setIsAtBottom] = useState(true);
+  // 09-F13: auto-follow is state, not a per-frame distance check: one frame
+  // that grew past the threshold used to drop it for the rest of the stream.
+  // Content growth keeps it; only the operator's own scroll input changes it.
+  const followRef = useRef(true);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     let rafId: number | null = null;
+    let inputRafId: number | null = null;
 
+    const distance = () => container.scrollHeight - container.scrollTop - container.clientHeight;
     const measure = () => {
       const near = isNearBottom(
         container.scrollHeight,
         container.scrollTop,
         container.clientHeight,
       );
-      setIsAtBottom(near);
+      // While following, the view is headed for the bottom: no jump button.
+      setIsAtBottom(near || followRef.current);
       return near;
     };
 
-    // Operator scrolling — the button's show/hide signal.
-    const onScroll = () => void measure();
+    // Reaching the bottom by any route re-arms follow. Follow only scrolls
+    // down, so an upward move is the operator's: a momentum flick, a scrollbar
+    // drag, keys or VoiceOver send scroll events with no wheel or touchmove.
+    let lastTop = container.scrollTop;
+    const onScroll = () => {
+      const top = container.scrollTop;
+      if (top < lastTop - 2) followRef.current = nextFollow(followRef.current, { kind: "user-scroll", distanceFromBottom: distance() });
+      lastTop = top;
+      if (measure()) followRef.current = true;
+    };
+    // Read a frame later, once the input has moved the scroll position.
+    const onUserInput = () => {
+      if (inputRafId !== null) cancelAnimationFrame(inputRafId);
+      inputRafId = requestAnimationFrame(() => {
+        inputRafId = null;
+        followRef.current = nextFollow(followRef.current, { kind: "user-scroll", distanceFromBottom: distance() });
+        measure();
+      });
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "PageUp" || event.key === "ArrowUp" || event.key === "Home") onUserInput();
+    };
     container.addEventListener("scroll", onScroll, { passive: true });
+    container.addEventListener("wheel", onUserInput, { passive: true });
+    container.addEventListener("touchmove", onUserInput, { passive: true });
+    container.addEventListener("keydown", onKey);
     measure();
 
-    // Content growth — auto-follow when near the bottom, and re-measure
-    // either way (streaming can push the bottom away without a single
-    // scroll event firing).
+    // Content growth: follow if following, and re-measure either way
+    // (streaming can push the bottom away without a scroll event firing).
     const observer = new MutationObserver(() => {
       if (rafId !== null) return;
       rafId = requestAnimationFrame(() => {
         rafId = null;
-        if (measure()) {
-          endRef.current?.scrollIntoView({ behavior: scrollBehavior() });
-        }
+        followRef.current = nextFollow(followRef.current, { kind: "content-grew", distanceFromBottom: distance() });
+        if (followRef.current) endRef.current?.scrollIntoView({ behavior: scrollBehavior() });
+        else measure();
       });
     });
     observer.observe(container, { childList: true, subtree: true, characterData: true });
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
+      if (inputRafId !== null) cancelAnimationFrame(inputRafId);
       container.removeEventListener("scroll", onScroll);
+      container.removeEventListener("wheel", onUserInput);
+      container.removeEventListener("touchmove", onUserInput);
+      container.removeEventListener("keydown", onKey);
       observer.disconnect();
     };
   }, []);
 
   const scrollToBottom = useCallback(() => {
+    followRef.current = nextFollow(followRef.current, { kind: "jump", distanceFromBottom: 0 });
     endRef.current?.scrollIntoView({ behavior: scrollBehavior(), block: "end" });
   }, []);
 
@@ -82,9 +117,9 @@ export function ChatIsland() {
   const memoryInspectorOpen = useChatUiStore((state) => state.memoryInspectorOpen);
   const setMemoryInspectorOpen = useChatUiStore((state) => state.setMemoryInspectorOpen);
   const historyDrawerOpen = useChatUiStore((state) => state.historyDrawerOpen);
-  const posture = useChatUiStore((state) => state.posture);
-  const depth = useChatUiStore((state) => state.depth);
   const privateMode = useChatUiStore((state) => state.privateMode);
+  const activeConversationId = useChatUiStore((state) => state.activeConversationId);
+  const historyButtonRef = useRef<HTMLButtonElement>(null);
   const setHistoryDrawerOpen = useChatUiStore((state) => state.setHistoryDrawerOpen);
   const setActiveConversationId = useChatUiStore((state) => state.setActiveConversationId);
   const recalledHits = useChatUiStore((state) => state.recalledHits);
@@ -166,16 +201,6 @@ export function ChatIsland() {
     };
   }, []);
 
-  const closeDrawer = useCallback(() => setHistoryDrawerOpen(false), [setHistoryDrawerOpen]);
-  useEffect(() => {
-    if (!historyDrawerOpen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeDrawer();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [closeDrawer, historyDrawerOpen]);
-
   const [recallProvenance, setRecallProvenance] = useState<
     "OK" | "ZERO" | "ERROR" | "UNMEASURED" | undefined
   >(undefined);
@@ -250,34 +275,38 @@ export function ChatIsland() {
 
   return (
     <div ref={islandRef} className="relative flex h-full w-full flex-col overflow-hidden bg-void text-fg">
-      <header className="z-10 flex items-center justify-between gap-3 border-b border-edge-subtle bg-canvas px-3 py-2 sm:px-4">
+      {/* flex-wrap: four 44px controls plus a long capability label ("tool
+          health unknown") pass 390px, so the controls drop to their own line
+          instead of running under the label. */}
+      <header className="z-10 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-edge-subtle bg-canvas px-3 py-2 sm:px-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2.5">
             <h1 className="font-mono text-[13px] font-semibold tracking-[0.08em] text-fg">NICK</h1>
             <ChatCapabilityIndicator />
           </div>
-          {/* UI-1 authority strip: the header answers "what mode, what
-              access" at a glance — the static tagline told the operator
-              nothing about current authority. Reads the same store the
-              composer writes; gold = non-default. */}
-          <p className="mt-0.5 font-mono text-[11px] text-fg-tertiary">
-            <span className={posture !== "auto" ? "text-accent" : undefined}>{posture === "auto" ? "auto posture" : posture}</span>
-            {" · "}
-            <span className={depth !== "auto" ? "text-accent" : undefined}>{depth === "auto" ? "auto depth" : depth}</span>
-            {/* No separator here: the PRIVATE span below carries its own. This
-                line used to read `depth` + " · " + <permission label>, and
-                removing the permission picker (#1589) left the delimiter behind
-                — the live header rendered "auto posture · auto depth ·" with
-                nothing after it, and "auto depth ·  · PRIVATE" when private
-                mode was on. Mine; caught on the deployed page, not in review. */}
-            {privateMode && <span className="text-accent"> · PRIVATE</span>}
-          </p>
+          {/* 09-F22: the posture/depth strip read selectors the composer lost
+              on 2026-08-28, so it always said the same thing. PRIVATE is the
+              one mode left to show. */}
+          {privateMode && <p className="mt-0.5 font-mono text-[11px] text-accent">PRIVATE</p>}
         </div>
-        <div className="flex items-center gap-0.5">
+        <div className="ml-auto flex items-center gap-0.5">
+          {/* 09-F23: one global preference, so one control (it was a button
+              on every reply). No speech engine, no control. */}
+          {tts.supported && (
+            <button
+              type="button"
+              aria-label={tts.enabled ? "Auto-read replies is on (tap to turn off)" : "Auto-read replies is off (tap to turn on)"}
+              aria-pressed={tts.enabled}
+              onClick={tts.toggle}
+              className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${tts.enabled ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}
+            >
+              {tts.enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+            </button>
+          )}
           <button onClick={() => setMemoryInspectorOpen(!memoryInspectorOpen)} aria-label="Context and memory" aria-pressed={memoryInspectorOpen} className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${memoryInspectorOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
             <Brain size={16} /><span className="sr-only">Context</span>
           </button>
-          <button onClick={() => setHistoryDrawerOpen(!historyDrawerOpen)} aria-label="Conversation history" aria-pressed={historyDrawerOpen} className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${historyDrawerOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
+          <button ref={historyButtonRef} onClick={() => setHistoryDrawerOpen(!historyDrawerOpen)} aria-label="Conversation history" aria-pressed={historyDrawerOpen} className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${historyDrawerOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
             <History size={16} /><span className="sr-only">History</span>
           </button>
           <button onClick={toggleVoiceDock} aria-label={isVoiceDocked ? "Close voice" : "Open voice"} aria-pressed={isVoiceDocked} className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${isVoiceDocked ? "bg-rose-500/15 text-rose-300" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
@@ -304,6 +333,7 @@ export function ChatIsland() {
             onCommand={(prompt) => chat.sendText(prompt)}
             tts={tts}
             stopped={chat.stopped}
+            conversationId={privateMode ? null : activeConversationId}
           />
           <div ref={endRef} />
         </div>
@@ -353,8 +383,24 @@ export function ChatIsland() {
 
       <MemoryInspectorSidebar open={memoryInspectorOpen} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} fetchedAt={memoryFetchedAt} reply={replyQuality} recallProvenance={recallProvenance} recallProvenanceReason={recallProvenanceReason} />
 
-      {historyDrawerOpen && (
-        <div className="absolute inset-y-0 left-0 z-50 w-full border-r border-edge-default bg-overlay shadow-l1 sm:w-80" style={{ paddingLeft: "env(safe-area-inset-left, 0px)" }}>
+      {/* 09-F4: a modal dialog (pattern: nick-side-pane.tsx): focus moves in
+          and is trapped, Escape and a scrim tap close it, and focus returns
+          to the History button. */}
+      <Dialog
+        open={historyDrawerOpen}
+        onOpenChange={(open) => {
+          if (!open) setHistoryDrawerOpen(false);
+        }}
+      >
+        <DialogContent
+          unstyled
+          showCloseButton={false}
+          aria-label="Conversation history"
+          finalFocus={historyButtonRef}
+          overlayClassName="z-[58] bg-canvas/60"
+          className="fixed inset-y-0 left-0 z-[59] w-full border-r border-edge-default bg-overlay pb-[env(safe-area-inset-bottom,0px)] shadow-l1 outline-none sm:w-80"
+          style={{ paddingLeft: "env(safe-area-inset-left, 0px)" }}
+        >
           <OperatorConversationDrawer
             convos={conversations.convos}
             activeId={conversations.activeId}
@@ -387,8 +433,8 @@ export function ChatIsland() {
             }}
             onClose={() => setHistoryDrawerOpen(false)}
           />
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

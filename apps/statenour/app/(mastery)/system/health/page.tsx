@@ -425,12 +425,6 @@ export default function SystemHealthPage() {
             <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-emerald-300">
               strategic lens · {data.range}
             </h2>
-            <Link
-              href="/system/calibration"
-              className="ml-auto text-[11px] font-mono text-emerald-400/80 hover:text-emerald-300"
-            >
-              Full →
-            </Link>
           </header>
           <dl className="px-3 pb-2 text-[11px] font-mono space-y-0.5">
             <KVRow

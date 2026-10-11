@@ -152,97 +152,15 @@ export const metaTools = {
   listTools: tool({
     description: "List all available tools organized by category. Use when Nour asks 'what can you do?' or 'show me your tools' or 'what tools do you have?'",
     inputSchema: z.object({
-      category: z.string().optional().describe("Filter by category: personal, business, shop, revenue, planning, brain, files, communication, analysis, research, commands, content, winback, meta. Leave empty for all."),
+      category: z.string().optional().describe("Filter by a tool-catalog category; an unknown value returns every category"),
     }),
     execute: async ({ category }) => {
-      // v10.0.179 · purged 4 retired tools the model was being told
-      // about but couldn't actually call: getDailyScores + logDailyScore
-      // (retired Apr 19 with DailyScore model), getRevenueProjection +
-      // getDailyClose (never made it into nourTools). Pre-fix the model
-      // could attempt to call them and either tool-not-found or get
-      // garbage back, depending on SDK shape.
-      const categories: Record<string, string[]> = {
-        personal: [
-          "getMasteryScores — Mastery domain scores",
-          "getDriftAlerts — Unresolved drift alerts",
-          "getCommitments — Active commitments",
-          "getAgendaItems — Active agenda items (witnessed commitments, intentions, contradictions, neglect alerts)",
-          "getTasks — Active tasks (INBOX/READY/DOING)",
-          "getTasks — Tasks by status",
-          "getMissions — Active missions",
-          "getHabitStreaks — Habit streaks",
-          "getBodyData — Weight/body data",
-          "getFinancialSnapshot — Financial snapshot",
-          // v10.0.529.89 · Wave 33 · "logDecision" stale ref removed.
-          // Canonical decision-capture tool is journalDecision (listed
-          // under planning below). The standalone logDecision tool was
-          // retired Apr 15 · keeping the catalog string aligned with
-          // the actual exposed surface prevents Nick from advertising
-          // capabilities it doesn't have.
-          "createTask — Create task",
-          "completeTask — Complete task",
-          "createCommitment — Create commitment",
-          "resolveAlert — Resolve drift alert",
-        ],
-        planning: [
-          "setWeeklyTargets — Set 3 weekly targets",
-          "getWeeklyTargets — Get this week's targets",
-          "checkCommitments — Check commitment health",
-          "completeCommitment — Mark commitment done",
-          "journalDecision — Log decision from chat",
-          "suggestMIT — Suggest Most Important Task",
-          "createMissionPlan — Create full mission plan",
-        ],
-        business: [
-          "queryNickstire — Query shop API (any type)",
-          "getAttentionAlerts — What needs attention now",
-          "findCustomer — Search customer DB",
-          "getEstimateLeaks — Find unconverted estimates",
-          "createQuickQuote — Generate a quote",
-        ],
-        brain: [
-          "getBrainHealth — Brain health + learning velocity",
-          "getEmotionalState — Emotional arc + decision risk",
-          "getHabitRevenueCorrelation — Habit→revenue patterns",
-          "runSimulation — What-if scenario simulation",
-          "searchMemories — Search brain memories",
-          "searchConversations — Search past conversations",
-          "searchGreeneLaws — Search strategic law library",
-        ],
-        files: [
-          "searchDriveFiles — Search Google Drive",
-          "readDriveFile — Read a Drive document",
-          "listRecentDriveFiles — Recent Drive files",
-          "githubReadFile — Read file from repo",
-          "githubListFiles — List repo files",
-          "githubSearchCode — Search code",
-          "githubRecentCommits — Recent commits",
-          "githubCreatePR — Create pull request",
-          "githubCreateIssue — Create issue",
-          "githubListRepos — List repos",
-        ],
-        communication: [
-          "sendTelegram — Push urgent msg to phone",
-        ],
-        commands: [
-          "dailyPulse — Full daily status check",
-          "endOfDay — EOD wrap-up",
-          "weeklyReview — Weekly review with scoring",
-          "analyzeWeek — Deep week analysis",
-          "getShopSnapshot — Quick shop snapshot",
-        ],
-      };
-
-      if (category && categories[category]) {
-        return { category, tools: categories[category], count: categories[category].length };
-      }
-
-      const all = Object.entries(categories).map(([cat, tools]) => ({
-        category: cat,
-        count: tools.length,
-        tools,
-      }));
-      return { totalTools: all.reduce((s, c) => s + c.count, 0), categories: all };
+      // Derived from the catalog (audit 03-F17): a hand-kept list showed 48 tools while claiming all.
+      const { TOOL_COUNT, catalogSummary, toolNamesByCategory } = await import("@/lib/ai/tools/catalog");
+      const categories = catalogSummary().map((c) => ({ ...c, tools: toolNamesByCategory(c.category) }));
+      const hit = categories.find((c) => c.category === category);
+      if (hit) return hit;
+      return { totalTools: TOOL_COUNT, categories };
     },
   }),
 
@@ -317,9 +235,9 @@ export const metaTools = {
   // ── SPECIALIZED MODEL TOOLS ──
 
   runCode: tool({
-    description: "Execute JavaScript in a sandbox. Use for calculations, data analysis, projections, formatting. Has Math, Date, JSON, Array. No network/filesystem. Returns last expression.",
+    description: "Execute JavaScript in a sandbox. Use for calculations, data analysis, projections, formatting. Has the JavaScript built-ins plus helpers avg, sum, min, max, pct, delta. No network, filesystem or modules (code containing the word import is refused). 5s limit. The code runs as a function body: use `return <value>` for the result, which comes back as JSON; console.log lines come back as logs.",
     inputSchema: z.object({
-      code: z.string().describe("JavaScript code. Last expression value is returned."),
+      code: z.string().describe("JavaScript function body. Use `return <value>` for the result; without a return the result is null."),
       description: z.string().optional().describe("What this code does"),
     }),
     execute: async ({ code, description }) => {
@@ -771,12 +689,16 @@ export const metaTools = {
       // name, so the usage census (BDN-202) sees recovery-lane usage.
       const { recordToolInvocation } = await import("@/lib/ai/tool-telemetry");
       const softFailed = !!(result && typeof result === "object" && "error" in (result as Record<string, unknown>));
-      void recordToolInvocation({
-        toolName: name,
-        success: !softFailed,
-        durationMs: Date.now() - started,
-        errorMessage: softFailed ? String((result as Record<string, unknown>).error) : undefined,
-      }).catch(() => {});
+      // Private Lab leaves no trace, so no tool_telemetry row either (audit 07-SN-05 b).
+      const { currentTurn } = await import("@/lib/agent/turn-context");
+      if (currentTurn()?.privateMode !== true) {
+        void recordToolInvocation({
+          toolName: name,
+          success: !softFailed,
+          durationMs: Date.now() - started,
+          errorMessage: softFailed ? String((result as Record<string, unknown>).error) : undefined,
+        }).catch(() => {});
+      }
       return { tool: name, viaRecoveryLane: true, result };
     },
   }),

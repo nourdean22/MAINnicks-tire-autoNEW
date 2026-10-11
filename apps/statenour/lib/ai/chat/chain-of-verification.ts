@@ -34,6 +34,15 @@ import { logger as rootLogger } from "@/lib/logger";
 const aiChat = makeTracedAiChat("chain-of-verification", "chat");
 const log = rootLogger.withSurface("ai/chain-of-verification");
 
+/** Turn intents CoVe runs on. One definition: the persist pipeline and the
+ *  buffered lanes (alternate-paths.ts) must agree on which turns get it. */
+export const FACTUAL_INTENTS: ReadonlySet<string> = new Set([
+  "factual",
+  "analytical",
+  "procedural",
+  "instructional",
+]);
+
 const MAX_QUESTIONS = 4;
 const MIN_DRAFT_LEN = 60; // too short to carry a verifiable factual claim
 

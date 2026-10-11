@@ -147,7 +147,11 @@ function checkManifest(cases: RecallEvalCase[]): void {
   if (!existsSync(path)) { console.log(`corpus manifest absent (${fp.count} cases, sha256 ${fp.sha256.slice(0, 12)}) — run with --write-manifest to freeze it`); return; }
   const want = JSON.parse(readFileSync(path, "utf8")) as { count: number; sha256: string; frozenAt: string };
   if (want.sha256 === fp.sha256) console.log(`corpus frozen ✓ (${fp.count} cases, ${want.frozenAt})`);
-  else console.log(`corpus CHANGED vs manifest (${want.frozenAt}: ${want.count} cases → now ${fp.count}) — numbers are not comparable to the baseline`);
+  else {
+    console.log(`corpus CHANGED vs manifest (${want.frozenAt}: ${want.count} cases → now ${fp.count}) — numbers are not comparable to the baseline`);
+    // 06-X2: a silent exit 0 let a new corpus pass as the baseline; re-freeze on purpose with --write-manifest.
+    process.exitCode = 4;
+  }
 }
 
 function loadCorpus(): { cases: RecallEvalCase[]; syntheticOnly: boolean } {
@@ -288,7 +292,7 @@ async function main() {
     JSON.stringify({ ranAt: new Date().toISOString(), k: K, syntheticOnly, corpus: corpusFingerprint(cases), vector, lexical, hybrid, verdict }, null, 2),
   );
   console.log(`artifact: ${outPath}`);
-  process.exit(0);
+  process.exit(); // keeps the exitCode a changed corpus set (4); 0 otherwise
 }
 
 main().catch((e) => {

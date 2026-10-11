@@ -826,11 +826,16 @@ export interface GraphNeighborhoodView {
   edges: GraphNeighborhoodEdge[];
 }
 
-/** Resolve node labels in bulk · one query per entity type. */
+/**
+ * Resolve node labels in bulk, one query per entity type. `liveRead` holds
+ * the soft-deletable types whose read SUCCEEDED, so an unlabeled node of that
+ * type is a deleted row, not a failed read (05-X3).
+ */
 async function resolveGraphLabels(
   refs: NodeRef[],
-): Promise<Map<string, string>> {
+): Promise<{ labels: Map<string, string>; liveRead: Set<string> }> {
   const labels = new Map<string, string>();
+  const liveRead = new Set<string>();
   const byType = new Map<string, Set<string>>();
   for (const r of refs) {
     if (!byType.has(r.type)) byType.set(r.type, new Set());
@@ -875,31 +880,33 @@ async function resolveGraphLabels(
       fetchers.push(
         prisma.reflection
           .findMany({
-            where: { id: { in: ids } },
+            where: { id: { in: ids }, deletedAt: null },
             select: { id: true, insight: true, date: true },
           })
-          .then((rows) =>
+          .then((rows) => {
+            liveRead.add(type);
             rows.forEach((r) =>
               labels.set(`${type}:${r.id}`, `${r.date} · ${r.insight}`),
-            ),
-          )
+            );
+          })
           .catch(() => {}),
       );
     } else if (type === "memory" || type === "brain_memory") {
       fetchers.push(
         prisma.brainMemory
           .findMany({
-            where: { id: { in: ids } },
+            where: { id: { in: ids }, deletedAt: null },
             select: { id: true, content: true, category: true },
           })
-          .then((rows) =>
+          .then((rows) => {
+            liveRead.add(type);
             rows.forEach((r) =>
               labels.set(
                 `${type}:${r.id}`,
                 `[${r.category}] ${r.content.slice(0, 90)}`,
               ),
-            ),
-          )
+            );
+          })
           .catch(() => {}),
       );
     } else if (type === "brain_dump") {
@@ -946,7 +953,7 @@ async function resolveGraphLabels(
     }
   }
   await Promise.all(fetchers);
-  return labels;
+  return { labels, liveRead };
 }
 
 /**
@@ -1033,11 +1040,16 @@ export async function buildGraphNeighborhood(args: {
     }
   }
 
-  const allRefs = Array.from(nodeMap.values()).map((n) => ({
-    type: n.type,
-    id: n.id,
-  }));
-  const labels = await resolveGraphLabels(allRefs);
+  const { labels, liveRead } = await resolveGraphLabels(
+    Array.from(nodeMap.values()).map((n) => ({ type: n.type, id: n.id })),
+  );
+  // A forgotten memory/reflection leaves its edges behind (no FK): drop the
+  // node and its edges rather than render it under a placeholder.
+  const gone = (t: string, i: string) =>
+    !(t === type && i === id) && liveRead.has(t) && !labels.has(`${t}:${i}`);
+  const allRefs = Array.from(nodeMap.values())
+    .filter((n) => !gone(n.type, n.id))
+    .map((n) => ({ type: n.type, id: n.id }));
 
   const nodes: GraphNeighborhoodNode[] = allRefs.map((r) => ({
     ...r,
@@ -1045,15 +1057,15 @@ export async function buildGraphNeighborhood(args: {
     degree: nodeMap.get(`${r.type}:${r.id}`)?.degree ?? 1,
   }));
 
-  const edges: GraphNeighborhoodEdge[] = [...firstHop, ...secondHop].map(
-    (e) => ({
+  const edges: GraphNeighborhoodEdge[] = [...firstHop, ...secondHop]
+    .filter((e) => !gone(e.sourceType, e.sourceId) && !gone(e.targetType, e.targetId))
+    .map((e) => ({
       source: { type: e.sourceType, id: e.sourceId },
       target: { type: e.targetType, id: e.targetId },
       relationship: e.relationship,
       strength: e.strength,
       evidence: e.evidence,
-    }),
-  );
+    }));
 
   const rootLabel =
     labels.get(`${type}:${id}`) ?? `${type}:${id.slice(0, 8)}`;

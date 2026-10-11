@@ -46,7 +46,7 @@
  * Canary: tests/repo/check-get-auth-canary.test.ts. Red team:
  * tests/redteam/check-get-auth.redteam.test.ts.
  *
- * Usage: `pnpm check:get-auth` scans the tracked tree; extra args scan only
+ * Usage: `pnpm check:get-auth` scans the tracked + untracked (not ignored) tree; extra args scan only
  * those files (the canary's end-to-end probe).
  */
 
@@ -83,6 +83,14 @@ const OWNER_PREFIXES = [
   "app/api/health",
   "app/api/people",
   "app/api/relationships",
+  // 07-X4 (2026-10-10): these leaned on the session middleware alone.
+  "app/api/content",
+  "app/api/drive",
+  "app/api/tools",
+  "app/api/notifications",
+  // shortcut: one route, not app/api/oauth; widen once oauth/google-data/callback runs requireSession
+  // (its CSRF-state compare is not auth to this gate).
+  "app/api/oauth/google-data/status",
 ];
 
 /** Every scanned /api directory: the list above plus each /api path that BYPASSES the session gate. */
@@ -98,7 +106,8 @@ const ROUTE_FILE = /\/route\.[jt]sx?$/;
 export function listRoutes(): string[] {
   const prefixes = scanPrefixes();
   // -z: git prints a non-ASCII path raw instead of C-quoting it (red team B24).
-  return execFileSync("git", ["ls-files", "-z", "--", "app"], { encoding: "utf8" })
+  // --others: a route not yet `git add`ed is scanned too (verify:hard before the first commit, B26).
+  return execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", "app"], { encoding: "utf8" })
     .split("\0")
     .filter((f) => {
       if (!ROUTE_FILE.test(f)) return false;

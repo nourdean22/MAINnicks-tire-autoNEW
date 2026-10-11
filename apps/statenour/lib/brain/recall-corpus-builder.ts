@@ -87,7 +87,7 @@ export function caseFromRejectedOutcome(row: {
   decision: string | null;
   outcomeUseful: boolean | null;
   evidenceRefs?: unknown;
-}): RecallEvalCase {
+}): RecallEvalCase | null {
   const why = row.decision === "dismissed" ? "dismissed" : "marked not useful";
   // 2026-10-10 (audit 06-F12): the memory row(s) the rejected recommendation
   // surfaced are the distractors a good retriever must not inject. Without
@@ -96,6 +96,8 @@ export function caseFromRejectedOutcome(row: {
   const forbiddenKeys = [ev.memoryKey, ...(Array.isArray(ev.memoryKeys) ? ev.memoryKeys : [])].filter(
     (k): k is string => typeof k === "string" && k.length > 0,
   );
+  // A keyless case can never fail, so it would only pad the eval denominator (R3-12).
+  if (forbiddenKeys.length === 0) return null;
   return {
     id: `real-outcome-${slug(row.id)}`,
     query: row.summary.slice(0, 240),
@@ -657,7 +659,7 @@ export async function buildRealRecallCases(): Promise<RealCorpusResult> {
 
   return {
     cases: [
-      ...outcomes.rows.map(caseFromRejectedOutcome),
+      ...outcomes.rows.map(caseFromRejectedOutcome).filter((c): c is RecallEvalCase => c !== null),
       ...warnings.rows.map(caseFromClaimWarning),
       ...toolFailures.rows.map(caseFromFailedToolCall),
       ...noiseDiscoveries.rows.map(caseFromNoiseDiscovery),

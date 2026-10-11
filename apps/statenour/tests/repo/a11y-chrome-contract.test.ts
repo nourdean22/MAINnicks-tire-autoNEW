@@ -11,6 +11,9 @@ import { describe, expect, it } from "vitest";
 import ts from "typescript";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { ContextBlockBadges } from "@/components/chat/context-block-badges";
 
 const ROOT = join(__dirname, "..", "..");
 const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
@@ -60,14 +63,43 @@ describe("09-F21 · the pulse strip carries a real 44px phone hit area, so it ne
   });
 });
 
+describe("09-F21 (rest): badge toggle, slash rows and the documented target size", () => {
+  it("the context-block toggle is a real 44px button that says whether it is open", () => {
+    const html = renderToStaticMarkup(createElement(ContextBlockBadges, { blocks: { recall: true, skills: true } }));
+    const button = html.match(/<button[^>]*>/)?.[0] ?? "";
+    expect(button, "the toggle did not render").not.toBe("");
+    expect(button).toMatch(/\bmin-h-11\b/);
+    expect(button).toContain('type="button"');
+    expect(button).toContain('aria-expanded="false"');
+  });
+
+  it("the home slash-menu rows are not 36px", () => {
+    expect(code("components/home/nick-command-line.tsx")).not.toContain("min-h-[36px]");
+  });
+
+  /** The phone floor the e2e audit enforces: `inlineLink ? 24 : 44`. */
+  const specFloor = () => Number(read("tests/e2e/target-size.spec.ts").match(/inlineLink \? \d+ : (\d+)/)?.[1]);
+  /** Every "NxNpx" a doc states. */
+  const docSizes = (src: string) => [...src.matchAll(/(\d+)\s*[x\u00d7]\s*(\d+)\s*px/g)].map((m) => [Number(m[1]), Number(m[2])]);
+
+  it.each(["AGENTS.md", "CLAUDE.md"])("%s states the same target size the e2e audit enforces", (doc) => {
+    expect(specFloor(), "floor not found in target-size.spec.ts").toBeGreaterThan(0);
+    const sizes = docSizes(read(doc));
+    expect(sizes.length, `${doc} states no target size`).toBeGreaterThan(0);
+    for (const [w, h] of sizes) expect([w, h]).toEqual([specFloor(), specFloor()]);
+  });
+
+  it("positive control: the doc scan reads both spellings and a stale number differs from the floor", () => {
+    expect(docSizes("two-tap confirms, 48\u00d748px minimum targets")).toEqual([[48, 48]]);
+    expect(docSizes("44x44px (floor pinned by tests/e2e/target-size.spec.ts)")).toEqual([[44, 44]]);
+    expect(specFloor()).toBe(44);
+  });
+});
+
 describe("09-F17 · no dead focus utility the unlayered :focus-visible rule overrides", () => {
-  // Owned by sibling tasks in the 2026-10-10 repair wave; they carry the same dead utilities and
-  // are cleaned there. The reverse canary below fails once a file is clean: then delete its entry.
-  // (features/chat-v2/components/chat-composer.tsx was here and clean, so it excused only a regression.)
-  const OWNED_ELSEWHERE = new Set([
-    "components/home/brief-lead.tsx",
-    "components/home/nick-command-line.tsx",
-  ]);
+  // Empty since R3-06 (2026-10-11) cleaned brief-lead and nick-command-line. A new entry needs an owner
+  // and a date; the reverse canary below fails once a listed file is clean.
+  const OWNED_ELSEWHERE = new Set<string>([]);
   /** Gold outline by name, by arbitrary value (`outline-[var(--gold)]`, `outline-(--gold)`), or the shadow kill. In .ts class constants too. */
   const DEAD_FOCUS = /focus-visible:(outline-gold|shadow-none|outline-\[[^\]\s]*gold|outline-\([^)\s]*gold)/;
 
@@ -91,25 +123,26 @@ describe("09-F17 · no dead focus utility the unlayered :focus-visible rule over
 });
 
 describe("09-F16 · scrolling tab rows leave room for the 4px focus ring", () => {
-  it("every overflow-x-auto row in PageTabs has vertical padding, and no tab is pulled into the clip edge", () => {
+  it("every overflow-x-auto row in PageTabs has padding on all four sides, and no tab is pulled into the clip edge", () => {
     const tabs = code("components/layout/page-tabs.tsx");
     const scrollers = [...tabs.matchAll(/"[^"\n]*overflow-x-auto[^"\n]*"/g)].map((m) => m[0]);
     expect(scrollers.length, "the scan found no scrolling rows").toBe(3);
-    for (const cls of scrollers) expect(cls, cls).toMatch(/\bpy-1\b/);
+    for (const cls of scrollers) {
+      expect(cls, cls).toMatch(/\bpy-1\b/);
+      // the first and last tab's ring sits in the side padding; -mx-1 keeps the row's text aligned
+      expect(cls, cls).toMatch(/\bpx-1\b/);
+      expect(cls, cls).toMatch(/(^|[\s"])-mx-1([\s"]|$)/);
+    }
     expect(tabs).not.toContain("-mb-px");
   });
 });
 
 describe("09-F13 · JS smooth scrolls respect prefers-reduced-motion", () => {
   /**
-   * KNOWN, 2026-10-10: found when this gate learned to read every value a `behavior` key can take.
-   * Each picks "smooth" in its own `matchMedia("(prefers-reduced-motion: reduce)") ? "auto" : "smooth"`
-   * ternary, so motion IS respected, but outside the shared helper the contract names. Product code is
-   * not this gate's to edit: the owning UI change moves each to scrollBehavior(), then deletes it here.
-   *   components/goals/goal-board.tsx:274 · components/mastery/character-sheet.tsx:122
-   * (features/chat-v2/components/chat-island.tsx was excused here while clean, so it hid only a regression.)
+   * Empty since R3-06 (2026-10-11, P-S7b) moved goal-board and character-sheet to scrollBehavior().
+   * A new entry needs an owner and a date; the reverse canary fails once a listed file is clean.
    */
-  const KNOWN_LOCAL_TERNARY = new Set(["components/goals/goal-board.tsx", "components/mastery/character-sheet.tsx"]);
+  const KNOWN_LOCAL_TERNARY = new Set<string>([]);
 
   /**
    * How many `behavior` keys in a file can evaluate to "smooth": read from the syntax tree, so the key may

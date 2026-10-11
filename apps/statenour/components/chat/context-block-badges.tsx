@@ -48,9 +48,13 @@ export function ContextBlockBadges({ blocks }: { blocks: ContextBlocks | undefin
 
   return (
     <div className="mt-1.5">
+      {/* 09-F21: a real 44px toggle that says whether it is open; no 50% opacity on the +N text (it fell under 4.5:1). */}
       <button
+        type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex items-center gap-1 opacity-50 hover:opacity-100 transition-opacity"
+        aria-expanded={expanded}
+        aria-label={`${fired.length} brain block${fired.length > 1 ? "s" : ""} fed this reply`}
+        className="flex min-h-11 min-w-11 items-center gap-1 rounded-control"
         title={`${fired.length} brain block${fired.length > 1 ? "s" : ""} fired · tap to expand`}
       >
         {fired.slice(0, 5).map((k) => {

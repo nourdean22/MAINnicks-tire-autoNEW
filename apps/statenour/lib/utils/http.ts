@@ -388,6 +388,10 @@ export function cronHandler(handler: RouteHandler) {
       const match = url.pathname.match(/\/api\/cron\/([^/?]+)/);
       const jobName = match?.[1] ?? null;
 
+      // Board overrides (NICK_MUTATION_LOCK) land before the handler reads a flag; a failed load runs on env (03-F13b).
+      const { loadFeatureFlagOverrides } = await import("@/lib/feature-flags");
+      await loadFeatureFlagOverrides().catch(() => {});
+
       if (jobName) {
         const { isCronEnabled } = await import("@/lib/services/cron-control");
         const enabled = await isCronEnabled(jobName).catch(() => true);

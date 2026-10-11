@@ -348,7 +348,7 @@ export function CommandPalette() {
       { id: "sys-ai-cost", label: "AI Cost · burn rate", group: "System", icon: <DollarSignIcon className="size-4" />, action: () => navigate("/system/ai-cost"), keywords: ["cost", "nick", "tokens", "budget", "burn"] },
       { id: "sys-actions", label: "Autonomous Actions · audit", group: "System", icon: <BotIcon className="size-4" />, action: () => navigate("/system/actions"), keywords: ["action", "autonomous", "rule", "audit", "approval"] },
       { id: "sys-health", label: "Health · diagnostics", group: "System", icon: <StethoscopeIcon className="size-4" />, action: () => navigate("/system/health"), keywords: ["health", "diagnostics", "probe", "env", "vectors", "backlog", "push", "pull", "oauth", "pulse", "stale", "cron", "rescan", "diagnose", "all"] },
-      { id: "sys-calibration", label: "Calibration · accuracy + judge-eval", group: "System", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["calibration", "quality", "judge", "eval", "drift", "coverage", "operator state", "lens"] },
+      { id: "sys-calibration", label: "State Calibration - hit rate by mood + judge agreement", group: "System", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["calibration", "quality", "state", "mood", "hit rate", "suggestion", "judge", "eval", "operator state"] },
       { id: "sys-alerts", label: "Alerts · cross-category inspector", group: "System", icon: <AlertTriangleIcon className="size-4" />, action: () => navigate("/system/alerts"), keywords: ["alert", "inspect", "category", "coach"] },
       { id: "sys-inbox", label: "Memory Inbox · quarantine review", group: "System", icon: <InboxIcon className="size-4" />, action: () => navigate("/system/inbox"), keywords: ["inbox", "quarantine", "memory", "contradiction", "review"] },
       { id: "sys-tools", label: "Tools Registry · governance", group: "System", icon: <WrenchIcon className="size-4" />, action: () => navigate("/system/tools"), keywords: ["tool", "registry", "govern", "permission", "capability"] },
@@ -372,12 +372,12 @@ export function CommandPalette() {
         group: "Power",
         icon: <RocketIcon className="size-4" />,
         action: probe("Health digest", async () => {
-          // Manually trigger the digest — useful right after fixing
-          // something to watch the overall bubble down to healthy
-          // without waiting until 4am. scattered-components slice ·
+          // Manually trigger the digest, useful right after fixing
+          // something to watch the overall bubble down to healthy.
+          // There is no cron (f87fb7e62 removed it): GET
+          // /api/ultron/health-digest's 4 h read-through is the scheduler.
           // trpc.operator.refreshHealthDigest (the same
-          // `refreshHealthDigest` the legacy GET /api/cron/health-digest
-          // / POST /api/ultron/health-digest both call). It returns the
+          // `refreshHealthDigest` POST /api/ultron/health-digest calls). It returns the
           // full `SystemHealthDigest` where `highlights` is an ARRAY
           // (the cron route returned a count) — so this reads
           // `.highlights.length`.

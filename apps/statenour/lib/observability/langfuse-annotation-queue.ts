@@ -48,7 +48,8 @@ export async function enqueueLangfuseTraceForAnnotation(
   traceId: string | null | undefined,
   deps: { env?: Env; fetchImpl?: FetchLike; timeoutMs?: number } = {},
 ): Promise<boolean> {
-  if (!traceId) return false;
+  // Audit 08-F17: only an OTel/Langfuse trace id (32 hex) names a real trace; a statenour id queued nothing useful.
+  if (!traceId || !/^[0-9a-f]{32}$/.test(traceId)) return false;
   const cfg = langfuseAnnotationQueueConfig(deps.env ?? process.env);
   if (!cfg) return false;
 

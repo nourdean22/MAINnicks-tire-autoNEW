@@ -98,6 +98,8 @@ export const CONTEXT_CATEGORIES = new Set<string>([
   "wisdom",
   "insight",
   "pattern",
+  // 05-X10: only the newest PINNED_PROMPT_CAP pins ride the prompt; older ones return here.
+  "pinned_user",
   "blind_spot",
   "strategic_plan",
   "decision_pattern",

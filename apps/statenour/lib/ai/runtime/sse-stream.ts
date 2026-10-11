@@ -25,18 +25,27 @@ interface CreateCockpitSseStreamInput {
  * 2026-10-10 (audit 04-F2 / 04-F14) · `message.persisted { id, content }`.
  *
  * ai@6 holds the response body open until onFinish resolves, and onFinish
- * keeps working after the row is written (post-persist verification,
- * deferred work). The persist step calls notifyMessagePersisted(traceId, ...)
- * the moment the row exists; the stream for that trace emits it at once, so
- * the client learns the STORED text and id without waiting for
- * message.completed. In-process only: persist and stream run in the same
- * request. A notify with no live stream for that trace is dropped (false).
+ * keeps working after the row is written (deferred work). buildOnFinish calls
+ * notifyMessagePersisted(traceId, ...) once the row exists and post-persist
+ * verification has settled its FINAL text; the stream for that trace emits
+ * it, then message.completed, and closes, so the turn stops looking live
+ * while the deferred phases run on server-side. One announcement per turn.
+ * In-process only: persist and stream run in the same request. A notify with
+ * no live stream for that trace is dropped (false).
  */
 export interface PersistedMessage {
   id: string;
   content: string;
 }
 const persistedListeners = new Map<string, (p: PersistedMessage) => void>();
+
+const COMPLETED_PAYLOAD = {
+  text: "", // client accumulates text from chunks
+  costCents: 0,
+  durationMs: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+};
 
 export function notifyMessagePersisted(traceId: string, persisted: PersistedMessage): boolean {
   const listener = persistedListeners.get(traceId);
@@ -68,8 +77,10 @@ export function createCockpitSseStream(input: CreateCockpitSseStreamInput): Read
       // error_logs (348 rows / 48h from a handful of aborted streams). Track it:
       // drop further sends silently and log exactly once.
       let clientClosed = false;
+      // Set once message.persisted closed the turn for the client (04-F14).
+      let turnClosed = false;
       const sendEvent = (type: string, payload: any) => {
-        if (clientClosed) return;
+        if (clientClosed || turnClosed) return;
         try {
           controller.enqueue(
             encoder.encode(`event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`)
@@ -80,8 +91,22 @@ export function createCockpitSseStream(input: CreateCockpitSseStreamInput): Read
         }
       };
 
+      // The reply is stored with its final text: end the turn for the client
+      // now. onFinish's deferred work keeps running server-side (the read
+      // loop below still awaits onFinishPromise); nothing more is sent.
       const onPersisted = (p: PersistedMessage) => {
+        if (turnClosed) return;
         sendEvent("message.persisted", { id: p.id, content: p.content });
+        sendEvent("message.completed", COMPLETED_PAYLOAD);
+        turnClosed = true;
+        persistedListeners.delete(traceId);
+        if (!clientClosed) {
+          try {
+            controller.close();
+          } catch {
+            clientClosed = true;
+          }
+        }
       };
       persistedListeners.set(traceId, onPersisted);
 
@@ -112,7 +137,8 @@ export function createCockpitSseStream(input: CreateCockpitSseStreamInput): Read
         // Run the async reading loop inside the AsyncLocalStorage context
         await cockpitEventStore.run({ traceId, publish }, async () => {
           while (true) {
-            if (clientClosed) break; // client gone — stop pulling upstream
+            // client gone, or the turn already closed on message.persisted
+            if (clientClosed || turnClosed) break;
             const { done, value } = await reader.read();
             if (done) {
               break;
@@ -126,17 +152,12 @@ export function createCockpitSseStream(input: CreateCockpitSseStreamInput): Read
           await onFinishPromise;
         });
 
-        // 4. Publish message.completed — only if the client is still attached.
-        // Always AFTER message.persisted (that fires mid-onFinish, above).
+        // 4. Publish message.completed — only if the client is still attached
+        // and the turn was not already closed by message.persisted (no row:
+        // private, empty or duplicate turns end here).
         // Closing an already-closed controller throws and re-logs noise.
-        if (!clientClosed) {
-          sendEvent("message.completed", {
-            text: "", // client accumulates text from chunks
-            costCents: 0,
-            durationMs: 0,
-            inputTokens: 0,
-            outputTokens: 0,
-          });
+        if (!clientClosed && !turnClosed) {
+          sendEvent("message.completed", COMPLETED_PAYLOAD);
           controller.close();
         }
       } catch (err) {

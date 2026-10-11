@@ -35,6 +35,8 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 // The 30s `cache:"no-store"` poll maps to `refetchInterval`.
 import { trpc } from "@/lib/trpc/client";
 import { relativeTimeSeconds as timeAgo } from "@/lib/utils/datetime";
+import { approveTone } from "./approve-tone";
+import { toast } from "sonner";
 
 interface RuleRow {
   ruleName: string;
@@ -65,7 +67,16 @@ interface ActionRow {
 interface Feed {
   recent: ActionRow[];
   rules: RuleRow[];
-  approvalBreakdown: { auto: number; pending: number; approved: number; rejected: number };
+  /** The last three are counted by the feed but not filterable (the query filter takes the first four). */
+  approvalBreakdown: {
+    auto: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+    processing?: number;
+    needs_review?: number;
+    other?: number;
+  };
   totalInWindow: number;
   generatedAt: string;
 }
@@ -224,11 +235,24 @@ export default function ActionsPage() {
   // had no UI since the legacy ApprovalsPage went; Home counted it, nothing listed it.
   const autoQueue = trpc.systemAutomation.approvals.useQuery(undefined, { refetchInterval: 5_000 });
   const windowsQuery = trpc.systemAutomation.approvalWindows.useQuery(undefined, { staleTime: 60_000 });
+
+  // A refused decision must say why (P-S5b). CONFLICT covers changed, decided elsewhere, and expired, so the
+  // headline stays generic and the server's message carries which one; the queue it came from is re-read.
+  const decideError = (refetchQueue: () => unknown) => (err: { message: string; data?: { code?: string } | null }) => {
+    if (err.data?.code === "CONFLICT") {
+      toast.error("Changed since it was read. Refreshing.", { description: err.message });
+      void refetchQueue();
+      return;
+    }
+    toast.error("Decision failed", { description: err.message });
+  };
+
   const decideAuto = trpc.systemAutomation.decideApproval.useMutation({
     onSuccess: () => {
       autoQueue.refetch();
       actionsQuery.refetch();
     },
+    onError: decideError(() => autoQueue.refetch()),
   });
 
   const userQuery = trpc.system.getCurrentUser.useQuery();
@@ -238,7 +262,8 @@ export default function ActionsPage() {
     onSuccess: () => {
       approvalsQuery.refetch();
       actionsQuery.refetch();
-    }
+    },
+    onError: decideError(() => approvalsQuery.refetch()),
   });
 
   // BDN-205 · Edit verb (agent-inbox HumanInterrupt vocabulary: Accept /
@@ -262,7 +287,8 @@ export default function ActionsPage() {
     onSuccess: () => {
       approvalsQuery.refetch();
       actionsQuery.refetch();
-    }
+    },
+    onError: decideError(() => approvalsQuery.refetch()),
   });
 
   const feed: Feed | null = (actionsQuery.data as Feed | undefined) ?? null;
@@ -292,7 +318,9 @@ export default function ActionsPage() {
       description={
         feed
           ? `${feed.totalInWindow} in window · ${feed.rules.length} unique rules${pendingCount > 0 ? ` · ${pendingCount} pending approval` : ""}`
-          : "loading…"
+          : actionsQuery.isError
+            ? "unknown: read failed"
+            : "loading..."
       }
       width="2xl"
       rhythm="loose"
@@ -378,9 +406,19 @@ export default function ActionsPage() {
                     : "bg-content text-fg-secondary hover:bg-surface-hover",
                 )}
               >
-                {a} · <AnimatedCounter value={feed?.approvalBreakdown[a] ?? 0} />
+                {a} &middot; {feed ? <AnimatedCounter value={feed.approvalBreakdown[a]} /> : "?"}
               </button>
             ))}
+            {/* Counted in the window but not filterable, so plain chips, shown only when non-zero. */}
+            {(["processing", "needs_review", "other"] as const).map((k) => {
+              const n = feed?.approvalBreakdown[k] ?? 0;
+              if (n === 0) return null;
+              return (
+                <span key={k} className="rounded-full border border-edge-default px-3 py-1 text-xs text-fg-secondary">
+                  {k === "needs_review" ? "needs review" : k} &middot; <AnimatedCounter value={n} />
+                </span>
+              );
+            })}
             {ruleFilter && (
               <button
                 onClick={() => setRuleFilter(null)}
@@ -601,7 +639,7 @@ export default function ActionsPage() {
             </p>
           ) : (
             <div className="space-y-4">
-              {approvals.map((req: any) => {
+              {approvals.map((req: any, index: number) => {
                 const isCritical = req.riskClass === "critical";
                 // 2026-09-07 (D12) · expired authorization: the server refuses approve
                 // (CONFLICT); the button says so instead of failing after the tap.
@@ -639,7 +677,7 @@ export default function ActionsPage() {
                         <button
                           onClick={() => rejectMutation.mutate({ id: req.id })}
                           disabled={rejectMutation.isPending || approveMutation.isPending}
-                          className="rounded-control border border-edge-subtle bg-content px-3 py-1.5 text-xs font-semibold text-fg hover:bg-surface-hover disabled:opacity-50 transition"
+                          className="min-h-11 rounded-control border border-edge-subtle bg-content px-3 py-1.5 text-xs font-semibold text-fg hover:bg-surface-hover disabled:opacity-50 transition"
                         >
                           Reject
                         </button>
@@ -647,8 +685,8 @@ export default function ActionsPage() {
                           onClick={() => approveMutation.mutate({ id: req.id })}
                           disabled={cannotApprove || rejectMutation.isPending || approveMutation.isPending}
                           className={cn(
-                            "rounded-control px-3 py-1.5 text-xs font-semibold text-black transition disabled:opacity-40",
-                            isCritical ? "bg-rose-500 hover:bg-rose-600 disabled:bg-rose-800" : "bg-accent hover:bg-accent-hover"
+                            "min-h-11 rounded-control px-3 py-1.5 text-xs font-semibold transition disabled:opacity-40",
+                            approveTone(index, isCritical),
                           )}
                           title={isExpired ? "Authorization expired — re-request or reject" : needsOwner ? "Requires owner privilege" : undefined}
                         >
