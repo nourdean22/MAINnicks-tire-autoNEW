@@ -24,7 +24,11 @@ import { detectBlindSpots } from "@/lib/brain/blind-spot-detector";
 import { findCorrelations } from "@/lib/brain/correlation-finder";
 import { findTeachingMoments } from "@/lib/brain/teaching-moments";
 import { persistBlindSpot } from "@/lib/brain/blind-spot-identity";
+import type { ExtractedPrediction } from "@/lib/ai/outcome-calibration";
 export const maxDuration = 120; // Pro plan
+
+/** Days after a clicks window ends before GSC's numbers are read as final. */
+const GSC_LAG_DAYS = 3;
 
 export const GET = cronHandler(async () => {
   const results: Record<string, unknown> = {};
@@ -48,6 +52,8 @@ export const GET = cronHandler(async () => {
         category: "prediction",
         deletedAt: null,
         createdAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        // Resolved rows never leave the table, so without this the oldest 100 are all resolved and nothing pending is reached.
+        metadata: { path: ["resolved"], equals: false },
       },
       // forensic-audit MEDIUM · was take:20 with no orderBy, so once ~20
       // already-resolved rows existed the window filled with them and pending
@@ -66,10 +72,52 @@ export const GET = cronHandler(async () => {
     let resolvedAssistantCount = 0;
     if (pending.length > 0) {
       const { queryNick } = await import("@/lib/nickstire/query");
-      const { resolvePrediction } = await import("@/lib/ai/outcome-calibration");
+      const { resolvePrediction, shiftDate } = await import("@/lib/ai/outcome-calibration");
+      const { today } = await import("@/lib/utils/datetime");
+      const todayET = today();
 
       for (const p of pending) {
         const meta = p.metadata as any;
+
+        // Measured predictions carry their own metric and ET window: read exactly that, once it is over.
+        // shortcut: a row with two windowed predictions resolves only the first; split rows if that ever matters.
+        const windowed = (meta?.predictions as ExtractedPrediction[] | undefined)?.find(
+          (x) => (x.metric === "clicks" || x.metric === "revenue") && x.window,
+        );
+        if (windowed?.window) {
+          const isClicks = windowed.metric === "clicks";
+          // GSC finalizes a day ~2-3 days late; reading sooner would undercount.
+          const settledAfter = shiftDate(windowed.window.to, isClicks ? GSC_LAG_DAYS : 0);
+          if (todayET <= settledAfter) continue;
+          const range = { from: windowed.window.from, to: windowed.window.to };
+          const res = await queryNick<any>(isClicks ? "gsc_summary" : "revenue_range", range);
+          const data = "data" in res ? res.data : null;
+          // A failed or partial read is UNKNOWN: never scored as 0.
+          const actual = !data
+            ? null
+            : isClicks
+              ? data.source === "gsc_official_no_dimension" && typeof data.totalClicks === "number" ? data.totalClicks : null
+              : typeof data.totalDollars === "number" ? data.totalDollars : null;
+          if (actual === null) {
+            if (todayET > shiftDate(settledAfter, 7)) {
+              await prisma.brainMemory.update({
+                where: { id: p.id },
+                data: { metadata: { ...(meta ?? {}), resolved: true, resolvedOutcome: "expired_unverifiable" } as any },
+              });
+            }
+            continue;
+          }
+          const result = await resolvePrediction({
+            captionText: meta?.captionPreview || p.content || "",
+            actualScore: actual,
+            metric: windowed.metric as "clicks" | "revenue",
+            predictionId: p.id,
+          });
+          if (result.resolved) resolvedAssistantCount++;
+          continue;
+        }
+
+        // shortcut: rows without a stored window (pre 2026-10-11) keep the word guess + creation-day read; delete once none are pending.
         const text = (meta?.captionPreview || p.content || "").toLowerCase();
         const dateStr = new Date(p.createdAt).toISOString().split("T")[0];
 

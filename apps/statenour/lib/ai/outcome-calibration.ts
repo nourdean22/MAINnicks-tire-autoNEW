@@ -26,6 +26,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/utils/error-log";
+import { weekdayET } from "@/lib/utils/datetime";
 
 // ─────────────────────────────────────────────────────────────────────
 // EXTRACT predictions from assistant replies
@@ -39,13 +40,82 @@ const PREDICTION_PATTERNS: Array<{ pattern: RegExp; metric: string }> = [
   { pattern: /\bconfidence\s+(\d{1,3})%/i, metric: "confidence_pct" },
 ];
 
+/** Inclusive ET calendar days (YYYY-MM-DD) a clicks/revenue prediction is measured over. */
+export interface PredictionWindow {
+  from: string;
+  to: string;
+}
+
 export interface ExtractedPrediction {
   metric: string;
   value: number;
   rawMatch: string;
+  /** Present only on clicks/revenue predictions; those count only with a window. */
+  window?: PredictionWindow;
 }
 
-export function extractPredictions(text: string): ExtractedPrediction[] {
+// A measured prediction needs a number, a metric we can read back, and a window, in ONE sentence.
+const WINDOW_RE = /\b(today|tomorrow|this week|next (?:7|seven) days)\b|(?<!\b(?:last|past|previous)\s)\b(sun|mon|tues|wednes|thurs|fri|satur)day\b/i;
+const CLICKS_RE = /\b(\d[\d,]*)\s+(?:google|search|gsc|organic)(?:\s+search)?\s+clicks\b|\b(?:google|search|gsc|organic)(?:\s+search)?\s+clicks\b[^.\d$]{0,40}?\b(\d[\d,]*)(?![\d,]|\s*(?:%|percent))/i;
+// A forecast, not a report: a reported actual scored against itself would inflate accuracy.
+const FORECAST_RE = /\b(?:expect(?:s|ed|ing)?|should|will|predict(?:s|ed|ing)?|forecast(?:s|ed|ing)?|projected|estimate[ds]?|likely|on track|going to|aim(?:ing)? for)\b|'ll\b/i;
+const REVENUE_WORD_RE = /\b(?:sales|revenue)\b/i;
+const DOLLARS_RE = /\$\s?(\d[\d,]*(?:\.\d{1,2})?)|\b(\d[\d,]*(?:\.\d{1,2})?)\s*dollars\b/i;
+const WEEKDAYS = ["sun", "mon", "tues", "wednes", "thurs", "fri", "satur"];
+
+/** ET calendar date of an instant. */
+function etDate(at: Date): string {
+  return at.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+/** Calendar arithmetic on a YYYY-MM-DD date; UTC here is only a calendar, not a clock. */
+export function shiftDate(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y!, m! - 1, d! + days)).toISOString().slice(0, 10);
+}
+
+function windowFor(m: RegExpExecArray, at: Date): PredictionWindow {
+  const day = etDate(at);
+  const weekday = weekdayET(at);
+  const word = (m[1] ?? "").toLowerCase();
+  if (word === "today") return { from: day, to: day };
+  if (word === "tomorrow") return { from: shiftDate(day, 1), to: shiftDate(day, 1) };
+  if (word === "this week") {
+    // Sun-Sat, the same week startOfWeekET uses.
+    const sunday = shiftDate(day, -weekday);
+    return { from: sunday, to: shiftDate(sunday, 6) };
+  }
+  if (word) return { from: shiftDate(day, 1), to: shiftDate(day, 7) }; // next 7 days
+  // A bare weekday is its next occurrence, today included.
+  const target = WEEKDAYS.indexOf(m[2]!.toLowerCase());
+  const d = shiftDate(day, (target - weekday + 7) % 7);
+  return { from: d, to: d };
+}
+
+const toNumber = (s: string) => Number(s.replace(/,/g, ""));
+
+function extractMeasured(text: string, at: Date): ExtractedPrediction[] {
+  const found: ExtractedPrediction[] = [];
+  for (const sentence of text.split(/(?<=[.!?])\s+|\n+/)) {
+    const w = WINDOW_RE.exec(sentence);
+    if (!w || !FORECAST_RE.test(sentence)) continue;
+    const window = windowFor(w, at);
+    const clicks = CLICKS_RE.exec(sentence);
+    const dollars = REVENUE_WORD_RE.test(sentence) ? DOLLARS_RE.exec(sentence) : null;
+    const rawMatch = sentence.trim().slice(0, 200);
+    if (clicks) {
+      const value = toNumber(clicks[1] ?? clicks[2]!);
+      if (value > 0) found.push({ metric: "clicks", value, rawMatch, window });
+    } else if (dollars) {
+      const value = toNumber(dollars[1] ?? dollars[2]!);
+      if (value > 0) found.push({ metric: "revenue", value, rawMatch, window });
+    }
+  }
+  return found;
+}
+
+/** `at` is the message time; clicks/revenue windows are ET days relative to it. */
+export function extractPredictions(text: string, at: Date = new Date()): ExtractedPrediction[] {
   if (!text) return [];
   const found: ExtractedPrediction[] = [];
   for (const { pattern, metric } of PREDICTION_PATTERNS) {
@@ -57,7 +127,7 @@ export function extractPredictions(text: string): ExtractedPrediction[] {
       }
     }
   }
-  return found;
+  return [...found, ...extractMeasured(text, at)];
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -123,6 +193,8 @@ interface ResolveArgs {
   actualScore: number;
   /** What actualScore measures; errorPct is computed only against a prediction of this metric. */
   metric: "engagement" | "clicks" | "revenue";
+  /** Resolve this exact row; without it, the newest unresolved row with the caption's hash. */
+  predictionId?: string;
 }
 
 export async function resolvePrediction(args: ResolveArgs): Promise<{ resolved: boolean; predictionId?: string }> {
@@ -131,7 +203,7 @@ export async function resolvePrediction(args: ResolveArgs): Promise<{ resolved: 
   // Find by hash
   const candidates = await prisma.brainMemory
     .findMany({
-      where: { category: "prediction" },
+      where: args.predictionId ? { id: args.predictionId, category: "prediction" } : { category: "prediction" },
       orderBy: { createdAt: "desc" },
       take: 100,
     })
@@ -142,7 +214,7 @@ export async function resolvePrediction(args: ResolveArgs): Promise<{ resolved: 
 
   const match = candidates.find((c) => {
     const m = c.metadata as { captionHash?: string; resolved?: boolean } | null;
-    return m?.captionHash === captionHash && !m?.resolved;
+    return (args.predictionId ? c.id === args.predictionId : m?.captionHash === captionHash) && !m?.resolved;
   });
 
   if (!match) return { resolved: false };
