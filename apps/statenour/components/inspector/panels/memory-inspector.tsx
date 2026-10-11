@@ -18,6 +18,7 @@ import { trpc } from "@/lib/trpc/client";
 import { errorCodeOf } from "@/lib/services/metric-result";
 import type { EntityRef } from "@/lib/ui/entity-ref";
 import { formatAge } from "@/lib/ui/metric-datum";
+import { searchCopyWarning } from "@/lib/brain/search-copy-status";
 import { cn } from "@/lib/utils";
 import { EvidenceMark } from "@/components/ui/evidence-mark";
 import { InspectorNotice } from "@/components/inspector/inspector-notice";
@@ -59,6 +60,9 @@ export function ForgetMemoryConfirm({ id, onCancel }: { id: string; onCancel: ()
       void utils.brain.memoryById.invalidate({ id });
       if (res.deleted) {
         toast.success("Memory forgotten");
+        // The search copy may still be indexed: say so, never report it as gone when unknown.
+        const warn = searchCopyWarning(res.searchCopyRemaining ?? null);
+        if (warn) toast.warning(warn);
         closeInspector();
       } else {
         toast.error("Nothing to forget, it was already gone");
