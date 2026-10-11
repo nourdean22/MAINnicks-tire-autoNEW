@@ -1,4 +1,5 @@
 # Migration · REST → tRPC
+> **HISTORICAL snapshot (banner added 2026-10-11):** the status and counts below are from the Phase J era and were not kept up. The live router list is `lib/trpc/root.ts`.
 
 **Started:** Phase J (2026-05-18 PM · commit a37a4442)
 **Strategy:** Strangler fig · coexistence · gradual surface-by-surface

@@ -1,6 +1,6 @@
 # Architecture · statenour
 
-Last verified 2026-05-21. Source of truth for subsystem boundaries.
+Last verified 2026-05-21. Source of truth for subsystem boundaries; `docs/CURRENT-TRUTH.md` wins where they disagree.
 
 > **Verified counts live in [`docs/RECONCILIATION.md`](RECONCILIATION.md).**
 > If a number here disagrees with that file, RECONCILIATION wins.
@@ -160,7 +160,7 @@ bridge is a thin sync + oversight channel.
                                         │
                               ┌─────────▼──────────┐
                               │   Prisma 6         │
-                              │   80 models        │
+                              │   models: grep     │
                               └─────────┬──────────┘
                                         │
                               ┌─────────▼──────────┐
@@ -442,5 +442,5 @@ primitives. Listed here so future work knows what's already there:
 **Reconciled 2026-05-21** · infra sweep — deploy/cron sections
 rewritten for the Railway monorepo reality (was Vercel / a
 `vercel.json` cron pipeline, all retired); Prisma model count
-corrected to 80. If a claim in this doc contradicts code reality, the
+corrected for that date (today's: `grep -c "^model " prisma/schema.prisma`). If a claim in this doc contradicts code reality, the
 code wins · open an issue.

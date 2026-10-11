@@ -23,7 +23,7 @@ assumptions below reflect that.
 
 ## Auth model
 
-**NextAuth v5-beta.30 with Google OAuth provider + single allowlist email.**
+**NextAuth v5 (pre-release; the pin is `next-auth` in package.json) with Google OAuth provider + single allowlist email.**
 
 ```
 proxy.ts (was middleware.ts)
@@ -90,7 +90,7 @@ that route has its own auth check. Never rely on obscurity.
 
 ### Where they live
 - `.env.local` — dev machine only, **gitignored**.
-- Vercel project env → production + preview.
+- Railway service variables (statenour-web, production; statenour-worker has its own). There is no Vercel project.
 - `local-agent/.env` — Windows machine, **gitignored**.
 
 ### What's in the wild vs what must rotate
@@ -294,7 +294,7 @@ doing nothing. The CI job above is this repo's **only** dependency gate.
 
 ## Known gaps (tracked in UPGRADE-PLAN.md)
 
-1. **NextAuth v5 still on beta.30.** Upgrade target: W1.1 scheduled.
+1. **NextAuth v5 is still a pre-release** (the pin is `next-auth` in package.json). No upgrade is scheduled.
 2. **Three Google OAuth env naming schemes coexist** (`AUTH_GOOGLE_*`
    primary, `GOOGLE_OAUTH_*` + `GOOGLE_*` as fallbacks in
    `lib/services/google-oauth.ts`). Consolidation pending.

@@ -1,4 +1,5 @@
 # NICK trust architecture -- adversarial follow-up to the 2026-09-10 audit
+> **SUPERSEDED (banner added 2026-10-11):** `NICK-TRUST-ARCHITECTURE-V2-2026-09-10.md` replaces this blueprint and corrects it. Read this one as history; current state is in `docs/CURRENT-TRUTH.md`.
 
 **Status:** engineering blueprint. Sections 1-3 shipped in this branch; everything after is ranked, costed and sequenced work.
 **Method:** every claim below is grounded in `path:line` from this checkout, in a test in this branch, or in a source fetched and verified on 2026-09-10. Claims I could not ground are labelled INFERRED. The audit this responds to caught NICK inventing two YouTube channels; a response to it that invents repos would be self-refuting, so verification status is marked throughout.

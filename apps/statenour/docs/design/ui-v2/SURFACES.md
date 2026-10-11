@@ -57,7 +57,7 @@ Keep `operator.brief` and the six sections. Visual recomposition only:
 | Section | v1 | v2 |
 |---|---|---|
 | State line | mono date · `NOW` eyebrow · 68px uppercase verdict | mono date · `NOW` notch + eyebrow · verdict stays Barlow (the page's one shout) at 30/40/48px |
-| The brief | gold left rule · Barlow uppercase CTA | accent notch instead of a full-height gold rule · Geist 600 CTA in accent fill (`--radius-control`) · "Why this?" / "Different move" as quiet text buttons |
+| The brief | gold left rule · Barlow uppercase CTA | edge rule + gold CTA (no notch; the NOW line holds Home's one at-rest notch, 09-X1) · Geist 600 CTA in accent fill (`--radius-control`) · "Why this?" / "Different move" as quiet text buttons |
 | Nick command line | bordered command bar | material shell, same behaviour |
 | Needs judgment | eyebrow + 30px rose Barlow count | eyebrow + 20px tabular Geist count in rose; rows unchanged |
 | Horizon / change | hairline rail | hairline rail kept (it is the one place a separator earns its keep) |

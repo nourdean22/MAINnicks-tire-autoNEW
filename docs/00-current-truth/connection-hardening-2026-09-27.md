@@ -1,4 +1,4 @@
-# Connection hardening closeout Ã¢â‚¬â€ 2026-09-27
+# Connection hardening closeout - 2026-09-27
 
 > Re-verify live systems before acting. This is a dated receipt, not a permanent assumption.
 
@@ -18,7 +18,7 @@ PR #2721 squash-merged to `main` as `1ab0063f523e0761d5e9e2c4f02ed12d8966b41d` a
 - Tailscale reaches the shop PC. Tests from both NattyNour and NicksMax initially used DERP, then established direct peer paths; this is normal fallback/NAT traversal, not an outage.
 - The stale camera row is legacy runtime residue, not current expected topology. shared/cameras.ts now commissions sign and office; only inside remains intentionally uncommissioned.
 
-## Deliberately incomplete Ã¢â‚¬â€ operator/external gates
+## Deliberately incomplete - operator/external gates
 
 ### Office Eufy commissioning
 

@@ -24,7 +24,8 @@ consequences that follow directly:
 
 - Answer-first output — the conclusion in the first sentence, the receipt inline.
 - Both web apps run as standalone iOS PWAs, where `window.confirm/alert/prompt` are silently
-  suppressed — in-DOM confirms and 48×48px touch targets are correctness, not polish.
+  suppressed, so in-DOM confirms and 44x44px touch targets (the floor pinned by
+  apps/statenour/tests/e2e/target-size.spec.ts) are correctness, not polish.
 - No onboarding, no multi-tenancy, no permission tiers to design around.
 
 ## Solution

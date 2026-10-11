@@ -1,5 +1,4 @@
 {
-  "$schema": "./surface-dna.schema.json",
   "version": "2026-09-16",
   "doc": "docs/design/SURFACE-DNA.md",
   "rule": "Remove the logo and every proper noun from a screenshot: a person must name the product within two seconds. A screen that could belong to another product fails review, whatever else it does right.",

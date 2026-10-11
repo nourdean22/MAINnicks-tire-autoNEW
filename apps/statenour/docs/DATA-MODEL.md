@@ -1,10 +1,9 @@
 # Data Model · statenour-os
 
-Prisma models in one Neon Postgres instance · model count last
-verified 2026-05-21. This file is the map — if you're about to write a
-migration or add a feature, read the relevant section first.
+Prisma models in one Neon Postgres instance. This file is the map: if you're
+about to write a migration or add a feature, read the relevant section first.
 
-> **Model count:** 88 — verified via `grep -c "^model " prisma/schema.prisma` (2026-06-21).
+> **Model count:** run `grep -c "^model " prisma/schema.prisma`. A number written here goes stale.
 
 > **NOUR OS consolidation models (#206) + migration `20260618000000_consolidated_models` (PR #217):**
 > 7 models — `Contact`, `Booking`, `Agreement`, `Product`,
@@ -191,7 +190,7 @@ goes here as a typed key/value pair. Query: `category: "X"`, `key: "Y"`,
 
 ## Relations today · relations coming
 
-The schema is denormalized (80 models, 27 `@relation` declarations as of 2026-05-21).
+The schema is denormalized (`grep -c "@relation" prisma/schema.prisma` against the model count shows how few relations it declares).
 We use string FKs + application-level joins. This is **deliberate** —
 lower write coupling, simpler migrations. But it hurts referential
 integrity.

@@ -16,10 +16,10 @@ never be summarized as "done".
 | Layer | Where | What |
 |---|---|---|
 | L1 prompt rule | `lib/ai/system-prompt.ts` | model told never to claim past-tense action without a tool call |
-| L2 pre-persist rewrite | `lib/ai/chat/fabrication-rewriter.ts` | fabrication gets a verifier banner before persist |
+| L2 post-persist rewrite | `lib/ai/chat/fabrication-rewriter.ts`, called from `lib/services/chat/post-persist-verification.ts` | after the reply has streamed and its row exists, a detected fabrication gets a verifier banner patched into the stored row; the live bubble swaps to that stored text on `message.persisted` |
 | L3 history neutralize | `lib/ai/chat/sanitize-history.ts` | verifier-marked turns can't compound |
 | L4 truth grounding | `lib/ai/chat/truth-grounding.ts` | real counts pre-injected as system facts |
-| L5 operator chip | `components/chat/quality-bar.tsx` (rendered via `components/chat/message-diagnostics.tsx`) | inline quality strip shows critic/gate/factCheck diagnostics |
+| L5 operator surface | `lib/services/claim-warnings.ts` via tRPC `chat.claimWarnings` | ORPHANED (checked 2026-10-10): no client calls `chat.claimWarnings`, and the `ActionClaimWarning` chip is gone from `components/chat/`. The operator sees only the L2 banner in the message text (plus the quality strip, `components/chat/quality-bar.tsx`, for critic/gate/factCheck/evidence-gate diagnostics) |
 
 ## Action receipts (P7)
 
