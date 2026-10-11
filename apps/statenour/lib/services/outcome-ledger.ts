@@ -336,6 +336,27 @@ export async function recordDecisionByContent(
 }
 
 /**
+ * Attach a resultRef to the row shown with this text when it is already
+ * ACCEPTED without one (R3-17 #4: an accept recorded first, a promote later
+ * names the task). Compare-and-set on `decision: "accepted", resultRef: null`:
+ * never re-decides, never overwrites a ref, never touches a dismissed row.
+ */
+export async function attachAcceptedResultRefByContent(summary: string, resultRef: string): Promise<boolean> {
+  try {
+    const id = await ledgerIdByContent(summary);
+    if (!id) return false;
+    const res = await prisma.intelligenceOutcome.updateMany({
+      where: { id, decision: "accepted", resultRef: null },
+      data: { resultRef },
+    });
+    return res.count === 1;
+  } catch (err) {
+    logError("intel.outcome-ledger", err, { stage: "attach-accepted-result-ref" }, "warn");
+    return false;
+  }
+}
+
+/**
  * Record an outcome when the caller has the surfaced TEXT but not the
  * ledger id (2026-08-19 · outcome-loop wave) — the recordDecisionByContent
  * pattern applied to the usefulness half, which had ZERO callers for the

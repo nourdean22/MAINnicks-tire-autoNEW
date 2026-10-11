@@ -103,3 +103,42 @@ describe("withGuardian - an older same-payload needs_review row still refuses", 
     expect(prismaMock.approvalRequest.create).toHaveBeenCalledTimes(1);
   });
 });
+
+// R3-17 #5: the lookup read only the newest 50 same-tool rows, so a busy tool
+// pushed an older same-payload needs_review row out of view. This store also
+// honours cursor + skip, so a pager walks the whole window.
+type PagedArgs = Args & { cursor?: { id: string }; skip?: number };
+function pagedStore(rows: Array<Record<string, unknown>>) {
+  const sorted = [...rows].sort((x, y) => (y.createdAt as Date).getTime() - (x.createdAt as Date).getTime());
+  prismaMock.approvalRequest.findMany.mockImplementation(async (a: PagedArgs) => {
+    let hits = sorted.filter((r) => r.toolId === a.where.toolId && a.where.status.in.includes(r.status as string));
+    if (a.cursor) hits = hits.slice(hits.findIndex((r) => r.id === a.cursor!.id));
+    return hits.slice(a.skip ?? 0).slice(0, a.take ?? Infinity);
+  });
+}
+const sixtyWithOldestReview = () => [
+  row({ id: "req_old", status: "needs_review", payload: A, createdAt: new Date(t0 - 3_600_000) }),
+  ...Array.from({ length: 59 }, (_, i) =>
+    row({ id: `req_n${i}`, status: "pending_approval", payload: { to: `+1555${i}`, body: "other" }, createdAt: new Date(t0 - i * 1000) }),
+  ),
+];
+
+describe("the dedupe lookup sees the whole 24h window, not the newest 50 (R3-17 #5)", () => {
+  it("checkApprovalGate: 60 rows, the same-payload needs_review is the oldest -> refuses", async () => {
+    pagedStore(sixtyWithOldestReview());
+    await expect(checkApprovalGate(TOOL, A)).rejects.toThrow(/may already have run/);
+    expect(prismaMock.approvalRequest.create).not.toHaveBeenCalled();
+  });
+
+  it("withGuardian: 60 rows, the same-payload needs_review is the oldest -> refuses", async () => {
+    pagedStore(sixtyWithOldestReview());
+    await expect(withGuardian(TOOL, async () => "sent")(A)).rejects.toThrow(/may already have run/);
+    expect(prismaMock.approvalRequest.create).not.toHaveBeenCalled();
+  });
+
+  it("CONTROL: 60 rows and no same-payload row -> one new approval, the pager terminates", async () => {
+    pagedStore(sixtyWithOldestReview());
+    await expect(checkApprovalGate(TOOL, { to: "+15550123", body: "third" })).resolves.toEqual({ approved: false, approvalId: "req_new" });
+    expect(prismaMock.approvalRequest.create).toHaveBeenCalledTimes(1);
+  });
+});

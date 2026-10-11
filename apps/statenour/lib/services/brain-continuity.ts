@@ -141,21 +141,23 @@ export async function buildContinuityReport(): Promise<ContinuityReport> {
   // written" — so allTime/active/expired stay mutually consistent.
   const [allCount, activeCount, expiredCount, prunedLast24h, byCategoryRaw] =
     await Promise.all([
-      prisma.brainMemory.count({ where: { deletedAt: null } }),
+      // Every total carries NOT_MEMORY too, so allTime stays the sum of byCategory (R3-17 #9).
+      prisma.brainMemory.count({ where: { deletedAt: null, category: NOT_MEMORY } }),
       prisma.brainMemory.count({
         where: {
           deletedAt: null,
+          category: NOT_MEMORY,
           OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
         },
       }),
       // Past TTL and STILL LIVE — the sweep's backlog, not its output.
       prisma.brainMemory.count({
-        where: { deletedAt: null, expiresAt: { lt: now } },
+        where: { deletedAt: null, category: NOT_MEMORY, expiresAt: { lt: now } },
       }),
       // The sweep's actual output. See the `prunedLast24h` doc comment:
       // this used to be an alias for the line above, so a healthy nightly
       // consolidation made the "decayed/pruned" line read near-zero.
-      prisma.brainMemory.count({ where: { deletedAt: { gte: day1 } } }),
+      prisma.brainMemory.count({ where: { deletedAt: { gte: day1 }, category: NOT_MEMORY } }),
       prisma.brainMemory.groupBy({
         by: ["category"],
         where: { deletedAt: null, category: NOT_MEMORY },

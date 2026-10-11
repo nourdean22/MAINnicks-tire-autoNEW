@@ -187,3 +187,28 @@ describe("cron/embed-backfill · resultCount is the rows actually embedded", () 
     expect(await body()).toMatchObject({ resultCount: 0, totalProcessed: 1 });
   });
 });
+
+/**
+ * R3-17 #7: `remaining` counted only rows with NO vector, so a stale-vector
+ * backlog larger than one batch reported 0 and the run said "complete".
+ */
+describe("cron/embed-backfill: remaining counts the stale lane too", () => {
+  it("stale rows left after this run's batch report remaining > 0 and status in_progress", async () => {
+    // Every COUNT query that scopes on the stale predicate answers 50 left; the
+    // no-vector backlog is empty. No candidate rows this run.
+    mockPrisma.$queryRaw.mockImplementation(async (strings: TemplateStringsArray) => {
+      const sql = strings.join("?");
+      if (!/COUNT\(\*\)/i.test(sql)) return [];
+      return [{ n: /strpos/i.test(sql) ? 50n : 0n }];
+    });
+    const out = (await invoke()) as { status: string; report: Record<string, { remaining: number }> };
+    expect(out.report.brain_memory!.remaining).toBe(50);
+    expect(out.status).toBe("in_progress");
+  });
+
+  it("CONTROL: nothing missing and nothing stale -> remaining 0, complete", async () => {
+    const out = (await invoke()) as { status: string; report: Record<string, { remaining: number }> };
+    expect(out.report.brain_memory!.remaining).toBe(0);
+    expect(out.status).toBe("complete");
+  });
+});

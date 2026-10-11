@@ -43,6 +43,35 @@ const log = rootLogger.withSurface("tools/guardian");
 export const pendingExecutions = new Map<string, { fn: Function; args: any[] }>();
 export const guardianBypassStorage = new AsyncLocalStorage<boolean>();
 
+const DEDUPE_PAGE = 50;
+
+/**
+ * The newest same-tool, same-PAYLOAD ApprovalRequest in the 24h dedupe window
+ * (shared by withGuardian and checkApprovalGate). Pages newest-first until a
+ * match or the window is exhausted: a busy tool must not push an older
+ * needs_review / pending / approved row out of view.
+ */
+export async function findSamePayloadRequest(toolId: string, payload: unknown, now: Date) {
+  let cursor: string | undefined;
+  for (;;) {
+    const page = await prisma.approvalRequest.findMany({
+      where: {
+        toolId,
+        // needs_review: an approved run that MAY have happened (P-S5a).
+        status: { in: ["pending_approval", "approved", "rejected", "executed", "failed", "needs_review"] },
+        createdAt: { gte: new Date(now.getTime() - APPROVAL_DEDUPE_WINDOW_MS) },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: DEDUPE_PAGE,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+    const hit = page.find((r) => samePayload(r.payload, payload));
+    if (hit) return hit;
+    if (page.length < DEDUPE_PAGE) return null;
+    cursor = page[page.length - 1]!.id;
+  }
+}
+
 /**
  * Durable re-dispatch registry · 2026-07-07.
  *
@@ -590,20 +619,7 @@ export function withGuardian<T, A extends unknown[]>(
         // never re-executes.
         const now = new Date();
         // Newest same-PAYLOAD row decides: a newer request for another payload must not hide a needs_review row.
-        // shortcut: only the newest 50 same-tool rows in the window are read, raise take if one tool ever exceeds that per day.
-        const recent = await prisma.approvalRequest.findMany({
-          where: {
-            toolId: toolName,
-            status: {
-              in: ["pending_approval", "approved", "rejected", "executed", "failed", "needs_review"]
-            },
-            createdAt: { gte: new Date(now.getTime() - APPROVAL_DEDUPE_WINDOW_MS) }
-          },
-          orderBy: { createdAt: "desc" },
-          take: 50,
-        });
-
-        let matched = recent.find((r) => samePayload(r.payload, payload)) ?? null;
+        let matched = await findSamePayloadRequest(toolName, payload, now);
         if (
           matched &&
           (matched.status === "pending_approval" || matched.status === "approved") &&

@@ -131,7 +131,20 @@ export const GET = cronHandler(async () => {
           WHERE v."sourceType" = 'brain_memory' AND v."sourceId" = bm.id
         )
     `;
-    report.brain_memory = { processed: batch.length, success, remaining: Number(remaining) };
+    // The stale lane's backlog is work left too (R3-17 #7): same predicate as its candidate query.
+    const [{ n: staleRemaining }] = await prisma.$queryRaw<{ n: bigint }[]>`
+      SELECT COUNT(*)::bigint AS n
+      FROM brain_memories bm
+      WHERE bm.deleted_at IS NULL
+        AND bm.confidence >= 0.2
+        AND NOT (bm.category = ANY(${TELEMETRY_CATEGORY_LIST}))
+        AND EXISTS (
+          SELECT 1 FROM vector_embeddings v
+          WHERE v."sourceType" = 'brain_memory' AND v."sourceId" = bm.id
+            AND strpos(v.content, left(bm.content, 60)) = 0
+        )
+    `;
+    report.brain_memory = { processed: batch.length, success, remaining: Number(remaining) + Number(staleRemaining) };
     totalProcessed += batch.length;
     totalSuccess += success;
   }

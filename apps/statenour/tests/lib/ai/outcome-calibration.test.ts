@@ -290,3 +290,41 @@ describe("getCalibrationStats · expired rows cannot fabricate calibration (2026
     expect(buildCalibrationPromptBlock(stats)).toContain("insufficient data");
   });
 });
+
+// R3-17 #3: the only production resolver writes "clicks" or "revenue"; the stats
+// admitted only "engagement", so resolvedCount could never grow.
+describe("getCalibrationStats - per-metric calibration (R3-17 #3)", () => {
+  beforeEach(() => vi.clearAllMocks());
+  const row = (metric: string, predicted: number, actual: number) => ({
+    metadata: {
+      resolved: true,
+      resolvedMetric: metric,
+      actualScore: actual,
+      errorPct: Math.abs(actual - predicted) / predicted,
+      predictions: [{ metric, value: predicted }],
+    },
+  });
+
+  it("30 resolved clicks rows count toward the clicks calibration and unlock the block", async () => {
+    mocks.brainMemory.findMany.mockResolvedValueOnce(Array.from({ length: 30 }, () => row("clicks", 100, 110)));
+    const stats = await getCalibrationStats();
+    expect(stats.resolvedCount).toBe(30);
+    expect(stats.metric).toBe("clicks");
+    expect(stats.meanErrorPct).toBeCloseTo(0.1, 5);
+    expect(buildCalibrationPromptBlock(stats)).toContain("30 resolved clicks predictions");
+  });
+
+  it("mixed metrics are never pooled: 20 clicks + 15 revenue is not 35, and stays below the n>=30 gate", async () => {
+    mocks.brainMemory.findMany.mockResolvedValueOnce([
+      ...Array.from({ length: 20 }, () => row("clicks", 100, 110)),
+      ...Array.from({ length: 15 }, () => row("revenue", 1000, 500)),
+    ]);
+    const stats = await getCalibrationStats();
+    expect(stats.byMetric.clicks!.resolvedCount).toBe(20);
+    expect(stats.byMetric.revenue!.resolvedCount).toBe(15);
+    expect(stats.byMetric.revenue!.meanErrorPct).toBeCloseTo(0.5, 5);
+    expect(stats.resolvedCount).toBe(20);
+    expect(stats.meanErrorPct).toBeCloseTo(0.1, 5); // clicks only, no dollars mixed in
+    expect(buildCalibrationPromptBlock(stats)).toContain("insufficient data");
+  });
+});

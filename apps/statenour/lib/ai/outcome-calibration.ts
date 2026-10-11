@@ -178,11 +178,25 @@ export async function resolvePrediction(args: ResolveArgs): Promise<{ resolved: 
 // CALIBRATE — compute Nick's prediction accuracy over a window
 // ─────────────────────────────────────────────────────────────────────
 
-export interface CalibrationStats {
-  totalPredictions: number;
+export interface MetricCalibration {
   /** Resolved rows that carry a measured same-metric errorPct; every rate below divides by this. */
   resolvedCount: number;
+  /** Mean absolute error as % of predicted value; null when nothing was measured */
+  meanErrorPct: number | null;
+  within20PctRate: number | null;
+  within40PctRate: number | null;
+  meanBiasPct: number | null;
+}
+
+export interface CalibrationStats {
+  totalPredictions: number;
+  /** Measured rows of `metric` only; metrics are never pooled. Every rate below divides by this. */
+  resolvedCount: number;
   pendingCount: number;
+  /** The metric the top-level numbers describe: the one with the most measured rows (null = none). */
+  metric: string | null;
+  /** Each resolved metric on its own (predicted and actual of the SAME metric). */
+  byMetric: Record<string, MetricCalibration>;
   /** Mean absolute error as % of predicted value; null when nothing was measured */
   meanErrorPct: number | null;
   /** % of predictions within +/-20% of actual */
@@ -208,12 +222,8 @@ export async function getCalibrationStats(daysBack = 30): Promise<CalibrationSta
       return [] as Array<{ metadata: unknown }>;
     });
 
-  let measured = 0;
   let pending = 0;
-  let sumErrorPct = 0;
-  let sumBiasPct = 0;
-  let within20 = 0;
-  let within40 = 0;
+  const acc: Record<string, { n: number; err: number; bias: number; w20: number; w40: number }> = {};
 
   for (const r of rows) {
     const meta = (r.metadata as {
@@ -238,26 +248,39 @@ export async function getCalibrationStats(daysBack = 30): Promise<CalibrationSta
     if (meta.resolvedOutcome === "expired_unverifiable") {
       continue;
     }
-    const eng = meta.predictions?.find((p) => p.metric === "engagement")?.value;
     // Legacy rows lack resolvedMetric: their errorPct compared an engagement guess with clicks or dollars.
-    if (meta.resolvedMetric !== "engagement" || typeof meta.errorPct !== "number" || typeof meta.actualScore !== "number" || !eng) {
+    const metric = meta.resolvedMetric;
+    const predicted = metric ? meta.predictions?.find((p) => p.metric === metric)?.value : undefined;
+    if (!metric || typeof meta.errorPct !== "number" || typeof meta.actualScore !== "number" || !predicted) {
       continue;
     }
-    measured++;
-    sumErrorPct += meta.errorPct;
-    sumBiasPct += (meta.actualScore - eng) / eng;
-    if (meta.errorPct < 0.2) within20++;
-    if (meta.errorPct < 0.4) within40++;
+    const a = (acc[metric] ??= { n: 0, err: 0, bias: 0, w20: 0, w40: 0 });
+    a.n++;
+    a.err += meta.errorPct;
+    a.bias += (meta.actualScore - predicted) / predicted;
+    if (meta.errorPct < 0.2) a.w20++;
+    if (meta.errorPct < 0.4) a.w40++;
   }
+
+  const byMetric: Record<string, MetricCalibration> = {};
+  for (const [metric, a] of Object.entries(acc)) {
+    byMetric[metric] = {
+      resolvedCount: a.n,
+      meanErrorPct: a.err / a.n,
+      within20PctRate: a.w20 / a.n,
+      within40PctRate: a.w40 / a.n,
+      meanBiasPct: a.bias / a.n,
+    };
+  }
+  const top = Object.keys(byMetric).sort((x, y) => byMetric[y]!.resolvedCount - byMetric[x]!.resolvedCount)[0] ?? null;
+  const empty: MetricCalibration = { resolvedCount: 0, meanErrorPct: null, within20PctRate: null, within40PctRate: null, meanBiasPct: null };
 
   return {
     totalPredictions: rows.length,
-    resolvedCount: measured,
     pendingCount: pending,
-    meanErrorPct: measured > 0 ? sumErrorPct / measured : null,
-    within20PctRate: measured > 0 ? within20 / measured : null,
-    within40PctRate: measured > 0 ? within40 / measured : null,
-    meanBiasPct: measured > 0 ? sumBiasPct / measured : null,
+    metric: top,
+    byMetric,
+    ...(top ? byMetric[top]! : empty),
   };
 }
 
@@ -290,7 +313,7 @@ Make predictions when generating ("I think this hits 200+ engagement") so the lo
   const within40 = (within40PctRate * 100).toFixed(0);
   const bias = (meanBiasPct * 100).toFixed(0);
   return `
-=== PREDICTION CALIBRATION (last 30 days, ${stats.resolvedCount} resolved) ===
+=== PREDICTION CALIBRATION (last 30 days, ${stats.resolvedCount} resolved${stats.metric ? ` ${stats.metric} predictions` : ""}) ===
 Your accuracy track record:
   - ${within20}% of predictions within +/-20% of actual
   - ${within40}% within +/-40%

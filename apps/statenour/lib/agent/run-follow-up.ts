@@ -28,7 +28,7 @@
 import { prisma } from "@/lib/prisma";
 import { aiChat, isAiSentinel } from "@/lib/ai/provider";
 import { logger as rootLogger } from "@/lib/logger";
-import type { FollowUpPayload } from "./follow-up";
+import { FOLLOWUP_PROCESSING_STALE_MS, type FollowUpPayload } from "./follow-up";
 import { beginAttempt, settleAttempt } from "@/lib/services/action-attempts";
 
 const log = rootLogger.withSurface("agent/run-follow-up");
@@ -47,6 +47,28 @@ export interface RunFollowUpResult {
 
 /** A replay inside this window finds the first attempt and does not deliver again (08-X2). */
 const FOLLOWUP_REPLAY_WINDOW_MS = 24 * 60 * 60_000;
+
+/**
+ * An EXECUTING attempt older than the outbox reclaim window lost its worker (R3-17 #8):
+ * it would otherwise block delivery for its whole 24h hold and the row would be marked done.
+ * Take it over with a compare-and-set on what was read, so exactly one reclaimer proceeds
+ * (to the receipt check, then the send). False when the attempt is young (its worker may be
+ * alive) or another reclaimer won.
+ */
+async function takeOverAbandoned(attemptId: string): Promise<boolean> {
+  const row = await prisma.actionAttempt.findUnique({
+    where: { id: attemptId },
+    select: { state: true, attemptNo: true, startedAt: true, holdUntil: true },
+  });
+  if (!row || row.state !== "EXECUTING" || !(row.startedAt instanceof Date)) return false;
+  if (Date.now() - row.startedAt.getTime() < FOLLOWUP_PROCESSING_STALE_MS) return false;
+  const now = new Date();
+  const took = await prisma.actionAttempt.updateMany({
+    where: { id: attemptId, attemptNo: row.attemptNo, state: "EXECUTING", holdUntil: row.holdUntil, startedAt: row.startedAt },
+    data: { attemptNo: row.attemptNo + 1, startedAt: now, holdUntil: new Date(now.getTime() + FOLLOWUP_REPLAY_WINDOW_MS) },
+  });
+  return took.count === 1;
+}
 
 export async function runFollowUp(
   payload: FollowUpPayload,
@@ -82,10 +104,13 @@ export async function runFollowUp(
 
   // Claim the delivery BEFORE generating (claim-before-act, 08-X2): a worker that died after
   // writing the message but before the outbox row went `done` is replayed by the stale reclaim.
+  // One key names the delivery: the attempt's operationKey AND the message's clientMessageId
+  // (unique per conversation), so the message itself is the receipt and a second write is refused.
+  const receiptKey = `agent-followup:${opts.outboxId}`;
   let attemptId: string;
   try {
     const claim = await beginAttempt({
-      operationKey: `agent-followup:${opts.outboxId}`,
+      operationKey: receiptKey,
       tool: "agent.followup",
       argumentsHash: opts.outboxId,
       effectClass: "write",
@@ -93,11 +118,25 @@ export async function runFollowUp(
     });
     if (claim.kind === "duplicate") {
       const done = claim.state === "SUCCEEDED_UNVERIFIED" || claim.state === "VERIFIED";
-      return done
-        ? { ok: true, reason: "already delivered" }
-        : { ok: false, reason: `a prior attempt is ${claim.state}; not delivering again` };
+      if (done) return { ok: true, reason: "already delivered" };
+      if (claim.state !== "EXECUTING" || !(await takeOverAbandoned(claim.attemptId))) {
+        return { ok: false, reason: `a prior attempt is ${claim.state}; not delivering again` };
+      }
     }
     attemptId = claim.attemptId;
+    // The message is the receipt: a prior worker (dead, or a FAILED settle after its write
+    // landed) may already have delivered. Found -> settle success and do not generate.
+    // shortcut: a message written before R3-17 carries no clientMessageId and is not found; only rows in flight at that deploy are exposed.
+    const receipt = await prisma.chatMessage.findFirst({
+      where: { conversationId, clientMessageId: receiptKey },
+      select: { id: true },
+    });
+    if (receipt) {
+      await settleAttempt(attemptId, { disposition: "success", reason: "reconciled: follow-up message found", receiptId: receipt.id }).catch((err) =>
+        log.warn("followup_reconcile_settle_failed", { attemptId, message: err instanceof Error ? err.message : String(err) }),
+      );
+      return { ok: true, messageId: receipt.id, reason: "already delivered (reconciled)" };
+    }
   } catch (err) {
     return {
       ok: false,
@@ -165,6 +204,7 @@ export async function runFollowUp(
       // Provenance: this is how a reader (and /system) tells an
       // agent-initiated message from one the operator prompted.
       routerReason: FOLLOWUP_MARKER,
+      clientMessageId: receiptKey,
       latencyMs: 0,
     },
     select: { id: true },

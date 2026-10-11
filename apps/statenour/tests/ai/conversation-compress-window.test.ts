@@ -91,6 +91,46 @@ describe("compressConversation - a windowed request (historyOffset)", () => {
   });
 });
 
+describe("compressConversation - a windowed REBUILD keeps what the window left out (R3-17 #2)", () => {
+  const prevRow = (coveredCount: number, coveredFrom?: number) => ({
+    content: "PREV-SUMMARY",
+    metadata: { coveredCount, coverage: "cutoff", compressedAt: "2026-10-10T00:00:00Z", ...(coveredFrom === undefined ? {} : { coveredFrom }) },
+  });
+  const transcriptSent = () => String((mockAiChat.mock.calls[0]![0] as Array<{ content: string }>)[1]!.content);
+  const storedMeta = async () => {
+    await new Promise((r) => setTimeout(r, 0));
+    return (mockUpsert.mock.calls[0]![0] as { create: { metadata: Record<string, unknown> } }).create.metadata;
+  };
+
+  it("a previous summary that is too old to reuse is FOLDED into the rebuild, so abs[0..offset) stays covered", async () => {
+    mockFindFirst.mockResolvedValue(prevRow(120)); // covers abs[0..120); window starts at 100
+    await compressConversation(abs(100, 250), "conv-fold", 100);
+    expect(mockAiChat).toHaveBeenCalledTimes(1);
+    const sent = transcriptSent();
+    expect(sent).toContain("PREV-SUMMARY");
+    expect(sent).toContain(tag(120));
+    expect(sent).not.toContain(tag(119)); // already inside the previous summary
+    const meta = await storedMeta();
+    expect(meta.coveredCount).toBe(246);
+    expect(meta.coveredFrom).toBe(0);
+  });
+
+  it("with no previous summary, the stored coverage does not claim abs[0..offset) it never saw", async () => {
+    const res = await compressConversation(abs(100, 250), "conv-nofold", 100);
+    expect(transcriptSent()).not.toContain("PREV-SUMMARY");
+    expect(String(res.messages[0]!.content)).toContain("The first 100 messages of this conversation are not in this summary.");
+    const meta = await storedMeta();
+    expect(meta.coveredCount).toBe(246);
+    expect(meta.coveredFrom).toBe(100);
+  });
+
+  it("a fold keeps the previous summary's own gap (coveredFrom carries forward)", async () => {
+    mockFindFirst.mockResolvedValue(prevRow(120, 40));
+    await compressConversation(abs(100, 250), "conv-fold-gap", 100);
+    expect((await storedMeta()).coveredFrom).toBe(40);
+  });
+});
+
 describe("gate - historyOffset is a client claim, parsed defensively", () => {
   it("a non-negative integer passes through", () => {
     expect(parseHistoryOffset({ historyOffset: 100 })).toBe(100);

@@ -728,6 +728,8 @@ const CACHE_TTL_MS = 30_000; // 30 seconds
 // The load in progress. A second caller awaits it: a bare "in flight" boolean made
 // it return before the overrides landed and read env instead (audit 03-F13b).
 let inFlight: Promise<void> | null = null;
+// Bumped per load; only the newest load may publish, so a stale read cannot overwrite a forced one.
+let loadGeneration = 0;
 
 /**
  * Preloads the database-backed feature flag overrides.
@@ -742,14 +744,14 @@ export async function loadFeatureFlagOverrides(force = false): Promise<void> {
   }
   if (inFlight && !force) return inFlight;
 
-  const load: Promise<void> = fetchOverrides(now).finally(() => {
+  const load: Promise<void> = fetchOverrides(now, ++loadGeneration).finally(() => {
     if (inFlight === load) inFlight = null; // a forced reload may have replaced it
   });
   inFlight = load;
   return load;
 }
 
-async function fetchOverrides(now: number): Promise<void> {
+async function fetchOverrides(now: number, generation: number): Promise<void> {
   try {
     const { prisma } = await import("@/lib/prisma");
     const preferences = await prisma.userPreference.findMany({
@@ -762,6 +764,7 @@ async function fetchOverrides(now: number): Promise<void> {
       nextOverrides[pref.key] = pref.value;
     }
 
+    if (generation !== loadGeneration) return; // a newer (forced) load owns the cache
     overridesCache = nextOverrides;
     lastFetchedAt = now;
   } catch (err) {

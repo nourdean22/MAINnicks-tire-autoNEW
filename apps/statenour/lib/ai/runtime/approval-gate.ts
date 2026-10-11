@@ -1,8 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { evaluateToolAction } from "@/lib/tools/tool-policy";
-import { pendingExecutions, guardianBypassStorage } from "@/lib/tools/guardian";
-import { APPROVAL_DEDUPE_WINDOW_MS, APPROVAL_REPLAY_WINDOW_MS, samePayload } from "@/lib/tools/approval-match";
+import { pendingExecutions, guardianBypassStorage, findSamePayloadRequest } from "@/lib/tools/guardian";
+import { APPROVAL_REPLAY_WINDOW_MS, samePayload } from "@/lib/tools/approval-match";
 import { isApprovalRequestExpired } from "@/lib/automation/approval-freshness";
 
 /**
@@ -64,25 +64,8 @@ export async function checkApprovalGate(
       named = null;
     }
 
-    const matched =
-      named ??
-      (await (async () => {
-        // Newest same-PAYLOAD row decides: a newer request for another payload must not hide a needs_review row.
-        // shortcut: only the newest 50 same-tool rows in the window are read, raise take if one tool ever exceeds that per day.
-        const recent = await prisma.approvalRequest.findMany({
-          where: {
-            toolId,
-            status: {
-              // needs_review: an approved run that MAY have happened (P-S5a; same list as withGuardian).
-              in: ["pending_approval", "approved", "rejected", "executed", "failed", "needs_review"]
-            },
-            createdAt: { gte: new Date(now.getTime() - APPROVAL_DEDUPE_WINDOW_MS) }
-          },
-          orderBy: { createdAt: "desc" },
-          take: 50,
-        });
-        return recent.find((r) => samePayload(r.payload, payload)) ?? null;
-      })());
+    // Newest same-PAYLOAD row decides: a newer request for another payload must not hide a needs_review row.
+    const matched = named ?? (await findSamePayloadRequest(toolId, payload, now));
 
     if (matched) {
       if (matched.status === "executed") {

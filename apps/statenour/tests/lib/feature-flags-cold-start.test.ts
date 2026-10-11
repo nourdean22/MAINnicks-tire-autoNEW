@@ -53,4 +53,21 @@ describe("loadFeatureFlagOverrides on a cold start", () => {
     expect(logged).toHaveBeenCalled();
     logged.mockRestore();
   });
+
+  it("a forced reload wins over an older load that resolves after it (R3-17 #1)", async () => {
+    let releaseOld: (v: unknown) => void = () => {};
+    h.findMany
+      .mockImplementationOnce(() => new Promise((r) => { releaseOld = r; })) // old load, held open
+      .mockImplementationOnce(() => Promise.resolve(LOCK_ROW)); // forced load, post-mutation value
+    const ff = await import("@/lib/feature-flags");
+
+    const old = ff.loadFeatureFlagOverrides();
+    await new Promise((r) => setTimeout(r, 0)); // let the old load reach findMany
+    await ff.loadFeatureFlagOverrides(true);
+    expect(ff.getFlag("NICK_MUTATION_LOCK")?.isOn).toBe(true);
+
+    releaseOld([]); // the stale pre-mutation read lands last
+    await old;
+    expect(ff.getFlag("NICK_MUTATION_LOCK")?.isOn).toBe(true);
+  });
 });

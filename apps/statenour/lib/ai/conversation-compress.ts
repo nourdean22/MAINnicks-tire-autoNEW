@@ -102,10 +102,17 @@ Format: bulleted notes under headers. Max 400 words. Skip filler. Keep specific 
  * down). Returns null on empty/failed output so the caller falls
  * through to uncompressed messages.
  */
-async function summarizeMessages(messages: Array<{ role: string; content: string }>): Promise<string | null> {
-  const transcript = messages
+async function summarizeMessages(
+  messages: Array<{ role: string; content: string }>,
+  /** A previous summary to fold in (whole, not clipped like a message). */
+  previousSummary?: string,
+): Promise<string | null> {
+  const turns = messages
     .map((m) => `${m.role.toUpperCase()}: ${m.content.slice(0, 800)}`)
     .join("\n\n");
+  const transcript = previousSummary
+    ? `PREVIOUS SUMMARY (of the earlier messages):\n${previousSummary}\n\nLATER MESSAGES:\n${turns}`
+    : turns;
 
   try {
     const reply = await aiChat(
@@ -138,14 +145,18 @@ async function summarizeMessages(messages: Array<{ role: string; content: string
   }
 }
 
+interface SummaryRow {
+  summary: string;
+  /** Absolute position the summary covers up to (exclusive). */
+  coveredCount: number;
+  /** Absolute position it covers from: > 0 when earlier messages were never summarized. */
+  coveredFrom: number;
+}
+
 /**
- * Get the cached summary for a conversation, if still valid for the
- * current message count.
+ * Read the stored summary row for a conversation, reusable or not.
  */
-async function getCachedSummary(
-  conversationId: string,
-  currentCount: number
-): Promise<{ summary: string; coveredCount: number } | null> {
+async function getSummaryRow(conversationId: string): Promise<SummaryRow | null> {
   const mem = await prisma.brainMemory
     .findFirst({
       where: {
@@ -163,18 +174,21 @@ async function getCachedSummary(
   // sentinel, so an unmarked row is rebuilt rather than trusted.
   if (meta.coverage !== "cutoff") return null;
   const coveredCount = typeof meta.coveredCount === "number" ? meta.coveredCount : 0;
+  if (coveredCount <= 0) return null;
+  const coveredFrom = typeof meta.coveredFrom === "number" ? meta.coveredFrom : 0;
+  return { summary: mem.content, coveredCount, coveredFrom };
+}
 
+/**
+ * Whether a stored summary is still valid for the current message count.
+ */
+function isReusable({ coveredCount }: SummaryRow, currentCount: number): boolean {
   // History shrank (edit / regenerate) below what the summary covers: the
   // verbatim tail would lose the current turn. Rebuild.
-  if (coveredCount <= 0 || coveredCount > currentCount - KEEP_RECENT) return null;
+  if (coveredCount > currentCount - KEEP_RECENT) return false;
   // Rebuild once REBUILD_INCREMENT new messages arrived past the old tail
   // (same cadence as before coveredCount meant the cutoff).
-  if (currentCount - coveredCount >= REBUILD_INCREMENT + KEEP_RECENT) return null;
-
-  return {
-    summary: mem.content,
-    coveredCount,
-  };
+  return currentCount - coveredCount < REBUILD_INCREMENT + KEEP_RECENT;
 }
 
 /**
@@ -183,9 +197,11 @@ async function getCachedSummary(
 async function storeSummary(
   conversationId: string,
   summary: string,
-  coveredCount: number
+  coveredCount: number,
+  coveredFrom: number,
 ): Promise<void> {
   const key = `conv_summary_${conversationId}`;
+  const metadata = { coveredCount, coveredFrom, coverage: "cutoff", compressedAt: new Date().toISOString() };
   await prisma.brainMemory
     .upsert({
       where: { category_key: { category: BRAIN_CATEGORIES.CONVERSATION_SUMMARY, key } },
@@ -195,12 +211,12 @@ async function storeSummary(
         content: summary,
         confidence: 0.8,
         source: "conversation_compress",
-        metadata: { coveredCount, coverage: "cutoff", compressedAt: new Date().toISOString() },
+        metadata,
       },
       update: {
         content: summary,
         confidence: 0.8,
-        metadata: { coveredCount, coverage: "cutoff", compressedAt: new Date().toISOString() },
+        metadata,
       },
     })
     .catch((err) => recordError("ai:compression", err, { conversationId, op: "storeSummary" }));
@@ -256,14 +272,18 @@ export async function compressConversation(
 
   let cutoff = rawMessages.length - KEEP_RECENT;
   let summary: string | null = null;
+  let coveredFrom = 0;
+  let previous: SummaryRow | null = null;
 
   // Try to reuse a cached summary for this conversation. Its coveredCount is
   // where the verbatim tail must start, or the messages between the old
   // cutoff and the new one land in neither the summary nor the tail.
   if (conversationId) {
-    const cached = await getCachedSummary(conversationId, historyOffset + rawMessages.length);
-    if (cached) {
+    previous = await getSummaryRow(conversationId);
+    if (previous && isReusable(previous, historyOffset + rawMessages.length)) {
+      const cached = previous;
       summary = cached.summary;
+      coveredFrom = cached.coveredFrom;
       // Reuse only happens within REBUILD_INCREMENT + KEEP_RECENT of the
       // end, so this is past the window start whenever compression runs.
       cutoff = cached.coveredCount - historyOffset;
@@ -290,16 +310,23 @@ export async function compressConversation(
     } else {
       inFlightCompressions.add(conversationId);
       try {
-        const flat = toCompress.map((m) => ({
+        // A windowed rebuild cannot see abs[0..historyOffset): fold the previous summary
+        // in when it reaches the window, else record that gap as coveredFrom.
+        const fold =
+          historyOffset > 0 &&
+          previous &&
+          previous.coveredCount >= historyOffset &&
+          previous.coveredCount <= historyOffset + cutoff
+            ? previous
+            : null;
+        coveredFrom = fold ? fold.coveredFrom : historyOffset;
+        const flat = toCompress.slice(fold ? fold.coveredCount - historyOffset : 0).map((m) => ({
           role: m.role as string,
           content: extractText(m),
         }));
-        summary = await summarizeMessages(flat);
+        summary = await summarizeMessages(flat, fold?.summary);
         if (summary) {
-          // shortcut: a windowed rebuild summarizes the window only, so what
-          // the client left out (historyOffset) drops out of context; fold
-          // the previous summary into the rebuild if that loss shows up.
-          storeSummary(conversationId, summary, historyOffset + cutoff).catch((err) =>
+          storeSummary(conversationId, summary, historyOffset + cutoff, coveredFrom).catch((err) =>
             recordError("ai:compression", err, { conversationId, op: "storeSummary-async" }),
           );
         }
@@ -310,6 +337,7 @@ export async function compressConversation(
   } else if (!summary) {
     // No conversationId — concurrency-safe by definition (no shared
     // key). Run as before.
+    coveredFrom = historyOffset;
     const flat = toCompress.map((m) => ({
       role: m.role as string,
       content: extractText(m),
@@ -337,7 +365,7 @@ export async function compressConversation(
     {
       role: "system",
       // 04-X4: the summary is an older snapshot; Nour's newer words win.
-      content: `# CONVERSATION SUMMARY (${toCompress.length} earlier messages compressed)\n\n${summary}\n\nWhere this summary conflicts with the recent messages, the recent messages are current.\n\n# RECENT MESSAGES (verbatim, most recent)`,
+      content: `# CONVERSATION SUMMARY (${toCompress.length} earlier messages compressed)\n\n${coveredFrom > 0 ? `(The first ${coveredFrom} messages of this conversation are not in this summary.)\n\n` : ""}${summary}\n\nWhere this summary conflicts with the recent messages, the recent messages are current.\n\n# RECENT MESSAGES (verbatim, most recent)`,
     },
     ...(await recentAsModelMessages(recent)),
   ];

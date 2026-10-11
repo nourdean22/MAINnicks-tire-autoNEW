@@ -22,6 +22,8 @@ function match(r: Record<string, unknown>, w: W): boolean {
       const o = c as { in?: unknown[]; notIn?: unknown[]; lt?: unknown; gt?: unknown; gte?: unknown };
       if (o.in && !o.in.includes(v)) return false;
       if (o.notIn && o.notIn.includes(v)) return false;
+      // SQL: a comparison against NULL is never true (JS would coerce null to 0).
+      if ((o.lt ?? o.gt ?? o.gte) !== undefined && v == null) return false;
       if (o.lt !== undefined && !(v < (o.lt as never))) return false;
       if (o.gt !== undefined && !(v > (o.gt as never))) return false;
       if (o.gte !== undefined && !(v >= (o.gte as never))) return false;
@@ -81,5 +83,25 @@ describe("continuity card - per-turn claim rows are not memories", () => {
     expect(Object.keys(r.totals.byCategory)).not.toContain("active_chat_stream");
     expect(r.categoryMovers.map((m) => m.category)).not.toContain("active_chat_stream");
     expect(r.categoryMovers.find((m) => m.category === "insight")?.created24h).toBe(3);
+  });
+});
+
+// R3-17 #9: the claim-row exclusion reached the lists and groupings but not the
+// totals, so allTime / active / expired / prunedLast24h counted lock rows.
+describe("continuity card - claim rows do not change any total (R3-17 #9)", () => {
+  it("totals equal the memory-only population, and allTime is the sum of byCategory", async () => {
+    seed();
+    // Lock rows past their TTL (still live) and tombstoned in the last day.
+    for (let i = 0; i < 4; i++) {
+      const t = new Date(now - 2 * 3_600_000);
+      rows.push({ ...base, id: `claim_exp_${i}`, category: "active_chat_stream", key: `exp:${i}`, content: "reply persisted", createdAt: t, updatedAt: t, lastSeen: t, expiresAt: new Date(now - 60_000) });
+      rows.push({ ...base, id: `claim_del_${i}`, category: "active_chat_stream", key: `del:${i}`, content: "reply persisted", createdAt: t, updatedAt: t, lastSeen: t, deletedAt: new Date(now - 60_000) });
+    }
+    const r = await buildContinuityReport();
+    expect(r.totals.allTime).toBe(3);
+    expect(r.totals.active).toBe(3);
+    expect(r.totals.expired).toBe(0);
+    expect(r.recent.prunedLast24h).toBe(0);
+    expect(r.totals.allTime).toBe(Object.values(r.totals.byCategory).reduce((s, n) => s + n, 0));
   });
 });

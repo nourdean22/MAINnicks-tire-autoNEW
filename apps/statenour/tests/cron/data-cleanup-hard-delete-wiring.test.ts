@@ -117,8 +117,10 @@ beforeEach(() => {
   shadowMocks.sweep.mockResolvedValue(OK_SWEEP);
   brainCountFn.mockClear();
   brainFindMany.mockReset();
-  brainFindMany.mockImplementation(async (args: { where: { category?: unknown } }) =>
-    typeof args.where.category === "string"
+  brainFindMany.mockImplementation(async (args: { where: { category?: unknown; id?: unknown } }) =>
+    args.where.id
+      ? [] // the post-delete re-read: every id the delete was given is gone
+      : typeof args.where.category === "string"
       ? [{ id: `ret-${args.where.category}` }]
       : [{ id: "gc-1" }, { id: "gc-2" }],
   );
@@ -278,5 +280,33 @@ describe("05-X2: a hard delete takes the vector_embeddings copy with it", () => 
     await runRoute();
     expect(brainFindMany).not.toHaveBeenCalled();
     expect(tombstone.drop).not.toHaveBeenCalled();
+  });
+});
+
+// R3-17 #6: ids read before deleteMany went to dropEmbeddingsForMemories even
+// when a row stopped matching (e.g. touched or re-confirmed in between) and
+// survived the delete, so a live memory lost its vector.
+describe("only rows confirmed gone lose their embeddings (R3-17 #6)", () => {
+  /** The store after the delete: `survivors` still exist; the id re-read returns them. */
+  const withSurvivors = (survivors: string[]) =>
+    brainFindMany.mockImplementation(async (args: { where: { category?: unknown; id?: { in: string[] } } }) => {
+      if (args.where.id) return args.where.id.in.filter((id) => survivors.includes(id)).map((id) => ({ id }));
+      return typeof args.where.category === "string"
+        ? [{ id: `ret-${args.where.category}` }, { id: `ret-${args.where.category}-live` }]
+        : [{ id: "gc-1" }, { id: "gc-2" }];
+    });
+
+  it("GC: a row that survives deleteMany keeps its vector", async () => {
+    brainCount = 10;
+    withSurvivors(["gc-2"]);
+    await runRoute();
+    expect(tombstone.drop).toHaveBeenCalledWith(["gc-1"], "data-cleanup.brain_gc");
+  });
+
+  it("retention: a row that survives deleteMany keeps its vector", async () => {
+    brainCount = 10;
+    withSurvivors(["ret-reply_quality-live"]);
+    await runRoute();
+    expect(tombstone.drop).toHaveBeenCalledWith(["ret-reply_quality"], "data-cleanup.retention.reply_quality");
   });
 });

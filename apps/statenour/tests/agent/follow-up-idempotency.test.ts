@@ -8,19 +8,25 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-type Attempt = { id: string; operationKey: string; state: string; attemptNo: number; holdUntil: Date | null };
+type Attempt = { id: string; operationKey: string; state: string; attemptNo: number; holdUntil: Date | null; startedAt?: Date };
 const h = vi.hoisted(() => ({
   attempts: [] as Attempt[],
   attemptCreateFails: null as Error | null,
   aiChat: vi.fn(),
   msgCreate: vi.fn(),
+  messages: [] as Array<{ id: string; conversationId: string; clientMessageId: string | null }>,
   outboxRows: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     chatConversation: { findUnique: async () => ({ id: "conv-1", archivedAt: null }) },
-    chatMessage: { findMany: async () => [], create: (a: unknown) => h.msgCreate(a) },
+    chatMessage: {
+      findMany: async () => [],
+      create: (a: unknown) => h.msgCreate(a),
+      findFirst: async ({ where }: { where: { conversationId: string; clientMessageId: string } }) =>
+        h.messages.find((m) => m.conversationId === where.conversationId && m.clientMessageId === where.clientMessageId) ?? null,
+    },
     actionAttempt: {
       create: async ({ data }: { data: Omit<Attempt, "id"> }) => {
         if (h.attemptCreateFails) throw h.attemptCreateFails;
@@ -82,6 +88,7 @@ beforeEach(() => {
   h.attempts = [];
   h.attemptCreateFails = null;
   h.outboxRows = [];
+  h.messages = [];
   h.aiChat.mockReset().mockResolvedValue({ content: "Supplier has not replied yet.", provider: "ollama", model: "m" });
   h.msgCreate.mockReset().mockResolvedValue({ id: "msg-1" });
   process.env.NICK_AGENT_FOLLOWUPS = "1";
@@ -145,3 +152,69 @@ describe("claimDueFollowUps: the stale window outlives one tick", () => {
     expect(await claimDueFollowUps(5)).toHaveLength(1);
   });
 });
+
+// R3-17 #8: a worker that died after beginAttempt but before the message write
+// left the attempt EXECUTING for its whole 24h hold. The reclaimed outbox row
+// then read "a prior attempt is EXECUTING", was marked done, and the follow-up
+// was lost although no message was ever written.
+describe("runFollowUp: an abandoned EXECUTING attempt (R3-17 #8)", () => {
+  const abandoned = () =>
+    h.attempts.push({
+      id: "att-dead",
+      operationKey: "agent-followup:row-1",
+      state: "EXECUTING",
+      attemptNo: 1,
+      startedAt: new Date(Date.now() - 40 * 60_000), // older than the 35 min outbox reclaim
+      holdUntil: new Date(Date.now() + 23 * 3_600_000),
+    });
+
+  it("no message was written -> takes the attempt over and delivers exactly once", async () => {
+    abandoned();
+    const r = await runFollowUp(PAYLOAD, { outboxId: "row-1" });
+    expect(r).toMatchObject({ ok: true, reason: "delivered" });
+    expect(h.msgCreate).toHaveBeenCalledTimes(1);
+    expect(h.msgCreate.mock.calls[0]![0]).toMatchObject({ data: { clientMessageId: "agent-followup:row-1" } });
+    expect(h.attempts[0]).toMatchObject({ state: "SUCCEEDED_UNVERIFIED", attemptNo: 2 });
+    // A replay after the takeover is a plain duplicate of a delivered attempt.
+    expect(await runFollowUp(PAYLOAD, { outboxId: "row-1" })).toMatchObject({ ok: true, reason: "already delivered" });
+    expect(h.msgCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("the message WAS written -> no generation, no second write, reported delivered", async () => {
+    abandoned();
+    h.messages.push({ id: "msg-old", conversationId: "conv-1", clientMessageId: "agent-followup:row-1" });
+    const r = await runFollowUp(PAYLOAD, { outboxId: "row-1" });
+    expect(r).toMatchObject({ ok: true, messageId: "msg-old" });
+    expect(h.aiChat).not.toHaveBeenCalled();
+    expect(h.msgCreate).not.toHaveBeenCalled();
+    expect(h.attempts[0]!.state).toBe("SUCCEEDED_UNVERIFIED");
+  });
+
+  it("two reclaimers race for the same abandoned attempt -> one delivers, one stands down", async () => {
+    abandoned();
+    const [a, b] = await Promise.all([
+      runFollowUp(PAYLOAD, { outboxId: "row-1" }),
+      runFollowUp(PAYLOAD, { outboxId: "row-1" }),
+    ]);
+    expect(h.msgCreate).toHaveBeenCalledTimes(1);
+    expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1);
+  });
+
+  it("a FAILED attempt whose message did land (lost write race) is reclaimed but never regenerates", async () => {
+    h.attempts.push({ id: "att-f", operationKey: "agent-followup:row-1", state: "FAILED", attemptNo: 2, startedAt: new Date(Date.now() - 60_000), holdUntil: new Date(Date.now() + 3_600_000) });
+    h.messages.push({ id: "msg-won", conversationId: "conv-1", clientMessageId: "agent-followup:row-1" });
+    const r = await runFollowUp(PAYLOAD, { outboxId: "row-1" });
+    expect(r).toMatchObject({ ok: true, messageId: "msg-won" });
+    expect(h.aiChat).not.toHaveBeenCalled();
+    expect(h.msgCreate).not.toHaveBeenCalled();
+  });
+
+  it("CONTROL: a young EXECUTING attempt (worker may be alive) is still left alone", async () => {
+    h.attempts.push({ id: "att-live", operationKey: "agent-followup:row-1", state: "EXECUTING", attemptNo: 1, startedAt: new Date(Date.now() - 60_000), holdUntil: new Date(Date.now() + 3_600_000) });
+    const r = await runFollowUp(PAYLOAD, { outboxId: "row-1" });
+    expect(r.ok).toBe(false);
+    expect(h.aiChat).not.toHaveBeenCalled();
+    expect(h.msgCreate).not.toHaveBeenCalled();
+  });
+});
+

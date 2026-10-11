@@ -167,7 +167,7 @@ export async function publishCommitmentTransition(
 /**
  * A proposal born from a journal take is the take's ledgered next action
  * (journal router recordShown); the operator's verdict here closes that row (06-X5).
- * shortcut: an accept here first blocks the task:<id> resultRef a later promote would add; upgrade if that pairing matters.
+ * A later promote still attaches its task:<id> (attachAcceptedResultRefByContent).
  */
 async function ledgerJournalVerdict(id: number, decision: "accepted" | "dismissed"): Promise<void> {
   const row = await prisma.commitment.findUnique({ where: { id }, select: { description: true, sourceRef: true } });

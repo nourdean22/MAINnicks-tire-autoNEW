@@ -153,12 +153,11 @@ export async function promoteJournalTake(
     // the task's completion rating via resultRef task:<id>. Fire-and-forget:
     // the promotion already happened; the ledger never fails it.
     void (async () => {
-      const { recordDecisionByContent } = await import("@/lib/services/outcome-ledger");
-      await recordDecisionByContent(
-        journalNextActionSummary(title), // title IS the validated next action on this branch
-        "accepted",
-        `task:${task.id}`,
-      );
+      const { recordDecisionByContent, attachAcceptedResultRefByContent } = await import("@/lib/services/outcome-ledger");
+      const summary = journalNextActionSummary(title); // title IS the validated next action on this branch
+      const decided = await recordDecisionByContent(summary, "accepted", `task:${task.id}`);
+      // Already accepted (the commitment accept got there first): attach the task ref only.
+      if (!decided) await attachAcceptedResultRefByContent(summary, `task:${task.id}`);
     })().catch(() => {
       /* ledger failure must never fail a promotion */
     });
