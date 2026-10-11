@@ -38,6 +38,16 @@ describe("parseCreatedJobId", () => {
     expect(parseCreatedJobId(JSON.stringify({ job: created }))).toBe(created.id);
     expect(parseCreatedJobId(JSON.stringify({ jobs: [created] }))).toBe(created.id);
   });
+  // 2026-10-11, job 2070006: seedance_2_5 prints a bare list of ids. The render
+  // was created and billed; the parser threw, so the job retried and created another.
+  it("reads the production shape: a list of bare id strings", () => {
+    expect(parseCreatedJobId('[\n  "e806c814-5160-4c78-99aa-78c84512e998"\n]\n')).toBe("e806c814-5160-4c78-99aa-78c84512e998");
+    expect(parseCreatedJobId(JSON.stringify("e806c814-5160-4c78-99aa-78c84512e998"))).toBe("e806c814-5160-4c78-99aa-78c84512e998");
+  });
+  it("still refuses a bare string that is not an id", () => {
+    expect(() => parseCreatedJobId('["queued"]')).toThrow(/no job id/i);
+    expect(() => parseCreatedJobId("[]")).toThrow(/no job id/i);
+  });
   it("refuses output with no id rather than inventing a handle", () => {
     expect(() => parseCreatedJobId(JSON.stringify({ status: "queued" }))).toThrow(/no job id/i);
     expect(() => parseCreatedJobId("not json")).toThrow(/Failed to parse/);
