@@ -64,6 +64,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // Gather journal signal.
   let signalBlock = "";
+  // A brief built on a failed read is not cached: the key is the whole ET day.
+  let readFailed = false;
   try {
     const now = Date.now();
     const fourteenDaysAgo = new Date(now - 14 * DAY_MS);
@@ -101,20 +103,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         import("@/lib/brain/drift-detector")
           .then((m) => m.computeDriftScore())
           .catch(() => null),
+        // null = the read failed: rendered "(unavailable)", never "(none)" (audit 02-F4b).
         prisma.lifeGoal
           .findMany({
             where: { status: "active", deletedAt: null },
             select: { title: true, domain: true },
             take: 10,
           })
-          .catch(() => []),
+          .catch(() => null),
         prisma.mission
           .findMany({
             where: { status: "ACTIVE" },
             select: { title: true, domain: true },
             take: 10,
           })
-          .catch(() => []),
+          .catch(() => null),
         prisma.brainDump
           .findMany({
             where: { createdAt: { gte: sevenDaysAgo }, deletedAt: null, summary: { not: null } },
@@ -122,7 +125,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             select: { summary: true, createdAt: true },
             take: 8,
           })
-          .catch(() => []),
+          .catch(() => null),
       ]);
 
     const threadLines = activeThreads.map((t) => {
@@ -135,11 +138,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return `  [${t.status}] ${t.name} · ${t.memberCount} entries${stall}${dormant}`;
     });
 
-    const goalLines = goals.map((g) => `  ${g.title} (${g.domain})`);
-    const missionLines = missions.map((m) => `  ${m.title} (${m.domain})`);
-    const entryLines = recentDumps.map(
-      (d) => `  [${d.createdAt.toISOString().slice(5, 10)}] ${(d.summary ?? "").slice(0, 140)}`,
-    );
+    /** A failed read is "(unavailable)"; only a successful empty read is "(none)". */
+    const listOf = <T,>(rows: T[] | null, line: (r: T) => string) =>
+      rows === null ? "  (unavailable)" : rows.map(line).join("\n") || "  (none)";
+    const count = (rows: unknown[] | null) => (rows === null ? "unknown" : rows.length);
+    readFailed = goals === null || missions === null || recentDumps === null;
 
     signalBlock = [
       // 2026-09-07 · headings are plain words on purpose. The model quoted the
@@ -149,16 +152,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       `Active threads (${activeThreads.length}):`,
       threadLines.join("\n") || "  (none)",
       "",
-      `Active goals (${goals.length}):`,
-      goalLines.join("\n") || "  (none)",
+      `Active goals (${count(goals)}):`,
+      listOf(goals, (g) => `  ${g.title} (${g.domain})`),
       "",
-      `Active missions (${missions.length}):`,
-      missionLines.join("\n") || "  (none)",
+      `Active missions (${count(missions)}):`,
+      listOf(missions, (m) => `  ${m.title} (${m.domain})`),
       "",
       `Drift: ${drift ? `${drift.overallScore.toFixed(1)}/10${drift.topConcern ? ` · top concern: ${drift.topConcern}` : ""}` : "(unavailable)"}`,
       "",
       `Recent entry summaries (last 7 days):`,
-      entryLines.join("\n") || "  (none)",
+      listOf(recentDumps, (d) => `  [${d.createdAt.toISOString().slice(5, 10)}] ${(d.summary ?? "").slice(0, 140)}`),
       "",
       `Reflections in the last 7 days: ${reflectionCount}`,
       `Brain dumps in the last 7 days: ${dumpCount}`,
@@ -183,6 +186,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     signalBlock,
     taskType: "reason",
     maxChars: 560,
+    bypassCache: readFailed,
   });
 
   return NextResponse.json({ brief });

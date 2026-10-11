@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
+import { reportPageError } from "@/lib/observability/report-page-error";
 
 export default function MasteryError({
   error,
@@ -13,6 +14,7 @@ export default function MasteryError({
 }) {
   useEffect(() => {
     console.error("[NOUR OS] Page error:", error);
+    reportPageError(error);
   }, [error]);
 
   return (

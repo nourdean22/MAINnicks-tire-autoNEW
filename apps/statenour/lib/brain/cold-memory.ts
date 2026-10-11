@@ -79,7 +79,7 @@ function extractDriveMeta(metadata: unknown): {
  * for a given query.
  *
  *   drive   — only memories ingested by drive_cron (default, narrow)
- *   ingest  — any ingested content: drive_cron, gmail_cron, calendar_cron
+ *   ingest  - any ingested content: drive_cron, gmail_cron, calendar_cron, calendar:external
  *   archive — archive candidates: old memories with expired freshness
  *   all     — every brain_memory record regardless of source
  */
@@ -93,6 +93,8 @@ function buildSourceFilter(scope: ColdMemoryScope): string[] | null {
         "drive_manual_sync",
         "gmail_cron",
         "calendar_cron",
+        // ingest-calendar files events someone else organised under this source (R3-09).
+        "calendar:external",
         "knowledge_sync",
       ];
     case "archive":

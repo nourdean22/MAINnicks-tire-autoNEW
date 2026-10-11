@@ -390,7 +390,7 @@ async function fetchPersonalOpsItems(): Promise<TickerItem[]> {
         label: `${formatted} today`,
         severity: cents >= 1000 ? "warn" : "info",
         domain: "money",
-        href: "/system/costs",
+        href: "/system/ai-cost",
       });
     }
 

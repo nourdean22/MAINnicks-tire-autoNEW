@@ -9,14 +9,26 @@ import { trpc } from "@/lib/trpc/client";
 /**
  * Silent page visit tracker. Fires a mutation to record a page visit
  * on every route change so the brain can detect usage patterns,
- * blind spots, and time-of-day habits.
+ * blind spots, and time-of-day habits. Opt-out: localStorage
+ * 'nour:no-track' = '1'.
  */
+const NO_TRACK_KEY = "nour:no-track";
+
+function trackingOptedOut(): boolean {
+  try {
+    return window.localStorage.getItem(NO_TRACK_KEY) === "1";
+  } catch {
+    return false; // storage blocked (private mode): no opt-out could be read
+  }
+}
+
 export function PageTracker() {
   const pathname = usePathname();
   const pageVisit = trpc.brain.pageVisit.useMutation();
 
   useEffect(() => {
     if (!pathname) return;
+    if (trackingOptedOut()) return;
 
     // Fire and forget — non-blocking, non-critical
     pageVisit.mutate({

@@ -16,6 +16,7 @@ export function JournalFeedView() {
     isFetchingMore,
     degraded,
     error,
+    refetch,
     source,
     setSourceFilter,
     type,
@@ -120,10 +121,9 @@ export function JournalFeedView() {
         onClearAll={() => { setSearch(""); setSourceFilter("all"); setTypeFilter("all"); setSortKey("newest"); }}
       />
 
-      {error && (
-        <div className="mb-3 rounded-control border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-200 flex items-center justify-between gap-3">
-          <span className="font-mono text-[11px]">{error}</span>
-        </div>
+      {/* 09-X4: a failed refresh keeps the loaded entries and says so in one line; a failed first load is below. */}
+      {error && entries.length > 0 && (
+        <p role="status" className="text-[13px] text-amber-300">Refresh failed. Showing the last loaded entries.</p>
       )}
 
       {/* Feed v2 · degraded-source banner — a failed silo query used to
@@ -131,7 +131,7 @@ export function JournalFeedView() {
           feed with zero signal. */}
       {degraded.length > 0 && (
         <div className="mb-3 rounded-control border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] font-mono text-amber-200">
-          partial feed — failed source{degraded.length > 1 ? "s" : ""}: {degraded.join(", ")}
+          partial feed, failed source{degraded.length > 1 ? "s" : ""}: {degraded.join(", ")}
         </div>
       )}
 
@@ -143,6 +143,16 @@ export function JournalFeedView() {
                 {[0, 1, 2].map((i) => (
                   <ShimmerSkeleton key={i} className="h-20 rounded-surface border border-edge-subtle" />
                 ))}
+              </div>
+            ) : error && entries.length === 0 ? (
+              <div role="alert" className="space-y-2 py-12 text-center rounded-surface border border-edge-subtle bg-content px-4">
+                <p className="text-[15px] font-semibold text-fg">The journal couldn&apos;t load. State unknown, not empty.</p>
+                <p className="text-[13px] text-fg-tertiary break-words">{error}</p>
+                <button
+                  type="button"
+                  onClick={() => void refetch()}
+                  className="inline-flex min-h-11 items-center rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
+                >Retry</button>
               </div>
             ) : filteredEntries.length === 0 ? (
               <div className="text-center py-12 rounded-surface border border-edge-subtle bg-content">

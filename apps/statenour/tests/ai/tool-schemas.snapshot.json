@@ -2543,7 +2543,7 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "category": {
-          "description": "Filter by category: personal, business, shop, revenue, planning, brain, files, communication, analysis, research, commands, content, winback, meta. Leave empty for all.",
+          "description": "Filter by a tool-catalog category; an unknown value returns every category",
           "type": "string"
         }
       },
@@ -3199,12 +3199,12 @@
   },
   {
     "name": "runCode",
-    "description": "Execute JavaScript in a sandbox. Use for calculations, data analysis, projections, formatting. Has Math, Date, JSON, Array. No network/filesystem. Returns last expression.",
+    "description": "Execute JavaScript in a sandbox. Use for calculations, data analysis, projections, formatting. Has the JavaScript built-ins plus helpers avg, sum, min, max, pct, delta. No network, filesystem or modules (code containing the word import is refused). 5s limit. The code runs as a function body: use `return <value>` for the result, which comes back as JSON; console.log lines come back as logs.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "code": {
-          "description": "JavaScript code. Last expression value is returned.",
+          "description": "JavaScript function body. Use `return <value>` for the result; without a return the result is null.",
           "type": "string"
         },
         "description": {

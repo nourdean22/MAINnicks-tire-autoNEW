@@ -157,10 +157,10 @@ Nick AI (the chat persona) has a 5-layer fabrication defense. When working on ch
 | Layer | File | What It Does |
 |---|---|---|
 | L1 prompt | `lib/ai/system-prompt.ts` | Model told: never claim past-tense action without tool call |
-| L2 rewrite | `lib/ai/chat/fabrication-rewriter.ts` | Detected fabrication gets verifier banner |
+| L2 post-persist rewrite | `lib/ai/chat/fabrication-rewriter.ts`, called from `lib/services/chat/post-persist-verification.ts` | After the reply has streamed and its row exists, a detected fabrication gets a verifier banner patched into the stored row; the live bubble swaps to that stored text on `message.persisted` |
 | L3 neutralize | `lib/ai/chat/sanitize-history.ts` | Verifier-marked turns get replaced to stop compounding |
 | L4 grounding | `lib/ai/chat/truth-grounding.ts` | Task counts pre-injected as system facts |
-| L5 chip | `components/chat/action-claim-warning.tsx` | Red inline chip shows operator diagnostic |
+| L5 operator surface | `lib/services/claim-warnings.ts` via tRPC `chat.claimWarnings` | ORPHANED (checked 2026-10-10): no client calls `chat.claimWarnings`, and the `ActionClaimWarning` chip is gone from `components/chat/`. The operator sees only the L2 banner in the message text |
 
 **Do not remove or bypass any of these layers.**
 

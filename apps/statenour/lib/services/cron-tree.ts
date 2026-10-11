@@ -94,9 +94,11 @@ function matches(val: number, expr: string): boolean {
 
 /** Manifest + live stats per cron + a top-strip summary. */
 export async function buildCronTree() {
-  const [controls, stats, recent] = await Promise.all([
+  const dayAgo = new Date(Date.now() - 24 * 3600_000);
+  const [controls, stats, recent, latestStamps, statuses24h] = await Promise.all([
     listCronControls(),
     getCronStats(),
+    // The sparkline only: a busy job fills this sample (08-F12), so nothing else reads it.
     prisma.cronJobLog.findMany({
       orderBy: { createdAt: "desc" },
       take: 800, // ~20 per cron × 31 active
@@ -107,7 +109,28 @@ export async function buildCronTree() {
         createdAt: true,
       },
     }),
+    // Newest row per manifest job over the whole table: a weekly job read "never ran" from the sample.
+    prisma.cronJobLog.groupBy({
+      by: ["jobName"],
+      where: { jobName: { in: CRONS.map((c) => c.name) } },
+      _max: { createdAt: true },
+    }),
+    prisma.cronJobLog.groupBy({
+      by: ["status"],
+      where: { createdAt: { gte: dayAgo } },
+      _count: { _all: true },
+    }),
   ]);
+  const stamped = latestStamps.filter((g) => g._max.createdAt);
+  const latestRows =
+    stamped.length > 0
+      ? await prisma.cronJobLog.findMany({
+          where: { OR: stamped.map((g) => ({ jobName: g.jobName, createdAt: g._max.createdAt! })) },
+          select: { jobName: true, status: true, duration: true, createdAt: true },
+        })
+      : [];
+  const latestByName = new Map<string, (typeof latestRows)[number]>();
+  for (const r of latestRows) if (!latestByName.has(r.jobName)) latestByName.set(r.jobName, r);
 
   const controlByName = new Map(controls.map((c) => [c.jobName, c]));
   const logsByName = new Map<
@@ -141,7 +164,7 @@ export async function buildCronTree() {
     let lastRunAt: string | null = null;
     let lastRunMs: number | null = null;
     let lastStatus: CronLastStatus | null = null;
-    const newest = logs[logs.length - 1];
+    const newest = latestByName.get(c.name);
     if (newest) {
       lastRunAt = newest.createdAt.toISOString();
       lastRunMs = newest.duration;
@@ -189,14 +212,8 @@ export async function buildCronTree() {
     disabled: rows.filter((r) => !r.enabled).length,
     folded: rows.filter((r) => r.mode === "folded").length,
     retired: rows.filter((r) => r.mode === "retired").length,
-    runs24h: recent.filter(
-      (r) => r.createdAt.getTime() > now.getTime() - 24 * 3600_000,
-    ).length,
-    failures24h: recent.filter(
-      (r) =>
-        isHardFailure(r.status) &&
-        r.createdAt.getTime() > now.getTime() - 24 * 3600_000,
-    ).length,
+    runs24h: statuses24h.reduce((n, g) => n + g._count._all, 0),
+    failures24h: statuses24h.reduce((n, g) => n + (isHardFailure(g.status) ? g._count._all : 0), 0),
     drifted: rows.filter((r) => r.drift !== null && r.drift > 0).length,
   };
 

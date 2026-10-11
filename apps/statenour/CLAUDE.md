@@ -72,4 +72,4 @@ Each bullet names the file pattern that arms it. Fire on the trigger, not on a v
 - **A confirm, alert, or text-capture dialog in `app/` or `components/` →
   `nickstire-ios-pwa-primitives`.** The skill is named for the sibling app but governs this one
   too: statenour is also a standalone iOS PWA, where `window.confirm/alert/prompt` return
-  silently. Two-tap in-DOM confirms, 48x48px minimum targets.
+  silently. Two-tap in-DOM confirms, 44x44px minimum targets (floor pinned by tests/e2e/target-size.spec.ts).

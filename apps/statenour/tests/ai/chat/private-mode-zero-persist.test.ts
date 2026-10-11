@@ -20,6 +20,7 @@ const h = vi.hoisted(() => ({
   markInvokeToolFired: vi.fn().mockResolvedValue(undefined),
   pruneOpts: [] as Array<Record<string, unknown> | undefined>,
   generateImage: vi.fn(),
+  recordToolInvocation: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Every prisma write is recorded; reads return empty.
@@ -86,6 +87,11 @@ vi.mock("@/lib/ai/chat-mode", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/ai/tool-telemetry", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ai/tool-telemetry")>();
+  return { ...actual, recordToolInvocation: h.recordToolInvocation };
+});
+
 vi.mock("@/lib/ai/gemini-image", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/ai/gemini-image")>();
   return { ...actual, generateImageWithFallback: h.generateImage };
@@ -127,6 +133,7 @@ beforeEach(() => {
   h.recordMetricStrict.mockClear();
   h.markSearchToolsFired.mockClear();
   h.generateImage.mockReset();
+  h.recordToolInvocation.mockClear();
 });
 
 describe("prepareTools · a private turn is handed no mutating tool and writes no census row", () => {
@@ -155,6 +162,26 @@ describe("prepareTools · a private turn is handed no mutating tool and writes n
     const search = (prunedTools as Record<string, { execute?: (i: unknown, o?: unknown) => Promise<unknown> }>).searchTools;
     if (search?.execute) await search.execute({ query: "lease" }, {});
     expect(h.markSearchToolsFired).not.toHaveBeenCalled();
+  });
+});
+
+describe("invokeTool - the recovery lane writes no tool_telemetry row inside a private turn (07-SN-05 b)", () => {
+  const invoke = async () => {
+    const { metaTools } = await import("@/lib/ai/tools/meta");
+    const run = metaTools.invokeTool.execute as (i: unknown, o: unknown) => Promise<Record<string, unknown>>;
+    return run({ name: "listTools", args: {} }, {});
+  };
+
+  it("CONTROL - outside a private turn the proxied read runs and is recorded once", async () => {
+    const res = await invoke();
+    expect(res.tool).toBe("listTools");
+    expect(h.recordToolInvocation).toHaveBeenCalledTimes(1);
+  });
+
+  it("inside a private turn the proxied read still runs and nothing is recorded", async () => {
+    const res = await withTurnContext({ privateMode: true }, () => invoke());
+    expect(res.tool, "the read is not refused, only unrecorded").toBe("listTools");
+    expect(h.recordToolInvocation).not.toHaveBeenCalled();
   });
 });
 

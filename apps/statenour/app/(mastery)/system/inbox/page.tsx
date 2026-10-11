@@ -50,8 +50,9 @@ export default function MemoryInboxPage() {
   const items = (quarantinedQuery.data as InboxItem[] | undefined) ?? [];
   const loading = quarantinedQuery.isPending || quarantinedQuery.isFetching;
   // 2026-10-10 · audit 02-F13: no read (failed, or not landed yet) is not a
-  // clear queue. Only a successful read may say "clear ... safe".
-  const readFailed = quarantinedQuery.isError && !quarantinedQuery.data;
+  // clear queue. Only a successful read may say "clear ... safe". A failed poll
+  // keeps the last data, so an old empty [] must not read as clear either.
+  const readFailed = quarantinedQuery.isError && items.length === 0;
   const notYetRead = !quarantinedQuery.data && !quarantinedQuery.isError;
 
   const handleResolve = async (id: string, verdict: "overwrite" | "reject" | "coexist") => {
@@ -102,7 +103,7 @@ export default function MemoryInboxPage() {
     >
       {readFailed ? (
         <Panel className="border-edge-subtle flex flex-col items-center justify-center p-12 text-center">
-          <h3 className="text-lg font-semibold text-fg mb-1">Queue state unknown · read failed</h3>
+          <h3 className="text-lg font-semibold text-fg mb-1">Queue state unknown - read failed</h3>
           <p className="text-xs text-fg-tertiary max-w-sm">{quarantinedQuery.error?.message ?? "No reason returned"}</p>
           <p className="text-xs text-fg-tertiary max-w-sm mt-1">A failed read clears nothing. Refresh reads it again.</p>
         </Panel>

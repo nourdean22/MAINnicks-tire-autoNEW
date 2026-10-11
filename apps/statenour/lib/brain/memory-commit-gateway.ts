@@ -42,6 +42,7 @@
 import { prisma } from "@/lib/prisma";
 import { createHash } from "node:crypto";
 import { logError } from "@/lib/utils/error-log";
+import { classifyTrustTier } from "@/lib/brain/memory-trust";
 
 export type MemoryEvidenceClass =
   | "operator_stated"
@@ -186,7 +187,11 @@ export function evaluateMemoryCandidate(
   }
 
   const sameContent = norm(existing.content) === norm(candidate.content);
-  const sameSource = existing.source === candidate.source;
+  // 05-X8: two model passes over the same conversations are one witness.
+  const sameSource =
+    existing.source === candidate.source ||
+    (classifyTrustTier(existing.source) === "AGENT_INFERRED" &&
+      classifyTrustTier(candidate.source) === "AGENT_INFERRED");
   const existingEvidence = evidenceClassForSource(existing.source);
 
   if (sameContent && sameSource) {

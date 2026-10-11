@@ -13,7 +13,8 @@ import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/utils/error-log";
 import { deriveSkipReason } from "@/lib/services/cron-skip-reason";
 import { HARD_FAILURE_STATUSES, isHardFailure } from "@/lib/services/cron-status";
-import { TERMINAL_OK_STATUSES } from "@/lib/inngest/cron-lifecycle";
+// One counting rule for resultCount on both cron paths (08-F13): NULL only when the summary names no count.
+import { TERMINAL_OK_STATUSES, deriveResultCount } from "@/lib/inngest/cron-lifecycle";
 
 /**
  * A cron that CATCHES its own error and returns `{ ok: false }` resolves
@@ -40,37 +41,6 @@ function reportedFailureReason(result: unknown): string | null {
     : typeof r.error === "string" ? r.error
     : null;
   return reason ?? "handler returned ok:false";
-}
-
-/**
- * The countable result a handler explicitly claims, or null.
- *
- * Same rule as reportedFailureReason above, and for the same reason: ONLY AN
- * EXPLICIT CLAIM COUNTS. A handler that returns no `resultCount` gets NULL, never
- * 0 — because "produced nothing" and "did not say" are different facts, and
- * cron_job_logs previously could represent neither.
- *
- * That distinction is the whole point of the column. `ingest-reviews` ran 4x/day
- * for 16 days with a 100% failure rate (64 runs, 64 failures) and nothing could
- * tell a full ingest from an empty one, because the table had no place to put the
- * number. Defaulting a missing count to 0 here would re-manufacture exactly the
- * fabrication the nullable column was chosen to avoid.
- */
-function countFrom(result: unknown): number | null {
-  if (!result || typeof result !== "object" || Array.isArray(result)) return null;
-  const r = result as Record<string, unknown>;
-  // Number.isFinite is NOT enough. It admits 2.5, -1, and 1e12 — none of which a
-  // Postgres INTEGER can store. Any of them reaches prisma.cronJobLog.create, is
-  // rejected, and lands in the .catch below, which logs a warning and drops the
-  // write. The row does not arrive with a NULL count; THE WHOLE ROW DISAPPEARS.
-  // That is a strictly worse version of the condition this column exists to end:
-  // a cron run with no trace in the monitoring table. Not reachable from today's
-  // only producer (ingest-reviews passes an integer), but countFrom is deliberately
-  // generic, and the next handler returning a rate or an average would trip it.
-  const v = r.resultCount;
-  return typeof v === "number" && Number.isInteger(v) && Math.abs(v) <= 2147483647
-    ? v
-    : null;
 }
 
 /**
@@ -143,7 +113,7 @@ export async function logCronRun(
     const reported = reportedFailureReason(result);
     if (reported) {
       await settle(
-        { status: "failed", duration: durationMs, error: reported, resultCount: countFrom(result) },
+        { status: "failed", duration: durationMs, error: reported, resultCount: deriveResultCount(result) },
         "reported-failure-row",
       );
       publishCronFailure(jobName, reported, durationMs);
@@ -153,7 +123,7 @@ export async function logCronRun(
       {
         status: "success",
         duration: durationMs,
-        resultCount: countFrom(result),
+        resultCount: deriveResultCount(result),
         skipReason: deriveSkipReason(result),
       },
       "success-row",

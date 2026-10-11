@@ -45,6 +45,22 @@ test("FIRES: the MEASUREMENT PATH is a judge — assignment, exposure/conversion
   }
 });
 
+test("FIRES: statenour judges outside tests/ (judge, eval suites, recall baseline + its runner)", () => {
+  for (const p of [
+    "apps/statenour/lib/ai/judge-eval.ts",
+    "apps/statenour/lib/ai/evals/quality-bench-core.ts",
+    "apps/statenour/lib/evals/memory-eval-runner.ts",
+    "apps/statenour/data/recall-corpus.manifest.json",
+    "apps/statenour/scripts/recall-eval.ts",
+  ]) {
+    const v = assess("night-shift/x", ["apps/statenour/app/(mastery)/chat/page.tsx", p], cfg);
+    assert.equal(v.ok, false, `${p} must be rejected on a candidate branch`);
+    assert.deepEqual(v.violations, [p]);
+  }
+  // control: a file entry matches exactly, so a neighbour of the judge is not swept in
+  assert.equal(isEvaluatorPath("apps/statenour/lib/ai/judge-eval.test.ts", cfg), false);
+});
+
 test("PASSES: a candidate branch that only touches product code", () => {
   const v = assess("darwin/hero-subline", ["apps/nickstire/client/src/pages/Home.tsx", "apps/nickstire/shared/webExperimentsCopy.ts"], cfg);
   assert.equal(v.triggered, true);

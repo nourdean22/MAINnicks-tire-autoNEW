@@ -110,16 +110,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       });
     }
 
-    // Invalidate today's picks cache so the just-logged person doesn't
-    // keep appearing in the picks list.
+    // Drop the just-logged person from today's cached picks. Only that
+    // person: deleting the whole row forced a paid AI re-rank on the next
+    // /people visit (audit 02-F4a). The row goes only when no pick is left.
     try {
+      // shortcut: the UTC day key the writer (lib/ai/relationships-pick-today.ts) uses; move both to today() together.
       const today = now.toISOString().slice(0, 10);
-      await prisma.brainMemory.deleteMany({
-        where: {
-          category: BRAIN_CATEGORIES.RELATIONSHIPS_PICKS_TODAY,
-          key: today,
-        },
-      });
+      const where = { category: BRAIN_CATEGORIES.RELATIONSHIPS_PICKS_TODAY, key: today };
+      const cached = await prisma.brainMemory.findFirst({ where, select: { id: true, metadata: true } });
+      const meta = (cached?.metadata as Record<string, unknown> | null) ?? {};
+      const picks = Array.isArray(meta.picks) ? (meta.picks as Array<{ personId?: string }>) : [];
+      const remaining = picks.filter((p) => p?.personId !== body.personId);
+      if (cached && remaining.length === 0) {
+        await prisma.brainMemory.deleteMany({ where });
+      } else if (cached && remaining.length < picks.length) {
+        await prisma.brainMemory.update({
+          where: { id: cached.id },
+          data: { metadata: { ...meta, picks: remaining } as never },
+        });
+      }
     } catch (cacheErr) {
       log.warn("picks_cache_invalidation_failed", {
         err:

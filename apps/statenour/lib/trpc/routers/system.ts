@@ -32,7 +32,6 @@
 
 import { router } from "../trpc";
 import { healthProcedures } from "./system/health";
-import { cronProcedures } from "./system/cron";
 import { autopilotProcedures } from "./system/autopilot";
 import { promptsProcedures } from "./system/prompts";
 import { qualityProcedures } from "./system/quality";
@@ -52,18 +51,33 @@ import { inboxProcedures } from "./system/inbox";
  * EVERY client path stays FLAT as `trpc.system.<proc>` — unchanged. No
  * nesting (that would shift paths to `trpc.system.<domain>.<proc>`).
  */
+// Procedures that live under systemAutomation / systemBrain are destructured out so each one has ONE path:
+// React Query keys on the path, so a second mount made invalidations miss the page's query (03-F6).
+// Pinned by tests/trpc/router-mount-uniqueness.test.ts. All cron procedures moved, so cronProcedures is not spread.
+const { approvals: _a, decideApproval: _d, approvalWindows: _w, ...autopilotOwn } = autopilotProcedures;
+const { getPendingApprovals: _p, ...actionsOwn } = actionsProcedures;
+const { brainBusEvents: _b, ...devicesOwn } = devicesProcedures;
+const {
+  antiPatterns: _ap,
+  createAntiPattern: _cap,
+  revisitAntiPattern: _rap,
+  deleteAntiPattern: _dap,
+  contradictions: _c,
+  resolveContradiction: _rc,
+  ...qualityOwn
+} = qualityProcedures;
+
 export const systemRouter = router({
   ...healthProcedures,
-  ...cronProcedures,
-  ...autopilotProcedures,
+  ...autopilotOwn,
   ...promptsProcedures,
-  ...qualityProcedures,
+  ...qualityOwn,
   ...schemaProcedures,
-  ...devicesProcedures,
+  ...devicesOwn,
   ...agentsProcedures,
   ...notificationsProcedures,
   ...digestProcedures,
   ...toolsProcedures,
-  ...actionsProcedures,
+  ...actionsOwn,
   ...inboxProcedures,
 });

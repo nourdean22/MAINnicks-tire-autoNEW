@@ -38,6 +38,9 @@ import type { Personality } from "@/lib/chat/types";
 
 export type ChatUIMessage = UIMessage<unknown, UIDataTypes, UITools>;
 
+/** Messages sent per turn; under the route's 200 cap (lib/ai/chat/gate.ts). */
+const SEND_WINDOW = 150;
+
 /** @deprecated alias — import {@link Personality} from `@/lib/chat/types` instead. */
 export type PersonaHeader = Personality;
 
@@ -109,6 +112,12 @@ export interface UseChatTransportOpts<TBody extends object = Record<string, unkn
    * failure than the 204 this feature replaced.
    */
   onResumePartial?: () => void;
+  /**
+   * R3-15 (review R3 wave A, finding 2): a resume GET answered 204. ai@6
+   * settles that as status "ready" with no error, so the caller decides
+   * whether it hid an interrupted turn. A mount-time 204 is normal.
+   */
+  onResumeEmpty?: () => void;
   /**
    * 2026-08-28 · escalation provenance. Fired on every turn that carried
    * a depth marker, whether or not the escalation actually happened.
@@ -183,6 +192,7 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
     setLastRunMode,
     onConversationId,
     onResumePartial,
+    onResumeEmpty,
     onEscalation,
     onMessagePersisted,
     resumeIntoMessageId,
@@ -207,6 +217,17 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
       new DefaultChatTransport({
         api: apiPath,
         body: getBody,
+        // 04-F15 (2026-10-10): the route refuses more than 200 messages, so a
+        // long thread failed on every send. Send the last SEND_WINDOW and say
+        // how many older ones were left out; the server's summary cache counts
+        // absolute positions and shifts by historyOffset. Same body the
+        // default builder sends, plus that one field.
+        prepareSendMessagesRequest: ({ id, messages, body, trigger, messageId }) => {
+          const historyOffset = Math.max(0, messages.length - SEND_WINDOW);
+          return {
+            body: { ...body, id, messages: messages.slice(historyOffset), trigger, messageId, historyOffset },
+          };
+        },
         // WP-A (2026-07-29): useChat's id is the STATIC "chat-v2", so the
         // default reconnect URL (`${api}/chat-v2/stream`) is meaningless —
         // the real conversation id lives in the transport body. Point the
@@ -232,6 +253,7 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
           const resumeInto =
             isResume && String(input).includes("traceId=") ? resumeIntoMessageId?.() : undefined;
           const res = await fetch(input, init);
+          if (isResume && res.status === 204) onResumeEmpty?.();
 
           // ── Conversation id (CRITICAL — every send before this fix
           //    was creating a new convo because the server-assigned id

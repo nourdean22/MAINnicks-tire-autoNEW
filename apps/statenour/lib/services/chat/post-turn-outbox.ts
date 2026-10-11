@@ -232,9 +232,10 @@ export async function getOutboxHealth(): Promise<OutboxQueueHealth> {
     prisma.postTurnOutbox.count({ where: { status: "pending" } }),
     prisma.postTurnOutbox.count({ where: { status: "processing" } }),
     prisma.postTurnOutbox.count({ where: { status: "done", updatedAt: { gte: since } } }),
-    prisma.postTurnOutbox.count({ where: { status: { in: [...DEAD_STATUSES] } } }),
+    // Chat work only: agent follow-ups share the table and have their own lane (08-X3).
+    prisma.postTurnOutbox.count({ where: { kind: OUTBOX_KIND.deferredBackground, status: { in: [...DEAD_STATUSES] } } }),
     prisma.postTurnOutbox.findFirst({
-      where: { status: { in: [...DEAD_STATUSES] } },
+      where: { kind: OUTBOX_KIND.deferredBackground, status: { in: [...DEAD_STATUSES] } },
       orderBy: { createdAt: "asc" },
       select: { createdAt: true, lastError: true },
     }),
@@ -256,15 +257,17 @@ export async function getOutboxHealth(): Promise<OutboxQueueHealth> {
  * Replay is idempotent by construction (see module header).
  */
 export async function redriveDeadOutboxRows(limit = 50): Promise<number> {
+  // Never re-arm a dead agent follow-up: replaying it is an unattended message (08-X3).
+  const kind = OUTBOX_KIND.deferredBackground;
   const rows = await prisma.postTurnOutbox.findMany({
-    where: { status: { in: [...DEAD_STATUSES] } },
+    where: { kind, status: { in: [...DEAD_STATUSES] } },
     orderBy: { createdAt: "asc" },
     take: limit,
     select: { id: true },
   });
   if (rows.length === 0) return 0;
   const res = await prisma.postTurnOutbox.updateMany({
-    where: { id: { in: rows.map((r) => r.id) }, status: { in: [...DEAD_STATUSES] } },
+    where: { id: { in: rows.map((r) => r.id) }, kind, status: { in: [...DEAD_STATUSES] } },
     data: { status: "pending", attempts: 0, nextAttemptAt: new Date() },
   });
   return res.count;

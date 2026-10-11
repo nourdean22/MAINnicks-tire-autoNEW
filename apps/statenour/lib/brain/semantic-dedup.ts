@@ -28,7 +28,7 @@
  *      b. JS-cosine fallback — only for rows without embedding_vec
  *   3. Greedy clustering: highest-confidence row claims its un-claimed
  *      near-duplicates from the adjacency map
- *   4. Merge each group: winner keeps confidence, sums seenCount,
+ *   4. Merge each group: winner keeps confidence, takes max seenCount,
  *      takes max lastSeen, concats metadata. Losers deleted.
  *   5. Cap at 100 deletions per run. Audit-log the action.
  */
@@ -328,7 +328,8 @@ export async function runSemanticDedup(opts: { dryRun?: boolean } = {}): Promise
     for (const group of groups) {
       if (result.deleted >= MAX_DELETIONS_PER_RUN) break;
       result.groups++;
-      const sumSeen = group.winner.seenCount + group.losers.reduce((s, l) => s + l.seenCount, 0);
+      // 05-X8: a near-duplicate is the same claim seen again, not new corroboration; max, not sum.
+      const mergedSeen = Math.max(group.winner.seenCount, ...group.losers.map((l) => l.seenCount));
       const maxLastSeen = group.losers.reduce(
         (m, l) => (l.lastSeen > m ? l.lastSeen : m),
         group.winner.lastSeen,
@@ -358,7 +359,7 @@ export async function runSemanticDedup(opts: { dryRun?: boolean } = {}): Promise
           await tx.brainMemory.update({
             where: { id: group.winner.id },
             data: {
-              seenCount: sumSeen,
+              seenCount: mergedSeen,
               lastSeen: maxLastSeen,
               metadata: winnerMeta as unknown as Parameters<typeof tx.brainMemory.update>[0]["data"]["metadata"],
             },

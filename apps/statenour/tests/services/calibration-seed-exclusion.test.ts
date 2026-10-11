@@ -8,14 +8,21 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const m = vi.hoisted(() => ({ memFindMany: vi.fn(), msgFindMany: vi.fn() }));
+const m = vi.hoisted(() => ({ memFindMany: vi.fn(), msgFindMany: vi.fn(), queryRawUnsafe: vi.fn(), getEmbedding: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
-  prisma: { brainMemory: { findMany: m.memFindMany }, chatMessage: { findMany: m.msgFindMany } },
+  prisma: {
+    brainMemory: { findMany: m.memFindMany },
+    chatMessage: { findMany: m.msgFindMany },
+    $queryRawUnsafe: m.queryRawUnsafe,
+  },
 }));
+vi.mock("@/lib/ai/provider", () => ({ getEmbedding: m.getEmbedding }));
 
 import { buildJudgeCalibration } from "@/lib/services/judge-calibration";
 import { selectQ32Turn } from "@/lib/evals/q32-regression";
 import { calibrationSeedRefusal } from "../../scripts/seed-judge-calibration";
+import { readComparisonHeads, readComparisons } from "@/lib/ai/judge-eval/persistence";
+import { calibrateAdvice } from "@/lib/ai/calibrated-confidence";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -31,6 +38,32 @@ describe("judge calibration reader", () => {
     await buildJudgeCalibration();
     expect(m.memFindMany.mock.calls[0][0].where).toMatchObject({ NOT: { key: { startsWith: "comparison_calibration_" } } });
     expect(m.msgFindMany.mock.calls[0][0].where.id.in).toEqual(["real1"]);
+  });
+});
+
+// R3-12 (06-F6): the canary verdict, the label queue and the KNN calibration read
+// still counted seeded rows. The cockpit feedback average is pinned in
+// system-observability-feedback-avg.test.ts.
+describe("seed exclusions in the remaining readers", () => {
+  const notSeededKey = { NOT: { key: { startsWith: "comparison_calibration_" } } };
+
+  it("readComparisonHeads (judge-eval canary verdict) excludes seeded comparison rows", async () => {
+    m.memFindMany.mockResolvedValueOnce([]);
+    await readComparisonHeads({ sinceDays: 7 });
+    expect(m.memFindMany.mock.calls[0][0].where).toMatchObject(notSeededKey);
+  });
+
+  it("readComparisons (label queue + judge agreement) excludes seeded comparison rows", async () => {
+    m.memFindMany.mockResolvedValueOnce([]);
+    await readComparisons({ take: 20 });
+    expect(m.memFindMany.mock.calls[0][0].where).toMatchObject(notSeededKey);
+  });
+
+  it("the calibrated-confidence KNN SQL excludes seeded messages", async () => {
+    m.getEmbedding.mockResolvedValueOnce([0.1, 0.2]);
+    m.queryRawUnsafe.mockResolvedValueOnce([]);
+    await calibrateAdvice("raise the brake pad price by ten percent");
+    expect(String(m.queryRawUnsafe.mock.calls[0][0])).toContain("cm.id NOT LIKE 'msg_calibration_%'");
   });
 });
 

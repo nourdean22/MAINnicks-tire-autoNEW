@@ -24,7 +24,7 @@
  * The list may only SHRINK: registering a key and leaving it here also fails,
  * so the baseline cannot rot into a permanent excuse.
  *
- * ★ IT WORKED, SAME DAY: the baseline opened at 11 keys and is now 4. Every
+ * ★ IT WORKED, SAME DAY: the baseline opened at 11 keys and fell to 4 that day. Every
  * real SWITCH among them is registered as a `readOnly` mirror (the runtime
  * still reads raw `process.env`; readOnly means a stale DB override cannot
  * make the board contradict it). What is left is exactly the four NUMERIC
@@ -32,6 +32,17 @@
  * NICK_ESCALATION_DAILY_CAP. Those stay baselined on purpose: they are values,
  * not on/off state, and a board built for switches would misrepresent them.
  * They still may not multiply unnoticed.
+ *
+ * 2026-10-10 (audit 03-F13): the scan only saw NICK_* names, so five live
+ * switches with other prefixes were invisible, one of them gating customer SMS.
+ * It now also flags any switch-shaped read (process.env.X === or !== a string
+ * literal) under any name. Six non-NICK names are baselined: NODE_ENV and
+ * VERCEL_ENV (environment identity), DEBUG_SQL and E2E_PLAIN_PG (dev/test),
+ * TTS_ENGINE (an engine selector) and ANTHROPIC_MYTHOS_ENABLED (a real switch,
+ * baselined by the R3 plan; registering it is the next shrink).
+ * IMAGES_REQUIRE_SIGNATURE is read through a constant (env[IMAGE_SIGNATURE_FLAG]),
+ * which no text scan sees; its registry row is pinned by the PREDICATES table in
+ * tests/lib/feature-flags-registry.test.ts instead.
  *
  * Keep this header honest as the number moves. An out-of-date count in a
  * comment is a cache with no invalidation — the exact defect the wave that
@@ -62,6 +73,13 @@ const KNOWN_UNREGISTERED = [
   "NICK_ESCALATION_DAILY_CAP",
   "NICK_TOOL_BUDGET",
   "NICK_TOOL_TIMEOUT_MS",
+  // 2026-10-10: switch-shaped reads under other names (see the header).
+  "ANTHROPIC_MYTHOS_ENABLED",
+  "DEBUG_SQL",
+  "E2E_PLAIN_PG",
+  "NODE_ENV",
+  "TTS_ENGINE",
+  "VERCEL_ENV",
   // NB: `NICK_HIGH_SPEC_GATE` is also read raw in app/, but it IS registered,
   // so it does not belong here. I added it anyway on the first pass and the
   // shrink-only rule rejected it — the rule catching its author is the best
@@ -93,6 +111,20 @@ function walk(dir: string, out: string[] = []): string[] {
  */
 const SCAN_ROOTS = ["lib", "app"];
 
+// A comment that describes a read is not a read (lib/feature-flags.ts has two).
+const COMMENT_LINE = /^\s*(\/\/|\/\*|\*|\{\/\*)/;
+
+/** Every NICK_* read, plus any switch-shaped read (=== / !== a string literal) under any name. */
+function envReadsIn(src: string): string[] {
+  const code = src.split("\n").filter((line) => !COMMENT_LINE.test(line)).join("\n");
+  return [
+    ...new Set([
+      ...[...code.matchAll(/process\.env\.(NICK_[A-Z0-9_]+)/g)].map((m) => m[1]),
+      ...[...code.matchAll(/process\.env\.([A-Z][A-Z0-9_]*)\s*[!=]==\s*["'`]/g)].map((m) => m[1]),
+    ]),
+  ];
+}
+
 function rawEnvSwitches(): Map<string, string[]> {
   const found = new Map<string, string[]>();
   const files = SCAN_ROOTS.flatMap((r) => {
@@ -103,12 +135,11 @@ function rawEnvSwitches(): Map<string, string[]> {
     }
   });
   for (const f of files) {
-    const src = readFileSync(f, "utf8");
-    for (const m of src.matchAll(/process\.env\.(NICK_[A-Z0-9_]+)/g)) {
-      const rel = f.slice(APP_ROOT.length + 1).replace(/\\/g, "/");
-      const list = found.get(m[1]) ?? [];
+    const rel = f.slice(APP_ROOT.length + 1).replace(/\\/g, "/");
+    for (const key of envReadsIn(readFileSync(f, "utf8"))) {
+      const list = found.get(key) ?? [];
       if (!list.includes(rel)) list.push(rel);
-      found.set(m[1], list);
+      found.set(key, list);
     }
   }
   return found;
@@ -116,7 +147,7 @@ function rawEnvSwitches(): Map<string, string[]> {
 
 function registeredKeys(): Set<string> {
   const src = readFileSync(join(APP_ROOT, "lib/feature-flags.ts"), "utf8");
-  return new Set([...src.matchAll(/key:\s*"(NICK_[A-Z0-9_]+)"/g)].map((m) => m[1]));
+  return new Set([...src.matchAll(/key:\s*"([A-Z][A-Z0-9_]*)"/g)].map((m) => m[1]));
 }
 
 describe("flag board visibility · a switch nobody can see cannot be reviewed", () => {
@@ -136,7 +167,25 @@ describe("flag board visibility · a switch nobody can see cannot be reviewed", 
     }
   });
 
-  it("no NEW unregistered NICK_ switch (the ratchet)", () => {
+  it("positive control: a planted non-NICK switch is flagged; a comment and a non-switch read are not", () => {
+    const fixture = [
+      'const live = process.env.FOO_LIVE === "1";',
+      '// process.env.BAR_LIVE === "1" is only described here',
+      "const url = process.env.DATABASE_URL;",
+    ].join("\n");
+    expect(envReadsIn(fixture)).toEqual(["FOO_LIVE"]);
+  });
+
+  it("the four switches mirrored by lib/feature-flags.ts predicates have ONE reader", () => {
+    // PREDICATES in feature-flags-registry.test.ts proves the predicate agrees with
+    // the board; that only means something if the runtime calls the predicate.
+    const reads = rawEnvSwitches();
+    for (const key of ["FEATURE_BULK_SMS_LIVE", "SEMANTIC_DEDUP_LIVE", "AGENT_BRIDGE_ENABLED", "NARRATOR_LLM_SYNTHESIS"]) {
+      expect(reads.get(key), `${key} is read outside its predicate`).toEqual(["lib/feature-flags.ts"]);
+    }
+  });
+
+  it("no NEW unregistered switch (the ratchet)", () => {
     const registered = registeredKeys();
     const unregistered = [...rawEnvSwitches()]
       .filter(([k]) => !registered.has(k))

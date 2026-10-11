@@ -205,4 +205,24 @@ describe("pre-stream-regen · orchestration", () => {
       result.durationMs.first,
     );
   });
+
+  // Audit 04-X13 (b): a throwing repair discarded a usable, already-paid draft
+  // and the turn fell through to a second full generation.
+  it("a regen that throws ships the first draft instead of rejecting", async () => {
+    const generateOnce = vi.fn().mockResolvedValue(VAGUE_REPLY);
+    const regenOnce = vi.fn().mockRejectedValue(new Error("provider dropped the stream"));
+
+    const result = await maybePreStreamRegen({
+      intent: "factual",
+      shape: "prose",
+      generateOnce,
+      regenOnce,
+    });
+
+    expect(regenOnce).toHaveBeenCalledOnce();
+    expect(result.text).toBe(VAGUE_REPLY);
+    expect(result.selectionReason).toBe("regen-failed");
+    expect(result.regenFired).toBe(false);
+    expect(result.regenScore).toBeNull();
+  });
 });

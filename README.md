@@ -299,15 +299,16 @@ The customer site + an autonomous operations backend for the shop.
 
 A deliberately thin **cron dispatcher** — not where jobs run.
 
-- **Three source files:** `src/storage.ts` (render uploads), `src/index.ts` (Express: `/health` + `POST /cron/mega` +
-  `POST /cron/mega-evening`, enforces `CRON_SECRET`, refuses to boot without it) and
-  `src/scheduler.ts` (an in-process `node-cron` loop for sub-hourly jobs).
+- **Main source files** (`ls apps/worker/src` for all): `src/index.ts` (Express: `/health` + `/health/scheduler`;
+  refuses to boot without `CRON_SECRET`), `src/scheduler.ts` (an in-process `node-cron` loop for sub-hourly jobs),
+  `src/forward.ts` (sends each tick to statenour-web) and `src/storage.ts` (render uploads).
 - Every tick **forwards an authenticated `fetch` to `STATENOUR_WEB_URL/api/cron/<name>`**
   (fire-and-forget, 60s timeout) — the worker holds no business logic and touches no DB.
-- High-frequency jobs (all UTC, `apps/worker/src/scheduler.ts:124-170`): `brain-bus-drain` (15m),
-  `outbox-drain` (15m), `device-heartbeat-sentinel` (15m), `inngest-liveness` (daily 13:00), plus an
-  in-process video-render loop (15m) that is not forwarded. Some daily/weekly jobs use Railway's
-  `/cron/mega*` fan-out, while standalone Inngest crons trigger independently. The authoritative job registry lives in
+- High-frequency jobs (all UTC, `apps/worker/src/scheduler.ts:134-175`): `brain-bus-drain` (15m),
+  `outbox-drain` (15m), `agent-followups` (15m), `device-heartbeat-sentinel` (15m), `inngest-liveness` (daily 13:00),
+  plus an in-process video-render loop (15m) that is not forwarded. Daily and weekly jobs run only through
+  statenour-web's Inngest mega fan-out (09:00 and 03:00 UTC, `lib/inngest/functions/mega-fanout.ts`);
+  `INNGEST_MEGA_V2` is a default-ON kill switch. Standalone Inngest crons trigger independently. The authoritative job registry lives in
   `apps/statenour/config/crons.ts`; the worker's table is a per-deploy snapshot.
 - Operator controls (kill-switch / run-now / status) live on statenour-web's `/system/crons`.
 
@@ -499,7 +500,7 @@ each with its own **Root Directory + Watch Path** so only the changed app redepl
 |---|---|---|---|
 | `MAINnicks-tire-auto` | nickstire | **No Dockerfile in repo.** Railway dashboard build/start commands (`pnpm --filter nicks-tire-auto build` / `start`), healthcheck `/api/health`. A legacy `vercel.json` remains for an install-command override. | `apps/nickstire/**` |
 | `statenour-web` | statenour | `apps/statenour/Dockerfile` — 3-stage `node:20-alpine`, **build context = monorepo root** (builds `@nour/utils` + `@statenour/lenses` dist first), Next.js standalone, runtime `node apps/statenour/server.js`, `PORT=8080`. | `apps/statenour/**` |
-| `statenour-worker` | worker | `apps/worker/Dockerfile` — 3-stage `node:20-alpine`, `pnpm deploy --prod --legacy` for a symlink-free artifact, `node dist/index.js`. Railway crons hit `/cron/mega` + `/cron/mega-evening`. | `apps/worker/**` |
+| `statenour-worker` | worker | `apps/worker/Dockerfile` — 3-stage `node:20-alpine`, `pnpm deploy --prod --legacy` for a symlink-free artifact, `node dist/index.js`. It serves no cron routes; it forwards its node-cron ticks to statenour-web. | `apps/worker/**` |
 
 There are **no `railway.json`/`railway.toml`/`Procfile`** files — deploy is
 driven by the statenour and worker Dockerfiles + nickstire's `nixpacks.toml` and dashboard-configured

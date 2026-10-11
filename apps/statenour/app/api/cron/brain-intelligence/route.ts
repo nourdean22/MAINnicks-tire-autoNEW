@@ -74,6 +74,7 @@ export const GET = cronHandler(async () => {
         const dateStr = new Date(p.createdAt).toISOString().split("T")[0];
 
         let actualScore: number | null = null;
+        let metric: "clicks" | "revenue" = "clicks";
         if (text.includes("click") || text.includes("gsc") || text.includes("search")) {
           const res = await queryNick<any>("gsc_summary", { from: dateStr, to: dateStr });
           if (res) {
@@ -81,6 +82,7 @@ export const GET = cronHandler(async () => {
             actualScore = typeof data.totalClicks === "number" ? data.totalClicks : null;
           }
         } else if (text.includes("revenue") || text.includes("sales") || text.includes("dollar")) {
+          metric = "revenue";
           const res = await queryNick<any>("revenue_range", { from: dateStr, to: dateStr });
           if (res) {
             const data = (res as any).data || res;
@@ -106,7 +108,7 @@ export const GET = cronHandler(async () => {
 
         if (actualScore !== null) {
           const captionText = meta?.captionPreview || p.content || "";
-          const result = await resolvePrediction({ captionText, actualScore });
+          const result = await resolvePrediction({ captionText, actualScore, metric });
           if (result.resolved) {
             resolvedAssistantCount++;
           }

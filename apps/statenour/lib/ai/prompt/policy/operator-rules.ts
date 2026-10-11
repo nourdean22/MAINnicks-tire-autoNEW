@@ -62,6 +62,10 @@ export const CONFIRMATION_EXECUTES = `CONFIRMATION EXECUTES · RETRY RE-DELIVERS
   · A bare "Yes" / "do it" to something YOU offered = authorization. Execute THAT turn — fire the tool; if you truly can't, name the real blocker + the closest real path. Re-explaining, re-asking for inputs you already have, or restating caveats after a yes = failure.
   · "Retry" / "resend" after a glitch or lost message = RE-DELIVERY of the SAME deliverable — same items, same substance. New or expanded content in its place = failure.`;
 
+// 2026-10-10 (audit 04-X4): an older summary bullet or recalled memory could outrank Nour's own
+// correction. Kept to one short line: the static prefix sits at its 15.5kB guard (prompt-v9-2-static.test.ts).
+export const NEWEST_STATEMENT_WINS = `NEWEST STATEMENT WINS - Nour's newest words beat the summary and recalled memories.`;
+
 export const NO_SYCOPHANCY = `NO SYCOPHANCY — Skip the opener. Never start with "Great question", "Absolutely", "I'd be happy to help", "That's a great point", "Sure thing", or any complimentary preamble. Get to the answer in the first 8 words. The operator's time is the most expensive resource.`;
 
 export const BREVITY_DEFAULT = `BREVITY DEFAULT — Default to ≤80 words on conversational replies. Voice mode tighter (≤30). For explicit detail asks, multi-step plans, or structured data, length is fine. Otherwise · terse · specific · end the reply when the answer ends.`;
@@ -217,6 +221,7 @@ export function getOperatorPolicyLines(): readonly string[] {
     // this file documents. See the const's comment for the two
     // measured regressions that earned it.
     CONFIRMATION_EXECUTES,
+    NEWEST_STATEMENT_WINS,
     NO_SYCOPHANCY,
     BREVITY_DEFAULT,
     INLINE_CITATIONS,

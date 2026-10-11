@@ -26,7 +26,8 @@
  * Exit codes (CI gate semantics):
  *   0 = cutover criteria 1, 2, 3 PASS
  *   1 = at least one criterion FAIL
- *   2 = no data (shadow mode hasn't run · enable NICK_PRIME_PROMPT=shadow first)
+ *   2 = no data (expected: the shadow producer was removed at the 2026-06-29 v2
+ *       cutover and the NICK_PRIME_PROMPT flag no longer exists)
  *
  * Skill provenance: prompt-engineering + claude-api +
  * production-code-audit (top-50 always-on floor).
@@ -102,7 +103,7 @@ async function main() {
             since: since.toISOString(),
             days,
             message:
-              "No prompt-shadow telemetry in window · enable NICK_PRIME_PROMPT=shadow in production for 24-48h to populate",
+              "No prompt-shadow telemetry in window. The shadow producer was removed at the 2026-06-29 v2 cutover and NICK_PRIME_PROMPT no longer exists, so no new rows are written.",
           },
           null,
           2,
@@ -114,9 +115,9 @@ async function main() {
       console.log("");
       console.log("✗ NO DATA · shadow mode hasn't run in this window.");
       console.log("");
-      console.log("To populate · set NICK_PRIME_PROMPT=shadow in the statenour-web");
-      console.log("Railway service's env vars and let the chat path accumulate 24-48h of paired");
-      console.log("turns · then re-run this script.");
+      console.log("Expected: the shadow producer was removed at the 2026-06-29 v2 cutover and");
+      console.log("NICK_PRIME_PROMPT no longer exists. There is one prompt builder, so nothing");
+      console.log("writes new prompt.shadow.* rows; only historical rows can appear here.");
       console.log("");
     }
     process.exit(2);

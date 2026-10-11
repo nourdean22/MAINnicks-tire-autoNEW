@@ -21,10 +21,14 @@ import { join } from "node:path";
 const FUNCTIONS_DIR = join(__dirname, "../../lib/inngest/functions");
 const CLIENT_FILE = join(__dirname, "../../lib/inngest/client.ts");
 
+const publishDurable = vi.fn(async () => ({ id: "evt", deduped: false }));
+
 afterEach(() => {
   vi.resetModules();
   vi.doUnmock("@/lib/prisma");
   vi.doUnmock("@/lib/utils/error-log");
+  vi.doUnmock("@/lib/db/brain-bus-durable");
+  publishDurable.mockClear();
 });
 
 /**
@@ -122,6 +126,7 @@ async function loadMiddleware(prisma: unknown) {
   vi.resetModules();
   vi.doMock("@/lib/prisma", () => ({ prisma }));
   vi.doMock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
+  vi.doMock("@/lib/db/brain-bus-durable", () => ({ publishDurable }));
   return import("../../lib/inngest/cron-lifecycle");
 }
 
@@ -699,7 +704,7 @@ describe("cron lifecycle · outcome receipts (2026-09-22)", () => {
     expect(deriveResultCount({ dryRun: 4 })).toBeNull(); // *Run suffix, but a dry-run marker is not work
     expect(deriveResultCount({ jobsRun: 7 })).toBe(7);
     // review on #2525: Prisma Int is signed 32-bit; a larger value is rejected by the database and would
-    // strand a finished run at started (the same bound countFrom in cron-manager.ts enforces)
+    // strand a finished run at started (route crons share this rule via logCronRun, 08-F13)
     expect(deriveResultCount({ processed: 2_147_483_647 })).toBe(2_147_483_647);
     expect(deriveResultCount({ processed: 2_147_483_648 })).toBeNull();
     expect(deriveResultCount([1, 2, 3])).toBe(3);
@@ -881,6 +886,40 @@ describe("cron lifecycle · one run, one row — parallel-step requests (2026-09
     expect(by("dead").status).toBe(CRON_STATUS.interrupted); // the guard does not stop the real sweep
   });
 
+  // 08-F14: a deploy-killed run was settled `interrupted` and paged nobody.
+  it("an interrupted run pages once: cron.failure / cron_run_failed with its jobName, deduped per row", async () => {
+    const { prisma, rows } = makeStore();
+    rows.push({ id: "dead", jobName: "consolidate", runId: "run-dead", status: "started", createdAt: new Date(Date.now() - 120 * 60_000) });
+    const { CronLifecycleMiddleware } = await loadMiddleware(prisma);
+    await new CronLifecycleMiddleware({ client: {} as never }).onRunStart({ ctx: { runId: "now" }, fn: cronFn("approval-sweeper") });
+    expect(publishDurable).toHaveBeenCalledTimes(1);
+    expect(publishDurable).toHaveBeenCalledWith(
+      "cron.failure",
+      "cron_run_failed",
+      expect.objectContaining({ jobName: "consolidate", error: expect.stringMatching(/interrupted/) }),
+      { dedupeKey: "cron-interrupted:dead" },
+    );
+  });
+
+  it("CONTROL: a duplicate, and a row that settled between the sweep's read and write, page nobody", async () => {
+    const { prisma, rows } = makeStore();
+    const m = 60_000;
+    rows.push({ id: "dup", jobName: "mega-fanout-evening", runId: "run-d", status: "started", createdAt: new Date(Date.now() - 300 * m) });
+    rows.push({ id: "dup-ok", jobName: "mega-fanout-evening", runId: "run-d", status: "success", createdAt: new Date(Date.now() - 299 * m) });
+    rows.push({ id: "late-ok", jobName: "outbox-drain", runId: "run-late", status: "started", createdAt: new Date(Date.now() - 300 * m) });
+    const findMany = prisma.cronJobLog.findMany;
+    let reads = 0;
+    prisma.cronJobLog.findMany = async (args) => {
+      const out = await findMany(args);
+      // After the sibling read (read 2), so the sweep still classifies it an orphan.
+      if (++reads === 2) rows.find((r) => r.id === "late-ok")!.status = "success";
+      return out;
+    };
+    const { CronLifecycleMiddleware } = await loadMiddleware(prisma);
+    await new CronLifecycleMiddleware({ client: {} as never }).onRunStart({ ctx: { runId: "now" }, fn: cronFn("approval-sweeper") });
+    expect(publishDurable).not.toHaveBeenCalled();
+  });
+
   it("`duplicate` is in the vocabulary and in neither positive list", async () => {
     const { CRON_STATUS, TERMINAL_OK_STATUSES } = await loadMiddleware(makeStore().prisma);
     expect(CRON_STATUS.duplicate).toBe("duplicate");
@@ -927,5 +966,30 @@ describe("cron lifecycle · a degraded output settles partial, not success (2026
     expect(deriveDegradation({ status: "completed" })).toEqual({ degraded: false, reason: null });
     expect(deriveDegradation(undefined)).toEqual({ degraded: false, reason: null });
     expect(deriveDegradation([1, 2])).toEqual({ degraded: false, reason: null });
+  });
+});
+
+// 08-F14: the 4-hourly diagnosis read `status: "failed"` only, so an interrupted run never reached it.
+describe("diagnose-cron-failure: reads every hard-failure status", () => {
+  it("the failed-logs read includes `interrupted`", async () => {
+    const findMany = vi.fn(async () => []);
+    vi.resetModules();
+    vi.doMock("@/lib/prisma", () => ({
+      prisma: {
+        cronJobLog: { findMany, groupBy: async () => [] },
+        schemaChangeLedger: { findFirst: async () => null },
+      },
+    }));
+    vi.doMock("@/lib/inngest/client", () => ({
+      getInngest: () => ({ createFunction: (_c: unknown, handler: unknown) => ({ handler }) }),
+    }));
+    vi.doMock("@/lib/inngest/on-failure", () => ({ onInngestFailure: vi.fn() }));
+    const { diagnoseCronFailure } = await import("../../lib/inngest/functions/diagnose-cron-failure");
+    const step = { run: async (_id: string, fn: () => unknown) => fn() };
+    await (diagnoseCronFailure as unknown as { handler: (a: unknown) => Promise<unknown> }).handler({ step });
+    const where = (findMany.mock.calls[0] as unknown as [{ where: { status: unknown } }])[0].where;
+    expect(where.status).toEqual({ in: ["failed", "interrupted"] });
+    vi.doUnmock("@/lib/inngest/client");
+    vi.doUnmock("@/lib/inngest/on-failure");
   });
 });

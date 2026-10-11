@@ -24,13 +24,25 @@
  * same classifier read mode uses. This test guards that deletion: the cheap,
  * plausible regression is someone re-adding `mutates` to a registry entry
  * "for the display", which would silently restore the second source.
+ *
+ * 2026-10-11 (audit 10-X10): the cost tier had the same shape. tool-families
+ * kept its own cheap/medium/expensive grade that disagreed with the catalog's
+ * free/cheap/medium/spendy, and a tool with no entry rendered as "medium".
+ * The field is deleted; the /system/tools row reads the catalog, unknown is null.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+vi.mock("@/lib/prisma", () => ({ prisma: {} }));
+vi.mock("@/lib/ai/tool-telemetry", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ai/tool-telemetry")>()),
+  getToolStats: async () => [],
+}));
+
 import { TOOL_FAMILIES } from "@/lib/ai/tool-families";
-import { TOOL_CATALOG } from "@/lib/ai/tools/catalog";
+import { TOOL_CATALOG, getToolMeta } from "@/lib/ai/tools/catalog";
 import { classifyTool } from "@/lib/ai/capability-registry";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -83,6 +95,25 @@ describe("tool mutation status has exactly one source", () => {
     const verdicts = new Set(TOOL_CATALOG.map((m) => classifyTool(m.name).readSafe));
     expect(verdicts).toEqual(new Set([true, false]));
     expect(TOOL_CATALOG.length).toBeGreaterThan(100);
+  });
+
+  it("no tool-families entry carries its own cost tier", () => {
+    const offenders = Object.entries(TOOL_FAMILIES as Record<string, Record<string, unknown>>)
+      .filter(([, meta]) => "cost" in meta)
+      .map(([name]) => name);
+    expect(offenders, "lib/ai/tools/catalog.ts is the single source of the cost tier").toEqual([]);
+  });
+
+  it("the /system/tools rows read cost from the catalog (unknown is null) and the rollup counts spendy", async () => {
+    // The CONSUMER, run for real: buildToolStats is what toolStats and /api/system/tools/stats return.
+    const { buildToolStats } = await import("@/lib/services/system-pages-b");
+    const view = await buildToolStats();
+    expect(view.tools.length).toBeGreaterThan(100);
+    const wrong = view.tools.filter((r) => r.cost !== (getToolMeta(r.name)?.cost ?? null)).map((r) => r.name);
+    expect(wrong, "row.cost must equal the catalog tier").toEqual([]);
+    const spendyRows = view.tools.filter((r) => r.cost === "spendy").length;
+    expect(spendyRows, "positive control: the catalog has spendy tools").toBeGreaterThan(0);
+    expect(view.families.reduce((s, f) => s + f.spendyCount, 0)).toBe(spendyRows);
   });
 
   it("the two tools this audit found writing to the brain are classified as writers", () => {

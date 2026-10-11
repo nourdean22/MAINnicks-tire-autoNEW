@@ -374,14 +374,15 @@ export async function getAccessToken(accountKey: string = "primary"): Promise<st
       expiresAt,
     });
 
-    // Mark integration healthy on successful refresh
+    // Mark integration healthy on successful refresh. NOT lastSyncAt: that
+    // means "ingest fetched" (ingest-gmail stamps it), or the 7-day stale
+    // check can never fire while refreshes work (audit 08-F3).
     await tx.integration
       .update({
         where: { name: integrationName },
         data: {
           status: "healthy",
           consecutiveFailures: 0,
-          lastSyncAt: new Date(),
           config: {
             ...(stored as unknown as object),
             lastRefreshAt: new Date().toISOString(),
@@ -526,8 +527,10 @@ export interface GoogleOauthStatus {
 
 const STALE_AFTER_MS = 7 * 86400_000;
 
+type IntegrationRow = NonNullable<Awaited<ReturnType<typeof prisma.integration.findUnique>>>;
+
 export async function getGoogleOauthStatus(): Promise<GoogleOauthStatus> {
-  let integration: Awaited<ReturnType<typeof prisma.integration.findUnique>> = null;
+  let integration: IntegrationRow | null = null;
   try {
     integration = await prisma.integration.findUnique({
       where: { name: GOOGLE_INTEGRATION_NAME },
@@ -545,7 +548,56 @@ export async function getGoogleOauthStatus(): Promise<GoogleOauthStatus> {
       probeFailed: true,
     };
   }
+  return statusOfRow(integration);
+}
 
+export interface GoogleOauthAccountsStatus extends GoogleOauthStatus {
+  /** Every account read, primary first. Empty when the table could not be read. */
+  accounts: Array<{ key: string; state: GoogleOauthStatus["state"] }>;
+}
+
+const STATE_RANK: Record<GoogleOauthStatus["state"], number> = { healthy: 0, stale: 1, missing: 2, expired: 3 };
+
+/**
+ * Every Google account, not just the primary row (audit 08-F3): a dead
+ * `google_oauth_personal` used to read healthy. The worst account's status
+ * wins and its key prefixes the reason. The primary is always read (missing
+ * when absent); a non-primary row with no refresh token is not configured,
+ * as in listConfiguredAccounts. Never throws: a failed read is probeFailed.
+ */
+export async function getGoogleOauthAccountsStatus(): Promise<GoogleOauthAccountsStatus> {
+  let rows: IntegrationRow[];
+  try {
+    rows = await prisma.integration.findMany({
+      where: { OR: [{ name: GOOGLE_INTEGRATION_NAME }, { name: { startsWith: "google_oauth_" } }] },
+    });
+  } catch {
+    return {
+      state: "missing",
+      lastSyncAt: null,
+      consecutiveFailures: 0,
+      email: null,
+      reason: "Integration table unreadable - check DB connectivity",
+      probeFailed: true,
+      accounts: [],
+    };
+  }
+  const per = [
+    { key: "primary", status: statusOfRow(rows.find((r) => r.name === GOOGLE_INTEGRATION_NAME) ?? null) },
+    ...rows
+      .filter((r) => r.name !== GOOGLE_INTEGRATION_NAME && (r.config as unknown as StoredToken | null)?.refreshToken)
+      .map((r) => ({ key: r.name.replace(/^google_oauth_/, ""), status: statusOfRow(r) })),
+  ];
+  const worst = per.reduce((a, b) => (STATE_RANK[b.status.state] > STATE_RANK[a.status.state] ? b : a));
+  return {
+    ...worst.status,
+    reason: per.length > 1 ? `${worst.key}: ${worst.status.reason}` : worst.status.reason,
+    accounts: per.map((p) => ({ key: p.key, state: p.status.state })),
+  };
+}
+
+/** One integration row's OAuth state; shared by the primary and all-accounts reads. */
+function statusOfRow(integration: IntegrationRow | null): GoogleOauthStatus {
   if (!integration?.config) {
     return {
       state: "missing",

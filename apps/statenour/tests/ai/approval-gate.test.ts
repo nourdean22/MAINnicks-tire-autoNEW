@@ -20,7 +20,7 @@ vi.mock("@/lib/tools/tool-policy", () => ({
 const { prismaMock } = vi.hoisted(() => ({
   prismaMock: {
     approvalRequest: {
-      findFirst: vi.fn(),
+      findMany: vi.fn(),
       findUnique: vi.fn(),
       create: vi.fn(async () => ({ id: "req_new" })),
     },
@@ -53,15 +53,13 @@ function row(overrides: Record<string, unknown>) {
 beforeEach(() => {
   vi.clearAllMocks();
   pendingExecutions.clear();
-  prismaMock.approvalRequest.findFirst.mockResolvedValue(null);
+  prismaMock.approvalRequest.findMany.mockResolvedValue([]);
   prismaMock.approvalRequest.findUnique.mockResolvedValue(null);
 });
 
 describe("checkApprovalGate · executed is a receipt, not a standing approval", () => {
   it("(a) identical payload after an executed approval requires a NEW approval", async () => {
-    prismaMock.approvalRequest.findFirst.mockResolvedValueOnce(
-      row({ status: "executed", executedAt: new Date(), resultPayload: { sid: "SM1" } }),
-    );
+    prismaMock.approvalRequest.findMany.mockResolvedValueOnce([row({ status: "executed", executedAt: new Date(), resultPayload: { sid: "SM1" } })]);
 
     const res = await checkApprovalGate(TOOL, PAYLOAD);
 
@@ -86,7 +84,7 @@ describe("checkApprovalGate · executed is a receipt, not a standing approval", 
 
   it("(b) key-order-different but equal payloads match the same request", async () => {
     const reordered = { meta: { b: [1, 2], a: 1 }, body: "Your car is ready", to: "+15550100" };
-    prismaMock.approvalRequest.findFirst.mockResolvedValueOnce(row({ status: "pending_approval" }));
+    prismaMock.approvalRequest.findMany.mockResolvedValueOnce([row({ status: "pending_approval" })]);
 
     const res = await checkApprovalGate(TOOL, reordered);
 
@@ -96,7 +94,7 @@ describe("checkApprovalGate · executed is a receipt, not a standing approval", 
 
   it("(b') array order stays significant", async () => {
     const different = { ...PAYLOAD, meta: { a: 1, b: [2, 1] } };
-    prismaMock.approvalRequest.findFirst.mockResolvedValueOnce(row({ status: "pending_approval" }));
+    prismaMock.approvalRequest.findMany.mockResolvedValueOnce([row({ status: "pending_approval" })]);
 
     const res = await checkApprovalGate(TOOL, different);
 
@@ -131,7 +129,7 @@ describe("checkApprovalGate · executed is a receipt, not a standing approval", 
 
 describe("checkApprovalGate · other statuses unchanged", () => {
   it("(d) pending_approval match returns the existing id and registers the closure", async () => {
-    prismaMock.approvalRequest.findFirst.mockResolvedValueOnce(row({ status: "pending_approval" }));
+    prismaMock.approvalRequest.findMany.mockResolvedValueOnce([row({ status: "pending_approval" })]);
     const fn = vi.fn();
 
     const res = await checkApprovalGate(TOOL, PAYLOAD, fn, [PAYLOAD]);
@@ -142,7 +140,7 @@ describe("checkApprovalGate · other statuses unchanged", () => {
   });
 
   it("(d) approved match returns the existing id (the executor runs it, not the caller)", async () => {
-    prismaMock.approvalRequest.findFirst.mockResolvedValueOnce(row({ status: "approved" }));
+    prismaMock.approvalRequest.findMany.mockResolvedValueOnce([row({ status: "approved" })]);
 
     const res = await checkApprovalGate(TOOL, PAYLOAD);
 
@@ -150,21 +148,17 @@ describe("checkApprovalGate · other statuses unchanged", () => {
   });
 
   it("(d) rejected match throws", async () => {
-    prismaMock.approvalRequest.findFirst.mockResolvedValueOnce(row({ status: "rejected" }));
+    prismaMock.approvalRequest.findMany.mockResolvedValueOnce([row({ status: "rejected" })]);
     await expect(checkApprovalGate(TOOL, PAYLOAD)).rejects.toThrow("Action rejected by operator");
   });
 
   it("(d) failed match throws with the stored error", async () => {
-    prismaMock.approvalRequest.findFirst.mockResolvedValueOnce(
-      row({ status: "failed", resultPayload: { error: "twilio 500" } }),
-    );
+    prismaMock.approvalRequest.findMany.mockResolvedValueOnce([row({ status: "failed", resultPayload: { error: "twilio 500" } })]);
     await expect(checkApprovalGate(TOOL, PAYLOAD)).rejects.toThrow(/twilio 500/);
   });
 
   it("an expired pending/approved match is ignored and a fresh request is raised", async () => {
-    prismaMock.approvalRequest.findFirst.mockResolvedValueOnce(
-      row({ status: "approved", expiresAt: new Date(Date.now() - 1000) }),
-    );
+    prismaMock.approvalRequest.findMany.mockResolvedValueOnce([row({ status: "approved", expiresAt: new Date(Date.now() - 1000) })]);
 
     const res = await checkApprovalGate(TOOL, PAYLOAD);
 
@@ -174,7 +168,7 @@ describe("checkApprovalGate · other statuses unchanged", () => {
 
   it("bounds the payload-match lookup to the 24h dedupe window, like withGuardian", async () => {
     await checkApprovalGate(TOOL, PAYLOAD);
-    const where = prismaMock.approvalRequest.findFirst.mock.calls[0][0].where;
+    const where = prismaMock.approvalRequest.findMany.mock.calls[0][0].where;
     const boundMs = Date.now() - (where.createdAt.gte as Date).getTime();
     expect(boundMs).toBeGreaterThan(24 * HOUR - 10_000);
     expect(boundMs).toBeLessThan(24 * HOUR + 10_000);

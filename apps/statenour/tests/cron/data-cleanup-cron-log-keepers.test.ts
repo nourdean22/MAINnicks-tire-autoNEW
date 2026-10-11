@@ -31,6 +31,7 @@ vi.mock("@/lib/prisma", () => {
     updateMany: () => Promise.resolve({ count: 0 }),
     create: () => Promise.resolve({}),
     count: () => Promise.resolve(0),
+    findMany: () => Promise.resolve([]), // 05-X2: brain sweeps read ids before deleting
   });
   const cronJobLog = { deleteMany: (...a: unknown[]) => h.cronDeleteMany(...a) };
   const prisma = new Proxy(

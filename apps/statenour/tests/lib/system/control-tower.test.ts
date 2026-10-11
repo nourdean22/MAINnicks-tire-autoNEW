@@ -1,11 +1,11 @@
 /**
- * tests/lib/system/control-tower.test.ts · 2026-09-16 · W7 (System recomposition)
+ * tests/lib/system/control-tower.test.ts (2026-09-16, W7 System recomposition)
  *
- * /system opens with ONE verdict — "ALL SYSTEMS NOMINAL" or "N REQUIRE
- * ATTENTION" — followed only by the exceptions. The verdict is a pure
+ * /system opens with ONE verdict: "ALL SYSTEMS NOMINAL" or "N REQUIRE
+ * ATTENTION", followed only by the exceptions. The verdict is a pure
  * function of the reads the page already holds, so it is pinned here:
  * unknown is never nominal (a failed read must not render as a healthy
- * system — the 2026-08-19 unknown-is-not-clean rule), every exception
+ * system: the 2026-08-19 unknown-is-not-clean rule), every exception
  * source counts once, and the headline's grammar follows the count.
  */
 import { describe, expect, it } from "vitest";
@@ -19,7 +19,7 @@ const clean: TowerDiagnostics = {
   integrations: [{ name: "resend", status: "ok", enabled: true }],
 };
 
-describe("controlTower · one verdict, then the exceptions", () => {
+describe("controlTower: one verdict, then the exceptions", () => {
   it("is UNKNOWN, not nominal, before any measurement exists", () => {
     const v = controlTower({ diagnostics: null, health: null, diagnosticsReadFailed: false });
     expect(v.state).toBe("unknown");
@@ -79,6 +79,38 @@ describe("controlTower · one verdict, then the exceptions", () => {
     });
     expect(v.headline).toBe("1 REQUIRES ATTENTION");
     expect(v.exceptions[0]?.line).toBe("1 error in the last 24h");
+  });
+
+  it("device exceptions carry no link: /system/fleet has no device rows (10-X2)", () => {
+    const v = controlTower({
+      diagnostics: { ...clean, db: { connected: false, latency_ms: 0 }, devices: { online: 1, offline: 2, error: 1, total: 4 } },
+      health: null,
+      diagnosticsReadFailed: false,
+    });
+    expect(v.exceptions.find((e) => e.key === "devices-error")?.href).toBeUndefined();
+    expect(v.exceptions.find((e) => e.key === "devices-offline")?.href).toBeUndefined();
+    // control: the db exception keeps its link, so the assertion above is about devices, not hrefs in general
+    expect(v.exceptions.find((e) => e.key === "db")?.href).toBe("/system/health");
+  });
+
+  it("never-reported devices are their own amber exception, not dropped (R3-01 hand-off A)", () => {
+    const v = controlTower({
+      diagnostics: { ...clean, devices: { online: 3, offline: 0, error: 0, notReporting: 2, total: 5 } },
+      health: null,
+      diagnosticsReadFailed: false,
+    });
+    expect(v.state).toBe("attention");
+    expect(v.exceptions).toEqual([{ key: "devices-not-reporting", line: "2 devices not reporting", tone: "amber" }]);
+  });
+
+  it("one never-reported device reads singular; a payload without the field adds nothing", () => {
+    const one = controlTower({
+      diagnostics: { ...clean, devices: { online: 3, offline: 0, error: 0, notReporting: 1, total: 4 } },
+      health: null,
+      diagnosticsReadFailed: false,
+    });
+    expect(one.exceptions[0]?.line).toBe("1 device not reporting");
+    expect(controlTower({ diagnostics: clean, health: null, diagnosticsReadFailed: false }).exceptions).toEqual([]);
   });
 
   it("keeps the last read but names a failed refresh as an exception", () => {

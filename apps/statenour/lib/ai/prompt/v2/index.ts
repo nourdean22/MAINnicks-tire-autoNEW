@@ -33,8 +33,8 @@
  * 2026-07-11 review · CUTOVER COMPLETE. v2 is the SOLE prompt builder —
  * buildSystemPrompt() calls buildSystemPromptV2() unconditionally. The
  * NICK_PRIME_PROMPT flag no longer gates anything (isPromptV2Enabled()
- * returns true unconditionally and nothing consults it); it is marked
- * deprecated in feature-flags.ts. There is NO v1 builder left, so
+ * returns true unconditionally and nothing consults it); it is no longer
+ * registered in lib/feature-flags.ts. There is NO v1 builder left, so
  * "NICK_PRIME_PROMPT=off" is NOT a valid rollback lever — do not document
  * it as one.
  */

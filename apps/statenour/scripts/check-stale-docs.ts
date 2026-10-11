@@ -68,6 +68,7 @@ export const STALE_TERMS: StaleTerm[] = [
   { term: "deployed on Vercel", severity: "critical", recommendation: "Vercel is retired for statenour. Production is `main` → Railway → bdnick.info." },
   { term: "deploy to Vercel", severity: "critical", recommendation: "Vercel is retired for statenour. Production is `main` → Railway → bdnick.info." },
   { term: "Vercel project config", severity: "critical", recommendation: "No Vercel project for statenour. Deploy config is Railway service watch-paths." },
+  { term: "Vercel project env", severity: "critical", recommendation: "No Vercel project for statenour. Env lives in Railway service variables (statenour-web)." },
   { term: "github.com/nourdean22/statenour-os", severity: "critical", recommendation: "Standalone repo retired. statenour lives in nourdean22/MAINnicks-tire-autoNEW at apps/statenour." },
   { term: "C:\\Users\\nourd\\NOUR-OS", severity: "critical", recommendation: "Retired local path. Canonical checkout is C:\\Users\\nourd\\NOURCITY." },
   // ── warn: hardcoded provider/model claims ──
@@ -116,6 +117,8 @@ export function fileIsHistorical(relPath: string, content: string): boolean {
   if (norm.includes("/archive/") || norm.includes("/adr/")) return true;
   if (DATE_RE.test(base)) return true;
   if (/HISTORICAL|DO-NOT-EXECUTE/i.test(base)) return true;
+  // The read-first doc is current by definition; a dated "superseded" note near its top must not blind the scan.
+  if (norm.endsWith("docs/CURRENT-TRUTH.md")) return false;
   const header = content.split(/\r?\n/).slice(0, 25).join("\n");
   if (hasSafeWord(header)) return true;
   return false;

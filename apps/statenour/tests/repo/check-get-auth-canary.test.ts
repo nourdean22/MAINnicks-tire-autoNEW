@@ -236,6 +236,19 @@ describe("routes the hardened gate flagged on 2026-10-10 now pass it", () => {
   });
 });
 
+describe("07-X4: owner-private routes the proxy gate alone used to guard are scanned and authed", () => {
+  // oauth/google-data/status is wrapped by R3-08; this row is its consumer.
+  const ROUTES = [
+    "content/render-asset", "tools/health", "drive/sync", "notifications", "notifications/subscribe", "habits",
+    "oauth/google-data/status",
+  ];
+  it.each(ROUTES)("app/api/%s", (name) => {
+    const file = `app/api/${name}/route.ts`;
+    expect(listRoutes()).toContain(file);
+    expect(checkSource(readFileSync(join(APP_ROOT, file), "utf8"))).toEqual([]);
+  });
+});
+
 describe("binary probe - the real script, end to end", () => {
   const dir = mkdtempSync(join(tmpdir(), "get-auth-canary-"));
   afterAll(() => rmSync(dir, { recursive: true, force: true }));

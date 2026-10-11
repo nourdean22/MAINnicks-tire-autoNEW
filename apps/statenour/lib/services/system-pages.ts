@@ -103,7 +103,8 @@ export interface DiagnosticsView {
     brainMemories: number;
     automationRules: number;
   };
-  devices: { online: number; offline: number; error: number; total: number };
+  /** notReporting = status UNKNOWN (the schema default): never reported, not offline. */
+  devices: { online: number; offline: number; error: number; notReporting: number; total: number };
   integrations: Array<{
     name: string;
     status: string;
@@ -174,11 +175,12 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
       }),
     ]);
 
-  const devices = { online: 0, offline: 0, error: 0, total: 0 };
+  const devices = { online: 0, offline: 0, error: 0, notReporting: 0, total: 0 };
   for (const g of deviceCounts) {
     devices.total += g._count.id;
     if (g.status === "ONLINE") devices.online = g._count.id;
     else if (g.status === "ERROR") devices.error = g._count.id;
+    else if (g.status === "UNKNOWN") devices.notReporting = g._count.id;
     else devices.offline += g._count.id;
   }
 
@@ -215,7 +217,8 @@ export interface SystemHealthView {
   tasks: { inbox: number; ready: number; doing: number; done: number; total: number };
   alerts: MetricResult<{ unresolved: number }>;
   commitments: { active: number };
-  devices: { online: number; offline: number; total: number };
+  /** Same split as DiagnosticsView: ERROR and never-reported UNKNOWN are not offline. */
+  devices: { online: number; offline: number; error: number; notReporting: number; total: number };
   radar: MetricResult<{
     threads: { active: number; dormant: number; archived: number; total: number };
     pendingCandidates: number;
@@ -342,11 +345,13 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
       if (key in tasks) tasks[key] = count;
     }
 
-    const devices = { online: 0, offline: 0, total: 0 };
+    const devices = { online: 0, offline: 0, error: 0, notReporting: 0, total: 0 };
     for (const g of deviceCounts) {
       const count = g._count.id;
       devices.total += count;
       if (g.status === "ONLINE") devices.online = count;
+      else if (g.status === "ERROR") devices.error = count;
+      else if (g.status === "UNKNOWN") devices.notReporting = count;
       else devices.offline += count;
     }
 
@@ -419,7 +424,14 @@ export interface AutonomousActionsFeed {
     pending: number;
     approved: number;
     rejected: number;
+    /** Claimed by the approval queue and executing. */
+    processing: number;
+    /** May have run; check before retrying. */
+    needs_review: number;
+    /** Any status not listed above, so the buckets always sum to totalInWindow. */
+    other: number;
   };
+  /** Every action in the window (sum of the buckets), not the 100-row page. */
   totalInWindow: number;
   generatedAt: string;
 }
@@ -516,12 +528,13 @@ export async function buildAutonomousActionsFeed(opts: {
     }))
     .sort((a, b) => b.total - a.total);
 
-  const approvalBreakdown = {
-    auto: totals.find((t) => t.approval === "auto")?._count.id ?? 0,
-    pending: totals.find((t) => t.approval === "pending")?._count.id ?? 0,
-    approved: totals.find((t) => t.approval === "approved")?._count.id ?? 0,
-    rejected: totals.find((t) => t.approval === "rejected")?._count.id ?? 0,
-  };
+  const approvalBreakdown = { auto: 0, pending: 0, approved: 0, rejected: 0, processing: 0, needs_review: 0, other: 0 };
+  const listed = new Set(["auto", "pending", "approved", "rejected", "processing", "needs_review"]);
+  for (const t of totals) {
+    const key = (listed.has(t.approval) ? t.approval : "other") as keyof typeof approvalBreakdown;
+    approvalBreakdown[key] += t._count.id;
+  }
+  const totalInWindow = totals.reduce((sum, t) => sum + t._count.id, 0);
 
   return {
     recent: recent.map((r) => ({
@@ -531,7 +544,7 @@ export async function buildAutonomousActionsFeed(opts: {
     })),
     rules,
     approvalBreakdown,
-    totalInWindow: recent.length,
+    totalInWindow,
     generatedAt: new Date().toISOString(),
   };
 }
@@ -1564,10 +1577,6 @@ export interface DeploymentTruthView {
     }>;
   };
   env: { checks: SecretCheck[]; missingCritical: number };
-  nickPrime: {
-    mode: "off" | "shadow" | "on" | "unknown";
-    description: string;
-  };
   cron: {
     last24hRuns: number;
     last24hSuccess: number;
@@ -1589,23 +1598,6 @@ const DEPLOYMENT_SECRET_CHECKS: Array<Omit<SecretCheck, "configured">> = [
   { name: "MAKE_WEBHOOK_SECRET", critical: false },
   { name: "GITHUB_TOKEN", critical: false },
 ];
-
-function detectPromptMode(): DeploymentTruthView["nickPrime"] {
-  const v = (process.env.NICK_PRIME_PROMPT ?? "").toLowerCase();
-  if (v === "1" || v === "on") {
-    return { mode: "on", description: "v2 prompt is production default" };
-  }
-  if (v === "shadow") {
-    return {
-      mode: "shadow",
-      description: "v1 serves; v2 builds in parallel for parity logging",
-    };
-  }
-  if (v === "" || v === "0" || v === "off") {
-    return { mode: "off", description: "v1 prompt is the only path" };
-  }
-  return { mode: "unknown", description: `unrecognized value: ${v}` };
-}
 
 /** Live deployment-agreement check — code SHA + schema drift + env
  *  presence + prompt mode + cron health. 30s-cached. Lifted verbatim
@@ -1746,7 +1738,6 @@ export async function buildDeploymentTruth(): Promise<DeploymentTruthView> {
           checks: envChecks,
           missingCritical,
         },
-        nickPrime: detectPromptMode(),
         cron: {
           last24hRuns: cronTotal,
           last24hSuccess: cronSuccess,

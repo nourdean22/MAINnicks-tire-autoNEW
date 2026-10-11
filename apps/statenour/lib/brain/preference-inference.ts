@@ -1,16 +1,17 @@
 /**
  * Arc B Feature 1 · Preference Inference Engine · v10.0.526
  *
- * Watches every thumbs-up / thumbs-down on assistant replies and
- * infers an 8-axis style preference vector for the operator. The
- * vector is applied as a system-prompt addendum on every turn
- * (lib/ai/style-adapter.ts).
+ * An 8-axis style preference vector for the operator, applied as a
+ * system-prompt addendum on every turn (lib/ai/style-adapter.ts). Nothing
+ * reads thumbs feedback into it today (see below).
  *
  * 2026-10-10 (audit 06-F10): NOTHING tunes the vector automatically. The
  * weekly tuner (runWeeklyTune + aggregateRecentFeedback) lost its cron in the
  * prune f87fb7e62 and was deleted; the only writer is the operator's manual
  * override (lib/services/preference-vector.ts savePreferenceVectorOverride).
- * The axis math below is kept for that override and for a future tuner.
+ * The override uses AXES, the load/save pair and buildSystemPromptAddendum.
+ * The feedback math lost its last caller with inferDeltaFromFeedback and was
+ * deleted 2026-10-11 (R3-13); a re-wired tuner starts from git history.
  *
  * NO NEW TABLES. The vector lives inside `OperatorPreference.
  * voiceToneBoundaries` (existing `Json?` column) under the key
@@ -27,35 +28,10 @@
  *   jargon        plain(-1) ←→ technical(+1)
  *   structure     prose(-1) ←→ bulleted(+1)
  *   urgency       calm(-1) ←→ urgent(+1)
- *
- * Inference heuristics (axis-math · see test file for proof):
- *
- *   Each reply is characterized by its observable features:
- *     · word-count       → density signal
- *     · bullet-density   → structure signal
- *     · question-mark / hedge-word count → skepticism signal
- *     · ANTI_NOUR hit    → directness signal (negative · cushioned tells)
- *     · NOUR_HIT_WORDS   → directness signal (positive · blunt tells)
- *     · "!" / "now" / "today" → urgency signal
- *     · code-block / camelCase identifier density → jargon signal
- *     · NOUR_HIT_WORDS overlap with creative tokens → creativity signal
- *     · emoji / "haha"/ "lol" / "?!" → humor signal
- *
- *   A thumbs-up (+1) means "more of this style." A thumbs-down (-1)
- *   means "less of this style." So the delta on each axis equals
- *   the reply's signed feature-strength × the feedback score.
- *
- *   Example: a reply scored 0.6 on bulleted-density and gets thumbs-
- *   up (+1) → axis "structure" gets +0.6 toward bulleted. Same reply
- *   gets thumbs-down (-1) → structure gets -0.6 toward prose.
- *
- *   Updates apply via weighted decay (learningRate × delta) so a
- *   single noisy reply can't flip the vector. Clamped to [-1, 1].
  */
 
 import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
-import { ANTI_NOUR, NOUR_HIT_WORDS } from "@/lib/ai/nour-voice-profile";
 
 const log = rootLogger.withSurface("brain/preference-inference");
 
@@ -91,9 +67,6 @@ const SINGLE_OPERATOR_EMAIL = process.env.OPERATOR_EMAIL || "nourdean22@gmail.co
 /** Storage key inside OperatorPreference.voiceToneBoundaries. */
 const STORE_KEY = "preferenceVector";
 
-/** Default learning rate · single feedback shifts axis by at most 10% of its observed signal. */
-export const DEFAULT_LEARNING_RATE = 0.1;
-
 function clamp(n: number, lo: number = -1, hi: number = 1): number {
   if (!Number.isFinite(n)) return 0;
   if (n < lo) return lo;
@@ -112,174 +85,6 @@ function normalizeVector(input: unknown): PreferenceVector {
     }
   }
   return out;
-}
-
-/**
- * Score a reply's observable style features. Each axis returns a
- * value in [-1, 1] where the SIGN is the direction (e.g. +0.6 on
- * structure = bulleted, -0.4 = prose-heavy). Used both for inference
- * and for unit tests.
- *
- * Pure function · safe to call without DB.
- */
-export interface StyleFeatures {
-  density: number;
-  creativity: number;
-  skepticism: number;
-  directness: number;
-  humor: number;
-  jargon: number;
-  structure: number;
-  urgency: number;
-}
-
-export function scoreReplyFeatures(text: string): StyleFeatures {
-  const t = (text || "").slice(0, 8000); // cap analysis cost
-  const words = t.trim().split(/\s+/).filter(Boolean).length;
-
-  // Empty / whitespace-only · no signal · zero on every axis. Keeps
-  // the aggregate cron's deltas clean when an empty reply somehow
-  // gets feedback.
-  if (words === 0) {
-    return {
-      density: 0,
-      creativity: 0,
-      skepticism: 0,
-      directness: 0,
-      humor: 0,
-      jargon: 0,
-      structure: 0,
-      urgency: 0,
-    };
-  }
-
-  const lines = t.split(/\n/).filter((l) => l.trim().length > 0);
-  const bulletLines = lines.filter((l) => /^\s*([-*•]|\d+\.)\s+/.test(l)).length;
-
-  // density: shorter than 60 words = terse · longer than 300 = verbose
-  const density = clamp((words - 180) / 240); // 60→-0.5, 300→+0.5, 420→+1
-
-  // structure: ratio of bulleted lines to total non-empty lines
-  const structure = lines.length === 0
-    ? 0
-    : clamp(bulletLines / lines.length * 2 - 0.2); // 50% bullets → +0.8
-
-  // skepticism: hedge words + question marks per 100 words
-  const hedgePattern = /\b(might|maybe|perhaps|possibly|could be|not sure|uncertain|likely|probably|I think|seems|appears)\b/gi;
-  const hedgeCount = (t.match(hedgePattern) || []).length;
-  const qmarkCount = (t.match(/\?/g) || []).length;
-  const skepticism = clamp(((hedgeCount + qmarkCount) / Math.max(1, words / 100)) / 6);
-
-  // directness: NOUR_HIT_WORDS push +, ANTI_NOUR push -
-  let blunt = 0;
-  for (const w of NOUR_HIT_WORDS) {
-    const re = new RegExp(`\\b${w.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "gi");
-    blunt += (t.match(re) || []).length;
-  }
-  let cushioned = 0;
-  for (const pat of ANTI_NOUR) {
-    const m = t.match(new RegExp(pat.source, pat.flags.includes("g") ? pat.flags : pat.flags + "g"));
-    cushioned += m?.length ?? 0;
-  }
-  const directness = clamp((blunt - cushioned * 2) / Math.max(1, words / 80));
-
-  // humor: emoji + lol/haha + multi-punct
-  const emojiCount = (t.match(/[\u{1F300}-\u{1FAFF}\u{1F600}-\u{1F64F}]/gu) || []).length;
-  const laughCount = (t.match(/\b(lol|lmao|haha+|hehe)\b/gi) || []).length;
-  const surpriseCount = (t.match(/[!?]{2,}/g) || []).length;
-  const humor = clamp((emojiCount * 0.4 + laughCount * 0.5 + surpriseCount * 0.3));
-
-  // jargon: code fences + camelCase identifiers
-  const codeBlocks = (t.match(/```/g) || []).length / 2;
-  const camelIds = (t.match(/\b[a-z][a-zA-Z]*(?:[A-Z][a-zA-Z]*)+\b/g) || []).length;
-  const fileRefs = (t.match(/\b[a-zA-Z_][a-zA-Z0-9_/.-]*\.(ts|tsx|js|jsx|sql|md|json|yml|prisma)\b/g) || []).length;
-  const jargon = clamp((codeBlocks * 0.5 + camelIds * 0.05 + fileRefs * 0.2));
-
-  // urgency: imperative now/today + exclamation density
-  const urgentWords = (t.match(/\b(now|today|asap|immediately|urgent|critical|ship|kill|fire|flip)\b/gi) || []).length;
-  const exclaim = (t.match(/!/g) || []).length;
-  const urgency = clamp((urgentWords * 0.15 + exclaim * 0.1));
-
-  // creativity: presence of metaphor / story signals · scarce in
-  // Nick's voice · this axis stays close to 0 unless the reply has
-  // explicit storytelling cues.
-  const metaphorCues = (t.match(/\b(like|imagine|picture|story|metaphor|analogy)\b/gi) || []).length;
-  const creativity = clamp(metaphorCues * 0.12);
-
-  return {
-    density,
-    creativity,
-    skepticism,
-    directness,
-    humor,
-    jargon,
-    structure,
-    urgency,
-  };
-}
-
-/**
- * Given a messageId and a thumbs score (±1), infer the delta vector
- * that should nudge the operator's preferences. Reads the
- * AssistantMessage and runs scoreReplyFeatures on its body.
- *
- * Returns a zero vector if the message can't be loaded.
- */
-export async function inferDeltaFromFeedback(
-  messageId: string,
-  score: 1 | -1,
-): Promise<PreferenceVector> {
-  const msg = await prisma.chatMessage
-    .findUnique({
-      where: { id: messageId },
-      select: { content: true, role: true },
-    })
-    .catch(() => null);
-
-  if (!msg || msg.role !== "assistant") return { ...DEFAULT_VECTOR };
-
-  const features = scoreReplyFeatures(msg.content || "");
-  return deltaFromFeaturesAndScore(features, score);
-}
-
-/**
- * Pure axis-math · feature-strength × feedback sign. Exported for tests.
- */
-export function deltaFromFeaturesAndScore(
-  features: StyleFeatures,
-  score: 1 | -1,
-): PreferenceVector {
-  return {
-    density: features.density * score,
-    creativity: features.creativity * score,
-    skepticism: features.skepticism * score,
-    directness: features.directness * score,
-    humor: features.humor * score,
-    jargon: features.jargon * score,
-    structure: features.structure * score,
-    urgency: features.urgency * score,
-  };
-}
-
-/**
- * Update a vector with a delta · weighted decay + clamp.
- *
- *   next[axis] = clamp(current[axis] + delta[axis] × learningRate)
- *
- * learningRate defaults to 0.1 so a single +1 / -1 thumbs nudges
- * each axis by at most 10% of the observed signal, so one noisy turn
- * cannot flip the vector.
- */
-export function applyDeltaWithDecay(
-  current: PreferenceVector,
-  delta: PreferenceVector,
-  learningRate: number = DEFAULT_LEARNING_RATE,
-): PreferenceVector {
-  const next: PreferenceVector = { ...DEFAULT_VECTOR };
-  for (const axis of AXES) {
-    next[axis] = clamp(current[axis] + delta[axis] * learningRate);
-  }
-  return next;
 }
 
 /**

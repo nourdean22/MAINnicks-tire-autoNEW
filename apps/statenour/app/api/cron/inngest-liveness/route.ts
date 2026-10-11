@@ -17,6 +17,7 @@
  */
 import { cronHandler } from "@/lib/utils/http";
 import { statenourArtifacts } from "@/lib/observability/fleet-truth";
+import { buildInstrumentFailures } from "@/lib/observability/instrument-failures";
 import { sendTelegram, formatTelegramNotification } from "@/lib/services/telegram";
 import { logger as rootLogger } from "@/lib/logger";
 
@@ -31,6 +32,8 @@ const HOUR_MS = 3_600_000;
 const MAX_AGE_H = 6;
 /** This route's scheduled hour (config/crons.ts inngest-liveness "0 13 * * *"). */
 const SLOT_HOUR_UTC = 13;
+/** Ledger write failures in 24h that page: fleet-truth's probe sees only total silence (06-H4). */
+const LEDGER_FAILURES_TO_PAGE = 3;
 
 /**
  * The allowed age, judged as of the scheduled 13:00 slot: a run at another hour
@@ -75,18 +78,32 @@ export const GET = cronHandler(async () => {
 
   const maxAgeH = allowedAgeH();
   if (ageH <= maxAgeH) {
-    if (missing.length > 0 || unreadable.length > 0) {
+    const line = (m: { capability: string; state: string; ageH: number | null }) =>
+      `${m.capability}: ${m.state}${m.ageH != null ? ` (${Math.round(m.ageH)}h)` : ""}`;
+    const missingLines = missing.map(line);
+    const unreadableLines = unreadable.map(line);
+    // Partial outcome-ledger write failures (06-H4); a failed read is unknown, never clear.
+    const failures = await buildInstrumentFailures(24).catch(() => null);
+    if (!failures) {
+      unreadableLines.push("instrument-failures: unknown (error_logs read failed)");
+    } else {
+      const ledger = failures.failing.find((f) => f.instrument === "intel.outcome-ledger");
+      if (ledger && ledger.failures >= LEDGER_FAILURES_TO_PAGE) {
+        missingLines.push(
+          `intel.outcome-ledger: ${ledger.failures} write failures in ${failures.windowHours}h (last: ${ledger.lastMessage ?? "no message"})`,
+        );
+      }
+    }
+    if (missingLines.length > 0 || unreadableLines.length > 0) {
       // Inngest is invoking functions, but a capability's OUTPUT is
       // missing (or could not be read) — the gap invocation-proof cannot see.
-      const lines = [...missing, ...unreadable]
-        .map((m) => `${m.capability}: ${m.state}${m.ageH != null ? ` (${Math.round(m.ageH)}h)` : ""}`)
-        .join(" · ");
+      const lines = [...missingLines, ...unreadableLines].join(" \u00b7 ");
       // `alerted` must reflect DELIVERY. sendTelegram reports failure by
       // returning false (never throwing), so hardcoding `alerted: true`
       // recreated the very blind spot this watchdog exists to end — one
       // layer up. Same shape as cost-slo-check/route.ts:181.
       const alerted = await sendTelegram(
-        missing.length > 0
+        missingLines.length > 0
           ? formatTelegramNotification(
               "Scheduled capability missing its artifact",
               `Inngest heartbeat is fresh, but: ${lines}. The scheduler is alive and the capability still isn't producing — check the function's own logs.`,
@@ -99,7 +116,7 @@ export const GET = cronHandler(async () => {
             ),
       );
       if (!alerted) log.error("liveness_alert_undelivered", { reason: "capability_artifact_missing" });
-      log.warn("capability_artifact_missing", { missing, unreadable });
+      log.warn("capability_artifact_missing", { missing: missingLines, unreadable: unreadableLines });
       return { ok: false, heartbeatAgeH: Math.round(ageH * 10) / 10, artifacts, alerted };
     }
     log.info("inngest_alive", { heartbeatAgeH: Math.round(ageH * 10) / 10, artifacts });

@@ -14,7 +14,6 @@
  *     devices: { online, offline, total },
  *     pulse: { priorityCount, measured },   // measured:false ⇒ priorityCount is filler, not a reading
  *     ai: { calls24h, costCents7d },
- *     power: { paused },
  *     generatedAt: ISO,
  *   }
  */
@@ -24,7 +23,6 @@ import { prisma } from "@/lib/prisma";
 import { safeQuery } from "@/lib/db/safe-prisma";
 import { scanCronHealth } from "@/lib/system/cron-diagnostics";
 import { scanStaleData } from "@/lib/system/stale-data-scanner";
-import { getPowerSettings } from "@/lib/services/power-panel";
 import { requireSession } from "@/lib/auth-guard";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 
@@ -41,7 +39,6 @@ export async function GET(req: Request) {
       brainStats,
       deviceStats,
       aiStats,
-      powerSettings,
       pulsePriority,
     ] = await Promise.all([
       scanCronHealth().catch(() => null),
@@ -127,8 +124,6 @@ export async function GET(req: Request) {
         { label: "hub.ai" },
       ),
 
-      getPowerSettings().catch(() => null),
-
       // Pulse-priority — counted in parallel with the rest. Was a
       // sequential await after the Promise.all, adding one round-trip
       // (~50ms) on every /system page load for no good reason.
@@ -174,9 +169,6 @@ export async function GET(req: Request) {
         // fabricated all-clear this whole change exists to remove.
         pulse: { priorityCount: pulsePriority ?? 0, measured: pulsePriority !== null },
         ai: aiStats,
-        power: {
-          paused: powerSettings?.pauseAllCrons ?? false,
-        },
         generatedAt: new Date().toISOString(),
       },
     });

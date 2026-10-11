@@ -68,12 +68,33 @@ export function isEmptyToolOutput(output: unknown): boolean {
   return false;
 }
 
+/**
+ * A call that returned normally but says it did NOT do the thing: a refusal
+ * ({ error: "approval_required" | "mutation_locked" | "private_turn" |
+ * "read_only_turn" }, lib/ai/tools.ts) or a caught failure ({ success: false }
+ * / { ok: false }). Its transport state is output-available, so without this
+ * the chip counted it as returned data and the card showed its success label.
+ * An `error` beside real rows is a partial read (searchReflections when one
+ * source failed): the rows are real, so it is not a failure.
+ */
+export function isSoftFailedToolOutput(output: unknown): boolean {
+  if (!output || typeof output !== "object" || Array.isArray(output)) return false;
+  const o = output as Record<string, unknown>;
+  if (o.success === false || o.ok === false) return true;
+  return Boolean(o.error) && !carriesRows(o);
+}
+
+/** A positive count, or any non-empty array value. */
+function carriesRows(o: Record<string, unknown>): boolean {
+  return (typeof o.count === "number" && o.count > 0) || Object.values(o).some((v) => Array.isArray(v) && v.length > 0);
+}
+
 export function summarizeToolReceipts(parts: readonly ToolReceiptPart[]): ToolReceiptCounts {
   let returned = 0;
   let empty = 0;
   let failed = 0;
   for (const part of parts) {
-    if (part.state === "output-error") failed++;
+    if (part.state === "output-error" || (part.state === "output-available" && isSoftFailedToolOutput(part.output))) failed++;
     else if (part.state === "output-available") {
       if (isEmptyToolOutput(part.output)) empty++;
       else returned++;

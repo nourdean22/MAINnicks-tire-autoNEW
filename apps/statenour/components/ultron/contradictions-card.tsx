@@ -246,7 +246,7 @@ export function ContradictionsCard() {
           { id: toastId }
         );
         closeForm();
-        await utils.system.contradictions.invalidate();
+        await utils.systemBrain.contradictions.invalidate();
       } catch {
         toast.error("resolve failed", { id: toastId });
       } finally {

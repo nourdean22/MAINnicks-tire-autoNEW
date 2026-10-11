@@ -70,7 +70,8 @@ const EXTERNAL_EXACT = new Set([
   "inbound",
 ]);
 
-const EXTERNAL_PREFIXES = ["web:", "rss:", "scrape:", "firecrawl", "news:", "telegram:", "email:"];
+// "calendar:" = an event someone else organised (ingest-calendar writes "calendar:external").
+const EXTERNAL_PREFIXES = ["web:", "rss:", "scrape:", "firecrawl", "news:", "telegram:", "email:", "calendar:"];
 
 const OPERATOR_EXACT = new Set(["manual", "user", "operator", "nour"]);
 
@@ -94,8 +95,22 @@ const OPERATOR_EXACT = new Set(["manual", "user", "operator", "nour"]);
  * row (source "telegram-url") is a model summary of a third-party PAGE, which
  * its author controls. Keyed on the category, not the slug: the "telegram:"
  * prefix below never matched that writer.
+ *
+ * 2026-10-10 (audit NEW-05) - `google_review` added: review text is written by
+ * whoever left the review (source "integrations:google-places" read as first-party).
+ *
+ * 2026-10-11 (R3-14) - `document_meta` added: its content leads with the ingested
+ * filename, which comes from a URL path or from the model (source "document_ingest").
  */
-const EXTERNAL_CATEGORIES = new Set(["gmail_thread", "inbound", "inbound_sms", "web_article", "link_analysis"]);
+const EXTERNAL_CATEGORIES = new Set([
+  "gmail_thread",
+  "inbound",
+  "inbound_sms",
+  "web_article",
+  "link_analysis",
+  "google_review",
+  "document_meta",
+]);
 
 /**
  * 2026-10-10 (audit 05-M2) · `conversation_` added. Every writer with that

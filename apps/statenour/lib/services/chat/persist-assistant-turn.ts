@@ -47,6 +47,8 @@ import {
 } from "@/lib/ai/fact-check";
 import { checkKnownTruth, formatTruthSummary } from "@/lib/ai/known-truth-guard";
 import { withErrorCapture } from "@/lib/errors/record-error";
+import { trackGeneration } from "@/lib/ai/track";
+import { notifyMessagePersisted } from "@/lib/ai/runtime/sse-stream";
 import type { ProviderName } from "@/lib/ai/provider";
 import type { TraceStartInput, TraceFinishInput } from "@/lib/ai/agent-trace";
 import type { TurnSignal } from "@/lib/ai/turn-intelligence";
@@ -84,8 +86,9 @@ export interface RecallReceipt {
 export interface BuildOnFinishInput {
   log: ChatLogger;
   // ─── authority kernel (2026-07-22) ────────────────────────────
-  /** Private Lab: the returned callback persists NOTHING (no assistant row,
-   *  no BrainMemory, no embeddings, no critic/judge/objection writes). */
+  /** Private Lab: the returned callback writes one content-free cost row
+   *  and nothing else (no assistant row, no BrainMemory, no embeddings, no
+   *  critic/judge/objection writes). */
   privateMode?: boolean;
   /** execute = no new adversarial objections · spar = critique unconditionally. */
   posture?: string;
@@ -106,6 +109,9 @@ export interface BuildOnFinishInput {
   systemPrompt: string;
   finalTaskType: string;
   userContent: string;
+  /** The client-minted id of this turn's user message; persist parents the
+   *  reply on that row (audit 04-F13). Absent: the newest user row. */
+  userClientMessageId?: string;
   /**
    * 2026-09-23 (review on #2509, P1) · the ROUTING-TIME toolsExpected
    * (route.ts: actionIntent || webSearchIntent || webSearchRecency), so the E3
@@ -201,9 +207,21 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       // The ENTIRE post-stream pipeline below is writes: assistant row,
       // conversation touch, embeddings, BrainMemory, critic objections,
       // judge scores, telemetry blobs. One structural gate here keeps a
-      // private turn at ZERO persistence — the reply streamed and is gone.
+      // private turn to one content-free cost row - the reply streamed and
+      // is gone.
       if (deps.privateMode) {
         deps.log.info("private_mode_zero_persist", { skipped: "assistant-turn pipeline" });
+        // 2026-10-10 (audit 07-X2): the one write a private turn makes - a
+        // content-free cost row, so its spend still counts toward the daily
+        // budget. No conversation id, no text.
+        void trackGeneration({
+          feature: "chat",
+          model: modelId,
+          provider,
+          promptTokens: event.usage?.inputTokens,
+          outputTokens: event.usage?.outputTokens,
+          durationMs: Date.now() - startedAt,
+        });
         // CRITICAL (self-review blocker #2): resolve the work-complete promise
         // the SSE stream awaits before controller.close() — the normal path
         // does this at the tail (:onWorkComplete below). Skipping it hangs the
@@ -299,30 +317,28 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
 
       // v-truth · Chain-of-Verification (NICK_COVE) · verify factual
       // answers in ISOLATION before the row persists, so the stored
-      // reply + next-turn context carry the verified text. Runs
-      // post-stream (the user already saw the streamed draft), so it
-      // never affects perceived latency. Flag OFF by default -> skipped
-      // entirely; graceful on any failure (never breaks the turn).
-      if (hasContent) {
+      // reply + next-turn context carry the verified text. On the
+      // streaming path it runs after the draft was shown: the bubble
+      // swaps to the stored text on message.persisted, and the turn
+      // reads live until then. Skipped when a buffered lane already ran
+      // it before display (event.coveDone, audit 04-X11). Flag OFF by
+      // default; graceful on any failure (never breaks the turn).
+      if (hasContent && event.coveDone !== true) {
         try {
           const { getFlag } = await import("@/lib/feature-flags");
-          const FACTUAL_INTENTS = new Set([
-            "factual",
-            "analytical",
-            "procedural",
-            "instructional",
-          ]);
-          if (getFlag("NICK_COVE")?.isOn && FACTUAL_INTENTS.has(turnSignal.intent)) {
-            const { verifyAndRevise } = await import(
+          if (getFlag("NICK_COVE")?.isOn) {
+            const { verifyAndRevise, FACTUAL_INTENTS } = await import(
               "@/lib/ai/chat/chain-of-verification"
             );
-            const cove = await verifyAndRevise(cleanedText, userContent);
-            if (cove.changed) {
-              log.info("cove_revised", {
-                conversationId: convId,
-                questions: cove.questions.length,
-              });
-              cleanedText = cove.revised;
+            if (FACTUAL_INTENTS.has(turnSignal.intent)) {
+              const cove = await verifyAndRevise(cleanedText, userContent);
+              if (cove.changed) {
+                log.info("cove_revised", {
+                  conversationId: convId,
+                  questions: cove.questions.length,
+                });
+                cleanedText = cove.revised;
+              }
             }
           }
         } catch (err) {
@@ -636,6 +652,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         contextReceipt,
         personality,
         userContent,
+        userClientMessageId: deps.userClientMessageId,
         posture: deps.posture,
         log,
       });
@@ -688,6 +705,13 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         log,
       });
       cleanedText = __postVerify.cleanedText;
+      // 2026-10-10 (audit 04-F2 / 04-F14) - ONE announcement, after the L2
+      // rewrite: the live stream for this trace gets the row id and the
+      // FINAL stored text, then closes (sse-stream.ts) while the deferred
+      // work below keeps running. Only a row this turn wrote is announced.
+      if (createdAssistantId) {
+        notifyMessagePersisted(traceId, { id: createdAssistantId, content: cleanedText });
+      }
       // ═══ DEFERRED BACKGROUND WORK ═══
       // Fire-and-forget analysis that runs AFTER the assistant ChatMessage
       // is persisted and does NOT feed back into the response or the row.

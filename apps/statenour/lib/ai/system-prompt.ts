@@ -6,6 +6,8 @@
  */
 
 import { cached } from "@/lib/utils/cache";
+import { updateTurnContext } from "@/lib/agent/turn-context";
+import { carriesToolDataFence } from "@/lib/ai/tool-result-fencing";
 
 export type TopicTier = "core" | "business" | "personal" | "strategy" | "full";
 
@@ -125,6 +127,8 @@ export async function buildSystemPrompt(
 
     return prompt;
   });
+  // A cache hit skips the renderer's fenceContent call; re-apply the taint its fence implies (inbound-crm titles).
+  if (carriesToolDataFence(base)) updateTurnContext({ untrustedInput: true });
 
   // 2026-08-12 · JIT section gate (VNext) — OUTSIDE the cache on purpose:
   // the gate depends on the user message (casual / social-content), and

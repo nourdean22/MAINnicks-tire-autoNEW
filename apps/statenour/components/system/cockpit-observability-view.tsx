@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { trpc } from "@/lib/trpc/client";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Panel } from "@/components/panel";
@@ -18,7 +18,6 @@ import {
   ChevronRight,
   ShieldAlert,
 } from "lucide-react";
-import { toast } from "sonner";
 import Link from "next/link";
 
 function dollars(cents: number): string {
@@ -30,27 +29,10 @@ export function CockpitObservabilityView() {
   const {
     data: stats,
     isFetching: loading,
-    refetch,
   } = trpc.system.cockpitStats.useQuery(undefined, {
     refetchInterval: 30_000,
     staleTime: 15_000,
   });
-
-  const setActiveMutation = trpc.system.setActivePromptVersion.useMutation();
-  const [mutatingVersion, setMutatingVersion] = useState<number | null>(null);
-
-  const handleToggleActive = async (version: number) => {
-    try {
-      setMutatingVersion(version);
-      await setActiveMutation.mutateAsync({ version });
-      toast.success(`Prompt version ${version} is now active`);
-      await refetch();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to set active version");
-    } finally {
-      setMutatingVersion(null);
-    }
-  };
 
   if (loading && !stats) {
     return (
@@ -66,7 +48,7 @@ export function CockpitObservabilityView() {
   const kpis = stats?.kpis || {
     totalCostCents: 0,
     p95TtftMs: 0,
-    averageFeedback: 0,
+    averageFeedback: null as number | null,
     pendingApprovalsCount: 0,
     avgDurationMs: 0,
   };
@@ -162,8 +144,9 @@ export function CockpitObservabilityView() {
           </div>
           <div className="mt-2.5">
             <span className="text-2xl font-bold tracking-tight text-fg font-mono">
-              {kpis.averageFeedback >= 0 ? "+" : ""}
-              {kpis.averageFeedback.toFixed(1)}
+              {kpis.averageFeedback === null
+                ? "unmeasured"
+                : `${kpis.averageFeedback >= 0 ? "+" : ""}${kpis.averageFeedback.toFixed(1)}`}
             </span>
             <p className="text-[11px] text-fg-tertiary font-mono mt-0.5">Chat feedback · 30d · -1 to +1</p>
           </div>
@@ -347,13 +330,8 @@ export function CockpitObservabilityView() {
                   {recentRuns.map((run) => (
                     <tr key={run.id} className="hover:bg-surface-hover transition-colors group">
               <td className="py-2.5 pr-2 font-mono text-fg-secondary whitespace-nowrap">
-                        <Link
-                          href={`/system/logs?trace=${run.traceId}`}
-                          className="hover:text-fg flex items-center gap-1 group-hover:translate-x-0.5 transition-transform"
-                        >
-                          {run.traceId.slice(0, 10)}...
-                          <ChevronRight className="w-3 h-3 text-fg-tertiary group-hover:text-fg" />
-                        </Link>
+                        {/* Plain text: /system/logs ignores a trace param, so a link opened an unfiltered log (10-X4). */}
+                        <span title={run.traceId}>{run.traceId.slice(0, 10)}...</span>
                       </td>
                       <td className="py-2.5 px-2 font-mono text-fg">
                         <span className="truncate max-w-[120px] inline-block" title={run.model}>
@@ -400,10 +378,11 @@ export function CockpitObservabilityView() {
           <div className="flex items-center space-x-2">
             <Settings className="w-4 h-4 text-emerald-400" />
             <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg">
-              Agent Prompt Version Manager
+              Agent Prompt Versions
             </h2>
           </div>
-          <span className="text-[11px] text-fg-tertiary font-mono">Deploy & toggle prompt matrices</span>
+          {/* No prompt builder reads prompt_versions.active, so a toggle here changed nothing (06-F11). */}
+          <span className="text-[11px] text-fg-tertiary font-mono">Display only: the live prompt is built in code</span>
         </div>
 
         {promptVersions.length === 0 ? (
@@ -420,8 +399,7 @@ export function CockpitObservabilityView() {
                   <th className="py-2 px-2">Prompt Draft Preview</th>
                   <th className="py-2 px-2 text-center">Total Runs</th>
                   <th className="py-2 px-2 text-center">Avg Score</th>
-                  <th className="py-2 px-2">Created</th>
-                  <th className="py-2 pl-2 text-right">Activate</th>
+                  <th className="py-2 pl-2">Created</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-edge-subtle">
@@ -455,26 +433,8 @@ export function CockpitObservabilityView() {
                         —
                       </span>
                     </td>
-                    <td className="py-3 px-2 text-fg-tertiary font-mono whitespace-nowrap">
+                    <td className="py-3 pl-2 text-fg-tertiary font-mono whitespace-nowrap">
                       {new Date(pv.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="py-3 pl-2 text-right">
-                      <button
-                        onClick={() => handleToggleActive(pv.version)}
-                        disabled={pv.active || mutatingVersion === pv.version}
-                        className={cn(
-                          "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
-                          pv.active ? "bg-emerald-500/80 cursor-default" : "bg-surface-interactive hover:bg-surface-hover",
-                          mutatingVersion === pv.version && "opacity-50 cursor-not-allowed"
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                            pv.active ? "translate-x-4" : "translate-x-0"
-                          )}
-                        />
-                      </button>
                     </td>
                   </tr>
                 ))}

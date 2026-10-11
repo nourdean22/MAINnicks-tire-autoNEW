@@ -20,8 +20,6 @@ import { buildVerifierBanner, isVerifierRewritten, buildKnownTruthBanner } from 
 import { canClaimDone, receiptsWithReadBack, summarizeClaimDoneShadow } from "@/lib/ai/receipts/action-receipt";
 import { verifyEnvironmentState, type EnvironmentVerificationResult } from "@/lib/ai/chat/environment-verifier";
 import { buildMessageParts } from "./message-parts";
-import { isStreamStopRequested } from "./active-stream";
-import { notifyMessagePersisted } from "@/lib/ai/runtime/sse-stream";
 import type { CapturedToolCall } from "./tool-telemetry-walk";
 import type { ProviderName } from "@/lib/ai/provider";
 import type { TurnSignal } from "@/lib/ai/turn-intelligence";
@@ -53,6 +51,86 @@ export function streamingStateForFinish(
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
   warn(event: string, ctx?: Record<string, unknown>): void;
+}
+
+// The Stop button's marker row (lib/services/chat/active-stream.ts stopKeyFor
+// + CATEGORY): persist claims the same unique key. tests/services/chat/
+// persist-stop-claim.test.ts drives both sides, so a drift in either goes red.
+const STOP_CATEGORY = "active_chat_stream";
+const PERSIST_CLAIM_SOURCE = "chat-persist";
+const STOP_CLAIM_TTL_MS = 10 * 60 * 1000;
+const STOP_SLOT_TAKEN = Symbol("stop-slot-taken");
+
+/**
+ * 2026-10-10 (audit 04-H4, claim-before-act) - create the reply row with the
+ * stop decision made by a CLAIM, not a read. Persist used to read the stop
+ * marker and then create the row; a Stop that landed between the two answered
+ * `stopped: true` over a row stored `complete`. Now the stop row's unique key
+ * is created in the same transaction as the reply row:
+ *   - the claim fails (P2002) -> the Stop got there first -> stored "aborted";
+ *   - the claim lands -> a later Stop's upsert waits on the key until this
+ *     commits, then finds the stored row and answers `already_complete`.
+ * A claim that never lands (the transaction could not start, the insert
+ * failed) never costs the reply: it is stored as a failed marker read used to
+ * be, not stopped. Errors after the claim belong to the reply row itself (a
+ * P2002 there is a duplicate reply) and go to the caller unchanged.
+ */
+async function createReplyClaimingStop(
+  ctx: { convId: string | undefined; traceId: string; log: ChatLogger },
+  args: { data: Prisma.ChatMessageUncheckedCreateInput },
+): Promise<{ id: string }> {
+  const { convId, traceId, log } = ctx;
+  if (!convId) return prisma.chatMessage.create(args);
+  const key = `stop:${convId}:${traceId}`;
+  let claimed = false;
+  try {
+    return await prisma.$transaction(
+      async (tx) => {
+        // brain-memory-direct-write: the stop-slot claim (active_chat_stream), a lock row, not a memory.
+        await tx.brainMemory
+          .create({
+            data: {
+              category: STOP_CATEGORY,
+              key,
+              content: `reply persisted - ${new Date().toISOString()}`,
+              confidence: 0.1,
+              source: PERSIST_CLAIM_SOURCE,
+              expiresAt: new Date(Date.now() + STOP_CLAIM_TTL_MS),
+              metadata: { traceId },
+            },
+          })
+          .catch((err: unknown) => {
+            throw (err as { code?: string })?.code === "P2002" ? STOP_SLOT_TAKEN : err;
+          });
+        claimed = true;
+        return tx.chatMessage.create(args);
+      },
+      // The reply create kept its 10 s budget (the caller's timeout); the
+      // interactive-transaction default is 5 s.
+      { timeout: 10_000 },
+    );
+  } catch (err) {
+    if (err !== STOP_SLOT_TAKEN) {
+      if (claimed) throw err;
+      log.warn("stop_claim_failed", {
+        traceId,
+        err: err instanceof Error ? err.message.slice(0, 160) : String(err),
+      });
+      return prisma.chatMessage.create(args);
+    }
+  }
+  // The slot is held: by the Stop, unless an earlier persist of this same
+  // turn claimed it (then this is a repeat persist, not a stop).
+  const holder = await prisma.brainMemory
+    .findUnique({
+      where: { category_key: { category: STOP_CATEGORY, key } },
+      select: { source: true },
+    })
+    .catch(() => null);
+  const stopped = holder?.source !== PERSIST_CLAIM_SOURCE;
+  return prisma.chatMessage.create(
+    stopped ? { data: { ...args.data, streamingState: "aborted" } } : args,
+  );
 }
 
 export type PersistOutcome =
@@ -114,6 +192,8 @@ export async function persistAssistantMessage(a: {
   contextReceipt?: ContextReceipt;
   personality: string;
   userContent: string;
+  /** The client-minted id of THIS turn's user message (audit 04-F13). */
+  userClientMessageId?: string;
   posture: string | undefined;
   log: ChatLogger;
 }): Promise<PersistOutcome> {
@@ -122,7 +202,8 @@ export async function persistAssistantMessage(a: {
     traceId, provider, modelId, startedAt, firstTokenRef, capturedToolCalls,
     truthFlags, critic, citations, gate, evidenceGate, factClaims, unverifiedCount,
     turnSignal, contextBlocksFired, deeperContextCount, deeperContextTypes,
-    recallReceipts, contextReceipt, personality, userContent, posture, log,
+    recallReceipts, contextReceipt, personality, userContent, userClientMessageId,
+    posture, log,
   } = a;
   let cleanedText = a.cleanedText;
   // (the `void userContent` keep-alive is gone — the calibration
@@ -144,13 +225,27 @@ export async function persistAssistantMessage(a: {
     const completionTokens = typeof usage?.outputTokens === "number" ? usage.outputTokens : null;
 
     // v7.6 · C8 · Apr 29 — Branching parent + branchId.
-    const lastUserRow = await prisma.chatMessage
-      .findFirst({
-        where: { conversationId: convId!, role: "user" },
-        orderBy: { createdAt: "desc" },
-        select: { id: true },
-      })
-      .catch(() => null);
+    // 2026-10-10 (audit 04-F13): the turn's OWN user row first, by its
+    // clientMessageId. The newest user row is a different message when two
+    // turns overlap (slash command mid-stream, a second device); the reply
+    // then misattached and the other turn's reply was dropped as a duplicate.
+    const ownUserRow = userClientMessageId
+      ? await prisma.chatMessage
+          .findFirst({
+            where: { conversationId: convId!, role: "user", clientMessageId: userClientMessageId },
+            select: { id: true },
+          })
+          .catch(() => null)
+      : null;
+    const lastUserRow =
+      ownUserRow ??
+      (await prisma.chatMessage
+        .findFirst({
+          where: { conversationId: convId!, role: "user" },
+          orderBy: { createdAt: "desc" },
+          select: { id: true },
+        })
+        .catch(() => null));
     const parentMessageId = lastUserRow?.id ?? null;
     const branchId = parentMessageId;
     const costCents: number | null = null;
@@ -339,16 +434,14 @@ export async function persistAssistantMessage(a: {
       reasoningText,
     );
 
-    // 2026-10-10 (audit 04-F6) - the operator pressed Stop on THIS turn
-    // (DELETE on the resume route, keyed by traceId). consumeStream kept
-    // the turn running so it still persists, but as "aborted", never as
-    // "complete". A disconnect without Stop is not a stop.
-    const stoppedByOperator = convId ? await isStreamStopRequested(convId, traceId) : false;
-
+    // 2026-10-10 (audit 04-F6) - a turn the operator stopped (DELETE on the
+    // resume route, keyed by traceId) still persists - consumeStream kept it
+    // running - but as "aborted", never "complete". A disconnect is not a
+    // stop. The stop is decided by claiming its slot (createReplyClaimingStop).
     const createdAssistant = await withErrorCapture(
       "chat:db-write",
       () =>
-        prisma.chatMessage.create({
+        createReplyClaimingStop({ convId, traceId, log }, {
           data: {
             conversationId: convId!,
             role: "assistant",
@@ -360,7 +453,7 @@ export async function persistAssistantMessage(a: {
             promptTokens: promptTokens ?? undefined,
             completionTokens: completionTokens ?? undefined,
             costCents: costCents ?? undefined,
-            streamingState: stoppedByOperator ? "aborted" : streamingStateForFinish(finishReason),
+            streamingState: streamingStateForFinish(finishReason),
             parts: partsArray
               ? (partsArray as unknown as Parameters<typeof prisma.chatMessage.create>[0]["data"]["parts"])
               : undefined,
@@ -480,8 +573,9 @@ export async function persistAssistantMessage(a: {
               // ran, whether it mutates, how far it was verified. No args, no
               // results — both can carry secrets or PII. Read by
               // lib/observability/claim-done-calibration.ts the same day.
-              toolReceipts: receipts.length > 0
-                ? (receipts.map((r) => ({
+              // Always an array: [] records "no tool ran", so the Retry gate can tell it from
+              // a row with no receipts at all (unknown, e.g. the errored-turn writer).
+              toolReceipts: (receipts.map((r) => ({
                     toolName: r.toolName,
                     category: r.category,
                     sideEffecting: r.sideEffecting,
@@ -490,8 +584,7 @@ export async function persistAssistantMessage(a: {
                     verificationState: r.verificationState,
                     entityType: r.entityType ?? null,
                     entityId: r.entityId ?? null,
-                  })) as Prisma.InputJsonValue)
-                : undefined,
+                  })) as Prisma.InputJsonValue),
               factCheck: factClaims.length > 0
                 ? {
                     total: factClaims.length,
@@ -562,14 +655,8 @@ export async function persistAssistantMessage(a: {
       { timeoutMs: 10_000, context: { conversationId: convId } }
     );
     createdAssistantId = createdAssistant?.id ?? null;
-
-    // 2026-10-10 (audit 04-F2 / 04-F14) - the row exists: hand the live
-    // SSE stream for this trace the STORED id + text now, before the rest
-    // of onFinish (post-persist verification, deferred work) holds the
-    // body open. Only a row this call actually wrote is announced.
-    if (createdAssistant?.id) {
-      notifyMessagePersisted(traceId, { id: createdAssistant.id, content: cleanedText });
-    }
+    // (message.persisted is announced by buildOnFinish once post-persist
+    // verification settles the final text - audit 04-F2.)
 
     // Q-32 · deterministic metadata-only annotation selection. Fire-and-forget:
     // evaluation infrastructure must never delay or break a user turn. The

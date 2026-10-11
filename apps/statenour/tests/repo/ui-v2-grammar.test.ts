@@ -236,13 +236,10 @@ describe("nothing animates at rest (only working states loop)", () => {
   }
 
   /**
-   * KNOWN, 2026-10-10: found when this gate learned to read Tailwind's built-in loops. Product code is not
-   * this gate's to edit; the owning UI change stops the loop, then deletes the entry here (the reverse
-   * canary fails once it is gone).
-   *   components/actions/mode-learn.tsx:543 · the "Time's up" banner bounces forever while it waits for
-   *   the operator, an at-rest loop SYSTEM.md §1.4 forbids (its red border and words already signal it).
+   * Empty since R3-06 (2026-10-11, P-S7a) stopped the mode-learn "Time's up" bounce. A new entry needs an
+   * owner and a date; the reverse canary fails once a listed loop is gone.
    */
-  const KNOWN_AT_REST = new Set(["components/actions/mode-learn.tsx -> animate-bounce"]);
+  const KNOWN_AT_REST = new Set<string>([]);
 
   it("positive control: the scan finds a planted at-rest loop, in a sheet and in a component", () => {
     expect(infiniteSelectors(".x { color: red; }\n.y { animation: spin 1s linear infinite; }")).toEqual([".y"]);
@@ -288,6 +285,64 @@ describe("nothing animates at rest (only working states loop)", () => {
     const live = new Set(UI_FILES.flatMap((f) => atRestLoops(f, read(f))));
     const fixed = [...KNOWN_AT_REST].filter((k) => !live.has(k));
     expect(fixed, `fixed, so remove from KNOWN_AT_REST:\n  ${fixed.join("\n  ")}`).toEqual([]);
+  });
+});
+
+/**
+ * SYSTEM.md section 3: gold is "never a hover", and the notch is "the only gold that appears without the
+ * operator acting" (section 12). Audit 09-X1 (2026-10-10): the Waiting rows turned their text gold on hover
+ * and The Brief carried a second at-rest notch beside the NOW notch. Red on that tree: the hover scan
+ * found waiting-line.tsx -> hover:text-gold and the Home notch scan found brief-lead.tsx.
+ */
+describe("gold stays a signal on Home and in hovers (09-X1)", () => {
+  const strip = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+
+  /**
+   * A hover that turns text, a border, a ring or an outline gold, by name (gold, accent) or by value.
+   * shortcut: every bg-* hover passes (bg-accent-hover, bg-accent-medium, bg-[var(--gold)]/25 are the
+   * pressed steps of a control that is already gold); a neutral button that fills gold on hover would
+   * pass too. Read the at-rest class beside it if that ever ships.
+   */
+  function goldHovers(file: string, src: string): string[] {
+    const out: string[] = [];
+    for (const m of strip(src).matchAll(/(?<![\w-])(?:[\w-]+:)*[\w-]*hover:[^\s"'`]+/g)) {
+      const utility = m[0].replace(/^(?:[\w-]+:)+/, "");
+      if (utility.startsWith("bg-")) continue;
+      const byValue = /gold|#fdb913|253,\s*185,\s*19/i.test(utility);
+      const byName = /^(?:text|border(?:-[trblxy])?|outline|ring|decoration|fill|stroke)-(?:accent(?:-[\w]+)?(?:\/\d+)?$|\[[^\]]*--accent[^\]]*\])/.test(utility);
+      if (byValue || byName) out.push(`${file} -> ${m[0]}`);
+    }
+    return out;
+  }
+
+  /** Files that apply the .notch class (a class token, not a word in a comment or an identifier). */
+  const notchFiles = (files: string[]) =>
+    files.filter((f) => /["'`\s]notch(?=["'`\s])/.test(strip(read(f))));
+
+  it("positive control: a planted gold hover is caught in every spelling; fills, at-rest gold and comments are not", () => {
+    expect(goldHovers("x.tsx", 'className="text-fg hover:text-gold"')).toEqual(["x.tsx -> hover:text-gold"]);
+    expect(goldHovers("x.tsx", 'className="md:group-hover:border-accent/40"')).toEqual(["x.tsx -> md:group-hover:border-accent/40"]);
+    expect(goldHovers("x.tsx", 'className="hover:text-[var(--gold)]"')).toEqual(["x.tsx -> hover:text-[var(--gold)]"]);
+    expect(goldHovers("x.tsx", 'className="hover:ring-[#FDB913]"')).toEqual(["x.tsx -> hover:ring-[#FDB913]"]);
+    expect(goldHovers("x.tsx", 'className="bg-accent hover:bg-accent-hover text-gold"')).toEqual([]);
+    expect(goldHovers("x.tsx", 'className="bg-[var(--gold)]/15 hover:bg-[var(--gold)]/25"')).toEqual([]);
+    expect(goldHovers("x.tsx", 'className="hover:bg-raised hover:text-fg"')).toEqual([]);
+    expect(goldHovers("x.tsx", "// was hover:text-gold (09-X1)\nconst a = 1;")).toEqual([]);
+  });
+
+  it("gold is never a hover", () => {
+    expect(UI_FILES.flatMap((f) => goldHovers(f, read(f)))).toEqual([]);
+  });
+
+  it("positive control: the notch scan reads a class token, not a comment or an identifier", () => {
+    expect(/["'`\s]notch(?=["'`\s])/.test(strip('<span className="notch h-3" aria-hidden />'))).toBe(true);
+    expect(/["'`\s]notch(?=["'`\s])/.test(strip("// NEW notch, small gold arc\nconst notchColor = 1;"))).toBe(false);
+  });
+
+  it("Home has one at-rest notch outside nav: the NOW line", () => {
+    const home = UI_FILES.filter((f) => f.startsWith("components/home/"));
+    expect(home.length, "the scan found no Home files").toBeGreaterThan(5);
+    expect(notchFiles(home)).toEqual(["components/home/brief-state-line.tsx"]);
   });
 });
 

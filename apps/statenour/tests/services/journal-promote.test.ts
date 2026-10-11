@@ -40,6 +40,7 @@ vi.mock("@/lib/services/missions", () => ({
 const mockRecordDecisionByContent = vi.fn(async () => true);
 vi.mock("@/lib/services/outcome-ledger", () => ({
   recordDecisionByContent: (...a: unknown[]) => mockRecordDecisionByContent(...a),
+  attachAcceptedResultRefByContent: vi.fn(async () => false),
 }));
 
 import { promoteJournalTake, JournalPromoteError, journalNextActionSummary } from "@/lib/services/journal-promote";

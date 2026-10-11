@@ -3,8 +3,10 @@
  *
  * When the v10.0.160 detector flags an assistant message as
  * fabricated (claimed past-tense action without a tool call),
- * this module rewrites the text to a hedged version BEFORE the
- * message is persisted to ChatMessage and BEFORE the user reads it.
+ * this module rewrites the text to a hedged version AFTER the reply
+ * has streamed and its row exists: post-persist-verification.ts patches
+ * the banner into the stored row, and the live bubble swaps to that
+ * stored text on message.persisted.
  *
  * Rewrite strategy: prepend a verifier banner + keep original.
  * That way the operator still sees what was claimed (audit value)
@@ -17,9 +19,9 @@
  *      transparency / debugging
  *   2. Fully rewriting would require an LLM call (too slow + costly
  *      for a defense layer that should be near-zero overhead)
- *   3. The action-claim-warning chip (v10.0.160) already shows the
- *      offending snippet — keeping the original lets that chip's
- *      "Nick said: '...'" quote line up with what's persisted
+ *   3. L5 is ORPHANED (checked 2026-10-10): no client calls
+ *      chat.claimWarnings and the ActionClaimWarning chip is gone, so the
+ *      banner in the message text is the only thing the operator sees
  *
  * Composes with:
  *   · L1 system-prompt rule (lib/ai/system-prompt.ts ANTI-FABRICATION)
@@ -45,9 +47,10 @@ const VERIFIER_MARKER = "[VERIFIER · v10.0.162]";
  * Every layer now builds through this function and guards with
  * isVerifierRewritten() first.
  */
-export function buildVerifierBanner(diagnostic: string): string {
+export function buildVerifierBanner(diagnostic: string, nextStep?: string): string {
+  // nextStep: a surface with no tools (the side pane) must not promise a retry that fires one.
   return [
-    `${VERIFIER_MARKER} ⚠ ${diagnostic} Treat the claim as **unverified**. If you want the action actually performed, ask me to retry — I'll fire the tool this time.`,
+    `${VERIFIER_MARKER} ⚠ ${diagnostic} Treat the claim as **unverified**. ${nextStep ?? "If you want the action actually performed, ask me to retry — I'll fire the tool this time."}`,
     "",
     "_Original response (unverified):_",
     "",

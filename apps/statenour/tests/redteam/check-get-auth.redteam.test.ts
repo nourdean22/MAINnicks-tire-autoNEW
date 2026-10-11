@@ -393,7 +393,11 @@ describe("scan set: listRoutes() over a faked git listing", () => {
   const listWith = (paths: string[]): string[] => {
     vi.mocked(execFileSync).mockReturnValueOnce(`${paths.join("\0")}\0`);
     const routes = listRoutes();
-    expect(execFileSync).toHaveBeenLastCalledWith("git", ["ls-files", "-z", "--", "app"], { encoding: "utf8" });
+    expect(execFileSync).toHaveBeenLastCalledWith(
+      "git",
+      ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", "app"],
+      { encoding: "utf8" },
+    );
     return routes;
   };
 
@@ -440,4 +444,36 @@ describe("scan set: listRoutes() over a faked git listing", () => {
       "app/auth/callback/route.ts",
     ]);
   });
+});
+
+// B26 (R3-10) - the scan read only the TRACKED tree, so a route added in this change but not yet
+// `git add`ed passed verify:hard. Real script, cwd = a throwaway repo; GIT_* stripped (guard-red-team 6).
+describe("B26: an untracked route file under a scanned prefix is scanned (real script)", () => {
+  const repo = mkdtempSync(join(tmpdir(), "get-auth-untracked-"));
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
+  const file = "app/api/tools/probe/route.ts";
+  beforeAll(() => {
+    const init = spawnSync("git", ["init", "-q"], { cwd: repo, env, encoding: "utf8" });
+    if (init.status !== 0) throw new Error(`fixture git init failed: ${init.stderr}`);
+    mkdirSync(join(repo, "app/api/tools/probe"), { recursive: true });
+  });
+  afterAll(() => rmSync(repo, { recursive: true, force: true }));
+  const run = (src: string) => {
+    writeFileSync(join(repo, file), src);
+    const r = spawnSync(process.execPath, [TSX, SCRIPT], { cwd: repo, env, encoding: "utf8" });
+    return { status: r.status, out: `${r.stdout}${r.stderr}` };
+  };
+
+  it("B26 handled: a bare GET in an untracked app/api/tools route is DENIED and named", () => {
+    const r = run(`export async function GET() {\n  ${LEAK}\n}\n`);
+    expect(r.status, r.out).toBe(1);
+    expect(parseViolations(r.out).get("route.ts"), r.out).toEqual(["GET"]);
+    expect(r.out).toContain(file);
+  }, 60_000);
+
+  it("B26 control: the same untracked route with { auth: \"owner\" } passes, scanned exactly 1", () => {
+    const r = run(`export const GET = apiHandler(async () => {\n  ${LEAK}\n}, { auth: "owner" });\n`);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain("scanned 1 route file(s)");
+  }, 60_000);
 });

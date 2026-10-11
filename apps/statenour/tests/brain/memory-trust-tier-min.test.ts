@@ -42,6 +42,21 @@ describe("source-derived tier · LLM conversation extracts are inferences", () =
   });
 });
 
+describe("NEW-05 - Google reviews and outside-organizer calendar events are third-party text", () => {
+  it("a Google review classifies EXTERNAL_CONTENT (was SYSTEM_DERIVED)", () => {
+    expect(classifyTrustTier("integrations:google-places", null, "google_review")).toBe("EXTERNAL_CONTENT");
+  });
+
+  it("a calendar event organised by someone else classifies EXTERNAL_CONTENT (was SYSTEM_DERIVED)", () => {
+    expect(classifyTrustTier("calendar:external", null, "calendar_upcoming")).toBe("EXTERNAL_CONTENT");
+    expect(classifyTrustTier("calendar:external", null, "calendar_past")).toBe("EXTERNAL_CONTENT");
+  });
+
+  it("CONTROL - the operator's own calendar source keeps its tier", () => {
+    expect(classifyTrustTier("calendar_cron", null, "calendar_upcoming")).toBe("SYSTEM_DERIVED");
+  });
+});
+
 describe("resolveTrustTier · the more restrictive of stored and derived wins", () => {
   it("an llm_extract admission recalls as AGENT_INFERRED even when the source reads first-party", () => {
     expect(

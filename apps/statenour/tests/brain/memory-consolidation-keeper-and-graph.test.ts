@@ -68,6 +68,15 @@ describe("mergeMemories · keeper and merged-away rows", () => {
     expect(updates().find((u) => u.where.id === "keep")?.data.content).toBe(MERGED);
   });
 
+  // 05-X8: merging near-duplicates is one claim said again, not new evidence:
+  // no confidence boost, and the sighting count is the max, not the sum.
+  it("the keeper keeps its confidence and takes the MAX seenCount of the merged rows", async () => {
+    await mergeMemories();
+    const keep = updates().find((u) => u.where.id === "keep")!;
+    expect(keep.data, "the stored 0.9 stays; no +0.15 boost is written").not.toHaveProperty("confidence");
+    expect(keep.data.seenCount).toBe(2);
+  });
+
   it("re-embeds the rewritten keeper with the merged content (05-M7)", async () => {
     await mergeMemories();
     expect(m.storeMemoryEmbedding).toHaveBeenCalledTimes(1);

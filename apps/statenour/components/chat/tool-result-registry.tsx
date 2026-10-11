@@ -367,8 +367,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Pulling latest docs from Drive…",
     icon: Zap,
     color: "gold",
-    // v10.0.529.88 · Wave 32 · /system/audit doesn't exist · was 404.
-    link: { href: "/system/chat-health", label: "Chat health" },
+    // No link: /system/chat-health is a retired redirect to /system/health, not a Drive view (02-X4-N1).
     subtitle: (out) => {
       const o = out as { ok?: boolean; stored?: number; skipped?: number } | null;
       if (!o) return null;
@@ -436,7 +435,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Recording decision · reasoning · alternatives…",
     icon: NotebookPen,
     color: "purple",
-    link: { href: "/system/quality?view=decisions", label: "Decisions" },
+    // No list link: /system/quality redirects to /system/calibration, which has no decisions view (02-X4-N1).
     // v10.0.529.91 · Wave 35 · deep-link to the decision detail page ·
     // /decisions/<id> exists and PageContextBridge auto-extracts
     // lastDecisionId from that route.
@@ -457,7 +456,6 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Replaying past decision…",
     icon: RotateCcw,
     color: "purple",
-    link: { href: "/system/quality?view=decisions", label: "Decisions" },
     subtitle: (out) => {
       const o = out as { outcome?: string; lesson?: string } | null;
       if (o?.outcome) return `outcome · ${o.outcome.slice(0, 60)}`;
@@ -471,7 +469,6 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Pulling past decisions…",
     icon: NotebookPen,
     color: "purple",
-    link: { href: "/system/quality?view=decisions", label: "Decisions" },
     subtitle: (out) => {
       const o = out as { count?: number; decisions?: unknown[] } | null;
       const n = o?.count ?? o?.decisions?.length;
@@ -484,7 +481,6 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Scanning decisions due for review…",
     icon: Clock,
     color: "amber",
-    link: { href: "/system/quality?view=decisions", label: "Decisions" },
     subtitle: (out) => {
       const o = out as { count?: number; due?: unknown[] } | null;
       const n = o?.count ?? o?.due?.length;

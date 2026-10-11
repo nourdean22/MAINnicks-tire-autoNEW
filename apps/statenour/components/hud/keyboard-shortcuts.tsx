@@ -53,7 +53,7 @@ const GO_ROUTES: Record<string, string> = {
   s: "/system",
   // system ops deck · canonical destinations only. Keep P as a
   // legacy muscle-memory alias to the hub rather than a fake /system/power page.
-  d: "/system/fleet",           // device/fleet truth
+  d: "/system/fleet",           // fleet truth (capability artifacts)
   c: "/system/crons",           // formerly /command (which is gone — now at /)
   e: "/system/logs?view=errors",
   a: "/system/actions",

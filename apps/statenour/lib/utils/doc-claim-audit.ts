@@ -30,10 +30,12 @@ export interface ClaimAudit {
 
 /**
  * @param docText      the documentation making the claims
- * @param gateSource   the gate's own source, used to detect what it really checks
- * @param claimHeading the marker after which claims are attributed to the gate.
- *                     Everything from here to the next blank-line-separated
- *                     paragraph break is read as gate-attributed.
+ * @param gateSource   the gate's own source, used to detect what it really checks.
+ *                     `#` comments are stripped: a term the gate only mentions in
+ *                     a comment ("contrast ratio is NOT checked") backs nothing.
+ * @param claimHeading the marker after which claims are attributed to the gate:
+ *                     the rest of its paragraph, plus the bullet run right after
+ *                     it when that paragraph holds no bullet (blank line between).
  * @param vocabulary   candidate check names to look for in the attributed block
  */
 export function auditGateClaims(
@@ -51,13 +53,17 @@ export function auditGateClaims(
   }
 
   // The attributed region ends at the first blank line following the bullet run,
-  // so prose further down the file is not read as a gate claim.
+  // so prose further down the file is not read as a gate claim. DESIGN.md puts a
+  // blank line between the heading and its bullets, which read as zero claims
+  // until 2026-10-10 (R3-10), so a bullet-free heading paragraph takes the next one
+  // when that one is a bullet run.
   const rest = docText.slice(at + claimHeading.length);
-  const end = rest.search(/\n\s*\n/);
-  const block = end === -1 ? rest : rest.slice(0, end);
+  const [head = "", next = ""] = rest.split(/\n\s*\n/);
+  const block = !/^\s*[-*+]\s/m.test(head) && /^\s*[-*+]\s/.test(next) ? `${head}\n${next}` : head;
+  const code = gateSource.replace(/(^|\s)#.*$/gm, "$1").toLowerCase();
 
   const unbacked = vocabulary.filter(
-    (term) => block.toLowerCase().includes(term.toLowerCase()) && !gateSource.toLowerCase().includes(term.toLowerCase()),
+    (term) => block.toLowerCase().includes(term.toLowerCase()) && !code.includes(term.toLowerCase()),
   );
 
   return { unbacked, ok: unbacked.length === 0 };

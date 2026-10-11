@@ -23,7 +23,8 @@ export interface TowerDiagnostics {
     errors_24h: number;
     requests_24h: number;
   };
-  devices?: { online: number; offline: number; error: number; total: number };
+  /** notReporting = status UNKNOWN (never reported); optional so an older payload still reads. */
+  devices?: { online: number; offline: number; error: number; notReporting?: number; total: number };
   integrations?: { name: string; status: string; enabled: boolean }[];
 }
 
@@ -110,7 +111,7 @@ export function controlTower(input: TowerInput): TowerVerdict {
       key: "devices-error",
       line: `${plural(devError, "device", "devices")} in error`,
       tone: "rose",
-      href: "/system/fleet",
+      // no href: /system/fleet shows capability artifacts, not device rows (10-X2)
     });
   }
   const devOffline = d.devices?.offline ?? 0;
@@ -119,7 +120,14 @@ export function controlTower(input: TowerInput): TowerVerdict {
       key: "devices-offline",
       line: `${plural(devOffline, "device", "devices")} offline`,
       tone: "amber",
-      href: "/system/fleet",
+    });
+  }
+  const devSilent = d.devices?.notReporting ?? 0;
+  if (devSilent > 0) {
+    exceptions.push({
+      key: "devices-not-reporting",
+      line: `${plural(devSilent, "device", "devices")} not reporting`,
+      tone: "amber",
     });
   }
   for (const i of d.integrations ?? []) {

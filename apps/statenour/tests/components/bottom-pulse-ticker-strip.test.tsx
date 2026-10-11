@@ -15,7 +15,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 const feeds = vi.hoisted(() => ({
   pulse: null as null | { items: unknown[] },
-  ticker: null as null | { items: unknown[] },
+  ticker: null as null | { items: unknown[]; softError?: string },
   pulseError: false,
   tickerError: false,
 }));
@@ -59,6 +59,12 @@ describe("F30 · a failed pulse read says so", () => {
   it("one feed failed and the other has nothing: still unavailable, not 'all quiet'", () => {
     feeds.pulseError = true;
     feeds.ticker = { items: [] };
+    expect(renderToStaticMarkup(<BottomPulseTicker />)).toContain("Pulse unavailable");
+  });
+
+  it("09-F30: every ticker sub-feed failed (softError) and the personal pulse is empty: unavailable, not silent", () => {
+    feeds.pulse = { items: [] };
+    feeds.ticker = { items: [], softError: "feeds unavailable" };
     expect(renderToStaticMarkup(<BottomPulseTicker />)).toContain("Pulse unavailable");
   });
 

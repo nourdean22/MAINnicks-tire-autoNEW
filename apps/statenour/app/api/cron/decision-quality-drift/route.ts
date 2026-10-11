@@ -40,7 +40,7 @@ export const GET = cronHandler(async () => {
           body: `Recent ${report.recentSampleSize} decision${
             report.recentSampleSize === 1 ? "" : "s"
           } averaging ${recent} · prior ${report.baselineSampleSize} averaged ${baseline} · review the week.`,
-          deepLink: "/system/quality",
+          deepLink: "/system/calibration",
           surfaces: ["scoreboard"],
           extra: {
             weekEndingDate: report.weekEndingDate,

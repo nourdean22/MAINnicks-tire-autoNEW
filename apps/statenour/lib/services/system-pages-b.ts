@@ -55,6 +55,7 @@ import {
   type ToolFamily,
 } from "@/lib/ai/tool-families";
 import { classifyTool } from "@/lib/ai/capability-registry";
+import { getToolMeta, type ToolMeta } from "@/lib/ai/tools/catalog";
 import { getToolStats } from "@/lib/ai/tool-telemetry";
 import {
   listPolicies,
@@ -260,7 +261,8 @@ interface ToolRow {
   family: ToolFamily;
   familyLabel: string;
   mutates: boolean;
-  cost: "cheap" | "medium" | "expensive";
+  /** The catalog's tier; null when the catalog has none (never a guessed "medium"). */
+  cost: NonNullable<ToolMeta["cost"]> | null;
   tags: string[];
   registered: boolean;
   liveInToolset: boolean;
@@ -279,7 +281,7 @@ interface FamilyRollup {
   color: string;
   toolCount: number;
   mutatingCount: number;
-  expensiveCount: number;
+  spendyCount: number;
 }
 
 export interface ToolStatsView {
@@ -351,7 +353,7 @@ export async function buildToolStats(): Promise<ToolStatsView> {
       // tool, so this column now means precisely "read mode strips this" —
       // and a tool cannot be safe in one place and unsafe in the other.
       mutates: !classifyTool(name).readSafe,
-      cost: meta?.cost ?? "medium",
+      cost: getToolMeta(name)?.cost ?? null,
       tags: meta?.tags ?? [],
       registered,
       liveInToolset: live,
@@ -377,7 +379,7 @@ export async function buildToolStats(): Promise<ToolStatsView> {
         color: FAMILY_DISPLAY[fam].color,
         toolCount: inFam.length,
         mutatingCount: inFam.filter((r) => r.mutates).length,
-        expensiveCount: inFam.filter((r) => r.cost === "expensive").length,
+        spendyCount: inFam.filter((r) => r.cost === "spendy").length,
       };
     })
     .sort(

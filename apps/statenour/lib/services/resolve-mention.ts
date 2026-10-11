@@ -16,6 +16,8 @@
 import { prisma } from "@/lib/prisma";
 import { searchColdMemory } from "@/lib/brain/cold-memory";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { resolveTrustTier } from "@/lib/brain/memory-trust";
+import { fenceContent } from "@/lib/ai/tool-result-fencing";
 
 async function resolveYesterday(): Promise<string> {
   const y = new Date();
@@ -156,7 +158,9 @@ async function resolveCold(surroundingText: string): Promise<string> {
     const excerpt = r.content.slice(0, 180).replace(/\s+/g, " ");
     return `${i + 1}. [${r.category}] ${excerpt}${r.driveViewUrl ? ` (${r.driveViewUrl})` : ""}`;
   });
-  return `[@cold top ${results.length}:\n${lines.join("\n")}]`;
+  // A shared Drive doc can be third-party text (P-S10b): fence every excerpt, taint on an external one.
+  const external = results.some((r) => resolveTrustTier(r) === "EXTERNAL_CONTENT");
+  return `[@cold top ${results.length}:\n${fenceContent("resolve-mention", external ? "external_doc" : "memory_recall", lines.join("\n"))}]`;
 }
 
 /**

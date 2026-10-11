@@ -86,6 +86,7 @@ export const CONDITIONAL_INSTRUMENTS: Readonly<Record<string, string>> = {
   "operation.integrity_shadow": "writes only on turns with a consequential operation",
   "action.done.shadow": "writes only on turns whose prose claims completion",
   "recommendation.novelty": "writes only on turns that ask for named resources and name at least one",
+  "chat.pre_stream_regen": "writes only on turns routed to the verified-regen lane (NICK_VERIFIED_REGEN on, gated intent)",
 };
 
 export interface InstrumentLivenessInput {
@@ -365,6 +366,7 @@ const SYSTEM_METRIC_INSTRUMENTS = new Set([
   "tool.chosen",
   "recommendation.novelty",
   DEFERRED_TURN_INSTRUMENT,
+  "chat.pre_stream_regen",
 ]);
 
 /** Live read. Every KNOWN_INSTRUMENT gets a row, or the view names the one it cannot source. */

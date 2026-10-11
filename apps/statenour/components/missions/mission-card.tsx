@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import type { Project, Task } from "@/components/actions/shared";
 import { MissionTaskRow } from "./mission-task-row";
 import { missionHasEndState } from "@/lib/services/mission-helpers";
+import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
 
 export interface MissionCardProps {
   mission: Project;
@@ -485,7 +486,7 @@ export function MissionCard({
                   value={newTaskTitle}
                   onChange={(e) => setNewTaskTitle(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") void handleAdd();
+                    if (isSubmitEnter(e)) void handleAdd();
                     if (e.key === "Escape") {
                       setAdding(false);
                       setNewTaskTitle("");

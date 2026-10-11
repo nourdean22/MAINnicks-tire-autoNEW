@@ -16,6 +16,7 @@ import type { ChatRuntimeController } from "../types/chat-runtime-controller";
 import type { ContextBlocks } from "@/components/chat/context-block-badges";
 import { looksLikeImageGenerationRequest } from "@/lib/ai/chat/handlers/patterns";
 import { bindPersistedMessage, stopTurn as requestStop, type StoppedTurn } from "../lib/turn-lifecycle";
+import { turnHasSideEffect } from "../lib/turn-side-effect";
 
 const PAGE_ANCHOR_KEYS = [
   "lastTaskId",
@@ -134,6 +135,48 @@ export function useChatStream(): ChatRuntimeController {
   // because the transport, built once, reads it at resume time.
   const messagesRef = useRef<ChatUIMessage[]>([]);
 
+  // True from the moment the 90s stall abort fires until the next send.
+  // Guards onFinish (below) from erasing the degraded state, since an
+  // abort and a completion are indistinguishable to that callback.
+  const stalledRef = useRef(false);
+  // R3-15: the error of a network kill whose turn the server owns. A resume
+  // that then finds nothing (204) settles as "ready" with no error, so the
+  // hook holds this error to keep the turn visibly interrupted.
+  const killedErrorRef = useRef<Error | null>(null);
+  const [heldError, setHeldError] = useState<Error | null>(null);
+
+  // 2026-08-09: persistent, not a 6-second toast. A stall takes 90 seconds
+  // to fire, so on a phone the notice came and went while the screen was off.
+  // RECONNECT, never regenerate (see the stall setError below).
+  const showStallToast = useCallback(
+    (message: string) => {
+      toast.error(message, {
+        id: "chat-stall",
+        duration: Infinity,
+        action: {
+          label: "Reconnect",
+          onClick: () => {
+            toast.dismiss("chat-stall");
+            stalledRef.current = false;
+            setHeldError(null);
+            setConnection("online");
+            resumingRef.current = true;
+            void resumeStreamRefForPartial.current?.();
+          },
+        },
+      });
+    },
+    [setConnection],
+  );
+  const onResumeEmpty = useCallback(() => {
+    const killed = killedErrorRef.current;
+    if (!killed) return;
+    stalledRef.current = true;
+    setConnection("degraded");
+    setHeldError(killed);
+    showStallToast("The connection dropped and Nick's reply could not be picked up. Reconnect, or reload to check for it.");
+  }, [setConnection, showStallToast]);
+
   const transport = useChatTransport({
     apiPath: "/api/ai/chat",
     transportBodyRef: bodyRef,
@@ -155,6 +198,7 @@ export function useChatStream(): ChatRuntimeController {
       [setActiveConversationId],
     ),
     onResumePartial,
+    onResumeEmpty,
     // 2026-08-28 · make escalation legible. The operator explicitly asked
     // for depth on this turn, so telling them what happened is expected
     // feedback, not noise — and a REFUSED escalation that says nothing is
@@ -177,7 +221,7 @@ export function useChatStream(): ChatRuntimeController {
         }
         // Blocked: name the remedy, not just the refusal. `reason` is
         // server-authored and already carries the exact env var or count.
-        toast.error(`Depth requested (${info.tier}) — not applied`, {
+        toast.error(`Depth requested (${info.tier}), not applied`, {
           description: info.reason ?? info.blockedBy ?? "escalation unavailable",
           duration: 8000,
         });
@@ -212,10 +256,6 @@ export function useChatStream(): ChatRuntimeController {
   });
 
   const retryCountRef = useRef(0);
-  // True from the moment the 90s stall abort fires until the next send.
-  // Guards onFinish (below) from erasing the degraded state, since an
-  // abort and a completion are indistinguishable to that callback.
-  const stalledRef = useRef(false);
   // Whether the MOST RECENT send went out under Private Lab, + a live mirror of
   // privateMode. A private turn must never be replayed (regenerate / auto-retry)
   // once Private Lab is off — the replay would persist it (self-review high #4).
@@ -224,25 +264,52 @@ export function useChatStream(): ChatRuntimeController {
   useEffect(() => {
     privateModeRef.current = privateMode;
   }, [privateMode]);
+  const [stopped, setStopped] = useState<StoppedTurn | null>(null);
+  // The trace id in hand when the latest request went out. A different one
+  // after a network kill means the POST was answered: the server has the turn.
+  const traceAtSendRef = useRef<string | null>(null);
 
+  // R3-05 (04-F7 + 04-H4): the one choke point for a replay. Every Retry
+  // (error card, interrupted card, cut-off and refused chips, quality bar) and
+  // the auto-retry land here, so the refusals happen before anything changes.
   const safeRegenerate = useCallback(
     (options?: Parameters<typeof chat.regenerate>[0]): Promise<void> => {
       if (sentPrivateRef.current && !privateModeRef.current) {
-        toast.error("That turn was private — turn Private Lab back on to retry it.");
+        toast.error("That turn was private. Turn Private Lab back on to retry it.");
         return Promise.resolve();
       }
+      // R3-15: the server owns this turn and nothing has reattached yet, so a
+      // regenerate would run it a second time. Retry reattaches instead.
+      if (killedErrorRef.current) {
+        setHeldError(null);
+        resumingRef.current = true;
+        void chat.resumeStream();
+        return Promise.resolve();
+      }
+      const messages = messagesRef.current;
+      const target = options?.messageId
+        ? messages.find((m) => m.id === options.messageId)
+        : messages[messages.length - 1];
+      if (target?.role === "assistant" && turnHasSideEffect(target)) {
+        toast.error("That reply may have run an action, so it can't be replayed. Send a new message instead.");
+        return Promise.resolve();
+      }
+      resumingRef.current = false;
+      cancelPartialResume();
+      setStopped(null);
+      traceAtSendRef.current = lastTraceIdRef.current;
       return chat.regenerate(options);
     },
-    [chat],
+    [chat, cancelPartialResume],
   );
 
-  // Kept fresh the same way regenerateRef is, so the stall toast's action can
-  // reach it without re-creating the toast on every render.
+  // Kept fresh the same way regenerateRef is, so the network-kill reattach
+  // below reaches the live handle.
   const resumeStreamRef = useRef(chat.resumeStream);
   useEffect(() => {
     resumeStreamRef.current = chat.resumeStream;
-    // Same live handle for the partial-resume path, which is declared
-    // above the transport (it has to be) and so cannot close over `chat`.
+    // Same live handle for the partial-resume path and the stall toast, which
+    // are declared above the transport (they have to be) and cannot close over `chat`.
     resumeStreamRefForPartial.current = chat.resumeStream as unknown as () => void;
   }, [chat.resumeStream]);
 
@@ -256,7 +323,6 @@ export function useChatStream(): ChatRuntimeController {
   }, [chat.messages]);
 
   const isStreaming = chat.status === "streaming" || chat.status === "submitted";
-  const [stopped, setStopped] = useState<StoppedTurn | null>(null);
   const stopSeqRef = useRef(0);
 
   // 04-F2 / 04-F8 · once the stream settles, bind the reply bubble to its DB
@@ -311,6 +377,20 @@ export function useChatStream(): ChatRuntimeController {
     // persisted reply.
     if (resumingRef.current) return;
 
+    // R3-05 (04-H4): the POST was answered with this turn's trace, so the
+    // server owns the turn and finishes it after the drop (route.ts
+    // consumeStream). Reattach; a regenerate would start a second execution.
+    const turnTrace = lastTraceIdRef.current;
+    if (turnTrace && turnTrace !== traceAtSendRef.current) {
+      killedErrorRef.current = chat.error ?? null;
+      retryCountRef.current += 1;
+      const timer = setTimeout(() => {
+        resumingRef.current = true;
+        void resumeStreamRef.current?.();
+      }, 1_500 * retryCountRef.current);
+      return () => clearTimeout(timer);
+    }
+
     // 2026-07-22 · idempotency guard. A tool may have committed a real side
     // effect (Telegram send, IG autopost, customer alert) on the server BEFORE
     // the stream dropped. Auto-regenerating re-runs the turn and re-fires the
@@ -346,6 +426,11 @@ export function useChatStream(): ChatRuntimeController {
     return () => clearTimeout(timer);
   }, [chat.error]);
 
+  // A reattach that streams hands the turn back: Retry regenerates as usual again.
+  useEffect(() => {
+    if (chat.status === "streaming") killedErrorRef.current = null;
+  }, [chat.status]);
+
   useStreamingErrorGuard({
     isStreaming: chat.status === "streaming" || chat.status === "submitted",
     error: chat.error?.message ?? null,
@@ -360,12 +445,8 @@ export function useChatStream(): ChatRuntimeController {
       stalledRef.current = true;
       setConnection("degraded");
       if (!message) return;
-      // 2026-08-09 · Was a 6-second auto-dismissing toast. The stall it
-      // reports takes 90 SECONDS to fire, so on a phone the notice routinely
-      // came and went while the screen was off or the operator had looked
-      // away — leaving a turn that had genuinely failed looking like one that
-      // was merely slow. A stall is terminal for that turn: it must persist
-      // until acknowledged, and it must offer the recovery, because
+      // A stall is terminal for that turn: the notice must persist until
+      // acknowledged and offer the recovery (showStallToast), because
       // chat.error is never set on this path so the SDK's own retry cannot
       // arm and the persistent error card cannot render.
       // RECONNECT, never regenerate. chat.stop() abandons only the CLIENT
@@ -378,20 +459,7 @@ export function useChatStream(): ChatRuntimeController {
       // gmail.sendDraft, telegram.send and shop.sendSms (route.ts
       // HIGH_STAKES_MUTATIONS). resumeStream() reattaches to the stream that
       // is already producing the answer. Caught in review on #1471.
-      toast.error(message, {
-        id: "chat-stall",
-        duration: Infinity,
-        action: {
-          label: "Reconnect",
-          onClick: () => {
-            toast.dismiss("chat-stall");
-            stalledRef.current = false;
-            setConnection("online");
-            resumingRef.current = true;
-            void resumeStreamRef.current?.();
-          },
-        },
-      });
+      showStallToast(message);
     },
   });
 
@@ -403,6 +471,8 @@ export function useChatStream(): ChatRuntimeController {
 
   /** A new turn supersedes any stall notice from the previous one. */
   const clearStall = useCallback(() => {
+    killedErrorRef.current = null;
+    setHeldError(null);
     if (!stalledRef.current) return;
     stalledRef.current = false;
     toast.dismiss("chat-stall");
@@ -411,11 +481,12 @@ export function useChatStream(): ChatRuntimeController {
   return {
     messages: chat.messages,
     status: chat.status as "submitted" | "streaming" | "ready" | "error",
-    error: chat.error,
+    error: chat.error ?? heldError ?? undefined,
     isStreaming,
     sendText: (text: string) => {
       sentPrivateRef.current = privateMode;
       resumingRef.current = false;
+      traceAtSendRef.current = lastTraceIdRef.current;
       cancelPartialResume();
       clearStall();
       setStopped(null);
@@ -436,6 +507,7 @@ export function useChatStream(): ChatRuntimeController {
     append: ((...args: Parameters<typeof chat.sendMessage>) => {
       sentPrivateRef.current = privateMode;
       resumingRef.current = false;
+      traceAtSendRef.current = lastTraceIdRef.current;
       cancelPartialResume();
       clearStall();
       setStopped(null);
@@ -447,12 +519,7 @@ export function useChatStream(): ChatRuntimeController {
     },
     stopTurn,
     stopped,
-    regenerate: (options) => {
-      resumingRef.current = false;
-      cancelPartialResume();
-      setStopped(null);
-      return safeRegenerate(options);
-    },
+    regenerate: safeRegenerate,
     setMessages: chat.setMessages,
     liveContextBlocks,
     lastTraceId,

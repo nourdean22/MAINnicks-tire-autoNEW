@@ -1,7 +1,16 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+// @vitest-environment jsdom
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import React from "react";
+import React, { act } from "react";
+import { createRoot } from "react-dom/client";
 import { ChatComposer } from "@/features/chat-v2/components/chat-composer";
+import { useChatUiStore } from "@/features/chat-v2/stores/chat-ui-store";
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+vi.mock("sonner", () => ({
+  toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), loading: vi.fn(() => "t1"), dismiss: vi.fn() }),
+}));
 
 // 2026-07-11 · ChatComposer now calls useRouter() (slash-nav wiring), which
 // needs the app-router context that SSR-render lacks — mock it.
@@ -84,5 +93,91 @@ describe("ChatComposer Component", () => {
     expect(markup).toContain('aria-label="Attach image, audio or PDF"');
     expect(markup).toContain('aria-label="Voice input"');
     expect(markup).toContain('aria-label="Send message"');
+  });
+});
+
+// R3-05 (04-X1): an attached voice memo was base64'd into the message, so the
+// model got bytes it cannot hear, while the transcription route and its hook
+// had no caller. Audio now goes to /api/ai/chat/audio-transcribe and the
+// transcript lands in the draft for the operator to read before sending.
+describe("ChatComposer . audio attachments are transcribed", () => {
+  const originalCreate = URL.createObjectURL;
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    URL.createObjectURL = originalCreate;
+    useChatUiStore.setState({ draft: "" });
+  });
+
+  async function pick(file: File) {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const chat = { status: "ready", isStreaming: false, messages: [], sendText: vi.fn(), append: vi.fn() } as any;
+    await act(async () => root.render(<ChatComposer chat={chat} />));
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    await act(async () => {
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    // Let the fetch and its .json() settle.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    act(() => root.unmount());
+  }
+
+  it("a picked audio file is POSTed for transcription and the transcript joins the draft", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ transcript: "call notes" }), { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    URL.createObjectURL = vi.fn(() => "blob:preview");
+    useChatUiStore.setState({ draft: "" });
+
+    await pick(new File(["x"], "memo.m4a", { type: "audio/x-m4a" }));
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/ai/chat/audio-transcribe", expect.objectContaining({ method: "POST" }));
+    expect(useChatUiStore.getState().draft).toContain("call notes");
+    expect(URL.createObjectURL, "audio must not become an inline attachment").not.toHaveBeenCalled();
+  });
+
+  // R3-15 (review finding 8): a Finder-copied file also carries its name as
+  // text/plain, so a paste the composer consumed as audio still typed it.
+  async function paste(items: Array<{ kind: string; type: string; getAsFile: () => File | null }>): Promise<boolean> {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const chat = { status: "ready", isStreaming: false, messages: [], sendText: vi.fn(), append: vi.fn() } as any;
+    await act(async () => root.render(<ChatComposer chat={chat} />));
+    const textarea = container.querySelector("textarea") as HTMLTextAreaElement;
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", { value: { items, files: [] } });
+    await act(async () => {
+      textarea.dispatchEvent(event);
+    });
+    act(() => root.unmount());
+    return event.defaultPrevented;
+  }
+
+  it("a pasted audio file is consumed: its filename never lands in the draft", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ transcript: "x" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const memo = new File(["x"], "memo.m4a", { type: "audio/x-m4a" });
+    const prevented = await paste([{ kind: "file", type: "audio/x-m4a", getAsFile: () => memo }]);
+    expect(fetchMock, "the paste reached transcription").toHaveBeenCalledWith("/api/ai/chat/audio-transcribe", expect.anything());
+    expect(prevented).toBe(true);
+  });
+
+  it("CONTROL: a plain text paste goes through untouched", async () => {
+    expect(await paste([{ kind: "string", type: "text/plain", getAsFile: () => null }])).toBe(false);
+  });
+
+  it("CONTROL: a picked image still attaches inline and calls no transcription", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    URL.createObjectURL = vi.fn(() => "blob:preview");
+
+    await pick(new File(["x"], "shot.png", { type: "image/png" }));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
   });
 });

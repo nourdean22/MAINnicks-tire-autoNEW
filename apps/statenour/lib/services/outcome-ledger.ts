@@ -336,6 +336,27 @@ export async function recordDecisionByContent(
 }
 
 /**
+ * Attach a resultRef to the row shown with this text when it is already
+ * ACCEPTED without one (R3-17 #4: an accept recorded first, a promote later
+ * names the task). Compare-and-set on `decision: "accepted", resultRef: null`:
+ * never re-decides, never overwrites a ref, never touches a dismissed row.
+ */
+export async function attachAcceptedResultRefByContent(summary: string, resultRef: string): Promise<boolean> {
+  try {
+    const id = await ledgerIdByContent(summary);
+    if (!id) return false;
+    const res = await prisma.intelligenceOutcome.updateMany({
+      where: { id, decision: "accepted", resultRef: null },
+      data: { resultRef },
+    });
+    return res.count === 1;
+  } catch (err) {
+    logError("intel.outcome-ledger", err, { stage: "attach-accepted-result-ref" }, "warn");
+    return false;
+  }
+}
+
+/**
  * Record an outcome when the caller has the surfaced TEXT but not the
  * ledger id (2026-08-19 · outcome-loop wave) — the recordDecisionByContent
  * pattern applied to the usefulness half, which had ZERO callers for the
@@ -439,6 +460,11 @@ export async function recordOutcomeByResultRef(resultRef: string, useful: boolea
   }
 }
 
+/** Kinds no surface can decide on (rated or machine-scored only); `decision_surface` lost its producer. */
+const RATING_ONLY_KINDS: ReadonlySet<string> = new Set(["daily_brief", "proactive_push", "prediction", "decision_surface"]);
+/** An undecided suggestion older than this has lapsed: counted apart, never swept to "ignored" (06-H5). */
+const LAPSE_MS = 48 * 3_600_000;
+
 /** Raw counts, no invented rates — nulls stay visible as undecided/unmeasured. */
 export async function outcomeStats(windowDays = 30): Promise<{
   shown: number;
@@ -447,8 +473,12 @@ export async function outcomeStats(windowDays = 30): Promise<{
   dismissed: number;
   usefulTrue: number;
   usefulFalse: number;
-  /** decision null — no act was recorded (the row may still be rated). */
+  /** decision null on a decidable kind shown in the last 48h: still awaiting an act (the row may be rated). */
   undecided: number;
+  /** decision null on a decidable kind shown more than 48h ago. */
+  lapsed: number;
+  /** decision null on a rating-only kind; decided + undecided + lapsed + ratingOnly = shown. */
+  ratingOnly: number;
   /** decision null AND outcomeUseful null — nothing is known about the row. */
   unlabelled: number;
 } | null> {
@@ -456,8 +486,11 @@ export async function outcomeStats(windowDays = 30): Promise<{
     const since = new Date(Date.now() - windowDays * 86_400_000);
     const rows = await prisma.intelligenceOutcome.findMany({
       where: { shownAt: { gte: since } },
-      select: { decision: true, outcomeUseful: true },
+      select: { kind: true, decision: true, outcomeUseful: true, shownAt: true },
     });
+    const lapseCutoff = new Date(Date.now() - LAPSE_MS);
+    const open = rows.filter((r) => r.decision == null && !RATING_ONLY_KINDS.has(r.kind));
+    const lapsed = open.filter((r) => r.shownAt < lapseCutoff).length;
     return {
       shown: rows.length,
       decided: rows.filter((r) => r.decision != null).length,
@@ -465,7 +498,9 @@ export async function outcomeStats(windowDays = 30): Promise<{
       dismissed: rows.filter((r) => r.decision === "dismissed").length,
       usefulTrue: rows.filter((r) => r.outcomeUseful === true).length,
       usefulFalse: rows.filter((r) => r.outcomeUseful === false).length,
-      undecided: rows.filter((r) => r.decision == null).length,
+      undecided: open.length - lapsed,
+      lapsed,
+      ratingOnly: rows.filter((r) => r.decision == null && RATING_ONLY_KINDS.has(r.kind)).length,
       unlabelled: rows.filter((r) => r.decision == null && r.outcomeUseful == null).length,
     };
   } catch (err) {

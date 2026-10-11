@@ -9,8 +9,9 @@
  *
  * Reviewed and left alone (not a plain-Enter send to Nick): operator/
  * nick-reasoner.tsx and ultron/today/active-task-companion.tsx (Cmd/Ctrl+Enter
- * only), journal/thread-rail.tsx (thread name), missions/mission-card.tsx
- * (add task), brain-dump-modal.tsx (Cmd/Ctrl+Enter capture).
+ * only), brain-dump-modal.tsx (Cmd/Ctrl+Enter capture). journal/thread-rail.tsx
+ * (thread name) and missions/mission-card.tsx (add task) are not sends to Nick
+ * either, but R3-06 moved both onto isSubmitEnter() too.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";

@@ -267,7 +267,15 @@ export default function FleetPage() {
                   <span className="text-fg-secondary/70">{delivery.data.stats.decided} decided</span>
                   <span className="text-emerald-300">{delivery.data.stats.accepted} accepted</span>
                   <span className="text-amber-300">{delivery.data.stats.dismissed} dismissed</span>
-                  <span className="text-fg-secondary">{delivery.data.stats.undecided} undecided</span>
+                  <span className="text-fg-secondary" title="suggestion with no act recorded, shown in the last 48h">
+                    {delivery.data.stats.undecided} undecided
+                  </span>
+                  <span className="text-fg-secondary/70" title="suggestion with no act recorded, shown more than 48h ago">
+                    {delivery.data.stats.lapsed} lapsed
+                  </span>
+                  <span className="text-fg-secondary/70" title="briefs, pushes and predictions: rated or scored, never decided">
+                    {delivery.data.stats.ratingOnly} rating-only
+                  </span>
                   <span
                     className="text-fg-secondary"
                     title="decision null AND outcome null — nothing is known about the row; undecided alone may still carry a rating"

@@ -39,6 +39,28 @@ describe("evaluateMemoryCandidate — the write-authority rules the legacy path 
     expect(v.decision).toBe("reinforce");
   });
 
+  // 05-X8: two LLM passes over the same conversations are one witness, not two.
+  it("two AGENT_INFERRED sources repeating the claim → noop, not corroboration", () => {
+    const v = evaluateMemoryCandidate(cand({ source: "conversation_abc" }), {
+      content: "Nour prefers evening workouts",
+      source: "conversation_analysis",
+      seenCount: 1,
+      confidence: 0.5,
+    });
+    expect(v.decision).toBe("noop");
+    expect(v.reasonCode).toBe("same_source_repeat");
+  });
+
+  it("CONTROL: an inference repeated by a first-party derivation is still corroboration", () => {
+    const v = evaluateMemoryCandidate(cand({ source: "journal-analysis" }), {
+      content: "Nour prefers evening workouts",
+      source: "conversation_analysis",
+      seenCount: 1,
+      confidence: 0.5,
+    });
+    expect(v.decision).toBe("reinforce");
+  });
+
   it("changed claim at equal strength → update, never a confidence-boosting reinforce", () => {
     const v = evaluateMemoryCandidate(cand({ content: "Nour prefers morning workouts", source: "insight-engine" }), {
       content: "Nour prefers evening workouts",

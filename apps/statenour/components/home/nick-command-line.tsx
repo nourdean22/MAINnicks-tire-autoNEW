@@ -230,14 +230,19 @@ export function NickCommandLine() {
   const showChips = focused && input.length === 0 && anticipatedQuestions.length > 0;
   const canSend = !isLoading && parseSlash(input).text.length > 0;
   const visibleMessages = messages.filter((m) => getMessageText(m) !== WAKE_MESSAGE);
+  const lastReply = [...visibleMessages].reverse().find((m) => m.role === "assistant");
+  // 09-F5: announce the finished reply once; the log itself is silent so tokens are not read one by one.
+  const announcement = !isLoading && lastReply ? `Nick: ${getMessageText(lastReply)}` : "";
 
   return (
     <div className="w-full space-y-3">
+      <p role="status" className="sr-only">{announcement}</p>
       {visibleMessages.length > 0 && (
         <div
           className="border-l-2 border-edge pl-4"
           role="log"
           aria-label="Nick's response"
+          aria-live="off"
         >
           <div className="flex items-start gap-3">
             <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-edge-default bg-content text-fg-secondary">
@@ -274,7 +279,7 @@ export function NickCommandLine() {
                     setInput(`${c.token} `);
                     taRef.current?.focus();
                   }}
-                  className="flex min-h-[36px] w-full items-baseline gap-3 rounded-control px-2 text-left transition-colors duration-150 hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+                  className="flex min-h-11 w-full items-center gap-3 rounded-control px-2 text-left transition-colors duration-150 hover:bg-raised"
                 >
                   <span className="font-mono text-[13px] text-fg">{c.token}</span>
                   <span className="text-[12px] text-fg-tertiary">{c.hint}</span>
@@ -297,7 +302,7 @@ export function NickCommandLine() {
                   setInput(q);
                   taRef.current?.focus();
                 }}
-                className="inline-flex min-h-[44px] items-center rounded-full border border-edge px-3 text-left text-[12px] text-fg-tertiary transition-colors duration-150 hover:border-edge-strong hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+                className="inline-flex min-h-[44px] items-center rounded-full border border-edge px-3 text-left text-[12px] text-fg-tertiary transition-colors duration-150 hover:border-edge-strong hover:text-fg"
               >
                 {q}
               </button>
@@ -338,7 +343,7 @@ export function NickCommandLine() {
               disabled={!canSend}
               aria-label="send"
               className={cn(
-                "inline-flex size-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold",
+                "inline-flex size-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)]",
                 canSend
                   ? "bg-accent text-[var(--text-inverse)] hover:bg-accent-hover"
                   : "border border-edge bg-raised text-fg-tertiary",
@@ -358,7 +363,7 @@ export function NickCommandLine() {
         <button
           type="button"
           onClick={fireBrief}
-          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-surface px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-surface px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
         >
           <Brain size={11} />
           Morning brief

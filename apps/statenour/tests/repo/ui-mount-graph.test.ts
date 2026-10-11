@@ -36,10 +36,10 @@ const SKIP_DIRS = new Set(["node_modules", ".next", ".next-prod", "dist", "tests
  * gate's own BFS on 5c1195e (see the failure message format below).
  */
 export const PARKED: Record<string, string> = {
-  // 3D scene island · zero importers since the /ultron HQ route was deleted;
-  // next.config.ts:90 still names scene-canvas in a transpile note.
+  // 3D scene island · zero importers since the /ultron HQ route was deleted.
+  // Its next.config.ts note was deleted 2026-10-10 (10-X8); the test below keeps config notes off parked files.
   "components/3d/canvas-inner.tsx": "3D scene island (audit W-2) · reached only via scene-canvas, which nothing imports · re-mount or delete is an operator call",
-  "components/3d/scene-canvas.tsx": "3D scene island (audit W-2) · zero importers · next.config.ts:90 still references it · re-mount or delete is an operator call",
+  "components/3d/scene-canvas.tsx": "3D scene island (audit W-2) · zero importers · re-mount or delete is an operator call",
   "components/3d/scene-skeleton.tsx": "3D scene island (audit W-2) · loading skeleton for scene-canvas · dead with its parent",
   // actions/loops island · entry loop-stream has zero importers.
   "components/actions/break-promise-modal.tsx": "actions/loops island (audit W-2) · child of loop-stream · dead with its parent",
@@ -165,5 +165,13 @@ describe("ui mount graph · every component is reachable from an entrypoint, or 
     const stale = Object.keys(PARKED).filter((rel) => !byRel.has(rel) || reachable.has(byRel.get(rel)!));
     expect(stale, `PARKED entries that are reachable or deleted — remove them:\n${stale.join("\n")}`).toEqual([]);
     for (const [rel, reason] of Object.entries(PARKED)) expect(reason.trim().length, `${rel} needs a reason`).toBeGreaterThan(10);
+  });
+
+  it("next.config.ts names no parked component (10-X8: a config note about an unmounted feature reads as live)", () => {
+    const cfg = readFileSync(join(APP_ROOT, "next.config.ts"), "utf8");
+    const named = Object.keys(PARKED)
+      .map((rel) => rel.slice(rel.lastIndexOf("/") + 1).replace(/\.[^.]+$/, ""))
+      .filter((name) => cfg.includes(name));
+    expect(named, "next.config.ts describes a parked component; delete the note or re-mount the component").toEqual([]);
   });
 });

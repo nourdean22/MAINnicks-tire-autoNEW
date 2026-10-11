@@ -177,8 +177,9 @@ Rules:
             where: { id: keeper.id },
             data: {
               content: group.merged,
-              confidence: Math.min(keeper.confidence + 0.15, 1.0),
-              seenCount: toMerge.reduce((s, m) => s + m.seenCount, 0),
+              // 05-X8: a near-duplicate is the same claim said again, not new
+              // evidence; no confidence boost, and sightings are the max, not the sum.
+              seenCount: Math.max(...toMerge.map((m) => m.seenCount)),
             },
           }),
           // SOFT-delete merged sources instead of hard-delete. 2026

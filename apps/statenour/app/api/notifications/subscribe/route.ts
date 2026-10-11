@@ -6,7 +6,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { saveSubscription, removeSubscription, VAPID_PUBLIC_KEY } from "@/lib/notifications/push";
 
 import { requireSession } from "@/lib/auth-guard";
-export async function GET() {
+export async function GET(req: NextRequest) {
+  await requireSession(req);
   // Return the VAPID public key so the client can subscribe
   return NextResponse.json({ publicKey: VAPID_PUBLIC_KEY });
 }

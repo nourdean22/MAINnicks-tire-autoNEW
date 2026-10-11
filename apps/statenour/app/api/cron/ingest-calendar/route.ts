@@ -66,6 +66,7 @@ export const GET = cronHandler(async () => {
   }
 
   const t0 = Date.now();
+  const ownEmail = oauth.email?.trim().toLowerCase() || null;
   let pastStored = 0;
   let upcomingStored = 0;
   let quarantined = 0;
@@ -88,7 +89,8 @@ export const GET = cronHandler(async () => {
         category,
         key: `calendar_${ev.id}`,
         content: buildEventContent(ev),
-        source: "calendar_cron",
+        // Someone else's event is their text (NEW-05); fail closed when the account email is unknown.
+        source: ownEmail && ev.organizer?.trim().toLowerCase() === ownEmail ? "calendar_cron" : "calendar:external",
         sourceType: "calendar_ingest",
         sourceUrl: `gcal://${ev.id}`,
         metadata: {

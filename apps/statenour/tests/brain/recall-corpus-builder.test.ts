@@ -41,32 +41,33 @@ describe("caseFromRejectedOutcome", () => {
     summary: "Reschedule the alignment promo to next week",
     decision: "dismissed",
     outcomeUseful: null,
+    evidenceRefs: { memoryKey: "promo_alignment" },
   };
 
   it("carries real provenance naming the source row — never synthetic-seed", () => {
-    const c = caseFromRejectedOutcome(row);
+    const c = caseFromRejectedOutcome(row)!;
     expect(c.provenance).toContain("outcome:out_123");
     expect(c.provenance).toContain("rescue-scanner");
     expect(c.provenance).not.toBe("synthetic-seed");
   });
 
   it("a rejected recommendation becomes an ABSTENTION case, not an invented expectation", () => {
-    const c = caseFromRejectedOutcome(row);
+    const c = caseFromRejectedOutcome(row)!;
     expect(c.kind).toBe("abstention");
     expect(c.acceptableAbstention).toBe(true);
     expect(c.relevantKeys).toEqual([]);
   });
 
   it("distinguishes dismissed from not-useful in the provenance trail", () => {
-    expect(caseFromRejectedOutcome(row).provenance).toContain("dismissed");
+    expect(caseFromRejectedOutcome(row)?.provenance).toContain("dismissed");
     expect(
-      caseFromRejectedOutcome({ ...row, decision: null, outcomeUseful: false }).provenance,
+      caseFromRejectedOutcome({ ...row, decision: null, outcomeUseful: false })?.provenance,
     ).toContain("marked not useful");
   });
 
   it("ids are slugged and stable for the same source row", () => {
-    expect(caseFromRejectedOutcome(row).id).toBe(caseFromRejectedOutcome(row).id);
-    expect(caseFromRejectedOutcome(row).id).toMatch(/^real-outcome-[a-z0-9-]+$/);
+    expect(caseFromRejectedOutcome(row)?.id).toBe(caseFromRejectedOutcome(row)?.id);
+    expect(caseFromRejectedOutcome(row)?.id).toMatch(/^real-outcome-[a-z0-9-]+$/);
   });
 });
 
@@ -136,6 +137,7 @@ describe("buildRealRecallCases distinguishes a BROKEN source from an EMPTY one",
   const outcomeRow = {
     id: "o1", kind: "suggestion", sourceEngine: "e",
     summary: "s", decision: "dismissed", outcomeUseful: null,
+    evidenceRefs: { memoryKey: "k1" },
   };
   const traceRow = { traceId: "t1", label: "createTask", errorClass: "api_timeout" };
 
@@ -169,6 +171,12 @@ describe("buildRealRecallCases distinguishes a BROKEN source from an EMPTY one",
     // back to being unable to fail.
     const disc = r.cases.find((c) => c.id.startsWith("real-discovery-"));
     expect(disc?.forbiddenKeys).toEqual([noiseRow.key]);
+  });
+
+  it("a keyless outcome row is dropped, not counted as a case that can never fail", async () => {
+    mocked(prisma.intelligenceOutcome.findMany).mockResolvedValue([{ ...outcomeRow, evidenceRefs: { taskId: "t1" } }]);
+    const r = await buildRealRecallCases();
+    expect(r.cases.some((c) => c.id.startsWith("real-outcome-"))).toBe(false);
   });
 
   it("a THROWING source flips degraded and is named with its error", async () => {
@@ -253,7 +261,8 @@ describe("describeCorpus", () => {
         summary: "s",
         decision: "dismissed",
         outcomeUseful: null,
-      }),
+        evidenceRefs: { memoryKey: "k1" },
+      })!,
     ];
     const d = describeCorpus(mixed);
     expect(d.real).toBe(1);

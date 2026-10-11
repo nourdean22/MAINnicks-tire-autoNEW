@@ -18,6 +18,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  exitCodeFor,
   formatSummaryLine,
   loadScenarios,
   runDryRun,
@@ -293,5 +294,43 @@ describe("persona golden set · obedience / anti-sycophancy / calibration (2026-
         `${s.id}: dominant criterion '${primary!.id}' is not the anti-sycophancy one`,
       ).toBe(true);
     }
+  });
+});
+
+// Audit 2026-10-10 06-X4: exit 2 meant both "Nick regressed" and "the provider
+// was down", and a run that measured nothing exited 0.
+describe("exitCodeFor", () => {
+  it("errored only is an outage (3), not a regression", () => {
+    expect(exitCodeFor({ flagged: 0, errored: 2 })).toBe(3);
+  });
+
+  it("CONTROL: a flagged scenario is a regression (2), even beside errors", () => {
+    expect(exitCodeFor({ flagged: 1, errored: 0 })).toBe(2);
+    expect(exitCodeFor({ flagged: 1, errored: 1 })).toBe(2);
+  });
+
+  it("CONTROL: a clean measured run exits 0", () => {
+    expect(exitCodeFor({ flagged: 0, errored: 0, ranScenarios: 4 })).toBe(0);
+  });
+
+  it("a live run that scored nothing exits 3, never 0", () => {
+    expect(exitCodeFor({ flagged: 0, errored: 0, ranScenarios: 0 })).toBe(3);
+  });
+});
+
+// Audit 2026-10-10 06-X3: two reports were compared with no record of which
+// code, scenarios or judge prompt produced them.
+describe("report provenance", () => {
+  it("a report names its git sha, scenario corpus hash and judge prompt hash", async () => {
+    const report = await runDryRun({ args: { live: false, filter: null, outPath: null, tools: false } });
+    expect(report.scenarioCorpusHash).toMatch(/^[0-9a-f]{12}$/);
+    expect(report.judgePromptHash).toMatch(/^[0-9a-f]{12}$/);
+    expect(report).toHaveProperty("gitSha");
+  });
+
+  it("the corpus hash moves with the filtered scenario set", async () => {
+    const all = await runDryRun({ args: { live: false, filter: null, outPath: null, tools: false } });
+    const one = await runDryRun({ args: { live: false, filter: "decision", outPath: null, tools: false } });
+    expect(one.scenarioCorpusHash).not.toBe(all.scenarioCorpusHash);
   });
 });

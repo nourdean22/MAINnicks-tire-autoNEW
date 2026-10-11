@@ -93,6 +93,7 @@ export function useJournalFeed(
     isFetching: query.isFetching,
     isFetchingMore: query.isFetchingNextPage,
     error: query.error?.message ?? null,
+    refetch: query.refetch,
     source,
     setSourceFilter,
     type,

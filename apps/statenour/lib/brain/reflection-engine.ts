@@ -26,6 +26,7 @@ const aiChat = makeTracedAiChat("reflection-engine");
 import { extractJsonArray } from "@/lib/ai/extract-structured";
 import { logError } from "@/lib/utils/error-log";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
+import { readBridge } from "@/lib/nickstire/query";
 import {
   recentScoreSnapshots,
   recentDailyHabits,
@@ -147,13 +148,9 @@ async function gatherDailyContext(daysBack: number = 7) {
   for (const q of quotesRaw) {
     quoteStatusCounts.set(q.status, (quoteStatusCounts.get(q.status) ?? 0) + 1);
   }
-  // v10.0.529.106 · Wave 58 · cleanup · `jobCount` and `leadCount` were
-  // `Promise.resolve(0)` placeholders feeding zeros into the reflection
-  // prompt. Now derived from the same recentShopQuotes/Jobs/Leads
-  // shape · jobCount counts quotes that converted to invoices, leadCount
-  // counts new quotes in the window. quoteStats keeps the previous shape.
-  const jobCount = quotesRaw.filter((q) => q.status === "won" || q.status === "completed").length;
-  const leadCount = quotesRaw.length; // all quotes in window = leads in
+  // jobCount / leadCount (derived from recentShopQuotes, which always returns
+  // []) printed a confident "Jobs: 0 | Leads: 0" into every reflection; removed
+  // 2026-10-10 (audit 08-F6a). The live bridge block covers today's shop state.
   const quoteStats = [...quoteStatusCounts.entries()].map(([status, count]) => ({
     status,
     _count: { id: count },
@@ -169,14 +166,15 @@ async function gatherDailyContext(daysBack: number = 7) {
 
   return {
     scores, memories, facts, dumps, commitments, alerts, loops,
-    patterns, habits, jobCount, leadCount, quoteStats, recentReflections,
+    patterns, habits, quoteStats, recentReflections,
     liveShopData,
   };
 }
 
 // ─── Reflection Generator ─────────────────────────────────────
 
-function formatContext(ctx: Awaited<ReturnType<typeof gatherDailyContext>>): string {
+/** Exported so the bridge-consumer test can pin the live shop block without a DB. */
+export function formatContext(ctx: Awaited<ReturnType<typeof gatherDailyContext>>): string {
   const lines: string[] = [];
 
   // Scores
@@ -253,22 +251,31 @@ function formatContext(ctx: Awaited<ReturnType<typeof gatherDailyContext>>): str
     }
   }
 
-  // Business — live nickstire data + local
+  // Business: live nickstire data. A failed read says "unknown", never $0 or silence.
   lines.push(`## Business (period)`);
-  lines.push(`Local DB — Jobs: ${ctx.jobCount} | Leads: ${ctx.leadCount}`);
   if (ctx.quoteStats.length > 0) {
     lines.push(`Quotes: ${ctx.quoteStats.map((q) => `${q.status}: ${q._count.id}`).join(", ")}`);
   }
-  if (ctx.liveShopData) {
+  const live = ctx.liveShopData;
+  if (!live) {
+    lines.push("LIVE Shop Data: unknown (bridge unreachable)");
+  } else {
     lines.push(`## LIVE Shop Data (from nickstire.org)`);
-    const rev = (ctx.liveShopData.revenue_today as any)?.data;
-    const pipe = (ctx.liveShopData.leads_pipeline as any)?.data;
-    const attn = (ctx.liveShopData.attention_needed as any)?.data;
-    const bks = (ctx.liveShopData.bookings_status as any)?.data;
-    if (rev) lines.push(`Revenue today: $${rev.totalDollars || 0} (${rev.invoiceCount || 0} jobs)`);
-    if (pipe?.pipeline) lines.push(`Lead pipeline: ${JSON.stringify(pipe.pipeline)}`);
-    if (attn?.alerts?.length > 0) lines.push(`⚠️ ATTENTION ALERTS: ${attn.alerts.map((a: any) => a.msg).join(" | ")}`);
-    if (bks?.statusBreakdown) lines.push(`Booking status: ${JSON.stringify(bks.statusBreakdown)}`);
+    const rev = readBridge<{ totalDollars?: number; invoiceCount?: number }>(live.revenue_today);
+    const pipe = readBridge<{ pipeline?: unknown }>(live.leads_pipeline);
+    const attn = readBridge<{ alerts?: Array<{ message?: string }> }>(live.attention_needed);
+    const bks = readBridge<{ statusBreakdown?: unknown }>(live.bookings_status);
+    lines.push(
+      rev.status === "ok" && typeof rev.data?.totalDollars === "number"
+        ? `Revenue today: $${rev.data.totalDollars} (${rev.data.invoiceCount ?? "?"} jobs)`
+        : "Revenue today: unknown (bridge read failed)",
+    );
+    if (pipe.status !== "ok") lines.push("Lead pipeline: unknown (bridge read failed)");
+    else if (pipe.data?.pipeline) lines.push(`Lead pipeline: ${JSON.stringify(pipe.data.pipeline)}`);
+    if (attn.status !== "ok") lines.push("Attention alerts: unknown (bridge read failed)");
+    else if (attn.data?.alerts?.length) lines.push(`ATTENTION ALERTS: ${attn.data.alerts.map((a) => a.message ?? "(no message)").join(" | ")}`);
+    if (bks.status !== "ok") lines.push("Booking status: unknown (bridge read failed)");
+    else if (bks.data?.statusBreakdown) lines.push(`Booking status: ${JSON.stringify(bks.data.statusBreakdown)}`);
   }
 
   // Previous reflections (to avoid repetition)

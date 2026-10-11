@@ -90,7 +90,7 @@ script inside this app is active — do not resurrect one.
 - **Folders:** domain UI in `components/<domain>/`, primitives in `components/ui/`, shared logic in
   `lib/`. `src/` is retired; `features/` is frozen to the existing slices.
 - **iOS PWA:** `window.confirm/alert/prompt` are silently suppressed — two-tap in-DOM confirms only,
-  48×48px minimum targets. Since 2026-08-27 the `adoption-gates.yml` CI gate AST-blocks
+  44x44px minimum targets (floor pinned by tests/e2e/target-size.spec.ts). Since 2026-08-27 the `adoption-gates.yml` CI gate AST-blocks
   `window.confirm/alert/prompt` here (canaried; red is advisory until branch protection).
   Skill: `nickstire-ios-pwa-primitives` — it governs this app too.
 
@@ -120,7 +120,7 @@ each integration under `lib/` and `docs/` — read it when you touch that integr
 | Layer | Where | What it does |
 |---|---|---|
 | **L1** prompt rule | [`lib/ai/prompt/policy/operator-rules.ts`](lib/ai/prompt/policy/operator-rules.ts) `## TRUTH RULE` (`:121`) | Never claim past-tense action without a tool call |
-| **L2** post-persist rewrite | [`lib/ai/chat/fabrication-rewriter.ts`](lib/ai/chat/fabrication-rewriter.ts), called from [`lib/services/chat/post-persist-verification.ts`](lib/services/chat/post-persist-verification.ts) | After the reply has streamed and its row exists, a detected fabrication gets a verifier banner patched into the stored row (`:280-310`). The live bubble shows it only after a reload. |
+| **L2** post-persist rewrite | [`lib/ai/chat/fabrication-rewriter.ts`](lib/ai/chat/fabrication-rewriter.ts), called from [`lib/services/chat/post-persist-verification.ts`](lib/services/chat/post-persist-verification.ts) | After the reply has streamed and its row exists, a detected fabrication gets a verifier banner patched into the stored row (`:280-310`). The one `message.persisted` event carries that final text and the open chat binds the bubble to it ([`features/chat-v2/lib/turn-lifecycle.ts`](features/chat-v2/lib/turn-lifecycle.ts) `bindPersistedMessage`), so the banner shows without a reload. |
 | **L3** history neutralization | [`lib/ai/chat/sanitize-history.ts`](lib/ai/chat/sanitize-history.ts) | Verifier-marked turns replaced so the model can't compound |
 | **L4** truth grounding | [`lib/ai/chat/truth-grounding.ts`](lib/ai/chat/truth-grounding.ts) | Task counts pre-injected as system facts |
 | **L5** operator surface | [`lib/services/claim-warnings.ts`](lib/services/claim-warnings.ts) via tRPC `chat.claimWarnings` (`lib/trpc/routers/chat.ts:362`) | **ORPHANED (checked 2026-10-10):** no client calls `chat.claimWarnings`, and the `ActionClaimWarning` chip is gone from `components/chat/`. The operator sees only the L2 banner in the message text. |

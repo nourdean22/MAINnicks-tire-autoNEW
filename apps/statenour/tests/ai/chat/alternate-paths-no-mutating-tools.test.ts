@@ -25,20 +25,35 @@ vi.mock("@/lib/feature-flags", () => ({ getFlag: (k: string) => ({ isOn: flags[k
 const generateText = vi.fn();
 vi.mock("ai", () => ({ generateText: (...a: unknown[]) => generateText(...a), stepCountIs: () => () => false }));
 vi.mock("@/lib/observability/langfuse", () => ({ langfuseTelemetry: () => ({}) }));
-vi.mock("@/lib/services/chat/persist-assistant-turn", () => ({ buildOnFinish: () => async () => undefined }));
+// The persist event and the text each buffered lane ships (audit 04-X12, 04-X11).
+const persistEvents: Array<Record<string, unknown>> = [];
+const shippedTexts: string[] = [];
+vi.mock("@/lib/services/chat/persist-assistant-turn", () => ({
+  buildOnFinish: () => async (ev: Record<string, unknown>) => {
+    persistEvents.push(ev);
+  },
+}));
 vi.mock("@/lib/ai/chat/simulate-stream-from-text", () => ({
-  simulateStreamFromText: () => new Response("stream"),
+  simulateStreamFromText: ({ text, onComplete }: { text: string; onComplete?: () => unknown }) => {
+    shippedTexts.push(text);
+    void onComplete?.();
+    return new Response("stream");
+  },
   simulateReasoningStream: () => new Response("reasoning"),
 }));
+// No DB row from a unit test: the turn registration is a prisma upsert.
+vi.mock("@/lib/services/chat/active-stream", () => ({ trackActiveStream: () => () => undefined }));
 vi.mock("@/lib/services/chat/response-shape", () => ({ buildChatResponse: ({ streamResponse }: { streamResponse: Response }) => streamResponse }));
+// Empty by default so the turn falls through; a test sets it to ship a reply.
+let regenWinner = "";
 vi.mock("@/lib/ai/chat/pre-stream-regen", () => ({
   shouldGateForIntent: () => true,
-  // Drive BOTH generations, then return an empty winner so the turn falls through.
+  // Drive BOTH generations, then return `regenWinner` (empty: the turn falls through).
   maybePreStreamRegen: async (o: { generateOnce: () => Promise<string>; regenOnce: (a: { suggestedSystemPrefix: string }) => Promise<string> }) => {
     await o.generateOnce();
     await o.regenOnce({ suggestedSystemPrefix: "be better" });
     return {
-      text: "",
+      text: regenWinner,
       regenFired: true,
       regenScore: null,
       regenWasBetter: false,
@@ -50,7 +65,18 @@ vi.mock("@/lib/ai/chat/pre-stream-regen", () => ({
   },
   formatRegenTelemetry: () => ({ metric: "m", value: 0, unit: "count", tags: {}, source: "test" }),
 }));
-vi.mock("@/lib/services/metrics", () => ({ recordMetric: async () => undefined }));
+const recordMetricStrict = vi.fn(async (..._a: unknown[]) => ({}));
+vi.mock("@/lib/services/metrics", () => ({
+  recordMetric: async () => undefined,
+  recordMetricStrict: (...a: unknown[]) => recordMetricStrict(...a),
+}));
+const logError = vi.fn();
+vi.mock("@/lib/utils/error-log", () => ({ logError: (...a: unknown[]) => logError(...a) }));
+const verifyAndRevise = vi.fn();
+vi.mock("@/lib/ai/chat/chain-of-verification", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ai/chat/chain-of-verification")>()),
+  verifyAndRevise: (...a: unknown[]) => verifyAndRevise(...a),
+}));
 vi.mock("@/lib/ai/chat/self-consistency", () => ({
   selfConsistentAnswer: async ({ samples, generate }: { samples: number; generate: () => Promise<string> }) => {
     for (let i = 0; i < samples; i++) await generate();
@@ -60,8 +86,12 @@ vi.mock("@/lib/ai/chat/self-consistency", () => ({
 vi.mock("@/lib/ai/chat/multi-agent-detect", () => ({ isMultiPartQuestion: () => false, runAutoDecompose: vi.fn() }));
 vi.mock("@/lib/ai/chat/named-source-claims", () => ({ checkNamedSources: () => ({ claims: [], unreceipted: [], blind: false }) }));
 vi.mock("@/lib/ai/chat/output-guardian", () => ({ shapeCeiling: () => 400 }));
+const gateDrafts: string[] = [];
 vi.mock("@/lib/ai/chat/gate-enforcement", () => ({
-  enforceGate: ({ draft }: { draft: string }) => ({ text: draft, verdict: "pass", usedFallback: false, actions: [] }),
+  enforceGate: ({ draft }: { draft: string }) => {
+    gateDrafts.push(draft);
+    return { text: draft, verdict: "pass", usedFallback: false, actions: [] };
+  },
 }));
 
 import { runAlternatePaths } from "@/app/api/ai/chat/alternate-paths";
@@ -123,6 +153,11 @@ beforeEach(() => {
   for (const k of Object.keys(flags)) delete flags[k];
   createTaskRuns = 0;
   readRuns = 0;
+  regenWinner = "";
+  persistEvents.length = 0;
+  shippedTexts.length = 0;
+  gateDrafts.length = 0;
+  recordMetricStrict.mockResolvedValue({});
   generateText.mockImplementation(modelThatUsesItsTools(""));
 });
 
@@ -194,5 +229,109 @@ describe("a lane that already wrote is not re-run by the main stream", () => {
     const tools = freshTools();
     expect(await runAlternatePaths(base(HIGH, tools))).toBeInstanceOf(Response);
     expect(createTaskRuns).toBe(1);
+  });
+});
+
+const PAID = { inputTokens: 100, outputTokens: 40, totalTokens: 140 };
+/** Every generation reports a final-step `usage` that is NOT the run total. */
+const paidReply = (text: string) => async () => ({ text, toolCalls: [], toolResults: [], usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }, totalUsage: PAID });
+
+describe("buffered lanes count every paid generation (audit 04-X12)", () => {
+  it("verified regen: two generations ran, the persisted usage is their sum", async () => {
+    flags.NICK_VERIFIED_REGEN = true;
+    regenWinner = "A considered reply about the shop hours.";
+    generateText.mockImplementation(paidReply(regenWinner));
+    expect(await runAlternatePaths(base("what did I decide about the shop hours", {}, "decision"))).toBeInstanceOf(Response);
+    expect(generateText).toHaveBeenCalledTimes(2);
+    expect(persistEvents).toHaveLength(1);
+    expect(persistEvents[0].usage).toEqual({ inputTokens: 200, outputTokens: 80, totalTokens: 280 });
+    expect(log.info).toHaveBeenCalledWith("verified_regen_path", expect.objectContaining({ generations: 2 }));
+  });
+
+  it("control: the single pre-flush generation is counted once, not twice", async () => {
+    flags.NICK_EVIDENCE_PREFLUSH = true;
+    flags.NICK_EVIDENCE_ENFORCEMENT = true;
+    generateText.mockImplementation(paidReply("Here are five podcasts."));
+    expect(await runAlternatePaths(base("recommend 5 podcasts on stoicism worth following", {}))).toBeInstanceOf(Response);
+    expect(persistEvents[0].usage).toEqual(PAID);
+  });
+});
+
+describe("CoVe runs before display on a buffered lane (audit 04-X11 part A)", () => {
+  const DRAFT = "The shop opens at 8 and closes at 6 on weekdays, per the posted hours.";
+
+  it("NICK_COVE on + factual intent: the stream carries the REVISED text and the event says CoVe is done", async () => {
+    flags.NICK_VERIFIED_REGEN = true;
+    flags.NICK_COVE = true;
+    regenWinner = DRAFT;
+    generateText.mockImplementation(paidReply(DRAFT));
+    verifyAndRevise.mockResolvedValue({ changed: true, revised: "R", questions: ["q"] });
+    expect(await runAlternatePaths(base("what time does the shop open", {}, "factual"))).toBeInstanceOf(Response);
+    expect(verifyAndRevise).toHaveBeenCalledTimes(1);
+    expect(verifyAndRevise).toHaveBeenCalledWith(DRAFT, "what time does the shop open");
+    expect(shippedTexts.join("")).toBe("R");
+    expect(persistEvents[0].text).toBe("R");
+    expect(persistEvents[0].coveDone).toBe(true);
+  });
+
+  it("the evidence gate judges the REVISED text, the one that ships (CoVe runs before the gate)", async () => {
+    flags.NICK_VERIFIED_REGEN = true;
+    flags.NICK_COVE = true;
+    flags.NICK_EVIDENCE_ENFORCEMENT = true;
+    regenWinner = DRAFT;
+    generateText.mockImplementation(paidReply(DRAFT));
+    verifyAndRevise.mockResolvedValue({ changed: true, revised: "R", questions: ["q"] });
+    expect(await runAlternatePaths(base("what time does the shop open", {}, "factual"))).toBeInstanceOf(Response);
+    expect(gateDrafts).toEqual(["R"]);
+    expect(shippedTexts.join("")).toBe("R");
+  });
+
+  it("control: NICK_COVE off ships the draft, never calls CoVe, and leaves coveDone unset for the persist pipeline", async () => {
+    flags.NICK_VERIFIED_REGEN = true;
+    regenWinner = DRAFT;
+    generateText.mockImplementation(paidReply(DRAFT));
+    expect(await runAlternatePaths(base("what time does the shop open", {}, "factual"))).toBeInstanceOf(Response);
+    expect(verifyAndRevise).not.toHaveBeenCalled();
+    expect(shippedTexts.join("")).toBe(DRAFT);
+    expect(persistEvents[0].coveDone).toBeUndefined();
+  });
+
+  it("control: a non-factual intent is not verified here (same set the persist pipeline uses)", async () => {
+    flags.NICK_VERIFIED_REGEN = true;
+    flags.NICK_COVE = true;
+    regenWinner = DRAFT;
+    generateText.mockImplementation(paidReply(DRAFT));
+    expect(await runAlternatePaths(base("what did I decide about the shop hours", {}, "decision"))).toBeInstanceOf(Response);
+    expect(verifyAndRevise).not.toHaveBeenCalled();
+    expect(persistEvents[0].coveDone).toBeUndefined();
+  });
+
+  it("a CoVe failure ships the draft and leaves coveDone unset, so the persist pipeline still tries", async () => {
+    flags.NICK_VERIFIED_REGEN = true;
+    flags.NICK_COVE = true;
+    regenWinner = DRAFT;
+    generateText.mockImplementation(paidReply(DRAFT));
+    verifyAndRevise.mockRejectedValue(new Error("provider down"));
+    expect(await runAlternatePaths(base("what time does the shop open", {}, "factual"))).toBeInstanceOf(Response);
+    expect(shippedTexts.join("")).toBe(DRAFT);
+    expect(persistEvents[0].coveDone).toBeUndefined();
+  });
+});
+
+describe("regen telemetry failures reach the instrument channel (audit 01-F6)", () => {
+  it("a rejected chat.pre_stream_regen write is logged under instrument.chat.pre_stream_regen with the traceId", async () => {
+    flags.NICK_VERIFIED_REGEN = true;
+    const boom = new Error("insert failed");
+    recordMetricStrict.mockRejectedValue(boom);
+    await runAlternatePaths(base("what did I decide about the shop hours", {}, "decision"));
+    await vi.waitFor(() => expect(logError).toHaveBeenCalled());
+    expect(logError).toHaveBeenCalledWith("instrument.chat.pre_stream_regen", boom, { traceId: "t1" }, "warn");
+  });
+
+  it("control: a successful write logs nothing", async () => {
+    flags.NICK_VERIFIED_REGEN = true;
+    await runAlternatePaths(base("what did I decide about the shop hours", {}, "decision"));
+    expect(recordMetricStrict).toHaveBeenCalledTimes(1);
+    expect(logError).not.toHaveBeenCalled();
   });
 });

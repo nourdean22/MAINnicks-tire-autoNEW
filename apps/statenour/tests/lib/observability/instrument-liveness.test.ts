@@ -12,9 +12,22 @@
  * asserted by fixtures that qualify for TWO statuses at once, so a reorder of
  * the if-chain fails a test instead of silently changing verdicts.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// buildInstrumentHealth's live read, over an empty database (no prod access).
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    errorLog: { findMany: async () => [] },
+    chatMessage: { count: async () => 40 },
+    systemMetric: { findFirst: async () => null, count: async () => 0 },
+    toolSelectionTurn: { findFirst: async () => null, count: async () => 0 },
+    toolTelemetry: { findFirst: async () => null, count: async () => 0 },
+  },
+}));
+
 import {
   assembleInstrumentHealth,
+  buildInstrumentHealth,
   CONDITIONAL_INSTRUMENTS,
   MIN_POWERED_N,
 } from "@/lib/observability/instrument-liveness";
@@ -398,5 +411,23 @@ describe("eligible-turn denominator (review on #2482)", () => {
     const view = assembleInstrumentHealth([routing(50), { instrument: "tool_invocation", lastWriteAt: SINCE, writesInWindow: 8, unit: "tools touched" }], noFailures(), 253, WINDOW_H, SINCE);
     expect(rowOf(view, "tool_selection_turn").denominator).toEqual({ name: "assistant turns", count: 253, fallback: false });
     expect(rowOf(view, "tool_invocation").denominator.name).toBe("assistant turns");
+  });
+});
+
+// Audit 01-F6: the verified-regen telemetry writer (chat.pre_stream_regen) was
+// invisible to /system instrument health, so a dead writer read as nothing.
+describe("chat.pre_stream_regen is a registered, conditional instrument", () => {
+  it("with no rows ever written, the live view names it NEVER_RAN and says why a low count can be legitimate", async () => {
+    const view = await buildInstrumentHealth(24);
+    const row = view.rows.find((r) => r.instrument === "chat.pre_stream_regen");
+    expect(row).toBeDefined();
+    expect(row!.status).toBe("NEVER_RAN");
+    expect(row!.conditional).not.toBeNull();
+  });
+
+  it("control: an unconditional sibling in the same live view has no condition", async () => {
+    const view = await buildInstrumentHealth(24);
+    const row = view.rows.find((r) => r.instrument === "tool_selection_turn");
+    expect(row?.conditional).toBeNull();
   });
 });

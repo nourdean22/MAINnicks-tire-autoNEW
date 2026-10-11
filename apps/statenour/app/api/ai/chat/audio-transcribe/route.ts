@@ -1,6 +1,8 @@
 /**
- * POST /api/ai/chat/audio-transcribe · audio drop → text via OpenAI
- * whisper-1 (2026-08-25 · VideoDB retired).
+ * POST /api/ai/chat/audio-transcribe: audio file to text through the
+ * free-first STT chain in lib/ai/stt.ts (groq, then hf, then openai
+ * whisper-1). Caller: the chat composer, for any audio picked, pasted or
+ * dropped (hooks/chat/use-audio-transcribe.ts).
  *
  * HISTORY THIS ENCODES: the original v10.0.349 implementation uploaded
  * to VideoDB, indexed, and polled. It NEVER worked in production — the

@@ -38,15 +38,15 @@ export interface ErrorCardProps {
 }
 
 const DOMAIN_HINTS: Record<string, string> = {
-  "chat:stream": "AI provider or the network dropped mid-stream. Retry usually works — if not, the control bar's Provider pill lets you force OpenAI.",
+  "chat:stream": "AI provider or the network dropped mid-stream. Retry usually works; if not, the control bar's Provider pill lets you force OpenAI.",
   "chat:request": "The chat request couldn't even start. Check provider status (dot in chat header) and API key env vars.",
   "chat:db-write": "Neon Postgres write failed. Chat keeps working but history won't persist this turn. Check the Prisma connection.",
-  "chat:prompt-build": "The system prompt builder threw. Usually a brain engine regression — check the audit log for which engine.",
+  "chat:prompt-build": "The system prompt builder threw. Usually a brain engine regression: check the audit log for which engine.",
   "chat:image-gen": "AI image API returned an error. Try rephrasing the image prompt or check rate limits.",
   "chat:post-process": "A background task (journal / people / actions) failed. Chat response is fine, but side effects are degraded.",
   "ai:provider": "AI provider init failed. Either no API key is set or the provider is temporarily unreachable.",
   "ai:embedding": "Embedding API call failed. Semantic search falls back to keyword mode automatically.",
-  "ai:tool-exec": "A tool call executed but threw. Check the tool's implementation — params may be wrong.",
+  "ai:tool-exec": "A tool call executed but threw. Check the tool's implementation; params may be wrong.",
   "cron:job": "A scheduled job failed. The system/audit page shows the full run history.",
 };
 
@@ -75,14 +75,15 @@ export function ErrorCard({
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-semibold text-red-300">{title}</p>
           <p className="text-[12px] text-red-300/80 mt-0.5 break-words">{message}</p>
+          {/* 09-X7: no alpha on these two; /50 and /60 fell under 4.5:1 on the dark surfaces. */}
           {domain && (
-            <p className="text-[11px] text-red-300/50 mt-1 font-mono">{domain}</p>
+            <p className="text-[11px] text-red-300 mt-1 font-mono">{domain}</p>
           )}
         </div>
         {onDismiss && (
           <button
             onClick={onDismiss}
-            className="shrink-0 text-red-300/60 hover:text-red-300 transition-colors"
+            className="shrink-0 text-red-300 hover:text-red-200 transition-colors"
             aria-label="Dismiss"
           >
             <X size={12} />

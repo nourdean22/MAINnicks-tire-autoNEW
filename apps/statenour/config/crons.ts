@@ -54,8 +54,8 @@
  *
  * ★★★ WHO WRITES `cron_job_log`. `/api/cron/*` routes are wrapped by
  * cronHandler -> logCronRun (lib/utils/http.ts), so route crons log
- * automatically (a kill-switched route cron returns before logging, so it
- * writes NO row). Inngest functions bypass that wrapper; since 2026-09-17 the
+ * automatically (a kill-switched route cron writes one success row with
+ * skipReason "disabled via settings", lib/utils/http.ts). Inngest functions bypass that wrapper; since 2026-09-17 the
  * client's CronLifecycleMiddleware (lib/inngest/cron-lifecycle.ts) writes one
  * row per run, `started` -> `success|partial|failed|interrupted`, for every
  * CRON-triggered Inngest function under its function id. Event-triggered

@@ -1,7 +1,7 @@
 import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { logger as rootLogger } from "@/lib/logger";
-import { DECLARED_DEGRADATION_PREFIX } from "@/lib/services/cron-status";
+import { DECLARED_DEGRADATION_PREFIX, HARD_FAILURE_STATUSES } from "@/lib/services/cron-status";
 
 const log = rootLogger.withSurface("inngest/diagnose-cron-failure");
 const inngest = getInngest();
@@ -119,7 +119,8 @@ export const diagnoseCronFailure = inngest.createFunction(
       
       const logs = await prisma.cronJobLog.findMany({
         where: {
-          status: "failed",
+          // every hard failure, so a deploy-killed (`interrupted`) run is diagnosed too (08-F14)
+          status: { in: [...HARD_FAILURE_STATUSES] },
           createdAt: { gte: twentyFourHoursAgo },
         },
         orderBy: { createdAt: "desc" },

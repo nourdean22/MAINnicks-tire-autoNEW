@@ -28,6 +28,12 @@
  * query and 0 to the createdAt-only one, so a revert to the touched-row
  * form does not merely change a label — it puts `wisdom` back on top of a
  * board it did not earn, and the ranking assertion fails.
+ *
+ * -- 3: 08-F16, the movers fanned out to 2 counts per category --
+ * Up to 30 per-category counts per card load. The movers now come from two
+ * groupBy reads (24h, 7d); a category absent from a successful groupBy is a
+ * measured zero. The groupBy mock answers by window, and by the touched-row
+ * shape too, so canary (2) still guards the new reads.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -61,6 +67,26 @@ const CATEGORY_ANSWERS: Record<string, { created24h: number; created7d: number; 
 };
 
 type Where = Record<string, unknown>;
+const DAY_MS = 86_400_000;
+
+/** Movers groupBy: by window, and the touched-row revert gets wisdom 900. */
+function routeGroupBy(args: { where: Where }) {
+  const w = args.where;
+  if (w.OR || w.updatedAt) {
+    return Object.entries(CATEGORY_ANSWERS).map(([category, a]) => ({ category, _count: { id: a.touchedOr } }));
+  }
+  if (w.createdAt) {
+    const age = Date.now() - (w.createdAt as { gte: Date }).gte.getTime();
+    const key = age < 2 * DAY_MS ? "created24h" : "created7d";
+    return Object.entries(CATEGORY_ANSWERS)
+      .filter(([, a]) => a[key] > 0)
+      .map(([category, a]) => ({ category, _count: { id: a[key] } }));
+  }
+  return [
+    { category: "wisdom", _count: { id: 254 } },
+    { category: "insight", _count: { id: 1046 } },
+  ];
+}
 
 function routeCount(args: { where: Where }): number {
   const w = args.where;
@@ -84,10 +110,7 @@ beforeEach(() => {
     routeCount(args),
   );
   mocks.brainMemory.findMany.mockResolvedValue([]);
-  mocks.brainMemory.groupBy.mockResolvedValue([
-    { category: "wisdom", _count: { id: 254 } },
-    { category: "insight", _count: { id: 1046 } },
-  ]);
+  mocks.brainMemory.groupBy.mockImplementation(async (args: { where: Where }) => routeGroupBy(args));
 });
 
 describe("buildContinuityReport · pruned is the sweep's output, not its backlog", () => {
@@ -140,17 +163,21 @@ describe("buildContinuityReport · category movers count new rows, not touched r
   it("never issues an OR / updatedAt mover query", async () => {
     await buildContinuityReport();
 
-    const categoryCalls = mocks.brainMemory.count.mock.calls.filter(
-      (c: [{ where: Where }]) => typeof c[0].where.category === "string",
+    const moverCalls = mocks.brainMemory.groupBy.mock.calls.filter(
+      (c: [{ where: Where }]) => c[0].where.createdAt !== undefined,
     );
-    expect(categoryCalls.length).toBeGreaterThan(0);
-    for (const [args] of categoryCalls) {
+    expect(moverCalls).toHaveLength(2);
+    for (const [args] of moverCalls) {
       expect(args.where.OR).toBeUndefined();
       expect(args.where.updatedAt).toBeUndefined();
-      expect(args.where.createdAt).toBeDefined();
       // Tombstones still excluded — that filter was correct and stays.
       expect(args.where.deletedAt).toBeNull();
     }
+  });
+
+  it("08-F16: one card load issues at most 4 counts (was 4 + 2 per category)", async () => {
+    await buildContinuityReport();
+    expect(mocks.brainMemory.count.mock.calls.length).toBeLessThanOrEqual(4);
   });
 
   it("CONTROL · the 7d window is still a separate, wider count", async () => {

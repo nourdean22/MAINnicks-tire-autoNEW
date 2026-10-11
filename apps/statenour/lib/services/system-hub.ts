@@ -17,7 +17,6 @@ import { prisma } from "@/lib/prisma";
 import { safeQuery } from "@/lib/db/safe-prisma";
 import { scanCronHealth } from "@/lib/system/cron-diagnostics";
 import { scanStaleData } from "@/lib/system/stale-data-scanner";
-import { getPowerSettings } from "@/lib/services/power-panel";
 
 /** Composite /system hub payload — all keys independent + fault-isolated. */
 export async function buildSystemHub() {
@@ -31,9 +30,7 @@ export async function buildSystemHub() {
     brainStats,
     deviceStats,
     aiStats,
-    powerSettings,
     pulsePriority,
-    governanceCount,
   ] = await Promise.all([
     scanCronHealth().catch(() => null),
     scanStaleData().catch(() => null),
@@ -124,8 +121,6 @@ export async function buildSystemHub() {
       { label: "hub.ai" },
     ),
 
-    getPowerSettings().catch(() => null),
-
     // 2026-08-23 · THE TABLE IS GONE. `model DriftAlert` was removed from
     // schema.prisma, `prisma.driftAlert` has zero callers, and nothing writes
     // drift_alerts any more. The raw query here outlived the model because raw
@@ -144,17 +139,7 @@ export async function buildSystemHub() {
     // reads prisma.brainMemory); re-point this at that if the chip is ever wanted
     // back.
     Promise.resolve<number | null>(null),
-
-    safeQuery(
-      async () => {
-        const count = await prisma.autonomousAction.count({
-          where: { approval: "pending" },
-        });
-        return count;
-      },
-      null,
-      { label: "hub.governance" }
-    ),
+    // power and governance sections removed 2026-10-11 (10-X6): computed every poll, rendered by no chip.
   ]);
 
   // Every section carries `measured`. A sub-rollup that crashed or was
@@ -222,14 +207,6 @@ export async function buildSystemHub() {
       calls24h: aiStats?.calls24h ?? 0,
       costCents7d: aiStats?.costCents7d ?? 0,
       measured: aiStats !== null,
-    },
-    power: {
-      paused: powerSettings?.pauseAllCrons ?? false,
-      measured: powerSettings !== null,
-    },
-    governance: {
-      pendingCount: governanceCount ?? 0,
-      measured: governanceCount !== null,
     },
     generatedAt: new Date().toISOString(),
   };

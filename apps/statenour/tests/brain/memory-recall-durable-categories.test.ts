@@ -44,6 +44,12 @@ describe("memory-recall · durable personal categories are recallable", () => {
     }
   });
 
+  // 05-X10: only the newest PINNED_PROMPT_CAP pins ride every turn; the
+  // rest must be reachable by the hybrid lane or they are unreachable.
+  it("pins past the prompt cap are recallable", () => {
+    expect(CONTEXT_CATEGORIES.has("pinned_user")).toBe(true);
+  });
+
   it("negative control: telemetry categories are still filtered", () => {
     for (const cat of ["memory_gateway_shadow", "nick_quality", "mastery_xp_event", "persona_drift"]) {
       expect(CONTEXT_CATEGORIES.has(cat), `${cat} is telemetry — must never spend a recall slot`).toBe(false);

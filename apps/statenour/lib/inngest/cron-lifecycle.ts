@@ -71,6 +71,7 @@
 import { Middleware } from "inngest";
 import { deriveSkipReason } from "@/lib/services/cron-skip-reason";
 import { DECLARED_DEGRADATION_PREFIX } from "@/lib/services/cron-status";
+import { loadFeatureFlagOverrides } from "@/lib/feature-flags";
 
 /**
  * Statuses this module writes. `partial` is written ONLY for a declared
@@ -217,7 +218,7 @@ type PrismaLike = Awaited<typeof import("@/lib/prisma")>["prisma"];
  *   4. a bare array -> its length.
  * Only a non-negative integer within Postgres INTEGER range counts: a boolean
  * `sent: true`, a negative or fractional value, a value past 2,147,483,647
- * (the same bound `countFrom` in cron-manager.ts enforces - a rejected update
+ * (route crons share this rule via logCronRun since 08-F13 - a rejected update
  * would strand a finished run at `started`), or a `skipped: "reason"` string
  * is NOT a count, and the honest answer for a run that reported none is
  * `null`, never an invented 0 (the schema comment on `resultCount` draws
@@ -337,7 +338,7 @@ async function reconcileInterruptedRuns(prisma: PrismaLike): Promise<void> {
         status: CRON_STATUS.started,
         createdAt: { lt: new Date(now - STALE_RUN_MINUTES * 60_000) },
       },
-      select: { id: true, runId: true },
+      select: { id: true, runId: true, jobName: true },
       take: RECONCILE_BATCH,
     });
     if (stale.length === 0) return;
@@ -375,10 +376,37 @@ async function reconcileInterruptedRuns(prisma: PrismaLike): Promise<void> {
             "killed before any hook could settle this run (deploy restart, OOM, timeout)",
         },
       });
+      await pageInterrupted(prisma, orphans);
     }
   } catch (e) {
     await warn("reconcile", {}, e);
   }
+}
+
+/**
+ * Page each run this sweep presumed dead (audit 08-F14): a deploy-killed run was
+ * settled `interrupted` and nobody heard. Re-read so a row that settled between the
+ * sweep's read and write is not paged; the dedupe key makes a second sweeper a no-op.
+ * Same event cron-manager publishes for a thrown run (brain-bus-handlers.ts consumes it).
+ */
+async function pageInterrupted(prisma: PrismaLike, ids: string[]): Promise<void> {
+  const dead = await prisma.cronJobLog.findMany({
+    where: { id: { in: ids }, status: CRON_STATUS.interrupted },
+    select: { id: true, jobName: true },
+  });
+  if (dead.length === 0) return;
+  const { publishDurable } = await import("@/lib/db/brain-bus-durable");
+  const failedAt = new Date().toISOString();
+  await Promise.all(
+    dead.map((r) =>
+      publishDurable(
+        "cron.failure",
+        "cron_run_failed",
+        { jobName: r.jobName, error: `interrupted: no terminal event within ${STALE_RUN_MINUTES} min`, failedAt },
+        { dedupeKey: `cron-interrupted:${r.id}` },
+      ).catch((e) => warn("page-interrupted", { jobName: r.jobName }, e)),
+    ),
+  );
 }
 
 /**
@@ -524,13 +552,13 @@ async function warn(stage: string, meta: Record<string, unknown>, e: unknown): P
  */
 /**
  * EVENT-triggered functions the kill switch may stop (2026-10-10, audit 03-F15:
- * social-publish, bulk-sms-approval, nick-action-approved, ... had no operator
- * stop). OPT-IN and EMPTY: nothing changes until an id is added here. To use:
- * add the function id, deploy, then switch it off with
- * systemAutomation.setCronEnabled({ jobName: "<id>", enabled: false }). A
- * killed event run returns the skip shape and its event is NOT replayed.
+ * the three side-effecting ones had no operator stop). Nothing changes until the
+ * operator switches one off with
+ * systemAutomation.setCronEnabled({ jobName: "<id>", enabled: false }); absence
+ * of a row is enabled. A killed event run returns the skip shape and its event
+ * is NOT replayed.
  */
-export const KILLABLE_EVENT_FUNCTIONS = new Set<string>([]);
+export const KILLABLE_EVENT_FUNCTIONS = new Set<string>(["social-publish", "bulk-sms-approval", "nick-action-approved"]);
 
 export const KILL_SWITCH_SKIP_REASON = "disabled via settings";
 export const KILL_SWITCH_TTL_MS = 30_000;
@@ -580,6 +608,8 @@ export class CronLifecycleMiddleware extends Middleware.BaseMiddleware {
     fn: unknown;
     next: () => Promise<unknown>;
   }): Promise<unknown> {
+    // Board overrides (NICK_MUTATION_LOCK) land before the handler reads a flag; a failed load runs on env (03-F13b).
+    await loadFeatureFlagOverrides().catch(() => {});
     const optedInEvent = KILLABLE_EVENT_FUNCTIONS.has(jobNameOf(args.fn) ?? "");
     if (isCronTriggered(args.fn) || optedInEvent) {
       const jobName = killSwitchNameOf(args.fn);

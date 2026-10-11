@@ -537,6 +537,8 @@ export async function semanticSearch(
           where: {
             id: { in: memoryIds },
             deletedAt: null,
+            // the pgvector lane drops superseded rows too (lib/db/pgvector.ts superseded_by_id IS NULL)
+            supersededById: null,
             category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
           },
           select: {

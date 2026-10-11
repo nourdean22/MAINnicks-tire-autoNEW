@@ -24,13 +24,30 @@ const db = vi.hoisted(() => ({
   msgFindMany: vi.fn(),
   msgCreate: vi.fn(),
   claim: vi.fn(),
+  attempts: [] as Array<{ id: string; operationKey: string; state: string; attemptNo: number; holdUntil: Date | null }>,
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     postTurnOutbox: { update: db.outboxUpdate },
     chatConversation: { findUnique: db.convFindUnique },
-    chatMessage: { findMany: db.msgFindMany, create: db.msgCreate },
+    // findFirst: the delivery-receipt lookup (no prior follow-up message in these cases).
+    chatMessage: { findMany: db.msgFindMany, create: db.msgCreate, findFirst: async () => null },
     aiGeneration: { groupBy: vi.fn().mockResolvedValue([]) },
+    // runFollowUp's per-outbox-row delivery claim (beginAttempt / settleAttempt), kept in memory.
+    actionAttempt: {
+      create: async ({ data }: { data: { operationKey: string; state: string; attemptNo: number; holdUntil: Date | null } }) => {
+        if (db.attempts.some((a) => a.operationKey === data.operationKey)) {
+          throw Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
+        }
+        const row = { ...data, id: `att-${db.attempts.length + 1}` };
+        db.attempts.push(row);
+        return { id: row.id, attemptNo: row.attemptNo };
+      },
+      findUnique: async ({ where }: { where: { id?: string; operationKey?: string } }) =>
+        db.attempts.find((a) => a.id === where.id || a.operationKey === where.operationKey) ?? null,
+      update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) =>
+        Object.assign(db.attempts.find((a) => a.id === where.id)!, data),
+    },
   },
 }));
 vi.mock("@/lib/agent/follow-up", () => ({
@@ -63,6 +80,7 @@ beforeEach(() => {
   db.msgFindMany.mockReset().mockResolvedValue([]);
   db.msgCreate.mockReset().mockResolvedValue({ id: "msg-1" });
   db.claim.mockReset();
+  db.attempts = [];
 });
 afterEach(() => {
   vi.useRealTimers();

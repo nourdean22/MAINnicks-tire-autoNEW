@@ -19,7 +19,31 @@
  * live run available behind a single flag when they're explicitly
  * spending money to measure quality drift.
  */
+import { createHash } from "node:crypto";
 import { z } from "zod";
+
+// Judge prompt: lives here so the runner can hash it without importing judge.ts (06-X3).
+export const SUITE_JUDGE_SYSTEM = `You are an evaluation judge for Nick, an operator-grade personal-OS AI. You score Nick's reply against scenario-specific criteria.
+
+For each criterion you receive, output an integer score 0-10 and a one-line rationale (max 80 chars).
+
+Scoring rubric:
+  · 0-3 · criterion clearly failed
+  · 4-6 · partial · some intent but missing the mark
+  · 7-8 · solid · criterion met
+  · 9-10 · exceptional · best-case execution
+
+Output JSON only, in this exact shape:
+{
+  "scores": [
+    { "criterionId": "<id>", "score": 0-10, "rationale": "one-line max 80 chars" }
+  ]
+}
+
+NO MARKDOWN. NO PROSE OUTSIDE JSON. Be terse.`;
+
+/** Rides every SuiteReport so a rubric edit is never read as a Nick regression. */
+export const SUITE_JUDGE_PROMPT_HASH = createHash("sha256").update(SUITE_JUDGE_SYSTEM).digest("hex").slice(0, 12);
 
 // ── Scenario schema (Zod · strict z.object per repo convention) ──────
 
@@ -198,4 +222,10 @@ export interface SuiteReport {
   summary: SuiteSummary;
   /** Total suite wall-clock duration. */
   durationMs: number;
+  /** Code that produced the run (`git rev-parse HEAD`); null when git was unavailable. */
+  gitSha: string | null;
+  /** Hash of the filtered scenario set; two reports compare only when it matches. */
+  scenarioCorpusHash: string;
+  /** Hash of the judge system prompt (tests/eval/judge.ts); a rubric edit moves it. */
+  judgePromptHash: string;
 }

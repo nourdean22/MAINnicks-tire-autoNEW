@@ -95,11 +95,15 @@ export const GET = cronHandler(async () => {
       errors: [] as string[],
     };
 
+    // Set when a Gmail listing answered: what lastSyncAt means (audit 08-F3).
+    let fetched = false;
+
     // ─── Outgoing (operator's sent mail · NO classification) ───
     try {
       const sentQuery =
         'in:sent newer_than:7d -subject:"Post Ready" -subject:"Post Live" -subject:"Instagram"';
       const sentIds = await listMessages(sentQuery, 30, acct.accountKey);
+      fetched = true;
 
       for (const m of sentIds) {
         try {
@@ -126,6 +130,7 @@ export const GET = cronHandler(async () => {
       const inboxQuery =
         "is:important newer_than:3d -from:noreply -from:no-reply -category:promotions -category:social";
       const inboxIds = await listMessages(inboxQuery, 20, acct.accountKey);
+      fetched = true;
 
       for (const m of inboxIds) {
         try {
@@ -213,6 +218,7 @@ export const GET = cronHandler(async () => {
       log.info(`No notes label found or error scanning notes for account ${acct.email}: ${(err as Error).message.slice(0, 120)}`);
     }
 
+    if (fetched) await stampSynced(acct.integrationName);
     perAccount.push(result);
   }
 
@@ -268,6 +274,20 @@ export const GET = cronHandler(async () => {
     ...(auditWriteFailed ? { auditWriteFailed: true } : {}),
   };
 });
+
+/**
+ * Stamp Integration.lastSyncAt for an account whose Gmail fetch answered. Its
+ * reader is the 7-day stale check in getGoogleOauthAccountsStatus; the token
+ * refresh no longer stamps it (audit 08-F3). A failed stamp is logged, never
+ * fatal: the ingest itself already landed.
+ */
+async function stampSynced(integrationName: string): Promise<void> {
+  try {
+    await prisma.integration.update({ where: { name: integrationName }, data: { lastSyncAt: new Date() } });
+  } catch (err) {
+    log.warn("last_sync_stamp_failed", { integrationName, err: err instanceof Error ? err.message : String(err) });
+  }
+}
 
 function shouldIngest(m: GmailMessage, kind: "sent" | "inbox"): boolean {
   const body = (m.body || m.snippet || "").trim();

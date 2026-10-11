@@ -137,6 +137,7 @@ export async function calibrateAdvice(
         AND ve."sourceId" = cm.id
        WHERE cm.role = 'assistant'
          AND cm.feedback_score IS NOT NULL
+         AND cm.id NOT LIKE 'msg_calibration_%'
          AND ve.embedding_vec_1536 IS NOT NULL
        ORDER BY ve.embedding_vec_1536 <=> '${vecLit}'::vector(${TARGET_DIM})
        LIMIT ${KNN_TOP}`,
@@ -146,8 +147,20 @@ export async function calibrateAdvice(
         "[ai/calibrated-confidence] KNN query failed:",
         err instanceof Error ? err.message : err,
       );
-      return [];
+      return null;
     });
+
+  if (similar === null) {
+    return {
+      accuracy: 0,
+      sampleSize: 0,
+      positiveCount: 0,
+      negativeCount: 0,
+      confidence: 0,
+      wilsonLower: 0,
+      notes: "calibration lookup failed: unknown, not cold start",
+    };
+  }
 
   const filtered = similar.filter(
     (r) => 1 - r.distance >= SIM_THRESHOLD && r.feedback_score !== null,

@@ -106,18 +106,6 @@ const nextConfig: NextConfig = {
   // lib/observability/langfuse.ts loads them via runtime require anyway.
   serverExternalPackages: ["@prisma/client", "@resvg/resvg-js", "@browserbasehq/stagehand", "playwright-core", "@langfuse/otel", "@opentelemetry/sdk-node"],
 
-  // v10.0.290 · 3D layer.
-  // Wave 53 (2026-05-20): pivoted off Spline to React Three Fiber. The
-  // R3F packages (three · @react-three/fiber · @react-three/drei) ship
-  // standard ESM/CJS that Next 16 + Turbopack consumes directly — they
-  // do NOT need transpilePackages. The R3F <Canvas> is kept client-only
-  // via next/dynamic({ ssr: false }) in components/3d/scene-canvas.tsx,
-  // so three never enters the SSR bundle. No transpilePackages entry is
-  // required for the 3D layer; the prior Spline entries are removed.
-  // 2026-09-01 audit W-2 · the whole 3D cluster is PARKED — no entrypoint
-  // reaches scene-canvas.tsx (tests/repo/ui-mount-graph.test.ts). This note
-  // describes a feature that is not mounted; re-mount or delete is open.
-
   // ── Security + performance headers ───────────────────────────────────
   headers: async () => [
     {
@@ -338,11 +326,9 @@ const nextConfig: NextConfig = {
     // (coaching pipeline next to the funnel it feeds).
     { source: "/crm", destination: "/stats", permanent: false }, // 2026-09-02 · /business gone
 
-    // Wave 2 surface merge · /seo + /radar folded into the tabbed /market
-    // surface (Search + Radar tabs). Deep links + bookmarks land on the
-    // right tab.
-    { source: "/seo", destination: "/market?tab=search", permanent: false },
-    { source: "/radar", destination: "/market?tab=radar", permanent: false },
+    // /seo + /radar were tabs of /market, which moved to the shop admin: one hop there, not two (02-F19).
+    { source: "/seo", destination: "https://nickstire.org/admin/market", permanent: false },
+    { source: "/radar", destination: "https://nickstire.org/admin/market", permanent: false },
 
     // Wave 2 surface merge · 2026-06-03 · /brain/board + /brain/wisdom +
     // /reason folded into the tabbed /brain surface (Memory + Board +

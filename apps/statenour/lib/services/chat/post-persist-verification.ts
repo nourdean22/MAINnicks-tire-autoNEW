@@ -136,9 +136,9 @@ export async function runPostPersistVerification(a: {
   // fabricated claim. Hedged phrases ("I can add if you want",
   // "I'll add next time") suppress the warning.
   //
-  // Output: BrainMemory category="chat_claim_warn" so the chat
-  // surface can render an inline correction chip below the bubble
-  // and the operator can verify before trusting the claim.
+  // Output: BrainMemory category="chat_claim_warn". L5 is ORPHANED
+  // (checked 2026-10-10): no client calls chat.claimWarnings, so the
+  // operator sees only the L2 banner below, not a chip.
   const { detectActionClaimsWithoutTools, calculateToolVerbRatio } = await import(
     "@/lib/ai/chat/action-claim-detector"
   );
@@ -256,12 +256,11 @@ export async function runPostPersistVerification(a: {
       `⚠ ${fabricatedClaims.length} action claim${fabricatedClaims.length === 1 ? "" : "s"} without matching tool call(s) · likely fabricated`,
     );
 
-    // v10.0.162 · L2 PRE-PERSIST HEDGE REWRITE.
-    // Rewrite cleanedText IN PLACE to prepend the verifier banner.
-    // This is what's persisted to ChatMessage AND what's sent to
-    // the next turn's context. The action-claim-warning chip
-    // (v10.0.160) still surfaces the diagnostic visually; the
-    // banner is the durable record.
+    // v10.0.162 - L2 POST-PERSIST HEDGE REWRITE.
+    // The reply has streamed and its row exists: prepend the verifier
+    // banner to cleanedText and patch it into the stored row. That is
+    // what the next turn's context reads, and the live bubble swaps to
+    // it on message.persisted. No chip renders it (L5 is ORPHANED).
     const { rewriteForFabrication } = await import(
       "@/lib/ai/chat/fabrication-rewriter"
     );

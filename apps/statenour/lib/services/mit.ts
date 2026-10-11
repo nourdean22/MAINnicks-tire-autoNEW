@@ -15,10 +15,10 @@
 
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { today } from "@/lib/utils/datetime";
 
-function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+// The ET day: every MIT reader keys ET; a UTC key moved evening MITs to tomorrow (03-F1).
+const todayKey = today;
 
 export interface MitView {
   key: string;

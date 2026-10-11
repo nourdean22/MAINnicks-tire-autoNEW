@@ -87,6 +87,11 @@ export function AgendaDesk({ queryResult }: AgendaDeskProps) {
             </div>
           )}
         </div>
+      ) : queryResult.isError ? (
+        // 09-F7: a failed read is unknown, not empty (same words and classes as ReadFailed on /system).
+        <div className="text-fg-tertiary text-xs py-4">
+          {`unknown \u00b7 read failed${queryResult.error?.message ? `: ${queryResult.error.message}` : ""}`}
+        </div>
       ) : (
         <div className="text-fg-tertiary text-xs py-4">No agenda items available.</div>
       )}

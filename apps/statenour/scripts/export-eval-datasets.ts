@@ -9,10 +9,10 @@
  *   · contradictions (open) → memory-integrity cases
  *
  * LOCAL + NO-SEND by design: writes JSONL under eval-datasets/
- * (gitignored). Braintrust upload stays a deliberate manual step —
- * the braintrust dep exists for THESE scripts only (the tracing wrap
- * was deleted 2026-08-25 with zero callers ever) and nothing leaves
- * the machine from this script. Each line carries the metadata fields
+ * (gitignored). Scripts write local JSONL; no Braintrust code path
+ * remains (the tracing wrap was deleted 2026-08-25 and nothing imports
+ * the braintrust package), so nothing leaves the machine from this
+ * script. Each line carries the metadata fields
  * the register row prescribes: app, feature, source, exported_at.
  *
  * Run:  set -a && . ./.env.local && set +a
@@ -108,7 +108,7 @@ async function main() {
   console.log(
     outcomes.length + contradictions.length === 0
       ? "  (zero real cases yet — the ledgers are young; re-run as verdicts accrue)"
-      : "  Braintrust upload is a DELIBERATE manual step — nothing was sent.",
+      : "  Local JSONL only; no Braintrust code path remains. Nothing was sent.",
   );
   await prisma.$disconnect();
 }

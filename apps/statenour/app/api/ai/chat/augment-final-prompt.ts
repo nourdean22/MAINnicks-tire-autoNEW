@@ -80,7 +80,8 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
     ? `${chatLayerPrompt}\n\n${multiAddendum}`
     : chatLayerPrompt;
   if (multiCtx) {
-    log.info("multi_output_mode", { mode: multiCtx.mode, subject: multiCtx.subject.slice(0, 60) });
+    // Audit 07-SN-06: the length, never the operator's words (Private Lab turns land here too).
+    log.info("multi_output_mode", { mode: multiCtx.mode, subjectChars: multiCtx.subject.length });
   }
 
   // AG-15 · content-feedback RECALL. detectContentFeedback has CAPTURED

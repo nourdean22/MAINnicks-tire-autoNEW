@@ -633,31 +633,27 @@ export const brainTools = {
     }),
     execute: async () => {
       try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/api/drive/sync`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ actor: "nick_tool_call" }),
-          }
-        );
-        if (!res.ok) {
+        // In-process, like operator.syncDrive: a self-POST to /api/drive/sync carries no session cookie and gets 401.
+        const { runDriveIngest } = await import("@/lib/brain/drive-ingest");
+        const data = await runDriveIngest({ limit: 25, actor: "nick_tool_call", source: "drive_manual_sync" });
+        if (!data.ok) {
           return {
             ok: false,
-            error: `Sync failed with HTTP ${res.status}`,
+            reason: data.reason,
+            error: data.errors.length > 0 ? data.errors.join("; ") : (data.reason ?? "Drive ingest did not run"),
+            hint: data.hint,
           };
         }
-        const data = await res.json();
         return {
           ok: true,
-          stored: data.stored ?? 0,
-          skipped: data.skipped ?? 0,
-          categories: data.categoryCounts ?? {},
-          durationMs: data.durationMs ?? 0,
+          stored: data.stored,
+          skipped: data.skippedCount,
+          categories: data.categoryCounts,
+          durationMs: data.durationMs,
           hint:
             data.stored > 0
               ? `Ingested ${data.stored} new Drive docs. Run searchColdMemory with your query to reach them.`
-              : "No new files needed ingest — cold memory is already up to date.",
+              : data.hint,
         };
       } catch (err) {
         return {

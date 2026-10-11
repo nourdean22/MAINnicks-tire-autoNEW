@@ -386,11 +386,18 @@ describe("chat-island header controls clear the touch floor", () => {
     expect(src).not.toContain("flex min-h-9 items-center");
   });
 
-  it("declares a 44px floor on all three header controls", () => {
-    // UI v2 (2026-10-01): the three controls are fixed 44px squares (h-11 w-11),
-    // not min-h/min-w pills — same floor, different literal.
+  it("declares a 44px floor on all four header controls", () => {
+    // UI v2 (2026-10-01): the controls are fixed 44px squares (h-11 w-11),
+    // not min-h/min-w pills — same floor, different literal. R3-05 added the
+    // fourth: the auto-read toggle moved up from every reply row.
     const matches = src.match(/flex h-11 w-11 items-center justify-center rounded-control/g) ?? [];
-    expect(matches.length).toBe(3);
+    expect(matches.length).toBe(4);
+  });
+
+  it("carries no dead posture or depth strip (09-F22)", () => {
+    // The selectors left the composer on 2026-08-28; the strip kept reading
+    // their defaults, so it always said the same thing.
+    expect(src).not.toMatch(/auto posture|auto depth/);
   });
 
   it("keeps the scroll-to-latest button clear of the right-aligned message actions", () => {

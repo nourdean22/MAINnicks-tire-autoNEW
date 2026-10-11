@@ -1,4 +1,5 @@
 # ROADMAP · statenour-os
+> **HISTORICAL (banner added 2026-10-11):** last reconciled 2026-05-08 and not maintained since. Current state: `docs/CURRENT-TRUTH.md`; ship history: `docs/RECONCILIATION.md`.
 
 **Last reconciled:** 2026-05-08 (v10.0.484 EOD reconciliation pass · 43-version sprint · see `cohort-2026-05-08-eod-summary.md`)
 
@@ -7,7 +8,7 @@
 > theme, not a checklist.
 >
 > **What this file is NOT:** a sequential plan. Active execution lives
-> in [`V10-PLAN.md`](V10-PLAN.md) (current wave) and historical detail
+> in [`V10-PLAN.md`](V10-PLAN.md) (historical now, like this file) and historical detail
 > in [`UPGRADE-PLAN.md`](UPGRADE-PLAN.md) (v8.x archive). Shipped
 > features live in [`CHANGELOG.md`](CHANGELOG.md). Verified ground
 > truth lives in [`docs/RECONCILIATION.md`](../RECONCILIATION.md).

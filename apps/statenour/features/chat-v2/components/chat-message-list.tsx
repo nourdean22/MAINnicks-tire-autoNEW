@@ -15,15 +15,26 @@ import { MessageActionSheet } from "@/components/chat/message-action-sheet";
 import { ReasoningTraceModal } from "@/components/chat/reasoning-trace-modal";
 import { ReasoningTraceLive } from "@/components/chat/reasoning-trace-live";
 import { extractContextBlocks, extractQuality, extractCitations } from "@/lib/chat/extract-message-metadata";
-import { sideEffectingTools } from "@/lib/ai/tools/catalog";
-import { summarizeToolReceipts, formatToolReceipts, collapseRepeatedToolParts, isEmptyToolOutput } from "@/lib/ai/receipts/tool-receipt-summary";
+import { summarizeToolReceipts, formatToolReceipts, collapseRepeatedToolParts, isEmptyToolOutput, isSoftFailedToolOutput } from "@/lib/ai/receipts/tool-receipt-summary";
+
+/** The one-line status for a tool with no card; same words as ToolResultCard for a refusal or soft failure. */
+function noCardToolLine(state: unknown, output: unknown): string {
+  if (state === "output-error") return "failed";
+  if (state !== "output-available") return "running";
+  if (isSoftFailedToolOutput(output)) {
+    return (output as { error?: unknown }).error === "approval_required" ? "Waiting for approval" : "Not done";
+  }
+  return isEmptyToolOutput(output) ? "returned no results" : "returned data";
+}
 import { toast } from "sonner";
 import { useLazyRenderMessages } from "@/hooks/chat/use-lazy-render-messages";
+import { postFeedback } from "@/hooks/chat/use-nick-message-actions";
 import { trpc } from "@/lib/trpc/client";
 import { haptic } from "@/lib/ui/haptic";
 import type { TtsApi } from "../hooks/use-tts";
 import { stoppedLabel, type StoppedTurn } from "../lib/turn-lifecycle";
-import { isResumedMessage } from "@/hooks/chat/use-chat-transport";
+import { turnHasSideEffect } from "../lib/turn-side-effect";
+import { chatErrorText } from "../lib/chat-error-text";
 
 /** Stable djb2-ish content-hash key so re-saving the same reply reinforces the
  *  row (upsert by category+key) instead of duplicating. Mirrors the legacy
@@ -40,27 +51,6 @@ function textOf(message: UIMessage): string {
     .map((part) => part.text)
     .join("\n")
     .trim();
-}
-
-/**
- * 2026-08-30 · review P1. Regeneration replays the whole assistant turn —
- * tool calls included. If that turn executed a side-effecting tool
- * (quote, SMS, payment…), a casual Regenerate tap would re-run it on the
- * shop. The message row refuses to offer Regenerate on such turns; the
- * operator can still send a new message. Catalog-driven so a tool newly
- * flagged `sideEffecting` is covered without touching this file.
- * P2-B6 · a bubble rebuilt by a resume holds replayed text only, so it
- * counts as side-effecting: its parts cannot show what ran.
- */
-function turnHasSideEffect(message: UIMessage): boolean {
-  if (isResumedMessage(message)) return true;
-  const names = new Set(sideEffectingTools());
-  return (message.parts ?? []).some(
-    (part) =>
-      typeof part.type === "string" &&
-      part.type.startsWith("tool-") &&
-      names.has(part.type.replace("tool-", "")),
-  );
 }
 
 async function copyToClipboard(text: string): Promise<void> {
@@ -109,14 +99,7 @@ function MessageActionButton({
       aria-label={label}
       aria-pressed={active}
       title={label}
-      // 2026-08-30 · review P2: enlarged hit area for the iOS-PWA touch
-      // rule. 2026-09-02 · comment corrected: it claimed "48x48 ... inside
-      // a 48px hit area" while the class below is min-h-11/min-w-11 = 44px.
-      // 44 is the iOS HIG floor; both AGENTS.md files say 48. The code is
-      // left at 44 (changing it reflows every action row) and the
-      // discrepancy is flagged for the operator rather than papered over --
-      // a comment asserting a rule the code does not meet is worse than
-      // either number.
+      // 44px: the floor tests/e2e/target-size.spec.ts pins.
       className={
         "flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-control px-2 text-[11px] transition " +
         (active
@@ -132,10 +115,9 @@ function MessageActionButton({
 function MessageActions({
   role,
   text,
+  compact,
   isSpeaking,
   canSpeak,
-  narrationOn,
-  onToggleNarration,
   onCycleRate,
   rate,
   onCopy,
@@ -147,11 +129,10 @@ function MessageActions({
 }: {
   role: "user" | "assistant";
   text: string;
+  /** 09-F22: older turns: More only (the sheet holds Copy, Edit, Read). */
+  compact: boolean;
   isSpeaking: boolean;
   canSpeak: boolean;
-  /** Auto-narration preference (persisted). */
-  narrationOn: boolean;
-  onToggleNarration: () => void;
   onCycleRate: () => void;
   rate: number;
   onCopy: () => void;
@@ -169,11 +150,13 @@ function MessageActions({
       }
       data-testid={`message-actions-${role}`}
     >
-      <MessageActionButton onClick={onCopy} icon={<Copy size={14} />} label="Copy message" />
-      {role === "user" && onEdit && (
+      {!compact && <MessageActionButton onClick={onCopy} icon={<Copy size={14} />} label="Copy message" />}
+      {!compact && role === "user" && onEdit && (
         <MessageActionButton onClick={onEdit} icon={<Pencil size={14} />} label="Edit and resend" />
       )}
-      {role === "assistant" && canSpeak && (
+      {/* An older reply read from the sheet keeps its Stop on the row. The
+          auto-read preference is global, so it lives in the island header. */}
+      {role === "assistant" && canSpeak && (!compact || isSpeaking) && (
         <>
           <MessageActionButton
             onClick={isSpeaking ? onStopSpeak : onSpeak}
@@ -181,11 +164,6 @@ function MessageActions({
             label={isSpeaking ? "Stop reading" : "Read aloud"}
             active={isSpeaking}
           />
-          {/* 2026-08-30 · review P2: the composer's global read/rate chips
-              were removed by the operator's no-dials directive — this row
-              is where the persistent preference lives now. Auto-narration
-              toggle (works with per-message Read; default off), rate while
-              active. A preference with no surface is a dead control. */}
           {isSpeaking && (
             <MessageActionButton
               onClick={onCycleRate}
@@ -193,21 +171,9 @@ function MessageActions({
               text={`${rate}x`}
             />
           )}
-          <MessageActionButton
-            onClick={onToggleNarration}
-            label={narrationOn ? "Auto-read replies is on (tap to turn off)" : "Auto-read replies is off (tap to turn on)"}
-            // 2026-09-02 · was `narrationOn ? "auto" : undefined`, and the
-            // button passes no icon -- so in the DEFAULT (off) state
-            // `icon ?? text` resolved to undefined and every assistant
-            // message carried a BLANK 44x44 tap target, labelled only to
-            // screen readers. The on/off state is already carried by
-            // `active` styling and aria-pressed, so the label is constant.
-            text="auto"
-            active={narrationOn && !isSpeaking}
-          />
         </>
       )}
-      {role === "assistant" && onRetry && (
+      {!compact && role === "assistant" && onRetry && (
         <MessageActionButton onClick={onRetry} icon={<RotateCcw size={14} />} label="Regenerate reply" />
       )}
       <MessageActionButton onClick={onMore} icon={<MoreHorizontal size={14} />} label="More actions" />
@@ -269,12 +235,14 @@ function ToolReceiptSummary({ message, traceId }: { message: UIMessage; traceId?
       ) : (
         <span className="text-fg-tertiary">no tools run</span>
       )}
+      {/* 10-X4: the page reads no ?search= param, so it opens unfiltered:
+          name the page, do not promise this turn's trace. */}
       {traceId && (
         <Link
-          href={`/system/cockpit-observability?search=${encodeURIComponent(traceId)}`}
+          href="/system/cockpit-observability"
           className="ml-auto inline-flex min-h-11 items-center gap-1 rounded-control px-2 text-fg-secondary transition-colors hover:text-fg sm:min-h-8"
         >
-          View trace <ExternalLink size={11} />
+          Observability <ExternalLink size={11} />
         </Link>
       )}
     </div>
@@ -303,7 +271,7 @@ function InterruptedTurnCard({ message, onRetry }: { message: UIMessage; onRetry
           <AlertTriangle size={15} />
           <span className="text-[13px] font-semibold">Response interrupted</span>
         </div>
-        <p className="mt-1 text-[11px] text-red-300/60">{partialText ? "The reply was cut off." : "This turn failed before any reply."}</p>
+        <p className="mt-1 text-[11px] text-red-300">{partialText ? "The reply was cut off." : "This turn failed before any reply."}</p>
         {onRetry && <button onClick={onRetry} className="mt-3 min-h-11 rounded-control bg-red-500/15 px-5 py-2 text-[12px] font-semibold text-red-300">Retry</button>}
       </div>
     </div>
@@ -330,6 +298,7 @@ export function ChatMessageList({
   onCommand,
   tts,
   stopped,
+  conversationId,
 }: {
   messages: UIMessage[];
   isLoading: boolean;
@@ -342,8 +311,11 @@ export function ChatMessageList({
   tts?: TtsApi;
   /** The turn the operator stopped (09-F29). */
   stopped?: StoppedTurn | null;
+  /** Lets thumbs on the latest reply resolve before its DB id is bound. */
+  conversationId?: string | null;
 }) {
   const pending = useChatUiStore((state) => state.pending);
+  const privateMode = useChatUiStore((state) => state.privateMode);
   const connection = useChatUiStore((state) => state.connection);
   const diagnosticReport = useChatUiStore((state) => state.diagnosticReport);
   const setDiagnosticReport = useChatUiStore((state) => state.setDiagnosticReport);
@@ -374,7 +346,7 @@ export function ChatMessageList({
       toast.success("Saved as belief");
     } catch {
       haptic.error();
-      toast.error("Couldn't save as belief — try again");
+      toast.error("Couldn't save as belief. Try again.");
     }
   }, [actionSheetMsg, harvestBeliefs, recordMemory]);
 
@@ -392,10 +364,37 @@ export function ChatMessageList({
       toast.success("Saved as decision");
     } catch {
       haptic.error();
-      toast.error("Couldn't save as decision — try again");
+      toast.error("Couldn't save as decision. Try again.");
     }
   }, [actionSheetMsg, recordMemory]);
+
+  // 06-F9-N1: thumbs from the sheet. The server falls back to the newest
+  // reply in the conversation when the id is not a DB id yet, so only the
+  // latest reply sends the conversation id: an older one would label the
+  // wrong row.
+  const lastMessage = messages[messages.length - 1];
+  const latestAssistantId = lastMessage?.role === "assistant" ? lastMessage.id : null;
+  const onFeedback = useCallback(
+    async (positive: boolean) => {
+      if (!actionSheetMsg) return;
+      const ok = await postFeedback({
+        messageId: actionSheetMsg.id,
+        positive,
+        snippet: actionSheetMsg.text,
+        conversationId: actionSheetMsg.id === latestAssistantId ? (conversationId ?? null) : null,
+      });
+      if (ok) {
+        haptic.success();
+        toast.success("Feedback saved", { duration: 1500 });
+      } else {
+        haptic.error();
+        toast.error("Couldn't save your feedback. Try again.");
+      }
+    },
+    [actionSheetMsg, latestAssistantId, conversationId],
+  );
   const { renderedMessages, hasHidden, hiddenCount, showOlder } = useLazyRenderMessages(messages, isLoading);
+  const latestUserIndex = renderedMessages.map((m) => m.role).lastIndexOf("user");
   // A stop recorded in another conversation names a message that is not here.
   const stoppedHere = stopped && !isLoading && messages.some((m) => m.id === stopped.messageId) ? stopped : null;
 
@@ -413,7 +412,7 @@ export function ChatMessageList({
           </p>
           {(connection === "degraded" || connection === "offline") && (
             <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[12px] text-amber-300">
-              <AlertTriangle size={12} /> Chat is degraded — run /diagnose for an independent check.
+              <AlertTriangle size={12} /> Chat is degraded. Run /diagnose for an independent check.
             </p>
           )}
         </div>
@@ -439,15 +438,14 @@ export function ChatMessageList({
   }
 
   return (
-    // 2026-08-08 · role="log" = implicit polite live region that announces
-    // ADDITIONS only (new turns), never re-reads the feed. aria-busy while
-    // a reply streams batches those announcements until the turn settles,
-    // so screen readers hear one finished message instead of per-token
-    // spam. Completion itself is announced by the always-mounted
-    // role="status" region at the bottom of this container.
+    // role="log" is an implicit polite live region, and some screen readers
+    // ignore aria-busy and read every streamed token (09-F5). aria-live="off"
+    // silences the log; the always-mounted role="status" region at the bottom
+    // announces each finished reply.
     <div
       role="log"
       aria-label="Chat messages"
+      aria-live="off"
       aria-busy={isLoading}
       className="mx-auto flex w-full max-w-3xl flex-col gap-7 px-4 py-5 pb-12 sm:px-6"
     >
@@ -489,6 +487,8 @@ export function ChatMessageList({
                   : "w-full min-w-0 text-[16px] leading-[1.6] text-fg"
               }
             >
+              {/* 09-F20: the speaker, for screen readers; the visual NICK stays aria-hidden. */}
+              <span className="sr-only">{message.role === "user" ? "You:" : "Nick:"}</span>
               {message.role === "assistant" && (
                 <p className="mb-2 font-mono text-[11px] tracking-[0.1em] text-fg-tertiary" aria-hidden>
                   NICK
@@ -520,8 +520,8 @@ export function ChatMessageList({
                             "4:12" would flicker a control that then moves. */}
                         {!(isLoading && isLatestAssistant) && <MediaTimestampBar text={part.text} />}
                       </AssistantMessageShell>
-                      {isTruncatedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-control border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300 sm:min-h-8"><AlertTriangle size={12} /> Response cut off — regenerate</button>}
-                      {isRefusedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-control border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300 sm:min-h-8"><AlertTriangle size={12} /> Model refused — retry may route differently</button>}
+                      {isTruncatedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-control border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300 sm:min-h-8"><AlertTriangle size={12} /> Response cut off. Regenerate</button>}
+                      {isRefusedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-control border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300 sm:min-h-8"><AlertTriangle size={12} /> Model refused. A retry may route differently</button>}
                     </div>
                   );
                 }
@@ -540,7 +540,7 @@ export function ChatMessageList({
                   const toolName = part.type.replace("tool-", "");
                   const repeatBadge = repeat > 1 ? (
                     <div className="mt-1 font-mono text-[11px] text-fg-tertiary">
-                      ×{repeat} — same call, same result
+                      ×{repeat}: same call, same result
                     </div>
                   ) : null;
                   if (isKnownToolName(toolName)) return (
@@ -553,7 +553,7 @@ export function ChatMessageList({
                   // chip: `output-available` only means the call returned.
                   return (
                     <div key={`${message.id}-${index}`} className="mt-2 rounded-surface border border-edge-subtle bg-content px-3 py-2 font-mono text-[12px] text-fg-secondary">
-                      {toolName}: {(part as any).state === "output-available" ? (isEmptyToolOutput((part as any).output) ? "returned no results" : "returned data") : (part as any).state === "output-error" ? "failed" : "running"}
+                      {toolName}: {noCardToolLine((part as any).state, (part as any).output)}
                       {repeatBadge}
                     </div>
                   );
@@ -573,10 +573,9 @@ export function ChatMessageList({
                   <MessageActions
                     role={role}
                     text={bodyText}
+                    compact={!(isLatestAssistant || messageIndex === latestUserIndex)}
                     canSpeak={Boolean(tts?.supported)}
                     isSpeaking={tts?.speakingMessageId === message.id}
-                    narrationOn={Boolean(tts?.enabled)}
-                    onToggleNarration={() => tts?.toggle()}
                     onCycleRate={() => tts?.cycleRate()}
                     rate={tts?.rate ?? 1}
                     onCopy={() => void copyToClipboard(bodyText)}
@@ -610,7 +609,7 @@ export function ChatMessageList({
       })}
 
       {pending.map((item) => (
-        <div key={item.tempId} className="flex justify-end opacity-75">
+        <div key={item.tempId} className="flex justify-end">
           <div className="max-w-[80%] rounded-surface bg-surface-interactive px-4 py-3 text-[15px] text-fg">
             <p className="whitespace-pre-wrap">{item.text}</p>
             <p className="mt-1 font-mono text-[11px] text-fg-tertiary">{item.status === "resolving-context" ? "Resolving live context…" : "Sending…"}</p>
@@ -627,12 +626,13 @@ export function ChatMessageList({
       {/* 2026-07-29 · was a hardcoded "Stream failed." that DISCARDED the
           server's message — an image turn dying for want of a vision model
           looked exactly like a network blip. The server authors a safe
-          category string (never raw provider text); render it. */}
+          category string (never raw provider text); render it. 04-X13: a
+          pre-stream failure is the raw JSON body, so chatErrorText unwraps it. */}
       {error && (
         <div className="mx-auto rounded-surface border border-rose-500/30 bg-content p-4 text-center text-sm text-rose-300">
-          {error.message?.trim() || "Stream failed."}
+          {chatErrorText(error.message ?? "")}
           {onRetry && (
-            <button onClick={onRetry} className="ml-2 underline">
+            <button type="button" onClick={onRetry} className="ml-1 inline-flex min-h-11 items-center px-2 underline">
               Retry
             </button>
           )}
@@ -648,6 +648,8 @@ export function ChatMessageList({
       <div role="status" aria-live="polite" className="sr-only">
         {stoppedHere
           ? stoppedLabel(stoppedHere.outcome)
+          : error
+            ? chatErrorText(error.message ?? "")
           : !isLoading && messages[messages.length - 1]?.role === "assistant"
             ? "Nick finished replying"
             : ""}
@@ -673,6 +675,13 @@ export function ChatMessageList({
         onStopSpeaking={tts ? () => tts.stop() : undefined}
         onSaveAsBelief={actionSheetMsg?.role === "assistant" ? onSaveAsBelief : undefined}
         onSaveAsDecision={actionSheetMsg?.role === "assistant" ? onSaveAsDecision : undefined}
+        // Private Lab persists nothing, and a private reply has no row to score.
+        // A reply still streaming has no row yet: the server would score the previous one.
+        onFeedback={
+          actionSheetMsg?.role === "assistant" && !privateMode && !(isLoading && actionSheetMsg.id === latestAssistantId)
+            ? (positive) => void onFeedback(positive)
+            : undefined
+        }
       />
       <ReasoningTraceModal open={reasoningTraceMsg !== null} messageId={reasoningTraceMsg} onClose={() => setReasoningTraceMsg(null)} />
     </div>

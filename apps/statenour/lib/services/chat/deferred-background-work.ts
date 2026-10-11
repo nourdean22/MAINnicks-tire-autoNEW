@@ -556,6 +556,8 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
                   payload: {
                     actions: JSON.parse(JSON.stringify(results)),
                     conversationId: convId,
+                    // Audit 08-F17: joins this row to the turn's agent_traces / Langfuse trace.
+                    traceId,
                     messageLength: text.length,
                   },
                 },
@@ -579,7 +581,7 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
                         actor: "nick_agent",
                         eventType: "action_receipt",
                         detail: rcpt.userVisibleSummary.slice(0, 200),
-                        payload: JSON.parse(JSON.stringify(rcpt)),
+                        payload: JSON.parse(JSON.stringify({ ...rcpt, traceId, conversationId: convId ?? null })),
                       },
                     })
                     .catch((e) => {
@@ -685,10 +687,10 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
             // deferred background, so its failures never reach
             // detectActionClaimsWithoutTools (which only inspects SDK
             // capturedToolCalls). When a MUTATION action FAILED while
-            // Nick's prose claimed completion, emit a chat_claim_warn row
-            // so the existing correction chip (claim-warnings.ts →
-            // /api/ai/chat/claim-warnings → action-claim-warning.tsx)
-            // surfaces the truth. Best-effort — never tanks the turn.
+            // Nick's prose claimed completion, emit a chat_claim_warn row.
+            // L5 is ORPHANED (checked 2026-10-10): no client calls
+            // chat.claimWarnings, so the row is a record, not a chip; the
+            // operator sees only the L2 banner. Best-effort, never tanks the turn.
             // Spine-6: single canonical evaluator per failure. When the
             // receipt verdict above already wrote action-done-fail-<traceId>
             // (and bannered the text), a second chat_claim_warn row for the

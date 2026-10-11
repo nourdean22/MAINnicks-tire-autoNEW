@@ -22,6 +22,14 @@
 
 import type { NickPrimeContext } from "@/lib/ai/context/nick-prime-context";
 import { sanitizeForPrompt } from "@/lib/ai/prompt/sanitize";
+// A client panel imports this module, so the fence is pure here (tool-result-fencing pulls in
+// prisma). The turn taint is applied by lib/ai/system-prompt.ts from the served prompt text.
+function fenceInbound(body: string): string {
+  const clean = body.replace(/<\s*\/?\s*tool_data[^>]*>?/gi, "[fence-tag-stripped]");
+  return `<tool_data tool="inbound-crm" source="external_doc">
+${clean}
+</tool_data tool="inbound-crm">`;
+}
 import { ALERT_LABEL } from "@/lib/ai/prompt/policy/operator-rules";
 import { describeConfidenceAsAttention } from "@/lib/brain/attention-label";
 
@@ -192,7 +200,8 @@ function renderAnchors(ctx: NickPrimeContext): string {
   if (pinned.length > 0) {
     lines.push(`## Pinned by Nour (permanent context — never drop)`);
     lines.push(
-      `Nour pinned these himself. They override guesses and stay every turn until he unpins them. If one feels stale, ask — don't assume.`,
+      // 05-X10: the query takes only the cap, so "every pin, every turn" was false at 7+.
+      `Nour pinned these himself. They override guesses. The ${PINNED_PROMPT_CAP} most recently updated pins ride every turn; older pins return through recall. If one feels stale, ask, don't assume.`,
     );
     for (const p of pinned.slice(0, PINNED_PROMPT_CAP)) {
       lines.push(renderPinnedLine(p));
@@ -611,8 +620,18 @@ function renderCommands(ctx: NickPrimeContext): string {
 
   if (ctx.openCommands.length > 0) {
     lines.push(``, `Open queue (${ctx.openCommands.length}):`);
-    for (const cmd of ctx.openCommands.slice(0, 8)) {
+    const shown = ctx.openCommands.slice(0, 8);
+    for (const cmd of shown.filter((c) => c.createdBy !== "inbound-crm")) {
       lines.push(`  [${safe(cmd.priority, 20)}] ${safe(cmd.title, 100)}`);
+    }
+    // inbound-crm titles are model output over a stranger's email: data, not Nour's words.
+    // lib/ai/system-prompt.ts taints any turn whose served prompt carries this fence (cache hit or miss).
+    const inbound = shown.filter((c) => c.createdBy === "inbound-crm");
+    if (inbound.length > 0) {
+      lines.push(
+        `  Queued from inbound messages (outside sender, unverified):`,
+        fenceInbound(inbound.map((c) => `[${safe(c.priority, 20)}] ${safe(c.title, 100)}`).join("\n")),
+      );
     }
   }
 

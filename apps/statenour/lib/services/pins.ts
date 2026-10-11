@@ -68,7 +68,8 @@ function slugifyKey(content: string): string {
 
 export async function listPins(args: { withStats?: boolean } = {}): Promise<Record<string, unknown>> {
   const pins = await prisma.brainMemory.findMany({
-    where: { category: BRAIN_CATEGORIES.PINNED_USER, deletedAt: null },
+    // supersededById: a Correct leaves the old pin live but superseded; only the correction is current.
+    where: { category: BRAIN_CATEGORIES.PINNED_USER, deletedAt: null, supersededById: null },
     orderBy: { updatedAt: "desc" },
     take: 50,
     select: {

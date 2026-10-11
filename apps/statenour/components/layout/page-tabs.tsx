@@ -84,13 +84,13 @@ function SubSwitch({
   variant: "index" | "row" | "centered";
 }) {
   if (tabs.length < 2) return null;
-  // Every scrolling row here carries py-1 and no tab uses -mb-px: overflow-x-auto clips at the
-  // padding box, which cut the 4px focus ring's top and bottom off (audit 09-F16).
+  // Every scrolling row here carries py-1 and px-1 (-mx-1 keeps it aligned) and no tab uses -mb-px:
+  // overflow-x-auto clips at the padding box, which cut the 4px focus ring off the edge tabs (audit 09-F16).
   return (
     <nav
       aria-label={label}
       className={cn(
-        "flex gap-x-6 gap-y-1 overflow-x-auto py-1",
+        "-mx-1 flex gap-x-6 gap-y-1 overflow-x-auto px-1 py-1",
         variant === "index" && "border-b border-edge pb-2 xl:flex-col xl:gap-y-0 xl:border-b-0 xl:border-r xl:border-edge xl:pb-0 xl:pr-6",
         variant === "row" && "justify-end border-b border-edge",
         variant === "centered" && "justify-center border-b border-edge",
@@ -220,7 +220,7 @@ function PageTabsInner({ tabs, param = "tab", defaultKey, lenses, className }: P
         <div
           role="tablist"
           aria-label="Lenses"
-          className="flex flex-wrap items-end gap-x-8 gap-y-1 overflow-x-auto border-b border-edge py-1"
+          className="-mx-1 flex flex-wrap items-end gap-x-8 gap-y-1 overflow-x-auto border-b border-edge px-1 py-1"
         >
           {lenses.map((l) => {
             const isActive = l.key === activeLens.key;
@@ -260,7 +260,7 @@ function PageTabsInner({ tabs, param = "tab", defaultKey, lenses, className }: P
       <div
         role="tablist"
         aria-label="Page sections"
-        className="flex items-center gap-1 overflow-x-auto border-b border-edge-subtle py-1"
+        className="-mx-1 flex items-center gap-1 overflow-x-auto border-b border-edge-subtle px-1 py-1"
       >
         {tabs.map((t) => {
           const isActive = t.key === activeKey;

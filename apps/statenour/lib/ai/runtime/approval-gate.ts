@@ -1,8 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { evaluateToolAction } from "@/lib/tools/tool-policy";
-import { pendingExecutions, guardianBypassStorage } from "@/lib/tools/guardian";
-import { APPROVAL_DEDUPE_WINDOW_MS, APPROVAL_REPLAY_WINDOW_MS, samePayload } from "@/lib/tools/approval-match";
+import { pendingExecutions, guardianBypassStorage, findSamePayloadRequest } from "@/lib/tools/guardian";
+import { APPROVAL_REPLAY_WINDOW_MS, samePayload } from "@/lib/tools/approval-match";
 import { isApprovalRequestExpired } from "@/lib/automation/approval-freshness";
 
 /**
@@ -16,9 +16,9 @@ import { isApprovalRequestExpired } from "@/lib/automation/approval-freshness";
  * - `opts.approvalId` names an executed request (same tool, same payload)
  *   that ran within APPROVAL_REPLAY_WINDOW_MS → { approved: false, replay }
  *   carrying the stored result. The caller returns it and does not execute.
- * - Otherwise the most recent same-tool request inside the 24h dedupe window
- *   is matched canonically: pending/approved (unexpired) → its approvalId;
- *   rejected/failed → throws; executed or expired → a NEW pending request.
+ * - Otherwise the most recent same-tool, same-payload request inside the 24h
+ *   dedupe window is matched canonically: pending/approved (unexpired) → its approvalId;
+ *   rejected/failed/needs_review → throws; executed or expired → a NEW pending request.
  *
  * If allowed:
  * - Returns { approved: true }.
@@ -64,21 +64,8 @@ export async function checkApprovalGate(
       named = null;
     }
 
-    const matched =
-      named ??
-      (await (async () => {
-        const existing = await prisma.approvalRequest.findFirst({
-          where: {
-            toolId,
-            status: {
-              in: ["pending_approval", "approved", "rejected", "executed", "failed"]
-            },
-            createdAt: { gte: new Date(now.getTime() - APPROVAL_DEDUPE_WINDOW_MS) }
-          },
-          orderBy: { createdAt: "desc" }
-        });
-        return existing && samePayload(existing.payload, payload) ? existing : null;
-      })());
+    // Newest same-PAYLOAD row decides: a newer request for another payload must not hide a needs_review row.
+    const matched = named ?? (await findSamePayloadRequest(toolId, payload, now));
 
     if (matched) {
       if (matched.status === "executed") {
@@ -97,6 +84,8 @@ export async function checkApprovalGate(
         throw new Error("Action rejected by operator");
       } else if (matched.status === "failed") {
         throw new Error(`Action execution failed: ${JSON.stringify(matched.resultPayload)}`);
+      } else if (matched.status === "needs_review") {
+        throw new Error("Action may already have run; review it on /system/actions before raising it again");
       } else if (
         (matched.status === "pending_approval" || matched.status === "approved") &&
         isApprovalRequestExpired(matched, now)

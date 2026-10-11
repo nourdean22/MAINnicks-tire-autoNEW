@@ -15,9 +15,11 @@
  * easier to test in isolation (the existing webhook's 1000-line file
  * is heavy to mock).
  *
- * Idempotency: `decideMove` is upsert-style · a duplicate /approve_1
- * returns `alreadyDecided: true` and DOESN'T mutate the row a second
- * time. So Telegram's at-least-once delivery semantics are safe.
+ * Idempotency: `decideMove` is a compare-and-swap on the row's "pending"
+ * status · a duplicate or racing /approve_1 returns `alreadyDecided: true`
+ * with the winner's decision and DOESN'T mutate the row a second time. So
+ * Telegram's at-least-once delivery semantics are safe. A move whose read or
+ * write failed is reported as failed, never counted as decided.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -134,53 +136,46 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, decision: result });
   }
 
-  // Bulk approve · /approve_all
-  if (APPROVE_ALL_RE.test(text)) {
-    const pending = await listPendingMovesForDate(date);
-    if (pending.length === 0) {
+  // Bulk: /approve_all, /reject_all
+  const bulk = APPROVE_ALL_RE.test(text) ? "approved" : REJECT_ALL_RE.test(text) ? "rejected" : null;
+  if (bulk) {
+    let r: Awaited<ReturnType<typeof decideAllForDate>> | null;
+    try {
+      const pending = await listPendingMovesForDate(date);
+      r = pending.length === 0 ? null : await decideAllForDate(date, bulk);
+    } catch {
+      // A failed read of the day's moves is unknown, never "no pending moves".
+      await sendTelegram(`<b>${date}</b> \u00b7 could not read today's moves, try again.`, chatId, "HTML");
+      return NextResponse.json({ ok: false, error: "read_failed" });
+    }
+    if (!r) {
       await sendTelegram(
-        `<b>${date}</b> · no pending moves to approve.`,
+        `<b>${date}</b> \u00b7 no pending moves to ${bulk === "approved" ? "approve" : "reject"}.`,
         chatId,
         "HTML",
       );
-      return NextResponse.json({ ok: true, decision: { updated: 0, alreadyDecided: 0 } });
+      return NextResponse.json({ ok: true, decision: { updated: 0, alreadyDecided: 0, failed: [] } });
     }
-    const r = await decideAllForDate(date, "approved");
-    await sendTelegram(
-      `<b>${date}</b> · approved ${r.updated} move${r.updated === 1 ? "" : "s"}${
-        r.alreadyDecided > 0 ? ` (${r.alreadyDecided} already decided)` : ""
-      }.`,
-      chatId,
-      "HTML",
-    );
-    return NextResponse.json({ ok: true, decision: r });
-  }
-
-  // Bulk reject · /reject_all
-  if (REJECT_ALL_RE.test(text)) {
-    const pending = await listPendingMovesForDate(date);
-    if (pending.length === 0) {
-      await sendTelegram(
-        `<b>${date}</b> · no pending moves to reject.`,
-        chatId,
-        "HTML",
-      );
-      return NextResponse.json({ ok: true, decision: { updated: 0, alreadyDecided: 0 } });
-    }
-    const r = await decideAllForDate(date, "rejected");
-    await sendTelegram(
-      `<b>${date}</b> · rejected ${r.updated} move${r.updated === 1 ? "" : "s"}${
-        r.alreadyDecided > 0 ? ` (${r.alreadyDecided} already decided)` : ""
-      }.`,
-      chatId,
-      "HTML",
-    );
+    await sendTelegram(bulkReply(date, bulk, r), chatId, "HTML");
     return NextResponse.json({ ok: true, decision: r });
   }
 
   // Not a revenue-decision command · silent ack (main webhook handles
   // everything else if this endpoint is the registered target).
   return NextResponse.json({ ok: true, ignored: true });
+}
+
+/** "approved 1 move (1 already decided), 1 failed: move 2, try again." A failed move is named, never dropped. */
+function bulkReply(
+  date: string,
+  decision: "approved" | "rejected",
+  r: { updated: number; alreadyDecided: number; failed: number[] },
+): string {
+  const already = r.alreadyDecided > 0 ? ` (${r.alreadyDecided} already decided)` : "";
+  const failed = r.failed.length > 0
+    ? `, ${r.failed.length} failed: move ${r.failed.join(", ")}, try again`
+    : "";
+  return `<b>${date}</b> · ${decision} ${r.updated} move${r.updated === 1 ? "" : "s"}${already}${failed}.`;
 }
 
 async function replyToOperator(

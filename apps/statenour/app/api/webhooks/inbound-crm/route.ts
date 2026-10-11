@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { apiHandler } from "@/lib/utils/http";
 import { safeEqual } from "@/lib/auth-guard";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { fenceContent } from "@/lib/ai/tool-result-fencing";
 import { resolveInboxMissionId } from "@/lib/services/missions";
 import { ServiceError } from "@/lib/utils/service-error";
 import { logger } from "@/lib/logger";
@@ -58,7 +59,8 @@ export const POST = apiHandler(
       throw new ServiceError("Missing from or body fields", 400);
     }
 
-    log.info("inbound_crm_received", { from, subjectSnippet: subject?.slice(0, 50) });
+    // Shape only: the sender and subject are a stranger's PII and text (07-SN-08).
+    log.info("inbound_crm_received", { fromKind: String(from).includes("@") ? "email" : "phone", subjectChars: subject?.length ?? 0 });
 
     // 2. Identify or create Contact
     const isEmail = from.includes("@");
@@ -77,21 +79,17 @@ export const POST = apiHandler(
           status: "active",
         },
       });
-      log.info("contact_created_from_inbound", { id: contact.id, from });
+      log.info("contact_created_from_inbound", { id: contact.id });
     }
 
-    // 3. Process the message using tracedAiChat
-    const prompt = `INBOUND MESSAGE FROM: ${from} (Name: ${contact.name})
-SUBJECT: ${subject || "none"}
-BODY:
-${body}
+    // 3. Process the message using tracedAiChat. Sender, subject and body are a stranger's text: fenced (07-SN-09).
+    const prompt = `INBOUND MESSAGE:
+${fenceContent("inbound-crm", "external_doc", `FROM: ${from} (Name: ${contact.name})\nSUBJECT: ${subject || "none"}\nBODY:\n${body}`)}
 
 Analyze the message above to extract key contact info and commitments.
 Return ONLY a valid JSON object matching this schema:
 {
   "contactName": "Extracted name of the sender, or null if not mentioned/unclear",
-  "role": "coaching_client" | "lead" | "sponsor" | "partner",
-  "status": "lead" | "active" | "dormant",
   "motivations": "Short summary of sender's motivation or null",
   "goals": ["List of goals Nour can help them with"],
   "painPoints": ["List of current challenges / pain points"],
@@ -120,20 +118,15 @@ Return ONLY a valid JSON object matching this schema:
     try {
       parsed = JSON.parse(result.content.replace(/```json|```/g, "").trim());
     } catch (err) {
-      log.error("inbound_crm_parse_json_failed", { content: result.content });
+      log.error("inbound_crm_parse_json_failed", { chars: result.content.length });
       throw new ServiceError("Failed to parse AI response", 500);
     }
 
-    // 4. Update Contact Name and Psych Profile
+    // 4. Update Contact Name and Psych Profile. Role and status are NOT taken from the model: the sender
+    // wrote the text it read, and they drive the weekly crm-followups cron (07-SN-09).
     const updatedData: any = {};
     if (parsed.contactName && contact.name === from) {
       updatedData.name = parsed.contactName;
-    }
-    if (parsed.role) {
-      updatedData.role = parsed.role;
-    }
-    if (parsed.status) {
-      updatedData.status = parsed.status;
     }
 
     const currentPsychProfile = (contact.psychProfile as Record<string, any>) || {};
@@ -147,7 +140,7 @@ Return ONLY a valid JSON object matching this schema:
 
     if (body) {
       const dateStr = new Date().toLocaleDateString();
-      updatedData.notes = (contact.notes ? contact.notes + "\n\n" : "") + `[Inbound Message ${dateStr}]: ${body}`;
+      updatedData.notes = (contact.notes ? contact.notes + "\n\n" : "") + `[Inbound Message (external, unverified) ${dateStr}]: ${body}`;
     }
 
     contact = await prisma.contact.update({
@@ -180,6 +173,7 @@ Return ONLY a valid JSON object matching this schema:
               dueDate,
               loopKind: "ONCE",
               promiseTo: contact.name,
+              createdBy: "inbound-crm",
             },
           });
           tasksCreated++;

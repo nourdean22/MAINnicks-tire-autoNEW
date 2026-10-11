@@ -33,6 +33,10 @@ vi.mock("@/lib/ai/dark-psychology-matcher", () => ({
   pickDarkPsychologyForMessage: vi.fn().mockResolvedValue([]),
   renderDarkPsychologyBlock: () => "",
 }));
+// Deep tier: no real sub-agents; the engine falls back to the (mocked) fanout.
+vi.mock("@/lib/ai/multi-agent-orchestrator", () => ({
+  runMultiAgent: vi.fn().mockRejectedValue(new Error("not under test")),
+}));
 const mockConclusion = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/ai/reasoning/persist-conclusion", () => ({
   persistReasoningConclusion: (...a: unknown[]) => mockConclusion(...a),
@@ -92,6 +96,39 @@ describe("reasoning engine - provider sentinel", () => {
     expect(res.trace.confidence).toBeLessThanOrEqual(0.2);
     await flush();
     expect(mockConclusion).not.toHaveBeenCalled();
+  });
+
+  // Audit 04-X6 (a): a critic outage parsed as malformed JSON -> "ship" ->
+  // stored as a 0.9 "ship as-is" verdict nobody actually gave.
+  const isCritic = (msgs: Array<{ content: string }>) => msgs.some((m) => m.content.includes("adversarial critic"));
+  const DRAFT = "Hire one tech in March; the bay is idle two days a week.";
+
+  it("deep tier: a critic sentinel is a failed critique (0.75, no ship-as-is step), not a 0.9 ship verdict", async () => {
+    mockChat.mockImplementation(async (msgs: Array<{ content: string }>) => (isCritic(msgs) ? SENTINEL : ok(DRAFT)));
+    const res = await reasonStreaming({ question: "Should I hire a second tech?", tier: "deep" }, () => {});
+    expect(res.trace.answer).toBe(DRAFT);
+    expect(res.trace.confidence).toBe(0.75);
+    const labels = res.trace.steps.map((s) => s.label);
+    expect(labels.some((l) => /^critique \S ship as-is$/.test(l))).toBe(false);
+  });
+
+  it("control: a real ship verdict on the deep tier still earns 0.9 and its step", async () => {
+    mockChat.mockImplementation(async (msgs: Array<{ content: string }>) =>
+      isCritic(msgs) ? ok('{"issues":[],"suggestions":[],"verdict":"ship"}') : ok(DRAFT),
+    );
+    const res = await reasonStreaming({ question: "Should I hire a second tech?", tier: "deep" }, () => {});
+    expect(res.trace.confidence).toBe(0.9);
+    expect(res.trace.steps.some((s) => /^critique \S ship as-is$/.test(s.label))).toBe(true);
+  });
+
+  it("runPlan returns an empty plan on a sentinel instead of feeding outage prose downstream", async () => {
+    mockChat.mockResolvedValue(SENTINEL);
+    await expect(__internals.runPlan("Should I hire?", "deep")).resolves.toBe("");
+  });
+
+  it("control: runPlan returns a real plan", async () => {
+    mockChat.mockResolvedValue(ok("1. Count idle bay days."));
+    await expect(__internals.runPlan("Should I hire?", "deep")).resolves.toBe("1. Count idle bay days.");
   });
 
   it("control: a real quick answer is shipped and persisted", async () => {

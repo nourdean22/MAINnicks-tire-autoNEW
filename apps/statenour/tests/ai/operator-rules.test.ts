@@ -263,6 +263,17 @@ describe("operator-rules · TRUTH_RULE_NEVER_FABRICATE (Bay 5 lesson)", () => {
   });
 });
 
+describe("operator-rules - NEWEST STATEMENT WINS (audit 04-X4)", () => {
+  // A correction Nour made in the recent messages must beat an older summary
+  // bullet or a recalled memory. Without a precedence rule the model picks.
+  it("is injected into the policy block", () => {
+    const block = getOperatorPolicyBlock();
+    expect(block).toContain("NEWEST STATEMENT WINS");
+    expect(block.toLowerCase()).toContain("summary");
+    expect(block.toLowerCase()).toContain("recalled");
+  });
+});
+
 describe("operator-rules · bundle helpers", () => {
   it("getOperatorPolicyLines returns 9 entries (8 rules + 1 spacer + truth) plus trailing blank", () => {
     const lines = getOperatorPolicyLines();

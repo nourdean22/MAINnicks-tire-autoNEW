@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
+import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
 import {
   BookOpen,
   Globe,
@@ -540,9 +541,10 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
 
         {/* Urgency warning on timer expiry */}
         {reviewTimeLeft === 0 && (
-          <div className="p-2 rounded-micro bg-red-500/10 border border-red-500/20 text-center animate-bounce">
+          // P-S7a: static; the red border and the words carry the urgency (no at-rest loop, SYSTEM.md 1.4).
+          <div className="p-2 rounded-micro bg-red-500/10 border border-red-500/20 text-center">
             <p className="text-[12px] font-semibold text-red-400">
-              ⏱️ Time's up! Don't overthink, pick an action below.
+              Time&apos;s up! Don&apos;t overthink, pick an action below.
             </p>
           </div>
         )}
@@ -652,10 +654,10 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
 
         <div className="flex gap-1.5">
           <Input
-            placeholder="Ask Nick anything — he'll teach or research automatically"
+            placeholder="Ask Nick anything. He'll teach or research automatically"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && run()}
+            onKeyDown={(e) => isSubmitEnter(e) && run()}
             disabled={loading}
             className="h-9 bg-content border-edge-subtle text-[13px] placeholder:text-fg-tertiary focus:border-accent transition-all"
           />

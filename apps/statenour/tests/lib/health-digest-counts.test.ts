@@ -19,13 +19,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   scanCronHealth: vi.fn(),
   scanStaleData: vi.fn(),
-  getGoogleOauthStatus: vi.fn(),
+  getGoogleOauthAccountsStatus: vi.fn(),
   safeQuery: vi.fn(),
 }));
 
 vi.mock("@/lib/system/cron-diagnostics", () => ({ scanCronHealth: mocks.scanCronHealth }));
 vi.mock("@/lib/system/stale-data-scanner", () => ({ scanStaleData: mocks.scanStaleData }));
-vi.mock("@/lib/services/google-oauth", () => ({ getGoogleOauthStatus: mocks.getGoogleOauthStatus }));
+// The digest reads every account (08-F3); the primary-only read is no longer called.
+vi.mock("@/lib/services/google-oauth", () => ({
+  getGoogleOauthAccountsStatus: mocks.getGoogleOauthAccountsStatus,
+}));
 vi.mock("@/lib/services/deploy-identity", () => ({
   getDeployMeta: () => ({ sha: null, shaShort: null, branch: null, env: null, buildTime: null }),
 }));
@@ -60,6 +63,7 @@ function healthyGoogle() {
     consecutiveFailures: 0,
     email: "nour@example.com",
     reason: "",
+    accounts: [{ key: "primary", state: "healthy" as const }],
   };
 }
 
@@ -67,7 +71,7 @@ beforeEach(() => {
   slowRoutesRows = [{ c: BigInt(0) }];
   mocks.scanCronHealth.mockResolvedValue(healthyCron());
   mocks.scanStaleData.mockResolvedValue({ totalStaleRows: 0, categories: [] });
-  mocks.getGoogleOauthStatus.mockResolvedValue(healthyGoogle());
+  mocks.getGoogleOauthAccountsStatus.mockResolvedValue(healthyGoogle());
   mocks.safeQuery.mockImplementation(
     async (_fn: unknown, fallback: unknown, opts?: { label?: string }) =>
       opts?.label === "health-digest.slow-routes" ? slowRoutesRows : fallback,
@@ -155,13 +159,14 @@ describe("computeHealthDigest counting (producer, five scans mocked)", () => {
   });
 
   it("google probeFailed keeps its own targeted warning and is counted, not double-named", async () => {
-    mocks.getGoogleOauthStatus.mockResolvedValue({
+    mocks.getGoogleOauthAccountsStatus.mockResolvedValue({
       state: "missing",
       lastSyncAt: null,
       consecutiveFailures: 0,
       email: null,
       reason: "Integration table unreadable",
       probeFailed: true,
+      accounts: [],
     });
 
     const d = await computeHealthDigest();

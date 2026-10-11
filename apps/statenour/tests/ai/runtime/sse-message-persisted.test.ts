@@ -3,10 +3,12 @@
  *
  * The stored reply can differ from the streamed one (pre-persist banners,
  * CoVe, calibration), and the turn's post-persist work kept the stream
- * "live" long after the reply landed. The SSE stream now carries a
- * `message.persisted { id, content }` event the moment the row exists —
- * while the AI SDK body is still held open by onFinish — and
- * `message.completed` only after onFinish resolves.
+ * "live" long after the reply landed. The SSE stream now carries ONE
+ * `message.persisted { id, content }` event once the row holds its final
+ * text - while the AI SDK body is still held open by onFinish - followed by
+ * `message.completed` and a close; the deferred work runs on server-side.
+ * A turn with no row (private, empty, duplicate) completes when onFinish
+ * resolves, as before.
  *
  * The upstream body here is held open until onFinish resolves, which is
  * how ai@6 behaves (streamText awaits onFinish inside its flush).
@@ -80,6 +82,34 @@ describe("message.persisted", () => {
       id: "msg-1",
       content: "stored text",
     });
+  });
+
+  it("closes the turn on message.persisted: the client reads to done while onFinish is still running (04-F14)", async () => {
+    // onFinish never resolves here: the deferred phases are still running.
+    const never = new Promise<void>(() => {});
+    const sse = build("trace-C", never);
+    const reader = sse.getReader();
+    const dec = new TextDecoder();
+    let raw = "";
+    for (let i = 0; i < 3; i += 1) raw += dec.decode((await reader.read()).value);
+
+    expect(notifyMessagePersisted("trace-C", { id: "msg-3", content: "final text" })).toBe(true);
+    const drained = (async () => {
+      for (;;) {
+        const r = await reader.read();
+        if (r.done) return "done";
+        raw += dec.decode(r.value);
+      }
+    })();
+    const outcome = await Promise.race([
+      drained,
+      new Promise<string>((r) => setTimeout(() => r("still open after 200 ms"), 200)),
+    ]);
+    expect(outcome).toBe("done");
+    const types = events(raw).map((e) => e.type);
+    expect(types.slice(-2)).toEqual(["message.persisted", "message.completed"]);
+    // One announcement per turn: the stream stopped listening when it closed.
+    expect(notifyMessagePersisted("trace-C", { id: "late", content: "z" })).toBe(false);
   });
 
   it("CONTROL: a notify for another trace reaches no stream, and a closed stream stops listening", async () => {

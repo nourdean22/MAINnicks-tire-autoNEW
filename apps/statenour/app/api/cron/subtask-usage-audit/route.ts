@@ -15,9 +15,9 @@ const log = logger.withSurface("cron/subtask-usage-audit");
  * - Checks ADR-0017 A1 gate:
  *   1. Check if subtasks are actually in use in the DB (Tasks with parentTaskId != null).
  *   2. Check if the two candidates in `docs/adr/0017-task-subtasks-semantics.md` are checked off.
- * - If the date is on/after 2026-06-22 and both are false:
- *   - Delete `docs/adr/0017-task-subtasks-semantics.md`.
- *   - Delete the parked migration directory `prisma/migrations/20260523_task_parent_task_id` (or migrations-pending if it exists).
+ * - If the date is on/after 2026-06-22 and both are false: report `gate_failed` and a warn line.
+ *   It never deletes: the ADR and `prisma/migrations/20260523_task_parent_task_id` (an APPLIED
+ *   migration, see lib/db/migration-manifest.ts) are tracked files; removing them is a human call.
  */
 export const GET = cronHandler(async () => {
   const todayStr = today();
@@ -74,45 +74,11 @@ export const GET = cronHandler(async () => {
     justified,
   });
 
-  const actionsTaken: string[] = [];
-
   if (!justified) {
+    // Report only: a cron must not delete tracked files from the image or a checkout.
     log.warn("subtask_feature_not_justified", {
-      message: "Gate failed: no subtasks in use and ADR-0017 candidates not filled. Deleting ADR and migrations.",
+      message: "Gate failed: no subtasks in use and ADR-0017 candidates not filled. Nothing deleted; the operator decides.",
     });
-
-    // Delete ADR file
-    if (adrExists) {
-      try {
-        fs.unlinkSync(adrFullPath);
-        actionsTaken.push(`Deleted ${adrRelPath}`);
-        log.info("deleted_adr_file", { path: adrFullPath });
-      } catch (err) {
-        log.error("failed_deleting_adr", { error: err instanceof Error ? err.message : String(err) });
-      }
-    }
-
-    // Delete migrations
-    const migrationDirs = [
-      "prisma/migrations-pending/20260523_task_parent_task_id",
-      "prisma/migrations/20260523_task_parent_task_id",
-    ];
-
-    for (const relDir of migrationDirs) {
-      const fullDir = path.join(process.cwd(), relDir);
-      try {
-        if (fs.existsSync(fullDir)) {
-          fs.rmSync(fullDir, { recursive: true, force: true });
-          actionsTaken.push(`Deleted ${relDir}`);
-          log.info("deleted_migration_dir", { path: fullDir });
-        }
-      } catch (err) {
-        log.error("failed_deleting_migration", {
-          dir: relDir,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
   } else {
     log.info("subtask_feature_justified", {
       message: "Gate passed: subtasks are in use or candidates are verified.",
@@ -120,11 +86,10 @@ export const GET = cronHandler(async () => {
   }
 
   return {
-    status: justified ? "justified" : "cleaned_up",
+    status: justified ? "justified" : "gate_failed",
     subtasksInDbCount,
     adrExists,
     candidatesChecked,
     justified,
-    actionsTaken,
   };
 });

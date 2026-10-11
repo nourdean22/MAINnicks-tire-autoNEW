@@ -18,12 +18,13 @@ const row = {
 
 describe("caseFromRejectedOutcome · keys from evidence", () => {
   it("evidence memory keys become forbiddenKeys, so the case can fail", () => {
-    expect(caseFromRejectedOutcome({ ...row, evidenceRefs: { memoryKey: "k1" } }).forbiddenKeys).toEqual(["k1"]);
-    expect(caseFromRejectedOutcome({ ...row, evidenceRefs: { memoryKeys: ["k1", "k2", 3] } }).forbiddenKeys).toEqual(["k1", "k2"]);
+    expect(caseFromRejectedOutcome({ ...row, evidenceRefs: { memoryKey: "k1" } })?.forbiddenKeys).toEqual(["k1"]);
+    expect(caseFromRejectedOutcome({ ...row, evidenceRefs: { memoryKeys: ["k1", "k2", 3] } })?.forbiddenKeys).toEqual(["k1", "k2"]);
   });
 
-  it("no evidence keys -> still empty (honest: nothing to assert against)", () => {
-    expect(caseFromRejectedOutcome({ ...row, evidenceRefs: { taskId: "t1" } }).forbiddenKeys).toEqual([]);
-    expect(caseFromRejectedOutcome(row).forbiddenKeys).toEqual([]);
+  // R3-12: a keyless case can never fail, so it only padded the eval denominator.
+  it("no evidence keys -> no case at all", () => {
+    expect(caseFromRejectedOutcome({ ...row, evidenceRefs: { taskId: "t1" } })).toBeNull();
+    expect(caseFromRejectedOutcome(row)).toBeNull();
   });
 });

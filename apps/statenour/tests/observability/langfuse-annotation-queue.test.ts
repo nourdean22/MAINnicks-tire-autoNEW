@@ -4,6 +4,10 @@ import {
   langfuseAnnotationQueueConfig,
 } from "@/lib/observability/langfuse-annotation-queue";
 
+// Langfuse traces from the OTel span processor carry 32-hex ids (audit 08-F17).
+const HEX = "0123456789abcdef0123456789abcdef";
+const ENV = { LANGFUSE_PUBLIC_KEY: "pk", LANGFUSE_SECRET_KEY: "sk", LANGFUSE_ANNOTATION_QUEUE_ID: "q" };
+
 describe("Q-32 Langfuse annotation queue client", () => {
   it("is disabled unless keys AND the one queue id are configured", () => {
     expect(langfuseAnnotationQueueConfig({})).toBeNull();
@@ -17,7 +21,7 @@ describe("Q-32 Langfuse annotation queue client", () => {
 
   it("POSTs the exact current Langfuse TRACE/PENDING contract", async () => {
     const fetchImpl = vi.fn(async () => ({ ok: true, status: 200 }));
-    const ok = await enqueueLangfuseTraceForAnnotation("trace-123", {
+    const ok = await enqueueLangfuseTraceForAnnotation(HEX, {
       env: {
         LANGFUSE_PUBLIC_KEY: "pk",
         LANGFUSE_SECRET_KEY: "sk",
@@ -34,7 +38,7 @@ describe("Q-32 Langfuse annotation queue client", () => {
     );
     expect(init.method).toBe("POST");
     expect(JSON.parse(String(init.body))).toEqual({
-      objectId: "trace-123",
+      objectId: HEX,
       objectType: "TRACE",
       status: "PENDING",
     });
@@ -43,7 +47,7 @@ describe("Q-32 Langfuse annotation queue client", () => {
 
   it("fails open on Langfuse rejection or network failure", async () => {
     expect(
-      await enqueueLangfuseTraceForAnnotation("trace-1", {
+      await enqueueLangfuseTraceForAnnotation(HEX, {
         env: {
           LANGFUSE_PUBLIC_KEY: "pk",
           LANGFUSE_SECRET_KEY: "sk",
@@ -54,7 +58,7 @@ describe("Q-32 Langfuse annotation queue client", () => {
     ).toBe(false);
 
     expect(
-      await enqueueLangfuseTraceForAnnotation("trace-2", {
+      await enqueueLangfuseTraceForAnnotation(HEX, {
         env: {
           LANGFUSE_PUBLIC_KEY: "pk",
           LANGFUSE_SECRET_KEY: "sk",
@@ -65,5 +69,19 @@ describe("Q-32 Langfuse annotation queue client", () => {
         },
       }),
     ).toBe(false);
+  });
+
+  // Audit 08-F17: callers pass the statenour trace id (t_<base36>_...), which
+  // matches no Langfuse trace, so every queue item pointed at nothing.
+  it("a statenour trace id is not sent: it names no Langfuse trace", async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: true, status: 200 }));
+    expect(await enqueueLangfuseTraceForAnnotation("t_abc_0000_xyz", { env: ENV, fetchImpl })).toBe(false);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("control: a 32-hex Langfuse trace id is sent once", async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: true, status: 200 }));
+    expect(await enqueueLangfuseTraceForAnnotation(HEX, { env: ENV, fetchImpl })).toBe(true);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });

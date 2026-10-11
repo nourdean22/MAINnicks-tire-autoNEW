@@ -30,6 +30,15 @@ describe("/market moved to Nick's Tire admin", () => {
     expect(cfg).toMatch(/source:\s*"\/market",\s*destination:\s*"https:\/\/nickstire\.org\/admin\/market"/);
   });
 
+  it("/seo and /radar go straight to the shop admin", () => {
+    // 02-F19: they pointed at /market, which redirects again; one hop, never a personal-OS page.
+    const cfg = read("next.config.ts");
+    for (const source of ["/seo", "/radar"]) {
+      const m = cfg.match(new RegExp(`source:\\s*"${source}",\\s*destination:\\s*"([^"]+)"`));
+      expect(m?.[1], `${source} redirect`).toBe("https://nickstire.org/admin/market");
+    }
+  });
+
   it("the shop dashboard probe left the command palette with its procedure", () => {
     expect(read("components/command-palette.tsx")).not.toMatch(/Check Business Dashboard/);
     expect(read("lib/trpc/routers/operator.ts")).not.toMatch(/businessDashboard:/);

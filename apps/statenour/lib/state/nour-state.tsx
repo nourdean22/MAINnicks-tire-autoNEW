@@ -92,11 +92,13 @@ export interface NourState {
   /** null = not measured (no source since 2026-04-17), never a fabricated $0. */
   pipelineValue: number | null;
   pipelineDecay: number;
-  staleLeads: number;
+  /** null = unknown: /api/command/data's brief does not send it (2026-10-10, 08-F6b). */
+  staleLeads: number | null;
   /** null = unknown (not loaded, read failed, or no source), never a fabricated 0. */
   pendingCallbacks: number | null;
   activeCommitments: number;
-  overdueCommitments: number;
+  /** null = unknown, same reason as staleLeads. */
+  overdueCommitments: number | null;
   todayScore: DailyScore | null;
   habits: Habit[];
   habitsDone: number;
@@ -135,10 +137,10 @@ const DEFAULT_STATE: NourState = {
   revenueReason: "not loaded yet",
   pipelineValue: null,
   pipelineDecay: 0,
-  staleLeads: 0,
+  staleLeads: null,
   pendingCallbacks: null,
   activeCommitments: 0,
-  overdueCommitments: 0,
+  overdueCommitments: null,
   todayScore: null,
   habits: [],
   habitsDone: 0,
@@ -286,11 +288,11 @@ export function NourStateProvider({ children }: { children: ReactNode }) {
         revenueReason: cmd ? (cmd.shop?.revenueReason ?? null) : "command data unavailable",
         pipelineValue: aging?.rawPipelineValue ?? null,
         pipelineDecay: aging?.decayRate ?? 0,
-        staleLeads: cmd?.brief?.staleLeads ?? 0,
+        staleLeads: cmd?.brief?.staleLeads ?? null,
         // /api/command/data emits this under shop (null when unknown); brief never had it.
         pendingCallbacks: cmd?.shop?.pendingCallbacks ?? null,
         activeCommitments: health?.commitments?.active ?? 0,
-        overdueCommitments: cmd?.brief?.overdueCommitments ?? 0,
+        overdueCommitments: cmd?.brief?.overdueCommitments ?? null,
         todayScore,
         habits,
         habitsDone,

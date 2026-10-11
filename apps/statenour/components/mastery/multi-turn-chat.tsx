@@ -27,6 +27,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Send, RotateCcw, Loader2, User, Brain } from "lucide-react";
+import { detectActionClaimsWithoutTools } from "@/lib/ai/chat/action-claim-detector";
+import { buildVerifierBanner, isVerifierRewritten } from "@/lib/ai/chat/fabrication-rewriter";
+
+/**
+ * Audit 04-X8: this pane has zero tools, so a reply that says it created,
+ * sent or changed something is never backed. Banner it before it is stored.
+ */
+export function bannerUnbackedClaims(text: string): string {
+  if (isVerifierRewritten(text)) return text;
+  if (detectActionClaimsWithoutTools(text, []).length === 0) return text;
+  const banner = buildVerifierBanner(
+    "This side pane has no tools, so nothing was created, sent or changed.",
+    "To do it, use the page itself or ask in the main chat, where Nick has tools.",
+  );
+  return `${banner}${text}`;
+}
 
 interface ChatTurn {
   role: "user" | "assistant";
@@ -174,10 +190,15 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
             return next;
           });
         }
-        // Final persist with the complete response.
+        // Final persist with the complete response, bannered if it claims an action.
         setTurns((prev) => {
-          writeStored(page, prev);
-          return prev;
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last && last.role === "assistant" && last.content) {
+            next[next.length - 1] = { ...last, content: bannerUnbackedClaims(last.content) };
+          }
+          writeStored(page, next);
+          return next;
         });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);

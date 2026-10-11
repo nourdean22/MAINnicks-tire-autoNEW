@@ -25,21 +25,23 @@
  *
  * 2026-10-10 hardening pass: every bypass closed in a TEST-FILE gate was flipped to `it` (now a
  * locked DENY or ALLOW) and its OBSERVED twin deleted, because the twin pinned the old wrong verdict.
- * Still `it.fails`: the same-file partial fence (needs data flow), and every check-anti-slop.sh /
- * doc-claim-audit.ts row (those gates are a script and a lib module, outside a test-only change).
+ * Still `it.fails`: the same-file partial fence (needs data flow). The check-anti-slop.sh and
+ * doc-claim-audit.ts rows were closed the same way by R3-10 (the gates themselves were fixed);
+ * REDTEAM_GATE_OVERRIDE="scripts/check-anti-slop.sh=<mutant>" runs the bash rows against a mutant.
  */
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
 import { createRequire } from "node:module";
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { auditGateClaims } from "@/lib/utils/doc-claim-audit";
 import { catalogue, queryHandlerKeys } from "../contracts/bridge-registry";
 
 const APP = process.cwd(); // vitest runs from apps/statenour
-const FIXTURE_ROOT = process.env.REDTEAM_FIXTURE_ROOT ?? join(tmpdir(), "statenour-redteam", "repo-canary-gates");
+// Per process: a fixed path let two sessions running this file delete each other's fixtures (EPERM, R3-10).
+const FIXTURE_ROOT = process.env.REDTEAM_FIXTURE_ROOT ?? mkdtempSync(join(tmpdir(), "statenour-redteam-repo-canary-gates-"));
 const req = createRequire(import.meta.url);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -566,7 +568,7 @@ const SHEET_CLOSED: Array<[string, string]> = [
 ];
 /** Closed 2026-10-10: [label, component file, appended source]. Tailwind's built-in loops and inline styles never reach the sheets. */
 const CLASS_CLOSED: Array<[string, string, string]> = [
-  ["Tailwind built-in `animate-bounce` at rest (live: components/actions/mode-learn.tsx:543, now on the gate's KNOWN list)", "components/missions/streak-badge.tsx", '<div className="animate-bounce">Time\'s up</div>'],
+  ["Tailwind built-in `animate-bounce` at rest (the live one in components/actions/mode-learn.tsx was removed by R3-06)", "components/missions/streak-badge.tsx", '<div className="animate-bounce">Time\'s up</div>'],
   ["Tailwind built-in `animate-pulse` on a stale pin", "components/brain/pinned-context-panel.tsx", 'className={cn("dot", stale && "animate-pulse")}'],
   ["arbitrary `animate-[..._infinite]`", "components/missions/streak-badge.tsx", '<span className="animate-[breathe_3s_ease-in-out_infinite]" />'],
   ["inline style loop", "components/missions/mission-task-row.tsx", '<span style={{ animation: "breathe 3s ease-in-out infinite" }} />'],
@@ -581,7 +583,7 @@ describe("ui-v2-grammar · loops the at-rest gate now sees", () => {
     expect(v.red).toBe(true);
     expect(v.message).toContain(file);
   });
-  it("ALLOW · the real tree is green (the one live at-rest loop is on the gate's dated KNOWN list)", () => {
+  it("ALLOW - the real tree is green (KNOWN_AT_REST is empty since R3-06)", () => {
     expect(withComponent("components/missions/streak-badge.tsx", "")).toEqual({ red: false, message: "" });
   });
 });
@@ -900,7 +902,7 @@ describe("regen-telemetry-strict · bypasses closed 2026-10-10", () => {
 // 7 · the anti-slop gate: scripts/check-anti-slop.sh (run for real) + auditGateClaims
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SCRIPT = join(APP, "scripts/check-anti-slop.sh").split(sep).join("/");
+const SCRIPT = resolve(APP, OVERRIDE["scripts/check-anti-slop.sh"] ?? "scripts/check-anti-slop.sh").split(sep).join("/");
 const gitEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_"))) as NodeJS.ProcessEnv;
 let caseNo = 0;
 /** Async, so ~35 bash runs do not starve the vitest worker's RPC (a sync loop tripped "Timeout calling onTaskUpdate"). */
@@ -961,36 +963,52 @@ describe("check-anti-slop.sh · the gate fires (real script, throwaway git repos
   }, 60_000);
 });
 
-/** [label, files, git options]. Each puts a real AI-default font or purple gradient in front of the gate. */
-const SLOP_BYPASS: Array<[string, Record<string, string>, { git?: boolean; track?: boolean }]> = [
-  ["prettier-wrapped multi-line Inter import", { "app/layout.tsx": 'import {\n  Inter,\n  JetBrains_Mono,\n} from "next/font/google";\n' }, {}],
-  ["Tailwind v4 theme font token (`--font-sans: Inter, ...`)", { "app/styles/tokens.css": "@theme inline {\n  --font-sans: Inter, system-ui, sans-serif;\n}\n" }, {}],
-  ["Inter inside a longer JS font string", { "components/x.tsx": 'const style = { fontFamily: "Inter, sans-serif" };\n' }, {}],
-  ["purple gradient in features/ (chat-v2 UI is never scanned)", { "features/chat-v2/components/x.tsx": '<div className="bg-gradient-to-r from-purple-500 to-purple-700" />\n' }, {}],
-  ["Inter import in features/", { "features/chat-v2/components/x.tsx": 'import { Inter } from "next/font/google";\n' }, {}],
-  ["Arial in a CSS font-family (only Inter has that arm)", { "app/styles/x.css": "body { font-family: Arial, sans-serif; }\n" }, {}],
-  ["a NEW file not yet `git add`ed (verify:hard before the first commit)", { "components/x.tsx": 'import { Inter } from "next/font/google";\n' }, { track: false }],
-  ["not inside a git work tree at all (git grep errors, swallowed)", { "components/x.tsx": 'import { Inter } from "next/font/google";\n' }, { git: false }],
+/**
+ * [label, files, git options, text the output must carry]. Each was a verified bypass until R3-10 closed it;
+ * the OBSERVED twins that pinned the old exit 0 are deleted. A bare exit 1 is not proof (a crash exits 1 too),
+ * so each row also names the rule it must trip.
+ */
+const SLOP_BYPASS: Array<[string, Record<string, string>, { git?: boolean; track?: boolean }, string]> = [
+  ["prettier-wrapped multi-line Inter import", { "app/layout.tsx": 'import {\n  Inter,\n  JetBrains_Mono,\n} from "next/font/google";\n' }, {}, "Inter font imports"],
+  ["Tailwind v4 theme font token (`--font-sans: Inter, ...`)", { "app/styles/tokens.css": "@theme inline {\n  --font-sans: Inter, system-ui, sans-serif;\n}\n" }, {}, "Inter font imports"],
+  ["Inter inside a longer JS font string", { "components/x.tsx": 'const style = { fontFamily: "Inter, sans-serif" };\n' }, {}, "Inter font imports"],
+  ["purple gradient in features/ (chat-v2 UI is never scanned)", { "features/chat-v2/components/x.tsx": '<div className="bg-gradient-to-r from-purple-500 to-purple-700" />\n' }, {}, "Purple-on-white SaaS gradients"],
+  ["Inter import in features/", { "features/chat-v2/components/x.tsx": 'import { Inter } from "next/font/google";\n' }, {}, "Inter font imports"],
+  ["Inter import in hooks/", { "hooks/use-font.ts": 'import { Inter } from "next/font/google";\n' }, {}, "Inter font imports"],
+  ["purple gradient in lib/ (the purple scan skipped lib)", { "lib/ui/x.ts": 'export const hero = "bg-gradient-to-r from-purple-500 to-purple-700";\n' }, {}, "Purple-on-white SaaS gradients"],
+  ["Arial in a CSS font-family (only Inter has that arm)", { "app/styles/x.css": "body { font-family: Arial, sans-serif; }\n" }, {}, "Roboto/Arial AI-default fonts"],
+  ["Roboto first in a `--font-*` token", { "app/styles/x.css": "@theme inline {\n  --font-body: Roboto, sans-serif;\n}\n" }, {}, "Roboto/Arial AI-default fonts"],
+  ["a NEW file not yet `git add`ed (verify:hard before the first commit)", { "components/x.tsx": 'import { Inter } from "next/font/google";\n' }, { track: false }, "Inter font imports"],
+  ["not inside a git work tree at all (git grep errors, swallowed)", { "components/x.tsx": 'import { Inter } from "next/font/google";\n' }, { git: false }, "could not scan"],
+  ["a CSS universal-selector line is code, not a comment", { "app/styles/x.css": "* { font-family: Inter, sans-serif; }\n" }, {}, "Inter font imports"],
+  // Found red-teaming R3-10's own comment filter: code AFTER a closed comment on the same line is code.
+  ["an import after a closed block comment on its line", { "app/layout.tsx": '/* eslint-disable */ import { Inter } from "next/font/google";\n' }, {}, "Inter font imports"],
+  ["code after a JSDoc close on its line", { "components/x.tsx": ' */ export const f = { fontFamily: "Inter, sans-serif" };\n' }, {}, "Inter font imports"],
+  ["code after a JSX comment on its line", { "components/x.tsx": '{/* x */} <p style={{ fontFamily: "Inter, sans-serif" }} />\n' }, {}, "Inter font imports"],
+  // Only the multi-line pass can see this one (no single line names both Inter and next/font): pins that layer alone.
+  ["a wrapped import opened after a block comment", { "app/layout.tsx": '/* fonts */ import {\n  Inter,\n} from "next/font/google";\n' }, {}, "Inter font imports"],
+  ["a purple gradient in a comment line still fires (the live anti-slop-gate canary plants one)", { "components/x.tsx": '// canary <div className="bg-gradient-to-r from-purple-500 to-purple-700" />\n' }, {}, "Purple-on-white SaaS gradients"],
 ];
 
-describe("check-anti-slop.sh · BYPASSES", () => {
-  it.each(SLOP_BYPASS)("OBSERVED · %s → exit 0, 'no anti-slop UI patterns'", async (_label, files, opts) => {
+describe("check-anti-slop.sh · bypasses closed 2026-10-10 (R3-10)", () => {
+  it.each(SLOP_BYPASS)("DENY · %s → exit 1, rule named", async (_label, files, opts, rule) => {
     const r = await antiSlop(files, opts);
-    expect(r.code, r.out).toBe(0);
-    expect(r.out).toContain("no anti-slop UI patterns");
-  }, 60_000);
-  it.fails.each(SLOP_BYPASS)("BYPASS · %s → must exit 1", async (_label, files, opts) => {
-    expect((await antiSlop(files, opts)).code).toBe(1);
+    expect(r.code, r.out).toBe(1);
+    expect(r.out).toContain(rule);
   }, 60_000);
 });
 
-describe("check-anti-slop.sh · FALSE POSITIVES", () => {
-  const NOTE = { "components/x.tsx": '// brand rule: never ship "Inter" as the primary face\n' };
-  it("OBSERVED · a comment quoting \"Inter\" → exit 1", async () => {
-    expect((await antiSlop(NOTE)).code).toBe(1);
-  }, 60_000);
-  it.fails("FALSE POSITIVE · a comment that only quotes \"Inter\" must pass", async () => {
-    expect((await antiSlop(NOTE)).code).toBe(0);
+describe("check-anti-slop.sh · false positives closed 2026-10-10 (R3-10)", () => {
+  it.each([
+    ["a comment that only quotes \"Inter\"", "components/x.tsx", '// brand rule: never ship "Inter" as the primary face'],
+    ["a JSDoc line quoting \"Inter\"", "components/x.tsx", '/**\n *   NO purple gradient, NO "Inter", NO symmetric stack\n */'],
+    ["Roboto as a FALLBACK in a system stack (weekly-digest email shape)", "app/x.ts", 'const css = `font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;`;'],
+    ["a font name that only starts with Inter", "components/x.tsx", 'const f = "Interstate, sans-serif";'],
+    ["a multi-line next/font import of another face beside an Inter comment", "app/layout.tsx", 'import {\n  Geist,\n} from "next/font/google";\n// no Inter here'],
+  ])("ALLOW · %s → exit 0", async (_label, file, src) => {
+    const r = await antiSlop({ [file]: `${src}\n` });
+    expect(r.code, r.out).toBe(0);
+    expect(r.out).toContain("no anti-slop UI patterns");
   }, 60_000);
 });
 
@@ -1006,18 +1024,17 @@ describe("auditGateClaims · the live DESIGN.md arm", () => {
     expect(auditGateClaims(doc, gateSource, "gate-checked", VOCAB).unbacked).toEqual(["rounded corners"]);
     expect(overClaiming).not.toBe(design);
   });
-  it("OBSERVED · DESIGN.md has a blank line between `gate-checked` and its bullets, so the live audit reads no bullet at all", () => {
-    expect(auditGateClaims(overClaiming, gateSource, "gate-checked", VOCAB)).toEqual({ unbacked: [], ok: true });
-  });
-  it.fails("BYPASS · crediting the gate with `rounded corners` in the REAL doc's gate-checked list must be flagged", () => {
+  // Closed 2026-10-10 (R3-10): rows flipped from it.fails, OBSERVED twins deleted.
+  it("DENY · crediting the gate with `rounded corners` in the REAL doc's gate-checked list is flagged (blank line after the heading)", () => {
     expect(auditGateClaims(overClaiming, gateSource, "gate-checked", VOCAB).unbacked).toEqual(["rounded corners"]);
   });
-  const commented = `# NOTE: contrast ratio is NOT checked here\n${gateSource}`;
   const claim = "gate-checked\n- No Inter\n- Contrast ratio >= 4.5\n";
-  it("OBSERVED · a gate COMMENT saying it does not check a term backs a doc claim of that term", () => {
-    expect(auditGateClaims(claim, commented, "gate-checked", VOCAB).ok).toBe(true);
+  it("DENY · a term only mentioned in the gate's comments does not back a claim (whole-line and trailing #)", () => {
+    expect(auditGateClaims(claim, `# NOTE: contrast ratio is NOT checked here\n${gateSource}`, "gate-checked", VOCAB).unbacked).toEqual(["contrast ratio"]);
+    expect(auditGateClaims(claim, `${gateSource}\nset -e  # contrast ratio lives in a11y\n`, "gate-checked", VOCAB).unbacked).toEqual(["contrast ratio"]);
   });
-  it.fails("BYPASS · a term only mentioned in the gate's comments must not back a claim", () => {
-    expect(auditGateClaims(claim, commented, "gate-checked", VOCAB).unbacked).toEqual(["contrast ratio"]);
+  it("ALLOW · only the bullet run right after the heading is attributed, not a later section's bullets", () => {
+    const doc = "gate-checked by the script.\n\nSome prose about the gate.\n\n- No rounded corners\n";
+    expect(auditGateClaims(doc, gateSource, "gate-checked", VOCAB)).toEqual({ unbacked: [], ok: true });
   });
 });

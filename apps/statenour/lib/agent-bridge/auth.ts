@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { BridgeScope } from "./scopes";
+import { isAgentBridgeEnabled } from "@/lib/feature-flags";
 
 // Hash both sides to fixed length so the comparison is constant-time and
 // never branches on secret length — a plain !== leaks match-prefix timing.
@@ -73,7 +74,7 @@ export function resolveBridgeToken(
  * route already maps to 401 / 403 / 503 — the contract auth.test.ts pins.
  */
 export function assertBridgeAuth(req: Request): BridgeIdentity {
-  if (process.env.AGENT_BRIDGE_ENABLED !== "true") {
+  if (!isAgentBridgeEnabled()) {
     throw new Error("Agent Bridge is disabled.");
   }
 

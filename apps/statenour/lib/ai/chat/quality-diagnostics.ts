@@ -39,6 +39,18 @@ export interface QualityDiagnosticPayload {
     toolsFired?: Array<{ toolName?: string; status?: string }>;
     offenders?: Array<{ toolName?: string; status?: string; label?: string }>;
   };
+  /** tokenUsage.evidenceGate: the SHADOW verdict, measured after the reply streamed, never enforced there. */
+  evidenceGate?: {
+    verdict?: string;
+    shadowOnly?: boolean;
+    unreceipted?: string[];
+  };
+}
+
+/** The shadow gate's non-pass verdict, or null (audit 04-X9). */
+export function evidenceGateIssue(payload: QualityDiagnosticPayload): "repair" | "block" | null {
+  const v = payload.evidenceGate?.verdict;
+  return v === "repair" || v === "block" ? v : null;
 }
 
 export const CRITIC_HEURISTIC_NOTE =
@@ -77,7 +89,8 @@ export function qualityHasIssue(payload: QualityDiagnosticPayload | undefined): 
     severity === 0 &&
     unverified === 0 &&
     truthCount === 0 &&
-    !receiptFailed
+    !receiptFailed &&
+    !evidenceGateIssue(payload)
   );
 }
 

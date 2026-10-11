@@ -30,7 +30,7 @@ import {
 } from "@/lib/observability/persona-lane-census";
 import { summarizeEstimativeCompliance } from "@/lib/ai/vnext/truth/estimative";
 
-async function personaByLane() {
+async function personaByLane(): Promise<number> {
   console.log("── 1 · persona by lane (BDN-301)\n");
 
   const rows = await prisma.brainMemory.findMany({
@@ -41,13 +41,24 @@ async function personaByLane() {
   });
 
   const judgments: JudgmentRow[] = [];
+  let notJudged = 0;
+  const promptVersions = new Map<string, number>();
   for (const r of rows) {
     const m = r.metadata as null | {
       judgedBy?: unknown;
       rubric?: Record<string, unknown>;
       taskClass?: unknown;
+      verdict?: unknown;
+      judgePromptHash?: unknown;
     };
+    // Coverage rows (judge outage) carry judgedBy "unavailable" and no scores: not a lane.
+    if (m?.verdict === "UNKNOWN") {
+      notJudged++;
+      continue;
+    }
     if (!m || typeof m.judgedBy !== "string") continue;
+    const version = typeof m.judgePromptHash === "string" ? m.judgePromptHash : "unhashed";
+    promptVersions.set(version, (promptVersions.get(version) ?? 0) + 1);
     const rubric = m.rubric ?? {};
     judgments.push({
       judgedBy: m.judgedBy,
@@ -66,6 +77,13 @@ async function personaByLane() {
 
   const census = summarizePersonaByLane(judgments);
   console.log(`   rows: ${census.totalRows} · lanes: ${census.lanes.join(", ") || "(none)"}`);
+  console.log(`   not judged (no provider): ${notJudged}`);
+  console.log(
+    `   judge prompt versions: ${[...promptVersions].map(([v, n]) => `${v}=${n}`).join(", ") || "(none)"}`,
+  );
+  if (promptVersions.size > 1) {
+    console.log("   ! rows carry more than one judge prompt version (unhashed = unknown): compare scores within one version only");
+  }
   console.log(`   mix divergence: ${census.mixDivergence}`);
   for (const cell of census.cells) {
     const means = Object.entries(cell.means)
@@ -81,9 +99,10 @@ async function personaByLane() {
     );
   }
   for (const d of census.disclosures) console.log(`   ! ${d}`);
+  return census.totalRows;
 }
 
-async function estimativeCompliance() {
+async function estimativeCompliance(): Promise<number> {
   console.log("\n── 2 · estimative-language compliance (BDN-302)\n");
 
   const msgs = await prisma.chatMessage.findMany({
@@ -111,12 +130,18 @@ async function estimativeCompliance() {
         "     bare-hedge count beside this before concluding anything.",
     );
   }
+  return s.total;
 }
 
 async function main() {
   console.log("Nick instrument report · READ-ONLY · no model calls\n");
-  await personaByLane();
-  await estimativeCompliance();
+  const judged = await personaByLane();
+  const examined = await estimativeCompliance();
+  // A report that measured nothing must not exit 0.
+  if (judged === 0 && examined === 0) {
+    console.log("\n! nothing measured: no judged replies and no assistant messages (exit 3)");
+    process.exitCode = 3;
+  }
   console.log("\ndone.");
 }
 

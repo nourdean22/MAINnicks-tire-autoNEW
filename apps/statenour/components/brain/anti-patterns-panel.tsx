@@ -24,12 +24,12 @@ const SEVERITY_TONE = {
 export function AntiPatternsPanel() {
   const [expanded, setExpanded] = useState(false);
   const utils = trpc.useUtils();
-  const query = trpc.system.antiPatterns.useQuery(undefined, {
+  const query = trpc.systemBrain.antiPatterns.useQuery(undefined, {
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
-  const revisit = trpc.system.revisitAntiPattern.useMutation();
-  const remove = trpc.system.deleteAntiPattern.useMutation();
+  const revisit = trpc.systemBrain.revisitAntiPattern.useMutation();
+  const remove = trpc.systemBrain.deleteAntiPattern.useMutation();
   const { confirm, dialog } = useConfirmDialog();
 
   const data = query.data;
@@ -37,7 +37,7 @@ export function AntiPatternsPanel() {
   const visible = expanded ? items : items.slice(0, 5);
 
   const refresh = async () => {
-    await utils.system.antiPatterns.invalidate();
+    await utils.systemBrain.antiPatterns.invalidate();
     await query.refetch();
   };
 

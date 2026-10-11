@@ -9,7 +9,12 @@
  * impossible.
  */
 
+import { randomUUID } from "node:crypto";
 import { brainMemory } from "@/lib/brain/memory-manager";
+import { admitMemory } from "@/lib/brain/memory-admission";
+import { dropEmbeddingsForMemories } from "@/lib/brain/memory-tombstone";
+import { supersedeMemoryVersion } from "@/lib/brain/memory-transaction-time";
+import { softDelete } from "@/lib/db/soft-delete";
 import { prisma } from "@/lib/prisma";
 
 const KNOWLEDGE_CANDIDATE_RECORD_TYPE = "knowledge_candidate";
@@ -100,6 +105,78 @@ export async function forgetMemoryByKey(
   if (!row) return { ok: true, deleted: false };
   await brainMemory.forget(row.id);
   return { ok: true, deleted: true };
+}
+
+/** The memory is gone or no longer the current version (forgotten, or already corrected). */
+export class MemoryNotCurrentError extends Error {
+  constructor(id: string) {
+    super(`memory ${id} is not the current version`);
+    this.name = "MemoryNotCurrentError";
+  }
+}
+
+/**
+ * 05-M12: forget ONE memory by id: the soft-delete tombstone (restorable,
+ * audited) plus the vector_embeddings copy, which carries the text too.
+ */
+export async function forgetMemoryById(
+  id: string,
+): Promise<{ deleted: boolean; embeddingDropped?: boolean }> {
+  const res = await softDelete("brainMemory", { id });
+  if (!res.ok) return { deleted: false };
+  // The noop path drops too (idempotent), so a retry after a failed drop still removes the text copy.
+  await dropEmbeddingsForMemories([id], "brain.forgetMemory");
+  // The drop swallows its own failure: read back that the copy is gone; a failed read is unconfirmed, not dropped.
+  const left = await prisma.vectorEmbedding
+    .count({ where: { sourceType: "brain_memory", sourceId: id } })
+    .catch(() => null);
+  return { deleted: !res.noop, embeddingDropped: left === 0 };
+}
+
+/**
+ * 05-M12: correct ONE memory: a new operator-stated row, then the old row is
+ * superseded. supersedeMemoryVersion locks the old row only while it is still
+ * live and unsuperseded, which is the compare-and-swap on the version read
+ * here; the loser of a race removes its own new row and reports not-current.
+ */
+export async function correctMemory(id: string, content: string): Promise<{ id: string }> {
+  const old = await prisma.brainMemory.findFirst({
+    where: { id, deletedAt: null, supersededById: null },
+    select: { id: true, category: true, key: true },
+  });
+  if (!old) throw new MemoryNotCurrentError(id);
+
+  const admitted = await admitMemory({
+    category: old.category,
+    // (category, key) is unique: reusing the key would reinforce the old row.
+    key: `${old.key}#fix-${randomUUID().slice(0, 8)}`,
+    content: content.trim(),
+    source: "manual",
+    memoryKind: "semantic",
+    extractionMethod: "explicit_save",
+    trustTier: "OPERATOR",
+    evidenceRefs: [`brain_memory:${old.id}`],
+  });
+  let swapped: boolean;
+  try {
+    // Operator-stated: no 24h probation, the same as a manual confirm.
+    await brainMemory.confirm(admitted.id);
+    const swap = await supersedeMemoryVersion({
+      losingMemoryId: old.id,
+      winningMemoryId: admitted.id,
+      effectiveUntil: new Date(),
+    });
+    swapped = swap.count === 1;
+  } catch (err) {
+    // Never leave the new row live beside the old one.
+    await forgetMemoryById(admitted.id);
+    throw err;
+  }
+  if (!swapped) {
+    await forgetMemoryById(admitted.id);
+    throw new MemoryNotCurrentError(id);
+  }
+  return { id: admitted.id };
 }
 
 function toRow(r: {

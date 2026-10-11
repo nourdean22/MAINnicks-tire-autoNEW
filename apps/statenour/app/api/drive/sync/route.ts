@@ -2,9 +2,10 @@
  * POST /api/drive/sync
  *
  * Manual Google Drive ingest trigger. Runs the same pipeline as the
- * scheduled cron (/api/cron/ingest-drive) but on demand — used by
- * the Settings "Sync Now" button, the `syncDriveMemory` chat tool,
- * and the Prompt Inspector's "Refresh Cold Memory" action.
+ * scheduled cron (/api/cron/ingest-drive) but on demand. No in-app code posts
+ * here (checked 2026-10-11): the Settings "Sync Now" button uses tRPC
+ * operator.syncDrive, and the `syncDriveMemory` chat tool calls
+ * runDriveIngest in-process.
  *
  * Returns the full ingest stats so the UI can show a toast with
  * concrete numbers ("Ingested 3 new docs, 2 skipped, 4.1s").
@@ -19,6 +20,7 @@ import { runDriveIngest } from "@/lib/brain/drive-ingest";
 import { recordError } from "@/lib/errors/record-error";
 
 import { requireSession } from "@/lib/auth-guard";
+import { apiHandler } from "@/lib/utils/http";
 export const maxDuration = 300;
 
 export async function POST(req: Request) {
@@ -63,7 +65,7 @@ export async function POST(req: Request) {
  * coverage). Used by Settings to show the current state without
  * triggering a new sync.
  */
-export async function GET() {
+export const GET = apiHandler(async () => {
   try {
     const { getColdMemoryStats } = await import("@/lib/brain/cold-memory");
     const stats = await getColdMemoryStats();
@@ -77,4 +79,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+}, { auth: "owner" });

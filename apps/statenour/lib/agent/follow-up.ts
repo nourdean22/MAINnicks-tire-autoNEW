@@ -56,10 +56,13 @@ export const FOLLOWUP_PER_THREAD_CAP = numFromEnv("NICK_FOLLOWUP_THREAD_CAP", 3)
 export const FOLLOWUP_MIN_DELAY_MS = numFromEnv("NICK_FOLLOWUP_MIN_DELAY_MS", 5 * 60_000);
 /** Nothing may park work further out than this. */
 export const FOLLOWUP_MAX_DELAY_MS = numFromEnv("NICK_FOLLOWUP_MAX_DELAY_MS", 7 * 24 * 60 * 60_000);
-/** A row sitting in `processing` longer than this lost its worker. */
+/**
+ * A row sitting in `processing` longer than this lost its worker. Wider than the 15 min
+ * tick plus the route's 300 s maxDuration, so a live worker is never reclaimed (08-X2).
+ */
 export const FOLLOWUP_PROCESSING_STALE_MS = numFromEnv(
   "NICK_FOLLOWUP_STALE_MS",
-  15 * 60_000,
+  35 * 60_000,
 );
 
 function numFromEnv(key: string, fallback: number): number {

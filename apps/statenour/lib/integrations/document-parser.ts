@@ -110,22 +110,23 @@ function detectFormat(
 }
 
 async function parsePdf(buffer: Buffer): Promise<ParsedDocument> {
-  // pdf-parse's default-import handling differs across versions;
-  // dynamic import + interop keeps both CJS and ESM bundles happy.
-  const mod = await import("pdf-parse");
-  type PdfParseFn = (
-    b: Buffer,
-  ) => Promise<{ text: string; numpages?: number; info?: Record<string, unknown> }>;
-  const pdfParse = ((mod as { default?: PdfParseFn }).default ?? mod) as PdfParseFn;
-  const result = await pdfParse(buffer);
-  const text = (result.text ?? "").slice(0, MAX_OUTPUT_CHARS);
-  return {
-    text,
-    pages: result.numpages ?? null,
-    charCount: text.length,
-    format: "pdf",
-    metadata: result.info ?? {},
-  };
+  // pdf-parse 2.x is a class; calling the module as a function (the 1.x API)
+  // made every PDF ingest throw (audit NEW-04-X2).
+  const { PDFParse } = await import("pdf-parse");
+  const parser = new PDFParse({ data: new Uint8Array(buffer) });
+  try {
+    const result = await parser.getText();
+    const text = (result.text ?? "").slice(0, MAX_OUTPUT_CHARS);
+    return {
+      text,
+      pages: result.total ?? null,
+      charCount: text.length,
+      format: "pdf",
+      metadata: {},
+    };
+  } finally {
+    await parser.destroy();
+  }
 }
 
 async function parseDocx(buffer: Buffer): Promise<ParsedDocument> {

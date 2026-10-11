@@ -49,7 +49,7 @@ export const GET = cronHandler(async () => {
 
   for (const row of claimed) {
     try {
-      const result = await runFollowUp(row.payload);
+      const result = await runFollowUp(row.payload, { outboxId: row.id });
       if (!result.ok && result.retryable) {
         // Provider outage (aiChat sentinel): transient, so re-queue with a
         // 5 * attempts minute backoff. The claim already counted this

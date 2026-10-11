@@ -24,7 +24,6 @@
         "components/ultron/today/next-action-whisperer.tsx",
         "components/ultron/top-strip/hq-status-chips.tsx",
         "components/ultron/top-strip/ticker.tsx",
-        "hooks/chat/use-audio-transcribe.ts",
         "hooks/use-draft-autosave.ts",
         "hooks/use-now-signals.ts",
         "lib/ai/cliche-detector.ts",

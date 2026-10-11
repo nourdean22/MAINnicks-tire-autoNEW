@@ -30,6 +30,7 @@ import { trpc } from "@/lib/trpc/client";
 import { notifyDataChanged } from "@/lib/events/data-change";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { TOOL_CONFIG, COLORS } from "@/components/chat/tool-result-registry";
+import { isSoftFailedToolOutput } from "@/lib/ai/receipts/tool-receipt-summary";
 export { isKnownToolName } from "@/components/chat/tool-result-registry";
 
 /**
@@ -120,16 +121,26 @@ export function ToolResultCard({ toolName, state, output }: ToolResultCardProps)
 
   const Icon = config.icon;
   const colors = COLORS[config.color];
-  const isError = state === "output-error";
-  const isRunning = !isDone && !isError;
-  const subtitle = isDone && config.subtitle ? config.subtitle(output) : null;
-  const richBody = isDone && config.renderRich ? config.renderRich(output) : null;
+  // A refusal or a caught failure returns normally: it must not wear the success label.
+  const softFail = isDone && isSoftFailedToolOutput(output);
+  const failed = state === "output-error" || softFail;
+  const isRunning = !isDone && !failed;
+  const soft = (softFail ? output : null) as { error?: unknown; reason?: unknown; message?: unknown } | null;
+  const failLabel = !soft ? "Tool failed" : soft.error === "approval_required" ? "Waiting for approval" : "Not done";
+  // A bare error is the reason when it is a sentence; a code like "mutation_locked" is not.
+  const errorSentence = (v: unknown) => (typeof v === "string" && /\s/.test(v.trim()) ? v : undefined);
+  const softReason = soft ? [soft.reason, soft.message, errorSentence(soft.error)].find((v): v is string => typeof v === "string") ?? null : null;
+  // A partial read (rows plus an error) keeps its success label and still says what failed.
+  const partialNote = isDone && !softFail ? errorSentence((output as { error?: unknown } | null)?.error) : undefined;
+  const doneSubtitle = isDone && config.subtitle ? config.subtitle(output) : null;
+  const subtitle = softFail ? softReason : partialNote ? [doneSubtitle, partialNote].filter(Boolean).join(". ") : doneSubtitle;
+  const richBody = isDone && !softFail && config.renderRich ? config.renderRich(output) : null;
 
   return (
     <div
       className={cn(
         "relative mb-1 mt-2 rounded-surface border bg-content px-3 py-2.5 transition-colors duration-[var(--motion-state)]",
-        isError ? "border-rose-500/30" : "border-edge-subtle",
+        failed ? "border-rose-500/30" : "border-edge-subtle",
         isRunning && "chat-tool-shimmer",
       )}
       data-state={state}
@@ -139,7 +150,7 @@ export function ToolResultCard({ toolName, state, output }: ToolResultCardProps)
         <span className="flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden>
           {isRunning ? (
             <Loader2 size={14} className="animate-spin text-amber-300" />
-          ) : isError ? (
+          ) : failed ? (
             <span className="font-mono text-[13px] leading-none text-rose-300">×</span>
           ) : (
             <Icon size={14} className={colors.icon} />
@@ -147,8 +158,8 @@ export function ToolResultCard({ toolName, state, output }: ToolResultCardProps)
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className={cn("text-[13.5px] font-medium leading-snug", isError ? "text-rose-300" : "text-fg")}>
-            {isError ? "Tool failed" : isDone ? config.doneLabel : config.runningLabel}
+          <p className={cn("text-[13.5px] font-medium leading-snug", failed ? "text-rose-300" : "text-fg")}>
+            {failed ? failLabel : isDone ? config.doneLabel : config.runningLabel}
           </p>
           {subtitle && <p className="mt-0.5 truncate text-[12.5px] text-fg-secondary">{subtitle}</p>}
         </div>

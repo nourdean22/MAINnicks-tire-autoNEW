@@ -64,7 +64,7 @@ const ACTIVE_TINT: Record<string, string> = {
 export function CronFoldTree() {
   const [showRetired, setShowRetired] = useState(false);
 
-  // Phase VV (2026-05-22) · REST→tRPC · system.cronTree. The legacy
+  // Phase VV (2026-05-22): REST to tRPC, now systemAutomation.cronTree. The legacy
   // route returned `{ rows, summary, generatedAt }` directly (no
   // `{data}` wrap); the procedure returns the same shape. One-shot
   // fetch on mount — no interval, matching the prior behaviour.

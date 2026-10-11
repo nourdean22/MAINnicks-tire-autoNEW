@@ -62,6 +62,22 @@ describe("stale-docs gate · CI workflow", () => {
   });
 });
 
+// Audit 10-X9 (2026-10-11): three plans read as current; a banner in the first lines says they are not.
+describe("stale-docs gate · old plans announce themselves", () => {
+  const BANNER = /HISTORICAL|SUPERSEDED/;
+  it.each([
+    "docs/project/ROADMAP.md",
+    "docs/NICK-TRUST-ARCHITECTURE-2026-09-10.md",
+    "docs/migrations/J-trpc-migration.md",
+  ])("%s carries a HISTORICAL or SUPERSEDED banner in its first 5 lines", (rel) => {
+    expect(read(rel).split("\n").slice(0, 5).join("\n")).toMatch(BANNER);
+  });
+
+  it("CONTROL: the banner check rejects a live doc's head", () => {
+    expect(read("AGENTS.md").split("\n").slice(0, 5).join("\n")).not.toMatch(BANNER);
+  });
+});
+
 function walkDir(dir: string, callback: (filePath: string) => void) {
   const files = readdirSync(dir);
   for (const file of files) {

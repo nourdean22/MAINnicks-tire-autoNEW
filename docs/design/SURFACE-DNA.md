@@ -12,7 +12,7 @@
 > — and then kept the admin tokens *alongside* the customer tokens, so the split never became
 > the default look. There were dozens of forces pushing toward consistency and none pushing
 > toward distinctiveness. This file is the counterforce: a **contract per surface** plus a
-> **test that fails on convergence**.
+> **convergence detector (section 4), NOT BUILT as of 2026-10-11**: no test reads the genomes yet.
 >
 > **What it is not.** Not a redesign programme and not "polish". Engineering stays converged
 > (tokens, primitives, tests, data, a11y, responsive behaviour); only the *experience layer*
@@ -77,17 +77,17 @@ Same brand family, four different worlds.
 ## 4. The sameness detector (the force that pushes away from homogenisation)
 
 Every PR already produces screenshots — nickstire through Argos (`docs/UPSTREAMS.md`,
-adopted 2026-09-15), statenour through the Visible Transformation gate. The detector reads
-them and **yells on convergence**. It does not need to be academically right; it needs to fire.
+adopted 2026-09-15), statenour through the Visible Transformation gate. When built, the detector
+reads them and **yells on convergence**. It does not need to be academically right; it needs to fire.
 
 **v1 — structural DNA audit (per surface, no new dependency).** For each flagship screen:
 count of card-like containers (bordered + radius ≥ 8 px + a surface colour that differs from
 the body), rounded-container ratio, surface-colour distribution, font families on `h1`/`h2`/
 body, gold-pixel share of ink, border frequency, button morphology (pill / square / text),
 and the dominant grid (columns at 1440). Each genome declares bands for these; a screen outside
-its bands fails. StateNour's bands are asserted by the wave's gate helpers
-(`apps/statenour/tests/e2e/visual-distance.ts` measures ink and mass; the DNA counts land beside
-it in the next slice).
+its bands fails. No test asserts these bands yet
+(`apps/statenour/tests/e2e/visual-distance.ts` measures ink and mass; the DNA counts were planned
+to land beside it and have not).
 
 **v2 — cross-product distance.** The registered ink-mass distance already built for the
 statenour gate (`visual-distance.ts`: 48 px cells, relative L1, ±2-cell registration; it reads a

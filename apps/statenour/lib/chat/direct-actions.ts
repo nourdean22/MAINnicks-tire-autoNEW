@@ -231,37 +231,26 @@ async function markTaskDone(args: string): Promise<DirectActionResult> {
 
 async function setMit(args: string): Promise<DirectActionResult> {
   if (!args) {
-    toast.error("/mit needs text — try '/mit close the Smith estimate'");
+    toast.error("/mit needs text - try '/mit close the Smith estimate'");
     return { handled: true };
   }
-  if (typeof window === "undefined") return { handled: true };
 
-  // Write directly to localStorage using the same shape as MitContract.
-  const todayKey = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-  const next: {
-    date: string;
-    text: string;
-    linkedMissionId: string | null;
-    setAt: number;
-    completed: boolean;
-    completedAt: number | null;
-  } = {
-    date: todayKey,
-    text: args.slice(0, 140),
-    linkedMissionId: null,
-    setAt: Date.now(),
-    completed: false,
-    completedAt: null,
-  };
+  // The server MIT (operator.mit) is the one every surface reads; the old
+  // localStorage-only write never reached it (audit 03-F1). Success is claimed
+  // only after the save resolves. 120 = the service's own cap.
+  let text: string;
   try {
-    window.localStorage.setItem("nour:mit-contract", JSON.stringify(next));
-    window.dispatchEvent(new CustomEvent("nour:mit-updated", { detail: next }));
-    notifyDataChanged("mit", { source: "chat-direct", detail: "set" });
-    toast.success(`MIT locked: ${next.text.slice(0, 50)}${next.text.length > 50 ? "…" : ""}`);
+    const saved = await trpcVanilla.operator.setMit.mutate({ text: args.slice(0, 120) });
+    text = "text" in saved ? saved.text : args;
   } catch {
     toast.error("Failed to set MIT");
     return { handled: true, status: "error" };
   }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("nour:mit-updated", { detail: { text } }));
+  }
+  notifyDataChanged("mit", { source: "chat-direct", detail: "set" });
+  toast.success(`MIT locked: ${text.slice(0, 50)}${text.length > 50 ? "..." : ""}`);
   return { handled: true, status: "ok" };
 }
 

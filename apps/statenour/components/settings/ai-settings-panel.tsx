@@ -35,6 +35,7 @@ import { SegmentedSelect, Toggle } from "./settings-controls";
 
 import { trpc } from "@/lib/trpc/client";
 import { onDataChanged } from "@/lib/events/data-change";
+import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
 // Phase UU.2 · the provider / mode / reasoning / web-search fields are
 // narrowed to the same unions the operator.updateAiConfig input enforces
 // (was `string`). The panel always passes correctly-narrowed values
@@ -369,7 +370,7 @@ export function AiSettingsPanel() {
           <input
             value={disabledTool}
             onChange={(e) => setDisabledTool(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addDisabledTool()}
+            onKeyDown={(e) => isSubmitEnter(e) && addDisabledTool()}
             aria-label="Tool name to add to blocklist"
             placeholder="e.g. generateImage"
             className="flex-1 h-8 px-2 rounded-control border border-edge-default bg-content text-[13px] text-fg placeholder:text-fg-tertiary focus:border-accent outline-none font-mono"

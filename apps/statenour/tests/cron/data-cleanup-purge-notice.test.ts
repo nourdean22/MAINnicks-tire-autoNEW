@@ -39,6 +39,7 @@ vi.mock("@/lib/prisma", () => {
     updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     create: vi.fn().mockResolvedValue({}),
     count: vi.fn().mockResolvedValue(0),
+    findMany: vi.fn().mockResolvedValue([]), // 05-X2: brain sweeps read ids before deleting
   });
   const prisma = new Proxy(
     {},

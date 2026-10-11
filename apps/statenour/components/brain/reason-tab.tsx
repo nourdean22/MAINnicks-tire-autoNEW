@@ -17,11 +17,11 @@
  * SSE, the final answer lands.
  *
  * Entry paths (now under /brain?tab=reason):
- *   · ?q=<text>   · legacy URL param (kept for backward-compat +
- *                   operator typing in URL bar directly)
- *   · ?h=1        · sessionStorage handoff · reads "reason:pending-q"
- *                   + clears it · keeps sensitive question content out
- *                   of URLs + server access logs + browser history
+ *   - ?q=<text>   legacy URL param: PREFILLS only, never auto-runs (a URL
+ *                 must not start a paid run, audit 02-F6)
+ *   - ?h=1        sessionStorage handoff: reads "reason:pending-q", clears
+ *                 it and auto-runs; keeps the question out of URLs, server
+ *                 access logs and browser history
  */
 
 import { useEffect, useState } from "react";
@@ -40,6 +40,10 @@ export function ReasonTab() {
     handoffMode ? undefined : queryQ ?? undefined,
   );
   const [hydrated, setHydrated] = useState(!handoffMode);
+  // Only a question read from the handoff (written by a tap) auto-runs; ?q=
+  // just prefills, so a link, bookmark or history entry never starts a paid
+  // run (audit 02-F6).
+  const [autoRun, setAutoRun] = useState(false);
 
   useEffect(() => {
     if (!handoffMode) return;
@@ -48,9 +52,10 @@ export function ReasonTab() {
       if (pending) {
         sessionStorage.removeItem("reason:pending-q");
         setInitialQuestion(pending);
+        setAutoRun(true);
       }
     } catch {
-      // sessionStorage blocked · fall back to query param if present
+      // sessionStorage blocked: fall back to the query param if present (prefill only)
       if (queryQ) setInitialQuestion(queryQ);
     } finally {
       setHydrated(true);
@@ -62,8 +67,6 @@ export function ReasonTab() {
   if (!hydrated) {
     return <div className="min-h-[40vh]" />;
   }
-
-  const autoRun = Boolean(initialQuestion && initialQuestion.length > 0);
 
   return <NickReasoner initialQuestion={initialQuestion} autoRun={autoRun} />;
 }

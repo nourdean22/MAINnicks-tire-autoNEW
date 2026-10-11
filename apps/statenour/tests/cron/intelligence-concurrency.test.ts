@@ -88,6 +88,12 @@ vi.mock("@/lib/services/cron-control", () => ({
 vi.mock("@/lib/automation/policy", () => ({
   logPolicyFire: vi.fn(async () => undefined),
 }));
+// The real wrapper writes apiRequestLog telemetry and preloads flag overrides; both land here, never in a DB.
+const db = vi.hoisted(() => ({
+  apiRequestLog: { create: vi.fn(async () => ({})) },
+  userPreference: { findMany: vi.fn(async () => []) },
+}));
+vi.mock("@/lib/prisma", () => ({ prisma: db, resetQueryCount: vi.fn(), getQueryCount: vi.fn(() => 0) }));
 // The suite-wide setup (tests/setup/auth-guard-mock.ts) no-ops
 // requireCronAuth, which would turn the unauthorized-request test into a
 // vacuous 200. Override it here with a real Bearer check so the 401 path
@@ -138,6 +144,7 @@ describe("cron/intelligence · capped engine concurrency", () => {
     // …but never more than CAP at once (uncapped Promise.all → peak 6).
     expect(peak).toBeLessThanOrEqual(CAP);
     expect(peak).toBeGreaterThan(1); // proves it isn't fully serialized
+    expect(db.userPreference.findMany).toHaveBeenCalled(); // the flag preload read the fake
   });
 
   it("rejects an unauthorized request without running engines", async () => {
@@ -148,5 +155,9 @@ describe("cron/intelligence · capped engine concurrency", () => {
     for (const fn of Object.values(engines)) {
       expect(fn).not.toHaveBeenCalled();
     }
+    // The failure telemetry row went to the fake.
+    expect(db.apiRequestLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ statusCode: 401 }) }),
+    );
   });
 });
