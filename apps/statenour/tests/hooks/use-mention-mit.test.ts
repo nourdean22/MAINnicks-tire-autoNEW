@@ -41,15 +41,17 @@ vi.mock("@/lib/trpc/client", () => ({
 import { useMentionSuggestions } from "@/hooks/use-mention-suggestions";
 
 const getItem = vi.fn();
+// React is mocked above, so the hook runs as a plain function; the alias keeps rules-of-hooks off it.
+const runMentionHook = useMentionSuggestions;
 
 /** Mount (run the effects, let the read settle), then render again and expand @mit. */
 async function expandMit(): Promise<string> {
   h.i = 0;
-  useMentionSuggestions();
+  runMentionHook();
   for (const fn of h.effects.splice(0)) fn();
   await new Promise((r) => setTimeout(r, 0));
   h.i = 0;
-  return useMentionSuggestions().expandMentions("@mit");
+  return runMentionHook().expandMentions("@mit");
 }
 
 beforeEach(() => {

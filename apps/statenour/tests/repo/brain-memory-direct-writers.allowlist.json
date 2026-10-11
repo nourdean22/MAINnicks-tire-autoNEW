@@ -15,7 +15,6 @@
     "app/api/relationships/log-outreach/route.ts",
     "app/api/sync/nour-os/route.ts",
     "app/api/system/mission-surface-stats/route.ts",
-    "app/api/telegram/webhook/route.ts",
     "app/api/ultron/narrator/route.ts",
     "app/api/ultron/tomorrow-note/route.ts",
     "lib/ai/agents/router-metrics.ts",
