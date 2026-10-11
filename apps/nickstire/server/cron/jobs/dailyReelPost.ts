@@ -389,7 +389,26 @@ export function facebookLiveWithoutInstagram(
   return null;
 }
 
-export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; details?: string }> {
+type DailyReelResult = { recordsProcessed?: number; details?: string };
+
+/** Packs one pulse may step past because they already have a job. */
+const MAX_QUEUED_PACK_SKIPS = 5;
+
+/**
+ * An approved pack whose episode already has a reel job (old, parked, posted)
+ * dedupes at enqueue and creates nothing. The pulse used to report that as
+ * "Enqueued" and leave the cursor on the pack, so every production hour
+ * re-picked it (2026-10-11: job 2040001 swallowed the 06:00 ET pulse). Now the
+ * pulse advances past it and tries the next pack, up to MAX_QUEUED_PACK_SKIPS.
+ */
+export async function runDailyReelPost(): Promise<DailyReelResult> {
+  for (let skips = 0; ; skips++) {
+    const { packAlreadyQueued, ...result } = await runDailyReelPostOnce();
+    if (!packAlreadyQueued || skips >= MAX_QUEUED_PACK_SKIPS) return result;
+  }
+}
+
+async function runDailyReelPostOnce(): Promise<DailyReelResult & { packAlreadyQueued?: true }> {
   if (process.env.REEL_AUTOPOST_ENABLED !== "true") {
     return { recordsProcessed: 0, details: "disabled (REEL_AUTOPOST_ENABLED != true)" };
   }
@@ -961,8 +980,9 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // fault is transient and must stay loud, which is why this catches the
     // TYPED error and nothing wider.
     let jobId: number;
+    let deduped: true | undefined;
     try {
-      ({ jobId } = await enqueueReelJob(brief, "cron", {
+      ({ jobId, deduped } = await enqueueReelJob(brief, "cron", {
       objective: "DISCOVERY",
       disclosureMode: "visibly_animated",
       // ReelBrief (the generator's shape) has no ctaType yet — the generated
@@ -1010,6 +1030,24 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       return {
         recordsProcessed: 0,
         details: `skipped — approved pack ${approvedPack.slug} blocked at enqueue preflight, rotation advanced: ${err.message}`,
+      };
+    }
+    if (deduped && approvedPack) {
+      const advanced = await advanceRotationPastRefusedPack({
+        jobId,
+        jobPackSlug: approvedPack.slug,
+        jobPackPool: packSelection.state === "active_slate" ? "active_slate" : "full_approved_library",
+        jobSlateRevision: packSelection.state === "active_slate" ? activeSlate.updatedAt : null,
+        reason: `pack already has reel job ${jobId}`,
+      });
+      log.warn("daily reel: approved pack already has a job — nothing enqueued", {
+        slug: approvedPack.slug, jobId, advancedTo: advanced,
+      });
+      return {
+        recordsProcessed: 0,
+        details: `skipped — approved pack ${approvedPack.slug} already has reel job ${jobId}${advanced === null ? ", rotation NOT advanced" : `, rotation advanced to ${advanced}`}`,
+        // Retrying after a held cursor would re-pick the same pack.
+        ...(advanced === null ? {} : { packAlreadyQueued: true as const }),
       };
     }
     log.info(`Enqueued new dynamic reel job: ${jobId} for briefId: ${briefId} (brief attempt ${prepared.attempts})`);
