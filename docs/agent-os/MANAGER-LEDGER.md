@@ -9,4 +9,5 @@ Status: PLANNED | RUNNING | BLOCKED | BUILT | MERGED | LIVE-VERIFIED | CANCELLED
 
 | Job id | Date | Job | Lanes | Status | PR / SHA | Next action or blocker | Lesson |
 |---|---|---|---|---|---|---|---|
-| 2026-10-11-agent-core | 2026-10-11 | Agent core, manager skill, lane agents | platform | BUILT | this PR | merge, then schedule the heartbeat | lanes were implicit until `.claude/agents/` existed |
+| 2026-10-11-agent-core | 2026-10-11 | Agent core, manager skill, lane agents | platform | MERGED | #2990 | heartbeat scheduled 2026-10-11 (am/pm tasks enabled, first run 13:37Z) | lanes were implicit until `.claude/agents/` existed |
+| 2026-10-11-manager-proof | 2026-10-11 | Prove the manager: lane path check + canary, resume test | platform + statenour | RUNNING | - | integrate both lanes in one PR; record resume test | |

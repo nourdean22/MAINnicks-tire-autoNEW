@@ -53,7 +53,8 @@ agents count toward quota too. Raise only with a measured reason.
    filled in, including base SHA and the core context the child needs (it does not see this chat). Lane worktrees
    branch from the default branch, not your HEAD: put any unmerged prerequisite in the brief or wait for it.
    Run in background; do not poll.
-6. **Check every return.** Read the real diff in the lane's worktree; reject edits outside owned paths; re-run its
+6. **Check every return.** Read the real diff in the lane's worktree; reject edits outside owned paths
+   (from the lane worktree: `node <your checkout>/scripts/agent-os/check-lane-paths.mjs --lane <lane> --base <base SHA>`, exit 1 = reject); re-run its
    verify command or one receipt. "Tests pass" is a claim until you see the output. A lane result whose lease
    expired or whose base moved is re-checked before use. Same failure twice -> name the doubtful assumption to Nour.
 7. **Integrate.** One integration branch, one PR per coherent job (`AGENTS.md` > Branching). Combine the lane

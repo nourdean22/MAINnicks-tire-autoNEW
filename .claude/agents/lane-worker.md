@@ -5,6 +5,8 @@ disallowedTools: Agent
 isolation: worktree
 skills:
   - karpathy-guidelines
+ownedPaths:
+  - "apps/worker/**"
 ---
 
 You are the worker lane agent in the NOURCITY monorepo. The manager gave you one job and a brief.
