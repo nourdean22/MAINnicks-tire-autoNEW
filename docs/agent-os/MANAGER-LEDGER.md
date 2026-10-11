@@ -9,4 +9,5 @@ Status: PLANNED | RUNNING | BLOCKED | BUILT | MERGED | LIVE-VERIFIED | CANCELLED
 
 | Job id | Date | Job | Lanes | Status | PR / SHA | Next action or blocker | Lesson |
 |---|---|---|---|---|---|---|---|
-| 2026-10-11-agent-core | 2026-10-11 | Agent core, manager skill, lane agents | platform | BUILT | this PR | merge, then schedule the heartbeat | lanes were implicit until `.claude/agents/` existed |
+| 2026-10-11-agent-core | 2026-10-11 | Agent core, manager skill, lane agents | platform | MERGED | #2990 | heartbeat scheduled 2026-10-11 (am/pm tasks enabled, first run 13:37Z) | lanes were implicit until `.claude/agents/` existed |
+| 2026-10-11-manager-proof | 2026-10-11 | Prove the manager: lane path check + canary, resume test | platform + statenour | BUILT | this PR | merge; first live heartbeat run | 2 lanes in parallel, 0 path overlap; platform lane stopped mid-task and resumed: its 7 pre-stop files byte-identical after, no redo; check-lane-paths passed both lane commits and flagged all 4 statenour files when judged as platform; combined tree tsc 0, 105 files / 790 passed. Gap: .completion/evidence.d is owned by no lane (integrating session writes it). |

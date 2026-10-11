@@ -6,6 +6,8 @@ isolation: worktree
 skills:
   - karpathy-guidelines
   - nickstire-ios-pwa-primitives
+ownedPaths:
+  - "apps/nickstire/client/**"
 ---
 
 You are the nickstire-client lane agent in the NOURCITY monorepo. The manager gave you one job and a brief.

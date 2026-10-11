@@ -6,6 +6,8 @@ isolation: worktree
 skills:
   - karpathy-guidelines
   - statenour-verify
+ownedPaths:
+  - "apps/statenour/**"
 ---
 
 You are the statenour lane agent in the NOURCITY monorepo. The manager gave you one job and a brief.

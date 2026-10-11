@@ -6,6 +6,13 @@ isolation: worktree
 skills:
   - karpathy-guidelines
   - nickstire-verify
+ownedPaths:
+  - "apps/nickstire/server/**"
+  - "apps/nickstire/drizzle/**"
+  - "apps/nickstire/shared/**"
+  - "apps/nickstire/scripts/**"
+  - "apps/nickstire/tests/**"
+  - "apps/nickstire/docs/**"
 ---
 
 You are the nickstire-server lane agent in the NOURCITY monorepo. The manager gave you one job and a brief.

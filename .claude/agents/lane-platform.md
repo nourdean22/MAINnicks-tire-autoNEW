@@ -6,6 +6,36 @@ isolation: worktree
 skills:
   - karpathy-guidelines
   - guard-red-team
+ownedPaths:
+  - ".github/**"
+  - "scripts/**"
+  - "config/**"
+  - "packages/**"
+  - ".claude/**"
+  - ".agents/**"
+  - "docs/agent-os/**"
+  - "turbo.json"
+  - "lefthook.yml"
+  - "package.json"
+  - "pnpm-lock.yaml"
+  - "pnpm-workspace.yaml"
+  - "knip.json"
+  - "CLAUDE.md"
+  - "GEMINI.md"
+  - "AGENTS.md"
+  - "AGENT-OPERATING-PROFILE.md"
+  - "CLAUDE-OPERATING-PROFILE.md"
+  - "NOUR-COMMAND.md"
+  - "README.md"
+  - ".gitleaksignore"
+  - ".gitleaks.toml"
+  - ".gitignore"
+  - ".gitattributes"
+  - ".graphifyignore"
+  - ".node-version"
+  - ".prettierrc"
+  - ".prettierignore"
+  - ".syncpackrc.json"
 ---
 
 You are the platform lane agent in the NOURCITY monorepo. The manager gave you one job and a brief.
