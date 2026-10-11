@@ -35,8 +35,8 @@ review counts) are read from source files, never copied here. [Letters] cite sou
 
 ## Settled - do not re-ask
 
-Weather SMS stays on. The review-flywheel idea is rejected. Reels carry no AI label and no disclosure
-clause (2026-10-11, replaces the quiet-clause standard); Rule 1 still bars AI footage framed as real. [L] Facts marked REFUTED in `apps/statenour/docs/OPERATOR-BIOGRAPHY.md` stay refuted. [A]
+Weather SMS stays on. The review-flywheel idea is rejected. Reels carry no AI label or disclosure clause (2026-10-11;
+Rule 1 still bars AI footage framed as real). [L] Facts marked REFUTED in `apps/statenour/docs/OPERATOR-BIOGRAPHY.md` stay refuted. [A]
 
 ## Corrections
 
