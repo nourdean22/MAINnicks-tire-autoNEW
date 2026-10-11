@@ -101,7 +101,7 @@ work, the Skill call must be in the transcript.
   steps, one next action); UI, copy or mobile work reads `.claude/skills/antislop/SKILL.md` then the task skill, mode per its Two Usage Modes.
 - `karpathy-guidelines` — every code task · simplest thing · surgical edits. `verification-before-completion`: no done without a fresh check.
 - `using-superpowers` then `ponytail` — every task, invoked FIRST (operator, 2026-10-10; always on here and globally): if a skill might
-  apply, invoke it (process skills in `.claude/skills/` before implementation); then the smallest complete change. Re-armed after compaction: ~/.claude/hooks/always-on-skills.mjs.
+  apply, invoke it (process skills in `.claude/skills/` before implementation); then the smallest complete change. Compaction re-arm is machine-local (NattyNour ~/.claude hook); a fresh clone has none.
 - `brainstorming` — before building anything new · vague ideas -> validated design.
 - `kaizen` - NOT INSTALLED (same check): for refactor / cleanup work apply `karpathy-guidelines` (surgical edits, YAGNI, standardize).
 

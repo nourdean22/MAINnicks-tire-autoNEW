@@ -6,6 +6,8 @@ license: MIT
 
 # Karpathy Guidelines
 
+> **Precedence in the NOURCITY repo (and for this operator):** AGENTS.md and the operating profile win. "Stop and ask" means only when critical information is missing after checking the repo; for a reversible, partly unclear choice, state the assumption and proceed. "No features beyond what was asked" bans unrelated work, never the wiring, tests and consumers needed to make the requested outcome reachable.
+
 Behavioral guidelines to reduce common LLM coding mistakes, derived from [Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding pitfalls.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
