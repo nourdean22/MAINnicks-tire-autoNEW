@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "chore/manager-proof-lane-guard",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "dff9bdca-04aa-49eb-ae9d-b4de9fd51e44",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
+  "claimedBy": "2026-10-11-manager-proof",
+  "claimedAt": "2026-10-11T14:24:43.218Z",
+  "expiresAt": "2026-10-12T02:24:43.218Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
