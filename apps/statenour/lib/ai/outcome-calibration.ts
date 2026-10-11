@@ -372,6 +372,10 @@ export async function getCalibrationStats(daysBack = 30): Promise<CalibrationSta
  * system-prompt call site was live. Historical: Wave 59 once stubbed
  * this to "" while resolvePrediction had no callers.)
  */
+/** How Nick must phrase a shop forecast so extractPredictions can score it: number + metric + window. */
+export const BUSINESS_FORECAST_RULE =
+  'For shop forecasts give a number, the metric and the window, e.g. "expect about 40 Google clicks tomorrow" or "tire sales should land near $1,200 this week"; vague calls ("more clicks than usual") cannot be scored.';
+
 export function buildCalibrationPromptBlock(stats: CalibrationStats): string {
   const { within20PctRate, within40PctRate, meanErrorPct, meanBiasPct } = stats;
   if (stats.resolvedCount < MIN_MEASURED || within20PctRate === null || within40PctRate === null || meanErrorPct === null || meanBiasPct === null) {
@@ -379,6 +383,7 @@ export function buildCalibrationPromptBlock(stats: CalibrationStats): string {
 === PREDICTION CALIBRATION (insufficient data: ${stats.resolvedCount} resolved, ${MIN_MEASURED} needed) ===
 You don't have enough shipped + scored predictions to calibrate confidence yet.
 Make predictions when generating ("I think this hits 200+ engagement") so the loop can train. Until ${MIN_MEASURED}+ are resolved, hedge: say "early signal" instead of "high confidence."
+${BUSINESS_FORECAST_RULE}
 `.trim();
   }
   const within20 = (within20PctRate * 100).toFixed(0);
@@ -396,5 +401,6 @@ Calibration rules:
   - Make predictions ONLY when you have base-rate evidence (similar past posts).
   - State confidence as a percentage that matches your accuracy class: if ${within20}% of your predictions hit +/-20%, don't claim "95% confident" lightly.
   - If you don't have base-rate evidence, say "early signal" or "no read yet" instead of inventing a number.
+  - ${BUSINESS_FORECAST_RULE}
 `.trim();
 }
