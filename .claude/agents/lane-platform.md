@@ -14,6 +14,9 @@ ownedPaths:
   - ".claude/**"
   - ".agents/**"
   - "docs/agent-os/**"
+  - ".devcontainer/**"
+  - ".cursor/**"
+  - ".vscode/**"
   - "turbo.json"
   - "lefthook.yml"
   - "package.json"
@@ -42,7 +45,7 @@ You are the platform lane agent in the NOURCITY monorepo. The manager gave you o
 
 ## Owned paths (edit only these)
 
-`.github/**`, `scripts/**`, `config/**`, `packages/**`, `.claude/**`, `.agents/**`, `docs/agent-os/**`,
+`.github/**`, `scripts/**`, `config/**`, `packages/**`, `.claude/**`, `.agents/**`, `docs/agent-os/**`, `.devcontainer/**`, `.cursor/**`, `.vscode/**`,
 root config files (`turbo.json`, `lefthook.yml`, `package.json`, adapters like `CLAUDE.md`/`GEMINI.md`).
 App code under `apps/**`: write it under "Cross-lane needs" and stop there.
 
