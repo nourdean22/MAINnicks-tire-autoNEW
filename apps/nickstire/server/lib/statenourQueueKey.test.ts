@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { statenourQueueKey } from "./content";
+import { statenourQueueKey } from "./statenourQueueKey";
 
 describe("statenourQueueKey", () => {
   it("prefers the scoped queue key", () => {
@@ -16,7 +16,7 @@ describe("statenourQueueKey", () => {
 });
 
 describe("both Command Queue calls use it", () => {
-  const src = readFileSync(resolve(__dirname, "content.ts"), "utf8");
+  const src = readFileSync(resolve(__dirname, "../routers/content.ts"), "utf8");
   it("list and act read statenourQueueKey(), not the bridge key directly", () => {
     const calls = src.match(/const syncKey = statenourQueueKey\(\);/g) ?? [];
     expect(calls.length).toBe(2);
