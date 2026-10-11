@@ -83,7 +83,8 @@ export const SHADOW_JUDGE_ROLLOUT_DATE = "2026-08-13";
  * `createdAt` is enqueue time, not publish time. The briefId's date is immutable
  * and is the reel's own calendar day.
  */
-const AUTOPOST_BRIEF_ID = /^autopost-(\d{4}-\d{2}-\d{2})$/;
+// Optional -pm: the 18:00 ET production run uses autopost-<date>-pm (2026-10-11).
+const AUTOPOST_BRIEF_ID = /^autopost-(\d{4}-\d{2}-\d{2})(?:-pm)?$/;
 
 export type EligibilityReason =
   | "eligible"

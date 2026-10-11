@@ -282,8 +282,14 @@ describe("the eligibility regex is pinned to its PRODUCER, not just to itself", 
     "utf8",
   );
 
-  it("dailyReelPost still builds the briefId as `autopost-${date}`", () => {
-    expect(cron).toContain("const briefId = `autopost-${date}`;");
+  it("dailyReelPost still builds the briefId as `autopost-${date}` (evening run: `-pm`)", () => {
+    expect(cron).toContain("const morningId = `autopost-${date}`;");
+    expect(cron).toContain("const briefId = evening ? `${morningId}-pm` : morningId;");
+  });
+
+  it("the evening run id autopost-<date>-pm is eligible too, and a stray suffix is not", () => {
+    expect(shadowJudgeEligibility({ jobId: 1, status: "posted", briefId: "autopost-2026-10-11-pm" })).toEqual({ eligible: true, reason: "eligible" });
+    expect(shadowJudgeEligibility({ jobId: 1, status: "posted", briefId: "autopost-2026-10-11-am" }).eligible).toBe(false);
   });
 
   it("and still formats that date as YYYY-MM-DD via the en-CA locale", () => {
