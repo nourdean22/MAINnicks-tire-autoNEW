@@ -235,7 +235,7 @@ async function processVideoRenders(): Promise<void> {
       return; // No pending renders
     }
 
-    const { id, content, kind, sourceMetadata } = lease.item;
+    const { id, content, kind, sourceMetadata, leaseExpiresAt } = lease.item;
     console.log(`[scheduler-video] found render task for queue item ${id}`);
 
     // A review video only from a declared review; anything that is neither a
@@ -276,9 +276,11 @@ async function processVideoRenders(): Promise<void> {
           "Content-Type": "application/json",
           "User-Agent": "statenour-worker/1.0 (railway)",
         },
+        // The lease this worker holds: a reclaimed row has a newer one, so a stale worker gets 409.
         body: JSON.stringify({
           id,
           videoUrl: uploadResult.url,
+          leaseExpiresAt,
         }),
       });
 

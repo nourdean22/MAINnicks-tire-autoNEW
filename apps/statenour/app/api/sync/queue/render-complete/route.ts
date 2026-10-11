@@ -18,10 +18,16 @@ import { ServiceError } from "@/lib/utils/service-error";
 export const POST = apiHandler(
   async (req) => {
     const body = await req.json();
-    const { id, videoUrl } = body;
+    const { id, videoUrl, leaseExpiresAt } = body;
 
     if (!id || !videoUrl) {
       return { ok: false, error: "Missing id or videoUrl" };
+    }
+    // The caller's own lease (GET /render returned it): only the current holder may complete.
+    // shortcut: a body without it keeps the any-lease check so an older worker still completes; require it once workers send it.
+    const lease = leaseExpiresAt == null ? null : new Date(leaseExpiresAt);
+    if (lease && Number.isNaN(lease.getTime())) {
+      return { ok: false, error: "Invalid leaseExpiresAt" };
     }
 
     const existing = await prisma.socialPublishQueue.findUnique({
@@ -40,7 +46,7 @@ export const POST = apiHandler(
         id,
         deletedAt: null,
         status: "rendering",
-        renderLeaseExpiresAt: { not: null },
+        renderLeaseExpiresAt: lease ?? { not: null },
         scheduledFor: existing.scheduledFor,
       },
       data: {

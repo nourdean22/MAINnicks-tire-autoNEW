@@ -85,7 +85,7 @@ export async function GET(
       // the linger); the history load already shows this row, so a replay
       // would be a second copy of it. An in-flight turn below still replays.
       if (!wantedTrace) return new Response(null, { status: 204 });
-      const message = await findAssistantMessage(conversationId, record.startedAt);
+      const message = await findAssistantMessage(conversationId, record.startedAt, record.traceId);
       if (!message) return new Response(null, { status: 204 });
       const replay = streamOut(msgId, (write) => {
         write(message.content);
@@ -127,7 +127,7 @@ export async function GET(
             emitted = next.partialText;
           }
           if (next.status === "complete") {
-            const message = await findAssistantMessage(conversationId, next.startedAt);
+            const message = await findAssistantMessage(conversationId, next.startedAt, next.traceId);
             persisted = message;
             // The persisted row is canonical and MAY diverge from the
             // raw deltas (L2 fabrication-rewriter prepends a banner
@@ -226,12 +226,15 @@ export async function DELETE(
   }
 }
 
-function findAssistantMessage(conversationId: string, startedAt: string) {
+// The turn's own reply carries its traceId in tokenUsage; deferred work adds a newer
+// "Action receipts" row (no tokenUsage) and a later turn adds its own reply, so match the trace.
+function findAssistantMessage(conversationId: string, startedAt: string, traceId?: string | null) {
   return prisma.chatMessage.findFirst({
     where: {
       conversationId,
       role: "assistant",
       createdAt: { gte: new Date(startedAt) },
+      ...(traceId ? { tokenUsage: { path: ["traceId"], equals: traceId } } : {}),
     },
     orderBy: { createdAt: "desc" },
     select: { id: true, content: true },
