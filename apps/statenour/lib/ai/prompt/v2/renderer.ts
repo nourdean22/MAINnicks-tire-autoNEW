@@ -22,7 +22,14 @@
 
 import type { NickPrimeContext } from "@/lib/ai/context/nick-prime-context";
 import { sanitizeForPrompt } from "@/lib/ai/prompt/sanitize";
-import { fenceContent } from "@/lib/ai/tool-result-fencing";
+// A client panel imports this module, so the fence is pure here (tool-result-fencing pulls in
+// prisma). The turn taint is applied by lib/ai/system-prompt.ts from the served prompt text.
+function fenceInbound(body: string): string {
+  const clean = body.replace(/<\s*\/?\s*tool_data[^>]*>?/gi, "[fence-tag-stripped]");
+  return `<tool_data tool="inbound-crm" source="external_doc">
+${clean}
+</tool_data tool="inbound-crm">`;
+}
 import { ALERT_LABEL } from "@/lib/ai/prompt/policy/operator-rules";
 import { describeConfidenceAsAttention } from "@/lib/brain/attention-label";
 
@@ -618,12 +625,12 @@ function renderCommands(ctx: NickPrimeContext): string {
       lines.push(`  [${safe(cmd.priority, 20)}] ${safe(cmd.title, 100)}`);
     }
     // inbound-crm titles are model output over a stranger's email: data, not Nour's words.
-    // The fence taints the turn that renders it; lib/ai/system-prompt.ts re-applies the taint on a 300s cache hit.
+    // lib/ai/system-prompt.ts taints any turn whose served prompt carries this fence (cache hit or miss).
     const inbound = shown.filter((c) => c.createdBy === "inbound-crm");
     if (inbound.length > 0) {
       lines.push(
         `  Queued from inbound messages (outside sender, unverified):`,
-        fenceContent("inbound-crm", "external_doc", inbound.map((c) => `[${safe(c.priority, 20)}] ${safe(c.title, 100)}`).join("\n")),
+        fenceInbound(inbound.map((c) => `[${safe(c.priority, 20)}] ${safe(c.title, 100)}`).join("\n")),
       );
     }
   }
