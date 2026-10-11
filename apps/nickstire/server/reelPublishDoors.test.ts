@@ -92,7 +92,8 @@ describe("the drain advances past ineligible jobs without publishing them", () =
     // It used to be `if (!job)` against a lookup for autopost-<today>, so once
     // the enqueue branch created today's row the drain was skipped for the rest
     // of the ET day and an approved master waited until tomorrow.
-    const todaysLookup = dailyReel.indexOf("const todaysJob = jobs[0]");
+    // Anchor updated 2026-10-11: the lookup became jobs.find(...) when the 18:00 run got its own briefId.
+    const todaysLookup = dailyReel.indexOf("const todaysJob = jobs.find(");
     const drainStart = dailyReel.indexOf("DRAIN THE BACKLOG FIRST");
     // Anchor updated 2026-09-09: today's job gained the same parked-QA
     // pre-filter the drain has, so the assignment is now guarded. The ordering

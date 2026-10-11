@@ -11,6 +11,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { sliceBlock } from "./testUtils/sourceBlock";
 
 const ORIGINAL_FLAG = process.env.REEL_AUTOPOST_ENABLED;
 
@@ -106,8 +107,7 @@ describe("every post writer records the count", () => {
   });
 
   it("the date-only writer stamps date and count in one transaction", () => {
-    const i = CRON.indexOf("async function setAutopostDate");
-    const body = CRON.slice(i, CRON.indexOf("\n}\n", i));
+    const body = sliceBlock(CRON, "async function setAutopostDate", "\n}\n");
     expect(body).toContain("d.transaction(");
   });
 });
